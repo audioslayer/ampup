@@ -1,15 +1,10 @@
-using System.Runtime.InteropServices;
 using NAudio.CoreAudioApi;
 
 namespace WolfMixer;
 
 public class AudioMixer : IDisposable
 {
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetForegroundWindow();
-
-    [DllImport("user32.dll")]
-    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+    // P/Invoke declarations consolidated in NativeMethods.cs
 
     private readonly MMDeviceEnumerator _enumerator = new();
     private readonly Dictionary<int, int> _lastValues = new();
@@ -225,10 +220,10 @@ public class AudioMixer : IDisposable
     {
         try
         {
-            IntPtr hwnd = GetForegroundWindow();
+            IntPtr hwnd = NativeMethods.GetForegroundWindow();
             if (hwnd == IntPtr.Zero) return;
 
-            GetWindowThreadProcessId(hwnd, out uint pid);
+            NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
             if (pid == 0) return;
 
             lock (_lock)
@@ -356,10 +351,10 @@ public class AudioMixer : IDisposable
     {
         try
         {
-            IntPtr hwnd = GetForegroundWindow();
+            IntPtr hwnd = NativeMethods.GetForegroundWindow();
             if (hwnd == IntPtr.Zero) return 0f;
 
-            GetWindowThreadProcessId(hwnd, out uint pid);
+            NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
             if (pid == 0) return 0f;
 
             lock (_lock)
@@ -419,10 +414,10 @@ public class AudioMixer : IDisposable
     {
         try
         {
-            IntPtr hwnd = GetForegroundWindow();
+            IntPtr hwnd = NativeMethods.GetForegroundWindow();
             if (hwnd == IntPtr.Zero) return "";
 
-            GetWindowThreadProcessId(hwnd, out uint pid);
+            NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
             if (pid == 0) return "";
 
             var proc = System.Diagnostics.Process.GetProcessById((int)pid);

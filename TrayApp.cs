@@ -1,5 +1,4 @@
 using System.Drawing.Drawing2D;
-using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using NAudio.CoreAudioApi;
 
@@ -7,8 +6,7 @@ namespace WolfMixer;
 
 public class TrayApp : ApplicationContext
 {
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool DestroyIcon(IntPtr hIcon);
+    // P/Invoke declarations consolidated in NativeMethods.cs
 
     private readonly NotifyIcon _trayIcon;
     private AppConfig _config;
@@ -262,7 +260,7 @@ public class TrayApp : ApplicationContext
         if (key == null) return;
 
         if (_config.StartWithWindows)
-            key.SetValue(valueName, $"\"{Application.ExecutablePath}\"");
+            key.SetValue(valueName, $"\"{System.Windows.Forms.Application.ExecutablePath}\"");
         else
             key.DeleteValue(valueName, false);
     }
@@ -276,7 +274,7 @@ public class TrayApp : ApplicationContext
         _rgb.Dispose();
         _enumerator.Dispose();
         _trayIcon.Visible = false;
-        Application.Exit();
+        System.Windows.Forms.Application.Exit();
     }
 
     private static Icon BuildIcon(bool connected = true)
@@ -314,6 +312,6 @@ public class TrayApp : ApplicationContext
         // GetHicon creates a Win32 HICON that must be freed — Icon.FromHandle does NOT own the handle
         IntPtr hIcon = bmp.GetHicon();
         try { return (Icon)Icon.FromHandle(hIcon).Clone(); }
-        finally { DestroyIcon(hIcon); }
+        finally { NativeMethods.DestroyIcon(hIcon); }
     }
 }

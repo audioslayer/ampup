@@ -1,0 +1,40 @@
+<UserControl x:Class="WolfMixer.Views.ButtonsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- BTN 1 -->
+            <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,4,0">
+                <StackPanel x:Name="Btn0Panel" />
+            </Border>
+
+            <!-- BTN 2 -->
+            <Border Grid.Column="1" Style="{StaticResource CardPanel}" Margin="4,0">
+                <StackPanel x:Name="Btn1Panel" />
+            </Border>
+
+            <!-- BTN 3 -->
+            <Border Grid.Column="2" Style="{StaticResource CardPanel}" Margin="4,0">
+                <StackPanel x:Name="Btn2Panel" />
+            </Border>
+
+            <!-- BTN 4 -->
+            <Border Grid.Column="3" Style="{StaticResource CardPanel}" Margin="4,0">
+                <StackPanel x:Name="Btn3Panel" />
+            </Border>
+
+            <!-- BTN 5 -->
+            <Border Grid.Column="4" Style="{StaticResource CardPanel}" Margin="4,0,0,0">
+                <StackPanel x:Name="Btn4Panel" />
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

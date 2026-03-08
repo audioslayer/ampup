@@ -69,6 +69,14 @@ public class SerialReader : IDisposable
             {
                 int n = await _port.BaseStream.ReadAsync(tmp, 0, tmp.Length, ct);
                 for (int i = 0; i < n; i++) _buf.Add(tmp[i]);
+
+                // Security: prevent unbounded buffer growth from malformed data
+                if (_buf.Count > 256)
+                {
+                    Logger.Log($"Serial buffer overflow ({_buf.Count} bytes), clearing");
+                    _buf.Clear();
+                }
+
                 ParseFrames();
             }
             catch (OperationCanceledException) { break; }

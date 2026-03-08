@@ -1,30 +1,11 @@
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using NAudio.CoreAudioApi;
 
 namespace WolfMixer;
 
 public class ButtonHandler
 {
-    // ── P/Invoke ──────────────────────────────────────────────────────
-
-    [DllImport("user32.dll")]
-    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetForegroundWindow();
-
-    [DllImport("user32.dll")]
-    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
-
-    [DllImport("user32.dll")]
-    private static extern bool LockWorkStation();
-
-    [DllImport("user32.dll")]
-    private static extern bool ExitWindowsEx(uint uFlags, uint dwReason);
-
-    [DllImport("user32.dll")]
-    private static extern short VkKeyScan(char ch);
+    // P/Invoke declarations consolidated in NativeMethods.cs
 
     // ── Virtual key constants ─────────────────────────────────────────
 
@@ -253,8 +234,8 @@ public class ButtonHandler
 
     private static void PressKey(byte vk)
     {
-        keybd_event(vk, 0, 0, UIntPtr.Zero);
-        keybd_event(vk, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+        NativeMethods.keybd_event(vk, 0, 0, UIntPtr.Zero);
+        NativeMethods.keybd_event(vk, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
     }
 
     // ── Launch executable ─────────────────────────────────────────────
@@ -344,14 +325,14 @@ public class ButtonHandler
     {
         try
         {
-            var hwnd = GetForegroundWindow();
+            var hwnd = NativeMethods.GetForegroundWindow();
             if (hwnd == IntPtr.Zero)
             {
                 Logger.Log("mute_active_window: no foreground window");
                 return;
             }
 
-            GetWindowThreadProcessId(hwnd, out uint pid);
+            NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
             if (pid == 0)
             {
                 Logger.Log("mute_active_window: could not get PID");
@@ -604,18 +585,18 @@ public class ButtonHandler
 
             // Press modifiers down
             foreach (var mod in modifiers)
-                keybd_event(mod, 0, 0, UIntPtr.Zero);
+                NativeMethods.keybd_event(mod, 0, 0, UIntPtr.Zero);
 
             // Press and release each key
             foreach (var key in keys)
             {
-                keybd_event(key, 0, 0, UIntPtr.Zero);
-                keybd_event(key, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                NativeMethods.keybd_event(key, 0, 0, UIntPtr.Zero);
+                NativeMethods.keybd_event(key, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
             }
 
             // Release modifiers in reverse order
             for (int i = modifiers.Count - 1; i >= 0; i--)
-                keybd_event(modifiers[i], 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                NativeMethods.keybd_event(modifiers[i], 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
 
             Logger.Log($"macro: executed '{macroKeys}'");
         }
@@ -659,7 +640,7 @@ public class ButtonHandler
         // Single character — use VkKeyScan
         if (keyName.Length == 1)
         {
-            short result = VkKeyScan(keyName[0]);
+            short result = NativeMethods.VkKeyScan(keyName[0]);
             byte vk = (byte)(result & 0xFF);
             if (vk != 0xFF)
                 return vk;
@@ -703,15 +684,15 @@ public class ButtonHandler
             {
                 case "sleep":
                     Logger.Log("system_power: sleep");
-                    Application.SetSuspendState(PowerState.Suspend, false, false);
+                    NativeMethods.SetSuspendState(false, false, false);
                     break;
                 case "hibernate":
                     Logger.Log("system_power: hibernate");
-                    Application.SetSuspendState(PowerState.Hibernate, false, false);
+                    NativeMethods.SetSuspendState(true, false, false);
                     break;
                 case "lock":
                     Logger.Log("system_power: lock");
-                    LockWorkStation();
+                    NativeMethods.LockWorkStation();
                     break;
                 case "shutdown":
                     Logger.Log("system_power: shutdown");
@@ -723,7 +704,7 @@ public class ButtonHandler
                     break;
                 case "logoff":
                     Logger.Log("system_power: logoff");
-                    ExitWindowsEx(0, 0);
+                    NativeMethods.ExitWindowsEx(0, 0);
                     break;
                 default:
                     Logger.Log($"system_power: unknown power action '{powerAction}'");
