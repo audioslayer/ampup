@@ -246,3 +246,34 @@ Morning deployment: run deploy.bat from C:\Users\audio\Desktop\WolfMixer\
 6. Use Graphics.SmoothingMode = SmoothingMode.AntiAlias everywhere you draw custom shapes
 7. All custom colors defined as static readonly at the top of ConfigForm, matching the palette above
 8. The window does NOT need a custom title bar — Windows default title bar is fine, keep FormBorderStyle.FixedDialog
+
+## Integrations (Phase 2)
+
+### Home Assistant
+- Knob targets: ha_light:{entity_id}, ha_media:{entity_id}, ha_cover:{entity_id}, ha_fan:{entity_id}
+- Button actions: ha_toggle:{entity_id}, ha_scene:{scene_id}, ha_script:{script_id}
+- Setup: Settings tab → "Integrations..." button → enter HA URL + long-lived access token
+- Easy for end users: paste URL, paste token from HA profile page, click Test
+
+### Fan Control (by Rem0o)
+- Knob targets: fanctrl:{controlId}
+- Setup: Install Fan Control app (free, github.com/Rem0o/FanControl.Releases), enable HTTP server in FC settings
+- Enter FC URL in Integrations settings (default: http://localhost:5550)
+- Works with: all fan controllers supported by Fan Control (hundreds of boards)
+
+### Wire-up notes (for AudioMixer.cs)
+In AudioMixer.SetVolume(), add target handling:
+```csharp
+if (target.StartsWith("ha_"))
+{
+    _ = _ha?.HandleKnobAsync(knob.Target, vol);
+    return;
+}
+if (target.StartsWith("fanctrl:"))
+{
+    var controlId = FanController.ParseTarget(knob.Target);
+    _ = _fanCtrl?.SetSpeedAsync(controlId, vol);
+    return;
+}
+```
+HAIntegration and FanController instances are passed into AudioMixer constructor.

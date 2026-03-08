@@ -1,3 +1,5 @@
+using System.Drawing.Drawing2D;
+
 namespace WolfMixer;
 
 public class ConfigForm : Form
@@ -9,14 +11,17 @@ public class ConfigForm : Form
     private System.Windows.Forms.Timer _debounceTimer = new();
 
     // Theme
-    private static readonly Color BgDark = Color.FromArgb(27, 27, 27);
-    private static readonly Color CardBg = Color.FromArgb(38, 38, 38);
-    private static readonly Color CardBorder = Color.FromArgb(55, 55, 55);
-    private static readonly Color Accent = Color.FromArgb(0, 180, 216);
-    private static readonly Color TextPrimary = Color.FromArgb(224, 224, 224);
-    private static readonly Color TextDim = Color.FromArgb(120, 120, 120);
-    private static readonly Color InputBg = Color.FromArgb(48, 48, 48);
-    private static readonly Color TrackBg = Color.FromArgb(60, 60, 60);
+    private static readonly Color BgDark      = Color.FromArgb(20, 20, 20);
+    private static readonly Color CardBg      = Color.FromArgb(28, 28, 28);
+    private static readonly Color CardBorder  = Color.FromArgb(42, 42, 42);
+    private static readonly Color Accent      = Color.FromArgb(0, 180, 216);
+    private static readonly Color AccentGlow  = Color.FromArgb(0, 229, 255);
+    private static readonly Color TextPrimary = Color.FromArgb(232, 232, 232);
+    private static readonly Color TextSec     = Color.FromArgb(154, 154, 154);
+    private static readonly Color TextDim     = Color.FromArgb(80, 80, 80);
+    private static readonly Color InputBg     = Color.FromArgb(36, 36, 36);
+    private static readonly Color InputBorder = Color.FromArgb(54, 54, 54);
+    private static readonly Color TrackBg     = Color.FromArgb(54, 54, 54);
 
     private static readonly string[] CommonTargets =
         { "master", "mic", "system", "any", "active_window", "output_device", "input_device", "monitor", "discord", "spotify", "chrome" };
@@ -68,6 +73,11 @@ public class ConfigForm : Form
     private readonly Label[] _pctLabels = new Label[5];
     private readonly float[] _volumeValues = new float[5];
     private readonly Color[] _knobColors = new Color[5];
+    private readonly AnimatedKnobControl[] _knobControls = new AnimatedKnobControl[5];
+    private readonly VuMeterControl[] _vuMeters = new VuMeterControl[5];
+
+    // Device preview strip
+    private Panel? _devicePreviewPanel;
 
     // --- Buttons tab controls ---
     private readonly ComboBox[] _pressActionCombos = new ComboBox[5];
@@ -121,12 +131,17 @@ public class ConfigForm : Form
     private readonly Panel[] _speedPanels = new Panel[5];
     private TrackBar _brightnessSlider = null!;
     private Label _brightnessValueLabel = null!;
+    private readonly Panel[] _colorPreviewBars = new Panel[5];
 
     // --- Settings tab controls ---
     private CheckBox _startWithWindowsCb = null!;
     private ComboBox _profileCombo = null!;
     private TextBox _serialPortBox = null!;
     private TextBox _baudRateBox = null!;
+
+    // Connection status
+    private Panel? _statusPill;
+    private Label? _statusLabel;
 
     // Cached audio devices
     private List<(string Id, string Name, bool IsOutput)> _audioDevices = new();
@@ -158,7 +173,7 @@ public class ConfigForm : Form
     private void BuildUI()
     {
         Text = "WolfMixer";
-        Size = new Size(800, 680);
+        Size = new Size(900, 720);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
@@ -166,45 +181,94 @@ public class ConfigForm : Form
         ForeColor = TextPrimary;
         Font = new Font("Segoe UI", 9);
 
-        // Header
+        // ---- Header bar (48px) ----
+        var headerPanel = new Panel
+        {
+            Location = new Point(0, 0),
+            Size = new Size(900, 48),
+            BackColor = BgDark
+        };
+        headerPanel.Paint += (s, e) =>
+        {
+            using var pen = new Pen(CardBorder);
+            e.Graphics.DrawLine(pen, 0, 47, headerPanel.Width, 47);
+        };
+        Controls.Add(headerPanel);
+
         var logo = new Label
         {
-            Text = "WOLFMIXER",
+            Text = "\U0001F43A WOLFMIXER",
             Font = new Font("Segoe UI", 14, FontStyle.Bold),
             ForeColor = Accent,
-            Location = new Point(20, 8),
+            Location = new Point(16, 6),
             AutoSize = true
         };
-        Controls.Add(logo);
+        headerPanel.Controls.Add(logo);
 
         var subtitle = new Label
         {
             Text = "VOLUME MIXER",
-            Font = new Font("Segoe UI", 8),
+            Font = new Font("Segoe UI", 7),
             ForeColor = TextDim,
-            Location = new Point(172, 14),
+            Location = new Point(18, 32),
             AutoSize = true
         };
-        Controls.Add(subtitle);
+        headerPanel.Controls.Add(subtitle);
 
-        // TabControl
+        // Connection status pill
+        _statusPill = new Panel
+        {
+            Location = new Point(700, 12),
+            Size = new Size(160, 24),
+            BackColor = Color.Transparent
+        };
+        _statusPill.Paint += (s, e) =>
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            var rect = new Rectangle(0, 0, _statusPill.Width - 1, _statusPill.Height - 1);
+            using var path = RoundedRect(rect, 12);
+            using var bgBrush = new SolidBrush(CardBg);
+            g.FillPath(bgBrush, path);
+            using var borderPen = new Pen(CardBorder);
+            g.DrawPath(borderPen, path);
+
+            // Status dot
+            Color dotColor = Color.FromArgb(0, 221, 119); // green
+            using var dotBrush = new SolidBrush(dotColor);
+            g.FillEllipse(dotBrush, 10, 7, 10, 10);
+        };
+        headerPanel.Controls.Add(_statusPill);
+
+        _statusLabel = new Label
+        {
+            Text = "Connected",
+            Font = new Font("Segoe UI", 8),
+            ForeColor = TextSec,
+            Location = new Point(26, 3),
+            AutoSize = true,
+            BackColor = Color.Transparent
+        };
+        _statusPill.Controls.Add(_statusLabel);
+
+        // ---- Tab control ----
         var tabs = new TabControl
         {
-            Location = new Point(10, 38),
-            Size = new Size(764, 590),
+            Location = new Point(10, 52),
+            Size = new Size(864, 586),
             DrawMode = TabDrawMode.OwnerDrawFixed,
             SizeMode = TabSizeMode.Fixed,
-            ItemSize = new Size(100, 30),
+            ItemSize = new Size(140, 34),
             Font = new Font("Segoe UI", 9, FontStyle.Bold),
             Padding = new Point(12, 4)
         };
         tabs.DrawItem += TabControl_DrawItem;
         Controls.Add(tabs);
 
-        var knobsPage = new TabPage("Knobs") { BackColor = BgDark };
-        var buttonsPage = new TabPage("Buttons") { BackColor = BgDark };
-        var lightsPage = new TabPage("Lights") { BackColor = BgDark };
-        var settingsPage = new TabPage("Settings") { BackColor = BgDark };
+        var knobsPage = new TabPage("\u25C8  KNOBS") { BackColor = BgDark };
+        var buttonsPage = new TabPage("\u229E  BUTTONS") { BackColor = BgDark };
+        var lightsPage = new TabPage("\u275B  LIGHTS") { BackColor = BgDark };
+        var settingsPage = new TabPage("\u2699  SETTINGS") { BackColor = BgDark };
 
         tabs.TabPages.Add(knobsPage);
         tabs.TabPages.Add(buttonsPage);
@@ -216,16 +280,21 @@ public class ConfigForm : Form
         BuildLightsTab(lightsPage);
         BuildSettingsTab(settingsPage);
 
-        // Footer
-        var hint = new Label
+        // ---- Save & Apply button (bottom of form, outside tabs) ----
+        var saveBtn = new Button
         {
-            Text = "Changes apply automatically",
-            ForeColor = TextDim,
-            Location = new Point(20, 630),
-            AutoSize = true,
-            Font = new Font("Segoe UI", 7.5f)
+            Text = "SAVE & APPLY",
+            Location = new Point(10, 644),
+            Size = new Size(864, 32),
+            BackColor = Accent,
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat,
+            Font = new Font("Segoe UI", 10, FontStyle.Bold),
+            Cursor = Cursors.Hand
         };
-        Controls.Add(hint);
+        saveBtn.FlatAppearance.BorderSize = 0;
+        saveBtn.Click += (s, e) => ApplyAndSave();
+        Controls.Add(saveBtn);
 
         // Timers
         _refreshTimer = new System.Windows.Forms.Timer { Interval = 500 };
@@ -240,6 +309,20 @@ public class ConfigForm : Form
         };
     }
 
+    // ---- Rounded rect helper ----
+
+    private static GraphicsPath RoundedRect(Rectangle bounds, int radius)
+    {
+        int d = radius * 2;
+        var path = new GraphicsPath();
+        path.AddArc(bounds.X, bounds.Y, d, d, 180, 90);
+        path.AddArc(bounds.Right - d, bounds.Y, d, d, 270, 90);
+        path.AddArc(bounds.Right - d, bounds.Bottom - d, d, d, 0, 90);
+        path.AddArc(bounds.X, bounds.Bottom - d, d, d, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+
     // ---- Tab header painting (dark theme) ----
 
     private void TabControl_DrawItem(object? sender, DrawItemEventArgs e)
@@ -250,7 +333,7 @@ public class ConfigForm : Form
 
         bool selected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
         Color bgColor = selected ? CardBg : BgDark;
-        Color fgColor = selected ? Accent : TextDim;
+        Color fgColor = selected ? TextPrimary : TextDim;
 
         using (var bgBrush = new SolidBrush(bgColor))
             e.Graphics.FillRectangle(bgBrush, bounds);
@@ -276,14 +359,95 @@ public class ConfigForm : Form
 
     private void BuildKnobsTab(TabPage page)
     {
-        const int colW = 138;
-        const int colGap = 8;
+        // Device Preview Strip (72px tall at top)
+        _devicePreviewPanel = new Panel
+        {
+            Location = new Point(0, 0),
+            Size = new Size(860, 72),
+            BackColor = CardBg
+        };
+        _devicePreviewPanel.Paint += DevicePreviewPaint;
+        page.Controls.Add(_devicePreviewPanel);
+
+        const int colW = 156;
+        const int colGap = 6;
         const int startX = 10;
+        int topY = 78;
 
         for (int i = 0; i < 5; i++)
         {
             int x = startX + i * (colW + colGap);
-            BuildKnobColumn(page, i, x, 8, colW);
+            BuildKnobColumn(page, i, x, topY, colW);
+        }
+    }
+
+    private void DevicePreviewPaint(object? sender, PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+
+        var panel = (Panel)sender!;
+
+        // Bottom border
+        using (var borderPen = new Pen(CardBorder))
+            g.DrawLine(borderPen, 0, panel.Height - 1, panel.Width, panel.Height - 1);
+
+        int centerX = panel.Width / 2;
+        int totalW = 5 * 80;
+        int startX = centerX - totalW / 2;
+
+        for (int i = 0; i < 5; i++)
+        {
+            int cx = startX + i * 80 + 40;
+
+            // Mini knob circle (20px diameter)
+            int knobR = 10;
+            var knobRect = new Rectangle(cx - knobR, 8, knobR * 2, knobR * 2);
+
+            // Track arc
+            using (var trackPen = new Pen(TrackBg, 2f))
+            {
+                trackPen.StartCap = LineCap.Round;
+                trackPen.EndCap = LineCap.Round;
+                g.DrawArc(trackPen, knobRect, 135f, 270f);
+            }
+
+            // Value arc
+            float pct = _volumeValues[i];
+            if (pct > 0.005f)
+            {
+                using var valPen = new Pen(_knobColors[i], 2f);
+                valPen.StartCap = LineCap.Round;
+                valPen.EndCap = LineCap.Round;
+                g.DrawArc(valPen, knobRect, 135f, 270f * pct);
+            }
+
+            // Center dot
+            using (var dotBrush = new SolidBrush(Color.FromArgb(36, 36, 36)))
+                g.FillEllipse(dotBrush, cx - 4, 14, 8, 8);
+
+            // Mini button LED (12x7 rounded rect)
+            var ledRect = new Rectangle(cx - 6, 34, 12, 7);
+            Color ledColor = Color.FromArgb(51, 51, 51);
+            // Use configured light color if there's a button action
+            if (_config.Buttons.Count > i)
+            {
+                var btn = _config.Buttons[i];
+                if (btn.Action != "none")
+                    ledColor = _knobColors[i];
+            }
+            using (var ledBrush = new SolidBrush(ledColor))
+            {
+                using var ledPath = RoundedRect(ledRect, 2);
+                g.FillPath(ledBrush, ledPath);
+            }
+
+            // Channel label
+            string label = $"CH{i + 1}";
+            using var font = new Font("Segoe UI", 7f);
+            using var labelBrush = new SolidBrush(TextDim);
+            var sz = g.MeasureString(label, font);
+            g.DrawString(label, font, labelBrush, cx - sz.Width / 2f, 46);
         }
     }
 
@@ -293,21 +457,25 @@ public class ConfigForm : Form
             ? _config.Knobs[idx]
             : new KnobConfig { Idx = idx, Label = $"Knob {idx + 1}", Target = "master" };
 
+        int capturedIdx = idx;
+
         var card = new Panel
         {
             Location = new Point(x, y),
-            Size = new Size(w, 540),
+            Size = new Size(w, 466),
             BackColor = CardBg
         };
         card.Paint += (s, e) =>
         {
             using var pen = new Pen(CardBorder);
             e.Graphics.DrawRectangle(pen, 0, 0, card.Width - 1, card.Height - 1);
+            // Accent left border in knob color
+            using var accentPen = new Pen(_knobColors[capturedIdx], 2);
+            e.Graphics.DrawLine(accentPen, 0, 0, 0, card.Height);
         };
         page.Controls.Add(card);
 
         int cy = 6;
-        int capturedIdx = idx;
 
         // Channel number
         var numLbl = new Label
@@ -338,19 +506,37 @@ public class ConfigForm : Form
         card.Controls.Add(_labelBoxes[idx]);
         cy += 28;
 
-        // Knob gauge
-        int knobSize = 96;
-        _knobPanels[idx] = new Panel
+        // AnimatedKnobControl (replaces old panel + PaintKnobGauge)
+        int knobSize = 88;
+        var knobCtrl = new AnimatedKnobControl
         {
             Location = new Point((w - knobSize) / 2, cy),
             Size = new Size(knobSize, knobSize),
-            BackColor = Color.Transparent
+            BackColor = CardBg,
+            ArcColor = _knobColors[idx],
+            Value = 0f,
+            PercentText = "0%"
         };
-        _knobPanels[idx].Paint += (s, e) => PaintKnobGauge(e.Graphics, capturedIdx, knobSize);
-        card.Controls.Add(_knobPanels[idx]);
-        cy += knobSize + 2;
+        _knobControls[idx] = knobCtrl;
+        card.Controls.Add(knobCtrl);
 
-        // Percentage label
+        // VuMeterControl (right beside the knob)
+        var vuCtrl = new VuMeterControl
+        {
+            Location = new Point(w - 22, cy + 8),
+            Size = new Size(12, 72),
+            BackColor = CardBg,
+            BarColor = _knobColors[idx]
+        };
+        _vuMeters[idx] = vuCtrl;
+        card.Controls.Add(vuCtrl);
+
+        // Keep _knobPanels for compatibility (unused but referenced)
+        _knobPanels[idx] = new Panel { Size = Size.Empty, Visible = false };
+
+        cy += knobSize + 4;
+
+        // Percentage label (kept for compatibility, but knob shows % too)
         _pctLabels[idx] = new Label
         {
             Text = "0%",
@@ -484,7 +670,7 @@ public class ConfigForm : Form
         _minVolumeNuds[idx] = new NumericUpDown
         {
             Location = new Point(32, cy - 2),
-            Size = new Size(44, 20),
+            Size = new Size(48, 20),
             BackColor = InputBg,
             ForeColor = TextPrimary,
             BorderStyle = BorderStyle.FixedSingle,
@@ -501,15 +687,15 @@ public class ConfigForm : Form
             Text = "Max",
             Font = new Font("Segoe UI", 7),
             ForeColor = TextDim,
-            Location = new Point(80, cy),
+            Location = new Point(86, cy),
             Size = new Size(26, 16)
         };
         card.Controls.Add(maxLbl);
 
         _maxVolumeNuds[idx] = new NumericUpDown
         {
-            Location = new Point(106, cy - 2),
-            Size = new Size(44, 20),
+            Location = new Point(112, cy - 2),
+            Size = new Size(48, 20),
             BackColor = InputBg,
             ForeColor = TextPrimary,
             BorderStyle = BorderStyle.FixedSingle,
@@ -547,14 +733,14 @@ public class ConfigForm : Form
         var scrollPanel = new Panel
         {
             Location = new Point(0, 0),
-            Size = new Size(760, 555),
+            Size = new Size(860, 548),
             AutoScroll = true,
             BackColor = BgDark
         };
         page.Controls.Add(scrollPanel);
 
-        const int colW = 138;
-        const int colGap = 8;
+        const int colW = 156;
+        const int colGap = 6;
         const int startX = 10;
 
         for (int i = 0; i < 5; i++)
@@ -586,51 +772,88 @@ public class ConfigForm : Form
         int cy = 6;
         int capturedIdx = idx;
 
-        // Header
-        var hdr = new Label
+        // Header with accent pill badge
+        var hdrPanel = new Panel
         {
-            Text = $"BUTTON {idx + 1}",
-            Font = new Font("Segoe UI", 8, FontStyle.Bold),
-            ForeColor = Accent,
             Location = new Point(0, cy),
-            Size = new Size(w, 16),
-            TextAlign = ContentAlignment.MiddleCenter
+            Size = new Size(w, 20),
+            BackColor = Color.Transparent
         };
-        card.Controls.Add(hdr);
-        cy += 20;
+        hdrPanel.Paint += (s, e) =>
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            // Small pill indicator
+            var pillRect = new Rectangle(8, 4, 8, 12);
+            using var pillPath = RoundedRect(pillRect, 3);
+            using var pillBrush = new SolidBrush(Accent);
+            g.FillPath(pillBrush, pillPath);
+            // Header text
+            using var font = new Font("Segoe UI", 8, FontStyle.Bold);
+            using var brush = new SolidBrush(TextPrimary);
+            g.DrawString($"BUTTON {capturedIdx + 1}", font, brush, 22, 2);
+        };
+        card.Controls.Add(hdrPanel);
+        cy += 22;
+
+        // ── TAP ── divider
+        cy = DrawGestureDivider(card, cy, w, "TAP");
 
         // Press action
-        cy = BuildButtonActionRow(card, idx, cy, w, "PRESS", btn.Action, btn.Path ?? "", btn.MacroKeys ?? "",
+        cy = BuildButtonActionRow(card, idx, cy, w, "",  btn.Action, btn.Path ?? "", btn.MacroKeys ?? "",
             btn.DeviceId ?? "", btn.ProfileName ?? "", btn.PowerAction ?? "",
             _pressActionCombos, _pressPathBoxes, _pressBrowseBtns, _pressPathPanels,
             _pressMacroBoxes, _pressMacroPanels, _pressDeviceCombos, _pressDevicePanels,
             _pressProfileCombos, _pressProfilePanels, _pressPowerCombos, _pressPowerPanels, capturedIdx);
 
-        // Divider
-        var div1 = new Panel { Location = new Point(8, cy), Size = new Size(w - 16, 1), BackColor = CardBorder };
-        card.Controls.Add(div1);
-        cy += 5;
+        // ── ×2 PRESS ── divider
+        cy = DrawGestureDivider(card, cy, w, "\u00D72 PRESS");
 
         // Double press action
-        cy = BuildButtonActionRow(card, idx, cy, w, "\u00D72 PRESS", btn.DoublePressAction ?? "none", btn.DoublePressPath ?? "", "",
+        cy = BuildButtonActionRow(card, idx, cy, w, "", btn.DoublePressAction ?? "none", btn.DoublePressPath ?? "", "",
             "", "", "",
             _dblActionCombos, _dblPathBoxes, _dblBrowseBtns, _dblPathPanels,
             _dblMacroBoxes, _dblMacroPanels, _dblDeviceCombos, _dblDevicePanels,
             _dblProfileCombos, _dblProfilePanels, _dblPowerCombos, _dblPowerPanels, capturedIdx);
 
-        // Divider
-        var div2 = new Panel { Location = new Point(8, cy), Size = new Size(w - 16, 1), BackColor = CardBorder };
-        card.Controls.Add(div2);
-        cy += 5;
+        // ── HOLD ── divider
+        cy = DrawGestureDivider(card, cy, w, "HOLD");
 
         // Hold action
-        cy = BuildButtonActionRow(card, idx, cy, w, "HOLD", btn.HoldAction ?? "none", btn.HoldPath ?? "", "",
+        cy = BuildButtonActionRow(card, idx, cy, w, "", btn.HoldAction ?? "none", btn.HoldPath ?? "", "",
             "", "", "",
             _holdActionCombos, _holdPathBoxes, _holdBrowseBtns, _holdPathPanels,
             _holdMacroBoxes, _holdMacroPanels, _holdDeviceCombos, _holdDevicePanels,
             _holdProfileCombos, _holdProfilePanels, _holdPowerCombos, _holdPowerPanels, capturedIdx);
 
         UpdateButtonSubControlVisibility(idx);
+    }
+
+    private int DrawGestureDivider(Panel card, int cy, int w, string gestureName)
+    {
+        var divPanel = new Panel
+        {
+            Location = new Point(0, cy),
+            Size = new Size(w, 16),
+            BackColor = Color.Transparent
+        };
+        divPanel.Paint += (s, e) =>
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            int midY = 8;
+            using var linePen = new Pen(CardBorder);
+            using var font = new Font("Segoe UI", 6.5f, FontStyle.Bold);
+            using var textBrush = new SolidBrush(TextDim);
+            var textSz = g.MeasureString(gestureName, font);
+            float textX = (w - textSz.Width) / 2f;
+            // Lines on each side
+            g.DrawLine(linePen, 8, midY, textX - 4, midY);
+            g.DrawLine(linePen, textX + textSz.Width + 4, midY, w - 8, midY);
+            g.DrawString(gestureName, font, textBrush, textX, midY - textSz.Height / 2f);
+        };
+        card.Controls.Add(divPanel);
+        return cy + 18;
     }
 
     private int BuildButtonActionRow(Panel card, int idx, int cy, int w, string label,
@@ -641,17 +864,20 @@ public class ConfigForm : Form
         ComboBox[] profileCombos, Panel[] profilePanels, ComboBox[] powerCombos, Panel[] powerPanels,
         int capturedIdx)
     {
-        // Row label
-        var lbl = new Label
+        // Row label (if non-empty)
+        if (!string.IsNullOrEmpty(label))
         {
-            Text = label,
-            Font = new Font("Segoe UI", 6.5f, FontStyle.Bold),
-            ForeColor = TextDim,
-            Location = new Point(8, cy),
-            AutoSize = true
-        };
-        card.Controls.Add(lbl);
-        cy += 13;
+            var lbl = new Label
+            {
+                Text = label,
+                Font = new Font("Segoe UI", 6.5f, FontStyle.Bold),
+                ForeColor = TextDim,
+                Location = new Point(8, cy),
+                AutoSize = true
+            };
+            card.Controls.Add(lbl);
+            cy += 13;
+        }
 
         // Action dropdown
         actionCombos[idx] = new ComboBox
@@ -899,8 +1125,8 @@ public class ConfigForm : Form
 
     private void BuildLightsTab(TabPage page)
     {
-        const int colW = 138;
-        const int colGap = 8;
+        const int colW = 156;
+        const int colGap = 6;
         const int startX = 10;
 
         for (int i = 0; i < 5; i++)
@@ -922,8 +1148,8 @@ public class ConfigForm : Form
 
         _brightnessSlider = new TrackBar
         {
-            Location = new Point(startX + 140, 475),
-            Size = new Size(400, 30),
+            Location = new Point(startX + 160, 475),
+            Size = new Size(450, 30),
             Minimum = 0,
             Maximum = 100,
             Value = Math.Clamp(_config.LedBrightness, 0, 100),
@@ -942,7 +1168,7 @@ public class ConfigForm : Form
             Text = $"{_brightnessSlider.Value}%",
             Font = new Font("Segoe UI", 9, FontStyle.Bold),
             ForeColor = Accent,
-            Location = new Point(startX + 550, 480),
+            Location = new Point(startX + 620, 480),
             AutoSize = true
         };
         page.Controls.Add(_brightnessValueLabel);
@@ -952,6 +1178,8 @@ public class ConfigForm : Form
     {
         var light = _config.Lights.FirstOrDefault(l => l.Idx == idx)
             ?? new LightConfig { Idx = idx, R = 0, G = 150, B = 255 };
+
+        int capturedIdx = idx;
 
         var card = new Panel
         {
@@ -966,8 +1194,27 @@ public class ConfigForm : Form
         };
         page.Controls.Add(card);
 
-        int cy = 6;
-        int capturedIdx = idx;
+        int cy = 0;
+
+        // Color preview bar (6px tall gradient between color1 and color2)
+        _colorPreviewBars[idx] = new Panel
+        {
+            Location = new Point(1, 1),
+            Size = new Size(w - 2, 6),
+            BackColor = Color.Transparent
+        };
+        _colorPreviewBars[idx].Paint += (s, e) =>
+        {
+            var g = e.Graphics;
+            var rect = new Rectangle(0, 0, ((Panel)s!).Width, ((Panel)s!).Height);
+            if (rect.Width > 0 && rect.Height > 0)
+            {
+                using var brush = new LinearGradientBrush(rect, _color1[capturedIdx], _color2[capturedIdx], LinearGradientMode.Horizontal);
+                g.FillRectangle(brush, rect);
+            }
+        };
+        card.Controls.Add(_colorPreviewBars[idx]);
+        cy = 10;
 
         // Header
         var hdr = new Label
@@ -1209,7 +1456,8 @@ public class ConfigForm : Form
         {
             _color1[idx] = color;
             _knobColors[idx] = color;
-            _knobPanels[idx]?.Invalidate();
+            _knobControls[idx]?.Invalidate();
+            _vuMeters[idx]?.Invalidate();
             if (_pctLabels[idx] != null)
                 _pctLabels[idx].ForeColor = color;
             if (_color1Swatches[idx] != null)
@@ -1223,6 +1471,8 @@ public class ConfigForm : Form
                 foreach (var s in _color2Swatches[idx])
                     s?.Invalidate();
         }
+        // Repaint color preview bar
+        _colorPreviewBars[idx]?.Invalidate();
         ApplyAndSave();
     }
 
@@ -1232,8 +1482,64 @@ public class ConfigForm : Form
 
     private void BuildSettingsTab(TabPage page)
     {
-        int cy = 20;
+        int cy = 12;
         int leftX = 30;
+
+        // ── CONNECTION section header ──
+        cy = DrawSectionHeader(page, cy, leftX, "CONNECTION");
+
+        // Serial Port
+        var portLbl = new Label
+        {
+            Text = "SERIAL PORT",
+            Font = new Font("Segoe UI", 7, FontStyle.Bold),
+            ForeColor = TextDim,
+            Location = new Point(leftX, cy),
+            AutoSize = true
+        };
+        page.Controls.Add(portLbl);
+        cy += 18;
+
+        _serialPortBox = new TextBox
+        {
+            Text = _config.Serial.Port,
+            Location = new Point(leftX, cy),
+            Size = new Size(120, 24),
+            BackColor = InputBg,
+            ForeColor = TextPrimary,
+            BorderStyle = BorderStyle.FixedSingle,
+            Font = new Font("Segoe UI", 9)
+        };
+        _serialPortBox.TextChanged += (s, e) => DebounceSave();
+        page.Controls.Add(_serialPortBox);
+
+        // Baud Rate (inline)
+        var baudLbl = new Label
+        {
+            Text = "BAUD RATE",
+            Font = new Font("Segoe UI", 7, FontStyle.Bold),
+            ForeColor = TextDim,
+            Location = new Point(leftX + 160, cy - 18),
+            AutoSize = true
+        };
+        page.Controls.Add(baudLbl);
+
+        _baudRateBox = new TextBox
+        {
+            Text = _config.Serial.Baud.ToString(),
+            Location = new Point(leftX + 160, cy),
+            Size = new Size(120, 24),
+            BackColor = InputBg,
+            ForeColor = TextPrimary,
+            BorderStyle = BorderStyle.FixedSingle,
+            Font = new Font("Segoe UI", 9)
+        };
+        _baudRateBox.TextChanged += (s, e) => DebounceSave();
+        page.Controls.Add(_baudRateBox);
+        cy += 40;
+
+        // ── STARTUP section header ──
+        cy = DrawSectionHeader(page, cy, leftX, "STARTUP");
 
         // Start with Windows
         _startWithWindowsCb = new CheckBox
@@ -1249,6 +1555,9 @@ public class ConfigForm : Form
         _startWithWindowsCb.CheckedChanged += (s, e) => ApplyAndSave();
         page.Controls.Add(_startWithWindowsCb);
         cy += 40;
+
+        // ── PROFILES section header ──
+        cy = DrawSectionHeader(page, cy, leftX, "PROFILES");
 
         // Active Profile
         var profileLbl = new Label
@@ -1350,58 +1659,34 @@ public class ConfigForm : Form
             }
         };
         page.Controls.Add(newProfileBtn);
-        cy += 44;
+    }
 
-        // Serial Port
-        var portLbl = new Label
+    private int DrawSectionHeader(TabPage page, int cy, int leftX, string title)
+    {
+        var sectionPanel = new Panel
         {
-            Text = "SERIAL PORT",
-            Font = new Font("Segoe UI", 7, FontStyle.Bold),
-            ForeColor = TextDim,
             Location = new Point(leftX, cy),
-            AutoSize = true
+            Size = new Size(780, 24),
+            BackColor = Color.Transparent
         };
-        page.Controls.Add(portLbl);
-        cy += 18;
-
-        _serialPortBox = new TextBox
+        sectionPanel.Paint += (s, e) =>
         {
-            Text = _config.Serial.Port,
-            Location = new Point(leftX, cy),
-            Size = new Size(120, 24),
-            BackColor = InputBg,
-            ForeColor = TextPrimary,
-            BorderStyle = BorderStyle.FixedSingle,
-            Font = new Font("Segoe UI", 9)
+            var g = e.Graphics;
+            var rect = new Rectangle(0, 0, sectionPanel.Width - 1, sectionPanel.Height - 1);
+            using var bgBrush = new SolidBrush(CardBg);
+            g.FillRectangle(bgBrush, rect);
+            using var borderPen = new Pen(CardBorder);
+            g.DrawRectangle(borderPen, rect);
+            // Accent left border
+            using var accentPen = new Pen(Accent, 2);
+            g.DrawLine(accentPen, 0, 0, 0, sectionPanel.Height);
+            // Label
+            using var font = new Font("Segoe UI", 8, FontStyle.Bold);
+            using var textBrush = new SolidBrush(TextSec);
+            g.DrawString(title, font, textBrush, 10, 3);
         };
-        _serialPortBox.TextChanged += (s, e) => DebounceSave();
-        page.Controls.Add(_serialPortBox);
-        cy += 40;
-
-        // Baud Rate
-        var baudLbl = new Label
-        {
-            Text = "BAUD RATE",
-            Font = new Font("Segoe UI", 7, FontStyle.Bold),
-            ForeColor = TextDim,
-            Location = new Point(leftX, cy),
-            AutoSize = true
-        };
-        page.Controls.Add(baudLbl);
-        cy += 18;
-
-        _baudRateBox = new TextBox
-        {
-            Text = _config.Serial.Baud.ToString(),
-            Location = new Point(leftX, cy),
-            Size = new Size(120, 24),
-            BackColor = InputBg,
-            ForeColor = TextPrimary,
-            BorderStyle = BorderStyle.FixedSingle,
-            Font = new Font("Segoe UI", 9)
-        };
-        _baudRateBox.TextChanged += (s, e) => DebounceSave();
-        page.Controls.Add(_baudRateBox);
+        page.Controls.Add(sectionPanel);
+        return cy + 30;
     }
 
     // ================================================================
@@ -1435,58 +1720,11 @@ public class ConfigForm : Form
         return "";
     }
 
-    // ---- Knob Gauge Painting ----
-
-    private void PaintKnobGauge(Graphics g, int idx, int size)
-    {
-        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-
-        int pad = 6;
-        var rect = new Rectangle(pad, pad, size - pad * 2, size - pad * 2);
-        float startAngle = 135f;
-        float totalSweep = 270f;
-
-        using (var trackPen = new Pen(TrackBg, 8f))
-        {
-            trackPen.StartCap = System.Drawing.Drawing2D.LineCap.Round;
-            trackPen.EndCap = System.Drawing.Drawing2D.LineCap.Round;
-            g.DrawArc(trackPen, rect, startAngle, totalSweep);
-        }
-
-        float pct = _volumeValues[idx];
-        if (pct > 0.005f)
-        {
-            float valueSweep = totalSweep * pct;
-            using var fillPen = new Pen(_knobColors[idx], 8f);
-            fillPen.StartCap = System.Drawing.Drawing2D.LineCap.Round;
-            fillPen.EndCap = System.Drawing.Drawing2D.LineCap.Round;
-            g.DrawArc(fillPen, rect, startAngle, valueSweep);
-        }
-
-        int centerSize = 36;
-        int cx = (size - centerSize) / 2;
-        using (var centerBrush = new SolidBrush(Color.FromArgb(30, 30, 30)))
-            g.FillEllipse(centerBrush, cx, cx, centerSize, centerSize);
-        using (var centerPen = new Pen(CardBorder, 1.5f))
-            g.DrawEllipse(centerPen, cx, cx, centerSize, centerSize);
-
-        if (pct > 0.005f)
-        {
-            float angle = startAngle + totalSweep * pct;
-            float rad = (float)(angle * Math.PI / 180.0);
-            float arcR = (size - pad * 2) / 2f;
-            float dotX = size / 2f + arcR * (float)Math.Cos(rad);
-            float dotY = size / 2f + arcR * (float)Math.Sin(rad);
-            using var dotBrush = new SolidBrush(Color.White);
-            g.FillEllipse(dotBrush, dotX - 4, dotY - 4, 8, 8);
-        }
-    }
-
     // ---- Color Swatch Painting ----
 
     private void PaintSwatch(Graphics g, Panel swatch, int knobIdx, Color presetColor, bool isPrimary)
     {
-        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
 
         using var brush = new SolidBrush(presetColor);
         g.FillRectangle(brush, 1, 1, swatch.Width - 2, swatch.Height - 2);
@@ -1511,11 +1749,30 @@ public class ConfigForm : Form
             {
                 float vol = _mixer.GetVolume(_config.Knobs[i]);
                 _volumeValues[i] = vol;
-                _knobPanels[i]?.Invalidate();
+
+                // Update AnimatedKnobControl
+                if (_knobControls[i] != null)
+                {
+                    _knobControls[i].Value = vol;
+                    _knobControls[i].PercentText = $"{(int)(vol * 100)}%";
+                    _knobControls[i].ArcColor = _knobColors[i];
+                }
+
+                // Update VuMeterControl
+                if (_vuMeters[i] != null)
+                {
+                    _vuMeters[i].Level = vol;
+                    _vuMeters[i].BarColor = _knobColors[i];
+                }
+
+                // Update pct label
                 if (_pctLabels[i] != null)
                     _pctLabels[i].Text = $"{(int)(vol * 100)}%";
             }
         }
+
+        // Update device preview strip
+        _devicePreviewPanel?.Invalidate();
     }
 
     // ---- Save ----
