@@ -49,6 +49,8 @@ public partial class App : Application
         // Start Home Assistant integration
         _ha = new HAIntegration(_config.HomeAssistant);
         _buttons.SetHAIntegration(_ha);
+        if (_config.HomeAssistant.Enabled)
+            _ = _ha.TestConnectionAsync(); // sets IsAvailable for knob routing
 
         // Start audio mixer
         _mixer.Start();
@@ -217,7 +219,12 @@ public partial class App : Application
         ConfigManager.Save(_config);
         ApplyRgbConfig();
         ApplyStartupSetting();
-        _ha?.UpdateConfig(_config.HomeAssistant);
+        if (_ha != null)
+        {
+            _ha.UpdateConfig(_config.HomeAssistant);
+            if (_config.HomeAssistant.Enabled)
+                _ = _ha.TestConnectionAsync();
+        }
     }
 
     private void HandleKnob(KnobEvent e)

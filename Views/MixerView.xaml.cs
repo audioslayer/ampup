@@ -171,7 +171,7 @@ public partial class MixerView : UserControl
                 // Re-populate all HA entity combos
                 for (int i = 0; i < 5; i++)
                 {
-                    var target = _targetCombos[i].SelectedItem as string ?? "";
+                    var target = GetSelectedTarget(_targetCombos[i]);
                     if (HATargetDomains.ContainsKey(target))
                         PopulateHAEntityCombo(i, target);
                 }
