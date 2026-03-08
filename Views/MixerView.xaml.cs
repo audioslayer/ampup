@@ -21,6 +21,7 @@ public partial class MixerView : UserControl
     private static readonly string[] TargetValues =
         { "master", "mic", "system", "any", "active_window", "output_device", "input_device", "monitor",
           "ha_light", "ha_media", "ha_fan", "ha_cover",
+          "fc_fan",
           "discord", "spotify", "chrome" };
 
     // HA target prefix → domain for entity filtering
@@ -38,7 +39,8 @@ public partial class MixerView : UserControl
         { "ha_light", "HA: Light" },
         { "ha_media", "HA: Media" },
         { "ha_fan", "HA: Fan" },
-        { "ha_cover", "HA: Cover" }
+        { "ha_cover", "HA: Cover" },
+        { "fc_fan", "FC: Fan Speed" }
     };
 
     // Per-channel control arrays
@@ -63,9 +65,17 @@ public partial class MixerView : UserControl
     // Audio devices cache
     private List<(string Id, string Name, bool IsOutput)> _audioDevices = new();
 
+    // FC controller picker
+    private readonly ComboBox[] _fcControllerCombos = new ComboBox[5];
+    private readonly StackPanel[] _fcControllerPanels = new StackPanel[5];
+
     // HA entities cache
     private List<HAEntity> _haEntities = new();
     private HAIntegration? _ha;
+
+    // FC controllers cache
+    private List<FanControlSensor> _fcControllers = new();
+    private FanController? _fc;
 
     public MixerView()
     {
@@ -102,6 +112,15 @@ public partial class MixerView : UserControl
                 _ha = new HAIntegration(config.HomeAssistant);
             else
                 _ha.UpdateConfig(config.HomeAssistant);
+        }
+
+        // Create/update FC client if enabled
+        if (config.FanControl.Enabled)
+        {
+            if (_fc == null)
+                _fc = new FanController(config.FanControl);
+            else
+                _fc.UpdateConfig(config.FanControl);
         }
 
         for (int i = 0; i < 5; i++)
@@ -150,6 +169,10 @@ public partial class MixerView : UserControl
         // Fetch HA entities if enabled
         if (_ha != null)
             _ = FetchHAEntitiesAsync();
+
+        // Fetch FC controllers if enabled
+        if (_fc != null)
+            _ = FetchFCControllersAsync();
 
         // Start live polling
         _liveTimer.Start();
@@ -476,6 +499,28 @@ public partial class MixerView : UserControl
             haContainer.Children.Add(haEntityCombo);
             controlsPanel.Children.Add(haContainer);
 
+            // FC controller picker (hidden unless target is fc_fan)
+            var fcContainer = new StackPanel { Visibility = Visibility.Collapsed };
+            fcContainer.Children.Add(MakeLabel("FC CONTROLLER"));
+            var fcCtrlCombo = new ComboBox
+            {
+                Background = FindBrush("InputBgBrush"),
+                Foreground = FindBrush("TextPrimaryBrush"),
+                BorderBrush = FindBrush("InputBorderBrush"),
+                Margin = new Thickness(0, 0, 0, 4),
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+            fcCtrlCombo.Items.Add(new ComboBoxItem { Content = "(none)", Tag = "" });
+            fcCtrlCombo.SelectedIndex = 0;
+            fcCtrlCombo.SelectionChanged += (_, _) =>
+            {
+                if (!_loading) QueueSave();
+            };
+            _fcControllerCombos[i] = fcCtrlCombo;
+            _fcControllerPanels[i] = fcContainer;
+            fcContainer.Children.Add(fcCtrlCombo);
+            controlsPanel.Children.Add(fcContainer);
+
             panel.Children.Add(controlsBorder);
         }
     }
@@ -495,6 +540,12 @@ public partial class MixerView : UserControl
 
         if (showHA)
             PopulateHAEntityCombo(idx, baseTarget);
+
+        bool showFC = baseTarget == "fc_fan";
+        _fcControllerPanels[idx].Visibility = showFC ? Visibility.Visible : Visibility.Collapsed;
+
+        if (showFC)
+            PopulateFCControllerCombo(idx);
     }
 
     private void PopulateHAEntityCombo(int idx, string haTarget)
@@ -525,6 +576,68 @@ public partial class MixerView : UserControl
                     }
                 }
             }
+        }
+    }
+
+    private void PopulateFCControllerCombo(int idx)
+    {
+        var combo = _fcControllerCombos[idx];
+        combo.Items.Clear();
+
+        combo.Items.Add(new ComboBoxItem { Content = "(none)", Tag = "" });
+
+        foreach (var ctrl in _fcControllers.OrderBy(c => c.Name))
+        {
+            var pct = (int)Math.Round(ctrl.Value);
+            combo.Items.Add(new ComboBoxItem { Content = $"{ctrl.Name} ({pct}%)", Tag = ctrl.Id });
+        }
+
+        // Restore selection from config
+        if (_config != null)
+        {
+            var knob = _config.Knobs.FirstOrDefault(k => k.Idx == idx);
+            if (knob != null && knob.Target.StartsWith("fc_fan:"))
+            {
+                var controlId = FanController.ParseTarget(knob.Target);
+                for (int i = 0; i < combo.Items.Count; i++)
+                {
+                    if (combo.Items[i] is ComboBoxItem item && item.Tag as string == controlId)
+                    {
+                        combo.SelectedIndex = i;
+                        return;
+                    }
+                }
+            }
+        }
+
+        if (combo.SelectedIndex < 0)
+            combo.SelectedIndex = 0;
+    }
+
+    private async Task FetchFCControllersAsync()
+    {
+        if (_fc == null) return;
+
+        try
+        {
+            var connected = await _fc.TestConnectionAsync();
+            if (!connected) return;
+
+            _fcControllers = await _fc.GetControllersAsync();
+
+            Dispatcher.Invoke(() =>
+            {
+                for (int i = 0; i < 5; i++)
+                {
+                    var target = GetSelectedTarget(_targetCombos[i]);
+                    if (target == "fc_fan")
+                        PopulateFCControllerCombo(i);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"MixerView FC fetch: {ex.Message}");
         }
     }
 
@@ -625,6 +738,11 @@ public partial class MixerView : UserControl
             {
                 var entityId = GetSelectedEntityId(_haEntityCombos[i]);
                 knob.Target = !string.IsNullOrEmpty(entityId) ? $"{selectedTarget}:{entityId}" : selectedTarget;
+            }
+            else if (selectedTarget == "fc_fan")
+            {
+                var controlId = GetSelectedEntityId(_fcControllerCombos[i]);
+                knob.Target = !string.IsNullOrEmpty(controlId) ? $"fc_fan:{controlId}" : "fc_fan";
             }
             else
             {
