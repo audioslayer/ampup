@@ -6,12 +6,16 @@ namespace WolfMixer;
 
 public class TrayApp : ApplicationContext
 {
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool DestroyIcon(IntPtr hIcon);
+
     private readonly NotifyIcon _trayIcon;
     private AppConfig _config;
     private readonly SerialReader _serial;
     private readonly AudioMixer _mixer;
     private readonly ButtonHandler _buttons;
     private readonly RgbController _rgb;
+    private readonly MMDeviceEnumerator _enumerator = new(); // reused for mute polling — avoid 120 allocs/min
     private bool _connected;
     private System.Threading.Timer? _mutePollingTimer;
     private ToolStripMenuItem[] _volumeItems = new ToolStripMenuItem[5];
@@ -116,25 +120,19 @@ public class TrayApp : ApplicationContext
 
     private void PollMuteStates()
     {
+        // Check mic mute
         try
         {
-            using var enumerator = new MMDeviceEnumerator();
+            using var mic = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
+            _rgb.SetMicMuted(mic.AudioEndpointVolume.Mute);
+        }
+        catch { }
 
-            // Check mic mute
-            try
-            {
-                var mic = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
-                _rgb.SetMicMuted(mic.AudioEndpointVolume.Mute);
-            }
-            catch { }
-
-            // Check master mute
-            try
-            {
-                var master = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                _rgb.SetMasterMuted(master.AudioEndpointVolume.Mute);
-            }
-            catch { }
+        // Check master mute
+        try
+        {
+            using var master = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            _rgb.SetMasterMuted(master.AudioEndpointVolume.Mute);
         }
         catch { }
     }
@@ -268,6 +266,7 @@ public class TrayApp : ApplicationContext
         _serial.Dispose();
         _mixer.Dispose();
         _rgb.Dispose();
+        _enumerator.Dispose();
         _trayIcon.Visible = false;
         Application.Exit();
     }
@@ -304,6 +303,9 @@ public class TrayApp : ApplicationContext
         using var basePen = new Pen(Color.FromArgb(80, color.R, color.G, color.B), 1);
         g.DrawLine(basePen, 1, baseY + 1, 30, baseY + 1);
 
-        return Icon.FromHandle(bmp.GetHicon());
+        // GetHicon creates a Win32 HICON that must be freed — Icon.FromHandle does NOT own the handle
+        IntPtr hIcon = bmp.GetHicon();
+        try { return (Icon)Icon.FromHandle(hIcon).Clone(); }
+        finally { DestroyIcon(hIcon); }
     }
 }

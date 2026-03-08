@@ -93,7 +93,14 @@ public static class ConfigManager
     private static string ConfigPath => Path.Combine(ConfigDir, "config.json");
 
     private static string ProfilePath(string profileName)
-        => Path.Combine(ConfigDir, $"profile_{profileName.ToLowerInvariant().Replace(' ', '_')}.json");
+    {
+        // Sanitize: allow only letters, digits, hyphens — everything else becomes underscore
+        var safe = string.Concat(profileName
+            .ToLowerInvariant()
+            .Select(c => char.IsLetterOrDigit(c) || c == '-' ? c : '_'));
+        if (string.IsNullOrEmpty(safe)) safe = "unnamed";
+        return Path.Combine(ConfigDir, $"profile_{safe}.json");
+    }
 
     public static AppConfig Load()
     {

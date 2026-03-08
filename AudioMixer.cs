@@ -13,7 +13,8 @@ public class AudioMixer : IDisposable
 
     private readonly MMDeviceEnumerator _enumerator = new();
     private readonly Dictionary<int, int> _lastValues = new();
-    private readonly object _lock = new();
+    private readonly object _lock = new();      // guards _sessions / _sessionsByPid dict access
+    private readonly object _enumLock = new();  // guards _enumerator — accessed from multiple threads
     private System.Threading.Timer? _pollTimer;
 
     // Map of processName (lowercase) -> AudioSessionControl
@@ -35,8 +36,10 @@ public class AudioMixer : IDisposable
             {
                 _sessions.Clear();
                 _sessionsByPid.Clear();
-                var device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                var sessionMgr = device.AudioSessionManager;
+                MMDevice? device;
+                lock (_enumLock) device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                using var _dev = device;
+                var sessionMgr = device!.AudioSessionManager;
                 var sessions = sessionMgr.Sessions;
                 for (int i = 0; i < sessions.Count; i++)
                 {
@@ -116,15 +119,17 @@ public class AudioMixer : IDisposable
 
             if (target == "master")
             {
-                using var device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Console);
-                device.AudioEndpointVolume.MasterVolumeLevelScalar = vol;
+                MMDevice? device;
+                lock (_enumLock) device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Console);
+                using (device) { device!.AudioEndpointVolume.MasterVolumeLevelScalar = vol; }
                 return;
             }
 
             if (target == "mic")
             {
-                using var mic = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
-                mic.AudioEndpointVolume.MasterVolumeLevelScalar = vol;
+                MMDevice? mic;
+                lock (_enumLock) mic = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
+                using (mic) { mic!.AudioEndpointVolume.MasterVolumeLevelScalar = vol; }
                 return;
             }
 
@@ -265,14 +270,16 @@ public class AudioMixer : IDisposable
 
             if (target == "master")
             {
-                var device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                return device.AudioEndpointVolume.MasterVolumeLevelScalar;
+                MMDevice? device;
+                lock (_enumLock) device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                using (device) { return device!.AudioEndpointVolume.MasterVolumeLevelScalar; }
             }
 
             if (target == "mic")
             {
-                var mic = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
-                return mic.AudioEndpointVolume.MasterVolumeLevelScalar;
+                MMDevice? mic;
+                lock (_enumLock) mic = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
+                using (mic) { return mic!.AudioEndpointVolume.MasterVolumeLevelScalar; }
             }
 
             if (target == "output_device")

@@ -70,8 +70,8 @@ public class ButtonHandler
     private readonly System.Threading.Timer?[] _holdTimers = new System.Threading.Timer?[5];
     private readonly System.Threading.Timer?[] _clickTimers = new System.Threading.Timer?[5];
 
-    // Stash config ref for timer callbacks
-    private AppConfig? _lastConfig;
+    // Stash config ref for timer callbacks — volatile so timer threads see the latest value
+    private volatile AppConfig? _lastConfig;
 
     // Cycle state: tracks current index per button for cycle_output / cycle_input
     private readonly Dictionary<int, int> _cycleIndex = new();

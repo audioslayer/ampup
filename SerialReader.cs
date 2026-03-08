@@ -67,7 +67,7 @@ public class SerialReader : IDisposable
         {
             try
             {
-                int n = _port.BaseStream.ReadAsync(tmp, 0, tmp.Length, ct).GetAwaiter().GetResult();
+                int n = await _port.BaseStream.ReadAsync(tmp, 0, tmp.Length, ct);
                 for (int i = 0; i < n; i++) _buf.Add(tmp[i]);
                 ParseFrames();
             }
