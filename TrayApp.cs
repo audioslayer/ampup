@@ -18,6 +18,7 @@ public class TrayApp : ApplicationContext
     private readonly RgbController _rgb;
     private readonly MMDeviceEnumerator _enumerator = new(); // reused for mute polling — avoid 120 allocs/min
     private bool _connected;
+    private DateTime _connectedAt = DateTime.MinValue; // suppress init button events on connect
     private System.Threading.Timer? _mutePollingTimer;
     private ToolStripMenuItem[] _volumeItems = new ToolStripMenuItem[5];
     private System.Windows.Forms.Timer _trayVolumeTimer = new();
@@ -79,6 +80,11 @@ public class TrayApp : ApplicationContext
 
     private void HandleButton(ButtonEvent e)
     {
+        // Ignore button events in the first second after connection —
+        // the device broadcasts release (0x07) for all buttons on connect
+        if ((DateTime.UtcNow - _connectedAt).TotalMilliseconds < 1000)
+            return;
+
         if (e.IsDown)
             _buttons.HandleDown(e.Idx, _config);
         else
@@ -95,6 +101,7 @@ public class TrayApp : ApplicationContext
         }
         else
         {
+            _connectedAt = DateTime.UtcNow;
             _trayIcon.ShowBalloonTip(2000, "WolfMixer", "Turn Up connected!", ToolTipIcon.Info);
             _rgb.SetPort(_serial.Port);
             _rgb.ApplyColors(_config.Lights);
