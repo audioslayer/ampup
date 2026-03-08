@@ -1,5 +1,7 @@
+using System.Drawing;
 using System.Windows;
 using Microsoft.Win32;
+using Forms = System.Windows.Forms;
 
 namespace WolfMixer;
 
@@ -14,6 +16,8 @@ public partial class App : Application
     private MainWindow _mainWindow = null!;
     private System.Threading.Timer? _mutePollingTimer;
     private DateTime _connectedAt = DateTime.MinValue;
+    private Forms.NotifyIcon? _trayIcon;
+    private bool _isConnected;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -58,10 +62,146 @@ public partial class App : Application
         // Apply startup setting
         ApplyStartupSetting();
 
+        // Create tray icon
+        SetupTrayIcon();
+
         // Create and show main window
         _mainWindow = new MainWindow();
+        _mainWindow.Closing += MainWindow_Closing;
         _mainWindow.Initialize(_config, _mixer, OnConfigChanged);
         _mainWindow.Show();
+    }
+
+    private void SetupTrayIcon()
+    {
+        _trayIcon = new Forms.NotifyIcon
+        {
+            Icon = CreateTrayIcon(false),
+            Text = "WolfMixer",
+            Visible = true,
+        };
+
+        _trayIcon.DoubleClick += (_, _) => ShowMainWindow();
+
+        var menu = new Forms.ContextMenuStrip();
+        menu.BackColor = Color.FromArgb(0x1C, 0x1C, 0x1C);
+        menu.ForeColor = Color.FromArgb(0xE8, 0xE8, 0xE8);
+        menu.Renderer = new DarkMenuRenderer();
+
+        var showItem = menu.Items.Add("Show WolfMixer");
+        showItem.Click += (_, _) => ShowMainWindow();
+
+        menu.Items.Add(new Forms.ToolStripSeparator());
+
+        var exitItem = menu.Items.Add("Exit");
+        exitItem.Click += (_, _) => ExitApp();
+
+        _trayIcon.ContextMenuStrip = menu;
+    }
+
+    private void ShowMainWindow()
+    {
+        if (_mainWindow == null) return;
+        Dispatcher.Invoke(() =>
+        {
+            _mainWindow.Show();
+            _mainWindow.WindowState = WindowState.Normal;
+            _mainWindow.Activate();
+        });
+    }
+
+    private void ExitApp()
+    {
+        if (_trayIcon != null)
+        {
+            _trayIcon.Visible = false;
+            _trayIcon.Dispose();
+            _trayIcon = null;
+        }
+        Dispatcher.Invoke(() => Shutdown());
+    }
+
+    private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        // Close to tray instead of exiting
+        e.Cancel = true;
+        _mainWindow?.Hide();
+    }
+
+    /// <summary>
+    /// Draws a 32x32 tray icon with 5 equalizer bars.
+    /// Cyan (#00B4D8) when connected, gray (#666) when disconnected.
+    /// </summary>
+    private static Icon CreateTrayIcon(bool connected)
+    {
+        var bmp = new Bitmap(32, 32);
+        using (var g = Graphics.FromImage(bmp))
+        {
+            g.Clear(Color.Transparent);
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+            var color = connected
+                ? Color.FromArgb(0x00, 0xB4, 0xD8)
+                : Color.FromArgb(0x88, 0x88, 0x88);
+
+            int[] heights = { 8, 16, 24, 18, 12 };
+            int barWidth = 4;
+            int gap = 2;
+            int totalWidth = 5 * barWidth + 4 * gap; // 28
+            int startX = (32 - totalWidth) / 2;
+
+            using var brush = new SolidBrush(color);
+            for (int i = 0; i < 5; i++)
+            {
+                int x = startX + i * (barWidth + gap);
+                int h = heights[i];
+                int y = 32 - h - 2; // 2px bottom margin
+                // Rounded rect approximation
+                g.FillRectangle(brush, x, y + 2, barWidth, h - 2);
+                g.FillEllipse(brush, x, y, barWidth, 4); // rounded top
+            }
+        }
+
+        var hIcon = bmp.GetHicon();
+        var icon = Icon.FromHandle(hIcon);
+        // Clone so we can destroy the original handle
+        var result = (Icon)icon.Clone();
+        NativeMethods.DestroyIcon(hIcon);
+        bmp.Dispose();
+        return result;
+    }
+
+    /// <summary>
+    /// Dark theme renderer for the tray context menu.
+    /// </summary>
+    private class DarkMenuRenderer : Forms.ToolStripProfessionalRenderer
+    {
+        protected override void OnRenderMenuItemBackground(Forms.ToolStripItemRenderEventArgs e)
+        {
+            if (e.Item.Selected)
+            {
+                using var brush = new SolidBrush(Color.FromArgb(0x2A, 0x2A, 0x2A));
+                e.Graphics.FillRectangle(brush, e.Item.ContentRectangle);
+            }
+            else
+            {
+                using var brush = new SolidBrush(Color.FromArgb(0x1C, 0x1C, 0x1C));
+                e.Graphics.FillRectangle(brush, e.Item.ContentRectangle);
+            }
+        }
+
+        protected override void OnRenderToolStripBackground(Forms.ToolStripRenderEventArgs e)
+        {
+            using var brush = new SolidBrush(Color.FromArgb(0x1C, 0x1C, 0x1C));
+            e.Graphics.FillRectangle(brush, e.AffectedBounds);
+        }
+
+        protected override void OnRenderSeparator(Forms.ToolStripSeparatorRenderEventArgs e)
+        {
+            using var pen = new Pen(Color.FromArgb(0x36, 0x36, 0x36));
+            int y = e.Item.ContentRectangle.Height / 2;
+            e.Graphics.DrawLine(pen, 4, y, e.Item.Width - 4, y);
+        }
     }
 
     private void OnConfigChanged(AppConfig config)
@@ -109,6 +249,15 @@ public partial class App : Application
             _connectedAt = DateTime.UtcNow;
             _rgb.SetPort(_serial.Port);
             _rgb.ApplyColors(_config.Lights);
+        }
+
+        _isConnected = connected;
+        if (_trayIcon != null)
+        {
+            var oldIcon = _trayIcon.Icon;
+            _trayIcon.Icon = CreateTrayIcon(connected);
+            _trayIcon.Text = connected ? "WolfMixer — Connected" : "WolfMixer — Disconnected";
+            oldIcon?.Dispose();
         }
 
         _mainWindow?.SetConnectionStatus(connected);
@@ -186,6 +335,11 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        if (_trayIcon != null)
+        {
+            _trayIcon.Visible = false;
+            _trayIcon.Dispose();
+        }
         _mutePollingTimer?.Dispose();
         _serial?.Dispose();
         _mixer?.Dispose();
