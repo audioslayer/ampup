@@ -13,16 +13,17 @@ public partial class ButtonsView : UserControl
     private Action<AppConfig>? _onSave;
     private bool _loading;
     private readonly DispatcherTimer _debounce;
+    private int _selectedIdx = 0;
 
     // Action definitions: (DisplayName, ConfigValue)
     private static readonly (string Display, string Value)[] Actions =
     {
-        ("None", "none"), ("Play/Pause", "media_play_pause"), ("Next Track", "media_next"),
-        ("Prev Track", "media_prev"), ("Mute Vol", "mute_master"), ("Mute Mic", "mute_mic"),
-        ("Mute App", "mute_program"), ("Mute Active", "mute_active_window"), ("Launch App", "launch_exe"),
+        ("None", "none"), ("Play / Pause", "media_play_pause"), ("Next Track", "media_next"),
+        ("Prev Track", "media_prev"), ("Mute Volume", "mute_master"), ("Mute Mic", "mute_mic"),
+        ("Mute App", "mute_program"), ("Mute Active Window", "mute_active_window"), ("Launch App", "launch_exe"),
         ("Close App", "close_program"), ("Cycle Output", "cycle_output"), ("Cycle Input", "cycle_input"),
-        ("Set Output", "select_output"), ("Set Input", "select_input"), ("Macro", "macro"),
-        ("Sys Power", "system_power"), ("Switch Profile", "switch_profile")
+        ("Set Output", "select_output"), ("Set Input", "select_input"), ("Keyboard Macro", "macro"),
+        ("System Power", "system_power"), ("Switch Profile", "switch_profile")
     };
 
     // Actions that need a path textbox
@@ -31,7 +32,24 @@ public partial class ButtonsView : UserControl
     // Power action options
     private static readonly string[] PowerActions = { "sleep", "lock", "shutdown", "restart", "logoff", "hibernate" };
 
-    // --- TAP controls (all sub-control types) ---
+    // Action icon mapping for button tiles
+    private static readonly Dictionary<string, string> ActionIcons = new()
+    {
+        { "none", "—" }, { "media_play_pause", "⏯" }, { "media_next", "⏭" },
+        { "media_prev", "⏮" }, { "mute_master", "🔇" }, { "mute_mic", "🎤" },
+        { "mute_program", "🔇" }, { "mute_active_window", "🔇" }, { "launch_exe", "🚀" },
+        { "close_program", "✕" }, { "cycle_output", "🔊" }, { "cycle_input", "🎙" },
+        { "select_output", "🔊" }, { "select_input", "🎙" }, { "macro", "⌨" },
+        { "system_power", "⏻" }, { "switch_profile", "📋" }
+    };
+
+    // Button tile references
+    private readonly Border[] _btnTiles = new Border[5];
+    private readonly TextBlock[] _btnIcons = new TextBlock[5];
+    private readonly TextBlock[] _btnLabels = new TextBlock[5];
+    private readonly TextBlock[] _btnSubLabels = new TextBlock[5];
+
+    // --- TAP controls ---
     private readonly ComboBox[] _tapActionCombos = new ComboBox[5];
     private readonly TextBox[] _tapPathBoxes = new TextBox[5];
     private readonly StackPanel[] _tapPathPanels = new StackPanel[5];
@@ -44,12 +62,12 @@ public partial class ButtonsView : UserControl
     private readonly ComboBox[] _tapPowerCombos = new ComboBox[5];
     private readonly StackPanel[] _tapPowerPanels = new StackPanel[5];
 
-    // --- DOUBLE controls (path only) ---
+    // --- DOUBLE controls ---
     private readonly ComboBox[] _dblActionCombos = new ComboBox[5];
     private readonly TextBox[] _dblPathBoxes = new TextBox[5];
     private readonly StackPanel[] _dblPathPanels = new StackPanel[5];
 
-    // --- HOLD controls (path only) ---
+    // --- HOLD controls ---
     private readonly ComboBox[] _holdActionCombos = new ComboBox[5];
     private readonly TextBox[] _holdPathBoxes = new TextBox[5];
     private readonly StackPanel[] _holdPathPanels = new StackPanel[5];
@@ -68,7 +86,9 @@ public partial class ButtonsView : UserControl
             CollectAndSave();
         };
 
-        BuildControls();
+        BuildButtonStrip();
+        BuildAllDetailPanels();
+        SelectButton(0);
     }
 
     public void LoadConfig(AppConfig config, AudioMixer mixer, Action<AppConfig> onSave)
@@ -80,7 +100,6 @@ public partial class ButtonsView : UserControl
 
         _audioDevices = mixer.GetAudioDevices();
 
-        // Populate device combos with fresh device list
         for (int i = 0; i < 5; i++)
         {
             PopulateDeviceCombo(_tapDeviceCombos[i]);
@@ -110,151 +129,272 @@ public partial class ButtonsView : UserControl
             SelectActionCombo(_holdActionCombos[i], btn.HoldAction);
             SetTextBoxValue(_holdPathBoxes[i], btn.HoldPath);
             UpdateSimpleVisibility(_holdPathPanels[i], btn.HoldAction);
+
+            // Update tile display
+            UpdateTileDisplay(i);
         }
 
         _loading = false;
     }
 
-    private void BuildControls()
-    {
-        var panels = new[] { Btn0Panel, Btn1Panel, Btn2Panel, Btn3Panel, Btn4Panel };
+    // ── Button strip (top) ─────────────────────────────────────────
 
+    private void BuildButtonStrip()
+    {
         for (int i = 0; i < 5; i++)
         {
-            int idx = i; // capture
-            var panel = panels[i];
+            int idx = i;
 
-            // Header
-            panel.Children.Add(new TextBlock
+            var tile = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Margin = new Thickness(4),
+                Padding = new Thickness(8, 12, 8, 12),
+                Cursor = System.Windows.Input.Cursors.Hand,
+                MinHeight = 80
+            };
+
+            var content = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+
+            var icon = new TextBlock
+            {
+                Text = "—",
+                FontSize = 24,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 6)
+            };
+            _btnIcons[i] = icon;
+            content.Children.Add(icon);
+
+            var label = new TextBlock
             {
                 Text = $"BTN {i + 1}",
-                FontSize = 15,
+                FontSize = 11,
                 FontWeight = FontWeights.SemiBold,
-                Foreground = FindBrush("AccentBrush"),
-                Margin = new Thickness(0, 0, 0, 12),
+                Foreground = FindBrush("TextPrimaryBrush"),
                 HorizontalAlignment = HorizontalAlignment.Center
-            });
+            };
+            _btnLabels[i] = label;
+            content.Children.Add(label);
 
-            // --- TAP SECTION ---
-            BuildTapSection(panel, idx);
+            var subLabel = new TextBlock
+            {
+                Text = "None",
+                FontSize = 9,
+                Foreground = FindBrush("TextDimBrush"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 2, 0, 0)
+            };
+            _btnSubLabels[i] = subLabel;
+            content.Children.Add(subLabel);
 
-            // Separator
-            panel.Children.Add(MakeSeparator());
-
-            // --- DOUBLE SECTION ---
-            BuildDoubleSection(panel, idx);
-
-            // Separator
-            panel.Children.Add(MakeSeparator());
-
-            // --- HOLD SECTION ---
-            BuildHoldSection(panel, idx);
+            tile.Child = content;
+            tile.MouseLeftButtonDown += (_, _) => SelectButton(idx);
+            _btnTiles[i] = tile;
+            ButtonStrip.Children.Add(tile);
         }
     }
 
-    private void BuildTapSection(StackPanel panel, int idx)
+    private void SelectButton(int idx)
     {
-        panel.Children.Add(MakeSectionHeader("TAP"));
+        _selectedIdx = idx;
 
-        // Action combo
-        panel.Children.Add(MakeLabel("ACTION"));
-        var combo = MakeActionCombo();
-        combo.SelectionChanged += (_, _) =>
+        var accent = (Color)ColorConverter.ConvertFromString("#00B4D8");
+        var dim = Color.FromRgb(0x2A, 0x2A, 0x2A);
+        var selectedBg = Color.FromRgb(0x1A, 0x2A, 0x30);
+        var normalBg = Color.FromRgb(0x1C, 0x1C, 0x1C);
+
+        for (int i = 0; i < 5; i++)
         {
-            if (_loading) return;
-            var val = GetSelectedActionValue(combo);
-            UpdateTapVisibility(idx, val);
-            QueueSave();
-        };
-        _tapActionCombos[idx] = combo;
-        panel.Children.Add(combo);
+            bool selected = i == idx;
+            _btnTiles[i].BorderBrush = new SolidColorBrush(selected ? accent : dim);
+            _btnTiles[i].Background = new SolidColorBrush(selected ? selectedBg : normalBg);
+            _btnTiles[i].BorderThickness = new Thickness(selected ? 2 : 1);
+            _btnLabels[i].Foreground = new SolidColorBrush(selected ? accent : Color.FromRgb(0xE8, 0xE8, 0xE8));
+        }
 
-        // Path
-        var (pathPanel, pathBox) = MakeTextBoxRow("PATH", "process name or exe path");
-        pathBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
-        _tapPathPanels[idx] = pathPanel;
-        _tapPathBoxes[idx] = pathBox;
-        panel.Children.Add(pathPanel);
-
-        // Macro
-        var (macroPanel, macroBox) = MakeTextBoxRow("MACRO KEYS", "ctrl+shift+m");
-        macroBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
-        _tapMacroPanels[idx] = macroPanel;
-        _tapMacroBoxes[idx] = macroBox;
-        panel.Children.Add(macroPanel);
-
-        // Device
-        var (devicePanel, deviceCombo) = MakeComboRow("DEVICE");
-        deviceCombo.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
-        _tapDevicePanels[idx] = devicePanel;
-        _tapDeviceCombos[idx] = deviceCombo;
-        panel.Children.Add(devicePanel);
-
-        // Profile
-        var (profilePanel, profileCombo) = MakeComboRow("PROFILE");
-        profileCombo.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
-        _tapProfilePanels[idx] = profilePanel;
-        _tapProfileCombos[idx] = profileCombo;
-        panel.Children.Add(profilePanel);
-
-        // Power
-        var (powerPanel, powerCombo) = MakeComboRow("POWER ACTION");
-        powerCombo.ItemsSource = PowerActions;
-        powerCombo.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
-        _tapPowerPanels[idx] = powerPanel;
-        _tapPowerCombos[idx] = powerCombo;
-        panel.Children.Add(powerPanel);
+        ShowDetailPanel(idx);
     }
 
-    private void BuildDoubleSection(StackPanel panel, int idx)
+    private void UpdateTileDisplay(int idx)
     {
-        panel.Children.Add(MakeSectionHeader("DOUBLE"));
+        var btn = _config?.Buttons.FirstOrDefault(b => b.Idx == idx);
+        if (btn == null) return;
 
-        panel.Children.Add(MakeLabel("ACTION"));
-        var combo = MakeActionCombo();
-        combo.SelectionChanged += (_, _) =>
-        {
-            if (_loading) return;
-            var val = GetSelectedActionValue(combo);
-            UpdateSimpleVisibility(_dblPathPanels[idx], val);
-            QueueSave();
-        };
-        _dblActionCombos[idx] = combo;
-        panel.Children.Add(combo);
+        var actionDisplay = GetActionDisplay(btn.Action);
+        _btnIcons[idx].Text = ActionIcons.GetValueOrDefault(btn.Action, "—");
+        _btnSubLabels[idx].Text = actionDisplay;
 
-        // Path only for double
-        var (pathPanel, pathBox) = MakeTextBoxRow("PATH", "process name or exe path");
-        pathBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
-        _dblPathPanels[idx] = pathPanel;
-        _dblPathBoxes[idx] = pathBox;
-        panel.Children.Add(pathPanel);
+        // Color the icon based on whether it has an action
+        _btnIcons[idx].Foreground = btn.Action == "none"
+            ? FindBrush("TextDimBrush")
+            : FindBrush("AccentBrush");
     }
 
-    private void BuildHoldSection(StackPanel panel, int idx)
+    private static string GetActionDisplay(string actionValue)
     {
-        panel.Children.Add(MakeSectionHeader("HOLD"));
-
-        panel.Children.Add(MakeLabel("ACTION"));
-        var combo = MakeActionCombo();
-        combo.SelectionChanged += (_, _) =>
+        foreach (var (display, value) in Actions)
         {
-            if (_loading) return;
-            var val = GetSelectedActionValue(combo);
-            UpdateSimpleVisibility(_holdPathPanels[idx], val);
-            QueueSave();
-        };
-        _holdActionCombos[idx] = combo;
-        panel.Children.Add(combo);
-
-        // Path only for hold
-        var (pathPanel, pathBox) = MakeTextBoxRow("PATH", "process name or exe path");
-        pathBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
-        _holdPathPanels[idx] = pathPanel;
-        _holdPathBoxes[idx] = pathBox;
-        panel.Children.Add(pathPanel);
+            if (value == actionValue) return display;
+        }
+        return "None";
     }
 
-    // --- Visibility logic ---
+    // ── Detail panels ──────────────────────────────────────────────
+
+    private readonly StackPanel[] _detailPanels = new StackPanel[5];
+
+    private void BuildAllDetailPanels()
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            int idx = i;
+            var panel = new StackPanel { Visibility = Visibility.Collapsed };
+
+            // ── Tap gesture card ──
+            var tapCard = MakeCard();
+            var tapContent = new StackPanel();
+            tapContent.Children.Add(MakeGestureHeader("TAP", "Single press — releases < 500ms"));
+
+            var tapGrid = new Grid { Margin = new Thickness(0, 8, 0, 0) };
+            tapGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            tapGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            // Left: action combo
+            var tapLeft = new StackPanel { Margin = new Thickness(0, 0, 8, 0) };
+            tapLeft.Children.Add(MakeLabel("ACTION"));
+            var tapCombo = MakeActionCombo();
+            tapCombo.SelectionChanged += (_, _) =>
+            {
+                if (_loading) return;
+                var val = GetSelectedActionValue(tapCombo);
+                UpdateTapVisibility(idx, val);
+                UpdateTileDisplay(idx);
+                QueueSave();
+            };
+            _tapActionCombos[i] = tapCombo;
+            tapLeft.Children.Add(tapCombo);
+            Grid.SetColumn(tapLeft, 0);
+            tapGrid.Children.Add(tapLeft);
+
+            // Right: context controls
+            var tapRight = new StackPanel { Margin = new Thickness(8, 0, 0, 0) };
+
+            var (pathPanel, pathBox) = MakeTextBoxRow("PATH", "process name or exe path");
+            pathBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _tapPathPanels[i] = pathPanel;
+            _tapPathBoxes[i] = pathBox;
+            tapRight.Children.Add(pathPanel);
+
+            var (macroPanel, macroBox) = MakeTextBoxRow("MACRO KEYS", "ctrl+shift+m");
+            macroBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _tapMacroPanels[i] = macroPanel;
+            _tapMacroBoxes[i] = macroBox;
+            tapRight.Children.Add(macroPanel);
+
+            var (devicePanel, deviceCombo) = MakeComboRow("DEVICE");
+            deviceCombo.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _tapDevicePanels[i] = devicePanel;
+            _tapDeviceCombos[i] = deviceCombo;
+            tapRight.Children.Add(devicePanel);
+
+            var (profilePanel, profileCombo) = MakeComboRow("PROFILE");
+            profileCombo.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _tapProfilePanels[i] = profilePanel;
+            _tapProfileCombos[i] = profileCombo;
+            tapRight.Children.Add(profilePanel);
+
+            var (powerPanel, powerCombo) = MakeComboRow("POWER ACTION");
+            powerCombo.ItemsSource = PowerActions;
+            powerCombo.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _tapPowerPanels[i] = powerPanel;
+            _tapPowerCombos[i] = powerCombo;
+            tapRight.Children.Add(powerPanel);
+
+            Grid.SetColumn(tapRight, 1);
+            tapGrid.Children.Add(tapRight);
+
+            tapContent.Children.Add(tapGrid);
+            tapCard.Child = tapContent;
+            panel.Children.Add(tapCard);
+
+            // ── Double press + Hold in a side-by-side row ──
+            var gestureRow = new Grid { Margin = new Thickness(0, 0, 0, 0) };
+            gestureRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            gestureRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            // Double press card
+            var dblCard = MakeCard();
+            dblCard.Margin = new Thickness(0, 0, 6, 0);
+            var dblContent = new StackPanel();
+            dblContent.Children.Add(MakeGestureHeader("DOUBLE PRESS", "2nd press within 300ms"));
+            dblContent.Children.Add(MakeLabel("ACTION"));
+            var dblCombo = MakeActionCombo();
+            dblCombo.Margin = new Thickness(0, 0, 0, 8);
+            dblCombo.SelectionChanged += (_, _) =>
+            {
+                if (_loading) return;
+                var val = GetSelectedActionValue(dblCombo);
+                UpdateSimpleVisibility(_dblPathPanels[idx], val);
+                QueueSave();
+            };
+            _dblActionCombos[i] = dblCombo;
+            dblContent.Children.Add(dblCombo);
+
+            var (dblPathPanel, dblPathBox) = MakeTextBoxRow("PATH", "process name or exe path");
+            dblPathBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _dblPathPanels[i] = dblPathPanel;
+            _dblPathBoxes[i] = dblPathBox;
+            dblContent.Children.Add(dblPathPanel);
+
+            dblCard.Child = dblContent;
+            Grid.SetColumn(dblCard, 0);
+            gestureRow.Children.Add(dblCard);
+
+            // Hold card
+            var holdCard = MakeCard();
+            holdCard.Margin = new Thickness(6, 0, 0, 0);
+            var holdContent = new StackPanel();
+            holdContent.Children.Add(MakeGestureHeader("HOLD", "Held 500ms+"));
+            holdContent.Children.Add(MakeLabel("ACTION"));
+            var holdCombo = MakeActionCombo();
+            holdCombo.Margin = new Thickness(0, 0, 0, 8);
+            holdCombo.SelectionChanged += (_, _) =>
+            {
+                if (_loading) return;
+                var val = GetSelectedActionValue(holdCombo);
+                UpdateSimpleVisibility(_holdPathPanels[idx], val);
+                QueueSave();
+            };
+            _holdActionCombos[i] = holdCombo;
+            holdContent.Children.Add(holdCombo);
+
+            var (holdPathPanel, holdPathBox) = MakeTextBoxRow("PATH", "process name or exe path");
+            holdPathBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _holdPathPanels[i] = holdPathPanel;
+            _holdPathBoxes[i] = holdPathBox;
+            holdContent.Children.Add(holdPathPanel);
+
+            holdCard.Child = holdContent;
+            Grid.SetColumn(holdCard, 1);
+            gestureRow.Children.Add(holdCard);
+
+            panel.Children.Add(gestureRow);
+            _detailPanels[i] = panel;
+            DetailPanel.Children.Add(panel);
+        }
+    }
+
+    private void ShowDetailPanel(int idx)
+    {
+        for (int i = 0; i < 5; i++)
+            _detailPanels[i].Visibility = i == idx ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // ── Visibility logic ───────────────────────────────────────────
 
     private void UpdateTapVisibility(int idx, string action)
     {
@@ -270,7 +410,7 @@ public partial class ButtonsView : UserControl
         pathPanel.Visibility = PathActions.Contains(action) ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    // --- Collect and save ---
+    // ── Collect and save ───────────────────────────────────────────
 
     private void QueueSave()
     {
@@ -287,7 +427,6 @@ public partial class ButtonsView : UserControl
             var btn = _config.Buttons.FirstOrDefault(b => b.Idx == i);
             if (btn == null) continue;
 
-            // TAP
             btn.Action = GetSelectedActionValue(_tapActionCombos[i]);
             btn.Path = GetTextBoxValue(_tapPathBoxes[i]);
             btn.MacroKeys = GetTextBoxValue(_tapMacroBoxes[i]);
@@ -295,19 +434,50 @@ public partial class ButtonsView : UserControl
             btn.ProfileName = _tapProfileCombos[i].SelectedItem as string ?? "";
             btn.PowerAction = _tapPowerCombos[i].SelectedItem as string ?? "";
 
-            // DOUBLE
             btn.DoublePressAction = GetSelectedActionValue(_dblActionCombos[i]);
             btn.DoublePressPath = GetTextBoxValue(_dblPathBoxes[i]);
 
-            // HOLD
             btn.HoldAction = GetSelectedActionValue(_holdActionCombos[i]);
             btn.HoldPath = GetTextBoxValue(_holdPathBoxes[i]);
         }
 
+        // Update tile for current button
+        for (int i = 0; i < 5; i++)
+            UpdateTileDisplay(i);
+
         _onSave(_config);
     }
 
-    // --- Control factory helpers ---
+    // ── Control factories ──────────────────────────────────────────
+
+    private Border MakeCard()
+    {
+        return new Border
+        {
+            Style = FindStyle("CardPanel"),
+            Margin = new Thickness(0, 0, 0, 12)
+        };
+    }
+
+    private StackPanel MakeGestureHeader(string title, string subtitle)
+    {
+        var header = new StackPanel { Margin = new Thickness(0, 0, 0, 4) };
+        header.Children.Add(new TextBlock
+        {
+            Text = title,
+            FontSize = 13,
+            FontWeight = FontWeights.Bold,
+            Foreground = FindBrush("AccentBrush")
+        });
+        header.Children.Add(new TextBlock
+        {
+            Text = subtitle,
+            FontSize = 10,
+            Foreground = FindBrush("TextDimBrush"),
+            Margin = new Thickness(0, 2, 0, 0)
+        });
+        return header;
+    }
 
     private ComboBox MakeActionCombo()
     {
@@ -316,7 +486,7 @@ public partial class ButtonsView : UserControl
             Background = FindBrush("InputBgBrush"),
             Foreground = FindBrush("TextPrimaryBrush"),
             BorderBrush = FindBrush("InputBorderBrush"),
-            Margin = new Thickness(0, 0, 0, 8),
+            Margin = new Thickness(0, 4, 0, 8),
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
         foreach (var (display, _) in Actions)
@@ -335,9 +505,8 @@ public partial class ButtonsView : UserControl
             Foreground = FindBrush("TextPrimaryBrush"),
             BorderBrush = FindBrush("InputBorderBrush"),
             Margin = new Thickness(0, 0, 0, 4),
-            Padding = new Thickness(4, 3, 4, 3)
+            Padding = new Thickness(6, 4, 6, 4)
         };
-        // WPF doesn't have built-in placeholder, use tag + events
         box.Tag = placeholder;
         box.Text = "";
         SetPlaceholder(box);
@@ -368,36 +537,12 @@ public partial class ButtonsView : UserControl
             Text = text,
             Style = FindStyle("SecondaryText"),
             FontWeight = FontWeights.SemiBold,
-            FontSize = 11,
+            FontSize = 10,
             Margin = new Thickness(0, 0, 0, 3)
         };
     }
 
-    private TextBlock MakeSectionHeader(string text)
-    {
-        return new TextBlock
-        {
-            Text = text,
-            FontSize = 12,
-            FontWeight = FontWeights.Bold,
-            Foreground = FindBrush("TextSecBrush"),
-            Margin = new Thickness(0, 4, 0, 6),
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-    }
-
-    private Rectangle MakeSeparator()
-    {
-        return new Rectangle
-        {
-            Height = 1,
-            Fill = FindBrush("CardBorderBrush"),
-            Margin = new Thickness(0, 8, 0, 8),
-            HorizontalAlignment = HorizontalAlignment.Stretch
-        };
-    }
-
-    // --- Placeholder simulation for TextBox ---
+    // ── Placeholder simulation ─────────────────────────────────────
 
     private void SetPlaceholder(TextBox box)
     {
@@ -422,7 +567,6 @@ public partial class ButtonsView : UserControl
             }
         };
 
-        // Initialize
         if (string.IsNullOrEmpty(box.Text))
         {
             box.Text = placeholder;
@@ -452,13 +596,12 @@ public partial class ButtonsView : UserControl
     {
         var placeholder = box.Tag as string ?? "";
         var dimBrush = FindBrush("TextDimBrush");
-        // If showing placeholder, return empty
         if (box.Text == placeholder && Equals(box.Foreground, dimBrush))
             return "";
         return box.Text.Trim();
     }
 
-    // --- Combo helpers ---
+    // ── Combo helpers ──────────────────────────────────────────────
 
     private void SelectActionCombo(ComboBox combo, string actionValue)
     {
@@ -470,7 +613,7 @@ public partial class ButtonsView : UserControl
                 return;
             }
         }
-        combo.SelectedIndex = 0; // default to "None"
+        combo.SelectedIndex = 0;
     }
 
     private string GetSelectedActionValue(ComboBox combo)
@@ -493,18 +636,11 @@ public partial class ButtonsView : UserControl
 
     private void SelectDeviceCombo(ComboBox combo, string deviceId)
     {
-        if (string.IsNullOrEmpty(deviceId))
-        {
-            combo.SelectedIndex = -1;
-            return;
-        }
+        if (string.IsNullOrEmpty(deviceId)) { combo.SelectedIndex = -1; return; }
         for (int i = 0; i < combo.Items.Count; i++)
         {
             if (combo.Items[i] is ComboBoxItem item && item.Tag as string == deviceId)
-            {
-                combo.SelectedIndex = i;
-                return;
-            }
+            { combo.SelectedIndex = i; return; }
         }
         combo.SelectedIndex = -1;
     }
@@ -525,49 +661,28 @@ public partial class ButtonsView : UserControl
 
     private void SelectProfileCombo(ComboBox combo, string profileName)
     {
-        if (string.IsNullOrEmpty(profileName))
-        {
-            combo.SelectedIndex = -1;
-            return;
-        }
+        if (string.IsNullOrEmpty(profileName)) { combo.SelectedIndex = -1; return; }
         for (int i = 0; i < combo.Items.Count; i++)
         {
             if (combo.Items[i] as string == profileName)
-            {
-                combo.SelectedIndex = i;
-                return;
-            }
+            { combo.SelectedIndex = i; return; }
         }
         combo.SelectedIndex = -1;
     }
 
     private void SelectPowerCombo(ComboBox combo, string powerAction)
     {
-        if (string.IsNullOrEmpty(powerAction))
-        {
-            combo.SelectedIndex = -1;
-            return;
-        }
+        if (string.IsNullOrEmpty(powerAction)) { combo.SelectedIndex = -1; return; }
         for (int i = 0; i < PowerActions.Length; i++)
         {
             if (PowerActions[i] == powerAction)
-            {
-                combo.SelectedIndex = i;
-                return;
-            }
+            { combo.SelectedIndex = i; return; }
         }
         combo.SelectedIndex = -1;
     }
 
-    // --- Resource helpers ---
+    // ── Resource helpers ───────────────────────────────────────────
 
-    private Brush FindBrush(string key)
-    {
-        return (Brush)(FindResource(key) ?? Brushes.White);
-    }
-
-    private Style? FindStyle(string key)
-    {
-        return FindResource(key) as Style;
-    }
+    private Brush FindBrush(string key) => (Brush)(FindResource(key) ?? Brushes.White);
+    private Style? FindStyle(string key) => FindResource(key) as Style;
 }
