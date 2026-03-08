@@ -52,7 +52,16 @@ public partial class MainWindow : FluentWindow
 
     private void NavMixer_Click(object sender, RoutedEventArgs e) => NavigateTo(_mixerView, NavMixer);
     private void NavButtons_Click(object sender, RoutedEventArgs e) => NavigateTo(_buttonsView, NavButtons);
-    private void NavLights_Click(object sender, RoutedEventArgs e) => NavigateTo(_lightsView, NavLights);
+    private void NavLights_Click(object sender, RoutedEventArgs e)
+    {
+        // Refresh lights view to pick up label/color changes from mixer tab
+        _lightsView.LoadConfig(_config, cfg =>
+        {
+            _config = cfg;
+            _onConfigChanged?.Invoke(cfg);
+        });
+        NavigateTo(_lightsView, NavLights);
+    }
     private void NavSettings_Click(object sender, RoutedEventArgs e) => NavigateTo(_settingsView, NavSettings);
 
     private void NavigateTo(System.Windows.Controls.UserControl view, System.Windows.Controls.Button navButton)
