@@ -1,0 +1,204 @@
+using System.IO.Ports;
+
+namespace WolfMixer;
+
+public class KnobEvent { public int Idx; public int Value; }
+public class ButtonEvent { public int Idx; public bool IsDown; }
+
+public class SerialReader : IDisposable
+{
+    private SerialPort? _port;
+    private readonly string _portName;
+    private readonly int _baud;
+    private readonly List<byte> _buf = new();
+    private CancellationTokenSource _cts = new();
+    private bool _running;
+
+    public event Action<KnobEvent>? OnKnob;
+    public event Action<ButtonEvent>? OnButton;
+    public event Action<bool>? OnConnectionChanged;
+
+    /// <summary>The underlying serial port, available after connection for RGB writes.</summary>
+    public SerialPort? Port => _port;
+
+    public SerialReader(string portName, int baud)
+    {
+        _portName = portName;
+        _baud = baud;
+    }
+
+    public void Start()
+    {
+        _running = true;
+        _cts = new CancellationTokenSource();
+        Task.Run(() => ConnectLoop(_cts.Token));
+    }
+
+    private async Task ConnectLoop(CancellationToken ct)
+    {
+        while (_running && !ct.IsCancellationRequested)
+        {
+            try
+            {
+                _port = new SerialPort(_portName, _baud) { ReadTimeout = 500 };
+                _port.Open();
+                Logger.Log($"Connected to {_portName} @ {_baud} baud");
+                OnConnectionChanged?.Invoke(true);
+                _buf.Clear();
+                await ReadLoop(ct);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Serial error: {ex.Message}");
+                OnConnectionChanged?.Invoke(false);
+                try { _port?.Close(); } catch { }
+                _port = null;
+
+                if (_running && !ct.IsCancellationRequested)
+                    await Task.Delay(5000, ct).ContinueWith(_ => { });
+            }
+        }
+    }
+
+    private async Task ReadLoop(CancellationToken ct)
+    {
+        var tmp = new byte[64];
+        while (_running && !ct.IsCancellationRequested && _port?.IsOpen == true)
+        {
+            try
+            {
+                int n = _port.BaseStream.ReadAsync(tmp, 0, tmp.Length, ct).GetAwaiter().GetResult();
+                for (int i = 0; i < n; i++) _buf.Add(tmp[i]);
+                ParseFrames();
+            }
+            catch (OperationCanceledException) { break; }
+            catch { throw; }
+        }
+    }
+
+    // Message table (from decompiled TurnUpBox.dll):
+    //   ID=0x02  len=3  Health/ping response: fe 02 ff
+    //   ID=0x03  len=6  Knob value:           fe 03 [idx] [hi] [lo] ff
+    //   ID=0x04  len=13 Knob batch (connect):  fe 04 [5x hi+lo] ff
+    //   ID=0x06  len=4  Button press (down):   fe 06 [idx] ff
+    //   ID=0x07  len=4  Button release (up):   fe 07 [idx] ff
+    //   ID=0x08  len=7  Device ID:             fe 08 [4 bytes] ff
+    private static readonly (byte Id, int Len)[] MessageTypes =
+    {
+        (0x02, 3),  // health
+        (0x03, 6),  // knob
+        (0x04, 13), // knob batch
+        (0x06, 4),  // button down
+        (0x07, 4),  // button up
+        (0x08, 7),  // device id
+    };
+
+    private void ParseFrames()
+    {
+        while (_buf.Count >= 3)
+        {
+            // Find start byte
+            if (_buf[0] != 0xFE) { _buf.RemoveAt(0); continue; }
+
+            // Try to match a known message type
+            bool matched = false;
+            foreach (var (id, len) in MessageTypes)
+            {
+                if (_buf.Count < len) continue;
+                if (_buf[1] != id) continue;
+                if (_buf[len - 1] != 0xFF) continue;
+
+                // Valid frame — extract and handle
+                var frame = _buf.GetRange(0, len).ToArray();
+                _buf.RemoveRange(0, len);
+                HandleFrame(id, frame);
+                matched = true;
+                break;
+            }
+
+            if (!matched)
+            {
+                // No known message matched — check if we might need more data
+                bool mightMatch = false;
+                foreach (var (id, len) in MessageTypes)
+                {
+                    if (_buf.Count >= 2 && _buf[1] == id && _buf.Count < len)
+                    {
+                        mightMatch = true; // need more bytes
+                        break;
+                    }
+                }
+                if (!mightMatch)
+                {
+                    // Garbage byte, skip it
+                    _buf.RemoveAt(0);
+                }
+                else
+                {
+                    break; // wait for more data
+                }
+            }
+        }
+    }
+
+    private void HandleFrame(byte id, byte[] frame)
+    {
+        switch (id)
+        {
+            case 0x02:
+                // Health/ping response — just log occasionally
+                break;
+
+            case 0x03:
+                // Knob: fe 03 [idx] [hi] [lo] ff
+                {
+                    int idx = frame[2];
+                    int val = (frame[3] << 8) | frame[4];
+                    if (val > 1000) val = 1023;
+                    if (idx >= 0 && idx < 5)
+                        OnKnob?.Invoke(new KnobEvent { Idx = idx, Value = val });
+                }
+                break;
+
+            case 0x04:
+                // Knob batch: fe 04 [5x hi+lo] ff — sent on connect
+                for (int i = 0; i < 5; i++)
+                {
+                    int val = (frame[2 + i * 2] << 8) | frame[3 + i * 2];
+                    if (val > 1000) val = 1023;
+                    OnKnob?.Invoke(new KnobEvent { Idx = i, Value = val });
+                }
+                break;
+
+            case 0x06:
+                // Button press (down): fe 06 [idx] ff
+                {
+                    int idx = frame[2];
+                    if (idx >= 0 && idx < 5)
+                        OnButton?.Invoke(new ButtonEvent { Idx = idx, IsDown = true });
+                }
+                break;
+
+            case 0x07:
+                // Button release (up): fe 07 [idx] ff
+                {
+                    int idx = frame[2];
+                    if (idx >= 0 && idx < 5)
+                        OnButton?.Invoke(new ButtonEvent { Idx = idx, IsDown = false });
+                }
+                break;
+
+            case 0x08:
+                // Device ID: fe 08 [4 bytes] ff
+                Logger.Log($"Device ID: {frame[2]:X2}{frame[3]:X2}{frame[4]:X2}{frame[5]:X2}");
+                break;
+        }
+    }
+
+    public void Dispose()
+    {
+        _running = false;
+        _cts.Cancel();
+        try { _port?.Close(); } catch { }
+    }
+}

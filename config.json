@@ -1,0 +1,25 @@
+{
+  "serial": { "port": "COM3", "baud": 115200 },
+  "knobs": [
+    { "idx": 0, "label": "Master", "target": "master" },
+    { "idx": 1, "label": "Discord", "target": "discord" },
+    { "idx": 2, "label": "Spotify", "target": "spotify" },
+    { "idx": 3, "label": "Game", "target": "any" },
+    { "idx": 4, "label": "Browser", "target": "chrome" }
+  ],
+  "buttons": [
+    { "idx": 0, "action": "media_prev" },
+    { "idx": 1, "action": "media_play_pause" },
+    { "idx": 2, "action": "media_next" },
+    { "idx": 3, "action": "mute_mic" },
+    { "idx": 4, "action": "none" }
+  ],
+  "lights": [
+    { "idx": 0, "r": 0, "g": 150, "b": 255 },
+    { "idx": 1, "r": 0, "g": 150, "b": 255 },
+    { "idx": 2, "r": 0, "g": 150, "b": 255 },
+    { "idx": 3, "r": 0, "g": 150, "b": 255 },
+    { "idx": 4, "r": 0, "g": 150, "b": 255 }
+  ],
+  "startWithWindows": true
+}
