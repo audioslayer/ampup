@@ -355,7 +355,8 @@ public class ColorPickerDialog : Window
         SelectedColor = initial;
         Title = "Pick Color";
         Width = 320;
-        Height = 480;
+        Height = 520;
+        SizeToContent = SizeToContent.Height;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.NoResize;
         Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14));
