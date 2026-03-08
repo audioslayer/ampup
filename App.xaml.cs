@@ -18,6 +18,7 @@ public partial class App : Application
     private DateTime _connectedAt = DateTime.MinValue;
     private Forms.NotifyIcon? _trayIcon;
     private bool _isConnected;
+    private DeviceSwitchOverlay? _deviceOverlay;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -42,6 +43,7 @@ public partial class App : Application
         _rgb = new RgbController();
 
         _buttons.OnProfileSwitch += HandleProfileSwitch;
+        _buttons.OnDeviceSwitched += HandleDeviceSwitched;
 
         // Start audio mixer
         _mixer.Start();
@@ -294,6 +296,15 @@ public partial class App : Application
         ConfigManager.Save(_config);
         ApplyRgbConfig();
         Logger.Log($"Switched to profile: {profileName}");
+    }
+
+    private void HandleDeviceSwitched(string deviceName, bool isOutput)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            _deviceOverlay ??= new DeviceSwitchOverlay();
+            _deviceOverlay.ShowDevice(deviceName, isOutput);
+        });
     }
 
     private void PollMuteStates()

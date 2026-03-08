@@ -61,6 +61,8 @@ public class ButtonHandler
     // ── Events ────────────────────────────────────────────────────────
 
     public event Action<string>? OnProfileSwitch;
+    /// <summary>Fires with (deviceName, isOutput) when the default audio device changes.</summary>
+    public event Action<string, bool>? OnDeviceSwitched;
 
     // ── IPolicyConfig COM interface for changing default audio device ──
 
@@ -451,7 +453,7 @@ public class ButtonHandler
 
         SetDefaultAudioDevice(nextId);
 
-        // Log friendly name
+        // Log friendly name and fire event
         try
         {
             var allDevs = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
@@ -459,7 +461,9 @@ public class ButtonHandler
             {
                 if (d.ID == nextId)
                 {
-                    Logger.Log($"cycle_{(flow == DataFlow.Render ? "output" : "input")}: switched to {d.FriendlyName}");
+                    var name = d.FriendlyName;
+                    Logger.Log($"cycle_{(flow == DataFlow.Render ? "output" : "input")}: switched to {name}");
+                    OnDeviceSwitched?.Invoke(name, flow == DataFlow.Render);
                     break;
                 }
             }
@@ -479,6 +483,20 @@ public class ButtonHandler
         try
         {
             SetDefaultAudioDevice(deviceId);
+            // Resolve friendly name for notification
+            try
+            {
+                var allDevs = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
+                foreach (var d in allDevs)
+                {
+                    if (d.ID == deviceId)
+                    {
+                        OnDeviceSwitched?.Invoke(d.FriendlyName, flow == DataFlow.Render);
+                        break;
+                    }
+                }
+            }
+            catch { }
             Logger.Log($"select_{(flow == DataFlow.Render ? "output" : "input")}: set device {deviceId}");
         }
         catch (Exception ex)
