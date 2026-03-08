@@ -17,6 +17,7 @@ public partial class LightsView : UserControl
     private readonly DispatcherTimer _debounce;
 
     // Per-channel controls
+    private readonly TextBlock[] _headers = new TextBlock[5];
     private readonly ComboBox[] _effectCombos = new ComboBox[5];
     private readonly Border[] _color1Swatches = new Border[5];
     private readonly Border[] _color2Swatches = new Border[5];
@@ -56,6 +57,14 @@ public partial class LightsView : UserControl
 
         for (int i = 0; i < 5; i++)
         {
+            // Update header from knob label
+            var knob = config.Knobs.FirstOrDefault(k => k.Idx == i);
+            if (knob != null)
+            {
+                var name = !string.IsNullOrWhiteSpace(knob.Label) ? knob.Label : FormatTargetName(knob.Target);
+                _headers[i].Text = name;
+            }
+
             var light = config.Lights.FirstOrDefault(l => l.Idx == i);
             if (light == null) continue;
 
@@ -90,8 +99,8 @@ public partial class LightsView : UserControl
             int idx = i;
             var panel = panels[i];
 
-            // Header
-            panel.Children.Add(new TextBlock
+            // Header (updated from knob label in LoadConfig)
+            var header = new TextBlock
             {
                 Text = $"LED {i + 1}",
                 FontSize = 14,
@@ -99,7 +108,9 @@ public partial class LightsView : UserControl
                 Foreground = FindBrush("AccentBrush"),
                 Margin = new Thickness(0, 0, 0, 10),
                 HorizontalAlignment = HorizontalAlignment.Center
-            });
+            };
+            _headers[i] = header;
+            panel.Children.Add(header);
 
             // Effect combo
             panel.Children.Add(MakeLabel("EFFECT"));
@@ -293,6 +304,19 @@ public partial class LightsView : UserControl
     private Style? FindStyle(string key)
     {
         return FindResource(key) as Style;
+    }
+
+    private static string FormatTargetName(string target)
+    {
+        if (string.IsNullOrEmpty(target) || target == "none")
+            return "None";
+        var words = target.Replace('_', ' ').Split(' ');
+        for (int i = 0; i < words.Length; i++)
+        {
+            if (words[i].Length > 0)
+                words[i] = char.ToUpper(words[i][0]) + words[i][1..];
+        }
+        return string.Join(' ', words);
     }
 }
 

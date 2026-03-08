@@ -25,7 +25,7 @@ public partial class MixerView : UserControl
     private readonly AnimatedKnobControl[] _knobs = new AnimatedKnobControl[5];
     private readonly VuMeterControl[] _vuMeters = new VuMeterControl[5];
     private readonly TextBlock[] _volLabels = new TextBlock[5];
-    private readonly TextBlock[] _channelLabels = new TextBlock[5];
+    private readonly TextBox[] _channelLabels = new TextBox[5];
     private readonly Image[] _icons = new Image[5];
     private readonly ComboBox[] _targetCombos = new ComboBox[5];
     private readonly ComboBox[] _curveCombos = new ComboBox[5];
@@ -74,8 +74,8 @@ public partial class MixerView : UserControl
             var knob = config.Knobs.FirstOrDefault(k => k.Idx == i);
             if (knob == null) continue;
 
-            // Label
-            _channelLabels[i].Text = string.IsNullOrEmpty(knob.Label) ? $"Knob {i + 1}" : knob.Label;
+            // Label — use custom label, or derive from target name
+            _channelLabels[i].Text = GetDisplayLabel(knob);
 
             // Target combo
             SelectTarget(_targetCombos[i], knob.Target);
@@ -177,13 +177,29 @@ public partial class MixerView : UserControl
             _icons[i] = icon;
             panel.Children.Add(iconContainer);
 
-            // --- Channel label ---
-            var label = new TextBlock
+            // --- Channel label (editable) ---
+            var label = new TextBox
             {
                 Text = $"Knob {i + 1}",
-                Style = FindStyle("BodyText"),
+                FontSize = 13,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = FindBrush("TextPrimaryBrush"),
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0, 0, 0, 1),
+                BorderBrush = Brushes.Transparent,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 8)
+                TextAlignment = TextAlignment.Center,
+                Padding = new Thickness(4, 2, 4, 2),
+                Margin = new Thickness(0, 0, 0, 8),
+                MaxLength = 20,
+                Cursor = Cursors.IBeam
+            };
+            // Show subtle underline on hover/focus
+            label.GotFocus += (_, _) => label.BorderBrush = FindBrush("AccentBrush");
+            label.LostFocus += (_, _) =>
+            {
+                label.BorderBrush = Brushes.Transparent;
+                if (!_loading) QueueSave();
             };
             _channelLabels[i] = label;
             panel.Children.Add(label);
@@ -450,6 +466,11 @@ public partial class MixerView : UserControl
             var knob = _config.Knobs.FirstOrDefault(k => k.Idx == i);
             if (knob == null) continue;
 
+            // Save label — store the user's text, or empty if it matches the auto-derived name
+            var labelText = _channelLabels[i].Text.Trim();
+            var autoName = FormatTargetName((_targetCombos[i].SelectedItem as string) ?? "none");
+            knob.Label = (labelText == autoName || labelText == $"Knob {i + 1}") ? "" : labelText;
+
             knob.Target = _targetCombos[i].SelectedItem as string ?? "none";
 
             if (_curveCombos[i].SelectedItem is ResponseCurve curve)
@@ -485,5 +506,35 @@ public partial class MixerView : UserControl
     private Style? FindStyle(string key)
     {
         return FindResource(key) as Style;
+    }
+
+    /// <summary>
+    /// Get the display label for a knob. Uses custom label if set, otherwise
+    /// derives a friendly name from the target (e.g., "master" → "Master").
+    /// </summary>
+    private static string GetDisplayLabel(KnobConfig knob)
+    {
+        if (!string.IsNullOrWhiteSpace(knob.Label))
+            return knob.Label;
+        return FormatTargetName(knob.Target);
+    }
+
+    /// <summary>
+    /// Format a target string into a display-friendly name.
+    /// "active_window" → "Active Window", "discord" → "Discord", etc.
+    /// </summary>
+    private static string FormatTargetName(string target)
+    {
+        if (string.IsNullOrEmpty(target) || target == "none")
+            return "None";
+
+        // Replace underscores with spaces and title-case each word
+        var words = target.Replace('_', ' ').Split(' ');
+        for (int i = 0; i < words.Length; i++)
+        {
+            if (words[i].Length > 0)
+                words[i] = char.ToUpper(words[i][0]) + words[i][1..];
+        }
+        return string.Join(' ', words);
     }
 }
