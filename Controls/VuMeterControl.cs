@@ -23,8 +23,8 @@ namespace WolfMixer.Controls
         private static readonly SolidColorBrush PeakBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xE6, 0xE6, 0xE6)));
 
         // Transitional brushes (blended between bar color and yellow) — rebuilt when BarColor changes
-        private SolidColorBrush _trans1Brush;
-        private SolidColorBrush _trans2Brush;
+        private SolidColorBrush _trans1Brush = null!;
+        private SolidColorBrush _trans2Brush = null!;
 
         private readonly VisualCollection _visuals;
         private readonly DrawingVisual _drawingVisual;

@@ -133,10 +133,10 @@ namespace WolfMixer.Controls
         }
 
         // ── Cached ArcColor-dependent resources ────────────────────────
-        private Pen _valuePen;
-        private Pen _glowPen;
-        private Brush _needleFill;
-        private Brush _needleGlowBrush;
+        private Pen _valuePen = null!;
+        private Pen _glowPen = null!;
+        private Brush _needleFill = null!;
+        private Brush _needleGlowBrush = null!;
         private Color _cachedArcColor;
 
         public AnimatedKnobControl()
