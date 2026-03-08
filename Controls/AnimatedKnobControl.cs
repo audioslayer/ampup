@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace WolfMixer.Controls
 {
@@ -11,53 +12,36 @@ namespace WolfMixer.Controls
         private const double StartAngleDeg = 225.0;
         private const double TotalSweepDeg = 270.0;
         private const double DefaultSize = 100.0;
-        private const double ArcStroke = 5.0;
-        private const double GlowStroke = 10.0;
-        private const double OuterRingStroke = 2.0;
-        private const double NeedleDotRadius = 4.0;
-        private const double NeedleGlowRadius = 7.0;
-        private const double CenterCircleRatio = 0.52;
-        private const double ArcInset = 10.0;
+        private const double ArcStroke = 4.0;
+        private const double GlowStroke = 8.0;
+        private const double ArcInset = 6.0;
         private const double DirtyThreshold = 0.001;
+        private const double KnobImageRatio = 0.72; // knob image fills 72% of control size
 
         // ── Static frozen resources (color-independent) ────────────────
         private static readonly Pen s_trackPen;
-        private static readonly Pen s_outerRingPen;
-        private static readonly Brush s_centerFill;
-        private static readonly Pen s_centerBorderPen;
-        private static readonly Brush s_textBrush;
         private static readonly Typeface s_typeface;
+        private static readonly Brush s_textBrush;
+        private static readonly BitmapImage s_knobImage;
 
         static AnimatedKnobControl()
         {
-            // Track arc: #363636, 5px round caps
-            var trackBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
+            // Track arc: #2A2A2A, round caps
+            var trackBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
             trackBrush.Freeze();
             s_trackPen = new Pen(trackBrush, ArcStroke) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
             s_trackPen.Freeze();
-
-            // Outer ring: #2A2A2A, 2px
-            var outerRingBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-            outerRingBrush.Freeze();
-            s_outerRingPen = new Pen(outerRingBrush, OuterRingStroke);
-            s_outerRingPen.Freeze();
-
-            // Center circle fill: #1A1A1A
-            s_centerFill = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
-            s_centerFill.Freeze();
-
-            // Center circle border: #2A2A2A
-            var centerBorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-            centerBorderBrush.Freeze();
-            s_centerBorderPen = new Pen(centerBorderBrush, 1.5);
-            s_centerBorderPen.Freeze();
 
             // Text: #E8E8E8
             s_textBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
             s_textBrush.Freeze();
 
-            // Segoe UI Bold
+            // Segoe UI Bold for percentage label
             s_typeface = new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
+
+            // Load knob face image from embedded resource
+            s_knobImage = new BitmapImage(new Uri("pack://application:,,,/Assets/knob-face.png", UriKind.Absolute));
+            s_knobImage.Freeze();
         }
 
         // ── Dependency Properties ──────────────────────────────────────
@@ -135,8 +119,7 @@ namespace WolfMixer.Controls
         // ── Cached ArcColor-dependent resources ────────────────────────
         private Pen _valuePen = null!;
         private Pen _glowPen = null!;
-        private Brush _needleFill = null!;
-        private Brush _needleGlowBrush = null!;
+        private Brush _endDotBrush = null!;
         private Color _cachedArcColor;
 
         public AnimatedKnobControl()
@@ -151,26 +134,21 @@ namespace WolfMixer.Controls
 
             _cachedArcColor = color;
 
-            // Value arc pen: ArcColor, 5px, round caps
+            // Value arc pen
             var valueBrush = new SolidColorBrush(color);
             valueBrush.Freeze();
             _valuePen = new Pen(valueBrush, ArcStroke) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
             _valuePen.Freeze();
 
-            // Glow pen: ArcColor at 35% opacity, 10px
-            var glowColor = Color.FromArgb((byte)(255 * 0.35), color.R, color.G, color.B);
+            // Glow pen: ArcColor at 30% opacity
+            var glowColor = Color.FromArgb((byte)(255 * 0.30), color.R, color.G, color.B);
             var glowBrush = new SolidColorBrush(glowColor);
             glowBrush.Freeze();
             _glowPen = new Pen(glowBrush, GlowStroke) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
             _glowPen.Freeze();
 
-            // Needle dot fill: ArcColor
-            _needleFill = valueBrush; // already frozen
-
-            // Needle glow: ArcColor at 50% opacity
-            var needleGlowColor = Color.FromArgb(128, color.R, color.G, color.B);
-            _needleGlowBrush = new SolidColorBrush(needleGlowColor);
-            _needleGlowBrush.Freeze();
+            // End dot brush
+            _endDotBrush = valueBrush; // already frozen
         }
 
         // ── Layout ─────────────────────────────────────────────────────
@@ -196,10 +174,7 @@ namespace WolfMixer.Controls
             double radius = Math.Min(w, h) / 2.0 - ArcInset;
             float value = Value;
 
-            // 1. Outer ring
-            dc.DrawEllipse(null, s_outerRingPen, new Point(cx, cy), radius + 4, radius + 4);
-
-            // 2. Track arc (full sweep)
+            // 1. Track arc (full sweep background)
             var trackGeometry = CreateArcGeometry(cx, cy, radius, StartAngleDeg, TotalSweepDeg);
             dc.DrawGeometry(null, s_trackPen, trackGeometry);
 
@@ -207,64 +182,69 @@ namespace WolfMixer.Controls
             {
                 double valueSweep = value * TotalSweepDeg;
 
-                // 3. Glow arc (behind value arc)
-                var glowGeometry = CreateArcGeometry(cx, cy, radius, StartAngleDeg, valueSweep);
-                dc.DrawGeometry(null, _glowPen, glowGeometry);
+                // 2. Glow arc (behind value arc)
+                var arcGeometry = CreateArcGeometry(cx, cy, radius, StartAngleDeg, valueSweep);
+                dc.DrawGeometry(null, _glowPen, arcGeometry);
 
-                // 4. Value arc
-                dc.DrawGeometry(null, _valuePen, glowGeometry);
+                // 3. Value arc
+                dc.DrawGeometry(null, _valuePen, arcGeometry);
+
+                // 4. Small bright dot at the arc tip
+                double tipAngleDeg = StartAngleDeg + valueSweep;
+                double tipAngleRad = tipAngleDeg * Math.PI / 180.0;
+                double tipX = cx + radius * Math.Cos(tipAngleRad);
+                double tipY = cy - radius * Math.Sin(tipAngleRad);
+                dc.DrawEllipse(_endDotBrush, null, new Point(tipX, tipY), 3.0, 3.0);
             }
 
-            // 5. Needle dot at arc tip
-            double tipAngleDeg = StartAngleDeg + value * TotalSweepDeg;
-            double tipAngleRad = tipAngleDeg * Math.PI / 180.0;
-            double tipX = cx + radius * Math.Cos(tipAngleRad);
-            double tipY = cy - radius * Math.Sin(tipAngleRad);
-            var tipPoint = new Point(tipX, tipY);
+            // 5. Knob image (rotated by value)
+            // The knob-face.png has the needle pointing straight down (180°/6 o'clock).
+            // At value=0, the needle should point to the start position (225° = 7:30 position).
+            // At value=1, the needle should point to the end position (225°-270° = -45° = 4:30 position).
+            // Since the image needle is at 180° (down), we need to rotate:
+            //   At value=0: rotate to point at 225° → that's 225°-180° = 45° counter-clockwise
+            //               In WPF screen coords (CW positive), that's -45°
+            //   At value=1: rotate to point at -45° → that's -45°-180° = -225° → or +135° CW
+            // So rotation goes from -45° to +135° as value goes 0→1, but let's simplify:
+            // The needle at 180° (down) needs to sweep 270° total.
+            // WPF RotateTransform is clockwise.
+            // At value=0, we want needle pointing to lower-left (7:30 = 225° math = -135° from up in CW)
+            // Easier: rotation = -135 + (value * 270)  (starting at -135° CW from down, sweeping 270° CW)
+            double rotationDeg = -135.0 + (value * 270.0);
 
-            // Needle glow (14px diameter = 7px radius)
-            dc.DrawEllipse(_needleGlowBrush, null, tipPoint, NeedleGlowRadius, NeedleGlowRadius);
-            // Needle fill (8px diameter = 4px radius)
-            dc.DrawEllipse(_needleFill, null, tipPoint, NeedleDotRadius, NeedleDotRadius);
+            double knobSize = (radius * 2.0) * KnobImageRatio;
+            double knobLeft = cx - knobSize / 2.0;
+            double knobTop = cy - knobSize / 2.0;
 
-            // 6. Center circle
-            double centerRadius = radius * CenterCircleRatio;
-            dc.DrawEllipse(s_centerFill, s_centerBorderPen, new Point(cx, cy), centerRadius, centerRadius);
+            dc.PushTransform(new RotateTransform(rotationDeg, cx, cy));
+            dc.DrawImage(s_knobImage, new Rect(knobLeft, knobTop, knobSize, knobSize));
+            dc.Pop();
 
-            // 7. Center percentage text
+            // 6. Percentage text below the knob
             string text = PercentText ?? "0%";
             var formattedText = new FormattedText(
                 text,
                 CultureInfo.InvariantCulture,
                 FlowDirection.LeftToRight,
                 s_typeface,
-                12.0, // 9pt ≈ 12 device-independent pixels
+                11.0,
                 s_textBrush,
                 VisualTreeHelper.GetDpi(this).PixelsPerDip);
 
-            dc.DrawText(formattedText, new Point(cx - formattedText.Width / 2.0, cy - formattedText.Height / 2.0));
+            double textY = cy + knobSize / 2.0 + 2.0;
+            dc.DrawText(formattedText, new Point(cx - formattedText.Width / 2.0, textY));
         }
 
         // ── Arc geometry helper ────────────────────────────────────────
 
-        /// <summary>
-        /// Creates a StreamGeometry arc from <paramref name="startAngleDeg"/> sweeping
-        /// <paramref name="sweepDeg"/> degrees clockwise. Angles measured from positive
-        /// X-axis, counter-clockwise in math convention but we negate Y for screen coords
-        /// (Y increases downward in WPF). StartAngle 225° places the start at lower-left.
-        /// </summary>
         private static StreamGeometry CreateArcGeometry(double cx, double cy, double radius, double startAngleDeg, double sweepDeg)
         {
-            // Convert angles: our convention has 0° at right, increasing counter-clockwise
-            // in math terms. For WPF screen coords (Y down), we negate the Y component.
             double startRad = startAngleDeg * Math.PI / 180.0;
             double endRad = (startAngleDeg + sweepDeg) * Math.PI / 180.0;
 
-            // Start point
             double x0 = cx + radius * Math.Cos(startRad);
             double y0 = cy - radius * Math.Sin(startRad);
 
-            // End point
             double x1 = cx + radius * Math.Cos(endRad);
             double y1 = cy - radius * Math.Sin(endRad);
 

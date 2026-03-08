@@ -13,6 +13,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Resource Include="Assets\knob-face.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
     <PackageReference Include="WPF-UI" Version="4.*" />
     <PackageReference Include="NAudio" Version="2.2.1" />
