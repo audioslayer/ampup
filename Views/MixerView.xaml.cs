@@ -127,9 +127,9 @@ public partial class MixerView : UserControl
                 _vuMeters[i].Level = peak;
                 _vuMeters[i].Tick();
             }
-            catch
+            catch (Exception ex)
             {
-                // Silently ignore — device may have been removed
+                Logger.Log($"LiveTimer ch{i}: {ex.Message}");
             }
         }
     }
