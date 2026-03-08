@@ -192,7 +192,7 @@ public partial class MixerView : UserControl
                 Padding = new Thickness(4, 2, 4, 2),
                 Margin = new Thickness(0, 0, 0, 8),
                 MaxLength = 20,
-                Cursor = Cursors.IBeam
+                Cursor = System.Windows.Input.Cursors.IBeam
             };
             // Show subtle underline on hover/focus
             label.GotFocus += (_, _) => label.BorderBrush = FindBrush("AccentBrush");
