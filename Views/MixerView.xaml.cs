@@ -19,7 +19,27 @@ public partial class MixerView : UserControl
 
     // Target options for the combo box
     private static readonly string[] TargetValues =
-        { "master", "mic", "system", "any", "active_window", "output_device", "input_device", "monitor", "discord", "spotify", "chrome" };
+        { "master", "mic", "system", "any", "active_window", "output_device", "input_device", "monitor",
+          "ha_light", "ha_media", "ha_fan", "ha_cover",
+          "discord", "spotify", "chrome" };
+
+    // HA target prefix → domain for entity filtering
+    private static readonly Dictionary<string, string> HATargetDomains = new()
+    {
+        { "ha_light", "light" },
+        { "ha_media", "media_player" },
+        { "ha_fan", "fan" },
+        { "ha_cover", "cover" }
+    };
+
+    // Display names for HA targets in the combo
+    private static readonly Dictionary<string, string> HATargetDisplayNames = new()
+    {
+        { "ha_light", "HA: Light" },
+        { "ha_media", "HA: Media" },
+        { "ha_fan", "HA: Fan" },
+        { "ha_cover", "HA: Cover" }
+    };
 
     // Per-channel control arrays
     private readonly AnimatedKnobControl[] _knobs = new AnimatedKnobControl[5];
@@ -35,11 +55,17 @@ public partial class MixerView : UserControl
     private readonly TextBlock[] _maxLabels = new TextBlock[5];
     private readonly ComboBox[] _deviceCombos = new ComboBox[5];
     private readonly StackPanel[] _devicePanels = new StackPanel[5];
+    private readonly ComboBox[] _haEntityCombos = new ComboBox[5];
+    private readonly StackPanel[] _haEntityPanels = new StackPanel[5];
     private readonly TextBlock[] _muteLabels = new TextBlock[5];
     private readonly Border[] _stripBorders = new Border[5];
 
     // Audio devices cache
     private List<(string Id, string Name, bool IsOutput)> _audioDevices = new();
+
+    // HA entities cache
+    private List<HAEntity> _haEntities = new();
+    private HAIntegration? _ha;
 
     public MixerView()
     {
@@ -69,6 +95,15 @@ public partial class MixerView : UserControl
 
         _audioDevices = mixer.GetAudioDevices();
 
+        // Create/update HA client if enabled
+        if (config.HomeAssistant.Enabled && !string.IsNullOrWhiteSpace(config.HomeAssistant.Token))
+        {
+            if (_ha == null)
+                _ha = new HAIntegration(config.HomeAssistant);
+            else
+                _ha.UpdateConfig(config.HomeAssistant);
+        }
+
         for (int i = 0; i < 5; i++)
         {
             var knob = config.Knobs.FirstOrDefault(k => k.Idx == i);
@@ -77,7 +112,7 @@ public partial class MixerView : UserControl
             // Label — use custom label, or derive from target name
             _channelLabels[i].Text = GetDisplayLabel(knob);
 
-            // Target combo
+            // Target combo — for HA targets, select just the prefix
             SelectTarget(_targetCombos[i], knob.Target);
 
             // Curve combo
@@ -93,8 +128,8 @@ public partial class MixerView : UserControl
             PopulateDeviceCombo(_deviceCombos[i]);
             SelectDeviceCombo(_deviceCombos[i], knob.DeviceId);
 
-            // Device visibility
-            UpdateDeviceVisibility(i, knob.Target);
+            // Visibility for device/HA pickers
+            UpdatePickerVisibility(i, knob.Target);
 
             // Apply light color to knob arc and volume label
             var light = config.Lights.FirstOrDefault(l => l.Idx == i);
@@ -112,8 +147,40 @@ public partial class MixerView : UserControl
 
         _loading = false;
 
+        // Fetch HA entities if enabled
+        if (_ha != null)
+            _ = FetchHAEntitiesAsync();
+
         // Start live polling
         _liveTimer.Start();
+    }
+
+    private async Task FetchHAEntitiesAsync()
+    {
+        if (_ha == null) return;
+
+        try
+        {
+            var connected = await _ha.TestConnectionAsync();
+            if (!connected) return;
+
+            _haEntities = await _ha.GetEntitiesAsync();
+
+            Dispatcher.Invoke(() =>
+            {
+                // Re-populate all HA entity combos
+                for (int i = 0; i < 5; i++)
+                {
+                    var target = _targetCombos[i].SelectedItem as string ?? "";
+                    if (HATargetDomains.ContainsKey(target))
+                        PopulateHAEntityCombo(i, target);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"MixerView HA fetch: {ex.Message}");
+        }
     }
 
     private void LiveTimer_Tick(object? sender, EventArgs e)
@@ -271,18 +338,23 @@ public partial class MixerView : UserControl
             controlsPanel.Children.Add(MakeLabel("TARGET"));
             var targetCombo = new ComboBox
             {
-                ItemsSource = TargetValues,
                 Background = FindBrush("InputBgBrush"),
                 Foreground = FindBrush("TextPrimaryBrush"),
                 BorderBrush = FindBrush("InputBorderBrush"),
                 Margin = new Thickness(0, 0, 0, 8),
                 HorizontalAlignment = HorizontalAlignment.Stretch
             };
+            // Populate with display-friendly names
+            foreach (var tv in TargetValues)
+            {
+                var displayText = HATargetDisplayNames.TryGetValue(tv, out var dn) ? dn : tv;
+                targetCombo.Items.Add(new ComboBoxItem { Content = displayText, Tag = tv });
+            }
             targetCombo.SelectionChanged += (_, _) =>
             {
                 if (_loading) return;
-                var selected = targetCombo.SelectedItem as string ?? "none";
-                UpdateDeviceVisibility(idx, selected);
+                var selected = GetSelectedTarget(targetCombo);
+                UpdatePickerVisibility(idx, selected);
                 QueueSave();
             };
             _targetCombos[i] = targetCombo;
@@ -384,34 +456,103 @@ public partial class MixerView : UserControl
             deviceContainer.Children.Add(deviceCombo);
             controlsPanel.Children.Add(deviceContainer);
 
+            // HA entity picker (hidden unless target is ha_light / ha_media / etc.)
+            var haContainer = new StackPanel { Visibility = Visibility.Collapsed };
+            haContainer.Children.Add(MakeLabel("HA ENTITY"));
+            var haEntityCombo = new ComboBox
+            {
+                Background = FindBrush("InputBgBrush"),
+                Foreground = FindBrush("TextPrimaryBrush"),
+                BorderBrush = FindBrush("InputBorderBrush"),
+                Margin = new Thickness(0, 0, 0, 4),
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+            haEntityCombo.SelectionChanged += (_, _) =>
+            {
+                if (!_loading) QueueSave();
+            };
+            _haEntityCombos[i] = haEntityCombo;
+            _haEntityPanels[i] = haContainer;
+            haContainer.Children.Add(haEntityCombo);
+            controlsPanel.Children.Add(haContainer);
+
             panel.Children.Add(controlsBorder);
         }
     }
 
     // --- Visibility ---
 
-    private void UpdateDeviceVisibility(int idx, string target)
+    private void UpdatePickerVisibility(int idx, string target)
     {
-        bool show = target == "output_device" || target == "input_device";
-        _devicePanels[idx].Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        // Extract HA prefix from compound targets like "ha_light:light.entity_id"
+        var baseTarget = target.Contains(':') ? target.Split(':')[0] : target;
+
+        bool showDevice = baseTarget == "output_device" || baseTarget == "input_device";
+        _devicePanels[idx].Visibility = showDevice ? Visibility.Visible : Visibility.Collapsed;
+
+        bool showHA = HATargetDomains.ContainsKey(baseTarget);
+        _haEntityPanels[idx].Visibility = showHA ? Visibility.Visible : Visibility.Collapsed;
+
+        if (showHA)
+            PopulateHAEntityCombo(idx, baseTarget);
+    }
+
+    private void PopulateHAEntityCombo(int idx, string haTarget)
+    {
+        var combo = _haEntityCombos[idx];
+        combo.Items.Clear();
+
+        if (!HATargetDomains.TryGetValue(haTarget, out var domain))
+            return;
+
+        var filtered = _haEntities.Where(e => e.Domain == domain).OrderBy(e => e.FriendlyName).ToList();
+        foreach (var entity in filtered)
+            combo.Items.Add(new ComboBoxItem { Content = entity.FriendlyName, Tag = entity.EntityId });
+
+        // Restore selection from config
+        if (_config != null)
+        {
+            var knob = _config.Knobs.FirstOrDefault(k => k.Idx == idx);
+            if (knob != null && knob.Target.StartsWith(haTarget + ":"))
+            {
+                var entityId = knob.Target.Substring(haTarget.Length + 1);
+                for (int i = 0; i < combo.Items.Count; i++)
+                {
+                    if (combo.Items[i] is ComboBoxItem item && item.Tag as string == entityId)
+                    {
+                        combo.SelectedIndex = i;
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     // --- Target / device combo helpers ---
 
     private void SelectTarget(ComboBox combo, string target)
     {
-        for (int i = 0; i < TargetValues.Length; i++)
+        // For HA compound targets like "ha_light:light.entity_id", select just "ha_light"
+        var baseTarget = target.Contains(':') ? target.Split(':')[0] : target;
+
+        for (int i = 0; i < combo.Items.Count; i++)
         {
-            if (TargetValues[i] == target)
+            if (combo.Items[i] is ComboBoxItem item && item.Tag as string == baseTarget)
             {
                 combo.SelectedIndex = i;
                 return;
             }
         }
-        // Custom process name — extend the ItemsSource with it
-        var extended = TargetValues.Append(target).ToArray();
-        combo.ItemsSource = extended;
-        combo.SelectedItem = target;
+        // Custom process name — add it as a new item
+        combo.Items.Add(new ComboBoxItem { Content = target, Tag = target });
+        combo.SelectedIndex = combo.Items.Count - 1;
+    }
+
+    private string GetSelectedTarget(ComboBox combo)
+    {
+        if (combo.SelectedItem is ComboBoxItem item)
+            return item.Tag as string ?? "none";
+        return "none";
     }
 
     private void PopulateDeviceCombo(ComboBox combo)
@@ -449,6 +590,13 @@ public partial class MixerView : UserControl
         return "";
     }
 
+    private string GetSelectedEntityId(ComboBox combo)
+    {
+        if (combo.SelectedItem is ComboBoxItem item)
+            return item.Tag as string ?? "";
+        return "";
+    }
+
     // --- Save ---
 
     private void QueueSave()
@@ -468,10 +616,20 @@ public partial class MixerView : UserControl
 
             // Save label — store the user's text, or empty if it matches the auto-derived name
             var labelText = _channelLabels[i].Text.Trim();
-            var autoName = FormatTargetName((_targetCombos[i].SelectedItem as string) ?? "none");
+            var selectedTarget = GetSelectedTarget(_targetCombos[i]);
+            var autoName = FormatTargetName(selectedTarget);
             knob.Label = (labelText == autoName || labelText == $"Knob {i + 1}") ? "" : labelText;
 
-            knob.Target = _targetCombos[i].SelectedItem as string ?? "none";
+            // For HA targets, combine with the selected entity
+            if (HATargetDomains.ContainsKey(selectedTarget))
+            {
+                var entityId = GetSelectedEntityId(_haEntityCombos[i]);
+                knob.Target = !string.IsNullOrEmpty(entityId) ? $"{selectedTarget}:{entityId}" : selectedTarget;
+            }
+            else
+            {
+                knob.Target = selectedTarget;
+            }
 
             if (_curveCombos[i].SelectedItem is ResponseCurve curve)
                 knob.Curve = curve;
@@ -527,6 +685,11 @@ public partial class MixerView : UserControl
     {
         if (string.IsNullOrEmpty(target) || target == "none")
             return "None";
+
+        // HA compound targets — show display name
+        var baseTarget = target.Contains(':') ? target.Split(':')[0] : target;
+        if (HATargetDisplayNames.TryGetValue(baseTarget, out var displayName))
+            return displayName;
 
         // Replace underscores with spaces and title-case each word
         var words = target.Replace('_', ' ').Split(' ');
