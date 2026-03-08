@@ -256,3 +256,59 @@ Dark theme: `BgDark=#1B1B1B`, `CardBg=#262626`, `Accent=#00B4D8`, owner-drawn ta
 - Multiple Turn Up device support
 - Publish as single-file exe: `dotnet publish -r win-x64 --self-contained -p:PublishSingleFile=true`
 - Installer (WiX or NSIS) for clean deployment
+
+---
+
+## UI/UX Redesign (March 2026)
+
+Major visual overhaul — premium dark theme inspired by Elgato Wave Link. All logic files untouched; this is purely a visual/UX redesign.
+
+### New Custom Controls
+
+- **AnimatedKnobControl.cs** — Arc-sweep animated knob with glow effects. Properties: `Value` (0-1), `ArcColor`, `PercentText`, `KnobSize` (default 88px). Draws anti-aliased arc from 225° with 270° sweep, soft glow layer at 40% opacity, needle dot at tip, center percentage label.
+- **VuMeterControl.cs** — 16-segment vertical VU meter with peak hold. Properties: `Level` (0-1), `BarColor`. Bottom 10 segments use bar color, top 3 yellow (#FFB800), top 1 red (#FF4444). Peak hold for 1.5s with smooth falloff.
+
+### ConfigForm.cs Changes
+
+Complete visual rewrite (all logic/wiring preserved):
+- **New color palette** (see below)
+- **Device preview strip** at top of Knobs tab — mini hardware visualization showing 5 knobs with LED glow rings and button LEDs
+- **AnimatedKnobControl** per channel replacing basic gauges
+- **VuMeterControl** per channel showing live audio levels
+- **Better tab headers** — owner-drawn 130×36px tabs with Unicode icons (◈ KNOBS, ⊞ BUTTONS, ❋ LIGHTS, ⚙ SETTINGS), accent bottom border on selected
+- **Header bar** — 48px bar with 🐺 WOLFMIXER branding, connection status dot, profile dropdown
+- **Save button** and improved profile management in Settings tab
+
+### TrayApp.cs Changes
+
+- **Polished 32×32 icon** — 5 equalizer bars with rounded tops, different heights [6,12,20,15,9]px, cyan when connected / gray when disconnected
+- **Live volume display in tray menu** — 5 menu items showing per-knob volume with bar visualization, updated every 500ms via timer
+- Menu header: "🐺 WolfMixer" label
+
+### Deploy Workflow
+
+Run `deploy.bat` from the project folder on the Windows PC (`C:\Users\audio\Desktop\WolfMixer\`):
+1. Pulls latest from GitHub
+2. Builds with `dotnet build -c Debug`
+3. Kills any running WolfMixer.exe
+4. Launches the new build
+
+### Color Palette Reference
+
+```
+BgBase      = #0F0F0F   // deepest background
+BgDark      = #141414   // main form background
+CardBg      = #1C1C1C   // cards / panels
+CardBorder  = #2A2A2A   // card borders
+InputBg     = #242424   // textboxes, combos
+InputBorder = #363636
+Accent      = #00B4D8   // primary cyan
+AccentGlow  = #00E5FF   // bright cyan for active/glow
+AccentDim   = #007A94   // dim cyan for inactive
+TextPrimary = #E8E8E8
+TextSec     = #9A9A9A
+TextDim     = #555555
+DangerRed   = #FF4444
+SuccessGrn  = #00DD77
+WarnYellow  = #FFB800
+```
