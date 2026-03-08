@@ -95,6 +95,19 @@ public partial class MixerView : UserControl
 
             // Device visibility
             UpdateDeviceVisibility(i, knob.Target);
+
+            // Apply light color to knob arc and volume label
+            var light = config.Lights.FirstOrDefault(l => l.Idx == i);
+            if (light != null)
+            {
+                var color = Color.FromRgb(
+                    (byte)Math.Clamp(light.R, 0, 255),
+                    (byte)Math.Clamp(light.G, 0, 255),
+                    (byte)Math.Clamp(light.B, 0, 255));
+                _knobs[i].ArcColor = color;
+                _volLabels[i].Foreground = new SolidColorBrush(color);
+                _vuMeters[i].BarColor = color;
+            }
         }
 
         _loading = false;
