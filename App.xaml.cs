@@ -247,6 +247,23 @@ public partial class App : Application
         if (connected)
         {
             _connectedAt = DateTime.UtcNow;
+
+            // Initialize RGB knob positions from current audio volumes
+            // (the knob batch frame may have been consumed during port probing)
+            for (int i = 0; i < 5; i++)
+            {
+                var knob = _config.Knobs.FirstOrDefault(k => k.Idx == i);
+                if (knob != null)
+                {
+                    try
+                    {
+                        float vol = _mixer.GetVolume(knob);
+                        _rgb.SetKnobPosition(i, vol);
+                    }
+                    catch { }
+                }
+            }
+
             _rgb.SetPort(_serial.Port);
             _rgb.ApplyColors(_config.Lights);
         }
