@@ -198,15 +198,13 @@ namespace WolfMixer.Controls
             }
 
             // 5. Knob image (rotated by value)
-            // The knob-face.png needle points up (12 o'clock / 0° in WPF rotation).
-            // Real hardware: needle points down, sweep is 270° from lower-left to lower-right.
-            // WPF RotateTransform is clockwise from 12 o'clock.
-            // At value=0: needle at lower-left (7:30 position) = 225° CW from 12 o'clock,
-            //   but image is already flipped (up), so add 180°: base = 225° - 180° = 45°
-            //   Actually simpler: we want the indicator line at 7:30 (225° CW).
-            //   Image line is at 0° (up). Rotate 225° CW → line at 7:30. ✓
-            //   At value=1: 225 + 270 = 495 → 135° CW = 4:30 position. ✓
-            double rotationDeg = 225.0 + (value * 270.0);
+            // The knob-face.png needle points down (6 o'clock = 180° CW from 12).
+            // WPF RotateTransform: positive = clockwise from current orientation.
+            // At value=0: needle should be at 7:30 (225° CW from 12).
+            //   Need to rotate 225° - 180° = 45° CW from image's resting position.
+            // At value=1: needle at 4:30 (135° CW from 12).
+            //   45° + 270° = 315° CW → 180° + 315° = 495° = 135° CW. ✓
+            double rotationDeg = 45.0 + (value * 270.0);
 
             double knobSize = (radius * 2.0) * KnobImageRatio;
             double knobLeft = cx - knobSize / 2.0;
