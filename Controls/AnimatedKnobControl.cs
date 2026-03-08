@@ -9,8 +9,9 @@ namespace WolfMixer.Controls
     public class AnimatedKnobControl : FrameworkElement
     {
         // ── Constants ──────────────────────────────────────────────────
-        private const double StartAngleDeg = 225.0;
-        private const double TotalSweepDeg = 270.0;
+        // Clock convention: 0° = 12 o'clock, 90° = 3 o'clock, sweeps clockwise
+        private const double StartAngleDeg = 225.0;  // 7:30 position
+        private const double TotalSweepDeg = 270.0;  // sweeps CW to 4:30
         private const double DefaultSize = 100.0;
         private const double ArcStroke = 4.0;
         private const double GlowStroke = 8.0;
@@ -189,11 +190,11 @@ namespace WolfMixer.Controls
                 // 3. Value arc
                 dc.DrawGeometry(null, _valuePen, arcGeometry);
 
-                // 4. Small bright dot at the arc tip
-                double tipAngleDeg = StartAngleDeg + valueSweep;
-                double tipAngleRad = tipAngleDeg * Math.PI / 180.0;
-                double tipX = cx + radius * Math.Cos(tipAngleRad);
-                double tipY = cy - radius * Math.Sin(tipAngleRad);
+                // 4. Small bright dot at the arc tip (clock convention → screen coords)
+                double tipClockDeg = StartAngleDeg + valueSweep;
+                double tipScreenRad = (tipClockDeg - 90.0) * Math.PI / 180.0;
+                double tipX = cx + radius * Math.Cos(tipScreenRad);
+                double tipY = cy + radius * Math.Sin(tipScreenRad);
                 dc.DrawEllipse(_endDotBrush, null, new Point(tipX, tipY), 3.0, 3.0);
             }
 
@@ -219,16 +220,21 @@ namespace WolfMixer.Controls
 
         // ── Arc geometry helper ────────────────────────────────────────
 
+        /// <summary>
+        /// Creates an arc from a clock-convention start angle, sweeping clockwise on screen.
+        /// startAngleDeg: 0=12 o'clock, 90=3 o'clock, 180=6 o'clock, 270=9 o'clock.
+        /// </summary>
         private static StreamGeometry CreateArcGeometry(double cx, double cy, double radius, double startAngleDeg, double sweepDeg)
         {
-            double startRad = startAngleDeg * Math.PI / 180.0;
-            double endRad = (startAngleDeg + sweepDeg) * Math.PI / 180.0;
+            // Convert clock angles (0=top, CW) to screen radians (0=right, CW on screen)
+            double startScreenRad = (startAngleDeg - 90.0) * Math.PI / 180.0;
+            double endScreenRad = (startAngleDeg - 90.0 + sweepDeg) * Math.PI / 180.0;
 
-            double x0 = cx + radius * Math.Cos(startRad);
-            double y0 = cy - radius * Math.Sin(startRad);
+            double x0 = cx + radius * Math.Cos(startScreenRad);
+            double y0 = cy + radius * Math.Sin(startScreenRad);
 
-            double x1 = cx + radius * Math.Cos(endRad);
-            double y1 = cy - radius * Math.Sin(endRad);
+            double x1 = cx + radius * Math.Cos(endScreenRad);
+            double y1 = cy + radius * Math.Sin(endScreenRad);
 
             bool isLargeArc = sweepDeg > 180.0;
 
@@ -241,7 +247,7 @@ namespace WolfMixer.Controls
                     new Size(radius, radius),
                     0,
                     isLargeArc,
-                    SweepDirection.Counterclockwise,
+                    SweepDirection.Clockwise,
                     true,
                     false);
             }
