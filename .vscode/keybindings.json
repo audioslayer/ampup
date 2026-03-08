@@ -1,0 +1,7 @@
+// Copy these into your VS Code keybindings (Ctrl+Shift+P → "Open Keyboard Shortcuts (JSON)")
+// F5 = full deploy cycle, F6 = just build, F7 = kill
+[
+  { "key": "f5", "command": "workbench.action.tasks.runTask", "args": "Deploy & Test on PC" },
+  { "key": "f6", "command": "workbench.action.tasks.runTask", "args": "Build on PC" },
+  { "key": "f7", "command": "workbench.action.tasks.runTask", "args": "Kill WolfMixer on PC" }
+]

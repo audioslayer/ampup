@@ -1,0 +1,43 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Deploy & Test on PC",
+      "type": "shell",
+      "command": "ssh audio@100.84.11.32 \"cd C:\\Users\\audio\\Desktop\\WolfMixer && git pull && dotnet build -c Debug && taskkill /f /im WolfMixer.exe 2>nul & timeout /t 1 /nobreak >nul && start bin\\Debug\\net8.0-windows\\WolfMixer.exe\"",
+      "problemMatcher": "$msCompile",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Pull on PC",
+      "type": "shell",
+      "command": "ssh audio@100.84.11.32 \"cd C:\\Users\\audio\\Desktop\\WolfMixer && git pull\"",
+      "problemMatcher": []
+    },
+    {
+      "label": "Build on PC",
+      "type": "shell",
+      "command": "ssh audio@100.84.11.32 \"cd C:\\Users\\audio\\Desktop\\WolfMixer && dotnet build -c Debug\"",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "Kill WolfMixer on PC",
+      "type": "shell",
+      "command": "ssh audio@100.84.11.32 \"taskkill /f /im WolfMixer.exe\"",
+      "problemMatcher": []
+    },
+    {
+      "label": "Git Push",
+      "type": "shell",
+      "command": "cd /home/tyson/projects/wolfmixer && git add -A && git commit -m \"wip\" && git push origin master",
+      "problemMatcher": []
+    }
+  ]
+}
