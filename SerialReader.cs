@@ -40,9 +40,18 @@ public class SerialReader : IDisposable
         {
             try
             {
-                _port = new SerialPort(_portName, _baud) { ReadTimeout = 500 };
+                // Try configured port first, then auto-scan all ports
+                string? portName = await FindDevicePort(ct);
+                if (portName == null)
+                {
+                    if (_running && !ct.IsCancellationRequested)
+                        await Task.Delay(5000, ct).ContinueWith(_ => { });
+                    continue;
+                }
+
+                _port = new SerialPort(portName, _baud) { ReadTimeout = 500 };
                 _port.Open();
-                Logger.Log($"Connected to {_portName} @ {_baud} baud");
+                Logger.Log($"Connected to {portName} @ {_baud} baud");
                 OnConnectionChanged?.Invoke(true);
                 _buf.Clear();
                 await ReadLoop(ct);
@@ -58,6 +67,94 @@ public class SerialReader : IDisposable
                     await Task.Delay(5000, ct).ContinueWith(_ => { });
             }
         }
+    }
+
+    /// <summary>
+    /// Tries the configured port first. If it fails, scans all available COM ports
+    /// and probes each for Turn Up protocol frames (health ping, device ID, knob batch).
+    /// </summary>
+    private async Task<string?> FindDevicePort(CancellationToken ct)
+    {
+        // Build candidate list: configured port first, then all others
+        var allPorts = SerialPort.GetPortNames();
+        var candidates = new List<string>();
+
+        if (allPorts.Contains(_portName))
+            candidates.Add(_portName);
+        foreach (var p in allPorts)
+        {
+            if (p != _portName)
+                candidates.Add(p);
+        }
+
+        if (candidates.Count == 0)
+        {
+            Logger.Log("No COM ports available");
+            return null;
+        }
+
+        foreach (var portName in candidates)
+        {
+            if (ct.IsCancellationRequested) return null;
+
+            try
+            {
+                using var probe = new SerialPort(portName, _baud) { ReadTimeout = 500 };
+                probe.Open();
+
+                // Listen for up to 2 seconds for a valid Turn Up frame
+                var probeBuf = new byte[64];
+                var data = new List<byte>();
+                var deadline = DateTime.UtcNow.AddSeconds(2);
+
+                while (DateTime.UtcNow < deadline && !ct.IsCancellationRequested)
+                {
+                    try
+                    {
+                        int n = await probe.BaseStream.ReadAsync(probeBuf, 0, probeBuf.Length, ct)
+                            .WaitAsync(TimeSpan.FromMilliseconds(500), ct);
+                        for (int i = 0; i < n; i++) data.Add(probeBuf[i]);
+
+                        if (ContainsTurnUpFrame(data))
+                        {
+                            Logger.Log($"Turn Up device detected on {portName}");
+                            probe.Close();
+                            return portName;
+                        }
+                    }
+                    catch (TimeoutException) { }
+                    catch (OperationCanceledException) { return null; }
+                }
+
+                probe.Close();
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Probe {portName}: {ex.Message}");
+            }
+        }
+
+        Logger.Log("Turn Up device not found on any COM port");
+        return null;
+    }
+
+    /// <summary>
+    /// Checks if the byte buffer contains any valid Turn Up protocol frame.
+    /// </summary>
+    private static bool ContainsTurnUpFrame(List<byte> data)
+    {
+        for (int i = 0; i < data.Count - 2; i++)
+        {
+            if (data[i] != 0xFE) continue;
+
+            foreach (var (id, len) in MessageTypes)
+            {
+                if (i + len > data.Count) continue;
+                if (data[i + 1] == id && data[i + len - 1] == 0xFF)
+                    return true;
+            }
+        }
+        return false;
     }
 
     private async Task ReadLoop(CancellationToken ct)
