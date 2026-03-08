@@ -198,19 +198,15 @@ namespace WolfMixer.Controls
             }
 
             // 5. Knob image (rotated by value)
-            // The knob-face.png has the needle pointing straight down (180°/6 o'clock).
-            // At value=0, the needle should point to the start position (225° = 7:30 position).
-            // At value=1, the needle should point to the end position (225°-270° = -45° = 4:30 position).
-            // Since the image needle is at 180° (down), we need to rotate:
-            //   At value=0: rotate to point at 225° → that's 225°-180° = 45° counter-clockwise
-            //               In WPF screen coords (CW positive), that's -45°
-            //   At value=1: rotate to point at -45° → that's -45°-180° = -225° → or +135° CW
-            // So rotation goes from -45° to +135° as value goes 0→1, but let's simplify:
-            // The needle at 180° (down) needs to sweep 270° total.
-            // WPF RotateTransform is clockwise.
-            // At value=0, we want needle pointing to lower-left (7:30 = 225° math = -135° from up in CW)
-            // Easier: rotation = -135 + (value * 270)  (starting at -135° CW from down, sweeping 270° CW)
-            double rotationDeg = -135.0 + (value * 270.0);
+            // The knob-face.png needle points up (12 o'clock / 0° in WPF rotation).
+            // Real hardware: needle points down, sweep is 270° from lower-left to lower-right.
+            // WPF RotateTransform is clockwise from 12 o'clock.
+            // At value=0: needle at lower-left (7:30 position) = 225° CW from 12 o'clock,
+            //   but image is already flipped (up), so add 180°: base = 225° - 180° = 45°
+            //   Actually simpler: we want the indicator line at 7:30 (225° CW).
+            //   Image line is at 0° (up). Rotate 225° CW → line at 7:30. ✓
+            //   At value=1: 225 + 270 = 495 → 135° CW = 4:30 position. ✓
+            double rotationDeg = 225.0 + (value * 270.0);
 
             double knobSize = (radius * 2.0) * KnobImageRatio;
             double knobLeft = cx - knobSize / 2.0;
