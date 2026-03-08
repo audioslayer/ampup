@@ -1,5 +1,7 @@
 bin/
 obj/
+.vs/
+*.user
 *.user
 .vs/
 .vscode/
