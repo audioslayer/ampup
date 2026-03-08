@@ -379,8 +379,9 @@ public partial class MixerView : UserControl
                 return;
             }
         }
-        // If target is a custom process name, add it and select
-        combo.Items.Add(target);
+        // Custom process name — extend the ItemsSource with it
+        var extended = TargetValues.Append(target).ToArray();
+        combo.ItemsSource = extended;
         combo.SelectedItem = target;
     }
 
