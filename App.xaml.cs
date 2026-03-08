@@ -91,6 +91,10 @@ public partial class App : Application
         _mainWindow.Closing += MainWindow_Closing;
         _mainWindow.Initialize(_config, _mixer, OnConfigChanged);
         _mainWindow.Show();
+
+        // Sync connection status — serial may have connected before window was created
+        if (_isConnected)
+            _mainWindow.SetConnectionStatus(true);
     }
 
     private void SetupTrayIcon()
