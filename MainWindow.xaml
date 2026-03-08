@@ -10,6 +10,15 @@
         ExtendsContentIntoTitleBar="True"
         WindowBackdropType="Mica">
 
+    <ui:FluentWindow.Resources>
+        <Storyboard x:Key="PulseAnimation" RepeatBehavior="Forever">
+            <DoubleAnimation Storyboard.TargetName="ConnectionDot"
+                             Storyboard.TargetProperty="Opacity"
+                             From="1.0" To="0.4" Duration="0:0:1"
+                             AutoReverse="True" />
+        </Storyboard>
+    </ui:FluentWindow.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <!-- Title bar area -->
@@ -52,24 +61,20 @@
             <Border Grid.Column="0" Background="{StaticResource BgBaseBrush}"
                     BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,0,1,0">
                 <StackPanel Margin="0,12,0,0">
-                    <Button x:Name="NavMixer" Width="40" Height="40" Margin="8,4"
-                            ToolTip="Mixer" Click="NavMixer_Click"
-                            Background="Transparent" BorderThickness="0" Cursor="Hand">
+                    <Button x:Name="NavMixer" Style="{StaticResource NavButton}"
+                            ToolTip="Mixer" Click="NavMixer_Click">
                         <ui:SymbolIcon Symbol="Speaker224" FontSize="20" Foreground="{StaticResource AccentBrush}" />
                     </Button>
-                    <Button x:Name="NavButtons" Width="40" Height="40" Margin="8,4"
-                            ToolTip="Buttons" Click="NavButtons_Click"
-                            Background="Transparent" BorderThickness="0" Cursor="Hand">
+                    <Button x:Name="NavButtons" Style="{StaticResource NavButton}"
+                            ToolTip="Buttons" Click="NavButtons_Click">
                         <ui:SymbolIcon Symbol="Keyboard24" FontSize="20" Foreground="{StaticResource TextSecBrush}" />
                     </Button>
-                    <Button x:Name="NavLights" Width="40" Height="40" Margin="8,4"
-                            ToolTip="Lights" Click="NavLights_Click"
-                            Background="Transparent" BorderThickness="0" Cursor="Hand">
+                    <Button x:Name="NavLights" Style="{StaticResource NavButton}"
+                            ToolTip="Lights" Click="NavLights_Click">
                         <ui:SymbolIcon Symbol="LightbulbFilament24" FontSize="20" Foreground="{StaticResource TextSecBrush}" />
                     </Button>
-                    <Button x:Name="NavSettings" Width="40" Height="40" Margin="8,4"
-                            ToolTip="Settings" Click="NavSettings_Click"
-                            Background="Transparent" BorderThickness="0" Cursor="Hand">
+                    <Button x:Name="NavSettings" Style="{StaticResource NavButton}"
+                            ToolTip="Settings" Click="NavSettings_Click">
                         <ui:SymbolIcon Symbol="Settings24" FontSize="20" Foreground="{StaticResource TextSecBrush}" />
                     </Button>
                 </StackPanel>

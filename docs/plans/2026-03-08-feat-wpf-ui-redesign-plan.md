@@ -317,7 +317,7 @@ Port the 3 config views that don't need custom controls. Build easiest first to 
 
 The hardest phase. Custom WPF controls for knobs and VU meters with real-time data.
 
-- [ ] Create `AnimatedKnobControl.cs` — WPF `FrameworkElement` using `OnRender(DrawingContext)`:
+- [x] Create `AnimatedKnobControl.cs` — WPF `FrameworkElement` using `OnRender(DrawingContext)`:
   - Arc sweep from 225deg with 270deg sweep using `StreamGeometry` + `ArcSegment`
   - Glow layer at 35% opacity drawn behind value arc
   - Needle dot (8px filled + glow) at arc tip
@@ -325,15 +325,15 @@ The hardest phase. Custom WPF controls for knobs and VU meters with real-time da
   - **All Pen/Brush/Font objects pre-allocated and Frozen as static fields**
   - Dirty-checking: skip `InvalidateVisual()` if `Math.Abs(delta) < 0.001f`
 
-- [ ] Create `VuMeterControl.cs` — WPF `FrameworkElement` using `DrawingVisual` children (NOT OnRender):
+- [x] Create `VuMeterControl.cs` — WPF `FrameworkElement` using `DrawingVisual` children (NOT OnRender):
   - 16 segments, pre-computed `Rect[]` array
   - Color zones: 10 bar color, 2 transitional (green-yellow blend), 3 yellow, 1 red
   - Peak hold indicator (gray #E6E6E6) at peak segment, 1.5s hold, smooth 400ms fade-out
   - **All brushes pre-allocated and Frozen (only 5 distinct brushes: bar, yellow, red, unlit, peak)**
 
-- [ ] Add `GetPeakLevel(KnobConfig)` to `AudioMixer.cs` — reads `AudioMeterInformation.MasterPeakValue` per session. Use `_enumerator` + `_enumLock`, don't cache `AudioMeterInformation` objects.
+- [x] Add `GetPeakLevel(KnobConfig)` to `AudioMixer.cs` — reads `AudioMeterInformation.MasterPeakValue` per session. Use `_enumerator` + `_enumLock`, don't cache `AudioMeterInformation` objects.
 
-- [ ] Create `MixerView.xaml` / `.cs` — 5 channel strip cards in horizontal `UniformGrid`
+- [x] Create `MixerView.xaml` / `.cs` — 5 channel strip cards in horizontal `UniformGrid`
   - Each strip: app icon (24x24 in 32x32 container), label, AnimatedKnobControl (100x100), VuMeterControl (14x80), volume %, target/curve/range controls
   - Controls section in recessed sub-panel (#181818 bg, 1px top border #2A2A2A)
 
@@ -343,16 +343,16 @@ The hardest phase. Custom WPF controls for knobs and VU meters with real-time da
   3. Cache in `Dictionary<string, ImageSource>`
   4. Generic waveform icon as final fallback
 
-- [ ] Wire single `DispatcherTimer` (50ms) for all live updates:
+- [x] Wire single `DispatcherTimer` (50ms) for all live updates:
   - Poll `AudioMixer.GetVolume()` for knob positions
   - Poll `AudioMixer.GetPeakLevel()` for VU meters
   - Guard: `if (!IsVisible) return;`
 
 **Design polish (Frontend Design Skill):**
-- [ ] Volume percentage: always 3-char width (` 0%`, `42%`, `100%`), use tabular/monospace font
-- [ ] Mute state: dim entire strip (opacity 0.4), show "MUTE" badge in #FF4444
-- [ ] Equal-width channel strips via `UniformGrid` — never auto-size
-- [ ] 16-20px gutters between strips
+- [x] Volume percentage: always 3-char width (` 0%`, `42%`, `100%`), use tabular/monospace font
+- [x] Mute state: dim entire strip (opacity 0.4), show "MUTE" badge in #FF4444
+- [x] Equal-width channel strips via `UniformGrid` — never auto-size
+- [x] 16-20px gutters between strips
 - [ ] Device preview strip (24px tall) showing mini knob positions + LED glow dots
 
 **Built-in icon pack (~15 icons, 64x64 PNG, transparent background):**
@@ -383,17 +383,17 @@ The hardest phase. Custom WPF controls for knobs and VU meters with real-time da
 
 - [ ] Page transition animations: stagger-fade columns left-to-right (40ms delay per column, 200ms duration)
 - [ ] Knob value animation: 60-80ms ease-out transition on value change
-- [ ] Connection status pill: cyan pulse animation (opacity 1.0→0.4→1.0, 2s cycle) when connected, static gray when disconnected
-- [ ] Sidebar icons: glow on hover (soft cyan shadow), 200ms transition
-- [ ] Hover states on controls: border brightens #363636→#00B4D8 on hover, 150ms
+- [x] Connection status pill: cyan pulse animation (opacity 1.0→0.4→1.0, 2s cycle) when connected, static gray when disconnected
+- [x] Sidebar icons: glow on hover (soft cyan shadow), 200ms transition
+- [x] Hover states on controls: border brightens #363636→#00B4D8 on hover, 150ms
 - [ ] Noise texture overlay: 2-3% opacity across form background for analog warmth
-- [ ] Remove `<UseWindowsForms>true</UseWindowsForms>` from csproj — confirm `SHGetFileInfo` replaces `Icon.ExtractAssociatedIcon`
-- [ ] Delete old WinForms files: `TrayApp.cs`, `Program.cs`, `ConfigForm.cs`, `IntegrationSetupForm.cs`, old `AnimatedKnobControl.cs`, old `VuMeterControl.cs`
+- [x] Remove `<UseWindowsForms>true</UseWindowsForms>` from csproj — confirm `SHGetFileInfo` replaces `Icon.ExtractAssociatedIcon`
+- [x] Delete old WinForms files: `TrayApp.cs`, `Program.cs`, `ConfigForm.cs`, `IntegrationSetupForm.cs`, old `AnimatedKnobControl.cs`, old `VuMeterControl.cs`
 - [ ] DPI testing on LG QHD and OMEN 35 monitors
 - [ ] Mica fallback verification (solid #141414 on Windows 10)
 - [ ] Test all 17 button actions, all 9 LED effects, all knob targets with physical hardware
 - [ ] Verify config.json backward compatibility (load old config, save new, reload)
-- [ ] Update `CLAUDE.md` with new file structure and WPF patterns
+- [x] Update `CLAUDE.md` with new file structure and WPF patterns
 - [ ] Update `deploy.bat` if build output path changes
 
 **Success criteria:** Visually polished, all features working, no regressions from WinForms, config backward compatible, WinForms fully removed.

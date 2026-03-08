@@ -47,7 +47,7 @@ public partial class MainWindow : FluentWindow
         _settingsView.LoadConfig(_config, saveHandler);
         _lightsView.LoadConfig(_config, saveHandler);
         _buttonsView.LoadConfig(_config, _mixer!, saveHandler);
-        // MixerView will be wired in Phase 3
+        _mixerView.LoadConfig(_config, _mixer!, saveHandler);
     }
 
     private void NavMixer_Click(object sender, RoutedEventArgs e) => NavigateTo(_mixerView, NavMixer);
@@ -88,6 +88,15 @@ public partial class MainWindow : FluentWindow
                 ? (SolidColorBrush)FindResource("SuccessGrnBrush")
                 : (SolidColorBrush)FindResource("TextDimBrush");
             ConnectionLabel.Text = connected ? "Connected" : "Disconnected";
+
+            var pulse = (System.Windows.Media.Animation.Storyboard)FindResource("PulseAnimation");
+            if (connected)
+                pulse.Begin(this, true);
+            else
+            {
+                pulse.Stop(this);
+                ConnectionDot.Opacity = 1.0;
+            }
         });
     }
 }

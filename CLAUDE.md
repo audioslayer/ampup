@@ -1,7 +1,8 @@
 # WolfMixer — Claude Code Context
 
-WolfMixer is a C# .NET 8 WinForms system tray app that replaces the "Turn Up" USB volume mixer app.
+WolfMixer is a C# .NET 8 WPF app that replaces the "Turn Up" USB volume mixer app.
 It reads serial events from the Turn Up hardware and maps them to Windows per-app audio volume control.
+Uses WPF-UI (FluentWindow, Mica backdrop) with a glassmorphism dark theme, sidebar navigation, and code-behind pattern (no MVVM).
 
 ---
 
@@ -32,21 +33,33 @@ All frames are wrapped with `0xFE` (start) and `0xFF` (end).
 
 ## Architecture
 
-Single `.exe`, no installer, no service. Lives in system tray.
+Single `.exe`, no installer, no service.
 
 ```
-WolfMixer.csproj        .NET 8 WinForms, NAudio + Newtonsoft.Json + System.IO.Ports
-Program.cs              Entry point, single-instance mutex, ApplicationContext
-SerialReader.cs         Reads COM3, parses fe/ff frames, fires OnKnob / OnButton events
-AudioMixer.cs           WASAPI per-app volume, response curves, volume range, active window
-ButtonHandler.cs        Gesture state machine (press/double/hold) → 17 action types
-RgbController.cs        RGB effects engine — 9 effects, 20 FPS animation, 3 LEDs per knob
-MonitorBrightness.cs    DDC/CI physical monitor brightness via dxva2.dll
-Config.cs               Loads/saves config.json + profile system (Newtonsoft.Json)
-TrayApp.cs              System tray icon, wires serial→audio→RGB→buttons, mute state polling
-ConfigForm.cs           4-tab dark-themed config UI (Knobs, Buttons, Lights, Settings)
-Logger.cs               Appends to wolfmixer.log next to exe
-config.json             User config — knob targets, button actions, RGB effects, profiles
+WolfMixer.csproj              .NET 8 WPF, WPF-UI + NAudio + Newtonsoft.Json + System.IO.Ports
+App.xaml / App.xaml.cs         WPF Application entry point, backend orchestration, single-instance mutex
+MainWindow.xaml / .cs          FluentWindow with Mica, sidebar nav, connection status pulse animation
+Theme.xaml                     Glassmorphism color palette, card/text styles, nav/hover animations
+
+Views/
+  MixerView.xaml / .cs         5 channel strips — knob, VU meter, volume %, target/curve/range controls
+  ButtonsView.xaml / .cs       5 button columns — 3 gesture rows (tap/double/hold), 17 action types
+  LightsView.xaml / .cs        5 LED columns — effect, colors, speed + global brightness
+  SettingsView.xaml / .cs      Connection, startup, profiles, integrations (HA + FanControl)
+
+Controls/
+  AnimatedKnobControl.cs       WPF FrameworkElement — arc sweep knob, glow, frozen resources
+  VuMeterControl.cs            WPF FrameworkElement — 16-segment VU meter, DrawingVisual, peak hold
+
+SerialReader.cs                Reads COM3, parses fe/ff frames, fires OnKnob / OnButton events
+AudioMixer.cs                  WASAPI per-app volume + GetPeakLevel, response curves, volume range
+ButtonHandler.cs               Gesture state machine (press/double/hold) → 17 action types
+RgbController.cs               RGB effects engine — 9 effects, 20 FPS animation, 3 LEDs per knob
+MonitorBrightness.cs           DDC/CI physical monitor brightness via dxva2.dll
+NativeMethods.cs               Consolidated P/Invoke declarations (user32, PowrProf)
+Config.cs                      Loads/saves config.json + profile system (Newtonsoft.Json)
+Logger.cs                      Appends to wolfmixer.log next to exe
+config.json                    User config — knob targets, button actions, RGB effects, profiles
 ```
 
 ---
@@ -212,14 +225,14 @@ taskkill /f /im TurnUpService.exe
 
 ---
 
-## ConfigForm UI (4 tabs)
+## WPF UI (4 views, sidebar navigation)
 
-- **Knobs tab:** 5 columns — label, gauge, target, device picker, response curve, volume range
-- **Buttons tab:** 5 columns — 3 action rows (press/double/hold), context-sensitive sub-controls
-- **Lights tab:** 5 columns — effect type, color1/color2 pickers, speed slider, global brightness
-- **Settings tab:** Start with Windows, profiles (save/load/new), serial port/baud config
+- **MixerView:** 5 channel strips — app icon, label, animated knob (100×100), VU meter (14×80), volume %, target/curve/range controls. 50ms live polling timer.
+- **ButtonsView:** 5 columns — 3 gesture sections (tap/double/hold), 17 action types, context-sensitive sub-controls (path, macro, device, profile, power).
+- **LightsView:** 5 columns — effect type, color1/color2 pickers (ColorPickerDialog), speed slider, global brightness.
+- **SettingsView:** Connection (port/baud), startup, profiles (save/load/new/delete), integrations (Home Assistant + FanControl).
 
-Dark theme: `BgDark=#1B1B1B`, `CardBg=#262626`, `Accent=#00B4D8`, owner-drawn tab headers.
+Glassmorphism dark theme defined in `Theme.xaml`. See Color Palette below.
 
 ---
 
@@ -259,31 +272,21 @@ Dark theme: `BgDark=#1B1B1B`, `CardBg=#262626`, `Accent=#00B4D8`, owner-drawn ta
 
 ---
 
-## UI/UX Redesign (March 2026)
+## WPF UI Architecture (March 2026)
 
-Major visual overhaul — premium dark theme inspired by Elgato Wave Link. All logic files untouched; this is purely a visual/UX redesign.
+Full rewrite from WinForms to WPF with glassmorphism dark theme.
 
-### New Custom Controls
+### Custom Controls (`Controls/`)
 
-- **AnimatedKnobControl.cs** — Arc-sweep animated knob with glow effects. Properties: `Value` (0-1), `ArcColor`, `PercentText`, `KnobSize` (default 88px). Draws anti-aliased arc from 225° with 270° sweep, soft glow layer at 40% opacity, needle dot at tip, center percentage label.
-- **VuMeterControl.cs** — 16-segment vertical VU meter with peak hold. Properties: `Level` (0-1), `BarColor`. Bottom 10 segments use bar color, top 3 yellow (#FFB800), top 1 red (#FF4444). Peak hold for 1.5s with smooth falloff.
+- **AnimatedKnobControl** — WPF FrameworkElement, `OnRender(DrawingContext)`. Arc sweep 225° start / 270° sweep via `StreamGeometry`. All Pen/Brush frozen as static fields. Dirty-checking on value change. Properties: `Value` (0-1), `ArcColor`, `PercentText`.
+- **VuMeterControl** — WPF FrameworkElement, `DrawingVisual` child. 16 segments, color zones (cyan→yellow→red), peak hold 1.5s. No internal timer — parent calls `Tick()`. Properties: `Level` (0-1), `BarColor`.
 
-### ConfigForm.cs Changes
+### Key Patterns
 
-Complete visual rewrite (all logic/wiring preserved):
-- **New color palette** (see below)
-- **Device preview strip** at top of Knobs tab — mini hardware visualization showing 5 knobs with LED glow rings and button LEDs
-- **AnimatedKnobControl** per channel replacing basic gauges
-- **VuMeterControl** per channel showing live audio levels
-- **Better tab headers** — owner-drawn 130×36px tabs with Unicode icons (◈ KNOBS, ⊞ BUTTONS, ❋ LIGHTS, ⚙ SETTINGS), accent bottom border on selected
-- **Header bar** — 48px bar with 🐺 WOLFMIXER branding, connection status dot, profile dropdown
-- **Save button** and improved profile management in Settings tab
-
-### TrayApp.cs Changes
-
-- **Polished 32×32 icon** — 5 equalizer bars with rounded tops, different heights [6,12,20,15,9]px, cyan when connected / gray when disconnected
-- **Live volume display in tray menu** — 5 menu items showing per-knob volume with bar visualization, updated every 500ms via timer
-- Menu header: "🐺 WolfMixer" label
+- **Code-behind** approach (no MVVM) — views use `LoadConfig()` + `_loading` flag + debounced save
+- **Single 50ms DispatcherTimer** in MixerView for live volume + peak level polling
+- **300ms debounce** on config changes across all views
+- All views receive `(AppConfig, Action<AppConfig>)` or `(AppConfig, AudioMixer, Action<AppConfig>)` via LoadConfig
 
 ### Deploy Workflow
 
@@ -293,7 +296,7 @@ Run `deploy.bat` from the project folder on the Windows PC (`C:\Users\audio\Desk
 3. Kills any running WolfMixer.exe
 4. Launches the new build
 
-### Color Palette Reference
+### Color Palette Reference (Theme.xaml)
 
 ```
 BgBase      = #0F0F0F   // deepest background

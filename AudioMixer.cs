@@ -380,6 +380,134 @@ public class AudioMixer : IDisposable
         return 0f;
     }
 
+    public float GetPeakLevel(KnobConfig knob)
+    {
+        try
+        {
+            var target = knob.Target.ToLowerInvariant();
+
+            if (target == "master")
+            {
+                MMDevice? device;
+                lock (_enumLock) device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                using (device) { return device!.AudioMeterInformation.MasterPeakValue; }
+            }
+
+            if (target == "mic")
+            {
+                MMDevice? mic;
+                lock (_enumLock) mic = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
+                using (mic) { return mic!.AudioMeterInformation.MasterPeakValue; }
+            }
+
+            if (target == "output_device")
+            {
+                return GetPeakLevelForDevice(knob.DeviceId, DataFlow.Render);
+            }
+
+            if (target == "input_device")
+            {
+                return GetPeakLevelForDevice(knob.DeviceId, DataFlow.Capture);
+            }
+
+            if (target == "active_window")
+            {
+                return GetActiveWindowPeakLevel();
+            }
+
+            if (target == "system")
+            {
+                try
+                {
+                    MMDevice? device;
+                    lock (_enumLock) device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                    using (device)
+                    {
+                        var sessionMgr = device!.AudioSessionManager;
+                        var sessions = sessionMgr.Sessions;
+                        for (int i = 0; i < sessions.Count; i++)
+                        {
+                            var s = sessions[i];
+                            if (s.GetProcessID == 0)
+                                return s.AudioMeterInformation.MasterPeakValue;
+                        }
+                    }
+                }
+                catch { }
+                return 0f;
+            }
+
+            if (target == "any")
+            {
+                lock (_lock)
+                {
+                    var first = _sessions.Values.FirstOrDefault();
+                    if (first != null) return first.AudioMeterInformation.MasterPeakValue;
+                }
+                return 0f;
+            }
+
+            // Process name substring match
+            lock (_lock)
+            {
+                var match = _sessions.FirstOrDefault(kv => kv.Key.Contains(target));
+                if (match.Value != null) return match.Value.AudioMeterInformation.MasterPeakValue;
+            }
+        }
+        catch { }
+        return 0f;
+    }
+
+    private float GetPeakLevelForDevice(string deviceId, DataFlow dataFlow)
+    {
+        if (string.IsNullOrEmpty(deviceId)) return 0f;
+        try
+        {
+            MMDeviceCollection? devices;
+            lock (_enumLock) devices = _enumerator.EnumerateAudioEndPoints(dataFlow, DeviceState.Active);
+            foreach (var dev in devices)
+            {
+                if (dev.ID == deviceId)
+                    return dev.AudioMeterInformation.MasterPeakValue;
+            }
+        }
+        catch { }
+        return 0f;
+    }
+
+    private float GetActiveWindowPeakLevel()
+    {
+        try
+        {
+            IntPtr hwnd = NativeMethods.GetForegroundWindow();
+            if (hwnd == IntPtr.Zero) return 0f;
+
+            NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
+            if (pid == 0) return 0f;
+
+            lock (_lock)
+            {
+                if (_sessionsByPid.TryGetValue(pid, out var session))
+                    return session.AudioMeterInformation.MasterPeakValue;
+            }
+
+            // Fallback: match by process name
+            try
+            {
+                var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                var name = proc.ProcessName.ToLowerInvariant();
+                lock (_lock)
+                {
+                    if (_sessions.TryGetValue(name, out var sessionByName))
+                        return sessionByName.AudioMeterInformation.MasterPeakValue;
+                }
+            }
+            catch { }
+        }
+        catch { }
+        return 0f;
+    }
+
     /// <summary>
     /// Returns all active audio endpoints (output and input devices).
     /// </summary>

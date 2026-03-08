@@ -1,7 +1,39 @@
 <UserControl x:Class="WolfMixer.Views.MixerView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:WolfMixer.Controls">
     <Grid>
-        <TextBlock Text="Mixer" Style="{StaticResource HeaderText}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Channel 1 -->
+        <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,8,0">
+            <StackPanel x:Name="Ch0Panel" />
+        </Border>
+
+        <!-- Channel 2 -->
+        <Border Grid.Column="1" Style="{StaticResource CardPanel}" Margin="8,0">
+            <StackPanel x:Name="Ch1Panel" />
+        </Border>
+
+        <!-- Channel 3 -->
+        <Border Grid.Column="2" Style="{StaticResource CardPanel}" Margin="8,0">
+            <StackPanel x:Name="Ch2Panel" />
+        </Border>
+
+        <!-- Channel 4 -->
+        <Border Grid.Column="3" Style="{StaticResource CardPanel}" Margin="8,0">
+            <StackPanel x:Name="Ch3Panel" />
+        </Border>
+
+        <!-- Channel 5 -->
+        <Border Grid.Column="4" Style="{StaticResource CardPanel}" Margin="8,0,0,0">
+            <StackPanel x:Name="Ch4Panel" />
+        </Border>
     </Grid>
 </UserControl>
