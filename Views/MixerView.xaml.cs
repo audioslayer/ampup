@@ -218,15 +218,28 @@ public partial class MixerView : UserControl
 
             try
             {
-                // Volume
-                float vol = _mixer.GetVolume(knob);
+                var baseTarget = knob.Target.Contains(':') ? knob.Target.Split(':')[0] : knob.Target;
+                bool isNonAudio = baseTarget.StartsWith("ha_") || baseTarget.StartsWith("fc_") || baseTarget == "monitor";
+
+                float vol;
+                float peak;
+                if (isNonAudio)
+                {
+                    // Use hardware knob position for non-audio targets
+                    vol = App.KnobPositions[i];
+                    peak = 0f;
+                }
+                else
+                {
+                    vol = _mixer.GetVolume(knob);
+                    peak = _mixer.GetPeakLevel(knob);
+                }
+
                 _knobs[i].Value = vol;
                 int pct = (int)(vol * 100);
                 _knobs[i].PercentText = $"{pct}%";
                 _volLabels[i].Text = $"{pct}%";
 
-                // Peak level
-                float peak = _mixer.GetPeakLevel(knob);
                 _vuMeters[i].Level = peak;
                 _vuMeters[i].Tick();
             }

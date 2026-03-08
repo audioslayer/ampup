@@ -22,6 +22,12 @@ public partial class App : Application
     private HAIntegration? _ha;
     private FanController? _fc;
 
+    /// <summary>
+    /// Last hardware knob positions (0-1), updated on every knob event.
+    /// Used by MixerView to display position for non-audio targets.
+    /// </summary>
+    public static readonly float[] KnobPositions = new float[5];
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -241,6 +247,10 @@ public partial class App : Application
 
     private void HandleKnob(KnobEvent e)
     {
+        // Track hardware position for UI display
+        if (e.Idx >= 0 && e.Idx < 5)
+            KnobPositions[e.Idx] = e.Value / 1023f;
+
         var knob = _config.Knobs.FirstOrDefault(k => k.Idx == e.Idx);
         if (knob != null)
         {
