@@ -4,7 +4,7 @@
     {
       "label": "Deploy & Test on PC",
       "type": "shell",
-      "command": "ssh audio@100.84.11.32 \"cd C:\\Users\\audio\\Desktop\\WolfMixer && git pull && dotnet build -c Debug && taskkill /f /im WolfMixer.exe 2>nul & timeout /t 1 /nobreak >nul && start bin\\Debug\\net8.0-windows\\WolfMixer.exe\"",
+      "command": "ssh audio@100.84.11.32 \"cd C:\\Users\\audio\\Desktop\\WolfMixer && git pull && dotnet build -c Debug && taskkill /f /im WolfMixer.exe 2>nul\" && echo '' && echo '✅ Built! Double-click deploy.bat on your PC to launch (GUI apps need desktop session)'",
       "problemMatcher": "$msCompile",
       "group": {
         "kind": "build",
