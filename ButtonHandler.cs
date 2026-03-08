@@ -43,6 +43,7 @@ public class ButtonHandler
 
     // ── Fields ────────────────────────────────────────────────────────
 
+    private HAIntegration? _ha;
     private readonly MMDeviceEnumerator _enumerator = new();
 
     // Per-button gesture state
@@ -59,6 +60,8 @@ public class ButtonHandler
     private readonly Dictionary<int, int> _cycleIndex = new();
 
     // ── Events ────────────────────────────────────────────────────────
+
+    public void SetHAIntegration(HAIntegration? ha) => _ha = ha;
 
     public event Action<string>? OnProfileSwitch;
     /// <summary>Fires with (deviceName, isOutput) when the default audio device changes.</summary>
@@ -225,6 +228,31 @@ public class ButtonHandler
                     SwitchProfile(btn?.ProfileName ?? ""); break;
                 case "system_power":
                     ExecuteSystemPower(btn?.PowerAction ?? ""); break;
+                case "ha_toggle":
+                    if (_ha != null && !string.IsNullOrEmpty(path))
+                        _ = _ha.ToggleEntityAsync(path);
+                    break;
+                case "ha_scene":
+                    if (_ha != null && !string.IsNullOrEmpty(path))
+                        _ = _ha.ActivateSceneAsync(path);
+                    break;
+                case "ha_service":
+                    if (_ha != null && !string.IsNullOrEmpty(path))
+                    {
+                        // path format: "domain.service:entity_id" or just "entity_id" for toggle
+                        var parts = path.Split(':', 2);
+                        if (parts.Length == 2)
+                        {
+                            var domSvc = parts[0].Split('.', 2);
+                            if (domSvc.Length == 2)
+                                _ = _ha.CallServiceAsync(domSvc[0], domSvc[1], parts[1]);
+                        }
+                        else
+                        {
+                            _ = _ha.ToggleEntityAsync(path);
+                        }
+                    }
+                    break;
             }
         }
         catch (Exception ex)

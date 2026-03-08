@@ -73,6 +73,10 @@
                             ToolTip="Lights" Click="NavLights_Click">
                         <ui:SymbolIcon Symbol="LightbulbFilament24" FontSize="20" Foreground="{StaticResource TextSecBrush}" />
                     </Button>
+                    <Button x:Name="NavHA" Style="{StaticResource NavButton}"
+                            ToolTip="Home Assistant" Click="NavHA_Click">
+                        <ui:SymbolIcon Symbol="Home24" FontSize="20" Foreground="{StaticResource TextSecBrush}" />
+                    </Button>
                     <Button x:Name="NavSettings" Style="{StaticResource NavButton}"
                             ToolTip="Settings" Click="NavSettings_Click">
                         <ui:SymbolIcon Symbol="Settings24" FontSize="20" Foreground="{StaticResource TextSecBrush}" />

@@ -11,6 +11,7 @@ public partial class MainWindow : FluentWindow
     private readonly ButtonsView _buttonsView = new();
     private readonly LightsView _lightsView = new();
     private readonly SettingsView _settingsView = new();
+    private readonly HomeAssistantView _haView = new();
 
     private System.Windows.Controls.Button? _activeNavButton;
 
@@ -48,6 +49,7 @@ public partial class MainWindow : FluentWindow
         _lightsView.LoadConfig(_config, saveHandler);
         _buttonsView.LoadConfig(_config, _mixer!, saveHandler);
         _mixerView.LoadConfig(_config, _mixer!, saveHandler);
+        _haView.LoadConfig(_config, saveHandler);
     }
 
     private void NavMixer_Click(object sender, RoutedEventArgs e) => NavigateTo(_mixerView, NavMixer);
@@ -61,6 +63,15 @@ public partial class MainWindow : FluentWindow
             _onConfigChanged?.Invoke(cfg);
         });
         NavigateTo(_lightsView, NavLights);
+    }
+    private void NavHA_Click(object sender, RoutedEventArgs e)
+    {
+        _haView.LoadConfig(_config, cfg =>
+        {
+            _config = cfg;
+            _onConfigChanged?.Invoke(cfg);
+        });
+        NavigateTo(_haView, NavHA);
     }
     private void NavSettings_Click(object sender, RoutedEventArgs e) => NavigateTo(_settingsView, NavSettings);
 

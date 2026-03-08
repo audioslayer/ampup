@@ -19,6 +19,7 @@ public partial class App : Application
     private Forms.NotifyIcon? _trayIcon;
     private bool _isConnected;
     private DeviceSwitchOverlay? _deviceOverlay;
+    private HAIntegration? _ha;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -44,6 +45,10 @@ public partial class App : Application
 
         _buttons.OnProfileSwitch += HandleProfileSwitch;
         _buttons.OnDeviceSwitched += HandleDeviceSwitched;
+
+        // Start Home Assistant integration
+        _ha = new HAIntegration(_config.HomeAssistant);
+        _buttons.SetHAIntegration(_ha);
 
         // Start audio mixer
         _mixer.Start();
@@ -212,6 +217,7 @@ public partial class App : Application
         ConfigManager.Save(_config);
         ApplyRgbConfig();
         ApplyStartupSetting();
+        _ha?.UpdateConfig(_config.HomeAssistant);
     }
 
     private void HandleKnob(KnobEvent e)
@@ -219,7 +225,16 @@ public partial class App : Application
         var knob = _config.Knobs.FirstOrDefault(k => k.Idx == e.Idx);
         if (knob != null)
         {
-            if (knob.Target.Equals("monitor", StringComparison.OrdinalIgnoreCase))
+            if (knob.Target.StartsWith("ha_", StringComparison.OrdinalIgnoreCase))
+            {
+                // Route to Home Assistant
+                if (_ha != null && _ha.IsAvailable)
+                {
+                    float vol = e.Value / 1023f;
+                    _ = _ha.HandleKnobAsync(knob.Target, vol);
+                }
+            }
+            else if (knob.Target.Equals("monitor", StringComparison.OrdinalIgnoreCase))
             {
                 float vol = e.Value / 1023f;
                 MonitorBrightness.SetAll(vol);
@@ -372,6 +387,7 @@ public partial class App : Application
         _serial?.Dispose();
         _mixer?.Dispose();
         _rgb?.Dispose();
+        _ha?.Dispose();
         _mutex?.Dispose();
         base.OnExit(e);
     }
