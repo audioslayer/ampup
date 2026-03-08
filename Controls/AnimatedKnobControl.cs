@@ -214,19 +214,7 @@ namespace WolfMixer.Controls
             dc.DrawImage(s_knobImage, new Rect(knobLeft, knobTop, knobSize, knobSize));
             dc.Pop();
 
-            // 6. Percentage text below the knob
-            string text = PercentText ?? "0%";
-            var formattedText = new FormattedText(
-                text,
-                CultureInfo.InvariantCulture,
-                FlowDirection.LeftToRight,
-                s_typeface,
-                11.0,
-                s_textBrush,
-                VisualTreeHelper.GetDpi(this).PixelsPerDip);
-
-            double textY = cy + knobSize / 2.0 + 2.0;
-            dc.DrawText(formattedText, new Point(cx - formattedText.Width / 2.0, textY));
+            // Percentage text removed — shown separately below the knob control
         }
 
         // ── Arc geometry helper ────────────────────────────────────────
