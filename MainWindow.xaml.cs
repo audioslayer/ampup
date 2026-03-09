@@ -192,10 +192,10 @@ public partial class MainWindow : FluentWindow
                 var result = System.Windows.MessageBox.Show(
                     $"A new version ({tag}) is available. Download and install?",
                     "Amp Up Update",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Information);
+                    System.Windows.MessageBoxButton.YesNo,
+                    System.Windows.MessageBoxImage.Information);
 
-                if (result == MessageBoxResult.Yes)
+                if (result == System.Windows.MessageBoxResult.Yes)
                 {
                     VersionLabel.Text = "Downloading...";
                     await UpdateChecker.DownloadAndInstallAsync(url, progress =>
