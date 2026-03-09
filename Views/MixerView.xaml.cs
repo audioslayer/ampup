@@ -1,7 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Shapes;
 using System.Windows.Threading;
 using WolfMixer.Controls;
 
@@ -60,6 +59,10 @@ public partial class MixerView : UserControl
     private readonly StackPanel[] _haEntityPanels = new StackPanel[5];
     private readonly TextBlock[] _muteLabels = new TextBlock[5];
     private readonly Border[] _stripBorders = new Border[5];
+
+    // Collapsible settings
+    private readonly Border[] _settingsBorders = new Border[5];
+    private readonly bool[] _settingsExpanded = new bool[5];
 
     // Audio devices cache
     private List<(string Id, string Name, bool IsOutput)> _audioDevices = new();
@@ -259,18 +262,24 @@ public partial class MixerView : UserControl
             int idx = i;
             var panel = panels[i];
 
-            // --- App icon placeholder ---
+            // ═══════════════════════════════════════════════════════════
+            // TOP SECTION: Icon + Label + Mute
+            // ═══════════════════════════════════════════════════════════
+
+            // App icon
             var iconContainer = new Border
             {
-                Width = 32,
-                Height = 32,
+                Width = 36,
+                Height = 36,
+                CornerRadius = new CornerRadius(8),
+                Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)),
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 4, 0, 4)
+                Margin = new Thickness(0, 2, 0, 6)
             };
             var icon = new Image
             {
-                Width = 24,
-                Height = 24,
+                Width = 22,
+                Height = 22,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 Stretch = Stretch.Uniform
@@ -279,37 +288,40 @@ public partial class MixerView : UserControl
             _icons[i] = icon;
             panel.Children.Add(iconContainer);
 
-            // --- Channel label (editable) ---
+            // Channel label (editable)
             var label = new TextBox
             {
                 Text = $"Knob {i + 1}",
-                FontSize = 13,
+                FontSize = 12,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = FindBrush("TextPrimaryBrush"),
                 Background = Brushes.Transparent,
-                BorderThickness = new Thickness(0, 0, 0, 1),
-                BorderBrush = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
-                Padding = new Thickness(4, 2, 4, 2),
-                Margin = new Thickness(0, 0, 0, 8),
+                Padding = new Thickness(4, 1, 4, 1),
+                Margin = new Thickness(0, 0, 0, 2),
                 MaxLength = 20,
                 Cursor = System.Windows.Input.Cursors.IBeam
             };
-            label.GotFocus += (_, _) => label.BorderBrush = FindBrush("AccentBrush");
+            label.GotFocus += (_, _) =>
+            {
+                label.BorderThickness = new Thickness(0, 0, 0, 1);
+                label.BorderBrush = FindBrush("AccentBrush");
+            };
             label.LostFocus += (_, _) =>
             {
-                label.BorderBrush = Brushes.Transparent;
+                label.BorderThickness = new Thickness(0);
                 if (!_loading) QueueSave();
             };
             _channelLabels[i] = label;
             panel.Children.Add(label);
 
-            // --- Mute indicator ---
+            // Mute indicator
             var muteLabel = new TextBlock
             {
                 Text = "MUTE",
-                FontSize = 11,
+                FontSize = 9,
                 FontWeight = FontWeights.Bold,
                 Foreground = FindBrush("DangerRedBrush"),
                 HorizontalAlignment = HorizontalAlignment.Center,
@@ -319,58 +331,137 @@ public partial class MixerView : UserControl
             _muteLabels[i] = muteLabel;
             panel.Children.Add(muteLabel);
 
-            // --- Animated knob ---
+            // ═══════════════════════════════════════════════════════════
+            // MIDDLE SECTION: Knob + VU meter side by side
+            // ═══════════════════════════════════════════════════════════
+
+            var knobVuGrid = new Grid
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 4, 0, 4)
+            };
+            knobVuGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            knobVuGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            // Knob
             var knob = new AnimatedKnobControl
             {
-                Width = 100,
-                Height = 100,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 8)
+                Width = 88,
+                Height = 88,
+                VerticalAlignment = VerticalAlignment.Center
             };
+            Grid.SetColumn(knob, 0);
             _knobs[i] = knob;
-            panel.Children.Add(knob);
+            knobVuGrid.Children.Add(knob);
 
-            // --- VU meter ---
+            // VU meter (right of knob)
             var vuMeter = new VuMeterControl
             {
-                Width = 14,
-                Height = 80,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 8)
+                Width = 10,
+                Height = 68,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(6, 0, 0, 0)
             };
+            Grid.SetColumn(vuMeter, 1);
             _vuMeters[i] = vuMeter;
-            panel.Children.Add(vuMeter);
+            knobVuGrid.Children.Add(vuMeter);
 
-            // --- Volume percentage ---
+            panel.Children.Add(knobVuGrid);
+
+            // Volume percentage
             var volLabel = new TextBlock
             {
                 Text = "0%",
                 FontFamily = new FontFamily("Consolas"),
-                FontSize = 13,
+                FontSize = 18,
+                FontWeight = FontWeights.SemiBold,
                 Foreground = FindBrush("TextPrimaryBrush"),
                 HorizontalAlignment = HorizontalAlignment.Center,
-                MinWidth = 36,
                 TextAlignment = TextAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 8)
+                Margin = new Thickness(0, 0, 0, 6)
             };
             _volLabels[i] = volLabel;
             panel.Children.Add(volLabel);
 
-            // --- Controls section (recessed sub-panel) ---
-            var controlsBorder = new Border
+            // Target display (shows current target as small text)
+            var targetDisplay = new TextBlock
             {
-                Background = new SolidColorBrush(Color.FromRgb(0x18, 0x18, 0x18)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-                BorderThickness = new Thickness(0, 1, 0, 0),
-                Padding = new Thickness(8, 10, 8, 6),
-                Margin = new Thickness(0, 4, 0, 0)
+                FontSize = 10,
+                Foreground = FindBrush("TextSecBrush"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                TextAlignment = TextAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 8)
             };
-            var controlsPanel = new StackPanel();
-            controlsBorder.Child = controlsPanel;
+            // We'll update this from the target picker selection
+            panel.Children.Add(targetDisplay);
 
-            // --- TARGET flyout picker ---
-            controlsPanel.Children.Add(MakeLabel("TARGET"));
-            var targetPicker = new FlyoutPicker { Margin = new Thickness(0, 0, 0, 8) };
+            // ═══════════════════════════════════════════════════════════
+            // BOTTOM SECTION: Collapsible settings
+            // ═══════════════════════════════════════════════════════════
+
+            // Divider + gear toggle
+            var divider = new Border
+            {
+                Height = 1,
+                Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                Margin = new Thickness(0, 0, 0, 0)
+            };
+            panel.Children.Add(divider);
+
+            var toggleRow = new Grid
+            {
+                Margin = new Thickness(0, 4, 0, 0),
+                Cursor = System.Windows.Input.Cursors.Hand
+            };
+
+            var gearIcon = new TextBlock
+            {
+                Text = "\u2699",
+                FontSize = 13,
+                Foreground = FindBrush("TextDimBrush"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            toggleRow.Children.Add(gearIcon);
+
+            var settingsPanel = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
+            var settingsBorder = new Border
+            {
+                Child = settingsPanel,
+                Visibility = Visibility.Collapsed,
+                Padding = new Thickness(0)
+            };
+            _settingsBorders[i] = settingsBorder;
+            _settingsExpanded[i] = false;
+
+            toggleRow.MouseLeftButtonUp += (_, _) =>
+            {
+                _settingsExpanded[idx] = !_settingsExpanded[idx];
+                settingsBorder.Visibility = _settingsExpanded[idx] ? Visibility.Visible : Visibility.Collapsed;
+                gearIcon.Foreground = _settingsExpanded[idx]
+                    ? FindBrush("AccentBrush")
+                    : FindBrush("TextDimBrush");
+            };
+
+            // Gear hover effect
+            toggleRow.MouseEnter += (_, _) =>
+            {
+                if (!_settingsExpanded[idx])
+                    gearIcon.Foreground = FindBrush("TextSecBrush");
+            };
+            toggleRow.MouseLeave += (_, _) =>
+            {
+                if (!_settingsExpanded[idx])
+                    gearIcon.Foreground = FindBrush("TextDimBrush");
+            };
+
+            panel.Children.Add(toggleRow);
+
+            // ── Settings content ──
+
+            // TARGET
+            settingsPanel.Children.Add(MakeLabel("TARGET"));
+            var targetPicker = new FlyoutPicker { Margin = new Thickness(0, 0, 0, 6) };
             foreach (var tv in TargetValues)
             {
                 var displayText = HATargetDisplayNames.TryGetValue(tv, out var dn) ? dn : FormatTargetName(tv);
@@ -381,14 +472,19 @@ public partial class MixerView : UserControl
                 if (_loading) return;
                 var selected = GetSelectedTarget(_targetPickers[idx]);
                 UpdatePickerVisibility(idx, selected);
+                // Update the target display text
+                UpdateTargetDisplay(idx);
                 QueueSave();
             };
             _targetPickers[i] = targetPicker;
-            controlsPanel.Children.Add(targetPicker);
+            settingsPanel.Children.Add(targetPicker);
 
-            // --- CURVE flyout picker ---
-            controlsPanel.Children.Add(MakeLabel("CURVE"));
-            var curvePicker = new FlyoutPicker { Margin = new Thickness(0, 0, 0, 8) };
+            // Store reference to update target display
+            targetPicker.Tag = targetDisplay;
+
+            // CURVE
+            settingsPanel.Children.Add(MakeLabel("CURVE"));
+            var curvePicker = new FlyoutPicker { Margin = new Thickness(0, 0, 0, 6) };
             foreach (var curve in Enum.GetValues<ResponseCurve>())
                 curvePicker.AddItem(curve.ToString(), curve);
             curvePicker.SelectionChanged += (_, _) =>
@@ -396,18 +492,18 @@ public partial class MixerView : UserControl
                 if (!_loading) QueueSave();
             };
             _curvePickers[i] = curvePicker;
-            controlsPanel.Children.Add(curvePicker);
+            settingsPanel.Children.Add(curvePicker);
 
-            // --- VOLUME RANGE slider (combined min/max) ---
-            controlsPanel.Children.Add(MakeLabel("VOLUME RANGE"));
+            // VOLUME RANGE
+            settingsPanel.Children.Add(MakeLabel("VOLUME RANGE"));
             var rangeSlider = new RangeSlider
             {
                 Minimum = 0,
                 Maximum = 100,
                 LowerValue = 0,
                 UpperValue = 100,
-                Height = 32,
-                Margin = new Thickness(0, 0, 0, 8)
+                Height = 38,
+                Margin = new Thickness(0, 0, 0, 6)
             };
             rangeSlider.LowerValueChanged += (_, _) =>
             {
@@ -418,9 +514,9 @@ public partial class MixerView : UserControl
                 if (!_loading) QueueSave();
             };
             _rangeSliders[i] = rangeSlider;
-            controlsPanel.Children.Add(rangeSlider);
+            settingsPanel.Children.Add(rangeSlider);
 
-            // --- Device picker (hidden unless output_device / input_device) ---
+            // Device picker (hidden unless output_device / input_device)
             var deviceContainer = new StackPanel { Visibility = Visibility.Collapsed };
             deviceContainer.Children.Add(MakeLabel("DEVICE"));
             var devicePicker = new FlyoutPicker { Margin = new Thickness(0, 0, 0, 4) };
@@ -431,9 +527,9 @@ public partial class MixerView : UserControl
             _devicePickers[i] = devicePicker;
             _devicePanels[i] = deviceContainer;
             deviceContainer.Children.Add(devicePicker);
-            controlsPanel.Children.Add(deviceContainer);
+            settingsPanel.Children.Add(deviceContainer);
 
-            // --- HA entity picker (hidden unless ha_light / ha_media / etc.) ---
+            // HA entity picker (hidden unless ha_light / ha_media / etc.)
             var haContainer = new StackPanel { Visibility = Visibility.Collapsed };
             haContainer.Children.Add(MakeLabel("HA ENTITY"));
             var haEntityPicker = new FlyoutPicker { Margin = new Thickness(0, 0, 0, 4) };
@@ -444,9 +540,9 @@ public partial class MixerView : UserControl
             _haEntityPickers[i] = haEntityPicker;
             _haEntityPanels[i] = haContainer;
             haContainer.Children.Add(haEntityPicker);
-            controlsPanel.Children.Add(haContainer);
+            settingsPanel.Children.Add(haContainer);
 
-            // --- FC controller picker (hidden unless fc_fan) ---
+            // FC controller picker (hidden unless fc_fan)
             var fcContainer = new StackPanel { Visibility = Visibility.Collapsed };
             fcContainer.Children.Add(MakeLabel("FC CONTROLLER"));
             var fcPicker = new FlyoutPicker { Margin = new Thickness(0, 0, 0, 4) };
@@ -459,17 +555,17 @@ public partial class MixerView : UserControl
             _fcControllerPickers[i] = fcPicker;
             _fcControllerPanels[i] = fcContainer;
             fcContainer.Children.Add(fcPicker);
-            controlsPanel.Children.Add(fcContainer);
+            settingsPanel.Children.Add(fcContainer);
 
-            // --- App group picker (hidden unless "apps") ---
+            // App group picker (hidden unless "apps")
             var appsContainer = new StackPanel { Visibility = Visibility.Collapsed };
             appsContainer.Children.Add(MakeLabel("APPS"));
 
-            var appsListPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 6) };
+            var appsListPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 4) };
             _appsListPanels[i] = appsListPanel;
             appsContainer.Children.Add(appsListPanel);
 
-            // "Add app" row: editable combo + button
+            // "Add app" row
             var addRow = new Grid();
             addRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             addRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -480,7 +576,8 @@ public partial class MixerView : UserControl
                 Foreground = FindBrush("TextPrimaryBrush"),
                 BorderBrush = FindBrush("InputBorderBrush"),
                 HorizontalAlignment = HorizontalAlignment.Stretch,
-                IsEditable = true
+                IsEditable = true,
+                FontSize = 11
             };
             Grid.SetColumn(appsAddCombo, 0);
             appsAddCombo.DropDownOpened += (_, _) => PopulateRunningApps(idx);
@@ -491,13 +588,14 @@ public partial class MixerView : UserControl
             {
                 Content = "+",
                 FontWeight = FontWeights.Bold,
-                Width = 28,
-                Height = 28,
+                Width = 24,
+                Height = 24,
                 Margin = new Thickness(4, 0, 0, 0),
                 Background = FindBrush("AccentBrush"),
                 Foreground = Brushes.Black,
                 BorderThickness = new Thickness(0),
-                Cursor = System.Windows.Input.Cursors.Hand
+                Cursor = System.Windows.Input.Cursors.Hand,
+                FontSize = 13
             };
             Grid.SetColumn(addBtn, 1);
             addBtn.Click += (_, _) =>
@@ -511,9 +609,18 @@ public partial class MixerView : UserControl
             appsContainer.Children.Add(addRow);
 
             _appsPanels[i] = appsContainer;
-            controlsPanel.Children.Add(appsContainer);
+            settingsPanel.Children.Add(appsContainer);
 
-            panel.Children.Add(controlsBorder);
+            panel.Children.Add(settingsBorder);
+        }
+    }
+
+    private void UpdateTargetDisplay(int idx)
+    {
+        if (_targetPickers[idx].Tag is TextBlock display)
+        {
+            var target = GetSelectedTarget(_targetPickers[idx]);
+            display.Text = HATargetDisplayNames.TryGetValue(target, out var dn) ? dn : FormatTargetName(target);
         }
     }
 
@@ -546,6 +653,16 @@ public partial class MixerView : UserControl
             PopulateRunningApps(idx);
             RebuildAppChips(idx);
         }
+
+        // Auto-expand settings if a target needs sub-pickers
+        if ((showDevice || showHA || showFC || showApps) && !_settingsExpanded[idx])
+        {
+            _settingsExpanded[idx] = true;
+            _settingsBorders[idx].Visibility = Visibility.Visible;
+        }
+
+        // Update target display text
+        UpdateTargetDisplay(idx);
     }
 
     private void PopulateHAEntityPicker(int idx, string haTarget)
@@ -644,12 +761,17 @@ public partial class MixerView : UserControl
             if (picker.GetTagAt(i) as string == baseTarget)
             {
                 picker.SelectedIndex = i;
+                // Update target display
+                if (picker.Tag is TextBlock display)
+                    display.Text = HATargetDisplayNames.TryGetValue(baseTarget, out var dn) ? dn : FormatTargetName(baseTarget);
                 return;
             }
         }
         // Custom process name — add it
         picker.AddItem(target, target);
         picker.SelectedIndex = picker.ItemCount - 1;
+        if (picker.Tag is TextBlock d)
+            d.Text = FormatTargetName(target);
     }
 
     private void SelectCurve(FlyoutPicker picker, ResponseCurve curve)
@@ -738,12 +860,12 @@ public partial class MixerView : UserControl
         {
             var chip = new Border
             {
-                Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+                Background = new SolidColorBrush(Color.FromRgb(0x20, 0x20, 0x20)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x30, 0x30, 0x30)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(10),
-                Padding = new Thickness(8, 3, 4, 3),
-                Margin = new Thickness(0, 0, 0, 4),
+                Padding = new Thickness(8, 2, 4, 2),
+                Margin = new Thickness(0, 0, 0, 3),
                 Cursor = System.Windows.Input.Cursors.Hand
             };
 
@@ -754,7 +876,7 @@ public partial class MixerView : UserControl
             var appLabel = new TextBlock
             {
                 Text = app,
-                FontSize = 12,
+                FontSize = 11,
                 Foreground = FindBrush("TextPrimaryBrush"),
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -764,7 +886,7 @@ public partial class MixerView : UserControl
             var removeBtn = new TextBlock
             {
                 Text = "\u2715",
-                FontSize = 10,
+                FontSize = 9,
                 Foreground = FindBrush("DangerRedBrush"),
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(6, 0, 2, 0),
@@ -863,10 +985,10 @@ public partial class MixerView : UserControl
         return new TextBlock
         {
             Text = text,
-            Style = FindStyle("SecondaryText"),
+            FontSize = 9,
             FontWeight = FontWeights.SemiBold,
-            FontSize = 11,
-            Margin = new Thickness(0, 0, 0, 3)
+            Foreground = FindBrush("TextDimBrush"),
+            Margin = new Thickness(0, 4, 0, 2)
         };
     }
 

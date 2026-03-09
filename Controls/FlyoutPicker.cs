@@ -11,12 +11,13 @@ using System.Windows.Media.Effects;
 namespace WolfMixer.Controls;
 
 /// <summary>
-/// A modern flyout picker that replaces standard ComboBox.
-/// Shows current selection as a pill button; click opens a floating popup menu.
+/// A modern flyout picker — Wave Link / SteelSeries Sonar inspired.
+/// Clean pill button; click opens a floating popup with smooth hover states.
 /// </summary>
 public class FlyoutPicker : Border
 {
     private readonly TextBlock _label;
+    private readonly TextBlock _chevron;
     private readonly Popup _popup;
     private readonly Border _popupBorder;
     private readonly StackPanel _itemsPanel;
@@ -32,13 +33,14 @@ public class FlyoutPicker : Border
 
     public FlyoutPicker()
     {
-        // Main button appearance
-        Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
-        BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
+        // Main button — minimal, borderless by default
+        Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+        BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
         BorderThickness = new Thickness(1);
-        CornerRadius = new CornerRadius(6);
-        Padding = new Thickness(10, 6, 10, 6);
+        CornerRadius = new CornerRadius(4);
+        Padding = new Thickness(8, 5, 8, 5);
         Cursor = Cursors.Hand;
+        SnapsToDevicePixels = true;
 
         // Layout: label + chevron
         var grid = new Grid();
@@ -48,24 +50,24 @@ public class FlyoutPicker : Border
         _label = new TextBlock
         {
             Text = "Select...",
-            FontSize = 12,
-            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            FontSize = 11.5,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0xC0, 0xC0)),
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         Grid.SetColumn(_label, 0);
         grid.Children.Add(_label);
 
-        var chevron = new TextBlock
+        _chevron = new TextBlock
         {
-            Text = "\u25BE", // small down triangle
-            FontSize = 11,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+            Text = "\u25BE",
+            FontSize = 10,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(6, 0, 0, 0)
         };
-        Grid.SetColumn(chevron, 1);
-        grid.Children.Add(chevron);
+        Grid.SetColumn(_chevron, 1);
+        grid.Children.Add(_chevron);
 
         Child = grid;
 
@@ -80,18 +82,18 @@ public class FlyoutPicker : Border
 
         _popupBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+            Background = new SolidColorBrush(Color.FromRgb(0x18, 0x18, 0x18)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x30, 0x30, 0x30)),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(4),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(3),
             Child = _scrollViewer,
             Effect = new DropShadowEffect
             {
                 Color = Colors.Black,
-                BlurRadius = 20,
-                Opacity = 0.5,
-                ShadowDepth = 4
+                BlurRadius = 24,
+                Opacity = 0.6,
+                ShadowDepth = 6
             }
         };
 
@@ -103,27 +105,23 @@ public class FlyoutPicker : Border
             StaysOpen = false,
             AllowsTransparency = true,
             PopupAnimation = PopupAnimation.Fade,
-            VerticalOffset = 4
+            VerticalOffset = 2
         };
 
-        // Hover effects on the button
+        // Hover effects — subtle border glow
         MouseEnter += (_, _) =>
         {
-            BorderBrush = new SolidColorBrush(AccentColor);
-            Effect = new DropShadowEffect
-            {
-                Color = AccentColor,
-                BlurRadius = 8,
-                Opacity = 0.2,
-                ShadowDepth = 0
-            };
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, AccentColor.R, AccentColor.G, AccentColor.B));
+            Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+            _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x99, 0x99, 0x99));
         };
         MouseLeave += (_, _) =>
         {
             if (!_popup.IsOpen)
             {
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
-                Effect = null;
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+                _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
             }
         };
 
@@ -134,9 +132,17 @@ public class FlyoutPicker : Border
             e.Handled = true;
         };
 
+        _popup.Opened += (_, _) =>
+        {
+            BorderBrush = new SolidColorBrush(AccentColor);
+            Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+        };
+
         _popup.Closed += (_, _) =>
         {
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+            _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
             Effect = null;
         };
     }
@@ -154,6 +160,7 @@ public class FlyoutPicker : Border
         _items.Clear();
         _selectedIndex = -1;
         _label.Text = "Select...";
+        _label.Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0xC0, 0xC0));
         RebuildPopupItems();
     }
 
@@ -166,12 +173,14 @@ public class FlyoutPicker : Border
             {
                 _selectedIndex = value;
                 _label.Text = _items[value].Display;
+                _label.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
                 HighlightSelectedItem();
             }
             else
             {
                 _selectedIndex = -1;
                 _label.Text = "Select...";
+                _label.Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0xC0, 0xC0));
             }
         }
     }
@@ -207,31 +216,37 @@ public class FlyoutPicker : Border
 
             var itemBorder = new Border
             {
-                CornerRadius = new CornerRadius(4),
-                Padding = new Thickness(10, 6, 10, 6),
-                Margin = new Thickness(0, 1, 0, 1),
+                CornerRadius = new CornerRadius(3),
+                Padding = new Thickness(8, 5, 8, 5),
+                Margin = new Thickness(0),
                 Cursor = Cursors.Hand,
-                Background = Brushes.Transparent
+                Background = Brushes.Transparent,
+                SnapsToDevicePixels = true
             };
 
             var itemText = new TextBlock
             {
                 Text = display,
-                FontSize = 12,
-                Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8))
+                FontSize = 11.5,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC))
             };
             itemBorder.Child = itemText;
 
             // Hover
             itemBorder.MouseEnter += (_, _) =>
             {
-                itemBorder.Background = new SolidColorBrush(Color.FromArgb(0x20, AccentColor.R, AccentColor.G, AccentColor.B));
+                itemBorder.Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
+                itemText.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
             };
             itemBorder.MouseLeave += (_, _) =>
             {
-                itemBorder.Background = idx == _selectedIndex
-                    ? new SolidColorBrush(Color.FromArgb(0x15, AccentColor.R, AccentColor.G, AccentColor.B))
+                bool selected = idx == _selectedIndex;
+                itemBorder.Background = selected
+                    ? new SolidColorBrush(Color.FromArgb(0x18, AccentColor.R, AccentColor.G, AccentColor.B))
                     : Brushes.Transparent;
+                itemText.Foreground = selected
+                    ? new SolidColorBrush(AccentColor)
+                    : new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
             };
 
             // Click
@@ -239,6 +254,7 @@ public class FlyoutPicker : Border
             {
                 _selectedIndex = idx;
                 _label.Text = _items[idx].Display;
+                _label.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
                 _popup.IsOpen = false;
                 HighlightSelectedItem();
                 SelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -258,15 +274,15 @@ public class FlyoutPicker : Border
             {
                 bool selected = i == _selectedIndex;
                 b.Background = selected
-                    ? new SolidColorBrush(Color.FromArgb(0x15, AccentColor.R, AccentColor.G, AccentColor.B))
+                    ? new SolidColorBrush(Color.FromArgb(0x18, AccentColor.R, AccentColor.G, AccentColor.B))
                     : Brushes.Transparent;
 
                 if (b.Child is TextBlock t)
                 {
                     t.Foreground = selected
                         ? new SolidColorBrush(AccentColor)
-                        : new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
-                    t.FontWeight = selected ? FontWeights.SemiBold : FontWeights.Normal;
+                        : new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
+                    t.FontWeight = selected ? FontWeights.Medium : FontWeights.Normal;
                 }
             }
         }

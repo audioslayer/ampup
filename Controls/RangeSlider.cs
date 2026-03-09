@@ -8,13 +8,13 @@ namespace WolfMixer.Controls;
 
 /// <summary>
 /// A dual-thumb range slider for selecting min/max volume.
-/// Renders a track with two draggable thumbs and a filled range between them.
+/// Wave Link / Sonar inspired — clean track with two draggable thumbs.
 /// </summary>
 public class RangeSlider : FrameworkElement
 {
-    private const double TrackHeight = 4.0;
-    private const double ThumbRadius = 7.0;
-    private const double TrackMargin = 8.0; // left/right padding for thumb overhang
+    private const double TrackHeight = 3.0;
+    private const double ThumbRadius = 6.0;
+    private const double TrackMargin = 8.0;
 
     // Frozen pens/brushes
     private static readonly Brush s_trackBg;
@@ -23,11 +23,11 @@ public class RangeSlider : FrameworkElement
 
     static RangeSlider()
     {
-        var bg = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+        var bg = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
         bg.Freeze();
         s_trackBg = bg;
 
-        var border = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+        var border = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14));
         border.Freeze();
         s_thumbBorder = border;
     }
@@ -84,7 +84,7 @@ public class RangeSlider : FrameworkElement
     private double TrackLeft => TrackMargin;
     private double TrackRight => ActualWidth - TrackMargin;
     private double TrackWidth => TrackRight - TrackLeft;
-    private double TrackY => ActualHeight / 2.0;
+    private double TrackY => 14.0; // fixed: labels go below
 
     private double ValueToX(double value)
     {
@@ -109,7 +109,7 @@ public class RangeSlider : FrameworkElement
 
         // Background track
         dc.DrawRoundedRectangle(s_trackBg, null,
-            new Rect(TrackLeft, trackTop, TrackWidth, TrackHeight), 2, 2);
+            new Rect(TrackLeft, trackTop, TrackWidth, TrackHeight), 1.5, 1.5);
 
         // Filled range
         double lx = ValueToX(LowerValue);
@@ -119,34 +119,34 @@ public class RangeSlider : FrameworkElement
         if (ux > lx)
         {
             dc.DrawRoundedRectangle(accentBrush, null,
-                new Rect(lx, trackTop, ux - lx, TrackHeight), 2, 2);
+                new Rect(lx, trackTop, ux - lx, TrackHeight), 1.5, 1.5);
         }
 
-        // Glow behind thumbs
-        var glowBrush = new RadialGradientBrush(
-            Color.FromArgb(0x40, AccentColor.R, AccentColor.G, AccentColor.B),
-            Colors.Transparent);
-        glowBrush.Freeze();
-        dc.DrawEllipse(glowBrush, null, new Point(lx, cy), ThumbRadius + 4, ThumbRadius + 4);
-        dc.DrawEllipse(glowBrush, null, new Point(ux, cy), ThumbRadius + 4, ThumbRadius + 4);
-
-        // Thumbs
-        var thumbPen = new Pen(s_thumbBorder, 2);
+        // Thumbs (no glow — clean look)
+        var thumbPen = new Pen(s_thumbBorder, 1.5);
         thumbPen.Freeze();
         dc.DrawEllipse(accentBrush, thumbPen, new Point(lx, cy), ThumbRadius, ThumbRadius);
         dc.DrawEllipse(accentBrush, thumbPen, new Point(ux, cy), ThumbRadius, ThumbRadius);
 
-        // Value labels
-        var textBrush = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
+        // Inner dot on thumbs (white center)
+        var whiteDot = new SolidColorBrush(Color.FromArgb(0xCC, 0xFF, 0xFF, 0xFF));
+        whiteDot.Freeze();
+        dc.DrawEllipse(whiteDot, null, new Point(lx, cy), 2, 2);
+        dc.DrawEllipse(whiteDot, null, new Point(ux, cy), 2, 2);
+
+        // Value labels below thumbs
+        var textBrush = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
         textBrush.Freeze();
 
         var lowerText = new FormattedText($"{(int)LowerValue}%", CultureInfo.InvariantCulture,
-            FlowDirection.LeftToRight, s_typeface, 10, textBrush, 1.0);
+            FlowDirection.LeftToRight, s_typeface, 10, textBrush,
+            VisualTreeHelper.GetDpi(this).PixelsPerDip);
         var upperText = new FormattedText($"{(int)UpperValue}%", CultureInfo.InvariantCulture,
-            FlowDirection.LeftToRight, s_typeface, 10, textBrush, 1.0);
+            FlowDirection.LeftToRight, s_typeface, 10, textBrush,
+            VisualTreeHelper.GetDpi(this).PixelsPerDip);
 
-        dc.DrawText(lowerText, new Point(lx - lowerText.Width / 2, cy + ThumbRadius + 3));
-        dc.DrawText(upperText, new Point(ux - upperText.Width / 2, cy + ThumbRadius + 3));
+        dc.DrawText(lowerText, new Point(lx - lowerText.Width / 2, cy + ThumbRadius + 4));
+        dc.DrawText(upperText, new Point(ux - upperText.Width / 2, cy + ThumbRadius + 4));
     }
 
     // ── Mouse interaction ───────────────────────────────────────
@@ -161,14 +161,12 @@ public class RangeSlider : FrameworkElement
         double distLower = Math.Abs(pos.X - lx);
         double distUpper = Math.Abs(pos.X - ux);
 
-        // Pick the closer thumb (prefer lower on tie)
         if (distLower <= distUpper && distLower < ThumbRadius + 8)
             _dragging = DragTarget.Lower;
         else if (distUpper < ThumbRadius + 8)
             _dragging = DragTarget.Upper;
         else
         {
-            // Click on track — move closest thumb to click position
             double val = XToValue(pos.X);
             if (distLower <= distUpper)
             {
@@ -211,6 +209,6 @@ public class RangeSlider : FrameworkElement
     {
         return new Size(
             double.IsInfinity(availableSize.Width) ? 120 : availableSize.Width,
-            Math.Max(32, ThumbRadius * 2 + 20));
+            38); // enough for track + labels
     }
 }
