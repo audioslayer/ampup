@@ -20,7 +20,7 @@
 
 ## Why Amp Up?
 
-The official Turn Up software is limited and unreliable. Amp Up is a ground-up rewrite that gives you full control over every knob, button, and LED — with a modern WPF interface inspired by SteelSeries Sonar and Elgato Wave Link.
+Amp Up is a community-built alternative for the Turn Up USB mixer that adds features the official app doesn't offer — like per-app audio control, response curves, keyboard macros, and full RGB customization. Built with a modern WPF interface inspired by SteelSeries Sonar and Elgato Wave Link.
 
 ---
 
