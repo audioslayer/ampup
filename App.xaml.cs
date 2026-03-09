@@ -91,6 +91,8 @@ public partial class App : Application
             _mainWindow.SetConnectionStatus(true);
     }
 
+    private Forms.ToolStripLabel? _trayStatusLabel;
+
     private void SetupTrayIcon()
     {
         _trayIcon = new Forms.NotifyIcon
@@ -103,17 +105,64 @@ public partial class App : Application
         _trayIcon.DoubleClick += (_, _) => ShowMainWindow();
 
         var menu = new Forms.ContextMenuStrip();
-        menu.BackColor = Color.FromArgb(0x1C, 0x1C, 0x1C);
+        menu.BackColor = Color.FromArgb(0x14, 0x14, 0x14);
         menu.ForeColor = Color.FromArgb(0xE8, 0xE8, 0xE8);
+        menu.Padding = new Forms.Padding(0, 4, 0, 4);
+        menu.ShowImageMargin = false;
         menu.Renderer = new DarkMenuRenderer();
 
-        var showItem = menu.Items.Add("Show Amp Up");
-        showItem.Click += (_, _) => ShowMainWindow();
+        // Header: logo + app name + version
+        var header = new Forms.ToolStripLabel
+        {
+            Text = "  AMP UP",
+            Font = new Font("Segoe UI", 10f, FontStyle.Bold),
+            ForeColor = Color.FromArgb(0x4C, 0xAF, 0x50),
+            Padding = new Forms.Padding(8, 6, 8, 2),
+        };
+        menu.Items.Add(header);
+
+        // Version label
+        var version = new Forms.ToolStripLabel
+        {
+            Text = "  v0.1-alpha",
+            Font = new Font("Segoe UI", 7.5f, FontStyle.Regular),
+            ForeColor = Color.FromArgb(0x55, 0x55, 0x55),
+            Padding = new Forms.Padding(8, 0, 8, 4),
+        };
+        menu.Items.Add(version);
+
+        // Connection status
+        _trayStatusLabel = new Forms.ToolStripLabel
+        {
+            Text = "  ○  Disconnected",
+            Font = new Font("Segoe UI", 8.5f, FontStyle.Regular),
+            ForeColor = Color.FromArgb(0x9A, 0x9A, 0x9A),
+            Padding = new Forms.Padding(8, 2, 8, 6),
+        };
+        menu.Items.Add(_trayStatusLabel);
 
         menu.Items.Add(new Forms.ToolStripSeparator());
 
-        var exitItem = menu.Items.Add("Exit");
+        // Show
+        var showItem = new Forms.ToolStripMenuItem("Open Amp Up")
+        {
+            Font = new Font("Segoe UI", 9f, FontStyle.Regular),
+            Padding = new Forms.Padding(8, 6, 8, 6),
+        };
+        showItem.Click += (_, _) => ShowMainWindow();
+        menu.Items.Add(showItem);
+
+        menu.Items.Add(new Forms.ToolStripSeparator());
+
+        // Exit
+        var exitItem = new Forms.ToolStripMenuItem("Exit")
+        {
+            Font = new Font("Segoe UI", 9f, FontStyle.Regular),
+            ForeColor = Color.FromArgb(0xFF, 0x44, 0x44),
+            Padding = new Forms.Padding(8, 6, 8, 6),
+        };
         exitItem.Click += (_, _) => ExitApp();
+        menu.Items.Add(exitItem);
 
         _trayIcon.ContextMenuStrip = menu;
     }
@@ -209,29 +258,49 @@ public partial class App : Application
     {
         protected override void OnRenderMenuItemBackground(Forms.ToolStripItemRenderEventArgs e)
         {
-            if (e.Item.Selected)
+            var rect = new Rectangle(4, 0, e.Item.Width - 8, e.Item.Height);
+            if (e.Item is Forms.ToolStripMenuItem && e.Item.Selected)
             {
                 using var brush = new SolidBrush(Color.FromArgb(0x2A, 0x2A, 0x2A));
-                e.Graphics.FillRectangle(brush, e.Item.ContentRectangle);
-            }
-            else
-            {
-                using var brush = new SolidBrush(Color.FromArgb(0x1C, 0x1C, 0x1C));
-                e.Graphics.FillRectangle(brush, e.Item.ContentRectangle);
+                using var path = RoundedRect(rect, 4);
+                e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                e.Graphics.FillPath(brush, path);
             }
         }
 
         protected override void OnRenderToolStripBackground(Forms.ToolStripRenderEventArgs e)
         {
-            using var brush = new SolidBrush(Color.FromArgb(0x1C, 0x1C, 0x1C));
+            using var brush = new SolidBrush(Color.FromArgb(0x14, 0x14, 0x14));
             e.Graphics.FillRectangle(brush, e.AffectedBounds);
+
+            // Border
+            using var borderPen = new Pen(Color.FromArgb(0x2A, 0x2A, 0x2A));
+            e.Graphics.DrawRectangle(borderPen, 0, 0, e.AffectedBounds.Width - 1, e.AffectedBounds.Height - 1);
         }
 
         protected override void OnRenderSeparator(Forms.ToolStripSeparatorRenderEventArgs e)
         {
-            using var pen = new Pen(Color.FromArgb(0x36, 0x36, 0x36));
             int y = e.Item.ContentRectangle.Height / 2;
-            e.Graphics.DrawLine(pen, 4, y, e.Item.Width - 4, y);
+            using var pen = new Pen(Color.FromArgb(0x2A, 0x2A, 0x2A));
+            e.Graphics.DrawLine(pen, 12, y, e.Item.Width - 12, y);
+        }
+
+        protected override void OnRenderItemText(Forms.ToolStripItemTextRenderEventArgs e)
+        {
+            e.TextColor = e.Item.ForeColor;
+            base.OnRenderItemText(e);
+        }
+
+        private static System.Drawing.Drawing2D.GraphicsPath RoundedRect(Rectangle bounds, int radius)
+        {
+            var path = new System.Drawing.Drawing2D.GraphicsPath();
+            int d = radius * 2;
+            path.AddArc(bounds.X, bounds.Y, d, d, 180, 90);
+            path.AddArc(bounds.Right - d, bounds.Y, d, d, 270, 90);
+            path.AddArc(bounds.Right - d, bounds.Bottom - d, d, d, 0, 90);
+            path.AddArc(bounds.X, bounds.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
         }
     }
 
@@ -325,6 +394,12 @@ public partial class App : Application
             _trayIcon.Icon = CreateTrayIcon(connected);
             _trayIcon.Text = connected ? "Amp Up — Connected" : "Amp Up — Disconnected";
             oldIcon?.Dispose();
+        }
+
+        if (_trayStatusLabel != null)
+        {
+            _trayStatusLabel.Text = connected ? "  ●  Connected" : "  ○  Disconnected";
+            _trayStatusLabel.ForeColor = connected ? Color.FromArgb(0x00, 0xDD, 0x77) : Color.FromArgb(0x9A, 0x9A, 0x9A);
         }
 
         _mainWindow?.SetConnectionStatus(connected);
