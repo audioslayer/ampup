@@ -115,7 +115,7 @@ public partial class App : Application
         var header = new Forms.ToolStripLabel
         {
             Text = "  AMP UP",
-            Font = new Font("Segoe UI", 10f, FontStyle.Bold),
+            Font = new System.Drawing.Font("Segoe UI", 10f, System.Drawing.FontStyle.Bold),
             ForeColor = Color.FromArgb(0x4C, 0xAF, 0x50),
             Padding = new Forms.Padding(8, 6, 8, 2),
         };
@@ -125,7 +125,7 @@ public partial class App : Application
         var version = new Forms.ToolStripLabel
         {
             Text = "  v0.1-alpha",
-            Font = new Font("Segoe UI", 7.5f, FontStyle.Regular),
+            Font = new System.Drawing.Font("Segoe UI", 7.5f, System.Drawing.FontStyle.Regular),
             ForeColor = Color.FromArgb(0x55, 0x55, 0x55),
             Padding = new Forms.Padding(8, 0, 8, 4),
         };
@@ -135,7 +135,7 @@ public partial class App : Application
         _trayStatusLabel = new Forms.ToolStripLabel
         {
             Text = "  ○  Disconnected",
-            Font = new Font("Segoe UI", 8.5f, FontStyle.Regular),
+            Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular),
             ForeColor = Color.FromArgb(0x9A, 0x9A, 0x9A),
             Padding = new Forms.Padding(8, 2, 8, 6),
         };
@@ -146,7 +146,7 @@ public partial class App : Application
         // Show
         var showItem = new Forms.ToolStripMenuItem("Open Amp Up")
         {
-            Font = new Font("Segoe UI", 9f, FontStyle.Regular),
+            Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Regular),
             Padding = new Forms.Padding(8, 6, 8, 6),
         };
         showItem.Click += (_, _) => ShowMainWindow();
@@ -157,7 +157,7 @@ public partial class App : Application
         // Exit
         var exitItem = new Forms.ToolStripMenuItem("Exit")
         {
-            Font = new Font("Segoe UI", 9f, FontStyle.Regular),
+            Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Regular),
             ForeColor = Color.FromArgb(0xFF, 0x44, 0x44),
             Padding = new Forms.Padding(8, 6, 8, 6),
         };
