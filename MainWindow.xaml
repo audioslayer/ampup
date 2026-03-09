@@ -36,9 +36,16 @@
             </Grid.ColumnDefinitions>
 
             <!-- Branding -->
-            <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
-                <Image Source="pack://application:,,,/Assets/ampuplogo.png" Height="32"
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="14,0,0,0" VerticalAlignment="Center">
+                <Image Source="pack://application:,,,/Assets/ampuplogo.png" Height="38"
                        RenderOptions.BitmapScalingMode="HighQuality" VerticalAlignment="Center" />
+                <TextBlock VerticalAlignment="Center" Margin="6,0,0,0">
+                    <Run Text="AMP" FontFamily="Segoe UI Black" FontSize="16" FontWeight="Black"
+                         Foreground="{StaticResource AccentGlowBrush}" />
+                    <Run Text=" " FontSize="4" />
+                    <Run Text="UP" FontFamily="Segoe UI Black" FontSize="16" FontWeight="Black"
+                         Foreground="{StaticResource TextPrimaryBrush}" />
+                </TextBlock>
             </StackPanel>
 
             <!-- Connection Status + Window Controls -->
