@@ -27,6 +27,7 @@ public partial class MainWindow : FluentWindow
         Icon = new BitmapImage(new Uri("pack://application:,,,/Assets/ampuplogo.png", UriKind.Absolute));
 
         _config = ConfigManager.Load();
+        VersionLabel.Text = $"v{UpdateChecker.CurrentVersion}";
         NavigateTo(_mixerView, NavMixer);
         SetupTrafficLightHovers();
     }
@@ -162,6 +163,66 @@ public partial class MainWindow : FluentWindow
     private void BtnClose_Click(object sender, MouseButtonEventArgs e)
     {
         Close(); // triggers MainWindow_Closing → hides to tray
+    }
+
+    private bool _checkingUpdate;
+
+    private async void VersionLabel_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (_checkingUpdate) return;
+        _checkingUpdate = true;
+
+        VersionLabel.Text = "Checking...";
+        VersionLabel.Foreground = (SolidColorBrush)FindResource("AccentBrush");
+
+        try
+        {
+            var update = await UpdateChecker.CheckForUpdateAsync();
+            if (update == null)
+            {
+                VersionLabel.Text = "Up to date!";
+                VersionLabel.Foreground = (SolidColorBrush)FindResource("SuccessGrnBrush");
+                await Task.Delay(2000);
+                VersionLabel.Text = $"v{UpdateChecker.CurrentVersion}";
+                VersionLabel.Foreground = (SolidColorBrush)FindResource("TextDimBrush");
+            }
+            else
+            {
+                var (tag, url) = update.Value;
+                var result = System.Windows.MessageBox.Show(
+                    $"A new version ({tag}) is available. Download and install?",
+                    "Amp Up Update",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Information);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    VersionLabel.Text = "Downloading...";
+                    await UpdateChecker.DownloadAndInstallAsync(url, progress =>
+                    {
+                        Dispatcher.Invoke(() => VersionLabel.Text = $"Downloading {progress}%");
+                    });
+                }
+                else
+                {
+                    VersionLabel.Text = $"v{UpdateChecker.CurrentVersion}";
+                    VersionLabel.Foreground = (SolidColorBrush)FindResource("TextDimBrush");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Update check error: {ex.Message}");
+            VersionLabel.Text = "Update failed";
+            VersionLabel.Foreground = (SolidColorBrush)FindResource("DangerRedBrush");
+            await Task.Delay(2000);
+            VersionLabel.Text = $"v{UpdateChecker.CurrentVersion}";
+            VersionLabel.Foreground = (SolidColorBrush)FindResource("TextDimBrush");
+        }
+        finally
+        {
+            _checkingUpdate = false;
+        }
     }
 
     public void SetConnectionStatus(bool connected)

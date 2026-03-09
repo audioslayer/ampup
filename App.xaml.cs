@@ -124,7 +124,7 @@ public partial class App : Application
         // Version label
         var version = new Forms.ToolStripLabel
         {
-            Text = "  v0.1-alpha",
+            Text = $"  v{UpdateChecker.CurrentVersion}",
             Font = new System.Drawing.Font("Segoe UI", 7.5f, System.Drawing.FontStyle.Regular),
             ForeColor = Color.FromArgb(0x55, 0x55, 0x55),
             Padding = new Forms.Padding(8, 0, 8, 4),
