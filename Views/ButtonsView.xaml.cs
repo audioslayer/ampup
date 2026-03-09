@@ -321,19 +321,18 @@ public partial class ButtonsView : UserControl
             tapCard.Child = tapContent;
             panel.Children.Add(tapCard);
 
-            // ── Double press + Hold in a side-by-side row ──
-            var gestureRow = new Grid { Margin = new Thickness(0, 0, 0, 0) };
-            gestureRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            gestureRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-            // Double press card
+            // ── Double press card (2-column: action left, context right) ──
             var dblCard = MakeCard();
-            dblCard.Margin = new Thickness(0, 0, 6, 0);
             var dblContent = new StackPanel();
             dblContent.Children.Add(MakeGestureHeader("DOUBLE PRESS", "2nd press within 300ms"));
-            dblContent.Children.Add(MakeLabel("ACTION"));
+
+            var dblGrid = new Grid { Margin = new Thickness(0, 8, 0, 0) };
+            dblGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            dblGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var dblLeft = new StackPanel { Margin = new Thickness(0, 0, 8, 0) };
+            dblLeft.Children.Add(MakeLabel("ACTION"));
             var dblCombo = MakeActionCombo();
-            dblCombo.Margin = new Thickness(0, 0, 0, 8);
             dblCombo.SelectionChanged += (_, _) =>
             {
                 if (_loading) return;
@@ -342,26 +341,35 @@ public partial class ButtonsView : UserControl
                 QueueSave();
             };
             _dblActionCombos[i] = dblCombo;
-            dblContent.Children.Add(dblCombo);
+            dblLeft.Children.Add(dblCombo);
+            Grid.SetColumn(dblLeft, 0);
+            dblGrid.Children.Add(dblLeft);
 
+            var dblRight = new StackPanel { Margin = new Thickness(8, 0, 0, 0) };
             var (dblPathPanel, dblPathBox) = MakeTextBoxRow("PATH", "process name or exe path");
             dblPathBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
             _dblPathPanels[i] = dblPathPanel;
             _dblPathBoxes[i] = dblPathBox;
-            dblContent.Children.Add(dblPathPanel);
+            dblRight.Children.Add(dblPathPanel);
+            Grid.SetColumn(dblRight, 1);
+            dblGrid.Children.Add(dblRight);
 
+            dblContent.Children.Add(dblGrid);
             dblCard.Child = dblContent;
-            Grid.SetColumn(dblCard, 0);
-            gestureRow.Children.Add(dblCard);
+            panel.Children.Add(dblCard);
 
-            // Hold card
+            // ── Hold card (2-column: action left, context right) ──
             var holdCard = MakeCard();
-            holdCard.Margin = new Thickness(6, 0, 0, 0);
             var holdContent = new StackPanel();
             holdContent.Children.Add(MakeGestureHeader("HOLD", "Held 500ms+"));
-            holdContent.Children.Add(MakeLabel("ACTION"));
+
+            var holdGrid = new Grid { Margin = new Thickness(0, 8, 0, 0) };
+            holdGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            holdGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var holdLeft = new StackPanel { Margin = new Thickness(0, 0, 8, 0) };
+            holdLeft.Children.Add(MakeLabel("ACTION"));
             var holdCombo = MakeActionCombo();
-            holdCombo.Margin = new Thickness(0, 0, 0, 8);
             holdCombo.SelectionChanged += (_, _) =>
             {
                 if (_loading) return;
@@ -370,19 +378,22 @@ public partial class ButtonsView : UserControl
                 QueueSave();
             };
             _holdActionCombos[i] = holdCombo;
-            holdContent.Children.Add(holdCombo);
+            holdLeft.Children.Add(holdCombo);
+            Grid.SetColumn(holdLeft, 0);
+            holdGrid.Children.Add(holdLeft);
 
+            var holdRight = new StackPanel { Margin = new Thickness(8, 0, 0, 0) };
             var (holdPathPanel, holdPathBox) = MakeTextBoxRow("PATH", "process name or exe path");
             holdPathBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
             _holdPathPanels[i] = holdPathPanel;
             _holdPathBoxes[i] = holdPathBox;
-            holdContent.Children.Add(holdPathPanel);
+            holdRight.Children.Add(holdPathPanel);
+            Grid.SetColumn(holdRight, 1);
+            holdGrid.Children.Add(holdRight);
 
+            holdContent.Children.Add(holdGrid);
             holdCard.Child = holdContent;
-            Grid.SetColumn(holdCard, 1);
-            gestureRow.Children.Add(holdCard);
-
-            panel.Children.Add(gestureRow);
+            panel.Children.Add(holdCard);
             _detailPanels[i] = panel;
             DetailPanel.Children.Add(panel);
         }
