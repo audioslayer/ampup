@@ -301,8 +301,8 @@ public partial class MixerView : UserControl
 
             var knob = new AnimatedKnobControl
             {
-                Width = 88,
-                Height = 88,
+                Width = 100,
+                Height = 100,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
