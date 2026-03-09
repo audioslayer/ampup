@@ -146,6 +146,24 @@ public class AudioMixer : IDisposable
                 return;
             }
 
+            // Multi-app group target
+            if (target == "apps")
+            {
+                lock (_lock)
+                {
+                    foreach (var appName in knob.Apps)
+                    {
+                        var app = appName.ToLowerInvariant();
+                        foreach (var kv in _sessions)
+                        {
+                            if (kv.Key.Contains(app))
+                                try { kv.Value.SimpleAudioVolume.Volume = vol; } catch { }
+                        }
+                    }
+                }
+                return;
+            }
+
             lock (_lock)
             {
                 if (target == "system")
@@ -310,6 +328,24 @@ public class AudioMixer : IDisposable
                 return 0f;
             }
 
+            if (target == "apps")
+            {
+                lock (_lock)
+                {
+                    float maxVol = 0f;
+                    foreach (var appName in knob.Apps)
+                    {
+                        var app = appName.ToLowerInvariant();
+                        foreach (var kv in _sessions)
+                        {
+                            if (kv.Key.Contains(app))
+                                try { maxVol = Math.Max(maxVol, kv.Value.SimpleAudioVolume.Volume); } catch { }
+                        }
+                    }
+                    return maxVol;
+                }
+            }
+
             if (target == "any")
             {
                 lock (_lock)
@@ -437,6 +473,24 @@ public class AudioMixer : IDisposable
                 return 0f;
             }
 
+            if (target == "apps")
+            {
+                lock (_lock)
+                {
+                    float maxPeak = 0f;
+                    foreach (var appName in knob.Apps)
+                    {
+                        var app = appName.ToLowerInvariant();
+                        foreach (var kv in _sessions)
+                        {
+                            if (kv.Key.Contains(app))
+                                try { maxPeak = Math.Max(maxPeak, kv.Value.AudioMeterInformation.MasterPeakValue); } catch { }
+                        }
+                    }
+                    return maxPeak;
+                }
+            }
+
             if (target == "any")
             {
                 lock (_lock)
@@ -554,6 +608,17 @@ public class AudioMixer : IDisposable
         catch
         {
             return "";
+        }
+    }
+
+    /// <summary>
+    /// Returns a list of process names that currently have active audio sessions.
+    /// </summary>
+    public List<string> GetRunningAudioApps()
+    {
+        lock (_lock)
+        {
+            return _sessions.Keys.OrderBy(k => k).ToList();
         }
     }
 

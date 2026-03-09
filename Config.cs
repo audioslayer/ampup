@@ -36,6 +36,7 @@ public class KnobConfig
     public int MaxVolume { get; set; } = 100;         // 0-100 volume range clamp
     [JsonConverter(typeof(StringEnumConverter))]
     public ResponseCurve Curve { get; set; } = ResponseCurve.Linear;
+    public List<string> Apps { get; set; } = new();   // for "apps" target — multiple process names
 }
 
 public enum ResponseCurve

@@ -20,6 +20,7 @@ public partial class MixerView : UserControl
     // Target options for the combo box
     private static readonly string[] TargetValues =
         { "master", "mic", "system", "any", "active_window", "output_device", "input_device", "monitor",
+          "apps",
           "ha_light", "ha_media", "ha_fan", "ha_cover",
           "fc_fan",
           "discord", "spotify", "chrome" };
@@ -40,7 +41,8 @@ public partial class MixerView : UserControl
         { "ha_media", "HA: Media" },
         { "ha_fan", "HA: Fan" },
         { "ha_cover", "HA: Cover" },
-        { "fc_fan", "FC: Fan Speed" }
+        { "fc_fan", "FC: Fan Speed" },
+        { "apps", "App Group" }
     };
 
     // Per-channel control arrays
@@ -68,6 +70,11 @@ public partial class MixerView : UserControl
     // FC controller picker
     private readonly ComboBox[] _fcControllerCombos = new ComboBox[5];
     private readonly StackPanel[] _fcControllerPanels = new StackPanel[5];
+
+    // App group picker (for "apps" target)
+    private readonly StackPanel[] _appsPanels = new StackPanel[5];
+    private readonly StackPanel[] _appsListPanels = new StackPanel[5]; // holds the app tag chips
+    private readonly ComboBox[] _appsAddCombos = new ComboBox[5];
 
     // HA entities cache
     private List<HAEntity> _haEntities = new();
@@ -534,6 +541,59 @@ public partial class MixerView : UserControl
             fcContainer.Children.Add(fcCtrlCombo);
             controlsPanel.Children.Add(fcContainer);
 
+            // App group picker (hidden unless target is "apps")
+            var appsContainer = new StackPanel { Visibility = Visibility.Collapsed };
+            appsContainer.Children.Add(MakeLabel("APPS"));
+
+            // List of bound app chips
+            var appsListPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 6) };
+            _appsListPanels[i] = appsListPanel;
+            appsContainer.Children.Add(appsListPanel);
+
+            // "Add app" row: combo + button
+            var addRow = new Grid();
+            addRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            addRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var appsAddCombo = new ComboBox
+            {
+                Background = FindBrush("InputBgBrush"),
+                Foreground = FindBrush("TextPrimaryBrush"),
+                BorderBrush = FindBrush("InputBorderBrush"),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                IsEditable = true
+            };
+            Grid.SetColumn(appsAddCombo, 0);
+            appsAddCombo.DropDownOpened += (_, _) => PopulateRunningApps(idx);
+            _appsAddCombos[i] = appsAddCombo;
+            addRow.Children.Add(appsAddCombo);
+
+            var addBtn = new Button
+            {
+                Content = "+",
+                FontWeight = FontWeights.Bold,
+                Width = 28,
+                Height = 28,
+                Margin = new Thickness(4, 0, 0, 0),
+                Background = FindBrush("AccentBrush"),
+                Foreground = Brushes.Black,
+                BorderThickness = new Thickness(0),
+                Cursor = System.Windows.Input.Cursors.Hand
+            };
+            Grid.SetColumn(addBtn, 1);
+            addBtn.Click += (_, _) =>
+            {
+                var appName = appsAddCombo.Text?.Trim().ToLowerInvariant();
+                if (string.IsNullOrEmpty(appName)) return;
+                AddAppToGroup(idx, appName);
+                appsAddCombo.Text = "";
+            };
+            addRow.Children.Add(addBtn);
+            appsContainer.Children.Add(addRow);
+
+            _appsPanels[i] = appsContainer;
+            controlsPanel.Children.Add(appsContainer);
+
             panel.Children.Add(controlsBorder);
         }
     }
@@ -559,6 +619,15 @@ public partial class MixerView : UserControl
 
         if (showFC)
             PopulateFCControllerCombo(idx);
+
+        bool showApps = baseTarget == "apps";
+        _appsPanels[idx].Visibility = showApps ? Visibility.Visible : Visibility.Collapsed;
+
+        if (showApps)
+        {
+            PopulateRunningApps(idx);
+            RebuildAppChips(idx);
+        }
     }
 
     private void PopulateHAEntityCombo(int idx, string haTarget)
@@ -723,6 +792,107 @@ public partial class MixerView : UserControl
         return "";
     }
 
+    // --- App group helpers ---
+
+    private void AddAppToGroup(int idx, string appName)
+    {
+        if (_config == null) return;
+        var knob = _config.Knobs.FirstOrDefault(k => k.Idx == idx);
+        if (knob == null) return;
+
+        if (!knob.Apps.Contains(appName, StringComparer.OrdinalIgnoreCase))
+        {
+            knob.Apps.Add(appName);
+            RebuildAppChips(idx);
+            QueueSave();
+        }
+    }
+
+    private void RemoveAppFromGroup(int idx, string appName)
+    {
+        if (_config == null) return;
+        var knob = _config.Knobs.FirstOrDefault(k => k.Idx == idx);
+        if (knob == null) return;
+
+        knob.Apps.RemoveAll(a => a.Equals(appName, StringComparison.OrdinalIgnoreCase));
+        RebuildAppChips(idx);
+        QueueSave();
+    }
+
+    private void RebuildAppChips(int idx)
+    {
+        var panel = _appsListPanels[idx];
+        panel.Children.Clear();
+
+        if (_config == null) return;
+        var knob = _config.Knobs.FirstOrDefault(k => k.Idx == idx);
+        if (knob == null) return;
+
+        foreach (var app in knob.Apps)
+        {
+            var chip = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(8, 3, 4, 3),
+                Margin = new Thickness(0, 0, 0, 4),
+                Cursor = System.Windows.Input.Cursors.Hand
+            };
+
+            var chipGrid = new Grid();
+            chipGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            chipGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var appLabel = new TextBlock
+            {
+                Text = app,
+                FontSize = 12,
+                Foreground = FindBrush("TextPrimaryBrush"),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(appLabel, 0);
+            chipGrid.Children.Add(appLabel);
+
+            var removeBtn = new TextBlock
+            {
+                Text = "\u2715",
+                FontSize = 10,
+                Foreground = FindBrush("DangerRedBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(6, 0, 2, 0),
+                Cursor = System.Windows.Input.Cursors.Hand
+            };
+            var appCapture = app;
+            removeBtn.MouseLeftButtonDown += (_, _) => RemoveAppFromGroup(idx, appCapture);
+            Grid.SetColumn(removeBtn, 1);
+            chipGrid.Children.Add(removeBtn);
+
+            chip.Child = chipGrid;
+            panel.Children.Add(chip);
+        }
+    }
+
+    private void PopulateRunningApps(int idx)
+    {
+        var combo = _appsAddCombos[idx];
+        combo.Items.Clear();
+
+        if (_mixer == null) return;
+        var runningApps = _mixer.GetRunningAudioApps();
+
+        // Exclude apps already in the group
+        var knob = _config?.Knobs.FirstOrDefault(k => k.Idx == idx);
+        var existing = knob?.Apps ?? new List<string>();
+
+        foreach (var app in runningApps)
+        {
+            if (!existing.Contains(app, StringComparer.OrdinalIgnoreCase))
+                combo.Items.Add(app);
+        }
+    }
+
     // --- Save ---
 
     private void QueueSave()
@@ -756,6 +926,11 @@ public partial class MixerView : UserControl
             {
                 var controlId = GetSelectedEntityId(_fcControllerCombos[i]);
                 knob.Target = !string.IsNullOrEmpty(controlId) ? $"fc_fan:{controlId}" : "fc_fan";
+            }
+            else if (selectedTarget == "apps")
+            {
+                knob.Target = "apps";
+                // Apps list is managed directly via AddAppToGroup/RemoveAppFromGroup
             }
             else
             {
