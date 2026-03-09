@@ -289,23 +289,22 @@ public partial class MixerView : UserControl
             panel.Children.Add(muteLabel);
 
             // ═══════════════════════════════════════════════════════════
-            // MIDDLE SECTION: Knob + VU meter side by side
+            // MIDDLE SECTION: Knob centered, VU meter on far right
             // ═══════════════════════════════════════════════════════════
 
             var knobVuGrid = new Grid
             {
-                HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 4, 0, 4)
             };
-            knobVuGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            knobVuGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             knobVuGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
             var knob = new AnimatedKnobControl
             {
                 Width = 88,
                 Height = 88,
-                VerticalAlignment = VerticalAlignment.Center,
-                ClipToBounds = true
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
             };
             Grid.SetColumn(knob, 0);
             _knobs[i] = knob;
@@ -313,10 +312,10 @@ public partial class MixerView : UserControl
 
             var vuMeter = new VuMeterControl
             {
-                Width = 8,
-                Height = 56,
+                Width = 6,
+                Height = 60,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(4, 0, 0, 0)
+                Margin = new Thickness(0, 0, 2, 0)
             };
             Grid.SetColumn(vuMeter, 1);
             _vuMeters[i] = vuMeter;
