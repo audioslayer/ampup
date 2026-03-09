@@ -9,7 +9,7 @@
     <AssemblyName>AmpUp</AssemblyName>
     <RootNamespace>WolfMixer</RootNamespace>
     <ApplicationManifest>Assets\app.manifest</ApplicationManifest>
-    <!-- <ApplicationIcon>Assets\wolfmixer.ico</ApplicationIcon> -->
+    <ApplicationIcon>Assets\ampup.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

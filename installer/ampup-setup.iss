@@ -26,7 +26,7 @@ PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayName={#MyAppName}
-; SetupIconFile=..\Assets\ampup.ico
+SetupIconFile=..\Assets\ampup.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
