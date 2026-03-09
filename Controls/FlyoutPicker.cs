@@ -127,10 +127,11 @@ public class FlyoutPicker : Border
             }
         };
 
-        MouseLeftButtonDown += (_, _) =>
+        MouseLeftButtonUp += (_, e) =>
         {
             _popupBorder.MinWidth = ActualWidth;
             _popup.IsOpen = !_popup.IsOpen;
+            e.Handled = true;
         };
 
         _popup.Closed += (_, _) =>
@@ -234,13 +235,14 @@ public class FlyoutPicker : Border
             };
 
             // Click
-            itemBorder.MouseLeftButtonDown += (_, _) =>
+            itemBorder.MouseLeftButtonUp += (_, e) =>
             {
                 _selectedIndex = idx;
                 _label.Text = _items[idx].Display;
                 _popup.IsOpen = false;
                 HighlightSelectedItem();
                 SelectionChanged?.Invoke(this, EventArgs.Empty);
+                e.Handled = true;
             };
 
             _itemsPanel.Children.Add(itemBorder);
