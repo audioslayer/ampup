@@ -30,6 +30,9 @@ public partial class MainWindow : FluentWindow
         VersionLabel.Text = $"v{UpdateChecker.CurrentVersion}";
         NavigateTo(_mixerView, NavMixer);
         SetupTrafficLightHovers();
+
+        // Silent startup update check
+        Loaded += async (_, _) => await CheckForUpdateOnStartup();
     }
 
     /// <summary>
@@ -166,6 +169,25 @@ public partial class MainWindow : FluentWindow
     }
 
     private bool _checkingUpdate;
+    private (string Tag, string Url)? _pendingUpdate;
+
+    private async Task CheckForUpdateOnStartup()
+    {
+        try
+        {
+            var update = await UpdateChecker.CheckForUpdateAsync();
+            if (update != null)
+            {
+                _pendingUpdate = update;
+                VersionLabel.Text = $"Update available: {update.Value.Tag}";
+                VersionLabel.Foreground = (SolidColorBrush)FindResource("AccentBrush");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Startup update check failed: {ex.Message}");
+        }
+    }
 
     private async void VersionLabel_Click(object sender, MouseButtonEventArgs e)
     {
@@ -177,7 +199,8 @@ public partial class MainWindow : FluentWindow
 
         try
         {
-            var update = await UpdateChecker.CheckForUpdateAsync();
+            var update = _pendingUpdate ?? await UpdateChecker.CheckForUpdateAsync();
+            _pendingUpdate = null;
             if (update == null)
             {
                 VersionLabel.Text = "Up to date!";

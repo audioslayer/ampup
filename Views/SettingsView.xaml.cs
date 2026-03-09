@@ -42,6 +42,10 @@ public partial class SettingsView : UserControl
         BtnLoadProfile.Click += OnLoadProfile;
         BtnNewProfile.Click += OnNewProfile;
         BtnDeleteProfile.Click += OnDeleteProfile;
+
+        // About
+        TxtVersion.Text = $"Amp Up v{UpdateChecker.CurrentVersion}";
+        BtnCheckUpdate.Click += OnCheckUpdate;
     }
 
     public void LoadConfig(AppConfig config, Action<AppConfig> onSave)
@@ -231,6 +235,57 @@ public partial class SettingsView : UserControl
             CmbProfiles.Items.Add(p);
         CmbProfiles.SelectedItem = "Default";
         _loading = false;
+    }
+
+    private async void OnCheckUpdate(object sender, RoutedEventArgs e)
+    {
+        BtnCheckUpdate.IsEnabled = false;
+        BtnCheckUpdate.Content = "Checking...";
+        TxtUpdateStatus.Visibility = Visibility.Visible;
+        TxtUpdateStatus.Text = "Checking for updates...";
+        TxtUpdateStatus.Foreground = (System.Windows.Media.SolidColorBrush)FindResource("TextSecBrush");
+
+        try
+        {
+            var update = await UpdateChecker.CheckForUpdateAsync();
+            if (update == null)
+            {
+                TxtUpdateStatus.Text = "You're on the latest version.";
+                TxtUpdateStatus.Foreground = (System.Windows.Media.SolidColorBrush)FindResource("SuccessGrnBrush");
+            }
+            else
+            {
+                var (tag, url) = update.Value;
+                TxtUpdateStatus.Text = $"New version available: {tag}";
+                TxtUpdateStatus.Foreground = (System.Windows.Media.SolidColorBrush)FindResource("AccentBrush");
+
+                var result = MessageBox.Show(
+                    $"A new version ({tag}) is available. Download and install?",
+                    "Amp Up Update",
+                    System.Windows.MessageBoxButton.YesNo,
+                    System.Windows.MessageBoxImage.Information);
+
+                if (result == System.Windows.MessageBoxResult.Yes)
+                {
+                    TxtUpdateStatus.Text = "Downloading update...";
+                    await UpdateChecker.DownloadAndInstallAsync(url, progress =>
+                    {
+                        Dispatcher.Invoke(() => TxtUpdateStatus.Text = $"Downloading... {progress}%");
+                    });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Update check error: {ex.Message}");
+            TxtUpdateStatus.Text = "Update check failed. Check your internet connection.";
+            TxtUpdateStatus.Foreground = (System.Windows.Media.SolidColorBrush)FindResource("DangerRedBrush");
+        }
+        finally
+        {
+            BtnCheckUpdate.IsEnabled = true;
+            BtnCheckUpdate.Content = "Check for Updates";
+        }
     }
 }
 

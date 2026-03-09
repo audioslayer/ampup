@@ -72,7 +72,7 @@
             </Border>
 
             <!-- ── INTEGRATIONS ────────────────────────────────────── -->
-            <Border Style="{StaticResource CardPanel}" Margin="0,0,0,0">
+            <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
                 <StackPanel>
                     <TextBlock Text="INTEGRATIONS" Style="{StaticResource HeaderText}" Margin="0,0,0,16" />
 
@@ -102,6 +102,20 @@
                         </StackPanel>
                     </StackPanel>
 
+                </StackPanel>
+            </Border>
+
+            <!-- ── ABOUT ─────────────────────────────────────────── -->
+            <Border Style="{StaticResource CardPanel}" Margin="0,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="ABOUT" Style="{StaticResource HeaderText}" Margin="0,0,0,12" />
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock x:Name="TxtVersion" Style="{StaticResource BodyText}" VerticalAlignment="Center" />
+                        <ui:Button x:Name="BtnCheckUpdate" Content="Check for Updates"
+                                   Appearance="Secondary" Margin="16,0,0,0" />
+                    </StackPanel>
+                    <TextBlock x:Name="TxtUpdateStatus" Style="{StaticResource SecondaryText}" Margin="0,8,0,0"
+                               Visibility="Collapsed" />
                 </StackPanel>
             </Border>
 
