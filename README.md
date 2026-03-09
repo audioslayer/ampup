@@ -1,69 +1,105 @@
-# WolfMixer 🐺
+<p align="center">
+  <img src="Assets/ampuplogo.png" width="120" alt="Amp Up Logo" />
+</p>
 
-A lightweight C# Windows system tray app that replaces the official "Turn Up" software with proper per-app audio control, full RGB lighting, monitor brightness, and a clean dark-theme config UI.
+<h1 align="center">Amp Up</h1>
 
-Built because the official app is Electron bloat and kept breaking.
+<p align="center">
+  <strong>A powerful replacement app for the Turn Up USB volume mixer.</strong><br/>
+  Per-app audio control, RGB lighting, macro buttons, and a sleek dark UI.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/version-0.1--alpha-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6" alt="Platform" />
+  <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8" />
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="License" />
+</p>
+
+---
+
+## Why Amp Up?
+
+The official Turn Up software is limited and unreliable. Amp Up is a ground-up rewrite that gives you full control over every knob, button, and LED — with a modern WPF interface inspired by SteelSeries Sonar and Elgato Wave Link.
 
 ---
 
 ## Features
 
-- **Per-app volume control** — map each knob to a specific process, master volume, mic input, active window, or any audio device
-- **Response curves** — Linear, Logarithmic, or Exponential per-knob
-- **Volume range** — set min/max so a knob only sweeps e.g. 40–100%
-- **9 RGB lighting effects** — SingleColor, ColorBlend, Blink, Pulse, PositionFill, RainbowWave, RainbowCycle, MicStatus, DeviceMute
-- **Monitor brightness** — DDC/CI control of physical monitors via Windows API
-- **17 button actions** — media keys, mic/app mute, launch/kill apps, keyboard macros, audio device switching, system power actions, profile switching
-- **3 gestures per button** — single press, double press, hold (15 total bindings across 5 buttons)
-- **Profile system** — save/load/switch full configs per game, scene, or workflow
-- **Audio device switching** — cycle or jump directly to any output/input device
-- **Active window control** — one knob always controls whatever app is in focus
-- **System tray** — zero taskbar footprint, right-click to configure
-- **Hot-reload config** — save and apply without restarting
-- **Start with Windows** — registry-based autostart
+### Mixer — 5 Channel Strips
+- **Per-app volume control** — assign any knob to a specific app, master volume, mic input, or the active window
+- **App groups** — control multiple apps with a single knob
+- **Response curves** — Linear, Logarithmic, or Exponential per channel
+- **Volume range clamping** — restrict a knob to sweep only a portion of the volume range (e.g. 40–100%)
+- **Live VU meters** — real-time audio level visualization with peak hold
+- **Monitor brightness** — control physical monitor brightness via DDC/CI
+
+### Buttons — 15 Programmable Actions
+- **3 gestures per button** — single press, double press, and hold
+- **17 action types:**
+  - Media controls (play/pause, next, previous)
+  - Mute toggles (master, mic, per-app, active window)
+  - App launcher / process killer
+  - Audio device switching (cycle or direct select)
+  - Keyboard macros (any key combo)
+  - System power (sleep, lock, shutdown, restart, hibernate, logoff)
+  - Profile switching
+
+### Lights — Full RGB Control
+- **9 LED effects** — solid color, color blend, position fill, blink, pulse, rainbow wave, rainbow cycle, mic status indicator, mute status indicator
+- **Dual color support** — set primary and secondary colors per effect
+- **Speed control** — adjustable animation speed per knob
+- **Global brightness** — master brightness slider for all LEDs
+
+### Profiles
+- **Save and load** full configurations (knobs, buttons, lights)
+- **Switch profiles** via button press or the Settings tab
+- **Per-game / per-workflow** setups
+
+### System Integration
+- **Home Assistant** — connect to your smart home for automation triggers
+- **Start with Windows** — launches silently to system tray
+- **System tray app** — zero taskbar footprint
+- **Hot-reload config** — changes apply instantly, no restart needed
 
 ---
 
-## Requirements
+## Install
 
-- Windows 10/11
-- [.NET 8 Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) (or SDK to build)
-- Turn Up USB device
+### Installer (Recommended)
+1. Download `AmpUp-Setup-0.1-alpha.exe` from [Releases](https://github.com/audioslayer/ampup/releases)
+2. Run the installer
+3. Amp Up appears in your system tray
 
----
-
-## Build
-
+### Build from Source
 ```powershell
-git clone https://github.com/audioslayer/wolfmixer.git
-cd wolfmixer
+git clone https://github.com/audioslayer/ampup.git
+cd ampup
 dotnet build
 ```
 
-Exe output: `bin\Debug\net8.0-windows\WolfMixer.exe`
+Requires [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0). Output: `bin\Debug\net8.0-windows\AmpUp.exe`
 
-**Kill Turn Up before running** — it holds the COM port:
-```powershell
-taskkill /f /im "Turn Up.exe"
-taskkill /f /im TurnUpService.exe
-```
-
-Then launch `WolfMixer.exe` — it lives in the system tray.
+> **Note:** Kill the official Turn Up app first — it holds the COM port.
+> ```powershell
+> taskkill /f /im "Turn Up.exe"
+> taskkill /f /im TurnUpService.exe
+> ```
 
 ---
 
 ## Configuration
 
-Right-click the tray icon → **Configure**. Four tabs:
+Open the app from the system tray to access four configuration tabs:
 
-| Tab | What you set |
+| Tab | What You Configure |
 |---|---|
-| **Knobs** | Label, target app/device, response curve, volume range |
-| **Buttons** | Action per press / double-press / hold, macros, paths |
-| **Lights** | RGB effect, colors, speed, global brightness |
-| **Settings** | Startup, serial port, profiles |
+| **Mixer** | Knob targets, response curves, volume range, app groups |
+| **Buttons** | Actions for press / double-press / hold per button |
+| **Lights** | LED effects, colors, speed, global brightness |
+| **Settings** | Serial port, startup, profiles, Home Assistant |
 
-Hit **Save & Apply** — takes effect immediately, no restart needed.
+All changes save automatically and apply in real-time.
 
 ---
 
@@ -71,111 +107,54 @@ Hit **Save & Apply** — takes effect immediately, no restart needed.
 
 | Target | Controls |
 |---|---|
-| `master` | Windows master volume |
-| `mic` | Default microphone input level |
-| `monitor` | Physical monitor brightness (DDC/CI) |
-| `active_window` | Volume of whatever app is currently focused |
-| `any` | First active audio session not already assigned |
-| `discord` | App volume by process name substring |
-| `spotify` | App volume by process name substring |
-| `chrome` | App volume by process name substring |
-| `game.exe` | Any process name substring works |
-| `output_device` | Specific audio output by device ID |
-| `input_device` | Specific audio input by device ID |
+| Master | Windows master volume |
+| Mic | Default microphone input level |
+| Monitor | Physical monitor brightness (DDC/CI) |
+| Active Window | Volume of the currently focused app |
+| App Group | Multiple apps on one knob |
+| Any | First active audio session not already assigned |
+| Process name | Any substring match (e.g. `discord`, `spotify`, `chrome`) |
+| Output Device | Specific audio output by device ID |
+| Input Device | Specific audio input by device ID |
 
 ---
 
-## Button Actions
+## Hardware
 
-| Action | Description |
-|---|---|
-| `media_play_pause` | Play/pause media |
-| `media_next / media_prev` | Track skip |
-| `mute_master` | Toggle Windows mute |
-| `mute_mic` | Toggle microphone mute |
-| `mute_program` | Toggle mute on specific app |
-| `mute_active_window` | Toggle mute on focused app |
-| `launch_exe` | Launch app/script at path |
-| `close_program` | Kill process by name |
-| `cycle_output / cycle_input` | Rotate through audio devices |
-| `select_output / select_input` | Jump to specific audio device |
-| `macro` | Send keyboard combo (e.g. `ctrl+shift+m`) |
-| `system_power` | Sleep, hibernate, lock, shutdown, restart, logoff |
-| `switch_profile` | Load a saved profile |
-
-Each button supports **single press**, **double press**, and **hold** independently.
+Amp Up is designed for the **Turn Up** USB volume mixer (CH343 USB-to-serial). The device has:
+- 5 rotary knobs (10-bit resolution, 0–1023)
+- 5 push buttons (supporting press, double-press, and hold)
+- 15 RGB LEDs (3 per knob)
 
 ---
 
-## RGB Effects
+## Tech Stack
 
-| Effect | Description |
-|---|---|
-| `SingleColor` | Solid color, brightness tracks knob position |
-| `ColorBlend` | Fades between two colors as knob moves |
-| `PositionFill` | LEDs fill left→right as knob increases |
-| `Blink` | Alternates between two colors |
-| `Pulse` | Smooth sine-wave oscillation between two colors |
-| `RainbowWave` | Animated rainbow sweeping across all knobs |
-| `RainbowCycle` | Each LED gets its own hue, all cycling |
-| `MicStatus` | Color 1 = unmuted, Color 2 = muted |
-| `DeviceMute` | Color 1 = audio on, Color 2 = master muted |
-
----
-
-## Architecture
-
-Single `.exe`, no installer, no background service.
-
-```
-SerialReader.cs      Reads COM3 @ 115200 baud, parses Turn Up frame protocol
-AudioMixer.cs        WASAPI per-app volume via NAudio, session polling, curves
-ButtonHandler.cs     Gesture state machine → 17 action types
-RgbController.cs     RGB effects engine, 20 FPS animation, gamma correction
-MonitorBrightness.cs DDC/CI physical monitor brightness via dxva2.dll
-Config.cs            Load/save config.json + profile system
-TrayApp.cs           Wires everything together, system tray
-ConfigForm.cs        4-tab dark-theme config UI
-```
-
----
-
-## Device Protocol
-
-The Turn Up device communicates over CH343 USB-to-serial at 115200 baud. All frames use `0xFE` / `0xFF` as start/end bytes.
-
-**Read frames (device → PC):**
-- Knob move: `FE 03 [idx] [hi] [lo] FF` — 10-bit value (0–1023)
-- Button down: `FE 06 [idx] FF`
-- Button up: `FE 07 [idx] FF`
-- Init batch: `FE 04 [all 5 knob values] FF`
-
-**Write frames (PC → device):**
-- RGB update: `FE 05 [45 bytes: 5 knobs × 3 LEDs × RGB] FF`
-- Must be sent at ~20 FPS or device turns LEDs off
-
----
-
-## Known Limitations
-
-- **Monitor brightness** requires DDC/CI support — not all monitors support it
-- **Single-press** has ~300ms latency to allow double-press detection
-- **`any` target** picks the first active session it finds — may be unpredictable with many apps open
-- **COM3** is hardcoded as default — configurable in Settings tab
+- **C# / .NET 8** — WPF with WPF-UI (Fluent design + Mica backdrop)
+- **NAudio** — WASAPI per-app audio control
+- **System.IO.Ports** — serial communication with Turn Up hardware
+- **Custom controls** — animated arc knob, 16-segment VU meter
+- **Code-behind architecture** — lightweight, no MVVM overhead
 
 ---
 
 ## Roadmap
 
-- [ ] OBS WebSocket integration (scene switching, source mute/gain, recording control)
+- [ ] OBS WebSocket integration (scene switching, source control)
 - [ ] VoiceMeeter strip/bus control
-- [ ] USB PnP auto-detection (no hardcoded COM3)
+- [ ] USB auto-detection (no hardcoded COM port)
 - [ ] Per-app volume HUD overlay
-- [ ] Multiple Turn Up device support
-- [ ] Single-file publish / installer
+- [ ] Multi-device support
+- [ ] FanControl integration
 
 ---
 
 ## License
 
-MIT — do whatever you want with it.
+MIT — see [LICENSE](LICENSE) for details.
+
+---
+
+<p align="center">
+  Built by <a href="https://github.com/audioslayer">Tyson Wolf</a>
+</p>
