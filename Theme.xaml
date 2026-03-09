@@ -8,9 +8,9 @@
     <Color x:Key="CardBorder">#2A2A2A</Color>
     <Color x:Key="InputBg">#242424</Color>
     <Color x:Key="InputBorder">#363636</Color>
-    <Color x:Key="Accent">#00B4D8</Color>
-    <Color x:Key="AccentGlow">#00E5FF</Color>
-    <Color x:Key="AccentDim">#007A94</Color>
+    <Color x:Key="Accent">#00E676</Color>
+    <Color x:Key="AccentGlow">#69F0AE</Color>
+    <Color x:Key="AccentDim">#00A854</Color>
     <Color x:Key="TextPrimary">#E8E8E8</Color>
     <Color x:Key="TextSec">#9A9A9A</Color>
     <Color x:Key="TextDim">#555555</Color>
@@ -42,6 +42,21 @@
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="8" />
         <Setter Property="Padding" Value="16" />
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect Color="#00E676" BlurRadius="12" Opacity="0.06" ShadowDepth="0" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── Glowing Card (for active/selected elements) ───────────── -->
+    <Style x:Key="GlowCardPanel" TargetType="Border" BasedOn="{StaticResource CardPanel}">
+        <Setter Property="BorderBrush" Value="{StaticResource AccentDimBrush}" />
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect Color="#00E676" BlurRadius="24" Opacity="0.15" ShadowDepth="0" />
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!-- ── Label Styles ──────────────────────────────────────────── -->
@@ -82,7 +97,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="NavBorder" Property="Background" Value="#1A00B4D8" />
+                            <Setter TargetName="NavBorder" Property="Background" Value="#1A00E676" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -99,6 +114,11 @@
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                <Setter Property="Effect">
+                    <Setter.Value>
+                        <DropShadowEffect Color="#00E676" BlurRadius="8" Opacity="0.2" ShadowDepth="0" />
+                    </Setter.Value>
+                </Setter>
             </Trigger>
         </Style.Triggers>
     </Style>

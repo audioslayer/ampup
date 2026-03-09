@@ -33,16 +33,16 @@ public partial class App : Application
         base.OnStartup(e);
 
         // Single instance check
-        _mutex = new Mutex(true, "WolfMixer_SingleInstance", out bool isNew);
+        _mutex = new Mutex(true, "AmpUp_SingleInstance", out bool isNew);
         if (!isNew)
         {
-            MessageBox.Show("WolfMixer is already running. Check the system tray.",
-                "WolfMixer", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show("Amp Up is already running. Check the system tray.",
+                "Amp Up", MessageBoxButton.OK, MessageBoxImage.Information);
             Shutdown();
             return;
         }
 
-        Logger.Log("WolfMixer starting (WPF)...");
+        Logger.Log("Amp Up starting (WPF)...");
 
         // Load config and create backend
         _config = ConfigManager.Load();
@@ -102,7 +102,7 @@ public partial class App : Application
         _trayIcon = new Forms.NotifyIcon
         {
             Icon = CreateTrayIcon(false),
-            Text = "WolfMixer",
+            Text = "Amp Up",
             Visible = true,
         };
 
@@ -113,7 +113,7 @@ public partial class App : Application
         menu.ForeColor = Color.FromArgb(0xE8, 0xE8, 0xE8);
         menu.Renderer = new DarkMenuRenderer();
 
-        var showItem = menu.Items.Add("Show WolfMixer");
+        var showItem = menu.Items.Add("Show Amp Up");
         showItem.Click += (_, _) => ShowMainWindow();
 
         menu.Items.Add(new Forms.ToolStripSeparator());
@@ -155,7 +155,7 @@ public partial class App : Application
 
     /// <summary>
     /// Draws a 32x32 tray icon with 5 equalizer bars.
-    /// Cyan (#00B4D8) when connected, gray (#666) when disconnected.
+    /// Green (#00E676) when connected, gray (#666) when disconnected.
     /// </summary>
     private static Icon CreateTrayIcon(bool connected)
     {
@@ -166,7 +166,7 @@ public partial class App : Application
             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
 
             var color = connected
-                ? Color.FromArgb(0x00, 0xB4, 0xD8)
+                ? Color.FromArgb(0x00, 0xE6, 0x76)
                 : Color.FromArgb(0x88, 0x88, 0x88);
 
             int[] heights = { 8, 16, 24, 18, 12 };
@@ -333,7 +333,7 @@ public partial class App : Application
         {
             var oldIcon = _trayIcon.Icon;
             _trayIcon.Icon = CreateTrayIcon(connected);
-            _trayIcon.Text = connected ? "WolfMixer — Connected" : "WolfMixer — Disconnected";
+            _trayIcon.Text = connected ? "Amp Up — Connected" : "Amp Up — Disconnected";
             oldIcon?.Dispose();
         }
 
@@ -397,7 +397,7 @@ public partial class App : Application
     private void ApplyStartupSetting()
     {
         const string keyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
-        const string valueName = "WolfMixer";
+        const string valueName = "AmpUp";
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(keyPath, true);

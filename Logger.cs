@@ -4,7 +4,7 @@ namespace WolfMixer;
 
 public static class Logger
 {
-    private static readonly string LogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "wolfmixer.log");
+    private static readonly string LogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ampup.log");
     private static readonly object _lock = new();
 
     public static void Log(string message)

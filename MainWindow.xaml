@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         xmlns:views="clr-namespace:WolfMixer.Views"
-        Title="WolfMixer"
+        Title="Amp Up"
         Width="1000" Height="700"
         MinWidth="900" MinHeight="600"
         WindowStartupLocation="CenterScreen"
@@ -37,7 +37,7 @@
 
             <!-- Branding -->
             <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
-                <TextBlock Text="WOLFMIXER" FontSize="15" FontWeight="Bold"
+                <TextBlock Text="AMP UP" FontSize="15" FontWeight="Bold"
                            Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" />
             </StackPanel>
 

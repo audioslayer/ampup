@@ -1,7 +1,7 @@
 @echo off
-title WolfMixer Deploy
+title Amp Up Deploy
 echo ==========================================
-echo   WolfMixer - Pull and Build
+echo   Amp Up - Pull and Build
 echo ==========================================
 echo.
 
@@ -16,8 +16,8 @@ if errorlevel 1 (
 )
 
 echo.
-echo [2/4] Killing old WolfMixer if running...
-taskkill /f /im WolfMixer.exe 2>nul
+echo [2/4] Killing old Amp Up if running...
+taskkill /f /im AmpUp.exe 2>nul
 timeout /t 1 /nobreak >nul
 
 echo.
@@ -30,9 +30,9 @@ if errorlevel 1 (
 )
 
 echo.
-echo [4/4] Launching WolfMixer...
-start "" "%~dp0bin\Debug\net8.0-windows\WolfMixer.exe"
+echo [4/4] Launching Amp Up...
+start "" "%~dp0bin\Debug\net8.0-windows\AmpUp.exe"
 
 echo.
-echo WolfMixer deployed and launched.
+echo Amp Up deployed and launched.
 pause

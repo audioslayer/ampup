@@ -202,7 +202,7 @@ public partial class ButtonsView : UserControl
     {
         _selectedIdx = idx;
 
-        var accent = (Color)ColorConverter.ConvertFromString("#00B4D8");
+        var accent = (Color)ColorConverter.ConvertFromString("#00E676");
         var dim = Color.FromRgb(0x2A, 0x2A, 0x2A);
         var selectedBg = Color.FromRgb(0x1A, 0x2A, 0x30);
         var normalBg = Color.FromRgb(0x1C, 0x1C, 0x1C);

@@ -6,7 +6,7 @@
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AssemblyName>WolfMixer</AssemblyName>
+    <AssemblyName>AmpUp</AssemblyName>
     <RootNamespace>WolfMixer</RootNamespace>
     <ApplicationManifest>Assets\app.manifest</ApplicationManifest>
     <!-- <ApplicationIcon>Assets\wolfmixer.ico</ApplicationIcon> -->

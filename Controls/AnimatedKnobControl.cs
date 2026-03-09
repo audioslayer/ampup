@@ -86,7 +86,7 @@ namespace WolfMixer.Controls
             typeof(Color),
             typeof(AnimatedKnobControl),
             new FrameworkPropertyMetadata(
-                Color.FromRgb(0x00, 0xB4, 0xD8),
+                Color.FromRgb(0x00, 0xE6, 0x76),
                 FrameworkPropertyMetadataOptions.AffectsRender,
                 OnArcColorChanged));
 

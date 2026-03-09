@@ -45,7 +45,7 @@
             <SolidColorBrush Color="#1C1C1C" Opacity="0.85" />
         </Border.Background>
         <Border.BorderBrush>
-            <SolidColorBrush Color="#00B4D8" Opacity="0.3" />
+            <SolidColorBrush Color="#00E676" Opacity="0.3" />
         </Border.BorderBrush>
         <Border.BorderThickness>1</Border.BorderThickness>
         <Border.Effect>
@@ -56,7 +56,7 @@
             <!-- Type label -->
             <TextBlock x:Name="TypeLabel" Text="OUTPUT DEVICE"
                        FontSize="10" FontWeight="SemiBold"
-                       Foreground="#7700B4D8" Margin="0,0,0,6" />
+                       Foreground="#7700E676" Margin="0,0,0,6" />
 
             <StackPanel Orientation="Horizontal">
                 <!-- Speaker/mic icon -->

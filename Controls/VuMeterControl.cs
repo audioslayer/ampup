@@ -16,7 +16,7 @@ namespace WolfMixer.Controls
         private const double SegmentGap = 1;
 
         // Pre-allocated frozen brushes
-        private static readonly SolidColorBrush DefaultBarBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x00, 0xB4, 0xD8)));
+        private static readonly SolidColorBrush DefaultBarBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76)));
         private static readonly SolidColorBrush YellowBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xFF, 0xB8, 0x00)));
         private static readonly SolidColorBrush RedBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xFF, 0x44, 0x44)));
         private static readonly SolidColorBrush UnlitBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)));
@@ -58,7 +58,7 @@ namespace WolfMixer.Controls
                 nameof(BarColor),
                 typeof(Color),
                 typeof(VuMeterControl),
-                new PropertyMetadata(Color.FromRgb(0x00, 0xB4, 0xD8), OnBarColorChanged));
+                new PropertyMetadata(Color.FromRgb(0x00, 0xE6, 0x76), OnBarColorChanged));
 
         public Color BarColor
         {
@@ -73,7 +73,7 @@ namespace WolfMixer.Controls
             _drawingVisual = new DrawingVisual();
             _visuals = new VisualCollection(this) { _drawingVisual };
             _segmentRects = Array.Empty<Rect>();
-            BuildTransitionalBrushes(Color.FromRgb(0x00, 0xB4, 0xD8));
+            BuildTransitionalBrushes(Color.FromRgb(0x00, 0xE6, 0x76));
         }
 
         #region Visual tree plumbing
@@ -244,7 +244,7 @@ namespace WolfMixer.Controls
         private Brush GetCurrentBarBrush()
         {
             Color c = BarColor;
-            if (c == Color.FromRgb(0x00, 0xB4, 0xD8))
+            if (c == Color.FromRgb(0x00, 0xE6, 0x76))
                 return DefaultBarBrush;
 
             // Custom bar color — create a frozen brush
