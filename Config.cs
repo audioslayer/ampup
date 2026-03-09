@@ -90,8 +90,34 @@ public enum LightEffect
 
 public static class ConfigManager
 {
-    private static string ConfigDir => AppDomain.CurrentDomain.BaseDirectory;
+    private static readonly string ConfigDir = InitConfigDir();
     private static string ConfigPath => Path.Combine(ConfigDir, "config.json");
+
+    private static string InitConfigDir()
+    {
+        var appDataDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "AmpUp");
+        Directory.CreateDirectory(appDataDir);
+
+        // Migrate config from old exe-relative location if it exists
+        var exeDir = AppDomain.CurrentDomain.BaseDirectory;
+        var oldConfig = Path.Combine(exeDir, "config.json");
+        var newConfig = Path.Combine(appDataDir, "config.json");
+        if (File.Exists(oldConfig) && !File.Exists(newConfig))
+        {
+            try
+            {
+                File.Copy(oldConfig, newConfig);
+                // Also migrate any profile files
+                foreach (var profileFile in Directory.GetFiles(exeDir, "profile_*.json"))
+                    File.Copy(profileFile, Path.Combine(appDataDir, Path.GetFileName(profileFile)), false);
+            }
+            catch { /* best effort */ }
+        }
+
+        return appDataDir;
+    }
 
     private static string ProfilePath(string profileName)
     {
