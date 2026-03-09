@@ -116,6 +116,21 @@ public partial class MainWindow : FluentWindow
         return button.Content as SymbolIcon;
     }
 
+    // ── Window drag ─────────────────────────────────────────────────
+
+    private void HeaderBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2)
+        {
+            // Double-click to toggle maximize
+            WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        }
+        else
+        {
+            DragMove();
+        }
+    }
+
     // ── Mac-style traffic light buttons ───────────────────────────
 
     private void SetupTrafficLightHovers()

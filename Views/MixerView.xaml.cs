@@ -474,8 +474,9 @@ public partial class MixerView : UserControl
             // CURVE — SegmentedControl (pill bar)
             settingsPanel.Children.Add(MakeLabel("CURVE"));
             var curvePicker = new SegmentedControl { Margin = new Thickness(0, 0, 0, 6) };
-            foreach (var curve in Enum.GetValues<ResponseCurve>())
-                curvePicker.AddSegment(curve.ToString(), curve);
+            curvePicker.AddSegment("Linear", ResponseCurve.Linear);
+            curvePicker.AddSegment("Log", ResponseCurve.Logarithmic);
+            curvePicker.AddSegment("Exp", ResponseCurve.Exponential);
             curvePicker.SelectionChanged += (_, _) =>
             {
                 if (!_loading) QueueSave();

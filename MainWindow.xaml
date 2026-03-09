@@ -28,8 +28,9 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Header Bar -->
-        <Grid Grid.Row="0" Background="{StaticResource BgBaseBrush}">
+        <!-- Header Bar (draggable) -->
+        <Grid Grid.Row="0" Background="{StaticResource BgBaseBrush}"
+              MouseLeftButtonDown="HeaderBar_MouseLeftButtonDown">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
