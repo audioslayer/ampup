@@ -102,25 +102,6 @@
                         </StackPanel>
                     </StackPanel>
 
-                    <!-- Separator -->
-                    <Border Height="1" Background="{StaticResource CardBorderBrush}" Margin="0,0,0,16" />
-
-                    <!-- FanControl -->
-                    <StackPanel>
-                        <TextBlock Text="FanControl" Style="{StaticResource BodyText}" FontWeight="SemiBold" Margin="0,0,0,8" />
-                        <CheckBox x:Name="ChkFcEnabled"
-                                  Content="Enabled"
-                                  Foreground="{StaticResource TextPrimaryBrush}"
-                                  Margin="0,0,0,8" />
-                        <StackPanel>
-                            <TextBlock Text="URL" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
-                            <ui:TextBox x:Name="TxtFcUrl" Width="320"
-                                        PlaceholderText="http://localhost:5550"
-                                        Background="{StaticResource InputBgBrush}"
-                                        BorderBrush="{StaticResource InputBorderBrush}"
-                                        Foreground="{StaticResource TextPrimaryBrush}" />
-                        </StackPanel>
-                    </StackPanel>
                 </StackPanel>
             </Border>
 

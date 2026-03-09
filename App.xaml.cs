@@ -20,7 +20,6 @@ public partial class App : Application
     private bool _isConnected;
     private DeviceSwitchOverlay? _deviceOverlay;
     private HAIntegration? _ha;
-    private FanController? _fc;
 
     /// <summary>
     /// Last hardware knob positions (0-1), updated on every knob event.
@@ -58,11 +57,6 @@ public partial class App : Application
         _buttons.SetHAIntegration(_ha);
         if (_config.HomeAssistant.Enabled)
             _ = _ha.TestConnectionAsync(); // sets IsAvailable for knob routing
-
-        // Start FanControl integration
-        _fc = new FanController(_config.FanControl);
-        if (_config.FanControl.Enabled)
-            _ = _fc.TestConnectionAsync();
 
         // Start audio mixer
         _mixer.Start();
@@ -253,12 +247,6 @@ public partial class App : Application
             if (_config.HomeAssistant.Enabled)
                 _ = _ha.TestConnectionAsync();
         }
-        if (_fc != null)
-        {
-            _fc.UpdateConfig(_config.FanControl);
-            if (_config.FanControl.Enabled)
-                _ = _fc.TestConnectionAsync();
-        }
     }
 
     private void HandleKnob(KnobEvent e)
@@ -277,16 +265,6 @@ public partial class App : Application
                 {
                     float vol = e.Value / 1023f;
                     _ = _ha.HandleKnobAsync(knob.Target, vol);
-                }
-            }
-            else if (knob.Target.StartsWith("fc_fan:", StringComparison.OrdinalIgnoreCase))
-            {
-                // Route to FanControl
-                if (_fc != null && _fc.IsAvailable)
-                {
-                    float vol = e.Value / 1023f;
-                    var controlId = FanController.ParseTarget(knob.Target);
-                    _ = _fc.SetSpeedAsync(controlId, vol);
                 }
             }
             else if (knob.Target.Equals("monitor", StringComparison.OrdinalIgnoreCase))
@@ -443,7 +421,6 @@ public partial class App : Application
         _mixer?.Dispose();
         _rgb?.Dispose();
         _ha?.Dispose();
-        _fc?.Dispose();
         _mutex?.Dispose();
         base.OnExit(e);
     }

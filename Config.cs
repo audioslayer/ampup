@@ -17,7 +17,6 @@ public class AppConfig
 
     // Integrations
     public HomeAssistantConfig HomeAssistant { get; set; } = new();
-    public FanControlConfig FanControl { get; set; } = new();
 }
 
 public class SerialConfig
@@ -191,10 +190,4 @@ public class HomeAssistantConfig
     public bool Enabled { get; set; } = false;
     public string Url { get; set; } = "http://homeassistant.local:8123";
     public string Token { get; set; } = "";
-}
-
-public class FanControlConfig
-{
-    public bool Enabled { get; set; } = false;
-    public string Url { get; set; } = "http://localhost:5550";
 }

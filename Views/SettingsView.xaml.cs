@@ -37,10 +37,6 @@ public partial class SettingsView : UserControl
         ChkHaEnabled.Unchecked += OnValueChanged;
         TxtHaUrl.TextChanged += OnValueChanged;
         TxtHaToken.PasswordChanged += OnPasswordChanged;
-        ChkFcEnabled.Checked += OnValueChanged;
-        ChkFcEnabled.Unchecked += OnValueChanged;
-        TxtFcUrl.TextChanged += OnValueChanged;
-
         // Profile buttons
         BtnSaveProfile.Click += OnSaveProfile;
         BtnLoadProfile.Click += OnLoadProfile;
@@ -68,10 +64,6 @@ public partial class SettingsView : UserControl
         ChkHaEnabled.IsChecked = config.HomeAssistant.Enabled;
         TxtHaUrl.Text = config.HomeAssistant.Url;
         TxtHaToken.Password = config.HomeAssistant.Token;
-
-        // Integrations — FanControl
-        ChkFcEnabled.IsChecked = config.FanControl.Enabled;
-        TxtFcUrl.Text = config.FanControl.Url;
 
         _loading = false;
     }
@@ -130,9 +122,6 @@ public partial class SettingsView : UserControl
         _config.HomeAssistant.Enabled = ChkHaEnabled.IsChecked == true;
         _config.HomeAssistant.Url = TxtHaUrl.Text.Trim();
         _config.HomeAssistant.Token = TxtHaToken.Password;
-
-        _config.FanControl.Enabled = ChkFcEnabled.IsChecked == true;
-        _config.FanControl.Url = TxtFcUrl.Text.Trim();
 
         _onSave(_config);
     }

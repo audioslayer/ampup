@@ -32,7 +32,6 @@ public partial class MixerView : UserControl
         { "ha_media", "HA: Media" },
         { "ha_fan", "HA: Fan" },
         { "ha_cover", "HA: Cover" },
-        { "fc_fan", "FC: Fan Speed" },
         { "apps", "App Group" }
     };
 
@@ -59,10 +58,6 @@ public partial class MixerView : UserControl
     // Audio devices cache
     private List<(string Id, string Name, bool IsOutput)> _audioDevices = new();
 
-    // FC controller picker
-    private readonly ListPicker[] _fcControllerPickers = new ListPicker[5];
-    private readonly StackPanel[] _fcControllerPanels = new StackPanel[5];
-
     // App group picker (for "apps" target)
     private readonly StackPanel[] _appsPanels = new StackPanel[5];
     private readonly StackPanel[] _appsListPanels = new StackPanel[5];
@@ -71,10 +66,6 @@ public partial class MixerView : UserControl
     // HA entities cache
     private List<HAEntity> _haEntities = new();
     private HAIntegration? _ha;
-
-    // FC controllers cache
-    private List<FanControlSensor> _fcControllers = new();
-    private FanController? _fc;
 
     public MixerView()
     {
@@ -112,14 +103,6 @@ public partial class MixerView : UserControl
                 _ha.UpdateConfig(config.HomeAssistant);
         }
 
-        if (config.FanControl.Enabled)
-        {
-            if (_fc == null)
-                _fc = new FanController(config.FanControl);
-            else
-                _fc.UpdateConfig(config.FanControl);
-        }
-
         for (int i = 0; i < 5; i++)
         {
             var knob = config.Knobs.FirstOrDefault(k => k.Idx == i);
@@ -154,9 +137,6 @@ public partial class MixerView : UserControl
 
         if (_ha != null)
             _ = FetchHAEntitiesAsync();
-
-        if (_fc != null)
-            _ = FetchFCControllersAsync();
 
         _liveTimer.Start();
     }
@@ -201,7 +181,7 @@ public partial class MixerView : UserControl
             try
             {
                 var baseTarget = knob.Target.Contains(':') ? knob.Target.Split(':')[0] : knob.Target;
-                bool isNonAudio = baseTarget.StartsWith("ha_") || baseTarget.StartsWith("fc_") || baseTarget == "monitor";
+                bool isNonAudio = baseTarget.StartsWith("ha_") || baseTarget == "monitor";
 
                 float vol;
                 float peak;
@@ -449,7 +429,6 @@ public partial class MixerView : UserControl
             targetPicker.AddItem("HA: Media", "ha_media");
             targetPicker.AddItem("HA: Fan", "ha_fan");
             targetPicker.AddItem("HA: Cover", "ha_cover");
-            targetPicker.AddItem("FC: Fan Speed", "fc_fan");
 
             targetPicker.AddCategory("Apps");
             targetPicker.AddItem("Discord", "discord");
@@ -532,21 +511,6 @@ public partial class MixerView : UserControl
             haContainer.Children.Add(haEntityPicker);
             settingsPanel.Children.Add(haContainer);
 
-            // FC controller picker — ListPicker (hidden unless fc_fan)
-            var fcContainer = new StackPanel { Visibility = Visibility.Collapsed };
-            fcContainer.Children.Add(MakeLabel("FC CONTROLLER"));
-            var fcPicker = new ListPicker { Margin = new Thickness(0, 0, 0, 4) };
-            fcPicker.AddItem("(none)", "");
-            fcPicker.SelectedIndex = 0;
-            fcPicker.SelectionChanged += (_, _) =>
-            {
-                if (!_loading) QueueSave();
-            };
-            _fcControllerPickers[i] = fcPicker;
-            _fcControllerPanels[i] = fcContainer;
-            fcContainer.Children.Add(fcPicker);
-            settingsPanel.Children.Add(fcContainer);
-
             // App group picker (hidden unless "apps")
             var appsContainer = new StackPanel { Visibility = Visibility.Collapsed };
             appsContainer.Children.Add(MakeLabel("APPS"));
@@ -628,12 +592,6 @@ public partial class MixerView : UserControl
         if (showHA)
             PopulateHAEntityPicker(idx, baseTarget);
 
-        bool showFC = baseTarget == "fc_fan";
-        _fcControllerPanels[idx].Visibility = showFC ? Visibility.Visible : Visibility.Collapsed;
-
-        if (showFC)
-            PopulateFCControllerPicker(idx);
-
         bool showApps = baseTarget == "apps";
         _appsPanels[idx].Visibility = showApps ? Visibility.Visible : Visibility.Collapsed;
 
@@ -644,7 +602,7 @@ public partial class MixerView : UserControl
         }
 
         // Auto-expand settings if a target needs sub-pickers
-        if ((showDevice || showHA || showFC || showApps) && !_settingsExpanded[idx])
+        if ((showDevice || showHA || showApps) && !_settingsExpanded[idx])
         {
             _settingsExpanded[idx] = true;
             _settingsBorders[idx].Visibility = Visibility.Visible;
@@ -673,66 +631,6 @@ public partial class MixerView : UserControl
                 var entityId = knob.Target.Substring(haTarget.Length + 1);
                 SelectPickerByTag(picker, entityId);
             }
-        }
-    }
-
-    private void PopulateFCControllerPicker(int idx)
-    {
-        var picker = _fcControllerPickers[idx];
-        picker.ClearItems();
-
-        picker.AddItem("(none)", "");
-
-        foreach (var ctrl in _fcControllers.OrderBy(c => c.Name))
-        {
-            var pct = (int)Math.Round(ctrl.Value);
-            picker.AddItem($"{ctrl.Name} ({pct}%)", ctrl.Id);
-        }
-
-        if (_config != null)
-        {
-            var knob = _config.Knobs.FirstOrDefault(k => k.Idx == idx);
-            if (knob != null && knob.Target.StartsWith("fc_fan:"))
-            {
-                var controlId = FanController.ParseTarget(knob.Target);
-                if (!SelectPickerByTag(picker, controlId))
-                    picker.SelectedIndex = 0;
-            }
-            else
-            {
-                picker.SelectedIndex = 0;
-            }
-        }
-        else
-        {
-            picker.SelectedIndex = 0;
-        }
-    }
-
-    private async Task FetchFCControllersAsync()
-    {
-        if (_fc == null) return;
-
-        try
-        {
-            var connected = await _fc.TestConnectionAsync();
-            if (!connected) return;
-
-            _fcControllers = await _fc.GetControllersAsync();
-
-            Dispatcher.Invoke(() =>
-            {
-                for (int i = 0; i < 5; i++)
-                {
-                    var target = GetSelectedTarget(_targetPickers[i]);
-                    if (target == "fc_fan")
-                        PopulateFCControllerPicker(i);
-                }
-            });
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"MixerView FC fetch: {ex.Message}");
         }
     }
 
@@ -931,11 +829,6 @@ public partial class MixerView : UserControl
             {
                 var entityId = _haEntityPickers[i].SelectedTag as string ?? "";
                 knob.Target = !string.IsNullOrEmpty(entityId) ? $"{selectedTarget}:{entityId}" : selectedTarget;
-            }
-            else if (selectedTarget == "fc_fan")
-            {
-                var controlId = _fcControllerPickers[i].SelectedTag as string ?? "";
-                knob.Target = !string.IsNullOrEmpty(controlId) ? $"fc_fan:{controlId}" : "fc_fan";
             }
             else if (selectedTarget == "apps")
             {
