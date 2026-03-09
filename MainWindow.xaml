@@ -53,6 +53,7 @@
             <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,12,0" VerticalAlignment="Center">
                 <Ellipse x:Name="ConnectionDot" Width="8" Height="8" Fill="{StaticResource TextDimBrush}" Margin="0,0,8,0" />
                 <TextBlock x:Name="ConnectionLabel" Text="Disconnected" Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
+                <TextBlock Text="v0.1-alpha" Foreground="{StaticResource TextDimBrush}" FontSize="10" VerticalAlignment="Center" Margin="10,0,0,0" />
 
                 <!-- Mac-style traffic light buttons -->
                 <StackPanel Orientation="Horizontal" Margin="16,0,0,0">
