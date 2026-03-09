@@ -41,10 +41,41 @@
                        RenderOptions.BitmapScalingMode="HighQuality" VerticalAlignment="Center" />
             </StackPanel>
 
-            <!-- Connection Status -->
-            <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,16,0" VerticalAlignment="Center">
+            <!-- Connection Status + Window Controls -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,12,0" VerticalAlignment="Center">
                 <Ellipse x:Name="ConnectionDot" Width="8" Height="8" Fill="{StaticResource TextDimBrush}" Margin="0,0,8,0" />
                 <TextBlock x:Name="ConnectionLabel" Text="Disconnected" Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
+
+                <!-- Mac-style traffic light buttons -->
+                <StackPanel Orientation="Horizontal" Margin="16,0,0,0">
+                    <!-- Minimize (yellow) -->
+                    <Border x:Name="BtnMinimize" Width="14" Height="14" CornerRadius="7"
+                            Background="#FFBD2E" Margin="0,0,8,0" Cursor="Hand"
+                            MouseLeftButtonDown="BtnMinimize_Click"
+                            ToolTip="Minimize">
+                        <TextBlock Text="—" FontSize="8" FontWeight="Bold" Foreground="#995700"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Margin="0,-2,0,0" Opacity="0" x:Name="MinIcon" />
+                    </Border>
+                    <!-- Maximize (green) -->
+                    <Border x:Name="BtnMaximize" Width="14" Height="14" CornerRadius="7"
+                            Background="#27C93F" Margin="0,0,8,0" Cursor="Hand"
+                            MouseLeftButtonDown="BtnMaximize_Click"
+                            ToolTip="Maximize">
+                        <TextBlock Text="⤢" FontSize="9" FontWeight="Bold" Foreground="#0A6C15"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Margin="0,-1,0,0" Opacity="0" x:Name="MaxIcon" />
+                    </Border>
+                    <!-- Close (red) -->
+                    <Border x:Name="BtnClose" Width="14" Height="14" CornerRadius="7"
+                            Background="#FF5F56" Cursor="Hand"
+                            MouseLeftButtonDown="BtnClose_Click"
+                            ToolTip="Close">
+                        <TextBlock Text="✕" FontSize="8" FontWeight="Bold" Foreground="#990F04"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Margin="0,-1,0,0" Opacity="0" x:Name="CloseIcon" />
+                    </Border>
+                </StackPanel>
             </StackPanel>
         </Grid>
 

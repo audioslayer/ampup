@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media;
 using Wpf.Ui.Controls;
 using WolfMixer.Views;
@@ -25,6 +26,7 @@ public partial class MainWindow : FluentWindow
         InitializeComponent();
         _config = ConfigManager.Load();
         NavigateTo(_mixerView, NavMixer);
+        SetupTrafficLightHovers();
     }
 
     /// <summary>
@@ -109,6 +111,36 @@ public partial class MainWindow : FluentWindow
     private static SymbolIcon? FindSymbolIcon(System.Windows.Controls.Button button)
     {
         return button.Content as SymbolIcon;
+    }
+
+    // ── Mac-style traffic light buttons ───────────────────────────
+
+    private void SetupTrafficLightHovers()
+    {
+        // Show icons on hover over any of the 3 buttons
+        var buttons = new[] { BtnMinimize, BtnMaximize, BtnClose };
+        var icons = new[] { MinIcon, MaxIcon, CloseIcon };
+
+        foreach (var btn in buttons)
+        {
+            btn.MouseEnter += (_, _) => { foreach (var ic in icons) ic.Opacity = 1; };
+            btn.MouseLeave += (_, _) => { foreach (var ic in icons) ic.Opacity = 0; };
+        }
+    }
+
+    private void BtnMinimize_Click(object sender, MouseButtonEventArgs e)
+    {
+        WindowState = WindowState.Minimized;
+    }
+
+    private void BtnMaximize_Click(object sender, MouseButtonEventArgs e)
+    {
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+    }
+
+    private void BtnClose_Click(object sender, MouseButtonEventArgs e)
+    {
+        Close(); // triggers MainWindow_Closing → hides to tray
     }
 
     public void SetConnectionStatus(bool connected)
