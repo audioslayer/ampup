@@ -61,7 +61,7 @@ public partial class MixerView : UserControl
     // App group picker (for "apps" target)
     private readonly StackPanel[] _appsPanels = new StackPanel[5];
     private readonly StackPanel[] _appsListPanels = new StackPanel[5];
-    private readonly ComboBox[] _appsAddCombos = new ComboBox[5];
+    private readonly ListPicker[] _appsAddPickers = new ListPicker[5];
 
     // HA entities cache
     private List<HAEntity> _haEntities = new();
@@ -513,53 +513,31 @@ public partial class MixerView : UserControl
 
             // App group picker (hidden unless "apps")
             var appsContainer = new StackPanel { Visibility = Visibility.Collapsed };
-            appsContainer.Children.Add(MakeLabel("APPS"));
+            appsContainer.Children.Add(MakeLabel("APP GROUP"));
 
-            var appsListPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 4) };
+            var appsListPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 6) };
             _appsListPanels[i] = appsListPanel;
             appsContainer.Children.Add(appsListPanel);
 
-            var addRow = new Grid();
-            addRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            addRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var appsAddCombo = new ComboBox
+            // "Add app" — ListPicker showing running audio apps
+            var appsAddPicker = new ListPicker { Margin = new Thickness(0, 0, 0, 4) };
+            appsAddPicker.SelectionChanged += (_, _) =>
             {
-                Background = FindBrush("InputBgBrush"),
-                Foreground = FindBrush("TextPrimaryBrush"),
-                BorderBrush = FindBrush("InputBorderBrush"),
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                IsEditable = true,
-                FontSize = 11
+                // Only add if the selected item has a tag (skip placeholder items)
+                var tag = appsAddPicker.SelectedTag as string;
+                if (!string.IsNullOrEmpty(tag))
+                {
+                    AddAppToGroup(idx, tag);
+                    // Reset picker after adding
+                    Dispatcher.BeginInvoke(() =>
+                    {
+                        PopulateRunningApps(idx);
+                        appsAddPicker.SelectedIndex = -1;
+                    }, System.Windows.Threading.DispatcherPriority.Background);
+                }
             };
-            Grid.SetColumn(appsAddCombo, 0);
-            appsAddCombo.DropDownOpened += (_, _) => PopulateRunningApps(idx);
-            _appsAddCombos[i] = appsAddCombo;
-            addRow.Children.Add(appsAddCombo);
-
-            var addBtn = new Button
-            {
-                Content = "+",
-                FontWeight = FontWeights.Bold,
-                Width = 24,
-                Height = 24,
-                Margin = new Thickness(4, 0, 0, 0),
-                Background = FindBrush("AccentBrush"),
-                Foreground = Brushes.Black,
-                BorderThickness = new Thickness(0),
-                Cursor = System.Windows.Input.Cursors.Hand,
-                FontSize = 13
-            };
-            Grid.SetColumn(addBtn, 1);
-            addBtn.Click += (_, _) =>
-            {
-                var appName = appsAddCombo.Text?.Trim().ToLowerInvariant();
-                if (string.IsNullOrEmpty(appName)) return;
-                AddAppToGroup(idx, appName);
-                appsAddCombo.Text = "";
-            };
-            addRow.Children.Add(addBtn);
-            appsContainer.Children.Add(addRow);
+            _appsAddPickers[i] = appsAddPicker;
+            appsContainer.Children.Add(appsAddPicker);
 
             _appsPanels[i] = appsContainer;
             settingsPanel.Children.Add(appsContainer);
@@ -743,52 +721,80 @@ public partial class MixerView : UserControl
         {
             var chip = new Border
             {
-                Background = new SolidColorBrush(Color.FromRgb(0x20, 0x20, 0x20)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x30, 0x30, 0x30)),
+                Background = new SolidColorBrush(Color.FromArgb(0x1A, 0x00, 0xE6, 0x76)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 0x00, 0xE6, 0x76)),
                 BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(10),
-                Padding = new Thickness(8, 2, 4, 2),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(8, 4, 6, 4),
                 Margin = new Thickness(0, 0, 0, 3),
-                Cursor = System.Windows.Input.Cursors.Hand
+                SnapsToDevicePixels = true
             };
 
             var chipGrid = new Grid();
+            chipGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             chipGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             chipGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            // Accent dot
+            var dot = new Border
+            {
+                Width = 4, Height = 4,
+                CornerRadius = new CornerRadius(2),
+                Background = FindBrush("AccentBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 6, 0)
+            };
+            Grid.SetColumn(dot, 0);
+            chipGrid.Children.Add(dot);
 
             var appLabel = new TextBlock
             {
                 Text = app,
                 FontSize = 11,
-                Foreground = FindBrush("TextPrimaryBrush"),
+                Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
                 VerticalAlignment = VerticalAlignment.Center
             };
-            Grid.SetColumn(appLabel, 0);
+            Grid.SetColumn(appLabel, 1);
             chipGrid.Children.Add(appLabel);
 
             var removeBtn = new TextBlock
             {
                 Text = "\u2715",
-                FontSize = 9,
-                Foreground = FindBrush("DangerRedBrush"),
+                FontSize = 8,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(6, 0, 2, 0),
+                Margin = new Thickness(8, 0, 0, 0),
                 Cursor = System.Windows.Input.Cursors.Hand
             };
             var appCapture = app;
             removeBtn.MouseLeftButtonDown += (_, _) => RemoveAppFromGroup(idx, appCapture);
-            Grid.SetColumn(removeBtn, 1);
+            removeBtn.MouseEnter += (_, _) => removeBtn.Foreground = FindBrush("DangerRedBrush");
+            removeBtn.MouseLeave += (_, _) => removeBtn.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+            Grid.SetColumn(removeBtn, 2);
             chipGrid.Children.Add(removeBtn);
 
             chip.Child = chipGrid;
+
+            // Chip hover
+            chip.MouseEnter += (_, _) =>
+            {
+                chip.Background = new SolidColorBrush(Color.FromArgb(0x2A, 0x00, 0xE6, 0x76));
+                appLabel.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
+            };
+            chip.MouseLeave += (_, _) =>
+            {
+                chip.Background = new SolidColorBrush(Color.FromArgb(0x1A, 0x00, 0xE6, 0x76));
+                appLabel.Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
+            };
+
             panel.Children.Add(chip);
         }
     }
 
     private void PopulateRunningApps(int idx)
     {
-        var combo = _appsAddCombos[idx];
-        combo.Items.Clear();
+        var picker = _appsAddPickers[idx];
+        picker.ClearItems();
 
         if (_mixer == null) return;
         var runningApps = _mixer.GetRunningAudioApps();
@@ -796,11 +802,17 @@ public partial class MixerView : UserControl
         var knob = _config?.Knobs.FirstOrDefault(k => k.Idx == idx);
         var existing = knob?.Apps ?? new List<string>();
 
+        // Add placeholder
+        picker.AddItem("+ Add running app...", null);
+
         foreach (var app in runningApps)
         {
             if (!existing.Contains(app, StringComparer.OrdinalIgnoreCase))
-                combo.Items.Add(app);
+                picker.AddItem(app, app);
         }
+
+        if (runningApps.Count == 0 || runningApps.All(a => existing.Contains(a, StringComparer.OrdinalIgnoreCase)))
+            picker.AddItem("No new apps available", null);
     }
 
     // --- Save ---

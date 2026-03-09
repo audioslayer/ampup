@@ -1,8 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Shapes;
 using System.Windows.Threading;
+using WolfMixer.Controls;
 
 namespace WolfMixer.Views;
 
@@ -29,8 +29,12 @@ public partial class ButtonsView : UserControl
     // Actions that need a path textbox
     private static readonly string[] PathActions = { "mute_program", "launch_exe", "close_program" };
 
-    // Power action options
-    private static readonly string[] PowerActions = { "sleep", "lock", "shutdown", "restart", "logoff", "hibernate" };
+    // Power action options: (Display, ConfigValue)
+    private static readonly (string Display, string Value)[] PowerOptions =
+    {
+        ("Sleep", "sleep"), ("Lock", "lock"), ("Off", "shutdown"),
+        ("Restart", "restart"), ("Logoff", "logoff"), ("Hibernate", "hibernate")
+    };
 
     // Action icon mapping for button tiles
     private static readonly Dictionary<string, string> ActionIcons = new()
@@ -50,25 +54,25 @@ public partial class ButtonsView : UserControl
     private readonly TextBlock[] _btnSubLabels = new TextBlock[5];
 
     // --- TAP controls ---
-    private readonly ComboBox[] _tapActionCombos = new ComboBox[5];
+    private readonly GridPicker[] _tapActionPickers = new GridPicker[5];
     private readonly TextBox[] _tapPathBoxes = new TextBox[5];
     private readonly StackPanel[] _tapPathPanels = new StackPanel[5];
     private readonly TextBox[] _tapMacroBoxes = new TextBox[5];
     private readonly StackPanel[] _tapMacroPanels = new StackPanel[5];
-    private readonly ComboBox[] _tapDeviceCombos = new ComboBox[5];
+    private readonly ListPicker[] _tapDevicePickers = new ListPicker[5];
     private readonly StackPanel[] _tapDevicePanels = new StackPanel[5];
-    private readonly ComboBox[] _tapProfileCombos = new ComboBox[5];
+    private readonly ListPicker[] _tapProfilePickers = new ListPicker[5];
     private readonly StackPanel[] _tapProfilePanels = new StackPanel[5];
-    private readonly ComboBox[] _tapPowerCombos = new ComboBox[5];
+    private readonly SegmentedControl[] _tapPowerSegments = new SegmentedControl[5];
     private readonly StackPanel[] _tapPowerPanels = new StackPanel[5];
 
     // --- DOUBLE controls ---
-    private readonly ComboBox[] _dblActionCombos = new ComboBox[5];
+    private readonly GridPicker[] _dblActionPickers = new GridPicker[5];
     private readonly TextBox[] _dblPathBoxes = new TextBox[5];
     private readonly StackPanel[] _dblPathPanels = new StackPanel[5];
 
     // --- HOLD controls ---
-    private readonly ComboBox[] _holdActionCombos = new ComboBox[5];
+    private readonly GridPicker[] _holdActionPickers = new GridPicker[5];
     private readonly TextBox[] _holdPathBoxes = new TextBox[5];
     private readonly StackPanel[] _holdPathPanels = new StackPanel[5];
 
@@ -102,8 +106,8 @@ public partial class ButtonsView : UserControl
 
         for (int i = 0; i < 5; i++)
         {
-            PopulateDeviceCombo(_tapDeviceCombos[i]);
-            PopulateProfileCombo(_tapProfileCombos[i], config);
+            PopulateDevicePicker(_tapDevicePickers[i]);
+            PopulateProfilePicker(_tapProfilePickers[i], config);
         }
 
         for (int i = 0; i < 5; i++)
@@ -112,21 +116,21 @@ public partial class ButtonsView : UserControl
             if (btn == null) continue;
 
             // TAP
-            SelectActionCombo(_tapActionCombos[i], btn.Action);
+            SelectActionPicker(_tapActionPickers[i], btn.Action);
             SetTextBoxValue(_tapPathBoxes[i], btn.Path);
             SetTextBoxValue(_tapMacroBoxes[i], btn.MacroKeys);
-            SelectDeviceCombo(_tapDeviceCombos[i], btn.DeviceId);
-            SelectProfileCombo(_tapProfileCombos[i], btn.ProfileName);
-            SelectPowerCombo(_tapPowerCombos[i], btn.PowerAction);
+            SelectDevicePicker(_tapDevicePickers[i], btn.DeviceId);
+            SelectProfilePicker(_tapProfilePickers[i], btn.ProfileName);
+            SelectPowerSegment(_tapPowerSegments[i], btn.PowerAction);
             UpdateTapVisibility(i, btn.Action);
 
             // DOUBLE
-            SelectActionCombo(_dblActionCombos[i], btn.DoublePressAction);
+            SelectActionPicker(_dblActionPickers[i], btn.DoublePressAction);
             SetTextBoxValue(_dblPathBoxes[i], btn.DoublePressPath);
             UpdateSimpleVisibility(_dblPathPanels[i], btn.DoublePressAction);
 
             // HOLD
-            SelectActionCombo(_holdActionCombos[i], btn.HoldAction);
+            SelectActionPicker(_holdActionPickers[i], btn.HoldAction);
             SetTextBoxValue(_holdPathBoxes[i], btn.HoldPath);
             UpdateSimpleVisibility(_holdPathPanels[i], btn.HoldAction);
 
@@ -263,20 +267,20 @@ public partial class ButtonsView : UserControl
             tapGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             tapGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-            // Left: action combo
+            // Left: action picker
             var tapLeft = new StackPanel { Margin = new Thickness(0, 0, 8, 0) };
             tapLeft.Children.Add(MakeLabel("ACTION"));
-            var tapCombo = MakeActionCombo();
-            tapCombo.SelectionChanged += (_, _) =>
+            var tapPicker = MakeActionPicker();
+            tapPicker.SelectionChanged += (_, _) =>
             {
                 if (_loading) return;
-                var val = GetSelectedActionValue(tapCombo);
+                var val = GetSelectedActionValue(tapPicker);
                 UpdateTapVisibility(idx, val);
                 UpdateTileDisplay(idx);
                 QueueSave();
             };
-            _tapActionCombos[i] = tapCombo;
-            tapLeft.Children.Add(tapCombo);
+            _tapActionPickers[i] = tapPicker;
+            tapLeft.Children.Add(tapPicker);
             Grid.SetColumn(tapLeft, 0);
             tapGrid.Children.Add(tapLeft);
 
@@ -295,23 +299,22 @@ public partial class ButtonsView : UserControl
             _tapMacroBoxes[i] = macroBox;
             tapRight.Children.Add(macroPanel);
 
-            var (devicePanel, deviceCombo) = MakeComboRow("DEVICE");
-            deviceCombo.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            var (devicePanel, devicePicker) = MakeListPickerRow("DEVICE");
+            devicePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
             _tapDevicePanels[i] = devicePanel;
-            _tapDeviceCombos[i] = deviceCombo;
+            _tapDevicePickers[i] = devicePicker;
             tapRight.Children.Add(devicePanel);
 
-            var (profilePanel, profileCombo) = MakeComboRow("PROFILE");
-            profileCombo.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            var (profilePanel, profilePicker) = MakeListPickerRow("PROFILE");
+            profilePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
             _tapProfilePanels[i] = profilePanel;
-            _tapProfileCombos[i] = profileCombo;
+            _tapProfilePickers[i] = profilePicker;
             tapRight.Children.Add(profilePanel);
 
-            var (powerPanel, powerCombo) = MakeComboRow("POWER ACTION");
-            powerCombo.ItemsSource = PowerActions;
-            powerCombo.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            var (powerPanel, powerSegment) = MakePowerSegmentRow("POWER ACTION");
+            powerSegment.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
             _tapPowerPanels[i] = powerPanel;
-            _tapPowerCombos[i] = powerCombo;
+            _tapPowerSegments[i] = powerSegment;
             tapRight.Children.Add(powerPanel);
 
             Grid.SetColumn(tapRight, 1);
@@ -332,16 +335,16 @@ public partial class ButtonsView : UserControl
 
             var dblLeft = new StackPanel { Margin = new Thickness(0, 0, 8, 0) };
             dblLeft.Children.Add(MakeLabel("ACTION"));
-            var dblCombo = MakeActionCombo();
-            dblCombo.SelectionChanged += (_, _) =>
+            var dblPicker = MakeActionPicker();
+            dblPicker.SelectionChanged += (_, _) =>
             {
                 if (_loading) return;
-                var val = GetSelectedActionValue(dblCombo);
+                var val = GetSelectedActionValue(dblPicker);
                 UpdateSimpleVisibility(_dblPathPanels[idx], val);
                 QueueSave();
             };
-            _dblActionCombos[i] = dblCombo;
-            dblLeft.Children.Add(dblCombo);
+            _dblActionPickers[i] = dblPicker;
+            dblLeft.Children.Add(dblPicker);
             Grid.SetColumn(dblLeft, 0);
             dblGrid.Children.Add(dblLeft);
 
@@ -369,16 +372,16 @@ public partial class ButtonsView : UserControl
 
             var holdLeft = new StackPanel { Margin = new Thickness(0, 0, 8, 0) };
             holdLeft.Children.Add(MakeLabel("ACTION"));
-            var holdCombo = MakeActionCombo();
-            holdCombo.SelectionChanged += (_, _) =>
+            var holdPicker = MakeActionPicker();
+            holdPicker.SelectionChanged += (_, _) =>
             {
                 if (_loading) return;
-                var val = GetSelectedActionValue(holdCombo);
+                var val = GetSelectedActionValue(holdPicker);
                 UpdateSimpleVisibility(_holdPathPanels[idx], val);
                 QueueSave();
             };
-            _holdActionCombos[i] = holdCombo;
-            holdLeft.Children.Add(holdCombo);
+            _holdActionPickers[i] = holdPicker;
+            holdLeft.Children.Add(holdPicker);
             Grid.SetColumn(holdLeft, 0);
             holdGrid.Children.Add(holdLeft);
 
@@ -438,17 +441,17 @@ public partial class ButtonsView : UserControl
             var btn = _config.Buttons.FirstOrDefault(b => b.Idx == i);
             if (btn == null) continue;
 
-            btn.Action = GetSelectedActionValue(_tapActionCombos[i]);
+            btn.Action = GetSelectedActionValue(_tapActionPickers[i]);
             btn.Path = GetTextBoxValue(_tapPathBoxes[i]);
             btn.MacroKeys = GetTextBoxValue(_tapMacroBoxes[i]);
-            btn.DeviceId = GetSelectedDeviceId(_tapDeviceCombos[i]);
-            btn.ProfileName = _tapProfileCombos[i].SelectedItem as string ?? "";
-            btn.PowerAction = _tapPowerCombos[i].SelectedItem as string ?? "";
+            btn.DeviceId = GetSelectedDeviceId(_tapDevicePickers[i]);
+            btn.ProfileName = _tapProfilePickers[i].SelectedTag as string ?? "";
+            btn.PowerAction = GetSelectedPowerValue(_tapPowerSegments[i]);
 
-            btn.DoublePressAction = GetSelectedActionValue(_dblActionCombos[i]);
+            btn.DoublePressAction = GetSelectedActionValue(_dblActionPickers[i]);
             btn.DoublePressPath = GetTextBoxValue(_dblPathBoxes[i]);
 
-            btn.HoldAction = GetSelectedActionValue(_holdActionCombos[i]);
+            btn.HoldAction = GetSelectedActionValue(_holdActionPickers[i]);
             btn.HoldPath = GetTextBoxValue(_holdPathBoxes[i]);
         }
 
@@ -490,20 +493,50 @@ public partial class ButtonsView : UserControl
         return header;
     }
 
-    private ComboBox MakeActionCombo()
+    private GridPicker MakeActionPicker()
     {
-        var combo = new ComboBox
+        var picker = new GridPicker
         {
-            Background = FindBrush("InputBgBrush"),
-            Foreground = FindBrush("TextPrimaryBrush"),
-            BorderBrush = FindBrush("InputBorderBrush"),
             Margin = new Thickness(0, 4, 0, 8),
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
-        foreach (var (display, _) in Actions)
-            combo.Items.Add(display);
-        combo.SelectedIndex = 0;
-        return combo;
+
+        // "None" — uncategorized first item
+        picker.AddItem("None", "none");
+
+        // Media
+        picker.AddCategory("Media");
+        picker.AddItem("Play / Pause", "media_play_pause");
+        picker.AddItem("Next Track", "media_next");
+        picker.AddItem("Prev Track", "media_prev");
+
+        // Mute
+        picker.AddCategory("Mute");
+        picker.AddItem("Mute Volume", "mute_master");
+        picker.AddItem("Mute Mic", "mute_mic");
+        picker.AddItem("Mute App", "mute_program");
+        picker.AddItem("Mute Active Window", "mute_active_window");
+
+        // App Control
+        picker.AddCategory("App Control");
+        picker.AddItem("Launch App", "launch_exe");
+        picker.AddItem("Close App", "close_program");
+
+        // Device
+        picker.AddCategory("Device");
+        picker.AddItem("Cycle Output", "cycle_output");
+        picker.AddItem("Cycle Input", "cycle_input");
+        picker.AddItem("Set Output", "select_output");
+        picker.AddItem("Set Input", "select_input");
+
+        // System
+        picker.AddCategory("System");
+        picker.AddItem("Keyboard Macro", "macro");
+        picker.AddItem("System Power", "system_power");
+        picker.AddItem("Switch Profile", "switch_profile");
+
+        picker.SelectedIndex = 0;
+        return picker;
     }
 
     private (StackPanel panel, TextBox box) MakeTextBoxRow(string label, string placeholder)
@@ -525,20 +558,32 @@ public partial class ButtonsView : UserControl
         return (container, box);
     }
 
-    private (StackPanel panel, ComboBox combo) MakeComboRow(string label)
+    private (StackPanel panel, ListPicker picker) MakeListPickerRow(string label)
     {
         var container = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 4) };
         container.Children.Add(MakeLabel(label));
-        var combo = new ComboBox
+        var picker = new ListPicker
         {
-            Background = FindBrush("InputBgBrush"),
-            Foreground = FindBrush("TextPrimaryBrush"),
-            BorderBrush = FindBrush("InputBorderBrush"),
             Margin = new Thickness(0, 0, 0, 4),
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
-        container.Children.Add(combo);
-        return (container, combo);
+        container.Children.Add(picker);
+        return (container, picker);
+    }
+
+    private (StackPanel panel, SegmentedControl segment) MakePowerSegmentRow(string label)
+    {
+        var container = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 4) };
+        container.Children.Add(MakeLabel(label));
+        var segment = new SegmentedControl
+        {
+            Margin = new Thickness(0, 0, 0, 4),
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        foreach (var (display, value) in PowerOptions)
+            segment.AddSegment(display, value);
+        container.Children.Add(segment);
+        return (container, segment);
     }
 
     private TextBlock MakeLabel(string text)
@@ -612,84 +657,84 @@ public partial class ButtonsView : UserControl
         return box.Text.Trim();
     }
 
-    // ── Combo helpers ──────────────────────────────────────────────
+    // ── Picker helpers ──────────────────────────────────────────────
 
-    private void SelectActionCombo(ComboBox combo, string actionValue)
+    private void SelectActionPicker(GridPicker picker, string actionValue)
     {
-        for (int i = 0; i < Actions.Length; i++)
+        for (int i = 0; i < picker.ItemCount; i++)
         {
-            if (Actions[i].Value == actionValue)
+            if (picker.GetTagAt(i) as string == actionValue)
             {
-                combo.SelectedIndex = i;
+                picker.SelectedIndex = i;
                 return;
             }
         }
-        combo.SelectedIndex = 0;
+        picker.SelectedIndex = 0;
     }
 
-    private string GetSelectedActionValue(ComboBox combo)
+    private string GetSelectedActionValue(GridPicker picker)
     {
-        int idx = combo.SelectedIndex;
-        if (idx >= 0 && idx < Actions.Length)
-            return Actions[idx].Value;
-        return "none";
+        return picker.SelectedTag as string ?? "none";
     }
 
-    private void PopulateDeviceCombo(ComboBox combo)
+    private void PopulateDevicePicker(ListPicker picker)
     {
-        combo.Items.Clear();
+        picker.ClearItems();
         foreach (var (id, name, isOutput) in _audioDevices)
         {
             var tag = isOutput ? "OUT" : "IN";
-            combo.Items.Add(new ComboBoxItem { Content = $"[{tag}] {name}", Tag = id });
+            picker.AddItem($"[{tag}] {name}", id);
         }
     }
 
-    private void SelectDeviceCombo(ComboBox combo, string deviceId)
+    private void SelectDevicePicker(ListPicker picker, string deviceId)
     {
-        if (string.IsNullOrEmpty(deviceId)) { combo.SelectedIndex = -1; return; }
-        for (int i = 0; i < combo.Items.Count; i++)
+        if (string.IsNullOrEmpty(deviceId)) { picker.SelectedIndex = -1; return; }
+        for (int i = 0; i < picker.ItemCount; i++)
         {
-            if (combo.Items[i] is ComboBoxItem item && item.Tag as string == deviceId)
-            { combo.SelectedIndex = i; return; }
+            if (picker.GetTagAt(i) as string == deviceId)
+            { picker.SelectedIndex = i; return; }
         }
-        combo.SelectedIndex = -1;
+        picker.SelectedIndex = -1;
     }
 
-    private string GetSelectedDeviceId(ComboBox combo)
+    private string GetSelectedDeviceId(ListPicker picker)
     {
-        if (combo.SelectedItem is ComboBoxItem item)
-            return item.Tag as string ?? "";
-        return "";
+        return picker.SelectedTag as string ?? "";
     }
 
-    private void PopulateProfileCombo(ComboBox combo, AppConfig config)
+    private void PopulateProfilePicker(ListPicker picker, AppConfig config)
     {
-        combo.Items.Clear();
+        picker.ClearItems();
         foreach (var profile in config.Profiles)
-            combo.Items.Add(profile);
+            picker.AddItem(profile, profile);
     }
 
-    private void SelectProfileCombo(ComboBox combo, string profileName)
+    private void SelectProfilePicker(ListPicker picker, string profileName)
     {
-        if (string.IsNullOrEmpty(profileName)) { combo.SelectedIndex = -1; return; }
-        for (int i = 0; i < combo.Items.Count; i++)
+        if (string.IsNullOrEmpty(profileName)) { picker.SelectedIndex = -1; return; }
+        for (int i = 0; i < picker.ItemCount; i++)
         {
-            if (combo.Items[i] as string == profileName)
-            { combo.SelectedIndex = i; return; }
+            if (picker.GetTagAt(i) as string == profileName)
+            { picker.SelectedIndex = i; return; }
         }
-        combo.SelectedIndex = -1;
+        picker.SelectedIndex = -1;
     }
 
-    private void SelectPowerCombo(ComboBox combo, string powerAction)
+    private void SelectPowerSegment(SegmentedControl segment, string powerAction)
     {
-        if (string.IsNullOrEmpty(powerAction)) { combo.SelectedIndex = -1; return; }
-        for (int i = 0; i < PowerActions.Length; i++)
+        if (string.IsNullOrEmpty(powerAction)) { segment.SelectedIndex = -1; return; }
+        for (int i = 0; i < segment.SegmentCount; i++)
         {
-            if (PowerActions[i] == powerAction)
-            { combo.SelectedIndex = i; return; }
+            if (segment.GetTagAt(i) as string == powerAction)
+            { segment.SelectedIndex = i; return; }
         }
-        combo.SelectedIndex = -1;
+        segment.SelectedIndex = -1;
+    }
+
+    private string GetSelectedPowerValue(SegmentedControl segment)
+    {
+        return segment.SelectedTag as string ?? "";
     }
 
     // ── Resource helpers ───────────────────────────────────────────
