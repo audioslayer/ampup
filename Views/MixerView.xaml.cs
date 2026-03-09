@@ -350,64 +350,25 @@ public partial class MixerView : UserControl
             panel.Children.Add(targetDisplay);
 
             // ═══════════════════════════════════════════════════════════
-            // BOTTOM SECTION: Collapsible settings
+            // BOTTOM SECTION: Settings (always visible)
             // ═══════════════════════════════════════════════════════════
 
             var divider = new Border
             {
                 Height = 1,
                 Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-                Margin = new Thickness(0, 0, 0, 0)
+                Margin = new Thickness(0, 4, 0, 0)
             };
             panel.Children.Add(divider);
-
-            var toggleRow = new Grid
-            {
-                Margin = new Thickness(0, 4, 0, 0),
-                Cursor = System.Windows.Input.Cursors.Hand
-            };
-
-            var gearIcon = new TextBlock
-            {
-                Text = "\u2699",
-                FontSize = 13,
-                Foreground = FindBrush("TextDimBrush"),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            toggleRow.Children.Add(gearIcon);
 
             var settingsPanel = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
             var settingsBorder = new Border
             {
                 Child = settingsPanel,
-                Visibility = Visibility.Collapsed,
                 Padding = new Thickness(0)
             };
             _settingsBorders[i] = settingsBorder;
-            _settingsExpanded[i] = false;
-
-            toggleRow.MouseLeftButtonUp += (_, _) =>
-            {
-                _settingsExpanded[idx] = !_settingsExpanded[idx];
-                settingsBorder.Visibility = _settingsExpanded[idx] ? Visibility.Visible : Visibility.Collapsed;
-                gearIcon.Foreground = _settingsExpanded[idx]
-                    ? FindBrush("AccentBrush")
-                    : FindBrush("TextDimBrush");
-            };
-
-            toggleRow.MouseEnter += (_, _) =>
-            {
-                if (!_settingsExpanded[idx])
-                    gearIcon.Foreground = FindBrush("TextSecBrush");
-            };
-            toggleRow.MouseLeave += (_, _) =>
-            {
-                if (!_settingsExpanded[idx])
-                    gearIcon.Foreground = FindBrush("TextDimBrush");
-            };
-
-            panel.Children.Add(toggleRow);
+            _settingsExpanded[i] = true;
 
             // ── Settings content ──
 
@@ -580,13 +541,6 @@ public partial class MixerView : UserControl
         {
             PopulateRunningApps(idx);
             RebuildAppChips(idx);
-        }
-
-        // Auto-expand settings if a target needs sub-pickers
-        if ((showDevice || showHA || showApps) && !_settingsExpanded[idx])
-        {
-            _settingsExpanded[idx] = true;
-            _settingsBorders[idx].Visibility = Visibility.Visible;
         }
 
         UpdateTargetDisplay(idx);
