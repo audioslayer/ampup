@@ -224,6 +224,7 @@ public partial class MixerView : UserControl
             // TOP SECTION: Icon + Label + Mute
             // ═══════════════════════════════════════════════════════════
 
+            // Icon container — hidden by default, shown when Source is set
             var iconContainer = new Border
             {
                 Width = 36,
@@ -231,7 +232,8 @@ public partial class MixerView : UserControl
                 CornerRadius = new CornerRadius(8),
                 Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)),
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 2, 0, 6)
+                Margin = new Thickness(0, 2, 0, 6),
+                Visibility = Visibility.Collapsed
             };
             var icon = new Image
             {
@@ -311,9 +313,9 @@ public partial class MixerView : UserControl
             var vuMeter = new VuMeterControl
             {
                 Width = 10,
-                Height = 68,
+                Height = 60,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(6, 0, 0, 0)
+                Margin = new Thickness(10, 0, 0, 0)
             };
             Grid.SetColumn(vuMeter, 1);
             _vuMeters[i] = vuMeter;
