@@ -2,7 +2,6 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 using WolfMixer.Views;
 
@@ -27,11 +26,6 @@ public partial class MainWindow : FluentWindow
     {
         InitializeComponent();
         Icon = new BitmapImage(new Uri("pack://application:,,,/Assets/ampuplogo.png", UriKind.Absolute));
-
-        // Override WPF-UI accent from system blue to app green
-        ApplicationAccentColorManager.Apply(
-            System.Windows.Media.Color.FromRgb(0x00, 0xE6, 0x76),
-            ApplicationTheme.Dark);
 
         _config = ConfigManager.Load();
         NavigateTo(_mixerView, NavMixer);

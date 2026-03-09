@@ -16,14 +16,6 @@ public partial class MixerView : UserControl
     private readonly DispatcherTimer _debounce;
     private readonly DispatcherTimer _liveTimer;
 
-    // Target options
-    private static readonly string[] TargetValues =
-        { "master", "mic", "system", "any", "active_window", "output_device", "input_device", "monitor",
-          "apps",
-          "ha_light", "ha_media", "ha_fan", "ha_cover",
-          "fc_fan",
-          "discord", "spotify", "chrome" };
-
     // HA target prefix → domain for entity filtering
     private static readonly Dictionary<string, string> HATargetDomains = new()
     {
@@ -33,7 +25,7 @@ public partial class MixerView : UserControl
         { "ha_cover", "cover" }
     };
 
-    // Display names for targets in the flyout
+    // Display names for targets
     private static readonly Dictionary<string, string> HATargetDisplayNames = new()
     {
         { "ha_light", "HA: Light" },
@@ -50,12 +42,12 @@ public partial class MixerView : UserControl
     private readonly TextBlock[] _volLabels = new TextBlock[5];
     private readonly TextBox[] _channelLabels = new TextBox[5];
     private readonly Image[] _icons = new Image[5];
-    private readonly FlyoutPicker[] _targetPickers = new FlyoutPicker[5];
-    private readonly FlyoutPicker[] _curvePickers = new FlyoutPicker[5];
+    private readonly GridPicker[] _targetPickers = new GridPicker[5];
+    private readonly SegmentedControl[] _curvePickers = new SegmentedControl[5];
     private readonly RangeSlider[] _rangeSliders = new RangeSlider[5];
-    private readonly FlyoutPicker[] _devicePickers = new FlyoutPicker[5];
+    private readonly ListPicker[] _devicePickers = new ListPicker[5];
     private readonly StackPanel[] _devicePanels = new StackPanel[5];
-    private readonly FlyoutPicker[] _haEntityPickers = new FlyoutPicker[5];
+    private readonly ListPicker[] _haEntityPickers = new ListPicker[5];
     private readonly StackPanel[] _haEntityPanels = new StackPanel[5];
     private readonly TextBlock[] _muteLabels = new TextBlock[5];
     private readonly Border[] _stripBorders = new Border[5];
@@ -68,13 +60,13 @@ public partial class MixerView : UserControl
     private List<(string Id, string Name, bool IsOutput)> _audioDevices = new();
 
     // FC controller picker
-    private readonly FlyoutPicker[] _fcControllerPickers = new FlyoutPicker[5];
+    private readonly ListPicker[] _fcControllerPickers = new ListPicker[5];
     private readonly StackPanel[] _fcControllerPanels = new StackPanel[5];
 
     // App group picker (for "apps" target)
     private readonly StackPanel[] _appsPanels = new StackPanel[5];
     private readonly StackPanel[] _appsListPanels = new StackPanel[5];
-    private readonly ComboBox[] _appsAddCombos = new ComboBox[5]; // kept as ComboBox (editable)
+    private readonly ComboBox[] _appsAddCombos = new ComboBox[5];
 
     // HA entities cache
     private List<HAEntity> _haEntities = new();
@@ -112,7 +104,6 @@ public partial class MixerView : UserControl
 
         _audioDevices = mixer.GetAudioDevices();
 
-        // Create/update HA client if enabled
         if (config.HomeAssistant.Enabled && !string.IsNullOrWhiteSpace(config.HomeAssistant.Token))
         {
             if (_ha == null)
@@ -121,7 +112,6 @@ public partial class MixerView : UserControl
                 _ha.UpdateConfig(config.HomeAssistant);
         }
 
-        // Create/update FC client if enabled
         if (config.FanControl.Enabled)
         {
             if (_fc == null)
@@ -135,27 +125,18 @@ public partial class MixerView : UserControl
             var knob = config.Knobs.FirstOrDefault(k => k.Idx == i);
             if (knob == null) continue;
 
-            // Label
             _channelLabels[i].Text = GetDisplayLabel(knob);
-
-            // Target picker
             SelectTarget(_targetPickers[i], knob.Target);
-
-            // Curve picker
             SelectCurve(_curvePickers[i], knob.Curve);
 
-            // Volume range slider
             _rangeSliders[i].LowerValue = Math.Clamp(knob.MinVolume, 0, 100);
             _rangeSliders[i].UpperValue = Math.Clamp(knob.MaxVolume, 0, 100);
 
-            // Device picker
             PopulateDevicePicker(_devicePickers[i]);
             SelectPickerByTag(_devicePickers[i], knob.DeviceId);
 
-            // Visibility for device/HA pickers
             UpdatePickerVisibility(i, knob.Target);
 
-            // Apply light color to knob arc and volume label
             var light = config.Lights.FirstOrDefault(l => l.Idx == i);
             if (light != null)
             {
@@ -171,15 +152,12 @@ public partial class MixerView : UserControl
 
         _loading = false;
 
-        // Fetch HA entities if enabled
         if (_ha != null)
             _ = FetchHAEntitiesAsync();
 
-        // Fetch FC controllers if enabled
         if (_fc != null)
             _ = FetchFCControllersAsync();
 
-        // Start live polling
         _liveTimer.Start();
     }
 
@@ -266,7 +244,6 @@ public partial class MixerView : UserControl
             // TOP SECTION: Icon + Label + Mute
             // ═══════════════════════════════════════════════════════════
 
-            // App icon
             var iconContainer = new Border
             {
                 Width = 36,
@@ -288,7 +265,6 @@ public partial class MixerView : UserControl
             _icons[i] = icon;
             panel.Children.Add(iconContainer);
 
-            // Channel label (editable)
             var label = new TextBox
             {
                 Text = $"Knob {i + 1}",
@@ -317,7 +293,6 @@ public partial class MixerView : UserControl
             _channelLabels[i] = label;
             panel.Children.Add(label);
 
-            // Mute indicator
             var muteLabel = new TextBlock
             {
                 Text = "MUTE",
@@ -343,7 +318,6 @@ public partial class MixerView : UserControl
             knobVuGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             knobVuGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            // Knob
             var knob = new AnimatedKnobControl
             {
                 Width = 88,
@@ -354,7 +328,6 @@ public partial class MixerView : UserControl
             _knobs[i] = knob;
             knobVuGrid.Children.Add(knob);
 
-            // VU meter (right of knob)
             var vuMeter = new VuMeterControl
             {
                 Width = 10,
@@ -368,7 +341,6 @@ public partial class MixerView : UserControl
 
             panel.Children.Add(knobVuGrid);
 
-            // Volume percentage
             var volLabel = new TextBlock
             {
                 Text = "0%",
@@ -392,14 +364,12 @@ public partial class MixerView : UserControl
                 TextAlignment = TextAlignment.Center,
                 Margin = new Thickness(0, 0, 0, 8)
             };
-            // We'll update this from the target picker selection
             panel.Children.Add(targetDisplay);
 
             // ═══════════════════════════════════════════════════════════
             // BOTTOM SECTION: Collapsible settings
             // ═══════════════════════════════════════════════════════════
 
-            // Divider + gear toggle
             var divider = new Border
             {
                 Height = 1,
@@ -443,7 +413,6 @@ public partial class MixerView : UserControl
                     : FindBrush("TextDimBrush");
             };
 
-            // Gear hover effect
             toggleRow.MouseEnter += (_, _) =>
             {
                 if (!_settingsExpanded[idx])
@@ -459,20 +428,40 @@ public partial class MixerView : UserControl
 
             // ── Settings content ──
 
-            // TARGET
+            // TARGET — GridPicker with categories
             settingsPanel.Children.Add(MakeLabel("TARGET"));
-            var targetPicker = new FlyoutPicker { Margin = new Thickness(0, 0, 0, 6) };
-            foreach (var tv in TargetValues)
-            {
-                var displayText = HATargetDisplayNames.TryGetValue(tv, out var dn) ? dn : FormatTargetName(tv);
-                targetPicker.AddItem(displayText, tv);
-            }
+            var targetPicker = new GridPicker { Margin = new Thickness(0, 0, 0, 6) };
+
+            targetPicker.AddCategory("Audio");
+            targetPicker.AddItem("Master", "master");
+            targetPicker.AddItem("Mic", "mic");
+            targetPicker.AddItem("System", "system");
+            targetPicker.AddItem("Any", "any");
+            targetPicker.AddItem("Active Window", "active_window");
+
+            targetPicker.AddCategory("Devices");
+            targetPicker.AddItem("Output Device", "output_device");
+            targetPicker.AddItem("Input Device", "input_device");
+            targetPicker.AddItem("Monitor", "monitor");
+
+            targetPicker.AddCategory("Integrations");
+            targetPicker.AddItem("HA: Light", "ha_light");
+            targetPicker.AddItem("HA: Media", "ha_media");
+            targetPicker.AddItem("HA: Fan", "ha_fan");
+            targetPicker.AddItem("HA: Cover", "ha_cover");
+            targetPicker.AddItem("FC: Fan Speed", "fc_fan");
+
+            targetPicker.AddCategory("Apps");
+            targetPicker.AddItem("Discord", "discord");
+            targetPicker.AddItem("Spotify", "spotify");
+            targetPicker.AddItem("Chrome", "chrome");
+            targetPicker.AddItem("App Group", "apps");
+
             targetPicker.SelectionChanged += (_, _) =>
             {
                 if (_loading) return;
                 var selected = GetSelectedTarget(_targetPickers[idx]);
                 UpdatePickerVisibility(idx, selected);
-                // Update the target display text
                 UpdateTargetDisplay(idx);
                 QueueSave();
             };
@@ -482,11 +471,11 @@ public partial class MixerView : UserControl
             // Store reference to update target display
             targetPicker.Tag = targetDisplay;
 
-            // CURVE
+            // CURVE — SegmentedControl (pill bar)
             settingsPanel.Children.Add(MakeLabel("CURVE"));
-            var curvePicker = new FlyoutPicker { Margin = new Thickness(0, 0, 0, 6) };
+            var curvePicker = new SegmentedControl { Margin = new Thickness(0, 0, 0, 6) };
             foreach (var curve in Enum.GetValues<ResponseCurve>())
-                curvePicker.AddItem(curve.ToString(), curve);
+                curvePicker.AddSegment(curve.ToString(), curve);
             curvePicker.SelectionChanged += (_, _) =>
             {
                 if (!_loading) QueueSave();
@@ -516,10 +505,10 @@ public partial class MixerView : UserControl
             _rangeSliders[i] = rangeSlider;
             settingsPanel.Children.Add(rangeSlider);
 
-            // Device picker (hidden unless output_device / input_device)
+            // Device picker — ListPicker (hidden unless output_device / input_device)
             var deviceContainer = new StackPanel { Visibility = Visibility.Collapsed };
             deviceContainer.Children.Add(MakeLabel("DEVICE"));
-            var devicePicker = new FlyoutPicker { Margin = new Thickness(0, 0, 0, 4) };
+            var devicePicker = new ListPicker { Margin = new Thickness(0, 0, 0, 4) };
             devicePicker.SelectionChanged += (_, _) =>
             {
                 if (!_loading) QueueSave();
@@ -529,10 +518,10 @@ public partial class MixerView : UserControl
             deviceContainer.Children.Add(devicePicker);
             settingsPanel.Children.Add(deviceContainer);
 
-            // HA entity picker (hidden unless ha_light / ha_media / etc.)
+            // HA entity picker — ListPicker (hidden unless ha_*)
             var haContainer = new StackPanel { Visibility = Visibility.Collapsed };
             haContainer.Children.Add(MakeLabel("HA ENTITY"));
-            var haEntityPicker = new FlyoutPicker { Margin = new Thickness(0, 0, 0, 4) };
+            var haEntityPicker = new ListPicker { Margin = new Thickness(0, 0, 0, 4) };
             haEntityPicker.SelectionChanged += (_, _) =>
             {
                 if (!_loading) QueueSave();
@@ -542,10 +531,10 @@ public partial class MixerView : UserControl
             haContainer.Children.Add(haEntityPicker);
             settingsPanel.Children.Add(haContainer);
 
-            // FC controller picker (hidden unless fc_fan)
+            // FC controller picker — ListPicker (hidden unless fc_fan)
             var fcContainer = new StackPanel { Visibility = Visibility.Collapsed };
             fcContainer.Children.Add(MakeLabel("FC CONTROLLER"));
-            var fcPicker = new FlyoutPicker { Margin = new Thickness(0, 0, 0, 4) };
+            var fcPicker = new ListPicker { Margin = new Thickness(0, 0, 0, 4) };
             fcPicker.AddItem("(none)", "");
             fcPicker.SelectedIndex = 0;
             fcPicker.SelectionChanged += (_, _) =>
@@ -565,7 +554,6 @@ public partial class MixerView : UserControl
             _appsListPanels[i] = appsListPanel;
             appsContainer.Children.Add(appsListPanel);
 
-            // "Add app" row
             var addRow = new Grid();
             addRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             addRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -661,7 +649,6 @@ public partial class MixerView : UserControl
             _settingsBorders[idx].Visibility = Visibility.Visible;
         }
 
-        // Update target display text
         UpdateTargetDisplay(idx);
     }
 
@@ -677,7 +664,6 @@ public partial class MixerView : UserControl
         foreach (var entity in filtered)
             picker.AddItem(entity.FriendlyName, entity.EntityId);
 
-        // Restore selection from config
         if (_config != null)
         {
             var knob = _config.Knobs.FirstOrDefault(k => k.Idx == idx);
@@ -702,7 +688,6 @@ public partial class MixerView : UserControl
             picker.AddItem($"{ctrl.Name} ({pct}%)", ctrl.Id);
         }
 
-        // Restore selection from config
         if (_config != null)
         {
             var knob = _config.Knobs.FirstOrDefault(k => k.Idx == idx);
@@ -752,7 +737,7 @@ public partial class MixerView : UserControl
 
     // --- Picker helpers ---
 
-    private void SelectTarget(FlyoutPicker picker, string target)
+    private void SelectTarget(GridPicker picker, string target)
     {
         var baseTarget = target.Contains(':') ? target.Split(':')[0] : target;
 
@@ -761,22 +746,21 @@ public partial class MixerView : UserControl
             if (picker.GetTagAt(i) as string == baseTarget)
             {
                 picker.SelectedIndex = i;
-                // Update target display
                 if (picker.Tag is TextBlock display)
                     display.Text = HATargetDisplayNames.TryGetValue(baseTarget, out var dn) ? dn : FormatTargetName(baseTarget);
                 return;
             }
         }
-        // Custom process name — add it
+        // Custom process name — add it dynamically
         picker.AddItem(target, target);
         picker.SelectedIndex = picker.ItemCount - 1;
         if (picker.Tag is TextBlock d)
             d.Text = FormatTargetName(target);
     }
 
-    private void SelectCurve(FlyoutPicker picker, ResponseCurve curve)
+    private void SelectCurve(SegmentedControl picker, ResponseCurve curve)
     {
-        for (int i = 0; i < picker.ItemCount; i++)
+        for (int i = 0; i < picker.SegmentCount; i++)
         {
             if (picker.GetTagAt(i) is ResponseCurve rc && rc == curve)
             {
@@ -786,12 +770,12 @@ public partial class MixerView : UserControl
         }
     }
 
-    private string GetSelectedTarget(FlyoutPicker picker)
+    private string GetSelectedTarget(GridPicker picker)
     {
         return picker.SelectedTag as string ?? "none";
     }
 
-    private static bool SelectPickerByTag(FlyoutPicker picker, string? tag)
+    private static bool SelectPickerByTag(ListPicker picker, string? tag)
     {
         if (string.IsNullOrEmpty(tag))
         {
@@ -810,7 +794,7 @@ public partial class MixerView : UserControl
         return false;
     }
 
-    private void PopulateDevicePicker(FlyoutPicker picker)
+    private void PopulateDevicePicker(ListPicker picker)
     {
         picker.ClearItems();
         foreach (var (id, name, isOutput) in _audioDevices)
@@ -937,13 +921,11 @@ public partial class MixerView : UserControl
             var knob = _config.Knobs.FirstOrDefault(k => k.Idx == i);
             if (knob == null) continue;
 
-            // Save label
             var labelText = _channelLabels[i].Text.Trim();
             var selectedTarget = GetSelectedTarget(_targetPickers[i]);
             var autoName = FormatTargetName(selectedTarget);
             knob.Label = (labelText == autoName || labelText == $"Knob {i + 1}") ? "" : labelText;
 
-            // Target
             if (HATargetDomains.ContainsKey(selectedTarget))
             {
                 var entityId = _haEntityPickers[i].SelectedTag as string ?? "";
@@ -963,15 +945,12 @@ public partial class MixerView : UserControl
                 knob.Target = selectedTarget;
             }
 
-            // Curve
             if (_curvePickers[i].SelectedTag is ResponseCurve curve)
                 knob.Curve = curve;
 
-            // Volume range
             knob.MinVolume = (int)_rangeSliders[i].LowerValue;
             knob.MaxVolume = (int)_rangeSliders[i].UpperValue;
 
-            // Device ID
             knob.DeviceId = _devicePickers[i].SelectedTag as string ?? "";
         }
 
