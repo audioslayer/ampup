@@ -20,7 +20,7 @@
 
 ## Why Amp Up?
 
-Amp Up is a community-built alternative for the Turn Up USB mixer that adds features the official app doesn't offer — like per-app audio control, response curves, keyboard macros, and full RGB customization. Built with a modern WPF interface inspired by SteelSeries Sonar and Elgato Wave Link.
+Amp Up is a community-built alternative for the Turn Up USB mixer with a modern dark UI inspired by SteelSeries Sonar and Elgato Wave Link. It extends the hardware with Home Assistant integration, response curves, volume range clamping, and more features coming soon.
 
 ---
 
