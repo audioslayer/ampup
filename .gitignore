@@ -7,3 +7,5 @@ obj/
 .vscode/
 *.log
 wolfmixer.log
+publish/
+installer/output/
