@@ -36,9 +36,9 @@
             </Grid.ColumnDefinitions>
 
             <!-- Branding -->
-            <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
-                <TextBlock Text="AMP UP" FontSize="15" FontWeight="Bold"
-                           Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
+                <Image Source="pack://application:,,,/Assets/ampuplogo.png" Height="32"
+                       RenderOptions.BitmapScalingMode="HighQuality" VerticalAlignment="Center" />
             </StackPanel>
 
             <!-- Connection Status -->

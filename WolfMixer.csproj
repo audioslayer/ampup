@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <Resource Include="Assets\knob-face.png" />
+    <Resource Include="Assets\ampuplogo.png" />
   </ItemGroup>
 
   <ItemGroup>

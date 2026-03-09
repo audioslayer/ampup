@@ -154,42 +154,54 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Draws a 32x32 tray icon with 5 equalizer bars.
-    /// Green (#00E676) when connected, gray (#666) when disconnected.
+    /// Creates a 32x32 tray icon from the embedded logo PNG.
+    /// Connected = full color, disconnected = grayscale.
     /// </summary>
     private static Icon CreateTrayIcon(bool connected)
     {
+        // Load logo from embedded WPF resource
+        var uri = new Uri("pack://application:,,,/Assets/ampuplogo.png", UriKind.Absolute);
+        var stream = System.Windows.Application.GetResourceStream(uri)?.Stream;
+
+        Bitmap original;
+        if (stream != null)
+        {
+            original = new Bitmap(stream);
+            stream.Dispose();
+        }
+        else
+        {
+            // Fallback: solid green square
+            original = new Bitmap(32, 32);
+            using var g = Graphics.FromImage(original);
+            g.Clear(Color.FromArgb(0x00, 0xE6, 0x76));
+        }
+
+        // Resize to 32x32
         var bmp = new Bitmap(32, 32);
         using (var g = Graphics.FromImage(bmp))
         {
-            g.Clear(Color.Transparent);
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            g.Clear(Color.Transparent);
+            g.DrawImage(original, 0, 0, 32, 32);
+        }
+        original.Dispose();
 
-            var color = connected
-                ? Color.FromArgb(0x00, 0xE6, 0x76)
-                : Color.FromArgb(0x88, 0x88, 0x88);
-
-            int[] heights = { 8, 16, 24, 18, 12 };
-            int barWidth = 4;
-            int gap = 2;
-            int totalWidth = 5 * barWidth + 4 * gap; // 28
-            int startX = (32 - totalWidth) / 2;
-
-            using var brush = new SolidBrush(color);
-            for (int i = 0; i < 5; i++)
+        // If disconnected, convert to grayscale
+        if (!connected)
+        {
+            for (int y = 0; y < 32; y++)
+            for (int x = 0; x < 32; x++)
             {
-                int x = startX + i * (barWidth + gap);
-                int h = heights[i];
-                int y = 32 - h - 2; // 2px bottom margin
-                // Rounded rect approximation
-                g.FillRectangle(brush, x, y + 2, barWidth, h - 2);
-                g.FillEllipse(brush, x, y, barWidth, 4); // rounded top
+                var px = bmp.GetPixel(x, y);
+                int gray = (int)(px.R * 0.3 + px.G * 0.59 + px.B * 0.11);
+                bmp.SetPixel(x, y, Color.FromArgb(px.A, gray, gray, gray));
             }
         }
 
         var hIcon = bmp.GetHicon();
         var icon = Icon.FromHandle(hIcon);
-        // Clone so we can destroy the original handle
         var result = (Icon)icon.Clone();
         NativeMethods.DestroyIcon(hIcon);
         bmp.Dispose();
