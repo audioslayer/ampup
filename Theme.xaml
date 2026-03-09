@@ -86,9 +86,9 @@
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="Width" Value="40" />
-        <Setter Property="Height" Value="40" />
-        <Setter Property="Margin" Value="8,4" />
+        <Setter Property="Width" Value="60" />
+        <Setter Property="Height" Value="52" />
+        <Setter Property="Margin" Value="8,2" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">

@@ -84,25 +84,39 @@ public partial class MainWindow : FluentWindow
     {
         ContentArea.Content = view;
 
-        // Update sidebar highlight
+        // Update sidebar highlight (icon + label)
         var accent = (SolidColorBrush)FindResource("AccentBrush");
-        var dim = (SolidColorBrush)FindResource("TextSecBrush");
+        var dimIcon = (SolidColorBrush)FindResource("TextSecBrush");
+        var dimLabel = (SolidColorBrush)FindResource("TextDimBrush");
 
         if (_activeNavButton != null)
         {
-            var oldIcon = FindSymbolIcon(_activeNavButton);
-            if (oldIcon != null) oldIcon.Foreground = dim;
+            var (oldIcon, oldLabel) = FindNavChildren(_activeNavButton);
+            if (oldIcon != null) oldIcon.Foreground = dimIcon;
+            if (oldLabel != null) oldLabel.Foreground = dimLabel;
         }
 
-        var newIcon = FindSymbolIcon(navButton);
+        var (newIcon, newLabel) = FindNavChildren(navButton);
         if (newIcon != null) newIcon.Foreground = accent;
+        if (newLabel != null) newLabel.Foreground = accent;
 
         _activeNavButton = navButton;
     }
 
-    private static SymbolIcon? FindSymbolIcon(System.Windows.Controls.Button button)
+    private static (SymbolIcon? Icon, System.Windows.Controls.TextBlock? Label) FindNavChildren(System.Windows.Controls.Button button)
     {
-        return button.Content as SymbolIcon;
+        if (button.Content is System.Windows.Controls.StackPanel sp)
+        {
+            SymbolIcon? icon = null;
+            System.Windows.Controls.TextBlock? label = null;
+            foreach (var child in sp.Children)
+            {
+                if (child is SymbolIcon si) icon = si;
+                if (child is System.Windows.Controls.TextBlock tb) label = tb;
+            }
+            return (icon, label);
+        }
+        return (button.Content as SymbolIcon, null);
     }
 
     // ── Window drag ─────────────────────────────────────────────────
