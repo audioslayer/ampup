@@ -304,7 +304,8 @@ public partial class MixerView : UserControl
             {
                 Width = 88,
                 Height = 88,
-                VerticalAlignment = VerticalAlignment.Center
+                VerticalAlignment = VerticalAlignment.Center,
+                ClipToBounds = true
             };
             Grid.SetColumn(knob, 0);
             _knobs[i] = knob;
@@ -312,10 +313,10 @@ public partial class MixerView : UserControl
 
             var vuMeter = new VuMeterControl
             {
-                Width = 10,
-                Height = 60,
+                Width = 8,
+                Height = 56,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(10, 0, 0, 0)
+                Margin = new Thickness(4, 0, 0, 0)
             };
             Grid.SetColumn(vuMeter, 1);
             _vuMeters[i] = vuMeter;
