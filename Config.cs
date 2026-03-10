@@ -14,7 +14,11 @@ public class AppConfig
     public int LedBrightness { get; set; } = 100; // 0-100 global brightness
     public string ActiveProfile { get; set; } = "Default";
     public List<string> Profiles { get; set; } = new() { "Default" };
-    public Dictionary<string, string> ProfileEmojis { get; set; } = new() { { "Default", "🎛" } };
+    public Dictionary<string, string> ProfileEmojis { get; set; } = new(); // deprecated, kept for migration
+    public Dictionary<string, ProfileIconConfig> ProfileIcons { get; set; } = new()
+    {
+        { "Default", new ProfileIconConfig() }
+    };
 
     // Integrations
     public HomeAssistantConfig HomeAssistant { get; set; } = new();
@@ -164,6 +168,13 @@ public static class ConfigManager
             config.Profiles.Add("Default");
         if (string.IsNullOrEmpty(config.ActiveProfile))
             config.ActiveProfile = "Default";
+
+        // Ensure every profile has an icon entry
+        foreach (var p in config.Profiles)
+        {
+            if (!config.ProfileIcons.ContainsKey(p))
+                config.ProfileIcons[p] = new ProfileIconConfig();
+        }
     }
 
     public static void Save(AppConfig config)
@@ -212,6 +223,12 @@ public static class ConfigManager
         }
         return null;
     }
+}
+
+public class ProfileIconConfig
+{
+    public string Symbol { get; set; } = "Speaker224";
+    public string Color { get; set; } = "#00E676";
 }
 
 public class HomeAssistantConfig

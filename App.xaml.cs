@@ -445,11 +445,11 @@ public partial class App : Application
         Logger.Log($"Switched to profile: {profileName}");
 
         // Show OSD for profile switch
-        var emoji = _config.ProfileEmojis.GetValueOrDefault(profileName, "🎛");
         Dispatcher.Invoke(() =>
         {
             _osdOverlay ??= new OsdOverlay();
-            _osdOverlay.ShowProfileSwitch(profileName, emoji);
+            var iconCfg = _config.ProfileIcons.GetValueOrDefault(profileName) ?? new ProfileIconConfig();
+            _osdOverlay.ShowProfileSwitch(profileName, iconCfg);
         });
     }
 

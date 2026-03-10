@@ -102,11 +102,10 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Icon (emoji or symbol) -->
-                <TextBlock x:Name="OsdIcon" Grid.Column="0"
-                           Text="🔊" FontSize="24"
-                           VerticalAlignment="Center"
-                           Margin="0,0,12,0" />
+                <!-- Icon area (TextBlock for volume/device, SymbolIcon for profile) -->
+                <ContentControl x:Name="OsdIconHost" Grid.Column="0"
+                                VerticalAlignment="Center"
+                                Margin="0,0,12,0" />
 
                 <!-- Title -->
                 <TextBlock x:Name="OsdTitle" Grid.Column="1"

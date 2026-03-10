@@ -251,21 +251,52 @@ public partial class MainWindow : FluentWindow
 
     // ── Profile flyout ────────────────────────────────────────────
 
-    // Emoji options for profile picker
-    private static readonly (string Category, string[] Emojis)[] ProfileEmojiCategories =
+    // Icon options for profile picker — Fluent SymbolRegular names
+    private static readonly (string Category, string[] Symbols)[] ProfileIconCategories =
     {
-        ("Audio & Music", new[] { "🎛", "🔊", "🔉", "🔈", "🎵", "🎶", "🎧", "🎤", "🎙", "📻", "🎸", "🥁", "🎹", "🎻", "🎺", "🎷", "🪗", "🪘", "🪕" }),
-        ("Gaming", new[] { "🎮", "🕹", "👾", "🏆", "⚔️", "🛡", "🎯", "🐉", "🧙", "🤖" }),
-        ("Lights & Effects", new[] { "💡", "🔥", "⚡", "✨", "🌈", "💫", "🌟", "⭐", "☀️", "🌙", "❄️", "💎", "🔮", "🪩" }),
-        ("Work & Streaming", new[] { "💻", "🖥", "🎬", "📺", "🎥", "📡", "📢", "🏢", "📝", "📊" }),
-        ("Moods & Vibes", new[] { "🎨", "🚀", "🌊", "🍃", "🌺", "🦊", "🐺", "🦁", "🦅", "🐧" }),
-        ("Fun", new[] { "😎", "🤘", "👑", "💜", "💚", "💙", "🧡", "❤️", "🖤", "🤍" }),
+        ("Audio & Music", new[] {
+            "Speaker224", "Speaker024", "SpeakerMute24", "Headphones24",
+            "MusicNote124", "MusicNote224", "Mic24", "MicOff24"
+        }),
+        ("Gaming & Fun", new[] {
+            "Games24", "Trophy24", "Rocket24", "Star24",
+            "Heart24", "Emoji24", "Bot24", "PersonBoard24"
+        }),
+        ("Lights & Effects", new[] {
+            "LightbulbFilament24", "Flash24", "Sparkle24", "Weather24",
+            "WeatherMoon24", "WeatherSunny24", "Drop24", "Fire24"
+        }),
+        ("Work & Streaming", new[] {
+            "Desktop24", "Laptop24", "Keyboard24", "Video24",
+            "Record24", "Globe24", "Megaphone24", "SlideText24"
+        }),
+        ("Home & System", new[] {
+            "Home24", "Settings24", "Shield24", "Lock24",
+            "Eye24", "Power24", "Bluetooth24", "Wifi124"
+        }),
+    };
+
+    // Color presets for profile icons
+    private static readonly (string Name, string Hex)[] ProfileIconColors =
+    {
+        ("Green",  "#00E676"),
+        ("Cyan",   "#00B4D8"),
+        ("Blue",   "#4FC3F7"),
+        ("Purple", "#BB86FC"),
+        ("Pink",   "#FF4081"),
+        ("Red",    "#FF6B6B"),
+        ("Orange", "#FF7043"),
+        ("Amber",  "#FFB800"),
+        ("Mint",   "#69F0AE"),
+        ("White",  "#E8E8E8"),
     };
 
     private void UpdateProfileButton()
     {
-        var emoji = _config.ProfileEmojis.GetValueOrDefault(_config.ActiveProfile, "🎛");
-        ProfileEmoji.Text = emoji;
+        var icon = _config.ProfileIcons.GetValueOrDefault(_config.ActiveProfile) ?? new ProfileIconConfig();
+        if (Enum.TryParse<Wpf.Ui.Controls.SymbolRegular>(icon.Symbol, out var sym))
+            ProfileIcon.Symbol = sym;
+        try { ProfileIcon.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(icon.Color)); } catch { }
         ProfileLabel.Text = _config.ActiveProfile;
     }
 
@@ -296,31 +327,27 @@ public partial class MainWindow : FluentWindow
         {
             var profileCapture = profile;
             bool isActive = profile == _config.ActiveProfile;
-            var emoji = _config.ProfileEmojis.GetValueOrDefault(profile, "🎛");
+            var iconCfg = _config.ProfileIcons.GetValueOrDefault(profile) ?? new ProfileIconConfig();
 
             var row = new System.Windows.Controls.Grid();
             row.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = System.Windows.GridLength.Auto });
             row.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star) });
             row.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = System.Windows.GridLength.Auto });
 
-            // Emoji button (clickable to change emoji)
-            var emojiBlock = new System.Windows.Controls.TextBlock
-            {
-                Text = emoji,
-                FontSize = 18,
-                VerticalAlignment = VerticalAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Cursor = Cursors.Hand,
-                ToolTip = "Change icon",
-                Margin = new Thickness(0, 0, 8, 0)
-            };
-            emojiBlock.MouseLeftButtonDown += (_, ev) =>
+            // Icon button (clickable to change icon)
+            var iconElement = new SymbolIcon { FontSize = 18, Margin = new Thickness(0, 0, 8, 0) };
+            if (Enum.TryParse<Wpf.Ui.Controls.SymbolRegular>(iconCfg.Symbol, out var sym))
+                iconElement.Symbol = sym;
+            try { iconElement.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(iconCfg.Color)); } catch { }
+            iconElement.Cursor = Cursors.Hand;
+            iconElement.ToolTip = "Change icon";
+            iconElement.MouseLeftButtonDown += (_, ev) =>
             {
                 ev.Handled = true;
-                ShowEmojiPicker(profileCapture, emojiBlock);
+                ShowIconPicker(profileCapture);
             };
-            System.Windows.Controls.Grid.SetColumn(emojiBlock, 0);
-            row.Children.Add(emojiBlock);
+            System.Windows.Controls.Grid.SetColumn(iconElement, 0);
+            row.Children.Add(iconElement);
 
             // Profile name
             var nameBlock = new System.Windows.Controls.TextBlock
@@ -446,12 +473,14 @@ public partial class MainWindow : FluentWindow
         ProfilePopupPanel.Children.Add(addBorder);
     }
 
-    private void ShowEmojiPicker(string profileName, System.Windows.Controls.TextBlock emojiTarget)
+    private void ShowIconPicker(string profileName)
     {
-        // Close profile popup, show emoji picker popup
+        // Close profile popup, show icon picker popup
         ProfilePopup.IsOpen = false;
 
-        var emojiPopup = new System.Windows.Controls.Primitives.Popup
+        var currentIcon = _config.ProfileIcons.GetValueOrDefault(profileName) ?? new ProfileIconConfig();
+
+        var iconPopup = new System.Windows.Controls.Primitives.Popup
         {
             PlacementTarget = ProfileButton,
             Placement = System.Windows.Controls.Primitives.PlacementMode.Right,
@@ -461,46 +490,127 @@ public partial class MainWindow : FluentWindow
             HorizontalOffset = 4
         };
 
-        var outerPanel = new System.Windows.Controls.StackPanel { Margin = new Thickness(4) };
+        var outerPanel = new System.Windows.Controls.StackPanel { Margin = new Thickness(8) };
 
-        foreach (var (category, emojis) in ProfileEmojiCategories)
+        // ── Color swatches at top ──
+        var colorLabel = new System.Windows.Controls.TextBlock
+        {
+            Text = "COLOR",
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (SolidColorBrush)FindResource("TextDimBrush"),
+            Margin = new Thickness(2, 0, 0, 6)
+        };
+        outerPanel.Children.Add(colorLabel);
+
+        var colorWrap = new System.Windows.Controls.WrapPanel { Width = 280 };
+        string selectedColor = currentIcon.Color;
+
+        // We'll track all icon symbols so we can update their color when user picks a new one
+        var allIconElements = new List<SymbolIcon>();
+
+        foreach (var (name, hex) in ProfileIconColors)
+        {
+            var colorHex = hex;
+            var swatch = new System.Windows.Controls.Border
+            {
+                Width = 24, Height = 24,
+                CornerRadius = new CornerRadius(12),
+                Cursor = Cursors.Hand,
+                Margin = new Thickness(2),
+                ToolTip = name,
+                BorderThickness = new Thickness(colorHex == selectedColor ? 2 : 0),
+                BorderBrush = new SolidColorBrush(Colors.White)
+            };
+            try { swatch.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(colorHex)); } catch { }
+
+            swatch.MouseLeftButtonDown += (_, _) =>
+            {
+                selectedColor = colorHex;
+                _config.ProfileIcons[profileName] = new ProfileIconConfig
+                {
+                    Symbol = _config.ProfileIcons.GetValueOrDefault(profileName)?.Symbol ?? "Speaker224",
+                    Color = colorHex
+                };
+                _onConfigChanged?.Invoke(_config);
+                UpdateProfileButton();
+
+                // Update all icon previews in the popup to show the new color
+                var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(colorHex));
+                foreach (var si in allIconElements) si.Foreground = brush;
+
+                // Update swatch borders
+                foreach (System.Windows.Controls.Border child in colorWrap.Children)
+                {
+                    child.BorderThickness = new Thickness(0);
+                }
+                swatch.BorderThickness = new Thickness(2);
+            };
+            colorWrap.Children.Add(swatch);
+        }
+        outerPanel.Children.Add(colorWrap);
+
+        // ── Icon categories ──
+        bool first = true;
+        foreach (var (category, symbols) in ProfileIconCategories)
         {
             var header = new System.Windows.Controls.TextBlock
             {
-                Text = category,
-                FontSize = 10,
+                Text = category.ToUpperInvariant(),
+                FontSize = 9,
+                FontWeight = FontWeights.SemiBold,
                 Foreground = (SolidColorBrush)FindResource("TextDimBrush"),
-                Margin = new Thickness(4, category == ProfileEmojiCategories[0].Category ? 0 : 6, 0, 3)
+                Margin = new Thickness(2, first ? 10 : 8, 0, 4)
             };
+            first = false;
             outerPanel.Children.Add(header);
 
             var wrapPanel = new System.Windows.Controls.WrapPanel { Width = 280 };
-            foreach (var em in emojis)
+            foreach (var symName in symbols)
             {
-                var emojiCapture = em;
+                var symbolCapture = symName;
+                if (!Enum.TryParse<Wpf.Ui.Controls.SymbolRegular>(symName, out var parsedSym))
+                    continue;
+
+                var iconEl = new SymbolIcon
+                {
+                    Symbol = parsedSym,
+                    FontSize = 18,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                try { iconEl.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(selectedColor)); } catch { }
+                allIconElements.Add(iconEl);
+
                 var btn = new System.Windows.Controls.Border
                 {
                     Width = 34, Height = 34,
                     CornerRadius = new CornerRadius(6),
                     Cursor = Cursors.Hand,
-                    Margin = new Thickness(1)
+                    Margin = new Thickness(1),
+                    Child = iconEl,
+                    Background = symbolCapture == currentIcon.Symbol
+                        ? new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A))
+                        : System.Windows.Media.Brushes.Transparent
                 };
-                var txt = new System.Windows.Controls.TextBlock
-                {
-                    Text = em,
-                    FontSize = 17,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-                btn.Child = txt;
                 btn.MouseEnter += (_, _) => btn.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-                btn.MouseLeave += (_, _) => btn.Background = System.Windows.Media.Brushes.Transparent;
+                btn.MouseLeave += (_, _) =>
+                {
+                    var cur = _config.ProfileIcons.GetValueOrDefault(profileName)?.Symbol ?? "";
+                    btn.Background = symbolCapture == cur
+                        ? new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A))
+                        : System.Windows.Media.Brushes.Transparent;
+                };
                 btn.MouseLeftButtonDown += (_, _) =>
                 {
-                    _config.ProfileEmojis[profileName] = emojiCapture;
+                    _config.ProfileIcons[profileName] = new ProfileIconConfig
+                    {
+                        Symbol = symbolCapture,
+                        Color = selectedColor
+                    };
                     _onConfigChanged?.Invoke(_config);
                     UpdateProfileButton();
-                    emojiPopup.IsOpen = false;
+                    iconPopup.IsOpen = false;
                 };
                 wrapPanel.Children.Add(btn);
             }
@@ -518,7 +628,7 @@ public partial class MainWindow : FluentWindow
             {
                 Content = outerPanel,
                 VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
-                MaxHeight = 400
+                MaxHeight = 460
             },
             Effect = new System.Windows.Media.Effects.DropShadowEffect
             {
@@ -526,8 +636,8 @@ public partial class MainWindow : FluentWindow
             }
         };
 
-        emojiPopup.Child = popupBorder;
-        emojiPopup.IsOpen = true;
+        iconPopup.Child = popupBorder;
+        iconPopup.IsOpen = true;
     }
 
     private void SwitchToProfile(string profileName)
@@ -540,7 +650,7 @@ public partial class MainWindow : FluentWindow
         {
             loaded.ActiveProfile = profileName;
             loaded.Profiles = _config.Profiles;
-            loaded.ProfileEmojis = _config.ProfileEmojis;
+            loaded.ProfileIcons = _config.ProfileIcons;
             _config = loaded;
         }
         else
@@ -570,7 +680,7 @@ public partial class MainWindow : FluentWindow
             }
 
             _config.Profiles.Add(name);
-            _config.ProfileEmojis[name] = "🎛";
+            _config.ProfileIcons[name] = new ProfileIconConfig();
             _config.ActiveProfile = name;
             _onConfigChanged?.Invoke(_config);
             ConfigManager.SaveProfile(_config, name);
@@ -590,7 +700,7 @@ public partial class MainWindow : FluentWindow
         if (result != System.Windows.MessageBoxResult.Yes) return;
 
         _config.Profiles.Remove(profileName);
-        _config.ProfileEmojis.Remove(profileName);
+        _config.ProfileIcons.Remove(profileName);
 
         // Delete profile file
         var configDir = System.IO.Path.Combine(

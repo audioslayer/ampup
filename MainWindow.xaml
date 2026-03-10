@@ -115,11 +115,12 @@
                             BorderThickness="1" Margin="12,12,12,8" Cursor="Hand" ToolTip="Switch profile"
                             MouseLeftButtonUp="ProfileButton_Click">
                         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <TextBlock x:Name="ProfileEmoji" Text="🎛" FontSize="20"
-                                       HorizontalAlignment="Center" />
+                            <ui:SymbolIcon x:Name="ProfileIcon" Symbol="Speaker224" FontSize="22"
+                                           Foreground="{StaticResource AccentBrush}"
+                                           HorizontalAlignment="Center" />
                             <TextBlock x:Name="ProfileLabel" Text="Default" FontSize="7"
                                        Foreground="{StaticResource TextDimBrush}"
-                                       HorizontalAlignment="Center" Margin="0,1,0,0"
+                                       HorizontalAlignment="Center" Margin="0,2,0,0"
                                        TextTrimming="CharacterEllipsis" MaxWidth="48" TextAlignment="Center" />
                         </StackPanel>
                     </Border>
