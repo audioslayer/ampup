@@ -89,8 +89,15 @@ public class RgbController : IDisposable
 
     /// <summary>
     /// Set global brightness (0-100). Applied as final multiplier on all RGB values.
+    /// The hardware has a dead zone below ~33% where LEDs can't display,
+    /// so we remap 1-100% to 33-100% device brightness. 0% = off.
     /// </summary>
-    public void SetBrightness(int pct) => _brightness = Math.Clamp(pct, 0, 100);
+    public void SetBrightness(int pct)
+    {
+        pct = Math.Clamp(pct, 0, 100);
+        // Remap: 0=off, 1-100 → 33-100 (hardware minimum threshold)
+        _brightness = pct == 0 ? 0 : 33 + pct * 67 / 100;
+    }
 
     /// <summary>
     /// Store reference to current light configs (called when config changes).
