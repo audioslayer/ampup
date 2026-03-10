@@ -346,8 +346,8 @@ public partial class App : Application
                 _mixer.SetVolume(knob, e.Value);
             }
 
-            // Show OSD overlay when main window is not visible and volume OSD is enabled
-            if (_mainWindow != null && !_mainWindow.IsVisible && _config.Osd.ShowVolume)
+            // Show OSD overlay when volume OSD is enabled
+            if (_config.Osd.ShowVolume)
             {
                 float pct = e.Value / 1023f;
                 // Apply min/max range
