@@ -160,7 +160,7 @@
                             </Button>
                             <Button x:Name="NavButtons" Style="{StaticResource NavButton}" Click="NavButtons_Click">
                                 <StackPanel HorizontalAlignment="Center">
-                                    <ui:SymbolIcon Symbol="Cursor24" FontSize="20" Foreground="White" HorizontalAlignment="Center" />
+                                    <ui:SymbolIcon Symbol="KeyboardShiftUppercase24" FontSize="20" Foreground="White" HorizontalAlignment="Center" />
                                     <TextBlock x:Name="NavButtonsLabel" Text="Buttons" FontSize="9" Foreground="{StaticResource TextDimBrush}"
                                                HorizontalAlignment="Center" Margin="0,3,0,0" />
                                 </StackPanel>
