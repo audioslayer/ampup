@@ -255,7 +255,7 @@ public enum OsdPosition
 
 public class ProfileIconConfig
 {
-    public string Symbol { get; set; } = "Speaker224";
+    public string Symbol { get; set; } = "Person24";
     public string Color { get; set; } = "#00E676";
 }
 

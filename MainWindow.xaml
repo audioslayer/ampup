@@ -124,7 +124,7 @@
                             <DropShadowEffect Color="#00E676" BlurRadius="16" Opacity="0.3" ShadowDepth="0" />
                         </Border.Effect>
                         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <ui:SymbolIcon x:Name="ProfileIcon" Symbol="Speaker224" FontSize="22"
+                            <ui:SymbolIcon x:Name="ProfileIcon" Symbol="Person24" FontSize="22"
                                            Foreground="{StaticResource AccentBrush}"
                                            HorizontalAlignment="Center" />
                             <TextBlock x:Name="ProfileLabel" Text="Default" FontSize="7"
