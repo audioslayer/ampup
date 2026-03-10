@@ -2,10 +2,10 @@
 ; Download Inno Setup from https://jrsoftware.org/isinfo.php
 
 #define MyAppName "Amp Up"
-#define MyAppVersion "0.1-alpha"
+#define MyAppVersion "0.3-alpha"
 #define MyAppPublisher "Tyson Wolf"
 #define MyAppExeName "AmpUp.exe"
-#define MyAppURL "https://github.com/audioslayer/wolfmixer"
+#define MyAppURL "https://github.com/audioslayer/ampup"
 
 [Setup]
 AppId={{E7B3F2A1-9C4D-4E8F-B6A2-1D3F5E7A9B0C}
@@ -26,6 +26,7 @@ PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayName={#MyAppName}
+UninstallDisplayIcon={app}\ampup.ico
 SetupIconFile=..\Assets\ampup.ico
 
 [Languages]
@@ -38,11 +39,13 @@ Name: "startupentry"; Description: "Start Amp Up with Windows"; GroupDescription
 [Files]
 ; Include all published files from the self-contained publish output
 Source: "..\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Include icon file for shortcuts
+Source: "..\Assets\ampup.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\ampup.ico"
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\ampup.ico"; Tasks: desktopicon
 
 [Registry]
 ; Optional startup entry

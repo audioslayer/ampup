@@ -45,6 +45,6 @@ if errorlevel 1 (
 echo.
 echo ============================================
 echo   Done! Installer at:
-echo   installer\output\AmpUp-Setup-0.1-alpha.exe
+echo   installer\output\AmpUp-Setup-0.3-alpha.exe
 echo ============================================
 pause

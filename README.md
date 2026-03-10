@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.2--alpha-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.3--alpha-blue" alt="Version" />
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6" alt="Platform" />
   <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8" />
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License" />
@@ -84,7 +84,7 @@ Amp Up is a community-built alternative for the Turn Up USB mixer with a modern 
 ## Install
 
 ### Installer (Recommended)
-1. Download `AmpUp-Setup-0.2-alpha.exe` from [Releases](https://github.com/audioslayer/ampup/releases)
+1. Download `AmpUp-Setup-0.3-alpha.exe` from [Releases](https://github.com/audioslayer/ampup/releases)
 2. Run the installer
 3. Amp Up appears in your system tray
 

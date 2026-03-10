@@ -8,7 +8,7 @@ namespace WolfMixer;
 
 public static class UpdateChecker
 {
-    public const string CurrentVersion = "0.2-alpha";
+    public const string CurrentVersion = "0.3-alpha";
     private const string GitHubRepo = "audioslayer/ampup";
     private static readonly HttpClient _http = new();
 
