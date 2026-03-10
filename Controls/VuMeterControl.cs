@@ -2,7 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Media;
 
-namespace WolfMixer.Controls
+namespace AmpUp.Controls
 {
     /// <summary>
     /// 16-segment vertical VU meter using DrawingVisual children.

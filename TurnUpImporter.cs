@@ -1,7 +1,7 @@
 using System.IO;
 using Newtonsoft.Json;
 
-namespace WolfMixer;
+namespace AmpUp;
 
 // ── Turn Up config DTOs ────────────────────────────────────────────
 

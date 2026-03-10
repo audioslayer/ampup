@@ -4,7 +4,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 
-namespace WolfMixer.Controls;
+namespace AmpUp.Controls;
 
 /// <summary>
 /// A dual-thumb range slider for selecting min/max volume.

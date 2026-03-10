@@ -2,7 +2,7 @@ using System.IO;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 
-namespace WolfMixer;
+namespace AmpUp;
 
 public class AppConfig
 {

@@ -1,4 +1,4 @@
-# WolfMixer UI/UX Design Spec — Overnight Overhaul
+# AmpUp UI/UX Design Spec — Overnight Overhaul
 
 ## Vision
 Premium dark-theme audio mixer app. Think Elgato Wave Link meets a high-end hardware controller.
@@ -194,7 +194,7 @@ Right column:
 - "PROFILES" section: active profile dropdown, Save, New, Delete buttons, profile list
 
 Footer strip (bottom of Settings):
-- Version: "WolfMixer v1.0.0"
+- Version: "AmpUp v1.0.0"
 - GitHub link text
 - Log file link
 
@@ -218,7 +218,7 @@ Current:
 - Exit
 
 New:
-- "🐺 WolfMixer" (header label, non-clickable)
+- "🐺 AmpUp" (header label, non-clickable)
 - ---
 - Live volume display (5 items, non-clickable, updated every 500ms):
   "◈ Master      ████░░  72%"
@@ -234,7 +234,7 @@ New:
 ## Deploy Instructions (for README)
 
 After running agents, update CLAUDE.md with new design notes.
-Morning deployment: run deploy.bat from C:\Users\audio\Desktop\WolfMixer\
+Morning deployment: run deploy.bat from C:\Users\audio\Desktop\AmpUp\
 
 ## Implementation Notes for Agents
 

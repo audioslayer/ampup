@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using NAudio.CoreAudioApi;
 
-namespace WolfMixer;
+namespace AmpUp;
 
 public class ButtonHandler
 {

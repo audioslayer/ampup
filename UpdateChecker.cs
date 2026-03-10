@@ -4,7 +4,7 @@ using System.Net.Http;
 using System.Windows;
 using Newtonsoft.Json.Linq;
 
-namespace WolfMixer;
+namespace AmpUp;
 
 public static class UpdateChecker
 {

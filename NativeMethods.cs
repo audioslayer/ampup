@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace WolfMixer;
+namespace AmpUp;
 
 internal static class NativeMethods
 {

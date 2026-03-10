@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace WolfMixer;
+namespace AmpUp;
 
 public static class Logger
 {

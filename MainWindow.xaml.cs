@@ -3,9 +3,9 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Wpf.Ui.Controls;
-using WolfMixer.Views;
+using AmpUp.Views;
 
-namespace WolfMixer;
+namespace AmpUp;
 
 public partial class MainWindow : FluentWindow
 {

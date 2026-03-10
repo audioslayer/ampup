@@ -1,6 +1,6 @@
-# WolfMixer — Claude Code Context
+# AmpUp — Claude Code Context
 
-WolfMixer is a C# .NET 8 WPF app that replaces the "Turn Up" USB volume mixer app.
+AmpUp is a C# .NET 8 WPF app that replaces the "Turn Up" USB volume mixer app.
 It reads serial events from the Turn Up hardware and maps them to Windows per-app audio volume control.
 Uses WPF-UI (FluentWindow, Mica backdrop) with a glassmorphism dark theme, sidebar navigation, and code-behind pattern (no MVVM).
 
@@ -36,7 +36,7 @@ All frames are wrapped with `0xFE` (start) and `0xFF` (end).
 Single `.exe`, no installer, no service.
 
 ```
-WolfMixer.csproj              .NET 8 WPF, WPF-UI + NAudio + Newtonsoft.Json + System.IO.Ports
+AmpUp.csproj              .NET 8 WPF, WPF-UI + NAudio + Newtonsoft.Json + System.IO.Ports
 App.xaml / App.xaml.cs         WPF Application entry point, backend orchestration, single-instance mutex
 MainWindow.xaml / .cs          FluentWindow with Mica, sidebar nav, connection status pulse animation
 Theme.xaml                     Glassmorphism color palette, card/text styles, nav/hover animations
@@ -58,7 +58,7 @@ RgbController.cs               RGB effects engine — 9 effects, 20 FPS animatio
 MonitorBrightness.cs           DDC/CI physical monitor brightness via dxva2.dll
 NativeMethods.cs               Consolidated P/Invoke declarations (user32, PowrProf)
 Config.cs                      Loads/saves config.json + profile system (Newtonsoft.Json)
-Logger.cs                      Appends to wolfmixer.log next to exe
+Logger.cs                      Appends to ampup.log next to exe
 config.json                    User config — knob targets, button actions, RGB effects, profiles
 ```
 
@@ -199,7 +199,7 @@ Each button supports 3 gestures (15 total bindings):
 ```powershell
 dotnet build
 dotnet run
-# Exe at: bin\Debug\net8.0-windows\WolfMixer.exe
+# Exe at: bin\Debug\net8.0-windows\AmpUp.exe
 ```
 
 **Requirements:** .NET 8 SDK
@@ -215,7 +215,7 @@ taskkill /f /im TurnUpService.exe
 ## Known Issues / Gotchas
 
 - **config.json is read from next to the `.exe`**, not the project root
-- **Single instance:** Only one WolfMixer can run. Check Task Manager for stale process.
+- **Single instance:** Only one AmpUp can run. Check Task Manager for stale process.
 - **`any` target** picks first audio session — may not be expected one
 - **Knob debounce threshold is 5 raw units** — lower in `AudioMixer.cs` if sluggish
 - **Single-press has ~300ms latency** — intentional for double-press detection
@@ -251,10 +251,10 @@ Glassmorphism dark theme defined in `Theme.xaml`. See Color Palette below.
 
 | File | Path |
 |---|---|
-| Project source | `C:\Users\audio\Desktop\WolfMixer\` |
-| Built exe | `C:\Users\audio\Desktop\WolfMixer\bin\Debug\net8.0-windows\WolfMixer.exe` |
-| Runtime config | `C:\Users\audio\Desktop\WolfMixer\bin\Debug\net8.0-windows\config.json` |
-| Log file | `C:\Users\audio\Desktop\WolfMixer\bin\Debug\net8.0-windows\wolfmixer.log` |
+| Project source | `C:\Users\audio\Desktop\AmpUp\` |
+| Built exe | `C:\Users\audio\Desktop\AmpUp\bin\Debug\net8.0-windows\AmpUp.exe` |
+| Runtime config | `C:\Users\audio\Desktop\AmpUp\bin\Debug\net8.0-windows\config.json` |
+| Log file | `C:\Users\audio\Desktop\AmpUp\bin\Debug\net8.0-windows\ampup.log` |
 | Turn Up install | `C:\Program Files (x86)\Turn Up\` |
 | Turn Up DLLs | `C:\Program Files (x86)\Turn Up\service\` (TurnUpBox.dll, CSCore.dll, etc.) |
 
@@ -290,10 +290,10 @@ Full rewrite from WinForms to WPF with glassmorphism dark theme.
 
 ### Deploy Workflow
 
-Run `deploy.bat` from the project folder on the Windows PC (`C:\Users\audio\Desktop\WolfMixer\`):
+Run `deploy.bat` from the project folder on the Windows PC (`C:\Users\audio\Desktop\AmpUp\`):
 1. Pulls latest from GitHub
 2. Builds with `dotnet build -c Debug`
-3. Kills any running WolfMixer.exe
+3. Kills any running AmpUp.exe
 4. Launches the new build
 
 ### Color Palette Reference (Theme.xaml)

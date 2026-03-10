@@ -5,7 +5,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Wpf.Ui.Controls;
 
-namespace WolfMixer;
+namespace AmpUp;
 
 public partial class OsdOverlay : Window
 {

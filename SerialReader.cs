@@ -1,6 +1,6 @@
 using System.IO.Ports;
 
-namespace WolfMixer;
+namespace AmpUp;
 
 public class KnobEvent { public int Idx; public int Value; }
 public class ButtonEvent { public int Idx; public bool IsDown; }

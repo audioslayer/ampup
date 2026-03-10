@@ -3,5 +3,5 @@
 [
   { "key": "f5", "command": "workbench.action.tasks.runTask", "args": "Deploy & Test on PC" },
   { "key": "f6", "command": "workbench.action.tasks.runTask", "args": "Build on PC" },
-  { "key": "f7", "command": "workbench.action.tasks.runTask", "args": "Kill WolfMixer on PC" }
+  { "key": "f7", "command": "workbench.action.tasks.runTask", "args": "Kill AmpUp on PC" }
 ]

@@ -1,6 +1,6 @@
 using NAudio.CoreAudioApi;
 
-namespace WolfMixer;
+namespace AmpUp;
 
 public class AudioMixer : IDisposable
 {

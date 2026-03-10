@@ -8,7 +8,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 
-namespace WolfMixer.Controls;
+namespace AmpUp.Controls;
 
 /// <summary>
 /// A modern flyout picker — Wave Link / SteelSeries Sonar inspired.

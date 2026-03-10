@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>AmpUp</AssemblyName>
-    <RootNamespace>WolfMixer</RootNamespace>
+    <RootNamespace>AmpUp</RootNamespace>
     <ApplicationManifest>Assets\app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\ampup.ico</ApplicationIcon>
   </PropertyGroup>

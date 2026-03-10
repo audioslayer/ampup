@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace WolfMixer;
+namespace AmpUp;
 
 /// <summary>
 /// Controls physical monitor brightness via DDC/CI (Monitor Control Command Set).

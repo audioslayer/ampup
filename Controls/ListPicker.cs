@@ -7,7 +7,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 
-namespace WolfMixer.Controls;
+namespace AmpUp.Controls;
 
 /// <summary>
 /// SteelSeries Sonar-inspired list picker — styled trigger button that opens

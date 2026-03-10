@@ -4,7 +4,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
-namespace WolfMixer.Controls
+namespace AmpUp.Controls
 {
     public class AnimatedKnobControl : FrameworkElement
     {

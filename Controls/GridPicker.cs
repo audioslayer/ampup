@@ -7,7 +7,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 
-namespace WolfMixer.Controls;
+namespace AmpUp.Controls;
 
 /// <summary>
 /// A categorized grid picker — SteelSeries Sonar / Wave Link inspired.

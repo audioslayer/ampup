@@ -1,6 +1,6 @@
 using System.IO.Ports;
 
-namespace WolfMixer;
+namespace AmpUp;
 
 /// <summary>
 /// Controls the Turn Up device's RGB lighting via serial.

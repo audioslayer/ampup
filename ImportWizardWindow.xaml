@@ -1,4 +1,4 @@
-<Window x:Class="WolfMixer.ImportWizardWindow"
+<Window x:Class="AmpUp.ImportWizardWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None"

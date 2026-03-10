@@ -3,7 +3,7 @@ using System.Windows;
 using Microsoft.Win32;
 using Forms = System.Windows.Forms;
 
-namespace WolfMixer;
+namespace AmpUp;
 
 public partial class App : Application
 {

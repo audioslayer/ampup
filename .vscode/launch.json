@@ -2,20 +2,20 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "WolfMixer (Debug)",
+      "name": "AmpUp (Debug)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "program": "${workspaceFolder}/bin/Debug/net8.0-windows/WolfMixer.exe",
+      "program": "${workspaceFolder}/bin/Debug/net8.0-windows/AmpUp.exe",
       "cwd": "${workspaceFolder}",
       "console": "internalConsole",
       "stopAtEntry": false
     },
     {
-      "name": "WolfMixer (Attach)",
+      "name": "AmpUp (Attach)",
       "type": "coreclr",
       "request": "attach",
-      "processName": "WolfMixer"
+      "processName": "AmpUp"
     }
   ]
 }

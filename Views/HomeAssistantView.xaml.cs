@@ -2,7 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
-namespace WolfMixer.Views;
+namespace AmpUp.Views;
 
 public partial class HomeAssistantView : UserControl
 {

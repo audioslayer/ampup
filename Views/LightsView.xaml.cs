@@ -7,7 +7,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 
-namespace WolfMixer.Views;
+namespace AmpUp.Views;
 
 public partial class LightsView : UserControl
 {
