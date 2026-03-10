@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amp Up — Icon Vote</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0F0F0F;
+    color: #E8E8E8;
+    font-family: -apple-system, 'Segoe UI', sans-serif;
+    padding: 2rem;
+  }
+  h1 {
+    text-align: center;
+    font-size: 2rem;
+    margin-bottom: .25rem;
+    color: #00B4D8;
+  }
+  .subtitle {
+    text-align: center;
+    color: #9A9A9A;
+    margin-bottom: 2rem;
+    font-size: .95rem;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .card {
+    background: #1C1C1C;
+    border: 2px solid #2A2A2A;
+    border-radius: 16px;
+    padding: 1.25rem;
+    text-align: center;
+    transition: border-color .2s, transform .15s, box-shadow .2s;
+    cursor: pointer;
+    position: relative;
+  }
+  .card:hover {
+    border-color: #00B4D8;
+    transform: translateY(-4px);
+    box-shadow: 0 8px 32px rgba(0, 180, 216, .15);
+  }
+  .card.selected {
+    border-color: #00E5FF;
+    box-shadow: 0 0 24px rgba(0, 229, 255, .25);
+  }
+  .card.selected::after {
+    content: '★';
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    font-size: 1.5rem;
+    color: #00E5FF;
+  }
+  .card img {
+    width: 100%;
+    max-width: 240px;
+    height: auto;
+    border-radius: 12px;
+    margin-bottom: .75rem;
+    background: #000;
+  }
+  .card .number {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #00B4D8;
+  }
+  .card .label {
+    color: #9A9A9A;
+    font-size: .85rem;
+    margin-top: .25rem;
+  }
+  .results {
+    text-align: center;
+    margin-top: 2rem;
+    padding: 1rem;
+    background: #1C1C1C;
+    border-radius: 12px;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+    display: none;
+  }
+  .results.show { display: block; }
+  .results h2 { color: #00E5FF; margin-bottom: .5rem; }
+  .results p { color: #9A9A9A; }
+</style>
+</head>
+<body>
+
+<h1>⚡ Amp Up — Icon Vote</h1>
+<p class="subtitle">Click your favorites (you can pick multiple). Tell Howl which numbers you like!</p>
+
+<div class="grid">
+
+  <div class="card" onclick="toggle(this)">
+    <img src="icon-01-minimal-knob.png" alt="Icon 1">
+    <div class="number">#1</div>
+    <div class="label">Minimal Knob — single cyan dial</div>
+  </div>
+
+  <div class="card" onclick="toggle(this)">
+    <img src="icon-02-faders.png" alt="Icon 2">
+    <div class="number">#2</div>
+    <div class="label">Faders — EQ bars, neon cyan</div>
+  </div>
+
+  <div class="card" onclick="toggle(this)">
+    <img src="icon-03-amp-arrow.png" alt="Icon 3">
+    <div class="number">#3</div>
+    <div class="label">Amp Arrow — sound wave chevron</div>
+  </div>
+
+  <div class="card" onclick="toggle(this)">
+    <img src="icon-04-3d-knob.png" alt="Icon 4">
+    <div class="number">#4</div>
+    <div class="label">3D Knob — photorealistic render</div>
+  </div>
+
+  <div class="card" onclick="toggle(this)">
+    <img src="icon-05-waveform.png" alt="Icon 5">
+    <div class="number">#5</div>
+    <div class="label">Waveform — geometric soundwave</div>
+  </div>
+
+  <div class="card" onclick="toggle(this)">
+    <img src="icon-06-lightning-speaker.png" alt="Icon 6">
+    <div class="number">#6</div>
+    <div class="label">Lightning Speaker — bolt + cone</div>
+  </div>
+
+  <div class="card" onclick="toggle(this)">
+    <img src="icon-07-five-knobs.png" alt="Icon 7">
+    <div class="number">#7</div>
+    <div class="label">Five Knobs — LED rings, carbon</div>
+  </div>
+
+  <div class="card" onclick="toggle(this)">
+    <img src="icon-08-vu-letter.png" alt="Icon 8">
+    <div class="number">#8</div>
+    <div class="label">VU Letter — "A" as VU meter</div>
+  </div>
+
+  <div class="card" onclick="toggle(this)">
+    <img src="icon-09-front-dial.png" alt="Icon 9">
+    <div class="number">#9</div>
+    <div class="label">Front Dial — clean pointer + LED ring</div>
+  </div>
+
+  <div class="card" onclick="toggle(this)">
+    <img src="icon-10-wolf-audio.png" alt="Icon 10">
+    <div class="number">#10</div>
+    <div class="label">Wolf Audio — wolf head from soundwaves</div>
+  </div>
+
+</div>
+
+<div class="results" id="results">
+  <h2>Your picks</h2>
+  <p id="picks"></p>
+</div>
+
+<script>
+function toggle(card) {
+  card.classList.toggle('selected');
+  const sel = [...document.querySelectorAll('.card.selected')]
+    .map(c => c.querySelector('.number').textContent);
+  const r = document.getElementById('results');
+  const p = document.getElementById('picks');
+  if (sel.length) {
+    r.classList.add('show');
+    p.textContent = sel.join(', ');
+  } else {
+    r.classList.remove('show');
+  }
+}
+</script>
+
+</body>
+</html>
