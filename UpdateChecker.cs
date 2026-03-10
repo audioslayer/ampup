@@ -87,11 +87,13 @@ public static class UpdateChecker
 
         Logger.Log($"Update downloaded to {tempPath}, launching installer...");
 
-        // Launch the installer silently and exit
+        // Launch a helper cmd that waits for us to exit, then runs the installer
         Process.Start(new ProcessStartInfo
         {
-            FileName = tempPath,
-            UseShellExecute = true
+            FileName = "cmd.exe",
+            Arguments = $"/c timeout /t 2 /nobreak >nul & \"{tempPath}\"",
+            UseShellExecute = false,
+            CreateNoWindow = true
         });
 
         // Shut down the app so the installer can replace files
