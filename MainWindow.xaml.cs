@@ -101,8 +101,7 @@ public partial class MainWindow : FluentWindow
             if (loaded != null)
             {
                 loaded.ActiveProfile = profileName;
-                loaded.Profiles = _config.Profiles;
-                loaded.ProfileIcons = _config.ProfileIcons;
+                PreserveGlobalSettings(loaded);
                 _config = loaded;
                 _onConfigChanged?.Invoke(_config);
                 RefreshViews();
@@ -660,6 +659,19 @@ public partial class MainWindow : FluentWindow
         iconPopup.IsOpen = true;
     }
 
+    /// <summary>
+    /// Carry over global settings from current config to a loaded profile.
+    /// </summary>
+    private void PreserveGlobalSettings(AppConfig loaded)
+    {
+        loaded.Osd = _config.Osd;
+        loaded.Serial = _config.Serial;
+        loaded.StartWithWindows = _config.StartWithWindows;
+        loaded.HomeAssistant = _config.HomeAssistant;
+        loaded.Profiles = _config.Profiles;
+        loaded.ProfileIcons = _config.ProfileIcons;
+    }
+
     private void SwitchToProfile(string profileName)
     {
         // Save current profile before switching
@@ -669,8 +681,7 @@ public partial class MainWindow : FluentWindow
         if (loaded != null)
         {
             loaded.ActiveProfile = profileName;
-            loaded.Profiles = _config.Profiles;
-            loaded.ProfileIcons = _config.ProfileIcons;
+            PreserveGlobalSettings(loaded);
             _config = loaded;
         }
         else

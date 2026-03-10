@@ -104,6 +104,20 @@ public partial class SettingsView : UserControl
         _debounceTimer.Start();
     }
 
+    /// <summary>
+    /// Carry over global settings (OSD, serial, startup, integrations) from current config to a loaded profile.
+    /// </summary>
+    private void PreserveGlobalSettings(AppConfig loaded)
+    {
+        if (_config == null) return;
+        loaded.Osd = _config.Osd;
+        loaded.Serial = _config.Serial;
+        loaded.StartWithWindows = _config.StartWithWindows;
+        loaded.HomeAssistant = _config.HomeAssistant;
+        loaded.Profiles = _config.Profiles;
+        loaded.ProfileIcons = _config.ProfileIcons;
+    }
+
     private void OnProfileSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_loading || _config == null || CmbProfiles.SelectedItem == null) return;
@@ -118,8 +132,7 @@ public partial class SettingsView : UserControl
         if (loaded != null)
         {
             loaded.ActiveProfile = selected;
-            loaded.Profiles = _config.Profiles;
-            loaded.ProfileIcons = _config.ProfileIcons;
+            PreserveGlobalSettings(loaded);
             _config = loaded;
             _onSave?.Invoke(_config);
             LoadConfig(_config, _onSave!);
@@ -186,8 +199,7 @@ public partial class SettingsView : UserControl
         if (loaded != null)
         {
             loaded.ActiveProfile = profileName;
-            loaded.Profiles = _config.Profiles;
-            loaded.ProfileIcons = _config.ProfileIcons;
+            PreserveGlobalSettings(loaded);
             _config = loaded;
             _onSave?.Invoke(_config);
             LoadConfig(_config, _onSave!);
@@ -279,8 +291,7 @@ public partial class SettingsView : UserControl
             if (loaded != null)
             {
                 loaded.ActiveProfile = profileName;
-                loaded.Profiles = _config.Profiles;
-                loaded.ProfileIcons = _config.ProfileIcons;
+                PreserveGlobalSettings(loaded);
                 _config = loaded;
                 _onSave?.Invoke(_config);
                 LoadConfig(_config, _onSave!);

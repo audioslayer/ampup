@@ -475,8 +475,22 @@ public partial class App : Application
             return;
         }
 
+        // Preserve global settings that shouldn't change per-profile
+        var osd = _config.Osd;
+        var serial = _config.Serial;
+        var startWithWindows = _config.StartWithWindows;
+        var ha = _config.HomeAssistant;
+        var profiles = _config.Profiles;
+        var profileIcons = _config.ProfileIcons;
+
         _config = profile;
         _config.ActiveProfile = profileName;
+        _config.Osd = osd;
+        _config.Serial = serial;
+        _config.StartWithWindows = startWithWindows;
+        _config.HomeAssistant = ha;
+        _config.Profiles = profiles;
+        _config.ProfileIcons = profileIcons;
         ConfigManager.Save(_config);
         ApplyRgbConfig();
         Logger.Log($"Switched to profile: {profileName}");
