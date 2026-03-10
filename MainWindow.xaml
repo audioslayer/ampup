@@ -49,32 +49,6 @@
                 </TextBlock>
             </StackPanel>
 
-            <!-- Profile Picker -->
-            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
-                        Margin="0,0,16,0">
-                <TextBlock Text="PROFILE" FontSize="9" FontWeight="SemiBold"
-                           Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                <ComboBox x:Name="CmbHeaderProfile" Width="150" Height="26" FontSize="11"
-                          Background="{StaticResource InputBgBrush}"
-                          BorderBrush="{StaticResource CardBorderBrush}"
-                          Foreground="{StaticResource TextPrimaryBrush}"
-                          SelectionChanged="CmbHeaderProfile_Changed" />
-                <Border x:Name="BtnAddProfile" Width="26" Height="26" CornerRadius="4" Margin="4,0,0,0"
-                        Background="{StaticResource InputBgBrush}" BorderBrush="{StaticResource CardBorderBrush}"
-                        BorderThickness="1" Cursor="Hand" ToolTip="New profile"
-                        MouseLeftButtonDown="BtnAddProfile_Click">
-                    <TextBlock Text="+" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextSecBrush}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-2,0,0" />
-                </Border>
-                <Border x:Name="BtnDeleteProfile" Width="26" Height="26" CornerRadius="4" Margin="2,0,0,0"
-                        Background="{StaticResource InputBgBrush}" BorderBrush="{StaticResource CardBorderBrush}"
-                        BorderThickness="1" Cursor="Hand" ToolTip="Delete profile"
-                        MouseLeftButtonDown="BtnDeleteProfile_Click">
-                    <TextBlock Text="✕" FontSize="9" Foreground="{StaticResource TextSecBrush}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                </Border>
-            </StackPanel>
-
             <!-- Connection Status + Window Controls -->
             <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,12,0" VerticalAlignment="Center">
                 <Ellipse x:Name="ConnectionDot" Width="8" Height="8" Fill="{StaticResource TextDimBrush}" Margin="0,0,8,0" />
@@ -129,7 +103,41 @@
             <!-- Sidebar Navigation -->
             <Border Grid.Column="0" Background="{StaticResource BgBaseBrush}"
                     BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,0,1,0">
-                <StackPanel Margin="0,12,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Profile button at top of sidebar -->
+                    <Border x:Name="ProfileButton" Grid.Row="0" Width="52" Height="52" CornerRadius="10"
+                            Background="{StaticResource CardBgBrush}" BorderBrush="{StaticResource CardBorderBrush}"
+                            BorderThickness="1" Margin="12,12,12,8" Cursor="Hand" ToolTip="Switch profile"
+                            MouseLeftButtonDown="ProfileButton_Click">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock x:Name="ProfileEmoji" Text="🎛" FontSize="20"
+                                       HorizontalAlignment="Center" />
+                            <TextBlock x:Name="ProfileLabel" Text="Default" FontSize="7"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       HorizontalAlignment="Center" Margin="0,1,0,0"
+                                       TextTrimming="CharacterEllipsis" MaxWidth="48" TextAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Profile flyout popup -->
+                    <Popup x:Name="ProfilePopup" PlacementTarget="{Binding ElementName=ProfileButton}"
+                           Placement="Right" StaysOpen="False" AllowsTransparency="True"
+                           PopupAnimation="Fade" HorizontalOffset="4">
+                        <Border x:Name="ProfilePopupBorder" Background="#FF151515" BorderBrush="{StaticResource CardBorderBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="6" MinWidth="200">
+                            <Border.Effect>
+                                <DropShadowEffect Color="Black" BlurRadius="24" Opacity="0.6" ShadowDepth="6" />
+                            </Border.Effect>
+                            <StackPanel x:Name="ProfilePopupPanel" />
+                        </Border>
+                    </Popup>
+
+                    <StackPanel Grid.Row="1" Margin="0,4,0,0">
                     <Button x:Name="NavMixer" Style="{StaticResource NavButton}" Click="NavMixer_Click">
                         <StackPanel HorizontalAlignment="Center">
                             <ui:SymbolIcon Symbol="Speaker224" FontSize="20" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Center" />
@@ -165,7 +173,8 @@
                                        HorizontalAlignment="Center" Margin="0,3,0,0" />
                         </StackPanel>
                     </Button>
-                </StackPanel>
+                    </StackPanel>
+                </Grid>
             </Border>
 
             <!-- Content Area -->

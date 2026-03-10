@@ -101,6 +101,7 @@ public partial class SettingsView : UserControl
         {
             loaded.ActiveProfile = selected;
             loaded.Profiles = _config.Profiles;
+            loaded.ProfileEmojis = _config.ProfileEmojis;
             _config = loaded;
             _onSave?.Invoke(_config);
             LoadConfig(_config, _onSave!);
@@ -164,6 +165,7 @@ public partial class SettingsView : UserControl
         {
             loaded.ActiveProfile = profileName;
             loaded.Profiles = _config.Profiles;
+            loaded.ProfileEmojis = _config.ProfileEmojis;
             _config = loaded;
             _onSave?.Invoke(_config);
             LoadConfig(_config, _onSave!);
