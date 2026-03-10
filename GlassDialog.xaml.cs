@@ -8,9 +8,9 @@ namespace WolfMixer;
 
 public partial class GlassDialog : Window
 {
-    public enum DialogResult { OK, Yes, No, Cancel }
+    public enum GlassResult { OK, Yes, No, Cancel }
 
-    public DialogResult Result { get; private set; } = DialogResult.Cancel;
+    public GlassResult Result { get; private set; } = GlassResult.Cancel;
 
     private GlassDialog()
     {
@@ -79,7 +79,7 @@ public partial class GlassDialog : Window
         if (owner != null) dlg.Owner = owner;
 
         var ok = new Button { Content = "OK", Style = GlassButtonStyle(true) };
-        ok.Click += (_, _) => { dlg.Result = DialogResult.OK; dlg.Close(); };
+        ok.Click += (_, _) => { dlg.Result = GlassResult.OK; dlg.Close(); };
         dlg.ButtonPanel.Children.Add(ok);
 
         dlg.ShowDialog();
@@ -97,7 +97,7 @@ public partial class GlassDialog : Window
         if (owner != null) dlg.Owner = owner;
 
         var ok = new Button { Content = "OK", Style = GlassButtonStyle(true) };
-        ok.Click += (_, _) => { dlg.Result = DialogResult.OK; dlg.Close(); };
+        ok.Click += (_, _) => { dlg.Result = GlassResult.OK; dlg.Close(); };
         dlg.ButtonPanel.Children.Add(ok);
 
         dlg.ShowDialog();
@@ -116,7 +116,7 @@ public partial class GlassDialog : Window
         if (owner != null) dlg.Owner = owner;
 
         var no = new Button { Content = "No", Style = GlassButtonStyle(false) };
-        no.Click += (_, _) => { dlg.Result = DialogResult.No; dlg.Close(); };
+        no.Click += (_, _) => { dlg.Result = GlassResult.No; dlg.Close(); };
         dlg.ButtonPanel.Children.Add(no);
 
         var yes = new Button { Content = "Yes", Style = GlassButtonStyle(true, dangerYes) };
@@ -124,11 +124,11 @@ public partial class GlassDialog : Window
         {
             yes.Style = GlassButtonStyle(false, true);
         }
-        yes.Click += (_, _) => { dlg.Result = DialogResult.Yes; dlg.Close(); };
+        yes.Click += (_, _) => { dlg.Result = GlassResult.Yes; dlg.Close(); };
         dlg.ButtonPanel.Children.Add(yes);
 
         dlg.ShowDialog();
-        return dlg.Result == DialogResult.Yes;
+        return dlg.Result == GlassResult.Yes;
     }
 
     /// <summary>
@@ -145,14 +145,14 @@ public partial class GlassDialog : Window
         dlg.Loaded += (_, _) => dlg.InputBox.Focus();
 
         var cancel = new Button { Content = "Cancel", Style = GlassButtonStyle(false) };
-        cancel.Click += (_, _) => { dlg.Result = DialogResult.Cancel; dlg.Close(); };
+        cancel.Click += (_, _) => { dlg.Result = GlassResult.Cancel; dlg.Close(); };
         dlg.ButtonPanel.Children.Add(cancel);
 
         var ok = new Button { Content = "OK", Style = GlassButtonStyle(true), IsDefault = true };
-        ok.Click += (_, _) => { dlg.Result = DialogResult.OK; dlg.Close(); };
+        ok.Click += (_, _) => { dlg.Result = GlassResult.OK; dlg.Close(); };
         dlg.ButtonPanel.Children.Add(ok);
 
         dlg.ShowDialog();
-        return dlg.Result == DialogResult.OK ? dlg.InputBox.Text : null;
+        return dlg.Result == GlassResult.OK ? dlg.InputBox.Text : null;
     }
 }

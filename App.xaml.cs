@@ -145,7 +145,7 @@ public partial class App : Application
         // Show
         var showItem = new Forms.ToolStripMenuItem("  Open Amp Up")
         {
-            Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.SemiBold),
+            Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Bold),
             Padding = new Forms.Padding(6, 6, 6, 6),
         };
         showItem.Click += (_, _) => ShowMainWindow();
