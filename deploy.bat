@@ -8,6 +8,7 @@ echo.
 cd /d "%~dp0"
 
 echo [1/4] Pulling latest from GitHub...
+git reset --hard HEAD
 git pull
 if errorlevel 1 (
     echo ERROR: git pull failed. Check your connection or conflicts.
