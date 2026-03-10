@@ -92,7 +92,7 @@ public class TurnUpMacroKey
     public bool Down { get; set; }
 
     [JsonProperty("virtualKeyCode")]
-    public int VirtualKeyCode { get; set; }
+    public int? VirtualKeyCode { get; set; }
 }
 
 public class TurnUpLight
@@ -276,7 +276,8 @@ public static class TurnUpImporter
 
         foreach (var key in macro.Where(k => k.Down))
         {
-            switch (key.VirtualKeyCode)
+            var vk = key.VirtualKeyCode ?? key.KeyCode;
+            switch (vk)
             {
                 case 16: modifiers.Add("shift"); break;
                 case 17: modifiers.Add("ctrl"); break;
