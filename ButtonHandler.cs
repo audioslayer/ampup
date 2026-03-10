@@ -749,7 +749,7 @@ public class ButtonHandler
             {
                 case "sleep":
                     Logger.Log("system_power: sleep");
-                    NativeMethods.SetSuspendState(false, false, false);
+                    NativeMethods.SetSuspendState(false, true, false);
                     break;
                 case "hibernate":
                     Logger.Log("system_power: hibernate");
