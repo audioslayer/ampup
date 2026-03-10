@@ -52,6 +52,9 @@ public partial class SettingsView : UserControl
         BtnNewProfile.Click += OnNewProfile;
         BtnDeleteProfile.Click += OnDeleteProfile;
 
+        // Import
+        BtnImportTurnUp.Click += OnImportTurnUp;
+
         // About
         TxtVersion.Text = $"Amp Up v{UpdateChecker.CurrentVersion}";
         BtnCheckUpdate.Click += OnCheckUpdate;
@@ -254,6 +257,37 @@ public partial class SettingsView : UserControl
         // Refresh dropdowns
         RefreshProfileDropdown();
         (Window.GetWindow(this) as MainWindow)?.RefreshProfilePicker();
+    }
+
+    private void OnImportTurnUp(object sender, RoutedEventArgs e)
+    {
+        if (_config == null) return;
+
+        var wizard = new ImportWizardWindow { Owner = Window.GetWindow(this) };
+        wizard.ShowDialog();
+
+        if (wizard.ImportedProfileName != null)
+        {
+            var profileName = wizard.ImportedProfileName;
+
+            // Add to profile list if not already there
+            if (!_config.Profiles.Contains(profileName))
+                _config.Profiles.Add(profileName);
+
+            // Switch to the imported profile
+            var loaded = ConfigManager.LoadProfile(profileName);
+            if (loaded != null)
+            {
+                loaded.ActiveProfile = profileName;
+                loaded.Profiles = _config.Profiles;
+                loaded.ProfileIcons = _config.ProfileIcons;
+                _config = loaded;
+                _onSave?.Invoke(_config);
+                LoadConfig(_config, _onSave!);
+
+                (Window.GetWindow(this) as MainWindow)?.RefreshProfilePicker();
+            }
+        }
     }
 
     private void OsdPosition_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)

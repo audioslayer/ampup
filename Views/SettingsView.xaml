@@ -164,6 +164,17 @@
                             </StackPanel>
                         </StackPanel>
                     </StackPanel>
+
+                    <!-- Import from Turn Up -->
+                    <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0"
+                            Margin="0,14,0,0" Padding="0,12,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Have an existing Turn Up configuration? Import your knob, button, and light settings."
+                                       Style="{StaticResource SecondaryText}" Margin="0,0,0,8" TextWrapping="Wrap" />
+                            <ui:Button x:Name="BtnImportTurnUp" Content="Import from Turn Up"
+                                       Appearance="Secondary" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
 
