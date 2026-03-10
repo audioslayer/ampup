@@ -461,7 +461,7 @@ public partial class MainWindow : FluentWindow
             HorizontalOffset = 4
         };
 
-        var outerPanel = new StackPanel { Margin = new Thickness(4) };
+        var outerPanel = new System.Windows.Controls.StackPanel { Margin = new Thickness(4) };
 
         foreach (var (category, emojis) in ProfileEmojiCategories)
         {
@@ -514,10 +514,10 @@ public partial class MainWindow : FluentWindow
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(4),
-            Child = new ScrollViewer
+            Child = new System.Windows.Controls.ScrollViewer
             {
                 Content = outerPanel,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
                 MaxHeight = 400
             },
             Effect = new System.Windows.Media.Effects.DropShadowEffect
