@@ -194,7 +194,8 @@ public partial class MixerView : UserControl
                 else
                 {
                     vol = _mixer.GetVolume(knob);
-                    peak = _mixer.GetPeakLevel(knob);
+                    // WASAPI peak values rarely exceed ~0.5, so boost 2.5x for a full meter
+                    peak = Math.Min(_mixer.GetPeakLevel(knob) * 2.5f, 1f);
                 }
 
                 _knobs[i].Value = vol;
