@@ -32,6 +32,15 @@ public partial class SettingsView : UserControl
         ChkStartWithWindows.Unchecked += OnValueChanged;
         CmbProfiles.SelectionChanged += OnProfileSelectionChanged;
 
+        // OSD events
+        ChkOsdVolume.Checked += OnValueChanged;
+        ChkOsdVolume.Unchecked += OnValueChanged;
+        ChkOsdProfile.Checked += OnValueChanged;
+        ChkOsdProfile.Unchecked += OnValueChanged;
+        ChkOsdDevice.Checked += OnValueChanged;
+        ChkOsdDevice.Unchecked += OnValueChanged;
+        BtnOsdPreview.Click += OnOsdPreview;
+
         // Integration events
         ChkHaEnabled.Checked += OnValueChanged;
         ChkHaEnabled.Unchecked += OnValueChanged;
@@ -57,6 +66,12 @@ public partial class SettingsView : UserControl
         TxtSerialPort.Text = config.Serial.Port;
         TxtBaudRate.Text = config.Serial.Baud.ToString();
         ChkStartWithWindows.IsChecked = config.StartWithWindows;
+
+        // OSD
+        ChkOsdVolume.IsChecked = config.Osd.ShowVolume;
+        ChkOsdProfile.IsChecked = config.Osd.ShowProfileSwitch;
+        ChkOsdDevice.IsChecked = config.Osd.ShowDeviceSwitch;
+        HighlightOsdPosition(config.Osd.Position);
 
         // Profiles
         CmbProfiles.Items.Clear();
@@ -134,6 +149,11 @@ public partial class SettingsView : UserControl
             _config.Serial.Baud = baud;
 
         _config.StartWithWindows = ChkStartWithWindows.IsChecked == true;
+
+        // OSD
+        _config.Osd.ShowVolume = ChkOsdVolume.IsChecked == true;
+        _config.Osd.ShowProfileSwitch = ChkOsdProfile.IsChecked == true;
+        _config.Osd.ShowDeviceSwitch = ChkOsdDevice.IsChecked == true;
 
         // Integrations
         _config.HomeAssistant.Enabled = ChkHaEnabled.IsChecked == true;
@@ -242,6 +262,60 @@ public partial class SettingsView : UserControl
         // Refresh dropdowns
         RefreshProfileDropdown();
         (Window.GetWindow(this) as MainWindow)?.RefreshProfilePicker();
+    }
+
+    private void OsdPosition_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (_loading || _config == null) return;
+        if (sender is System.Windows.Controls.Border border && border.Tag is string posStr)
+        {
+            if (Enum.TryParse<OsdPosition>(posStr, out var pos))
+            {
+                _config.Osd.Position = pos;
+                HighlightOsdPosition(pos);
+                _debounceTimer.Stop();
+                _debounceTimer.Start();
+            }
+        }
+    }
+
+    private void HighlightOsdPosition(OsdPosition active)
+    {
+        var accentBrush = (System.Windows.Media.SolidColorBrush)FindResource("AccentBrush");
+        var dimBrush = (System.Windows.Media.SolidColorBrush)FindResource("TextDimBrush");
+        var activeBg = new System.Windows.Media.SolidColorBrush(
+            System.Windows.Media.Color.FromArgb(0x30, 0x00, 0xE6, 0x76));
+        var normalBg = (System.Windows.Media.SolidColorBrush)FindResource("CardBgBrush");
+        var accentBorder = (System.Windows.Media.SolidColorBrush)FindResource("AccentDimBrush");
+        var normalBorder = (System.Windows.Media.SolidColorBrush)FindResource("CardBorderBrush");
+
+        var positions = new (System.Windows.Controls.Border Border, OsdPosition Pos)[]
+        {
+            (PosTopLeft, OsdPosition.TopLeft),
+            (PosTopCenter, OsdPosition.TopCenter),
+            (PosTopRight, OsdPosition.TopRight),
+            (PosBottomLeft, OsdPosition.BottomLeft),
+            (PosBottomCenter, OsdPosition.BottomCenter),
+            (PosBottomRight, OsdPosition.BottomRight),
+        };
+
+        foreach (var (border, pos) in positions)
+        {
+            bool isActive = pos == active;
+            border.Background = isActive ? activeBg : normalBg;
+            border.BorderBrush = isActive ? accentBorder : normalBorder;
+            if (border.Child is System.Windows.Controls.TextBlock tb)
+                tb.Foreground = isActive ? accentBrush : dimBrush;
+        }
+    }
+
+    private void OnOsdPreview(object sender, RoutedEventArgs e)
+    {
+        if (_config == null) return;
+        // Show a preview OSD at the configured position
+        var overlay = new OsdOverlay();
+        overlay.SetPosition(_config.Osd.Position);
+        overlay.ShowVolume("Preview", 75, "🔊");
     }
 
     private async void OnCheckUpdate(object sender, RoutedEventArgs e)

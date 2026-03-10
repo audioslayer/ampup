@@ -43,6 +43,102 @@
                 </StackPanel>
             </Border>
 
+            <!-- ── OSD OVERLAY ────────────────────────────────────── -->
+            <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="OSD OVERLAY" Style="{StaticResource HeaderText}" Margin="0,0,0,12" />
+                    <TextBlock Text="Show overlay notifications when the app is minimized to tray."
+                               Style="{StaticResource SecondaryText}" Margin="0,0,0,12" />
+
+                    <!-- Toggles -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <CheckBox x:Name="ChkOsdVolume"
+                                  Content="Volume changes"
+                                  Foreground="{StaticResource TextPrimaryBrush}"
+                                  Margin="0,0,24,0" />
+                        <CheckBox x:Name="ChkOsdProfile"
+                                  Content="Profile switches"
+                                  Foreground="{StaticResource TextPrimaryBrush}"
+                                  Margin="0,0,24,0" />
+                        <CheckBox x:Name="ChkOsdDevice"
+                                  Content="Device switches"
+                                  Foreground="{StaticResource TextPrimaryBrush}" />
+                    </StackPanel>
+
+                    <!-- Position picker -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Text="Position" Style="{StaticResource SecondaryText}" Margin="0,0,0,6" />
+
+                            <!-- Fraps-style screen position picker -->
+                            <Border Background="{StaticResource InputBgBrush}"
+                                    BorderBrush="{StaticResource InputBorderBrush}"
+                                    BorderThickness="1" CornerRadius="6"
+                                    Width="160" Height="100" Padding="6">
+                                <Grid x:Name="OsdPositionGrid">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- 6 position buttons (Fraps-style corners + centers) -->
+                                    <Border x:Name="PosTopLeft" Grid.Row="0" Grid.Column="0"
+                                            Style="{StaticResource CardPanel}" Margin="2" Padding="0"
+                                            CornerRadius="4" Cursor="Hand"
+                                            MouseLeftButtonDown="OsdPosition_Click" Tag="TopLeft">
+                                        <TextBlock Text="TL" FontSize="9" Foreground="{StaticResource TextDimBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <Border x:Name="PosTopCenter" Grid.Row="0" Grid.Column="1"
+                                            Style="{StaticResource CardPanel}" Margin="2" Padding="0"
+                                            CornerRadius="4" Cursor="Hand"
+                                            MouseLeftButtonDown="OsdPosition_Click" Tag="TopCenter">
+                                        <TextBlock Text="TC" FontSize="9" Foreground="{StaticResource TextDimBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <Border x:Name="PosTopRight" Grid.Row="0" Grid.Column="2"
+                                            Style="{StaticResource CardPanel}" Margin="2" Padding="0"
+                                            CornerRadius="4" Cursor="Hand"
+                                            MouseLeftButtonDown="OsdPosition_Click" Tag="TopRight">
+                                        <TextBlock Text="TR" FontSize="9" Foreground="{StaticResource TextDimBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <Border x:Name="PosBottomLeft" Grid.Row="1" Grid.Column="0"
+                                            Style="{StaticResource CardPanel}" Margin="2" Padding="0"
+                                            CornerRadius="4" Cursor="Hand"
+                                            MouseLeftButtonDown="OsdPosition_Click" Tag="BottomLeft">
+                                        <TextBlock Text="BL" FontSize="9" Foreground="{StaticResource TextDimBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <Border x:Name="PosBottomCenter" Grid.Row="1" Grid.Column="1"
+                                            Style="{StaticResource CardPanel}" Margin="2" Padding="0"
+                                            CornerRadius="4" Cursor="Hand"
+                                            MouseLeftButtonDown="OsdPosition_Click" Tag="BottomCenter">
+                                        <TextBlock Text="BC" FontSize="9" Foreground="{StaticResource TextDimBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <Border x:Name="PosBottomRight" Grid.Row="1" Grid.Column="2"
+                                            Style="{StaticResource CardPanel}" Margin="2" Padding="0"
+                                            CornerRadius="4" Cursor="Hand"
+                                            MouseLeftButtonDown="OsdPosition_Click" Tag="BottomRight">
+                                        <TextBlock Text="BR" FontSize="9" Foreground="{StaticResource TextDimBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+
+                        <ui:Button x:Name="BtnOsdPreview" Content="Preview"
+                                   Appearance="Secondary" VerticalAlignment="Bottom" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <!-- ── PROFILES ────────────────────────────────────────── -->
             <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
                 <StackPanel>

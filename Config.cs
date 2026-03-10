@@ -20,6 +20,9 @@ public class AppConfig
         { "Default", new ProfileIconConfig() }
     };
 
+    // OSD Overlay
+    public OsdConfig Osd { get; set; } = new();
+
     // Integrations
     public HomeAssistantConfig HomeAssistant { get; set; } = new();
 }
@@ -223,6 +226,25 @@ public static class ConfigManager
         }
         return null;
     }
+}
+
+public class OsdConfig
+{
+    public bool ShowVolume { get; set; } = true;
+    public bool ShowProfileSwitch { get; set; } = true;
+    public bool ShowDeviceSwitch { get; set; } = true;
+    [JsonConverter(typeof(StringEnumConverter))]
+    public OsdPosition Position { get; set; } = OsdPosition.BottomRight;
+}
+
+public enum OsdPosition
+{
+    TopLeft,
+    TopCenter,
+    TopRight,
+    BottomLeft,
+    BottomCenter,
+    BottomRight
 }
 
 public class ProfileIconConfig

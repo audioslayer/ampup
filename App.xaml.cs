@@ -346,8 +346,8 @@ public partial class App : Application
                 _mixer.SetVolume(knob, e.Value);
             }
 
-            // Show OSD overlay when main window is not visible
-            if (_mainWindow != null && !_mainWindow.IsVisible)
+            // Show OSD overlay when main window is not visible and volume OSD is enabled
+            if (_mainWindow != null && !_mainWindow.IsVisible && _config.Osd.ShowVolume)
             {
                 float pct = e.Value / 1023f;
                 // Apply min/max range
@@ -365,8 +365,8 @@ public partial class App : Application
                 };
                 Dispatcher.Invoke(() =>
                 {
-                    _osdOverlay ??= new OsdOverlay();
-                    _osdOverlay.ShowVolume(label, displayPct, icon);
+                    EnsureOsd();
+                    _osdOverlay!.ShowVolume(label, displayPct, icon);
                 });
             }
         }
@@ -445,21 +445,31 @@ public partial class App : Application
         Logger.Log($"Switched to profile: {profileName}");
 
         // Show OSD for profile switch
-        Dispatcher.Invoke(() =>
+        if (_config.Osd.ShowProfileSwitch)
         {
-            _osdOverlay ??= new OsdOverlay();
-            var iconCfg = _config.ProfileIcons.GetValueOrDefault(profileName) ?? new ProfileIconConfig();
-            _osdOverlay.ShowProfileSwitch(profileName, iconCfg);
-        });
+            Dispatcher.Invoke(() =>
+            {
+                EnsureOsd();
+                var iconCfg = _config.ProfileIcons.GetValueOrDefault(profileName) ?? new ProfileIconConfig();
+                _osdOverlay!.ShowProfileSwitch(profileName, iconCfg);
+            });
+        }
     }
 
     private void HandleDeviceSwitched(string deviceName, bool isOutput)
     {
+        if (!_config.Osd.ShowDeviceSwitch) return;
         Dispatcher.Invoke(() =>
         {
-            _osdOverlay ??= new OsdOverlay();
-            _osdOverlay.ShowDevice(deviceName, isOutput);
+            EnsureOsd();
+            _osdOverlay!.ShowDevice(deviceName, isOutput);
         });
+    }
+
+    private void EnsureOsd()
+    {
+        _osdOverlay ??= new OsdOverlay();
+        _osdOverlay.SetPosition(_config.Osd.Position);
     }
 
     private void PollMuteStates()

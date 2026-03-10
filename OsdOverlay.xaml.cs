@@ -12,6 +12,7 @@ public partial class OsdOverlay : Window
     private readonly DispatcherTimer _dismissTimer;
     private readonly Storyboard _fadeOut;
     private bool _closing;
+    private OsdPosition _position = OsdPosition.BottomRight;
 
     public OsdOverlay()
     {
@@ -26,6 +27,11 @@ public partial class OsdOverlay : Window
             _dismissTimer.Stop();
             AnimateOut();
         };
+    }
+
+    public void SetPosition(OsdPosition position)
+    {
+        _position = position;
     }
 
     private void SetTextIcon(string text, double fontSize = 24)
@@ -135,10 +141,37 @@ public partial class OsdOverlay : Window
 
     private void PositionAndShow()
     {
-        // Position bottom-right above taskbar
         var workArea = SystemParameters.WorkArea;
-        Left = workArea.Right - Width - 20;
-        Top = workArea.Bottom - 120;
+        const double margin = 20;
+
+        switch (_position)
+        {
+            case OsdPosition.TopLeft:
+                Left = workArea.Left + margin;
+                Top = workArea.Top + margin;
+                break;
+            case OsdPosition.TopCenter:
+                Left = workArea.Left + (workArea.Width - Width) / 2;
+                Top = workArea.Top + margin;
+                break;
+            case OsdPosition.TopRight:
+                Left = workArea.Right - Width - margin;
+                Top = workArea.Top + margin;
+                break;
+            case OsdPosition.BottomLeft:
+                Left = workArea.Left + margin;
+                Top = workArea.Bottom - 120;
+                break;
+            case OsdPosition.BottomCenter:
+                Left = workArea.Left + (workArea.Width - Width) / 2;
+                Top = workArea.Bottom - 120;
+                break;
+            case OsdPosition.BottomRight:
+            default:
+                Left = workArea.Right - Width - margin;
+                Top = workArea.Bottom - 120;
+                break;
+        }
 
         bool alreadyVisible = IsVisible && !_closing;
 
