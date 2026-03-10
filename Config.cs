@@ -158,8 +158,8 @@ public static class ConfigManager
         return defaults;
     }
 
-    private static readonly string[] DefaultKnobLabels = { "Master", "App", "App", "App", "App" };
-    private static readonly string[] DefaultKnobTargets = { "master", "none", "none", "none", "none" };
+    private static readonly string[] DefaultKnobLabels = { "", "", "", "", "" };
+    private static readonly string[] DefaultKnobTargets = { "none", "none", "none", "none", "none" };
 
     private static void EnsureDefaults(AppConfig config)
     {
