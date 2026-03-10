@@ -293,6 +293,75 @@ public partial class MainWindow : FluentWindow
         PopulateProfilePicker();
     }
 
+    private void BtnAddProfile_Click(object sender, MouseButtonEventArgs e)
+    {
+        var dialog = new InputDialog("New Profile", "Enter profile name:");
+        dialog.Owner = this;
+        if (dialog.ShowDialog() == true)
+        {
+            var name = dialog.ResponseText.Trim();
+            if (string.IsNullOrEmpty(name)) return;
+
+            if (_config.Profiles.Contains(name))
+            {
+                System.Windows.MessageBox.Show($"Profile \"{name}\" already exists.",
+                    "Amp Up", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                return;
+            }
+
+            // Save current config as the new profile
+            _config.Profiles.Add(name);
+            _config.ActiveProfile = name;
+            _onConfigChanged?.Invoke(_config);
+            ConfigManager.SaveProfile(_config, name);
+            PopulateProfilePicker();
+            RefreshViews();
+        }
+    }
+
+    private void BtnDeleteProfile_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (CmbHeaderProfile.SelectedItem == null) return;
+        var profileName = CmbHeaderProfile.SelectedItem.ToString()!;
+
+        if (profileName == "Default")
+        {
+            System.Windows.MessageBox.Show("Cannot delete the Default profile.",
+                "Amp Up", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+            return;
+        }
+
+        var result = System.Windows.MessageBox.Show(
+            $"Delete profile \"{profileName}\"?",
+            "Amp Up", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning);
+
+        if (result != System.Windows.MessageBoxResult.Yes) return;
+
+        _config.Profiles.Remove(profileName);
+        _config.ActiveProfile = "Default";
+
+        // Delete profile file
+        var configDir = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AmpUp");
+        var safe = string.Concat(profileName.ToLowerInvariant()
+            .Select(c => char.IsLetterOrDigit(c) || c == '-' ? c : '_'));
+        var path = System.IO.Path.Combine(configDir, $"profile_{safe}.json");
+        try { if (System.IO.File.Exists(path)) System.IO.File.Delete(path); } catch { }
+
+        // Load Default profile if it exists
+        var loaded = ConfigManager.LoadProfile("Default");
+        if (loaded != null)
+        {
+            loaded.ActiveProfile = "Default";
+            loaded.Profiles = _config.Profiles;
+            _config = loaded;
+        }
+
+        _onConfigChanged?.Invoke(_config);
+        PopulateProfilePicker();
+        RefreshViews();
+    }
+
     public void SetConnectionStatus(bool connected)
     {
         Dispatcher.Invoke(() =>
