@@ -41,6 +41,7 @@ public partial class ImportWizardWindow : Window
         ("monitor", "Monitor Brightness"),
         ("output_device", "Output Device"),
         ("input_device", "Input Device"),
+        ("led_brightness", "LED Brightness"),
     };
 
     private static readonly (string Value, string Display)[] ButtonActions =
@@ -62,6 +63,7 @@ public partial class ImportWizardWindow : Window
         ("macro", "Keyboard Macro"),
         ("system_power", "System Power"),
         ("switch_profile", "Switch Profile"),
+        ("cycle_brightness", "Cycle Brightness"),
     };
 
     public ImportWizardWindow()

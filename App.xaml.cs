@@ -25,7 +25,7 @@ public partial class App : Application
     /// Last hardware knob positions (0-1), updated on every knob event.
     /// Used by MixerView to display position for non-audio targets.
     /// </summary>
-    public static readonly float[] KnobPositions = new float[5];
+    public static readonly float[] KnobPositions = { 1f, 1f, 1f, 1f, 1f };
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -50,6 +50,7 @@ public partial class App : Application
 
         _buttons.OnProfileSwitch += HandleProfileSwitch;
         _buttons.OnDeviceSwitched += HandleDeviceSwitched;
+        _buttons.OnBrightnessCycle += HandleBrightnessCycle;
 
         // Start Home Assistant integration
         _ha = new HAIntegration(_config.HomeAssistant);
@@ -359,6 +360,12 @@ public partial class App : Application
                 float vol = e.Value / 1023f;
                 MonitorBrightness.SetAll(vol);
             }
+            else if (knob.Target.Equals("led_brightness", StringComparison.OrdinalIgnoreCase))
+            {
+                int pct = (int)Math.Round(e.Value / 1023.0 * 100);
+                _config.LedBrightness = pct;
+                _rgb.SetBrightness(pct);
+            }
             else
             {
                 _mixer.SetVolume(knob, e.Value);
@@ -376,6 +383,7 @@ public partial class App : Application
                     "master" => "Speaker224",
                     "mic" => "Mic24",
                     "monitor" => "Desktop24",
+                    "led_brightness" => "Color24",
                     "spotify" => "MusicNote124",
                     "discord" => "Headphones24",
                     _ when knob.Target.StartsWith("ha_") => "Home24",
@@ -409,8 +417,7 @@ public partial class App : Application
         {
             _connectedAt = DateTime.UtcNow;
 
-            // Initialize RGB knob positions from current audio volumes
-            // (the knob batch frame may have been consumed during port probing)
+            // Initialize RGB knob positions from current audio volumes or saved positions
             for (int i = 0; i < 5; i++)
             {
                 var knob = _config.Knobs.FirstOrDefault(k => k.Idx == i);
@@ -418,13 +425,25 @@ public partial class App : Application
                 {
                     try
                     {
-                        float vol = _mixer.GetVolume(knob);
-                        _rgb.SetKnobPosition(i, vol);
+                        var baseTarget = knob.Target.Contains(':') ? knob.Target.Split(':')[0] : knob.Target;
+                        bool isNonAudio = baseTarget.StartsWith("ha_") || baseTarget == "monitor" || baseTarget == "led_brightness";
+
+                        if (isNonAudio)
+                        {
+                            // For non-audio targets, use saved knob position (or 1.0 as fallback)
+                            _rgb.SetKnobPosition(i, KnobPositions[i] > 0 ? KnobPositions[i] : 1f);
+                        }
+                        else
+                        {
+                            float vol = _mixer.GetVolume(knob);
+                            _rgb.SetKnobPosition(i, vol);
+                        }
                     }
                     catch { }
                 }
             }
 
+            _rgb.SetBrightness(_config.LedBrightness);
             _rgb.SetPort(_serial.Port);
             _rgb.ApplyColors(_config.Lights);
         }
@@ -470,6 +489,22 @@ public partial class App : Application
                 EnsureOsd();
                 var iconCfg = _config.ProfileIcons.GetValueOrDefault(profileName) ?? new ProfileIconConfig();
                 _osdOverlay!.ShowProfileSwitch(profileName, iconCfg);
+            });
+        }
+    }
+
+    private void HandleBrightnessCycle(int pct)
+    {
+        _config.LedBrightness = pct;
+        _rgb.SetBrightness(pct);
+        ConfigManager.Save(_config);
+
+        if (_config.Osd.ShowVolume)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                EnsureOsd();
+                _osdOverlay!.ShowVolume("LED Brightness", pct, "Color24");
             });
         }
     }

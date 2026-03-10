@@ -206,7 +206,11 @@ public static class TurnUpImporter
                 config.DeviceId = knob.AudioDevice?.DeviceId ?? "";
                 config.Label = knob.DisplayName ?? knob.AudioDevice?.Name ?? "Output";
                 break;
-            default: // None, LightBrightness, unknown
+            case "LightBrightness":
+                config.Target = "led_brightness";
+                config.Label = knob.DisplayName ?? "LED Brightness";
+                break;
+            default: // None, unknown
                 config.Target = "none";
                 config.Label = "";
                 break;
@@ -259,7 +263,10 @@ public static class TurnUpImporter
                 config.Action = "macro";
                 config.MacroKeys = ConvertMacro(button.Macro);
                 break;
-            default: // None, CycleBrightness, unknown
+            case "CycleBrightness":
+                config.Action = "cycle_brightness";
+                break;
+            default: // None, unknown
                 config.Action = "none";
                 break;
         }
@@ -377,7 +384,7 @@ public static class TurnUpImporter
             "SwitchProfile" => $"Profile: {button.Profile}",
             "LaunchProgram" => $"Launch: {Path.GetFileName(button.FilePath ?? "")}",
             "Macro" => $"Macro: {ConvertMacro(button.Macro)}",
-            "CycleBrightness" => "Cycle Brightness",
+            "CycleBrightness" => "Cycle LED Brightness",
             "None" => "None",
             _ => button.EffectType
         };
@@ -387,8 +394,8 @@ public static class TurnUpImporter
     /// Returns true if the Turn Up effectType has no Amp Up equivalent.
     /// </summary>
     public static bool IsUnsupportedKnob(string effectType)
-        => effectType is "LightBrightness" or "CycleBrightness";
+        => false; // All Turn Up knob types are now supported
 
     public static bool IsUnsupportedButton(string effectType)
-        => effectType is "CycleBrightness";
+        => false; // All Turn Up button types are now supported
 }

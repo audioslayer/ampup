@@ -66,6 +66,12 @@ public class ButtonHandler
     public event Action<string>? OnProfileSwitch;
     /// <summary>Fires with (deviceName, isOutput) when the default audio device changes.</summary>
     public event Action<string, bool>? OnDeviceSwitched;
+    /// <summary>Fires with new brightness percentage when cycle_brightness is triggered.</summary>
+    public event Action<int>? OnBrightnessCycle;
+
+    // Brightness cycle presets (matches Turn Up behavior)
+    private static readonly int[] BrightnessPresets = { 100, 75, 50, 25, 0 };
+    private int _brightnessPresetIndex = 0;
 
     // ── IPolicyConfig COM interface for changing default audio device ──
 
@@ -228,6 +234,8 @@ public class ButtonHandler
                     SwitchProfile(btn?.ProfileName ?? ""); break;
                 case "system_power":
                     ExecuteSystemPower(btn?.PowerAction ?? ""); break;
+                case "cycle_brightness":
+                    CycleBrightness(); break;
                 case "ha_toggle":
                     if (_ha != null && !string.IsNullOrEmpty(path))
                         _ = _ha.ToggleEntityAsync(path);
@@ -713,6 +721,16 @@ public class ButtonHandler
         }
         Logger.Log($"switch_profile: requesting switch to '{profileName}'");
         OnProfileSwitch?.Invoke(profileName);
+    }
+
+    // ── LED brightness cycle ──────────────────────────────────────────
+
+    private void CycleBrightness()
+    {
+        _brightnessPresetIndex = (_brightnessPresetIndex + 1) % BrightnessPresets.Length;
+        var pct = BrightnessPresets[_brightnessPresetIndex];
+        Logger.Log($"cycle_brightness: {pct}%");
+        OnBrightnessCycle?.Invoke(pct);
     }
 
     // ── System power actions ──────────────────────────────────────────

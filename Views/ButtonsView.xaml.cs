@@ -23,7 +23,8 @@ public partial class ButtonsView : UserControl
         ("Mute App", "mute_program"), ("Mute Active Window", "mute_active_window"), ("Launch App", "launch_exe"),
         ("Close App", "close_program"), ("Cycle Output", "cycle_output"), ("Cycle Input", "cycle_input"),
         ("Set Output", "select_output"), ("Set Input", "select_input"), ("Keyboard Macro", "macro"),
-        ("System Power", "system_power"), ("Switch Profile", "switch_profile")
+        ("System Power", "system_power"), ("Switch Profile", "switch_profile"),
+        ("Cycle Brightness", "cycle_brightness")
     };
 
     // Actions that need a path textbox
@@ -44,7 +45,8 @@ public partial class ButtonsView : UserControl
         { "mute_program", "🔇" }, { "mute_active_window", "🔇" }, { "launch_exe", "🚀" },
         { "close_program", "✕" }, { "cycle_output", "🔊" }, { "cycle_input", "🎙" },
         { "select_output", "🔊" }, { "select_input", "🎙" }, { "macro", "⌨" },
-        { "system_power", "⏻" }, { "switch_profile", "📋" }
+        { "system_power", "⏻" }, { "switch_profile", "📋" },
+        { "cycle_brightness", "💡" }
     };
 
     // Button tile references
@@ -534,6 +536,7 @@ public partial class ButtonsView : UserControl
         picker.AddItem("Keyboard Macro", "macro");
         picker.AddItem("System Power", "system_power");
         picker.AddItem("Switch Profile", "switch_profile");
+        picker.AddItem("Cycle Brightness", "cycle_brightness");
 
         picker.SelectedIndex = 0;
         return picker;

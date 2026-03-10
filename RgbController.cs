@@ -200,7 +200,9 @@ public class RgbController : IDisposable
             int k = light.Idx;
             if (k < 0 || k > 4) continue;
 
-            float pos = _knobPositions[k];
+            float rawPos = _knobPositions[k];
+            // Remap: below 15% = off, 15-100% → 0-100% (hardware LED dead zone)
+            float pos = rawPos < 0.15f ? 0f : (rawPos - 0.15f) / 0.85f;
 
             switch (light.Effect)
             {

@@ -32,7 +32,8 @@ public partial class MixerView : UserControl
         { "ha_media", "HA: Media" },
         { "ha_fan", "HA: Fan" },
         { "ha_cover", "HA: Cover" },
-        { "apps", "App Group" }
+        { "apps", "App Group" },
+        { "led_brightness", "LED Brightness" }
     };
 
     // Per-channel control arrays
@@ -181,7 +182,7 @@ public partial class MixerView : UserControl
             try
             {
                 var baseTarget = knob.Target.Contains(':') ? knob.Target.Split(':')[0] : knob.Target;
-                bool isNonAudio = baseTarget.StartsWith("ha_") || baseTarget == "monitor";
+                bool isNonAudio = baseTarget.StartsWith("ha_") || baseTarget == "monitor" || baseTarget == "led_brightness";
 
                 float vol;
                 float peak;
@@ -386,6 +387,7 @@ public partial class MixerView : UserControl
             targetPicker.AddItem("Output Device", "output_device");
             targetPicker.AddItem("Input Device", "input_device");
             targetPicker.AddItem("Monitor", "monitor");
+            targetPicker.AddItem("LED Brightness", "led_brightness");
 
             targetPicker.AddCategory("Integrations");
             targetPicker.AddItem("HA: Light", "ha_light");
