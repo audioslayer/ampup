@@ -140,10 +140,29 @@ public partial class OsdOverlay : Window
         Left = workArea.Right - Width - 20;
         Top = workArea.Bottom - 120;
 
+        bool alreadyVisible = IsVisible && !_closing;
+
+        // Stop any in-progress fade-out
+        if (_closing)
+        {
+            _fadeOut.Stop(this);
+            _closing = false;
+        }
+
         Show();
 
-        var fadeIn = (Storyboard)FindResource("FadeIn");
-        fadeIn.Begin(this);
+        // Only animate fade-in if not already showing
+        if (!alreadyVisible)
+        {
+            var fadeIn = (Storyboard)FindResource("FadeIn");
+            fadeIn.Begin(this);
+        }
+        else
+        {
+            // Ensure fully opaque (in case fade-out was mid-animation)
+            RootPanel.Opacity = 1;
+            RootPanel.Margin = new Thickness(0);
+        }
     }
 
     private void AnimateOut()
