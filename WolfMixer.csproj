@@ -15,6 +15,14 @@
   <ItemGroup>
     <Resource Include="Assets\knob-face.png" />
     <Resource Include="Assets\ampuplogo.png" />
+    <Resource Include="Assets\icon\ampup-16.png" />
+    <Resource Include="Assets\icon\ampup-24.png" />
+    <Resource Include="Assets\icon\ampup-32.png" />
+    <Resource Include="Assets\icon\ampup-48.png" />
+    <Resource Include="Assets\icon\ampup-64.png" />
+    <Resource Include="Assets\icon\ampup-128.png" />
+    <Resource Include="Assets\icon\ampup-256.png" />
+    <Resource Include="Assets\icon\ampup-512.png" />
   </ItemGroup>
 
   <ItemGroup>

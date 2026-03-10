@@ -38,7 +38,7 @@
 
             <!-- Branding -->
             <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="14,0,0,0" VerticalAlignment="Center">
-                <Image Source="pack://application:,,,/Assets/ampuplogo.png" Height="38"
+                <Image Source="pack://application:,,,/Assets/icon/ampup-48.png" Height="38"
                        RenderOptions.BitmapScalingMode="HighQuality" VerticalAlignment="Center" />
                 <TextBlock VerticalAlignment="Center" Margin="6,0,0,0">
                     <Run Text="AMP" FontFamily="Segoe UI Black" FontSize="16" FontWeight="Black"

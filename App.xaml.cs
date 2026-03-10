@@ -203,7 +203,7 @@ public partial class App : Application
     private static Icon CreateTrayIcon(bool connected)
     {
         // Load logo from embedded WPF resource
-        var uri = new Uri("pack://application:,,,/Assets/ampuplogo.png", UriKind.Absolute);
+        var uri = new Uri("pack://application:,,,/Assets/icon/ampup-32.png", UriKind.Absolute);
         var stream = System.Windows.Application.GetResourceStream(uri)?.Stream;
 
         Bitmap original;

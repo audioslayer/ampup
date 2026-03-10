@@ -24,7 +24,7 @@ public partial class MainWindow : FluentWindow
     public MainWindow()
     {
         InitializeComponent();
-        Icon = new BitmapImage(new Uri("pack://application:,,,/Assets/ampuplogo.png", UriKind.Absolute));
+        Icon = new BitmapImage(new Uri("pack://application:,,,/Assets/icon/ampup-48.png", UriKind.Absolute));
 
         _config = ConfigManager.Load();
         VersionLabel.Text = $"v{UpdateChecker.CurrentVersion}";

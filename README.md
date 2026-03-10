@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Assets/ampuplogo.png" width="120" alt="Amp Up Logo" />
+  <img src="Assets/icon/ampup-256.png" width="120" alt="Amp Up Logo" />
 </p>
 
 <h1 align="center">Amp Up</h1>
@@ -36,7 +36,7 @@ Amp Up is a community-built alternative for the Turn Up USB mixer with a modern 
 
 ### Buttons — 15 Programmable Actions
 - **3 gestures per button** — single press, double press, and hold
-- **17 action types:**
+- **18 action types:**
   - Media controls (play/pause, next, previous)
   - Mute toggles (master, mic, per-app, active window)
   - App launcher / process killer
@@ -44,6 +44,7 @@ Amp Up is a community-built alternative for the Turn Up USB mixer with a modern 
   - Keyboard macros (any key combo)
   - System power (sleep, lock, shutdown, restart, hibernate, logoff)
   - Profile switching
+  - LED brightness cycling
 
 ### Lights — Full RGB Control
 - **9 LED effects** — solid color, color blend, position fill, blink, pulse, rainbow wave, rainbow cycle, mic status indicator, mute status indicator
@@ -132,6 +133,7 @@ All changes save automatically and apply in real-time.
 | Process name | Any substring match (e.g. `discord`, `spotify`, `chrome`) |
 | Output Device | Specific audio output by device ID |
 | Input Device | Specific audio input by device ID |
+| LED Brightness | Control RGB LED brightness with a knob |
 
 ---
 
