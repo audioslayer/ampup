@@ -270,6 +270,7 @@ public partial class MainWindow : FluentWindow
     {
         BuildProfileFlyout();
         ProfilePopup.IsOpen = !ProfilePopup.IsOpen;
+        e.Handled = true;
     }
 
     private void BuildProfileFlyout()
