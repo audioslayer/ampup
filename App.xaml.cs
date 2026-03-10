@@ -417,31 +417,11 @@ public partial class App : Application
         {
             _connectedAt = DateTime.UtcNow;
 
-            // Initialize RGB knob positions from current audio volumes or saved positions
+            // Initialize RGB knob positions — default to 1.0 (full brightness LEDs)
+            // The batch frame from the device will update these to actual hardware positions,
+            // and the live timer will track real audio volumes once running.
             for (int i = 0; i < 5; i++)
-            {
-                var knob = _config.Knobs.FirstOrDefault(k => k.Idx == i);
-                if (knob != null)
-                {
-                    try
-                    {
-                        var baseTarget = knob.Target.Contains(':') ? knob.Target.Split(':')[0] : knob.Target;
-                        bool isNonAudio = baseTarget.StartsWith("ha_") || baseTarget == "monitor" || baseTarget == "led_brightness";
-
-                        if (isNonAudio)
-                        {
-                            // For non-audio targets, use saved knob position (or 1.0 as fallback)
-                            _rgb.SetKnobPosition(i, KnobPositions[i] > 0 ? KnobPositions[i] : 1f);
-                        }
-                        else
-                        {
-                            float vol = _mixer.GetVolume(knob);
-                            _rgb.SetKnobPosition(i, vol);
-                        }
-                    }
-                    catch { }
-                }
-            }
+                _rgb.SetKnobPosition(i, 1f);
 
             _rgb.SetBrightness(_config.LedBrightness);
             _rgb.SetPort(_serial.Port);
