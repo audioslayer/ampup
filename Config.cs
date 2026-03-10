@@ -158,8 +158,31 @@ public static class ConfigManager
         return defaults;
     }
 
+    private static readonly string[] DefaultKnobLabels = { "Master", "App", "App", "App", "App" };
+    private static readonly string[] DefaultKnobTargets = { "master", "none", "none", "none", "none" };
+
     private static void EnsureDefaults(AppConfig config)
     {
+        // Ensure 5 knobs exist
+        for (int i = 0; i < 5; i++)
+        {
+            if (!config.Knobs.Any(k => k.Idx == i))
+                config.Knobs.Add(new KnobConfig
+                {
+                    Idx = i,
+                    Label = DefaultKnobLabels[i],
+                    Target = DefaultKnobTargets[i]
+                });
+        }
+
+        // Ensure 5 buttons exist
+        for (int i = 0; i < 5; i++)
+        {
+            if (!config.Buttons.Any(b => b.Idx == i))
+                config.Buttons.Add(new ButtonConfig { Idx = i });
+        }
+
+        // Ensure 5 lights exist
         for (int i = 0; i < 5; i++)
         {
             if (!config.Lights.Any(l => l.Idx == i))

@@ -171,8 +171,7 @@ public partial class SettingsView : UserControl
         CollectAndSave();
         ConfigManager.SaveProfile(_config, profileName);
 
-        MessageBox.Show($"Profile \"{profileName}\" saved.", "Amp Up",
-            MessageBoxButton.OK, MessageBoxImage.Information);
+        GlassDialog.ShowInfo($"Profile \"{profileName}\" saved.", owner: Window.GetWindow(this));
     }
 
     private void OnLoadProfile(object sender, RoutedEventArgs e)
@@ -190,13 +189,11 @@ public partial class SettingsView : UserControl
             _onSave?.Invoke(_config);
             LoadConfig(_config, _onSave!);
 
-            MessageBox.Show($"Profile \"{profileName}\" loaded.", "Amp Up",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+            GlassDialog.ShowInfo($"Profile \"{profileName}\" loaded.", owner: Window.GetWindow(this));
         }
         else
         {
-            MessageBox.Show($"Profile \"{profileName}\" not found on disk.",
-                "Amp Up", MessageBoxButton.OK, MessageBoxImage.Warning);
+            GlassDialog.ShowWarning($"Profile \"{profileName}\" not found on disk.", owner: Window.GetWindow(this));
         }
     }
 
@@ -204,17 +201,15 @@ public partial class SettingsView : UserControl
     {
         if (_config == null) return;
 
-        var dialog = new InputDialog("New Profile", "Enter profile name:");
-        dialog.Owner = Window.GetWindow(this);
-        if (dialog.ShowDialog() == true)
+        var name = GlassDialog.Prompt("Enter profile name:", "NEW PROFILE", owner: Window.GetWindow(this));
+        if (!string.IsNullOrWhiteSpace(name))
         {
-            var name = dialog.ResponseText.Trim();
+            name = name.Trim();
             if (string.IsNullOrEmpty(name)) return;
 
             if (_config.Profiles.Contains(name))
             {
-                MessageBox.Show($"Profile \"{name}\" already exists.",
-                    "Amp Up", MessageBoxButton.OK, MessageBoxImage.Warning);
+                GlassDialog.ShowWarning($"Profile \"{name}\" already exists.", owner: Window.GetWindow(this));
                 return;
             }
 
@@ -236,16 +231,13 @@ public partial class SettingsView : UserControl
         var profileName = CmbProfiles.SelectedItem.ToString()!;
         if (profileName == "Default")
         {
-            MessageBox.Show("Cannot delete the Default profile.",
-                "Amp Up", MessageBoxButton.OK, MessageBoxImage.Warning);
+            GlassDialog.ShowWarning("Cannot delete the Default profile.", owner: Window.GetWindow(this));
             return;
         }
 
-        var result = MessageBox.Show(
-            $"Delete profile \"{profileName}\"? This cannot be undone.",
-            "Amp Up", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-
-        if (result != MessageBoxResult.Yes) return;
+        if (!GlassDialog.Confirm($"Delete profile \"{profileName}\"? This cannot be undone.",
+            "DELETE PROFILE", dangerYes: true, owner: Window.GetWindow(this)))
+            return;
 
         _config.Profiles.Remove(profileName);
         _config.ActiveProfile = "Default";
@@ -315,7 +307,7 @@ public partial class SettingsView : UserControl
         // Show a preview OSD at the configured position
         var overlay = new OsdOverlay();
         overlay.SetPosition(_config.Osd.Position);
-        overlay.ShowVolume("Preview", 75, "🔊");
+        overlay.ShowVolume("Preview", 75, "Speaker224");
     }
 
     private async void OnCheckUpdate(object sender, RoutedEventArgs e)
@@ -340,13 +332,8 @@ public partial class SettingsView : UserControl
                 TxtUpdateStatus.Text = $"New version available: {tag}";
                 TxtUpdateStatus.Foreground = (System.Windows.Media.SolidColorBrush)FindResource("AccentBrush");
 
-                var result = MessageBox.Show(
-                    $"A new version ({tag}) is available. Download and install?",
-                    "Amp Up Update",
-                    System.Windows.MessageBoxButton.YesNo,
-                    System.Windows.MessageBoxImage.Information);
-
-                if (result == System.Windows.MessageBoxResult.Yes)
+                if (GlassDialog.Confirm($"A new version ({tag}) is available. Download and install?",
+                    "UPDATE", owner: Window.GetWindow(this)))
                 {
                     TxtUpdateStatus.Text = "Downloading update...";
                     await UpdateChecker.DownloadAndInstallAsync(url, progress =>
@@ -370,76 +357,3 @@ public partial class SettingsView : UserControl
     }
 }
 
-/// <summary>
-/// Simple input dialog for profile name entry.
-/// </summary>
-public class InputDialog : Window
-{
-    private readonly TextBox _textBox;
-    public string ResponseText => _textBox.Text;
-
-    public InputDialog(string title, string prompt)
-    {
-        Title = title;
-        Width = 360;
-        Height = 160;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        ResizeMode = ResizeMode.NoResize;
-        WindowStyle = WindowStyle.ToolWindow;
-        Background = new System.Windows.Media.SolidColorBrush(
-            (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#1C1C1C"));
-
-        var stack = new StackPanel { Margin = new Thickness(16) };
-
-        var label = new TextBlock
-        {
-            Text = prompt,
-            Foreground = new System.Windows.Media.SolidColorBrush(
-                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#E8E8E8")),
-            Margin = new Thickness(0, 0, 0, 8)
-        };
-        stack.Children.Add(label);
-
-        _textBox = new TextBox
-        {
-            Background = new System.Windows.Media.SolidColorBrush(
-                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#242424")),
-            Foreground = new System.Windows.Media.SolidColorBrush(
-                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#E8E8E8")),
-            BorderBrush = new System.Windows.Media.SolidColorBrush(
-                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#363636")),
-            Padding = new Thickness(6, 4, 6, 4),
-            Margin = new Thickness(0, 0, 0, 12)
-        };
-        stack.Children.Add(_textBox);
-
-        var btnPanel = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right
-        };
-
-        var okBtn = new Button
-        {
-            Content = "OK",
-            Width = 80,
-            Margin = new Thickness(0, 0, 8, 0),
-            IsDefault = true
-        };
-        okBtn.Click += (_, _) => { DialogResult = true; };
-        btnPanel.Children.Add(okBtn);
-
-        var cancelBtn = new Button
-        {
-            Content = "Cancel",
-            Width = 80,
-            IsCancel = true
-        };
-        btnPanel.Children.Add(cancelBtn);
-
-        stack.Children.Add(btnPanel);
-        Content = stack;
-
-        Loaded += (_, _) => { _textBox.Focus(); };
-    }
-}

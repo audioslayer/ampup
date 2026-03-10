@@ -35,8 +35,7 @@ public partial class App : Application
         _mutex = new Mutex(true, "AmpUp_SingleInstance", out bool isNew);
         if (!isNew)
         {
-            MessageBox.Show("Amp Up is already running. Check the system tray.",
-                "Amp Up", MessageBoxButton.OK, MessageBoxImage.Information);
+            GlassDialog.ShowInfo("Amp Up is already running. Check the system tray.");
             Shutdown();
             return;
         }
@@ -105,19 +104,19 @@ public partial class App : Application
         _trayIcon.DoubleClick += (_, _) => ShowMainWindow();
 
         var menu = new Forms.ContextMenuStrip();
-        menu.BackColor = Color.FromArgb(0x14, 0x14, 0x14);
+        menu.BackColor = Color.FromArgb(0x11, 0x11, 0x11);
         menu.ForeColor = Color.FromArgb(0xE8, 0xE8, 0xE8);
-        menu.Padding = new Forms.Padding(0, 4, 0, 4);
+        menu.Padding = new Forms.Padding(0, 6, 0, 6);
         menu.ShowImageMargin = false;
-        menu.Renderer = new DarkMenuRenderer();
+        menu.Renderer = new GlassMenuRenderer();
 
-        // Header: logo + app name + version
+        // Header: app name
         var header = new Forms.ToolStripLabel
         {
             Text = "  AMP UP",
             Font = new System.Drawing.Font("Segoe UI", 10f, System.Drawing.FontStyle.Bold),
-            ForeColor = Color.FromArgb(0x4C, 0xAF, 0x50),
-            Padding = new Forms.Padding(8, 6, 8, 2),
+            ForeColor = Color.FromArgb(0x00, 0xE6, 0x76),
+            Padding = new Forms.Padding(10, 8, 10, 0),
         };
         menu.Items.Add(header);
 
@@ -126,8 +125,8 @@ public partial class App : Application
         {
             Text = $"  v{UpdateChecker.CurrentVersion}",
             Font = new System.Drawing.Font("Segoe UI", 7.5f, System.Drawing.FontStyle.Regular),
-            ForeColor = Color.FromArgb(0x55, 0x55, 0x55),
-            Padding = new Forms.Padding(8, 0, 8, 4),
+            ForeColor = Color.FromArgb(0x44, 0x44, 0x44),
+            Padding = new Forms.Padding(10, 0, 10, 4),
         };
         menu.Items.Add(version);
 
@@ -137,17 +136,17 @@ public partial class App : Application
             Text = "  ○  Disconnected",
             Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular),
             ForeColor = Color.FromArgb(0x9A, 0x9A, 0x9A),
-            Padding = new Forms.Padding(8, 2, 8, 6),
+            Padding = new Forms.Padding(10, 2, 10, 6),
         };
         menu.Items.Add(_trayStatusLabel);
 
         menu.Items.Add(new Forms.ToolStripSeparator());
 
         // Show
-        var showItem = new Forms.ToolStripMenuItem("Open Amp Up")
+        var showItem = new Forms.ToolStripMenuItem("  Open Amp Up")
         {
-            Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Regular),
-            Padding = new Forms.Padding(8, 6, 8, 6),
+            Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.SemiBold),
+            Padding = new Forms.Padding(6, 6, 6, 6),
         };
         showItem.Click += (_, _) => ShowMainWindow();
         menu.Items.Add(showItem);
@@ -155,11 +154,11 @@ public partial class App : Application
         menu.Items.Add(new Forms.ToolStripSeparator());
 
         // Exit
-        var exitItem = new Forms.ToolStripMenuItem("Exit")
+        var exitItem = new Forms.ToolStripMenuItem("  Exit")
         {
             Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Regular),
             ForeColor = Color.FromArgb(0xFF, 0x44, 0x44),
-            Padding = new Forms.Padding(8, 6, 8, 6),
+            Padding = new Forms.Padding(6, 6, 6, 6),
         };
         exitItem.Click += (_, _) => ExitApp();
         menu.Items.Add(exitItem);
@@ -252,37 +251,56 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Dark theme renderer for the tray context menu.
+    /// Glassmorphism renderer for the tray context menu — matches OSD overlay style.
     /// </summary>
-    private class DarkMenuRenderer : Forms.ToolStripProfessionalRenderer
+    private class GlassMenuRenderer : Forms.ToolStripProfessionalRenderer
     {
+        private static readonly Color BgColor = Color.FromArgb(0xEE, 0x11, 0x11, 0x11);
+        private static readonly Color BorderColor = Color.FromArgb(0x44, 0x00, 0xE6, 0x76);
+        private static readonly Color HoverBg = Color.FromArgb(0x18, 0x00, 0xE6, 0x76);
+        private static readonly Color SepColor = Color.FromArgb(0x30, 0x00, 0xE6, 0x76);
+
         protected override void OnRenderMenuItemBackground(Forms.ToolStripItemRenderEventArgs e)
         {
-            var rect = new Rectangle(4, 0, e.Item.Width - 8, e.Item.Height);
+            var rect = new Rectangle(6, 1, e.Item.Width - 12, e.Item.Height - 2);
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
             if (e.Item is Forms.ToolStripMenuItem && e.Item.Selected)
             {
-                using var brush = new SolidBrush(Color.FromArgb(0x2A, 0x2A, 0x2A));
-                using var path = RoundedRect(rect, 4);
-                e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                using var brush = new SolidBrush(HoverBg);
+                using var path = RoundedRect(rect, 6);
                 e.Graphics.FillPath(brush, path);
+
+                // Subtle green border on hover
+                using var pen = new Pen(Color.FromArgb(0x22, 0x00, 0xE6, 0x76));
+                e.Graphics.DrawPath(pen, path);
             }
         }
 
         protected override void OnRenderToolStripBackground(Forms.ToolStripRenderEventArgs e)
         {
-            using var brush = new SolidBrush(Color.FromArgb(0x14, 0x14, 0x14));
-            e.Graphics.FillRectangle(brush, e.AffectedBounds);
+            var bounds = e.AffectedBounds;
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
 
-            // Border
-            using var borderPen = new Pen(Color.FromArgb(0x2A, 0x2A, 0x2A));
-            e.Graphics.DrawRectangle(borderPen, 0, 0, e.AffectedBounds.Width - 1, e.AffectedBounds.Height - 1);
+            // Fill background
+            using var bgPath = RoundedRect(new Rectangle(0, 0, bounds.Width - 1, bounds.Height - 1), 12);
+            using var bgBrush = new SolidBrush(BgColor);
+            e.Graphics.FillPath(bgBrush, bgPath);
+
+            // Green glow border (gradient from top-left to bottom-right like the OSD)
+            using var borderPen = new Pen(BorderColor, 1.2f);
+            e.Graphics.DrawPath(borderPen, bgPath);
+        }
+
+        protected override void OnRenderToolStripBorder(Forms.ToolStripRenderEventArgs e)
+        {
+            // Suppress default border — we draw our own rounded one in OnRenderToolStripBackground
         }
 
         protected override void OnRenderSeparator(Forms.ToolStripSeparatorRenderEventArgs e)
         {
             int y = e.Item.ContentRectangle.Height / 2;
-            using var pen = new Pen(Color.FromArgb(0x2A, 0x2A, 0x2A));
-            e.Graphics.DrawLine(pen, 12, y, e.Item.Width - 12, y);
+            using var pen = new Pen(SepColor);
+            e.Graphics.DrawLine(pen, 16, y, e.Item.Width - 16, y);
         }
 
         protected override void OnRenderItemText(Forms.ToolStripItemTextRenderEventArgs e)
@@ -353,20 +371,20 @@ public partial class App : Application
                 // Apply min/max range
                 int displayPct = (int)Math.Round(knob.MinVolume + pct * (knob.MaxVolume - knob.MinVolume));
                 string label = !string.IsNullOrEmpty(knob.Label) ? knob.Label : knob.Target;
-                string icon = knob.Target switch
+                string symbol = knob.Target switch
                 {
-                    "master" => "🔊",
-                    "mic" => "🎤",
-                    "monitor" => "🖥",
-                    "spotify" => "🎵",
-                    "discord" => "🎧",
-                    _ when knob.Target.StartsWith("ha_") => "🏠",
-                    _ => "🔉"
+                    "master" => "Speaker224",
+                    "mic" => "Mic24",
+                    "monitor" => "Desktop24",
+                    "spotify" => "MusicNote124",
+                    "discord" => "Headphones24",
+                    _ when knob.Target.StartsWith("ha_") => "Home24",
+                    _ => "Speaker124"
                 };
                 Dispatcher.Invoke(() =>
                 {
                     EnsureOsd();
-                    _osdOverlay!.ShowVolume(label, displayPct, icon);
+                    _osdOverlay!.ShowVolume(label, displayPct, symbol);
                 });
             }
         }

@@ -56,13 +56,13 @@ public partial class OsdOverlay : Window
     /// <summary>
     /// Show volume change: label, percentage, animated bar.
     /// </summary>
-    public void ShowVolume(string label, int percent, string icon = "🔊")
+    public void ShowVolume(string label, int percent, string symbolName = "Speaker224")
     {
         _closing = false;
         _dismissTimer.Stop();
 
         CategoryLabel.Text = "VOLUME";
-        SetTextIcon(icon);
+        SetSymbolIcon(symbolName, "#00E676");
         OsdTitle.Text = label;
         OsdValue.Text = $"{percent}%";
         OsdValue.Visibility = Visibility.Visible;
@@ -129,7 +129,7 @@ public partial class OsdOverlay : Window
         _dismissTimer.Stop();
 
         CategoryLabel.Text = isOutput ? "OUTPUT DEVICE" : "INPUT DEVICE";
-        SetTextIcon(isOutput ? "🔊" : "🎤");
+        SetSymbolIcon(isOutput ? "Speaker224" : "Mic24", "#00E676");
         OsdTitle.Text = deviceName;
         OsdValue.Visibility = Visibility.Collapsed;
         BarContainer.Visibility = Visibility.Collapsed;

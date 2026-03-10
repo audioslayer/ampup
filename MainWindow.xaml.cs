@@ -213,13 +213,7 @@ public partial class MainWindow : FluentWindow
             else
             {
                 var (tag, url) = update.Value;
-                var result = System.Windows.MessageBox.Show(
-                    $"A new version ({tag}) is available. Download and install?",
-                    "Amp Up Update",
-                    System.Windows.MessageBoxButton.YesNo,
-                    System.Windows.MessageBoxImage.Information);
-
-                if (result == System.Windows.MessageBoxResult.Yes)
+                if (GlassDialog.Confirm($"A new version ({tag}) is available. Download and install?", "UPDATE", owner: this))
                 {
                     VersionLabel.Text = "Downloading...";
                     await UpdateChecker.DownloadAndInstallAsync(url, progress =>
@@ -665,17 +659,15 @@ public partial class MainWindow : FluentWindow
 
     private void AddNewProfile()
     {
-        var dialog = new InputDialog("New Profile", "Enter profile name:");
-        dialog.Owner = this;
-        if (dialog.ShowDialog() == true)
+        var name = GlassDialog.Prompt("Enter profile name:", "NEW PROFILE", owner: this);
+        if (!string.IsNullOrWhiteSpace(name))
         {
-            var name = dialog.ResponseText.Trim();
+            name = name.Trim();
             if (string.IsNullOrEmpty(name)) return;
 
             if (_config.Profiles.Contains(name))
             {
-                System.Windows.MessageBox.Show($"Profile \"{name}\" already exists.",
-                    "Amp Up", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                GlassDialog.ShowWarning($"Profile \"{name}\" already exists.", owner: this);
                 return;
             }
 
@@ -693,11 +685,8 @@ public partial class MainWindow : FluentWindow
     {
         ProfilePopup.IsOpen = false;
 
-        var result = System.Windows.MessageBox.Show(
-            $"Delete profile \"{profileName}\"?",
-            "Amp Up", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning);
-
-        if (result != System.Windows.MessageBoxResult.Yes) return;
+        if (!GlassDialog.Confirm($"Delete profile \"{profileName}\"?", "DELETE PROFILE", dangerYes: true, owner: this))
+            return;
 
         _config.Profiles.Remove(profileName);
         _config.ProfileIcons.Remove(profileName);
