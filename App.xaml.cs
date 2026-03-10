@@ -18,7 +18,7 @@ public partial class App : Application
     private DateTime _connectedAt = DateTime.MinValue;
     private Forms.NotifyIcon? _trayIcon;
     private bool _isConnected;
-    private DeviceSwitchOverlay? _deviceOverlay;
+    private OsdOverlay? _osdOverlay;
     private HAIntegration? _ha;
 
     /// <summary>
@@ -345,6 +345,30 @@ public partial class App : Application
             {
                 _mixer.SetVolume(knob, e.Value);
             }
+
+            // Show OSD overlay when main window is not visible
+            if (_mainWindow != null && !_mainWindow.IsVisible)
+            {
+                float pct = e.Value / 1023f;
+                // Apply min/max range
+                int displayPct = (int)Math.Round(knob.MinVolume + pct * (knob.MaxVolume - knob.MinVolume));
+                string label = !string.IsNullOrEmpty(knob.Label) ? knob.Label : knob.Target;
+                string icon = knob.Target switch
+                {
+                    "master" => "🔊",
+                    "mic" => "🎤",
+                    "monitor" => "🖥",
+                    "spotify" => "🎵",
+                    "discord" => "🎧",
+                    _ when knob.Target.StartsWith("ha_") => "🏠",
+                    _ => "🔉"
+                };
+                Dispatcher.Invoke(() =>
+                {
+                    _osdOverlay ??= new OsdOverlay();
+                    _osdOverlay.ShowVolume(label, displayPct, icon);
+                });
+            }
         }
         _rgb.SetKnobPosition(e.Idx, e.Value / 1023f);
     }
@@ -419,14 +443,22 @@ public partial class App : Application
         ConfigManager.Save(_config);
         ApplyRgbConfig();
         Logger.Log($"Switched to profile: {profileName}");
+
+        // Show OSD for profile switch
+        var emoji = _config.ProfileEmojis.GetValueOrDefault(profileName, "🎛");
+        Dispatcher.Invoke(() =>
+        {
+            _osdOverlay ??= new OsdOverlay();
+            _osdOverlay.ShowProfileSwitch(profileName, emoji);
+        });
     }
 
     private void HandleDeviceSwitched(string deviceName, bool isOutput)
     {
         Dispatcher.Invoke(() =>
         {
-            _deviceOverlay ??= new DeviceSwitchOverlay();
-            _deviceOverlay.ShowDevice(deviceName, isOutput);
+            _osdOverlay ??= new OsdOverlay();
+            _osdOverlay.ShowDevice(deviceName, isOutput);
         });
     }
 
@@ -492,6 +524,7 @@ public partial class App : Application
             _trayIcon.Dispose();
         }
         _mutePollingTimer?.Dispose();
+        _osdOverlay?.Close();
         _serial?.Dispose();
         _mixer?.Dispose();
         _rgb?.Dispose();

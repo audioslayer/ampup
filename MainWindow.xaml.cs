@@ -252,11 +252,14 @@ public partial class MainWindow : FluentWindow
     // ── Profile flyout ────────────────────────────────────────────
 
     // Emoji options for profile picker
-    private static readonly string[] ProfileEmojiOptions =
+    private static readonly (string Category, string[] Emojis)[] ProfileEmojiCategories =
     {
-        "🎛", "🎮", "🎧", "🎵", "🎤", "🔊", "💻", "🖥", "📺", "🎬",
-        "🏠", "🌙", "☀️", "🔥", "❄️", "⚡", "🎯", "🚀", "💡", "🎨",
-        "🏢", "🎸", "🥁", "🎹", "🎻", "📻", "🎙", "📡", "⭐", "💎"
+        ("Audio & Music", new[] { "🎛", "🔊", "🔉", "🔈", "🎵", "🎶", "🎧", "🎤", "🎙", "📻", "🎸", "🥁", "🎹", "🎻", "🎺", "🎷", "🪗", "🪘", "🪕" }),
+        ("Gaming", new[] { "🎮", "🕹", "👾", "🏆", "⚔️", "🛡", "🎯", "🐉", "🧙", "🤖" }),
+        ("Lights & Effects", new[] { "💡", "🔥", "⚡", "✨", "🌈", "💫", "🌟", "⭐", "☀️", "🌙", "❄️", "💎", "🔮", "🪩" }),
+        ("Work & Streaming", new[] { "💻", "🖥", "🎬", "📺", "🎥", "📡", "📢", "🏢", "📝", "📊" }),
+        ("Moods & Vibes", new[] { "🎨", "🚀", "🌊", "🍃", "🌺", "🦊", "🐺", "🦁", "🦅", "🐧" }),
+        ("Fun", new[] { "😎", "🤘", "👑", "💜", "💚", "💙", "🧡", "❤️", "🖤", "🤍" }),
     };
 
     private void UpdateProfileButton()
@@ -340,14 +343,14 @@ public partial class MainWindow : FluentWindow
                 {
                     Text = "✕",
                     FontSize = 9,
-                    Foreground = (SolidColorBrush)FindResource("TextDimBrush"),
+                    Foreground = (SolidColorBrush)FindResource("DangerRedBrush"),
                     VerticalAlignment = VerticalAlignment.Center,
                     Cursor = Cursors.Hand,
                     Margin = new Thickness(8, 0, 0, 0),
                     ToolTip = "Delete profile"
                 };
-                deleteBtn.MouseEnter += (_, _) => deleteBtn.Foreground = (SolidColorBrush)FindResource("DangerRedBrush");
-                deleteBtn.MouseLeave += (_, _) => deleteBtn.Foreground = (SolidColorBrush)FindResource("TextDimBrush");
+                deleteBtn.MouseEnter += (_, _) => deleteBtn.Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x77, 0x77));
+                deleteBtn.MouseLeave += (_, _) => deleteBtn.Foreground = (SolidColorBrush)FindResource("DangerRedBrush");
                 deleteBtn.MouseLeftButtonDown += (_, ev) =>
                 {
                     ev.Handled = true;
@@ -458,40 +461,50 @@ public partial class MainWindow : FluentWindow
             HorizontalOffset = 4
         };
 
-        var wrapPanel = new System.Windows.Controls.WrapPanel
-        {
-            Width = 220,
-            Margin = new Thickness(4)
-        };
+        var outerPanel = new StackPanel { Margin = new Thickness(4) };
 
-        foreach (var em in ProfileEmojiOptions)
+        foreach (var (category, emojis) in ProfileEmojiCategories)
         {
-            var emojiCapture = em;
-            var btn = new System.Windows.Controls.Border
+            var header = new System.Windows.Controls.TextBlock
             {
-                Width = 36, Height = 36,
-                CornerRadius = new CornerRadius(6),
-                Cursor = Cursors.Hand,
-                Margin = new Thickness(2)
+                Text = category,
+                FontSize = 10,
+                Foreground = (SolidColorBrush)FindResource("TextDimBrush"),
+                Margin = new Thickness(4, category == ProfileEmojiCategories[0].Category ? 0 : 6, 0, 3)
             };
-            var txt = new System.Windows.Controls.TextBlock
+            outerPanel.Children.Add(header);
+
+            var wrapPanel = new System.Windows.Controls.WrapPanel { Width = 280 };
+            foreach (var em in emojis)
             {
-                Text = em,
-                FontSize = 18,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            btn.Child = txt;
-            btn.MouseEnter += (_, _) => btn.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-            btn.MouseLeave += (_, _) => btn.Background = System.Windows.Media.Brushes.Transparent;
-            btn.MouseLeftButtonDown += (_, _) =>
-            {
-                _config.ProfileEmojis[profileName] = emojiCapture;
-                _onConfigChanged?.Invoke(_config);
-                UpdateProfileButton();
-                emojiPopup.IsOpen = false;
-            };
-            wrapPanel.Children.Add(btn);
+                var emojiCapture = em;
+                var btn = new System.Windows.Controls.Border
+                {
+                    Width = 34, Height = 34,
+                    CornerRadius = new CornerRadius(6),
+                    Cursor = Cursors.Hand,
+                    Margin = new Thickness(1)
+                };
+                var txt = new System.Windows.Controls.TextBlock
+                {
+                    Text = em,
+                    FontSize = 17,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                btn.Child = txt;
+                btn.MouseEnter += (_, _) => btn.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+                btn.MouseLeave += (_, _) => btn.Background = System.Windows.Media.Brushes.Transparent;
+                btn.MouseLeftButtonDown += (_, _) =>
+                {
+                    _config.ProfileEmojis[profileName] = emojiCapture;
+                    _onConfigChanged?.Invoke(_config);
+                    UpdateProfileButton();
+                    emojiPopup.IsOpen = false;
+                };
+                wrapPanel.Children.Add(btn);
+            }
+            outerPanel.Children.Add(wrapPanel);
         }
 
         var popupBorder = new System.Windows.Controls.Border
@@ -501,7 +514,12 @@ public partial class MainWindow : FluentWindow
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(4),
-            Child = wrapPanel,
+            Child = new ScrollViewer
+            {
+                Content = outerPanel,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                MaxHeight = 400
+            },
             Effect = new System.Windows.Media.Effects.DropShadowEffect
             {
                 Color = Colors.Black, BlurRadius = 24, Opacity = 0.6, ShadowDepth = 6
