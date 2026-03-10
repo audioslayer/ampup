@@ -484,6 +484,7 @@ public partial class MixerView : UserControl
 
             // "Add app" — ListPicker showing running audio apps
             var appsAddPicker = new ListPicker { Margin = new Thickness(0, 0, 0, 4) };
+            appsAddPicker.DropdownOpening += (_, _) => PopulateRunningApps(idx);
             appsAddPicker.SelectionChanged += (_, _) =>
             {
                 // Only add if the selected item has a tag (skip placeholder items)

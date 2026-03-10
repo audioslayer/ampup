@@ -28,6 +28,7 @@ public class ListPicker : Border
     private readonly List<(string Display, object? Tag)> _items = new();
 
     public event EventHandler? SelectionChanged;
+    public event EventHandler? DropdownOpening;
 
     public Color AccentColor { get; set; } = Color.FromRgb(0x00, 0xE6, 0x76);
 
@@ -130,6 +131,8 @@ public class ListPicker : Border
         // Open popup on click
         MouseLeftButtonUp += (_, e) =>
         {
+            if (!_popup.IsOpen)
+                DropdownOpening?.Invoke(this, EventArgs.Empty);
             _popupBorder.MinWidth = ActualWidth;
             _popup.IsOpen = !_popup.IsOpen;
             e.Handled = true;
