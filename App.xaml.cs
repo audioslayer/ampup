@@ -80,11 +80,15 @@ public partial class App : Application
         // Create tray icon
         SetupTrayIcon();
 
-        // Create and show main window
+        // Create main window
         _mainWindow = new MainWindow();
         _mainWindow.Closing += MainWindow_Closing;
         _mainWindow.Initialize(_config, _mixer, OnConfigChanged);
-        _mainWindow.Show();
+
+        // Start minimized to tray if launched with --minimized (Windows startup)
+        var args = Environment.GetCommandLineArgs();
+        if (!args.Contains("--minimized"))
+            _mainWindow.Show();
 
         // Sync connection status — serial may have connected before window was created
         if (_isConnected)
@@ -560,7 +564,7 @@ public partial class App : Application
             if (_config.StartWithWindows)
             {
                 var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? "";
-                key.SetValue(valueName, $"\"{exePath}\"");
+                key.SetValue(valueName, $"\"{exePath}\" --minimized");
             }
             else
             {
