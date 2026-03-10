@@ -85,13 +85,39 @@ public partial class MainWindow : FluentWindow
     }
     private void NavSettings_Click(object sender, RoutedEventArgs e) => NavigateTo(_settingsView, NavSettings);
 
+    private void NavImport_Click(object sender, RoutedEventArgs e)
+    {
+        var wizard = new ImportWizardWindow { Owner = this };
+        wizard.ShowDialog();
+
+        if (wizard.ImportedProfileName != null)
+        {
+            var profileName = wizard.ImportedProfileName;
+
+            if (!_config.Profiles.Contains(profileName))
+                _config.Profiles.Add(profileName);
+
+            var loaded = ConfigManager.LoadProfile(profileName);
+            if (loaded != null)
+            {
+                loaded.ActiveProfile = profileName;
+                loaded.Profiles = _config.Profiles;
+                loaded.ProfileIcons = _config.ProfileIcons;
+                _config = loaded;
+                _onConfigChanged?.Invoke(_config);
+                RefreshViews();
+                RefreshProfilePicker();
+            }
+        }
+    }
+
     private void NavigateTo(System.Windows.Controls.UserControl view, System.Windows.Controls.Button navButton)
     {
         ContentArea.Content = view;
 
         // Update sidebar highlight (icon + label)
         var accent = (SolidColorBrush)FindResource("AccentBrush");
-        var dimIcon = (SolidColorBrush)FindResource("TextSecBrush");
+        var dimIcon = new SolidColorBrush(Colors.White);
         var dimLabel = (SolidColorBrush)FindResource("TextDimBrush");
 
         if (_activeNavButton != null)

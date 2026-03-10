@@ -138,43 +138,56 @@
                         </Border>
                     </Popup>
 
-                    <StackPanel Grid.Row="1" Margin="0,4,0,0">
-                    <Button x:Name="NavMixer" Style="{StaticResource NavButton}" Click="NavMixer_Click">
-                        <StackPanel HorizontalAlignment="Center">
-                            <ui:SymbolIcon Symbol="Speaker224" FontSize="20" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Center" />
-                            <TextBlock x:Name="NavMixerLabel" Text="Mixer" FontSize="9" Foreground="{StaticResource AccentBrush}"
-                                       HorizontalAlignment="Center" Margin="0,3,0,0" />
+                    <DockPanel Grid.Row="1" Margin="0,4,0,0" LastChildFill="True">
+                        <!-- Import button pinned to bottom -->
+                        <Button x:Name="NavImport" Style="{StaticResource NavButton}" Click="NavImport_Click"
+                                DockPanel.Dock="Bottom" ToolTip="Import from Turn Up">
+                            <StackPanel HorizontalAlignment="Center">
+                                <ui:SymbolIcon Symbol="ArrowUpload24" FontSize="20" Foreground="#00E676" HorizontalAlignment="Center" />
+                                <TextBlock Text="Import" FontSize="9" Foreground="{StaticResource TextDimBrush}"
+                                           HorizontalAlignment="Center" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Nav items -->
+                        <StackPanel>
+                            <Button x:Name="NavMixer" Style="{StaticResource NavButton}" Click="NavMixer_Click">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <ui:SymbolIcon Symbol="MusicNote124" FontSize="20" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Center" />
+                                    <TextBlock x:Name="NavMixerLabel" Text="Mixer" FontSize="9" Foreground="{StaticResource AccentBrush}"
+                                               HorizontalAlignment="Center" Margin="0,3,0,0" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="NavButtons" Style="{StaticResource NavButton}" Click="NavButtons_Click">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <ui:SymbolIcon Symbol="Cursor24" FontSize="20" Foreground="White" HorizontalAlignment="Center" />
+                                    <TextBlock x:Name="NavButtonsLabel" Text="Buttons" FontSize="9" Foreground="{StaticResource TextDimBrush}"
+                                               HorizontalAlignment="Center" Margin="0,3,0,0" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="NavLights" Style="{StaticResource NavButton}" Click="NavLights_Click">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <ui:SymbolIcon Symbol="Color24" FontSize="20" Foreground="White" HorizontalAlignment="Center" />
+                                    <TextBlock x:Name="NavLightsLabel" Text="Lights" FontSize="9" Foreground="{StaticResource TextDimBrush}"
+                                               HorizontalAlignment="Center" Margin="0,3,0,0" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="NavHA" Style="{StaticResource NavButton}" Click="NavHA_Click">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <ui:SymbolIcon Symbol="Home24" FontSize="20" Foreground="White" HorizontalAlignment="Center" />
+                                    <TextBlock x:Name="NavHALabel" Text="HA" FontSize="9" Foreground="{StaticResource TextDimBrush}"
+                                               HorizontalAlignment="Center" Margin="0,3,0,0" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="NavSettings" Style="{StaticResource NavButton}" Click="NavSettings_Click">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <ui:SymbolIcon Symbol="Settings24" FontSize="20" Foreground="White" HorizontalAlignment="Center" />
+                                    <TextBlock x:Name="NavSettingsLabel" Text="Settings" FontSize="9" Foreground="{StaticResource TextDimBrush}"
+                                               HorizontalAlignment="Center" Margin="0,3,0,0" />
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
-                    </Button>
-                    <Button x:Name="NavButtons" Style="{StaticResource NavButton}" Click="NavButtons_Click">
-                        <StackPanel HorizontalAlignment="Center">
-                            <ui:SymbolIcon Symbol="Keyboard24" FontSize="20" Foreground="{StaticResource TextSecBrush}" HorizontalAlignment="Center" />
-                            <TextBlock x:Name="NavButtonsLabel" Text="Buttons" FontSize="9" Foreground="{StaticResource TextDimBrush}"
-                                       HorizontalAlignment="Center" Margin="0,3,0,0" />
-                        </StackPanel>
-                    </Button>
-                    <Button x:Name="NavLights" Style="{StaticResource NavButton}" Click="NavLights_Click">
-                        <StackPanel HorizontalAlignment="Center">
-                            <ui:SymbolIcon Symbol="LightbulbFilament24" FontSize="20" Foreground="{StaticResource TextSecBrush}" HorizontalAlignment="Center" />
-                            <TextBlock x:Name="NavLightsLabel" Text="Lights" FontSize="9" Foreground="{StaticResource TextDimBrush}"
-                                       HorizontalAlignment="Center" Margin="0,3,0,0" />
-                        </StackPanel>
-                    </Button>
-                    <Button x:Name="NavHA" Style="{StaticResource NavButton}" Click="NavHA_Click">
-                        <StackPanel HorizontalAlignment="Center">
-                            <ui:SymbolIcon Symbol="Home24" FontSize="20" Foreground="{StaticResource TextSecBrush}" HorizontalAlignment="Center" />
-                            <TextBlock x:Name="NavHALabel" Text="HA" FontSize="9" Foreground="{StaticResource TextDimBrush}"
-                                       HorizontalAlignment="Center" Margin="0,3,0,0" />
-                        </StackPanel>
-                    </Button>
-                    <Button x:Name="NavSettings" Style="{StaticResource NavButton}" Click="NavSettings_Click">
-                        <StackPanel HorizontalAlignment="Center">
-                            <ui:SymbolIcon Symbol="Settings24" FontSize="20" Foreground="{StaticResource TextSecBrush}" HorizontalAlignment="Center" />
-                            <TextBlock x:Name="NavSettingsLabel" Text="Settings" FontSize="9" Foreground="{StaticResource TextDimBrush}"
-                                       HorizontalAlignment="Center" Margin="0,3,0,0" />
-                        </StackPanel>
-                    </Button>
-                    </StackPanel>
+                    </DockPanel>
                 </Grid>
             </Border>
 
