@@ -36,7 +36,7 @@ public partial class OsdOverlay : Window
 
     private void SetTextIcon(string text, double fontSize = 24)
     {
-        OsdIconHost.Content = new TextBlock
+        OsdIconHost.Content = new System.Windows.Controls.TextBlock
         {
             Text = text,
             FontSize = fontSize,
