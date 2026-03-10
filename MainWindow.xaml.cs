@@ -28,6 +28,7 @@ public partial class MainWindow : FluentWindow
 
         _config = ConfigManager.Load();
         VersionLabel.Text = $"v{UpdateChecker.CurrentVersion}";
+        PopulateProfilePicker();
         NavigateTo(_mixerView, NavMixer);
         SetupTrafficLightHovers();
 
@@ -246,6 +247,50 @@ public partial class MainWindow : FluentWindow
         {
             _checkingUpdate = false;
         }
+    }
+
+    private bool _profileSwitching;
+
+    private void PopulateProfilePicker()
+    {
+        _profileSwitching = true;
+        CmbHeaderProfile.Items.Clear();
+        foreach (var profile in _config.Profiles)
+            CmbHeaderProfile.Items.Add(profile);
+        CmbHeaderProfile.SelectedItem = _config.ActiveProfile;
+        _profileSwitching = false;
+    }
+
+    private void CmbHeaderProfile_Changed(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_profileSwitching || CmbHeaderProfile.SelectedItem == null) return;
+
+        var selected = CmbHeaderProfile.SelectedItem.ToString()!;
+        if (selected == _config.ActiveProfile) return;
+
+        var loaded = ConfigManager.LoadProfile(selected);
+        if (loaded != null)
+        {
+            loaded.ActiveProfile = selected;
+            loaded.Profiles = _config.Profiles;
+            _config = loaded;
+            _onConfigChanged?.Invoke(_config);
+            RefreshViews();
+        }
+        else
+        {
+            // No saved profile file — just switch the name
+            _config.ActiveProfile = selected;
+            _onConfigChanged?.Invoke(_config);
+        }
+    }
+
+    /// <summary>
+    /// Called externally when profiles list changes (new/delete from Settings).
+    /// </summary>
+    public void RefreshProfilePicker()
+    {
+        PopulateProfilePicker();
     }
 
     public void SetConnectionStatus(bool connected)

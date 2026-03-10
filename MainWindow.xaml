@@ -49,6 +49,17 @@
                 </TextBlock>
             </StackPanel>
 
+            <!-- Profile Picker (center area) -->
+            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="PROFILE" FontSize="9" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <ComboBox x:Name="CmbHeaderProfile" Width="160" Height="28" FontSize="11"
+                          Background="{StaticResource InputBgBrush}"
+                          BorderBrush="{StaticResource CardBorderBrush}"
+                          Foreground="{StaticResource TextPrimaryBrush}"
+                          SelectionChanged="CmbHeaderProfile_Changed" />
+            </StackPanel>
+
             <!-- Connection Status + Window Controls -->
             <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,12,0" VerticalAlignment="Center">
                 <Ellipse x:Name="ConnectionDot" Width="8" Height="8" Fill="{StaticResource TextDimBrush}" Margin="0,0,8,0" />

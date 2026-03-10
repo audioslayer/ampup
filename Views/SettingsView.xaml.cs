@@ -110,6 +110,18 @@ public partial class SettingsView : UserControl
             _debounceTimer.Stop();
             _debounceTimer.Start();
         }
+
+        (Window.GetWindow(this) as MainWindow)?.RefreshProfilePicker();
+    }
+
+    private void RefreshProfileDropdown()
+    {
+        _loading = true;
+        CmbProfiles.Items.Clear();
+        foreach (var p in _config!.Profiles)
+            CmbProfiles.Items.Add(p);
+        CmbProfiles.SelectedItem = _config.ActiveProfile;
+        _loading = false;
     }
 
     private void CollectAndSave()
@@ -138,7 +150,7 @@ public partial class SettingsView : UserControl
         CollectAndSave();
         ConfigManager.SaveProfile(_config, profileName);
 
-        MessageBox.Show($"Profile \"{profileName}\" saved.", "WolfMixer",
+        MessageBox.Show($"Profile \"{profileName}\" saved.", "Amp Up",
             MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
@@ -156,13 +168,13 @@ public partial class SettingsView : UserControl
             _onSave?.Invoke(_config);
             LoadConfig(_config, _onSave!);
 
-            MessageBox.Show($"Profile \"{profileName}\" loaded.", "WolfMixer",
+            MessageBox.Show($"Profile \"{profileName}\" loaded.", "Amp Up",
                 MessageBoxButton.OK, MessageBoxImage.Information);
         }
         else
         {
             MessageBox.Show($"Profile \"{profileName}\" not found on disk.",
-                "WolfMixer", MessageBoxButton.OK, MessageBoxImage.Warning);
+                "Amp Up", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -180,7 +192,7 @@ public partial class SettingsView : UserControl
             if (_config.Profiles.Contains(name))
             {
                 MessageBox.Show($"Profile \"{name}\" already exists.",
-                    "WolfMixer", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    "Amp Up", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -189,13 +201,9 @@ public partial class SettingsView : UserControl
             CollectAndSave();
             ConfigManager.SaveProfile(_config, name);
 
-            // Refresh dropdown
-            _loading = true;
-            CmbProfiles.Items.Clear();
-            foreach (var p in _config.Profiles)
-                CmbProfiles.Items.Add(p);
-            CmbProfiles.SelectedItem = name;
-            _loading = false;
+            // Refresh dropdowns
+            RefreshProfileDropdown();
+            (Window.GetWindow(this) as MainWindow)?.RefreshProfilePicker();
         }
     }
 
@@ -207,34 +215,31 @@ public partial class SettingsView : UserControl
         if (profileName == "Default")
         {
             MessageBox.Show("Cannot delete the Default profile.",
-                "WolfMixer", MessageBoxButton.OK, MessageBoxImage.Warning);
+                "Amp Up", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
         var result = MessageBox.Show(
             $"Delete profile \"{profileName}\"? This cannot be undone.",
-            "WolfMixer", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            "Amp Up", MessageBoxButton.YesNo, MessageBoxImage.Warning);
 
         if (result != MessageBoxResult.Yes) return;
 
         _config.Profiles.Remove(profileName);
         _config.ActiveProfile = "Default";
 
-        // Delete profile file
-        var path = System.IO.Path.Combine(
-            AppDomain.CurrentDomain.BaseDirectory,
-            $"profile_{profileName.ToLowerInvariant().Replace(' ', '_')}.json");
+        // Delete profile file from AppData
+        var configDir = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AmpUp");
+        var safe = string.Concat(profileName.ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) || c == '-' ? c : '_'));
+        var path = System.IO.Path.Combine(configDir, $"profile_{safe}.json");
         try { if (System.IO.File.Exists(path)) System.IO.File.Delete(path); } catch { }
 
         CollectAndSave();
 
-        // Refresh dropdown
-        _loading = true;
-        CmbProfiles.Items.Clear();
-        foreach (var p in _config.Profiles)
-            CmbProfiles.Items.Add(p);
-        CmbProfiles.SelectedItem = "Default";
-        _loading = false;
+        // Refresh dropdowns
+        RefreshProfileDropdown();
+        (Window.GetWindow(this) as MainWindow)?.RefreshProfilePicker();
     }
 
     private async void OnCheckUpdate(object sender, RoutedEventArgs e)

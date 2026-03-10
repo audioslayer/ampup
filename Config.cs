@@ -157,6 +157,8 @@ public static class ConfigManager
             if (!config.Lights.Any(l => l.Idx == i))
                 config.Lights.Add(new LightConfig { Idx = i, R = 0, G = 150, B = 255 });
         }
+        // Deduplicate profiles
+        config.Profiles = config.Profiles.Distinct().ToList();
         if (config.Profiles.Count == 0)
             config.Profiles.Add("Default");
         if (string.IsNullOrEmpty(config.ActiveProfile))
