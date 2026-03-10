@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.1--alpha-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.2--alpha-blue" alt="Version" />
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6" alt="Platform" />
   <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8" />
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License" />
@@ -56,18 +56,34 @@ Amp Up is a community-built alternative for the Turn Up USB mixer with a modern 
 - **Switch profiles** via button press or the Settings tab
 - **Per-game / per-workflow** setups
 
+### OSD Overlay
+- **Glassmorphism notifications** — sleek dark glass overlay with green glow accent
+- **Volume changes** — shows knob label, percentage, and animated fill bar
+- **Profile switches** — colored Fluent icon + profile name
+- **Device switches** — output/input device name with icon
+- **Configurable position** — 6 screen positions (Fraps-style picker in Settings)
+- **Per-type toggles** — enable/disable OSD for volume, profiles, and devices independently
+
+### Profiles
+- **Save and load** full configurations (knobs, buttons, lights)
+- **Switch profiles** via button press or sidebar profile picker
+- **Colored Fluent icons** — 40+ icons with 10 color presets per profile
+- **Per-game / per-workflow** setups
+
 ### System Integration
 - **Home Assistant** — connect to your smart home for automation triggers
+- **Auto-update** — checks for new releases on startup with one-click install
 - **Start with Windows** — launches silently to system tray
-- **System tray app** — zero taskbar footprint
+- **System tray app** — glassmorphism context menu with green glow accent
 - **Hot-reload config** — changes apply instantly, no restart needed
+- **Auto COM port detection** — scans all serial ports to find the Turn Up device
 
 ---
 
 ## Install
 
 ### Installer (Recommended)
-1. Download `AmpUp-Setup-0.1-alpha.exe` from [Releases](https://github.com/audioslayer/ampup/releases)
+1. Download `AmpUp-Setup-0.2-alpha.exe` from [Releases](https://github.com/audioslayer/ampup/releases)
 2. Run the installer
 3. Amp Up appears in your system tray
 
@@ -140,10 +156,11 @@ Amp Up is designed for the **Turn Up** USB volume mixer (CH343 USB-to-serial). T
 
 ## Roadmap
 
+- [x] OSD overlay for volume, profiles, and device switching
+- [x] Auto COM port detection
+- [x] Auto-update checker
 - [ ] OBS WebSocket integration (scene switching, source control)
 - [ ] VoiceMeeter strip/bus control
-- [ ] USB auto-detection (no hardcoded COM port)
-- [ ] Per-app volume HUD overlay
 - [ ] Multi-device support
 - [ ] FanControl integration
 
