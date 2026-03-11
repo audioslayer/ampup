@@ -19,10 +19,10 @@ public class RgbController : IDisposable
     private bool _micMuted;
     private bool _masterMuted;
     private int _brightness = 100; // 0-100 global brightness
-    private List<LightConfig> _lights = new();
+    private volatile List<LightConfig> _lights = new();
     private int _animTick; // incremented every timer tick (50ms)
     private AudioAnalyzer? _audioAnalyzer;
-    private GlobalLightConfig? _globalLight;
+    private volatile GlobalLightConfig? _globalLight;
 
     // Sparkle state per knob
     private readonly int[] _sparkleLed = new int[5];
@@ -37,7 +37,8 @@ public class RgbController : IDisposable
     private readonly int[] _stackLit = new int[5]; // how many LEDs are lit (0-3)
     private readonly int[] _stackTick = new int[5];
 
-    // ProgramMute state per knob
+    // ProgramMute state per knob — written from polling timer, read from animation timer
+    private readonly object _stateLock = new();
     private readonly Dictionary<int, bool> _programMuteStates = new();
 
     // DeviceSelect state: current default output device ID
@@ -168,7 +169,9 @@ public class RgbController : IDisposable
     public void SetProgramMuted(int knobIdx, bool muted)
     {
         if (knobIdx >= 0 && knobIdx < 5)
-            _programMuteStates[knobIdx] = muted;
+        {
+            lock (_stateLock) _programMuteStates[knobIdx] = muted;
+        }
     }
 
     /// <summary>
@@ -970,7 +973,8 @@ public class RgbController : IDisposable
     /// </summary>
     private void EffectProgramMute(int k, LightConfig light)
     {
-        bool muted = _programMuteStates.GetValueOrDefault(k, true); // default to muted color if unknown
+        bool muted;
+        lock (_stateLock) muted = _programMuteStates.GetValueOrDefault(k, true); // default to muted color if unknown
         if (muted)
             SetColor(k, light.R2, light.G2, light.B2);
         else

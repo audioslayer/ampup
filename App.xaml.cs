@@ -669,6 +669,12 @@ public partial class App : Application
 
     private string _lastDefaultOutputDeviceId = "";
 
+    // Cached enumerator for mute polling (created once, lives for the app lifetime)
+    private NAudio.CoreAudioApi.MMDeviceEnumerator? _pollEnumerator;
+    // Cached devices for mute polling — refreshed only when the default device changes
+    private NAudio.CoreAudioApi.MMDevice? _cachedMic;
+    private NAudio.CoreAudioApi.MMDevice? _cachedMaster;
+
     private void PollMuteStates()
     {
         try
@@ -679,37 +685,50 @@ public partial class App : Application
 
         try
         {
-            using var enumerator = new NAudio.CoreAudioApi.MMDeviceEnumerator();
+            _pollEnumerator ??= new NAudio.CoreAudioApi.MMDeviceEnumerator();
 
             try
             {
-                using var mic = enumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Capture, NAudio.CoreAudioApi.Role.Communications);
-                _rgb.SetMicMuted(mic.AudioEndpointVolume.Mute);
+                // Lazily cache the default mic; re-fetch only on failure
+                _cachedMic ??= _pollEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Capture, NAudio.CoreAudioApi.Role.Communications);
+                _rgb.SetMicMuted(_cachedMic.AudioEndpointVolume.Mute);
             }
-            catch { }
+            catch
+            {
+                // Device may have changed — clear cache so it's re-fetched next tick
+                _cachedMic?.Dispose();
+                _cachedMic = null;
+            }
 
             try
             {
-                using var master = enumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
-                _rgb.SetMasterMuted(master.AudioEndpointVolume.Mute);
+                _cachedMaster ??= _pollEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
+                _rgb.SetMasterMuted(_cachedMaster.AudioEndpointVolume.Mute);
 
                 // Notify RgbController when the default output device changes (for DeviceSelect effect)
-                string currentId = master.ID;
+                string currentId = _cachedMaster.ID;
                 if (currentId != _lastDefaultOutputDeviceId)
                 {
                     _lastDefaultOutputDeviceId = currentId;
                     _rgb.SetDefaultOutputDevice(currentId);
+                    // Default device changed — clear master cache so next poll fetches the new default
+                    _cachedMaster.Dispose();
+                    _cachedMaster = null;
                 }
             }
-            catch { }
+            catch
+            {
+                _cachedMaster?.Dispose();
+                _cachedMaster = null;
+            }
 
             // Poll program mute states for ProgramMute LED effect
-            PollProgramMuteStates(enumerator);
+            PollProgramMuteStates();
         }
         catch { }
     }
 
-    private void PollProgramMuteStates(NAudio.CoreAudioApi.MMDeviceEnumerator enumerator)
+    private void PollProgramMuteStates()
     {
         try
         {
@@ -728,34 +747,58 @@ public partial class App : Application
 
             if (lightsToCheck.Count == 0) return;
 
-            using var device = enumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
-            var sessions = device.AudioSessionManager.Sessions;
-
-            foreach (var light in lightsToCheck)
+            if (_pollEnumerator == null) return;
+            // Reuse the cached master device if available; otherwise get a fresh one
+            NAudio.CoreAudioApi.MMDevice? device = null;
+            bool ownDevice = false;
+            if (_cachedMaster != null)
             {
-                if (string.IsNullOrWhiteSpace(light.ProgramName)) continue;
-                bool muted = true; // default: muted/not-found
+                device = _cachedMaster;
+            }
+            else
+            {
                 try
                 {
-                    for (int s = 0; s < sessions.Count; s++)
-                    {
-                        var session = sessions[s];
-                        try
-                        {
-                            uint pid = session.GetProcessID;
-                            if (pid == 0) continue;
-                            var proc = System.Diagnostics.Process.GetProcessById((int)pid);
-                            if (proc.ProcessName.Contains(light.ProgramName, StringComparison.OrdinalIgnoreCase))
-                            {
-                                muted = session.SimpleAudioVolume.Mute;
-                                break;
-                            }
-                        }
-                        catch { }
-                    }
+                    device = _pollEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
+                    ownDevice = true;
                 }
-                catch { }
-                _rgb.SetProgramMuted(light.Idx, muted);
+                catch { return; }
+            }
+
+            try
+            {
+                var sessions = device.AudioSessionManager.Sessions;
+
+                foreach (var light in lightsToCheck)
+                {
+                    if (string.IsNullOrWhiteSpace(light.ProgramName)) continue;
+                    bool muted = true; // default: muted/not-found
+                    try
+                    {
+                        for (int s = 0; s < sessions.Count; s++)
+                        {
+                            var session = sessions[s];
+                            try
+                            {
+                                uint pid = session.GetProcessID;
+                                if (pid == 0) continue;
+                                var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                                if (proc.ProcessName.Contains(light.ProgramName, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    muted = session.SimpleAudioVolume.Mute;
+                                    break;
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+                    catch { }
+                    _rgb.SetProgramMuted(light.Idx, muted);
+                }
+            }
+            finally
+            {
+                if (ownDevice) device?.Dispose();
             }
         }
         catch { }
@@ -822,6 +865,9 @@ public partial class App : Application
         _audioAnalyzer?.Dispose();
         _rgb?.Dispose();
         _ha?.Dispose();
+        _cachedMic?.Dispose();
+        _cachedMaster?.Dispose();
+        _pollEnumerator?.Dispose();
         _mutex?.Dispose();
         base.OnExit(e);
     }

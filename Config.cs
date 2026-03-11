@@ -219,6 +219,7 @@ public static class ConfigManager
 
     private static readonly string ConfigDir = InitConfigDir();
     private static string ConfigPath => Path.Combine(ConfigDir, "config.json");
+    private static readonly object _saveLock = new();
 
     private static string InitConfigDir()
     {
@@ -311,7 +312,8 @@ public static class ConfigManager
     {
         try
         {
-            var json = JsonConvert.SerializeObject(config, Formatting.Indented);
+            string json;
+            lock (_saveLock) json = JsonConvert.SerializeObject(config, Formatting.Indented);
             File.WriteAllText(ConfigPath, json);
         }
         catch (Exception ex)
@@ -324,7 +326,8 @@ public static class ConfigManager
     {
         try
         {
-            var json = JsonConvert.SerializeObject(config, Formatting.Indented);
+            string json;
+            lock (_saveLock) json = JsonConvert.SerializeObject(config, Formatting.Indented);
             File.WriteAllText(ProfilePath(profileName), json);
             Logger.Log($"Profile saved: {profileName}");
         }

@@ -171,16 +171,19 @@ public class AudioMixer : IDisposable
                     // System Sounds has PID 0 — scan sessions on the default device directly
                     try
                     {
-                        var device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                        var sessionMgr = device.AudioSessionManager;
-                        var sessions = sessionMgr.Sessions;
-                        for (int i = 0; i < sessions.Count; i++)
+                        MMDevice? device;
+                        lock (_enumLock) device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                        using (device)
                         {
-                            var s = sessions[i];
-                            if (s.GetProcessID == 0)
+                            var sessions = device!.AudioSessionManager.Sessions;
+                            for (int i = 0; i < sessions.Count; i++)
                             {
-                                s.SimpleAudioVolume.Volume = vol;
-                                break;
+                                var s = sessions[i];
+                                if (s.GetProcessID == 0)
+                                {
+                                    s.SimpleAudioVolume.Volume = vol;
+                                    break;
+                                }
                             }
                         }
                     }
@@ -217,13 +220,18 @@ public class AudioMixer : IDisposable
 
         try
         {
-            var devices = _enumerator.EnumerateAudioEndPoints(dataFlow, DeviceState.Active);
-            foreach (var dev in devices)
+            MMDeviceCollection? devices;
+            lock (_enumLock) devices = _enumerator.EnumerateAudioEndPoints(dataFlow, DeviceState.Active);
+            using (devices)
             {
-                if (dev.ID == deviceId)
+                for (int i = 0; i < devices.Count; i++)
                 {
-                    dev.AudioEndpointVolume.MasterVolumeLevelScalar = vol;
-                    return;
+                    using var dev = devices[i];
+                    if (dev.ID == deviceId)
+                    {
+                        dev.AudioEndpointVolume.MasterVolumeLevelScalar = vol;
+                        return;
+                    }
                 }
             }
             Logger.Log($"SetDeviceVolume: device not found: {deviceId}");
@@ -314,14 +322,17 @@ public class AudioMixer : IDisposable
             {
                 try
                 {
-                    var device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                    var sessionMgr = device.AudioSessionManager;
-                    var sessions = sessionMgr.Sessions;
-                    for (int i = 0; i < sessions.Count; i++)
+                    MMDevice? device;
+                    lock (_enumLock) device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                    using (device)
                     {
-                        var s = sessions[i];
-                        if (s.GetProcessID == 0)
-                            return s.SimpleAudioVolume.Volume;
+                        var sessions = device!.AudioSessionManager.Sessions;
+                        for (int i = 0; i < sessions.Count; i++)
+                        {
+                            var s = sessions[i];
+                            if (s.GetProcessID == 0)
+                                return s.SimpleAudioVolume.Volume;
+                        }
                     }
                 }
                 catch { }
@@ -372,11 +383,16 @@ public class AudioMixer : IDisposable
         if (string.IsNullOrEmpty(deviceId)) return 0f;
         try
         {
-            var devices = _enumerator.EnumerateAudioEndPoints(dataFlow, DeviceState.Active);
-            foreach (var dev in devices)
+            MMDeviceCollection? devices;
+            lock (_enumLock) devices = _enumerator.EnumerateAudioEndPoints(dataFlow, DeviceState.Active);
+            using (devices)
             {
-                if (dev.ID == deviceId)
-                    return dev.AudioEndpointVolume.MasterVolumeLevelScalar;
+                for (int i = 0; i < devices.Count; i++)
+                {
+                    using var dev = devices[i];
+                    if (dev.ID == deviceId)
+                        return dev.AudioEndpointVolume.MasterVolumeLevelScalar;
+                }
             }
         }
         catch { }
@@ -519,10 +535,14 @@ public class AudioMixer : IDisposable
         {
             MMDeviceCollection? devices;
             lock (_enumLock) devices = _enumerator.EnumerateAudioEndPoints(dataFlow, DeviceState.Active);
-            foreach (var dev in devices)
+            using (devices)
             {
-                if (dev.ID == deviceId)
-                    return dev.AudioMeterInformation.MasterPeakValue;
+                for (int i = 0; i < devices.Count; i++)
+                {
+                    using var dev = devices[i];
+                    if (dev.ID == deviceId)
+                        return dev.AudioMeterInformation.MasterPeakValue;
+                }
             }
         }
         catch { }
@@ -570,16 +590,26 @@ public class AudioMixer : IDisposable
         var result = new List<(string Id, string Name, bool IsOutput)>();
         try
         {
-            var renderDevices = _enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
-            foreach (var dev in renderDevices)
+            MMDeviceCollection? renderDevices;
+            lock (_enumLock) renderDevices = _enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+            using (renderDevices)
             {
-                result.Add((dev.ID, dev.FriendlyName, true));
+                for (int i = 0; i < renderDevices.Count; i++)
+                {
+                    using var dev = renderDevices[i];
+                    result.Add((dev.ID, dev.FriendlyName, true));
+                }
             }
 
-            var captureDevices = _enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
-            foreach (var dev in captureDevices)
+            MMDeviceCollection? captureDevices;
+            lock (_enumLock) captureDevices = _enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
+            using (captureDevices)
             {
-                result.Add((dev.ID, dev.FriendlyName, false));
+                for (int i = 0; i < captureDevices.Count; i++)
+                {
+                    using var dev = captureDevices[i];
+                    result.Add((dev.ID, dev.FriendlyName, false));
+                }
             }
         }
         catch (Exception ex)

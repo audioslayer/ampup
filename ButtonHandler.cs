@@ -348,7 +348,7 @@ public class ButtonHandler
     {
         try
         {
-            var mic = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
+            using var mic = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
             mic.AudioEndpointVolume.Mute = !mic.AudioEndpointVolume.Mute;
             Logger.Log($"Mic mute: {mic.AudioEndpointVolume.Mute}");
         }
@@ -369,7 +369,7 @@ public class ButtonHandler
         }
         try
         {
-            var device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            using var device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
             var sessions = device.AudioSessionManager.Sessions;
             for (int i = 0; i < sessions.Count; i++)
             {
@@ -419,7 +419,7 @@ public class ButtonHandler
                 return;
             }
 
-            var device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            using var device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
             var sessions = device.AudioSessionManager.Sessions;
             for (int i = 0; i < sessions.Count; i++)
             {
@@ -491,7 +491,7 @@ public class ButtonHandler
 
         try
         {
-            var device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            using var device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
             var sessions = device.AudioSessionManager.Sessions;
 
             var matchingSessions = new List<NAudio.CoreAudioApi.AudioSessionControl>();
@@ -558,13 +558,15 @@ public class ButtonHandler
             {
                 try
                 {
-                    var devices = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
-                    foreach (var device in devices)
+                    using var devices = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
+                    for (int i = 0; i < devices.Count; i++)
                     {
+                        using var device = devices[i];
                         if (device.ID == deviceId)
                         {
-                            device.AudioEndpointVolume.Mute = !device.AudioEndpointVolume.Mute;
-                            Logger.Log($"mute_device: {device.FriendlyName} mute={device.AudioEndpointVolume.Mute}");
+                            bool newMute = !device.AudioEndpointVolume.Mute;
+                            device.AudioEndpointVolume.Mute = newMute;
+                            Logger.Log($"mute_device: {device.FriendlyName} mute={newMute}");
                             return;
                         }
                     }
@@ -610,25 +612,31 @@ public class ButtonHandler
     private void CycleDevice(DataFlow flow, List<string>? allowedIds, int buttonIdx)
     {
         var role = flow == DataFlow.Render ? Role.Multimedia : Role.Communications;
-        var currentDevice = _enumerator.GetDefaultAudioEndpoint(flow, role);
+        using var currentDevice = _enumerator.GetDefaultAudioEndpoint(flow, role);
         var currentId = currentDevice.ID;
 
         List<string> deviceIds;
         if (allowedIds != null && allowedIds.Count > 0)
         {
             // Use only the specified subset, but verify they exist
-            var allDevices = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
+            using var allDevices = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
             var activeIds = new HashSet<string>();
-            foreach (var d in allDevices)
+            for (int i = 0; i < allDevices.Count; i++)
+            {
+                using var d = allDevices[i];
                 activeIds.Add(d.ID);
+            }
             deviceIds = allowedIds.Where(id => activeIds.Contains(id)).ToList();
         }
         else
         {
-            var allDevices = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
+            using var allDevices = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
             deviceIds = new List<string>();
-            foreach (var d in allDevices)
+            for (int i = 0; i < allDevices.Count; i++)
+            {
+                using var d = allDevices[i];
                 deviceIds.Add(d.ID);
+            }
         }
 
         if (deviceIds.Count < 2)
@@ -647,9 +655,10 @@ public class ButtonHandler
         // Log friendly name and fire event
         try
         {
-            var allDevs = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
-            foreach (var d in allDevs)
+            using var allDevs = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
+            for (int i = 0; i < allDevs.Count; i++)
             {
+                using var d = allDevs[i];
                 if (d.ID == nextId)
                 {
                     var name = d.FriendlyName;
@@ -677,9 +686,10 @@ public class ButtonHandler
             // Resolve friendly name for notification
             try
             {
-                var allDevs = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
-                foreach (var d in allDevs)
+                using var allDevs = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
+                for (int i = 0; i < allDevs.Count; i++)
                 {
+                    using var d = allDevs[i];
                     if (d.ID == deviceId)
                     {
                         OnDeviceSwitched?.Invoke(d.FriendlyName, flow == DataFlow.Render);
