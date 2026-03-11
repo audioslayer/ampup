@@ -1,4 +1,5 @@
 using System.IO;
+using System.IO.Ports;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -50,6 +51,11 @@ public partial class SettingsView : UserControl
         ChkStartWithWindows.Unchecked += OnValueChanged;
         CmbProfiles.SelectionChanged += OnProfileSelectionChanged;
 
+        // Port selector
+        CmbSerialPort.SelectionChanged += OnPortComboSelectionChanged;
+        BtnRefreshPorts.Click += (_, _) => RefreshPortList();
+        BtnAutoDetect.Click += OnAutoDetect;
+
         // OSD events
         ChkOsdVolume.Checked += OnValueChanged;
         ChkOsdVolume.Unchecked += OnValueChanged;
@@ -88,6 +94,7 @@ public partial class SettingsView : UserControl
 
         TxtSerialPort.Text = config.Serial.Port;
         TxtBaudRate.Text = config.Serial.Baud.ToString();
+        RefreshPortList(selectPort: config.Serial.Port);
         ChkStartWithWindows.IsChecked = config.StartWithWindows;
 
         // OSD
@@ -210,6 +217,163 @@ public partial class SettingsView : UserControl
         CmbProfiles.SelectedItem = _config.ActiveProfile;
         _loading = false;
     }
+
+    // ── Port selector helpers ──────────────────────────────────────────
+
+    private void RefreshPortList(string? selectPort = null)
+    {
+        _loading = true;
+        var ports = SerialPort.GetPortNames();
+        Array.Sort(ports, StringComparer.OrdinalIgnoreCase);
+
+        CmbSerialPort.Items.Clear();
+        foreach (var port in ports)
+            CmbSerialPort.Items.Add(port);
+
+        // Select the configured port if present
+        var target = selectPort ?? TxtSerialPort.Text.Trim();
+        if (!string.IsNullOrEmpty(target) && CmbSerialPort.Items.Contains(target))
+            CmbSerialPort.SelectedItem = target;
+        else if (CmbSerialPort.Items.Count > 0)
+            CmbSerialPort.SelectedIndex = 0;
+
+        _loading = false;
+    }
+
+    private void OnPortComboSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading) return;
+        if (CmbSerialPort.SelectedItem is string port)
+        {
+            _loading = true;
+            TxtSerialPort.Text = port;
+            _loading = false;
+            _debounceTimer.Stop();
+            _debounceTimer.Start();
+        }
+    }
+
+    private void OnAutoDetect(object sender, RoutedEventArgs e)
+    {
+        BtnAutoDetect.IsEnabled = false;
+        BtnAutoDetect.Content = "Scanning...";
+
+        // Look for Turn Up by checking port names for known CH34x signatures
+        // (friendly names from registry aren't reliably available without WMI on .NET 8)
+        var ports = SerialPort.GetPortNames();
+        string? found = null;
+
+        // Try to find a port whose registry description mentions CH343/CH340
+        foreach (var port in ports)
+        {
+            var desc = GetPortDescription(port);
+            if (desc != null &&
+                (desc.Contains("CH343", StringComparison.OrdinalIgnoreCase) ||
+                 desc.Contains("CH340", StringComparison.OrdinalIgnoreCase) ||
+                 desc.Contains("USB-SERIAL", StringComparison.OrdinalIgnoreCase) ||
+                 desc.Contains("Turn Up", StringComparison.OrdinalIgnoreCase)))
+            {
+                found = port;
+                break;
+            }
+        }
+
+        if (found != null)
+        {
+            RefreshPortList(selectPort: found);
+            _loading = true;
+            TxtSerialPort.Text = found;
+            _loading = false;
+            _debounceTimer.Stop();
+            _debounceTimer.Start();
+            GlassDialog.ShowInfo($"Turn Up found on {found}.", owner: Window.GetWindow(this));
+        }
+        else if (ports.Length == 1)
+        {
+            // Only one port — select it automatically
+            RefreshPortList(selectPort: ports[0]);
+            _loading = true;
+            TxtSerialPort.Text = ports[0];
+            _loading = false;
+            _debounceTimer.Stop();
+            _debounceTimer.Start();
+            GlassDialog.ShowInfo($"One port found — selected {ports[0]}.", owner: Window.GetWindow(this));
+        }
+        else
+        {
+            RefreshPortList();
+            GlassDialog.ShowWarning(
+                "Could not identify the Turn Up device automatically.\nSelect the correct COM port from the dropdown.",
+                owner: Window.GetWindow(this));
+        }
+
+        BtnAutoDetect.IsEnabled = true;
+        BtnAutoDetect.Content = "Auto-Detect";
+    }
+
+    /// <summary>
+    /// Tries to read a friendly description for a COM port from the Windows registry.
+    /// Returns null if not available.
+    /// </summary>
+    private static string? GetPortDescription(string port)
+    {
+        try
+        {
+            // Check HKLM\SYSTEM\CurrentControlSet\Enum for USB serial devices
+            using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Default);
+            string[] searchPaths = ["SYSTEM\\CurrentControlSet\\Enum\\USB", "SYSTEM\\CurrentControlSet\\Enum\\FTDIBUS"];
+            foreach (var basePath in searchPaths)
+            {
+                using var usbKey = baseKey.OpenSubKey(basePath);
+                if (usbKey == null) continue;
+                foreach (var vidPid in usbKey.GetSubKeyNames())
+                {
+                    using var vidKey = usbKey.OpenSubKey(vidPid);
+                    if (vidKey == null) continue;
+                    foreach (var instanceId in vidKey.GetSubKeyNames())
+                    {
+                        using var instKey = vidKey.OpenSubKey(instanceId);
+                        if (instKey == null) continue;
+                        using var paramsKey = instKey.OpenSubKey("Device Parameters");
+                        if (paramsKey?.GetValue("PortName") is string portName &&
+                            string.Equals(portName, port, StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Found the instance — return friendly name
+                            return instKey.GetValue("FriendlyName") as string
+                                ?? instKey.GetValue("DeviceDesc") as string;
+                        }
+                    }
+                }
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    private void AdvancedToggle_Click(object sender, MouseButtonEventArgs e)
+    {
+        bool show = AdvancedSection.Visibility == Visibility.Collapsed;
+        AdvancedSection.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        AdvancedArrow.Text = show ? "▼" : "▶";
+    }
+
+    /// <summary>
+    /// Updates the connection status indicator. Called from App.xaml.cs when device connects/disconnects.
+    /// </summary>
+    public void UpdateConnectionStatus(bool connected, string? portName = null)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            ConnectionDot.Fill = new SolidColorBrush(connected
+                ? (Color)ColorConverter.ConvertFromString("#00E676")
+                : (Color)ColorConverter.ConvertFromString("#FF4444"));
+            TxtConnectionStatus.Text = connected
+                ? $"Connected on {portName ?? "unknown"}"
+                : "Disconnected";
+        });
+    }
+
+    // ── Config collect/save ────────────────────────────────────────────
 
     private void CollectAndSave()
     {

@@ -116,7 +116,7 @@ public partial class App : Application
 
         // Sync connection status — serial may have connected before window was created
         if (_isConnected)
-            _mainWindow.SetConnectionStatus(true);
+            _mainWindow.SetConnectionStatus(true, _serial.Port?.PortName);
     }
 
     private Forms.ToolStripLabel? _trayStatusLabel;
@@ -577,7 +577,7 @@ public partial class App : Application
             _trayStatusLabel.ForeColor = connected ? Color.FromArgb(0x00, 0xDD, 0x77) : Color.FromArgb(0x9A, 0x9A, 0x9A);
         }
 
-        _mainWindow?.SetConnectionStatus(connected);
+        _mainWindow?.SetConnectionStatus(connected, connected ? _serial.Port?.PortName : null);
     }
 
     /// <summary>

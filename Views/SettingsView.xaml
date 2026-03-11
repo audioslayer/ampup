@@ -14,28 +14,76 @@
                         <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
                         <TextBlock Text="CONNECTION" Style="{StaticResource HeaderText}" Margin="0" />
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <StackPanel Margin="0,0,24,0">
-                            <TextBlock Text="Serial Port" Style="{StaticResource SecondaryText}" Margin="0,0,0,4"
-                                       ToolTip="COM port for the Turn Up hardware (e.g. COM3)" />
-                            <ui:TextBox x:Name="TxtSerialPort" Width="160"
-                                        PlaceholderText="COM3"
-                                        Background="{StaticResource InputBgBrush}"
-                                        BorderBrush="{StaticResource InputBorderBrush}"
-                                        Foreground="{StaticResource TextPrimaryBrush}"
-                                        ToolTip="COM port for the Turn Up hardware (e.g. COM3)" />
-                        </StackPanel>
-                        <StackPanel>
-                            <TextBlock Text="Baud Rate" Style="{StaticResource SecondaryText}" Margin="0,0,0,4"
-                                       ToolTip="Communication speed — leave at 115200" />
-                            <ui:TextBox x:Name="TxtBaudRate" Width="160"
-                                        PlaceholderText="115200"
-                                        Background="{StaticResource InputBgBrush}"
-                                        BorderBrush="{StaticResource InputBorderBrush}"
-                                        Foreground="{StaticResource TextPrimaryBrush}"
-                                        ToolTip="Communication speed — leave at 115200" />
+
+                    <!-- Status indicator -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12" VerticalAlignment="Center">
+                        <Ellipse x:Name="ConnectionDot" Width="8" Height="8"
+                                 Fill="#FF4444" Margin="0,0,8,0" VerticalAlignment="Center" />
+                        <TextBlock x:Name="TxtConnectionStatus"
+                                   Text="Disconnected"
+                                   Style="{StaticResource SecondaryText}"
+                                   VerticalAlignment="Center" Margin="0" />
+                    </StackPanel>
+
+                    <!-- Port selector row -->
+                    <StackPanel Margin="0,0,0,10">
+                        <TextBlock Text="Device Port" Style="{StaticResource SecondaryText}" Margin="0,0,0,6"
+                                   ToolTip="Select the COM port for your Turn Up hardware" />
+                        <StackPanel Orientation="Horizontal">
+                            <ComboBox x:Name="CmbSerialPort" Width="220" Height="32"
+                                      Background="{StaticResource InputBgBrush}"
+                                      BorderBrush="{StaticResource InputBorderBrush}"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      ToolTip="Available COM ports — select the one for your Turn Up device" />
+                            <ui:Button x:Name="BtnRefreshPorts" Content="Refresh"
+                                       Appearance="Secondary" Margin="8,0,0,0" Height="32"
+                                       ToolTip="Rescan for available COM ports" />
+                            <ui:Button x:Name="BtnAutoDetect" Content="Auto-Detect"
+                                       Appearance="Primary" Margin="8,0,0,0" Height="32"
+                                       ToolTip="Automatically find the Turn Up device by probing available ports" />
                         </StackPanel>
                     </StackPanel>
+
+                    <!-- Advanced toggle -->
+                    <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0"
+                            Margin="0,4,0,0" Padding="0,10,0,0">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Cursor="Hand" Margin="0,0,0,0"
+                                        x:Name="AdvancedToggle" MouseLeftButtonDown="AdvancedToggle_Click">
+                                <TextBlock x:Name="AdvancedArrow" Text="▶" FontSize="9"
+                                           Foreground="{StaticResource TextDimBrush}"
+                                           VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <TextBlock Text="Advanced" Style="{StaticResource SecondaryText}"
+                                           VerticalAlignment="Center" Margin="0" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="AdvancedSection" Visibility="Collapsed" Margin="0,10,0,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <StackPanel Margin="0,0,24,0">
+                                        <TextBlock Text="Serial Port" Style="{StaticResource SecondaryText}" Margin="0,0,0,4"
+                                                   ToolTip="COM port for the Turn Up hardware (e.g. COM3)" />
+                                        <ui:TextBox x:Name="TxtSerialPort" Width="160"
+                                                    PlaceholderText="COM3"
+                                                    Background="{StaticResource InputBgBrush}"
+                                                    BorderBrush="{StaticResource InputBorderBrush}"
+                                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                                    ToolTip="COM port for the Turn Up hardware (e.g. COM3)" />
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="Baud Rate" Style="{StaticResource SecondaryText}" Margin="0,0,0,4"
+                                                   ToolTip="Communication speed — leave at 115200" />
+                                        <ui:TextBox x:Name="TxtBaudRate" Width="160"
+                                                    PlaceholderText="115200"
+                                                    Background="{StaticResource InputBgBrush}"
+                                                    BorderBrush="{StaticResource InputBorderBrush}"
+                                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                                    ToolTip="Communication speed — leave at 115200" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
                 </StackPanel>
             </Border>
 

@@ -819,7 +819,7 @@ public partial class MainWindow : FluentWindow
         _mixerView.UpdateKnobPosition(idx, position);
     }
 
-    public void SetConnectionStatus(bool connected)
+    public void SetConnectionStatus(bool connected, string? portName = null)
     {
         Dispatcher.Invoke(() =>
         {
@@ -827,6 +827,7 @@ public partial class MainWindow : FluentWindow
                 ? (SolidColorBrush)FindResource("SuccessGrnBrush")
                 : (SolidColorBrush)FindResource("TextDimBrush");
             ConnectionLabel.Text = connected ? "Connected" : "Disconnected";
+            _settingsView.UpdateConnectionStatus(connected, portName);
 
             // Glow the dot when connected
             ConnectionDotGlow.BlurRadius = connected ? 8 : 0;
