@@ -45,7 +45,7 @@ public class SerialReader : IDisposable
                 if (portName == null)
                 {
                     if (_running && !ct.IsCancellationRequested)
-                        await Task.Delay(5000, ct).ContinueWith(_ => { });
+                        await Task.Delay(2000, ct).ContinueWith(_ => { });
                     continue;
                 }
 
@@ -75,22 +75,14 @@ public class SerialReader : IDisposable
     /// </summary>
     private async Task<string?> FindDevicePort(CancellationToken ct)
     {
-        // Build candidate list: configured port first, then all others
+        // Always try configured port first even if GetPortNames() doesn't list it —
+        // the registry-based enumeration can briefly miss a port after process restart
         var allPorts = SerialPort.GetPortNames();
-        var candidates = new List<string>();
-
-        if (allPorts.Contains(_portName))
-            candidates.Add(_portName);
+        var candidates = new List<string> { _portName };
         foreach (var p in allPorts)
         {
             if (p != _portName)
                 candidates.Add(p);
-        }
-
-        if (candidates.Count == 0)
-        {
-            Logger.Log("No COM ports available");
-            return null;
         }
 
         foreach (var portName in candidates)
