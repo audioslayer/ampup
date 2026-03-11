@@ -547,11 +547,12 @@ public class RgbController : IDisposable
         for (int led = 0; led < 3; led++)
         {
             float flicker = 0.3f + (float)_rng.NextDouble() * 0.7f;
-            // Shift toward yellow/white at high brightness for realistic fire look
-            float warmShift = flicker * 0.3f;
-            int r = Math.Clamp((int)(light.R * flicker + warmShift * 60), 0, 255);
-            int g = Math.Clamp((int)(light.G * flicker + warmShift * 20), 0, 255);
-            int b = Math.Clamp((int)(light.B * flicker * 0.3f), 0, 255); // suppress blue for fire
+            // Warm flicker: blend toward color2 at high brightness for ember glow
+            // Color1 = base flame, Color2 = bright ember/tip color
+            float emberBlend = flicker * flicker; // more ember at higher flicker
+            int r = Math.Clamp((int)(light.R * flicker + (light.R2 - light.R) * emberBlend * 0.4f), 0, 255);
+            int g = Math.Clamp((int)(light.G * flicker + (light.G2 - light.G) * emberBlend * 0.4f), 0, 255);
+            int b = Math.Clamp((int)(light.B * flicker + (light.B2 - light.B) * emberBlend * 0.4f), 0, 255);
             SetColor(k, led, r, g, b);
         }
     }
