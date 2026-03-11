@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+using AmpUp.Controls;
 
 namespace AmpUp.Views;
 
@@ -18,7 +19,7 @@ public partial class LightsView : UserControl
 
     // Per-channel controls
     private readonly TextBlock[] _headers = new TextBlock[5];
-    private readonly ComboBox[] _effectCombos = new ComboBox[5];
+    private readonly EffectPickerControl[] _effectPickers = new EffectPickerControl[5];
     private readonly Border[] _color1Swatches = new Border[5];
     private readonly Border[] _color2Swatches = new Border[5];
     private readonly StackPanel[] _color2Panels = new StackPanel[5];
@@ -36,7 +37,7 @@ public partial class LightsView : UserControl
 
     // Global lighting controls
     private CheckBox? _globalEnableCheck;
-    private ComboBox? _globalEffectCombo;
+    private EffectPickerControl? _globalEffectPicker;
     private Border? _globalColor1Swatch;
     private Border? _globalColor2Swatch;
     private StackPanel? _globalColor2Panel;
@@ -79,8 +80,8 @@ public partial class LightsView : UserControl
         var gl = config.GlobalLight;
         if (_globalEnableCheck != null)
             _globalEnableCheck.IsChecked = gl.Enabled;
-        if (_globalEffectCombo != null)
-            _globalEffectCombo.SelectedItem = gl.Effect;
+        if (_globalEffectPicker != null)
+            _globalEffectPicker.SelectedEffect = gl.Effect;
         _globalColor1 = Color.FromRgb((byte)gl.R, (byte)gl.G, (byte)gl.B);
         _globalColor2 = Color.FromRgb((byte)gl.R2, (byte)gl.G2, (byte)gl.B2);
         if (_globalColor1Swatch != null)
@@ -109,7 +110,7 @@ public partial class LightsView : UserControl
             var light = config.Lights.FirstOrDefault(l => l.Idx == i);
             if (light == null) continue;
 
-            _effectCombos[i].SelectedItem = light.Effect;
+            _effectPickers[i].SelectedEffect = light.Effect;
 
             _colors1[i] = Color.FromRgb((byte)light.R, (byte)light.G, (byte)light.B);
             _colors2[i] = Color.FromRgb((byte)light.R2, (byte)light.G2, (byte)light.B2);
@@ -177,27 +178,17 @@ public partial class LightsView : UserControl
         var settings = new StackPanel { Visibility = Visibility.Collapsed };
         _globalSettingsPanel = settings;
 
-        // Effect combo
+        // Effect picker
         settings.Children.Add(MakeLabel("EFFECT"));
-        var effectCombo = new ComboBox
-        {
-            ItemsSource = Enum.GetValues<LightEffect>(),
-            Background = FindBrush("InputBgBrush"),
-            Foreground = FindBrush("TextPrimaryBrush"),
-            BorderBrush = FindBrush("InputBorderBrush"),
-            Margin = new Thickness(0, 0, 0, 10),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            FontSize = 12
-        };
-        effectCombo.SelectionChanged += (_, _) =>
+        var effectPicker = new EffectPickerControl { Margin = new Thickness(0, 0, 0, 10) };
+        effectPicker.SelectionChanged += (_, _) =>
         {
             if (_loading) return;
-            if (effectCombo.SelectedItem is LightEffect eff)
-                UpdateGlobalEffectVisibility(eff);
+            UpdateGlobalEffectVisibility(effectPicker.SelectedEffect);
             QueueSave();
         };
-        _globalEffectCombo = effectCombo;
-        settings.Children.Add(effectCombo);
+        _globalEffectPicker = effectPicker;
+        settings.Children.Add(effectPicker);
 
         // Color 1
         settings.Children.Add(MakeLabel("COLOR"));
@@ -310,8 +301,8 @@ public partial class LightsView : UserControl
         PerKnobGrid.Visibility = enabled ? Visibility.Collapsed : Visibility.Visible;
 
         // Update sub-controls based on current effect
-        if (enabled && _globalEffectCombo?.SelectedItem is LightEffect eff)
-            UpdateGlobalEffectVisibility(eff);
+        if (enabled && _globalEffectPicker != null)
+            UpdateGlobalEffectVisibility(_globalEffectPicker.SelectedEffect);
     }
 
     private void UpdateGlobalEffectVisibility(LightEffect effect)
@@ -377,27 +368,17 @@ public partial class LightsView : UserControl
             _headers[i] = header;
             panel.Children.Add(header);
 
-            // Effect combo
+            // Effect picker
             panel.Children.Add(MakeLabel("EFFECT"));
-            var combo = new ComboBox
-            {
-                ItemsSource = Enum.GetValues<LightEffect>(),
-                Background = FindBrush("InputBgBrush"),
-                Foreground = FindBrush("TextPrimaryBrush"),
-                BorderBrush = FindBrush("InputBorderBrush"),
-                Margin = new Thickness(0, 0, 0, 10),
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                FontSize = 12
-            };
-            combo.SelectionChanged += (_, _) =>
+            var effectPicker = new EffectPickerControl { Margin = new Thickness(0, 0, 0, 10) };
+            effectPicker.SelectionChanged += (_, _) =>
             {
                 if (_loading) return;
-                if (combo.SelectedItem is LightEffect eff)
-                    UpdateVisibility(idx, eff);
+                UpdateVisibility(idx, effectPicker.SelectedEffect);
                 QueueSave();
             };
-            _effectCombos[i] = combo;
-            panel.Children.Add(combo);
+            _effectPickers[i] = effectPicker;
+            panel.Children.Add(effectPicker);
 
             // Color 1 — clickable swatch
             panel.Children.Add(MakeLabel("COLOR"));
@@ -568,8 +549,8 @@ public partial class LightsView : UserControl
         // Save global lighting config
         var gl = _config.GlobalLight;
         gl.Enabled = _globalEnableCheck?.IsChecked ?? false;
-        if (_globalEffectCombo?.SelectedItem is LightEffect glEff)
-            gl.Effect = glEff;
+        if (_globalEffectPicker != null)
+            gl.Effect = _globalEffectPicker.SelectedEffect;
         gl.R = _globalColor1.R;
         gl.G = _globalColor1.G;
         gl.B = _globalColor1.B;
@@ -586,8 +567,7 @@ public partial class LightsView : UserControl
             var light = _config.Lights.FirstOrDefault(l => l.Idx == i);
             if (light == null) continue;
 
-            if (_effectCombos[i].SelectedItem is LightEffect eff)
-                light.Effect = eff;
+            light.Effect = _effectPickers[i].SelectedEffect;
 
             light.R = _colors1[i].R;
             light.G = _colors1[i].G;
