@@ -70,12 +70,29 @@ public class ButtonConfig
     public string HoldPath { get; set; } = "";
     public string DoublePressAction { get; set; } = "none";
     public string DoublePressPath { get; set; } = "";
+    // TAP gesture context
     public string DeviceId { get; set; } = "";        // for select_output / select_input / cycle
     public List<string> DeviceIds { get; set; } = new(); // for cycle_output / cycle_input (subset)
     public string MacroKeys { get; set; } = "";        // for macro action e.g. "ctrl+shift+m"
     public string ProfileName { get; set; } = "";      // for switch_profile action
     public string PowerAction { get; set; } = "";      // for system_power: sleep/lock/shutdown/restart/logoff
     public int LinkedKnobIdx { get; set; } = -1;       // for mute_app_group: which knob's app group to mute
+
+    // HOLD gesture context
+    public string HoldDeviceId { get; set; } = "";
+    public List<string> HoldDeviceIds { get; set; } = new();
+    public string HoldMacroKeys { get; set; } = "";
+    public string HoldProfileName { get; set; } = "";
+    public string HoldPowerAction { get; set; } = "";
+    public int HoldLinkedKnobIdx { get; set; } = -1;
+
+    // DOUBLE PRESS gesture context
+    public string DoublePressDeviceId { get; set; } = "";
+    public List<string> DoublePressDeviceIds { get; set; } = new();
+    public string DoublePressMacroKeys { get; set; } = "";
+    public string DoublePressProfileName { get; set; } = "";
+    public string DoublePressPowerAction { get; set; } = "";
+    public int DoublePressLinkedKnobIdx { get; set; } = -1;
 }
 
 public class LightConfig

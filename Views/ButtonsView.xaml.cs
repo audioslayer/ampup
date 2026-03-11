@@ -106,17 +106,44 @@ public partial class ButtonsView : UserControl
     private readonly ListPicker[] _tapKnobPickers = new ListPicker[5];
     private readonly StackPanel[] _tapKnobPanels = new StackPanel[5];
 
+    private readonly CheckListPicker[] _tapCycleDevicePickers = new CheckListPicker[5];
+    private readonly StackPanel[] _tapCycleDevicePanels = new StackPanel[5];
+
     // DOUBLE controls
     private readonly ComboBox[] _dblCombos = new ComboBox[5];
     private readonly TextBox[] _dblPathBoxes = new TextBox[5];
     private readonly StackPanel[] _dblPathPanels = new StackPanel[5];
     private readonly Button[] _dblBrowseButtons = new Button[5];
+    private readonly TextBox[] _dblMacroBoxes = new TextBox[5];
+    private readonly StackPanel[] _dblMacroPanels = new StackPanel[5];
+    private readonly ListPicker[] _dblDevicePickers = new ListPicker[5];
+    private readonly StackPanel[] _dblDevicePanels = new StackPanel[5];
+    private readonly CheckListPicker[] _dblCycleDevicePickers = new CheckListPicker[5];
+    private readonly StackPanel[] _dblCycleDevicePanels = new StackPanel[5];
+    private readonly ListPicker[] _dblProfilePickers = new ListPicker[5];
+    private readonly StackPanel[] _dblProfilePanels = new StackPanel[5];
+    private readonly SegmentedControl[] _dblPowerSegments = new SegmentedControl[5];
+    private readonly StackPanel[] _dblPowerPanels = new StackPanel[5];
+    private readonly ListPicker[] _dblKnobPickers = new ListPicker[5];
+    private readonly StackPanel[] _dblKnobPanels = new StackPanel[5];
 
     // HOLD controls
     private readonly ComboBox[] _holdCombos = new ComboBox[5];
     private readonly TextBox[] _holdPathBoxes = new TextBox[5];
     private readonly StackPanel[] _holdPathPanels = new StackPanel[5];
     private readonly Button[] _holdBrowseButtons = new Button[5];
+    private readonly TextBox[] _holdMacroBoxes = new TextBox[5];
+    private readonly StackPanel[] _holdMacroPanels = new StackPanel[5];
+    private readonly ListPicker[] _holdDevicePickers = new ListPicker[5];
+    private readonly StackPanel[] _holdDevicePanels = new StackPanel[5];
+    private readonly CheckListPicker[] _holdCycleDevicePickers = new CheckListPicker[5];
+    private readonly StackPanel[] _holdCycleDevicePanels = new StackPanel[5];
+    private readonly ListPicker[] _holdProfilePickers = new ListPicker[5];
+    private readonly StackPanel[] _holdProfilePanels = new StackPanel[5];
+    private readonly SegmentedControl[] _holdPowerSegments = new SegmentedControl[5];
+    private readonly StackPanel[] _holdPowerPanels = new StackPanel[5];
+    private readonly ListPicker[] _holdKnobPickers = new ListPicker[5];
+    private readonly StackPanel[] _holdKnobPanels = new StackPanel[5];
 
     private List<(string Id, string Name, bool IsOutput)> _audioDevices = new();
 
@@ -148,8 +175,19 @@ public partial class ButtonsView : UserControl
         for (int i = 0; i < 5; i++)
         {
             PopulateDevicePicker(_tapDevicePickers[i]);
+            PopulateCycleDevicePicker(_tapCycleDevicePickers[i]);
             PopulateProfilePicker(_tapProfilePickers[i], config);
             PopulateKnobPicker(_tapKnobPickers[i], config);
+
+            PopulateDevicePicker(_dblDevicePickers[i]);
+            PopulateCycleDevicePicker(_dblCycleDevicePickers[i]);
+            PopulateProfilePicker(_dblProfilePickers[i], config);
+            PopulateKnobPicker(_dblKnobPickers[i], config);
+
+            PopulateDevicePicker(_holdDevicePickers[i]);
+            PopulateCycleDevicePicker(_holdCycleDevicePickers[i]);
+            PopulateProfilePicker(_holdProfilePickers[i], config);
+            PopulateKnobPicker(_holdKnobPickers[i], config);
         }
 
         for (int i = 0; i < 5; i++)
@@ -167,6 +205,7 @@ public partial class ButtonsView : UserControl
             SetTextBoxValue(_tapPathBoxes[i], btn.Path);
             SetTextBoxValue(_tapMacroBoxes[i], btn.MacroKeys);
             SelectDevicePicker(_tapDevicePickers[i], btn.DeviceId);
+            _tapCycleDevicePickers[i].SetCheckedIds(btn.DeviceIds);
             SelectProfilePicker(_tapProfilePickers[i], btn.ProfileName);
             SelectPowerSegment(_tapPowerSegments[i], btn.PowerAction);
             SelectKnobPicker(_tapKnobPickers[i], btn.LinkedKnobIdx);
@@ -176,12 +215,28 @@ public partial class ButtonsView : UserControl
             // DOUBLE
             SelectCombo(_dblCombos[i], btn.DoublePressAction);
             SetTextBoxValue(_dblPathBoxes[i], btn.DoublePressPath);
-            UpdateSimpleVisibility(_dblPathPanels[i], _dblBrowseButtons[i], btn.DoublePressAction);
+            SetTextBoxValue(_dblMacroBoxes[i], btn.DoublePressMacroKeys);
+            SelectDevicePicker(_dblDevicePickers[i], btn.DoublePressDeviceId);
+            _dblCycleDevicePickers[i].SetCheckedIds(btn.DoublePressDeviceIds);
+            SelectProfilePicker(_dblProfilePickers[i], btn.DoublePressProfileName);
+            SelectPowerSegment(_dblPowerSegments[i], btn.DoublePressPowerAction);
+            SelectKnobPicker(_dblKnobPickers[i], btn.DoublePressLinkedKnobIdx);
+            UpdateGestureVisibility(_dblPathPanels[i], _dblBrowseButtons[i], _dblMacroPanels[i],
+                _dblDevicePanels[i], _dblCycleDevicePanels[i], _dblProfilePanels[i],
+                _dblPowerPanels[i], _dblKnobPanels[i], btn.DoublePressAction);
 
             // HOLD
             SelectCombo(_holdCombos[i], btn.HoldAction);
             SetTextBoxValue(_holdPathBoxes[i], btn.HoldPath);
-            UpdateSimpleVisibility(_holdPathPanels[i], _holdBrowseButtons[i], btn.HoldAction);
+            SetTextBoxValue(_holdMacroBoxes[i], btn.HoldMacroKeys);
+            SelectDevicePicker(_holdDevicePickers[i], btn.HoldDeviceId);
+            _holdCycleDevicePickers[i].SetCheckedIds(btn.HoldDeviceIds);
+            SelectProfilePicker(_holdProfilePickers[i], btn.HoldProfileName);
+            SelectPowerSegment(_holdPowerSegments[i], btn.HoldPowerAction);
+            SelectKnobPicker(_holdKnobPickers[i], btn.HoldLinkedKnobIdx);
+            UpdateGestureVisibility(_holdPathPanels[i], _holdBrowseButtons[i], _holdMacroPanels[i],
+                _holdDevicePanels[i], _holdCycleDevicePanels[i], _holdProfilePanels[i],
+                _holdPowerPanels[i], _holdKnobPanels[i], btn.HoldAction);
         }
 
         _loading = false;
@@ -304,6 +359,12 @@ public partial class ButtonsView : UserControl
             _tapDevicePickers[i] = devicePicker;
             tapSection.Children.Add(devicePanel);
 
+            var (tapCycleDevicePanel, tapCycleDevicePicker) = MakeCheckListPickerRow("CYCLE DEVICES");
+            tapCycleDevicePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _tapCycleDevicePanels[i] = tapCycleDevicePanel;
+            _tapCycleDevicePickers[i] = tapCycleDevicePicker;
+            tapSection.Children.Add(tapCycleDevicePanel);
+
             var (profilePanel, profilePicker) = MakeListPickerRow("PROFILE");
             profilePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
             _tapProfilePanels[i] = profilePanel;
@@ -335,12 +396,6 @@ public partial class ButtonsView : UserControl
             dblSection.Children.Add(MakeGestureHeader("DOUBLE"));
 
             var dblCombo = MakeActionCombo();
-            dblCombo.SelectionChanged += (_, _) =>
-            {
-                if (_loading) return;
-                UpdateSimpleVisibility(_dblPathPanels[idx], _dblBrowseButtons[idx], GetComboActionValue(dblCombo));
-                QueueSave();
-            };
             _dblCombos[i] = dblCombo;
             dblSection.Children.Add(dblCombo);
 
@@ -351,6 +406,52 @@ public partial class ButtonsView : UserControl
             _dblBrowseButtons[i] = dblBrowseBtn;
             dblBrowseBtn.Click += (_, _) => BrowseForFile(dblPathBox);
             dblSection.Children.Add(dblPathPanel);
+
+            var (dblMacroPanel, dblMacroBox) = MakeTextBoxRow("MACRO KEYS", "ctrl+shift+m");
+            dblMacroBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _dblMacroPanels[i] = dblMacroPanel;
+            _dblMacroBoxes[i] = dblMacroBox;
+            dblSection.Children.Add(dblMacroPanel);
+
+            var (dblDevicePanel, dblDevicePicker) = MakeListPickerRow("DEVICE");
+            dblDevicePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _dblDevicePanels[i] = dblDevicePanel;
+            _dblDevicePickers[i] = dblDevicePicker;
+            dblSection.Children.Add(dblDevicePanel);
+
+            var (dblCycleDevicePanel, dblCycleDevicePicker) = MakeCheckListPickerRow("CYCLE DEVICES");
+            dblCycleDevicePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _dblCycleDevicePanels[i] = dblCycleDevicePanel;
+            _dblCycleDevicePickers[i] = dblCycleDevicePicker;
+            dblSection.Children.Add(dblCycleDevicePanel);
+
+            var (dblProfilePanel, dblProfilePicker) = MakeListPickerRow("PROFILE");
+            dblProfilePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _dblProfilePanels[i] = dblProfilePanel;
+            _dblProfilePickers[i] = dblProfilePicker;
+            dblSection.Children.Add(dblProfilePanel);
+
+            var (dblPowerPanel, dblPowerSegment) = MakePowerSegmentRow("POWER");
+            dblPowerSegment.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _dblPowerPanels[i] = dblPowerPanel;
+            _dblPowerSegments[i] = dblPowerSegment;
+            dblSection.Children.Add(dblPowerPanel);
+
+            var (dblKnobPanel, dblKnobPicker) = MakeListPickerRow("LINKED KNOB");
+            dblKnobPicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _dblKnobPanels[i] = dblKnobPanel;
+            _dblKnobPickers[i] = dblKnobPicker;
+            dblSection.Children.Add(dblKnobPanel);
+
+            dblCombo.SelectionChanged += (_, _) =>
+            {
+                if (_loading) return;
+                var val = GetComboActionValue(dblCombo);
+                UpdateGestureVisibility(_dblPathPanels[idx], _dblBrowseButtons[idx], _dblMacroPanels[idx],
+                    _dblDevicePanels[idx], _dblCycleDevicePanels[idx], _dblProfilePanels[idx],
+                    _dblPowerPanels[idx], _dblKnobPanels[idx], val);
+                QueueSave();
+            };
 
             Grid.SetRow(dblSection, 4);
             grid.Children.Add(dblSection);
@@ -365,12 +466,6 @@ public partial class ButtonsView : UserControl
             holdSection.Children.Add(MakeGestureHeader("HOLD"));
 
             var holdCombo = MakeActionCombo();
-            holdCombo.SelectionChanged += (_, _) =>
-            {
-                if (_loading) return;
-                UpdateSimpleVisibility(_holdPathPanels[idx], _holdBrowseButtons[idx], GetComboActionValue(holdCombo));
-                QueueSave();
-            };
             _holdCombos[i] = holdCombo;
             holdSection.Children.Add(holdCombo);
 
@@ -381,6 +476,52 @@ public partial class ButtonsView : UserControl
             _holdBrowseButtons[i] = holdBrowseBtn;
             holdBrowseBtn.Click += (_, _) => BrowseForFile(holdPathBox);
             holdSection.Children.Add(holdPathPanel);
+
+            var (holdMacroPanel, holdMacroBox) = MakeTextBoxRow("MACRO KEYS", "ctrl+shift+m");
+            holdMacroBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _holdMacroPanels[i] = holdMacroPanel;
+            _holdMacroBoxes[i] = holdMacroBox;
+            holdSection.Children.Add(holdMacroPanel);
+
+            var (holdDevicePanel, holdDevicePicker) = MakeListPickerRow("DEVICE");
+            holdDevicePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _holdDevicePanels[i] = holdDevicePanel;
+            _holdDevicePickers[i] = holdDevicePicker;
+            holdSection.Children.Add(holdDevicePanel);
+
+            var (holdCycleDevicePanel, holdCycleDevicePicker) = MakeCheckListPickerRow("CYCLE DEVICES");
+            holdCycleDevicePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _holdCycleDevicePanels[i] = holdCycleDevicePanel;
+            _holdCycleDevicePickers[i] = holdCycleDevicePicker;
+            holdSection.Children.Add(holdCycleDevicePanel);
+
+            var (holdProfilePanel, holdProfilePicker) = MakeListPickerRow("PROFILE");
+            holdProfilePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _holdProfilePanels[i] = holdProfilePanel;
+            _holdProfilePickers[i] = holdProfilePicker;
+            holdSection.Children.Add(holdProfilePanel);
+
+            var (holdPowerPanel, holdPowerSegment) = MakePowerSegmentRow("POWER");
+            holdPowerSegment.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _holdPowerPanels[i] = holdPowerPanel;
+            _holdPowerSegments[i] = holdPowerSegment;
+            holdSection.Children.Add(holdPowerPanel);
+
+            var (holdKnobPanel, holdKnobPicker) = MakeListPickerRow("LINKED KNOB");
+            holdKnobPicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _holdKnobPanels[i] = holdKnobPanel;
+            _holdKnobPickers[i] = holdKnobPicker;
+            holdSection.Children.Add(holdKnobPanel);
+
+            holdCombo.SelectionChanged += (_, _) =>
+            {
+                if (_loading) return;
+                var val = GetComboActionValue(holdCombo);
+                UpdateGestureVisibility(_holdPathPanels[idx], _holdBrowseButtons[idx], _holdMacroPanels[idx],
+                    _holdDevicePanels[idx], _holdCycleDevicePanels[idx], _holdProfilePanels[idx],
+                    _holdPowerPanels[idx], _holdKnobPanels[idx], val);
+                QueueSave();
+            };
 
             Grid.SetRow(holdSection, 6);
             grid.Children.Add(holdSection);
@@ -426,15 +567,25 @@ public partial class ButtonsView : UserControl
         _tapBrowseButtons[idx].Visibility = action == "launch_exe" ? Visibility.Visible : Visibility.Collapsed;
         _tapMacroPanels[idx].Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
         _tapDevicePanels[idx].Visibility = action is "select_output" or "select_input" ? Visibility.Visible : Visibility.Collapsed;
+        _tapCycleDevicePanels[idx].Visibility = action is "cycle_output" or "cycle_input" ? Visibility.Visible : Visibility.Collapsed;
         _tapProfilePanels[idx].Visibility = action == "switch_profile" ? Visibility.Visible : Visibility.Collapsed;
         _tapPowerPanels[idx].Visibility = action == "system_power" ? Visibility.Visible : Visibility.Collapsed;
         _tapKnobPanels[idx].Visibility = action == "mute_app_group" ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void UpdateSimpleVisibility(StackPanel pathPanel, Button browseBtn, string action)
+    private static void UpdateGestureVisibility(
+        StackPanel pathPanel, Button browseBtn, StackPanel macroPanel,
+        StackPanel devicePanel, StackPanel cycleDevicePanel, StackPanel profilePanel,
+        StackPanel powerPanel, StackPanel knobPanel, string action)
     {
         pathPanel.Visibility = PathActions.Contains(action) ? Visibility.Visible : Visibility.Collapsed;
         browseBtn.Visibility = action == "launch_exe" ? Visibility.Visible : Visibility.Collapsed;
+        macroPanel.Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
+        devicePanel.Visibility = action is "select_output" or "select_input" ? Visibility.Visible : Visibility.Collapsed;
+        cycleDevicePanel.Visibility = action is "cycle_output" or "cycle_input" ? Visibility.Visible : Visibility.Collapsed;
+        profilePanel.Visibility = action == "switch_profile" ? Visibility.Visible : Visibility.Collapsed;
+        powerPanel.Visibility = action == "system_power" ? Visibility.Visible : Visibility.Collapsed;
+        knobPanel.Visibility = action == "mute_app_group" ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ── Collect and save ────────────────────────────────────────────
@@ -458,15 +609,28 @@ public partial class ButtonsView : UserControl
             btn.Path = GetTextBoxValue(_tapPathBoxes[i]);
             btn.MacroKeys = GetTextBoxValue(_tapMacroBoxes[i]);
             btn.DeviceId = GetSelectedDeviceId(_tapDevicePickers[i]);
+            btn.DeviceIds = _tapCycleDevicePickers[i].GetCheckedIds();
             btn.ProfileName = _tapProfilePickers[i].SelectedTag as string ?? "";
             btn.PowerAction = GetSelectedPowerValue(_tapPowerSegments[i]);
             btn.LinkedKnobIdx = int.TryParse(_tapKnobPickers[i].SelectedTag as string, out int ki) ? ki : -1;
 
             btn.DoublePressAction = GetComboActionValue(_dblCombos[i]);
             btn.DoublePressPath = GetTextBoxValue(_dblPathBoxes[i]);
+            btn.DoublePressMacroKeys = GetTextBoxValue(_dblMacroBoxes[i]);
+            btn.DoublePressDeviceId = GetSelectedDeviceId(_dblDevicePickers[i]);
+            btn.DoublePressDeviceIds = _dblCycleDevicePickers[i].GetCheckedIds();
+            btn.DoublePressProfileName = _dblProfilePickers[i].SelectedTag as string ?? "";
+            btn.DoublePressPowerAction = GetSelectedPowerValue(_dblPowerSegments[i]);
+            btn.DoublePressLinkedKnobIdx = int.TryParse(_dblKnobPickers[i].SelectedTag as string, out int dki) ? dki : -1;
 
             btn.HoldAction = GetComboActionValue(_holdCombos[i]);
             btn.HoldPath = GetTextBoxValue(_holdPathBoxes[i]);
+            btn.HoldMacroKeys = GetTextBoxValue(_holdMacroBoxes[i]);
+            btn.HoldDeviceId = GetSelectedDeviceId(_holdDevicePickers[i]);
+            btn.HoldDeviceIds = _holdCycleDevicePickers[i].GetCheckedIds();
+            btn.HoldProfileName = _holdProfilePickers[i].SelectedTag as string ?? "";
+            btn.HoldPowerAction = GetSelectedPowerValue(_holdPowerSegments[i]);
+            btn.HoldLinkedKnobIdx = int.TryParse(_holdKnobPickers[i].SelectedTag as string, out int hki) ? hki : -1;
         }
 
         _onSave(_config);
@@ -519,6 +683,19 @@ public partial class ButtonsView : UserControl
             _tapProfilePickers[i].RefreshAccent();
             _tapKnobPickers[i].RefreshAccent();
             _tapPowerSegments[i].AccentColor = accent;
+            _tapCycleDevicePickers[i].AccentColor = accent;
+
+            _dblDevicePickers[i].RefreshAccent();
+            _dblProfilePickers[i].RefreshAccent();
+            _dblKnobPickers[i].RefreshAccent();
+            _dblPowerSegments[i].AccentColor = accent;
+            _dblCycleDevicePickers[i].AccentColor = accent;
+
+            _holdDevicePickers[i].RefreshAccent();
+            _holdProfilePickers[i].RefreshAccent();
+            _holdKnobPickers[i].RefreshAccent();
+            _holdPowerSegments[i].AccentColor = accent;
+            _holdCycleDevicePickers[i].AccentColor = accent;
         }
     }
 
@@ -674,6 +851,22 @@ public partial class ButtonsView : UserControl
         };
         container.Children.Add(picker);
         return (container, picker);
+    }
+
+    private (StackPanel panel, CheckListPicker picker) MakeCheckListPickerRow(string label)
+    {
+        var container = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 8) };
+        container.Children.Add(MakeLabel(label));
+        var picker = new CheckListPicker { HorizontalAlignment = HorizontalAlignment.Stretch };
+        container.Children.Add(picker);
+        return (container, picker);
+    }
+
+    private void PopulateCycleDevicePicker(CheckListPicker picker)
+    {
+        picker.ClearItems();
+        foreach (var (id, name, isOutput) in _audioDevices)
+            picker.AddItem($"[{(isOutput ? "OUT" : "IN")}] {name}", id);
     }
 
     private (StackPanel panel, SegmentedControl segment) MakePowerSegmentRow(string label)

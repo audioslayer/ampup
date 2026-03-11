@@ -158,7 +158,19 @@ public class ButtonHandler
         if (!string.Equals(action, "none", StringComparison.OrdinalIgnoreCase))
         {
             Logger.Log($"Button {idx} hold → action: {action}");
-            ExecuteAction(action, path, btn);
+            var holdBtn = new ButtonConfig
+            {
+                Idx = btn.Idx,
+                Action = action,
+                Path = path,
+                DeviceId = btn.HoldDeviceId,
+                DeviceIds = btn.HoldDeviceIds,
+                MacroKeys = btn.HoldMacroKeys,
+                ProfileName = btn.HoldProfileName,
+                PowerAction = btn.HoldPowerAction,
+                LinkedKnobIdx = btn.HoldLinkedKnobIdx
+            };
+            ExecuteAction(action, path, holdBtn);
         }
     }
 
@@ -180,7 +192,19 @@ public class ButtonHandler
             if (!string.Equals(action, "none", StringComparison.OrdinalIgnoreCase))
             {
                 Logger.Log($"Button {idx} double-press → action: {action}");
-                ExecuteAction(action, path, btn);
+                var dblBtn = new ButtonConfig
+                {
+                    Idx = btn.Idx,
+                    Action = action,
+                    Path = path,
+                    DeviceId = btn.DoublePressDeviceId,
+                    DeviceIds = btn.DoublePressDeviceIds,
+                    MacroKeys = btn.DoublePressMacroKeys,
+                    ProfileName = btn.DoublePressProfileName,
+                    PowerAction = btn.DoublePressPowerAction,
+                    LinkedKnobIdx = btn.DoublePressLinkedKnobIdx
+                };
+                ExecuteAction(action, path, dblBtn);
             }
         }
         else

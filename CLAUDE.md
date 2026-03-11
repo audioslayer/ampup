@@ -419,3 +419,5 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 
 - **v0.3.1-alpha** — Renamed from WolfMixer to AmpUp. Icon design, GitHub release.
 - **v0.3.2-alpha** — Audio-Reactive RGB (FFT), Mute App Group, Visual Curve Picker, Global Lighting, 6 new effects (Breathing/Fire/Comet/Sparkle/GradientFill), Profile Switch Transitions, EffectPickerControl, ActionPickerControl, App Group toggles, Power action tiles, custom scrollbars, full UI polish pass.
+- **v0.4.0-alpha** — 8 new LED effects, styled sliders, dynamic accent theming, view redesigns, chromeless color picker, file browse button, column-based button layout.
+- **v0.4.1-alpha** — Fix: Double Press and Hold gestures now show all context controls (device picker, macro, profile, power, knob) — previously only path textbox. Per-gesture config fields so each gesture has independent settings. New CheckListPicker multi-select for cycle_output/cycle_input device subset selection.
