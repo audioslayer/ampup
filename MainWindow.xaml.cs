@@ -56,8 +56,8 @@ public partial class MainWindow : FluentWindow
         ProfileButton.Effect = new System.Windows.Media.Effects.DropShadowEffect
         {
             Color = ThemeManager.Accent,
-            BlurRadius = 16,
-            Opacity = 0.3,
+            BlurRadius = 12,
+            Opacity = 0.25,
             ShadowDepth = 0
         };
 
@@ -155,8 +155,8 @@ public partial class MainWindow : FluentWindow
 
         // Update sidebar highlight (icon + label)
         var accent = (SolidColorBrush)FindResource("AccentBrush");
-        var dimIcon = new SolidColorBrush(Colors.White);
-        var dimLabel = (SolidColorBrush)FindResource("TextDimBrush");
+        var dimIcon = (SolidColorBrush)FindResource("TextSecBrush");
+        var dimLabel = (SolidColorBrush)FindResource("TextSecBrush");
 
         if (_activeNavButton != null)
         {

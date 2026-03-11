@@ -114,33 +114,34 @@
                     </Grid.RowDefinitions>
 
                     <!-- Profile button at top of sidebar -->
-                    <Border x:Name="ProfileButton" Grid.Row="0" Width="54" Height="54" CornerRadius="12"
-                            Background="{StaticResource CardBgBrush}"
-                            BorderThickness="1.5" Margin="11,14,11,4" Cursor="Hand" ToolTip="Switch profile"
-                            MouseLeftButtonUp="ProfileButton_Click">
-                        <Border.BorderBrush>
-                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                <GradientStop Color="#8800E676" Offset="0" />
-                                <GradientStop Color="#4400E676" Offset="1" />
-                            </LinearGradientBrush>
-                        </Border.BorderBrush>
-                        <Border.Effect>
-                            <DropShadowEffect Color="#00E676" BlurRadius="16" Opacity="0.3" ShadowDepth="0" />
-                        </Border.Effect>
-                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <ui:SymbolIcon x:Name="ProfileIcon" Symbol="Person24" FontSize="22"
+                    <StackPanel Grid.Row="0" Margin="0,12,0,0">
+                        <Border x:Name="ProfileButton" Width="48" Height="48" CornerRadius="24"
+                                Background="{StaticResource CardBgBrush}"
+                                BorderThickness="2" Cursor="Hand" ToolTip="Switch profile"
+                                HorizontalAlignment="Center"
+                                MouseLeftButtonUp="ProfileButton_Click">
+                            <Border.BorderBrush>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#8800E676" Offset="0" />
+                                    <GradientStop Color="#4400E676" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.BorderBrush>
+                            <Border.Effect>
+                                <DropShadowEffect Color="#00E676" BlurRadius="12" Opacity="0.25" ShadowDepth="0" />
+                            </Border.Effect>
+                            <ui:SymbolIcon x:Name="ProfileIcon" Symbol="Person24" FontSize="20"
                                            Foreground="{DynamicResource AccentBrush}"
-                                           HorizontalAlignment="Center" />
-                            <TextBlock x:Name="ProfileLabel" Text="Default" FontSize="7"
-                                       Foreground="{StaticResource TextDimBrush}"
-                                       HorizontalAlignment="Center" Margin="0,2,0,0"
-                                       TextTrimming="CharacterEllipsis" MaxWidth="48" TextAlignment="Center" />
-                        </StackPanel>
-                    </Border>
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock x:Name="ProfileLabel" Text="Default" FontSize="8" FontWeight="Medium"
+                                   Foreground="{StaticResource TextSecBrush}"
+                                   HorizontalAlignment="Center" Margin="0,5,0,0"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="60" TextAlignment="Center" />
 
-                    <!-- Separator line under profile button -->
-                    <Border Grid.Row="0" VerticalAlignment="Bottom" Height="1" Margin="16,0,16,0"
-                            Background="{DynamicResource AccentBorder22Brush}" />
+                        <!-- Separator line under profile button -->
+                        <Border Height="1" Margin="14,10,14,0"
+                                Background="{DynamicResource AccentBorder22Brush}" />
+                    </StackPanel>
 
                     <!-- Profile flyout popup -->
                     <Popup x:Name="ProfilePopup" PlacementTarget="{Binding ElementName=ProfileButton}"
@@ -155,7 +156,7 @@
                         </Border>
                     </Popup>
 
-                    <DockPanel Grid.Row="1" Margin="0,8,0,0" LastChildFill="True">
+                    <DockPanel Grid.Row="1" Margin="0,12,0,0" LastChildFill="True">
                         <!-- Import button pinned to bottom -->
                         <Button x:Name="NavImport" Style="{StaticResource NavButton}" Click="NavImport_Click"
                                 DockPanel.Dock="Bottom" ToolTip="Import from Turn Up">
@@ -187,7 +188,7 @@
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <ui:SymbolIcon Symbol="MusicNote124" FontSize="20" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" />
+                                        <ui:SymbolIcon Symbol="MusicNote124" FontSize="22" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" />
                                         <TextBlock x:Name="NavMixerLabel" Text="Mixer" FontSize="9" Foreground="{DynamicResource AccentBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
@@ -203,8 +204,8 @@
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <ui:SymbolIcon Symbol="ControlButton24" FontSize="20" Foreground="White" HorizontalAlignment="Center" />
-                                        <TextBlock x:Name="NavButtonsLabel" Text="Buttons" FontSize="9" Foreground="{StaticResource TextDimBrush}"
+                                        <ui:SymbolIcon Symbol="ControlButton24" FontSize="22" Foreground="{StaticResource TextSecBrush}" HorizontalAlignment="Center" />
+                                        <TextBlock x:Name="NavButtonsLabel" Text="Buttons" FontSize="9" Foreground="{StaticResource TextSecBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
                                 </Grid>
@@ -219,8 +220,8 @@
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <ui:SymbolIcon Symbol="Color24" FontSize="20" Foreground="White" HorizontalAlignment="Center" />
-                                        <TextBlock x:Name="NavLightsLabel" Text="Lights" FontSize="9" Foreground="{StaticResource TextDimBrush}"
+                                        <ui:SymbolIcon Symbol="Color24" FontSize="22" Foreground="{StaticResource TextSecBrush}" HorizontalAlignment="Center" />
+                                        <TextBlock x:Name="NavLightsLabel" Text="Lights" FontSize="9" Foreground="{StaticResource TextSecBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
                                 </Grid>
@@ -235,8 +236,8 @@
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <ui:SymbolIcon Symbol="Home24" FontSize="20" Foreground="White" HorizontalAlignment="Center" />
-                                        <TextBlock x:Name="NavHALabel" Text="HA" FontSize="9" Foreground="{StaticResource TextDimBrush}"
+                                        <ui:SymbolIcon Symbol="Home24" FontSize="22" Foreground="{StaticResource TextSecBrush}" HorizontalAlignment="Center" />
+                                        <TextBlock x:Name="NavHALabel" Text="HA" FontSize="9" Foreground="{StaticResource TextSecBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
                                 </Grid>
@@ -251,8 +252,8 @@
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <ui:SymbolIcon Symbol="Settings24" FontSize="20" Foreground="White" HorizontalAlignment="Center" />
-                                        <TextBlock x:Name="NavSettingsLabel" Text="Settings" FontSize="9" Foreground="{StaticResource TextDimBrush}"
+                                        <ui:SymbolIcon Symbol="Settings24" FontSize="22" Foreground="{StaticResource TextSecBrush}" HorizontalAlignment="Center" />
+                                        <TextBlock x:Name="NavSettingsLabel" Text="Settings" FontSize="9" Foreground="{StaticResource TextSecBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
                                 </Grid>

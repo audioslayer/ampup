@@ -17,8 +17,34 @@ public partial class LightsView : UserControl
     private bool _loading;
     private readonly DispatcherTimer _debounce;
 
+    // Section header elements (refreshed on accent change)
+    private readonly List<(Border bar, TextBlock label)> _sectionHeaders = new();
+    private readonly List<TextBlock> _subLabels = new();
+
+    // Effect icons
+    private static readonly Dictionary<LightEffect, string> EffectIcons = new()
+    {
+        { LightEffect.SingleColor, "\U0001F7E2" },
+        { LightEffect.ColorBlend, "\U0001F308" },
+        { LightEffect.PositionFill, "\U0001F4CA" },
+        { LightEffect.Blink, "\u2728" },
+        { LightEffect.Pulse, "\U0001F4AB" },
+        { LightEffect.RainbowWave, "\U0001F308" },
+        { LightEffect.RainbowCycle, "\U0001F3A8" },
+        { LightEffect.MicStatus, "\U0001F3A4" },
+        { LightEffect.DeviceMute, "\U0001F507" },
+        { LightEffect.AudioReactive, "\U0001F3B5" },
+        { LightEffect.Breathing, "\U0001F4A8" },
+        { LightEffect.GradientFill, "\U0001F30C" },
+        { LightEffect.Comet, "\u2604" },
+        { LightEffect.Sparkle, "\u2728" },
+        { LightEffect.Fire, "\U0001F525" },
+    };
+
     // Per-channel controls
     private readonly TextBlock[] _headers = new TextBlock[5];
+    private readonly TextBlock[] _headerIcons = new TextBlock[5];
+    private readonly TextBlock[] _headerEffects = new TextBlock[5];
     private readonly EffectPickerControl[] _effectPickers = new EffectPickerControl[5];
     private readonly Border[] _color1Swatches = new Border[5];
     private readonly Border[] _color2Swatches = new Border[5];
@@ -65,6 +91,8 @@ public partial class LightsView : UserControl
             CollectAndSave();
         };
 
+        ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshAccentColors);
+
         BuildGlobalCard();
         BuildChannelControls();
     }
@@ -110,6 +138,7 @@ public partial class LightsView : UserControl
             if (light == null) continue;
 
             _effectPickers[i].SelectedEffect = light.Effect;
+            UpdateHeaderEffect(i);
 
             _colors1[i] = Color.FromRgb((byte)light.R, (byte)light.G, (byte)light.B);
             _colors2[i] = Color.FromRgb((byte)light.R2, (byte)light.G2, (byte)light.B2);
@@ -177,7 +206,7 @@ public partial class LightsView : UserControl
         _globalSettingsPanel = settings;
 
         // Effect picker
-        settings.Children.Add(MakeLabel("EFFECT"));
+        settings.Children.Add(MakeSectionHeader("EFFECT"));
         var effectPicker = new EffectPickerControl { Margin = new Thickness(0, 0, 0, 10) };
         effectPicker.SelectionChanged += (_, _) =>
         {
@@ -189,35 +218,16 @@ public partial class LightsView : UserControl
         settings.Children.Add(effectPicker);
 
         // Color 1
-        settings.Children.Add(MakeLabel("COLOR"));
-        var swatch1 = new Border
-        {
-            Height = 32,
-            CornerRadius = new CornerRadius(6),
-            Background = new SolidColorBrush(_globalColor1),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(0, 0, 0, 8),
-            Cursor = Cursors.Hand
-        };
-        swatch1.MouseLeftButtonDown += (_, _) => OnPickGlobalColor(isColor2: false);
+        settings.Children.Add(MakeSectionHeader("COLOR"));
+        settings.Children.Add(MakeSubLabel("PRIMARY"));
+        var swatch1 = MakeGlobalColorSwatch(_globalColor1, isColor2: false);
         _globalColor1Swatch = swatch1;
         settings.Children.Add(swatch1);
 
         // Color 2 (conditional)
-        var color2Panel = new StackPanel { Visibility = Visibility.Collapsed };
-        color2Panel.Children.Add(MakeLabel("COLOR 2"));
-        var swatch2 = new Border
-        {
-            Height = 32,
-            CornerRadius = new CornerRadius(6),
-            Background = new SolidColorBrush(_globalColor2),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(0, 0, 0, 8),
-            Cursor = Cursors.Hand
-        };
-        swatch2.MouseLeftButtonDown += (_, _) => OnPickGlobalColor(isColor2: true);
+        var color2Panel = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 4, 0, 0) };
+        color2Panel.Children.Add(MakeSubLabel("SECONDARY"));
+        var swatch2 = MakeGlobalColorSwatch(_globalColor2, isColor2: true);
         _globalColor2Swatch = swatch2;
         color2Panel.Children.Add(swatch2);
         _globalColor2Panel = color2Panel;
@@ -225,7 +235,7 @@ public partial class LightsView : UserControl
 
         // Speed slider (conditional)
         var speedPanel = new StackPanel { Visibility = Visibility.Collapsed };
-        speedPanel.Children.Add(MakeLabel("SPEED"));
+        speedPanel.Children.Add(MakeSectionHeader("SPEED"));
         var speedGrid = new Grid();
         speedGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         speedGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });
@@ -353,49 +363,90 @@ public partial class LightsView : UserControl
             int idx = i;
             var panel = panels[i];
 
-            // Header (updated from knob label in LoadConfig)
+            // ── Header: label + icon + effect name ──
+            var headerStack = new StackPanel
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 4),
+            };
+
             var header = new TextBlock
             {
                 Text = $"LED {i + 1}",
-                FontSize = 14,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = FindBrush("AccentBrush"),
-                Margin = new Thickness(0, 0, 0, 10),
-                HorizontalAlignment = HorizontalAlignment.Center
+                FontSize = 10,
+                FontWeight = FontWeights.Bold,
+                Foreground = FindBrush("TextDimBrush"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 6),
             };
             _headers[i] = header;
-            panel.Children.Add(header);
+            headerStack.Children.Add(header);
 
-            // Effect picker
-            panel.Children.Add(MakeLabel("EFFECT"));
+            var headerIcon = new TextBlock
+            {
+                Text = "\U0001F7E2",
+                FontSize = 28,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Foreground = FindBrush("AccentBrush"),
+            };
+            _headerIcons[i] = headerIcon;
+            headerStack.Children.Add(headerIcon);
+
+            var headerEffect = new TextBlock
+            {
+                Text = "Single Color",
+                FontSize = 11,
+                FontWeight = FontWeights.SemiBold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Foreground = FindBrush("AccentBrush"),
+                Margin = new Thickness(0, 4, 0, 0),
+            };
+            _headerEffects[i] = headerEffect;
+            headerStack.Children.Add(headerEffect);
+
+            panel.Children.Add(headerStack);
+
+            // ── Separator ──
+            panel.Children.Add(MakeSeparator(12));
+
+            // ── EFFECT section ──
+            panel.Children.Add(MakeSectionHeader("EFFECT"));
             var effectPicker = new EffectPickerControl { Margin = new Thickness(0, 0, 0, 10) };
             effectPicker.SelectionChanged += (_, _) =>
             {
                 if (_loading) return;
                 UpdateVisibility(idx, effectPicker.SelectedEffect);
+                UpdateHeaderEffect(idx);
                 QueueSave();
             };
             _effectPickers[i] = effectPicker;
             panel.Children.Add(effectPicker);
 
-            // Color 1 — clickable swatch
-            panel.Children.Add(MakeLabel("COLOR"));
+            // ── Separator ──
+            panel.Children.Add(MakeSeparator(10));
+
+            // ── COLOR section ──
+            panel.Children.Add(MakeSectionHeader("COLOR"));
+
+            // Color 1 label + swatch
+            panel.Children.Add(MakeSubLabel("PRIMARY"));
             var swatch1 = MakeColorSwatch(idx, isColor2: false);
             _color1Swatches[i] = swatch1;
             panel.Children.Add(swatch1);
 
-            // Color 2 — clickable swatch (conditionally visible)
-            var color2Container = new StackPanel();
-            color2Container.Children.Add(MakeLabel("COLOR 2"));
+            // Color 2 — conditionally visible, same section
+            var color2Container = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
+            color2Container.Children.Add(MakeSubLabel("SECONDARY"));
             var swatch2 = MakeColorSwatch(idx, isColor2: true);
             _color2Swatches[i] = swatch2;
             color2Container.Children.Add(swatch2);
             _color2Panels[i] = color2Container;
             panel.Children.Add(color2Container);
 
-            // Speed slider (conditionally visible)
+            // ── SPEED section (conditionally visible — separator included) ──
             var speedContainer = new StackPanel();
-            speedContainer.Children.Add(MakeLabel("SPEED"));
+            speedContainer.Children.Add(MakeSeparator(10));
+            speedContainer.Children.Add(MakeSectionHeader("SPEED"));
             var speedGrid = new Grid();
             speedGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             speedGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });
@@ -432,7 +483,7 @@ public partial class LightsView : UserControl
             speedGrid.Children.Add(speedSlider);
             speedGrid.Children.Add(speedLabel);
             speedContainer.Children.Add(speedGrid);
-            speedContainer.Margin = new Thickness(0, 2, 0, 0);
+            speedContainer.Margin = new Thickness(0, 0, 0, 0);
             _speedPanels[i] = speedContainer;
             panel.Children.Add(speedContainer);
 
@@ -455,23 +506,53 @@ public partial class LightsView : UserControl
             reactiveContainer.Visibility = Visibility.Collapsed;
             _reactiveModePanels[idx] = reactiveContainer;
             panel.Children.Add(reactiveContainer);
-
-            // LinkToVolume removed — not needed
         }
+    }
+
+    private void UpdateHeaderEffect(int idx)
+    {
+        var effect = _effectPickers[idx].SelectedEffect;
+        var icon = EffectIcons.GetValueOrDefault(effect, "\U0001F7E2");
+        var name = effect.ToString();
+        // Add spaces before capitals for display
+        var display = System.Text.RegularExpressions.Regex.Replace(name, "(?<!^)([A-Z])", " $1");
+
+        _headerIcons[idx].Text = icon;
+        _headerEffects[idx].Text = display;
     }
 
     private Border MakeColorSwatch(int idx, bool isColor2)
     {
+        var normalBorder = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
         var swatch = new Border
         {
-            Height = 32,
+            Height = 28,
             CornerRadius = new CornerRadius(6),
             Background = new SolidColorBrush(Colors.Black),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+            BorderBrush = normalBorder,
             BorderThickness = new Thickness(1),
-            Margin = new Thickness(0, 0, 0, 8),
-            Cursor = Cursors.Hand
+            Margin = new Thickness(0, 0, 0, 4),
+            Cursor = Cursors.Hand,
         };
+
+        // Hover glow effect
+        swatch.MouseEnter += (_, _) =>
+        {
+            swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0x88, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
+            swatch.Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = ((SolidColorBrush)swatch.Background).Color,
+                BlurRadius = 10,
+                Opacity = 0.4,
+                ShadowDepth = 0,
+            };
+        };
+        swatch.MouseLeave += (_, _) =>
+        {
+            swatch.BorderBrush = normalBorder;
+            swatch.Effect = null;
+        };
+
         swatch.MouseLeftButtonDown += (_, _) => OnPickColor(idx, isColor2);
         return swatch;
     }
@@ -572,6 +653,58 @@ public partial class LightsView : UserControl
         _onSave(_config);
     }
 
+    private Grid MakeSectionHeader(string title)
+    {
+        var accent = ThemeManager.Accent;
+        var grid = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var bar = new Border
+        {
+            Background = new SolidColorBrush(accent),
+            CornerRadius = new CornerRadius(2),
+            Margin = new Thickness(0, 1, 8, 1),
+        };
+        Grid.SetColumn(bar, 0);
+        grid.Children.Add(bar);
+
+        var label = new TextBlock
+        {
+            Text = title,
+            FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(accent),
+        };
+        Grid.SetColumn(label, 1);
+        grid.Children.Add(label);
+
+        _sectionHeaders.Add((bar, label));
+        return grid;
+    }
+
+    private Border MakeSeparator(int spacing = 10)
+    {
+        return new Border
+        {
+            Height = 1,
+            Background = FindBrush("CardBorderBrush"),
+            Margin = new Thickness(0, spacing, 0, spacing),
+        };
+    }
+
+    private void RefreshAccentColors()
+    {
+        var accent = ThemeManager.Accent;
+        foreach (var (bar, label) in _sectionHeaders)
+        {
+            bar.Background = new SolidColorBrush(accent);
+            label.Foreground = new SolidColorBrush(accent);
+        }
+        foreach (var lbl in _subLabels)
+            lbl.Foreground = new SolidColorBrush(Color.FromArgb(0x99, accent.R, accent.G, accent.B));
+    }
+
     private TextBlock MakeLabel(string text)
     {
         return new TextBlock
@@ -582,6 +715,54 @@ public partial class LightsView : UserControl
             FontSize = 11,
             Margin = new Thickness(0, 0, 0, 3)
         };
+    }
+
+    private TextBlock MakeSubLabel(string text)
+    {
+        var accent = ThemeManager.Accent;
+        var lbl = new TextBlock
+        {
+            Text = text,
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromArgb(0x99, accent.R, accent.G, accent.B)),
+            Margin = new Thickness(0, 0, 0, 4),
+        };
+        _subLabels.Add(lbl);
+        return lbl;
+    }
+
+    private Border MakeGlobalColorSwatch(Color initial, bool isColor2)
+    {
+        var normalBorder = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
+        var swatch = new Border
+        {
+            Height = 28,
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(initial),
+            BorderBrush = normalBorder,
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(0, 0, 0, 4),
+            Cursor = Cursors.Hand,
+        };
+        swatch.MouseEnter += (_, _) =>
+        {
+            swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0x88, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
+            swatch.Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = ((SolidColorBrush)swatch.Background).Color,
+                BlurRadius = 10,
+                Opacity = 0.4,
+                ShadowDepth = 0,
+            };
+        };
+        swatch.MouseLeave += (_, _) =>
+        {
+            swatch.BorderBrush = normalBorder;
+            swatch.Effect = null;
+        };
+        swatch.MouseLeftButtonDown += (_, _) => OnPickGlobalColor(isColor2);
+        return swatch;
     }
 
     private Brush FindBrush(string key)
@@ -643,14 +824,32 @@ public class ColorPickerDialog : Window
         SelectedColor = initial;
         Title = "Pick Color";
         Width = 320;
-        Height = 520;
         SizeToContent = SizeToContent.Height;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.NoResize;
-        Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14));
+        WindowStyle = WindowStyle.None;
+        AllowsTransparency = true;
+        Background = Brushes.Transparent;
 
         // Convert initial color to HSV
         RgbToHsv(initial.R, initial.G, initial.B, out _hue, out _sat, out _val);
+
+        // Outer border for the dialog (rounded, dark, with accent glow)
+        var outerBorder = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = Colors.Black,
+                BlurRadius = 24,
+                Opacity = 0.6,
+                ShadowDepth = 0,
+            },
+        };
+        outerBorder.MouseLeftButtonDown += (_, _) => DragMove();
 
         var mainPanel = new StackPanel { Margin = new Thickness(16) };
 
@@ -820,7 +1019,8 @@ public class ColorPickerDialog : Window
         btnPanel.Children.Add(cancelBtn);
         mainPanel.Children.Add(btnPanel);
 
-        Content = mainPanel;
+        outerBorder.Child = mainPanel;
+        Content = outerBorder;
 
         // Render initial state
         Loaded += (_, _) =>

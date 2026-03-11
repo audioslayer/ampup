@@ -56,6 +56,9 @@ public partial class MixerView : UserControl
     private readonly Border[] _settingsBorders = new Border[5];
     private readonly bool[] _settingsExpanded = new bool[5];
 
+    // Section header elements (refreshed on accent change)
+    private readonly List<(Border bar, TextBlock label)> _sectionHeaders = new();
+
     // Audio devices cache
     private List<(string Id, string Name, bool IsOutput)> _audioDevices = new();
 
@@ -83,6 +86,8 @@ public partial class MixerView : UserControl
         _liveTimer.Tick += LiveTimer_Tick;
 
         Unloaded += (_, _) => _liveTimer.Stop();
+
+        ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshAccentColors);
 
         BuildChannelControls();
         SetupStripHoverEffects();
@@ -381,11 +386,11 @@ public partial class MixerView : UserControl
             {
                 Height = 1,
                 Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-                Margin = new Thickness(0, 4, 0, 0)
+                Margin = new Thickness(0, 8, 0, 10)
             };
             panel.Children.Add(divider);
 
-            var settingsPanel = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
+            var settingsPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 0) };
             var settingsBorder = new Border
             {
                 Child = settingsPanel,
@@ -397,7 +402,7 @@ public partial class MixerView : UserControl
             // ── Settings content ──
 
             // TARGET — GridPicker with categories
-            settingsPanel.Children.Add(MakeLabel("TARGET"));
+            settingsPanel.Children.Add(MakeSectionHeader("TARGET"));
             var targetPicker = new GridPicker { Margin = new Thickness(0, 0, 0, 6) };
 
             targetPicker.AddCategory("Audio");
@@ -439,8 +444,11 @@ public partial class MixerView : UserControl
             // Store reference to update target display
             targetPicker.Tag = targetDisplay;
 
+            // ── Separator ──
+            settingsPanel.Children.Add(MakeSeparator(8));
+
             // CURVE — CurvePickerControl (visual mini graphs)
-            settingsPanel.Children.Add(MakeLabel("CURVE"));
+            settingsPanel.Children.Add(MakeSectionHeader("CURVE"));
             var curvePicker = new CurvePickerControl { Margin = new Thickness(0, 0, 0, 6) };
             curvePicker.SelectionChanged += (_, _) =>
             {
@@ -449,8 +457,11 @@ public partial class MixerView : UserControl
             _curvePickers[i] = curvePicker;
             settingsPanel.Children.Add(curvePicker);
 
+            // ── Separator ──
+            settingsPanel.Children.Add(MakeSeparator(8));
+
             // VOLUME RANGE
-            settingsPanel.Children.Add(MakeLabel("VOLUME RANGE"));
+            settingsPanel.Children.Add(MakeSectionHeader("VOLUME RANGE"));
             var rangeSlider = new RangeSlider
             {
                 Minimum = 0,
@@ -790,6 +801,57 @@ public partial class MixerView : UserControl
     }
 
     // --- Helpers ---
+
+    private Grid MakeSectionHeader(string title)
+    {
+        var accent = ThemeManager.Accent;
+        var grid = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var bar = new Border
+        {
+            Background = new SolidColorBrush(accent),
+            CornerRadius = new CornerRadius(2),
+            Margin = new Thickness(0, 1, 8, 1),
+        };
+        Grid.SetColumn(bar, 0);
+        grid.Children.Add(bar);
+
+        var label = new TextBlock
+        {
+            Text = title,
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(accent),
+        };
+        Grid.SetColumn(label, 1);
+        grid.Children.Add(label);
+
+        _sectionHeaders.Add((bar, label));
+        return grid;
+    }
+
+    private void RefreshAccentColors()
+    {
+        var accent = ThemeManager.Accent;
+        var brush = new SolidColorBrush(accent);
+        foreach (var (bar, label) in _sectionHeaders)
+        {
+            bar.Background = new SolidColorBrush(accent);
+            label.Foreground = new SolidColorBrush(accent);
+        }
+    }
+
+    private Border MakeSeparator(int spacing = 10)
+    {
+        return new Border
+        {
+            Height = 1,
+            Background = FindBrush("CardBorderBrush"),
+            Margin = new Thickness(0, spacing, 0, spacing),
+        };
+    }
 
     private TextBlock MakeLabel(string text)
     {

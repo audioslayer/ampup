@@ -12,13 +12,7 @@ public partial class DeviceSwitchOverlay : Window
     public DeviceSwitchOverlay()
     {
         InitializeComponent();
-
-        // Apply accent color to border and type label
-        var accent = ThemeManager.Accent;
-        var borderBrush = new System.Windows.Media.SolidColorBrush(ThemeManager.WithAlpha(accent, 0x4D)); // ~0.3 opacity
-        borderBrush.Freeze();
-        RootPanel.BorderBrush = borderBrush;
-        TypeLabel.Foreground = new System.Windows.Media.SolidColorBrush(ThemeManager.WithAlpha(accent, 0x77));
+        ApplyAccentColors();
 
         _dismissTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
         _dismissTimer.Tick += (_, _) =>
@@ -26,6 +20,17 @@ public partial class DeviceSwitchOverlay : Window
             _dismissTimer.Stop();
             AnimateOut();
         };
+
+        ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(ApplyAccentColors);
+    }
+
+    private void ApplyAccentColors()
+    {
+        var accent = ThemeManager.Accent;
+        var borderBrush = new System.Windows.Media.SolidColorBrush(ThemeManager.WithAlpha(accent, 0x4D));
+        borderBrush.Freeze();
+        RootPanel.BorderBrush = borderBrush;
+        TypeLabel.Foreground = new System.Windows.Media.SolidColorBrush(ThemeManager.WithAlpha(accent, 0x77));
     }
 
     public void ShowDevice(string deviceName, bool isOutput)

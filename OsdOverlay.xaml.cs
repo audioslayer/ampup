@@ -28,6 +28,8 @@ public partial class OsdOverlay : Window
             _dismissTimer.Stop();
             AnimateOut();
         };
+
+        ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(ApplyAccentColors);
     }
 
     private void ApplyAccentColors()
@@ -61,8 +63,18 @@ public partial class OsdOverlay : Window
         fillBrush.Freeze();
         BarFill.Background = fillBrush;
 
-        // Bar glow background
+        // Bar glow background + effect
         BarGlow.Background = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x66));
+        BarGlow.Effect = new System.Windows.Media.Effects.DropShadowEffect
+        {
+            Color = accent, BlurRadius = 12, Opacity = 0.4, ShadowDepth = 0
+        };
+
+        // Root panel drop shadow
+        RootPanel.Effect = new System.Windows.Media.Effects.DropShadowEffect
+        {
+            Color = accent, BlurRadius = 32, Opacity = 0.2, ShadowDepth = 0
+        };
     }
 
     public void SetPosition(OsdPosition position)

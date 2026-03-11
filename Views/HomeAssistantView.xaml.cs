@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace AmpUp.Views;
 
@@ -10,37 +11,69 @@ public partial class HomeAssistantView : UserControl
     private Action<AppConfig>? _onSave;
     private HAIntegration? _ha;
     private bool _loading;
+    private readonly DispatcherTimer _debounce;
 
     // Connection status
     private TextBlock _statusLabel = null!;
     private Border _statusDot = null!;
     private Button _testBtn = null!;
+    private Button _refreshBtn = null!;
+
+    // Per-column header labels
+    private readonly TextBlock[] _headerLabels = new TextBlock[5];
+    private readonly TextBlock[] _headerIcons = new TextBlock[5];
+    private readonly TextBlock[] _headerTypes = new TextBlock[5];
 
     // Knob binding controls
     private readonly ComboBox[] _knobTypeCombos = new ComboBox[5];
     private readonly ComboBox[] _knobEntityCombos = new ComboBox[5];
-    private readonly TextBlock[] _knobLabels = new TextBlock[5];
+    private readonly StackPanel[] _knobEntityPanels = new StackPanel[5];
 
     // Button binding controls
     private readonly ComboBox[] _btnActionCombos = new ComboBox[5];
     private readonly ComboBox[] _btnEntityCombos = new ComboBox[5];
+    private readonly StackPanel[] _btnEntityPanels = new StackPanel[5];
 
     // Entity cache
     private List<HAEntity> _entities = new();
 
     // HA target types for knobs
-    private static readonly string[] KnobTypes = { "(none)", "Light Brightness", "Media Volume", "Fan Speed", "Cover Position" };
-    private static readonly string[] KnobTypePrefixes = { "", "ha_light", "ha_media", "ha_fan", "ha_cover" };
-    private static readonly string[] KnobTypeDomains = { "", "light", "media_player", "fan", "cover" };
+    private static readonly (string Display, string Value, string Domain, string Icon)[] KnobTypes =
+    {
+        ("None", "", "", "—"),
+        ("Light Brightness", "ha_light", "light", "\U0001F4A1"),
+        ("Media Volume", "ha_media", "media_player", "\U0001F50A"),
+        ("Fan Speed", "ha_fan", "fan", "\U0001F32C"),
+        ("Cover Position", "ha_cover", "cover", "\U0001F6AA"),
+    };
 
     // HA button action types
-    private static readonly string[] BtnActions = { "(none)", "Toggle Entity", "Activate Scene", "Call Service" };
-    private static readonly string[] BtnActionValues = { "none", "ha_toggle", "ha_scene", "ha_service" };
+    private static readonly (string Display, string Value, string Icon)[] BtnActions =
+    {
+        ("None", "none", "—"),
+        ("Toggle Entity", "ha_toggle", "\u26A1"),
+        ("Activate Scene", "ha_scene", "\U0001F3AC"),
+        ("Call Service", "ha_service", "\u2699"),
+    };
+
+    // Section header elements (refreshed on accent change)
+    private readonly List<(Border bar, TextBlock label)> _sectionHeaders = new();
 
     public HomeAssistantView()
     {
         InitializeComponent();
-        BuildUI();
+
+        _debounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        _debounce.Tick += (_, _) =>
+        {
+            _debounce.Stop();
+            SaveBindings();
+        };
+
+        ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshAccentColors);
+
+        BuildConnectionCard();
+        BuildColumns();
     }
 
     public void LoadConfig(AppConfig config, Action<AppConfig> onSave)
@@ -64,23 +97,26 @@ public partial class HomeAssistantView : UserControl
             var knob = config.Knobs.FirstOrDefault(k => k.Idx == i);
             if (knob == null) continue;
 
-            // Update knob label
+            // Update header label
             var label = !string.IsNullOrWhiteSpace(knob.Label) ? knob.Label : FormatTargetName(knob.Target);
-            _knobLabels[i].Text = label;
+            _headerLabels[i].Text = label;
 
             // Check if current target is an HA target
             if (knob.Target.StartsWith("ha_"))
             {
                 var (type, entityId) = HAIntegration.ParseTarget(knob.Target);
-                int typeIdx = Array.IndexOf(KnobTypePrefixes, $"ha_{type}");
+                int typeIdx = -1;
+                for (int t = 0; t < KnobTypes.Length; t++)
+                    if (KnobTypes[t].Value == $"ha_{type}") { typeIdx = t; break; }
                 _knobTypeCombos[i].SelectedIndex = typeIdx >= 0 ? typeIdx : 0;
-                // Entity will be set after fetch
                 _knobEntityCombos[i].Tag = entityId; // stash for later
+                UpdateKnobHeader(i);
             }
             else
             {
                 _knobTypeCombos[i].SelectedIndex = 0;
                 _knobEntityCombos[i].Tag = null;
+                UpdateKnobHeader(i);
             }
         }
 
@@ -90,7 +126,10 @@ public partial class HomeAssistantView : UserControl
             var btn = config.Buttons.FirstOrDefault(b => b.Idx == i);
             if (btn == null) continue;
 
-            int actionIdx = Array.IndexOf(BtnActionValues, btn.Action);
+            int actionIdx = -1;
+            for (int a = 0; a < BtnActions.Length; a++)
+                if (BtnActions[a].Value == btn.Action) { actionIdx = a; break; }
+
             if (actionIdx >= 0)
             {
                 _btnActionCombos[i].SelectedIndex = actionIdx;
@@ -109,6 +148,392 @@ public partial class HomeAssistantView : UserControl
             _ = FetchEntitiesAsync();
     }
 
+    // ── Connection Card ─────────────────────────────────────────────
+
+    private void BuildConnectionCard()
+    {
+        var grid = ConnContent;
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        // Header row: accent bar + title + status dot
+        var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+
+        var accentBar = new Border
+        {
+            Width = 3,
+            CornerRadius = new CornerRadius(2),
+            Background = FindBrush("AccentBrush"),
+            Margin = new Thickness(0, 0, 10, 0),
+        };
+        headerRow.Children.Add(accentBar);
+
+        var title = new TextBlock
+        {
+            Text = "HOME ASSISTANT",
+            Style = FindStyle("HeaderText"),
+        };
+        headerRow.Children.Add(title);
+
+        _statusDot = new Border
+        {
+            Width = 10,
+            Height = 10,
+            CornerRadius = new CornerRadius(5),
+            Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#555555")),
+            Margin = new Thickness(12, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        headerRow.Children.Add(_statusDot);
+
+        _statusLabel = new TextBlock
+        {
+            Text = "Not configured",
+            Style = FindStyle("SecondaryText"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+        headerRow.Children.Add(_statusLabel);
+
+        Grid.SetRow(headerRow, 0);
+        Grid.SetColumnSpan(headerRow, 2);
+        grid.Children.Add(headerRow);
+
+        // Buttons row
+        var btnRow = new StackPanel { Orientation = Orientation.Horizontal };
+
+        _testBtn = new Button
+        {
+            Content = "Test Connection",
+            Padding = new Thickness(12, 4, 12, 4),
+            FontSize = 12,
+        };
+        _testBtn.Click += async (_, _) =>
+        {
+            _testBtn.IsEnabled = false;
+            _statusLabel.Text = "Testing...";
+            if (_ha != null)
+            {
+                var ok = await _ha.TestConnectionAsync();
+                SetConnectionDot(ok);
+                _statusLabel.Text = ok ? "Connected" : "Connection failed";
+                if (ok) await FetchEntitiesAsync();
+            }
+            _testBtn.IsEnabled = true;
+        };
+        btnRow.Children.Add(_testBtn);
+
+        _refreshBtn = new Button
+        {
+            Content = "Refresh Entities",
+            Padding = new Thickness(12, 4, 12, 4),
+            FontSize = 12,
+            Margin = new Thickness(6, 0, 0, 0),
+        };
+        _refreshBtn.Click += async (_, _) =>
+        {
+            _refreshBtn.IsEnabled = false;
+            await FetchEntitiesAsync();
+            _refreshBtn.IsEnabled = true;
+        };
+        btnRow.Children.Add(_refreshBtn);
+
+        Grid.SetRow(btnRow, 1);
+        Grid.SetColumnSpan(btnRow, 2);
+        grid.Children.Add(btnRow);
+    }
+
+    // ── Build 5 columns ─────────────────────────────────────────────
+
+    private void BuildColumns()
+    {
+        var grids = new[] { Ch0Grid, Ch1Grid, Ch2Grid, Ch3Grid, Ch4Grid };
+
+        for (int i = 0; i < 5; i++)
+        {
+            int idx = i;
+            var grid = grids[i];
+
+            // Define rows: Header | Sep | KNOB | Sep | BUTTON
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto, SharedSizeGroup = "Header" });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // sep
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto, SharedSizeGroup = "Knob" });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // sep
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto, SharedSizeGroup = "Button" });
+
+            // ── Row 0: Header ──
+            var headerStack = new StackPanel
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 4),
+            };
+
+            var headerLabel = new TextBlock
+            {
+                Text = $"CH {i + 1}",
+                FontSize = 10,
+                FontWeight = FontWeights.Bold,
+                Foreground = FindBrush("TextDimBrush"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 6),
+            };
+            _headerLabels[i] = headerLabel;
+            headerStack.Children.Add(headerLabel);
+
+            var headerIcon = new TextBlock
+            {
+                Text = "\U0001F3E0", // house icon
+                FontSize = 28,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Foreground = FindBrush("AccentBrush"),
+            };
+            _headerIcons[i] = headerIcon;
+            headerStack.Children.Add(headerIcon);
+
+            var headerType = new TextBlock
+            {
+                Text = "Not Bound",
+                FontSize = 11,
+                FontWeight = FontWeights.SemiBold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Foreground = FindBrush("TextDimBrush"),
+                Margin = new Thickness(0, 4, 0, 0),
+            };
+            _headerTypes[i] = headerType;
+            headerStack.Children.Add(headerType);
+
+            Grid.SetRow(headerStack, 0);
+            grid.Children.Add(headerStack);
+
+            // ── Row 1: Sep ──
+            var sep1 = MakeSeparator(12);
+            Grid.SetRow(sep1, 1);
+            grid.Children.Add(sep1);
+
+            // ── Row 2: KNOB section ──
+            var knobSection = new StackPanel();
+            knobSection.Children.Add(MakeSectionHeader("KNOB"));
+
+            // Type combo with icons
+            var typeCombo = MakeKnobTypeCombo();
+            typeCombo.SelectionChanged += (_, _) =>
+            {
+                if (_loading) return;
+                PopulateKnobEntities(idx);
+                UpdateKnobHeader(idx);
+                QueueSave();
+            };
+            _knobTypeCombos[i] = typeCombo;
+            knobSection.Children.Add(typeCombo);
+
+            // Entity combo (hidden until type selected)
+            var entityPanel = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 4) };
+            entityPanel.Children.Add(MakeLabel("ENTITY"));
+            var entityCombo = new ComboBox
+            {
+                Background = FindBrush("InputBgBrush"),
+                Foreground = FindBrush("TextPrimaryBrush"),
+                BorderBrush = FindBrush("InputBorderBrush"),
+                FontSize = 12,
+            };
+            entityCombo.SelectionChanged += (_, _) =>
+            {
+                if (_loading) return;
+                QueueSave();
+            };
+            _knobEntityCombos[i] = entityCombo;
+            _knobEntityPanels[i] = entityPanel;
+            entityPanel.Children.Add(entityCombo);
+            knobSection.Children.Add(entityPanel);
+
+            Grid.SetRow(knobSection, 2);
+            grid.Children.Add(knobSection);
+
+            // ── Row 3: Sep ──
+            var sep2 = MakeSeparator(14);
+            Grid.SetRow(sep2, 3);
+            grid.Children.Add(sep2);
+
+            // ── Row 4: BUTTON section ──
+            var btnSection = new StackPanel();
+            btnSection.Children.Add(MakeSectionHeader("BUTTON"));
+
+            // Action combo with icons
+            var actionCombo = MakeBtnActionCombo();
+            actionCombo.SelectionChanged += (_, _) =>
+            {
+                if (_loading) return;
+                PopulateButtonEntities(idx);
+                QueueSave();
+            };
+            _btnActionCombos[i] = actionCombo;
+            btnSection.Children.Add(actionCombo);
+
+            // Entity combo (hidden until action selected)
+            var btnEntityPanel = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 4) };
+            btnEntityPanel.Children.Add(MakeLabel("ENTITY"));
+            var btnEntityCombo = new ComboBox
+            {
+                Background = FindBrush("InputBgBrush"),
+                Foreground = FindBrush("TextPrimaryBrush"),
+                BorderBrush = FindBrush("InputBorderBrush"),
+                FontSize = 12,
+            };
+            btnEntityCombo.SelectionChanged += (_, _) =>
+            {
+                if (_loading) return;
+                QueueSave();
+            };
+            _btnEntityCombos[i] = btnEntityCombo;
+            _btnEntityPanels[i] = btnEntityPanel;
+            btnEntityPanel.Children.Add(btnEntityCombo);
+            btnSection.Children.Add(btnEntityPanel);
+
+            Grid.SetRow(btnSection, 4);
+            grid.Children.Add(btnSection);
+        }
+    }
+
+    // ── Header display update ──────────────────────────────────────
+
+    private void UpdateKnobHeader(int idx)
+    {
+        var typeIdx = _knobTypeCombos[idx].SelectedIndex;
+        if (typeIdx <= 0)
+        {
+            _headerIcons[idx].Text = "\U0001F3E0";
+            _headerIcons[idx].Foreground = FindBrush("TextDimBrush");
+            _headerTypes[idx].Text = "Not Bound";
+            _headerTypes[idx].Foreground = FindBrush("TextDimBrush");
+        }
+        else
+        {
+            var knobType = KnobTypes[typeIdx];
+            _headerIcons[idx].Text = knobType.Icon;
+            _headerIcons[idx].Foreground = new SolidColorBrush(ThemeManager.Accent);
+            _headerTypes[idx].Text = knobType.Display;
+            _headerTypes[idx].Foreground = new SolidColorBrush(Color.FromArgb(0xCC, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
+        }
+    }
+
+    // ── Control factories ───────────────────────────────────────────
+
+    private Grid MakeSectionHeader(string title)
+    {
+        var accent = ThemeManager.Accent;
+        var grid = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var bar = new Border
+        {
+            Background = new SolidColorBrush(accent),
+            CornerRadius = new CornerRadius(2),
+            Margin = new Thickness(0, 1, 8, 1),
+        };
+        Grid.SetColumn(bar, 0);
+        grid.Children.Add(bar);
+
+        var label = new TextBlock
+        {
+            Text = title,
+            FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(accent),
+        };
+        Grid.SetColumn(label, 1);
+        grid.Children.Add(label);
+
+        _sectionHeaders.Add((bar, label));
+        return grid;
+    }
+
+    private void RefreshAccentColors()
+    {
+        var accent = ThemeManager.Accent;
+        foreach (var (bar, label) in _sectionHeaders)
+        {
+            bar.Background = new SolidColorBrush(accent);
+            label.Foreground = new SolidColorBrush(accent);
+        }
+    }
+
+    private Border MakeSeparator(int spacing = 10)
+    {
+        return new Border
+        {
+            Height = 1,
+            Background = FindBrush("CardBorderBrush"),
+            Margin = new Thickness(0, spacing, 0, spacing),
+        };
+    }
+
+    private ComboBox MakeKnobTypeCombo()
+    {
+        var combo = new ComboBox
+        {
+            Background = FindBrush("InputBgBrush"),
+            Foreground = FindBrush("TextPrimaryBrush"),
+            BorderBrush = FindBrush("InputBorderBrush"),
+            Margin = new Thickness(0, 0, 0, 10),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            FontSize = 12,
+        };
+
+        foreach (var (display, _, _, icon) in KnobTypes)
+        {
+            combo.Items.Add(new ComboBoxItem
+            {
+                Content = $"{icon}  {display}",
+                Tag = display,
+            });
+        }
+
+        combo.SelectedIndex = 0;
+        return combo;
+    }
+
+    private ComboBox MakeBtnActionCombo()
+    {
+        var combo = new ComboBox
+        {
+            Background = FindBrush("InputBgBrush"),
+            Foreground = FindBrush("TextPrimaryBrush"),
+            BorderBrush = FindBrush("InputBorderBrush"),
+            Margin = new Thickness(0, 0, 0, 10),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            FontSize = 12,
+        };
+
+        foreach (var (display, _, icon) in BtnActions)
+        {
+            combo.Items.Add(new ComboBoxItem
+            {
+                Content = $"{icon}  {display}",
+                Tag = display,
+            });
+        }
+
+        combo.SelectedIndex = 0;
+        return combo;
+    }
+
+    private TextBlock MakeLabel(string text)
+    {
+        return new TextBlock
+        {
+            Text = text,
+            Style = FindStyle("SecondaryText"),
+            FontWeight = FontWeights.SemiBold,
+            FontSize = 10,
+            Margin = new Thickness(0, 0, 0, 3),
+        };
+    }
+
+    // ── Entity management ───────────────────────────────────────────
+
     private async Task FetchEntitiesAsync()
     {
         if (_ha == null) return;
@@ -124,15 +549,12 @@ public partial class HomeAssistantView : UserControl
 
             Dispatcher.Invoke(() =>
             {
-                // Populate knob entity combos based on selected type
                 for (int i = 0; i < 5; i++)
+                {
                     PopulateKnobEntities(i);
-
-                // Populate button entity combos
-                for (int i = 0; i < 5; i++)
                     PopulateButtonEntities(i);
-
-                _statusLabel.Text = $"Connected — {_entities.Count} entities";
+                }
+                _statusLabel.Text = $"Connected \u2014 {_entities.Count} entities";
             });
         }
         catch (Exception ex)
@@ -152,14 +574,14 @@ public partial class HomeAssistantView : UserControl
         var typeIdx = _knobTypeCombos[idx].SelectedIndex;
         combo.Items.Clear();
 
-        if (typeIdx <= 0 || typeIdx >= KnobTypeDomains.Length)
+        if (typeIdx <= 0 || typeIdx >= KnobTypes.Length)
         {
-            combo.Visibility = Visibility.Collapsed;
+            _knobEntityPanels[idx].Visibility = Visibility.Collapsed;
             return;
         }
 
-        combo.Visibility = Visibility.Visible;
-        var domain = KnobTypeDomains[typeIdx];
+        _knobEntityPanels[idx].Visibility = Visibility.Visible;
+        var domain = KnobTypes[typeIdx].Domain;
         var filtered = _entities.Where(e => e.Domain == domain).OrderBy(e => e.FriendlyName).ToList();
 
         foreach (var entity in filtered)
@@ -189,15 +611,14 @@ public partial class HomeAssistantView : UserControl
 
         if (actionIdx <= 0)
         {
-            combo.Visibility = Visibility.Collapsed;
+            _btnEntityPanels[idx].Visibility = Visibility.Collapsed;
             return;
         }
 
-        combo.Visibility = Visibility.Visible;
+        _btnEntityPanels[idx].Visibility = Visibility.Visible;
 
-        // Filter entities by action type
+        var actionVal = BtnActions[actionIdx].Value;
         List<HAEntity> filtered;
-        var actionVal = BtnActionValues[actionIdx];
         if (actionVal == "ha_scene")
             filtered = _entities.Where(e => e.Domain == "scene").OrderBy(e => e.FriendlyName).ToList();
         else if (actionVal == "ha_toggle")
@@ -225,13 +646,15 @@ public partial class HomeAssistantView : UserControl
         }
     }
 
+    // ── Connection status ───────────────────────────────────────────
+
     private void UpdateConnectionStatus()
     {
         if (_config == null) return;
 
         if (!_config.HomeAssistant.Enabled)
         {
-            _statusLabel.Text = "Disabled — enable in Settings";
+            _statusLabel.Text = "Disabled \u2014 enable in Settings";
             SetConnectionDot(false);
         }
         else if (string.IsNullOrWhiteSpace(_config.HomeAssistant.Token))
@@ -252,6 +675,14 @@ public partial class HomeAssistantView : UserControl
             : (Color)ColorConverter.ConvertFromString("#555555"));
     }
 
+    // ── Save ────────────────────────────────────────────────────────
+
+    private void QueueSave()
+    {
+        _debounce.Stop();
+        _debounce.Start();
+    }
+
     private void SaveBindings()
     {
         if (_config == null || _onSave == null || _loading) return;
@@ -265,7 +696,6 @@ public partial class HomeAssistantView : UserControl
             var typeIdx = _knobTypeCombos[i].SelectedIndex;
             if (typeIdx <= 0)
             {
-                // Only clear if it was previously an HA target
                 if (knob.Target.StartsWith("ha_"))
                     knob.Target = "none";
                 continue;
@@ -273,7 +703,7 @@ public partial class HomeAssistantView : UserControl
 
             var entityId = GetSelectedEntityId(_knobEntityCombos[i]);
             if (!string.IsNullOrEmpty(entityId))
-                knob.Target = $"{KnobTypePrefixes[typeIdx]}:{entityId}";
+                knob.Target = $"{KnobTypes[typeIdx].Value}:{entityId}";
         }
 
         // Save button HA actions
@@ -285,7 +715,6 @@ public partial class HomeAssistantView : UserControl
             var actionIdx = _btnActionCombos[i].SelectedIndex;
             if (actionIdx <= 0)
             {
-                // Only clear if it was previously an HA action
                 if (btn.Action.StartsWith("ha_"))
                 {
                     btn.Action = "none";
@@ -295,7 +724,7 @@ public partial class HomeAssistantView : UserControl
             }
 
             var entityId = GetSelectedEntityId(_btnEntityCombos[i]);
-            btn.Action = BtnActionValues[actionIdx];
+            btn.Action = BtnActions[actionIdx].Value;
             btn.Path = entityId;
         }
 
@@ -309,273 +738,7 @@ public partial class HomeAssistantView : UserControl
         return "";
     }
 
-    private void BuildUI()
-    {
-        // --- Connection Status Card ---
-        var connCard = MakeCard();
-        var connHeader = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-
-        _statusDot = new Border
-        {
-            Width = 10,
-            Height = 10,
-            CornerRadius = new CornerRadius(5),
-            Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#555555")),
-            Margin = new Thickness(0, 0, 8, 0),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        connHeader.Children.Add(_statusDot);
-
-        var connTitle = new TextBlock
-        {
-            Text = "HOME ASSISTANT",
-            Style = FindStyle("HeaderText")
-        };
-        connHeader.Children.Add(connTitle);
-
-        var connContent = new StackPanel();
-        connContent.Children.Add(connHeader);
-
-        var statusRow = new StackPanel { Orientation = Orientation.Horizontal };
-        _statusLabel = new TextBlock
-        {
-            Text = "Not configured",
-            Style = FindStyle("SecondaryText"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 12, 0)
-        };
-        statusRow.Children.Add(_statusLabel);
-
-        _testBtn = new Button
-        {
-            Content = "Test Connection",
-            Padding = new Thickness(12, 4, 12, 4),
-            FontSize = 12
-        };
-        _testBtn.Click += async (_, _) =>
-        {
-            _testBtn.IsEnabled = false;
-            _statusLabel.Text = "Testing...";
-            if (_ha != null)
-            {
-                var ok = await _ha.TestConnectionAsync();
-                SetConnectionDot(ok);
-                _statusLabel.Text = ok ? "Connected" : "Connection failed";
-                if (ok) await FetchEntitiesAsync();
-            }
-            _testBtn.IsEnabled = true;
-        };
-        statusRow.Children.Add(_testBtn);
-
-        var refreshBtn = new Button
-        {
-            Content = "Refresh Entities",
-            Padding = new Thickness(12, 4, 12, 4),
-            FontSize = 12,
-            Margin = new Thickness(6, 0, 0, 0)
-        };
-        refreshBtn.Click += async (_, _) =>
-        {
-            refreshBtn.IsEnabled = false;
-            await FetchEntitiesAsync();
-            refreshBtn.IsEnabled = true;
-        };
-        statusRow.Children.Add(refreshBtn);
-
-        connContent.Children.Add(statusRow);
-        connCard.Child = connContent;
-        RootPanel.Children.Add(connCard);
-
-        // --- Knob Bindings Card ---
-        var knobCard = MakeCard();
-        var knobContent = new StackPanel();
-        knobContent.Children.Add(new TextBlock
-        {
-            Text = "KNOB BINDINGS",
-            Style = FindStyle("HeaderText"),
-            Margin = new Thickness(0, 0, 0, 12)
-        });
-        knobContent.Children.Add(new TextBlock
-        {
-            Text = "Bind knobs to Home Assistant entities. These override the Mixer tab target.",
-            Style = FindStyle("SecondaryText"),
-            Margin = new Thickness(0, 0, 0, 12),
-            TextWrapping = TextWrapping.Wrap
-        });
-
-        var knobGrid = new Grid();
-        for (int i = 0; i < 5; i++)
-            knobGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        for (int i = 0; i < 5; i++)
-        {
-            int idx = i;
-            var col = new StackPanel { Margin = new Thickness(i == 0 ? 0 : 4, 0, i == 4 ? 0 : 4, 0) };
-
-            // Knob label
-            var knobLabel = new TextBlock
-            {
-                Text = $"Knob {i + 1}",
-                FontSize = 12,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = FindBrush("AccentBrush"),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 6)
-            };
-            _knobLabels[i] = knobLabel;
-            col.Children.Add(knobLabel);
-
-            // Type combo
-            col.Children.Add(MakeSmallLabel("TYPE"));
-            var typeCombo = new ComboBox
-            {
-                ItemsSource = KnobTypes,
-                SelectedIndex = 0,
-                Background = FindBrush("InputBgBrush"),
-                Foreground = FindBrush("TextPrimaryBrush"),
-                BorderBrush = FindBrush("InputBorderBrush"),
-                FontSize = 12,
-                Margin = new Thickness(0, 0, 0, 6)
-            };
-            typeCombo.SelectionChanged += (_, _) =>
-            {
-                if (_loading) return;
-                PopulateKnobEntities(idx);
-                SaveBindings();
-            };
-            _knobTypeCombos[i] = typeCombo;
-            col.Children.Add(typeCombo);
-
-            // Entity combo
-            col.Children.Add(MakeSmallLabel("ENTITY"));
-            var entityCombo = new ComboBox
-            {
-                Background = FindBrush("InputBgBrush"),
-                Foreground = FindBrush("TextPrimaryBrush"),
-                BorderBrush = FindBrush("InputBorderBrush"),
-                FontSize = 12,
-                Visibility = Visibility.Collapsed
-            };
-            entityCombo.SelectionChanged += (_, _) =>
-            {
-                if (_loading) return;
-                SaveBindings();
-            };
-            _knobEntityCombos[i] = entityCombo;
-            col.Children.Add(entityCombo);
-
-            Grid.SetColumn(col, i);
-            knobGrid.Children.Add(col);
-        }
-
-        knobContent.Children.Add(knobGrid);
-        knobCard.Child = knobContent;
-        RootPanel.Children.Add(knobCard);
-
-        // --- Button Bindings Card ---
-        var btnCard = MakeCard();
-        var btnContent = new StackPanel();
-        btnContent.Children.Add(new TextBlock
-        {
-            Text = "BUTTON BINDINGS",
-            Style = FindStyle("HeaderText"),
-            Margin = new Thickness(0, 0, 0, 12)
-        });
-        btnContent.Children.Add(new TextBlock
-        {
-            Text = "Bind button presses to Home Assistant actions. These override the Buttons tab action.",
-            Style = FindStyle("SecondaryText"),
-            Margin = new Thickness(0, 0, 0, 12),
-            TextWrapping = TextWrapping.Wrap
-        });
-
-        var btnGrid = new Grid();
-        for (int i = 0; i < 5; i++)
-            btnGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        for (int i = 0; i < 5; i++)
-        {
-            int idx = i;
-            var col = new StackPanel { Margin = new Thickness(i == 0 ? 0 : 4, 0, i == 4 ? 0 : 4, 0) };
-
-            col.Children.Add(new TextBlock
-            {
-                Text = $"Button {i + 1}",
-                FontSize = 12,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = FindBrush("AccentBrush"),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 6)
-            });
-
-            // Action combo
-            col.Children.Add(MakeSmallLabel("ACTION"));
-            var actionCombo = new ComboBox
-            {
-                ItemsSource = BtnActions,
-                SelectedIndex = 0,
-                Background = FindBrush("InputBgBrush"),
-                Foreground = FindBrush("TextPrimaryBrush"),
-                BorderBrush = FindBrush("InputBorderBrush"),
-                FontSize = 12,
-                Margin = new Thickness(0, 0, 0, 6)
-            };
-            actionCombo.SelectionChanged += (_, _) =>
-            {
-                if (_loading) return;
-                PopulateButtonEntities(idx);
-                SaveBindings();
-            };
-            _btnActionCombos[i] = actionCombo;
-            col.Children.Add(actionCombo);
-
-            // Entity combo
-            col.Children.Add(MakeSmallLabel("ENTITY"));
-            var entityCombo = new ComboBox
-            {
-                Background = FindBrush("InputBgBrush"),
-                Foreground = FindBrush("TextPrimaryBrush"),
-                BorderBrush = FindBrush("InputBorderBrush"),
-                FontSize = 12,
-                Visibility = Visibility.Collapsed
-            };
-            entityCombo.SelectionChanged += (_, _) =>
-            {
-                if (_loading) return;
-                SaveBindings();
-            };
-            _btnEntityCombos[i] = entityCombo;
-            col.Children.Add(entityCombo);
-
-            Grid.SetColumn(col, i);
-            btnGrid.Children.Add(col);
-        }
-
-        btnContent.Children.Add(btnGrid);
-        btnCard.Child = btnContent;
-        RootPanel.Children.Add(btnCard);
-    }
-
-    private Border MakeCard()
-    {
-        return new Border
-        {
-            Style = FindStyle("CardPanel"),
-            Margin = new Thickness(0, 0, 0, 12)
-        };
-    }
-
-    private TextBlock MakeSmallLabel(string text)
-    {
-        return new TextBlock
-        {
-            Text = text,
-            Style = FindStyle("SecondaryText"),
-            FontWeight = FontWeights.SemiBold,
-            FontSize = 10,
-            Margin = new Thickness(0, 0, 0, 3)
-        };
-    }
+    // ── Resource helpers ────────────────────────────────────────────
 
     private Brush FindBrush(string key) => (Brush)(FindResource(key) ?? Brushes.White);
     private Style? FindStyle(string key) => FindResource(key) as Style;

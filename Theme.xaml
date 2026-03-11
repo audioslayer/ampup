@@ -102,18 +102,20 @@
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="Width" Value="60" />
-        <Setter Property="Height" Value="52" />
-        <Setter Property="Margin" Value="8,2" />
+        <Setter Property="Width" Value="62" />
+        <Setter Property="Height" Value="56" />
+        <Setter Property="Margin" Value="7,2" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="NavBorder" Background="Transparent" CornerRadius="8">
+                    <Border x:Name="NavBorder" Background="Transparent" CornerRadius="10" Padding="0,4">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="NavBorder" Property="Background" Value="{DynamicResource AccentHover1ABrush}" />
+                            <Setter TargetName="NavBorder" Property="BorderBrush" Value="{DynamicResource AccentBorder22Brush}" />
+                            <Setter TargetName="NavBorder" Property="BorderThickness" Value="1" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
