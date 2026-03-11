@@ -152,11 +152,70 @@
         <Setter Property="FontSize" Value="11" />
     </Style>
 
-    <!-- ── ScrollBar — minimal dark ─────────────────────────────── -->
-    <Style TargetType="ScrollBar">
-        <Setter Property="Width" Value="6" />
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="Opacity" Value="0.5" />
+    <!-- ── Slim Green ScrollBar Thumb ──────────────────────────── -->
+    <Style x:Key="GreenScrollThumb" TargetType="Thumb">
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Border x:Name="ThumbBorder"
+                            Background="#4000E676"
+                            CornerRadius="3"
+                            Margin="1" />
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ThumbBorder" Property="Background" Value="#7000E676" />
+                        </Trigger>
+                        <Trigger Property="IsDragging" Value="True">
+                            <Setter TargetName="ThumbBorder" Property="Background" Value="#AA00E676" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── Vertical ScrollBar ──────────────────────────────────── -->
+    <Style TargetType="{x:Type ScrollBar}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Style.Triggers>
+            <Trigger Property="Orientation" Value="Vertical">
+                <Setter Property="Width" Value="8" />
+                <Setter Property="Height" Value="Auto" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type ScrollBar}">
+                            <Border Background="Transparent" CornerRadius="4">
+                                <Track x:Name="PART_Track" IsDirectionReversed="True">
+                                    <Track.Thumb>
+                                        <Thumb Style="{StaticResource GreenScrollThumb}" />
+                                    </Track.Thumb>
+                                </Track>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Trigger>
+            <Trigger Property="Orientation" Value="Horizontal">
+                <Setter Property="Height" Value="8" />
+                <Setter Property="Width" Value="Auto" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type ScrollBar}">
+                            <Border Background="Transparent" CornerRadius="4">
+                                <Track x:Name="PART_Track">
+                                    <Track.Thumb>
+                                        <Thumb Style="{StaticResource GreenScrollThumb}" />
+                                    </Track.Thumb>
+                                </Track>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <!-- ── ScrollViewer ──────────────────────────────────────────── -->

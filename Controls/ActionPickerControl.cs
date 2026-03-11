@@ -161,10 +161,10 @@ namespace AmpUp.Controls
             var header = new TextBlock
             {
                 Text = title,
-                FontSize = 9,
+                FontSize = 10,
                 FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Color.FromArgb(0xAA, headerColor.R, headerColor.G, headerColor.B)),
-                Margin = new Thickness(2, 6, 0, 4),
+                Foreground = new SolidColorBrush(Color.FromArgb(0xCC, headerColor.R, headerColor.G, headerColor.B)),
+                Margin = new Thickness(4, 10, 0, 5),
             };
             parent.Children.Add(header);
 
@@ -195,7 +195,7 @@ namespace AmpUp.Controls
             var iconBlock = new TextBlock
             {
                 Text = icon,
-                FontSize = isEmoji ? 16 : 18,
+                FontSize = isEmoji ? 22 : 24,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
                 Foreground = new SolidColorBrush(Color.FromRgb(0x77, 0x77, 0x77)),
@@ -205,11 +205,11 @@ namespace AmpUp.Controls
             var labelBlock = new TextBlock
             {
                 Text = label,
-                FontSize = 9,
+                FontSize = 10,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
                 Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
-                Margin = new Thickness(0, 2, 0, 0),
+                Margin = new Thickness(0, 3, 0, 0),
             };
             info.Label = labelBlock;
 
@@ -219,12 +219,13 @@ namespace AmpUp.Controls
 
             var container = new Border
             {
-                Width = 62,
+                Width = 82,
+                MinHeight = 58,
                 Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
                 BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
                 BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(4, 6, 4, 5),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(6, 8, 6, 6),
                 Margin = new Thickness(3),
                 Cursor = Cursors.Hand,
                 Child = content,
