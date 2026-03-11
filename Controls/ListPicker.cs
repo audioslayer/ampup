@@ -32,6 +32,14 @@ public class ListPicker : Border
 
     public Color AccentColor { get; set; } = ThemeManager.Accent;
 
+    public void RefreshAccent()
+    {
+        AccentColor = ThemeManager.Accent;
+        if (_selectedIndex >= 0)
+            _label.Foreground = new SolidColorBrush(AccentColor);
+        RebuildPopupItems();
+    }
+
     public ListPicker()
     {
         // Trigger button

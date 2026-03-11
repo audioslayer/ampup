@@ -512,6 +512,14 @@ public partial class ButtonsView : UserControl
             bar.Background = new SolidColorBrush(accent);
             label.Foreground = new SolidColorBrush(accent);
         }
+
+        for (int i = 0; i < 5; i++)
+        {
+            _tapDevicePickers[i].RefreshAccent();
+            _tapProfilePickers[i].RefreshAccent();
+            _tapKnobPickers[i].RefreshAccent();
+            _tapPowerSegments[i].AccentColor = accent;
+        }
     }
 
     private Border MakeSeparator(int spacing = 10)

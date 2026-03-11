@@ -703,6 +703,11 @@ public partial class LightsView : UserControl
         }
         foreach (var lbl in _subLabels)
             lbl.Foreground = new SolidColorBrush(Color.FromArgb(0x99, accent.R, accent.G, accent.B));
+
+        for (int i = 0; i < 5; i++)
+            _effectPickers[i].AccentColor = accent;
+        if (_globalEffectPicker != null)
+            _globalEffectPicker.AccentColor = accent;
     }
 
     private TextBlock MakeLabel(string text)

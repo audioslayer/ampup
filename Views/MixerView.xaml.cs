@@ -59,6 +59,9 @@ public partial class MixerView : UserControl
     // Section header elements (refreshed on accent change)
     private readonly List<(Border bar, TextBlock label)> _sectionHeaders = new();
 
+    // Hover border brush (updated on accent change)
+    private SolidColorBrush _hoverBorderBrush = new(ThemeManager.WithAlpha(ThemeManager.Accent, 0x60));
+
     // Audio devices cache
     private List<(string Id, string Name, bool IsOutput)> _audioDevices = new();
 
@@ -97,7 +100,6 @@ public partial class MixerView : UserControl
     {
         var borders = new[] { Ch0Border, Ch1Border, Ch2Border, Ch3Border, Ch4Border };
         var normalBorder = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-        var hoverBorder = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x60));
 
         for (int i = 0; i < 5; i++)
         {
@@ -106,7 +108,7 @@ public partial class MixerView : UserControl
 
             strip.MouseEnter += (_, _) =>
             {
-                strip.BorderBrush = hoverBorder;
+                strip.BorderBrush = _hoverBorderBrush;
             };
             strip.MouseLeave += (_, _) =>
             {
@@ -835,11 +837,23 @@ public partial class MixerView : UserControl
     private void RefreshAccentColors()
     {
         var accent = ThemeManager.Accent;
-        var brush = new SolidColorBrush(accent);
         foreach (var (bar, label) in _sectionHeaders)
         {
             bar.Background = new SolidColorBrush(accent);
             label.Foreground = new SolidColorBrush(accent);
+        }
+
+        // Update hover border brush for strip cards
+        _hoverBorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x60));
+
+        // Update all custom controls
+        for (int i = 0; i < 5; i++)
+        {
+            _targetPickers[i].RefreshAccent();
+            _curvePickers[i].AccentColor = accent;
+            _rangeSliders[i].AccentColor = accent;
+            _devicePickers[i].RefreshAccent();
+            _haEntityPickers[i].RefreshAccent();
         }
     }
 

@@ -33,6 +33,14 @@ public class GridPicker : Border
     // Accent color for hover/selected states
     public Color AccentColor { get; set; } = ThemeManager.Accent;
 
+    public void RefreshAccent()
+    {
+        AccentColor = ThemeManager.Accent;
+        if (_selectedIndex >= 0)
+            _label.Foreground = new SolidColorBrush(AccentColor);
+        RebuildPopupItems();
+    }
+
     public GridPicker()
     {
         // Main trigger pill
