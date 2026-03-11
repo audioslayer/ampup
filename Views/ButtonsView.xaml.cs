@@ -812,6 +812,13 @@ public partial class ButtonsView : UserControl
 
     // ── Control factories ───────────────────────────────────────────
 
+    private static readonly Dictionary<string, string> GestureTooltips = new()
+    {
+        { "TAP", "Single press — released within 500ms" },
+        { "DOUBLE", "Press twice quickly within 300ms" },
+        { "HOLD", "Hold for 500ms+ (fires while held)" },
+    };
+
     private Grid MakeGestureHeader(string title)
     {
         var accent = ThemeManager.Accent;
@@ -834,6 +841,7 @@ public partial class ButtonsView : UserControl
             FontSize = 11,
             FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(accent),
+            ToolTip = GestureTooltips.GetValueOrDefault(title, title),
         };
         Grid.SetColumn(label, 1);
         grid.Children.Add(label);
@@ -883,13 +891,40 @@ public partial class ButtonsView : UserControl
         };
     }
 
+    private static readonly Dictionary<string, string> ActionTooltips = new()
+    {
+        { "none",               "Do nothing when pressed" },
+        { "media_play_pause",   "Play or pause media" },
+        { "media_next",         "Skip to next track" },
+        { "media_prev",         "Go back to previous track" },
+        { "mute_master",        "Toggle system-wide mute" },
+        { "mute_mic",           "Toggle microphone mute" },
+        { "mute_program",       "Toggle mute for a specific app" },
+        { "mute_active_window", "Toggle mute for focused window" },
+        { "mute_app_group",     "Toggle mute for all apps in linked knob group" },
+        { "mute_device",        "Toggle mute for a specific audio device" },
+        { "launch_exe",         "Launch an application or script" },
+        { "close_program",      "Force-close a running process" },
+        { "cycle_output",       "Switch to next output device" },
+        { "cycle_input",        "Switch to next input device" },
+        { "select_output",      "Switch to a specific output device" },
+        { "select_input",       "Switch to a specific input device" },
+        { "macro",              "Send a keyboard shortcut (e.g. ctrl+shift+m)" },
+        { "switch_profile",     "Load a different AmpUp profile" },
+        { "cycle_brightness",   "Step through LED brightness levels" },
+        { "power_sleep",        "Put the PC to sleep" },
+        { "power_lock",         "Lock the workstation" },
+        { "power_off",          "Shut down the PC" },
+        { "power_restart",      "Restart the PC" },
+        { "power_logoff",       "Log off the current user" },
+        { "power_hibernate",    "Hibernate the PC" },
+    };
+
     private ComboBox MakeActionCombo()
     {
         var combo = new ComboBox
         {
-            Background = FindBrush("InputBgBrush"),
-            Foreground = FindBrush("TextPrimaryBrush"),
-            BorderBrush = FindBrush("InputBorderBrush"),
+            Style = FindStyle("HoverComboBox"),
             Margin = new Thickness(0, 0, 0, 10),
             HorizontalAlignment = HorizontalAlignment.Stretch,
             FontSize = 12,
@@ -901,11 +936,18 @@ public partial class ButtonsView : UserControl
             {
                 Content = $"{ActionIcons.GetValueOrDefault(value, "—")}  {display}",
                 Tag = value,
+                ToolTip = ActionTooltips.GetValueOrDefault(value, display),
             };
             combo.Items.Add(item);
         }
 
         combo.SelectedIndex = 0; // "None"
+        combo.ToolTip = ActionTooltips.GetValueOrDefault("none", "Do nothing when pressed");
+        combo.SelectionChanged += (_, _) =>
+        {
+            if (combo.SelectedItem is ComboBoxItem sel && sel.Tag is string val)
+                combo.ToolTip = ActionTooltips.GetValueOrDefault(val, "");
+        };
         return combo;
     }
 
@@ -940,6 +982,7 @@ public partial class ButtonsView : UserControl
             BorderBrush = FindBrush("InputBorderBrush"),
             Padding = new Thickness(6, 4, 6, 4),
             FontSize = 11,
+            ToolTip = "Enter keyboard shortcut (e.g. ctrl+shift+m)",
         };
         box.Tag = placeholder;
         box.Text = "";
@@ -981,6 +1024,7 @@ public partial class ButtonsView : UserControl
             BorderBrush = FindBrush("InputBorderBrush"),
             Padding = new Thickness(6, 4, 6, 4),
             FontSize = 11,
+            ToolTip = "Process name (e.g. discord) or full path to exe",
         };
         box.Tag = placeholder;
         box.Text = "";
@@ -1015,6 +1059,14 @@ public partial class ButtonsView : UserControl
         }
     }
 
+    private static readonly Dictionary<string, string> PickerTooltips = new()
+    {
+        { "DEVICE",       "Audio device to target" },
+        { "CYCLE DEVICES","Devices to cycle through (check to include)" },
+        { "PROFILE",      "Profile to switch to when pressed" },
+        { "LINKED KNOB",  "Knob whose app group is muted" },
+    };
+
     private (StackPanel panel, ListPicker picker) MakeListPickerRow(string label)
     {
         var container = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 8) };
@@ -1022,6 +1074,7 @@ public partial class ButtonsView : UserControl
         var picker = new ListPicker
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
+            ToolTip = PickerTooltips.GetValueOrDefault(label, ""),
         };
         container.Children.Add(picker);
         return (container, picker);
@@ -1031,7 +1084,11 @@ public partial class ButtonsView : UserControl
     {
         var container = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 8) };
         container.Children.Add(MakeLabel(label));
-        var picker = new CheckListPicker { HorizontalAlignment = HorizontalAlignment.Stretch };
+        var picker = new CheckListPicker
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            ToolTip = PickerTooltips.GetValueOrDefault(label, ""),
+        };
         container.Children.Add(picker);
         return (container, picker);
     }
@@ -1050,6 +1107,7 @@ public partial class ButtonsView : UserControl
         var segment = new SegmentedControl
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
+            ToolTip = "Sleep: pause PC | Lock: lock screen | Off: shutdown | Restart | Logoff | Hibernate",
         };
         foreach (var (display, value) in PowerOptions)
             segment.AddSegment(display, value);
@@ -1062,10 +1120,10 @@ public partial class ButtonsView : UserControl
         return new TextBlock
         {
             Text = text,
-            Style = FindStyle("SecondaryText"),
+            FontSize = 9,
             FontWeight = FontWeights.SemiBold,
-            FontSize = 10,
-            Margin = new Thickness(0, 0, 0, 3),
+            Foreground = FindBrush("TextDimBrush"),
+            Margin = new Thickness(0, 4, 0, 3),
         };
     }
 

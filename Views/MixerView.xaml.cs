@@ -455,7 +455,8 @@ public partial class MixerView : UserControl
                 Padding = new Thickness(4, 1, 4, 1),
                 Margin = new Thickness(0, 0, 0, 2),
                 MaxLength = 20,
-                Cursor = System.Windows.Input.Cursors.IBeam
+                Cursor = System.Windows.Input.Cursors.IBeam,
+                ToolTip = "Click to rename this channel",
             };
             label.GotFocus += (_, _) =>
             {
@@ -499,7 +500,8 @@ public partial class MixerView : UserControl
                 Width = 100,
                 Height = 100,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
+                VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = "Turn the physical knob to adjust volume",
             };
             Grid.SetColumn(knob, 0);
             _knobs[i] = knob;
@@ -510,7 +512,8 @@ public partial class MixerView : UserControl
                 Width = 6,
                 Height = 60,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 2, 0)
+                Margin = new Thickness(0, 0, 2, 0),
+                ToolTip = "Audio level for this channel",
             };
             Grid.SetColumn(vuMeter, 1);
             _vuMeters[i] = vuMeter;
@@ -568,7 +571,11 @@ public partial class MixerView : UserControl
 
             // TARGET — GridPicker with categories
             settingsPanel.Children.Add(MakeSectionHeader("TARGET"));
-            var targetPicker = new GridPicker { Margin = new Thickness(0, 0, 0, 6) };
+            var targetPicker = new GridPicker
+            {
+                Margin = new Thickness(0, 0, 0, 6),
+                ToolTip = "What this knob controls",
+            };
 
             targetPicker.AddCategory("Audio");
             targetPicker.AddItem("Master", "master");
@@ -614,7 +621,11 @@ public partial class MixerView : UserControl
 
             // CURVE — CurvePickerControl (visual mini graphs)
             settingsPanel.Children.Add(MakeSectionHeader("CURVE"));
-            var curvePicker = new CurvePickerControl { Margin = new Thickness(0, 0, 0, 6) };
+            var curvePicker = new CurvePickerControl
+            {
+                Margin = new Thickness(0, 0, 0, 6),
+                ToolTip = "Linear: even response. Log: more sensitive at low volumes. Exp: more sensitive at high volumes",
+            };
             curvePicker.SelectionChanged += (_, _) =>
             {
                 if (!_loading) QueueSave();
@@ -634,7 +645,8 @@ public partial class MixerView : UserControl
                 LowerValue = 0,
                 UpperValue = 100,
                 Height = 38,
-                Margin = new Thickness(0, 0, 0, 6)
+                Margin = new Thickness(0, 0, 0, 6),
+                ToolTip = "Set the min and max volume this knob can reach",
             };
             rangeSlider.LowerValueChanged += (_, _) =>
             {
@@ -650,7 +662,11 @@ public partial class MixerView : UserControl
             // Device picker — ListPicker (hidden unless output_device / input_device)
             var deviceContainer = new StackPanel { Visibility = Visibility.Collapsed };
             deviceContainer.Children.Add(MakeLabel("DEVICE"));
-            var devicePicker = new ListPicker { Margin = new Thickness(0, 0, 0, 4) };
+            var devicePicker = new ListPicker
+            {
+                Margin = new Thickness(0, 0, 0, 4),
+                ToolTip = "Audio device to control with this knob",
+            };
             devicePicker.SelectionChanged += (_, _) =>
             {
                 if (!_loading) QueueSave();
@@ -676,6 +692,7 @@ public partial class MixerView : UserControl
             // App group picker (hidden unless "apps")
             var appsContainer = new StackPanel { Visibility = Visibility.Collapsed };
             appsContainer.Children.Add(MakeLabel("APP GROUP"));
+            appsContainer.ToolTip = "Check the apps to include in this group";
 
             var appsListPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 6) };
             _appsListPanels[i] = appsListPanel;
@@ -986,7 +1003,7 @@ public partial class MixerView : UserControl
         var label = new TextBlock
         {
             Text = title,
-            FontSize = 10,
+            FontSize = 11,
             FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(accent),
         };
@@ -1038,7 +1055,7 @@ public partial class MixerView : UserControl
             FontSize = 9,
             FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextDimBrush"),
-            Margin = new Thickness(0, 4, 0, 2)
+            Margin = new Thickness(0, 4, 0, 3)
         };
     }
 

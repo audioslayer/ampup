@@ -125,6 +125,7 @@ public partial class LightsView : UserControl
             Value = 100,
             Suffix = "%",
             AccentColor = ThemeManager.Accent,
+            ToolTip = "Global LED brightness (0 = off, 100 = full brightness)",
         };
         _brightnessSlider.ValueChanged += (_, _) =>
         {
@@ -214,6 +215,7 @@ public partial class LightsView : UserControl
         {
             VerticalContentAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 8, 0),
+            ToolTip = "Apply one effect to all 5 knobs simultaneously",
         };
         var headerLabel = new TextBlock
         {
@@ -245,7 +247,11 @@ public partial class LightsView : UserControl
 
         // Effect picker
         settings.Children.Add(MakeSectionHeader("EFFECT"));
-        var effectPicker = new EffectPickerControl(showGlobal: true) { Margin = new Thickness(0, 0, 0, 10) };
+        var effectPicker = new EffectPickerControl(showGlobal: true)
+        {
+            Margin = new Thickness(0, 0, 0, 10),
+            ToolTip = "Choose the LED lighting effect",
+        };
         effectPicker.SelectionChanged += (_, _) =>
         {
             if (_loading) return;
@@ -282,6 +288,7 @@ public partial class LightsView : UserControl
             Value = 50,
             Suffix = "",
             AccentColor = ThemeManager.Accent,
+            ToolTip = "Animation speed — higher = faster",
         };
         speedSlider.ValueChanged += (_, _) =>
         {
@@ -299,13 +306,12 @@ public partial class LightsView : UserControl
         reactiveModePanel.Children.Add(MakeLabel("REACTIVE MODE"));
         var modeCombo = new ComboBox
         {
+            Style = FindStyle("HoverComboBox"),
             ItemsSource = Enum.GetValues<ReactiveMode>(),
-            Background = FindBrush("InputBgBrush"),
-            Foreground = FindBrush("TextPrimaryBrush"),
-            BorderBrush = FindBrush("InputBorderBrush"),
             Margin = new Thickness(0, 0, 0, 10),
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            FontSize = 12
+            FontSize = 12,
+            ToolTip = "BeatPulse: bass drives all LEDs. SpectrumBands: per-knob frequency. ColorShift: hue by energy",
         };
         modeCombo.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
         _globalReactiveModeCombo = modeCombo;
@@ -429,7 +435,11 @@ public partial class LightsView : UserControl
 
             // ── EFFECT section ──
             panel.Children.Add(MakeSectionHeader("EFFECT"));
-            var effectPicker = new EffectPickerControl { Margin = new Thickness(0, 0, 0, 10) };
+            var effectPicker = new EffectPickerControl
+            {
+                Margin = new Thickness(0, 0, 0, 10),
+                ToolTip = "Choose the LED lighting effect for this knob",
+            };
             effectPicker.SelectionChanged += (_, _) =>
             {
                 if (_loading) return;
@@ -473,6 +483,7 @@ public partial class LightsView : UserControl
                 Value = 50,
                 Suffix = "",
                 AccentColor = ThemeManager.Accent,
+                ToolTip = "Animation speed — higher = faster",
             };
             speedSlider.ValueChanged += (_, _) =>
             {
@@ -490,13 +501,12 @@ public partial class LightsView : UserControl
             reactiveContainer.Children.Add(MakeLabel("REACTIVE MODE"));
             var modeCombo = new ComboBox
             {
+                Style = FindStyle("HoverComboBox"),
                 ItemsSource = Enum.GetValues<ReactiveMode>(),
-                Background = FindBrush("InputBgBrush"),
-                Foreground = FindBrush("TextPrimaryBrush"),
-                BorderBrush = FindBrush("InputBorderBrush"),
                 Margin = new Thickness(0, 0, 0, 10),
                 HorizontalAlignment = HorizontalAlignment.Stretch,
-                FontSize = 12
+                FontSize = 12,
+                ToolTip = "BeatPulse: bass drives all LEDs. SpectrumBands: per-knob frequency. ColorShift: hue by energy",
             };
             modeCombo.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
             _reactiveModeComboBoxes[idx] = modeCombo;
@@ -517,6 +527,7 @@ public partial class LightsView : UserControl
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 FontSize = 12,
                 Padding = new Thickness(6, 4, 6, 4),
+                ToolTip = "Process name to monitor for mute state (e.g. spotify)",
             };
             programNameBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
             _programNameBoxes[idx] = programNameBox;
@@ -528,6 +539,7 @@ public partial class LightsView : UserControl
             // DeviceSelect rows (hidden unless DeviceSelect effect)
             var deviceSelectContainer = new StackPanel { Visibility = Visibility.Collapsed };
             deviceSelectContainer.Children.Add(MakeLabel("DEVICE COLORS"));
+            deviceSelectContainer.ToolTip = "Set LED color for each audio output device";
 
             _dsDevicePickers[idx] = new ListPicker[3];
             _dsColorBtns[idx] = new Border[3];
@@ -611,6 +623,7 @@ public partial class LightsView : UserControl
             BorderThickness = new Thickness(1),
             Margin = new Thickness(0, 0, 0, 4),
             Cursor = Cursors.Hand,
+            ToolTip = isColor2 ? "Secondary color (accent/contrast for animated effects)" : "Primary LED color",
         };
 
         // Hover glow effect
@@ -1022,10 +1035,10 @@ public partial class LightsView : UserControl
         return new TextBlock
         {
             Text = text,
-            Style = FindStyle("SecondaryText"),
+            FontSize = 9,
             FontWeight = FontWeights.SemiBold,
-            FontSize = 11,
-            Margin = new Thickness(0, 0, 0, 3)
+            Foreground = FindBrush("TextDimBrush"),
+            Margin = new Thickness(0, 4, 0, 3)
         };
     }
 
@@ -1056,6 +1069,7 @@ public partial class LightsView : UserControl
             BorderThickness = new Thickness(1),
             Margin = new Thickness(0, 0, 0, 4),
             Cursor = Cursors.Hand,
+            ToolTip = isColor2 ? "Secondary color (accent/contrast for animated effects)" : "Primary LED color",
         };
         swatch.MouseEnter += (_, _) =>
         {
