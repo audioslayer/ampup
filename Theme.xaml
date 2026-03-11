@@ -123,4 +123,53 @@
         </Style.Triggers>
     </Style>
 
+    <!-- ── Slider — accent-colored track ───────────────────────────── -->
+    <Style TargetType="Slider">
+        <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+        <Setter Property="Height" Value="24" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- ── CheckBox ──────────────────────────────────────────────── -->
+    <Style TargetType="CheckBox">
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- ── ToolTip — dark glass ─────────────────────────────────── -->
+    <Style TargetType="ToolTip">
+        <Setter Property="Background" Value="#FF1A1A1A" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="8,4" />
+        <Setter Property="FontSize" Value="11" />
+    </Style>
+
+    <!-- ── ScrollBar — minimal dark ─────────────────────────────── -->
+    <Style TargetType="ScrollBar">
+        <Setter Property="Width" Value="6" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Opacity" Value="0.5" />
+    </Style>
+
+    <!-- ── ScrollViewer ──────────────────────────────────────────── -->
+    <Style TargetType="ScrollViewer">
+        <Setter Property="PanningMode" Value="Both" />
+    </Style>
+
+    <!-- ── Section header with accent left border ───────────────── -->
+    <Style x:Key="SectionHeader" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="0,0,0,12" />
+    </Style>
+
 </ResourceDictionary>

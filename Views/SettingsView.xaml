@@ -10,7 +10,10 @@
             <!-- ── CONNECTION ──────────────────────────────────────── -->
             <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
                 <StackPanel>
-                    <TextBlock Text="CONNECTION" Style="{StaticResource HeaderText}" Margin="0,0,0,12" />
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Width="3" CornerRadius="2" Background="{StaticResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="CONNECTION" Style="{StaticResource HeaderText}" Margin="0" />
+                    </StackPanel>
                     <StackPanel Orientation="Horizontal">
                         <StackPanel Margin="0,0,24,0">
                             <TextBlock Text="Serial Port" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
@@ -35,7 +38,10 @@
             <!-- ── STARTUP ─────────────────────────────────────────── -->
             <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
                 <StackPanel>
-                    <TextBlock Text="STARTUP" Style="{StaticResource HeaderText}" Margin="0,0,0,12" />
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Width="3" CornerRadius="2" Background="{StaticResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="STARTUP" Style="{StaticResource HeaderText}" Margin="0" />
+                    </StackPanel>
                     <CheckBox x:Name="ChkStartWithWindows"
                               Content="Start with Windows"
                               Foreground="{StaticResource TextPrimaryBrush}"
@@ -46,7 +52,10 @@
             <!-- ── OSD OVERLAY ────────────────────────────────────── -->
             <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
                 <StackPanel>
-                    <TextBlock Text="OSD OVERLAY" Style="{StaticResource HeaderText}" Margin="0,0,0,12" />
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Width="3" CornerRadius="2" Background="{StaticResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="OSD OVERLAY" Style="{StaticResource HeaderText}" Margin="0" />
+                    </StackPanel>
                     <TextBlock Text="Show overlay notifications when the app is minimized to tray."
                                Style="{StaticResource SecondaryText}" Margin="0,0,0,12" />
 
@@ -142,7 +151,10 @@
             <!-- ── PROFILES ────────────────────────────────────────── -->
             <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
                 <StackPanel>
-                    <TextBlock Text="PROFILES" Style="{StaticResource HeaderText}" Margin="0,0,0,12" />
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Width="3" CornerRadius="2" Background="{StaticResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="PROFILES" Style="{StaticResource HeaderText}" Margin="0" />
+                    </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <StackPanel Margin="0,0,16,0">
                             <TextBlock Text="Active Profile" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
@@ -181,7 +193,10 @@
             <!-- ── INTEGRATIONS ────────────────────────────────────── -->
             <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
                 <StackPanel>
-                    <TextBlock Text="INTEGRATIONS" Style="{StaticResource HeaderText}" Margin="0,0,0,16" />
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                        <Border Width="3" CornerRadius="2" Background="{StaticResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="INTEGRATIONS" Style="{StaticResource HeaderText}" Margin="0" />
+                    </StackPanel>
 
                     <!-- Home Assistant -->
                     <StackPanel Margin="0,0,0,16">
@@ -215,7 +230,10 @@
             <!-- ── ABOUT ─────────────────────────────────────────── -->
             <Border Style="{StaticResource CardPanel}" Margin="0,0,0,0">
                 <StackPanel>
-                    <TextBlock Text="ABOUT" Style="{StaticResource HeaderText}" Margin="0,0,0,12" />
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Width="3" CornerRadius="2" Background="{StaticResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="ABOUT" Style="{StaticResource HeaderText}" Margin="0" />
+                    </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock x:Name="TxtVersion" Style="{StaticResource BodyText}" VerticalAlignment="Center" />
                         <ui:Button x:Name="BtnCheckUpdate" Content="Check for Updates"

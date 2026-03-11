@@ -16,6 +16,7 @@ public partial class MainWindow : FluentWindow
     private readonly HomeAssistantView _haView = new();
 
     private System.Windows.Controls.Button? _activeNavButton;
+    private Border? _activeNavBar;
 
     private AppConfig _config;
     private AudioMixer? _mixer;
@@ -110,6 +111,16 @@ public partial class MainWindow : FluentWindow
         }
     }
 
+    // Map nav buttons to their indicator bars
+    private Dictionary<System.Windows.Controls.Button, Border> GetNavBars() => new()
+    {
+        { NavMixer,    NavMixerBar },
+        { NavButtons,  NavButtonsBar },
+        { NavLights,   NavLightsBar },
+        { NavHA,       NavHABar },
+        { NavSettings, NavSettingsBar },
+    };
+
     private void NavigateTo(System.Windows.Controls.UserControl view, System.Windows.Controls.Button navButton)
     {
         ContentArea.Content = view;
@@ -124,18 +135,36 @@ public partial class MainWindow : FluentWindow
             var (oldIcon, oldLabel) = FindNavChildren(_activeNavButton);
             if (oldIcon != null) oldIcon.Foreground = dimIcon;
             if (oldLabel != null) oldLabel.Foreground = dimLabel;
+
+            // Hide previous indicator bar
+            if (_activeNavBar != null)
+                _activeNavBar.Visibility = Visibility.Collapsed;
         }
 
         var (newIcon, newLabel) = FindNavChildren(navButton);
         if (newIcon != null) newIcon.Foreground = accent;
         if (newLabel != null) newLabel.Foreground = accent;
 
+        // Show new indicator bar
+        var bars = GetNavBars();
+        if (bars.TryGetValue(navButton, out var bar))
+        {
+            bar.Visibility = Visibility.Visible;
+            _activeNavBar = bar;
+        }
+
         _activeNavButton = navButton;
     }
 
     private static (SymbolIcon? Icon, System.Windows.Controls.TextBlock? Label) FindNavChildren(System.Windows.Controls.Button button)
     {
-        if (button.Content is System.Windows.Controls.StackPanel sp)
+        // Content is now a Grid wrapping a Border (indicator bar) + StackPanel
+        var grid = button.Content as System.Windows.Controls.Grid;
+        var sp = grid != null
+            ? grid.Children.OfType<System.Windows.Controls.StackPanel>().FirstOrDefault()
+            : button.Content as System.Windows.Controls.StackPanel;
+
+        if (sp != null)
         {
             SymbolIcon? icon = null;
             System.Windows.Controls.TextBlock? label = null;
@@ -762,6 +791,10 @@ public partial class MainWindow : FluentWindow
                 ? (SolidColorBrush)FindResource("SuccessGrnBrush")
                 : (SolidColorBrush)FindResource("TextDimBrush");
             ConnectionLabel.Text = connected ? "Connected" : "Disconnected";
+
+            // Glow the dot when connected
+            ConnectionDotGlow.BlurRadius = connected ? 8 : 0;
+            ConnectionDotGlow.Opacity = connected ? 0.5 : 0;
 
             var pulse = (System.Windows.Media.Animation.Storyboard)FindResource("PulseAnimation");
             if (connected)

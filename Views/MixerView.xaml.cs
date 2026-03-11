@@ -85,6 +85,29 @@ public partial class MixerView : UserControl
         Unloaded += (_, _) => _liveTimer.Stop();
 
         BuildChannelControls();
+        SetupStripHoverEffects();
+    }
+
+    private void SetupStripHoverEffects()
+    {
+        var borders = new[] { Ch0Border, Ch1Border, Ch2Border, Ch3Border, Ch4Border };
+        var normalBorder = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+        var hoverBorder = new SolidColorBrush(Color.FromArgb(0x60, 0x00, 0xE6, 0x76));
+
+        for (int i = 0; i < 5; i++)
+        {
+            _stripBorders[i] = borders[i];
+            var strip = borders[i];
+
+            strip.MouseEnter += (_, _) =>
+            {
+                strip.BorderBrush = hoverBorder;
+            };
+            strip.MouseLeave += (_, _) =>
+            {
+                strip.BorderBrush = normalBorder;
+            };
+        }
     }
 
     public void LoadConfig(AppConfig config, AudioMixer mixer, Action<AppConfig> onConfigChanged)

@@ -51,6 +51,30 @@ public partial class ButtonsView : UserControl
         { "mute_app_group", "🔇" }
     };
 
+    // Action color mapping for button tiles
+    private static readonly Dictionary<string, Color> ActionColors = new()
+    {
+        { "none",               Color.FromRgb(0x44, 0x44, 0x44) },
+        { "media_play_pause",   Color.FromRgb(0x66, 0xBB, 0x6A) },
+        { "media_next",         Color.FromRgb(0x66, 0xBB, 0x6A) },
+        { "media_prev",         Color.FromRgb(0x66, 0xBB, 0x6A) },
+        { "mute_master",        Color.FromRgb(0xEF, 0x53, 0x50) },
+        { "mute_mic",           Color.FromRgb(0xEF, 0x53, 0x50) },
+        { "mute_program",       Color.FromRgb(0xEF, 0x53, 0x50) },
+        { "mute_active_window", Color.FromRgb(0xEF, 0x53, 0x50) },
+        { "mute_app_group",     Color.FromRgb(0xEF, 0x53, 0x50) },
+        { "launch_exe",         Color.FromRgb(0x42, 0xA5, 0xF5) },
+        { "close_program",      Color.FromRgb(0xFF, 0x7C, 0x43) },
+        { "cycle_output",       Color.FromRgb(0xAB, 0x47, 0xBC) },
+        { "cycle_input",        Color.FromRgb(0xAB, 0x47, 0xBC) },
+        { "select_output",      Color.FromRgb(0xAB, 0x47, 0xBC) },
+        { "select_input",       Color.FromRgb(0xAB, 0x47, 0xBC) },
+        { "macro",              Color.FromRgb(0xFF, 0xD5, 0x4F) },
+        { "system_power",       Color.FromRgb(0xFF, 0x44, 0x44) },
+        { "switch_profile",     Color.FromRgb(0x29, 0xB6, 0xF6) },
+        { "cycle_brightness",   Color.FromRgb(0xFF, 0xF1, 0x76) },
+    };
+
     // Button tile references
     private readonly Border[] _btnTiles = new Border[5];
     private readonly TextBlock[] _btnIcons = new TextBlock[5];
@@ -58,7 +82,7 @@ public partial class ButtonsView : UserControl
     private readonly TextBlock[] _btnSubLabels = new TextBlock[5];
 
     // --- TAP controls ---
-    private readonly GridPicker[] _tapActionPickers = new GridPicker[5];
+    private readonly ActionPickerControl[] _tapActionPickers = new ActionPickerControl[5];
     private readonly TextBox[] _tapPathBoxes = new TextBox[5];
     private readonly StackPanel[] _tapPathPanels = new StackPanel[5];
     private readonly TextBox[] _tapMacroBoxes = new TextBox[5];
@@ -73,12 +97,12 @@ public partial class ButtonsView : UserControl
     private readonly StackPanel[] _tapKnobPanels = new StackPanel[5];
 
     // --- DOUBLE controls ---
-    private readonly GridPicker[] _dblActionPickers = new GridPicker[5];
+    private readonly ActionPickerControl[] _dblActionPickers = new ActionPickerControl[5];
     private readonly TextBox[] _dblPathBoxes = new TextBox[5];
     private readonly StackPanel[] _dblPathPanels = new StackPanel[5];
 
     // --- HOLD controls ---
-    private readonly GridPicker[] _holdActionPickers = new GridPicker[5];
+    private readonly ActionPickerControl[] _holdActionPickers = new ActionPickerControl[5];
     private readonly TextBox[] _holdPathBoxes = new TextBox[5];
     private readonly StackPanel[] _holdPathPanels = new StackPanel[5];
 
@@ -174,7 +198,7 @@ public partial class ButtonsView : UserControl
             var icon = new TextBlock
             {
                 Text = "—",
-                FontSize = 24,
+                FontSize = 28,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 0, 0, 6)
             };
@@ -210,22 +234,41 @@ public partial class ButtonsView : UserControl
         }
     }
 
+    private Color GetActionColor(string action)
+    {
+        return ActionColors.GetValueOrDefault(action, Color.FromRgb(0x44, 0x44, 0x44));
+    }
+
     private void SelectButton(int idx)
     {
         _selectedIdx = idx;
 
-        var accent = (Color)ColorConverter.ConvertFromString("#00E676");
-        var dim = Color.FromRgb(0x2A, 0x2A, 0x2A);
-        var selectedBg = Color.FromRgb(0x1A, 0x2A, 0x30);
         var normalBg = Color.FromRgb(0x1C, 0x1C, 0x1C);
+        var dimBorder = Color.FromRgb(0x2A, 0x2A, 0x2A);
 
         for (int i = 0; i < 5; i++)
         {
             bool selected = i == idx;
-            _btnTiles[i].BorderBrush = new SolidColorBrush(selected ? accent : dim);
-            _btnTiles[i].Background = new SolidColorBrush(selected ? selectedBg : normalBg);
-            _btnTiles[i].BorderThickness = new Thickness(selected ? 2 : 1);
-            _btnLabels[i].Foreground = new SolidColorBrush(selected ? accent : Color.FromRgb(0xE8, 0xE8, 0xE8));
+
+            if (selected)
+            {
+                // Get the action color for this button's tap action
+                var btn = _config?.Buttons.FirstOrDefault(b => b.Idx == i);
+                var action = btn?.Action ?? "none";
+                var c = GetActionColor(action);
+
+                _btnTiles[i].BorderBrush = new SolidColorBrush(Color.FromArgb(0xCC, c.R, c.G, c.B));
+                _btnTiles[i].Background = new SolidColorBrush(Color.FromArgb(0x26, c.R, c.G, c.B));
+                _btnTiles[i].BorderThickness = new Thickness(2);
+                _btnLabels[i].Foreground = new SolidColorBrush(Color.FromArgb(0xFF, c.R, c.G, c.B));
+            }
+            else
+            {
+                _btnTiles[i].BorderBrush = new SolidColorBrush(dimBorder);
+                _btnTiles[i].Background = new SolidColorBrush(normalBg);
+                _btnTiles[i].BorderThickness = new Thickness(1);
+                _btnLabels[i].Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
+            }
         }
 
         ShowDetailPanel(idx);
@@ -237,13 +280,43 @@ public partial class ButtonsView : UserControl
         if (btn == null) return;
 
         var actionDisplay = GetActionDisplay(btn.Action);
+        var c = GetActionColor(btn.Action);
+
         _btnIcons[idx].Text = ActionIcons.GetValueOrDefault(btn.Action, "—");
         _btnSubLabels[idx].Text = actionDisplay;
 
-        // Color the icon based on whether it has an action
-        _btnIcons[idx].Foreground = btn.Action == "none"
-            ? FindBrush("TextDimBrush")
-            : FindBrush("AccentBrush");
+        // Icon: bright action color; gray if none
+        if (btn.Action == "none")
+        {
+            _btnIcons[idx].Foreground = FindBrush("TextDimBrush");
+            _btnSubLabels[idx].Foreground = FindBrush("TextDimBrush");
+        }
+        else
+        {
+            _btnIcons[idx].Foreground = new SolidColorBrush(c);
+            _btnSubLabels[idx].Foreground = new SolidColorBrush(
+                Color.FromArgb(0xCC, c.R, c.G, c.B));
+        }
+
+        // Tile background tinted by action color
+        var tileBg = btn.Action == "none"
+            ? Color.FromRgb(0x1C, 0x1C, 0x1C)
+            : Color.FromArgb(0x14, c.R, c.G, c.B);
+        var tileBorder = btn.Action == "none"
+            ? Color.FromRgb(0x2A, 0x2A, 0x2A)
+            : Color.FromArgb(0x40, c.R, c.G, c.B);
+
+        // Only update non-selected tiles here (selected tile colors set by SelectButton)
+        if (idx != _selectedIdx)
+        {
+            _btnTiles[idx].Background = new SolidColorBrush(tileBg);
+            _btnTiles[idx].BorderBrush = new SolidColorBrush(tileBorder);
+        }
+        else
+        {
+            // Re-apply selected styling with new action color
+            SelectButton(_selectedIdx);
+        }
     }
 
     private static string GetActionDisplay(string actionValue)
@@ -269,7 +342,8 @@ public partial class ButtonsView : UserControl
             // ── Tap gesture card ──
             var tapCard = MakeCard();
             var tapContent = new StackPanel();
-            tapContent.Children.Add(MakeGestureHeader("TAP", "Single press — releases < 500ms"));
+            tapContent.Children.Add(MakeGestureHeader("TAP", "Single press — releases < 500ms",
+                Color.FromRgb(0x66, 0xBB, 0x6A)));
 
             var tapGrid = new Grid { Margin = new Thickness(0, 8, 0, 0) };
             tapGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -338,10 +412,11 @@ public partial class ButtonsView : UserControl
             tapCard.Child = tapContent;
             panel.Children.Add(tapCard);
 
-            // ── Double press card (2-column: action left, context right) ──
+            // ── Double press card ──
             var dblCard = MakeCard();
             var dblContent = new StackPanel();
-            dblContent.Children.Add(MakeGestureHeader("DOUBLE PRESS", "2nd press within 300ms"));
+            dblContent.Children.Add(MakeGestureHeader("DOUBLE PRESS", "2nd press within 300ms",
+                Color.FromRgb(0xFF, 0xD5, 0x4F)));
 
             var dblGrid = new Grid { Margin = new Thickness(0, 8, 0, 0) };
             dblGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -375,10 +450,11 @@ public partial class ButtonsView : UserControl
             dblCard.Child = dblContent;
             panel.Children.Add(dblCard);
 
-            // ── Hold card (2-column: action left, context right) ──
+            // ── Hold card ──
             var holdCard = MakeCard();
             var holdContent = new StackPanel();
-            holdContent.Children.Add(MakeGestureHeader("HOLD", "Held 500ms+"));
+            holdContent.Children.Add(MakeGestureHeader("HOLD", "Held 500ms+",
+                Color.FromRgb(0xFF, 0x8A, 0x3D)));
 
             var holdGrid = new Grid { Margin = new Thickness(0, 8, 0, 0) };
             holdGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -411,6 +487,7 @@ public partial class ButtonsView : UserControl
             holdContent.Children.Add(holdGrid);
             holdCard.Child = holdContent;
             panel.Children.Add(holdCard);
+
             _detailPanels[i] = panel;
             DetailPanel.Children.Add(panel);
         }
@@ -489,72 +566,52 @@ public partial class ButtonsView : UserControl
         };
     }
 
-    private StackPanel MakeGestureHeader(string title, string subtitle)
+    private Grid MakeGestureHeader(string title, string subtitle, Color accentColor)
     {
-        var header = new StackPanel { Margin = new Thickness(0, 0, 0, 4) };
-        header.Children.Add(new TextBlock
+        // Grid with a colored left border strip + text content
+        var grid = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        // Left accent bar
+        var bar = new Border
+        {
+            Background = new SolidColorBrush(accentColor),
+            CornerRadius = new CornerRadius(2),
+            Margin = new Thickness(0, 2, 10, 2)
+        };
+        Grid.SetColumn(bar, 0);
+        grid.Children.Add(bar);
+
+        // Text content
+        var textStack = new StackPanel();
+        textStack.Children.Add(new TextBlock
         {
             Text = title,
             FontSize = 13,
             FontWeight = FontWeights.Bold,
-            Foreground = FindBrush("AccentBrush")
+            Foreground = new SolidColorBrush(accentColor)
         });
-        header.Children.Add(new TextBlock
+        textStack.Children.Add(new TextBlock
         {
             Text = subtitle,
             FontSize = 10,
             Foreground = FindBrush("TextDimBrush"),
             Margin = new Thickness(0, 2, 0, 0)
         });
-        return header;
+        Grid.SetColumn(textStack, 1);
+        grid.Children.Add(textStack);
+
+        return grid;
     }
 
-    private GridPicker MakeActionPicker()
+    private ActionPickerControl MakeActionPicker()
     {
-        var picker = new GridPicker
+        return new ActionPickerControl
         {
             Margin = new Thickness(0, 4, 0, 8),
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
-
-        // "None" — uncategorized first item
-        picker.AddItem("None", "none");
-
-        // Media
-        picker.AddCategory("Media");
-        picker.AddItem("Play / Pause", "media_play_pause");
-        picker.AddItem("Next Track", "media_next");
-        picker.AddItem("Prev Track", "media_prev");
-
-        // Mute
-        picker.AddCategory("Mute");
-        picker.AddItem("Mute Volume", "mute_master");
-        picker.AddItem("Mute Mic", "mute_mic");
-        picker.AddItem("Mute App", "mute_program");
-        picker.AddItem("Mute Active Window", "mute_active_window");
-        picker.AddItem("Mute App Group", "mute_app_group");
-
-        // App Control
-        picker.AddCategory("App Control");
-        picker.AddItem("Launch App", "launch_exe");
-        picker.AddItem("Close App", "close_program");
-
-        // Device
-        picker.AddCategory("Device");
-        picker.AddItem("Cycle Output", "cycle_output");
-        picker.AddItem("Cycle Input", "cycle_input");
-        picker.AddItem("Set Output", "select_output");
-        picker.AddItem("Set Input", "select_input");
-
-        // System
-        picker.AddCategory("System");
-        picker.AddItem("Keyboard Macro", "macro");
-        picker.AddItem("System Power", "system_power");
-        picker.AddItem("Switch Profile", "switch_profile");
-        picker.AddItem("Cycle Brightness", "cycle_brightness");
-
-        picker.SelectedIndex = 0;
-        return picker;
     }
 
     private (StackPanel panel, TextBox box) MakeTextBoxRow(string label, string placeholder)
@@ -677,22 +734,14 @@ public partial class ButtonsView : UserControl
 
     // ── Picker helpers ──────────────────────────────────────────────
 
-    private void SelectActionPicker(GridPicker picker, string actionValue)
+    private void SelectActionPicker(ActionPickerControl picker, string actionValue)
     {
-        for (int i = 0; i < picker.ItemCount; i++)
-        {
-            if (picker.GetTagAt(i) as string == actionValue)
-            {
-                picker.SelectedIndex = i;
-                return;
-            }
-        }
-        picker.SelectedIndex = 0;
+        picker.SelectedAction = actionValue;
     }
 
-    private string GetSelectedActionValue(GridPicker picker)
+    private string GetSelectedActionValue(ActionPickerControl picker)
     {
-        return picker.SelectedTag as string ?? "none";
+        return picker.SelectedAction;
     }
 
     private void PopulateDevicePicker(ListPicker picker)
