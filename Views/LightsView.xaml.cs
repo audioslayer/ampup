@@ -27,15 +27,32 @@ public partial class LightsView : UserControl
     private readonly StackPanel[] _speedPanels = new StackPanel[5];
     private readonly ComboBox[] _reactiveModeComboBoxes = new ComboBox[5];
     private readonly StackPanel[] _reactiveModePanels = new StackPanel[5];
+    private readonly CheckBox[] _linkToVolumeChecks = new CheckBox[5];
+    private readonly StackPanel[] _linkToVolumePanels = new StackPanel[5];
 
     // Track current colors in memory
     private readonly Color[] _colors1 = new Color[5];
     private readonly Color[] _colors2 = new Color[5];
 
+    // Global lighting controls
+    private CheckBox? _globalEnableCheck;
+    private ComboBox? _globalEffectCombo;
+    private Border? _globalColor1Swatch;
+    private Border? _globalColor2Swatch;
+    private StackPanel? _globalColor2Panel;
+    private Slider? _globalSpeedSlider;
+    private TextBlock? _globalSpeedLabel;
+    private StackPanel? _globalSpeedPanel;
+    private ComboBox? _globalReactiveModeCombo;
+    private StackPanel? _globalReactiveModePanel;
+    private Color _globalColor1 = Color.FromRgb(0x00, 0xE6, 0x76);
+    private Color _globalColor2 = Color.FromRgb(0xFF, 0xFF, 0xFF);
+    private StackPanel? _globalSettingsPanel;
+
     private static readonly LightEffect[] EffectsNeedingColor2 =
-        { LightEffect.ColorBlend, LightEffect.Blink, LightEffect.Pulse, LightEffect.MicStatus, LightEffect.DeviceMute, LightEffect.AudioReactive };
+        { LightEffect.ColorBlend, LightEffect.Blink, LightEffect.Pulse, LightEffect.MicStatus, LightEffect.DeviceMute, LightEffect.AudioReactive, LightEffect.GradientFill };
     private static readonly LightEffect[] EffectsNeedingSpeed =
-        { LightEffect.Blink, LightEffect.Pulse, LightEffect.RainbowWave, LightEffect.RainbowCycle, LightEffect.AudioReactive };
+        { LightEffect.Blink, LightEffect.Pulse, LightEffect.RainbowWave, LightEffect.RainbowCycle, LightEffect.AudioReactive, LightEffect.Breathing, LightEffect.Comet, LightEffect.Sparkle };
 
     public LightsView()
     {
@@ -48,6 +65,7 @@ public partial class LightsView : UserControl
             CollectAndSave();
         };
 
+        BuildGlobalCard();
         BuildChannelControls();
     }
 
@@ -56,6 +74,27 @@ public partial class LightsView : UserControl
         _loading = true;
         _config = config;
         _onSave = onSave;
+
+        // Populate global lighting card
+        var gl = config.GlobalLight;
+        if (_globalEnableCheck != null)
+            _globalEnableCheck.IsChecked = gl.Enabled;
+        if (_globalEffectCombo != null)
+            _globalEffectCombo.SelectedItem = gl.Effect;
+        _globalColor1 = Color.FromRgb((byte)gl.R, (byte)gl.G, (byte)gl.B);
+        _globalColor2 = Color.FromRgb((byte)gl.R2, (byte)gl.G2, (byte)gl.B2);
+        if (_globalColor1Swatch != null)
+            _globalColor1Swatch.Background = new SolidColorBrush(_globalColor1);
+        if (_globalColor2Swatch != null)
+            _globalColor2Swatch.Background = new SolidColorBrush(_globalColor2);
+        if (_globalSpeedSlider != null)
+            _globalSpeedSlider.Value = Math.Clamp(gl.EffectSpeed, 1, 100);
+        if (_globalSpeedLabel != null)
+            _globalSpeedLabel.Text = gl.EffectSpeed.ToString();
+        if (_globalReactiveModeCombo != null)
+            _globalReactiveModeCombo.SelectedItem = gl.ReactiveMode;
+
+        UpdateGlobalVisibility();
 
         for (int i = 0; i < 5; i++)
         {
@@ -83,6 +122,9 @@ public partial class LightsView : UserControl
             if (_reactiveModeComboBoxes[i] != null)
                 _reactiveModeComboBoxes[i].SelectedItem = light.ReactiveMode;
 
+            if (_linkToVolumeChecks[i] != null)
+                _linkToVolumeChecks[i].IsChecked = light.LinkToVolume;
+
             UpdateVisibility(i, light.Effect);
         }
 
@@ -93,6 +135,224 @@ public partial class LightsView : UserControl
         BrightnessSlider.ValueChanged += BrightnessSlider_ValueChanged;
 
         _loading = false;
+    }
+
+    private void BuildGlobalCard()
+    {
+        var panel = GlobalLightCardPanel;
+
+        // Header row: checkbox + title
+        var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+
+        var enableCheck = new CheckBox
+        {
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0),
+        };
+        var headerLabel = new TextBlock
+        {
+            Text = "GLOBAL LIGHTING",
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("AccentBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        headerRow.Children.Add(enableCheck);
+        headerRow.Children.Add(headerLabel);
+        panel.Children.Add(headerRow);
+
+        _globalEnableCheck = enableCheck;
+        enableCheck.Checked += (_, _) =>
+        {
+            UpdateGlobalVisibility();
+            if (!_loading) QueueSave();
+        };
+        enableCheck.Unchecked += (_, _) =>
+        {
+            UpdateGlobalVisibility();
+            if (!_loading) QueueSave();
+        };
+
+        // Settings panel (collapsed when disabled)
+        var settings = new StackPanel { Visibility = Visibility.Collapsed };
+        _globalSettingsPanel = settings;
+
+        // Effect combo
+        settings.Children.Add(MakeLabel("EFFECT"));
+        var effectCombo = new ComboBox
+        {
+            ItemsSource = Enum.GetValues<LightEffect>(),
+            Background = FindBrush("InputBgBrush"),
+            Foreground = FindBrush("TextPrimaryBrush"),
+            BorderBrush = FindBrush("InputBorderBrush"),
+            Margin = new Thickness(0, 0, 0, 10),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            FontSize = 12
+        };
+        effectCombo.SelectionChanged += (_, _) =>
+        {
+            if (_loading) return;
+            if (effectCombo.SelectedItem is LightEffect eff)
+                UpdateGlobalEffectVisibility(eff);
+            QueueSave();
+        };
+        _globalEffectCombo = effectCombo;
+        settings.Children.Add(effectCombo);
+
+        // Color 1
+        settings.Children.Add(MakeLabel("COLOR"));
+        var swatch1 = new Border
+        {
+            Height = 32,
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(_globalColor1),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(0, 0, 0, 8),
+            Cursor = Cursors.Hand
+        };
+        swatch1.MouseLeftButtonDown += (_, _) => OnPickGlobalColor(isColor2: false);
+        _globalColor1Swatch = swatch1;
+        settings.Children.Add(swatch1);
+
+        // Color 2 (conditional)
+        var color2Panel = new StackPanel { Visibility = Visibility.Collapsed };
+        color2Panel.Children.Add(MakeLabel("COLOR 2"));
+        var swatch2 = new Border
+        {
+            Height = 32,
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(_globalColor2),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(0, 0, 0, 8),
+            Cursor = Cursors.Hand
+        };
+        swatch2.MouseLeftButtonDown += (_, _) => OnPickGlobalColor(isColor2: true);
+        _globalColor2Swatch = swatch2;
+        color2Panel.Children.Add(swatch2);
+        _globalColor2Panel = color2Panel;
+        settings.Children.Add(color2Panel);
+
+        // Speed slider (conditional)
+        var speedPanel = new StackPanel { Visibility = Visibility.Collapsed };
+        speedPanel.Children.Add(MakeLabel("SPEED"));
+        var speedGrid = new Grid();
+        speedGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        speedGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });
+
+        var speedSlider = new Slider
+        {
+            Minimum = 1,
+            Maximum = 100,
+            Value = 50,
+            IsSnapToTickEnabled = true,
+            TickFrequency = 1,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(speedSlider, 0);
+
+        var speedLabel = new TextBlock
+        {
+            Text = "50",
+            Style = FindStyle("SecondaryText"),
+            FontSize = 11,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextAlignment = TextAlignment.Right
+        };
+        Grid.SetColumn(speedLabel, 1);
+
+        speedSlider.ValueChanged += (_, e) =>
+        {
+            speedLabel.Text = ((int)e.NewValue).ToString();
+            if (!_loading) QueueSave();
+        };
+        _globalSpeedSlider = speedSlider;
+        _globalSpeedLabel = speedLabel;
+
+        speedGrid.Children.Add(speedSlider);
+        speedGrid.Children.Add(speedLabel);
+        speedPanel.Children.Add(speedGrid);
+        speedPanel.Margin = new Thickness(0, 2, 0, 10);
+        _globalSpeedPanel = speedPanel;
+        settings.Children.Add(speedPanel);
+
+        // Reactive mode (conditional)
+        var reactiveModePanel = new StackPanel { Visibility = Visibility.Collapsed };
+        reactiveModePanel.Children.Add(MakeLabel("REACTIVE MODE"));
+        var modeCombo = new ComboBox
+        {
+            ItemsSource = Enum.GetValues<ReactiveMode>(),
+            Background = FindBrush("InputBgBrush"),
+            Foreground = FindBrush("TextPrimaryBrush"),
+            BorderBrush = FindBrush("InputBorderBrush"),
+            Margin = new Thickness(0, 0, 0, 10),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            FontSize = 12
+        };
+        modeCombo.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+        _globalReactiveModeCombo = modeCombo;
+        reactiveModePanel.Children.Add(modeCombo);
+        _globalReactiveModePanel = reactiveModePanel;
+        settings.Children.Add(reactiveModePanel);
+
+        panel.Children.Add(settings);
+    }
+
+    private void UpdateGlobalVisibility()
+    {
+        bool enabled = _globalEnableCheck?.IsChecked ?? false;
+
+        if (_globalSettingsPanel != null)
+            _globalSettingsPanel.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+
+        // Show/hide per-knob panels
+        PerKnobGrid.Visibility = enabled ? Visibility.Collapsed : Visibility.Visible;
+
+        // Update sub-controls based on current effect
+        if (enabled && _globalEffectCombo?.SelectedItem is LightEffect eff)
+            UpdateGlobalEffectVisibility(eff);
+    }
+
+    private void UpdateGlobalEffectVisibility(LightEffect effect)
+    {
+        bool needsColor2 = EffectsNeedingColor2.Contains(effect);
+        bool needsSpeed = EffectsNeedingSpeed.Contains(effect);
+        bool isReactive = effect == LightEffect.AudioReactive;
+
+        if (_globalColor2Panel != null)
+            _globalColor2Panel.Visibility = needsColor2 ? Visibility.Visible : Visibility.Collapsed;
+        if (_globalSpeedPanel != null)
+            _globalSpeedPanel.Visibility = needsSpeed ? Visibility.Visible : Visibility.Collapsed;
+        if (_globalReactiveModePanel != null)
+            _globalReactiveModePanel.Visibility = isReactive ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnPickGlobalColor(bool isColor2)
+    {
+        var current = isColor2 ? _globalColor2 : _globalColor1;
+        var dialog = new ColorPickerDialog(current)
+        {
+            Owner = Window.GetWindow(this)
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            var chosen = dialog.SelectedColor;
+            if (isColor2)
+            {
+                _globalColor2 = chosen;
+                if (_globalColor2Swatch != null)
+                    _globalColor2Swatch.Background = new SolidColorBrush(chosen);
+            }
+            else
+            {
+                _globalColor1 = chosen;
+                if (_globalColor1Swatch != null)
+                    _globalColor1Swatch.Background = new SolidColorBrush(chosen);
+            }
+            QueueSave();
+        }
     }
 
     private void BuildChannelControls()
@@ -216,6 +476,23 @@ public partial class LightsView : UserControl
             reactiveContainer.Visibility = Visibility.Collapsed;
             _reactiveModePanels[idx] = reactiveContainer;
             panel.Children.Add(reactiveContainer);
+
+            // Link to volume checkbox (only visible for AudioReactive)
+            var linkPanel = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 2, 0, 0) };
+            var linkCheck = new CheckBox
+            {
+                Content = "Link brightness to volume",
+                Foreground = FindBrush("TextPrimaryBrush"),
+                FontSize = 11,
+                Margin = new Thickness(0, 0, 0, 4),
+                VerticalContentAlignment = VerticalAlignment.Center,
+            };
+            linkCheck.Checked += (_, _) => { if (!_loading) QueueSave(); };
+            linkCheck.Unchecked += (_, _) => { if (!_loading) QueueSave(); };
+            _linkToVolumeChecks[idx] = linkCheck;
+            linkPanel.Children.Add(linkCheck);
+            _linkToVolumePanels[idx] = linkPanel;
+            panel.Children.Add(linkPanel);
         }
     }
 
@@ -269,6 +546,7 @@ public partial class LightsView : UserControl
         _color2Panels[idx].Visibility = needsColor2 ? Visibility.Visible : Visibility.Collapsed;
         _speedPanels[idx].Visibility = needsSpeed ? Visibility.Visible : Visibility.Collapsed;
         _reactiveModePanels[idx].Visibility = isReactive ? Visibility.Visible : Visibility.Collapsed;
+        _linkToVolumePanels[idx].Visibility = isReactive ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void BrightnessSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -286,6 +564,22 @@ public partial class LightsView : UserControl
     private void CollectAndSave()
     {
         if (_config == null || _onSave == null) return;
+
+        // Save global lighting config
+        var gl = _config.GlobalLight;
+        gl.Enabled = _globalEnableCheck?.IsChecked ?? false;
+        if (_globalEffectCombo?.SelectedItem is LightEffect glEff)
+            gl.Effect = glEff;
+        gl.R = _globalColor1.R;
+        gl.G = _globalColor1.G;
+        gl.B = _globalColor1.B;
+        gl.R2 = _globalColor2.R;
+        gl.G2 = _globalColor2.G;
+        gl.B2 = _globalColor2.B;
+        if (_globalSpeedSlider != null)
+            gl.EffectSpeed = (int)_globalSpeedSlider.Value;
+        if (_globalReactiveModeCombo?.SelectedItem is ReactiveMode glMode)
+            gl.ReactiveMode = glMode;
 
         for (int i = 0; i < 5; i++)
         {
@@ -307,6 +601,8 @@ public partial class LightsView : UserControl
 
             if (_reactiveModeComboBoxes[i]?.SelectedItem is ReactiveMode mode)
                 light.ReactiveMode = mode;
+
+            light.LinkToVolume = _linkToVolumeChecks[i]?.IsChecked ?? false;
         }
 
         _config.LedBrightness = (int)BrightnessSlider.Value;

@@ -23,6 +23,13 @@ public class AppConfig
     // OSD Overlay
     public OsdConfig Osd { get; set; } = new();
 
+    // Global lighting override
+    public GlobalLightConfig GlobalLight { get; set; } = new();
+
+    // Profile switch transition animation
+    [JsonConverter(typeof(StringEnumConverter))]
+    public ProfileTransition ProfileTransition { get; set; } = ProfileTransition.Cascade;
+
     // Integrations
     public HomeAssistantConfig HomeAssistant { get; set; } = new();
 }
@@ -84,6 +91,23 @@ public class LightConfig
     public int EffectSpeed { get; set; } = 50; // 1-100, used by animated effects; doubles as sensitivity for AudioReactive
     [JsonConverter(typeof(StringEnumConverter))]
     public ReactiveMode ReactiveMode { get; set; } = ReactiveMode.SpectrumBands;
+    public bool LinkToVolume { get; set; } = false;
+}
+
+public class GlobalLightConfig
+{
+    public bool Enabled { get; set; } = false;
+    [JsonConverter(typeof(StringEnumConverter))]
+    public LightEffect Effect { get; set; } = LightEffect.RainbowWave;
+    public int R { get; set; } = 0;
+    public int G { get; set; } = 230;
+    public int B { get; set; } = 118;
+    public int R2 { get; set; } = 255;
+    public int G2 { get; set; } = 255;
+    public int B2 { get; set; } = 255;
+    public int EffectSpeed { get; set; } = 50;
+    [JsonConverter(typeof(StringEnumConverter))]
+    public ReactiveMode ReactiveMode { get; set; } = ReactiveMode.SpectrumBands;
 }
 
 public enum LightEffect
@@ -98,6 +122,11 @@ public enum LightEffect
     MicStatus,        // color1 = unmuted, color2 = muted
     DeviceMute,       // color1 = unmuted, color2 = muted (master)
     AudioReactive,    // audio-reactive RGB via FFT frequency bands
+    Breathing,        // smooth sine-wave brightness fade in/out (Apple sleep indicator style)
+    Fire,             // randomized warm flickering across 3 LEDs
+    Comet,            // bright pixel chases across 3 LEDs with fading tail
+    Sparkle,          // random LED flashes white briefly, fades back
+    GradientFill,     // static gradient from color1 to color2 across 3 LEDs
 }
 
 public enum ReactiveMode
@@ -105,6 +134,14 @@ public enum ReactiveMode
     BeatPulse,     // bass drives ALL knob brightness simultaneously
     SpectrumBands, // each knob = its own frequency band
     ColorShift,    // hue shifts across spectrum based on audio energy
+}
+
+public enum ProfileTransition
+{
+    None,
+    Flash,        // 3 quick flashes across all knobs
+    Cascade,      // knobs light up left-to-right then fade out
+    RainbowSweep, // fast rainbow wave across all knobs, accelerates then fades
 }
 
 public static class ConfigManager

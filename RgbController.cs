@@ -22,6 +22,22 @@ public class RgbController : IDisposable
     private List<LightConfig> _lights = new();
     private int _animTick; // incremented every timer tick (50ms)
     private AudioAnalyzer? _audioAnalyzer;
+    private GlobalLightConfig? _globalLight;
+
+    // Sparkle state per knob
+    private readonly int[] _sparkleLed = new int[5];
+    private readonly int[] _sparkleTick = new int[5];
+    private readonly int[] _sparkleNext = new int[5];
+
+    // Random number generator for stochastic effects
+    private static readonly Random _rng = new();
+
+    // Transition state
+    private ProfileTransition _transitionEffect = ProfileTransition.None;
+    private int _transitionTick = -1;  // -1 = no transition active
+    private const int TransitionDuration = 60; // 60 ticks = 3 seconds at 20fps
+    private struct TransitionColor { public byte R, G, B; }
+    private TransitionColor _transitionColor = new() { R = 0, G = 230, B = 118 };
 
     // Gamma correction table from the original Turn Up firmware.
     private static readonly byte[] Gamma8 = {
@@ -104,6 +120,11 @@ public class RgbController : IDisposable
     /// Store reference to current light configs (called when config changes).
     /// </summary>
     public void UpdateConfig(List<LightConfig> lights) => _lights = lights;
+
+    /// <summary>
+    /// Update the global lighting override config.
+    /// </summary>
+    public void UpdateGlobalConfig(GlobalLightConfig? config) => _globalLight = config;
 
     /// <summary>
     /// Set or clear the audio analyzer used by the AudioReactive effect.
@@ -192,8 +213,31 @@ public class RgbController : IDisposable
     private void Tick()
     {
         _animTick++;
+
+        if (_transitionTick >= 0)
+        {
+            RenderTransition();
+            _transitionTick++;
+            if (_transitionTick >= TransitionDuration)
+                _transitionTick = -1; // transition complete
+            Send();
+            return; // skip normal effects during transition
+        }
+
         UpdateEffects();
         Send();
+    }
+
+    /// <summary>
+    /// Start a transition animation. Called when profile switches.
+    /// </summary>
+    public void PlayTransition(ProfileTransition effect, int r = 0, int g = 230, int b = 118)
+    {
+        if (effect == ProfileTransition.None) return;
+        _transitionEffect = effect;
+        _transitionColor = new TransitionColor { R = (byte)r, G = (byte)g, B = (byte)b };
+        _transitionTick = 0;
+        Logger.Log($"RGB transition: {effect}");
     }
 
     /// <summary>
@@ -201,57 +245,104 @@ public class RgbController : IDisposable
     /// </summary>
     private void UpdateEffects()
     {
+        // Global lighting mode — apply one config to all 5 knobs
+        if (_globalLight != null && _globalLight.Enabled)
+        {
+            for (int k = 0; k < 5; k++)
+            {
+                var light = new LightConfig
+                {
+                    Idx = k,
+                    Effect = _globalLight.Effect,
+                    R = _globalLight.R, G = _globalLight.G, B = _globalLight.B,
+                    R2 = _globalLight.R2, G2 = _globalLight.G2, B2 = _globalLight.B2,
+                    EffectSpeed = _globalLight.EffectSpeed,
+                    ReactiveMode = _globalLight.ReactiveMode,
+                    LinkToVolume = false,
+                };
+                ApplyEffect(k, light);
+            }
+            return;
+        }
+
         foreach (var light in _lights)
         {
             int k = light.Idx;
             if (k < 0 || k > 4) continue;
+            ApplyEffect(k, light);
+        }
+    }
 
-            float rawPos = _knobPositions[k];
-            // Remap: below 15% = off, 15-100% → 0-100% (hardware LED dead zone)
-            float pos = rawPos < 0.15f ? 0f : (rawPos - 0.15f) / 0.85f;
+    /// <summary>
+    /// Apply the configured effect for a single knob.
+    /// </summary>
+    private void ApplyEffect(int k, LightConfig light)
+    {
+        float rawPos = _knobPositions[k];
+        // Remap: below 15% = off, 15-100% → 0-100% (hardware LED dead zone)
+        float pos = rawPos < 0.15f ? 0f : (rawPos - 0.15f) / 0.85f;
 
-            switch (light.Effect)
-            {
-                case LightEffect.SingleColor:
-                    EffectSingleColor(k, light, pos);
-                    break;
+        switch (light.Effect)
+        {
+            case LightEffect.SingleColor:
+                EffectSingleColor(k, light, pos);
+                break;
 
-                case LightEffect.ColorBlend:
-                    EffectColorBlend(k, light, pos);
-                    break;
+            case LightEffect.ColorBlend:
+                EffectColorBlend(k, light, pos);
+                break;
 
-                case LightEffect.PositionFill:
-                    EffectPositionFill(k, light, pos);
-                    break;
+            case LightEffect.PositionFill:
+                EffectPositionFill(k, light, pos);
+                break;
 
-                case LightEffect.Blink:
-                    EffectBlink(k, light);
-                    break;
+            case LightEffect.Blink:
+                EffectBlink(k, light);
+                break;
 
-                case LightEffect.Pulse:
-                    EffectPulse(k, light);
-                    break;
+            case LightEffect.Pulse:
+                EffectPulse(k, light);
+                break;
 
-                case LightEffect.RainbowWave:
-                    EffectRainbowWave(k);
-                    break;
+            case LightEffect.RainbowWave:
+                EffectRainbowWave(k);
+                break;
 
-                case LightEffect.RainbowCycle:
-                    EffectRainbowCycle(k);
-                    break;
+            case LightEffect.RainbowCycle:
+                EffectRainbowCycle(k);
+                break;
 
-                case LightEffect.MicStatus:
-                    EffectMicStatus(k, light);
-                    break;
+            case LightEffect.MicStatus:
+                EffectMicStatus(k, light);
+                break;
 
-                case LightEffect.DeviceMute:
-                    EffectDeviceMute(k, light);
-                    break;
+            case LightEffect.DeviceMute:
+                EffectDeviceMute(k, light);
+                break;
 
-                case LightEffect.AudioReactive:
-                    EffectAudioReactive(k, light);
-                    break;
-            }
+            case LightEffect.AudioReactive:
+                EffectAudioReactive(k, light);
+                break;
+
+            case LightEffect.Breathing:
+                EffectBreathing(k, light);
+                break;
+
+            case LightEffect.Fire:
+                EffectFire(k, light);
+                break;
+
+            case LightEffect.Comet:
+                EffectComet(k, light);
+                break;
+
+            case LightEffect.Sparkle:
+                EffectSparkle(k, light);
+                break;
+
+            case LightEffect.GradientFill:
+                EffectGradientFill(k, light);
+                break;
         }
     }
 
@@ -416,6 +507,13 @@ public class RgbController : IDisposable
                 float newHue = (h + level * 120f) % 360f;
                 float newVal = 0.2f + level * 0.8f;
                 var (cr, cg, cb) = HsvToRgb(newHue, Math.Max(s, 0.7f), newVal);
+                if (light.LinkToVolume)
+                {
+                    float volScale = _knobPositions[k];
+                    cr = (int)(cr * volScale);
+                    cg = (int)(cg * volScale);
+                    cb = (int)(cb * volScale);
+                }
                 SetColor(k, cr, cg, cb);
                 return;
 
@@ -428,7 +526,205 @@ public class RgbController : IDisposable
         int r = (int)(light.R + (light.R2 - light.R) * level);
         int g = (int)(light.G + (light.G2 - light.G) * level);
         int b2 = (int)(light.B + (light.B2 - light.B) * level);
+        if (light.LinkToVolume)
+        {
+            float volScale = _knobPositions[k];
+            r = (int)(r * volScale);
+            g = (int)(g * volScale);
+            b2 = (int)(b2 * volScale);
+        }
         SetColor(k, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b2, 0, 255));
+    }
+
+    // --- New effects ---
+
+    /// <summary>
+    /// Smooth sine-wave brightness fade in/out. Like the Apple sleep indicator.
+    /// EffectSpeed 1 = 4s period, 100 = 0.4s period.
+    /// </summary>
+    private void EffectBreathing(int k, LightConfig light)
+    {
+        int speed = Math.Clamp(light.EffectSpeed, 1, 100);
+        float periodSec = 4.0f - (speed / 100f * 3.6f); // 4.0s down to 0.4s
+        float periodTicks = periodSec / 0.05f;
+        float angle = (_animTick % (int)Math.Max(periodTicks, 1)) / Math.Max(periodTicks, 1) * MathF.PI * 2f;
+        float brightness = (MathF.Sin(angle) + 1f) / 2f;
+        // Square for smoother, more organic look at low end
+        brightness *= brightness;
+        SetColor(k, (int)(light.R * brightness), (int)(light.G * brightness), (int)(light.B * brightness));
+    }
+
+    /// <summary>
+    /// Randomized warm flickering across the 3 LEDs. Each LED gets independent brightness.
+    /// </summary>
+    private void EffectFire(int k, LightConfig light)
+    {
+        for (int led = 0; led < 3; led++)
+        {
+            float flicker = 0.3f + (float)_rng.NextDouble() * 0.7f;
+            // Shift toward yellow/white at high brightness for realistic fire look
+            float warmShift = flicker * 0.3f;
+            int r = Math.Clamp((int)(light.R * flicker + warmShift * 60), 0, 255);
+            int g = Math.Clamp((int)(light.G * flicker + warmShift * 20), 0, 255);
+            int b = Math.Clamp((int)(light.B * flicker * 0.3f), 0, 255); // suppress blue for fire
+            SetColor(k, led, r, g, b);
+        }
+    }
+
+    /// <summary>
+    /// Bright pixel chases across 3 LEDs with a fading tail.
+    /// Head = full brightness, mid = 35%, tail = 8%.
+    /// </summary>
+    private void EffectComet(int k, LightConfig light)
+    {
+        int speed = Math.Clamp(light.EffectSpeed, 1, 100);
+        float periodSec = 1.5f - (speed / 100f * 1.3f); // 1.5s to 0.2s per sweep
+        float periodTicks = periodSec / 0.05f;
+        int phase = (int)(_animTick % (int)Math.Max(periodTicks, 1));
+        float t = phase / Math.Max(periodTicks, 1); // 0..1 across sweep
+        int headLed = (int)(t * 3f) % 3;
+
+        for (int led = 0; led < 3; led++)
+        {
+            int dist = (led - headLed + 3) % 3; // 0=head, 1=mid, 2=tail
+            float brightness = dist switch
+            {
+                0 => 1.0f,
+                1 => 0.35f,
+                _ => 0.08f,
+            };
+            SetColor(k, led,
+                (int)(light.R * brightness),
+                (int)(light.G * brightness),
+                (int)(light.B * brightness));
+        }
+    }
+
+    /// <summary>
+    /// Random LED briefly flashes white then fades. Base = color1 at 15% brightness.
+    /// </summary>
+    private void EffectSparkle(int k, LightConfig light)
+    {
+        int speed = Math.Clamp(light.EffectSpeed, 1, 100);
+        int interval = Math.Max(1, 20 - speed / 5); // ticks between sparkles
+
+        // Set base dim color on all LEDs
+        int baseR = (int)(light.R * 0.15f);
+        int baseG = (int)(light.G * 0.15f);
+        int baseB = (int)(light.B * 0.15f);
+        for (int led = 0; led < 3; led++)
+            SetColor(k, led, baseR, baseG, baseB);
+
+        // Manage sparkle timing
+        _sparkleTick[k]++;
+        if (_sparkleTick[k] >= _sparkleNext[k])
+        {
+            _sparkleLed[k] = _rng.Next(3);
+            _sparkleTick[k] = 0;
+            _sparkleNext[k] = interval + _rng.Next(Math.Max(1, interval));
+        }
+
+        // Apply sparkle with decay (bright for 2 ticks, fade over 3 more)
+        int age = _sparkleTick[k];
+        if (age < 5)
+        {
+            float sparkBright = age < 2 ? 1.0f : 1.0f - (age - 2) / 3f;
+            int sLed = _sparkleLed[k];
+            int sr = (int)(255 * sparkBright + baseR * (1 - sparkBright));
+            int sg = (int)(255 * sparkBright + baseG * (1 - sparkBright));
+            int sb = (int)(255 * sparkBright + baseB * (1 - sparkBright));
+            SetColor(k, sLed, Math.Clamp(sr, 0, 255), Math.Clamp(sg, 0, 255), Math.Clamp(sb, 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Static gradient from color1 to color2 across 3 LEDs (no animation).
+    /// LED 0 = color1, LED 1 = midpoint blend, LED 2 = color2.
+    /// </summary>
+    private void EffectGradientFill(int k, LightConfig light)
+    {
+        for (int led = 0; led < 3; led++)
+        {
+            float t = led / 2f; // 0, 0.5, 1.0
+            int r = (int)(light.R + (light.R2 - light.R) * t);
+            int g = (int)(light.G + (light.G2 - light.G) * t);
+            int b = (int)(light.B + (light.B2 - light.B) * t);
+            SetColor(k, led, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
+        }
+    }
+
+    // --- Profile transition renderer ---
+
+    /// <summary>
+    /// Render one frame of the active profile switch transition.
+    /// </summary>
+    private void RenderTransition()
+    {
+        float t = _transitionTick / (float)TransitionDuration; // 0..1
+
+        switch (_transitionEffect)
+        {
+            case ProfileTransition.Flash:
+            {
+                // 3 flashes over the full duration
+                float flashPhase = t * 3f;
+                float flashCycle = flashPhase - MathF.Floor(flashPhase);
+                bool flashOn = flashCycle < 0.5f;
+                for (int k = 0; k < 5; k++)
+                {
+                    if (flashOn)
+                        SetColor(k, _transitionColor.R, _transitionColor.G, _transitionColor.B);
+                    else
+                        SetColor(k, 0, 0, 0);
+                }
+                break;
+            }
+
+            case ProfileTransition.Cascade:
+            {
+                float cascadePhase = t * 2f; // 0..2 (first half = cascade in, second half = fade out)
+                if (cascadePhase <= 1f)
+                {
+                    // Cascade in: each knob lights up at 0.2 intervals
+                    for (int k = 0; k < 5; k++)
+                    {
+                        float knobT = cascadePhase * 5f - k;
+                        float bright = Math.Clamp(knobT, 0f, 1f);
+                        SetColor(k,
+                            (int)(_transitionColor.R * bright),
+                            (int)(_transitionColor.G * bright),
+                            (int)(_transitionColor.B * bright));
+                    }
+                }
+                else
+                {
+                    // Fade out: all knobs fade together
+                    float fade = 1f - (cascadePhase - 1f);
+                    for (int k = 0; k < 5; k++)
+                    {
+                        SetColor(k,
+                            (int)(_transitionColor.R * fade),
+                            (int)(_transitionColor.G * fade),
+                            (int)(_transitionColor.B * fade));
+                    }
+                }
+                break;
+            }
+
+            case ProfileTransition.RainbowSweep:
+            {
+                // Fast rainbow wave that accelerates then fades out in the last 30%
+                float rainbowSpeed = 5f + t * 20f;
+                float fadeOut = t > 0.7f ? (1f - t) / 0.3f : 1f;
+                for (int k = 0; k < 5; k++)
+                {
+                    float hue = (_transitionTick * rainbowSpeed + k * 72f) % 360f;
+                    var (r, g, b) = HsvToRgb(hue, 1f, fadeOut);
+                    SetColor(k, r, g, b);
+                }
+                break;
+            }
+        }
     }
 
     // --- Helpers ---

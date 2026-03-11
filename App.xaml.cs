@@ -484,6 +484,7 @@ public partial class App : Application
         ConfigManager.Save(_config);
         ApplyRgbConfig();
         UpdateAudioAnalyzer();
+        _rgb.PlayTransition(_config.ProfileTransition);
         Logger.Log($"Switched to profile: {profileName}");
 
         // Show OSD for profile switch
@@ -557,6 +558,7 @@ public partial class App : Application
     {
         _rgb.SetBrightness(_config.LedBrightness);
         _rgb.UpdateConfig(_config.Lights);
+        _rgb.UpdateGlobalConfig(_config.GlobalLight);
     }
 
     /// <summary>
@@ -564,7 +566,8 @@ public partial class App : Application
     /// </summary>
     private void UpdateAudioAnalyzer()
     {
-        bool needsAudio = _config.Lights.Any(l => l.Effect == LightEffect.AudioReactive);
+        bool needsAudio = _config.Lights.Any(l => l.Effect == LightEffect.AudioReactive)
+            || (_config.GlobalLight.Enabled && _config.GlobalLight.Effect == LightEffect.AudioReactive);
         if (needsAudio)
             _audioAnalyzer?.Start();
         else
