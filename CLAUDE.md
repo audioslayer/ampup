@@ -61,8 +61,10 @@ Controls/
   AnimatedKnobControl.cs   WPF FrameworkElement — arc sweep knob, glow, frozen resources
   VuMeterControl.cs        WPF FrameworkElement — 16-segment VU meter, DrawingVisual, peak hold
   CurvePickerControl.cs    3 clickable mini graphs showing Linear/Log/Exp response curves
-  EffectPickerControl.cs   Categorized grid of colorful icon tiles for LED effects (15 effects)
-  ActionPickerControl.cs   Categorized grid of colorful icon tiles for button actions (25 actions)
+  EffectPickerControl.cs   Categorized grid of colorful icon tiles for LED effects (30+ effects)
+  ActionPickerControl.cs   Categorized grid of colorful icon tiles for button actions (26 actions)
+  CheckListPicker.cs       Multi-select checklist picker (for cycle device subset selection)
+  TrayMixerPopup.cs        Glassmorphic per-app volume mixer popup (shown on tray left-click)
   SegmentedControl.cs      Pill-style segmented buttons
   GridPicker.cs            Categorized grid picker (legacy, replaced by ActionPickerControl)
   ListPicker.cs            Dropdown list picker
@@ -70,10 +72,12 @@ Controls/
   RangeSlider.cs           Dual-thumb range slider
 
 AudioAnalyzer.cs           WASAPI loopback capture + FFT — 5 frequency bands for audio-reactive LEDs
-SerialReader.cs            Reads COM3, parses fe/ff frames, fires OnKnob / OnButton events
+SerialReader.cs            Reads COM port, parses fe/ff frames, fires OnKnob / OnButton events, ±3 jitter deadzone
 AudioMixer.cs              WASAPI per-app volume + GetPeakLevel, response curves, volume range
-ButtonHandler.cs           Gesture state machine (press/double/hold) → 25 action types
-RgbController.cs           RGB effects engine — 15 effects, 20 FPS animation, 3 LEDs per knob
+ButtonHandler.cs           Gesture state machine (press/double/hold) → 26 action types (incl. mute_device)
+RgbController.cs           RGB effects engine — 30+ effects (per-knob + global spanning), 20 FPS animation
+DuckingEngine.cs           Auto-ducking: monitors trigger app audio, fades target app volumes with smooth interpolation
+AutoProfileSwitcher.cs     Auto-profile switching: monitors foreground window, fires profile switch events with debounce
 MonitorBrightness.cs       DDC/CI physical monitor brightness via dxva2.dll
 NativeMethods.cs           Consolidated P/Invoke declarations (user32, PowrProf)
 Config.cs                  Loads/saves config.json + profile system (Newtonsoft.Json)
@@ -424,3 +428,4 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - **v0.5.0-alpha** — Auto-ducking (DuckingEngine: fade other apps when trigger app speaks), auto-profile switching (AutoProfileSwitcher: foreground-window based profile selection), tray quick-mixer popup (left-click tray icon to show per-app volume sliders), profile export/import (save/load profile JSON files via file dialog). New Settings UI sections for all three features.
 - **v0.5.1-alpha** — Quick Assign from Tray (right-click tray → Assign Running Apps submenu → pick knob), Auto-Detect & Suggest Layout (amber banner in MixerView when known apps detected and knobs unconfigured), Knob Copy/Paste (right-click channel strip → Copy/Paste/Reset context menu with static clipboard).
 - **v0.5.2-alpha** — Bug fix: knob UI updates immediately on hardware turn (push position directly to MixerView via Dispatcher.BeginInvoke, bypassing 50ms poll). Bug fix: potentiometer jitter deadzone in SerialReader (±3 ADC count threshold suppresses noise). New LED effect: DeviceSelect — shows per-device colors based on which Windows output device is currently default (up to 3 device→color mappings per knob, configured in LightsView).
+- **v0.5.x (Mar 11 polish)** — Copy/paste context menus for Lights and Buttons views. UI consistency audit + tooltips across all views (standardized headers, labels, ComboBox styles; tooltips on every control explaining what it does). Moved Auto-Ducking and Auto-Profile Switching from Settings to collapsible "Smart Mix" section in Mixer tab. Friendly serial port selector with auto-detect (COM port dropdown, auto-detect button probes for CH343/CH340, connection status indicator, raw port/baud hidden under Advanced). 4 new per-knob LED effects (PositionBlend, Wheel, RainbowWheel, ProgramMute). Mute Device button action. 13 new global-spanning LED effects (TheaterChase, RainbowScanner, SparkleRain, BreathingSync, FireWall, DualRacer, Lightning, Fillup, Ocean, Collision, DNA, Rainfall, PoliceLights).
