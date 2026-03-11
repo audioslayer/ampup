@@ -236,6 +236,19 @@ public class ButtonHandler
                     SwitchProfile(btn?.ProfileName ?? ""); break;
                 case "system_power":
                     ExecuteSystemPower(btn?.PowerAction ?? ""); break;
+                // Individual power actions (no sub-picker needed)
+                case "power_sleep":
+                    ExecuteSystemPower("sleep"); break;
+                case "power_lock":
+                    ExecuteSystemPower("lock"); break;
+                case "power_off":
+                    ExecuteSystemPower("shutdown"); break;
+                case "power_restart":
+                    ExecuteSystemPower("restart"); break;
+                case "power_logoff":
+                    ExecuteSystemPower("logoff"); break;
+                case "power_hibernate":
+                    ExecuteSystemPower("hibernate"); break;
                 case "cycle_brightness":
                     CycleBrightness(); break;
                 case "ha_toggle":

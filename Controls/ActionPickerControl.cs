@@ -31,9 +31,15 @@ namespace AmpUp.Controls
             { "select_output",      Color.FromRgb(0xAB, 0x47, 0xBC) }, // purple
             { "select_input",       Color.FromRgb(0xAB, 0x47, 0xBC) }, // purple
             { "macro",              Color.FromRgb(0xFF, 0xD5, 0x4F) }, // gold
-            { "system_power",       Color.FromRgb(0xFF, 0x44, 0x44) }, // bright red
+            { "system_power",       Color.FromRgb(0xFF, 0x44, 0x44) }, // bright red (legacy)
             { "switch_profile",     Color.FromRgb(0x29, 0xB6, 0xF6) }, // light blue
             { "cycle_brightness",   Color.FromRgb(0xFF, 0xF1, 0x76) }, // yellow
+            { "power_sleep",        Color.FromRgb(0x7C, 0x8C, 0xF8) }, // indigo
+            { "power_lock",         Color.FromRgb(0xFF, 0xD5, 0x4F) }, // gold
+            { "power_off",          Color.FromRgb(0xFF, 0x44, 0x44) }, // red
+            { "power_restart",      Color.FromRgb(0xFF, 0x8A, 0x3D) }, // orange
+            { "power_logoff",       Color.FromRgb(0xAB, 0x47, 0xBC) }, // purple
+            { "power_hibernate",    Color.FromRgb(0x42, 0xA5, 0xF5) }, // blue
         };
 
         // ── Public API ───────────────────────────────────────────────────
@@ -142,13 +148,23 @@ namespace AmpUp.Controls
                 ("select_input",  "🎙", "Set In",    true),
             });
 
-            // SYSTEM (gold/mixed)
+            // SYSTEM (gold)
             AddCategory(mainPanel, "SYSTEM", Color.FromRgb(0xFF, 0xD5, 0x4F), new[]
             {
                 ("macro",            "⌨",  "Macro",      false),
-                ("system_power",     "⏻",  "Power",      false),
                 ("switch_profile",   "📋", "Profile",    true),
                 ("cycle_brightness", "💡", "Brightness", true),
+            });
+
+            // POWER (red themed, each action is its own tile)
+            AddCategory(mainPanel, "POWER", Color.FromRgb(0xFF, 0x44, 0x44), new[]
+            {
+                ("power_sleep",     "😴", "Sleep",     true),
+                ("power_lock",      "🔒", "Lock",      true),
+                ("power_off",       "⏻",  "Off",       false),
+                ("power_restart",   "🔄", "Restart",   true),
+                ("power_logoff",    "🚪", "Logoff",    true),
+                ("power_hibernate", "❄",  "Hibernate", false),
             });
 
             SelectedIndex = 0;

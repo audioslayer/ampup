@@ -25,13 +25,16 @@ public partial class ButtonsView : UserControl
         ("Set Output", "select_output"), ("Set Input", "select_input"), ("Keyboard Macro", "macro"),
         ("System Power", "system_power"), ("Switch Profile", "switch_profile"),
         ("Cycle Brightness", "cycle_brightness"),
-        ("Mute App Group", "mute_app_group")
+        ("Mute App Group", "mute_app_group"),
+        ("Sleep", "power_sleep"), ("Lock", "power_lock"), ("Off", "power_off"),
+        ("Restart", "power_restart"), ("Logoff", "power_logoff"), ("Hibernate", "power_hibernate"),
     };
 
     // Actions that need a path textbox
     private static readonly string[] PathActions = { "mute_program", "launch_exe", "close_program" };
 
     // Power action options: (Display, ConfigValue)
+    // PowerOptions kept for legacy config migration only
     private static readonly (string Display, string Value)[] PowerOptions =
     {
         ("Sleep", "sleep"), ("Lock", "lock"), ("Off", "shutdown"),
@@ -48,7 +51,9 @@ public partial class ButtonsView : UserControl
         { "select_output", "🔊" }, { "select_input", "🎙" }, { "macro", "⌨" },
         { "system_power", "⏻" }, { "switch_profile", "📋" },
         { "cycle_brightness", "💡" },
-        { "mute_app_group", "🔇" }
+        { "mute_app_group", "🔇" },
+        { "power_sleep", "😴" }, { "power_lock", "🔒" }, { "power_off", "⏻" },
+        { "power_restart", "🔄" }, { "power_logoff", "🚪" }, { "power_hibernate", "❄" },
     };
 
     // Action color mapping for button tiles
@@ -73,6 +78,12 @@ public partial class ButtonsView : UserControl
         { "system_power",       Color.FromRgb(0xFF, 0x44, 0x44) },
         { "switch_profile",     Color.FromRgb(0x29, 0xB6, 0xF6) },
         { "cycle_brightness",   Color.FromRgb(0xFF, 0xF1, 0x76) },
+        { "power_sleep",        Color.FromRgb(0x7C, 0x8C, 0xF8) },
+        { "power_lock",         Color.FromRgb(0xFF, 0xD5, 0x4F) },
+        { "power_off",          Color.FromRgb(0xFF, 0x44, 0x44) },
+        { "power_restart",      Color.FromRgb(0xFF, 0x8A, 0x3D) },
+        { "power_logoff",       Color.FromRgb(0xAB, 0x47, 0xBC) },
+        { "power_hibernate",    Color.FromRgb(0x42, 0xA5, 0xF5) },
     };
 
     // Button tile references
@@ -507,7 +518,7 @@ public partial class ButtonsView : UserControl
         _tapMacroPanels[idx].Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
         _tapDevicePanels[idx].Visibility = (action == "select_output" || action == "select_input") ? Visibility.Visible : Visibility.Collapsed;
         _tapProfilePanels[idx].Visibility = action == "switch_profile" ? Visibility.Visible : Visibility.Collapsed;
-        _tapPowerPanels[idx].Visibility = action == "system_power" ? Visibility.Visible : Visibility.Collapsed;
+        _tapPowerPanels[idx].Visibility = action == "system_power" ? Visibility.Visible : Visibility.Collapsed; // legacy, new power_* actions don't need sub-picker
         _tapKnobPanels[idx].Visibility = action == "mute_app_group" ? Visibility.Visible : Visibility.Collapsed;
     }
 
