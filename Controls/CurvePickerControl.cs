@@ -14,7 +14,7 @@ namespace AmpUp.Controls
         public event EventHandler? SelectionChanged;
 
         // ── Public properties ────────────────────────────────────────────
-        private Color _accentColor = Color.FromRgb(0x00, 0xE6, 0x76);
+        private Color _accentColor = ThemeManager.Accent;
         public Color AccentColor
         {
             get => _accentColor;

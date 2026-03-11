@@ -92,7 +92,7 @@ public partial class MixerView : UserControl
     {
         var borders = new[] { Ch0Border, Ch1Border, Ch2Border, Ch3Border, Ch4Border };
         var normalBorder = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-        var hoverBorder = new SolidColorBrush(Color.FromArgb(0x60, 0x00, 0xE6, 0x76));
+        var hoverBorder = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x60));
 
         for (int i = 0; i < 5; i++)
         {
@@ -693,7 +693,7 @@ public partial class MixerView : UserControl
                 Width = 6, Height = 6,
                 CornerRadius = new CornerRadius(3),
                 Background = new SolidColorBrush(isRunning
-                    ? Color.FromRgb(0x00, 0xE6, 0x76)  // green = running
+                    ? ThemeManager.Accent  // accent = running
                     : Color.FromRgb(0x55, 0x55, 0x55)), // dim = not running
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 6, 0),

@@ -28,6 +28,22 @@
     <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource Accent}" />
     <SolidColorBrush x:Key="AccentGlowBrush" Color="{StaticResource AccentGlow}" />
     <SolidColorBrush x:Key="AccentDimBrush" Color="{StaticResource AccentDim}" />
+
+    <!-- Alpha-variant accent brushes (updated at runtime by ThemeManager) -->
+    <SolidColorBrush x:Key="AccentBorder55Brush" Color="#5500E676" />
+    <SolidColorBrush x:Key="AccentBorder22Brush" Color="#2200E676" />
+    <SolidColorBrush x:Key="AccentBorder33Brush" Color="#3300E676" />
+    <SolidColorBrush x:Key="AccentBorder44Brush" Color="#4400E676" />
+    <SolidColorBrush x:Key="AccentHover1ABrush" Color="#1A00E676" />
+    <SolidColorBrush x:Key="AccentHover18Brush" Color="#1800E676" />
+    <SolidColorBrush x:Key="AccentBg30Brush" Color="#3000E676" />
+    <SolidColorBrush x:Key="AccentLabel66Brush" Color="#6600E676" />
+    <SolidColorBrush x:Key="AccentLabel77Brush" Color="#7700E676" />
+    <SolidColorBrush x:Key="AccentLabel88Brush" Color="#8800E676" />
+    <SolidColorBrush x:Key="AccentScroll40Brush" Color="#4000E676" />
+    <SolidColorBrush x:Key="AccentScroll70Brush" Color="#7000E676" />
+    <SolidColorBrush x:Key="AccentScrollAABrush" Color="#AA00E676" />
+
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimary}" />
     <SolidColorBrush x:Key="TextSecBrush" Color="{StaticResource TextSec}" />
     <SolidColorBrush x:Key="TextDimBrush" Color="{StaticResource TextDim}" />
@@ -51,7 +67,7 @@
 
     <!-- ── Glowing Card (for active/selected elements) ───────────── -->
     <Style x:Key="GlowCardPanel" TargetType="Border" BasedOn="{StaticResource CardPanel}">
-        <Setter Property="BorderBrush" Value="{StaticResource AccentDimBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentDimBrush}" />
         <Setter Property="Effect">
             <Setter.Value>
                 <DropShadowEffect Color="#00E676" BlurRadius="24" Opacity="0.15" ShadowDepth="0" />
@@ -97,7 +113,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="NavBorder" Property="Background" Value="#1A00E676" />
+                            <Setter TargetName="NavBorder" Property="Background" Value="{DynamicResource AccentHover1ABrush}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -113,7 +129,7 @@
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                 <Setter Property="Effect">
                     <Setter.Value>
                         <DropShadowEffect Color="#00E676" BlurRadius="8" Opacity="0.2" ShadowDepth="0" />
@@ -125,21 +141,61 @@
 
     <!-- ── Slider — accent-colored track ───────────────────────────── -->
     <Style TargetType="Slider">
-        <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
         <Setter Property="Height" Value="24" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
     <!-- ── CheckBox ──────────────────────────────────────────────── -->
     <Style TargetType="CheckBox">
-        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
-        <Style.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
-            </Trigger>
-        </Style.Triggers>
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- Custom check box -->
+                        <Border x:Name="CheckBorder"
+                                Width="18" Height="18"
+                                CornerRadius="4"
+                                Background="{DynamicResource InputBgBrush}"
+                                BorderBrush="{DynamicResource InputBorderBrush}"
+                                BorderThickness="1.5"
+                                VerticalAlignment="Center"
+                                Margin="0,0,8,0">
+                            <!-- Checkmark path -->
+                            <Path x:Name="CheckMark"
+                                  Data="M 3,8.5 L 7,12.5 L 14,4"
+                                  Stroke="{DynamicResource AccentBrush}"
+                                  StrokeThickness="2"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round"
+                                  Visibility="Collapsed"
+                                  Margin="0,-1,0,0" />
+                        </Border>
+                        <!-- Content -->
+                        <ContentPresenter VerticalAlignment="Center"
+                                          RecognizesAccessKey="True" />
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="CheckMark" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="CheckBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="CheckBorder" Property="Background" Value="{DynamicResource AccentHover1ABrush}" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="CheckBorder" Property="BorderBrush" Value="{DynamicResource AccentDimBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!-- ── ToolTip — dark glass ─────────────────────────────────── -->
@@ -160,15 +216,15 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
                     <Border x:Name="ThumbBorder"
-                            Background="#4000E676"
+                            Background="{DynamicResource AccentScroll40Brush}"
                             CornerRadius="3"
                             Margin="1" />
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="ThumbBorder" Property="Background" Value="#7000E676" />
+                            <Setter TargetName="ThumbBorder" Property="Background" Value="{DynamicResource AccentScroll70Brush}" />
                         </Trigger>
                         <Trigger Property="IsDragging" Value="True">
-                            <Setter TargetName="ThumbBorder" Property="Background" Value="#AA00E676" />
+                            <Setter TargetName="ThumbBorder" Property="Background" Value="{DynamicResource AccentScrollAABrush}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

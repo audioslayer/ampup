@@ -16,7 +16,7 @@ namespace AmpUp.Controls
         private const double SegmentGap = 1;
 
         // Pre-allocated frozen brushes
-        private static readonly SolidColorBrush DefaultBarBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76)));
+        private static readonly SolidColorBrush DefaultBarBrush = Freeze(new SolidColorBrush(ThemeManager.Accent));
         private static readonly SolidColorBrush YellowBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xFF, 0xB8, 0x00)));
         private static readonly SolidColorBrush RedBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xFF, 0x44, 0x44)));
         private static readonly SolidColorBrush UnlitBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)));
@@ -58,7 +58,7 @@ namespace AmpUp.Controls
                 nameof(BarColor),
                 typeof(Color),
                 typeof(VuMeterControl),
-                new PropertyMetadata(Color.FromRgb(0x00, 0xE6, 0x76), OnBarColorChanged));
+                new PropertyMetadata(ThemeManager.Accent, OnBarColorChanged));
 
         public Color BarColor
         {
@@ -73,7 +73,7 @@ namespace AmpUp.Controls
             _drawingVisual = new DrawingVisual();
             _visuals = new VisualCollection(this) { _drawingVisual };
             _segmentRects = Array.Empty<Rect>();
-            BuildTransitionalBrushes(Color.FromRgb(0x00, 0xE6, 0x76));
+            BuildTransitionalBrushes(ThemeManager.Accent);
         }
 
         #region Visual tree plumbing
@@ -244,7 +244,7 @@ namespace AmpUp.Controls
         private Brush GetCurrentBarBrush()
         {
             Color c = BarColor;
-            if (c == Color.FromRgb(0x00, 0xE6, 0x76))
+            if (c == ThemeManager.Accent)
                 return DefaultBarBrush;
 
             // Custom bar color — create a frozen brush

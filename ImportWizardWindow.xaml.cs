@@ -71,6 +71,21 @@ public partial class ImportWizardWindow : Window
         InitializeComponent();
         MouseLeftButtonDown += (_, _) => DragMove();
 
+        // Apply accent color to border gradient, title, input elements
+        var accent = ThemeManager.Accent;
+        var borderBrush = new LinearGradientBrush(
+            ThemeManager.WithAlpha(accent, 0x55),
+            ThemeManager.WithAlpha(accent, 0x22),
+            new Point(0, 0), new Point(1, 1));
+        borderBrush.Freeze();
+        RootPanel.BorderBrush = borderBrush;
+        TitleLabel.Foreground = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x66));
+        ProfileNameBox.CaretBrush = new SolidColorBrush(accent);
+        var inputBorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x33));
+        inputBorderBrush.Freeze();
+        ProfileNameBorder.BorderBrush = inputBorderBrush;
+        SummaryLabel.Foreground = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x66));
+
         Loaded += (_, _) =>
         {
             var fadeIn = (Storyboard)FindResource("FadeIn");
@@ -135,9 +150,11 @@ public partial class ImportWizardWindow : Window
         };
 
         // Dots
-        Dot1.Fill = new SolidColorBrush(step >= 1 ? (Color)ColorConverter.ConvertFromString("#00E676") : (Color)ColorConverter.ConvertFromString("#333333"));
-        Dot2.Fill = new SolidColorBrush(step >= 2 ? (Color)ColorConverter.ConvertFromString("#00E676") : (Color)ColorConverter.ConvertFromString("#333333"));
-        Dot3.Fill = new SolidColorBrush(step >= 3 ? (Color)ColorConverter.ConvertFromString("#00E676") : (Color)ColorConverter.ConvertFromString("#333333"));
+        var accentColor = ThemeManager.Accent;
+        var inactiveColor = (Color)ColorConverter.ConvertFromString("#333333");
+        Dot1.Fill = new SolidColorBrush(step >= 1 ? accentColor : inactiveColor);
+        Dot2.Fill = new SolidColorBrush(step >= 2 ? accentColor : inactiveColor);
+        Dot3.Fill = new SolidColorBrush(step >= 3 ? accentColor : inactiveColor);
     }
 
     private void GoNext()
@@ -324,7 +341,7 @@ public partial class ImportWizardWindow : Window
             FontFamily = new FontFamily("Segoe UI"),
             FontSize = 10,
             FontWeight = FontWeights.Bold,
-            Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#6600E676")),
+            Foreground = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x66)),
             Margin = new Thickness(0, 12, 0, 8),
         };
         MappingPanel.Children.Add(header);
@@ -588,12 +605,13 @@ public partial class ImportWizardWindow : Window
 
     private static Style MakeButtonStyle(bool isPrimary, bool isImport = false)
     {
-        var bg = isPrimary ? "#00E676" : "#1C1C1C";
+        var hoverAccent = $"#{ThemeManager.AccentGlow.R:X2}{ThemeManager.AccentGlow.G:X2}{ThemeManager.AccentGlow.B:X2}";
+        var bg = isPrimary ? ThemeManager.AccentHex : "#1C1C1C";
         var fg = isPrimary ? "#0F0F0F" : "#E8E8E8";
-        var hoverBg = isPrimary ? "#00FF88" : "#2A2A2A";
-        var borderColor = isPrimary ? "#00E676" : "#2A2A2A";
+        var hoverBg = isPrimary ? hoverAccent : "#2A2A2A";
+        var borderColor = isPrimary ? ThemeManager.AccentHex : "#2A2A2A";
 
-        if (isImport) { bg = "#00E676"; hoverBg = "#00FF88"; }
+        if (isImport) { bg = ThemeManager.AccentHex; hoverBg = hoverAccent; }
 
         var style = new Style(typeof(Button));
         style.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush((Color)ColorConverter.ConvertFromString(bg))));

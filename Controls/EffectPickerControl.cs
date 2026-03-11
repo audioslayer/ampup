@@ -13,7 +13,7 @@ namespace AmpUp.Controls
         public event EventHandler? SelectionChanged;
 
         // ── Public properties ────────────────────────────────────────────
-        private Color _accentColor = Color.FromRgb(0x00, 0xE6, 0x76);
+        private Color _accentColor = ThemeManager.Accent;
         public Color AccentColor
         {
             get => _accentColor;
@@ -91,7 +91,7 @@ namespace AmpUp.Controls
             { LightEffect.RainbowCycle, Color.FromRgb(0x66, 0xBB, 0x6A) }, // green
             { LightEffect.MicStatus,    Color.FromRgb(0x42, 0xA5, 0xF5) }, // blue
             { LightEffect.DeviceMute,   Color.FromRgb(0xEF, 0x53, 0x50) }, // red
-            { LightEffect.AudioReactive,Color.FromRgb(0x00, 0xE6, 0x76) }, // accent green
+            { LightEffect.AudioReactive,ThemeManager.Accent }, // accent green
         };
 
         // ── Constructor ──────────────────────────────────────────────────
@@ -157,7 +157,7 @@ namespace AmpUp.Controls
         // ── Tile builder ─────────────────────────────────────────────────
         private EffectTile BuildTile(LightEffect effect, string icon, string label, bool isEmoji)
         {
-            var tileColor = EffectColors.GetValueOrDefault(effect, Color.FromRgb(0x00, 0xE6, 0x76));
+            var tileColor = EffectColors.GetValueOrDefault(effect, ThemeManager.Accent);
             var info = new EffectTile { Effect = effect, IsEmoji = isEmoji, TileColor = tileColor };
 
             var iconBlock = new TextBlock

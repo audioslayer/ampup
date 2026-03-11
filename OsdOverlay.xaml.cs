@@ -17,6 +17,7 @@ public partial class OsdOverlay : Window
     public OsdOverlay()
     {
         InitializeComponent();
+        ApplyAccentColors();
 
         _fadeOut = (Storyboard)FindResource("FadeOut");
         _fadeOut.Completed += (_, _) => Hide();
@@ -27,6 +28,41 @@ public partial class OsdOverlay : Window
             _dismissTimer.Stop();
             AnimateOut();
         };
+    }
+
+    private void ApplyAccentColors()
+    {
+        var accent = ThemeManager.Accent;
+
+        // Border gradient
+        var borderBrush = new LinearGradientBrush(
+            ThemeManager.WithAlpha(accent, 0x55),
+            ThemeManager.WithAlpha(accent, 0x22),
+            new System.Windows.Point(0, 0), new System.Windows.Point(1, 1));
+        borderBrush.Freeze();
+        RootPanel.BorderBrush = borderBrush;
+
+        // Category label
+        CategoryLabel.Foreground = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x66));
+
+        // Value text
+        OsdValue.Foreground = new SolidColorBrush(accent);
+
+        // Bar track background
+        BarTrack.Background = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x1A));
+
+        // Bar fill gradient (AccentDim -> Accent -> AccentGlow)
+        var fillBrush = new LinearGradientBrush(new GradientStopCollection
+        {
+            new GradientStop(ThemeManager.AccentDim, 0),
+            new GradientStop(accent, 0.7),
+            new GradientStop(ThemeManager.AccentGlow, 1),
+        }, new System.Windows.Point(0, 0), new System.Windows.Point(1, 0));
+        fillBrush.Freeze();
+        BarFill.Background = fillBrush;
+
+        // Bar glow background
+        BarGlow.Background = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x66));
     }
 
     public void SetPosition(OsdPosition position)
@@ -62,7 +98,7 @@ public partial class OsdOverlay : Window
         _dismissTimer.Stop();
 
         CategoryLabel.Text = "VOLUME";
-        SetSymbolIcon(symbolName, "#00E676");
+        SetSymbolIcon(symbolName, ThemeManager.AccentHex);
         OsdTitle.Text = label;
         OsdValue.Text = $"{percent}%";
         OsdValue.Visibility = Visibility.Visible;
@@ -129,7 +165,7 @@ public partial class OsdOverlay : Window
         _dismissTimer.Stop();
 
         CategoryLabel.Text = isOutput ? "OUTPUT DEVICE" : "INPUT DEVICE";
-        SetSymbolIcon(isOutput ? "Speaker224" : "Mic24", "#00E676");
+        SetSymbolIcon(isOutput ? "Speaker224" : "Mic24", ThemeManager.AccentHex);
         OsdTitle.Text = deviceName;
         OsdValue.Visibility = Visibility.Collapsed;
         BarContainer.Visibility = Visibility.Collapsed;

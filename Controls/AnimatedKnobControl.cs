@@ -86,7 +86,7 @@ namespace AmpUp.Controls
             typeof(Color),
             typeof(AnimatedKnobControl),
             new FrameworkPropertyMetadata(
-                Color.FromRgb(0x00, 0xE6, 0x76),
+                ThemeManager.Accent,
                 FrameworkPropertyMetadataOptions.AffectsRender,
                 OnArcColorChanged));
 

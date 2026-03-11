@@ -45,7 +45,7 @@ public partial class LightsView : UserControl
     private StackPanel? _globalSpeedPanel;
     private ComboBox? _globalReactiveModeCombo;
     private StackPanel? _globalReactiveModePanel;
-    private Color _globalColor1 = Color.FromRgb(0x00, 0xE6, 0x76);
+    private Color _globalColor1 = ThemeManager.Accent;
     private Color _globalColor2 = Color.FromRgb(0xFF, 0xFF, 0xFF);
     private StackPanel? _globalSettingsPanel;
 

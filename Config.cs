@@ -12,6 +12,7 @@ public class AppConfig
     public List<LightConfig> Lights { get; set; } = new();
     public bool StartWithWindows { get; set; } = true;
     public int LedBrightness { get; set; } = 100; // 0-100 global brightness
+    public string AccentColor { get; set; } = "#00E676"; // UI accent color hex
     public string ActiveProfile { get; set; } = "Default";
     public List<string> Profiles { get; set; } = new() { "Default" };
     public Dictionary<string, string> ProfileEmojis { get; set; } = new(); // deprecated, kept for migration

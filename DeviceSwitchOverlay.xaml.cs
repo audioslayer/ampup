@@ -13,6 +13,13 @@ public partial class DeviceSwitchOverlay : Window
     {
         InitializeComponent();
 
+        // Apply accent color to border and type label
+        var accent = ThemeManager.Accent;
+        var borderBrush = new System.Windows.Media.SolidColorBrush(ThemeManager.WithAlpha(accent, 0x4D)); // ~0.3 opacity
+        borderBrush.Freeze();
+        RootPanel.BorderBrush = borderBrush;
+        TypeLabel.Foreground = new System.Windows.Media.SolidColorBrush(ThemeManager.WithAlpha(accent, 0x77));
+
         _dismissTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
         _dismissTimer.Tick += (_, _) =>
         {

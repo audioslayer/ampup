@@ -127,7 +127,7 @@
             <!-- Row 2: Volume bar (hidden for non-volume events) -->
             <Grid x:Name="BarContainer" Grid.Row="2" Height="6" Margin="0,0,0,2">
                 <!-- Track background -->
-                <Border CornerRadius="3"
+                <Border x:Name="BarTrack" CornerRadius="3"
                         Background="#1A00E676" />
 
                 <!-- Filled portion -->

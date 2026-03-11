@@ -11,7 +11,7 @@
             <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                        <Border Width="3" CornerRadius="2" Background="{StaticResource AccentBrush}" Margin="0,0,10,0" />
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
                         <TextBlock Text="CONNECTION" Style="{StaticResource HeaderText}" Margin="0" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal">
@@ -39,7 +39,7 @@
             <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                        <Border Width="3" CornerRadius="2" Background="{StaticResource AccentBrush}" Margin="0,0,10,0" />
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
                         <TextBlock Text="STARTUP" Style="{StaticResource HeaderText}" Margin="0" />
                     </StackPanel>
                     <CheckBox x:Name="ChkStartWithWindows"
@@ -49,11 +49,23 @@
                 </StackPanel>
             </Border>
 
+            <!-- ── APPEARANCE ────────────────────────────────────────── -->
+            <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="APPEARANCE" Style="{StaticResource HeaderText}" Margin="0" />
+                    </StackPanel>
+                    <TextBlock Text="Accent Color" Style="{StaticResource SecondaryText}" Margin="0,0,0,8" />
+                    <WrapPanel x:Name="AccentSwatches" Orientation="Horizontal" />
+                </StackPanel>
+            </Border>
+
             <!-- ── OSD OVERLAY ────────────────────────────────────── -->
             <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                        <Border Width="3" CornerRadius="2" Background="{StaticResource AccentBrush}" Margin="0,0,10,0" />
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
                         <TextBlock Text="OSD OVERLAY" Style="{StaticResource HeaderText}" Margin="0" />
                     </StackPanel>
                     <TextBlock Text="Show overlay notifications when the app is minimized to tray."
@@ -152,7 +164,7 @@
             <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                        <Border Width="3" CornerRadius="2" Background="{StaticResource AccentBrush}" Margin="0,0,10,0" />
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
                         <TextBlock Text="PROFILES" Style="{StaticResource HeaderText}" Margin="0" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -194,7 +206,7 @@
             <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                        <Border Width="3" CornerRadius="2" Background="{StaticResource AccentBrush}" Margin="0,0,10,0" />
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
                         <TextBlock Text="INTEGRATIONS" Style="{StaticResource HeaderText}" Margin="0" />
                     </StackPanel>
 
@@ -231,7 +243,7 @@
             <Border Style="{StaticResource CardPanel}" Margin="0,0,0,0">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                        <Border Width="3" CornerRadius="2" Background="{StaticResource AccentBrush}" Margin="0,0,10,0" />
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
                         <TextBlock Text="ABOUT" Style="{StaticResource HeaderText}" Margin="0" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">

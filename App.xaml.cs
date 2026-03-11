@@ -45,6 +45,10 @@ public partial class App : Application
 
         // Load config and create backend
         _config = ConfigManager.Load();
+
+        // Apply user's accent color
+        ThemeManager.SetAccentColor(_config.AccentColor);
+
         _mixer = new AudioMixer();
         _buttons = new ButtonHandler();
         _rgb = new RgbController();
@@ -83,6 +87,8 @@ public partial class App : Application
 
         // Create tray icon
         SetupTrayIcon();
+
+        ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RebuildTrayColors);
 
         // Create main window
         _mainWindow = new MainWindow();
@@ -124,7 +130,7 @@ public partial class App : Application
         {
             Text = "  AMP UP",
             Font = new System.Drawing.Font("Segoe UI", 10f, System.Drawing.FontStyle.Bold),
-            ForeColor = Color.FromArgb(0x00, 0xE6, 0x76),
+            ForeColor = System.Drawing.Color.FromArgb(ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B),
             Padding = new Forms.Padding(10, 8, 10, 0),
         };
         menu.Items.Add(header);
@@ -186,6 +192,15 @@ public partial class App : Application
         });
     }
 
+    private void RebuildTrayColors()
+    {
+        if (_trayIcon?.ContextMenuStrip == null) return;
+        // Update tray icon header color
+        var items = _trayIcon.ContextMenuStrip.Items;
+        if (items.Count > 0 && items[0] is Forms.ToolStripLabel header)
+            header.ForeColor = System.Drawing.Color.FromArgb(ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B);
+    }
+
     private void ExitApp()
     {
         if (_trayIcon != null)
@@ -225,7 +240,7 @@ public partial class App : Application
             // Fallback: solid green square
             original = new Bitmap(32, 32);
             using var g = Graphics.FromImage(original);
-            g.Clear(Color.FromArgb(0x00, 0xE6, 0x76));
+            g.Clear(Color.FromArgb(ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
         }
 
         // Resize to 32x32
@@ -265,9 +280,9 @@ public partial class App : Application
     private class GlassMenuRenderer : Forms.ToolStripProfessionalRenderer
     {
         private static readonly Color BgColor = Color.FromArgb(0xEE, 0x11, 0x11, 0x11);
-        private static readonly Color BorderColor = Color.FromArgb(0x44, 0x00, 0xE6, 0x76);
-        private static readonly Color HoverBg = Color.FromArgb(0x18, 0x00, 0xE6, 0x76);
-        private static readonly Color SepColor = Color.FromArgb(0x30, 0x00, 0xE6, 0x76);
+        private static Color BorderColor => Color.FromArgb(0x44, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B);
+        private static Color HoverBg => Color.FromArgb(0x18, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B);
+        private static Color SepColor => Color.FromArgb(0x30, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B);
 
         protected override void OnRenderMenuItemBackground(Forms.ToolStripItemRenderEventArgs e)
         {
@@ -279,8 +294,8 @@ public partial class App : Application
                 using var path = RoundedRect(rect, 6);
                 e.Graphics.FillPath(brush, path);
 
-                // Subtle green border on hover
-                using var pen = new Pen(Color.FromArgb(0x22, 0x00, 0xE6, 0x76));
+                // Subtle accent border on hover
+                using var pen = new Pen(Color.FromArgb(0x22, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
                 e.Graphics.DrawPath(pen, path);
             }
         }

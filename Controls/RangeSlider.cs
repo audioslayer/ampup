@@ -52,7 +52,7 @@ public class RangeSlider : FrameworkElement
 
     public static readonly DependencyProperty AccentColorProperty =
         DependencyProperty.Register(nameof(AccentColor), typeof(Color), typeof(RangeSlider),
-            new FrameworkPropertyMetadata(Color.FromRgb(0x00, 0xE6, 0x76), FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(ThemeManager.Accent, FrameworkPropertyMetadataOptions.AffectsRender));
 
     public double Minimum { get => (double)GetValue(MinimumProperty); set => SetValue(MinimumProperty, value); }
     public double Maximum { get => (double)GetValue(MaximumProperty); set => SetValue(MaximumProperty, value); }

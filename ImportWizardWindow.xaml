@@ -67,7 +67,7 @@
 
             <!-- ── Title Area ──────────────────────────────── -->
             <StackPanel Grid.Row="0" Margin="0,0,0,16">
-                <TextBlock Text="IMPORT FROM TURN UP"
+                <TextBlock x:Name="TitleLabel" Text="IMPORT FROM TURN UP"
                            FontFamily="Segoe UI" FontSize="10" FontWeight="Bold"
                            Foreground="#6600E676" />
                 <TextBlock x:Name="StepText"
@@ -76,7 +76,7 @@
 
                 <!-- Step indicator dots -->
                 <StackPanel x:Name="StepDots" Orientation="Horizontal" Margin="0,10,0,0">
-                    <Ellipse x:Name="Dot1" Width="8" Height="8" Fill="#00E676" Margin="0,0,6,0" />
+                    <Ellipse x:Name="Dot1" Width="8" Height="8" Fill="{DynamicResource AccentBrush}" Margin="0,0,6,0" />
                     <Ellipse x:Name="Dot2" Width="8" Height="8" Fill="#333333" Margin="0,0,6,0" />
                     <Ellipse x:Name="Dot3" Width="8" Height="8" Fill="#333333" Margin="0,0,0,0" />
                 </StackPanel>
@@ -114,7 +114,7 @@
                            FontFamily="Segoe UI" FontSize="12"
                            Foreground="#9A9A9A" Margin="0,0,0,6" />
 
-                <Border Background="#1A242424" BorderBrush="#3300E676"
+                <Border x:Name="ProfileNameBorder" Background="#1A242424" BorderBrush="#3300E676"
                         BorderThickness="1" CornerRadius="8" Padding="2"
                         Margin="0,0,0,20">
                     <TextBox x:Name="ProfileNameBox"
@@ -126,7 +126,7 @@
                              Padding="10,8" />
                 </Border>
 
-                <TextBlock Text="SUMMARY"
+                <TextBlock x:Name="SummaryLabel" Text="SUMMARY"
                            FontFamily="Segoe UI" FontSize="10" FontWeight="Bold"
                            Foreground="#6600E676" Margin="0,0,0,10" />
 

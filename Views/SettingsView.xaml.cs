@@ -1,11 +1,27 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace AmpUp.Views;
 
 public partial class SettingsView : UserControl
 {
+    private static readonly (string Name, string Hex)[] AccentPresets =
+    {
+        ("Green",   "#00E676"),
+        ("Cyan",    "#00B4D8"),
+        ("Blue",    "#448AFF"),
+        ("Purple",  "#B388FF"),
+        ("Pink",    "#FF4081"),
+        ("Red",     "#FF5252"),
+        ("Orange",  "#FF6E40"),
+        ("Gold",    "#FFD740"),
+        ("Mint",    "#69F0AE"),
+        ("White",   "#E0E0E0"),
+    };
+
     private AppConfig? _config;
     private Action<AppConfig>? _onSave;
     private readonly DispatcherTimer _debounceTimer;
@@ -87,7 +103,40 @@ public partial class SettingsView : UserControl
         TxtHaUrl.Text = config.HomeAssistant.Url;
         TxtHaToken.Password = config.HomeAssistant.Token;
 
+        BuildAccentSwatches();
+
         _loading = false;
+    }
+
+    private void BuildAccentSwatches()
+    {
+        AccentSwatches.Children.Clear();
+        foreach (var (name, hex) in AccentPresets)
+        {
+            var color = (Color)ColorConverter.ConvertFromString(hex);
+            var swatch = new Border
+            {
+                Width = 32, Height = 32,
+                CornerRadius = new CornerRadius(16),
+                Background = new SolidColorBrush(color),
+                BorderThickness = new Thickness(2),
+                BorderBrush = hex == _config?.AccentColor
+                    ? new SolidColorBrush(Colors.White)
+                    : Brushes.Transparent,
+                Margin = new Thickness(0, 0, 8, 8),
+                Cursor = Cursors.Hand,
+                ToolTip = name,
+            };
+            swatch.MouseLeftButtonDown += (_, _) =>
+            {
+                if (_config == null || _onSave == null) return;
+                _config.AccentColor = hex;
+                ThemeManager.SetAccentColor(hex);
+                BuildAccentSwatches(); // refresh selection indicator
+                _onSave(_config);
+            };
+            AccentSwatches.Children.Add(swatch);
+        }
     }
 
     private void OnValueChanged(object sender, EventArgs e)
@@ -321,7 +370,7 @@ public partial class SettingsView : UserControl
         var accentBrush = (System.Windows.Media.SolidColorBrush)FindResource("AccentBrush");
         var dimBrush = (System.Windows.Media.SolidColorBrush)FindResource("TextDimBrush");
         var activeBg = new System.Windows.Media.SolidColorBrush(
-            System.Windows.Media.Color.FromArgb(0x30, 0x00, 0xE6, 0x76));
+            ThemeManager.WithAlpha(ThemeManager.Accent, 0x30));
         var normalBg = (System.Windows.Media.SolidColorBrush)FindResource("CardBgBrush");
         var accentBorder = (System.Windows.Media.SolidColorBrush)FindResource("AccentDimBrush");
         var normalBorder = (System.Windows.Media.SolidColorBrush)FindResource("CardBorderBrush");

@@ -29,7 +29,7 @@ public class FlyoutPicker : Border
     public event EventHandler? SelectionChanged;
 
     // Accent color for hover/selected states
-    public Color AccentColor { get; set; } = Color.FromRgb(0x00, 0xE6, 0x76);
+    public Color AccentColor { get; set; } = ThemeManager.Accent;
 
     public FlyoutPicker()
     {

@@ -30,11 +30,39 @@ public partial class MainWindow : FluentWindow
         _config = ConfigManager.Load();
         VersionLabel.Text = $"v{UpdateChecker.CurrentVersion}";
         UpdateProfileButton();
+        UpdateAccentDependentUI();
         NavigateTo(_mixerView, NavMixer);
         SetupTrafficLightHovers();
 
+        ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(UpdateAccentDependentUI);
+
         // Silent startup update check
         Loaded += async (_, _) => await CheckForUpdateOnStartup();
+    }
+
+    /// <summary>
+    /// Update UI elements that depend on the accent color but can't use DynamicResource
+    /// (DropShadowEffect Color, GradientStop, etc.).
+    /// </summary>
+    private void UpdateAccentDependentUI()
+    {
+        // Profile button border gradient
+        ProfileButton.BorderBrush = new LinearGradientBrush(
+            ThemeManager.WithAlpha(ThemeManager.Accent, 0x88),
+            ThemeManager.WithAlpha(ThemeManager.Accent, 0x44),
+            new Point(0, 0), new Point(1, 1));
+
+        // Profile button drop shadow
+        ProfileButton.Effect = new System.Windows.Media.Effects.DropShadowEffect
+        {
+            Color = ThemeManager.Accent,
+            BlurRadius = 16,
+            Opacity = 0.3,
+            ShadowDepth = 0
+        };
+
+        // Connection dot glow
+        ConnectionDotGlow.Color = ThemeManager.Accent;
     }
 
     /// <summary>

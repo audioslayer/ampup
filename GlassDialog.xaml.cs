@@ -16,6 +16,21 @@ public partial class GlassDialog : Window
     {
         InitializeComponent();
         MouseLeftButtonDown += (_, _) => DragMove();
+
+        // Apply accent color to border gradient, title, input elements
+        var accent = ThemeManager.Accent;
+        var borderBrush = new LinearGradientBrush(
+            ThemeManager.WithAlpha(accent, 0x55),
+            ThemeManager.WithAlpha(accent, 0x22),
+            new System.Windows.Point(0, 0), new System.Windows.Point(1, 1));
+        borderBrush.Freeze();
+        RootPanel.BorderBrush = borderBrush;
+        TitleText.Foreground = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x66));
+        InputBox.CaretBrush = new SolidColorBrush(accent);
+        var inputBorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x33));
+        inputBorderBrush.Freeze();
+        InputBorder.BorderBrush = inputBorderBrush;
+
         Loaded += (_, _) =>
         {
             var fadeIn = (Storyboard)FindResource("FadeIn");
@@ -26,10 +41,11 @@ public partial class GlassDialog : Window
     private static Style GlassButtonStyle(bool isPrimary, bool isDanger = false)
     {
         var style = new Style(typeof(Button));
-        var bg = isPrimary ? "#00E676" : isDanger ? "#FF4444" : "#1C1C1C";
+        var hoverAccent = $"#{ThemeManager.AccentGlow.R:X2}{ThemeManager.AccentGlow.G:X2}{ThemeManager.AccentGlow.B:X2}";
+        var bg = isPrimary ? ThemeManager.AccentHex : isDanger ? "#FF4444" : "#1C1C1C";
         var fg = isPrimary ? "#0F0F0F" : isDanger ? "#FFFFFF" : "#E8E8E8";
-        var hoverBg = isPrimary ? "#00FF88" : isDanger ? "#FF6666" : "#2A2A2A";
-        var borderColor = isPrimary ? "#00E676" : isDanger ? "#FF4444" : "#2A2A2A";
+        var hoverBg = isPrimary ? hoverAccent : isDanger ? "#FF6666" : "#2A2A2A";
+        var borderColor = isPrimary ? ThemeManager.AccentHex : isDanger ? "#FF4444" : "#2A2A2A";
 
         style.Setters.Add(new Setter(BackgroundProperty, new SolidColorBrush((Color)ColorConverter.ConvertFromString(bg))));
         style.Setters.Add(new Setter(ForegroundProperty, new SolidColorBrush((Color)ColorConverter.ConvertFromString(fg))));

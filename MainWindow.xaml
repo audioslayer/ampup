@@ -129,7 +129,7 @@
                         </Border.Effect>
                         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                             <ui:SymbolIcon x:Name="ProfileIcon" Symbol="Person24" FontSize="22"
-                                           Foreground="{StaticResource AccentBrush}"
+                                           Foreground="{DynamicResource AccentBrush}"
                                            HorizontalAlignment="Center" />
                             <TextBlock x:Name="ProfileLabel" Text="Default" FontSize="7"
                                        Foreground="{StaticResource TextDimBrush}"
@@ -140,7 +140,7 @@
 
                     <!-- Separator line under profile button -->
                     <Border Grid.Row="0" VerticalAlignment="Bottom" Height="1" Margin="16,0,16,0"
-                            Background="#2200E676" />
+                            Background="{DynamicResource AccentBorder22Brush}" />
 
                     <!-- Profile flyout popup -->
                     <Popup x:Name="ProfilePopup" PlacementTarget="{Binding ElementName=ProfileButton}"
@@ -165,10 +165,10 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <Border x:Name="NavImportBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
-                                        Background="{StaticResource AccentBrush}" VerticalAlignment="Center"
+                                        Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                         Visibility="Collapsed" Margin="-4,0,0,0" />
                                 <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                    <ui:SymbolIcon Symbol="ArrowUpload24" FontSize="20" Foreground="#00E676" HorizontalAlignment="Center" />
+                                    <ui:SymbolIcon Symbol="ArrowUpload24" FontSize="20" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" />
                                     <TextBlock Text="Import" FontSize="9" Foreground="{StaticResource TextDimBrush}"
                                                HorizontalAlignment="Center" Margin="0,3,0,0" />
                                 </StackPanel>
@@ -184,11 +184,11 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <Border x:Name="NavMixerBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
-                                            Background="{StaticResource AccentBrush}" VerticalAlignment="Center"
+                                            Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <ui:SymbolIcon Symbol="MusicNote124" FontSize="20" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Center" />
-                                        <TextBlock x:Name="NavMixerLabel" Text="Mixer" FontSize="9" Foreground="{StaticResource AccentBrush}"
+                                        <ui:SymbolIcon Symbol="MusicNote124" FontSize="20" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" />
+                                        <TextBlock x:Name="NavMixerLabel" Text="Mixer" FontSize="9" Foreground="{DynamicResource AccentBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
                                 </Grid>
@@ -200,7 +200,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <Border x:Name="NavButtonsBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
-                                            Background="{StaticResource AccentBrush}" VerticalAlignment="Center"
+                                            Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
                                         <ui:SymbolIcon Symbol="ControlButton24" FontSize="20" Foreground="White" HorizontalAlignment="Center" />
@@ -216,7 +216,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <Border x:Name="NavLightsBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
-                                            Background="{StaticResource AccentBrush}" VerticalAlignment="Center"
+                                            Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
                                         <ui:SymbolIcon Symbol="Color24" FontSize="20" Foreground="White" HorizontalAlignment="Center" />
@@ -232,7 +232,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <Border x:Name="NavHABar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
-                                            Background="{StaticResource AccentBrush}" VerticalAlignment="Center"
+                                            Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
                                         <ui:SymbolIcon Symbol="Home24" FontSize="20" Foreground="White" HorizontalAlignment="Center" />
@@ -248,7 +248,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <Border x:Name="NavSettingsBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
-                                            Background="{StaticResource AccentBrush}" VerticalAlignment="Center"
+                                            Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
                                         <ui:SymbolIcon Symbol="Settings24" FontSize="20" Foreground="White" HorizontalAlignment="Center" />
