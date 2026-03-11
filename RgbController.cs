@@ -56,6 +56,29 @@ public class RgbController : IDisposable
     private readonly float[] _fireWallCurrent = new float[15];
     private readonly float[] _fireWallTarget = new float[15];
 
+    // DualRacer state: two racers at different positions
+    private float _racerPos1;      // color1 racer position (left→right)
+    private float _racerPos2 = 14f;// color2 racer position (right→left)
+
+    // Lightning state
+    private int _lightningCenter = -1;   // current strike center LED
+    private int _lightningAge;           // ticks since strike started
+    private int _lightningNextCountdown; // ticks until next strike
+
+    // Fillup state
+    private int _fillupCount;       // number of LEDs lit (0-15)
+    private int _fillupDir = 1;     // 1=filling, -1=draining
+    private int _fillupTick;        // ticks since last change
+    private bool _fillupPaused;     // true when at full or empty
+
+    // Rainfall state: up to 6 active drops
+    private struct RaindropState { public float Pos; public float Speed; public bool Active; public int SplashAge; }
+    private readonly RaindropState[] _raindrops = new RaindropState[6];
+    private int _raindropNextTick;  // countdown to next spawn
+
+    // Police state: tracks the double-flash sub-pattern
+    private int _policeSubTick;     // position within flash cadence cycle
+
     // Random number generator for stochastic effects
     private static readonly Random _rng = new();
 
@@ -282,6 +305,8 @@ public class RgbController : IDisposable
         LightEffect.Scanner, LightEffect.MeteorRain, LightEffect.ColorWave, LightEffect.Segments,
         LightEffect.TheaterChase, LightEffect.RainbowScanner, LightEffect.SparkleRain,
         LightEffect.BreathingSync, LightEffect.FireWall,
+        LightEffect.DualRacer, LightEffect.Lightning, LightEffect.Fillup, LightEffect.Ocean,
+        LightEffect.Collision, LightEffect.DNA, LightEffect.Rainfall, LightEffect.PoliceLights,
     };
 
     /// <summary>
@@ -436,6 +461,14 @@ public class RgbController : IDisposable
             case LightEffect.SparkleRain:
             case LightEffect.BreathingSync:
             case LightEffect.FireWall:
+            case LightEffect.DualRacer:
+            case LightEffect.Lightning:
+            case LightEffect.Fillup:
+            case LightEffect.Ocean:
+            case LightEffect.Collision:
+            case LightEffect.DNA:
+            case LightEffect.Rainfall:
+            case LightEffect.PoliceLights:
                 // Per-knob fallback: just show color1
                 SetColor(k, light.R, light.G, light.B);
                 break;
@@ -956,6 +989,14 @@ public class RgbController : IDisposable
             case LightEffect.SparkleRain:   GlobalSparkleRain(gl); break;
             case LightEffect.BreathingSync: GlobalBreathingSync(gl); break;
             case LightEffect.FireWall:      GlobalFireWall(gl); break;
+            case LightEffect.DualRacer:     GlobalDualRacer(gl); break;
+            case LightEffect.Lightning:     GlobalLightning(gl); break;
+            case LightEffect.Fillup:        GlobalFillup(gl); break;
+            case LightEffect.Ocean:         GlobalOcean(gl); break;
+            case LightEffect.Collision:     GlobalCollision(gl); break;
+            case LightEffect.DNA:           GlobalDNA(gl); break;
+            case LightEffect.Rainfall:      GlobalRainfall(gl); break;
+            case LightEffect.PoliceLights:  GlobalPoliceLights(gl); break;
         }
     }
 
@@ -1216,6 +1257,441 @@ public class RgbController : IDisposable
             int g = Math.Clamp((int)(gl.G * bright + (gl.G2 - gl.G) * ember * 0.3f), 0, 255);
             int b = Math.Clamp((int)(gl.B * bright + (gl.B2 - gl.B) * ember * 0.3f), 0, 255);
             SetGlobalLed(i, r, g, b);
+        }
+    }
+
+    /// <summary>
+    /// Two dots racing in opposite directions with 3-LED fading tails. Colors blend additively on overlap.
+    /// Color1 = left→right racer, Color2 = right→left racer.
+    /// </summary>
+    private void GlobalDualRacer(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float step = 0.08f + (speed / 100f) * 0.42f; // 0.08 to 0.5 LEDs/tick
+
+        _racerPos1 = (_racerPos1 + step + 15f) % 15f;
+        _racerPos2 = (_racerPos2 - step + 15f) % 15f;
+
+        for (int i = 0; i < 15; i++)
+        {
+            // Distance from each racer (wrap-aware)
+            float d1 = Math.Min(Math.Abs(i - _racerPos1), 15f - Math.Abs(i - _racerPos1));
+            float d2 = Math.Min(Math.Abs(i - _racerPos2), 15f - Math.Abs(i - _racerPos2));
+
+            float b1 = Math.Max(0f, 1f - d1 / 3f);
+            float b2 = Math.Max(0f, 1f - d2 / 3f);
+            b1 *= b1;
+            b2 *= b2;
+
+            // Additive blend — overlap creates brighter mix
+            int r = Math.Clamp((int)(gl.R * b1 + gl.R2 * b2), 0, 255);
+            int g = Math.Clamp((int)(gl.G * b1 + gl.G2 * b2), 0, 255);
+            int b = Math.Clamp((int)(gl.B * b1 + gl.B2 * b2), 0, 255);
+            SetGlobalLed(i, r, g, b);
+        }
+    }
+
+    /// <summary>
+    /// Random dramatic lightning strikes. A bright flash starts at a random LED and
+    /// cascades outward in both directions fading rapidly. Dim color1 glow between strikes.
+    /// </summary>
+    private void GlobalLightning(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        // Strike frequency: speed=1 → every ~60 ticks, speed=100 → every ~8 ticks
+        int strikeInterval = Math.Max(8, 60 - (speed * 52 / 100));
+
+        // Dim ambient base
+        int baseR = (int)(gl.R * 0.05f);
+        int baseG = (int)(gl.G * 0.05f);
+        int baseB = (int)(gl.B * 0.05f);
+        for (int i = 0; i < 15; i++)
+            SetGlobalLed(i, baseR, baseG, baseB);
+
+        // Count down to next strike
+        if (_lightningCenter < 0)
+        {
+            _lightningNextCountdown--;
+            if (_lightningNextCountdown <= 0)
+            {
+                _lightningCenter = _rng.Next(15);
+                _lightningAge = 0;
+                _lightningNextCountdown = strikeInterval + _rng.Next(strikeInterval / 2);
+            }
+            return;
+        }
+
+        // Render active strike — 8 tick lifetime with fast cascade decay
+        const int strikeDuration = 8;
+        if (_lightningAge >= strikeDuration)
+        {
+            _lightningCenter = -1;
+            _lightningNextCountdown = strikeInterval + _rng.Next(strikeInterval / 2);
+            return;
+        }
+
+        // Cascade radius grows by 1 per tick, brightness decays
+        float ageT = _lightningAge / (float)strikeDuration;
+        float peakBright = 1f - ageT;
+        int cascadeRadius = _lightningAge + 1;
+
+        for (int i = 0; i < 15; i++)
+        {
+            int dist = Math.Abs(i - _lightningCenter);
+            if (dist <= cascadeRadius)
+            {
+                float ledBright = peakBright * (1f - dist / (float)(cascadeRadius + 1));
+                ledBright *= ledBright;
+                // White-ish flash with color tint
+                int r = Math.Clamp((int)(255 * ledBright * 0.6f + gl.R * ledBright * 0.4f), 0, 255);
+                int g = Math.Clamp((int)(255 * ledBright * 0.6f + gl.G * ledBright * 0.4f), 0, 255);
+                int b = Math.Clamp((int)(255 * ledBright * 0.6f + gl.B * ledBright * 0.4f), 0, 255);
+                SetGlobalLed(i, r, g, b);
+            }
+        }
+
+        _lightningAge++;
+    }
+
+    /// <summary>
+    /// LEDs fill left-to-right one by one (color1), pause when full, drain right-to-left, pause, repeat.
+    /// Leading edge glows brighter. Speed controls fill/drain rate.
+    /// </summary>
+    private void GlobalFillup(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        int ticksPerStep = Math.Max(1, 20 - (speed * 18 / 100)); // 20 ticks (slow) to 2 ticks (fast)
+        int pauseTicks = ticksPerStep * 4; // pause at endpoints
+
+        _fillupTick++;
+
+        if (_fillupPaused)
+        {
+            if (_fillupTick >= pauseTicks)
+            {
+                _fillupTick = 0;
+                _fillupPaused = false;
+            }
+        }
+        else if (_fillupTick >= ticksPerStep)
+        {
+            _fillupTick = 0;
+            _fillupCount += _fillupDir;
+
+            if (_fillupCount >= 15)
+            {
+                _fillupCount = 15;
+                _fillupDir = -1;
+                _fillupPaused = true;
+            }
+            else if (_fillupCount <= 0)
+            {
+                _fillupCount = 0;
+                _fillupDir = 1;
+                _fillupPaused = true;
+            }
+        }
+
+        for (int i = 0; i < 15; i++)
+        {
+            if (i < _fillupCount)
+            {
+                // Leading edge gets bright flash
+                bool isLeading = (_fillupDir == 1 && i == _fillupCount - 1) ||
+                                 (_fillupDir == -1 && i == _fillupCount);
+                float bright = isLeading ? 1.5f : 1.0f;
+                SetGlobalLed(i,
+                    Math.Clamp((int)(gl.R * bright), 0, 255),
+                    Math.Clamp((int)(gl.G * bright), 0, 255),
+                    Math.Clamp((int)(gl.B * bright), 0, 255));
+            }
+            else
+            {
+                SetGlobalLed(i, 0, 0, 0);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Rolling ocean waves via overlapping sine functions. Color1 = water, Color2 = whitecaps at peaks.
+    /// </summary>
+    private void GlobalOcean(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.02f + speed / 100f * 0.1f);
+
+        for (int i = 0; i < 15; i++)
+        {
+            float x = i / 14f; // 0..1 across the strip
+            // Three overlapping waves at different frequencies and speeds
+            float wave = 0.5f
+                + 0.35f * MathF.Sin(x * MathF.PI * 2f - t * 1.7f)
+                + 0.25f * MathF.Sin(x * MathF.PI * 3.5f - t * 2.3f + 1.2f)
+                + 0.15f * MathF.Sin(x * MathF.PI * 5.5f - t * 3.1f + 0.7f);
+
+            wave = Math.Clamp(wave, 0f, 1f);
+
+            // Whitecaps: blend in color2 at high wave values
+            float capBlend = Math.Max(0f, (wave - 0.7f) / 0.3f);
+            float waterBright = 0.2f + wave * 0.8f;
+
+            int r = Math.Clamp((int)(gl.R * waterBright * (1f - capBlend) + gl.R2 * capBlend), 0, 255);
+            int g = Math.Clamp((int)(gl.G * waterBright * (1f - capBlend) + gl.G2 * capBlend), 0, 255);
+            int b = Math.Clamp((int)(gl.B * waterBright * (1f - capBlend) + gl.B2 * capBlend), 0, 255);
+            SetGlobalLed(i, r, g, b);
+        }
+    }
+
+    /// <summary>
+    /// Two pulses start from opposite ends (LED 0 and LED 14), race toward the center,
+    /// collide at LED 7 with a white flash that expands, then fade. Repeat.
+    /// Color1 = left pulse, Color2 = right pulse. Collision = white.
+    /// </summary>
+    private void GlobalCollision(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        // Cycle: approach (40 ticks) + collision (8 ticks) + fade (12 ticks) = 60 ticks, scaled by speed
+        int cycleTicks = Math.Max(20, 80 - (speed * 60 / 100));
+        int approachTicks = cycleTicks * 2 / 3;
+        int collisionTicks = 8;
+        int fadeTicks = cycleTicks - approachTicks - collisionTicks;
+
+        int phase = _animTick % (approachTicks + collisionTicks + fadeTicks);
+
+        // Clear to off
+        for (int i = 0; i < 15; i++)
+            SetGlobalLed(i, 0, 0, 0);
+
+        if (phase < approachTicks)
+        {
+            // Approach: pulses move toward center
+            float t = phase / (float)approachTicks; // 0..1
+            float pos1 = t * 7f;                    // 0 → 7
+            float pos2 = 14f - t * 7f;              // 14 → 7
+
+            for (int i = 0; i < 15; i++)
+            {
+                float d1 = Math.Abs(i - pos1);
+                float d2 = Math.Abs(i - pos2);
+                float b1 = Math.Max(0f, 1f - d1 / 2.5f); b1 *= b1;
+                float b2 = Math.Max(0f, 1f - d2 / 2.5f); b2 *= b2;
+                int r = Math.Clamp((int)(gl.R * b1 + gl.R2 * b2), 0, 255);
+                int g = Math.Clamp((int)(gl.G * b1 + gl.G2 * b2), 0, 255);
+                int b = Math.Clamp((int)(gl.B * b1 + gl.B2 * b2), 0, 255);
+                SetGlobalLed(i, r, g, b);
+            }
+        }
+        else if (phase < approachTicks + collisionTicks)
+        {
+            // Collision: white flash expands outward from center
+            int colAge = phase - approachTicks;
+            float bright = 1f - colAge / (float)collisionTicks;
+            int radius = colAge + 1;
+
+            for (int i = 0; i < 15; i++)
+            {
+                int dist = Math.Abs(i - 7);
+                if (dist <= radius)
+                {
+                    float ledBright = bright * (1f - dist / (float)(radius + 1));
+                    ledBright = Math.Max(0f, ledBright);
+                    int r = Math.Clamp((int)(255 * ledBright), 0, 255);
+                    SetGlobalLed(i, r, r, r); // white
+                }
+            }
+        }
+        else
+        {
+            // Fade: everything dims to off
+            int fadeAge = phase - approachTicks - collisionTicks;
+            float bright = 1f - fadeAge / (float)Math.Max(fadeTicks, 1);
+            bright = Math.Max(0f, bright) * 0.3f; // dim residual glow
+            for (int i = 0; i < 15; i++)
+            {
+                SetGlobalLed(i,
+                    (int)(gl.R * bright),
+                    (int)(gl.G * bright),
+                    (int)(gl.B * bright));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Two interleaving sine waves traveling in opposite directions — double helix.
+    /// Color1 = strand 1, Color2 = strand 2. Overlap blends the colors.
+    /// </summary>
+    private void GlobalDNA(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.04f + speed / 100f * 0.2f);
+
+        for (int i = 0; i < 15; i++)
+        {
+            float x = i / 14f * MathF.PI * 4f; // ~2 full cycles across strip
+
+            // Strand 1 moves forward, strand 2 moves backward with 180° phase offset
+            float s1 = (MathF.Sin(x - t) + 1f) / 2f;
+            float s2 = (MathF.Sin(x + t + MathF.PI) + 1f) / 2f;
+
+            // Sharpen to make distinct bright bands
+            s1 = s1 * s1;
+            s2 = s2 * s2;
+
+            // Blend: each strand contributes its color proportional to brightness
+            float total = s1 + s2 + 0.001f;
+            int r = Math.Clamp((int)(gl.R * s1 + gl.R2 * s2), 0, 255);
+            int g = Math.Clamp((int)(gl.G * s1 + gl.G2 * s2), 0, 255);
+            int b = Math.Clamp((int)(gl.B * s1 + gl.B2 * s2), 0, 255);
+
+            // Ensure minimum glow even in dark spots
+            float minBright = 0.04f;
+            int minR = (int)(gl.R * minBright);
+            int minG = (int)(gl.G * minBright);
+            int minB = (int)(gl.B * minBright);
+            SetGlobalLed(i, Math.Max(r, minR), Math.Max(g, minG), Math.Max(b, minB));
+        }
+    }
+
+    /// <summary>
+    /// Drops streak from LED 14 → 0 with short fading tails. Splash at LED 0 on impact.
+    /// Color1 = drop, Color2 = splash. Multiple drops at varying speeds for depth.
+    /// </summary>
+    private void GlobalRainfall(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float baseSpeed = 0.2f + (speed / 100f) * 0.6f; // LEDs/tick
+        int spawnInterval = Math.Max(3, 20 - (speed * 16 / 100));
+
+        // Dim base
+        int baseR = (int)(gl.R * 0.04f);
+        int baseG = (int)(gl.G * 0.04f);
+        int baseB = (int)(gl.B * 0.04f);
+        for (int i = 0; i < 15; i++)
+            SetGlobalLed(i, baseR, baseG, baseB);
+
+        // Try to spawn new drop
+        _raindropNextTick--;
+        if (_raindropNextTick <= 0)
+        {
+            _raindropNextTick = spawnInterval + _rng.Next(spawnInterval);
+            for (int s = 0; s < _raindrops.Length; s++)
+            {
+                if (!_raindrops[s].Active)
+                {
+                    _raindrops[s].Active = true;
+                    _raindrops[s].Pos = 14f;
+                    _raindrops[s].Speed = baseSpeed * (0.6f + (float)_rng.NextDouble() * 0.8f);
+                    _raindrops[s].SplashAge = -1;
+                    break;
+                }
+            }
+        }
+
+        // Update and render drops
+        for (int s = 0; s < _raindrops.Length; s++)
+        {
+            if (!_raindrops[s].Active) continue;
+
+            if (_raindrops[s].SplashAge >= 0)
+            {
+                // Render splash at LED 0
+                int age = _raindrops[s].SplashAge;
+                float splashBright = Math.Max(0f, 1f - age / 5f);
+                int splashRadius = Math.Min(age + 1, 3);
+                for (int i = 0; i < splashRadius && i < 15; i++)
+                {
+                    int sr = Math.Clamp((int)(gl.R2 * splashBright), 0, 255);
+                    int sg = Math.Clamp((int)(gl.G2 * splashBright), 0, 255);
+                    int sb = Math.Clamp((int)(gl.B2 * splashBright), 0, 255);
+                    SetGlobalLed(i, sr, sg, sb);
+                }
+                _raindrops[s].SplashAge++;
+                if (_raindrops[s].SplashAge > 6)
+                    _raindrops[s].Active = false;
+                continue;
+            }
+
+            // Move drop
+            _raindrops[s].Pos -= _raindrops[s].Speed;
+
+            if (_raindrops[s].Pos < 0f)
+            {
+                _raindrops[s].Pos = 0f;
+                _raindrops[s].SplashAge = 0;
+                continue;
+            }
+
+            // Draw drop with 2-LED tail (head is brightest)
+            for (int tail = 0; tail < 3; tail++)
+            {
+                int ledIdx = (int)(_raindrops[s].Pos) + tail;
+                if (ledIdx < 0 || ledIdx >= 15) continue;
+                float bright = tail == 0 ? 1f : tail == 1 ? 0.35f : 0.08f;
+                SetGlobalLed(ledIdx,
+                    Math.Clamp((int)(gl.R * bright), 0, 255),
+                    Math.Clamp((int)(gl.G * bright), 0, 255),
+                    Math.Clamp((int)(gl.B * bright), 0, 255));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Police/emergency double-flash: LEDs 0-7 flash color1, LEDs 8-14 flash color2, then swap.
+    /// Double-flash cadence: flash-flash-pause.
+    /// </summary>
+    private void GlobalPoliceLights(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        // Full double-flash cycle: 2 flashes + pause = ~10 ticks at speed 50
+        int flashLen = Math.Max(1, 5 - (speed * 4 / 100));  // on ticks per flash
+        int gapLen = flashLen;                                // off between double flashes
+        int pauseLen = flashLen * 3;                         // pause before swap
+        int halfCycle = flashLen + gapLen + flashLen + pauseLen; // one color's turn
+        int fullCycle = halfCycle * 2;                        // total cycle
+
+        _policeSubTick = (_policeSubTick + 1) % fullCycle;
+
+        bool leftOn = false;
+        bool rightOn = false;
+
+        int posInHalf = _policeSubTick % halfCycle;
+        bool firstHalf = _policeSubTick < halfCycle;
+
+        // In each half-cycle: flash, gap, flash, pause
+        if (posInHalf < flashLen)
+            leftOn = true;
+        else if (posInHalf < flashLen + gapLen)
+            leftOn = false;
+        else if (posInHalf < flashLen + gapLen + flashLen)
+            leftOn = true;
+        else
+            leftOn = false;
+
+        // Second half: opposite side flashes
+        bool secondHalf = !firstHalf;
+        int posInSecond = _policeSubTick - halfCycle;
+        if (secondHalf)
+        {
+            if (posInSecond < flashLen)
+                rightOn = true;
+            else if (posInSecond < flashLen + gapLen)
+                rightOn = false;
+            else if (posInSecond < flashLen + gapLen + flashLen)
+                rightOn = true;
+            else
+                rightOn = false;
+        }
+
+        // Render: LEDs 0-7 = color1, LEDs 8-14 = color2
+        for (int i = 0; i < 8; i++)
+        {
+            bool on = firstHalf ? leftOn : false;
+            SetGlobalLed(i, on ? gl.R : 0, on ? gl.G : 0, on ? gl.B : 0);
+        }
+        for (int i = 8; i < 15; i++)
+        {
+            bool on = secondHalf ? rightOn : false;
+            SetGlobalLed(i, on ? gl.R2 : 0, on ? gl.G2 : 0, on ? gl.B2 : 0);
         }
     }
 

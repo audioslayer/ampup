@@ -118,6 +118,16 @@ namespace AmpUp.Controls
             { LightEffect.SparkleRain,   Color.FromRgb(0xFF, 0xF1, 0x76) }, // bright yellow
             { LightEffect.BreathingSync, Color.FromRgb(0x80, 0xCB, 0xC4) }, // teal
             { LightEffect.FireWall,      Color.FromRgb(0xFF, 0x57, 0x22) }, // deep orange
+
+            // New global-spanning effects
+            { LightEffect.DualRacer,     Color.FromRgb(0x42, 0xA5, 0xF5) }, // blue
+            { LightEffect.Lightning,     Color.FromRgb(0xFF, 0xF1, 0x76) }, // bright yellow
+            { LightEffect.Fillup,        Color.FromRgb(0x66, 0xBB, 0x6A) }, // green
+            { LightEffect.Ocean,         Color.FromRgb(0x29, 0xB6, 0xF6) }, // ocean blue
+            { LightEffect.Collision,     Color.FromRgb(0xFF, 0x8A, 0x3D) }, // orange
+            { LightEffect.DNA,           Color.FromRgb(0xBA, 0x68, 0xC8) }, // purple
+            { LightEffect.Rainfall,      Color.FromRgb(0x4D, 0xD0, 0xE1) }, // cyan
+            { LightEffect.PoliceLights,  Color.FromRgb(0xEF, 0x53, 0x50) }, // red
         };
 
         // ── Constructor ──────────────────────────────────────────────────
@@ -170,15 +180,23 @@ namespace AmpUp.Controls
             {
                 AddCategory(mainPanel, "GLOBAL SPAN", new[]
                 {
-                    (LightEffect.Scanner,        "▬",  "Scanner", false),
-                    (LightEffect.MeteorRain,     "☄",  "Meteor",  false),
-                    (LightEffect.ColorWave,      "≋",  "Wave",    false),
-                    (LightEffect.Segments,       "▮▯", "Bands",   false),
-                    (LightEffect.TheaterChase,   "⋯",  "Chase",   false),
-                    (LightEffect.RainbowScanner, "⟿",  "R.Scan",  false),
-                    (LightEffect.SparkleRain,    "✧",  "Sparkle", false),
-                    (LightEffect.BreathingSync,  "≈",  "Breath",  false),
-                    (LightEffect.FireWall,       "🔥", "Inferno", true),
+                    (LightEffect.Scanner,        "▬",   "Scanner",  false),
+                    (LightEffect.MeteorRain,     "☄",   "Meteor",   false),
+                    (LightEffect.ColorWave,      "≋",   "Wave",     false),
+                    (LightEffect.Segments,       "▮▯",  "Bands",    false),
+                    (LightEffect.TheaterChase,   "⋯",   "Chase",    false),
+                    (LightEffect.RainbowScanner, "⟿",   "R.Scan",   false),
+                    (LightEffect.SparkleRain,    "✧",   "Sparkle",  false),
+                    (LightEffect.BreathingSync,  "≈",   "Breath",   false),
+                    (LightEffect.FireWall,       "🔥",  "Inferno",  true),
+                    (LightEffect.DualRacer,      "⇌",   "Racers",   false),
+                    (LightEffect.Lightning,      "⚡",  "Bolt",     false),
+                    (LightEffect.Fillup,         "▁▃▅▇","Fill Up",  false),
+                    (LightEffect.Ocean,          "🌊",  "Ocean",    true),
+                    (LightEffect.Collision,      "💥",  "Collide",  true),
+                    (LightEffect.DNA,            "🧬",  "Helix",    true),
+                    (LightEffect.Rainfall,       "⋮",   "Rain",     false),
+                    (LightEffect.PoliceLights,   "🚨",  "Police",   true),
                 });
             }
         }

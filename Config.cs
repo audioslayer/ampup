@@ -169,6 +169,16 @@ public enum LightEffect
     SparkleRain,      // random LEDs flash and fade across all 15
     BreathingSync,    // sine wave of brightness travels across all 15 LEDs
     FireWall,         // continuous fire effect across all 15 LEDs as one flame
+
+    // New global-spanning effects (all 15 LEDs as one dramatic strip)
+    DualRacer,        // two dots racing opposite directions with fading tails, colors blend on overlap
+    Lightning,        // random dramatic lightning strikes cascade outward from a random LED
+    Fillup,           // LEDs fill left-to-right one by one, pause, drain right-to-left, repeat
+    Ocean,            // overlapping sine waves simulate ocean with whitecap peaks
+    Collision,        // two pulses race from opposite ends, collide at center with white flash
+    DNA,              // two interleaving sine waves travel opposite directions (double helix)
+    Rainfall,         // drops streak from right to left with splash on landing
+    PoliceLights,     // emergency double-flash pattern alternating color1/color2 halves
 }
 
 public enum ReactiveMode
