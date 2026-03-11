@@ -14,6 +14,10 @@ public class SerialReader : IDisposable
     private CancellationTokenSource _cts = new();
     private bool _running;
 
+    // Jitter deadzone: only fire OnKnob if value changed by >= this many ADC counts
+    private const int JitterDeadzone = 3;
+    private readonly int[] _lastFiredValues = { -1, -1, -1, -1, -1 };
+
     public event Action<KnobEvent>? OnKnob;
     public event Action<ButtonEvent>? OnButton;
     public event Action<bool>? OnConnectionChanged;
@@ -253,16 +257,25 @@ public class SerialReader : IDisposable
                     int val = (frame[3] << 8) | frame[4];
                     if (val > 1000) val = 1023;
                     if (idx >= 0 && idx < 5)
-                        OnKnob?.Invoke(new KnobEvent { Idx = idx, Value = val });
+                    {
+                        // Deadzone: suppress jitter of ±1-2 ADC counts from potentiometer noise
+                        if (_lastFiredValues[idx] == -1 || Math.Abs(val - _lastFiredValues[idx]) >= JitterDeadzone)
+                        {
+                            _lastFiredValues[idx] = val;
+                            OnKnob?.Invoke(new KnobEvent { Idx = idx, Value = val });
+                        }
+                    }
                 }
                 break;
 
             case 0x04:
                 // Knob batch: fe 04 [5x hi+lo] ff — sent on connect
+                // Always fire all values to restore initial state; update deadzone baseline
                 for (int i = 0; i < 5; i++)
                 {
                     int val = (frame[2 + i * 2] << 8) | frame[3 + i * 2];
                     if (val > 1000) val = 1023;
+                    _lastFiredValues[i] = val;
                     OnKnob?.Invoke(new KnobEvent { Idx = i, Value = val });
                 }
                 break;

@@ -101,6 +101,14 @@ public class ButtonConfig
     public int DoublePressLinkedKnobIdx { get; set; } = -1;
 }
 
+public class DeviceColorEntry
+{
+    public string DeviceId { get; set; } = "";
+    public int R { get; set; } = 0;
+    public int G { get; set; } = 150;
+    public int B { get; set; } = 255;
+}
+
 public class LightConfig
 {
     public int Idx { get; set; }
@@ -116,6 +124,7 @@ public class LightConfig
     [JsonConverter(typeof(StringEnumConverter))]
     public ReactiveMode ReactiveMode { get; set; } = ReactiveMode.SpectrumBands;
     public string ProgramName { get; set; } = ""; // for ProgramMute effect
+    public List<DeviceColorEntry> DeviceColors { get; set; } = new(); // for DeviceSelect effect (up to 3)
 
 }
 
@@ -164,6 +173,7 @@ public enum LightEffect
 
     // Reactive/Status effects
     ProgramMute,      // color1 = not muted, color2 = muted (specific program audio session)
+    DeviceSelect,     // shows per-device color based on which output device is currently default
 
     // Global-spanning effects (use all 15 LEDs as one strip)
     Scanner,          // Cylon/KITT scanner sweeps back and forth across all 15 LEDs

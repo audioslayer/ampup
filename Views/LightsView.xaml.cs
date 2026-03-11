@@ -76,12 +76,23 @@ public partial class LightsView : UserControl
     private StackPanel? _globalSettingsPanel;
     private StyledSlider? _brightnessSlider;
 
+    // DeviceSelect per-knob controls (3 rows each)
+    private readonly StackPanel[] _deviceSelectPanels = new StackPanel[5];
+    private readonly ListPicker[][] _dsDevicePickers = new ListPicker[5][];
+    private readonly Border[][] _dsColorBtns = new Border[5][];
+    private readonly Color[][] _dsColors = new Color[5][];
+
+    // Audio devices cache (populated from AudioMixer)
+    private List<(string Id, string Name, bool IsOutput)> _audioDevices = new();
+
     private static readonly LightEffect[] EffectsNeedingColor2 =
         { LightEffect.ColorBlend, LightEffect.Blink, LightEffect.Pulse, LightEffect.MicStatus, LightEffect.DeviceMute, LightEffect.AudioReactive, LightEffect.GradientFill, LightEffect.Fire, LightEffect.PingPong, LightEffect.Candle, LightEffect.Scanner, LightEffect.ColorWave, LightEffect.Segments, LightEffect.PositionBlend, LightEffect.ProgramMute };
     private static readonly LightEffect[] EffectsNeedingSpeed =
         { LightEffect.Blink, LightEffect.Pulse, LightEffect.RainbowWave, LightEffect.RainbowCycle, LightEffect.AudioReactive, LightEffect.Breathing, LightEffect.Comet, LightEffect.Sparkle, LightEffect.PingPong, LightEffect.Stack, LightEffect.Wave, LightEffect.Candle, LightEffect.Scanner, LightEffect.MeteorRain, LightEffect.ColorWave, LightEffect.Segments, LightEffect.Wheel, LightEffect.RainbowWheel };
     private static readonly LightEffect[] EffectsNeedingProgramName =
         { LightEffect.ProgramMute };
+    private static readonly LightEffect[] EffectsNeedingDeviceSelect =
+        { LightEffect.DeviceSelect };
 
     public LightsView()
     {
@@ -115,11 +126,14 @@ public partial class LightsView : UserControl
         BrightnessSliderHost.Children.Add(_brightnessSlider);
     }
 
-    public void LoadConfig(AppConfig config, Action<AppConfig> onSave)
+    public void LoadConfig(AppConfig config, Action<AppConfig> onSave, AudioMixer? mixer = null)
     {
         _loading = true;
         _config = config;
         _onSave = onSave;
+
+        if (mixer != null)
+            _audioDevices = mixer.GetAudioDevices();
 
         // Populate global lighting card
         var gl = config.GlobalLight;
@@ -168,6 +182,10 @@ public partial class LightsView : UserControl
 
             if (_programNameBoxes[i] != null)
                 _programNameBoxes[i].Text = light.ProgramName ?? "";
+
+            // Populate DeviceSelect device pickers
+            PopulateDeviceSelectPickers(i);
+            LoadDeviceSelectColors(i, light);
 
             UpdateVisibility(i, light.Effect);
         }
@@ -499,6 +517,61 @@ public partial class LightsView : UserControl
             programNameContainer.Visibility = Visibility.Collapsed;
             _programNamePanels[idx] = programNameContainer;
             panel.Children.Add(programNameContainer);
+
+            // DeviceSelect rows (hidden unless DeviceSelect effect)
+            var deviceSelectContainer = new StackPanel { Visibility = Visibility.Collapsed };
+            deviceSelectContainer.Children.Add(MakeLabel("DEVICE COLORS"));
+
+            _dsDevicePickers[idx] = new ListPicker[3];
+            _dsColorBtns[idx] = new Border[3];
+            _dsColors[idx] = new Color[3];
+            for (int row = 0; row < 3; row++)
+            {
+                int rowCapture = row;
+
+                // Initialize default colors per row (blue, green, orange)
+                _dsColors[idx][row] = row switch
+                {
+                    0 => Color.FromRgb(0x00, 0x96, 0xFF),
+                    1 => Color.FromRgb(0x00, 0xE6, 0x76),
+                    _ => Color.FromRgb(0xFF, 0x87, 0x22),
+                };
+
+                var rowPanel = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+                rowPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                rowPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var devicePicker = new ListPicker
+                {
+                    Margin = new Thickness(0, 0, 4, 0),
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                };
+                devicePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+                _dsDevicePickers[idx][row] = devicePicker;
+                Grid.SetColumn(devicePicker, 0);
+                rowPanel.Children.Add(devicePicker);
+
+                var colorBtn = new Border
+                {
+                    Width = 28,
+                    Height = 28,
+                    CornerRadius = new CornerRadius(5),
+                    Background = new SolidColorBrush(_dsColors[idx][row]),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+                    BorderThickness = new Thickness(1),
+                    Cursor = Cursors.Hand,
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                colorBtn.MouseLeftButtonDown += (_, _) => OnPickDeviceSelectColor(idx, rowCapture);
+                _dsColorBtns[idx][row] = colorBtn;
+                Grid.SetColumn(colorBtn, 1);
+                rowPanel.Children.Add(colorBtn);
+
+                deviceSelectContainer.Children.Add(rowPanel);
+            }
+
+            _deviceSelectPanels[idx] = deviceSelectContainer;
+            panel.Children.Add(deviceSelectContainer);
         }
     }
 
@@ -580,17 +653,78 @@ public partial class LightsView : UserControl
         }
     }
 
+    private void PopulateDeviceSelectPickers(int idx)
+    {
+        if (_dsDevicePickers[idx] == null) return;
+        for (int row = 0; row < 3; row++)
+        {
+            var picker = _dsDevicePickers[idx][row];
+            picker.ClearItems();
+            picker.AddItem("(none)", "");
+            foreach (var (id, name, isOutput) in _audioDevices)
+            {
+                if (isOutput)
+                    picker.AddItem(name, id);
+            }
+        }
+    }
+
+    private void LoadDeviceSelectColors(int idx, LightConfig light)
+    {
+        if (_dsDevicePickers[idx] == null || light.DeviceColors == null) return;
+        for (int row = 0; row < 3 && row < light.DeviceColors.Count; row++)
+        {
+            var entry = light.DeviceColors[row];
+            // Select device in picker
+            for (int p = 0; p < _dsDevicePickers[idx][row].ItemCount; p++)
+            {
+                if (_dsDevicePickers[idx][row].GetTagAt(p) as string == entry.DeviceId)
+                {
+                    _dsDevicePickers[idx][row].SelectedIndex = p;
+                    break;
+                }
+            }
+            // Set color
+            _dsColors[idx][row] = Color.FromRgb((byte)Math.Clamp(entry.R, 0, 255),
+                                                 (byte)Math.Clamp(entry.G, 0, 255),
+                                                 (byte)Math.Clamp(entry.B, 0, 255));
+            if (_dsColorBtns[idx][row] != null)
+                _dsColorBtns[idx][row].Background = new SolidColorBrush(_dsColors[idx][row]);
+        }
+    }
+
+    private void OnPickDeviceSelectColor(int idx, int row)
+    {
+        var current = _dsColors[idx][row];
+        var dialog = new ColorPickerDialog(current) { Owner = Window.GetWindow(this) };
+        if (dialog.ShowDialog() == true)
+        {
+            _dsColors[idx][row] = dialog.SelectedColor;
+            if (_dsColorBtns[idx][row] != null)
+                _dsColorBtns[idx][row].Background = new SolidColorBrush(dialog.SelectedColor);
+            QueueSave();
+        }
+    }
+
     private void UpdateVisibility(int idx, LightEffect effect)
     {
         bool needsColor2 = EffectsNeedingColor2.Contains(effect);
         bool needsSpeed = EffectsNeedingSpeed.Contains(effect);
         bool isReactive = effect == LightEffect.AudioReactive;
         bool needsProgramName = EffectsNeedingProgramName.Contains(effect);
+        bool needsDeviceSelect = effect == LightEffect.DeviceSelect;
 
         _color2Panels[idx].Visibility = needsColor2 ? Visibility.Visible : Visibility.Collapsed;
         _speedPanels[idx].Visibility = needsSpeed ? Visibility.Visible : Visibility.Collapsed;
         _reactiveModePanels[idx].Visibility = isReactive ? Visibility.Visible : Visibility.Collapsed;
         _programNamePanels[idx].Visibility = needsProgramName ? Visibility.Visible : Visibility.Collapsed;
+
+        if (_deviceSelectPanels[idx] != null)
+        {
+            _deviceSelectPanels[idx].Visibility = needsDeviceSelect ? Visibility.Visible : Visibility.Collapsed;
+            if (needsDeviceSelect)
+                PopulateDeviceSelectPickers(idx);
+        }
     }
 
     private void QueueSave()
@@ -641,6 +775,26 @@ public partial class LightsView : UserControl
 
             if (_programNameBoxes[i] != null)
                 light.ProgramName = _programNameBoxes[i].Text.Trim();
+
+            // Save DeviceSelect mappings
+            if (_dsDevicePickers[i] != null)
+            {
+                light.DeviceColors = new List<DeviceColorEntry>();
+                for (int row = 0; row < 3; row++)
+                {
+                    var deviceId = _dsDevicePickers[i][row].SelectedTag as string ?? "";
+                    if (!string.IsNullOrEmpty(deviceId))
+                    {
+                        light.DeviceColors.Add(new DeviceColorEntry
+                        {
+                            DeviceId = deviceId,
+                            R = _dsColors[i][row].R,
+                            G = _dsColors[i][row].G,
+                            B = _dsColors[i][row].B,
+                        });
+                    }
+                }
+            }
         }
 
         if (_brightnessSlider != null)

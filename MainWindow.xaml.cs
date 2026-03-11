@@ -85,7 +85,7 @@ public partial class MainWindow : FluentWindow
         };
 
         _settingsView.LoadConfig(_config, saveHandler);
-        _lightsView.LoadConfig(_config, saveHandler);
+        _lightsView.LoadConfig(_config, saveHandler, _mixer);
         _buttonsView.LoadConfig(_config, _mixer!, saveHandler);
         _mixerView.LoadConfig(_config, _mixer!, saveHandler);
         _haView.LoadConfig(_config, saveHandler);
@@ -100,7 +100,7 @@ public partial class MainWindow : FluentWindow
         {
             _config = cfg;
             _onConfigChanged?.Invoke(cfg);
-        });
+        }, _mixer);
         NavigateTo(_lightsView, NavLights);
     }
     private void NavHA_Click(object sender, RoutedEventArgs e)
@@ -809,6 +809,14 @@ public partial class MainWindow : FluentWindow
     public void RefreshProfilePicker()
     {
         UpdateProfileButton();
+    }
+
+    /// <summary>
+    /// Forward an immediate knob position update to the MixerView (bypasses the 50ms poll).
+    /// </summary>
+    public void UpdateKnobPosition(int idx, float position)
+    {
+        _mixerView.UpdateKnobPosition(idx, position);
     }
 
     public void SetConnectionStatus(bool connected)

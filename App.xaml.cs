@@ -525,6 +525,11 @@ public partial class App : Application
             }
         }
         _rgb.SetKnobPosition(e.Idx, e.Value / 1023f);
+
+        // Push position directly to MixerView so the knob arc updates immediately
+        // (don't wait for the 50ms LiveTimer_Tick poll)
+        float pos = e.Value / 1023f;
+        Dispatcher.BeginInvoke(() => _mainWindow?.UpdateKnobPosition(e.Idx, pos));
     }
 
     private void HandleButton(ButtonEvent e)
@@ -662,6 +667,8 @@ public partial class App : Application
         _osdOverlay.SetPosition(_config.Osd.Position);
     }
 
+    private string _lastDefaultOutputDeviceId = "";
+
     private void PollMuteStates()
     {
         try
@@ -685,6 +692,14 @@ public partial class App : Application
             {
                 using var master = enumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
                 _rgb.SetMasterMuted(master.AudioEndpointVolume.Mute);
+
+                // Notify RgbController when the default output device changes (for DeviceSelect effect)
+                string currentId = master.ID;
+                if (currentId != _lastDefaultOutputDeviceId)
+                {
+                    _lastDefaultOutputDeviceId = currentId;
+                    _rgb.SetDefaultOutputDevice(currentId);
+                }
             }
             catch { }
 

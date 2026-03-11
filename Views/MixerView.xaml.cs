@@ -254,6 +254,30 @@ public partial class MixerView : UserControl
         }
     }
 
+    /// <summary>
+    /// Called directly from HandleKnob (App.xaml.cs) after SetVolume,
+    /// so the knob arc and volume % update immediately without waiting for the 50ms poll.
+    /// </summary>
+    public void UpdateKnobPosition(int idx, float position)
+    {
+        if (idx < 0 || idx >= 5) return;
+        int pct = (int)(position * 100);
+        if (_config?.Knobs.FirstOrDefault(k => k.Idx == idx) is { } knob)
+        {
+            var baseTarget = knob.Target.Contains(':') ? knob.Target.Split(':')[0] : knob.Target;
+            // For audio targets, the live timer handles it via WASAPI; only update directly for non-audio
+            if (!baseTarget.StartsWith("ha_") && baseTarget != "monitor" && baseTarget != "led_brightness")
+            {
+                // Apply min/max range remapping same as live timer
+                int mapped = (int)Math.Round(knob.MinVolume + position * (knob.MaxVolume - knob.MinVolume));
+                pct = mapped;
+            }
+        }
+        _knobs[idx].Value = position;
+        _knobs[idx].PercentText = $"{pct}%";
+        _volLabels[idx].Text = $"{pct}%";
+    }
+
     public void LoadConfig(AppConfig config, AudioMixer mixer, Action<AppConfig> onConfigChanged)
     {
         _loading = true;

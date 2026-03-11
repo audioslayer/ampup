@@ -40,6 +40,9 @@ public class RgbController : IDisposable
     // ProgramMute state per knob
     private readonly Dictionary<int, bool> _programMuteStates = new();
 
+    // DeviceSelect state: current default output device ID
+    private string _defaultOutputDeviceId = "";
+
     // Global scanner state
     private float _scannerPos;
     private int _scannerDir = 1;
@@ -153,6 +156,11 @@ public class RgbController : IDisposable
     /// Update master muted state for the DeviceMute effect.
     /// </summary>
     public void SetMasterMuted(bool muted) => _masterMuted = muted;
+
+    /// <summary>
+    /// Update the current default output device ID for the DeviceSelect effect.
+    /// </summary>
+    public void SetDefaultOutputDevice(string deviceId) => _defaultOutputDeviceId = deviceId ?? "";
 
     /// <summary>
     /// Update per-knob program mute state for the ProgramMute effect.
@@ -449,6 +457,10 @@ public class RgbController : IDisposable
 
             case LightEffect.ProgramMute:
                 EffectProgramMute(k, light);
+                break;
+
+            case LightEffect.DeviceSelect:
+                EffectDeviceSelect(k, light);
                 break;
 
             // Global-spanning effects: when used per-knob, fall back to simple behavior
@@ -963,6 +975,29 @@ public class RgbController : IDisposable
             SetColor(k, light.R2, light.G2, light.B2);
         else
             SetColor(k, light.R, light.G, light.B);
+    }
+
+    /// <summary>
+    /// Shows a different color based on which audio output device is currently the Windows default.
+    /// Each DeviceColorEntry maps a device ID to a color.
+    /// If no mapping matches, falls back to color1 (R/G/B).
+    /// </summary>
+    private void EffectDeviceSelect(int k, LightConfig light)
+    {
+        if (light.DeviceColors != null)
+        {
+            foreach (var entry in light.DeviceColors)
+            {
+                if (!string.IsNullOrEmpty(entry.DeviceId) &&
+                    entry.DeviceId.Equals(_defaultOutputDeviceId, StringComparison.OrdinalIgnoreCase))
+                {
+                    SetColor(k, entry.R, entry.G, entry.B);
+                    return;
+                }
+            }
+        }
+        // Fallback: color1
+        SetColor(k, light.R, light.G, light.B);
     }
 
     // --- Global-spanning effects (all 15 LEDs as one strip) ---
