@@ -67,6 +67,7 @@ public class ButtonConfig
     public string MacroKeys { get; set; } = "";        // for macro action e.g. "ctrl+shift+m"
     public string ProfileName { get; set; } = "";      // for switch_profile action
     public string PowerAction { get; set; } = "";      // for system_power: sleep/lock/shutdown/restart/logoff
+    public int LinkedKnobIdx { get; set; } = -1;       // for mute_app_group: which knob's app group to mute
 }
 
 public class LightConfig
@@ -80,7 +81,9 @@ public class LightConfig
     public int R2 { get; set; }  // second color for blend/pulse/blink effects
     public int G2 { get; set; }
     public int B2 { get; set; }
-    public int EffectSpeed { get; set; } = 50; // 1-100, used by animated effects
+    public int EffectSpeed { get; set; } = 50; // 1-100, used by animated effects; doubles as sensitivity for AudioReactive
+    [JsonConverter(typeof(StringEnumConverter))]
+    public ReactiveMode ReactiveMode { get; set; } = ReactiveMode.SpectrumBands;
 }
 
 public enum LightEffect
@@ -94,6 +97,14 @@ public enum LightEffect
     RainbowCycle,     // HSV rainbow rotation per knob
     MicStatus,        // color1 = unmuted, color2 = muted
     DeviceMute,       // color1 = unmuted, color2 = muted (master)
+    AudioReactive,    // audio-reactive RGB via FFT frequency bands
+}
+
+public enum ReactiveMode
+{
+    BeatPulse,     // bass drives ALL knob brightness simultaneously
+    SpectrumBands, // each knob = its own frequency band
+    ColorShift,    // hue shifts across spectrum based on audio energy
 }
 
 public static class ConfigManager

@@ -21,6 +21,7 @@ public class RgbController : IDisposable
     private int _brightness = 100; // 0-100 global brightness
     private List<LightConfig> _lights = new();
     private int _animTick; // incremented every timer tick (50ms)
+    private AudioAnalyzer? _audioAnalyzer;
 
     // Gamma correction table from the original Turn Up firmware.
     private static readonly byte[] Gamma8 = {
@@ -103,6 +104,11 @@ public class RgbController : IDisposable
     /// Store reference to current light configs (called when config changes).
     /// </summary>
     public void UpdateConfig(List<LightConfig> lights) => _lights = lights;
+
+    /// <summary>
+    /// Set or clear the audio analyzer used by the AudioReactive effect.
+    /// </summary>
+    public void SetAudioAnalyzer(AudioAnalyzer? analyzer) => _audioAnalyzer = analyzer;
 
     // --- Color setting ---
 
@@ -241,6 +247,10 @@ public class RgbController : IDisposable
                 case LightEffect.DeviceMute:
                     EffectDeviceMute(k, light);
                     break;
+
+                case LightEffect.AudioReactive:
+                    EffectAudioReactive(k, light);
+                    break;
             }
         }
     }
@@ -366,6 +376,61 @@ public class RgbController : IDisposable
             SetColor(k, light.R, light.G, light.B);
     }
 
+    /// <summary>
+    /// Audio-reactive effect. Uses FFT band levels from AudioAnalyzer.
+    /// EffectSpeed acts as sensitivity (50 = 1x, 1 = 0.02x, 100 = 2x).
+    /// R/G/B = idle/base color, R2/G2/B2 = peak/loud color.
+    /// </summary>
+    private void EffectAudioReactive(int k, LightConfig light)
+    {
+        if (_audioAnalyzer == null)
+        {
+            SetColor(k, light.R, light.G, light.B);
+            return;
+        }
+
+        float sensitivity = light.EffectSpeed / 50f; // 1=0.02x, 50=1x, 100=2x
+        float level;
+
+        switch (light.ReactiveMode)
+        {
+            case ReactiveMode.BeatPulse:
+                // Bass (band 1) drives all knobs simultaneously
+                level = Math.Clamp(_audioAnalyzer.SmoothedBands[1] * sensitivity, 0f, 1f);
+                break;
+
+            case ReactiveMode.SpectrumBands:
+                // Each knob = its own frequency band (0=sub-bass .. 4=treble)
+                level = Math.Clamp(_audioAnalyzer.SmoothedBands[Math.Clamp(k, 0, 4)] * sensitivity, 0f, 1f);
+                break;
+
+            case ReactiveMode.ColorShift:
+                // Average all bands for overall energy
+                float avg = 0f;
+                for (int b = 0; b < 5; b++) avg += _audioAnalyzer.SmoothedBands[b];
+                avg /= 5f;
+                level = Math.Clamp(avg * sensitivity, 0f, 1f);
+
+                // Shift hue of base color by up to +120° at peak, value from 0.2 to 1.0
+                HsvFromRgb(light.R, light.G, light.B, out float h, out float s, out _);
+                float newHue = (h + level * 120f) % 360f;
+                float newVal = 0.2f + level * 0.8f;
+                var (cr, cg, cb) = HsvToRgb(newHue, Math.Max(s, 0.7f), newVal);
+                SetColor(k, cr, cg, cb);
+                return;
+
+            default:
+                level = 0f;
+                break;
+        }
+
+        // BeatPulse / SpectrumBands: lerp between base and peak color
+        int r = (int)(light.R + (light.R2 - light.R) * level);
+        int g = (int)(light.G + (light.G2 - light.G) * level);
+        int b2 = (int)(light.B + (light.B2 - light.B) * level);
+        SetColor(k, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b2, 0, 255));
+    }
+
     // --- Helpers ---
 
     /// <summary>
@@ -391,5 +456,23 @@ public class RgbController : IDisposable
             (int)((g1 + m) * 255f + 0.5f),
             (int)((b1 + m) * 255f + 0.5f)
         );
+    }
+
+    /// <summary>
+    /// Convert RGB (0-255 each) to HSV. H = 0-360, S = 0-1, V = 0-1.
+    /// </summary>
+    private static void HsvFromRgb(int r, int g, int b, out float h, out float s, out float v)
+    {
+        float rf = r / 255f, gf = g / 255f, bf = b / 255f;
+        float max = Math.Max(rf, Math.Max(gf, bf));
+        float min = Math.Min(rf, Math.Min(gf, bf));
+        float delta = max - min;
+        v = max;
+        s = max > 0 ? delta / max : 0f;
+        if (delta == 0f) { h = 0f; return; }
+        if (max == rf)       h = 60f * (((gf - bf) / delta) % 6f);
+        else if (max == gf)  h = 60f * (((bf - rf) / delta) + 2f);
+        else                 h = 60f * (((rf - gf) / delta) + 4f);
+        if (h < 0f) h += 360f;
     }
 }

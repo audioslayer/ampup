@@ -24,7 +24,8 @@ public partial class ButtonsView : UserControl
         ("Close App", "close_program"), ("Cycle Output", "cycle_output"), ("Cycle Input", "cycle_input"),
         ("Set Output", "select_output"), ("Set Input", "select_input"), ("Keyboard Macro", "macro"),
         ("System Power", "system_power"), ("Switch Profile", "switch_profile"),
-        ("Cycle Brightness", "cycle_brightness")
+        ("Cycle Brightness", "cycle_brightness"),
+        ("Mute App Group", "mute_app_group")
     };
 
     // Actions that need a path textbox
@@ -46,7 +47,8 @@ public partial class ButtonsView : UserControl
         { "close_program", "✕" }, { "cycle_output", "🔊" }, { "cycle_input", "🎙" },
         { "select_output", "🔊" }, { "select_input", "🎙" }, { "macro", "⌨" },
         { "system_power", "⏻" }, { "switch_profile", "📋" },
-        { "cycle_brightness", "💡" }
+        { "cycle_brightness", "💡" },
+        { "mute_app_group", "🔇" }
     };
 
     // Button tile references
@@ -67,6 +69,8 @@ public partial class ButtonsView : UserControl
     private readonly StackPanel[] _tapProfilePanels = new StackPanel[5];
     private readonly SegmentedControl[] _tapPowerSegments = new SegmentedControl[5];
     private readonly StackPanel[] _tapPowerPanels = new StackPanel[5];
+    private readonly ListPicker[] _tapKnobPickers = new ListPicker[5];
+    private readonly StackPanel[] _tapKnobPanels = new StackPanel[5];
 
     // --- DOUBLE controls ---
     private readonly GridPicker[] _dblActionPickers = new GridPicker[5];
@@ -110,6 +114,7 @@ public partial class ButtonsView : UserControl
         {
             PopulateDevicePicker(_tapDevicePickers[i]);
             PopulateProfilePicker(_tapProfilePickers[i], config);
+            PopulateKnobPicker(_tapKnobPickers[i], config);
         }
 
         for (int i = 0; i < 5; i++)
@@ -124,6 +129,7 @@ public partial class ButtonsView : UserControl
             SelectDevicePicker(_tapDevicePickers[i], btn.DeviceId);
             SelectProfilePicker(_tapProfilePickers[i], btn.ProfileName);
             SelectPowerSegment(_tapPowerSegments[i], btn.PowerAction);
+            SelectKnobPicker(_tapKnobPickers[i], btn.LinkedKnobIdx);
             UpdateTapVisibility(i, btn.Action);
 
             // DOUBLE
@@ -319,6 +325,12 @@ public partial class ButtonsView : UserControl
             _tapPowerSegments[i] = powerSegment;
             tapRight.Children.Add(powerPanel);
 
+            var (knobPanel, knobPicker) = MakeListPickerRow("LINKED KNOB");
+            knobPicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _tapKnobPanels[i] = knobPanel;
+            _tapKnobPickers[i] = knobPicker;
+            tapRight.Children.Add(knobPanel);
+
             Grid.SetColumn(tapRight, 1);
             tapGrid.Children.Add(tapRight);
 
@@ -419,6 +431,7 @@ public partial class ButtonsView : UserControl
         _tapDevicePanels[idx].Visibility = (action == "select_output" || action == "select_input") ? Visibility.Visible : Visibility.Collapsed;
         _tapProfilePanels[idx].Visibility = action == "switch_profile" ? Visibility.Visible : Visibility.Collapsed;
         _tapPowerPanels[idx].Visibility = action == "system_power" ? Visibility.Visible : Visibility.Collapsed;
+        _tapKnobPanels[idx].Visibility = action == "mute_app_group" ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void UpdateSimpleVisibility(StackPanel pathPanel, string action)
@@ -449,6 +462,7 @@ public partial class ButtonsView : UserControl
             btn.DeviceId = GetSelectedDeviceId(_tapDevicePickers[i]);
             btn.ProfileName = _tapProfilePickers[i].SelectedTag as string ?? "";
             btn.PowerAction = GetSelectedPowerValue(_tapPowerSegments[i]);
+            btn.LinkedKnobIdx = int.TryParse(_tapKnobPickers[i].SelectedTag as string, out int ki) ? ki : -1;
 
             btn.DoublePressAction = GetSelectedActionValue(_dblActionPickers[i]);
             btn.DoublePressPath = GetTextBoxValue(_dblPathBoxes[i]);
@@ -518,6 +532,7 @@ public partial class ButtonsView : UserControl
         picker.AddItem("Mute Mic", "mute_mic");
         picker.AddItem("Mute App", "mute_program");
         picker.AddItem("Mute Active Window", "mute_active_window");
+        picker.AddItem("Mute App Group", "mute_app_group");
 
         // App Control
         picker.AddCategory("App Control");
@@ -711,6 +726,39 @@ public partial class ButtonsView : UserControl
         picker.ClearItems();
         foreach (var profile in config.Profiles)
             picker.AddItem(profile, profile);
+    }
+
+    private void PopulateKnobPicker(ListPicker picker, AppConfig config)
+    {
+        picker.ClearItems();
+        for (int k = 0; k < 5; k++)
+        {
+            var knob = config.Knobs.FirstOrDefault(kn => kn.Idx == k);
+            string label;
+            if (knob != null && !string.IsNullOrWhiteSpace(knob.Label))
+                label = $"Knob {k + 1}: {knob.Label}";
+            else if (knob != null && knob.Target != "none")
+                label = $"Knob {k + 1}: {knob.Target}";
+            else
+                label = $"Knob {k + 1}";
+
+            if (knob?.Target == "apps" && knob.Apps.Count > 0)
+                label += $" ({string.Join(", ", knob.Apps)})";
+
+            picker.AddItem(label, k.ToString());
+        }
+    }
+
+    private void SelectKnobPicker(ListPicker picker, int knobIdx)
+    {
+        if (knobIdx < 0) { picker.SelectedIndex = -1; return; }
+        var tag = knobIdx.ToString();
+        for (int i = 0; i < picker.ItemCount; i++)
+        {
+            if (picker.GetTagAt(i) as string == tag)
+            { picker.SelectedIndex = i; return; }
+        }
+        picker.SelectedIndex = -1;
     }
 
     private void SelectProfilePicker(ListPicker picker, string profileName)

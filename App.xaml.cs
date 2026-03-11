@@ -13,6 +13,7 @@ public partial class App : Application
     private AudioMixer _mixer = null!;
     private ButtonHandler _buttons = null!;
     private RgbController _rgb = null!;
+    private AudioAnalyzer? _audioAnalyzer;
     private MainWindow _mainWindow = null!;
     private System.Threading.Timer? _mutePollingTimer;
     private DateTime _connectedAt = DateTime.MinValue;
@@ -47,6 +48,8 @@ public partial class App : Application
         _mixer = new AudioMixer();
         _buttons = new ButtonHandler();
         _rgb = new RgbController();
+        _audioAnalyzer = new AudioAnalyzer();
+        _rgb.SetAudioAnalyzer(_audioAnalyzer);
 
         _buttons.OnProfileSwitch += HandleProfileSwitch;
         _buttons.OnDeviceSwitched += HandleDeviceSwitched;
@@ -70,6 +73,7 @@ public partial class App : Application
 
         // Apply RGB config
         ApplyRgbConfig();
+        UpdateAudioAnalyzer();
 
         // Poll mute states every 500ms for LED status effects
         _mutePollingTimer = new System.Threading.Timer(_ => PollMuteStates(), null, 1000, 500);
@@ -332,6 +336,7 @@ public partial class App : Application
         _config = config;
         ConfigManager.Save(_config);
         ApplyRgbConfig();
+        UpdateAudioAnalyzer();
         ApplyStartupSetting();
         if (_ha != null)
         {
@@ -430,6 +435,7 @@ public partial class App : Application
             _rgb.SetBrightness(_config.LedBrightness);
             _rgb.SetPort(_serial.Port);
             _rgb.ApplyColors(_config.Lights);
+            UpdateAudioAnalyzer();
         }
 
         _isConnected = connected;
@@ -477,6 +483,7 @@ public partial class App : Application
         _config.ProfileIcons = profileIcons;
         ConfigManager.Save(_config);
         ApplyRgbConfig();
+        UpdateAudioAnalyzer();
         Logger.Log($"Switched to profile: {profileName}");
 
         // Show OSD for profile switch
@@ -552,6 +559,18 @@ public partial class App : Application
         _rgb.UpdateConfig(_config.Lights);
     }
 
+    /// <summary>
+    /// Start or stop the AudioAnalyzer based on whether any light uses AudioReactive.
+    /// </summary>
+    private void UpdateAudioAnalyzer()
+    {
+        bool needsAudio = _config.Lights.Any(l => l.Effect == LightEffect.AudioReactive);
+        if (needsAudio)
+            _audioAnalyzer?.Start();
+        else
+            _audioAnalyzer?.Stop();
+    }
+
     private void ApplyStartupSetting()
     {
         const string keyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
@@ -588,6 +607,7 @@ public partial class App : Application
         _osdOverlay?.Close();
         _serial?.Dispose();
         _mixer?.Dispose();
+        _audioAnalyzer?.Dispose();
         _rgb?.Dispose();
         _ha?.Dispose();
         _mutex?.Dispose();

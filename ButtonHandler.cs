@@ -218,6 +218,8 @@ public class ButtonHandler
                     MuteProgram(path); break;
                 case "mute_active_window":
                     MuteActiveWindow(); break;
+                case "mute_app_group":
+                    MuteAppGroup(btn); break;
                 case "cycle_output":
                     CycleOutputDevice(btn); break;
                 case "cycle_input":
@@ -421,6 +423,82 @@ public class ButtonHandler
         catch (Exception ex)
         {
             Logger.Log($"mute_active_window error: {ex.Message}");
+        }
+    }
+
+    // ── Mute all apps in a knob's app group ───────────────────────────
+
+    private void MuteAppGroup(ButtonConfig? btn)
+    {
+        if (btn == null || _lastConfig == null)
+        {
+            Logger.Log("mute_app_group: no config");
+            return;
+        }
+
+        int knobIdx = btn.LinkedKnobIdx;
+        if (knobIdx < 0 || knobIdx > 4)
+        {
+            Logger.Log($"mute_app_group: invalid LinkedKnobIdx {knobIdx}");
+            return;
+        }
+
+        var knob = _lastConfig.Knobs.FirstOrDefault(k => k.Idx == knobIdx);
+        if (knob == null || knob.Apps == null || knob.Apps.Count == 0)
+        {
+            Logger.Log($"mute_app_group: knob {knobIdx} has no app group");
+            return;
+        }
+
+        try
+        {
+            var device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            var sessions = device.AudioSessionManager.Sessions;
+
+            var matchingSessions = new List<NAudio.CoreAudioApi.AudioSessionControl>();
+            for (int i = 0; i < sessions.Count; i++)
+            {
+                var session = sessions[i];
+                try
+                {
+                    var pid = (int)session.GetProcessID;
+                    if (pid == 0) continue;
+                    var proc = Process.GetProcessById(pid);
+                    var procName = proc.ProcessName.ToLowerInvariant();
+
+                    foreach (var appName in knob.Apps)
+                    {
+                        if (procName.Contains(appName.ToLowerInvariant()))
+                        {
+                            matchingSessions.Add(session);
+                            break;
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            if (matchingSessions.Count == 0)
+            {
+                Logger.Log($"mute_app_group: no active sessions found for knob {knobIdx} apps");
+                return;
+            }
+
+            // Toggle: if ANY session is unmuted → mute all. If ALL muted → unmute all.
+            bool anyUnmuted = matchingSessions.Any(s => !s.SimpleAudioVolume.Mute);
+            bool newMuteState = anyUnmuted;
+
+            foreach (var session in matchingSessions)
+            {
+                try { session.SimpleAudioVolume.Mute = newMuteState; } catch { }
+            }
+
+            var appNames = string.Join(", ", knob.Apps);
+            Logger.Log($"mute_app_group: knob {knobIdx} [{appNames}] → mute={newMuteState} ({matchingSessions.Count} sessions)");
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"mute_app_group error: {ex.Message}");
         }
     }
 

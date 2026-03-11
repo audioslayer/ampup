@@ -25,15 +25,17 @@ public partial class LightsView : UserControl
     private readonly Slider[] _speedSliders = new Slider[5];
     private readonly TextBlock[] _speedLabels = new TextBlock[5];
     private readonly StackPanel[] _speedPanels = new StackPanel[5];
+    private readonly ComboBox[] _reactiveModeComboBoxes = new ComboBox[5];
+    private readonly StackPanel[] _reactiveModePanels = new StackPanel[5];
 
     // Track current colors in memory
     private readonly Color[] _colors1 = new Color[5];
     private readonly Color[] _colors2 = new Color[5];
 
     private static readonly LightEffect[] EffectsNeedingColor2 =
-        { LightEffect.ColorBlend, LightEffect.Blink, LightEffect.Pulse, LightEffect.MicStatus, LightEffect.DeviceMute };
+        { LightEffect.ColorBlend, LightEffect.Blink, LightEffect.Pulse, LightEffect.MicStatus, LightEffect.DeviceMute, LightEffect.AudioReactive };
     private static readonly LightEffect[] EffectsNeedingSpeed =
-        { LightEffect.Blink, LightEffect.Pulse, LightEffect.RainbowWave, LightEffect.RainbowCycle };
+        { LightEffect.Blink, LightEffect.Pulse, LightEffect.RainbowWave, LightEffect.RainbowCycle, LightEffect.AudioReactive };
 
     public LightsView()
     {
@@ -77,6 +79,9 @@ public partial class LightsView : UserControl
 
             _speedSliders[i].Value = Math.Clamp(light.EffectSpeed, 1, 100);
             _speedLabels[i].Text = light.EffectSpeed.ToString();
+
+            if (_reactiveModeComboBoxes[i] != null)
+                _reactiveModeComboBoxes[i].SelectedItem = light.ReactiveMode;
 
             UpdateVisibility(i, light.Effect);
         }
@@ -191,6 +196,26 @@ public partial class LightsView : UserControl
             speedContainer.Margin = new Thickness(0, 2, 0, 0);
             _speedPanels[i] = speedContainer;
             panel.Children.Add(speedContainer);
+
+            // Reactive mode picker (only visible for AudioReactive)
+            var reactiveContainer = new StackPanel();
+            reactiveContainer.Children.Add(MakeLabel("REACTIVE MODE"));
+            var modeCombo = new ComboBox
+            {
+                ItemsSource = Enum.GetValues<ReactiveMode>(),
+                Background = FindBrush("InputBgBrush"),
+                Foreground = FindBrush("TextPrimaryBrush"),
+                BorderBrush = FindBrush("InputBorderBrush"),
+                Margin = new Thickness(0, 0, 0, 10),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                FontSize = 12
+            };
+            modeCombo.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _reactiveModeComboBoxes[idx] = modeCombo;
+            reactiveContainer.Children.Add(modeCombo);
+            reactiveContainer.Visibility = Visibility.Collapsed;
+            _reactiveModePanels[idx] = reactiveContainer;
+            panel.Children.Add(reactiveContainer);
         }
     }
 
@@ -239,9 +264,11 @@ public partial class LightsView : UserControl
     {
         bool needsColor2 = EffectsNeedingColor2.Contains(effect);
         bool needsSpeed = EffectsNeedingSpeed.Contains(effect);
+        bool isReactive = effect == LightEffect.AudioReactive;
 
         _color2Panels[idx].Visibility = needsColor2 ? Visibility.Visible : Visibility.Collapsed;
         _speedPanels[idx].Visibility = needsSpeed ? Visibility.Visible : Visibility.Collapsed;
+        _reactiveModePanels[idx].Visibility = isReactive ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void BrightnessSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -277,6 +304,9 @@ public partial class LightsView : UserControl
             light.B2 = _colors2[i].B;
 
             light.EffectSpeed = (int)_speedSliders[i].Value;
+
+            if (_reactiveModeComboBoxes[i]?.SelectedItem is ReactiveMode mode)
+                light.ReactiveMode = mode;
         }
 
         _config.LedBrightness = (int)BrightnessSlider.Value;

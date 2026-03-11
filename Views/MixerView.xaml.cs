@@ -43,7 +43,7 @@ public partial class MixerView : UserControl
     private readonly TextBox[] _channelLabels = new TextBox[5];
     private readonly Image[] _icons = new Image[5];
     private readonly GridPicker[] _targetPickers = new GridPicker[5];
-    private readonly SegmentedControl[] _curvePickers = new SegmentedControl[5];
+    private readonly CurvePickerControl[] _curvePickers = new CurvePickerControl[5];
     private readonly RangeSlider[] _rangeSliders = new RangeSlider[5];
     private readonly ListPicker[] _devicePickers = new ListPicker[5];
     private readonly StackPanel[] _devicePanels = new StackPanel[5];
@@ -416,12 +416,9 @@ public partial class MixerView : UserControl
             // Store reference to update target display
             targetPicker.Tag = targetDisplay;
 
-            // CURVE — SegmentedControl (pill bar)
+            // CURVE — CurvePickerControl (visual mini graphs)
             settingsPanel.Children.Add(MakeLabel("CURVE"));
-            var curvePicker = new SegmentedControl { Margin = new Thickness(0, 0, 0, 6) };
-            curvePicker.AddSegment("Linear", ResponseCurve.Linear);
-            curvePicker.AddSegment("Log", ResponseCurve.Logarithmic);
-            curvePicker.AddSegment("Exp", ResponseCurve.Exponential);
+            var curvePicker = new CurvePickerControl { Margin = new Thickness(0, 0, 0, 6) };
             curvePicker.SelectionChanged += (_, _) =>
             {
                 if (!_loading) QueueSave();
@@ -595,7 +592,7 @@ public partial class MixerView : UserControl
             d.Text = FormatTargetName(target);
     }
 
-    private void SelectCurve(SegmentedControl picker, ResponseCurve curve)
+    private void SelectCurve(CurvePickerControl picker, ResponseCurve curve)
     {
         for (int i = 0; i < picker.SegmentCount; i++)
         {
