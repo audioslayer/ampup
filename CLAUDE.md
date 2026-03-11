@@ -88,7 +88,7 @@ config.json                User config — knob targets, button actions, RGB eff
 release.bat                One-command release: bumps version, commits, tags, pushes
 deploy.bat                 Local dev: git pull → build → kill old → launch
 build-installer.bat        Local installer build (dotnet publish + Inno Setup)
-.github/workflows/release.yml  GitHub Actions: auto-builds installer on v* tag push
+.github/workflows/release.yml.disabled  GitHub Actions workflow (DISABLED — manual installer flow)
 installer/ampup-setup.iss  Inno Setup script (reads version from auto-generated version.iss)
 ```
 
@@ -359,11 +359,11 @@ This does:
 2. Generates `installer/version.iss`
 3. Commits `release: v0.4.0-alpha`, tags `v0.4.0-alpha`, pushes
 
-**GitHub Actions** (`.github/workflows/release.yml`) then:
-1. Triggers on `v*` tag push
-2. Runs `dotnet publish` (self-contained, win-x64)
-3. Installs Inno Setup, builds installer
-4. Creates GitHub Release with installer `.exe` attached
+**GitHub Actions workflow is DISABLED** (`.github/workflows/release.yml.disabled`).
+Installers are built manually on Tyson's Windows PC:
+1. Run `deploy.bat` to pull + build + test
+2. Run `build-installer.bat` to produce the Inno Setup `.exe`
+3. Upload installer to GitHub Releases manually
 
 ### Installer
 Inno Setup script at `installer/ampup-setup.iss`. Output in `installer/output/`.
