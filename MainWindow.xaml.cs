@@ -16,7 +16,7 @@ public partial class MainWindow : FluentWindow
     private readonly HomeAssistantView _haView = new();
 
     private System.Windows.Controls.Button? _activeNavButton;
-    private Border? _activeNavBar;
+    private System.Windows.Controls.Border? _activeNavBar;
 
     private AppConfig _config;
     private AudioMixer? _mixer;
@@ -112,7 +112,7 @@ public partial class MainWindow : FluentWindow
     }
 
     // Map nav buttons to their indicator bars
-    private Dictionary<System.Windows.Controls.Button, Border> GetNavBars() => new()
+    private Dictionary<System.Windows.Controls.Button, System.Windows.Controls.Border> GetNavBars() => new()
     {
         { NavMixer,    NavMixerBar },
         { NavButtons,  NavButtonsBar },
