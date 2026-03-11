@@ -62,7 +62,7 @@ public partial class MixerView : UserControl
     // App group picker (for "apps" target)
     private readonly StackPanel[] _appsPanels = new StackPanel[5];
     private readonly StackPanel[] _appsListPanels = new StackPanel[5];
-    private readonly ListPicker[] _appsAddPickers = new ListPicker[5];
+    private readonly ComboBox[] _appsAddPickers = new ComboBox[5];
 
     // HA entities cache
     private List<HAEntity> _haEntities = new();
@@ -482,26 +482,30 @@ public partial class MixerView : UserControl
             _appsListPanels[i] = appsListPanel;
             appsContainer.Children.Add(appsListPanel);
 
-            // "Add app" — ListPicker showing running audio apps
-            var appsAddPicker = new ListPicker { Margin = new Thickness(0, 0, 0, 4) };
-            appsAddPicker.DropdownOpening += (_, _) => PopulateRunningApps(idx);
-            appsAddPicker.SelectionChanged += (_, _) =>
+            // "Add app" — ComboBox showing running audio apps
+            var appsAddCombo = new ComboBox
             {
-                // Only add if the selected item has a tag (skip placeholder items)
-                var tag = appsAddPicker.SelectedTag as string;
-                if (!string.IsNullOrEmpty(tag))
+                Margin = new Thickness(0, 0, 0, 4),
+                Background = FindBrush("InputBgBrush"),
+                Foreground = FindBrush("TextPrimaryBrush"),
+                BorderBrush = FindBrush("InputBorderBrush"),
+                FontSize = 12,
+                IsEditable = false,
+            };
+            appsAddCombo.DropDownOpened += (_, _) => PopulateRunningApps(idx);
+            appsAddCombo.SelectionChanged += (_, _) =>
+            {
+                if (appsAddCombo.SelectedItem is ComboBoxItem item && item.Tag is string tag && !string.IsNullOrEmpty(tag))
                 {
                     AddAppToGroup(idx, tag);
-                    // Reset picker after adding
                     Dispatcher.BeginInvoke(() =>
                     {
-                        PopulateRunningApps(idx);
-                        appsAddPicker.SelectedIndex = -1;
+                        appsAddCombo.SelectedIndex = -1;
                     }, System.Windows.Threading.DispatcherPriority.Background);
                 }
             };
-            _appsAddPickers[i] = appsAddPicker;
-            appsContainer.Children.Add(appsAddPicker);
+            _appsAddPickers[i] = appsAddCombo;
+            appsContainer.Children.Add(appsAddCombo);
 
             _appsPanels[i] = appsContainer;
             settingsPanel.Children.Add(appsContainer);
@@ -750,8 +754,8 @@ public partial class MixerView : UserControl
 
     private void PopulateRunningApps(int idx)
     {
-        var picker = _appsAddPickers[idx];
-        picker.ClearItems();
+        var combo = _appsAddPickers[idx];
+        combo.Items.Clear();
 
         if (_mixer == null) return;
         var runningApps = _mixer.GetRunningAudioApps();
@@ -759,17 +763,35 @@ public partial class MixerView : UserControl
         var knob = _config?.Knobs.FirstOrDefault(k => k.Idx == idx);
         var existing = knob?.Apps ?? new List<string>();
 
-        // Add placeholder
-        picker.AddItem("+ Add running app...", null);
+        // Placeholder
+        combo.Items.Add(new ComboBoxItem
+        {
+            Content = "+ Add running app...",
+            Tag = (string?)null,
+            IsEnabled = false,
+            Foreground = FindBrush("TextDimBrush"),
+        });
 
+        bool hasNew = false;
         foreach (var app in runningApps)
         {
             if (!existing.Contains(app, StringComparer.OrdinalIgnoreCase))
-                picker.AddItem(app, app);
+            {
+                combo.Items.Add(new ComboBoxItem { Content = app, Tag = app });
+                hasNew = true;
+            }
         }
 
-        if (runningApps.Count == 0 || runningApps.All(a => existing.Contains(a, StringComparer.OrdinalIgnoreCase)))
-            picker.AddItem("No new apps available", null);
+        if (!hasNew)
+        {
+            combo.Items.Add(new ComboBoxItem
+            {
+                Content = "No new apps available",
+                Tag = (string?)null,
+                IsEnabled = false,
+                Foreground = FindBrush("TextDimBrush"),
+            });
+        }
     }
 
     // --- Save ---
