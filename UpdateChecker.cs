@@ -32,7 +32,7 @@ public static class UpdateChecker
             // Strip leading 'v' for comparison
             var remoteVersion = tag.TrimStart('v');
 
-            if (remoteVersion == CurrentVersion)
+            if (!IsNewer(remoteVersion, CurrentVersion))
                 return null;
 
             // Find the .exe asset
@@ -56,6 +56,37 @@ public static class UpdateChecker
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Returns true if remoteVersion is strictly newer than localVersion.
+    /// Supports formats like "0.3.2-alpha", "1.0.0", "0.3.2".
+    /// </summary>
+    private static bool IsNewer(string remoteVersion, string localVersion)
+    {
+        // Split off pre-release suffix (e.g., "0.3.2-alpha" → "0.3.2" + "alpha")
+        var remoteParts = remoteVersion.Split('-', 2);
+        var localParts = localVersion.Split('-', 2);
+
+        var remoteNums = remoteParts[0].Split('.').Select(s => int.TryParse(s, out int n) ? n : 0).ToArray();
+        var localNums = localParts[0].Split('.').Select(s => int.TryParse(s, out int n) ? n : 0).ToArray();
+
+        // Compare numeric parts (major.minor.patch)
+        int len = Math.Max(remoteNums.Length, localNums.Length);
+        for (int i = 0; i < len; i++)
+        {
+            int r = i < remoteNums.Length ? remoteNums[i] : 0;
+            int l = i < localNums.Length ? localNums[i] : 0;
+            if (r > l) return true;
+            if (r < l) return false;
+        }
+
+        // Same numeric version — release (no suffix) is newer than pre-release (has suffix)
+        bool remoteIsPreRelease = remoteParts.Length > 1;
+        bool localIsPreRelease = localParts.Length > 1;
+        if (!remoteIsPreRelease && localIsPreRelease) return true;
+
+        return false;
     }
 
     /// <summary>
