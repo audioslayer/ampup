@@ -2,7 +2,7 @@
 ; Download Inno Setup from https://jrsoftware.org/isinfo.php
 
 #define MyAppName "Amp Up"
-#define MyAppVersion "0.3.2-alpha"
+#include "version.iss"
 #define MyAppPublisher "Tyson Wolf"
 #define MyAppExeName "AmpUp.exe"
 #define MyAppURL "https://github.com/audioslayer/ampup"

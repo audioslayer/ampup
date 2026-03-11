@@ -10,7 +10,7 @@
     <RootNamespace>AmpUp</RootNamespace>
     <ApplicationManifest>Assets\app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\ampup.ico</ApplicationIcon>
-    <Version>0.3.2</Version>
+    <Version>0.3.2-alpha</Version>
     <AssemblyVersion>0.3.2.0</AssemblyVersion>
     <FileVersion>0.3.2.0</FileVersion>
   </PropertyGroup>

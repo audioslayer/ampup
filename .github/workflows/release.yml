@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "#define MyAppVersion \"$VERSION\"" > installer/version.iss
+
+      - name: Publish app
+        run: dotnet publish -c Release -r win-x64 --self-contained -o publish -p:PublishSingleFile=false -p:IncludeNativeLibrariesForSelfExtract=true
+
+      - name: Install Inno Setup
+        uses: egor-tensin/setup-inno@v1
+
+      - name: Build installer
+        run: iscc installer/ampup-setup.iss
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installer/output/AmpUp-Setup-*.exe
+          generate_release_notes: true

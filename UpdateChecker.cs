@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Reflection;
 using System.Windows;
 using Newtonsoft.Json.Linq;
 
@@ -8,7 +9,9 @@ namespace AmpUp;
 
 public static class UpdateChecker
 {
-    public const string CurrentVersion = "0.3.2-alpha";
+    public static readonly string CurrentVersion =
+        typeof(UpdateChecker).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion?.Split('+')[0] ?? "0.0.0";
     private const string GitHubRepo = "audioslayer/ampup";
     private static readonly HttpClient _http = new();
 

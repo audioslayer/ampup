@@ -19,6 +19,12 @@ if errorlevel 1 (
 echo      Published to .\publish\
 echo.
 
+:: Extract version from .csproj
+for /f "tokens=2 delims=<>" %%v in ('findstr "<Version>" AmpUp.csproj') do set APP_VERSION=%%v
+echo #define MyAppVersion "%APP_VERSION%" > installer\version.iss
+echo      Version: %APP_VERSION%
+echo.
+
 :: Build installer with Inno Setup
 echo [2/2] Building installer...
 where iscc >nul 2>nul
@@ -45,6 +51,6 @@ if errorlevel 1 (
 echo.
 echo ============================================
 echo   Done! Installer at:
-echo   installer\output\AmpUp-Setup-0.3-alpha.exe
+echo   installer\output\AmpUp-Setup-%APP_VERSION%.exe
 echo ============================================
 pause
