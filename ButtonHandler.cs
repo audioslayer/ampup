@@ -827,7 +827,9 @@ public class ButtonHandler
             {
                 case "sleep":
                     Logger.Log("system_power: sleep");
-                    NativeMethods.SetSuspendState(false, true, false);
+                    // forceCritical=false allows apps to prepare for sleep properly
+                    // (GPU, USB devices, etc. get clean suspend notifications)
+                    NativeMethods.SetSuspendState(false, false, false);
                     break;
                 case "hibernate":
                     Logger.Log("system_power: hibernate");
