@@ -76,6 +76,12 @@ public partial class LightsView : UserControl
     private StackPanel? _globalSettingsPanel;
     private StyledSlider? _brightnessSlider;
 
+    // Clipboard for light copy/paste
+    private static LightConfig? _lightClipboard;
+
+    // Per-channel border references (for context menu attachment)
+    private readonly Border[] _ledBorders = new Border[5];
+
     // DeviceSelect per-knob controls (3 rows each)
     private readonly StackPanel[] _deviceSelectPanels = new StackPanel[5];
     private readonly ListPicker[][] _dsDevicePickers = new ListPicker[5][];
@@ -109,6 +115,7 @@ public partial class LightsView : UserControl
 
         BuildGlobalCard();
         BuildChannelControls();
+        SetupStripContextMenus();
 
         // Styled brightness slider
         _brightnessSlider = new StyledSlider
@@ -724,6 +731,149 @@ public partial class LightsView : UserControl
             _deviceSelectPanels[idx].Visibility = needsDeviceSelect ? Visibility.Visible : Visibility.Collapsed;
             if (needsDeviceSelect)
                 PopulateDeviceSelectPickers(idx);
+        }
+    }
+
+    private void SetupStripContextMenus()
+    {
+        // Get the border parents of each LED panel
+        var panels = new StackPanel[] { Led0Panel, Led1Panel, Led2Panel, Led3Panel, Led4Panel };
+        for (int i = 0; i < 5; i++)
+            _ledBorders[i] = panels[i].Parent as Border ?? new Border();
+
+        var menuBg = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+        var menuFg = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
+        var menuBorder = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+
+        for (int i = 0; i < 5; i++)
+        {
+            int idx = i;
+            var border = _ledBorders[i];
+
+            var copyItem = new MenuItem
+            {
+                Header = "Copy Channel",
+                Foreground = menuFg,
+                Background = menuBg,
+            };
+            var pasteItem = new MenuItem
+            {
+                Header = "Paste Channel",
+                Foreground = menuFg,
+                Background = menuBg,
+            };
+            var resetItem = new MenuItem
+            {
+                Header = "Reset to Default",
+                Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x88, 0x88)),
+                Background = menuBg,
+            };
+
+            copyItem.Click += (_, _) =>
+            {
+                if (_config == null) return;
+                var light = _config.Lights.FirstOrDefault(l => l.Idx == idx);
+                if (light == null) return;
+                var json = Newtonsoft.Json.JsonConvert.SerializeObject(light);
+                _lightClipboard = Newtonsoft.Json.JsonConvert.DeserializeObject<LightConfig>(json);
+            };
+
+            pasteItem.Click += (_, _) =>
+            {
+                if (_lightClipboard == null || _config == null || _onSave == null) return;
+                var light = _config.Lights.FirstOrDefault(l => l.Idx == idx);
+                if (light == null) return;
+
+                var json = Newtonsoft.Json.JsonConvert.SerializeObject(_lightClipboard);
+                var copy = Newtonsoft.Json.JsonConvert.DeserializeObject<LightConfig>(json)!;
+                copy.Idx = idx;
+
+                // Apply all fields from copy
+                light.Effect = copy.Effect;
+                light.R = copy.R; light.G = copy.G; light.B = copy.B;
+                light.R2 = copy.R2; light.G2 = copy.G2; light.B2 = copy.B2;
+                light.EffectSpeed = copy.EffectSpeed;
+                light.ReactiveMode = copy.ReactiveMode;
+                light.ProgramName = copy.ProgramName;
+                light.DeviceColors = copy.DeviceColors != null
+                    ? new List<DeviceColorEntry>(copy.DeviceColors.Select(dc => new DeviceColorEntry { DeviceId = dc.DeviceId, R = dc.R, G = dc.G, B = dc.B }))
+                    : new List<DeviceColorEntry>();
+
+                _loading = true;
+                _effectPickers[idx].SelectedEffect = light.Effect;
+                UpdateHeaderEffect(idx);
+                _colors1[idx] = Color.FromRgb((byte)light.R, (byte)light.G, (byte)light.B);
+                _colors2[idx] = Color.FromRgb((byte)light.R2, (byte)light.G2, (byte)light.B2);
+                _color1Swatches[idx].Background = new SolidColorBrush(_colors1[idx]);
+                _color2Swatches[idx].Background = new SolidColorBrush(_colors2[idx]);
+                _speedSliders[idx].Value = Math.Clamp(light.EffectSpeed, 1, 100);
+                if (_reactiveModeComboBoxes[idx] != null)
+                    _reactiveModeComboBoxes[idx].SelectedItem = light.ReactiveMode;
+                if (_programNameBoxes[idx] != null)
+                    _programNameBoxes[idx].Text = light.ProgramName ?? "";
+                PopulateDeviceSelectPickers(idx);
+                LoadDeviceSelectColors(idx, light);
+                UpdateVisibility(idx, light.Effect);
+                _loading = false;
+
+                QueueSave();
+            };
+
+            resetItem.Click += (_, _) =>
+            {
+                if (_config == null || _onSave == null) return;
+                var light = _config.Lights.FirstOrDefault(l => l.Idx == idx);
+                if (light == null) return;
+
+                light.Effect = LightEffect.SingleColor;
+                light.R = 0; light.G = 230; light.B = 118;
+                light.R2 = 0; light.G2 = 0; light.B2 = 0;
+                light.EffectSpeed = 50;
+                light.ProgramName = "";
+                light.DeviceColors = new List<DeviceColorEntry>();
+
+                _loading = true;
+                _effectPickers[idx].SelectedEffect = LightEffect.SingleColor;
+                UpdateHeaderEffect(idx);
+                _colors1[idx] = Color.FromRgb(0, 230, 118);
+                _colors2[idx] = Color.FromRgb(0, 0, 0);
+                _color1Swatches[idx].Background = new SolidColorBrush(_colors1[idx]);
+                _color2Swatches[idx].Background = new SolidColorBrush(_colors2[idx]);
+                _speedSliders[idx].Value = 50;
+                if (_programNameBoxes[idx] != null)
+                    _programNameBoxes[idx].Text = "";
+                UpdateVisibility(idx, LightEffect.SingleColor);
+                _loading = false;
+
+                QueueSave();
+            };
+
+            var separator = new Separator
+            {
+                Background = menuBorder,
+                Foreground = menuBorder,
+                Margin = new Thickness(4, 2, 4, 2),
+            };
+
+            var contextMenu = new ContextMenu
+            {
+                Background = menuBg,
+                BorderBrush = menuBorder,
+                BorderThickness = new Thickness(1),
+            };
+
+            contextMenu.ContextMenuOpening += (_, _) =>
+            {
+                pasteItem.IsEnabled = _lightClipboard != null;
+                pasteItem.Opacity = _lightClipboard != null ? 1.0 : 0.4;
+            };
+
+            contextMenu.Items.Add(copyItem);
+            contextMenu.Items.Add(pasteItem);
+            contextMenu.Items.Add(separator);
+            contextMenu.Items.Add(resetItem);
+
+            border.ContextMenu = contextMenu;
         }
     }
 

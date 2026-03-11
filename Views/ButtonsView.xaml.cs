@@ -84,6 +84,9 @@ public partial class ButtonsView : UserControl
         { "power_hibernate",    Color.FromRgb(0x42, 0xA5, 0xF5) },
     };
 
+    // Clipboard for button copy/paste
+    private static ButtonConfig? _buttonClipboard;
+
     // Section header elements (refreshed on accent change)
     private readonly List<(Border bar, TextBlock label)> _sectionHeaders = new();
 
@@ -164,6 +167,174 @@ public partial class ButtonsView : UserControl
         ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshAccentColors);
 
         BuildColumns();
+        SetupColumnContextMenus();
+    }
+
+    private void SetupColumnContextMenus()
+    {
+        var menuBg = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+        var menuFg = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
+        var menuBorder = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+
+        for (int i = 0; i < 5; i++)
+        {
+            int idx = i;
+            var border = _columnCards[i];
+            if (border == null) continue;
+
+            var copyItem = new MenuItem
+            {
+                Header = "Copy Button",
+                Foreground = menuFg,
+                Background = menuBg,
+            };
+            var pasteItem = new MenuItem
+            {
+                Header = "Paste Button",
+                Foreground = menuFg,
+                Background = menuBg,
+            };
+            var resetItem = new MenuItem
+            {
+                Header = "Reset to Default",
+                Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x88, 0x88)),
+                Background = menuBg,
+            };
+
+            copyItem.Click += (_, _) =>
+            {
+                if (_config == null) return;
+                var btn = _config.Buttons.FirstOrDefault(b => b.Idx == idx);
+                if (btn == null) return;
+                var json = Newtonsoft.Json.JsonConvert.SerializeObject(btn);
+                _buttonClipboard = Newtonsoft.Json.JsonConvert.DeserializeObject<ButtonConfig>(json);
+            };
+
+            pasteItem.Click += (_, _) =>
+            {
+                if (_buttonClipboard == null || _config == null || _onSave == null) return;
+                var btn = _config.Buttons.FirstOrDefault(b => b.Idx == idx);
+                if (btn == null) return;
+
+                var json = Newtonsoft.Json.JsonConvert.SerializeObject(_buttonClipboard);
+                var copy = Newtonsoft.Json.JsonConvert.DeserializeObject<ButtonConfig>(json)!;
+                copy.Idx = idx;
+
+                // Apply all fields
+                btn.Action = copy.Action; btn.Path = copy.Path; btn.MacroKeys = copy.MacroKeys;
+                btn.DeviceId = copy.DeviceId; btn.DeviceIds = copy.DeviceIds ?? new List<string>();
+                btn.ProfileName = copy.ProfileName; btn.PowerAction = copy.PowerAction;
+                btn.LinkedKnobIdx = copy.LinkedKnobIdx;
+
+                btn.DoublePressAction = copy.DoublePressAction; btn.DoublePressPath = copy.DoublePressPath;
+                btn.DoublePressMacroKeys = copy.DoublePressMacroKeys; btn.DoublePressDeviceId = copy.DoublePressDeviceId;
+                btn.DoublePressDeviceIds = copy.DoublePressDeviceIds ?? new List<string>();
+                btn.DoublePressProfileName = copy.DoublePressProfileName; btn.DoublePressPowerAction = copy.DoublePressPowerAction;
+                btn.DoublePressLinkedKnobIdx = copy.DoublePressLinkedKnobIdx;
+
+                btn.HoldAction = copy.HoldAction; btn.HoldPath = copy.HoldPath; btn.HoldMacroKeys = copy.HoldMacroKeys;
+                btn.HoldDeviceId = copy.HoldDeviceId; btn.HoldDeviceIds = copy.HoldDeviceIds ?? new List<string>();
+                btn.HoldProfileName = copy.HoldProfileName; btn.HoldPowerAction = copy.HoldPowerAction;
+                btn.HoldLinkedKnobIdx = copy.HoldLinkedKnobIdx;
+
+                ReloadButtonColumn(idx, btn);
+                QueueSave();
+            };
+
+            resetItem.Click += (_, _) =>
+            {
+                if (_config == null || _onSave == null) return;
+                var btn = _config.Buttons.FirstOrDefault(b => b.Idx == idx);
+                if (btn == null) return;
+
+                btn.Action = "none"; btn.Path = ""; btn.MacroKeys = "";
+                btn.DeviceId = ""; btn.DeviceIds = new List<string>();
+                btn.ProfileName = ""; btn.PowerAction = ""; btn.LinkedKnobIdx = -1;
+
+                btn.DoublePressAction = "none"; btn.DoublePressPath = ""; btn.DoublePressMacroKeys = "";
+                btn.DoublePressDeviceId = ""; btn.DoublePressDeviceIds = new List<string>();
+                btn.DoublePressProfileName = ""; btn.DoublePressPowerAction = ""; btn.DoublePressLinkedKnobIdx = -1;
+
+                btn.HoldAction = "none"; btn.HoldPath = ""; btn.HoldMacroKeys = "";
+                btn.HoldDeviceId = ""; btn.HoldDeviceIds = new List<string>();
+                btn.HoldProfileName = ""; btn.HoldPowerAction = ""; btn.HoldLinkedKnobIdx = -1;
+
+                ReloadButtonColumn(idx, btn);
+                QueueSave();
+            };
+
+            var separator = new Separator
+            {
+                Background = menuBorder,
+                Foreground = menuBorder,
+                Margin = new Thickness(4, 2, 4, 2),
+            };
+
+            var contextMenu = new ContextMenu
+            {
+                Background = menuBg,
+                BorderBrush = menuBorder,
+                BorderThickness = new Thickness(1),
+            };
+
+            contextMenu.ContextMenuOpening += (_, _) =>
+            {
+                pasteItem.IsEnabled = _buttonClipboard != null;
+                pasteItem.Opacity = _buttonClipboard != null ? 1.0 : 0.4;
+            };
+
+            contextMenu.Items.Add(copyItem);
+            contextMenu.Items.Add(pasteItem);
+            contextMenu.Items.Add(separator);
+            contextMenu.Items.Add(resetItem);
+
+            border.ContextMenu = contextMenu;
+        }
+    }
+
+    private void ReloadButtonColumn(int idx, ButtonConfig btn)
+    {
+        _loading = true;
+
+        // TAP
+        SelectCombo(_tapCombos[idx], btn.Action);
+        SetTextBoxValue(_tapPathBoxes[idx], btn.Path);
+        SetTextBoxValue(_tapMacroBoxes[idx], btn.MacroKeys);
+        SelectDevicePicker(_tapDevicePickers[idx], btn.DeviceId);
+        _tapCycleDevicePickers[idx].SetCheckedIds(btn.DeviceIds);
+        SelectProfilePicker(_tapProfilePickers[idx], btn.ProfileName);
+        SelectPowerSegment(_tapPowerSegments[idx], btn.PowerAction);
+        SelectKnobPicker(_tapKnobPickers[idx], btn.LinkedKnobIdx);
+        UpdateTapVisibility(idx, btn.Action);
+        UpdateHeaderDisplay(idx);
+
+        // DOUBLE
+        SelectCombo(_dblCombos[idx], btn.DoublePressAction);
+        SetTextBoxValue(_dblPathBoxes[idx], btn.DoublePressPath);
+        SetTextBoxValue(_dblMacroBoxes[idx], btn.DoublePressMacroKeys);
+        SelectDevicePicker(_dblDevicePickers[idx], btn.DoublePressDeviceId);
+        _dblCycleDevicePickers[idx].SetCheckedIds(btn.DoublePressDeviceIds);
+        SelectProfilePicker(_dblProfilePickers[idx], btn.DoublePressProfileName);
+        SelectPowerSegment(_dblPowerSegments[idx], btn.DoublePressPowerAction);
+        SelectKnobPicker(_dblKnobPickers[idx], btn.DoublePressLinkedKnobIdx);
+        UpdateGestureVisibility(_dblPathPanels[idx], _dblBrowseButtons[idx], _dblMacroPanels[idx],
+            _dblDevicePanels[idx], _dblCycleDevicePanels[idx], _dblProfilePanels[idx],
+            _dblPowerPanels[idx], _dblKnobPanels[idx], btn.DoublePressAction);
+
+        // HOLD
+        SelectCombo(_holdCombos[idx], btn.HoldAction);
+        SetTextBoxValue(_holdPathBoxes[idx], btn.HoldPath);
+        SetTextBoxValue(_holdMacroBoxes[idx], btn.HoldMacroKeys);
+        SelectDevicePicker(_holdDevicePickers[idx], btn.HoldDeviceId);
+        _holdCycleDevicePickers[idx].SetCheckedIds(btn.HoldDeviceIds);
+        SelectProfilePicker(_holdProfilePickers[idx], btn.HoldProfileName);
+        SelectPowerSegment(_holdPowerSegments[idx], btn.HoldPowerAction);
+        SelectKnobPicker(_holdKnobPickers[idx], btn.HoldLinkedKnobIdx);
+        UpdateGestureVisibility(_holdPathPanels[idx], _holdBrowseButtons[idx], _holdMacroPanels[idx],
+            _holdDevicePanels[idx], _holdCycleDevicePanels[idx], _holdProfilePanels[idx],
+            _holdPowerPanels[idx], _holdKnobPanels[idx], btn.HoldAction);
+
+        _loading = false;
     }
 
     public void LoadConfig(AppConfig config, AudioMixer mixer, Action<AppConfig> onSave)
