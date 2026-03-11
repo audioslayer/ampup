@@ -187,6 +187,16 @@ public partial class App : Application
 
         menu.Items.Add(new Forms.ToolStripSeparator());
 
+        // Assign App submenu placeholder — rebuilt on Opening
+        var assignItem = new Forms.ToolStripMenuItem("  Assign Running Apps →")
+        {
+            Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Regular),
+            Padding = new Forms.Padding(6, 6, 6, 6),
+        };
+        menu.Items.Add(assignItem);
+
+        menu.Items.Add(new Forms.ToolStripSeparator());
+
         // Exit
         var exitItem = new Forms.ToolStripMenuItem("  Exit")
         {
@@ -198,6 +208,8 @@ public partial class App : Application
         menu.Items.Add(exitItem);
 
         _trayIcon.ContextMenuStrip = menu;
+
+        menu.Opening += (_, _) => RebuildAssignSubmenu(assignItem);
     }
 
     private void ShowMainWindow()
@@ -227,6 +239,67 @@ public partial class App : Application
         var items = _trayIcon.ContextMenuStrip.Items;
         if (items.Count > 0 && items[0] is Forms.ToolStripLabel header)
             header.ForeColor = System.Drawing.Color.FromArgb(ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B);
+    }
+
+    private void RebuildAssignSubmenu(Forms.ToolStripMenuItem assignItem)
+    {
+        assignItem.DropDownItems.Clear();
+
+        var runningApps = _mixer?.GetRunningAudioApps() ?? new List<string>();
+        if (runningApps.Count == 0)
+        {
+            var noneItem = new Forms.ToolStripMenuItem("  (no audio apps running)")
+            {
+                Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Italic),
+                ForeColor = Color.FromArgb(0x55, 0x55, 0x55),
+                Enabled = false,
+            };
+            assignItem.DropDownItems.Add(noneItem);
+            return;
+        }
+
+        foreach (var appName in runningApps)
+        {
+            var appCapture = appName;
+            var appItem = new Forms.ToolStripMenuItem($"  {appName}")
+            {
+                Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Regular),
+                Padding = new Forms.Padding(4, 4, 4, 4),
+            };
+
+            // Sub-items: one per knob
+            for (int k = 0; k < 5; k++)
+            {
+                int knobIdx = k;
+                var knob = _config.Knobs.FirstOrDefault(kn => kn.Idx == knobIdx);
+                string knobLabel = knob != null && !string.IsNullOrWhiteSpace(knob.Label)
+                    ? knob.Label
+                    : $"Knob {knobIdx + 1}";
+
+                var knobItem = new Forms.ToolStripMenuItem($"  {knobLabel}")
+                {
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Regular),
+                    Padding = new Forms.Padding(4, 4, 4, 4),
+                };
+                knobItem.Click += (_, _) =>
+                {
+                    var cfg = _config.Knobs.FirstOrDefault(kn => kn.Idx == knobIdx);
+                    if (cfg != null)
+                    {
+                        cfg.Target = appCapture;
+                        cfg.Label = appCapture;
+                        ConfigManager.Save(_config);
+                        _mainWindow?.Dispatcher.Invoke(() =>
+                        {
+                            _mainWindow.RefreshViews();
+                        });
+                    }
+                };
+                appItem.DropDownItems.Add(knobItem);
+            }
+
+            assignItem.DropDownItems.Add(appItem);
+        }
     }
 
     private void ExitApp()

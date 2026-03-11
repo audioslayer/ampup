@@ -56,6 +56,12 @@ public partial class MixerView : UserControl
     private readonly Border[] _settingsBorders = new Border[5];
     private readonly bool[] _settingsExpanded = new bool[5];
 
+    // Suggestion banner
+    private Border? _suggestionBanner;
+
+    // Clipboard for knob copy/paste
+    private static KnobConfig? _clipboard;
+
     // Section header elements (refreshed on accent change)
     private readonly List<(Border bar, TextBlock label)> _sectionHeaders = new();
 
@@ -94,6 +100,8 @@ public partial class MixerView : UserControl
 
         BuildChannelControls();
         SetupStripHoverEffects();
+        SetupStripContextMenus();
+        SetupSuggestionBanner();
     }
 
     private void SetupStripHoverEffects()
@@ -114,6 +122,135 @@ public partial class MixerView : UserControl
             {
                 strip.BorderBrush = normalBorder;
             };
+        }
+    }
+
+    private void SetupStripContextMenus()
+    {
+        var borders = new[] { Ch0Border, Ch1Border, Ch2Border, Ch3Border, Ch4Border };
+
+        var menuBg = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+        var menuFg = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
+        var menuBorder = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+
+        for (int i = 0; i < 5; i++)
+        {
+            int idx = i;
+            var border = borders[i];
+
+            var copyItem = new MenuItem
+            {
+                Header = "Copy Channel Config",
+                Foreground = menuFg,
+                Background = menuBg,
+            };
+            var pasteItem = new MenuItem
+            {
+                Header = "Paste Channel Config",
+                Foreground = menuFg,
+                Background = menuBg,
+            };
+            var resetItem = new MenuItem
+            {
+                Header = "Reset to Default",
+                Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x88, 0x88)),
+                Background = menuBg,
+            };
+
+            copyItem.Click += (_, _) =>
+            {
+                if (_config == null) return;
+                var knob = _config.Knobs.FirstOrDefault(k => k.Idx == idx);
+                if (knob == null) return;
+                var json = Newtonsoft.Json.JsonConvert.SerializeObject(knob);
+                _clipboard = Newtonsoft.Json.JsonConvert.DeserializeObject<KnobConfig>(json);
+            };
+
+            pasteItem.Click += (_, _) =>
+            {
+                if (_clipboard == null || _config == null || _onSave == null) return;
+                var knob = _config.Knobs.FirstOrDefault(k => k.Idx == idx);
+                if (knob == null) return;
+
+                var json = Newtonsoft.Json.JsonConvert.SerializeObject(_clipboard);
+                var copy = Newtonsoft.Json.JsonConvert.DeserializeObject<KnobConfig>(json)!;
+                copy.Idx = idx;
+
+                // Apply all fields from copy
+                knob.Label = copy.Label;
+                knob.Target = copy.Target;
+                knob.DeviceId = copy.DeviceId;
+                knob.MinVolume = copy.MinVolume;
+                knob.MaxVolume = copy.MaxVolume;
+                knob.Curve = copy.Curve;
+                knob.Apps = copy.Apps;
+
+                _loading = true;
+                _channelLabels[idx].Text = GetDisplayLabel(knob);
+                SelectTarget(_targetPickers[idx], knob.Target);
+                SelectCurve(_curvePickers[idx], knob.Curve);
+                _rangeSliders[idx].LowerValue = Math.Clamp(knob.MinVolume, 0, 100);
+                _rangeSliders[idx].UpperValue = Math.Clamp(knob.MaxVolume, 0, 100);
+                SelectPickerByTag(_devicePickers[idx], knob.DeviceId);
+                UpdatePickerVisibility(idx, knob.Target);
+                _loading = false;
+
+                QueueSave();
+            };
+
+            resetItem.Click += (_, _) =>
+            {
+                if (_config == null || _onSave == null) return;
+                var knob = _config.Knobs.FirstOrDefault(k => k.Idx == idx);
+                if (knob == null) return;
+
+                knob.Label = "";
+                knob.Target = "master";
+                knob.Apps = new List<string>();
+                knob.Curve = ResponseCurve.Linear;
+                knob.MinVolume = 0;
+                knob.MaxVolume = 100;
+                knob.DeviceId = "";
+
+                _loading = true;
+                _channelLabels[idx].Text = GetDisplayLabel(knob);
+                SelectTarget(_targetPickers[idx], "master");
+                SelectCurve(_curvePickers[idx], ResponseCurve.Linear);
+                _rangeSliders[idx].LowerValue = 0;
+                _rangeSliders[idx].UpperValue = 100;
+                SelectPickerByTag(_devicePickers[idx], "");
+                UpdatePickerVisibility(idx, "master");
+                _loading = false;
+
+                QueueSave();
+            };
+
+            var separator = new Separator
+            {
+                Background = menuBorder,
+                Foreground = menuBorder,
+                Margin = new Thickness(4, 2, 4, 2),
+            };
+
+            var contextMenu = new ContextMenu
+            {
+                Background = menuBg,
+                BorderBrush = menuBorder,
+                BorderThickness = new Thickness(1),
+            };
+
+            contextMenu.ContextMenuOpening += (_, _) =>
+            {
+                pasteItem.IsEnabled = _clipboard != null;
+                pasteItem.Opacity = _clipboard != null ? 1.0 : 0.4;
+            };
+
+            contextMenu.Items.Add(copyItem);
+            contextMenu.Items.Add(pasteItem);
+            contextMenu.Items.Add(separator);
+            contextMenu.Items.Add(resetItem);
+
+            border.ContextMenu = contextMenu;
         }
     }
 
@@ -168,6 +305,8 @@ public partial class MixerView : UserControl
 
         if (_ha != null)
             _ = FetchHAEntitiesAsync();
+
+        CheckAndShowSuggestionBanner();
 
         _liveTimer.Start();
     }
@@ -912,5 +1051,175 @@ public partial class MixerView : UserControl
                 words[i] = char.ToUpper(words[i][0]) + words[i][1..];
         }
         return string.Join(' ', words);
+    }
+
+    // ── Suggestion Banner ──────────────────────────────────────────────
+
+    private void SetupSuggestionBanner()
+    {
+        if (Content is not Grid rootGrid) return;
+
+        // Add a banner row at the top (index 0), shift channel row to index 1
+        rootGrid.RowDefinitions.Insert(0, new RowDefinition { Height = GridLength.Auto });
+
+        // Move all existing children to row 1
+        foreach (UIElement child in rootGrid.Children)
+            Grid.SetRow(child, 1);
+
+        // Build the banner
+        var amber = Color.FromRgb(0xFF, 0xD7, 0x40);
+        var amberDim = Color.FromRgb(0x2A, 0x22, 0x00);
+
+        var bannerStack = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        var bannerText = new TextBlock
+        {
+            FontSize = 12,
+            Foreground = new SolidColorBrush(amber),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 12, 0),
+        };
+        bannerStack.Children.Add(bannerText);
+
+        var applyBtn = new System.Windows.Controls.Button
+        {
+            Content = "Apply",
+            FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
+            Padding = new Thickness(14, 5, 14, 5),
+            Margin = new Thickness(0, 0, 8, 0),
+            Cursor = System.Windows.Input.Cursors.Hand,
+            Background = new SolidColorBrush(ThemeManager.Accent),
+            Foreground = new SolidColorBrush(Color.FromRgb(0x0F, 0x0F, 0x0F)),
+            BorderThickness = new Thickness(0),
+        };
+
+        var dismissBtn = new System.Windows.Controls.Button
+        {
+            Content = "Dismiss",
+            FontSize = 11,
+            Padding = new Thickness(10, 5, 10, 5),
+            Cursor = System.Windows.Input.Cursors.Hand,
+            Background = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0x99, 0x99, 0x99)),
+            BorderThickness = new Thickness(0),
+        };
+        bannerStack.Children.Add(applyBtn);
+        bannerStack.Children.Add(dismissBtn);
+
+        var banner = new Border
+        {
+            Background = new SolidColorBrush(amberDim),
+            BorderBrush = new SolidColorBrush(amber),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(16, 10, 16, 10),
+            Margin = new Thickness(0, 0, 0, 8),
+            Child = bannerStack,
+            Visibility = Visibility.Collapsed,
+        };
+        Grid.SetRow(banner, 0);
+        Grid.SetColumnSpan(banner, 5);
+        rootGrid.Children.Add(banner);
+
+        _suggestionBanner = banner;
+
+        dismissBtn.Click += (_, _) => banner.Visibility = Visibility.Collapsed;
+        applyBtn.Click += (_, _) =>
+        {
+            ApplySuggestedLayout();
+            banner.Visibility = Visibility.Collapsed;
+        };
+    }
+
+    private static readonly string[] CommApps = { "discord", "teams", "zoom", "slack" };
+    private static readonly string[] MusicApps = { "spotify", "music", "itunes" };
+    private static readonly string[] BrowserApps = { "chrome", "firefox", "edge", "brave" };
+
+    private void CheckAndShowSuggestionBanner()
+    {
+        if (_suggestionBanner == null || _config == null || _mixer == null) return;
+
+        // Count knobs still at default
+        int defaultCount = _config.Knobs.Count(k => k.Target == "none" || k.Target == "master");
+        if (defaultCount < 2)
+        {
+            _suggestionBanner.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var running = _mixer.GetRunningAudioApps();
+
+        string? commApp = running.FirstOrDefault(a => CommApps.Any(k => a.Contains(k, StringComparison.OrdinalIgnoreCase)));
+        string? musicApp = running.FirstOrDefault(a => MusicApps.Any(k => a.Contains(k, StringComparison.OrdinalIgnoreCase)));
+        string? browserApp = running.FirstOrDefault(a => BrowserApps.Any(k => a.Contains(k, StringComparison.OrdinalIgnoreCase)));
+        string? gameApp = running.FirstOrDefault(a =>
+            !CommApps.Any(k => a.Contains(k, StringComparison.OrdinalIgnoreCase)) &&
+            !MusicApps.Any(k => a.Contains(k, StringComparison.OrdinalIgnoreCase)) &&
+            !BrowserApps.Any(k => a.Contains(k, StringComparison.OrdinalIgnoreCase)));
+
+        // Need at least 2 known apps
+        var knownApps = new[] { commApp, musicApp, browserApp, gameApp }.Where(a => a != null).ToList();
+        if (knownApps.Count < 2)
+        {
+            _suggestionBanner.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        // Build banner text
+        var appNames = knownApps.Select(a => a!).Take(3).ToList();
+        var textBlock = _suggestionBanner.Child is StackPanel sp
+            ? sp.Children.OfType<TextBlock>().FirstOrDefault()
+            : null;
+        if (textBlock != null)
+            textBlock.Text = $"✦ We found {string.Join(", ", appNames)} — apply suggested layout?";
+
+        // Store layout for Apply button — use Tag on the banner
+        _suggestionBanner.Tag = new SuggestedLayout
+        {
+            CommApp = commApp,
+            MusicApp = musicApp,
+            BrowserApp = browserApp,
+            GameApp = gameApp,
+        };
+
+        _suggestionBanner.Visibility = Visibility.Visible;
+    }
+
+    private void ApplySuggestedLayout()
+    {
+        if (_config == null || _onSave == null || _suggestionBanner?.Tag is not SuggestedLayout layout) return;
+
+        // Priority: 0=master, 1=game, 2=comm, 3=music, 4=browser
+        var targets = new[] { "master", layout.GameApp, layout.CommApp, layout.MusicApp, layout.BrowserApp };
+
+        _loading = true;
+        for (int i = 0; i < 5; i++)
+        {
+            var knob = _config.Knobs.FirstOrDefault(k => k.Idx == i);
+            if (knob == null) continue;
+            var t = targets[i] ?? "master";
+            knob.Target = t;
+            knob.Label = t == "master" ? "" : t;
+            SelectTarget(_targetPickers[i], t);
+            _channelLabels[i].Text = GetDisplayLabel(knob);
+            UpdatePickerVisibility(i, t);
+        }
+        _loading = false;
+
+        _onSave(_config);
+    }
+
+    private sealed class SuggestedLayout
+    {
+        public string? CommApp { get; set; }
+        public string? MusicApp { get; set; }
+        public string? BrowserApp { get; set; }
+        public string? GameApp { get; set; }
     }
 }
