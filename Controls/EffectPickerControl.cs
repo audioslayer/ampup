@@ -71,7 +71,28 @@ namespace AmpUp.Controls
             public LightEffect Effect;
             public bool IsHovered;
             public bool IsEmoji; // emoji icons ignore Foreground color
+            public Color TileColor; // unique color per effect
         }
+
+        // Per-effect colors — each tile gets its own personality
+        private static readonly Dictionary<LightEffect, Color> EffectColors = new()
+        {
+            { LightEffect.SingleColor,  Color.FromRgb(0x64, 0xB5, 0xF6) }, // soft blue
+            { LightEffect.ColorBlend,   Color.FromRgb(0xBA, 0x68, 0xC8) }, // purple
+            { LightEffect.PositionFill, Color.FromRgb(0x4D, 0xD0, 0xE1) }, // cyan
+            { LightEffect.GradientFill, Color.FromRgb(0xAE, 0xD5, 0x81) }, // lime green
+            { LightEffect.Blink,        Color.FromRgb(0xFF, 0xD5, 0x4F) }, // gold
+            { LightEffect.Pulse,        Color.FromRgb(0xE0, 0x6C, 0x9F) }, // pink
+            { LightEffect.Breathing,    Color.FromRgb(0x80, 0xCB, 0xC4) }, // teal
+            { LightEffect.Fire,         Color.FromRgb(0xFF, 0x8A, 0x3D) }, // orange
+            { LightEffect.Comet,        Color.FromRgb(0x7C, 0x8C, 0xF8) }, // indigo
+            { LightEffect.Sparkle,      Color.FromRgb(0xFF, 0xF1, 0x76) }, // bright yellow
+            { LightEffect.RainbowWave,  Color.FromRgb(0xEF, 0x53, 0x50) }, // red
+            { LightEffect.RainbowCycle, Color.FromRgb(0x66, 0xBB, 0x6A) }, // green
+            { LightEffect.MicStatus,    Color.FromRgb(0x42, 0xA5, 0xF5) }, // blue
+            { LightEffect.DeviceMute,   Color.FromRgb(0xEF, 0x53, 0x50) }, // red
+            { LightEffect.AudioReactive,Color.FromRgb(0x00, 0xE6, 0x76) }, // accent green
+        };
 
         // ── Constructor ──────────────────────────────────────────────────
         public EffectPickerControl()
@@ -136,7 +157,8 @@ namespace AmpUp.Controls
         // ── Tile builder ─────────────────────────────────────────────────
         private EffectTile BuildTile(LightEffect effect, string icon, string label, bool isEmoji)
         {
-            var info = new EffectTile { Effect = effect, IsEmoji = isEmoji };
+            var tileColor = EffectColors.GetValueOrDefault(effect, Color.FromRgb(0x00, 0xE6, 0x76));
+            var info = new EffectTile { Effect = effect, IsEmoji = isEmoji, TileColor = tileColor };
 
             var iconBlock = new TextBlock
             {
@@ -237,31 +259,39 @@ namespace AmpUp.Controls
 
         private void ApplyNormalVisual(EffectTile info)
         {
+            var c = info.TileColor;
+            // Dim version of the tile's color for unselected state
             info.Container.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
             info.Container.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
             if (!info.IsEmoji)
-                info.Icon.Foreground = new SolidColorBrush(Color.FromRgb(0x77, 0x77, 0x77));
-            info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+                info.Icon.Foreground = new SolidColorBrush(
+                    Color.FromRgb((byte)(c.R / 3), (byte)(c.G / 3), (byte)(c.B / 3)));
+            info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
         }
 
         private void ApplyHoverVisual(EffectTile info)
         {
-            info.Container.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
-            info.Container.BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
+            var c = info.TileColor;
+            info.Container.Background = new SolidColorBrush(
+                Color.FromArgb(0x10, c.R, c.G, c.B));
+            info.Container.BorderBrush = new SolidColorBrush(
+                Color.FromArgb(0x33, c.R, c.G, c.B));
             if (!info.IsEmoji)
-                info.Icon.Foreground = new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0xBB));
+                info.Icon.Foreground = new SolidColorBrush(
+                    Color.FromRgb((byte)(c.R * 2 / 3), (byte)(c.G * 2 / 3), (byte)(c.B * 2 / 3)));
             info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0xBB));
         }
 
         private void ApplySelectedVisual(EffectTile info)
         {
+            var c = info.TileColor;
             info.Container.Background = new SolidColorBrush(
-                Color.FromArgb(0x20, _accentColor.R, _accentColor.G, _accentColor.B));
+                Color.FromArgb(0x25, c.R, c.G, c.B));
             info.Container.BorderBrush = new SolidColorBrush(
-                Color.FromArgb(0x66, _accentColor.R, _accentColor.G, _accentColor.B));
+                Color.FromArgb(0x77, c.R, c.G, c.B));
             if (!info.IsEmoji)
-                info.Icon.Foreground = new SolidColorBrush(_accentColor);
-            info.Label.Foreground = new SolidColorBrush(_accentColor);
+                info.Icon.Foreground = new SolidColorBrush(c);
+            info.Label.Foreground = new SolidColorBrush(c);
         }
     }
 }
