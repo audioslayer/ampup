@@ -114,6 +114,8 @@ public partial class MainWindow : FluentWindow
     }
     private void NavSettings_Click(object sender, RoutedEventArgs e) => NavigateTo(_settingsView, NavSettings);
 
+    public void NavigateToSettings() => NavigateTo(_settingsView, NavSettings);
+
     private void NavImport_Click(object sender, RoutedEventArgs e)
     {
         var wizard = new ImportWizardWindow { Owner = this };

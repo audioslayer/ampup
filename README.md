@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.4.0--alpha-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.5.2--alpha-blue" alt="Version" />
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6" alt="Platform" />
   <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8" />
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License" />
@@ -18,43 +18,46 @@
 
 ---
 
-## :sparkles: What's New in v0.4.0-alpha
+## :sparkles: What's New in v0.5.x
 
-### :rainbow: 8 New LED Effects
-The biggest lighting update yet — 4 new per-knob effects that use all 3 LEDs independently, plus 4 global-spanning effects that treat all 15 LEDs as one continuous light strip.
+### :speaker: Smart Mix — Auto-Ducking & Auto-Profiles
+Two new intelligent mixing features live in a collapsible **Smart Mix** section in the Mixer tab:
 
-**Per-Knob 3-LED Effects:**
-- :left_right_arrow: **PingPong** — bright dot bounces back and forth across 3 LEDs
-- :bar_chart: **Stack** — LEDs build up one by one, then reset
-- :ocean: **Wave** — sine wave of brightness travels across 3 LEDs
-- :candle: **Candle** — smooth organic flickering (slower/calmer than Fire)
+- **Auto-Ducking** — automatically fades other apps when a trigger app (e.g. Discord) is speaking. Fully configurable trigger app, target apps, duck amount, and fade speed.
+- **Auto-Profile Switching** — automatically switches profiles based on the foreground window. Map any app to any profile — no button press needed.
 
-**Global-Spanning Effects (all 15 LEDs as one strip):**
-- :red_circle: **Scanner** — Cylon/KITT scanner sweeps back and forth across all 15 LEDs
-- :comet: **Meteor Rain** — bright comet with long fading tail across all 15 LEDs
-- :purple_heart: **Color Wave** — scrolling color1→color2 gradient across all 15 LEDs
-- :orange_circle: **Segments** — rotating barber-pole bands of color1/color2 across all 15 LEDs
+### :package: Tray Quick Mixer
+**Left-click** the system tray icon to open a compact glassmorphic per-app volume mixer popup — adjust any running app's volume without opening the main window.
 
-### :art: Colorized Effect Tiles
-Every effect tile in the picker now has its own unique color identity — Fire is orange, Sparkle is yellow, Pulse is pink, etc. Replaced emoji icons with colorizable unicode symbols so all tiles light up in their signature color across normal, hover, and selected states.
+### :arrows_counterclockwise: Profile Export / Import
+Save profiles as standalone `.json` files and load them back — great for sharing configs or keeping backups.
 
-### :control_knobs: Styled Sliders
-New custom-drawn `StyledSlider` control matching the Mixer tab's range slider visual style. Used for brightness and all speed sliders — accent-colored track fill, round thumb with white center dot, and value label underneath.
+### :mag: Quick Assign from Tray
+**Right-click** the system tray icon → **Assign Running Apps** → pick a knob to instantly bind any currently running audio app.
 
-### :art: Per-Effect Header Colors
-The effect name and icon above each LED column now matches the selected effect's unique color instead of the global theme accent.
+### :bulb: Auto-Suggest Layout
+When known apps are detected running but their knobs are unconfigured, an amber banner appears in the Mixer view suggesting a layout with one click.
 
-### :level_slider: Live Accent Color Refresh
-All custom controls now update instantly when you change the theme accent color — no more restarting the app. Covers effect pickers, curve pickers, range sliders, target pickers, device pickers, and all section headers.
+### :clipboard: Copy / Paste Everywhere
+Right-click context menus on channel strips, LED columns, and button tiles for Copy / Paste / Reset — works across all three views.
 
-### :desktop_computer: Wider Layout
-Default window size bumped to 1600×1000 for better effect tile layout — 4 tiles per row in every column, with room for colors and speed controls below.
+### :electric_plug: Friendly Serial Port Selector
+COM port dropdown with an **Auto-Detect** button that probes all ports for the CH343/CH340 chip. Shows connection status inline. Raw port/baud fields tucked under Advanced for power users.
+
+### :video_game: Per-Gesture Independent Config
+Each button gesture (tap / double / hold) now has its own independent set of config fields — device picker, macro, profile, power action — so all 3 gestures can use any action type without sharing settings.
+
+### :bulb: New LED Effects
+- **DeviceSelect** — shows per-device colors based on the currently active Windows output device (up to 3 device→color mappings per knob)
+- **ProgramMute** — color1=unmuted, color2=muted for any target process
+- **PositionBlend**, **Wheel**, **RainbowWheel** — new per-knob animated effects
+- **13 new global-spanning effects** — TheaterChase, RainbowScanner, SparkleRain, BreathingSync, FireWall, DualRacer, Lightning, Fillup, Ocean, Collision, DNA, Rainfall, PoliceLights
 
 ---
 
 ## :zap: Why Amp Up?
 
-Amp Up is a community-built alternative for the Turn Up USB mixer with a modern dark UI inspired by SteelSeries Sonar and Elgato Wave Link. It extends the hardware with Home Assistant integration, response curves, volume range clamping, and more features coming soon.
+Amp Up is a community-built alternative for the Turn Up USB mixer with a modern dark UI inspired by SteelSeries Sonar and Elgato Wave Link. It extends the hardware with smart mixing automation, Home Assistant integration, response curves, volume range clamping, and more.
 
 ---
 
@@ -67,31 +70,34 @@ Amp Up is a community-built alternative for the Turn Up USB mixer with a modern 
 - :straight_ruler: **Volume range clamping** — restrict a knob to sweep only a portion of the volume range (e.g. 40–100%)
 - :bar_chart: **Live VU meters** — real-time audio level visualization with peak hold
 - :bulb: **Monitor brightness** — control physical monitor brightness via DDC/CI
+- :mute: **Smart Mix** — Auto-Ducking and Auto-Profile Switching in a collapsible Mixer tab section
 
 ### :video_game: Buttons — 15 Programmable Actions
-- :point_up_2: **3 gestures per button** — single press, double press, and hold
-- :hammer_and_wrench: **18 action types:**
+- :point_up_2: **3 gestures per button** — single press, double press, and hold (each with independent settings)
+- :hammer_and_wrench: **26 action types:**
   - Media controls (play/pause, next, previous)
-  - Mute toggles (master, mic, per-app, active window)
+  - Mute toggles (master, mic, per-app, active window, app group, output device)
   - App launcher / process killer
-  - Audio device switching (cycle or direct select)
+  - Audio device switching (cycle with optional device subset, or direct select)
   - Keyboard macros (any key combo)
   - System power (sleep, lock, shutdown, restart, hibernate, logoff)
   - Profile switching
   - LED brightness cycling
 
 ### :rainbow: Lights — Full RGB Control
-- :sparkles: **19 LED effects** — solid, blend, fill, gradient, blink, pulse, breathing, fire, comet, sparkle, ping pong, stack, wave, candle, rainbow wave, rainbow cycle, mic status, mute status, audio reactive
-- :globe_with_meridians: **4 global-spanning effects** — scanner, meteor rain, color wave, segments (all 15 LEDs as one strip)
-- :art: **Dual color support** — set primary and secondary colors per effect
+- :sparkles: **30+ LED effects** — per-knob effects (SingleColor, ColorBlend, PositionFill, GradientFill, PositionBlend, Wheel, RainbowWheel, Blink, Pulse, Breathing, Fire, Comet, Sparkle, PingPong, Stack, Wave, Candle, RainbowWave, RainbowCycle, MicStatus, DeviceMute, ProgramMute, DeviceSelect, AudioReactive)
+- :globe_with_meridians: **17 global-spanning effects** — Scanner, MeteorRain, ColorWave, Segments, TheaterChase, RainbowScanner, SparkleRain, BreathingSync, FireWall, DualRacer, Lightning, Fillup, Ocean, Collision, DNA, Rainfall, PoliceLights (all 15 LEDs as one continuous strip)
+- :art: **Dual color support** — primary and secondary colors per effect
 - :fast_forward: **Speed control** — adjustable animation speed per knob
 - :high_brightness: **Global brightness** — master brightness slider for all LEDs
+- :clipboard: **Copy / Paste** — right-click any LED column to copy settings to another
 
 ### :busts_in_silhouette: Profiles
 - :floppy_disk: **Save and load** full configurations (knobs, buttons, lights)
 - :arrows_counterclockwise: **Switch profiles** via button press or sidebar profile picker
+- :outbox_tray: **Export / Import** — save profiles as standalone JSON files
 - :framed_picture: **Colored Fluent icons** — 40+ icons with 10 color presets per profile
-- :video_game: **Per-game / per-workflow** setups
+- :video_game: **Per-game / per-workflow** setups with Auto-Profile Switching
 
 ### :tv: OSD Overlay
 - :window: **Glassmorphism notifications** — sleek dark glass overlay with green glow accent
@@ -101,20 +107,23 @@ Amp Up is a community-built alternative for the Turn Up USB mixer with a modern 
 - :round_pushpin: **Configurable position** — 6 screen positions (Fraps-style picker in Settings)
 - :control_knobs: **Per-type toggles** — enable/disable OSD for volume, profiles, and devices independently
 
+### :package: Tray Integration
+- :speaker: **Quick Mixer** — left-click tray icon for compact per-app volume popup
+- :mag: **Quick Assign** — right-click tray → Assign Running Apps → pick a knob instantly
+
 ### :gear: System Integration
 - :house: **Home Assistant** — connect to your smart home for automation triggers
 - :arrow_up: **Auto-update** — checks for new releases on startup with one-click install
 - :rocket: **Start with Windows** — launches silently to system tray
-- :package: **System tray app** — glassmorphism context menu with accent glow
 - :zap: **Hot-reload config** — changes apply instantly, no restart needed
-- :electric_plug: **Auto COM port detection** — scans all serial ports to find the Turn Up device
+- :electric_plug: **Auto COM port detection** — friendly dropdown with auto-detect for the Turn Up device
 
 ---
 
 ## :inbox_tray: Install
 
 ### Installer (Recommended)
-1. Download `AmpUp-Setup-0.4.0-alpha.exe` from [Releases](https://github.com/audioslayer/ampup/releases)
+1. Download `AmpUp-Setup-0.5.2-alpha.exe` from [Releases](https://github.com/audioslayer/ampup/releases)
 2. Run the installer
 3. Amp Up appears in your system tray
 
@@ -141,8 +150,8 @@ Open the app from the system tray to access four configuration tabs:
 
 | Tab | What You Configure |
 |---|---|
-| :musical_keyboard: **Mixer** | Knob targets, response curves, volume range, app groups |
-| :video_game: **Buttons** | Actions for press / double-press / hold per button |
+| :musical_keyboard: **Mixer** | Knob targets, response curves, volume range, app groups, Smart Mix |
+| :video_game: **Buttons** | Actions for tap / double-press / hold per button |
 | :rainbow: **Lights** | LED effects, colors, speed, global brightness |
 | :gear: **Settings** | Serial port, startup, profiles, Home Assistant |
 
@@ -163,7 +172,6 @@ All changes save automatically and apply in real-time.
 | Process name | Any substring match (e.g. `discord`, `spotify`, `chrome`) |
 | Output Device | Specific audio output by device ID |
 | Input Device | Specific audio input by device ID |
-| LED Brightness | Control RGB LED brightness with a knob |
 
 ---
 
@@ -171,7 +179,7 @@ All changes save automatically and apply in real-time.
 
 Amp Up is designed for the **Turn Up** USB volume mixer (CH343 USB-to-serial). The device has:
 - :control_knobs: 5 rotary knobs (10-bit resolution, 0–1023)
-- :radio_button: 5 push buttons (supporting press, double-press, and hold)
+- :radio_button: 5 push buttons (supporting tap, double-press, and hold)
 - :bulb: 15 RGB LEDs (3 per knob)
 
 ---
@@ -179,40 +187,10 @@ Amp Up is designed for the **Turn Up** USB volume mixer (CH343 USB-to-serial). T
 ## :hammer_and_wrench: Tech Stack
 
 - **C# / .NET 8** — WPF with WPF-UI (Fluent design + Mica backdrop)
-- **NAudio** — WASAPI per-app audio control
+- **NAudio** — WASAPI per-app audio control and FFT audio analysis
 - **System.IO.Ports** — serial communication with Turn Up hardware
 - **Custom controls** — animated arc knob, 16-segment VU meter, styled sliders
 - **Code-behind architecture** — lightweight, no MVVM overhead
-
----
-
-## :clipboard: Changelog
-
-### v0.4.0-alpha — LED Effects & UI Polish
-:rainbow: 8 new LED effects (4 per-knob + 4 global-spanning across all 15 LEDs)
-:art: Colorized effect tiles with unique per-effect colors
-:control_knobs: Custom StyledSlider control for brightness and speed
-:level_slider: Live accent color refresh across all views
-:desktop_computer: Wider 1600×1000 default layout
-:broom: Removed unused files and dead code for production cleanup
-
-### v0.3.2-alpha — OSD, Profiles & Polish
-:tv: Glassmorphism OSD overlay for volume, profiles, and device switching
-:busts_in_silhouette: Profile system with colored Fluent icons
-:electric_plug: Auto COM port detection
-:arrow_up: Auto-update checker
-:house: Home Assistant integration
-:art: Dynamic accent theming across all views
-
-### v0.2-alpha — Buttons & Lights
-:video_game: 18 button action types with 3 gestures per button
-:rainbow: 9 LED effects with dual color and speed control
-:chart_with_upwards_trend: Response curves and volume range clamping
-
-### v0.1-alpha — Initial Release
-:musical_keyboard: 5-channel mixer with per-app volume control
-:bar_chart: Live VU meters with peak hold
-:floppy_disk: JSON config with auto-save
 
 ---
 
@@ -222,6 +200,10 @@ Amp Up is designed for the **Turn Up** USB volume mixer (CH343 USB-to-serial). T
 - [x] Auto COM port detection
 - [x] Auto-update checker
 - [x] Global-spanning LED effects (15 LEDs as one strip)
+- [x] Auto-Ducking (Smart Mix)
+- [x] Auto-Profile Switching
+- [x] Tray Quick Mixer
+- [x] Profile Export / Import
 - [ ] OBS WebSocket integration (scene switching, source control)
 - [ ] VoiceMeeter strip/bus control
 - [ ] Multi-device support

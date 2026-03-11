@@ -37,6 +37,24 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // Global crash handlers — wire up before anything else
+        DispatcherUnhandledException += (_, ex) =>
+        {
+            Logger.Log($"CRASH (UI): {ex.Exception}");
+            ShowCrashDialog(ex.Exception);
+            ex.Handled = true;
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, ex) =>
+        {
+            Logger.Log($"CRASH (AppDomain): {ex.ExceptionObject}");
+            if (ex.ExceptionObject is Exception exception) ShowCrashDialog(exception);
+        };
+        TaskScheduler.UnobservedTaskException += (_, ex) =>
+        {
+            Logger.Log($"CRASH (Task): {ex.Exception}");
+            ex.SetObserved();
+        };
+
         // Single instance check
         _mutex = new Mutex(true, "AmpUp_SingleInstance", out bool isNew);
         if (!isNew)
@@ -117,6 +135,22 @@ public partial class App : Application
         // Sync connection status — serial may have connected before window was created
         if (_isConnected)
             _mainWindow.SetConnectionStatus(true, _serial.Port?.PortName);
+
+        // First-run welcome dialog
+        if (!_config.HasCompletedSetup && !args.Contains("--minimized"))
+        {
+            var welcome = new WelcomeDialog(() =>
+            {
+                ShowMainWindow();
+                _mainWindow?.NavigateToSettings();
+            });
+            welcome.Closed += (_, _) =>
+            {
+                _config.HasCompletedSetup = true;
+                ConfigManager.Save(_config);
+            };
+            welcome.Show();
+        }
     }
 
     private Forms.ToolStripLabel? _trayStatusLabel;
@@ -300,6 +334,21 @@ public partial class App : Application
 
             assignItem.DropDownItems.Add(appItem);
         }
+    }
+
+    private void ShowCrashDialog(Exception ex)
+    {
+        try
+        {
+            Dispatcher.Invoke(() =>
+            {
+                GlassDialog.ShowWarning(
+                    $"Amp Up encountered an error and needs to close.\n\nA crash log has been saved to:\n{Logger.LogPath}\n\nPlease include it when reporting the issue on GitHub.\n\n{ex.Message}",
+                    title: "Amp Up Crashed");
+                ExitApp();
+            });
+        }
+        catch { }
     }
 
     private void ExitApp()

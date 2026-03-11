@@ -39,6 +39,9 @@ public class AppConfig
 
     // Auto-Profile Switching
     public AutoSwitchConfig AutoSwitch { get; set; } = new();
+
+    // First-run setup flag
+    public bool HasCompletedSetup { get; set; } = false;
 }
 
 public class SerialConfig
