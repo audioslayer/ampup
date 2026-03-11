@@ -29,6 +29,18 @@ public class RgbController : IDisposable
     private readonly int[] _sparkleTick = new int[5];
     private readonly int[] _sparkleNext = new int[5];
 
+    // Candle smoothed brightness state per knob (3 LEDs each)
+    private readonly float[,] _candleCurrent = new float[5, 3];
+    private readonly float[,] _candleTarget = new float[5, 3];
+
+    // Stack state per knob
+    private readonly int[] _stackLit = new int[5]; // how many LEDs are lit (0-3)
+    private readonly int[] _stackTick = new int[5];
+
+    // Global scanner state
+    private float _scannerPos;
+    private int _scannerDir = 1;
+
     // Random number generator for stochastic effects
     private static readonly Random _rng = new();
 
@@ -240,6 +252,12 @@ public class RgbController : IDisposable
         Logger.Log($"RGB transition: {effect}");
     }
 
+    // Global-spanning effects treat all 15 LEDs as one strip
+    private static readonly HashSet<LightEffect> SpanningEffects = new()
+    {
+        LightEffect.Scanner, LightEffect.MeteorRain, LightEffect.ColorWave, LightEffect.Segments
+    };
+
     /// <summary>
     /// Compute LED colors for all knobs based on their configured effect.
     /// </summary>
@@ -248,6 +266,13 @@ public class RgbController : IDisposable
         // Global lighting mode — apply one config to all 5 knobs
         if (_globalLight != null && _globalLight.Enabled)
         {
+            // Global-spanning effects render across all 15 LEDs as one strip
+            if (SpanningEffects.Contains(_globalLight.Effect))
+            {
+                ApplyGlobalSpanEffect(_globalLight);
+                return;
+            }
+
             for (int k = 0; k < 5; k++)
             {
                 var light = new LightConfig
@@ -341,6 +366,31 @@ public class RgbController : IDisposable
 
             case LightEffect.GradientFill:
                 EffectGradientFill(k, light);
+                break;
+
+            case LightEffect.PingPong:
+                EffectPingPong(k, light);
+                break;
+
+            case LightEffect.Stack:
+                EffectStack(k, light);
+                break;
+
+            case LightEffect.Wave:
+                EffectWave(k, light);
+                break;
+
+            case LightEffect.Candle:
+                EffectCandle(k, light);
+                break;
+
+            // Global-spanning effects: when used per-knob, fall back to simple behavior
+            case LightEffect.Scanner:
+            case LightEffect.MeteorRain:
+            case LightEffect.ColorWave:
+            case LightEffect.Segments:
+                // Per-knob fallback: just show color1
+                SetColor(k, light.R, light.G, light.B);
                 break;
         }
     }
@@ -636,6 +686,234 @@ public class RgbController : IDisposable
             int g = (int)(light.G + (light.G2 - light.G) * t);
             int b = (int)(light.B + (light.B2 - light.B) * t);
             SetColor(k, led, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
+        }
+    }
+
+    // --- New per-knob 3-LED effects ---
+
+    /// <summary>
+    /// Bright dot bounces back and forth across 3 LEDs (0→1→2→1→0...).
+    /// Color1 = dot, Color2 = dim background.
+    /// </summary>
+    private void EffectPingPong(int k, LightConfig light)
+    {
+        int speed = Math.Clamp(light.EffectSpeed, 1, 100);
+        float periodSec = 1.5f - (speed / 100f * 1.3f);
+        float periodTicks = periodSec / 0.05f;
+        float t = (_animTick % (int)Math.Max(periodTicks, 1)) / Math.Max(periodTicks, 1);
+
+        // Bounce: 0→1→2→1→0 maps to t=0..1 via triangle wave over 4 steps
+        float pos = t * 4f; // 0..4
+        float ledPos;
+        if (pos < 1f) ledPos = pos;          // 0→1
+        else if (pos < 2f) ledPos = 1f + (pos - 1f); // 1→2
+        else if (pos < 3f) ledPos = 2f - (pos - 2f); // 2→1
+        else ledPos = 1f - (pos - 3f);               // 1→0
+
+        for (int led = 0; led < 3; led++)
+        {
+            float dist = Math.Abs(led - ledPos);
+            float brightness = Math.Max(0f, 1f - dist);
+            brightness *= brightness; // sharpen the falloff
+
+            int r = (int)(light.R * brightness + light.R2 * 0.08f * (1f - brightness));
+            int g = (int)(light.G * brightness + light.G2 * 0.08f * (1f - brightness));
+            int b = (int)(light.B * brightness + light.B2 * 0.08f * (1f - brightness));
+            SetColor(k, led, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// LEDs build up one by one (0, then 0+1, then 0+1+2), pause, all off, repeat.
+    /// Color1 = lit LED color.
+    /// </summary>
+    private void EffectStack(int k, LightConfig light)
+    {
+        int speed = Math.Clamp(light.EffectSpeed, 1, 100);
+        int interval = Math.Max(2, 30 - speed * 28 / 100); // ticks per step
+
+        _stackTick[k]++;
+        if (_stackTick[k] >= interval)
+        {
+            _stackTick[k] = 0;
+            _stackLit[k]++;
+            if (_stackLit[k] > 4) // 3 lit states + 1 pause + 1 off
+                _stackLit[k] = 0;
+        }
+
+        int litCount = Math.Min(_stackLit[k], 3);
+        for (int led = 0; led < 3; led++)
+        {
+            if (led < litCount)
+                SetColor(k, led, light.R, light.G, light.B);
+            else
+                SetColor(k, led, 0, 0, 0);
+        }
+    }
+
+    /// <summary>
+    /// Sine wave of brightness travels across 3 LEDs. Each LED offset 120° in phase.
+    /// Color1 = wave color.
+    /// </summary>
+    private void EffectWave(int k, LightConfig light)
+    {
+        int speed = Math.Clamp(light.EffectSpeed, 1, 100);
+        float periodSec = 2.0f - (speed / 100f * 1.8f);
+        float periodTicks = periodSec / 0.05f;
+        float baseAngle = (_animTick % (int)Math.Max(periodTicks, 1)) / Math.Max(periodTicks, 1) * MathF.PI * 2f;
+
+        for (int led = 0; led < 3; led++)
+        {
+            float angle = baseAngle + led * (MathF.PI * 2f / 3f); // 120° offset per LED
+            float brightness = (MathF.Sin(angle) + 1f) / 2f;
+            brightness *= brightness; // make peaks brighter, troughs darker
+
+            SetColor(k, led,
+                (int)(light.R * brightness),
+                (int)(light.G * brightness),
+                (int)(light.B * brightness));
+        }
+    }
+
+    /// <summary>
+    /// Smooth organic candle flicker. Each LED has independently smoothed random brightness.
+    /// Color1 = base flame, Color2 = ember/peak tint.
+    /// </summary>
+    private void EffectCandle(int k, LightConfig light)
+    {
+        int speed = Math.Clamp(light.EffectSpeed, 1, 100);
+        float smoothing = 0.03f + (speed / 100f) * 0.15f; // 0.03 (calm) to 0.18 (windy)
+
+        for (int led = 0; led < 3; led++)
+        {
+            // Move toward target
+            _candleCurrent[k, led] += (_candleTarget[k, led] - _candleCurrent[k, led]) * smoothing;
+
+            // Pick new target when close enough
+            if (Math.Abs(_candleCurrent[k, led] - _candleTarget[k, led]) < 0.05f)
+                _candleTarget[k, led] = 0.2f + (float)_rng.NextDouble() * 0.8f;
+
+            float bright = _candleCurrent[k, led];
+            float ember = bright * bright; // more ember at higher brightness
+            int r = Math.Clamp((int)(light.R * bright + (light.R2 - light.R) * ember * 0.3f), 0, 255);
+            int g = Math.Clamp((int)(light.G * bright + (light.G2 - light.G) * ember * 0.3f), 0, 255);
+            int b = Math.Clamp((int)(light.B * bright + (light.B2 - light.B) * ember * 0.3f), 0, 255);
+            SetColor(k, led, r, g, b);
+        }
+    }
+
+    // --- Global-spanning effects (all 15 LEDs as one strip) ---
+
+    /// <summary>Set a single LED by global index (0-14). Applies brightness and gamma.</summary>
+    private void SetGlobalLed(int globalIdx, int r, int g, int b)
+    {
+        int knob = globalIdx / 3;
+        int led = globalIdx % 3;
+        if (knob >= 0 && knob < 5)
+            SetColor(knob, led, r, g, b);
+    }
+
+    private void ApplyGlobalSpanEffect(GlobalLightConfig gl)
+    {
+        switch (gl.Effect)
+        {
+            case LightEffect.Scanner:    GlobalScanner(gl); break;
+            case LightEffect.MeteorRain: GlobalMeteor(gl); break;
+            case LightEffect.ColorWave:  GlobalColorWave(gl); break;
+            case LightEffect.Segments:   GlobalSegments(gl); break;
+        }
+    }
+
+    /// <summary>
+    /// Cylon/KITT scanner: bright dot with fading tail sweeps back and forth across 15 LEDs.
+    /// </summary>
+    private void GlobalScanner(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float step = 0.1f + (speed / 100f) * 0.5f; // LEDs per tick
+
+        _scannerPos += step * _scannerDir;
+        if (_scannerPos >= 14f) { _scannerPos = 14f; _scannerDir = -1; }
+        if (_scannerPos <= 0f) { _scannerPos = 0f; _scannerDir = 1; }
+
+        for (int i = 0; i < 15; i++)
+        {
+            float dist = Math.Abs(i - _scannerPos);
+            float brightness = Math.Max(0f, 1f - dist / 3f); // tail spans ~3 LEDs
+            brightness *= brightness;
+
+            int r = (int)(gl.R * brightness + gl.R2 * 0.03f * (1f - brightness));
+            int g = (int)(gl.G * brightness + gl.G2 * 0.03f * (1f - brightness));
+            int b = (int)(gl.B * brightness + gl.B2 * 0.03f * (1f - brightness));
+            SetGlobalLed(i, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Bright meteor with long fading tail shoots across all 15 LEDs, wraps around.
+    /// </summary>
+    private void GlobalMeteor(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float headPos = (_animTick * (0.2f + speed / 100f * 0.6f)) % 20f; // wraps at 20 for tail room
+
+        for (int i = 0; i < 15; i++)
+        {
+            float dist = headPos - i;
+            if (dist < 0) dist += 20f; // wrap distance
+
+            float brightness;
+            if (dist < 0.5f) brightness = 1f;           // head
+            else if (dist < 6f) brightness = 1f - dist / 6f; // tail decay
+            else brightness = 0f;
+
+            brightness *= brightness; // sharper falloff
+
+            SetGlobalLed(i,
+                (int)(gl.R * brightness),
+                (int)(gl.G * brightness),
+                (int)(gl.B * brightness));
+        }
+    }
+
+    /// <summary>
+    /// Scrolling gradient of color1→color2 across all 15 LEDs. Smooth and flowing.
+    /// </summary>
+    private void GlobalColorWave(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float offset = _animTick * (0.05f + speed / 100f * 0.3f);
+
+        for (int i = 0; i < 15; i++)
+        {
+            // Sine wave creates smooth gradient: 0→1→0 across the strip
+            float t = (MathF.Sin((i / 15f + offset) * MathF.PI * 2f) + 1f) / 2f;
+
+            int r = (int)(gl.R + (gl.R2 - gl.R) * t);
+            int g = (int)(gl.G + (gl.G2 - gl.G) * t);
+            int b = (int)(gl.B + (gl.B2 - gl.B) * t);
+            SetGlobalLed(i, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Rotating barber-pole of alternating color1/color2 bands across all 15 LEDs.
+    /// </summary>
+    private void GlobalSegments(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float offset = _animTick * (0.05f + speed / 100f * 0.25f);
+        float bandWidth = 3f; // LEDs per band
+
+        for (int i = 0; i < 15; i++)
+        {
+            float pos = (i + offset) / bandWidth;
+            float t = (MathF.Sin(pos * MathF.PI) + 1f) / 2f; // smooth alternation
+
+            int r = (int)(gl.R + (gl.R2 - gl.R) * t);
+            int g = (int)(gl.G + (gl.G2 - gl.G) * t);
+            int b = (int)(gl.B + (gl.B2 - gl.B) * t);
+            SetGlobalLed(i, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
         }
     }
 

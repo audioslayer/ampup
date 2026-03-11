@@ -4,7 +4,7 @@
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         xmlns:views="clr-namespace:AmpUp.Views"
         Title="Amp Up"
-        Width="1400" Height="900"
+        Width="1600" Height="1000"
         MinWidth="900" MinHeight="600"
         WindowStartupLocation="CenterScreen"
         ExtendsContentIntoTitleBar="True"

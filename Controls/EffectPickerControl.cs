@@ -61,6 +61,7 @@ namespace AmpUp.Controls
         }
 
         // ── Internals ────────────────────────────────────────────────────
+        private readonly bool _showGlobal;
         private readonly List<EffectTile> _tiles = new();
 
         private class EffectTile
@@ -75,7 +76,7 @@ namespace AmpUp.Controls
         }
 
         // Per-effect colors — each tile gets its own personality
-        private static readonly Dictionary<LightEffect, Color> EffectColors = new()
+        public static readonly Dictionary<LightEffect, Color> EffectColors = new()
         {
             { LightEffect.SingleColor,  Color.FromRgb(0x64, 0xB5, 0xF6) }, // soft blue
             { LightEffect.ColorBlend,   Color.FromRgb(0xBA, 0x68, 0xC8) }, // purple
@@ -92,11 +93,24 @@ namespace AmpUp.Controls
             { LightEffect.MicStatus,    Color.FromRgb(0x42, 0xA5, 0xF5) }, // blue
             { LightEffect.DeviceMute,   Color.FromRgb(0xEF, 0x53, 0x50) }, // red
             { LightEffect.AudioReactive,ThemeManager.Accent }, // accent green
+
+            // New per-knob 3-LED effects
+            { LightEffect.PingPong,     Color.FromRgb(0x29, 0xB6, 0xF6) }, // light blue
+            { LightEffect.Stack,        Color.FromRgb(0x66, 0xBB, 0x6A) }, // green
+            { LightEffect.Wave,         Color.FromRgb(0x26, 0xC6, 0xDA) }, // cyan
+            { LightEffect.Candle,       Color.FromRgb(0xFF, 0xCA, 0x28) }, // amber
+
+            // Global-spanning effects
+            { LightEffect.Scanner,      Color.FromRgb(0xEF, 0x53, 0x50) }, // red
+            { LightEffect.MeteorRain,   Color.FromRgb(0x7C, 0x8C, 0xF8) }, // indigo
+            { LightEffect.ColorWave,    Color.FromRgb(0xBA, 0x68, 0xC8) }, // purple
+            { LightEffect.Segments,     Color.FromRgb(0xFF, 0x8A, 0x3D) }, // orange
         };
 
         // ── Constructor ──────────────────────────────────────────────────
-        public EffectPickerControl()
+        public EffectPickerControl(bool showGlobal = false)
         {
+            _showGlobal = showGlobal;
             Background = Brushes.Transparent;
             BorderThickness = new Thickness(0);
             SnapsToDevicePixels = true;
@@ -114,22 +128,37 @@ namespace AmpUp.Controls
 
             AddCategory(mainPanel, "ANIMATED", new[]
             {
-                (LightEffect.Blink,        "⚡",  "Blink",   true),
+                (LightEffect.Blink,        "⚡",  "Blink",   false),
                 (LightEffect.Pulse,        "◉",   "Pulse",   false),
                 (LightEffect.Breathing,    "〰",  "Breathe", false),
-                (LightEffect.Fire,         "🔥",  "Fire",    true),
+                (LightEffect.Fire,         "♨",   "Fire",    false),
                 (LightEffect.Comet,        "☄",   "Comet",   false),
                 (LightEffect.Sparkle,      "✦",   "Sparkle", false),
-                (LightEffect.RainbowWave,  "🌊",  "Rainbow", true),
-                (LightEffect.RainbowCycle, "🔄",  "Cycle",   true),
+                (LightEffect.PingPong,     "⟷",  "Pong",    false),
+                (LightEffect.Stack,        "▁▃▆", "Stack",   false),
+                (LightEffect.Wave,         "∿",   "Wave",    false),
+                (LightEffect.Candle,       "♢",   "Candle",  false),
+                (LightEffect.RainbowWave,  "≈",   "Rainbow", false),
+                (LightEffect.RainbowCycle, "⟳",   "Cycle",   false),
             });
 
             AddCategory(mainPanel, "REACTIVE", new[]
             {
-                (LightEffect.MicStatus,    "🎤",  "Mic",   true),
-                (LightEffect.DeviceMute,   "🔇",  "Mute",  true),
-                (LightEffect.AudioReactive,"🎵",  "Audio", true),
+                (LightEffect.MicStatus,    "⏦",   "Mic",   false),
+                (LightEffect.DeviceMute,   "⊘",   "Mute",  false),
+                (LightEffect.AudioReactive,"♫",   "Audio", false),
             });
+
+            if (_showGlobal)
+            {
+                AddCategory(mainPanel, "GLOBAL SPAN", new[]
+                {
+                    (LightEffect.Scanner,    "▬",  "Scanner", false),
+                    (LightEffect.MeteorRain, "☄",  "Meteor",  false),
+                    (LightEffect.ColorWave,  "≋",  "Wave",    false),
+                    (LightEffect.Segments,   "▮▯", "Bands",   false),
+                });
+            }
         }
 
         // ── Category builder ─────────────────────────────────────────────
@@ -190,13 +219,13 @@ namespace AmpUp.Controls
 
             var container = new Border
             {
-                Width = 58,
+                Width = 54,
                 Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
                 BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(4, 6, 4, 5),
-                Margin = new Thickness(3),
+                Padding = new Thickness(2, 6, 2, 5),
+                Margin = new Thickness(2),
                 Cursor = Cursors.Hand,
                 Child = content,
                 SnapsToDevicePixels = true,
@@ -260,13 +289,12 @@ namespace AmpUp.Controls
         private void ApplyNormalVisual(EffectTile info)
         {
             var c = info.TileColor;
-            // Dim version of the tile's color for unselected state
-            info.Container.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
-            info.Container.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+            info.Container.Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
+            info.Container.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E));
             if (!info.IsEmoji)
                 info.Icon.Foreground = new SolidColorBrush(
-                    Color.FromRgb((byte)(c.R / 3), (byte)(c.G / 3), (byte)(c.B / 3)));
-            info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+                    Color.FromRgb((byte)(c.R / 2), (byte)(c.G / 2), (byte)(c.B / 2)));
+            info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0x7A, 0x7A, 0x7A));
         }
 
         private void ApplyHoverVisual(EffectTile info)

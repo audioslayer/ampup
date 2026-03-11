@@ -128,6 +128,18 @@ public enum LightEffect
     Comet,            // bright pixel chases across 3 LEDs with fading tail
     Sparkle,          // random LED flashes white briefly, fades back
     GradientFill,     // static gradient from color1 to color2 across 3 LEDs
+
+    // New per-knob 3-LED effects
+    PingPong,         // bright dot bounces back and forth across 3 LEDs
+    Stack,            // LEDs build up one by one, then reset
+    Wave,             // sine wave of brightness travels across 3 LEDs
+    Candle,           // smooth organic flickering (slower/calmer than Fire)
+
+    // Global-spanning effects (use all 15 LEDs as one strip)
+    Scanner,          // Cylon/KITT scanner sweeps back and forth across all 15 LEDs
+    MeteorRain,       // bright comet with long tail across all 15 LEDs
+    ColorWave,        // scrolling color1→color2 gradient across all 15 LEDs
+    Segments,         // rotating barber-pole bands of color1/color2 across all 15 LEDs
 }
 
 public enum ReactiveMode

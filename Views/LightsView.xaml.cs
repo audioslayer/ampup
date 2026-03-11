@@ -49,8 +49,7 @@ public partial class LightsView : UserControl
     private readonly Border[] _color1Swatches = new Border[5];
     private readonly Border[] _color2Swatches = new Border[5];
     private readonly StackPanel[] _color2Panels = new StackPanel[5];
-    private readonly Slider[] _speedSliders = new Slider[5];
-    private readonly TextBlock[] _speedLabels = new TextBlock[5];
+    private readonly StyledSlider[] _speedSliders = new StyledSlider[5];
     private readonly StackPanel[] _speedPanels = new StackPanel[5];
     private readonly ComboBox[] _reactiveModeComboBoxes = new ComboBox[5];
     private readonly StackPanel[] _reactiveModePanels = new StackPanel[5];
@@ -66,19 +65,19 @@ public partial class LightsView : UserControl
     private Border? _globalColor1Swatch;
     private Border? _globalColor2Swatch;
     private StackPanel? _globalColor2Panel;
-    private Slider? _globalSpeedSlider;
-    private TextBlock? _globalSpeedLabel;
+    private StyledSlider? _globalSpeedSlider;
     private StackPanel? _globalSpeedPanel;
     private ComboBox? _globalReactiveModeCombo;
     private StackPanel? _globalReactiveModePanel;
     private Color _globalColor1 = ThemeManager.Accent;
     private Color _globalColor2 = Color.FromRgb(0xFF, 0xFF, 0xFF);
     private StackPanel? _globalSettingsPanel;
+    private StyledSlider? _brightnessSlider;
 
     private static readonly LightEffect[] EffectsNeedingColor2 =
-        { LightEffect.ColorBlend, LightEffect.Blink, LightEffect.Pulse, LightEffect.MicStatus, LightEffect.DeviceMute, LightEffect.AudioReactive, LightEffect.GradientFill, LightEffect.Fire };
+        { LightEffect.ColorBlend, LightEffect.Blink, LightEffect.Pulse, LightEffect.MicStatus, LightEffect.DeviceMute, LightEffect.AudioReactive, LightEffect.GradientFill, LightEffect.Fire, LightEffect.PingPong, LightEffect.Candle, LightEffect.Scanner, LightEffect.ColorWave, LightEffect.Segments };
     private static readonly LightEffect[] EffectsNeedingSpeed =
-        { LightEffect.Blink, LightEffect.Pulse, LightEffect.RainbowWave, LightEffect.RainbowCycle, LightEffect.AudioReactive, LightEffect.Breathing, LightEffect.Comet, LightEffect.Sparkle };
+        { LightEffect.Blink, LightEffect.Pulse, LightEffect.RainbowWave, LightEffect.RainbowCycle, LightEffect.AudioReactive, LightEffect.Breathing, LightEffect.Comet, LightEffect.Sparkle, LightEffect.PingPong, LightEffect.Stack, LightEffect.Wave, LightEffect.Candle, LightEffect.Scanner, LightEffect.MeteorRain, LightEffect.ColorWave, LightEffect.Segments };
 
     public LightsView()
     {
@@ -95,6 +94,21 @@ public partial class LightsView : UserControl
 
         BuildGlobalCard();
         BuildChannelControls();
+
+        // Styled brightness slider
+        _brightnessSlider = new StyledSlider
+        {
+            Minimum = 0,
+            Maximum = 100,
+            Value = 100,
+            Suffix = "%",
+            AccentColor = ThemeManager.Accent,
+        };
+        _brightnessSlider.ValueChanged += (_, _) =>
+        {
+            if (!_loading) QueueSave();
+        };
+        BrightnessSliderHost.Children.Add(_brightnessSlider);
     }
 
     public void LoadConfig(AppConfig config, Action<AppConfig> onSave)
@@ -117,8 +131,6 @@ public partial class LightsView : UserControl
             _globalColor2Swatch.Background = new SolidColorBrush(_globalColor2);
         if (_globalSpeedSlider != null)
             _globalSpeedSlider.Value = Math.Clamp(gl.EffectSpeed, 1, 100);
-        if (_globalSpeedLabel != null)
-            _globalSpeedLabel.Text = gl.EffectSpeed.ToString();
         if (_globalReactiveModeCombo != null)
             _globalReactiveModeCombo.SelectedItem = gl.ReactiveMode;
 
@@ -146,7 +158,6 @@ public partial class LightsView : UserControl
             _color2Swatches[i].Background = new SolidColorBrush(_colors2[i]);
 
             _speedSliders[i].Value = Math.Clamp(light.EffectSpeed, 1, 100);
-            _speedLabels[i].Text = light.EffectSpeed.ToString();
 
             if (_reactiveModeComboBoxes[i] != null)
                 _reactiveModeComboBoxes[i].SelectedItem = light.ReactiveMode;
@@ -156,11 +167,8 @@ public partial class LightsView : UserControl
             UpdateVisibility(i, light.Effect);
         }
 
-        BrightnessSlider.Value = Math.Clamp(config.LedBrightness, 0, 100);
-        BrightnessValueLabel.Text = $"{(int)BrightnessSlider.Value}%";
-
-        BrightnessSlider.ValueChanged -= BrightnessSlider_ValueChanged;
-        BrightnessSlider.ValueChanged += BrightnessSlider_ValueChanged;
+        if (_brightnessSlider != null)
+            _brightnessSlider.Value = Math.Clamp(config.LedBrightness, 0, 100);
 
         _loading = false;
     }
@@ -207,7 +215,7 @@ public partial class LightsView : UserControl
 
         // Effect picker
         settings.Children.Add(MakeSectionHeader("EFFECT"));
-        var effectPicker = new EffectPickerControl { Margin = new Thickness(0, 0, 0, 10) };
+        var effectPicker = new EffectPickerControl(showGlobal: true) { Margin = new Thickness(0, 0, 0, 10) };
         effectPicker.SelectionChanged += (_, _) =>
         {
             if (_loading) return;
@@ -236,42 +244,22 @@ public partial class LightsView : UserControl
         // Speed slider (conditional)
         var speedPanel = new StackPanel { Visibility = Visibility.Collapsed };
         speedPanel.Children.Add(MakeSectionHeader("SPEED"));
-        var speedGrid = new Grid();
-        speedGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        speedGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });
 
-        var speedSlider = new Slider
+        var speedSlider = new StyledSlider
         {
             Minimum = 1,
             Maximum = 100,
             Value = 50,
-            IsSnapToTickEnabled = true,
-            TickFrequency = 1,
-            VerticalAlignment = VerticalAlignment.Center
+            Suffix = "",
+            AccentColor = ThemeManager.Accent,
         };
-        Grid.SetColumn(speedSlider, 0);
-
-        var speedLabel = new TextBlock
+        speedSlider.ValueChanged += (_, _) =>
         {
-            Text = "50",
-            Style = FindStyle("SecondaryText"),
-            FontSize = 11,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextAlignment = TextAlignment.Right
-        };
-        Grid.SetColumn(speedLabel, 1);
-
-        speedSlider.ValueChanged += (_, e) =>
-        {
-            speedLabel.Text = ((int)e.NewValue).ToString();
             if (!_loading) QueueSave();
         };
         _globalSpeedSlider = speedSlider;
-        _globalSpeedLabel = speedLabel;
 
-        speedGrid.Children.Add(speedSlider);
-        speedGrid.Children.Add(speedLabel);
-        speedPanel.Children.Add(speedGrid);
+        speedPanel.Children.Add(speedSlider);
         speedPanel.Margin = new Thickness(0, 2, 0, 10);
         _globalSpeedPanel = speedPanel;
         settings.Children.Add(speedPanel);
@@ -447,42 +435,22 @@ public partial class LightsView : UserControl
             var speedContainer = new StackPanel();
             speedContainer.Children.Add(MakeSeparator(10));
             speedContainer.Children.Add(MakeSectionHeader("SPEED"));
-            var speedGrid = new Grid();
-            speedGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            speedGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });
 
-            var speedSlider = new Slider
+            var speedSlider = new StyledSlider
             {
                 Minimum = 1,
                 Maximum = 100,
                 Value = 50,
-                IsSnapToTickEnabled = true,
-                TickFrequency = 1,
-                VerticalAlignment = VerticalAlignment.Center
+                Suffix = "",
+                AccentColor = ThemeManager.Accent,
             };
-            Grid.SetColumn(speedSlider, 0);
-
-            var speedLabel = new TextBlock
+            speedSlider.ValueChanged += (_, _) =>
             {
-                Text = "50",
-                Style = FindStyle("SecondaryText"),
-                FontSize = 11,
-                VerticalAlignment = VerticalAlignment.Center,
-                TextAlignment = TextAlignment.Right
-            };
-            Grid.SetColumn(speedLabel, 1);
-
-            speedSlider.ValueChanged += (_, e) =>
-            {
-                speedLabel.Text = ((int)e.NewValue).ToString();
                 if (!_loading) QueueSave();
             };
             _speedSliders[i] = speedSlider;
-            _speedLabels[i] = speedLabel;
 
-            speedGrid.Children.Add(speedSlider);
-            speedGrid.Children.Add(speedLabel);
-            speedContainer.Children.Add(speedGrid);
+            speedContainer.Children.Add(speedSlider);
             speedContainer.Margin = new Thickness(0, 0, 0, 0);
             _speedPanels[i] = speedContainer;
             panel.Children.Add(speedContainer);
@@ -519,6 +487,11 @@ public partial class LightsView : UserControl
 
         _headerIcons[idx].Text = icon;
         _headerEffects[idx].Text = display;
+
+        // Color icon + label to match the effect's tile color
+        var effectColor = EffectPickerControl.EffectColors.GetValueOrDefault(effect, ThemeManager.Accent);
+        _headerIcons[idx].Foreground = new SolidColorBrush(effectColor);
+        _headerEffects[idx].Foreground = new SolidColorBrush(effectColor);
     }
 
     private Border MakeColorSwatch(int idx, bool isColor2)
@@ -593,12 +566,6 @@ public partial class LightsView : UserControl
         _reactiveModePanels[idx].Visibility = isReactive ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void BrightnessSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        BrightnessValueLabel.Text = $"{(int)e.NewValue}%";
-        if (!_loading) QueueSave();
-    }
-
     private void QueueSave()
     {
         _debounce.Stop();
@@ -648,7 +615,8 @@ public partial class LightsView : UserControl
 
         }
 
-        _config.LedBrightness = (int)BrightnessSlider.Value;
+        if (_brightnessSlider != null)
+            _config.LedBrightness = (int)_brightnessSlider.Value;
 
         _onSave(_config);
     }
@@ -705,9 +673,16 @@ public partial class LightsView : UserControl
             lbl.Foreground = new SolidColorBrush(Color.FromArgb(0x99, accent.R, accent.G, accent.B));
 
         for (int i = 0; i < 5; i++)
+        {
             _effectPickers[i].AccentColor = accent;
+            _speedSliders[i].AccentColor = accent;
+        }
         if (_globalEffectPicker != null)
             _globalEffectPicker.AccentColor = accent;
+        if (_globalSpeedSlider != null)
+            _globalSpeedSlider.AccentColor = accent;
+        if (_brightnessSlider != null)
+            _brightnessSlider.AccentColor = accent;
     }
 
     private TextBlock MakeLabel(string text)

@@ -21,25 +21,12 @@
                 <StackPanel x:Name="GlobalLightCardPanel" Grid.Column="0" />
 
                 <!-- Right: Brightness slider -->
-                <StackPanel Grid.Column="1" VerticalAlignment="Top" Margin="20,0,0,0">
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="20,0,0,0">
                     <TextBlock Text="BRIGHTNESS"
                                Style="{StaticResource SecondaryText}"
                                FontWeight="SemiBold"
                                Margin="0,0,0,6" />
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <Slider x:Name="BrightnessSlider" Grid.Column="0"
-                                Minimum="0" Maximum="100" Value="100"
-                                VerticalAlignment="Center"
-                                IsSnapToTickEnabled="True" TickFrequency="1" />
-                        <TextBlock x:Name="BrightnessValueLabel" Grid.Column="1"
-                                   Style="{StaticResource BodyText}"
-                                   VerticalAlignment="Center" Margin="12,0,0,0"
-                                   Text="100%" MinWidth="36" TextAlignment="Right" />
-                    </Grid>
+                    <StackPanel x:Name="BrightnessSliderHost" />
                 </StackPanel>
             </Grid>
         </Border>
