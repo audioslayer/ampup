@@ -3,17 +3,45 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Grid>
         <Grid.RowDefinitions>
-            <!-- Global Lighting card -->
+            <!-- Global Lighting card (includes brightness) -->
             <RowDefinition Height="Auto" />
             <!-- LED cards -->
             <RowDefinition Height="*" />
-            <!-- Global brightness -->
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Global Lighting Card (built in code-behind via BuildGlobalCard) -->
         <Border x:Name="GlobalLightCard" Grid.Row="0" Style="{StaticResource CardPanel}" Margin="0,0,0,12">
-            <StackPanel x:Name="GlobalLightCardPanel" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Left: Global lighting settings (checkbox + effects) -->
+                <StackPanel x:Name="GlobalLightCardPanel" Grid.Column="0" />
+
+                <!-- Right: Brightness slider -->
+                <StackPanel Grid.Column="1" VerticalAlignment="Top" Margin="20,0,0,0">
+                    <TextBlock Text="BRIGHTNESS"
+                               Style="{StaticResource SecondaryText}"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,6" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Slider x:Name="BrightnessSlider" Grid.Column="0"
+                                Minimum="0" Maximum="100" Value="100"
+                                VerticalAlignment="Center"
+                                IsSnapToTickEnabled="True" TickFrequency="1" />
+                        <TextBlock x:Name="BrightnessValueLabel" Grid.Column="1"
+                                   Style="{StaticResource BodyText}"
+                                   VerticalAlignment="Center" Margin="12,0,0,0"
+                                   Text="100%" MinWidth="36" TextAlignment="Right" />
+                    </Grid>
+                </StackPanel>
+            </Grid>
         </Border>
 
         <!-- 5 LED Channel Cards -->
@@ -51,28 +79,5 @@
                 <StackPanel x:Name="Led4Panel" />
             </Border>
         </Grid>
-
-        <!-- Global Brightness -->
-        <Border Grid.Row="2" Style="{StaticResource CardPanel}" Margin="0,12,0,0">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="GLOBAL BRIGHTNESS"
-                           Style="{StaticResource SecondaryText}"
-                           FontWeight="SemiBold" VerticalAlignment="Center"
-                           Margin="0,0,16,0" />
-                <Slider x:Name="BrightnessSlider" Grid.Column="1"
-                        Minimum="0" Maximum="100" Value="100"
-                        VerticalAlignment="Center"
-                        IsSnapToTickEnabled="True" TickFrequency="1" />
-                <TextBlock x:Name="BrightnessValueLabel" Grid.Column="2"
-                           Style="{StaticResource BodyText}"
-                           VerticalAlignment="Center" Margin="12,0,0,0"
-                           Text="100%" MinWidth="36" TextAlignment="Right" />
-            </Grid>
-        </Border>
     </Grid>
 </UserControl>
