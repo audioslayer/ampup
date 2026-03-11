@@ -91,7 +91,7 @@ public class LightConfig
     public int EffectSpeed { get; set; } = 50; // 1-100, used by animated effects; doubles as sensitivity for AudioReactive
     [JsonConverter(typeof(StringEnumConverter))]
     public ReactiveMode ReactiveMode { get; set; } = ReactiveMode.SpectrumBands;
-    public bool LinkToVolume { get; set; } = false;
+
 }
 
 public class GlobalLightConfig

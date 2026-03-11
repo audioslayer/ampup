@@ -28,8 +28,7 @@ public partial class LightsView : UserControl
     private readonly StackPanel[] _speedPanels = new StackPanel[5];
     private readonly ComboBox[] _reactiveModeComboBoxes = new ComboBox[5];
     private readonly StackPanel[] _reactiveModePanels = new StackPanel[5];
-    private readonly CheckBox[] _linkToVolumeChecks = new CheckBox[5];
-    private readonly StackPanel[] _linkToVolumePanels = new StackPanel[5];
+
 
     // Track current colors in memory
     private readonly Color[] _colors1 = new Color[5];
@@ -123,8 +122,7 @@ public partial class LightsView : UserControl
             if (_reactiveModeComboBoxes[i] != null)
                 _reactiveModeComboBoxes[i].SelectedItem = light.ReactiveMode;
 
-            if (_linkToVolumeChecks[i] != null)
-                _linkToVolumeChecks[i].IsChecked = light.LinkToVolume;
+
 
             UpdateVisibility(i, light.Effect);
         }
@@ -458,22 +456,7 @@ public partial class LightsView : UserControl
             _reactiveModePanels[idx] = reactiveContainer;
             panel.Children.Add(reactiveContainer);
 
-            // Link to volume checkbox (only visible for AudioReactive)
-            var linkPanel = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 2, 0, 0) };
-            var linkCheck = new CheckBox
-            {
-                Content = "Link brightness to volume",
-                Foreground = FindBrush("TextPrimaryBrush"),
-                FontSize = 11,
-                Margin = new Thickness(0, 0, 0, 4),
-                VerticalContentAlignment = VerticalAlignment.Center,
-            };
-            linkCheck.Checked += (_, _) => { if (!_loading) QueueSave(); };
-            linkCheck.Unchecked += (_, _) => { if (!_loading) QueueSave(); };
-            _linkToVolumeChecks[idx] = linkCheck;
-            linkPanel.Children.Add(linkCheck);
-            _linkToVolumePanels[idx] = linkPanel;
-            panel.Children.Add(linkPanel);
+            // LinkToVolume removed — not needed
         }
     }
 
@@ -527,7 +510,6 @@ public partial class LightsView : UserControl
         _color2Panels[idx].Visibility = needsColor2 ? Visibility.Visible : Visibility.Collapsed;
         _speedPanels[idx].Visibility = needsSpeed ? Visibility.Visible : Visibility.Collapsed;
         _reactiveModePanels[idx].Visibility = isReactive ? Visibility.Visible : Visibility.Collapsed;
-        _linkToVolumePanels[idx].Visibility = isReactive ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void BrightnessSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -582,7 +564,7 @@ public partial class LightsView : UserControl
             if (_reactiveModeComboBoxes[i]?.SelectedItem is ReactiveMode mode)
                 light.ReactiveMode = mode;
 
-            light.LinkToVolume = _linkToVolumeChecks[i]?.IsChecked ?? false;
+
         }
 
         _config.LedBrightness = (int)BrightnessSlider.Value;

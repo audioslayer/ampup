@@ -258,7 +258,6 @@ public class RgbController : IDisposable
                     R2 = _globalLight.R2, G2 = _globalLight.G2, B2 = _globalLight.B2,
                     EffectSpeed = _globalLight.EffectSpeed,
                     ReactiveMode = _globalLight.ReactiveMode,
-                    LinkToVolume = false,
                 };
                 ApplyEffect(k, light);
             }
@@ -507,13 +506,6 @@ public class RgbController : IDisposable
                 float newHue = (h + level * 120f) % 360f;
                 float newVal = 0.2f + level * 0.8f;
                 var (cr, cg, cb) = HsvToRgb(newHue, Math.Max(s, 0.7f), newVal);
-                if (light.LinkToVolume)
-                {
-                    float volScale = _knobPositions[k];
-                    cr = (int)(cr * volScale);
-                    cg = (int)(cg * volScale);
-                    cb = (int)(cb * volScale);
-                }
                 SetColor(k, cr, cg, cb);
                 return;
 
@@ -526,13 +518,6 @@ public class RgbController : IDisposable
         int r = (int)(light.R + (light.R2 - light.R) * level);
         int g = (int)(light.G + (light.G2 - light.G) * level);
         int b2 = (int)(light.B + (light.B2 - light.B) * level);
-        if (light.LinkToVolume)
-        {
-            float volScale = _knobPositions[k];
-            r = (int)(r * volScale);
-            g = (int)(g * volScale);
-            b2 = (int)(b2 * volScale);
-        }
         SetColor(k, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b2, 0, 255));
     }
 
