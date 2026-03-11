@@ -29,7 +29,7 @@ public class AudioAnalyzer : IDisposable
         (6000f, 20000f),  // 4: treble
     };
 
-    private const float NormRef = 0.1f; // reference amplitude for normalization
+    private const float NormRef = 0.005f; // reference amplitude for normalization (WASAPI loopback levels are very low)
     private const int FftSize = 1024;
     private const int FftLog2 = 10; // log2(1024)
 
