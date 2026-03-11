@@ -565,6 +565,61 @@ public partial class App : Application
                 _rgb.SetMasterMuted(master.AudioEndpointVolume.Mute);
             }
             catch { }
+
+            // Poll program mute states for ProgramMute LED effect
+            PollProgramMuteStates(enumerator);
+        }
+        catch { }
+    }
+
+    private void PollProgramMuteStates(NAudio.CoreAudioApi.MMDeviceEnumerator enumerator)
+    {
+        try
+        {
+            // Determine which lights need program mute polling
+            var lightsToCheck = new List<LightConfig>();
+            foreach (var l in _config.Lights)
+            {
+                if (l.Effect == LightEffect.ProgramMute && !string.IsNullOrWhiteSpace(l.ProgramName))
+                    lightsToCheck.Add(l);
+            }
+            if (_config.GlobalLight.Enabled && _config.GlobalLight.Effect == LightEffect.ProgramMute)
+            {
+                for (int i = 0; i < 5; i++)
+                    lightsToCheck.Add(new LightConfig { Idx = i, ProgramName = (_config.Lights.FirstOrDefault(l => l.Idx == i)?.ProgramName) ?? "" });
+            }
+
+            if (lightsToCheck.Count == 0) return;
+
+            using var device = enumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
+            var sessions = device.AudioSessionManager.Sessions;
+
+            foreach (var light in lightsToCheck)
+            {
+                if (string.IsNullOrWhiteSpace(light.ProgramName)) continue;
+                bool muted = true; // default: muted/not-found
+                try
+                {
+                    for (int s = 0; s < sessions.Count; s++)
+                    {
+                        var session = sessions[s];
+                        try
+                        {
+                            uint pid = session.GetProcessID;
+                            if (pid == 0) continue;
+                            var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                            if (proc.ProcessName.Contains(light.ProgramName, StringComparison.OrdinalIgnoreCase))
+                            {
+                                muted = session.SimpleAudioVolume.Mute;
+                                break;
+                            }
+                        }
+                        catch { }
+                    }
+                }
+                catch { }
+                _rgb.SetProgramMuted(light.Idx, muted);
+            }
         }
         catch { }
     }

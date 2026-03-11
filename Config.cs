@@ -109,6 +109,7 @@ public class LightConfig
     public int EffectSpeed { get; set; } = 50; // 1-100, used by animated effects; doubles as sensitivity for AudioReactive
     [JsonConverter(typeof(StringEnumConverter))]
     public ReactiveMode ReactiveMode { get; set; } = ReactiveMode.SpectrumBands;
+    public string ProgramName { get; set; } = ""; // for ProgramMute effect
 
 }
 
@@ -145,12 +146,18 @@ public enum LightEffect
     Comet,            // bright pixel chases across 3 LEDs with fading tail
     Sparkle,          // random LED flashes white briefly, fades back
     GradientFill,     // static gradient from color1 to color2 across 3 LEDs
+    PositionBlend,    // like PositionFill but color blends from color1 to color2 across lit LEDs
 
     // New per-knob 3-LED effects
     PingPong,         // bright dot bounces back and forth across 3 LEDs
     Stack,            // LEDs build up one by one, then reset
     Wave,             // sine wave of brightness travels across 3 LEDs
     Candle,           // smooth organic flickering (slower/calmer than Fire)
+    Wheel,            // single bright dot rotates around 3 LEDs with dim trail
+    RainbowWheel,     // tightly-spaced rainbow hues rotate across 3 LEDs per knob
+
+    // Reactive/Status effects
+    ProgramMute,      // color1 = not muted, color2 = muted (specific program audio session)
 
     // Global-spanning effects (use all 15 LEDs as one strip)
     Scanner,          // Cylon/KITT scanner sweeps back and forth across all 15 LEDs

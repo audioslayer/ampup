@@ -244,6 +244,8 @@ public class ButtonHandler
                     MuteActiveWindow(); break;
                 case "mute_app_group":
                     MuteAppGroup(btn); break;
+                case "mute_device":
+                    MuteDevice(btn?.DeviceId ?? ""); break;
                 case "cycle_output":
                     CycleOutputDevice(btn); break;
                 case "cycle_input":
@@ -536,6 +538,44 @@ public class ButtonHandler
         catch (Exception ex)
         {
             Logger.Log($"mute_app_group error: {ex.Message}");
+        }
+    }
+
+    // ── Mute specific audio device by DeviceId ───────────────────────
+
+    private void MuteDevice(string deviceId)
+    {
+        if (string.IsNullOrWhiteSpace(deviceId))
+        {
+            Logger.Log("mute_device: no DeviceId configured");
+            return;
+        }
+
+        try
+        {
+            // Try Render (output) devices first, then Capture (input)
+            foreach (var flow in new[] { DataFlow.Render, DataFlow.Capture })
+            {
+                try
+                {
+                    var devices = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
+                    foreach (var device in devices)
+                    {
+                        if (device.ID == deviceId)
+                        {
+                            device.AudioEndpointVolume.Mute = !device.AudioEndpointVolume.Mute;
+                            Logger.Log($"mute_device: {device.FriendlyName} mute={device.AudioEndpointVolume.Mute}");
+                            return;
+                        }
+                    }
+                }
+                catch { }
+            }
+            Logger.Log($"mute_device: no active device found with ID '{deviceId}'");
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"mute_device error: {ex.Message}");
         }
     }
 

@@ -24,6 +24,7 @@ public partial class ButtonsView : UserControl
         ("Play / Pause", "media_play_pause"), ("Next Track", "media_next"), ("Prev Track", "media_prev"),
         ("Mute Volume", "mute_master"), ("Mute Mic", "mute_mic"), ("Mute App", "mute_program"),
         ("Mute Active Window", "mute_active_window"), ("Mute App Group", "mute_app_group"),
+        ("Mute Device", "mute_device"),
         ("Launch App", "launch_exe"), ("Close App", "close_program"),
         ("Cycle Output", "cycle_output"), ("Cycle Input", "cycle_input"),
         ("Set Output", "select_output"), ("Set Input", "select_input"),
@@ -49,6 +50,7 @@ public partial class ButtonsView : UserControl
         { "close_program", "✕" }, { "cycle_output", "🔊" }, { "cycle_input", "🎙" },
         { "select_output", "🔊" }, { "select_input", "🎙" }, { "macro", "⌨" },
         { "switch_profile", "📋" }, { "cycle_brightness", "💡" }, { "mute_app_group", "🔇" },
+        { "mute_device", "🔇" },
         { "power_sleep", "😴" }, { "power_lock", "🔒" }, { "power_off", "⏻" },
         { "power_restart", "🔄" }, { "power_logoff", "🚪" }, { "power_hibernate", "❄" },
     };
@@ -64,6 +66,7 @@ public partial class ButtonsView : UserControl
         { "mute_program",       Color.FromRgb(0xEF, 0x53, 0x50) },
         { "mute_active_window", Color.FromRgb(0xEF, 0x53, 0x50) },
         { "mute_app_group",     Color.FromRgb(0xEF, 0x53, 0x50) },
+        { "mute_device",        Color.FromRgb(0xEF, 0x53, 0x50) },
         { "launch_exe",         Color.FromRgb(0x42, 0xA5, 0xF5) },
         { "close_program",      Color.FromRgb(0xFF, 0x7C, 0x43) },
         { "cycle_output",       Color.FromRgb(0xAB, 0x47, 0xBC) },
@@ -566,7 +569,7 @@ public partial class ButtonsView : UserControl
         _tapPathPanels[idx].Visibility = PathActions.Contains(action) ? Visibility.Visible : Visibility.Collapsed;
         _tapBrowseButtons[idx].Visibility = action == "launch_exe" ? Visibility.Visible : Visibility.Collapsed;
         _tapMacroPanels[idx].Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
-        _tapDevicePanels[idx].Visibility = action is "select_output" or "select_input" ? Visibility.Visible : Visibility.Collapsed;
+        _tapDevicePanels[idx].Visibility = action is "select_output" or "select_input" or "mute_device" ? Visibility.Visible : Visibility.Collapsed;
         _tapCycleDevicePanels[idx].Visibility = action is "cycle_output" or "cycle_input" ? Visibility.Visible : Visibility.Collapsed;
         _tapProfilePanels[idx].Visibility = action == "switch_profile" ? Visibility.Visible : Visibility.Collapsed;
         _tapPowerPanels[idx].Visibility = action == "system_power" ? Visibility.Visible : Visibility.Collapsed;
@@ -581,7 +584,7 @@ public partial class ButtonsView : UserControl
         pathPanel.Visibility = PathActions.Contains(action) ? Visibility.Visible : Visibility.Collapsed;
         browseBtn.Visibility = action == "launch_exe" ? Visibility.Visible : Visibility.Collapsed;
         macroPanel.Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
-        devicePanel.Visibility = action is "select_output" or "select_input" ? Visibility.Visible : Visibility.Collapsed;
+        devicePanel.Visibility = action is "select_output" or "select_input" or "mute_device" ? Visibility.Visible : Visibility.Collapsed;
         cycleDevicePanel.Visibility = action is "cycle_output" or "cycle_input" ? Visibility.Visible : Visibility.Collapsed;
         profilePanel.Visibility = action == "switch_profile" ? Visibility.Visible : Visibility.Collapsed;
         powerPanel.Visibility = action == "system_power" ? Visibility.Visible : Visibility.Collapsed;

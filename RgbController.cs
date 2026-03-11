@@ -37,6 +37,9 @@ public class RgbController : IDisposable
     private readonly int[] _stackLit = new int[5]; // how many LEDs are lit (0-3)
     private readonly int[] _stackTick = new int[5];
 
+    // ProgramMute state per knob
+    private readonly Dictionary<int, bool> _programMuteStates = new();
+
     // Global scanner state
     private float _scannerPos;
     private int _scannerDir = 1;
@@ -115,6 +118,15 @@ public class RgbController : IDisposable
     /// Update master muted state for the DeviceMute effect.
     /// </summary>
     public void SetMasterMuted(bool muted) => _masterMuted = muted;
+
+    /// <summary>
+    /// Update per-knob program mute state for the ProgramMute effect.
+    /// </summary>
+    public void SetProgramMuted(int knobIdx, bool muted)
+    {
+        if (knobIdx >= 0 && knobIdx < 5)
+            _programMuteStates[knobIdx] = muted;
+    }
 
     /// <summary>
     /// Set global brightness (0-100). Applied as final multiplier on all RGB values.
@@ -368,6 +380,10 @@ public class RgbController : IDisposable
                 EffectGradientFill(k, light);
                 break;
 
+            case LightEffect.PositionBlend:
+                EffectPositionBlend(k, light, pos);
+                break;
+
             case LightEffect.PingPong:
                 EffectPingPong(k, light);
                 break;
@@ -382,6 +398,18 @@ public class RgbController : IDisposable
 
             case LightEffect.Candle:
                 EffectCandle(k, light);
+                break;
+
+            case LightEffect.Wheel:
+                EffectWheel(k, light);
+                break;
+
+            case LightEffect.RainbowWheel:
+                EffectRainbowWheel(k, light);
+                break;
+
+            case LightEffect.ProgramMute:
+                EffectProgramMute(k, light);
                 break;
 
             // Global-spanning effects: when used per-knob, fall back to simple behavior
@@ -689,6 +717,34 @@ public class RgbController : IDisposable
         }
     }
 
+    /// <summary>
+    /// Like PositionFill but lit LEDs blend from color1 (bottom) to color2 (top).
+    /// LED 0 = color1, LED 1 = midpoint, LED 2 = color2. Unlit LEDs are off.
+    /// </summary>
+    private void EffectPositionBlend(int k, LightConfig light, float pos)
+    {
+        bool led0On = pos >= (1f / 6f);
+        bool led1On = pos >= 0.5f;
+        bool led2On = pos >= (5f / 6f);
+
+        bool[] leds = { led0On, led1On, led2On };
+        for (int led = 0; led < 3; led++)
+        {
+            if (leds[led])
+            {
+                float t = led / 2f; // 0, 0.5, 1.0
+                int r = Math.Clamp((int)(light.R + (light.R2 - light.R) * t), 0, 255);
+                int g = Math.Clamp((int)(light.G + (light.G2 - light.G) * t), 0, 255);
+                int b = Math.Clamp((int)(light.B + (light.B2 - light.B) * t), 0, 255);
+                SetColor(k, led, r, g, b);
+            }
+            else
+            {
+                SetColor(k, led, 0, 0, 0);
+            }
+        }
+    }
+
     // --- New per-knob 3-LED effects ---
 
     /// <summary>
@@ -800,6 +856,61 @@ public class RgbController : IDisposable
             int b = Math.Clamp((int)(light.B * bright + (light.B2 - light.B) * ember * 0.3f), 0, 255);
             SetColor(k, led, r, g, b);
         }
+    }
+
+    /// <summary>
+    /// Single bright dot rotates around 3 LEDs (0→1→2→0...) with a dim trailing fade.
+    /// Color1 = dot color. Speed controls rotation rate.
+    /// </summary>
+    private void EffectWheel(int k, LightConfig light)
+    {
+        int speed = Math.Clamp(light.EffectSpeed, 1, 100);
+        float periodSec = 1.5f - (speed / 100f * 1.3f); // 1.5s to 0.2s per full rotation
+        float periodTicks = periodSec / 0.05f;
+        float t = (_animTick % (int)Math.Max(periodTicks, 1)) / Math.Max(periodTicks, 1);
+
+        float headPos = t * 3f; // 0..3 wrapping
+        for (int led = 0; led < 3; led++)
+        {
+            float dist = ((led - headPos % 3f) + 3f) % 3f; // 0 = head, wraps
+            float brightness;
+            if (dist < 0.5f) brightness = 1.0f;           // head
+            else if (dist < 1.5f) brightness = 0.3f;      // 1 behind
+            else brightness = 0.05f;                       // 2 behind (dim tail)
+
+            SetColor(k, led,
+                (int)(light.R * brightness),
+                (int)(light.G * brightness),
+                (int)(light.B * brightness));
+        }
+    }
+
+    /// <summary>
+    /// Each of the 3 LEDs shows tightly-spaced rainbow hues (~40° apart) rotating over time.
+    /// Like RainbowCycle but with closer hues — feels like a spinning color wheel on a single knob.
+    /// </summary>
+    private void EffectRainbowWheel(int k, LightConfig light)
+    {
+        int speed = Math.Clamp(light.EffectSpeed, 1, 100);
+        float baseHue = (_animTick * (0.5f + speed / 100f * 2.5f)) % 360f;
+        for (int led = 0; led < 3; led++)
+        {
+            float hue = (baseHue + led * 40f) % 360f; // 40° between LEDs (vs 120° for RainbowCycle)
+            var (r, g, b) = HsvToRgb(hue, 1f, 1f);
+            SetColor(k, led, r, g, b);
+        }
+    }
+
+    /// <summary>
+    /// Show color1 when the tracked program is NOT muted, color2 when muted or not found.
+    /// </summary>
+    private void EffectProgramMute(int k, LightConfig light)
+    {
+        bool muted = _programMuteStates.GetValueOrDefault(k, true); // default to muted color if unknown
+        if (muted)
+            SetColor(k, light.R2, light.G2, light.B2);
+        else
+            SetColor(k, light.R, light.G, light.B);
     }
 
     // --- Global-spanning effects (all 15 LEDs as one strip) ---

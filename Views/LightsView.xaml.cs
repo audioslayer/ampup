@@ -53,6 +53,8 @@ public partial class LightsView : UserControl
     private readonly StackPanel[] _speedPanels = new StackPanel[5];
     private readonly ComboBox[] _reactiveModeComboBoxes = new ComboBox[5];
     private readonly StackPanel[] _reactiveModePanels = new StackPanel[5];
+    private readonly TextBox[] _programNameBoxes = new TextBox[5];
+    private readonly StackPanel[] _programNamePanels = new StackPanel[5];
 
 
     // Track current colors in memory
@@ -75,9 +77,11 @@ public partial class LightsView : UserControl
     private StyledSlider? _brightnessSlider;
 
     private static readonly LightEffect[] EffectsNeedingColor2 =
-        { LightEffect.ColorBlend, LightEffect.Blink, LightEffect.Pulse, LightEffect.MicStatus, LightEffect.DeviceMute, LightEffect.AudioReactive, LightEffect.GradientFill, LightEffect.Fire, LightEffect.PingPong, LightEffect.Candle, LightEffect.Scanner, LightEffect.ColorWave, LightEffect.Segments };
+        { LightEffect.ColorBlend, LightEffect.Blink, LightEffect.Pulse, LightEffect.MicStatus, LightEffect.DeviceMute, LightEffect.AudioReactive, LightEffect.GradientFill, LightEffect.Fire, LightEffect.PingPong, LightEffect.Candle, LightEffect.Scanner, LightEffect.ColorWave, LightEffect.Segments, LightEffect.PositionBlend, LightEffect.ProgramMute };
     private static readonly LightEffect[] EffectsNeedingSpeed =
-        { LightEffect.Blink, LightEffect.Pulse, LightEffect.RainbowWave, LightEffect.RainbowCycle, LightEffect.AudioReactive, LightEffect.Breathing, LightEffect.Comet, LightEffect.Sparkle, LightEffect.PingPong, LightEffect.Stack, LightEffect.Wave, LightEffect.Candle, LightEffect.Scanner, LightEffect.MeteorRain, LightEffect.ColorWave, LightEffect.Segments };
+        { LightEffect.Blink, LightEffect.Pulse, LightEffect.RainbowWave, LightEffect.RainbowCycle, LightEffect.AudioReactive, LightEffect.Breathing, LightEffect.Comet, LightEffect.Sparkle, LightEffect.PingPong, LightEffect.Stack, LightEffect.Wave, LightEffect.Candle, LightEffect.Scanner, LightEffect.MeteorRain, LightEffect.ColorWave, LightEffect.Segments, LightEffect.Wheel, LightEffect.RainbowWheel };
+    private static readonly LightEffect[] EffectsNeedingProgramName =
+        { LightEffect.ProgramMute };
 
     public LightsView()
     {
@@ -162,7 +166,8 @@ public partial class LightsView : UserControl
             if (_reactiveModeComboBoxes[i] != null)
                 _reactiveModeComboBoxes[i].SelectedItem = light.ReactiveMode;
 
-
+            if (_programNameBoxes[i] != null)
+                _programNameBoxes[i].Text = light.ProgramName ?? "";
 
             UpdateVisibility(i, light.Effect);
         }
@@ -474,6 +479,26 @@ public partial class LightsView : UserControl
             reactiveContainer.Visibility = Visibility.Collapsed;
             _reactiveModePanels[idx] = reactiveContainer;
             panel.Children.Add(reactiveContainer);
+
+            // Program name box (only visible for ProgramMute)
+            var programNameContainer = new StackPanel();
+            programNameContainer.Children.Add(MakeLabel("PROGRAM NAME"));
+            var programNameBox = new TextBox
+            {
+                Background = FindBrush("InputBgBrush"),
+                Foreground = FindBrush("TextPrimaryBrush"),
+                BorderBrush = FindBrush("InputBorderBrush"),
+                Margin = new Thickness(0, 0, 0, 10),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                FontSize = 12,
+                Padding = new Thickness(6, 4, 6, 4),
+            };
+            programNameBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _programNameBoxes[idx] = programNameBox;
+            programNameContainer.Children.Add(programNameBox);
+            programNameContainer.Visibility = Visibility.Collapsed;
+            _programNamePanels[idx] = programNameContainer;
+            panel.Children.Add(programNameContainer);
         }
     }
 
@@ -560,10 +585,12 @@ public partial class LightsView : UserControl
         bool needsColor2 = EffectsNeedingColor2.Contains(effect);
         bool needsSpeed = EffectsNeedingSpeed.Contains(effect);
         bool isReactive = effect == LightEffect.AudioReactive;
+        bool needsProgramName = EffectsNeedingProgramName.Contains(effect);
 
         _color2Panels[idx].Visibility = needsColor2 ? Visibility.Visible : Visibility.Collapsed;
         _speedPanels[idx].Visibility = needsSpeed ? Visibility.Visible : Visibility.Collapsed;
         _reactiveModePanels[idx].Visibility = isReactive ? Visibility.Visible : Visibility.Collapsed;
+        _programNamePanels[idx].Visibility = needsProgramName ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void QueueSave()
@@ -612,7 +639,8 @@ public partial class LightsView : UserControl
             if (_reactiveModeComboBoxes[i]?.SelectedItem is ReactiveMode mode)
                 light.ReactiveMode = mode;
 
-
+            if (_programNameBoxes[i] != null)
+                light.ProgramName = _programNameBoxes[i].Text.Trim();
         }
 
         if (_brightnessSlider != null)

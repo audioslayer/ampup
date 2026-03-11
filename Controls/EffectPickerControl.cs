@@ -94,11 +94,19 @@ namespace AmpUp.Controls
             { LightEffect.DeviceMute,   Color.FromRgb(0xEF, 0x53, 0x50) }, // red
             { LightEffect.AudioReactive,ThemeManager.Accent }, // accent green
 
+            // New static effects
+            { LightEffect.PositionBlend,Color.FromRgb(0x80, 0xDE, 0xEA) }, // light cyan
+
             // New per-knob 3-LED effects
             { LightEffect.PingPong,     Color.FromRgb(0x29, 0xB6, 0xF6) }, // light blue
             { LightEffect.Stack,        Color.FromRgb(0x66, 0xBB, 0x6A) }, // green
             { LightEffect.Wave,         Color.FromRgb(0x26, 0xC6, 0xDA) }, // cyan
             { LightEffect.Candle,       Color.FromRgb(0xFF, 0xCA, 0x28) }, // amber
+            { LightEffect.Wheel,        Color.FromRgb(0xB3, 0x9D, 0xDB) }, // lavender
+            { LightEffect.RainbowWheel, Color.FromRgb(0xEF, 0x53, 0x50) }, // red
+
+            // Reactive/Status effects
+            { LightEffect.ProgramMute,  Color.FromRgb(0xFF, 0x8A, 0x65) }, // deep orange
 
             // Global-spanning effects
             { LightEffect.Scanner,      Color.FromRgb(0xEF, 0x53, 0x50) }, // red
@@ -123,6 +131,7 @@ namespace AmpUp.Controls
                 (LightEffect.SingleColor,  "●",   "Solid",    false),
                 (LightEffect.ColorBlend,   "◑",   "Blend",    false),
                 (LightEffect.PositionFill, "▂▅█", "Fill",     false),
+                (LightEffect.PositionBlend,"▂▄▇", "PosBlend", false),
                 (LightEffect.GradientFill, "◐",   "Gradient", false),
             });
 
@@ -140,13 +149,16 @@ namespace AmpUp.Controls
                 (LightEffect.Candle,       "♢",   "Candle",  false),
                 (LightEffect.RainbowWave,  "≈",   "Rainbow", false),
                 (LightEffect.RainbowCycle, "⟳",   "Cycle",   false),
+                (LightEffect.Wheel,        "⟲",   "Wheel",   false),
+                (LightEffect.RainbowWheel, "⊚",   "R.Wheel", false),
             });
 
             AddCategory(mainPanel, "REACTIVE", new[]
             {
-                (LightEffect.MicStatus,    "⏦",   "Mic",   false),
-                (LightEffect.DeviceMute,   "⊘",   "Mute",  false),
-                (LightEffect.AudioReactive,"♫",   "Audio", false),
+                (LightEffect.MicStatus,    "⏦",   "Mic",     false),
+                (LightEffect.DeviceMute,   "⊘",   "Mute",    false),
+                (LightEffect.AudioReactive,"♫",   "Audio",   false),
+                (LightEffect.ProgramMute,  "⊗",   "App Mute",false),
             });
 
             if (_showGlobal)
