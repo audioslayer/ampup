@@ -11,13 +11,16 @@ Uses WPF-UI (FluentWindow, Mica backdrop) with a glassmorphism dark theme, sideb
 - **USB chip:** CH343 USB-to-serial
 - **Port:** COM3 (stable, doesn't change on replug)
 - **Baud rate:** 115200
+- **5 knobs** (potentiometers, 10-bit 0-1023)
+- **5 buttons** (momentary switches)
+- **15 RGB LEDs** (3 per knob, individually addressable)
 
 ### Serial Frame Protocol (fully reverse engineered)
 
 All frames are wrapped with `0xFE` (start) and `0xFF` (end).
 
 | Event | Frame | Notes |
-|---|---|---|
+|-|-|-|
 | Knob move | `fe 03 [idx] [hi] [lo] ff` | 6 bytes. idx=0-4, value=hi*256+lo, range 0-1023 |
 | Knob batch | `fe 04 [5x hi+lo] ff` | 13 bytes. All 5 knob values on connect |
 | Health/ping | `fe 02 ff` | 3 bytes. Periodic heartbeat |
@@ -25,9 +28,15 @@ All frames are wrapped with `0xFE` (start) and `0xFF` (end).
 | Button up | `fe 07 [idx] ff` | 4 bytes. idx=0-4, button released |
 | Device ID | `fe 08 [4 bytes] ff` | 7 bytes. Sent on connect |
 
-### Knob/Button Layout
-- **Knob 0** = leftmost, **Knob 4** = rightmost
-- **Button 0** = leftmost, **Button 4** = rightmost
+### RGB Write Protocol
+
+- **Frame:** 48 bytes — `FE 05 [45 bytes RGB data] FF`
+- **Layout:** 5 knobs × 3 LEDs × 3 bytes (R,G,B) = 45 data bytes
+- **Byte offset for knob K, LED L:** `K*9 + L*3 + 2` (R), `+3` (G), `+4` (B)
+- **Gamma correction:** 256-entry lookup table applied before sending
+- **Refresh:** 50ms (20 FPS) for animated effects. Device turns LEDs off without periodic frames.
+- **Brightness:** Global 0-100% multiplier applied before gamma
+- **Per-LED control:** `SetColor(knobIdx, ledIdx, r, g, b)` — each of the 3 LEDs per knob is independently addressable
 
 ---
 
@@ -37,29 +46,40 @@ Single `.exe`, no installer, no service.
 
 ```
 AmpUp.csproj              .NET 8 WPF, WPF-UI + NAudio + Newtonsoft.Json + System.IO.Ports
-App.xaml / App.xaml.cs         WPF Application entry point, backend orchestration, single-instance mutex
-MainWindow.xaml / .cs          FluentWindow with Mica, sidebar nav, connection status pulse animation
-Theme.xaml                     Glassmorphism color palette, card/text styles, nav/hover animations
+App.xaml / App.xaml.cs     WPF Application entry point, backend orchestration, single-instance mutex
+MainWindow.xaml / .cs      FluentWindow with Mica, sidebar nav, connection status pulse, active indicator bars
+Theme.xaml                 Glassmorphism color palette, card/text styles, custom green scrollbar, styled controls
 
 Views/
-  MixerView.xaml / .cs         5 channel strips — knob, VU meter, volume %, target/curve/range controls
-  ButtonsView.xaml / .cs       5 button columns — 3 gesture rows (tap/double/hold), 17 action types
-  LightsView.xaml / .cs        5 LED columns — effect, colors, speed + global brightness
-  SettingsView.xaml / .cs      Connection, startup, profiles, integrations (HA + FanControl)
+  MixerView.xaml / .cs     5 channel strips — knob, VU meter, volume %, target/curve/range controls
+  ButtonsView.xaml / .cs   5 button tiles — 3 gesture rows (tap/double/hold), colorful action tiles
+  LightsView.xaml / .cs    Global lighting card + 5 LED columns — visual effect picker, colors, speed
+  SettingsView.xaml / .cs  Connection, startup, profiles, integrations (HA + FanControl)
+  HomeAssistantView.xaml/.cs  Home Assistant entity control
 
 Controls/
-  AnimatedKnobControl.cs       WPF FrameworkElement — arc sweep knob, glow, frozen resources
-  VuMeterControl.cs            WPF FrameworkElement — 16-segment VU meter, DrawingVisual, peak hold
+  AnimatedKnobControl.cs   WPF FrameworkElement — arc sweep knob, glow, frozen resources
+  VuMeterControl.cs        WPF FrameworkElement — 16-segment VU meter, DrawingVisual, peak hold
+  CurvePickerControl.cs    3 clickable mini graphs showing Linear/Log/Exp response curves
+  EffectPickerControl.cs   Categorized grid of colorful icon tiles for LED effects (15 effects)
+  ActionPickerControl.cs   Categorized grid of colorful icon tiles for button actions (25 actions)
+  SegmentedControl.cs      Pill-style segmented buttons
+  GridPicker.cs            Categorized grid picker (legacy, replaced by ActionPickerControl)
+  ListPicker.cs            Dropdown list picker
+  FlyoutPicker.cs          Floating picker popup
+  RangeSlider.cs           Dual-thumb range slider
 
-SerialReader.cs                Reads COM3, parses fe/ff frames, fires OnKnob / OnButton events
-AudioMixer.cs                  WASAPI per-app volume + GetPeakLevel, response curves, volume range
-ButtonHandler.cs               Gesture state machine (press/double/hold) → 17 action types
-RgbController.cs               RGB effects engine — 9 effects, 20 FPS animation, 3 LEDs per knob
-MonitorBrightness.cs           DDC/CI physical monitor brightness via dxva2.dll
-NativeMethods.cs               Consolidated P/Invoke declarations (user32, PowrProf)
-Config.cs                      Loads/saves config.json + profile system (Newtonsoft.Json)
-Logger.cs                      Appends to ampup.log next to exe
-config.json                    User config — knob targets, button actions, RGB effects, profiles
+AudioAnalyzer.cs           WASAPI loopback capture + FFT — 5 frequency bands for audio-reactive LEDs
+SerialReader.cs            Reads COM3, parses fe/ff frames, fires OnKnob / OnButton events
+AudioMixer.cs              WASAPI per-app volume + GetPeakLevel, response curves, volume range
+ButtonHandler.cs           Gesture state machine (press/double/hold) → 25 action types
+RgbController.cs           RGB effects engine — 15 effects, 20 FPS animation, 3 LEDs per knob
+MonitorBrightness.cs       DDC/CI physical monitor brightness via dxva2.dll
+NativeMethods.cs           Consolidated P/Invoke declarations (user32, PowrProf)
+Config.cs                  Loads/saves config.json + profile system (Newtonsoft.Json)
+Logger.cs                  Appends to ampup.log next to exe
+UpdateChecker.cs           GitHub release version check with semantic comparison
+config.json                User config — knob targets, button actions, RGB effects, profiles
 ```
 
 ---
@@ -72,21 +92,28 @@ config.json                    User config — knob targets, button actions, RGB
   "knobs": [
     { "idx": 0, "label": "Master", "target": "master", "minVolume": 0, "maxVolume": 100, "curve": "Linear" },
     { "idx": 1, "label": "Discord", "target": "discord" },
-    { "idx": 2, "label": "Spotify", "target": "spotify" },
-    { "idx": 3, "label": "Monitor", "target": "monitor" },
-    { "idx": 4, "label": "Active", "target": "active_window" }
+    { "idx": 2, "label": "Music", "target": "apps", "apps": ["spotify", "foobar2000"] }
   ],
   "buttons": [
     {
       "idx": 0, "action": "media_prev",
       "holdAction": "mute_mic", "holdPath": "",
       "doublePressAction": "none", "doublePressPath": "",
-      "macroKeys": "", "deviceId": "", "profileName": "", "powerAction": ""
+      "macroKeys": "", "deviceId": "", "profileName": "",
+      "powerAction": "", "linkedKnobIdx": -1
     }
   ],
   "lights": [
-    { "idx": 0, "r": 0, "g": 150, "b": 255, "effect": "SingleColor", "r2": 255, "g2": 0, "b2": 0, "effectSpeed": 50 }
+    { "idx": 0, "r": 0, "g": 150, "b": 255, "effect": "SingleColor",
+      "r2": 255, "g2": 0, "b2": 0, "effectSpeed": 50,
+      "reactiveMode": "SpectrumBands" }
   ],
+  "globalLight": {
+    "enabled": false, "effect": "RainbowWave",
+    "r": 0, "g": 230, "b": 118, "r2": 255, "g2": 255, "b2": 255,
+    "effectSpeed": 50, "reactiveMode": "SpectrumBands"
+  },
+  "profileTransition": "Cascade",
   "startWithWindows": true,
   "ledBrightness": 100,
   "activeProfile": "Default",
@@ -96,12 +123,13 @@ config.json                    User config — knob targets, button actions, RGB
 
 ### Knob target values
 | Target | Behavior |
-|---|---|
+|-|-|
 | `"master"` | Windows master volume (default audio endpoint) |
 | `"mic"` | Microphone input level (default capture device) |
 | `"system"` | System Sounds session |
 | `"any"` | First active audio session not already assigned |
 | `"active_window"` | Volume of currently focused window's audio session |
+| `"apps"` | App group — controls multiple apps in `apps[]` list |
 | `"output_device"` | Specific output device volume (by `deviceId`) |
 | `"input_device"` | Specific input device volume (by `deviceId`) |
 | `"monitor"` | Physical monitor brightness via DDC/CI |
@@ -110,69 +138,212 @@ config.json                    User config — knob targets, button actions, RGB
 | `"chrome"` | Matches process name containing "chrome" |
 | `"game.exe"` | Any substring of the process name works |
 
-### Knob options
-| Field | Default | Description |
-|---|---|---|
-| `minVolume` | 0 | Minimum volume % (knob at 0% = this value) |
-| `maxVolume` | 100 | Maximum volume % (knob at 100% = this value) |
-| `curve` | `"Linear"` | Response curve: `Linear`, `Logarithmic`, `Exponential` |
-| `deviceId` | `""` | Audio device ID (for `output_device` / `input_device` targets) |
+### Button action values (25 actions)
 
-### Button action values (17 actions)
+**Media:**
 | Action | Behavior |
-|---|---|
+|-|-|
 | `"none"` | Do nothing |
 | `"media_play_pause"` | Send VK_MEDIA_PLAY_PAUSE |
 | `"media_next"` | Send VK_MEDIA_NEXT_TRACK |
 | `"media_prev"` | Send VK_MEDIA_PREV_TRACK |
+
+**Mute:**
+| Action | Behavior |
+|-|-|
 | `"mute_master"` | Send VK_VOLUME_MUTE |
 | `"mute_mic"` | Toggle default mic endpoint mute |
 | `"mute_program"` | Toggle mute on app matching `path` (process name) |
 | `"mute_active_window"` | Toggle mute on focused window's audio |
+| `"mute_app_group"` | Toggle mute on all apps in linked knob's app group (uses `linkedKnobIdx`) |
+
+**App Control:**
+| Action | Behavior |
+|-|-|
 | `"launch_exe"` | Launch app at `path` |
 | `"close_program"` | Kill process matching `path` |
-| `"cycle_output"` | Cycle through output devices (all or `deviceIds` subset) |
+
+**Device:**
+| Action | Behavior |
+|-|-|
+| `"cycle_output"` | Cycle through output devices |
 | `"cycle_input"` | Cycle through input devices |
 | `"select_output"` | Switch to specific output device by `deviceId` |
 | `"select_input"` | Switch to specific input device by `deviceId` |
+
+**System:**
+| Action | Behavior |
+|-|-|
 | `"macro"` | Send keyboard combo from `macroKeys` (e.g. `"ctrl+shift+m"`) |
-| `"system_power"` | Execute `powerAction`: sleep, hibernate, lock, shutdown, restart, logoff |
 | `"switch_profile"` | Switch to named profile from `profileName` |
+| `"cycle_brightness"` | Cycle LED brightness |
+
+**Power (individual actions — no sub-picker):**
+| Action | Behavior |
+|-|-|
+| `"power_sleep"` | Graceful sleep (SetSuspendState, forceCritical=false) |
+| `"power_lock"` | Lock workstation |
+| `"power_off"` | Shutdown |
+| `"power_restart"` | Restart |
+| `"power_logoff"` | Log off |
+| `"power_hibernate"` | Hibernate |
+| `"system_power"` | Legacy — uses `powerAction` sub-field |
 
 ### Button gesture types
 Each button supports 3 gestures (15 total bindings):
 
 | Gesture | Config fields | Detection |
-|---|---|---|
+|-|-|-|
 | **Single press** | `action` + `path` | Released < 500ms, no 2nd press within 300ms |
 | **Double press** | `doublePressAction` + `doublePressPath` | 2nd press within 300ms of first release |
 | **Hold** | `holdAction` + `holdPath` | Held 500ms+ (fires while holding) |
 
-### LED effects (9 types)
+### LED effects (15 types)
+
+**Static:**
 | Effect | Colors | Description |
-|---|---|---|
+|-|-|-|
 | `SingleColor` | 1 | Color scaled by knob position (default) |
 | `ColorBlend` | 2 | Lerp between color1→color2 based on knob position |
 | `PositionFill` | 1 | LEDs light up left→right as knob increases |
+| `GradientFill` | 2 | Static gradient color1→color2 across 3 LEDs |
+
+**Animated:**
+| Effect | Colors | Description |
+|-|-|-|
 | `Blink` | 2 | Alternate between color1/color2 at configurable speed |
 | `Pulse` | 2 | Smooth sine-wave oscillation between color1/color2 |
+| `Breathing` | 1 | Smooth brightness fade in/out with squared easing |
+| `Fire` | 2 | Random warm flicker — color1=base flame, color2=ember tip. Per-LED. |
+| `Comet` | 1 | Bright pixel chases across 3 LEDs with fading tail |
+| `Sparkle` | 1 | Random LED flashes white, decays back to dim base |
 | `RainbowWave` | — | HSV rainbow across all 5 knobs, animated |
 | `RainbowCycle` | — | 3 LEDs per knob each get different hue, animated |
+
+**Reactive/Status:**
+| Effect | Colors | Description |
+|-|-|-|
 | `MicStatus` | 2 | Color1=unmuted, Color2=muted (mic state) |
 | `DeviceMute` | 2 | Color1=unmuted, Color2=muted (master state) |
+| `AudioReactive` | 2 | FFT-driven. Color1=idle, Color2=peak. Modes: BeatPulse, SpectrumBands, ColorShift |
 
-`effectSpeed` (1-100) controls animated effect timing. Global `ledBrightness` (0-100) scales all LEDs.
+### Audio-Reactive Modes (ReactiveMode)
+| Mode | Behavior |
+|-|-|
+| `BeatPulse` | Bass (band 1) drives ALL knob brightness simultaneously |
+| `SpectrumBands` | Each knob = its own frequency band (sub-bass → treble) |
+| `ColorShift` | Hue shifts based on overall audio energy |
+
+### Global Lighting
+When `globalLight.enabled = true`, one effect config applies to all 5 knobs. Per-knob settings are hidden in the UI but preserved.
+
+### Profile Switch Transitions (ProfileTransition)
+| Transition | Animation |
+|-|-|
+| `None` | No animation |
+| `Flash` | All 5 knobs flash 3 times in accent color |
+| `Cascade` | Knobs light up 1→5 in sequence, then fade |
+| `RainbowSweep` | Accelerating rainbow wave that fades out |
+
+All transitions run 3 seconds (60 ticks at 20 FPS) then auto-clear.
 
 ---
 
-## RGB Write Protocol
+## AudioAnalyzer (FFT)
 
-- **Frame:** 48 bytes — `FE 05 [45 bytes RGB data] FF`
-- **Layout:** 5 knobs × 3 LEDs × 3 bytes (R,G,B) = 45 data bytes
-- **Byte offset for knob K, LED L:** `K*9 + L*3 + 2` (R), `+3` (G), `+4` (B)
-- **Gamma correction:** 256-entry lookup table applied before sending
-- **Refresh:** 50ms (20 FPS) for animated effects. Device turns LEDs off without periodic frames.
-- **Brightness:** Global 0-100% multiplier applied before gamma
+`AudioAnalyzer.cs` captures system audio via `WasapiLoopbackCapture` and runs FFT to extract 5 frequency bands:
+
+| Band | Frequency Range | Musical Content |
+|-|-|-|
+| 0 | 20–80 Hz | Sub-bass |
+| 1 | 80–250 Hz | Bass (kick drum, bass guitar) |
+| 2 | 250–2000 Hz | Low-mid (vocals, instruments) |
+| 3 | 2000–6000 Hz | High-mid (presence) |
+| 4 | 6000–20000 Hz | Treble (cymbals, air) |
+
+- **FFT size:** 1024 samples, Hann windowed
+- **Normalization:** `NormRef = 0.005f` (WASAPI loopback levels are very low)
+- **Smoothing:** Fast attack (0.5), slow decay (0.88)
+- **Lifecycle:** Lazy start/stop — only runs when at least one light uses AudioReactive
+- **Thread safety:** `lock(_lock)` on SmoothedBands updates
+
+---
+
+## UI Architecture
+
+### Custom Controls (`Controls/`)
+
+- **CurvePickerControl** — 3 mini canvas graphs showing actual response curves (Linear/Log/Exp). Click to select. Uses same math as AudioMixer.ApplyCurve. Accent-colored polylines on dark background with grid dots.
+
+- **EffectPickerControl** — 15 LED effects as categorized icon tiles. 3 categories: STATIC, ANIMATED, REACTIVE. Each tile has its own unique color (Fire=orange, Sparkle=yellow, etc.). Dark glass tiles with accent glow on selection.
+
+- **ActionPickerControl** — 25 button actions as categorized icon tiles. 6 categories: MEDIA (green), MUTE (red), APP CONTROL (blue), DEVICE (purple), SYSTEM (gold), POWER (red). Tiles are 82×58px with 22px icons.
+
+- **AnimatedKnobControl** — WPF FrameworkElement, `OnRender(DrawingContext)`. Arc sweep 225° start / 270° sweep via `StreamGeometry`. All Pen/Brush frozen as static fields.
+
+- **VuMeterControl** — WPF FrameworkElement, `DrawingVisual` child. 16 segments, color zones (cyan→yellow→red), peak hold 1.5s.
+
+### View Details
+
+- **MixerView:** 5 channel strips with visual curve pickers (CurvePickerControl), app group toggle lists (inline checkboxes for running apps), hover glow on strip borders.
+
+- **ButtonsView:** Colorful button strip at top — tiles tinted by their action's color. 3 gesture sections per button with colored headers (TAP=green, DOUBLE=gold, HOLD=orange). ActionPickerControl for all 15 action slots.
+
+- **LightsView:** Global Lighting card at top (checkbox + EffectPickerControl + colors + speed + brightness slider on right). 5 per-knob panels below (hidden when global is on). EffectPickerControl replaces dropdown.
+
+- **SettingsView:** Section headers with accent left-border indicators.
+
+### Theme (Theme.xaml)
+
+```
+BgBase      = #0F0F0F     BgDark      = #141414
+CardBg      = #1C1C1C     CardBorder  = #2A2A2A
+InputBg     = #242424     InputBorder = #363636
+Accent      = #00E676     AccentGlow  = #69F0AE     AccentDim = #00A854
+TextPrimary = #E8E8E8     TextSec     = #9A9A9A     TextDim   = #555555
+DangerRed   = #FF4444     SuccessGrn  = #00DD77     WarnYellow= #FFB800
+```
+
+Custom scrollbars: slim 8px, transparent track, green thumb (#00E676) with hover/drag brightness states.
+
+---
+
+## Build & Deploy
+
+```powershell
+# On Windows PC (C:\Users\audio\Desktop\AmpUp\)
+deploy.bat    # git pull → dotnet build → kill old → launch new
+
+# Manual
+dotnet build -c Debug
+# Exe: bin\Debug\net8.0-windows\AmpUp.exe
+```
+
+**Requirements:** .NET 8 SDK, Windows 10/11
+
+**Before running:** Kill Turn Up if it's running (it holds COM3).
+```powershell
+taskkill /f /im "Turn Up.exe"
+taskkill /f /im TurnUpService.exe
+```
+
+### Installer
+Inno Setup script at `installer/ampup-setup.iss`. Output in `installer/output/`.
+
+### GitHub Releases
+UpdateChecker.cs checks `audioslayer/ampup` releases on GitHub. Uses semantic version comparison (only flags genuinely newer versions).
+
+---
+
+## Remote Development
+
+The codebase is mirrored on a Linux VM at `/home/tyson/projects/ampup/` via git.
+Code changes are made on the VM, pushed to GitHub, then pulled on the Windows PC.
+The app can ONLY be built on Windows (WPF dependency).
+
+**Windows PC SSH:** `ssh audio@100.84.11.32` (Tailscale IP, key auth)
+- Log: `%AppData%\AmpUp\ampup.log`
+- Config: `%AppData%\AmpUp\config.json`
 
 ---
 
@@ -182,136 +353,25 @@ Each button supports 3 gestures (15 total bindings):
 - `ConfigManager.SaveProfile()` / `LoadProfile()` for persistence
 - Switch via button action (`switch_profile`) or Settings tab
 - Each profile stores full config (knobs, buttons, lights, settings)
-
----
-
-## Device Switching (IPolicyConfig COM)
-
-`ButtonHandler.cs` uses undocumented Windows COM interface to change default audio device:
-- `IPolicyConfig` GUID: `f8679f50-850a-41cf-9c72-430f290290c8`
-- `PolicyConfigClient` CLSID: `870af99c-171d-4f9e-af0d-e63df40c2bc9`
-- Sets device for all 3 roles (Console, Multimedia, Communications)
-
----
-
-## Build & Run
-
-```powershell
-dotnet build
-dotnet run
-# Exe at: bin\Debug\net8.0-windows\AmpUp.exe
-```
-
-**Requirements:** .NET 8 SDK
-
-**Before running:** Kill Turn Up if it's running (it holds COM3).
-```powershell
-taskkill /f /im "Turn Up.exe"
-taskkill /f /im TurnUpService.exe
-```
+- Profile switch triggers transition animation (configurable)
 
 ---
 
 ## Known Issues / Gotchas
 
+- **WPF-UI namespace conflicts:** `Wpf.Ui.Controls` has types like `Border` that conflict with `System.Windows.Controls.Border`. Always fully qualify when both namespaces are in scope.
 - **config.json is read from next to the `.exe`**, not the project root
 - **Single instance:** Only one AmpUp can run. Check Task Manager for stale process.
-- **`any` target** picks first audio session — may not be expected one
-- **Knob debounce threshold is 5 raw units** — lower in `AudioMixer.cs` if sluggish
 - **Single-press has ~300ms latency** — intentional for double-press detection
 - **Hold threshold is 500ms** — configurable in `ButtonHandler.cs`
-- **Monitor brightness (DDC/CI)** may not work on all monitors — depends on DDC/CI support
+- **WASAPI loopback levels are very low** — NormRef=0.005f in AudioAnalyzer. If LEDs don't react, lower further.
+- **Sleep uses graceful suspend** (forceCritical=false) — required for proper GPU/USB wake
 - **Newtonsoft.Json PascalCase** — config props in memory are PascalCase, JSON file is camelCase
+- **Cannot `dotnet build` on Linux** — WPF is Windows-only
 
 ---
 
-## WPF UI (4 views, sidebar navigation)
+## Version History
 
-- **MixerView:** 5 channel strips — app icon, label, animated knob (100×100), VU meter (14×80), volume %, target/curve/range controls. 50ms live polling timer.
-- **ButtonsView:** 5 columns — 3 gesture sections (tap/double/hold), 17 action types, context-sensitive sub-controls (path, macro, device, profile, power).
-- **LightsView:** 5 columns — effect type, color1/color2 pickers (ColorPickerDialog), speed slider, global brightness.
-- **SettingsView:** Connection (port/baud), startup, profiles (save/load/new/delete), integrations (Home Assistant + FanControl).
-
-Glassmorphism dark theme defined in `Theme.xaml`. See Color Palette below.
-
----
-
-## Active Audio Devices on This PC
-
-- `DENON-AVAMP (NVIDIA High Definition Audio)`
-- `OMEN by HP 35 (NVIDIA High Definition Audio)`
-- `LG HDR QHD (NVIDIA High Definition Audio)`
-- `ASUS VG278HE (NVIDIA High Definition Audio)`
-- `Headphones (2- JLab JBuds Lux ANC)`
-- `Headset (2- JLab JBuds Lux ANC)`
-
----
-
-## File Locations
-
-| File | Path |
-|---|---|
-| Project source | `C:\Users\audio\Desktop\AmpUp\` |
-| Built exe | `C:\Users\audio\Desktop\AmpUp\bin\Debug\net8.0-windows\AmpUp.exe` |
-| Runtime config | `C:\Users\audio\Desktop\AmpUp\bin\Debug\net8.0-windows\config.json` |
-| Log file | `C:\Users\audio\Desktop\AmpUp\bin\Debug\net8.0-windows\ampup.log` |
-| Turn Up install | `C:\Program Files (x86)\Turn Up\` |
-| Turn Up DLLs | `C:\Program Files (x86)\Turn Up\service\` (TurnUpBox.dll, CSCore.dll, etc.) |
-
----
-
-## Future Ideas
-
-- OBS Studio 28+ integration (obs-websocket) — scene switching, source mute/gain, recording/streaming
-- VoiceMeeter strip/bus gain and mute control
-- Per-app volume display overlay (small HUD)
-- USB PnP auto-detection instead of hardcoded COM3
-- Multiple Turn Up device support
-- Publish as single-file exe: `dotnet publish -r win-x64 --self-contained -p:PublishSingleFile=true`
-- Installer (WiX or NSIS) for clean deployment
-
----
-
-## WPF UI Architecture (March 2026)
-
-Full rewrite from WinForms to WPF with glassmorphism dark theme.
-
-### Custom Controls (`Controls/`)
-
-- **AnimatedKnobControl** — WPF FrameworkElement, `OnRender(DrawingContext)`. Arc sweep 225° start / 270° sweep via `StreamGeometry`. All Pen/Brush frozen as static fields. Dirty-checking on value change. Properties: `Value` (0-1), `ArcColor`, `PercentText`.
-- **VuMeterControl** — WPF FrameworkElement, `DrawingVisual` child. 16 segments, color zones (cyan→yellow→red), peak hold 1.5s. No internal timer — parent calls `Tick()`. Properties: `Level` (0-1), `BarColor`.
-
-### Key Patterns
-
-- **Code-behind** approach (no MVVM) — views use `LoadConfig()` + `_loading` flag + debounced save
-- **Single 50ms DispatcherTimer** in MixerView for live volume + peak level polling
-- **300ms debounce** on config changes across all views
-- All views receive `(AppConfig, Action<AppConfig>)` or `(AppConfig, AudioMixer, Action<AppConfig>)` via LoadConfig
-
-### Deploy Workflow
-
-Run `deploy.bat` from the project folder on the Windows PC (`C:\Users\audio\Desktop\AmpUp\`):
-1. Pulls latest from GitHub
-2. Builds with `dotnet build -c Debug`
-3. Kills any running AmpUp.exe
-4. Launches the new build
-
-### Color Palette Reference (Theme.xaml)
-
-```
-BgBase      = #0F0F0F   // deepest background
-BgDark      = #141414   // main form background
-CardBg      = #1C1C1C   // cards / panels
-CardBorder  = #2A2A2A   // card borders
-InputBg     = #242424   // textboxes, combos
-InputBorder = #363636
-Accent      = #00B4D8   // primary cyan
-AccentGlow  = #00E5FF   // bright cyan for active/glow
-AccentDim   = #007A94   // dim cyan for inactive
-TextPrimary = #E8E8E8
-TextSec     = #9A9A9A
-TextDim     = #555555
-DangerRed   = #FF4444
-SuccessGrn  = #00DD77
-WarnYellow  = #FFB800
-```
+- **v0.3.1-alpha** — Renamed from WolfMixer to AmpUp. Icon design, GitHub release.
+- **v0.3.2-alpha** — Audio-Reactive RGB (FFT), Mute App Group, Visual Curve Picker, Global Lighting, 6 new effects (Breathing/Fire/Comet/Sparkle/GradientFill), Profile Switch Transitions, EffectPickerControl, ActionPickerControl, App Group toggles, Power action tiles, custom scrollbars, full UI polish pass.
