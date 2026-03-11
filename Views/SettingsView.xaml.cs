@@ -29,10 +29,6 @@ public partial class SettingsView : UserControl
     private readonly DispatcherTimer _debounceTimer;
     private bool _loading;
 
-    // Auto-switch rule controls (indexed 0-4)
-    private Wpf.Ui.Controls.TextBox[] _autoRuleAppBoxes = null!;
-    private ComboBox[] _autoRuleProfileCombos = null!;
-
     public SettingsView()
     {
         InitializeComponent();
@@ -79,39 +75,6 @@ public partial class SettingsView : UserControl
         BtnExportProfile.Click += OnExportProfile;
         BtnImportProfile.Click += OnImportProfile;
 
-        // Auto-ducking events
-        ChkDuckingEnabled.Checked += OnValueChanged;
-        ChkDuckingEnabled.Unchecked += OnValueChanged;
-        TxtDuckTriggerApp.TextChanged += OnValueChanged;
-        TxtDuckTargetApps.TextChanged += OnValueChanged;
-        TxtDuckFadeOut.TextChanged += OnValueChanged;
-        TxtDuckFadeIn.TextChanged += OnValueChanged;
-        SldDuckPercent.ValueChanged += (_, e) =>
-        {
-            TxtDuckPercentLabel.Text = $"{(int)e.NewValue}%";
-            OnValueChanged(SldDuckPercent, e);
-        };
-
-        // Auto-switch events
-        ChkAutoSwitchEnabled.Checked += OnValueChanged;
-        ChkAutoSwitchEnabled.Unchecked += OnValueChanged;
-        ChkAutoSwitchRevert.Checked += OnValueChanged;
-        ChkAutoSwitchRevert.Unchecked += OnValueChanged;
-
-        // Build indexed arrays for auto-switch rule rows
-        _autoRuleAppBoxes = new[]
-        {
-            TxtAutoRule0App, TxtAutoRule1App, TxtAutoRule2App, TxtAutoRule3App, TxtAutoRule4App
-        };
-        _autoRuleProfileCombos = new[]
-        {
-            CmbAutoRule0Profile, CmbAutoRule1Profile, CmbAutoRule2Profile, CmbAutoRule3Profile, CmbAutoRule4Profile
-        };
-        foreach (var tb in _autoRuleAppBoxes)
-            tb.TextChanged += OnValueChanged;
-        foreach (var cmb in _autoRuleProfileCombos)
-            cmb.SelectionChanged += OnValueChanged;
-
         // About
         TxtVersion.Text = $"Amp Up v{UpdateChecker.CurrentVersion}";
         BtnCheckUpdate.Click += OnCheckUpdate;
@@ -143,41 +106,6 @@ public partial class SettingsView : UserControl
         ChkHaEnabled.IsChecked = config.HomeAssistant.Enabled;
         TxtHaUrl.Text = config.HomeAssistant.Url;
         TxtHaToken.Password = config.HomeAssistant.Token;
-
-        // Auto-Ducking
-        ChkDuckingEnabled.IsChecked = config.Ducking.Enabled;
-        var rule = config.Ducking.Rules.Count > 0 ? config.Ducking.Rules[0] : new DuckingRule();
-        TxtDuckTriggerApp.Text = rule.TriggerApp;
-        TxtDuckTargetApps.Text = string.Join(", ", rule.TargetApps);
-        SldDuckPercent.Value = rule.DuckPercent;
-        TxtDuckPercentLabel.Text = $"{rule.DuckPercent}%";
-        TxtDuckFadeOut.Text = rule.FadeOutMs.ToString();
-        TxtDuckFadeIn.Text = rule.FadeInMs.ToString();
-
-        // Auto-Profile Switching — populate profile dropdowns
-        ChkAutoSwitchEnabled.IsChecked = config.AutoSwitch.Enabled;
-        ChkAutoSwitchRevert.IsChecked = config.AutoSwitch.RevertToDefault;
-        for (int i = 0; i < _autoRuleProfileCombos.Length; i++)
-        {
-            _autoRuleProfileCombos[i].Items.Clear();
-            _autoRuleProfileCombos[i].Items.Add(""); // blank = no rule
-            foreach (var p in config.Profiles)
-                _autoRuleProfileCombos[i].Items.Add(p);
-
-            if (i < config.AutoSwitch.Rules.Count)
-            {
-                var r = config.AutoSwitch.Rules[i];
-                _autoRuleAppBoxes[i].Text = r.ProcessName;
-                _autoRuleProfileCombos[i].SelectedItem = r.ProfileName;
-                if (_autoRuleProfileCombos[i].SelectedIndex < 0)
-                    _autoRuleProfileCombos[i].SelectedIndex = 0;
-            }
-            else
-            {
-                _autoRuleAppBoxes[i].Text = "";
-                _autoRuleProfileCombos[i].SelectedIndex = 0;
-            }
-        }
 
         BuildAccentSwatches();
 
@@ -302,31 +230,6 @@ public partial class SettingsView : UserControl
         _config.HomeAssistant.Enabled = ChkHaEnabled.IsChecked == true;
         _config.HomeAssistant.Url = TxtHaUrl.Text.Trim();
         _config.HomeAssistant.Token = TxtHaToken.Password;
-
-        // Auto-Ducking
-        _config.Ducking.Enabled = ChkDuckingEnabled.IsChecked == true;
-        var duckRule = _config.Ducking.Rules.Count > 0 ? _config.Ducking.Rules[0] : new DuckingRule();
-        duckRule.TriggerApp = TxtDuckTriggerApp.Text.Trim();
-        duckRule.TargetApps = TxtDuckTargetApps.Text
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToList();
-        duckRule.DuckPercent = (int)SldDuckPercent.Value;
-        if (int.TryParse(TxtDuckFadeOut.Text.Trim(), out var fadeOut)) duckRule.FadeOutMs = fadeOut;
-        if (int.TryParse(TxtDuckFadeIn.Text.Trim(), out var fadeIn)) duckRule.FadeInMs = fadeIn;
-        _config.Ducking.Rules = new List<DuckingRule> { duckRule };
-
-        // Auto-Profile Switching
-        _config.AutoSwitch.Enabled = ChkAutoSwitchEnabled.IsChecked == true;
-        _config.AutoSwitch.RevertToDefault = ChkAutoSwitchRevert.IsChecked == true;
-        var switchRules = new List<AutoSwitchRule>();
-        for (int i = 0; i < _autoRuleAppBoxes.Length; i++)
-        {
-            var appName = _autoRuleAppBoxes[i].Text.Trim();
-            var profileName = _autoRuleProfileCombos[i].SelectedItem?.ToString() ?? "";
-            if (!string.IsNullOrEmpty(appName) && !string.IsNullOrEmpty(profileName))
-                switchRules.Add(new AutoSwitchRule { ProcessName = appName, ProfileName = profileName });
-        }
-        _config.AutoSwitch.Rules = switchRules;
 
         _onSave(_config);
     }

@@ -59,6 +59,11 @@ public partial class MixerView : UserControl
     // Suggestion banner
     private Border? _suggestionBanner;
 
+    // Smart Mix (ducking + auto-profile) controls
+    private bool _smartMixExpanded = false;
+    private Wpf.Ui.Controls.TextBox[] _autoRuleAppBoxes = null!;
+    private ComboBox[] _autoRuleProfileCombos = null!;
+
     // Clipboard for knob copy/paste
     private static KnobConfig? _clipboard;
 
@@ -102,6 +107,7 @@ public partial class MixerView : UserControl
         SetupStripHoverEffects();
         SetupStripContextMenus();
         SetupSuggestionBanner();
+        SetupSmartMix();
     }
 
     private void SetupStripHoverEffects()
@@ -322,6 +328,41 @@ public partial class MixerView : UserControl
                 _knobs[i].ArcColor = color;
                 _volLabels[i].Foreground = new SolidColorBrush(color);
                 _vuMeters[i].BarColor = color;
+            }
+        }
+
+        // Auto-Ducking
+        ChkDuckingEnabled.IsChecked = config.Ducking.Enabled;
+        var duckRule = config.Ducking.Rules.Count > 0 ? config.Ducking.Rules[0] : new DuckingRule();
+        TxtDuckTriggerApp.Text = duckRule.TriggerApp;
+        TxtDuckTargetApps.Text = string.Join(", ", duckRule.TargetApps);
+        SldDuckPercent.Value = duckRule.DuckPercent;
+        TxtDuckPercentLabel.Text = $"{duckRule.DuckPercent}%";
+        TxtDuckFadeOut.Text = duckRule.FadeOutMs.ToString();
+        TxtDuckFadeIn.Text = duckRule.FadeInMs.ToString();
+
+        // Auto-Profile Switching
+        ChkAutoSwitchEnabled.IsChecked = config.AutoSwitch.Enabled;
+        ChkAutoSwitchRevert.IsChecked = config.AutoSwitch.RevertToDefault;
+        for (int i = 0; i < _autoRuleProfileCombos.Length; i++)
+        {
+            _autoRuleProfileCombos[i].Items.Clear();
+            _autoRuleProfileCombos[i].Items.Add("");
+            foreach (var p in config.Profiles)
+                _autoRuleProfileCombos[i].Items.Add(p);
+
+            if (i < config.AutoSwitch.Rules.Count)
+            {
+                var r = config.AutoSwitch.Rules[i];
+                _autoRuleAppBoxes[i].Text = r.ProcessName;
+                _autoRuleProfileCombos[i].SelectedItem = r.ProfileName;
+                if (_autoRuleProfileCombos[i].SelectedIndex < 0)
+                    _autoRuleProfileCombos[i].SelectedIndex = 0;
+            }
+            else
+            {
+                _autoRuleAppBoxes[i].Text = "";
+                _autoRuleProfileCombos[i].SelectedIndex = 0;
             }
         }
 
@@ -979,6 +1020,31 @@ public partial class MixerView : UserControl
             knob.DeviceId = _devicePickers[i].SelectedTag as string ?? "";
         }
 
+        // Auto-Ducking
+        _config.Ducking.Enabled = ChkDuckingEnabled.IsChecked == true;
+        var duckRule = _config.Ducking.Rules.Count > 0 ? _config.Ducking.Rules[0] : new DuckingRule();
+        duckRule.TriggerApp = TxtDuckTriggerApp.Text.Trim();
+        duckRule.TargetApps = TxtDuckTargetApps.Text
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+        duckRule.DuckPercent = (int)SldDuckPercent.Value;
+        if (int.TryParse(TxtDuckFadeOut.Text.Trim(), out var fadeOut)) duckRule.FadeOutMs = fadeOut;
+        if (int.TryParse(TxtDuckFadeIn.Text.Trim(), out var fadeIn)) duckRule.FadeInMs = fadeIn;
+        _config.Ducking.Rules = new List<DuckingRule> { duckRule };
+
+        // Auto-Profile Switching
+        _config.AutoSwitch.Enabled = ChkAutoSwitchEnabled.IsChecked == true;
+        _config.AutoSwitch.RevertToDefault = ChkAutoSwitchRevert.IsChecked == true;
+        var switchRules = new List<AutoSwitchRule>();
+        for (int i = 0; i < _autoRuleAppBoxes.Length; i++)
+        {
+            var appName = _autoRuleAppBoxes[i].Text.Trim();
+            var profileName = _autoRuleProfileCombos[i].SelectedItem?.ToString() ?? "";
+            if (!string.IsNullOrEmpty(appName) && !string.IsNullOrEmpty(profileName))
+                switchRules.Add(new AutoSwitchRule { ProcessName = appName, ProfileName = profileName });
+        }
+        _config.AutoSwitch.Rules = switchRules;
+
         _onSave(_config);
     }
 
@@ -1098,16 +1164,11 @@ public partial class MixerView : UserControl
 
     private void SetupSuggestionBanner()
     {
-        if (Content is not Grid rootGrid) return;
+        // Root is now a ScrollViewer > StackPanel > [ChannelGrid, SmartMixSection]
+        // Insert the banner at the top of the StackPanel, before the channel grid.
+        if (Content is not ScrollViewer sv) return;
+        if (sv.Content is not StackPanel rootStack) return;
 
-        // Add a banner row at the top (index 0), shift channel row to index 1
-        rootGrid.RowDefinitions.Insert(0, new RowDefinition { Height = GridLength.Auto });
-
-        // Move all existing children to row 1
-        foreach (UIElement child in rootGrid.Children)
-            Grid.SetRow(child, 1);
-
-        // Build the banner
         var amber = Color.FromRgb(0xFF, 0xD7, 0x40);
         var amberDim = Color.FromRgb(0x2A, 0x22, 0x00);
 
@@ -1164,9 +1225,9 @@ public partial class MixerView : UserControl
             Child = bannerStack,
             Visibility = Visibility.Collapsed,
         };
-        Grid.SetRow(banner, 0);
-        Grid.SetColumnSpan(banner, 5);
-        rootGrid.Children.Add(banner);
+
+        // Insert banner before the channel grid (index 0)
+        rootStack.Children.Insert(0, banner);
 
         _suggestionBanner = banner;
 
@@ -1254,6 +1315,58 @@ public partial class MixerView : UserControl
         _loading = false;
 
         _onSave(_config);
+    }
+
+    // ── Smart Mix Setup ────────────────────────────────────────────────
+
+    private void SetupSmartMix()
+    {
+        // Wire up ducking change events
+        ChkDuckingEnabled.Checked += OnSmartMixChanged;
+        ChkDuckingEnabled.Unchecked += OnSmartMixChanged;
+        TxtDuckTriggerApp.TextChanged += OnSmartMixChanged;
+        TxtDuckTargetApps.TextChanged += OnSmartMixChanged;
+        TxtDuckFadeOut.TextChanged += OnSmartMixChanged;
+        TxtDuckFadeIn.TextChanged += OnSmartMixChanged;
+        SldDuckPercent.ValueChanged += (_, e) =>
+        {
+            TxtDuckPercentLabel.Text = $"{(int)e.NewValue}%";
+            OnSmartMixChanged(SldDuckPercent, e);
+        };
+
+        // Wire up auto-switch change events
+        ChkAutoSwitchEnabled.Checked += OnSmartMixChanged;
+        ChkAutoSwitchEnabled.Unchecked += OnSmartMixChanged;
+        ChkAutoSwitchRevert.Checked += OnSmartMixChanged;
+        ChkAutoSwitchRevert.Unchecked += OnSmartMixChanged;
+
+        // Build indexed arrays for auto-switch rule rows
+        _autoRuleAppBoxes = new[]
+        {
+            TxtAutoRule0App, TxtAutoRule1App, TxtAutoRule2App, TxtAutoRule3App, TxtAutoRule4App
+        };
+        _autoRuleProfileCombos = new[]
+        {
+            CmbAutoRule0Profile, CmbAutoRule1Profile, CmbAutoRule2Profile, CmbAutoRule3Profile, CmbAutoRule4Profile
+        };
+        foreach (var tb in _autoRuleAppBoxes)
+            tb.TextChanged += OnSmartMixChanged;
+        foreach (var cmb in _autoRuleProfileCombos)
+            cmb.SelectionChanged += OnSmartMixChanged;
+    }
+
+    private void OnSmartMixChanged(object sender, EventArgs e)
+    {
+        if (_loading) return;
+        _debounce.Stop();
+        _debounce.Start();
+    }
+
+    private void SmartMixHeader_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        _smartMixExpanded = !_smartMixExpanded;
+        SmartMixContent.Visibility = _smartMixExpanded ? Visibility.Visible : Visibility.Collapsed;
+        SmartMixArrow.Text = _smartMixExpanded ? "▼" : "▶";
     }
 
     private sealed class SuggestedLayout
