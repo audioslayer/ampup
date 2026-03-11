@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Windows;
 using Microsoft.Win32;
+using AmpUp.Controls;
 using Forms = System.Windows.Forms;
 
 namespace AmpUp;
@@ -16,11 +17,15 @@ public partial class App : Application
     private AudioAnalyzer? _audioAnalyzer;
     private MainWindow _mainWindow = null!;
     private System.Threading.Timer? _mutePollingTimer;
+    private System.Threading.Timer? _autoSwitchTimer;
     private DateTime _connectedAt = DateTime.MinValue;
     private Forms.NotifyIcon? _trayIcon;
     private bool _isConnected;
     private OsdOverlay? _osdOverlay;
     private HAIntegration? _ha;
+    private DuckingEngine? _duckingEngine;
+    private AutoProfileSwitcher? _autoSwitcher;
+    private TrayMixerPopup? _trayMixerPopup;
 
     /// <summary>
     /// Last hardware knob positions (0-1), updated on every knob event.
@@ -67,6 +72,15 @@ public partial class App : Application
 
         // Start audio mixer
         _mixer.Start();
+
+        // Ducking engine
+        _duckingEngine = new DuckingEngine();
+
+        // Auto-profile switcher
+        _autoSwitcher = new AutoProfileSwitcher(_config.AutoSwitch);
+        _autoSwitcher.OnProfileSwitchRequested += profileName =>
+            Dispatcher.Invoke(() => SwitchToProfile(profileName));
+        _autoSwitchTimer = new System.Threading.Timer(_ => _autoSwitcher?.Poll(), null, 2000, 1500);
 
         // Start serial reader
         _serial = new SerialReader(_config.Serial.Port, _config.Serial.Baud);
@@ -117,6 +131,11 @@ public partial class App : Application
         };
 
         _trayIcon.DoubleClick += (_, _) => ShowMainWindow();
+        _trayIcon.MouseClick += (_, e) =>
+        {
+            if (e.Button == Forms.MouseButtons.Left)
+                ShowTrayMixer();
+        };
 
         var menu = new Forms.ContextMenuStrip();
         menu.BackColor = Color.FromArgb(0x11, 0x11, 0x11);
@@ -192,6 +211,15 @@ public partial class App : Application
         });
     }
 
+    private void ShowTrayMixer()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            _trayMixerPopup ??= new TrayMixerPopup();
+            _trayMixerPopup.ShowPopup();
+        });
+    }
+
     private void RebuildTrayColors()
     {
         if (_trayIcon?.ContextMenuStrip == null) return;
@@ -209,6 +237,8 @@ public partial class App : Application
             _trayIcon.Dispose();
             _trayIcon = null;
         }
+        _autoSwitchTimer?.Dispose();
+        _duckingEngine?.Dispose();
         Dispatcher.Invoke(() => Shutdown());
     }
 
@@ -359,6 +389,7 @@ public partial class App : Application
             if (_config.HomeAssistant.Enabled)
                 _ = _ha.TestConnectionAsync();
         }
+        _autoSwitcher?.UpdateConfig(_config.AutoSwitch);
     }
 
     private void HandleKnob(KnobEvent e)
@@ -471,6 +502,14 @@ public partial class App : Application
         _mainWindow?.SetConnectionStatus(connected);
     }
 
+    /// <summary>
+    /// Switch to a named profile. Used by button gestures and AutoProfileSwitcher.
+    /// </summary>
+    private void SwitchToProfile(string profileName)
+    {
+        HandleProfileSwitch(profileName);
+    }
+
     private void HandleProfileSwitch(string profileName)
     {
         var profile = ConfigManager.LoadProfile(profileName);
@@ -487,6 +526,8 @@ public partial class App : Application
         var ha = _config.HomeAssistant;
         var profiles = _config.Profiles;
         var profileIcons = _config.ProfileIcons;
+        var ducking = _config.Ducking;
+        var autoSwitch = _config.AutoSwitch;
 
         _config = profile;
         _config.ActiveProfile = profileName;
@@ -496,6 +537,8 @@ public partial class App : Application
         _config.HomeAssistant = ha;
         _config.Profiles = profiles;
         _config.ProfileIcons = profileIcons;
+        _config.Ducking = ducking;
+        _config.AutoSwitch = autoSwitch;
         ConfigManager.Save(_config);
         ApplyRgbConfig();
         UpdateAudioAnalyzer();
@@ -548,6 +591,12 @@ public partial class App : Application
 
     private void PollMuteStates()
     {
+        try
+        {
+            _duckingEngine?.Poll(_config.Ducking);
+        }
+        catch { }
+
         try
         {
             using var enumerator = new NAudio.CoreAudioApi.MMDeviceEnumerator();
@@ -677,6 +726,8 @@ public partial class App : Application
             _trayIcon.Dispose();
         }
         _mutePollingTimer?.Dispose();
+        _autoSwitchTimer?.Dispose();
+        _duckingEngine?.Dispose();
         _osdOverlay?.Close();
         _serial?.Dispose();
         _mixer?.Dispose();

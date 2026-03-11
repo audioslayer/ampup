@@ -1,8 +1,10 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Microsoft.Win32;
 
 namespace AmpUp.Views;
 
@@ -26,6 +28,10 @@ public partial class SettingsView : UserControl
     private Action<AppConfig>? _onSave;
     private readonly DispatcherTimer _debounceTimer;
     private bool _loading;
+
+    // Auto-switch rule controls (indexed 0-4)
+    private Wpf.Ui.Controls.TextBox[] _autoRuleAppBoxes = null!;
+    private ComboBox[] _autoRuleProfileCombos = null!;
 
     public SettingsView()
     {
@@ -68,8 +74,43 @@ public partial class SettingsView : UserControl
         BtnNewProfile.Click += OnNewProfile;
         BtnDeleteProfile.Click += OnDeleteProfile;
 
-        // Import
+        // Import / Export
         BtnImportTurnUp.Click += OnImportTurnUp;
+        BtnExportProfile.Click += OnExportProfile;
+        BtnImportProfile.Click += OnImportProfile;
+
+        // Auto-ducking events
+        ChkDuckingEnabled.Checked += OnValueChanged;
+        ChkDuckingEnabled.Unchecked += OnValueChanged;
+        TxtDuckTriggerApp.TextChanged += OnValueChanged;
+        TxtDuckTargetApps.TextChanged += OnValueChanged;
+        TxtDuckFadeOut.TextChanged += OnValueChanged;
+        TxtDuckFadeIn.TextChanged += OnValueChanged;
+        SldDuckPercent.ValueChanged += (_, e) =>
+        {
+            TxtDuckPercentLabel.Text = $"{(int)e.NewValue}%";
+            OnValueChanged(SldDuckPercent, e);
+        };
+
+        // Auto-switch events
+        ChkAutoSwitchEnabled.Checked += OnValueChanged;
+        ChkAutoSwitchEnabled.Unchecked += OnValueChanged;
+        ChkAutoSwitchRevert.Checked += OnValueChanged;
+        ChkAutoSwitchRevert.Unchecked += OnValueChanged;
+
+        // Build indexed arrays for auto-switch rule rows
+        _autoRuleAppBoxes = new[]
+        {
+            TxtAutoRule0App, TxtAutoRule1App, TxtAutoRule2App, TxtAutoRule3App, TxtAutoRule4App
+        };
+        _autoRuleProfileCombos = new[]
+        {
+            CmbAutoRule0Profile, CmbAutoRule1Profile, CmbAutoRule2Profile, CmbAutoRule3Profile, CmbAutoRule4Profile
+        };
+        foreach (var tb in _autoRuleAppBoxes)
+            tb.TextChanged += OnValueChanged;
+        foreach (var cmb in _autoRuleProfileCombos)
+            cmb.SelectionChanged += OnValueChanged;
 
         // About
         TxtVersion.Text = $"Amp Up v{UpdateChecker.CurrentVersion}";
@@ -102,6 +143,41 @@ public partial class SettingsView : UserControl
         ChkHaEnabled.IsChecked = config.HomeAssistant.Enabled;
         TxtHaUrl.Text = config.HomeAssistant.Url;
         TxtHaToken.Password = config.HomeAssistant.Token;
+
+        // Auto-Ducking
+        ChkDuckingEnabled.IsChecked = config.Ducking.Enabled;
+        var rule = config.Ducking.Rules.Count > 0 ? config.Ducking.Rules[0] : new DuckingRule();
+        TxtDuckTriggerApp.Text = rule.TriggerApp;
+        TxtDuckTargetApps.Text = string.Join(", ", rule.TargetApps);
+        SldDuckPercent.Value = rule.DuckPercent;
+        TxtDuckPercentLabel.Text = $"{rule.DuckPercent}%";
+        TxtDuckFadeOut.Text = rule.FadeOutMs.ToString();
+        TxtDuckFadeIn.Text = rule.FadeInMs.ToString();
+
+        // Auto-Profile Switching — populate profile dropdowns
+        ChkAutoSwitchEnabled.IsChecked = config.AutoSwitch.Enabled;
+        ChkAutoSwitchRevert.IsChecked = config.AutoSwitch.RevertToDefault;
+        for (int i = 0; i < _autoRuleProfileCombos.Length; i++)
+        {
+            _autoRuleProfileCombos[i].Items.Clear();
+            _autoRuleProfileCombos[i].Items.Add(""); // blank = no rule
+            foreach (var p in config.Profiles)
+                _autoRuleProfileCombos[i].Items.Add(p);
+
+            if (i < config.AutoSwitch.Rules.Count)
+            {
+                var r = config.AutoSwitch.Rules[i];
+                _autoRuleAppBoxes[i].Text = r.ProcessName;
+                _autoRuleProfileCombos[i].SelectedItem = r.ProfileName;
+                if (_autoRuleProfileCombos[i].SelectedIndex < 0)
+                    _autoRuleProfileCombos[i].SelectedIndex = 0;
+            }
+            else
+            {
+                _autoRuleAppBoxes[i].Text = "";
+                _autoRuleProfileCombos[i].SelectedIndex = 0;
+            }
+        }
 
         BuildAccentSwatches();
 
@@ -165,6 +241,8 @@ public partial class SettingsView : UserControl
         loaded.HomeAssistant = _config.HomeAssistant;
         loaded.Profiles = _config.Profiles;
         loaded.ProfileIcons = _config.ProfileIcons;
+        loaded.Ducking = _config.Ducking;
+        loaded.AutoSwitch = _config.AutoSwitch;
     }
 
     private void OnProfileSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -224,6 +302,31 @@ public partial class SettingsView : UserControl
         _config.HomeAssistant.Enabled = ChkHaEnabled.IsChecked == true;
         _config.HomeAssistant.Url = TxtHaUrl.Text.Trim();
         _config.HomeAssistant.Token = TxtHaToken.Password;
+
+        // Auto-Ducking
+        _config.Ducking.Enabled = ChkDuckingEnabled.IsChecked == true;
+        var duckRule = _config.Ducking.Rules.Count > 0 ? _config.Ducking.Rules[0] : new DuckingRule();
+        duckRule.TriggerApp = TxtDuckTriggerApp.Text.Trim();
+        duckRule.TargetApps = TxtDuckTargetApps.Text
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+        duckRule.DuckPercent = (int)SldDuckPercent.Value;
+        if (int.TryParse(TxtDuckFadeOut.Text.Trim(), out var fadeOut)) duckRule.FadeOutMs = fadeOut;
+        if (int.TryParse(TxtDuckFadeIn.Text.Trim(), out var fadeIn)) duckRule.FadeInMs = fadeIn;
+        _config.Ducking.Rules = new List<DuckingRule> { duckRule };
+
+        // Auto-Profile Switching
+        _config.AutoSwitch.Enabled = ChkAutoSwitchEnabled.IsChecked == true;
+        _config.AutoSwitch.RevertToDefault = ChkAutoSwitchRevert.IsChecked == true;
+        var switchRules = new List<AutoSwitchRule>();
+        for (int i = 0; i < _autoRuleAppBoxes.Length; i++)
+        {
+            var appName = _autoRuleAppBoxes[i].Text.Trim();
+            var profileName = _autoRuleProfileCombos[i].SelectedItem?.ToString() ?? "";
+            if (!string.IsNullOrEmpty(appName) && !string.IsNullOrEmpty(profileName))
+                switchRules.Add(new AutoSwitchRule { ProcessName = appName, ProfileName = profileName });
+        }
+        _config.AutoSwitch.Rules = switchRules;
 
         _onSave(_config);
     }
@@ -347,6 +450,97 @@ public partial class SettingsView : UserControl
 
                 (Window.GetWindow(this) as MainWindow)?.RefreshProfilePicker();
             }
+        }
+    }
+
+    private void OnExportProfile(object sender, RoutedEventArgs e)
+    {
+        if (_config == null) return;
+
+        var profileName = _config.ActiveProfile;
+        var srcPath = ConfigManager.GetProfilePath(profileName);
+
+        // Save current state first
+        CollectAndSave();
+        ConfigManager.SaveProfile(_config, profileName);
+
+        var dlg = new SaveFileDialog
+        {
+            Title = $"Export Profile \"{profileName}\"",
+            FileName = $"ampup_profile_{profileName.ToLowerInvariant()}.json",
+            Filter = "JSON profile (*.json)|*.json|All files (*.*)|*.*",
+            DefaultExt = "json"
+        };
+
+        if (dlg.ShowDialog() == true)
+        {
+            try
+            {
+                File.Copy(srcPath, dlg.FileName, overwrite: true);
+                GlassDialog.ShowInfo($"Profile \"{profileName}\" exported.", owner: Window.GetWindow(this));
+            }
+            catch (Exception ex)
+            {
+                GlassDialog.ShowWarning($"Export failed: {ex.Message}", owner: Window.GetWindow(this));
+            }
+        }
+    }
+
+    private void OnImportProfile(object sender, RoutedEventArgs e)
+    {
+        if (_config == null) return;
+
+        var dlg = new OpenFileDialog
+        {
+            Title = "Import Profile",
+            Filter = "JSON profile (*.json)|*.json|All files (*.*)|*.*",
+            DefaultExt = "json"
+        };
+
+        if (dlg.ShowDialog() != true) return;
+
+        try
+        {
+            var json = File.ReadAllText(dlg.FileName);
+            var imported = Newtonsoft.Json.JsonConvert.DeserializeObject<AppConfig>(json);
+            if (imported == null)
+            {
+                GlassDialog.ShowWarning("File does not appear to be a valid AmpUp profile.", owner: Window.GetWindow(this));
+                return;
+            }
+
+            // Derive a profile name from the filename
+            var baseName = Path.GetFileNameWithoutExtension(dlg.FileName);
+            // Strip "ampup_profile_" prefix if present
+            if (baseName.StartsWith("ampup_profile_", StringComparison.OrdinalIgnoreCase))
+                baseName = baseName["ampup_profile_".Length..];
+            // Capitalise first letter
+            var profileName = baseName.Length > 0
+                ? char.ToUpperInvariant(baseName[0]) + baseName[1..]
+                : "Imported";
+
+            // Make unique if needed
+            var finalName = profileName;
+            int idx = 2;
+            while (_config.Profiles.Contains(finalName))
+                finalName = $"{profileName}{idx++}";
+
+            _config.Profiles.Add(finalName);
+            imported.ActiveProfile = finalName;
+            PreserveGlobalSettings(imported);
+            ConfigManager.SaveProfile(imported, finalName);
+
+            _config.ActiveProfile = finalName;
+            _config = imported;
+            _onSave?.Invoke(_config);
+            LoadConfig(_config, _onSave!);
+            (Window.GetWindow(this) as MainWindow)?.RefreshProfilePicker();
+
+            GlassDialog.ShowInfo($"Profile imported as \"{finalName}\".", owner: Window.GetWindow(this));
+        }
+        catch (Exception ex)
+        {
+            GlassDialog.ShowWarning($"Import failed: {ex.Message}", owner: Window.GetWindow(this));
         }
     }
 

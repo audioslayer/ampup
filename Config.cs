@@ -33,6 +33,12 @@ public class AppConfig
 
     // Integrations
     public HomeAssistantConfig HomeAssistant { get; set; } = new();
+
+    // Auto-Ducking
+    public DuckingConfig Ducking { get; set; } = new();
+
+    // Auto-Profile Switching
+    public AutoSwitchConfig AutoSwitch { get; set; } = new();
 }
 
 public class SerialConfig
@@ -198,6 +204,9 @@ public enum ProfileTransition
 
 public static class ConfigManager
 {
+    public static string AppDataDir => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AmpUp");
+
     private static readonly string ConfigDir = InitConfigDir();
     private static string ConfigPath => Path.Combine(ConfigDir, "config.json");
 
@@ -209,6 +218,8 @@ public static class ConfigManager
         Directory.CreateDirectory(appDataDir);
         return appDataDir;
     }
+
+    public static string GetProfilePath(string profileName) => ProfilePath(profileName);
 
     private static string ProfilePath(string profileName)
     {

@@ -189,6 +189,21 @@
                         </StackPanel>
                     </StackPanel>
 
+                    <!-- Export / Import profile files -->
+                    <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0"
+                            Margin="0,14,0,0" Padding="0,12,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Export or import profile files to share between machines."
+                                       Style="{StaticResource SecondaryText}" Margin="0,0,0,8" TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal">
+                                <ui:Button x:Name="BtnExportProfile" Content="Export Profile"
+                                           Appearance="Secondary" Margin="0,0,8,0" />
+                                <ui:Button x:Name="BtnImportProfile" Content="Import Profile"
+                                           Appearance="Secondary" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Import from Turn Up -->
                     <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0"
                             Margin="0,14,0,0" Padding="0,12,0,0">
@@ -197,6 +212,166 @@
                                        Style="{StaticResource SecondaryText}" Margin="0,0,0,8" TextWrapping="Wrap" />
                             <ui:Button x:Name="BtnImportTurnUp" Content="Import from Turn Up"
                                        Appearance="Secondary" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- ── AUTO-DUCKING ────────────────────────────────────── -->
+            <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="AUTO-DUCKING" Style="{StaticResource HeaderText}" Margin="0" />
+                    </StackPanel>
+                    <TextBlock Text="Automatically lower other apps when a trigger app (e.g. Discord) is speaking."
+                               Style="{StaticResource SecondaryText}" Margin="0,0,0,12" TextWrapping="Wrap" />
+                    <CheckBox x:Name="ChkDuckingEnabled"
+                              Content="Enable auto-ducking"
+                              Foreground="{StaticResource TextPrimaryBrush}"
+                              Margin="0,0,0,14" />
+
+                    <!-- Rule (single rule UI for v0.5) -->
+                    <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0"
+                            Padding="0,12,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Rule" Style="{StaticResource BodyText}" FontWeight="SemiBold" Margin="0,0,0,10" />
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <StackPanel Margin="0,0,16,0">
+                                    <TextBlock Text="Trigger App" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
+                                    <ui:TextBox x:Name="TxtDuckTriggerApp" Width="160"
+                                                PlaceholderText="discord"
+                                                Background="{StaticResource InputBgBrush}"
+                                                BorderBrush="{StaticResource InputBorderBrush}"
+                                                Foreground="{StaticResource TextPrimaryBrush}" />
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Text="Target Apps (blank = all)" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
+                                    <ui:TextBox x:Name="TxtDuckTargetApps" Width="220"
+                                                PlaceholderText="spotify, chrome, … (comma-separated)"
+                                                Background="{StaticResource InputBgBrush}"
+                                                BorderBrush="{StaticResource InputBorderBrush}"
+                                                Foreground="{StaticResource TextPrimaryBrush}" />
+                                </StackPanel>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <StackPanel Margin="0,0,16,0">
+                                    <TextBlock Text="Duck Amount %" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
+                                    <Slider x:Name="SldDuckPercent"
+                                            Minimum="0" Maximum="100" Value="50"
+                                            Width="160" TickFrequency="10" IsSnapToTickEnabled="True" />
+                                    <TextBlock x:Name="TxtDuckPercentLabel"
+                                               Text="50%" Style="{StaticResource SecondaryText}"
+                                               Margin="0,2,0,0" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,16,0">
+                                    <TextBlock Text="Fade Out (ms)" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
+                                    <ui:TextBox x:Name="TxtDuckFadeOut" Width="80"
+                                                PlaceholderText="200"
+                                                Background="{StaticResource InputBgBrush}"
+                                                BorderBrush="{StaticResource InputBorderBrush}"
+                                                Foreground="{StaticResource TextPrimaryBrush}" />
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Text="Fade In (ms)" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
+                                    <ui:TextBox x:Name="TxtDuckFadeIn" Width="80"
+                                                PlaceholderText="500"
+                                                Background="{StaticResource InputBgBrush}"
+                                                BorderBrush="{StaticResource InputBorderBrush}"
+                                                Foreground="{StaticResource TextPrimaryBrush}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- ── AUTO-PROFILE SWITCHING ─────────────────────────── -->
+            <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="AUTO-PROFILE SWITCHING" Style="{StaticResource HeaderText}" Margin="0" />
+                    </StackPanel>
+                    <TextBlock Text="Switch profiles automatically based on the focused app."
+                               Style="{StaticResource SecondaryText}" Margin="0,0,0,12" TextWrapping="Wrap" />
+                    <CheckBox x:Name="ChkAutoSwitchEnabled"
+                              Content="Enable auto-profile switching"
+                              Foreground="{StaticResource TextPrimaryBrush}"
+                              Margin="0,0,0,6" />
+                    <CheckBox x:Name="ChkAutoSwitchRevert"
+                              Content="Revert to default profile when no rule matches"
+                              Foreground="{StaticResource TextPrimaryBrush}"
+                              Margin="0,0,0,14" />
+
+                    <!-- Rule rows — up to 5 -->
+                    <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0"
+                            Padding="0,12,0,0">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <TextBlock Text="App Name" Style="{StaticResource SecondaryText}" Width="180" Margin="0,0,8,0" />
+                                <TextBlock Text="Profile" Style="{StaticResource SecondaryText}" Width="180" />
+                            </StackPanel>
+                            <!-- Row 0 -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <ui:TextBox x:Name="TxtAutoRule0App" Width="175" Margin="0,0,8,0"
+                                            PlaceholderText="app.exe"
+                                            Background="{StaticResource InputBgBrush}"
+                                            BorderBrush="{StaticResource InputBorderBrush}"
+                                            Foreground="{StaticResource TextPrimaryBrush}" />
+                                <ComboBox x:Name="CmbAutoRule0Profile" Width="175"
+                                          Background="{StaticResource InputBgBrush}"
+                                          BorderBrush="{StaticResource InputBorderBrush}"
+                                          Foreground="{StaticResource TextPrimaryBrush}" />
+                            </StackPanel>
+                            <!-- Row 1 -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <ui:TextBox x:Name="TxtAutoRule1App" Width="175" Margin="0,0,8,0"
+                                            PlaceholderText="app.exe"
+                                            Background="{StaticResource InputBgBrush}"
+                                            BorderBrush="{StaticResource InputBorderBrush}"
+                                            Foreground="{StaticResource TextPrimaryBrush}" />
+                                <ComboBox x:Name="CmbAutoRule1Profile" Width="175"
+                                          Background="{StaticResource InputBgBrush}"
+                                          BorderBrush="{StaticResource InputBorderBrush}"
+                                          Foreground="{StaticResource TextPrimaryBrush}" />
+                            </StackPanel>
+                            <!-- Row 2 -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <ui:TextBox x:Name="TxtAutoRule2App" Width="175" Margin="0,0,8,0"
+                                            PlaceholderText="app.exe"
+                                            Background="{StaticResource InputBgBrush}"
+                                            BorderBrush="{StaticResource InputBorderBrush}"
+                                            Foreground="{StaticResource TextPrimaryBrush}" />
+                                <ComboBox x:Name="CmbAutoRule2Profile" Width="175"
+                                          Background="{StaticResource InputBgBrush}"
+                                          BorderBrush="{StaticResource InputBorderBrush}"
+                                          Foreground="{StaticResource TextPrimaryBrush}" />
+                            </StackPanel>
+                            <!-- Row 3 -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <ui:TextBox x:Name="TxtAutoRule3App" Width="175" Margin="0,0,8,0"
+                                            PlaceholderText="app.exe"
+                                            Background="{StaticResource InputBgBrush}"
+                                            BorderBrush="{StaticResource InputBorderBrush}"
+                                            Foreground="{StaticResource TextPrimaryBrush}" />
+                                <ComboBox x:Name="CmbAutoRule3Profile" Width="175"
+                                          Background="{StaticResource InputBgBrush}"
+                                          BorderBrush="{StaticResource InputBorderBrush}"
+                                          Foreground="{StaticResource TextPrimaryBrush}" />
+                            </StackPanel>
+                            <!-- Row 4 -->
+                            <StackPanel Orientation="Horizontal">
+                                <ui:TextBox x:Name="TxtAutoRule4App" Width="175" Margin="0,0,8,0"
+                                            PlaceholderText="app.exe"
+                                            Background="{StaticResource InputBgBrush}"
+                                            BorderBrush="{StaticResource InputBorderBrush}"
+                                            Foreground="{StaticResource TextPrimaryBrush}" />
+                                <ComboBox x:Name="CmbAutoRule4Profile" Width="175"
+                                          Background="{StaticResource InputBgBrush}"
+                                          BorderBrush="{StaticResource InputBorderBrush}"
+                                          Foreground="{StaticResource TextPrimaryBrush}" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                 </StackPanel>
