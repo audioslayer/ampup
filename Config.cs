@@ -164,6 +164,11 @@ public enum LightEffect
     MeteorRain,       // bright comet with long tail across all 15 LEDs
     ColorWave,        // scrolling color1→color2 gradient across all 15 LEDs
     Segments,         // rotating barber-pole bands of color1/color2 across all 15 LEDs
+    TheaterChase,     // every 3rd LED lit, pattern shifts — classic chase
+    RainbowScanner,   // scanner sweep but head color cycles through rainbow hues
+    SparkleRain,      // random LEDs flash and fade across all 15
+    BreathingSync,    // sine wave of brightness travels across all 15 LEDs
+    FireWall,         // continuous fire effect across all 15 LEDs as one flame
 }
 
 public enum ReactiveMode

@@ -109,10 +109,15 @@ namespace AmpUp.Controls
             { LightEffect.ProgramMute,  Color.FromRgb(0xFF, 0x8A, 0x65) }, // deep orange
 
             // Global-spanning effects
-            { LightEffect.Scanner,      Color.FromRgb(0xEF, 0x53, 0x50) }, // red
-            { LightEffect.MeteorRain,   Color.FromRgb(0x7C, 0x8C, 0xF8) }, // indigo
-            { LightEffect.ColorWave,    Color.FromRgb(0xBA, 0x68, 0xC8) }, // purple
-            { LightEffect.Segments,     Color.FromRgb(0xFF, 0x8A, 0x3D) }, // orange
+            { LightEffect.Scanner,       Color.FromRgb(0xEF, 0x53, 0x50) }, // red
+            { LightEffect.MeteorRain,    Color.FromRgb(0x7C, 0x8C, 0xF8) }, // indigo
+            { LightEffect.ColorWave,     Color.FromRgb(0xBA, 0x68, 0xC8) }, // purple
+            { LightEffect.Segments,      Color.FromRgb(0xFF, 0x8A, 0x3D) }, // orange
+            { LightEffect.TheaterChase,  Color.FromRgb(0x26, 0xC6, 0xDA) }, // cyan
+            { LightEffect.RainbowScanner,Color.FromRgb(0xEC, 0x40, 0x7A) }, // pink-red
+            { LightEffect.SparkleRain,   Color.FromRgb(0xFF, 0xF1, 0x76) }, // bright yellow
+            { LightEffect.BreathingSync, Color.FromRgb(0x80, 0xCB, 0xC4) }, // teal
+            { LightEffect.FireWall,      Color.FromRgb(0xFF, 0x57, 0x22) }, // deep orange
         };
 
         // ── Constructor ──────────────────────────────────────────────────
@@ -165,10 +170,15 @@ namespace AmpUp.Controls
             {
                 AddCategory(mainPanel, "GLOBAL SPAN", new[]
                 {
-                    (LightEffect.Scanner,    "▬",  "Scanner", false),
-                    (LightEffect.MeteorRain, "☄",  "Meteor",  false),
-                    (LightEffect.ColorWave,  "≋",  "Wave",    false),
-                    (LightEffect.Segments,   "▮▯", "Bands",   false),
+                    (LightEffect.Scanner,        "▬",  "Scanner", false),
+                    (LightEffect.MeteorRain,     "☄",  "Meteor",  false),
+                    (LightEffect.ColorWave,      "≋",  "Wave",    false),
+                    (LightEffect.Segments,       "▮▯", "Bands",   false),
+                    (LightEffect.TheaterChase,   "⋯",  "Chase",   false),
+                    (LightEffect.RainbowScanner, "⟿",  "R.Scan",  false),
+                    (LightEffect.SparkleRain,    "✧",  "Sparkle", false),
+                    (LightEffect.BreathingSync,  "≈",  "Breath",  false),
+                    (LightEffect.FireWall,       "🔥", "Inferno", true),
                 });
             }
         }

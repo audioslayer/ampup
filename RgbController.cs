@@ -44,6 +44,18 @@ public class RgbController : IDisposable
     private float _scannerPos;
     private int _scannerDir = 1;
 
+    // Rainbow scanner state (separate to avoid conflict with Scanner)
+    private float _rainbowScannerPos;
+    private int _rainbowScannerDir = 1;
+
+    // SparkleRain state: up to 5 simultaneous sparkles across 15 LEDs
+    private struct GlobalSparkle { public int Idx; public int Age; public bool Active; }
+    private readonly GlobalSparkle[] _globalSparkles = new GlobalSparkle[5];
+
+    // FireWall smoothed brightness per global LED (0-14)
+    private readonly float[] _fireWallCurrent = new float[15];
+    private readonly float[] _fireWallTarget = new float[15];
+
     // Random number generator for stochastic effects
     private static readonly Random _rng = new();
 
@@ -267,7 +279,9 @@ public class RgbController : IDisposable
     // Global-spanning effects treat all 15 LEDs as one strip
     private static readonly HashSet<LightEffect> SpanningEffects = new()
     {
-        LightEffect.Scanner, LightEffect.MeteorRain, LightEffect.ColorWave, LightEffect.Segments
+        LightEffect.Scanner, LightEffect.MeteorRain, LightEffect.ColorWave, LightEffect.Segments,
+        LightEffect.TheaterChase, LightEffect.RainbowScanner, LightEffect.SparkleRain,
+        LightEffect.BreathingSync, LightEffect.FireWall,
     };
 
     /// <summary>
@@ -417,6 +431,11 @@ public class RgbController : IDisposable
             case LightEffect.MeteorRain:
             case LightEffect.ColorWave:
             case LightEffect.Segments:
+            case LightEffect.TheaterChase:
+            case LightEffect.RainbowScanner:
+            case LightEffect.SparkleRain:
+            case LightEffect.BreathingSync:
+            case LightEffect.FireWall:
                 // Per-knob fallback: just show color1
                 SetColor(k, light.R, light.G, light.B);
                 break;
@@ -928,10 +947,15 @@ public class RgbController : IDisposable
     {
         switch (gl.Effect)
         {
-            case LightEffect.Scanner:    GlobalScanner(gl); break;
-            case LightEffect.MeteorRain: GlobalMeteor(gl); break;
-            case LightEffect.ColorWave:  GlobalColorWave(gl); break;
-            case LightEffect.Segments:   GlobalSegments(gl); break;
+            case LightEffect.Scanner:       GlobalScanner(gl); break;
+            case LightEffect.MeteorRain:    GlobalMeteor(gl); break;
+            case LightEffect.ColorWave:     GlobalColorWave(gl); break;
+            case LightEffect.Segments:      GlobalSegments(gl); break;
+            case LightEffect.TheaterChase:  GlobalTheaterChase(gl); break;
+            case LightEffect.RainbowScanner:GlobalRainbowScanner(gl); break;
+            case LightEffect.SparkleRain:   GlobalSparkleRain(gl); break;
+            case LightEffect.BreathingSync: GlobalBreathingSync(gl); break;
+            case LightEffect.FireWall:      GlobalFireWall(gl); break;
         }
     }
 
@@ -1025,6 +1049,173 @@ public class RgbController : IDisposable
             int g = (int)(gl.G + (gl.G2 - gl.G) * t);
             int b = (int)(gl.B + (gl.B2 - gl.B) * t);
             SetGlobalLed(i, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Every 3rd LED is lit, the lit pattern shifts one position each speed-tick.
+    /// Color1 = lit color, Color2 = dim background.
+    /// </summary>
+    private void GlobalTheaterChase(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        int ticksPerStep = Math.Max(1, 20 - speed * 19 / 100); // 20 ticks (slow) to 1 tick (fast)
+        int offset = (_animTick / ticksPerStep) % 3;
+
+        for (int i = 0; i < 15; i++)
+        {
+            bool lit = (i % 3) == offset;
+            if (lit)
+                SetGlobalLed(i, gl.R, gl.G, gl.B);
+            else
+                SetGlobalLed(i,
+                    (int)(gl.R2 * 0.05f),
+                    (int)(gl.G2 * 0.05f),
+                    (int)(gl.B2 * 0.05f));
+        }
+    }
+
+    /// <summary>
+    /// Like Scanner but the sweep dot color cycles through rainbow hues based on position.
+    /// Tail fades to dark. Speed controls sweep speed.
+    /// </summary>
+    private void GlobalRainbowScanner(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float step = 0.1f + (speed / 100f) * 0.5f;
+
+        _rainbowScannerPos += step * _rainbowScannerDir;
+        if (_rainbowScannerPos >= 14f) { _rainbowScannerPos = 14f; _rainbowScannerDir = -1; }
+        if (_rainbowScannerPos <= 0f)  { _rainbowScannerPos = 0f;  _rainbowScannerDir = 1; }
+
+        // Map head position (0-14) → hue (0-360)
+        float headHue = _rainbowScannerPos / 14f * 360f;
+
+        for (int i = 0; i < 15; i++)
+        {
+            float dist = Math.Abs(i - _rainbowScannerPos);
+            float brightness = Math.Max(0f, 1f - dist / 3f);
+            brightness *= brightness;
+
+            float hue = (headHue + (i - _rainbowScannerPos) * 5f + 360f) % 360f;
+            var (r, g, b) = HsvToRgb(hue, 1f, brightness);
+            SetGlobalLed(i, r, g, b);
+        }
+    }
+
+    /// <summary>
+    /// Random LEDs across all 15 flash bright and fade out. Multiple sparkles simultaneously.
+    /// Color1 = sparkle color, dim base = color1 at 10%.
+    /// </summary>
+    private void GlobalSparkleRain(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        // spawn chance per tick: speed=1 → ~2% chance, speed=100 → ~25% chance
+        float spawnChance = 0.02f + (speed / 100f) * 0.23f;
+
+        // Try to spawn new sparkles in empty slots
+        for (int s = 0; s < _globalSparkles.Length; s++)
+        {
+            if (!_globalSparkles[s].Active && (float)_rng.NextDouble() < spawnChance)
+            {
+                _globalSparkles[s].Active = true;
+                _globalSparkles[s].Idx = _rng.Next(15);
+                _globalSparkles[s].Age = 0;
+            }
+        }
+
+        // Render dim base on all LEDs
+        int baseR = (int)(gl.R * 0.10f);
+        int baseG = (int)(gl.G * 0.10f);
+        int baseB = (int)(gl.B * 0.10f);
+        for (int i = 0; i < 15; i++)
+            SetGlobalLed(i, baseR, baseG, baseB);
+
+        // Age and render active sparkles
+        for (int s = 0; s < _globalSparkles.Length; s++)
+        {
+            if (!_globalSparkles[s].Active) continue;
+
+            int age = _globalSparkles[s].Age;
+            float sparkBright = age < 2 ? 1.0f : Math.Max(0f, 1.0f - (age - 2) / 4f);
+
+            if (sparkBright <= 0f)
+            {
+                _globalSparkles[s].Active = false;
+                continue;
+            }
+
+            int idx = _globalSparkles[s].Idx;
+            // Blend toward white at peak
+            int sr = (int)(gl.R * sparkBright + 255 * sparkBright * 0.4f);
+            int sg = (int)(gl.G * sparkBright + 255 * sparkBright * 0.4f);
+            int sb = (int)(gl.B * sparkBright + 255 * sparkBright * 0.4f);
+            SetGlobalLed(idx, Math.Clamp(sr, 0, 255), Math.Clamp(sg, 0, 255), Math.Clamp(sb, 0, 255));
+
+            _globalSparkles[s].Age++;
+        }
+    }
+
+    /// <summary>
+    /// Sine wave of brightness travels across all 15 LEDs. Each LED offset 24° in phase.
+    /// Color1 = wave color. Speed controls rate.
+    /// </summary>
+    private void GlobalBreathingSync(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float periodSec = 4.0f - (speed / 100f) * 3.6f; // 4.0s to 0.4s
+        float periodTicks = periodSec / 0.05f;
+        float baseAngle = (_animTick % (int)Math.Max(periodTicks, 1)) / Math.Max(periodTicks, 1) * MathF.PI * 2f;
+
+        const float phaseOffsetPerLed = MathF.PI * 2f / 15f; // 24° per LED
+
+        for (int i = 0; i < 15; i++)
+        {
+            float angle = baseAngle + i * phaseOffsetPerLed;
+            float brightness = (MathF.Sin(angle) + 1f) / 2f;
+            brightness *= brightness; // squared easing — organic breathing feel
+            SetGlobalLed(i,
+                (int)(gl.R * brightness),
+                (int)(gl.G * brightness),
+                (int)(gl.B * brightness));
+        }
+    }
+
+    /// <summary>
+    /// Fire effect across all 15 LEDs as one continuous flame wall.
+    /// Adjacent LEDs have correlated brightness for realism.
+    /// Color1 = base flame, Color2 = ember tint.
+    /// </summary>
+    private void GlobalFireWall(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float smoothing = 0.03f + (speed / 100f) * 0.15f; // 0.03 (calm) to 0.18 (windy)
+
+        for (int i = 0; i < 15; i++)
+        {
+            // Smooth toward target
+            _fireWallCurrent[i] += (_fireWallTarget[i] - _fireWallCurrent[i]) * smoothing;
+
+            // Pick new target when close, biased toward neighbor's value for correlated flicker
+            if (Math.Abs(_fireWallCurrent[i] - _fireWallTarget[i]) < 0.05f)
+            {
+                float neighborBias = 0f;
+                int neighbors = 0;
+                if (i > 0)  { neighborBias += _fireWallCurrent[i - 1]; neighbors++; }
+                if (i < 14) { neighborBias += _fireWallCurrent[i + 1]; neighbors++; }
+                float neighborAvg = neighbors > 0 ? neighborBias / neighbors : 0.5f;
+
+                // Target = 70% random + 30% neighbor influence
+                float random = 0.2f + (float)_rng.NextDouble() * 0.8f;
+                _fireWallTarget[i] = random * 0.7f + neighborAvg * 0.3f;
+            }
+
+            float bright = _fireWallCurrent[i];
+            float ember = bright * bright;
+            int r = Math.Clamp((int)(gl.R * bright + (gl.R2 - gl.R) * ember * 0.3f), 0, 255);
+            int g = Math.Clamp((int)(gl.G * bright + (gl.G2 - gl.G) * ember * 0.3f), 0, 255);
+            int b = Math.Clamp((int)(gl.B * bright + (gl.B2 - gl.B) * ember * 0.3f), 0, 255);
+            SetGlobalLed(i, r, g, b);
         }
     }
 
