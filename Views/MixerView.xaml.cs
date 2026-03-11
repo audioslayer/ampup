@@ -62,7 +62,7 @@ public partial class MixerView : UserControl
     // App group picker (for "apps" target)
     private readonly StackPanel[] _appsPanels = new StackPanel[5];
     private readonly StackPanel[] _appsListPanels = new StackPanel[5];
-    private readonly ComboBox[] _appsAddPickers = new ComboBox[5];
+
 
     // HA entities cache
     private List<HAEntity> _haEntities = new();
@@ -482,31 +482,6 @@ public partial class MixerView : UserControl
             _appsListPanels[i] = appsListPanel;
             appsContainer.Children.Add(appsListPanel);
 
-            // "Add app" — ComboBox showing running audio apps
-            var appsAddCombo = new ComboBox
-            {
-                Margin = new Thickness(0, 0, 0, 4),
-                Background = FindBrush("InputBgBrush"),
-                Foreground = FindBrush("TextPrimaryBrush"),
-                BorderBrush = FindBrush("InputBorderBrush"),
-                FontSize = 12,
-                IsEditable = false,
-            };
-            appsAddCombo.DropDownOpened += (_, _) => PopulateRunningApps(idx);
-            appsAddCombo.SelectionChanged += (_, _) =>
-            {
-                if (appsAddCombo.SelectedItem is ComboBoxItem item && item.Tag is string tag && !string.IsNullOrEmpty(tag))
-                {
-                    AddAppToGroup(idx, tag);
-                    Dispatcher.BeginInvoke(() =>
-                    {
-                        appsAddCombo.SelectedIndex = -1;
-                    }, System.Windows.Threading.DispatcherPriority.Background);
-                }
-            };
-            _appsAddPickers[i] = appsAddCombo;
-            appsContainer.Children.Add(appsAddCombo);
-
             _appsPanels[i] = appsContainer;
             settingsPanel.Children.Add(appsContainer);
 
@@ -543,8 +518,7 @@ public partial class MixerView : UserControl
 
         if (showApps)
         {
-            PopulateRunningApps(idx);
-            RebuildAppChips(idx);
+            RebuildAppToggles(idx);
         }
 
         UpdateTargetDisplay(idx);
@@ -644,153 +618,103 @@ public partial class MixerView : UserControl
 
     // --- App group helpers ---
 
-    private void AddAppToGroup(int idx, string appName)
-    {
-        if (_config == null) return;
-        var knob = _config.Knobs.FirstOrDefault(k => k.Idx == idx);
-        if (knob == null) return;
-
-        if (!knob.Apps.Contains(appName, StringComparer.OrdinalIgnoreCase))
-        {
-            knob.Apps.Add(appName);
-            RebuildAppChips(idx);
-            QueueSave();
-        }
-    }
-
-    private void RemoveAppFromGroup(int idx, string appName)
-    {
-        if (_config == null) return;
-        var knob = _config.Knobs.FirstOrDefault(k => k.Idx == idx);
-        if (knob == null) return;
-
-        knob.Apps.RemoveAll(a => a.Equals(appName, StringComparison.OrdinalIgnoreCase));
-        RebuildAppChips(idx);
-        QueueSave();
-    }
-
-    private void RebuildAppChips(int idx)
+    /// <summary>
+    /// Rebuild the app toggle list. Shows all running audio apps with on/off toggles.
+    /// Toggled ON = part of the group, OFF = not.
+    /// </summary>
+    private void RebuildAppToggles(int idx)
     {
         var panel = _appsListPanels[idx];
         panel.Children.Clear();
 
-        if (_config == null) return;
+        if (_config == null || _mixer == null) return;
         var knob = _config.Knobs.FirstOrDefault(k => k.Idx == idx);
         if (knob == null) return;
 
-        foreach (var app in knob.Apps)
+        var runningApps = _mixer.GetRunningAudioApps();
+
+        // Show apps already in the group that might not be running
+        var allApps = new List<string>(knob.Apps);
+        foreach (var app in runningApps)
         {
-            var chip = new Border
+            if (!allApps.Contains(app, StringComparer.OrdinalIgnoreCase))
+                allApps.Add(app);
+        }
+
+        if (allApps.Count == 0)
+        {
+            panel.Children.Add(new TextBlock
             {
-                Background = new SolidColorBrush(Color.FromArgb(0x1A, 0x00, 0xE6, 0x76)),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 0x00, 0xE6, 0x76)),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(4),
-                Padding = new Thickness(8, 4, 6, 4),
-                Margin = new Thickness(0, 0, 0, 3),
-                SnapsToDevicePixels = true
-            };
+                Text = "No audio apps running",
+                FontSize = 10,
+                Foreground = FindBrush("TextDimBrush"),
+                Margin = new Thickness(0, 2, 0, 4),
+            });
+            return;
+        }
 
-            var chipGrid = new Grid();
-            chipGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            chipGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            chipGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        foreach (var app in allApps.OrderBy(a => a))
+        {
+            bool isInGroup = knob.Apps.Contains(app, StringComparer.OrdinalIgnoreCase);
+            bool isRunning = runningApps.Contains(app, StringComparer.OrdinalIgnoreCase);
+            var appCapture = app;
 
-            // Accent dot
+            var row = new Grid { Margin = new Thickness(0, 0, 0, 2) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            // App name + running indicator
+            var namePanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             var dot = new Border
             {
-                Width = 4, Height = 4,
-                CornerRadius = new CornerRadius(2),
-                Background = FindBrush("AccentBrush"),
+                Width = 6, Height = 6,
+                CornerRadius = new CornerRadius(3),
+                Background = new SolidColorBrush(isRunning
+                    ? Color.FromRgb(0x00, 0xE6, 0x76)  // green = running
+                    : Color.FromRgb(0x55, 0x55, 0x55)), // dim = not running
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 6, 0)
+                Margin = new Thickness(0, 0, 6, 0),
+                ToolTip = isRunning ? "Running" : "Not running",
             };
-            Grid.SetColumn(dot, 0);
-            chipGrid.Children.Add(dot);
+            namePanel.Children.Add(dot);
 
-            var appLabel = new TextBlock
+            var label = new TextBlock
             {
                 Text = app,
                 FontSize = 11,
-                Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
-                VerticalAlignment = VerticalAlignment.Center
+                Foreground = new SolidColorBrush(isRunning
+                    ? Color.FromRgb(0xCC, 0xCC, 0xCC)
+                    : Color.FromRgb(0x77, 0x77, 0x77)),
+                VerticalAlignment = VerticalAlignment.Center,
             };
-            Grid.SetColumn(appLabel, 1);
-            chipGrid.Children.Add(appLabel);
+            namePanel.Children.Add(label);
+            Grid.SetColumn(namePanel, 0);
+            row.Children.Add(namePanel);
 
-            var removeBtn = new TextBlock
+            // Toggle checkbox
+            var toggle = new CheckBox
             {
-                Text = "\u2715",
-                FontSize = 8,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
+                IsChecked = isInGroup,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(8, 0, 0, 0),
-                Cursor = System.Windows.Input.Cursors.Hand
             };
-            var appCapture = app;
-            removeBtn.MouseLeftButtonDown += (_, _) => RemoveAppFromGroup(idx, appCapture);
-            removeBtn.MouseEnter += (_, _) => removeBtn.Foreground = FindBrush("DangerRedBrush");
-            removeBtn.MouseLeave += (_, _) => removeBtn.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
-            Grid.SetColumn(removeBtn, 2);
-            chipGrid.Children.Add(removeBtn);
-
-            chip.Child = chipGrid;
-
-            // Chip hover
-            chip.MouseEnter += (_, _) =>
+            toggle.Checked += (_, _) =>
             {
-                chip.Background = new SolidColorBrush(Color.FromArgb(0x2A, 0x00, 0xE6, 0x76));
-                appLabel.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
+                if (_loading) return;
+                if (!knob.Apps.Contains(appCapture, StringComparer.OrdinalIgnoreCase))
+                    knob.Apps.Add(appCapture);
+                QueueSave();
             };
-            chip.MouseLeave += (_, _) =>
+            toggle.Unchecked += (_, _) =>
             {
-                chip.Background = new SolidColorBrush(Color.FromArgb(0x1A, 0x00, 0xE6, 0x76));
-                appLabel.Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
+                if (_loading) return;
+                knob.Apps.RemoveAll(a => a.Equals(appCapture, StringComparison.OrdinalIgnoreCase));
+                QueueSave();
             };
+            Grid.SetColumn(toggle, 1);
+            row.Children.Add(toggle);
 
-            panel.Children.Add(chip);
-        }
-    }
-
-    private void PopulateRunningApps(int idx)
-    {
-        var combo = _appsAddPickers[idx];
-        combo.Items.Clear();
-
-        if (_mixer == null) return;
-        var runningApps = _mixer.GetRunningAudioApps();
-
-        var knob = _config?.Knobs.FirstOrDefault(k => k.Idx == idx);
-        var existing = knob?.Apps ?? new List<string>();
-
-        // Placeholder
-        combo.Items.Add(new ComboBoxItem
-        {
-            Content = "+ Add running app...",
-            Tag = (string?)null,
-            IsEnabled = false,
-            Foreground = FindBrush("TextDimBrush"),
-        });
-
-        bool hasNew = false;
-        foreach (var app in runningApps)
-        {
-            if (!existing.Contains(app, StringComparer.OrdinalIgnoreCase))
-            {
-                combo.Items.Add(new ComboBoxItem { Content = app, Tag = app });
-                hasNew = true;
-            }
-        }
-
-        if (!hasNew)
-        {
-            combo.Items.Add(new ComboBoxItem
-            {
-                Content = "No new apps available",
-                Tag = (string?)null,
-                IsEnabled = false,
-                Foreground = FindBrush("TextDimBrush"),
-            });
+            panel.Children.Add(row);
         }
     }
 
