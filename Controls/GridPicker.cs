@@ -273,7 +273,7 @@ public class GridPicker : Border
                         Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
                         FontWeight = FontWeights.SemiBold,
                         VerticalAlignment = VerticalAlignment.Center,
-                        CharacterSpacing = 80
+                        // letter-spaced via padding
                     });
 
                     _categoriesPanel.Children.Add(headerRow);
@@ -285,9 +285,10 @@ public class GridPicker : Border
             var (display, _) = _items[i];
             bool selected = idx == _selectedIndex;
             int catIdx = categoryForItem.GetValueOrDefault(i, -1);
-            var catColor = catIdx >= 0
-                ? CategoryStyles.GetValueOrDefault(_categories[catIdx].CategoryName.ToUpperInvariant(), ("•", AccentColor)).Color
-                : AccentColor;
+            var catStyle = catIdx >= 0
+                ? CategoryStyles.GetValueOrDefault(_categories[catIdx].CategoryName.ToUpperInvariant(), ("•", AccentColor))
+                : ("•", AccentColor);
+            var catColor = catStyle.Item2;
 
             var itemRow = new Border
             {
