@@ -261,21 +261,28 @@ public partial class LightsView : UserControl
         _globalEffectPicker = effectPicker;
         settings.Children.Add(effectPicker);
 
-        // Color 1
+        // Color 1 + Color 2 in a horizontal row
         settings.Children.Add(MakeSectionHeader("COLOR"));
-        settings.Children.Add(MakeSubLabel("PRIMARY"));
         var swatch1 = MakeGlobalColorSwatch(_globalColor1, isColor2: false);
         _globalColor1Swatch = swatch1;
-        settings.Children.Add(swatch1);
-
-        // Color 2 (conditional)
-        var color2Panel = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 4, 0, 0) };
-        color2Panel.Children.Add(MakeSubLabel("SECONDARY"));
         var swatch2 = MakeGlobalColorSwatch(_globalColor2, isColor2: true);
         _globalColor2Swatch = swatch2;
+
+        var color2Panel = new StackPanel { Orientation = Orientation.Horizontal, Visibility = Visibility.Collapsed };
+        color2Panel.Children.Add(MakeSubLabel("SECONDARY"));
         color2Panel.Children.Add(swatch2);
         _globalColor2Panel = color2Panel;
-        settings.Children.Add(color2Panel);
+
+        var globalColorRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 0, 0, 8),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        globalColorRow.Children.Add(MakeSubLabel("PRIMARY"));
+        globalColorRow.Children.Add(swatch1);
+        globalColorRow.Children.Add(color2Panel);
+        settings.Children.Add(globalColorRow);
 
         // Speed slider (conditional)
         var speedPanel = new StackPanel { Visibility = Visibility.Collapsed };
@@ -456,20 +463,28 @@ public partial class LightsView : UserControl
             // ── COLOR section ──
             panel.Children.Add(MakeSectionHeader("COLOR"));
 
-            // Color 1 label + swatch
-            panel.Children.Add(MakeSubLabel("PRIMARY"));
+            // Horizontal row: PRIMARY [circle] SECONDARY [circle]
             var swatch1 = MakeColorSwatch(idx, isColor2: false);
             _color1Swatches[i] = swatch1;
-            panel.Children.Add(swatch1);
-
-            // Color 2 — conditionally visible, same section
-            var color2Container = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
-            color2Container.Children.Add(MakeSubLabel("SECONDARY"));
             var swatch2 = MakeColorSwatch(idx, isColor2: true);
             _color2Swatches[i] = swatch2;
+
+            var colorRow = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 0, 0, 8),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            colorRow.Children.Add(MakeSubLabel("PRIMARY"));
+            colorRow.Children.Add(swatch1);
+
+            var color2Container = new StackPanel { Orientation = Orientation.Horizontal };
+            color2Container.Children.Add(MakeSubLabel("SECONDARY"));
             color2Container.Children.Add(swatch2);
+
+            colorRow.Children.Add(color2Container);
             _color2Panels[i] = color2Container;
-            panel.Children.Add(color2Container);
+            panel.Children.Add(colorRow);
 
             // ── SPEED section (conditionally visible — separator included) ──
             var speedContainer = new StackPanel();
@@ -616,12 +631,13 @@ public partial class LightsView : UserControl
         var normalBorder = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
         var swatch = new Border
         {
-            Height = 28,
-            CornerRadius = new CornerRadius(6),
+            Width = 36,
+            Height = 36,
+            CornerRadius = new CornerRadius(18),
             Background = new SolidColorBrush(Colors.Black),
             BorderBrush = normalBorder,
             BorderThickness = new Thickness(1),
-            Margin = new Thickness(0, 0, 0, 4),
+            Margin = new Thickness(4, 0, 0, 0),
             Cursor = Cursors.Hand,
             ToolTip = isColor2 ? "Secondary color (accent/contrast for animated effects)" : "Primary LED color",
         };
@@ -1051,7 +1067,8 @@ public partial class LightsView : UserControl
             FontSize = 9,
             FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(Color.FromArgb(0x99, accent.R, accent.G, accent.B)),
-            Margin = new Thickness(0, 0, 0, 4),
+            Margin = new Thickness(0, 0, 4, 0),
+            VerticalAlignment = VerticalAlignment.Center,
         };
         _subLabels.Add(lbl);
         return lbl;
@@ -1062,12 +1079,13 @@ public partial class LightsView : UserControl
         var normalBorder = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
         var swatch = new Border
         {
-            Height = 28,
-            CornerRadius = new CornerRadius(6),
+            Width = 36,
+            Height = 36,
+            CornerRadius = new CornerRadius(18),
             Background = new SolidColorBrush(initial),
             BorderBrush = normalBorder,
             BorderThickness = new Thickness(1),
-            Margin = new Thickness(0, 0, 0, 4),
+            Margin = new Thickness(4, 0, 0, 0),
             Cursor = Cursors.Hand,
             ToolTip = isColor2 ? "Secondary color (accent/contrast for animated effects)" : "Primary LED color",
         };

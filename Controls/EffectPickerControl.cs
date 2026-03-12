@@ -234,7 +234,7 @@ namespace AmpUp.Controls
             var iconBlock = new TextBlock
             {
                 Text = icon,
-                FontSize = isEmoji ? 16 : 18,
+                FontSize = _showGlobal ? (isEmoji ? 20 : 24) : (isEmoji ? 16 : 18),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
                 Foreground = new SolidColorBrush(Color.FromRgb(0x77, 0x77, 0x77)),
@@ -244,7 +244,7 @@ namespace AmpUp.Controls
             var labelBlock = new TextBlock
             {
                 Text = label,
-                FontSize = 9,
+                FontSize = _showGlobal ? 10 : 9,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
                 Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
@@ -261,12 +261,12 @@ namespace AmpUp.Controls
 
             var container = new Border
             {
-                Width = 54,
+                Width = _showGlobal ? 70 : 54,
                 Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
                 BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(2, 6, 2, 5),
+                Padding = _showGlobal ? new Thickness(4, 8, 4, 6) : new Thickness(2, 6, 2, 5),
                 Margin = new Thickness(2),
                 Cursor = Cursors.Hand,
                 Child = content,
