@@ -26,6 +26,7 @@ public partial class App : Application
     private DuckingEngine? _duckingEngine;
     private AutoProfileSwitcher? _autoSwitcher;
     private TrayMixerPopup? _trayMixerPopup;
+    private TrayContextMenu? _trayContextMenu;
 
     /// <summary>
     /// Last hardware knob positions (0-1), updated on every knob event.
@@ -120,8 +121,6 @@ public partial class App : Application
         // Create tray icon
         SetupTrayIcon();
 
-        ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RebuildTrayColors);
-
         // Create main window
         _mainWindow = new MainWindow();
         _mainWindow.Closing += MainWindow_Closing;
@@ -158,8 +157,6 @@ public partial class App : Application
         }
     }
 
-    private Forms.ToolStripLabel? _trayStatusLabel;
-
     private void SetupTrayIcon()
     {
         _trayIcon = new Forms.NotifyIcon
@@ -174,81 +171,9 @@ public partial class App : Application
         {
             if (e.Button == Forms.MouseButtons.Left)
                 ShowTrayMixer();
+            else if (e.Button == Forms.MouseButtons.Right)
+                ShowTrayContextMenu();
         };
-
-        var menu = new Forms.ContextMenuStrip();
-        menu.BackColor = Color.FromArgb(0x11, 0x11, 0x11);
-        menu.ForeColor = Color.FromArgb(0xE8, 0xE8, 0xE8);
-        menu.Padding = new Forms.Padding(0, 6, 0, 6);
-        menu.ShowImageMargin = false;
-        menu.Renderer = new GlassMenuRenderer();
-
-        // Header: app name
-        var header = new Forms.ToolStripLabel
-        {
-            Text = "  AMP UP",
-            Font = new System.Drawing.Font("Segoe UI", 10f, System.Drawing.FontStyle.Bold),
-            ForeColor = System.Drawing.Color.FromArgb(ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B),
-            Padding = new Forms.Padding(10, 8, 10, 0),
-        };
-        menu.Items.Add(header);
-
-        // Version label
-        var version = new Forms.ToolStripLabel
-        {
-            Text = $"  v{UpdateChecker.CurrentVersion}",
-            Font = new System.Drawing.Font("Segoe UI", 7.5f, System.Drawing.FontStyle.Regular),
-            ForeColor = Color.FromArgb(0x44, 0x44, 0x44),
-            Padding = new Forms.Padding(10, 0, 10, 4),
-        };
-        menu.Items.Add(version);
-
-        // Connection status
-        _trayStatusLabel = new Forms.ToolStripLabel
-        {
-            Text = "  ○  Disconnected",
-            Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular),
-            ForeColor = Color.FromArgb(0x9A, 0x9A, 0x9A),
-            Padding = new Forms.Padding(10, 2, 10, 6),
-        };
-        menu.Items.Add(_trayStatusLabel);
-
-        menu.Items.Add(new Forms.ToolStripSeparator());
-
-        // Show
-        var showItem = new Forms.ToolStripMenuItem("  Open Amp Up")
-        {
-            Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Bold),
-            Padding = new Forms.Padding(6, 6, 6, 6),
-        };
-        showItem.Click += (_, _) => ShowMainWindow();
-        menu.Items.Add(showItem);
-
-        menu.Items.Add(new Forms.ToolStripSeparator());
-
-        // Assign App submenu placeholder — rebuilt on Opening
-        var assignItem = new Forms.ToolStripMenuItem("  Assign Running Apps →")
-        {
-            Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Regular),
-            Padding = new Forms.Padding(6, 6, 6, 6),
-        };
-        menu.Items.Add(assignItem);
-
-        menu.Items.Add(new Forms.ToolStripSeparator());
-
-        // Exit
-        var exitItem = new Forms.ToolStripMenuItem("  Exit")
-        {
-            Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Regular),
-            ForeColor = Color.FromArgb(0xFF, 0x44, 0x44),
-            Padding = new Forms.Padding(6, 6, 6, 6),
-        };
-        exitItem.Click += (_, _) => ExitApp();
-        menu.Items.Add(exitItem);
-
-        _trayIcon.ContextMenuStrip = menu;
-
-        menu.Opening += (_, _) => RebuildAssignSubmenu(assignItem);
     }
 
     private void ShowMainWindow()
@@ -271,74 +196,25 @@ public partial class App : Application
         });
     }
 
-    private void RebuildTrayColors()
+    private void ShowTrayContextMenu()
     {
-        if (_trayIcon?.ContextMenuStrip == null) return;
-        // Update tray icon header color
-        var items = _trayIcon.ContextMenuStrip.Items;
-        if (items.Count > 0 && items[0] is Forms.ToolStripLabel header)
-            header.ForeColor = System.Drawing.Color.FromArgb(ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B);
-    }
-
-    private void RebuildAssignSubmenu(Forms.ToolStripMenuItem assignItem)
-    {
-        assignItem.DropDownItems.Clear();
-
-        var runningApps = _mixer?.GetRunningAudioApps() ?? new List<string>();
-        if (runningApps.Count == 0)
+        Dispatcher.Invoke(() =>
         {
-            var noneItem = new Forms.ToolStripMenuItem("  (no audio apps running)")
-            {
-                Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Italic),
-                ForeColor = Color.FromArgb(0x55, 0x55, 0x55),
-                Enabled = false,
-            };
-            assignItem.DropDownItems.Add(noneItem);
-            return;
-        }
+            // Recreate each time so it always has the current config (profiles can reassign _config)
+            _trayContextMenu = new TrayContextMenu(
+                onOpen: ShowMainWindow,
+                onExit: ExitApp,
+                mixer: _mixer,
+                config: _config,
+                onSave: cfg => { ConfigManager.Save(cfg); _mainWindow?.RefreshViews(); },
+                onRefresh: () => _mainWindow?.RefreshViews()
+            );
 
-        foreach (var appName in runningApps)
-        {
-            var appCapture = appName;
-            var appItem = new Forms.ToolStripMenuItem($"  {appName}")
-            {
-                Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Regular),
-                Padding = new Forms.Padding(4, 4, 4, 4),
-            };
+            _trayContextMenu.UpdateStatus(_isConnected, _isConnected ? _serial.Port?.PortName : null);
 
-            // Sub-items: one per knob
-            for (int k = 0; k < 5; k++)
-            {
-                int knobIdx = k;
-                var knob = _config.Knobs.FirstOrDefault(kn => kn.Idx == knobIdx);
-                string knobLabel = knob != null && !string.IsNullOrWhiteSpace(knob.Label)
-                    ? knob.Label
-                    : $"Knob {knobIdx + 1}";
-
-                var knobItem = new Forms.ToolStripMenuItem($"  {knobLabel}")
-                {
-                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Regular),
-                    Padding = new Forms.Padding(4, 4, 4, 4),
-                };
-                knobItem.Click += (_, _) =>
-                {
-                    var cfg = _config.Knobs.FirstOrDefault(kn => kn.Idx == knobIdx);
-                    if (cfg != null)
-                    {
-                        cfg.Target = appCapture;
-                        cfg.Label = appCapture;
-                        ConfigManager.Save(_config);
-                        _mainWindow?.Dispatcher.Invoke(() =>
-                        {
-                            _mainWindow.RefreshViews();
-                        });
-                    }
-                };
-                appItem.DropDownItems.Add(knobItem);
-            }
-
-            assignItem.DropDownItems.Add(appItem);
-        }
+            var pos = Forms.Cursor.Position;
+            _trayContextMenu.ShowAt(pos.X, pos.Y);
+        });
     }
 
     private void ShowCrashDialog(Exception ex)
@@ -429,78 +305,6 @@ public partial class App : Application
         NativeMethods.DestroyIcon(hIcon);
         bmp.Dispose();
         return result;
-    }
-
-    /// <summary>
-    /// Glassmorphism renderer for the tray context menu — matches OSD overlay style.
-    /// </summary>
-    private class GlassMenuRenderer : Forms.ToolStripProfessionalRenderer
-    {
-        private static readonly Color BgColor = Color.FromArgb(0xEE, 0x11, 0x11, 0x11);
-        private static Color BorderColor => Color.FromArgb(0x44, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B);
-        private static Color HoverBg => Color.FromArgb(0x18, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B);
-        private static Color SepColor => Color.FromArgb(0x30, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B);
-
-        protected override void OnRenderMenuItemBackground(Forms.ToolStripItemRenderEventArgs e)
-        {
-            var rect = new Rectangle(6, 1, e.Item.Width - 12, e.Item.Height - 2);
-            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            if (e.Item is Forms.ToolStripMenuItem && e.Item.Selected)
-            {
-                using var brush = new SolidBrush(HoverBg);
-                using var path = RoundedRect(rect, 6);
-                e.Graphics.FillPath(brush, path);
-
-                // Subtle accent border on hover
-                using var pen = new Pen(Color.FromArgb(0x22, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
-                e.Graphics.DrawPath(pen, path);
-            }
-        }
-
-        protected override void OnRenderToolStripBackground(Forms.ToolStripRenderEventArgs e)
-        {
-            var bounds = e.AffectedBounds;
-            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-
-            // Fill background
-            using var bgPath = RoundedRect(new Rectangle(0, 0, bounds.Width - 1, bounds.Height - 1), 12);
-            using var bgBrush = new SolidBrush(BgColor);
-            e.Graphics.FillPath(bgBrush, bgPath);
-
-            // Green glow border (gradient from top-left to bottom-right like the OSD)
-            using var borderPen = new Pen(BorderColor, 1.2f);
-            e.Graphics.DrawPath(borderPen, bgPath);
-        }
-
-        protected override void OnRenderToolStripBorder(Forms.ToolStripRenderEventArgs e)
-        {
-            // Suppress default border — we draw our own rounded one in OnRenderToolStripBackground
-        }
-
-        protected override void OnRenderSeparator(Forms.ToolStripSeparatorRenderEventArgs e)
-        {
-            int y = e.Item.ContentRectangle.Height / 2;
-            using var pen = new Pen(SepColor);
-            e.Graphics.DrawLine(pen, 16, y, e.Item.Width - 16, y);
-        }
-
-        protected override void OnRenderItemText(Forms.ToolStripItemTextRenderEventArgs e)
-        {
-            e.TextColor = e.Item.ForeColor;
-            base.OnRenderItemText(e);
-        }
-
-        private static System.Drawing.Drawing2D.GraphicsPath RoundedRect(Rectangle bounds, int radius)
-        {
-            var path = new System.Drawing.Drawing2D.GraphicsPath();
-            int d = radius * 2;
-            path.AddArc(bounds.X, bounds.Y, d, d, 180, 90);
-            path.AddArc(bounds.Right - d, bounds.Y, d, d, 270, 90);
-            path.AddArc(bounds.Right - d, bounds.Bottom - d, d, d, 0, 90);
-            path.AddArc(bounds.X, bounds.Bottom - d, d, d, 90, 90);
-            path.CloseFigure();
-            return path;
-        }
     }
 
     private void OnConfigChanged(AppConfig config)
@@ -625,11 +429,7 @@ public partial class App : Application
             oldIcon?.Dispose();
         }
 
-        if (_trayStatusLabel != null)
-        {
-            _trayStatusLabel.Text = connected ? "  ●  Connected" : "  ○  Disconnected";
-            _trayStatusLabel.ForeColor = connected ? Color.FromArgb(0x00, 0xDD, 0x77) : Color.FromArgb(0x9A, 0x9A, 0x9A);
-        }
+        _trayContextMenu?.UpdateStatus(connected, connected ? _serial.Port?.PortName : null);
 
         _mainWindow?.SetConnectionStatus(connected, connected ? _serial.Port?.PortName : null);
     }
