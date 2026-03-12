@@ -857,19 +857,16 @@ public class ButtonHandler
 
     private static byte ResolveKeyCodeFallback(string keyName)
     {
-        // Single character — use VkKeyScan
+        // Single character — use VkKeyScan to resolve to virtual key code
         if (keyName.Length == 1)
         {
             short result = NativeMethods.VkKeyScan(keyName[0]);
             byte vk = (byte)(result & 0xFF);
             if (vk != 0xFF)
                 return vk;
-        }
-
-        // Single uppercase letter name like "a" through "z"
-        if (keyName.Length == 1 && char.IsAsciiLetter(keyName[0]))
-        {
-            return (byte)char.ToUpperInvariant(keyName[0]);
+            // VkKeyScan failed; fall back to uppercase ASCII for letter keys
+            if (char.IsAsciiLetter(keyName[0]))
+                return (byte)char.ToUpperInvariant(keyName[0]);
         }
 
         return 0;

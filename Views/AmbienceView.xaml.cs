@@ -95,6 +95,7 @@ public partial class AmbienceView : UserControl
         // Initialize cloud API if key is configured
         if (!string.IsNullOrEmpty(ambience.GoveeApiKey))
         {
+            _cloudApi?.Dispose();
             _cloudApi = new GoveeCloudApi(ambience.GoveeApiKey);
             RefreshApiKeyCard();
             _ = FetchCloudDevicesAsync();
@@ -579,6 +580,7 @@ public partial class AmbienceView : UserControl
                 if (!string.IsNullOrEmpty(key) && _config != null)
                 {
                     _config.Ambience.GoveeApiKey = key;
+                    _cloudApi?.Dispose();
                     _cloudApi = new GoveeCloudApi(key);
                     _onSave?.Invoke(_config);
                     RefreshApiKeyCard();
@@ -648,6 +650,7 @@ public partial class AmbienceView : UserControl
                 if (_config != null)
                 {
                     _config.Ambience.GoveeApiKey = "";
+                    _cloudApi?.Dispose();
                     _cloudApi = null;
                     _cloudDevices.Clear();
                     DevicePanel.Children.Clear();
@@ -686,7 +689,7 @@ public partial class AmbienceView : UserControl
         var guide = new Controls.GoveeSetupGuide();
         guide.ValidateKeyAsync = async (key) =>
         {
-            var api = new GoveeCloudApi(key);
+            using var api = new GoveeCloudApi(key);
             var devices = await api.GetDevicesAsync();
             return devices != null && devices.Count > 0;
         };
@@ -697,6 +700,7 @@ public partial class AmbienceView : UserControl
             if (!string.IsNullOrEmpty(key) && _config != null)
             {
                 _config.Ambience.GoveeApiKey = key;
+                _cloudApi?.Dispose();
                 _cloudApi = new GoveeCloudApi(key);
                 _onSave?.Invoke(_config);
                 RefreshApiKeyCard();

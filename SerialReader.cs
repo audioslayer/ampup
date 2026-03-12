@@ -34,7 +34,9 @@ public class SerialReader : IDisposable
     public void Start()
     {
         _running = true;
+        var oldCts = _cts;
         _cts = new CancellationTokenSource();
+        oldCts.Dispose();
         Task.Run(() => ConnectLoop(_cts.Token));
     }
 
@@ -309,6 +311,7 @@ public class SerialReader : IDisposable
     {
         _running = false;
         _cts.Cancel();
+        _cts.Dispose();
         try { _port?.Close(); } catch { }
     }
 }

@@ -326,9 +326,11 @@ public static class ConfigManager
     {
         try
         {
-            string json;
-            lock (_saveLock) json = JsonConvert.SerializeObject(config, Formatting.Indented);
-            File.WriteAllText(ConfigPath, json);
+            lock (_saveLock)
+            {
+                string json = JsonConvert.SerializeObject(config, Formatting.Indented);
+                File.WriteAllText(ConfigPath, json);
+            }
         }
         catch (Exception ex)
         {
@@ -340,9 +342,11 @@ public static class ConfigManager
     {
         try
         {
-            string json;
-            lock (_saveLock) json = JsonConvert.SerializeObject(config, Formatting.Indented);
-            File.WriteAllText(ProfilePath(profileName), json);
+            lock (_saveLock)
+            {
+                string json = JsonConvert.SerializeObject(config, Formatting.Indented);
+                File.WriteAllText(ProfilePath(profileName), json);
+            }
             Logger.Log($"Profile saved: {profileName}");
         }
         catch (Exception ex)

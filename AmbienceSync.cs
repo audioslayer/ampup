@@ -13,6 +13,7 @@ public class AmbienceSync : IDisposable
 {
     private AmbienceConfig _config;
     private readonly object _lock = new();
+    private bool _disposed;
 
     // Per-device last-sent color for delta throttling
     private readonly Dictionary<string, (byte R, byte G, byte B)> _lastSent = new();
@@ -38,6 +39,8 @@ public class AmbienceSync : IDisposable
     /// </summary>
     public void OnFrame(byte[] linear45)
     {
+        if (_disposed) return;
+
         AmbienceConfig cfg;
         lock (_lock) cfg = _config;
 
@@ -226,5 +229,8 @@ public class AmbienceSync : IDisposable
         return $"Govee ({fallbackIp})";
     }
 
-    public void Dispose() { }
+    public void Dispose()
+    {
+        _disposed = true;
+    }
 }

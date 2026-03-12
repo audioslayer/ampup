@@ -15,6 +15,7 @@ public class TrayMixerPopup : Window
     private StackPanel _sessionList = null!;
     private readonly MMDeviceEnumerator _enumerator = new();
     private readonly List<SessionRow> _rows = new();
+    private MMDevice? _masterDevice;
 
     private record SessionRow(
         string ProcessName,
@@ -160,11 +161,13 @@ public class TrayMixerPopup : Window
         try
         {
             // Master volume row (always first)
-            var masterDevice = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-            float masterVol = masterDevice.AudioEndpointVolume.MasterVolumeLevelScalar;
-            bool masterMuted = masterDevice.AudioEndpointVolume.Mute;
+            // Store in field so it lives as long as the popup; disposed in OnClosed
+            _masterDevice?.Dispose();
+            _masterDevice = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            float masterVol = _masterDevice.AudioEndpointVolume.MasterVolumeLevelScalar;
+            bool masterMuted = _masterDevice.AudioEndpointVolume.Mute;
 
-            _sessionList.Children.Add(BuildMasterRow(masterDevice, masterVol, masterMuted));
+            _sessionList.Children.Add(BuildMasterRow(_masterDevice, masterVol, masterMuted));
 
             // Divider after master
             _sessionList.Children.Add(new Border
@@ -571,6 +574,7 @@ public class TrayMixerPopup : Window
     protected override void OnClosed(EventArgs e)
     {
         base.OnClosed(e);
+        try { _masterDevice?.Dispose(); } catch { }
         try { _enumerator.Dispose(); } catch { }
     }
 }

@@ -246,6 +246,8 @@ public partial class App : Application
             _trayIcon.Dispose();
             _trayIcon = null;
         }
+        // Stop timers first to prevent further COM/serial calls during shutdown
+        _mutePollingTimer?.Dispose();
         _autoSwitchTimer?.Dispose();
         _duckingEngine?.Dispose();
         Dispatcher.Invoke(() => Shutdown());
@@ -543,9 +545,14 @@ public partial class App : Application
     // Cached devices for mute polling — refreshed only when the default device changes
     private NAudio.CoreAudioApi.MMDevice? _cachedMic;
     private NAudio.CoreAudioApi.MMDevice? _cachedMaster;
+    // Reentrancy guard: skip poll if the previous one hasn't finished yet
+    private int _pollMuteRunning;
 
     private void PollMuteStates()
     {
+        // Skip if a previous poll is still running (protects _cachedMaster from concurrent access)
+        if (System.Threading.Interlocked.CompareExchange(ref _pollMuteRunning, 1, 0) != 0)
+            return;
         try
         {
             _duckingEngine?.Poll(_config.Ducking);
@@ -597,6 +604,10 @@ public partial class App : Application
             PollAppGroupMuteStates();
         }
         catch { }
+        finally
+        {
+            System.Threading.Interlocked.Exchange(ref _pollMuteRunning, 0);
+        }
     }
 
     private void PollProgramMuteStates()

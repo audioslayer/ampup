@@ -39,33 +39,47 @@ public class AudioAnalyzer : IDisposable
 
         try
         {
-            _capture = new WasapiLoopbackCapture();
-            _capture.DataAvailable += OnDataAvailable;
-            _capture.RecordingStopped += OnRecordingStopped;
-            _bufferPos = 0;
-            _running = true;
-            _capture.StartRecording();
+            WasapiLoopbackCapture capture;
+            lock (_lock)
+            {
+                if (_running || _disposed) return;
+                capture = new WasapiLoopbackCapture();
+                capture.DataAvailable += OnDataAvailable;
+                capture.RecordingStopped += OnRecordingStopped;
+                _bufferPos = 0;
+                _capture = capture;
+                _running = true;
+            }
+            capture.StartRecording();
             Logger.Log("AudioAnalyzer started");
         }
         catch (Exception ex)
         {
             Logger.Log($"AudioAnalyzer Start failed: {ex.Message}");
-            _capture?.Dispose();
-            _capture = null;
-            _running = false;
+            lock (_lock)
+            {
+                _capture?.Dispose();
+                _capture = null;
+                _running = false;
+            }
         }
     }
 
     public void Stop()
     {
         if (!_running) return;
-        _running = false;
 
-        try
+        WasapiLoopbackCapture? capture;
+        lock (_lock)
         {
-            _capture?.StopRecording();
+            if (!_running) return;
+            _running = false;
+            capture = _capture;
+            _capture = null;
         }
-        catch { }
+
+        try { capture?.StopRecording(); } catch { }
+        try { capture?.Dispose(); } catch { }
 
         // Zero out bands
         lock (_lock)
@@ -82,8 +96,6 @@ public class AudioAnalyzer : IDisposable
         if (_disposed) return;
         _disposed = true;
         Stop();
-        _capture?.Dispose();
-        _capture = null;
     }
 
     // --- NAudio callbacks ---
@@ -137,12 +149,22 @@ public class AudioAnalyzer : IDisposable
             Logger.Log($"AudioAnalyzer recording stopped with error: {e.Exception.Message}");
 
         // Auto-restart after 2s on unexpected stop (device change, etc.)
-        if (_running && !_disposed)
+        bool shouldRestart;
+        lock (_lock)
         {
-            _running = false;
-            _capture?.Dispose();
-            _capture = null;
+            shouldRestart = _running && !_disposed;
+            if (shouldRestart)
+            {
+                _running = false;
+                // Dispose the old capture under lock; Start() will create a new one
+                var old = _capture;
+                _capture = null;
+                try { old?.Dispose(); } catch { }
+            }
+        }
 
+        if (shouldRestart)
+        {
             Task.Delay(2000).ContinueWith(_ =>
             {
                 if (!_disposed)
