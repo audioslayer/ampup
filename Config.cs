@@ -180,6 +180,7 @@ public enum LightEffect
 
     // Reactive/Status effects
     ProgramMute,      // color1 = not muted, color2 = muted (specific program audio session)
+    AppGroupMute,     // color1 = any app in group unmuted, color2 = all apps muted (uses knob's own apps[] list)
     DeviceSelect,     // shows per-device color based on which output device is currently default
 
     // Global-spanning effects (use all 15 LEDs as one strip)

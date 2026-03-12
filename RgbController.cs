@@ -40,6 +40,7 @@ public class RgbController : IDisposable
     // ProgramMute state per knob — written from polling timer, read from animation timer
     private readonly object _stateLock = new();
     private readonly Dictionary<int, bool> _programMuteStates = new();
+    private readonly Dictionary<int, bool> _appGroupMuteStates = new();
 
     // DeviceSelect state: current default output device ID
     private string _defaultOutputDeviceId = "";
@@ -171,6 +172,18 @@ public class RgbController : IDisposable
         if (knobIdx >= 0 && knobIdx < 5)
         {
             lock (_stateLock) _programMuteStates[knobIdx] = muted;
+        }
+    }
+
+    /// <summary>
+    /// Update per-knob app group mute state for the AppGroupMute effect.
+    /// allMuted=true when every app in the group is muted (or none are found).
+    /// </summary>
+    public void SetAppGroupMuted(int knobIdx, bool allMuted)
+    {
+        if (knobIdx >= 0 && knobIdx < 5)
+        {
+            lock (_stateLock) _appGroupMuteStates[knobIdx] = allMuted;
         }
     }
 
@@ -465,6 +478,10 @@ public class RgbController : IDisposable
 
             case LightEffect.ProgramMute:
                 EffectProgramMute(k, light);
+                break;
+
+            case LightEffect.AppGroupMute:
+                EffectAppGroupMute(k, light);
                 break;
 
             case LightEffect.DeviceSelect:
@@ -1004,6 +1021,19 @@ public class RgbController : IDisposable
         bool muted;
         lock (_stateLock) muted = _programMuteStates.GetValueOrDefault(k, true); // default to muted color if unknown
         if (muted)
+            SetColor(k, light.R2, light.G2, light.B2);
+        else
+            SetColor(k, light.R, light.G, light.B);
+    }
+
+    /// <summary>
+    /// Show color1 when any app in the knob's app group is unmuted, color2 when all are muted or none found.
+    /// </summary>
+    private void EffectAppGroupMute(int k, LightConfig light)
+    {
+        bool allMuted;
+        lock (_stateLock) allMuted = _appGroupMuteStates.GetValueOrDefault(k, false); // default to unmuted/live appearance
+        if (allMuted)
             SetColor(k, light.R2, light.G2, light.B2);
         else
             SetColor(k, light.R, light.G, light.B);

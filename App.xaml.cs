@@ -584,6 +584,8 @@ public partial class App : Application
 
             // Poll program mute states for ProgramMute LED effect
             PollProgramMuteStates();
+            // Poll app group mute states for AppGroupMute LED effect
+            PollAppGroupMuteStates();
         }
         catch { }
     }
@@ -654,6 +656,94 @@ public partial class App : Application
                     }
                     catch { }
                     _rgb.SetProgramMuted(light.Idx, muted);
+                }
+            }
+            finally
+            {
+                if (ownDevice) device?.Dispose();
+            }
+        }
+        catch { }
+    }
+
+    private void PollAppGroupMuteStates()
+    {
+        try
+        {
+            // Determine which knobs use AppGroupMute and have an apps[] list
+            var knobsToCheck = new List<KnobConfig>();
+            foreach (var l in _config.Lights)
+            {
+                if (l.Effect == LightEffect.AppGroupMute)
+                {
+                    var knob = _config.Knobs.FirstOrDefault(k => k.Idx == l.Idx);
+                    if (knob != null && knob.Target == "apps" && knob.Apps?.Count > 0)
+                        knobsToCheck.Add(knob);
+                }
+            }
+            if (_config.GlobalLight.Enabled && _config.GlobalLight.Effect == LightEffect.AppGroupMute)
+            {
+                foreach (var knob in _config.Knobs)
+                {
+                    if (knob.Target == "apps" && knob.Apps?.Count > 0 && !knobsToCheck.Any(k => k.Idx == knob.Idx))
+                        knobsToCheck.Add(knob);
+                }
+            }
+
+            if (knobsToCheck.Count == 0) return;
+            if (_pollEnumerator == null) return;
+
+            NAudio.CoreAudioApi.MMDevice? device = null;
+            bool ownDevice = false;
+            if (_cachedMaster != null)
+            {
+                device = _cachedMaster;
+            }
+            else
+            {
+                try
+                {
+                    device = _pollEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
+                    ownDevice = true;
+                }
+                catch { return; }
+            }
+
+            try
+            {
+                var sessions = device.AudioSessionManager.Sessions;
+
+                foreach (var knob in knobsToCheck)
+                {
+                    bool anyUnmuted = false;
+                    bool anyFound = false;
+                    try
+                    {
+                        for (int s = 0; s < sessions.Count; s++)
+                        {
+                            var session = sessions[s];
+                            try
+                            {
+                                uint pid = session.GetProcessID;
+                                if (pid == 0) continue;
+                                var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                                bool matchesGroup = knob.Apps!.Any(app =>
+                                    proc.ProcessName.Contains(app, StringComparison.OrdinalIgnoreCase));
+                                if (matchesGroup)
+                                {
+                                    anyFound = true;
+                                    if (!session.SimpleAudioVolume.Mute)
+                                        anyUnmuted = true;
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+                    catch { }
+                    // allMuted = true only when apps were found and none are unmuted
+                    // if no apps found, default to false (show color1 / live appearance)
+                    bool allMuted = anyFound && !anyUnmuted;
+                    _rgb.SetAppGroupMuted(knob.Idx, allMuted);
                 }
             }
             finally

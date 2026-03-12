@@ -107,8 +107,9 @@ namespace AmpUp.Controls
             { LightEffect.RainbowWheel, Color.FromRgb(0xEF, 0x53, 0x50) }, // red
 
             // Reactive/Status effects
-            { LightEffect.ProgramMute,  Color.FromRgb(0xFF, 0x8A, 0x65) }, // deep orange
-            { LightEffect.DeviceSelect, Color.FromRgb(0x4D, 0xD0, 0xE1) }, // cyan
+            { LightEffect.ProgramMute,   Color.FromRgb(0xFF, 0x8A, 0x65) }, // deep orange
+            { LightEffect.AppGroupMute,  Color.FromRgb(0xAB, 0x47, 0xBC) }, // purple
+            { LightEffect.DeviceSelect,  Color.FromRgb(0x4D, 0xD0, 0xE1) }, // cyan
 
             // Global-spanning effects
             { LightEffect.Scanner,       Color.FromRgb(0xEF, 0x53, 0x50) }, // red
@@ -173,11 +174,12 @@ namespace AmpUp.Controls
 
             AddCategory(mainPanel, "REACTIVE", new[]
             {
-                (LightEffect.MicStatus,    "⏦",   "Mic",     false),
-                (LightEffect.DeviceMute,   "⊘",   "Mute",    false),
-                (LightEffect.AudioReactive,"♫",   "Audio",   false),
-                (LightEffect.ProgramMute,  "⊗",   "App Mute",false),
-                (LightEffect.DeviceSelect, "⬡",   "Device",  false),
+                (LightEffect.MicStatus,     "⏦",   "Mic",      false),
+                (LightEffect.DeviceMute,    "⊘",   "Mute",     false),
+                (LightEffect.AudioReactive, "♫",   "Audio",    false),
+                (LightEffect.ProgramMute,   "⊗",   "App Mute", false),
+                (LightEffect.AppGroupMute,  "⊞",   "Group",    false),
+                (LightEffect.DeviceSelect,  "⬡",   "Device",   false),
             });
 
             if (_showGlobal)
