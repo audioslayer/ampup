@@ -156,17 +156,6 @@ public class TrayContextMenu : Window
         titleRow.Children.Add(titleText);
         header.Children.Add(titleRow);
 
-        // Version
-        var versionText = new TextBlock
-        {
-            Text = $"v{UpdateChecker.CurrentVersion}",
-            Foreground = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44)),
-            FontSize = 8,
-            FontFamily = new FontFamily("Segoe UI"),
-            Margin = new Thickness(0, 2, 0, 4)
-        };
-        header.Children.Add(versionText);
-
         // Connection status row
         var statusRow = new StackPanel { Orientation = Orientation.Horizontal };
         _statusDot = new TextBlock
