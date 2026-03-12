@@ -99,12 +99,7 @@
                               Foreground="{StaticResource TextPrimaryBrush}"
                               VerticalContentAlignment="Center"
                               ToolTip="Launch Amp Up automatically when you log in" />
-                    <CheckBox x:Name="ChkAutoSuggestLayout"
-                              Content="Auto-suggest knob layout"
-                              Foreground="{StaticResource TextPrimaryBrush}"
-                              VerticalContentAlignment="Center"
-                              Margin="0,8,0,0"
-                              ToolTip="Show a banner in Mixer when known apps are detected and knobs are unassigned" />
+
                 </StackPanel>
             </Border>
 
@@ -118,6 +113,21 @@
                     <TextBlock Text="Accent Color" Style="{StaticResource SecondaryText}" Margin="0,0,0,8"
                                ToolTip="App-wide theme color — affects headers, LEDs, and highlights" />
                     <WrapPanel x:Name="AccentSwatches" Orientation="Horizontal" />
+                </StackPanel>
+            </Border>
+
+            <!-- ── PREFERENCES ───────────────────────────────────── -->
+            <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="PREFERENCES" Style="{StaticResource HeaderText}" Margin="0" />
+                    </StackPanel>
+                    <CheckBox x:Name="ChkAutoSuggestLayout"
+                              Content="Auto-suggest knob layout"
+                              Foreground="{StaticResource TextPrimaryBrush}"
+                              VerticalContentAlignment="Center"
+                              ToolTip="Show a banner in Mixer when known apps are detected and knobs are unassigned" />
                 </StackPanel>
             </Border>
 

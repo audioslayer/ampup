@@ -188,23 +188,22 @@
                                IsOpen="{TemplateBinding IsDropDownOpen}"
                                AllowsTransparency="True"
                                Focusable="False"
+                               StaysOpen="False"
                                PopupAnimation="Slide">
-                            <Grid x:Name="DropDown"
-                                  MinWidth="{TemplateBinding ActualWidth}"
-                                  MaxHeight="{TemplateBinding MaxDropDownHeight}"
-                                  SnapsToDevicePixels="True">
-                                <Border x:Name="DropDownBorder"
-                                        CornerRadius="6"
-                                        Background="#FF1A1A1A"
-                                        BorderBrush="{StaticResource InputBorderBrush}"
-                                        BorderThickness="1"
-                                        Margin="0,2,0,0"
-                                        Effect="{StaticResource CardShadow}">
-                                </Border>
+                            <Border x:Name="DropDownBorder"
+                                    MinWidth="{TemplateBinding ActualWidth}"
+                                    MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                    CornerRadius="6"
+                                    Background="#FF1A1A1A"
+                                    BorderBrush="{StaticResource InputBorderBrush}"
+                                    BorderThickness="1"
+                                    Margin="0,2,0,0"
+                                    Effect="{StaticResource CardShadow}"
+                                    SnapsToDevicePixels="True">
                                 <ScrollViewer Margin="2,4,2,4" SnapsToDevicePixels="True">
                                     <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained" />
                                 </ScrollViewer>
-                            </Grid>
+                            </Border>
                         </Popup>
                     </Grid>
                 </ControlTemplate>
