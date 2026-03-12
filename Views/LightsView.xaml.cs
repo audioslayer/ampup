@@ -74,7 +74,24 @@ public partial class LightsView : UserControl
     private Color _globalColor1 = ThemeManager.Accent;
     private Color _globalColor2 = Color.FromRgb(0xFF, 0xFF, 0xFF);
     private StackPanel? _globalSettingsPanel;
+    private StackPanel? _globalPalettePanel;
     private StyledSlider? _brightnessSlider;
+
+    private static readonly (string Name, Color Primary, Color Secondary)[] ColorPalettes = new[]
+    {
+        ("Sunset",    Color.FromRgb(0xFF, 0x6B, 0x35), Color.FromRgb(0xFF, 0xD7, 0x00)),
+        ("Ocean",     Color.FromRgb(0x00, 0x77, 0xB6), Color.FromRgb(0x00, 0xE5, 0xFF)),
+        ("Neon",      Color.FromRgb(0xFF, 0x00, 0xFF), Color.FromRgb(0x00, 0xFF, 0xFF)),
+        ("Forest",    Color.FromRgb(0x00, 0xC8, 0x53), Color.FromRgb(0xAE, 0xD5, 0x81)),
+        ("Lava",      Color.FromRgb(0xFF, 0x17, 0x44), Color.FromRgb(0xFF, 0x8A, 0x00)),
+        ("Arctic",    Color.FromRgb(0xE0, 0xF7, 0xFA), Color.FromRgb(0x00, 0x97, 0xA7)),
+        ("Galaxy",    Color.FromRgb(0x7C, 0x4D, 0xFF), Color.FromRgb(0xFF, 0x80, 0xAB)),
+        ("Toxic",     Color.FromRgb(0x76, 0xFF, 0x03), Color.FromRgb(0x00, 0xE6, 0x76)),
+        ("Inferno",   Color.FromRgb(0xFF, 0x00, 0x00), Color.FromRgb(0xFF, 0xD6, 0x00)),
+        ("Vaporwave", Color.FromRgb(0xFF, 0x71, 0xCE), Color.FromRgb(0x01, 0xCD, 0xFE)),
+        ("Ember",     Color.FromRgb(0xFF, 0x45, 0x00), Color.FromRgb(0x8B, 0x00, 0x00)),
+        ("Aurora",    Color.FromRgb(0x00, 0xFF, 0x87), Color.FromRgb(0x7B, 0x2F, 0xFF)),
+    };
 
     // Clipboard for light copy/paste
     private static LightConfig? _lightClipboard;
@@ -284,6 +301,67 @@ public partial class LightsView : UserControl
         globalColorRow.Children.Add(color2Panel);
         settings.Children.Add(globalColorRow);
 
+        // Palette presets (shown only when color2 is visible)
+        var paletteSection = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 8) };
+        _globalPalettePanel = paletteSection;
+
+        paletteSection.Children.Add(new TextBlock
+        {
+            Text = "PALETTE",
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Margin = new Thickness(0, 0, 0, 6),
+        });
+
+        var paletteWrap = new WrapPanel();
+        foreach (var (name, primary, secondary) in ColorPalettes)
+        {
+            var p1 = primary;
+            var p2 = secondary;
+
+            // Tile: 28x28 with diagonal split showing both colors
+            var tileCanvas = new Canvas { Width = 28, Height = 28, ClipToBounds = true };
+            var leftRect = new System.Windows.Shapes.Rectangle { Width = 28, Height = 28, Fill = new SolidColorBrush(p1) };
+            Canvas.SetLeft(leftRect, 0);
+            tileCanvas.Children.Add(leftRect);
+            var poly = new System.Windows.Shapes.Polygon
+            {
+                Fill = new SolidColorBrush(p2),
+                Points = new PointCollection(new[] { new Point(28, 0), new Point(28, 28), new Point(0, 28) }),
+            };
+            tileCanvas.Children.Add(poly);
+
+            var tileBorder = new Border
+            {
+                Width = 28,
+                Height = 28,
+                CornerRadius = new CornerRadius(4),
+                ClipToBounds = true,
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+                BorderThickness = new Thickness(1),
+                Margin = new Thickness(0, 0, 4, 4),
+                Cursor = Cursors.Hand,
+                Child = tileCanvas,
+                ToolTip = name,
+            };
+            tileBorder.MouseEnter += (_, _) => tileBorder.BorderBrush = new SolidColorBrush(Colors.White);
+            tileBorder.MouseLeave += (_, _) => tileBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
+            tileBorder.MouseLeftButtonDown += (_, _) =>
+            {
+                _globalColor1 = p1;
+                _globalColor2 = p2;
+                if (_globalColor1Swatch != null)
+                    _globalColor1Swatch.Background = new SolidColorBrush(p1);
+                if (_globalColor2Swatch != null)
+                    _globalColor2Swatch.Background = new SolidColorBrush(p2);
+                if (!_loading) QueueSave();
+            };
+            paletteWrap.Children.Add(tileBorder);
+        }
+        paletteSection.Children.Add(paletteWrap);
+        settings.Children.Add(paletteSection);
+
         // Speed slider (conditional)
         var speedPanel = new StackPanel { Visibility = Visibility.Collapsed };
         speedPanel.Children.Add(MakeSectionHeader("SPEED"));
@@ -352,6 +430,8 @@ public partial class LightsView : UserControl
 
         if (_globalColor2Panel != null)
             _globalColor2Panel.Visibility = needsColor2 ? Visibility.Visible : Visibility.Collapsed;
+        if (_globalPalettePanel != null)
+            _globalPalettePanel.Visibility = needsColor2 ? Visibility.Visible : Visibility.Collapsed;
         if (_globalSpeedPanel != null)
             _globalSpeedPanel.Visibility = needsSpeed ? Visibility.Visible : Visibility.Collapsed;
         if (_globalReactiveModePanel != null)
@@ -1233,6 +1313,49 @@ public class ColorPickerDialog : Window
         _spectrumCanvas.MouseLeftButtonDown += Spectrum_MouseDown;
         _spectrumCanvas.MouseMove += Spectrum_MouseMove;
         _spectrumCanvas.MouseLeftButtonUp += Spectrum_MouseUp;
+
+        // Quick preset colors
+        mainPanel.Children.Add(new TextBlock
+        {
+            Text = "QUICK PICK",
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Margin = new Thickness(0, 0, 0, 6),
+        });
+        var presetPanel = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
+        var presets = new[] {
+            "#FF0000", "#FF4500", "#FF8C00", "#FFD700", "#FFFF00",
+            "#7FFF00", "#00FF00", "#00E676", "#00CED1", "#00BFFF",
+            "#0080FF", "#4040FF", "#8000FF", "#FF00FF", "#FF1493",
+            "#FFFFFF", "#C0C0C0", "#808080",
+        };
+        foreach (var hex in presets)
+        {
+            var c = (Color)ColorConverter.ConvertFromString(hex);
+            var dot = new Border
+            {
+                Width = 22, Height = 22,
+                CornerRadius = new CornerRadius(11),
+                Background = new SolidColorBrush(c),
+                Margin = new Thickness(0, 0, 4, 4),
+                Cursor = Cursors.Hand,
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+                BorderThickness = new Thickness(1),
+            };
+            dot.MouseEnter += (_, _) => dot.BorderBrush = new SolidColorBrush(Colors.White);
+            dot.MouseLeave += (_, _) => dot.BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
+            var capturedColor = c;
+            dot.MouseLeftButtonDown += (_, _) =>
+            {
+                RgbToHsv(capturedColor.R, capturedColor.G, capturedColor.B, out _hue, out _sat, out _val);
+                RenderSpectrum();
+                UpdateFromHsv();
+            };
+            presetPanel.Children.Add(dot);
+        }
+        mainPanel.Children.Add(presetPanel);
+
         mainPanel.Children.Add(_spectrumArea);
 
         // --- Hue bar ---

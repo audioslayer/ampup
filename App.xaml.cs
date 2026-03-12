@@ -674,7 +674,13 @@ public partial class App : Application
         ConfigManager.Save(_config);
         ApplyRgbConfig();
         UpdateAudioAnalyzer();
-        _rgb.PlayTransition(_config.ProfileTransition);
+
+        // Use the profile's icon color for the transition
+        var transIconCfg = _config.ProfileIcons.GetValueOrDefault(profileName) ?? new ProfileIconConfig();
+        System.Windows.Media.Color profileColor;
+        try { profileColor = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(transIconCfg.Color); }
+        catch { profileColor = System.Windows.Media.Color.FromRgb(0x00, 0xE6, 0x76); }
+        _rgb.PlayTransition(_config.ProfileTransition, profileColor.R, profileColor.G, profileColor.B);
         Logger.Log($"Switched to profile: {profileName}");
 
         // Show OSD for profile switch

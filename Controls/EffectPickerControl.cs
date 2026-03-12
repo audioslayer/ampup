@@ -237,7 +237,7 @@ namespace AmpUp.Controls
                 FontSize = _showGlobal ? (isEmoji ? 20 : 24) : (isEmoji ? 16 : 18),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x77, 0x77, 0x77)),
+                Foreground = new SolidColorBrush(isEmoji ? Color.FromRgb(0x77, 0x77, 0x77) : Color.FromRgb((byte)(tileColor.R * 0.6), (byte)(tileColor.G * 0.6), (byte)(tileColor.B * 0.6))),
             };
             info.Icon = iconBlock;
 
@@ -335,7 +335,7 @@ namespace AmpUp.Controls
             info.Container.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E));
             if (!info.IsEmoji)
                 info.Icon.Foreground = new SolidColorBrush(
-                    Color.FromRgb((byte)(c.R / 2), (byte)(c.G / 2), (byte)(c.B / 2)));
+                    Color.FromRgb((byte)(c.R * 0.6), (byte)(c.G * 0.6), (byte)(c.B * 0.6)));
             info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0x7A, 0x7A, 0x7A));
         }
 
@@ -348,7 +348,7 @@ namespace AmpUp.Controls
                 Color.FromArgb(0x33, c.R, c.G, c.B));
             if (!info.IsEmoji)
                 info.Icon.Foreground = new SolidColorBrush(
-                    Color.FromRgb((byte)(c.R * 2 / 3), (byte)(c.G * 2 / 3), (byte)(c.B * 2 / 3)));
+                    Color.FromRgb((byte)(c.R * 0.8), (byte)(c.G * 0.8), (byte)(c.B * 0.8)));
             info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0xBB));
         }
 

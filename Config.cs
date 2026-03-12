@@ -211,9 +211,12 @@ public enum ReactiveMode
 public enum ProfileTransition
 {
     None,
-    Flash,        // 3 quick flashes across all knobs
-    Cascade,      // knobs light up left-to-right then fade out
-    RainbowSweep, // fast rainbow wave across all knobs, accelerates then fades
+    Flash,          // 3 quick flashes across all knobs
+    Cascade,        // knobs light up left-to-right then fade out
+    RainbowSweep,   // fast rainbow wave across all knobs, accelerates then fades
+    Ripple,         // center-out ripple with profile color + complementary accents
+    ColorBurst,     // explosion from center, profile color with triadic sparks
+    Wipe,           // left-to-right color wipe with trailing analogous gradient
 }
 
 public static class ConfigManager

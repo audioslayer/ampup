@@ -1739,22 +1739,44 @@ public class RgbController : IDisposable
     /// <summary>
     /// Render one frame of the active profile switch transition.
     /// </summary>
+    /// <summary>
+    /// Get the base hue from the transition color for multi-color derivations.
+    /// </summary>
+    private float TransitionBaseHue()
+    {
+        HsvFromRgb(_transitionColor.R, _transitionColor.G, _transitionColor.B, out float h, out _, out _);
+        return h;
+    }
+
     private void RenderTransition()
     {
         float t = _transitionTick / (float)TransitionDuration; // 0..1
+        float baseHue = TransitionBaseHue();
 
         switch (_transitionEffect)
         {
             case ProfileTransition.Flash:
             {
-                // 3 flashes over the full duration
+                // 3 flashes — primary color with complementary accent on alternating flashes
                 float flashPhase = t * 3f;
+                int flashNum = (int)flashPhase;
                 float flashCycle = flashPhase - MathF.Floor(flashPhase);
                 bool flashOn = flashCycle < 0.5f;
                 for (int k = 0; k < 5; k++)
                 {
                     if (flashOn)
-                        SetColor(k, _transitionColor.R, _transitionColor.G, _transitionColor.B);
+                    {
+                        // Alternate: flash 0,2 = profile color, flash 1 = complementary
+                        if (flashNum == 1)
+                        {
+                            var (cr, cg, cb) = HsvToRgb((baseHue + 180f) % 360f, 0.9f, 1f);
+                            SetColor(k, cr, cg, cb);
+                        }
+                        else
+                        {
+                            SetColor(k, _transitionColor.R, _transitionColor.G, _transitionColor.B);
+                        }
+                    }
                     else
                         SetColor(k, 0, 0, 0);
                 }
@@ -1763,30 +1785,28 @@ public class RgbController : IDisposable
 
             case ProfileTransition.Cascade:
             {
-                float cascadePhase = t * 2f; // 0..2 (first half = cascade in, second half = fade out)
+                // Cascade with analogous color gradient across knobs
+                float cascadePhase = t * 2f;
                 if (cascadePhase <= 1f)
                 {
-                    // Cascade in: each knob lights up at 0.2 intervals
                     for (int k = 0; k < 5; k++)
                     {
                         float knobT = cascadePhase * 5f - k;
                         float bright = Math.Clamp(knobT, 0f, 1f);
-                        SetColor(k,
-                            (int)(_transitionColor.R * bright),
-                            (int)(_transitionColor.G * bright),
-                            (int)(_transitionColor.B * bright));
+                        // Each knob gets a slightly shifted hue (±30° spread)
+                        float knobHue = (baseHue - 30f + k * 15f + 360f) % 360f;
+                        var (r, g, b) = HsvToRgb(knobHue, 0.9f, bright);
+                        SetColor(k, r, g, b);
                     }
                 }
                 else
                 {
-                    // Fade out: all knobs fade together
                     float fade = 1f - (cascadePhase - 1f);
                     for (int k = 0; k < 5; k++)
                     {
-                        SetColor(k,
-                            (int)(_transitionColor.R * fade),
-                            (int)(_transitionColor.G * fade),
-                            (int)(_transitionColor.B * fade));
+                        float knobHue = (baseHue - 30f + k * 15f + 360f) % 360f;
+                        var (r, g, b) = HsvToRgb(knobHue, 0.9f, fade);
+                        SetColor(k, r, g, b);
                     }
                 }
                 break;
@@ -1794,14 +1814,89 @@ public class RgbController : IDisposable
 
             case ProfileTransition.RainbowSweep:
             {
-                // Fast rainbow wave that accelerates then fades out in the last 30%
+                // Rainbow wave seeded from profile hue, accelerates then fades
                 float rainbowSpeed = 5f + t * 20f;
                 float fadeOut = t > 0.7f ? (1f - t) / 0.3f : 1f;
                 for (int k = 0; k < 5; k++)
                 {
-                    float hue = (_transitionTick * rainbowSpeed + k * 72f) % 360f;
+                    float hue = (baseHue + _transitionTick * rainbowSpeed + k * 72f) % 360f;
                     var (r, g, b) = HsvToRgb(hue, 1f, fadeOut);
                     SetColor(k, r, g, b);
+                }
+                break;
+            }
+
+            case ProfileTransition.Ripple:
+            {
+                // Center-out ripple: knob 2 lights first, then 1&3, then 0&4
+                // Uses profile color at center, complementary at edges
+                float ripplePhase = t * 2.5f;
+                for (int k = 0; k < 5; k++)
+                {
+                    int dist = Math.Abs(k - 2); // 0,1,2 distance from center
+                    float arrival = dist * 0.3f; // when this knob starts
+                    float knobT = Math.Clamp(ripplePhase - arrival, 0f, 1f);
+                    float fade = t > 0.6f ? (1f - t) / 0.4f : 1f;
+                    float bright = knobT * fade;
+
+                    // Shift hue by distance from center (profile → complementary)
+                    float knobHue = (baseHue + dist * 60f) % 360f;
+                    var (r, g, b) = HsvToRgb(knobHue, 0.85f, bright);
+                    SetColor(k, r, g, b);
+                }
+                break;
+            }
+
+            case ProfileTransition.ColorBurst:
+            {
+                // Explosion: all LEDs flash white then burst into triadic colors
+                if (t < 0.15f)
+                {
+                    // Initial white flash
+                    float flash = t / 0.15f;
+                    int w = (int)(255 * flash);
+                    for (int k = 0; k < 5; k++)
+                        SetColor(k, w, w, w);
+                }
+                else
+                {
+                    // Burst into triadic colors from profile hue, then fade
+                    float burstT = (t - 0.15f) / 0.85f;
+                    float fade = burstT > 0.5f ? (1f - burstT) / 0.5f : 1f;
+                    for (int k = 0; k < 5; k++)
+                    {
+                        // Triadic: base, +120°, +240°, then analogous fills
+                        float knobHue = (baseHue + k * 72f) % 360f;
+                        // Pulsing saturation for sparkle effect
+                        float pulse = 0.7f + 0.3f * MathF.Sin(burstT * 20f + k * 1.2f);
+                        var (r, g, b) = HsvToRgb(knobHue, pulse, fade);
+                        SetColor(k, r, g, b);
+                    }
+                }
+                break;
+            }
+
+            case ProfileTransition.Wipe:
+            {
+                // Left-to-right wipe with trailing analogous gradient
+                float wipePos = t * 7f; // position of wipe front (0..7, overshoots for trail)
+                float fade = t > 0.7f ? (1f - t) / 0.3f : 1f;
+                for (int k = 0; k < 5; k++)
+                {
+                    float dist = wipePos - k;
+                    if (dist < 0f)
+                    {
+                        SetColor(k, 0, 0, 0); // not yet reached
+                    }
+                    else
+                    {
+                        // Trail: recently wiped knobs are bright, older ones dim
+                        float trail = Math.Clamp(1f - dist * 0.25f, 0.15f, 1f) * fade;
+                        // Analogous gradient: leading edge = profile color, trail shifts hue
+                        float knobHue = (baseHue + dist * 20f) % 360f;
+                        var (r, g, b) = HsvToRgb(knobHue, 0.9f, trail);
+                        SetColor(k, r, g, b);
+                    }
                 }
                 break;
             }
