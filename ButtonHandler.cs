@@ -558,10 +558,10 @@ public class ButtonHandler
             {
                 try
                 {
-                    using var devices = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
+                    var devices = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
                     for (int i = 0; i < devices.Count; i++)
                     {
-                        using var device = devices[i];
+                        var device = devices[i];
                         if (device.ID == deviceId)
                         {
                             bool newMute = !device.AudioEndpointVolume.Mute;
@@ -619,7 +619,7 @@ public class ButtonHandler
         if (allowedIds != null && allowedIds.Count > 0)
         {
             // Use only the specified subset, but verify they exist
-            using var allDevices = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
+            var allDevices = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
             var activeIds = new HashSet<string>();
             for (int i = 0; i < allDevices.Count; i++)
             {
@@ -630,7 +630,7 @@ public class ButtonHandler
         }
         else
         {
-            using var allDevices = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
+            var allDevices = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
             deviceIds = new List<string>();
             for (int i = 0; i < allDevices.Count; i++)
             {
@@ -655,7 +655,7 @@ public class ButtonHandler
         // Log friendly name and fire event
         try
         {
-            using var allDevs = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
+            var allDevs = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
             for (int i = 0; i < allDevs.Count; i++)
             {
                 using var d = allDevs[i];
@@ -686,7 +686,7 @@ public class ButtonHandler
             // Resolve friendly name for notification
             try
             {
-                using var allDevs = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
+                var allDevs = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
                 for (int i = 0; i < allDevs.Count; i++)
                 {
                     using var d = allDevs[i];

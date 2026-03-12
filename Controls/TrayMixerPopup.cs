@@ -79,7 +79,6 @@ public class TrayMixerPopup : Window
             Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
             FontSize = 11,
             FontWeight = FontWeights.Bold,
-            LetterSpacing = 1.2,
             VerticalAlignment = VerticalAlignment.Center
         };
         var closeBtn = new Button

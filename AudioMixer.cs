@@ -226,7 +226,7 @@ public class AudioMixer : IDisposable
             {
                 for (int i = 0; i < devices.Count; i++)
                 {
-                    using var dev = devices[i];
+                    var dev = devices[i];
                     if (dev.ID == deviceId)
                     {
                         dev.AudioEndpointVolume.MasterVolumeLevelScalar = vol;
@@ -389,7 +389,7 @@ public class AudioMixer : IDisposable
             {
                 for (int i = 0; i < devices.Count; i++)
                 {
-                    using var dev = devices[i];
+                    var dev = devices[i];
                     if (dev.ID == deviceId)
                         return dev.AudioEndpointVolume.MasterVolumeLevelScalar;
                 }
@@ -539,7 +539,7 @@ public class AudioMixer : IDisposable
             {
                 for (int i = 0; i < devices.Count; i++)
                 {
-                    using var dev = devices[i];
+                    var dev = devices[i];
                     if (dev.ID == deviceId)
                         return dev.AudioMeterInformation.MasterPeakValue;
                 }
@@ -596,7 +596,7 @@ public class AudioMixer : IDisposable
             {
                 for (int i = 0; i < renderDevices.Count; i++)
                 {
-                    using var dev = renderDevices[i];
+                    var dev = renderDevices[i];
                     result.Add((dev.ID, dev.FriendlyName, true));
                 }
             }
@@ -607,7 +607,7 @@ public class AudioMixer : IDisposable
             {
                 for (int i = 0; i < captureDevices.Count; i++)
                 {
-                    using var dev = captureDevices[i];
+                    var dev = captureDevices[i];
                     result.Add((dev.ID, dev.FriendlyName, false));
                 }
             }
