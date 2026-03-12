@@ -222,7 +222,7 @@ public class AudioMixer : IDisposable
         {
             MMDeviceCollection? devices;
             lock (_enumLock) devices = _enumerator.EnumerateAudioEndPoints(dataFlow, DeviceState.Active);
-            using (devices)
+            if (devices != null)
             {
                 for (int i = 0; i < devices.Count; i++)
                 {
@@ -385,7 +385,7 @@ public class AudioMixer : IDisposable
         {
             MMDeviceCollection? devices;
             lock (_enumLock) devices = _enumerator.EnumerateAudioEndPoints(dataFlow, DeviceState.Active);
-            using (devices)
+            if (devices != null)
             {
                 for (int i = 0; i < devices.Count; i++)
                 {
@@ -535,7 +535,7 @@ public class AudioMixer : IDisposable
         {
             MMDeviceCollection? devices;
             lock (_enumLock) devices = _enumerator.EnumerateAudioEndPoints(dataFlow, DeviceState.Active);
-            using (devices)
+            if (devices != null)
             {
                 for (int i = 0; i < devices.Count; i++)
                 {
@@ -592,7 +592,7 @@ public class AudioMixer : IDisposable
         {
             MMDeviceCollection? renderDevices;
             lock (_enumLock) renderDevices = _enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
-            using (renderDevices)
+            if (renderDevices != null)
             {
                 for (int i = 0; i < renderDevices.Count; i++)
                 {
@@ -603,7 +603,7 @@ public class AudioMixer : IDisposable
 
             MMDeviceCollection? captureDevices;
             lock (_enumLock) captureDevices = _enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
-            using (captureDevices)
+            if (captureDevices != null)
             {
                 for (int i = 0; i < captureDevices.Count; i++)
                 {
