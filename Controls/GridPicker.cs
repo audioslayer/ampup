@@ -10,10 +10,8 @@ using System.Windows.Media.Effects;
 namespace AmpUp.Controls;
 
 /// <summary>
-/// A categorized grid picker — SteelSeries Sonar / Wave Link inspired.
-/// Shows current selection as a styled pill; click opens a floating popup
-/// with categorized options displayed as wrapped pill buttons.
-/// API-compatible with FlyoutPicker for easy swap.
+/// A categorized target picker. Shows current selection as a styled row;
+/// click opens a dark popup with categorized items as full-width text rows.
 /// </summary>
 public class GridPicker : Border
 {
@@ -30,8 +28,16 @@ public class GridPicker : Border
 
     public event EventHandler? SelectionChanged;
 
-    // Accent color for hover/selected states
     public Color AccentColor { get; set; } = ThemeManager.Accent;
+
+    // Category icons and colors for visual identity
+    private static readonly Dictionary<string, (string Icon, Color Color)> CategoryStyles = new()
+    {
+        { "AUDIO",        ("♪", Color.FromRgb(0x64, 0xB5, 0xF6)) },  // blue
+        { "DEVICES",      ("⬡", Color.FromRgb(0xBA, 0x68, 0xC8)) },  // purple
+        { "INTEGRATIONS", ("◈", Color.FromRgb(0xFF, 0xB7, 0x4D)) },  // amber
+        { "APPS",         ("◉", Color.FromRgb(0x66, 0xBB, 0x6A)) },  // green
+    };
 
     public void RefreshAccent()
     {
@@ -43,16 +49,16 @@ public class GridPicker : Border
 
     public GridPicker()
     {
-        // Main trigger pill
-        Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
-        BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-        BorderThickness = new Thickness(1);
-        CornerRadius = new CornerRadius(4);
-        Padding = new Thickness(8, 5, 8, 5);
+        // Main trigger — looks like a proper input field
+        Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+        BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
+        BorderThickness = new Thickness(1.5);
+        CornerRadius = new CornerRadius(6);
+        Padding = new Thickness(12, 8, 8, 8);
         Cursor = Cursors.Hand;
         SnapsToDevicePixels = true;
+        MinHeight = 36;
 
-        // Layout: label + chevron
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -60,8 +66,8 @@ public class GridPicker : Border
         _label = new TextBlock
         {
             Text = "Select...",
-            FontSize = 11.5,
-            Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0xC0, 0xC0)),
+            FontSize = 12,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis
         };
@@ -70,41 +76,42 @@ public class GridPicker : Border
 
         _chevron = new TextBlock
         {
-            Text = "\u25BE",
-            FontSize = 10,
+            Text = "▾",
+            FontSize = 12,
             Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(6, 0, 0, 0)
+            Margin = new Thickness(8, 0, 4, 0)
         };
         Grid.SetColumn(_chevron, 1);
         grid.Children.Add(_chevron);
 
         Child = grid;
 
-        // Popup content — vertical stack of category sections
+        // Popup
         _categoriesPanel = new StackPanel();
         _scrollViewer = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            MaxHeight = 400,
+            MaxHeight = 420,
             Content = _categoriesPanel
         };
 
         _popupBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(12),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(6, 8, 6, 8),
             Child = _scrollViewer,
-            MaxWidth = 300,
+            MaxWidth = 280,
             Effect = new DropShadowEffect
             {
                 Color = Colors.Black,
-                BlurRadius = 24,
-                Opacity = 0.6,
-                ShadowDepth = 6
+                BlurRadius = 28,
+                Opacity = 0.7,
+                ShadowDepth = 8,
+                Direction = 270
             }
         };
 
@@ -116,29 +123,29 @@ public class GridPicker : Border
             StaysOpen = false,
             AllowsTransparency = true,
             PopupAnimation = PopupAnimation.Fade,
-            VerticalOffset = 2
+            VerticalOffset = 4
         };
 
-        // Trigger hover effects
+        // Hover
         MouseEnter += (_, _) =>
         {
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, AccentColor.R, AccentColor.G, AccentColor.B));
-            Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
-            _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x99, 0x99, 0x99));
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0xAA, AccentColor.R, AccentColor.G, AccentColor.B));
+            Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
+            _chevron.Foreground = new SolidColorBrush(AccentColor);
         };
         MouseLeave += (_, _) =>
         {
             if (!_popup.IsOpen)
             {
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
+                Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
                 _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
             }
         };
 
         MouseLeftButtonUp += (_, e) =>
         {
-            _popupBorder.MinWidth = ActualWidth;
+            _popupBorder.MinWidth = Math.Max(ActualWidth, 200);
             _popup.IsOpen = !_popup.IsOpen;
             e.Handled = true;
         };
@@ -146,23 +153,19 @@ public class GridPicker : Border
         _popup.Opened += (_, _) =>
         {
             BorderBrush = new SolidColorBrush(AccentColor);
-            Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+            Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
         };
 
         _popup.Closed += (_, _) =>
         {
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
+            Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
             _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
         };
     }
 
     // ── Item management ─────────────────────────────────────────
 
-    /// <summary>
-    /// Starts a new category group. Items added after this call
-    /// belong to this category until the next AddCategory call.
-    /// </summary>
     public void AddCategory(string categoryName)
     {
         _categories.Add((_items.Count, categoryName));
@@ -180,7 +183,7 @@ public class GridPicker : Border
         _categories.Clear();
         _selectedIndex = -1;
         _label.Text = "Select...";
-        _label.Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0xC0, 0xC0));
+        _label.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
         RebuildPopupItems();
     }
 
@@ -200,31 +203,21 @@ public class GridPicker : Border
             {
                 _selectedIndex = -1;
                 _label.Text = "Select...";
-                _label.Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0xC0, 0xC0));
+                _label.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
             }
         }
     }
 
-    public object? SelectedTag
-    {
-        get => _selectedIndex >= 0 && _selectedIndex < _items.Count
-            ? _items[_selectedIndex].Tag
-            : null;
-    }
+    public object? SelectedTag => _selectedIndex >= 0 && _selectedIndex < _items.Count
+        ? _items[_selectedIndex].Tag : null;
 
-    public string SelectedDisplay
-    {
-        get => _selectedIndex >= 0 && _selectedIndex < _items.Count
-            ? _items[_selectedIndex].Display
-            : "";
-    }
+    public string SelectedDisplay => _selectedIndex >= 0 && _selectedIndex < _items.Count
+        ? _items[_selectedIndex].Display : "";
 
     public int ItemCount => _items.Count;
 
-    public object? GetTagAt(int index)
-    {
-        return index >= 0 && index < _items.Count ? _items[index].Tag : null;
-    }
+    public object? GetTagAt(int index) =>
+        index >= 0 && index < _items.Count ? _items[index].Tag : null;
 
     // ── Popup rebuild ───────────────────────────────────────────
 
@@ -232,9 +225,8 @@ public class GridPicker : Border
     {
         _categoriesPanel.Children.Clear();
 
-        // Build a lookup: itemIndex -> categoryName
-        // Determine which category each item belongs to
-        var categoryForItem = new Dictionary<int, int>(); // itemIndex -> categoryListIndex
+        // Map each item to its category
+        var categoryForItem = new Dictionary<int, int>();
         for (int c = 0; c < _categories.Count; c++)
         {
             int start = _categories[c].ItemIndex;
@@ -243,93 +235,121 @@ public class GridPicker : Border
                 categoryForItem[i] = c;
         }
 
-        // Group items by category, preserving order
         int currentCategory = -1;
-        WrapPanel? currentWrap = null;
 
         for (int i = 0; i < _items.Count; i++)
         {
-            int cat = categoryForItem.ContainsKey(i) ? categoryForItem[i] : -1;
+            int cat = categoryForItem.GetValueOrDefault(i, -1);
 
-            // If we entered a new category, add header + new WrapPanel
+            // Category header
             if (cat != currentCategory)
             {
                 currentCategory = cat;
 
                 if (cat >= 0)
                 {
-                    // Category header
-                    var header = new TextBlock
-                    {
-                        Text = _categories[cat].CategoryName.ToUpperInvariant(),
-                        FontSize = 9,
-                        Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-                        FontWeight = FontWeights.SemiBold,
-                        Margin = new Thickness(2, _categoriesPanel.Children.Count > 0 ? 8 : 0, 0, 4)
-                    };
-                    _categoriesPanel.Children.Add(header);
-                }
+                    var catName = _categories[cat].CategoryName.ToUpperInvariant();
+                    var (icon, color) = CategoryStyles.GetValueOrDefault(catName, ("•", AccentColor));
 
-                currentWrap = new WrapPanel
-                {
-                    Orientation = Orientation.Horizontal
-                };
-                _categoriesPanel.Children.Add(currentWrap);
+                    var headerRow = new StackPanel
+                    {
+                        Orientation = Orientation.Horizontal,
+                        Margin = new Thickness(8, _categoriesPanel.Children.Count > 0 ? 10 : 2, 0, 4)
+                    };
+
+                    headerRow.Children.Add(new TextBlock
+                    {
+                        Text = icon,
+                        FontSize = 10,
+                        Foreground = new SolidColorBrush(color),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(0, 0, 6, 0)
+                    });
+
+                    headerRow.Children.Add(new TextBlock
+                    {
+                        Text = catName,
+                        FontSize = 9,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
+                        FontWeight = FontWeights.SemiBold,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        CharacterSpacing = 80
+                    });
+
+                    _categoriesPanel.Children.Add(headerRow);
+                }
             }
 
-            // Create pill button for this item
+            // Item row — full width, clean text
             int idx = i;
             var (display, _) = _items[i];
             bool selected = idx == _selectedIndex;
+            int catIdx = categoryForItem.GetValueOrDefault(i, -1);
+            var catColor = catIdx >= 0
+                ? CategoryStyles.GetValueOrDefault(_categories[catIdx].CategoryName.ToUpperInvariant(), ("•", AccentColor)).Color
+                : AccentColor;
 
-            var pillText = new TextBlock
+            var itemRow = new Border
+            {
+                Background = selected
+                    ? new SolidColorBrush(Color.FromArgb(0x18, AccentColor.R, AccentColor.G, AccentColor.B))
+                    : Brushes.Transparent,
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(10, 7, 10, 7),
+                Margin = new Thickness(2, 1, 2, 1),
+                Cursor = Cursors.Hand,
+            };
+
+            var itemPanel = new DockPanel();
+
+            // Selected indicator — left accent bar
+            if (selected)
+            {
+                var accentBar = new Border
+                {
+                    Width = 3,
+                    Height = 14,
+                    CornerRadius = new CornerRadius(1.5),
+                    Background = new SolidColorBrush(AccentColor),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 8, 0)
+                };
+                DockPanel.SetDock(accentBar, Dock.Left);
+                itemPanel.Children.Add(accentBar);
+            }
+
+            var itemText = new TextBlock
             {
                 Text = display,
-                FontSize = 11,
+                FontSize = 12,
                 Foreground = new SolidColorBrush(selected ? AccentColor : Color.FromRgb(0xCC, 0xCC, 0xCC)),
                 FontWeight = selected ? FontWeights.Medium : FontWeights.Normal,
                 VerticalAlignment = VerticalAlignment.Center
             };
+            itemPanel.Children.Add(itemText);
 
-            var pill = new Border
-            {
-                CornerRadius = new CornerRadius(12),
-                Padding = new Thickness(6, 3, 6, 3),
-                Margin = new Thickness(0, 0, 4, 4),
-                Cursor = Cursors.Hand,
-                SnapsToDevicePixels = true,
-                Background = selected
-                    ? new SolidColorBrush(Color.FromArgb(0x33, AccentColor.R, AccentColor.G, AccentColor.B))
-                    : new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
-                BorderBrush = selected
-                    ? new SolidColorBrush(Color.FromArgb(0x80, AccentColor.R, AccentColor.G, AccentColor.B))
-                    : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-                BorderThickness = new Thickness(1),
-                Child = pillText
-            };
+            itemRow.Child = itemPanel;
 
             // Hover
-            pill.MouseEnter += (_, _) =>
+            itemRow.MouseEnter += (_, _) =>
             {
                 if (idx != _selectedIndex)
                 {
-                    pill.Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
-                    pillText.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
+                    itemRow.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+                    itemText.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
                 }
             };
-            pill.MouseLeave += (_, _) =>
+            itemRow.MouseLeave += (_, _) =>
             {
                 bool sel = idx == _selectedIndex;
-                pill.Background = sel
-                    ? new SolidColorBrush(Color.FromArgb(0x33, AccentColor.R, AccentColor.G, AccentColor.B))
-                    : new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
-                pillText.Foreground = sel
-                    ? new SolidColorBrush(AccentColor)
-                    : new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
+                itemRow.Background = sel
+                    ? new SolidColorBrush(Color.FromArgb(0x18, AccentColor.R, AccentColor.G, AccentColor.B))
+                    : Brushes.Transparent;
+                itemText.Foreground = new SolidColorBrush(sel ? AccentColor : Color.FromRgb(0xCC, 0xCC, 0xCC));
             };
 
             // Click
-            pill.MouseLeftButtonUp += (_, e) =>
+            itemRow.MouseLeftButtonUp += (_, e) =>
             {
                 _selectedIndex = idx;
                 _label.Text = _items[idx].Display;
@@ -340,7 +360,7 @@ public class GridPicker : Border
                 e.Handled = true;
             };
 
-            currentWrap?.Children.Add(pill);
+            _categoriesPanel.Children.Add(itemRow);
         }
     }
 }
