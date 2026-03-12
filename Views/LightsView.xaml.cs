@@ -1321,28 +1321,39 @@ public class ColorPickerDialog : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.NoResize;
         WindowStyle = WindowStyle.None;
-        AllowsTransparency = true;
-        Background = Brushes.Transparent;
+        // Do NOT set AllowsTransparency = true — on Windows 11 it creates a layered window
+        // (WS_EX_LAYERED) which breaks mouse hit-testing on Canvas/Image children.
+        Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14));
 
         // Convert initial color to HSV
         RgbToHsv(initial.R, initial.G, initial.B, out _hue, out _sat, out _val);
 
-        // Outer border for the dialog (rounded, dark, with accent glow)
+        // Outer border for the dialog (rounded, dark)
         var outerBorder = new Border
         {
             Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
             BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12),
-            Effect = new System.Windows.Media.Effects.DropShadowEffect
-            {
-                Color = Colors.Black,
-                BlurRadius = 24,
-                Opacity = 0.6,
-                ShadowDepth = 0,
-            },
         };
-        outerBorder.MouseLeftButtonDown += (_, _) => DragMove();
+
+        // Dedicated drag handle at the top — keeps DragMove() away from interactive controls
+        var dragHandle = new Border
+        {
+            Height = 28,
+            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            Cursor = Cursors.SizeAll,
+        };
+        var titleText = new TextBlock
+        {
+            Text = "PICK COLOR",
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        dragHandle.Child = titleText;
+        dragHandle.MouseLeftButtonDown += (_, _) => DragMove();
 
         var mainPanel = new StackPanel { Margin = new Thickness(16) };
 
@@ -1555,7 +1566,10 @@ public class ColorPickerDialog : Window
         btnPanel.Children.Add(cancelBtn);
         mainPanel.Children.Add(btnPanel);
 
-        outerBorder.Child = mainPanel;
+        var outerStack = new StackPanel();
+        outerStack.Children.Add(dragHandle);
+        outerStack.Children.Add(mainPanel);
+        outerBorder.Child = outerStack;
         Content = outerBorder;
 
         // Render initial state
