@@ -168,6 +168,7 @@ public enum LightEffect
     Sparkle,          // random LED flashes white briefly, fades back
     GradientFill,     // static gradient from color1 to color2 across 3 LEDs
     PositionBlend,    // like PositionFill but color blends from color1 to color2 across lit LEDs
+    PositionBlendMute, // PositionBlend while unmuted, solid color2 when device is muted
 
     // New per-knob 3-LED effects
     PingPong,         // bright dot bounces back and forth across 3 LEDs

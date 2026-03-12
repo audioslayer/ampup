@@ -435,6 +435,9 @@ public class RgbController : IDisposable
             case LightEffect.PositionBlend:
                 EffectPositionBlend(k, light, pos);
                 break;
+            case LightEffect.PositionBlendMute:
+                EffectPositionBlendMute(k, light, pos);
+                break;
 
             case LightEffect.PingPong:
                 EffectPingPong(k, light);
@@ -811,6 +814,29 @@ public class RgbController : IDisposable
             {
                 SetColor(k, led, 0, 0, 0);
             }
+        }
+    }
+
+    /// <summary>
+    /// PositionBlend while the master output device is unmuted.
+    /// When muted: all 3 LEDs show a dim version of color2 as a clear mute indicator.
+    /// color1 = low end (unmuted), color2 = high end (unmuted) / mute color.
+    /// </summary>
+    private void EffectPositionBlendMute(int k, LightConfig light, float pos)
+    {
+        if (_masterMuted)
+        {
+            // All LEDs dim mute color (color2 at 40% brightness)
+            int r = (int)(light.R2 * 0.4f);
+            int g = (int)(light.G2 * 0.4f);
+            int b = (int)(light.B2 * 0.4f);
+            SetColor(k, 0, r, g, b);
+            SetColor(k, 1, r, g, b);
+            SetColor(k, 2, r, g, b);
+        }
+        else
+        {
+            EffectPositionBlend(k, light, pos);
         }
     }
 

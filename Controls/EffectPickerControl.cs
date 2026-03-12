@@ -95,7 +95,8 @@ namespace AmpUp.Controls
             { LightEffect.AudioReactive,ThemeManager.Accent }, // accent green
 
             // New static effects
-            { LightEffect.PositionBlend,Color.FromRgb(0x80, 0xDE, 0xEA) }, // light cyan
+            { LightEffect.PositionBlend,    Color.FromRgb(0x80, 0xDE, 0xEA) }, // light cyan
+            { LightEffect.PositionBlendMute,Color.FromRgb(0xFF, 0x70, 0x43) }, // orange-red (blend + mute)
 
             // New per-knob 3-LED effects
             { LightEffect.PingPong,     Color.FromRgb(0x29, 0xB6, 0xF6) }, // light blue
@@ -147,7 +148,8 @@ namespace AmpUp.Controls
                 (LightEffect.SingleColor,  "●",   "Solid",    false),
                 (LightEffect.ColorBlend,   "◑",   "Blend",    false),
                 (LightEffect.PositionFill, "▂▅█", "Fill",     false),
-                (LightEffect.PositionBlend,"▂▄▇", "PosBlend", false),
+                (LightEffect.PositionBlend,    "▂▄▇", "PosBlend",  false),
+                (LightEffect.PositionBlendMute,"▂▄⊘", "Blend+Mute",false),
                 (LightEffect.GradientFill, "◐",   "Gradient", false),
             });
 

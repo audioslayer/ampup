@@ -6,6 +6,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.5.3-alpha] — 2026-03-11
+
+### Added
+- **PositionBlendMute LED effect** — combines position-based color blend (color1→color2 across lit LEDs) with device mute awareness; when the master output device is muted, all 3 LEDs switch to a dim version of color2 as a clear visual mute indicator
+
+---
+
 ## [0.5.2-alpha] — 2026-03-11
 
 ### Added
