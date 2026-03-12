@@ -134,7 +134,7 @@ public partial class LightsView : UserControl
         BuildChannelControls();
         SetupStripContextMenus();
 
-        // Styled brightness slider
+        // Brightness slider — created here, added to global settings panel in BuildGlobalCard
         _brightnessSlider = new StyledSlider
         {
             Minimum = 0,
@@ -148,7 +148,6 @@ public partial class LightsView : UserControl
         {
             if (!_loading) QueueSave();
         };
-        BrightnessSliderHost.Children.Add(_brightnessSlider);
     }
 
     public void LoadConfig(AppConfig config, Action<AppConfig> onSave, AudioMixer? mixer = null)
@@ -385,6 +384,12 @@ public partial class LightsView : UserControl
         speedPanel.Margin = new Thickness(0, 2, 0, 10);
         _globalSpeedPanel = speedPanel;
         settings.Children.Add(speedPanel);
+
+        // Brightness (always visible when global is enabled)
+        var brightnessPanel = new StackPanel { Margin = new Thickness(0, 2, 0, 10) };
+        brightnessPanel.Children.Add(MakeSectionHeader("BRIGHTNESS"));
+        brightnessPanel.Children.Add(_brightnessSlider);
+        settings.Children.Add(brightnessPanel);
 
         // Reactive mode (conditional)
         var reactiveModePanel = new StackPanel { Visibility = Visibility.Collapsed };
