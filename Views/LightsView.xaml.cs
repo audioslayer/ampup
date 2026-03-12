@@ -130,11 +130,7 @@ public partial class LightsView : UserControl
 
         ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshAccentColors);
 
-        BuildGlobalCard();
-        BuildChannelControls();
-        SetupStripContextMenus();
-
-        // Brightness slider — created here, added to global settings panel in BuildGlobalCard
+        // Brightness slider — must be created before BuildGlobalCard adds it
         _brightnessSlider = new StyledSlider
         {
             Minimum = 0,
@@ -148,6 +144,10 @@ public partial class LightsView : UserControl
         {
             if (!_loading) QueueSave();
         };
+
+        BuildGlobalCard();
+        BuildChannelControls();
+        SetupStripContextMenus();
     }
 
     public void LoadConfig(AppConfig config, Action<AppConfig> onSave, AudioMixer? mixer = null)
