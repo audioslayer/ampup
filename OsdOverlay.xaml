@@ -8,7 +8,7 @@
         ShowInTaskbar="False"
         ShowActivated="False"
         SizeToContent="Height"
-        Width="340"
+        Width="372"
         ResizeMode="NoResize">
 
     <Window.Resources>
@@ -60,25 +60,36 @@
         </Storyboard>
     </Window.Resources>
 
-    <!-- Main glass panel -->
-    <Border x:Name="RootPanel" Opacity="0"
-            CornerRadius="14" Padding="20,16" Margin="0,0,0,0">
-        <Border.Background>
-            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                <GradientStop Color="#DD111111" Offset="0" />
-                <GradientStop Color="#CC0A0A0A" Offset="1" />
-            </LinearGradientBrush>
-        </Border.Background>
-        <Border.BorderBrush>
-            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                <GradientStop Color="#5500E676" Offset="0" />
-                <GradientStop Color="#2200E676" Offset="1" />
-            </LinearGradientBrush>
-        </Border.BorderBrush>
-        <Border.BorderThickness>1.2</Border.BorderThickness>
-        <Border.Effect>
-            <DropShadowEffect Color="#00E676" BlurRadius="32" Opacity="0.2" ShadowDepth="0" />
-        </Border.Effect>
+    <!-- Outer wrapper — padding gives the glow room to render without clipping -->
+    <Grid x:Name="RootPanel" Opacity="0" Margin="16">
+        <!-- Glow layer — separate Border behind content, no square artifacts -->
+        <Border CornerRadius="16"
+                Margin="-4"
+                IsHitTestVisible="False">
+            <Border.Background>
+                <RadialGradientBrush Center="0.5,0.5" RadiusX="0.6" RadiusY="0.8">
+                    <GradientStop Color="#2200E676" Offset="0.4" />
+                    <GradientStop Color="#0000E676" Offset="1" />
+                </RadialGradientBrush>
+            </Border.Background>
+        </Border>
+
+        <!-- Main glass panel -->
+        <Border CornerRadius="14" Padding="20,16">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#EE111111" Offset="0" />
+                    <GradientStop Color="#DD0A0A0A" Offset="1" />
+                </LinearGradientBrush>
+            </Border.Background>
+            <Border.BorderBrush>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#4400E676" Offset="0" />
+                    <GradientStop Color="#1500E676" Offset="0.5" />
+                    <GradientStop Color="#2200E676" Offset="1" />
+                </LinearGradientBrush>
+            </Border.BorderBrush>
+            <Border.BorderThickness>1</Border.BorderThickness>
 
         <Grid>
             <Grid.RowDefinitions>
@@ -154,6 +165,6 @@
                     </Border.Background>
                 </Border>
             </Grid>
-        </Grid>
-    </Border>
+        </Border>
+    </Grid>
 </Window>

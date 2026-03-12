@@ -57,23 +57,28 @@
     <!-- ── Card Style ────────────────────────────────────────────── -->
     <Style x:Key="CardPanel" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource CardBgBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="CornerRadius" Value="10" />
         <Setter Property="Padding" Value="16" />
-        <Setter Property="Effect">
+        <Setter Property="BorderBrush">
             <Setter.Value>
-                <DropShadowEffect Color="#00E676" BlurRadius="12" Opacity="0.06" ShadowDepth="0" />
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#30FFFFFF" Offset="0" />
+                    <GradientStop Color="#10FFFFFF" Offset="0.5" />
+                    <GradientStop Color="#08FFFFFF" Offset="1" />
+                </LinearGradientBrush>
             </Setter.Value>
         </Setter>
     </Style>
 
     <!-- ── Glowing Card (for active/selected elements) ───────────── -->
     <Style x:Key="GlowCardPanel" TargetType="Border" BasedOn="{StaticResource CardPanel}">
-        <Setter Property="BorderBrush" Value="{DynamicResource AccentDimBrush}" />
-        <Setter Property="Effect">
+        <Setter Property="BorderBrush">
             <Setter.Value>
-                <DropShadowEffect Color="#00E676" BlurRadius="24" Opacity="0.15" ShadowDepth="0" />
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="{DynamicResource AccentDim}" Offset="0" />
+                    <GradientStop Color="#10FFFFFF" Offset="1" />
+                </LinearGradientBrush>
             </Setter.Value>
         </Setter>
     </Style>
