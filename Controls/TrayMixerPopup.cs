@@ -122,9 +122,8 @@ public class TrayMixerPopup : Window
 
         _sessionList = new StackPanel { Orientation = Orientation.Vertical };
         scroll.Content = _sessionList;
-        root.Children.Add(scroll);
 
-        // Wrap in padded container with bottom radius
+        // Wrap scroll in padded container with bottom radius
         var wrapper = new Border
         {
             CornerRadius = new CornerRadius(0, 0, 10, 10),
@@ -133,8 +132,6 @@ public class TrayMixerPopup : Window
             Child = scroll
         };
         DockPanel.SetDock(wrapper, Dock.Top);
-        // Replace scroll in root with wrapper
-        root.Children.Remove(scroll);
         root.Children.Add(wrapper);
 
         return outer;
