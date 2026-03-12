@@ -410,6 +410,7 @@ public class AmbienceConfig
     public List<GoveeDeviceConfig> GoveeDevices { get; set; } = new();
     public int BrightnessScale { get; set; } = 75;
     public bool WarmToneShift { get; set; } = false;
+    public string GoveeApiKey { get; set; } = "";
 }
 
 public class GoveeDeviceConfig
