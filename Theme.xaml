@@ -18,6 +18,9 @@
     <Color x:Key="SuccessGrn">#00DD77</Color>
     <Color x:Key="WarnYellow">#FFB800</Color>
 
+    <!-- ── Effects ────────────────────────────────────────────────── -->
+    <DropShadowEffect x:Key="CardShadow" Color="Black" BlurRadius="20" ShadowDepth="4" Opacity="0.6" Direction="270" />
+
     <!-- ── Brushes ───────────────────────────────────────────────── -->
     <SolidColorBrush x:Key="BgBaseBrush" Color="{StaticResource BgBase}" />
     <SolidColorBrush x:Key="BgDarkBrush" Color="{StaticResource BgDark}" />
@@ -124,21 +127,123 @@
     </Style>
 
     <!-- ── ComboBox Hover Border Style ─────────────────────────────── -->
+    <!-- ── ComboBox toggle button (dark arrow) ──────────────────── -->
+    <ControlTemplate x:Key="DarkComboToggle" TargetType="ToggleButton">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition />
+                <ColumnDefinition Width="28" />
+            </Grid.ColumnDefinitions>
+            <Border x:Name="Border" Grid.ColumnSpan="2"
+                    CornerRadius="6"
+                    Background="{StaticResource InputBgBrush}"
+                    BorderBrush="{StaticResource InputBorderBrush}"
+                    BorderThickness="1" />
+            <Border Grid.Column="0" CornerRadius="6,0,0,6" Background="Transparent" />
+            <Path x:Name="Arrow" Grid.Column="1"
+                  Data="M 0,0 L 4,4 L 8,0"
+                  Fill="{StaticResource TextPrimaryBrush}"
+                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                  Margin="0,1,0,0" />
+        </Grid>
+        <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                <Setter TargetName="Arrow" Property="Fill" Value="{DynamicResource AccentBrush}" />
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+
+    <!-- ── ComboBox full dark style ──────────────────────────────── -->
     <Style x:Key="HoverComboBox" TargetType="ComboBox">
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="Background" Value="{StaticResource InputBgBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource InputBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Background" Value="{StaticResource InputBgBrush}" />
+        <Setter Property="Padding" Value="10,7" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <ToggleButton x:Name="ToggleButton"
+                                      Template="{StaticResource DarkComboToggle}"
+                                      Focusable="False"
+                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                      ClickMode="Press" />
+                        <ContentPresenter x:Name="ContentSite"
+                                          IsHitTestVisible="False"
+                                          Content="{TemplateBinding SelectionBoxItem}"
+                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                          ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                                          Margin="10,6,28,6"
+                                          VerticalAlignment="Center"
+                                          HorizontalAlignment="Left" />
+                        <Popup x:Name="Popup"
+                               Placement="Bottom"
+                               IsOpen="{TemplateBinding IsDropDownOpen}"
+                               AllowsTransparency="True"
+                               Focusable="False"
+                               PopupAnimation="Slide">
+                            <Grid x:Name="DropDown"
+                                  MinWidth="{TemplateBinding ActualWidth}"
+                                  MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                  SnapsToDevicePixels="True">
+                                <Border x:Name="DropDownBorder"
+                                        CornerRadius="6"
+                                        Background="#FF1A1A1A"
+                                        BorderBrush="{StaticResource InputBorderBrush}"
+                                        BorderThickness="1"
+                                        Margin="0,2,0,0"
+                                        Effect="{StaticResource CardShadow}">
+                                </Border>
+                                <ScrollViewer Margin="2,4,2,4" SnapsToDevicePixels="True">
+                                    <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained" />
+                                </ScrollViewer>
+                            </Grid>
+                        </Popup>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── ComboBoxItem dark style ───────────────────────────────── -->
+    <Style TargetType="ComboBoxItem">
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-        <Style.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-                <Setter Property="Effect">
-                    <Setter.Value>
-                        <DropShadowEffect Color="#00E676" BlurRadius="8" Opacity="0.2" ShadowDepth="0" />
-                    </Setter.Value>
-                </Setter>
-            </Trigger>
-        </Style.Triggers>
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="10,7" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="Bd"
+                            CornerRadius="4"
+                            Background="{TemplateBinding Background}"
+                            Padding="{TemplateBinding Padding}"
+                            Margin="2,1">
+                        <ContentPresenter VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#FF2A2A2A" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#FF2A2A2A" />
+                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentHover1ABrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!-- ── Slider — accent-colored track ───────────────────────────── -->
