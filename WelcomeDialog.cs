@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
+using System.Windows.Media.Imaging;
 
 namespace AmpUp;
 
@@ -54,15 +55,31 @@ public class WelcomeDialog : Window
         var root = new StackPanel { Margin = new Thickness(32, 28, 32, 28) };
         outer.Child = root;
 
-        // Header
-        root.Children.Add(new TextBlock
+        // Header with logo
+        var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+        try
+        {
+            var logo = new Image
+            {
+                Source = new BitmapImage(new System.Uri("pack://application:,,,/Assets/icon/ampup-64.png")),
+                Width = 42,
+                Height = 42,
+                Margin = new Thickness(0, 0, 12, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            headerRow.Children.Add(logo);
+        }
+        catch { /* icon not found, skip */ }
+
+        headerRow.Children.Add(new TextBlock
         {
             Text = "Welcome to Amp Up",
             Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
             FontSize = 22,
             FontWeight = FontWeights.Bold,
-            Margin = new Thickness(0, 0, 0, 6)
+            VerticalAlignment = VerticalAlignment.Center
         });
+        root.Children.Add(headerRow);
 
         root.Children.Add(new TextBlock
         {

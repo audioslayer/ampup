@@ -136,8 +136,12 @@ public partial class App : Application
         if (_isConnected)
             _mainWindow.SetConnectionStatus(true, _serial.Port?.PortName);
 
-        // First-run welcome dialog
-        if (!_config.HasCompletedSetup && !args.Contains("--minimized"))
+        // Welcome dialog — show on first run OR when version changes (update)
+        var currentVersion = UpdateChecker.CurrentVersion;
+        bool isFirstRun = !_config.HasCompletedSetup;
+        bool isUpdate = _config.HasCompletedSetup && _config.LastWelcomeVersion != currentVersion;
+
+        if ((isFirstRun || isUpdate) && !args.Contains("--minimized"))
         {
             var welcome = new WelcomeDialog(() =>
             {
@@ -147,6 +151,7 @@ public partial class App : Application
             welcome.Closed += (_, _) =>
             {
                 _config.HasCompletedSetup = true;
+                _config.LastWelcomeVersion = currentVersion;
                 ConfigManager.Save(_config);
             };
             welcome.Show();

@@ -42,6 +42,7 @@ public class AppConfig
 
     // First-run setup flag
     public bool HasCompletedSetup { get; set; } = false;
+    public string LastWelcomeVersion { get; set; } = "";  // tracks which version last showed the welcome
 }
 
 public class SerialConfig
