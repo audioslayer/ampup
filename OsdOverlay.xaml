@@ -63,7 +63,7 @@
     <!-- Outer wrapper — padding gives the glow room to render without clipping -->
     <Grid x:Name="RootPanel" Opacity="0" Margin="16">
         <!-- Glow layer — separate Border behind content, no square artifacts -->
-        <Border CornerRadius="16"
+        <Border x:Name="GlowLayer" CornerRadius="16"
                 Margin="-4"
                 IsHitTestVisible="False">
             <Border.Background>
@@ -75,7 +75,7 @@
         </Border>
 
         <!-- Main glass panel -->
-        <Border CornerRadius="14" Padding="20,16">
+        <Border x:Name="GlassPanel" CornerRadius="14" Padding="20,16">
             <Border.Background>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                     <GradientStop Color="#EE111111" Offset="0" />

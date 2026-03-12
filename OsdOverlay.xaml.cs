@@ -42,7 +42,7 @@ public partial class OsdOverlay : Window
             ThemeManager.WithAlpha(accent, 0x22),
             new System.Windows.Point(0, 0), new System.Windows.Point(1, 1));
         borderBrush.Freeze();
-        RootPanel.BorderBrush = borderBrush;
+        GlassPanel.BorderBrush = borderBrush;
 
         // Category label
         CategoryLabel.Foreground = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x66));
@@ -70,10 +70,16 @@ public partial class OsdOverlay : Window
             Color = accent, BlurRadius = 12, Opacity = 0.4, ShadowDepth = 0
         };
 
-        // Root panel drop shadow
-        RootPanel.Effect = new System.Windows.Media.Effects.DropShadowEffect
+        // Glow layer color
+        GlowLayer.Background = new RadialGradientBrush
         {
-            Color = accent, BlurRadius = 32, Opacity = 0.2, ShadowDepth = 0
+            Center = new System.Windows.Point(0.5, 0.5),
+            RadiusX = 0.6, RadiusY = 0.8,
+            GradientStops = new GradientStopCollection
+            {
+                new GradientStop(ThemeManager.WithAlpha(accent, 0x22), 0.4),
+                new GradientStop(ThemeManager.WithAlpha(accent, 0x00), 1.0),
+            }
         };
     }
 
@@ -242,7 +248,7 @@ public partial class OsdOverlay : Window
         {
             // Ensure fully opaque (in case fade-out was mid-animation)
             RootPanel.Opacity = 1;
-            RootPanel.Margin = new Thickness(0);
+            RootPanel.Margin = new Thickness(16);
         }
     }
 
