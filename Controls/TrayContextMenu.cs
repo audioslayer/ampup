@@ -352,92 +352,122 @@ public class TrayContextMenu : Window
                 FontSize = 9,
                 FontFamily = new FontFamily("Segoe UI"),
                 FontStyle = FontStyles.Italic,
-                Margin = new Thickness(10, 4, 10, 4),
-                HorizontalAlignment = HorizontalAlignment.Center
+                Margin = new Thickness(12, 6, 12, 4),
             });
             return;
         }
 
+        // Two-level text menu: click app → shows knob list → click knob to assign
         foreach (var appName in apps)
         {
             var appCapture = appName;
+            var display = TitleCase(appName);
 
+            // Check if currently assigned to a knob
+            var assignedKnob = _config.Knobs.FirstOrDefault(kn =>
+                kn.Target?.Equals(appCapture, StringComparison.OrdinalIgnoreCase) == true);
+            string assignedText = assignedKnob != null
+                ? $"  →  Knob {assignedKnob.Idx + 1}"
+                : "";
+
+            var knobList = new StackPanel
+            {
+                Orientation = Orientation.Vertical,
+                Visibility = Visibility.Collapsed,
+                Margin = new Thickness(16, 0, 0, 0)
+            };
+
+            // App row — click to expand knob choices
             var appRow = new Border
             {
-                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+                Background = Brushes.Transparent,
                 CornerRadius = new CornerRadius(4),
-                Padding = new Thickness(8, 5, 6, 5),
-                Margin = new Thickness(0, 2, 0, 0)
+                Padding = new Thickness(12, 6, 12, 6),
+                Cursor = Cursors.Hand,
             };
 
-            var rowPanel = new DockPanel { LastChildFill = true };
+            var appPanel = new DockPanel();
 
-            // Knob buttons on right
-            var knobBtns = new StackPanel
+            var assignedLabel = new TextBlock
             {
-                Orientation = Orientation.Horizontal,
+                Text = assignedText,
+                Foreground = new SolidColorBrush(Color.FromArgb(180, accent.R, accent.G, accent.B)),
+                FontSize = 9,
+                FontFamily = new FontFamily("Segoe UI"),
                 VerticalAlignment = VerticalAlignment.Center
             };
-            DockPanel.SetDock(knobBtns, Dock.Right);
+            DockPanel.SetDock(assignedLabel, Dock.Right);
+            appPanel.Children.Add(assignedLabel);
 
+            appPanel.Children.Add(new TextBlock
+            {
+                Text = display,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+                FontSize = 10,
+                FontFamily = new FontFamily("Segoe UI"),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+            appRow.Child = appPanel;
+
+            appRow.MouseEnter += (_, _) =>
+                appRow.Background = new SolidColorBrush(Color.FromArgb(26, accent.R, accent.G, accent.B));
+            appRow.MouseLeave += (_, _) =>
+                appRow.Background = Brushes.Transparent;
+
+            appRow.MouseLeftButtonDown += (_, _) =>
+            {
+                // Toggle knob list
+                if (knobList.Visibility == Visibility.Visible)
+                {
+                    knobList.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    knobList.Visibility = Visibility.Visible;
+                }
+            };
+
+            _assignExpandPanel.Children.Add(appRow);
+
+            // Knob choices — simple text rows
             for (int k = 0; k < 5; k++)
             {
                 int knobIdx = k;
                 var knob = _config.Knobs.FirstOrDefault(kn => kn.Idx == knobIdx);
-                string knobLabel = knob != null && !string.IsNullOrWhiteSpace(knob.Label)
-                    ? (knob.Label.Length > 3 ? knob.Label[..3] : knob.Label)
-                    : $"K{knobIdx + 1}";
+                string knobName = knob != null && !string.IsNullOrWhiteSpace(knob.Label)
+                    ? knob.Label
+                    : $"Knob {knobIdx + 1}";
 
-                bool isAssigned = knob?.Target?.Equals(appCapture, StringComparison.OrdinalIgnoreCase) == true
-                    || (knob?.Target == "apps" && (knob.Apps?.Contains(appCapture, StringComparer.OrdinalIgnoreCase) == true));
+                bool isCurrent = knob?.Target?.Equals(appCapture, StringComparison.OrdinalIgnoreCase) == true;
 
-                var btn = new Border
+                var knobRow = new Border
                 {
-                    Width = 30,
-                    Height = 22,
-                    CornerRadius = new CornerRadius(3),
-                    Background = isAssigned
-                        ? new SolidColorBrush(Color.FromArgb(60, accent.R, accent.G, accent.B))
-                        : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-                    BorderBrush = isAssigned
-                        ? new SolidColorBrush(Color.FromArgb(120, accent.R, accent.G, accent.B))
-                        : new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
-                    BorderThickness = new Thickness(1),
-                    Margin = new Thickness(2, 0, 0, 0),
+                    Background = Brushes.Transparent,
+                    CornerRadius = new CornerRadius(4),
+                    Padding = new Thickness(12, 5, 12, 5),
                     Cursor = Cursors.Hand,
-                    Child = new TextBlock
-                    {
-                        Text = knobLabel,
-                        Foreground = isAssigned
-                            ? new SolidColorBrush(accent)
-                            : new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
-                        FontSize = 8,
-                        FontFamily = new FontFamily("Segoe UI"),
-                        FontWeight = FontWeights.SemiBold,
-                        HorizontalAlignment = HorizontalAlignment.Center,
-                        VerticalAlignment = VerticalAlignment.Center
-                    }
                 };
 
-                btn.MouseEnter += (_, _) =>
+                var knobText = new TextBlock
                 {
-                    btn.Background = new SolidColorBrush(Color.FromArgb(40, accent.R, accent.G, accent.B));
-                    btn.BorderBrush = new SolidColorBrush(Color.FromArgb(80, accent.R, accent.G, accent.B));
-                };
-                btn.MouseLeave += (_, _) =>
-                {
-                    // Recalculate assigned state after potential reassignment
-                    var currentKnob = _config.Knobs.FirstOrDefault(kn => kn.Idx == knobIdx);
-                    bool nowAssigned = currentKnob?.Target?.Equals(appCapture, StringComparison.OrdinalIgnoreCase) == true;
-                    btn.Background = nowAssigned
-                        ? new SolidColorBrush(Color.FromArgb(60, accent.R, accent.G, accent.B))
-                        : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-                    btn.BorderBrush = nowAssigned
-                        ? new SolidColorBrush(Color.FromArgb(120, accent.R, accent.G, accent.B))
-                        : new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
+                    Text = isCurrent ? $"✓  {knobName}" : $"     {knobName}",
+                    Foreground = isCurrent
+                        ? new SolidColorBrush(accent)
+                        : new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+                    FontSize = 9.5,
+                    FontFamily = new FontFamily("Segoe UI"),
+                    FontWeight = isCurrent ? FontWeights.SemiBold : FontWeights.Normal,
                 };
 
-                btn.MouseLeftButtonDown += (_, _) =>
+                knobRow.Child = knobText;
+
+                knobRow.MouseEnter += (_, _) =>
+                    knobRow.Background = new SolidColorBrush(Color.FromArgb(20, accent.R, accent.G, accent.B));
+                knobRow.MouseLeave += (_, _) =>
+                    knobRow.Background = Brushes.Transparent;
+
+                knobRow.MouseLeftButtonDown += (_, _) =>
                 {
                     var cfg = _config.Knobs.FirstOrDefault(kn => kn.Idx == knobIdx);
                     if (cfg != null)
@@ -450,25 +480,10 @@ public class TrayContextMenu : Window
                     }
                 };
 
-                knobBtns.Children.Add(btn);
+                knobList.Children.Add(knobRow);
             }
 
-            rowPanel.Children.Add(knobBtns);
-
-            // App name label
-            var display = TitleCase(appName);
-            rowPanel.Children.Add(new TextBlock
-            {
-                Text = display,
-                Foreground = new SolidColorBrush(Color.FromRgb(0xC8, 0xC8, 0xC8)),
-                FontSize = 9.5,
-                FontFamily = new FontFamily("Segoe UI"),
-                VerticalAlignment = VerticalAlignment.Center,
-                TextTrimming = TextTrimming.CharacterEllipsis
-            });
-
-            appRow.Child = rowPanel;
-            _assignExpandPanel.Children.Add(appRow);
+            _assignExpandPanel.Children.Add(knobList);
         }
     }
 
