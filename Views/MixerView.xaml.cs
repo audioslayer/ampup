@@ -1246,6 +1246,11 @@ public partial class MixerView : UserControl
     private void CheckAndShowSuggestionBanner()
     {
         if (_suggestionBanner == null || _config == null || _mixer == null) return;
+        if (!_config.AutoSuggestLayout)
+        {
+            _suggestionBanner.Visibility = Visibility.Collapsed;
+            return;
+        }
 
         // Count knobs still at default
         int defaultCount = _config.Knobs.Count(k => k.Target == "none" || k.Target == "master");

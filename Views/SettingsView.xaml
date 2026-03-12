@@ -99,6 +99,12 @@
                               Foreground="{StaticResource TextPrimaryBrush}"
                               VerticalContentAlignment="Center"
                               ToolTip="Launch Amp Up automatically when you log in" />
+                    <CheckBox x:Name="ChkAutoSuggestLayout"
+                              Content="Auto-suggest knob layout"
+                              Foreground="{StaticResource TextPrimaryBrush}"
+                              VerticalContentAlignment="Center"
+                              Margin="0,8,0,0"
+                              ToolTip="Show a banner in Mixer when known apps are detected and knobs are unassigned" />
                 </StackPanel>
             </Border>
 

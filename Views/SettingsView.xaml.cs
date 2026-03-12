@@ -49,6 +49,8 @@ public partial class SettingsView : UserControl
         TxtBaudRate.TextChanged += OnValueChanged;
         ChkStartWithWindows.Checked += OnValueChanged;
         ChkStartWithWindows.Unchecked += OnValueChanged;
+        ChkAutoSuggestLayout.Checked += OnValueChanged;
+        ChkAutoSuggestLayout.Unchecked += OnValueChanged;
         CmbProfiles.SelectionChanged += OnProfileSelectionChanged;
 
         // Port selector
@@ -96,6 +98,7 @@ public partial class SettingsView : UserControl
         TxtBaudRate.Text = config.Serial.Baud.ToString();
         RefreshPortList(selectPort: config.Serial.Port);
         ChkStartWithWindows.IsChecked = config.StartWithWindows;
+        ChkAutoSuggestLayout.IsChecked = config.AutoSuggestLayout;
 
         // OSD
         ChkOsdVolume.IsChecked = config.Osd.ShowVolume;
@@ -384,6 +387,7 @@ public partial class SettingsView : UserControl
             _config.Serial.Baud = baud;
 
         _config.StartWithWindows = ChkStartWithWindows.IsChecked == true;
+        _config.AutoSuggestLayout = ChkAutoSuggestLayout.IsChecked == true;
 
         // OSD
         _config.Osd.ShowVolume = ChkOsdVolume.IsChecked == true;
