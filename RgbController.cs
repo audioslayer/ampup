@@ -337,11 +337,13 @@ public class RgbController : IDisposable
 
             for (int k = 0; k < 5; k++)
             {
+                // When gradient colors are set, map each knob to its gradient position
+                var (kr, kg, kb) = GetGradientColor(_globalLight, k / 4f);
                 var light = new LightConfig
                 {
                     Idx = k,
                     Effect = _globalLight.Effect,
-                    R = _globalLight.R, G = _globalLight.G, B = _globalLight.B,
+                    R = kr, G = kg, B = kb,
                     R2 = _globalLight.R2, G2 = _globalLight.G2, B2 = _globalLight.B2,
                     EffectSpeed = _globalLight.EffectSpeed,
                     ReactiveMode = _globalLight.ReactiveMode,
@@ -1140,12 +1142,15 @@ public class RgbController : IDisposable
         {
             bool lit = (i % 3) == offset;
             if (lit)
-                SetGlobalLed(i, gl.R, gl.G, gl.B);
+            {
+                var (r, g, b) = GetGradientColor(gl, i / 14f);
+                SetGlobalLed(i, r, g, b);
+            }
             else
-                SetGlobalLed(i,
-                    (int)(gl.R2 * 0.05f),
-                    (int)(gl.G2 * 0.05f),
-                    (int)(gl.B2 * 0.05f));
+            {
+                var (r, g, b) = GetGradientColor(gl, i / 14f);
+                SetGlobalLed(i, (int)(r * 0.05f), (int)(g * 0.05f), (int)(b * 0.05f));
+            }
         }
     }
 
@@ -1249,10 +1254,8 @@ public class RgbController : IDisposable
             float angle = baseAngle + i * phaseOffsetPerLed;
             float brightness = (MathF.Sin(angle) + 1f) / 2f;
             brightness *= brightness; // squared easing — organic breathing feel
-            SetGlobalLed(i,
-                (int)(gl.R * brightness),
-                (int)(gl.G * brightness),
-                (int)(gl.B * brightness));
+            var (r, g, b) = GetGradientColor(gl, i / 14f);
+            SetGlobalLed(i, (int)(r * brightness), (int)(g * brightness), (int)(b * brightness));
         }
     }
 

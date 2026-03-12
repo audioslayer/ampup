@@ -373,7 +373,7 @@ public partial class LightsView : UserControl
 
         var customColorLabel = new TextBlock
         {
-            Text = "CUSTOM",
+            Text = "MANUAL",
             FontSize = 9,
             FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
