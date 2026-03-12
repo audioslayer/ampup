@@ -100,7 +100,9 @@ public partial class ButtonsView : UserControl
     private readonly ActionPicker[] _tapCombos = new ActionPicker[5];
     private readonly TextBox[] _tapPathBoxes = new TextBox[5];
     private readonly StackPanel[] _tapPathPanels = new StackPanel[5];
+    private readonly TextBlock[] _tapPathLabels = new TextBlock[5];
     private readonly Button[] _tapBrowseButtons = new Button[5];
+    private readonly Button[] _tapPickButtons = new Button[5];
     private readonly TextBox[] _tapMacroBoxes = new TextBox[5];
     private readonly StackPanel[] _tapMacroPanels = new StackPanel[5];
     private readonly ListPicker[] _tapDevicePickers = new ListPicker[5];
@@ -119,7 +121,9 @@ public partial class ButtonsView : UserControl
     private readonly ActionPicker[] _dblCombos = new ActionPicker[5];
     private readonly TextBox[] _dblPathBoxes = new TextBox[5];
     private readonly StackPanel[] _dblPathPanels = new StackPanel[5];
+    private readonly TextBlock[] _dblPathLabels = new TextBlock[5];
     private readonly Button[] _dblBrowseButtons = new Button[5];
+    private readonly Button[] _dblPickButtons = new Button[5];
     private readonly TextBox[] _dblMacroBoxes = new TextBox[5];
     private readonly StackPanel[] _dblMacroPanels = new StackPanel[5];
     private readonly ListPicker[] _dblDevicePickers = new ListPicker[5];
@@ -137,7 +141,9 @@ public partial class ButtonsView : UserControl
     private readonly ActionPicker[] _holdCombos = new ActionPicker[5];
     private readonly TextBox[] _holdPathBoxes = new TextBox[5];
     private readonly StackPanel[] _holdPathPanels = new StackPanel[5];
+    private readonly TextBlock[] _holdPathLabels = new TextBlock[5];
     private readonly Button[] _holdBrowseButtons = new Button[5];
+    private readonly Button[] _holdPickButtons = new Button[5];
     private readonly TextBox[] _holdMacroBoxes = new TextBox[5];
     private readonly StackPanel[] _holdMacroPanels = new StackPanel[5];
     private readonly ListPicker[] _holdDevicePickers = new ListPicker[5];
@@ -317,7 +323,7 @@ public partial class ButtonsView : UserControl
         SelectProfilePicker(_dblProfilePickers[idx], btn.DoublePressProfileName);
         SelectPowerSegment(_dblPowerSegments[idx], btn.DoublePressPowerAction);
         SelectKnobPicker(_dblKnobPickers[idx], btn.DoublePressLinkedKnobIdx);
-        UpdateGestureVisibility(_dblPathPanels[idx], _dblBrowseButtons[idx], _dblMacroPanels[idx],
+        UpdateGestureVisibility(_dblPathPanels[idx], _dblPathLabels[idx], _dblBrowseButtons[idx], _dblPickButtons[idx], _dblMacroPanels[idx],
             _dblDevicePanels[idx], _dblCycleDevicePanels[idx], _dblProfilePanels[idx],
             _dblPowerPanels[idx], _dblKnobPanels[idx], btn.DoublePressAction);
 
@@ -330,7 +336,7 @@ public partial class ButtonsView : UserControl
         SelectProfilePicker(_holdProfilePickers[idx], btn.HoldProfileName);
         SelectPowerSegment(_holdPowerSegments[idx], btn.HoldPowerAction);
         SelectKnobPicker(_holdKnobPickers[idx], btn.HoldLinkedKnobIdx);
-        UpdateGestureVisibility(_holdPathPanels[idx], _holdBrowseButtons[idx], _holdMacroPanels[idx],
+        UpdateGestureVisibility(_holdPathPanels[idx], _holdPathLabels[idx], _holdBrowseButtons[idx], _holdPickButtons[idx], _holdMacroPanels[idx],
             _holdDevicePanels[idx], _holdCycleDevicePanels[idx], _holdProfilePanels[idx],
             _holdPowerPanels[idx], _holdKnobPanels[idx], btn.HoldAction);
 
@@ -395,7 +401,7 @@ public partial class ButtonsView : UserControl
             SelectProfilePicker(_dblProfilePickers[i], btn.DoublePressProfileName);
             SelectPowerSegment(_dblPowerSegments[i], btn.DoublePressPowerAction);
             SelectKnobPicker(_dblKnobPickers[i], btn.DoublePressLinkedKnobIdx);
-            UpdateGestureVisibility(_dblPathPanels[i], _dblBrowseButtons[i], _dblMacroPanels[i],
+            UpdateGestureVisibility(_dblPathPanels[i], _dblPathLabels[i], _dblBrowseButtons[i], _dblPickButtons[i], _dblMacroPanels[i],
                 _dblDevicePanels[i], _dblCycleDevicePanels[i], _dblProfilePanels[i],
                 _dblPowerPanels[i], _dblKnobPanels[i], btn.DoublePressAction);
 
@@ -408,7 +414,7 @@ public partial class ButtonsView : UserControl
             SelectProfilePicker(_holdProfilePickers[i], btn.HoldProfileName);
             SelectPowerSegment(_holdPowerSegments[i], btn.HoldPowerAction);
             SelectKnobPicker(_holdKnobPickers[i], btn.HoldLinkedKnobIdx);
-            UpdateGestureVisibility(_holdPathPanels[i], _holdBrowseButtons[i], _holdMacroPanels[i],
+            UpdateGestureVisibility(_holdPathPanels[i], _holdPathLabels[i], _holdBrowseButtons[i], _holdPickButtons[i], _holdMacroPanels[i],
                 _holdDevicePanels[i], _holdCycleDevicePanels[i], _holdProfilePanels[i],
                 _holdPowerPanels[i], _holdKnobPanels[i], btn.HoldAction);
         }
@@ -513,12 +519,15 @@ public partial class ButtonsView : UserControl
             _tapCombos[i] = tapCombo;
             tapSection.Children.Add(tapCombo);
 
-            var (pathPanel, pathBox, browseBtn) = MakePathRow("PATH", "process name or exe path");
+            var (pathPanel, pathLabel, pathBox, browseBtn, pickBtn) = MakePathRow("PROCESS NAME", "discord");
             pathBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
             _tapPathPanels[i] = pathPanel;
+            _tapPathLabels[i] = pathLabel;
             _tapPathBoxes[i] = pathBox;
             _tapBrowseButtons[i] = browseBtn;
+            _tapPickButtons[i] = pickBtn;
             browseBtn.Click += (_, _) => BrowseForFile(pathBox);
+            pickBtn.Click += (_, _) => ShowProcessPicker(pickBtn, pathBox, GetComboActionValue(_tapCombos[idx]));
             tapSection.Children.Add(pathPanel);
 
             var (macroPanel, macroBox) = MakeTextBoxRow("MACRO KEYS", "ctrl+shift+m");
@@ -573,12 +582,15 @@ public partial class ButtonsView : UserControl
             _dblCombos[i] = dblCombo;
             dblSection.Children.Add(dblCombo);
 
-            var (dblPathPanel, dblPathBox, dblBrowseBtn) = MakePathRow("PATH", "process name or exe path");
+            var (dblPathPanel, dblPathLabel, dblPathBox, dblBrowseBtn, dblPickBtn) = MakePathRow("PROCESS NAME", "discord");
             dblPathBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
             _dblPathPanels[i] = dblPathPanel;
+            _dblPathLabels[i] = dblPathLabel;
             _dblPathBoxes[i] = dblPathBox;
             _dblBrowseButtons[i] = dblBrowseBtn;
+            _dblPickButtons[i] = dblPickBtn;
             dblBrowseBtn.Click += (_, _) => BrowseForFile(dblPathBox);
+            dblPickBtn.Click += (_, _) => ShowProcessPicker(dblPickBtn, dblPathBox, GetComboActionValue(_dblCombos[idx]));
             dblSection.Children.Add(dblPathPanel);
 
             var (dblMacroPanel, dblMacroBox) = MakeTextBoxRow("MACRO KEYS", "ctrl+shift+m");
@@ -621,7 +633,7 @@ public partial class ButtonsView : UserControl
             {
                 if (_loading) return;
                 var val = GetComboActionValue(dblCombo);
-                UpdateGestureVisibility(_dblPathPanels[idx], _dblBrowseButtons[idx], _dblMacroPanels[idx],
+                UpdateGestureVisibility(_dblPathPanels[idx], _dblPathLabels[idx], _dblBrowseButtons[idx], _dblPickButtons[idx], _dblMacroPanels[idx],
                     _dblDevicePanels[idx], _dblCycleDevicePanels[idx], _dblProfilePanels[idx],
                     _dblPowerPanels[idx], _dblKnobPanels[idx], val);
                 QueueSave();
@@ -643,12 +655,15 @@ public partial class ButtonsView : UserControl
             _holdCombos[i] = holdCombo;
             holdSection.Children.Add(holdCombo);
 
-            var (holdPathPanel, holdPathBox, holdBrowseBtn) = MakePathRow("PATH", "process name or exe path");
+            var (holdPathPanel, holdPathLabel, holdPathBox, holdBrowseBtn, holdPickBtn) = MakePathRow("PROCESS NAME", "discord");
             holdPathBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
             _holdPathPanels[i] = holdPathPanel;
+            _holdPathLabels[i] = holdPathLabel;
             _holdPathBoxes[i] = holdPathBox;
             _holdBrowseButtons[i] = holdBrowseBtn;
+            _holdPickButtons[i] = holdPickBtn;
             holdBrowseBtn.Click += (_, _) => BrowseForFile(holdPathBox);
+            holdPickBtn.Click += (_, _) => ShowProcessPicker(holdPickBtn, holdPathBox, GetComboActionValue(_holdCombos[idx]));
             holdSection.Children.Add(holdPathPanel);
 
             var (holdMacroPanel, holdMacroBox) = MakeTextBoxRow("MACRO KEYS", "ctrl+shift+m");
@@ -691,7 +706,7 @@ public partial class ButtonsView : UserControl
             {
                 if (_loading) return;
                 var val = GetComboActionValue(holdCombo);
-                UpdateGestureVisibility(_holdPathPanels[idx], _holdBrowseButtons[idx], _holdMacroPanels[idx],
+                UpdateGestureVisibility(_holdPathPanels[idx], _holdPathLabels[idx], _holdBrowseButtons[idx], _holdPickButtons[idx], _holdMacroPanels[idx],
                     _holdDevicePanels[idx], _holdCycleDevicePanels[idx], _holdProfilePanels[idx],
                     _holdPowerPanels[idx], _holdKnobPanels[idx], val);
                 QueueSave();
@@ -738,7 +753,7 @@ public partial class ButtonsView : UserControl
     private void UpdateTapVisibility(int idx, string action)
     {
         _tapPathPanels[idx].Visibility = PathActions.Contains(action) ? Visibility.Visible : Visibility.Collapsed;
-        _tapBrowseButtons[idx].Visibility = action == "launch_exe" ? Visibility.Visible : Visibility.Collapsed;
+        ApplyPathLabelAndButtons(_tapPathLabels[idx], _tapPathBoxes[idx], _tapBrowseButtons[idx], _tapPickButtons[idx], action);
         _tapMacroPanels[idx].Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
         _tapDevicePanels[idx].Visibility = action is "select_output" or "select_input" or "mute_device" ? Visibility.Visible : Visibility.Collapsed;
         _tapCycleDevicePanels[idx].Visibility = action is "cycle_output" or "cycle_input" ? Visibility.Visible : Visibility.Collapsed;
@@ -748,18 +763,49 @@ public partial class ButtonsView : UserControl
     }
 
     private static void UpdateGestureVisibility(
-        StackPanel pathPanel, Button browseBtn, StackPanel macroPanel,
+        StackPanel pathPanel, TextBlock pathLabel, Button browseBtn, Button pickBtn, StackPanel macroPanel,
         StackPanel devicePanel, StackPanel cycleDevicePanel, StackPanel profilePanel,
         StackPanel powerPanel, StackPanel knobPanel, string action)
     {
         pathPanel.Visibility = PathActions.Contains(action) ? Visibility.Visible : Visibility.Collapsed;
-        browseBtn.Visibility = action == "launch_exe" ? Visibility.Visible : Visibility.Collapsed;
+        ApplyPathLabelAndButtons(pathLabel, null, browseBtn, pickBtn, action);
         macroPanel.Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
         devicePanel.Visibility = action is "select_output" or "select_input" or "mute_device" ? Visibility.Visible : Visibility.Collapsed;
         cycleDevicePanel.Visibility = action is "cycle_output" or "cycle_input" ? Visibility.Visible : Visibility.Collapsed;
         profilePanel.Visibility = action == "switch_profile" ? Visibility.Visible : Visibility.Collapsed;
         powerPanel.Visibility = action == "system_power" ? Visibility.Visible : Visibility.Collapsed;
         knobPanel.Visibility = action == "mute_app_group" ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private static void ApplyPathLabelAndButtons(TextBlock label, TextBox? box, Button browseBtn, Button pickBtn, string action)
+    {
+        switch (action)
+        {
+            case "mute_program":
+                label.Text = "PROCESS NAME";
+                if (box != null) box.ToolTip = "Enter part of the process name (e.g. discord, spotify). No full path needed.";
+                browseBtn.Visibility = Visibility.Collapsed;
+                pickBtn.Visibility = Visibility.Visible;
+                break;
+            case "close_program":
+                label.Text = "PROCESS NAME";
+                if (box != null) box.ToolTip = "Enter part of the process name to close (e.g. notepad, chrome)";
+                browseBtn.Visibility = Visibility.Collapsed;
+                pickBtn.Visibility = Visibility.Visible;
+                break;
+            case "launch_exe":
+                label.Text = "PROGRAM PATH";
+                if (box != null) box.ToolTip = "Full path to the executable to launch";
+                browseBtn.Visibility = Visibility.Visible;
+                pickBtn.Visibility = Visibility.Collapsed;
+                break;
+            default:
+                label.Text = "PROCESS NAME";
+                if (box != null) box.ToolTip = "Enter part of the process name";
+                browseBtn.Visibility = Visibility.Collapsed;
+                pickBtn.Visibility = Visibility.Collapsed;
+                break;
+        }
     }
 
     // ── Collect and save ────────────────────────────────────────────
@@ -964,10 +1010,11 @@ public partial class ButtonsView : UserControl
         return (container, box);
     }
 
-    private (StackPanel panel, TextBox box, Button browseBtn) MakePathRow(string label, string placeholder)
+    private (StackPanel panel, TextBlock labelBlock, TextBox box, Button browseBtn, Button pickBtn) MakePathRow(string label, string placeholder)
     {
         var container = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 8) };
-        container.Children.Add(MakeLabel(label));
+        var labelBlock = MakeLabel(label);
+        container.Children.Add(labelBlock);
 
         var row = new DockPanel { LastChildFill = true };
 
@@ -990,6 +1037,24 @@ public partial class ButtonsView : UserControl
         DockPanel.SetDock(browseBtn, Dock.Right);
         row.Children.Add(browseBtn);
 
+        var pickBtn = new Button
+        {
+            Content = "▾",
+            Width = 28,
+            FontSize = 12,
+            Padding = new Thickness(0, 3, 0, 3),
+            Margin = new Thickness(4, 0, 0, 0),
+            Background = FindBrush("InputBgBrush"),
+            Foreground = FindBrush("AccentBrush"),
+            BorderBrush = FindBrush("InputBorderBrush"),
+            BorderThickness = new Thickness(1),
+            Cursor = Cursors.Hand,
+            Visibility = Visibility.Collapsed,
+            ToolTip = "Pick from running processes",
+        };
+        DockPanel.SetDock(pickBtn, Dock.Right);
+        row.Children.Add(pickBtn);
+
         var box = new TextBox
         {
             Background = FindBrush("InputBgBrush"),
@@ -997,7 +1062,7 @@ public partial class ButtonsView : UserControl
             BorderBrush = FindBrush("InputBorderBrush"),
             Padding = new Thickness(6, 4, 6, 4),
             FontSize = 11,
-            ToolTip = "Process name (e.g. discord) or full path to exe",
+            ToolTip = "Enter part of the process name (e.g. discord, spotify). No full path needed.",
         };
         box.Tag = placeholder;
         box.Text = "";
@@ -1005,7 +1070,7 @@ public partial class ButtonsView : UserControl
         row.Children.Add(box);
 
         container.Children.Add(row);
-        return (container, box, browseBtn);
+        return (container, labelBlock, box, browseBtn, pickBtn);
     }
 
     private void BrowseForFile(TextBox targetBox)
@@ -1030,6 +1095,100 @@ public partial class ButtonsView : UserControl
             targetBox.Foreground = FindBrush("TextPrimaryBrush");
             QueueSave();
         }
+    }
+
+    private void ShowProcessPicker(Button anchor, TextBox targetBox, string action)
+    {
+        if (_mixer == null) return;
+
+        List<string> processes;
+        if (action == "mute_program")
+        {
+            // Only show processes with active audio sessions
+            processes = _mixer.GetRunningAudioApps();
+        }
+        else
+        {
+            // close_program: show all running processes (deduplicated, sorted)
+            processes = System.Diagnostics.Process.GetProcesses()
+                .Select(p => { try { return p.ProcessName; } catch { return null!; } })
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        if (processes.Count == 0)
+        {
+            var tip = new System.Windows.Controls.ToolTip { Content = "No processes found", IsOpen = true };
+            anchor.ToolTip = tip;
+            Dispatcher.InvokeAsync(async () =>
+            {
+                await System.Threading.Tasks.Task.Delay(1500);
+                tip.IsOpen = false;
+            });
+            return;
+        }
+
+        var popup = new System.Windows.Controls.Primitives.Popup
+        {
+            PlacementTarget = anchor,
+            Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+            StaysOpen = false,
+            AllowsTransparency = true,
+        };
+
+        var scroll = new ScrollViewer
+        {
+            MaxHeight = 220,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+        };
+
+        var panel = new StackPanel
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            MinWidth = 160,
+        };
+
+        var border = new System.Windows.Controls.Border
+        {
+            Child = scroll,
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+        };
+        scroll.Content = panel;
+
+        foreach (var proc in processes)
+        {
+            var procCapture = proc;
+            var item = new Button
+            {
+                Content = proc,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Padding = new Thickness(10, 5, 10, 5),
+                Background = Brushes.Transparent,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
+                BorderThickness = new Thickness(0),
+                FontSize = 11,
+                Cursor = Cursors.Hand,
+            };
+            item.MouseEnter += (_, _) => item.Background = new SolidColorBrush(Color.FromArgb(0x30, 0x00, 0xE6, 0x76));
+            item.MouseLeave += (_, _) => item.Background = Brushes.Transparent;
+            item.Click += (_, _) =>
+            {
+                targetBox.Text = procCapture;
+                targetBox.Foreground = FindBrush("TextPrimaryBrush");
+                popup.IsOpen = false;
+                QueueSave();
+            };
+            panel.Children.Add(item);
+        }
+
+        popup.Child = border;
+        popup.IsOpen = true;
     }
 
     private static readonly Dictionary<string, string> PickerTooltips = new()
