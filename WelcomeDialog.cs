@@ -57,7 +57,7 @@ public class WelcomeDialog : Window
         // Header
         root.Children.Add(new TextBlock
         {
-            Text = "Welcome to Amp Up 🎚️",
+            Text = "Welcome to Amp Up",
             Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
             FontSize = 22,
             FontWeight = FontWeights.Bold,
@@ -81,26 +81,30 @@ public class WelcomeDialog : Window
             Margin = new Thickness(0, 0, 0, 20)
         });
 
-        // Steps
-        root.Children.Add(BuildStep("🔌", "Connect your Turn Up",
-            "Plug in the USB cable. Windows will install the driver automatically."));
+        // Steps with colored icon circles
+        root.Children.Add(BuildStep("1", "Connect your Turn Up",
+            "Plug in the USB cable. Windows will install the driver automatically.",
+            Color.FromRgb(0x00, 0xE6, 0x76))); // green
 
-        root.Children.Add(BuildStepWithButton("🔍", "Find your device",
+        root.Children.Add(BuildStepWithButton("2", "Find your device",
             "Head to Settings → click Auto-Detect to find your Turn Up.",
             "Open Settings", accent, () =>
             {
                 _onOpenSettings();
                 Close();
-            }));
+            }, Color.FromRgb(0x00, 0xB0, 0xFF))); // blue
 
-        root.Children.Add(BuildStep("🎛️", "Assign your knobs",
-            "In the Mixer tab, pick what each knob controls — master volume, Spotify, Discord, anything."));
+        root.Children.Add(BuildStep("3", "Assign your knobs",
+            "In the Mixer tab, pick what each knob controls — master volume, Spotify, Discord, anything.",
+            Color.FromRgb(0xFF, 0xB8, 0x00))); // amber
 
-        root.Children.Add(BuildStep("💡", "Set up your lights",
-            "Head to Lights to pick effects and colors for each knob's RGB."));
+        root.Children.Add(BuildStep("4", "Set up your lights",
+            "Head to Lights to pick effects and colors for each knob's RGB.",
+            Color.FromRgb(0xE0, 0x40, 0xFF))); // purple
 
-        root.Children.Add(BuildStep("🎮", "Configure your buttons",
-            "Assign actions to each button — macros, mute toggles, profile switches, and more."));
+        root.Children.Add(BuildStep("5", "Configure your buttons",
+            "Assign actions to each button — macros, mute toggles, profile switches, and more.",
+            Color.FromRgb(0xFF, 0x44, 0x44))); // red
 
         // Bottom separator
         root.Children.Add(new Border
@@ -110,54 +114,80 @@ public class WelcomeDialog : Window
             Margin = new Thickness(0, 20, 0, 20)
         });
 
-        // Got it button (full-width, accent)
-        var gotItBtn = new Button
+        // Got it button (full-width, accent, properly rounded)
+        var gotItBorder = new Border
         {
-            Content = "Got it, let's go!",
+            CornerRadius = new CornerRadius(8),
             Background = new SolidColorBrush(Color.FromRgb(accent.R, accent.G, accent.B)),
-            Foreground = new SolidColorBrush(Color.FromRgb(0x0F, 0x0F, 0x0F)),
-            BorderThickness = new Thickness(0),
-            FontSize = 14,
-            FontWeight = FontWeights.SemiBold,
-            Padding = new Thickness(0, 12, 0, 12),
             Cursor = System.Windows.Input.Cursors.Hand,
-            HorizontalAlignment = HorizontalAlignment.Stretch
+            Padding = new Thickness(0, 14, 0, 14),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Child = new TextBlock
+            {
+                Text = "Got it, let's go!",
+                Foreground = new SolidColorBrush(Color.FromRgb(0x0F, 0x0F, 0x0F)),
+                FontSize = 14,
+                FontWeight = FontWeights.Bold,
+                HorizontalAlignment = HorizontalAlignment.Center
+            }
         };
 
-        gotItBtn.Style = CreateButtonStyle(accent);
-        gotItBtn.Click += (_, _) => Close();
-        root.Children.Add(gotItBtn);
+        var normalBg = Color.FromRgb(accent.R, accent.G, accent.B);
+        var hoverBg = Color.FromRgb(
+            (byte)Math.Min(255, accent.R + 25),
+            (byte)Math.Min(255, accent.G + 25),
+            (byte)Math.Min(255, accent.B + 25));
+
+        gotItBorder.MouseEnter += (_, _) => gotItBorder.Background = new SolidColorBrush(hoverBg);
+        gotItBorder.MouseLeave += (_, _) => gotItBorder.Background = new SolidColorBrush(normalBg);
+        gotItBorder.MouseLeftButtonUp += (_, _) => Close();
+        root.Children.Add(gotItBorder);
 
         return outer;
     }
 
-    private static UIElement BuildStep(string icon, string title, string description)
+    private static UIElement BuildStep(string icon, string title, string description,
+        Color iconColor = default)
     {
-        return BuildStepCore(icon, title, description, null, default, null);
+        return BuildStepCore(icon, title, description, null, default, null, iconColor);
     }
 
     private static UIElement BuildStepWithButton(string icon, string title, string description,
-        string btnText, System.Windows.Media.Color accent, Action onClick)
+        string btnText, Color accent, Action onClick, Color iconColor = default)
     {
-        return BuildStepCore(icon, title, description, btnText, accent, onClick);
+        return BuildStepCore(icon, title, description, btnText, accent, onClick, iconColor);
     }
 
     private static UIElement BuildStepCore(string icon, string title, string description,
-        string? btnText, System.Windows.Media.Color accent, Action? onClick)
+        string? btnText, Color accent, Action? onClick, Color iconColor = default)
     {
         var row = new DockPanel { Margin = new Thickness(0, 0, 0, 16) };
 
-        // Icon
-        var iconBlock = new TextBlock
+        // Icon — colored circle with text symbol
+        var iconCircle = new Border
         {
-            Text = icon,
-            FontSize = 22,
-            Width = 38,
+            Width = 36,
+            Height = 36,
+            CornerRadius = new CornerRadius(18),
+            Background = new SolidColorBrush(iconColor == default
+                ? Color.FromArgb(0x20, 0x00, 0xE6, 0x76)
+                : Color.FromArgb(0x20, iconColor.R, iconColor.G, iconColor.B)),
             VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(0, 2, 10, 0)
+            Margin = new Thickness(0, 2, 12, 0),
+            Child = new TextBlock
+            {
+                Text = icon,
+                FontSize = 16,
+                Foreground = new SolidColorBrush(iconColor == default
+                    ? Color.FromRgb(0x00, 0xE6, 0x76)
+                    : iconColor),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                FontWeight = FontWeights.Bold
+            }
         };
-        DockPanel.SetDock(iconBlock, Dock.Left);
-        row.Children.Add(iconBlock);
+        DockPanel.SetDock(iconCircle, Dock.Left);
+        row.Children.Add(iconCircle);
 
         var textStack = new StackPanel();
 
