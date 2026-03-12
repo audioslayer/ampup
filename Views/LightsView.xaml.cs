@@ -277,36 +277,16 @@ public partial class LightsView : UserControl
         _globalEffectPicker = effectPicker;
         settings.Children.Add(effectPicker);
 
-        // Color 1 + Color 2 in a horizontal row
+        // Color section with palettes + custom colors
         settings.Children.Add(MakeSectionHeader("COLOR"));
-        var swatch1 = MakeGlobalColorSwatch(_globalColor1, isColor2: false);
-        _globalColor1Swatch = swatch1;
-        var swatch2 = MakeGlobalColorSwatch(_globalColor2, isColor2: true);
-        _globalColor2Swatch = swatch2;
 
-        var color2Panel = new StackPanel { Orientation = Orientation.Horizontal, Visibility = Visibility.Collapsed };
-        color2Panel.Children.Add(MakeSubLabel("SECONDARY"));
-        color2Panel.Children.Add(swatch2);
-        _globalColor2Panel = color2Panel;
-
-        var globalColorRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 8),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        globalColorRow.Children.Add(MakeSubLabel("PRIMARY"));
-        globalColorRow.Children.Add(swatch1);
-        globalColorRow.Children.Add(color2Panel);
-        settings.Children.Add(globalColorRow);
-
-        // Palette presets (shown only when color2 is visible)
-        var paletteSection = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 8) };
+        // Palette presets — prominent, shown when effect uses 2 colors
+        var paletteSection = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 10) };
         _globalPalettePanel = paletteSection;
 
         paletteSection.Children.Add(new TextBlock
         {
-            Text = "PALETTE",
+            Text = "PRESETS",
             FontSize = 9,
             FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
@@ -319,33 +299,51 @@ public partial class LightsView : UserControl
             var p1 = primary;
             var p2 = secondary;
 
-            // Tile: 28x28 with diagonal split showing both colors
-            var tileCanvas = new Canvas { Width = 28, Height = 28, ClipToBounds = true };
-            var leftRect = new System.Windows.Shapes.Rectangle { Width = 28, Height = 28, Fill = new SolidColorBrush(p1) };
-            Canvas.SetLeft(leftRect, 0);
-            tileCanvas.Children.Add(leftRect);
-            var poly = new System.Windows.Shapes.Polygon
+            // Gradient tile with label
+            var tileContent = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+
+            // Gradient bar (46x24 with left-right gradient)
+            var gradientBorder = new Border
             {
-                Fill = new SolidColorBrush(p2),
-                Points = new PointCollection(new[] { new Point(28, 0), new Point(28, 28), new Point(0, 28) }),
+                Width = 46,
+                Height = 24,
+                CornerRadius = new CornerRadius(4),
+                ClipToBounds = true,
+                Background = new LinearGradientBrush(p1, p2, 0),
             };
-            tileCanvas.Children.Add(poly);
+            tileContent.Children.Add(gradientBorder);
+
+            tileContent.Children.Add(new TextBlock
+            {
+                Text = name,
+                FontSize = 8,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 3, 0, 0),
+            });
 
             var tileBorder = new Border
             {
-                Width = 28,
-                Height = 28,
-                CornerRadius = new CornerRadius(4),
-                ClipToBounds = true,
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+                CornerRadius = new CornerRadius(6),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
                 BorderThickness = new Thickness(1),
-                Margin = new Thickness(0, 0, 4, 4),
+                Padding = new Thickness(4, 4, 4, 3),
+                Margin = new Thickness(0, 0, 6, 6),
                 Cursor = Cursors.Hand,
-                Child = tileCanvas,
-                ToolTip = name,
+                Child = tileContent,
+                ToolTip = $"{name}: {ColorToHex(p1)} → {ColorToHex(p2)}",
             };
-            tileBorder.MouseEnter += (_, _) => tileBorder.BorderBrush = new SolidColorBrush(Colors.White);
-            tileBorder.MouseLeave += (_, _) => tileBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
+            tileBorder.MouseEnter += (_, _) =>
+            {
+                tileBorder.BorderBrush = new SolidColorBrush(Colors.White);
+                tileBorder.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+            };
+            tileBorder.MouseLeave += (_, _) =>
+            {
+                tileBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+                tileBorder.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+            };
             tileBorder.MouseLeftButtonDown += (_, _) =>
             {
                 _globalColor1 = p1;
@@ -360,6 +358,38 @@ public partial class LightsView : UserControl
         }
         paletteSection.Children.Add(paletteWrap);
         settings.Children.Add(paletteSection);
+
+        // Custom colors — PRIMARY + SECONDARY swatches
+        var swatch1 = MakeGlobalColorSwatch(_globalColor1, isColor2: false);
+        _globalColor1Swatch = swatch1;
+        var swatch2 = MakeGlobalColorSwatch(_globalColor2, isColor2: true);
+        _globalColor2Swatch = swatch2;
+
+        var customColorLabel = new TextBlock
+        {
+            Text = "CUSTOM",
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Margin = new Thickness(0, 0, 0, 6),
+        };
+        settings.Children.Add(customColorLabel);
+
+        var color2Panel = new StackPanel { Orientation = Orientation.Horizontal, Visibility = Visibility.Collapsed };
+        color2Panel.Children.Add(MakeSubLabel("SECONDARY"));
+        color2Panel.Children.Add(swatch2);
+        _globalColor2Panel = color2Panel;
+
+        var globalColorRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 0, 0, 10),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        globalColorRow.Children.Add(MakeSubLabel("PRIMARY"));
+        globalColorRow.Children.Add(swatch1);
+        globalColorRow.Children.Add(color2Panel);
+        settings.Children.Add(globalColorRow);
 
         // Speed slider (conditional)
         var speedPanel = new StackPanel { Visibility = Visibility.Collapsed };
@@ -1203,6 +1233,8 @@ public partial class LightsView : UserControl
     {
         return FindResource(key) as Style;
     }
+
+    private static string ColorToHex(Color c) => $"#{c.R:X2}{c.G:X2}{c.B:X2}";
 
     private static string FormatTargetName(string target)
     {

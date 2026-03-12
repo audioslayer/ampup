@@ -190,15 +190,15 @@ namespace AmpUp.Controls
                     (LightEffect.RainbowScanner, "⟿",   "R.Scan",   false),
                     (LightEffect.SparkleRain,    "✧",   "Sparkle",  false),
                     (LightEffect.BreathingSync,  "≈",   "Breath",   false),
-                    (LightEffect.FireWall,       "🔥",  "Inferno",  true),
+                    (LightEffect.FireWall,       "♨",   "Inferno",  false),
                     (LightEffect.DualRacer,      "⇌",   "Racers",   false),
                     (LightEffect.Lightning,      "⚡",  "Bolt",     false),
                     (LightEffect.Fillup,         "▁▃▅▇","Fill Up",  false),
-                    (LightEffect.Ocean,          "🌊",  "Ocean",    true),
-                    (LightEffect.Collision,      "💥",  "Collide",  true),
-                    (LightEffect.DNA,            "🧬",  "Helix",    true),
+                    (LightEffect.Ocean,          "∿",   "Ocean",    false),
+                    (LightEffect.Collision,      "⊕",   "Collide",  false),
+                    (LightEffect.DNA,            "⧖",   "Helix",    false),
                     (LightEffect.Rainfall,       "⋮",   "Rain",     false),
-                    (LightEffect.PoliceLights,   "🚨",  "Police",   true),
+                    (LightEffect.PoliceLights,   "⊘",   "Police",   false),
                 });
             }
         }
@@ -237,7 +237,7 @@ namespace AmpUp.Controls
                 FontSize = _showGlobal ? (isEmoji ? 20 : 24) : (isEmoji ? 16 : 18),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
-                Foreground = new SolidColorBrush(isEmoji ? Color.FromRgb(0x77, 0x77, 0x77) : Color.FromRgb((byte)(tileColor.R * 0.6), (byte)(tileColor.G * 0.6), (byte)(tileColor.B * 0.6))),
+                Foreground = new SolidColorBrush(Color.FromRgb((byte)(tileColor.R * 0.6), (byte)(tileColor.G * 0.6), (byte)(tileColor.B * 0.6))),
             };
             info.Icon = iconBlock;
 
