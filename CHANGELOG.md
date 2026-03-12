@@ -11,10 +11,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - **DeviceSelect LED effect** — shows per-device colors based on the currently active Windows output device; configure up to 3 device→color mappings per knob in LightsView
 - **ProgramMute LED effect** — color1=unmuted, color2=muted for any target process
+- **Multi-color palette presets** — 12 preset palettes (Sunset, Ocean, Neon, Galaxy, Vaporwave, Aurora, etc.) with 5 gradient colors mapped across all 15 LEDs
+- **3 new profile switch transitions** — Ripple (center-out wave), ColorBurst (white flash + triadic sparks), Wipe (left-to-right gradient sweep); all transitions now derive multi-color patterns from the profile's icon color
+- **First-run Welcome Dialog** — 5-step setup guide with numbered color icons and app logo; shows again on version updates via `LastWelcomeVersion` tracking
+- **Global exception handler** — catches unhandled exceptions and shows a friendly error dialog with log file path instead of crashing silently
+
+### Changed
+- **Complete UI overhaul** — every control rethemed for dark glassmorphism:
+  - **Custom ActionPicker** replaces all ComboBox dropdowns in Buttons view — dark popup with colored icons per action, proper hover states
+  - **Redesigned GridPicker** replaces pill-style target picker in Mixer — full-width text rows with colored category headers (♪ Audio, ⬡ Devices, ◈ Integrations, ◉ Apps)
+  - **Fully themed ComboBox** template in Theme.xaml — dark dropdown popup, rounded items, accent hover (used in Settings and remaining dropdowns)
+  - **Ring-style color swatches** — outer ring border with inner color circle, hover glow matches swatch color
+  - **Tray right-click menu** completely rebuilt as WPF popup (replaces WinForms ContextMenuStrip) — inline app assignment with expandable knob list, no more submenu cascades
+  - **Smart Mix redesign** — Auto-Ducking uses human-readable flow ("When this app is active... lower these apps"), Auto-Profile rules shown as mini cards with accent arrow
+  - **OSD glow fix** — separate RadialGradientBrush glow layer eliminates square artifacts on rounded corners; gradient border for subtle edge highlighting
+  - **Card panel styling** — gradient border (white highlight fade) replaces DropShadowEffect; corner radius bumped to 10px
+- **Effect tile icons all colored** — replaced emoji icons with Unicode symbols that respect Foreground color; dimmed when unselected, bright when selected; global tiles larger (70px)
+- **Brightness slider** moved into global settings panel (under Speed) instead of floating in a separate column
+- **Auto-suggest layout** moved to opt-in toggle in new Settings → Preferences section (off by default)
+- **Profile transitions** use the profile's icon color as the base hue for multi-color derivations (complementary, analogous, triadic)
 
 ### Fixed
 - **Knob UI updates immediately on hardware turn** — position pushed directly to MixerView via `Dispatcher.BeginInvoke`, bypassing the 50ms poll cycle that caused visible lag
 - **Potentiometer jitter suppressed** — ±3 ADC count deadzone in SerialReader prevents noise from triggering spurious volume changes
+- **COM port dropdown clipping** — height increased to 38px to prevent text cutoff
+- **NAudio COM object caching** — eliminates ~12 COM allocations/sec at idle; cached enumerator, mic, and master device with refresh on exception
+- **Thread safety** — added locks for AudioMixer, RgbController, and Config save operations
+- **Log rotation** — auto-delete if >1MB at startup; startup separator with version
 
 ---
 

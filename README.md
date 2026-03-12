@@ -18,40 +18,49 @@
 
 ---
 
-## :sparkles: What's New in v0.5.x
+## :sparkles: What's New in v0.5.2
+
+### :art: Complete UI Overhaul
+Every control has been rethemed for a polished dark glassmorphism look:
+
+- **Custom dropdowns** — ActionPicker and GridPicker replace stock WPF ComboBoxes with dark popups, colored icons, and accent hover states
+- **Ring-style color swatches** — outer ring border with inner color circle, hover glow matches swatch color
+- **Redesigned tray menu** — WPF popup replaces WinForms menu; inline app assignment with expandable knob list
+- **Smart Mix visual redesign** — human-readable flow ("When this app is active... lower these apps"), rule cards with accent arrows
+- **OSD glow** — separate glow layer eliminates square artifacts on rounded corners
+- **Gradient card borders** — subtle white highlight fade, 10px corner radius
+
+### :rainbow: Multi-Color LED Palettes
+- **12 preset palettes** — Sunset, Ocean, Neon, Galaxy, Vaporwave, Aurora, and more — each with 5 gradient colors mapped across all 15 LEDs
+- **Manual color picking** — primary + secondary ring swatches with full spectrum color picker and quick-pick presets
+- **All effect icons colored** — unique color per effect, dimmed when unselected, bright when selected
+
+### :zap: Profile Switch Transitions
+- **3 new transitions** — Ripple (center-out wave), ColorBurst (white flash + triadic sparks), Wipe (left-to-right gradient sweep)
+- All transitions now derive multi-color patterns from the profile's icon color
 
 ### :speaker: Smart Mix — Auto-Ducking & Auto-Profiles
-Two new intelligent mixing features live in a collapsible **Smart Mix** section in the Mixer tab:
+- **Auto-Ducking** — automatically fades other apps when a trigger app (e.g. Discord) is speaking
+- **Auto-Profile Switching** — switches profiles based on the foreground window
 
-- **Auto-Ducking** — automatically fades other apps when a trigger app (e.g. Discord) is speaking. Fully configurable trigger app, target apps, duck amount, and fade speed.
-- **Auto-Profile Switching** — automatically switches profiles based on the foreground window. Map any app to any profile — no button press needed.
-
-### :package: Tray Quick Mixer
-**Left-click** the system tray icon to open a compact glassmorphic per-app volume mixer popup — adjust any running app's volume without opening the main window.
-
-### :arrows_counterclockwise: Profile Export / Import
-Save profiles as standalone `.json` files and load them back — great for sharing configs or keeping backups.
-
-### :mag: Quick Assign from Tray
-**Right-click** the system tray icon → **Assign Running Apps** → pick a knob to instantly bind any currently running audio app.
-
-### :bulb: Auto-Suggest Layout
-When known apps are detected running but their knobs are unconfigured, an amber banner appears in the Mixer view suggesting a layout with one click.
+### :package: Tray Quick Mixer & Quick Assign
+- **Left-click** tray → compact glassmorphic per-app volume mixer
+- **Right-click** tray → assign running apps to knobs instantly
 
 ### :clipboard: Copy / Paste Everywhere
-Right-click context menus on channel strips, LED columns, and button tiles for Copy / Paste / Reset — works across all three views.
-
-### :electric_plug: Friendly Serial Port Selector
-COM port dropdown with an **Auto-Detect** button that probes all ports for the CH343/CH340 chip. Shows connection status inline. Raw port/baud fields tucked under Advanced for power users.
-
-### :video_game: Per-Gesture Independent Config
-Each button gesture (tap / double / hold) now has its own independent set of config fields — device picker, macro, profile, power action — so all 3 gestures can use any action type without sharing settings.
+Right-click context menus on channel strips, LED columns, and button tiles for Copy / Paste / Reset.
 
 ### :bulb: New LED Effects
-- **DeviceSelect** — shows per-device colors based on the currently active Windows output device (up to 3 device→color mappings per knob)
-- **ProgramMute** — color1=unmuted, color2=muted for any target process
-- **PositionBlend**, **Wheel**, **RainbowWheel** — new per-knob animated effects
-- **13 new global-spanning effects** — TheaterChase, RainbowScanner, SparkleRain, BreathingSync, FireWall, DualRacer, Lightning, Fillup, Ocean, Collision, DNA, Rainfall, PoliceLights
+- **DeviceSelect**, **ProgramMute**, **PositionBlend**, **Wheel**, **RainbowWheel** — per-knob
+- **13 global-spanning effects** — TheaterChase, RainbowScanner, SparkleRain, BreathingSync, FireWall, DualRacer, Lightning, Fillup, Ocean, Collision, DNA, Rainfall, PoliceLights
+
+### :wrench: Quality of Life
+- **Welcome dialog** — 5-step setup guide on first run and updates
+- **Auto-suggest layout** — opt-in toggle in Settings → Preferences
+- **Friendly serial port selector** with Auto-Detect
+- **Per-gesture independent config** for all 3 button gestures
+- **Profile Export / Import** as standalone JSON files
+- **Crash handler** with friendly error dialog and log path
 
 ---
 
