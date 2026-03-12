@@ -30,16 +30,16 @@
                         <TextBlock Text="Device Port" Style="{StaticResource SecondaryText}" Margin="0,0,0,6"
                                    ToolTip="Select the COM port for your Turn Up hardware" />
                         <StackPanel Orientation="Horizontal">
-                            <ComboBox x:Name="CmbSerialPort" Width="220" Height="32"
+                            <ComboBox x:Name="CmbSerialPort" Width="220" Height="38"
                                       Background="{StaticResource InputBgBrush}"
                                       BorderBrush="{StaticResource InputBorderBrush}"
                                       Foreground="{StaticResource TextPrimaryBrush}"
                                       ToolTip="Available COM ports — select the one for your Turn Up device" />
                             <ui:Button x:Name="BtnRefreshPorts" Content="Refresh"
-                                       Appearance="Secondary" Margin="8,0,0,0" Height="32"
+                                       Appearance="Secondary" Margin="8,0,0,0" Height="38"
                                        ToolTip="Rescan for available COM ports" />
                             <ui:Button x:Name="BtnAutoDetect" Content="Auto-Detect"
-                                       Appearance="Primary" Margin="8,0,0,0" Height="32"
+                                       Appearance="Primary" Margin="8,0,0,0" Height="38"
                                        ToolTip="Automatically find the Turn Up device by probing available ports" />
                         </StackPanel>
                     </StackPanel>

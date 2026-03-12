@@ -97,7 +97,7 @@ public partial class ButtonsView : UserControl
     private readonly Border[] _columnCards = new Border[5];
 
     // TAP controls
-    private readonly ComboBox[] _tapCombos = new ComboBox[5];
+    private readonly ActionPicker[] _tapCombos = new ActionPicker[5];
     private readonly TextBox[] _tapPathBoxes = new TextBox[5];
     private readonly StackPanel[] _tapPathPanels = new StackPanel[5];
     private readonly Button[] _tapBrowseButtons = new Button[5];
@@ -116,7 +116,7 @@ public partial class ButtonsView : UserControl
     private readonly StackPanel[] _tapCycleDevicePanels = new StackPanel[5];
 
     // DOUBLE controls
-    private readonly ComboBox[] _dblCombos = new ComboBox[5];
+    private readonly ActionPicker[] _dblCombos = new ActionPicker[5];
     private readonly TextBox[] _dblPathBoxes = new TextBox[5];
     private readonly StackPanel[] _dblPathPanels = new StackPanel[5];
     private readonly Button[] _dblBrowseButtons = new Button[5];
@@ -134,7 +134,7 @@ public partial class ButtonsView : UserControl
     private readonly StackPanel[] _dblKnobPanels = new StackPanel[5];
 
     // HOLD controls
-    private readonly ComboBox[] _holdCombos = new ComboBox[5];
+    private readonly ActionPicker[] _holdCombos = new ActionPicker[5];
     private readonly TextBox[] _holdPathBoxes = new TextBox[5];
     private readonly StackPanel[] _holdPathPanels = new StackPanel[5];
     private readonly Button[] _holdBrowseButtons = new Button[5];
@@ -920,56 +920,29 @@ public partial class ButtonsView : UserControl
         { "power_hibernate",    "Hibernate the PC" },
     };
 
-    private ComboBox MakeActionCombo()
+    private ActionPicker MakeActionCombo()
     {
-        var combo = new ComboBox
+        var picker = new ActionPicker
         {
-            Style = FindStyle("HoverComboBox"),
             Margin = new Thickness(0, 0, 0, 10),
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            FontSize = 12,
         };
 
         foreach (var (display, value) in Actions)
         {
-            var item = new ComboBoxItem
-            {
-                Content = $"{ActionIcons.GetValueOrDefault(value, "—")}  {display}",
-                Tag = value,
-                ToolTip = ActionTooltips.GetValueOrDefault(value, display),
-            };
-            combo.Items.Add(item);
+            var icon = ActionIcons.GetValueOrDefault(value, "—");
+            var color = ActionColors.GetValueOrDefault(value, Color.FromRgb(0x88, 0x88, 0x88));
+            var tooltip = ActionTooltips.GetValueOrDefault(value, display);
+            picker.AddItem(display, value, icon, color, tooltip);
         }
 
-        combo.SelectedIndex = 0; // "None"
-        combo.ToolTip = ActionTooltips.GetValueOrDefault("none", "Do nothing when pressed");
-        combo.SelectionChanged += (_, _) =>
-        {
-            if (combo.SelectedItem is ComboBoxItem sel && sel.Tag is string val)
-                combo.ToolTip = ActionTooltips.GetValueOrDefault(val, "");
-        };
-        return combo;
+        picker.Select("none");
+        return picker;
     }
 
-    private void SelectCombo(ComboBox combo, string actionValue)
-    {
-        for (int i = 0; i < combo.Items.Count; i++)
-        {
-            if (combo.Items[i] is ComboBoxItem item && item.Tag as string == actionValue)
-            {
-                combo.SelectedIndex = i;
-                return;
-            }
-        }
-        combo.SelectedIndex = 0;
-    }
+    private static void SelectCombo(ActionPicker picker, string actionValue) => picker.Select(actionValue);
 
-    private string GetComboActionValue(ComboBox combo)
-    {
-        if (combo.SelectedItem is ComboBoxItem item)
-            return item.Tag as string ?? "none";
-        return "none";
-    }
+    private static string GetComboActionValue(ActionPicker picker) => picker.SelectedValue;
 
     private (StackPanel panel, TextBox box) MakeTextBoxRow(string label, string placeholder)
     {
