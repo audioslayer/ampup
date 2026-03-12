@@ -147,6 +147,7 @@ public class GlobalLightConfig
     public int EffectSpeed { get; set; } = 50;
     [JsonConverter(typeof(StringEnumConverter))]
     public ReactiveMode ReactiveMode { get; set; } = ReactiveMode.SpectrumBands;
+    public List<string> GradientColors { get; set; } = new(); // hex colors for multi-color palettes, mapped across 15 LEDs
 }
 
 public enum LightEffect

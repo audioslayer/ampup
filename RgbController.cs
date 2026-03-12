@@ -1101,13 +1101,10 @@ public class RgbController : IDisposable
 
         for (int i = 0; i < 15; i++)
         {
-            // Sine wave creates smooth gradient: 0→1→0 across the strip
+            // Sine wave creates smooth wave position: 0→1→0 across the strip
             float t = (MathF.Sin((i / 15f + offset) * MathF.PI * 2f) + 1f) / 2f;
-
-            int r = (int)(gl.R + (gl.R2 - gl.R) * t);
-            int g = (int)(gl.G + (gl.G2 - gl.G) * t);
-            int b = (int)(gl.B + (gl.B2 - gl.B) * t);
-            SetGlobalLed(i, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
+            var (r, g, b) = GetGradientColor(gl, t);
+            SetGlobalLed(i, r, g, b);
         }
     }
 
@@ -1124,11 +1121,8 @@ public class RgbController : IDisposable
         {
             float pos = (i + offset) / bandWidth;
             float t = (MathF.Sin(pos * MathF.PI) + 1f) / 2f; // smooth alternation
-
-            int r = (int)(gl.R + (gl.R2 - gl.R) * t);
-            int g = (int)(gl.G + (gl.G2 - gl.G) * t);
-            int b = (int)(gl.B + (gl.B2 - gl.B) * t);
-            SetGlobalLed(i, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
+            var (r, g, b) = GetGradientColor(gl, t);
+            SetGlobalLed(i, r, g, b);
         }
     }
 
@@ -1204,12 +1198,12 @@ public class RgbController : IDisposable
             }
         }
 
-        // Render dim base on all LEDs
-        int baseR = (int)(gl.R * 0.10f);
-        int baseG = (int)(gl.G * 0.10f);
-        int baseB = (int)(gl.B * 0.10f);
+        // Render dim base on all LEDs (from gradient at each position)
         for (int i = 0; i < 15; i++)
-            SetGlobalLed(i, baseR, baseG, baseB);
+        {
+            var (br, bg, bb) = GetGradientColor(gl, i / 14f);
+            SetGlobalLed(i, (int)(br * 0.10f), (int)(bg * 0.10f), (int)(bb * 0.10f));
+        }
 
         // Age and render active sparkles
         for (int s = 0; s < _globalSparkles.Length; s++)
@@ -1226,11 +1220,12 @@ public class RgbController : IDisposable
             }
 
             int idx = _globalSparkles[s].Idx;
+            var (cr, cg, cb) = GetGradientColor(gl, idx / 14f);
             // Blend toward white at peak
-            int sr = (int)(gl.R * sparkBright + 255 * sparkBright * 0.4f);
-            int sg = (int)(gl.G * sparkBright + 255 * sparkBright * 0.4f);
-            int sb = (int)(gl.B * sparkBright + 255 * sparkBright * 0.4f);
-            SetGlobalLed(idx, Math.Clamp(sr, 0, 255), Math.Clamp(sg, 0, 255), Math.Clamp(sb, 0, 255));
+            int sr = Math.Clamp((int)(cr * sparkBright + 255 * sparkBright * 0.4f), 0, 255);
+            int sg = Math.Clamp((int)(cg * sparkBright + 255 * sparkBright * 0.4f), 0, 255);
+            int sb = Math.Clamp((int)(cb * sparkBright + 255 * sparkBright * 0.4f), 0, 255);
+            SetGlobalLed(idx, sr, sg, sb);
 
             _globalSparkles[s].Age++;
         }
@@ -1292,9 +1287,12 @@ public class RgbController : IDisposable
 
             float bright = _fireWallCurrent[i];
             float ember = bright * bright;
-            int r = Math.Clamp((int)(gl.R * bright + (gl.R2 - gl.R) * ember * 0.3f), 0, 255);
-            int g = Math.Clamp((int)(gl.G * bright + (gl.G2 - gl.G) * ember * 0.3f), 0, 255);
-            int b = Math.Clamp((int)(gl.B * bright + (gl.B2 - gl.B) * ember * 0.3f), 0, 255);
+            // Use gradient: base color from gradient position, ember tint blends toward end color
+            var (baseR, baseG, baseB) = GetGradientColor(gl, i / 14f);
+            var (emberR, emberG, emberB) = GetGradientColor(gl, 1f);
+            int r = Math.Clamp((int)(baseR * bright + (emberR - baseR) * ember * 0.3f), 0, 255);
+            int g = Math.Clamp((int)(baseG * bright + (emberG - baseG) * ember * 0.3f), 0, 255);
+            int b = Math.Clamp((int)(baseB * bright + (emberB - baseB) * ember * 0.3f), 0, 255);
             SetGlobalLed(i, r, g, b);
         }
     }
@@ -1470,13 +1468,15 @@ public class RgbController : IDisposable
 
             wave = Math.Clamp(wave, 0f, 1f);
 
-            // Whitecaps: blend in color2 at high wave values
+            // Whitecaps: blend in end-of-gradient color at high wave values
             float capBlend = Math.Max(0f, (wave - 0.7f) / 0.3f);
             float waterBright = 0.2f + wave * 0.8f;
 
-            int r = Math.Clamp((int)(gl.R * waterBright * (1f - capBlend) + gl.R2 * capBlend), 0, 255);
-            int g = Math.Clamp((int)(gl.G * waterBright * (1f - capBlend) + gl.G2 * capBlend), 0, 255);
-            int b = Math.Clamp((int)(gl.B * waterBright * (1f - capBlend) + gl.B2 * capBlend), 0, 255);
+            var (wr, wg, wb) = GetGradientColor(gl, x); // water color from gradient position
+            var (cr, cg, cb) = GetGradientColor(gl, 1f); // cap color from gradient end
+            int r = Math.Clamp((int)(wr * waterBright * (1f - capBlend) + cr * capBlend), 0, 255);
+            int g = Math.Clamp((int)(wg * waterBright * (1f - capBlend) + cg * capBlend), 0, 255);
+            int b = Math.Clamp((int)(wb * waterBright * (1f - capBlend) + cb * capBlend), 0, 255);
             SetGlobalLed(i, r, g, b);
         }
     }
@@ -1576,17 +1576,18 @@ public class RgbController : IDisposable
             s1 = s1 * s1;
             s2 = s2 * s2;
 
-            // Blend: each strand contributes its color proportional to brightness
-            float total = s1 + s2 + 0.001f;
-            int r = Math.Clamp((int)(gl.R * s1 + gl.R2 * s2), 0, 255);
-            int g = Math.Clamp((int)(gl.G * s1 + gl.G2 * s2), 0, 255);
-            int b = Math.Clamp((int)(gl.B * s1 + gl.B2 * s2), 0, 255);
+            // Blend: each strand contributes its color from gradient
+            var (c1r, c1g, c1b) = GetGradientColor(gl, i / 14f);           // strand 1: position-based
+            var (c2r, c2g, c2b) = GetGradientColor(gl, 1f - i / 14f);      // strand 2: reversed
+            int r = Math.Clamp((int)(c1r * s1 + c2r * s2), 0, 255);
+            int g = Math.Clamp((int)(c1g * s1 + c2g * s2), 0, 255);
+            int b = Math.Clamp((int)(c1b * s1 + c2b * s2), 0, 255);
 
             // Ensure minimum glow even in dark spots
             float minBright = 0.04f;
-            int minR = (int)(gl.R * minBright);
-            int minG = (int)(gl.G * minBright);
-            int minB = (int)(gl.B * minBright);
+            int minR = (int)(c1r * minBright);
+            int minG = (int)(c1g * minBright);
+            int minB = (int)(c1b * minBright);
             SetGlobalLed(i, Math.Max(r, minR), Math.Max(g, minG), Math.Max(b, minB));
         }
     }
@@ -1946,5 +1947,47 @@ public class RgbController : IDisposable
         else if (max == gf)  h = 60f * (((bf - rf) / delta) + 2f);
         else                 h = 60f * (((rf - gf) / delta) + 4f);
         if (h < 0f) h += 360f;
+    }
+
+    /// <summary>
+    /// Get interpolated color at position 0.0-1.0 across gradient colors.
+    /// Falls back to color1/color2 blend if no gradient colors set.
+    /// </summary>
+    private static (int r, int g, int b) GetGradientColor(GlobalLightConfig cfg, float position)
+    {
+        var colors = cfg.GradientColors;
+        if (colors == null || colors.Count < 2)
+        {
+            float t = Math.Clamp(position, 0f, 1f);
+            return (
+                Math.Clamp((int)(cfg.R + (cfg.R2 - cfg.R) * t), 0, 255),
+                Math.Clamp((int)(cfg.G + (cfg.G2 - cfg.G) * t), 0, 255),
+                Math.Clamp((int)(cfg.B + (cfg.B2 - cfg.B) * t), 0, 255)
+            );
+        }
+
+        position = Math.Clamp(position, 0f, 1f);
+        float segment = position * (colors.Count - 1);
+        int idx = Math.Min((int)segment, colors.Count - 2);
+        float t2 = segment - idx;
+
+        var c1 = ParseHexColor(colors[idx]);
+        var c2 = ParseHexColor(colors[idx + 1]);
+        return (
+            Math.Clamp((int)(c1.r + (c2.r - c1.r) * t2), 0, 255),
+            Math.Clamp((int)(c1.g + (c2.g - c1.g) * t2), 0, 255),
+            Math.Clamp((int)(c1.b + (c2.b - c1.b) * t2), 0, 255)
+        );
+    }
+
+    private static (int r, int g, int b) ParseHexColor(string hex)
+    {
+        hex = hex.TrimStart('#');
+        if (hex.Length < 6) return (0, 0, 0);
+        return (
+            Convert.ToInt32(hex[0..2], 16),
+            Convert.ToInt32(hex[2..4], 16),
+            Convert.ToInt32(hex[4..6], 16)
+        );
     }
 }

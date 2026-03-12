@@ -51,7 +51,7 @@ public partial class LightsView : UserControl
     private readonly StackPanel[] _color2Panels = new StackPanel[5];
     private readonly StyledSlider[] _speedSliders = new StyledSlider[5];
     private readonly StackPanel[] _speedPanels = new StackPanel[5];
-    private readonly ComboBox[] _reactiveModeComboBoxes = new ComboBox[5];
+    private readonly ActionPicker[] _reactiveModeComboBoxes = new ActionPicker[5];
     private readonly StackPanel[] _reactiveModePanels = new StackPanel[5];
     private readonly TextBox[] _programNameBoxes = new TextBox[5];
     private readonly StackPanel[] _programNamePanels = new StackPanel[5];
@@ -69,28 +69,29 @@ public partial class LightsView : UserControl
     private StackPanel? _globalColor2Panel;
     private StyledSlider? _globalSpeedSlider;
     private StackPanel? _globalSpeedPanel;
-    private ComboBox? _globalReactiveModeCombo;
+    private ActionPicker? _globalReactiveModeCombo;
     private StackPanel? _globalReactiveModePanel;
     private Color _globalColor1 = ThemeManager.Accent;
     private Color _globalColor2 = Color.FromRgb(0xFF, 0xFF, 0xFF);
+    private List<string> _globalGradientColors = new();
     private StackPanel? _globalSettingsPanel;
     private StackPanel? _globalPalettePanel;
     private StyledSlider? _brightnessSlider;
 
-    private static readonly (string Name, Color Primary, Color Secondary)[] ColorPalettes = new[]
+    private static readonly (string Name, Color[] Colors)[] ColorPalettes = new[]
     {
-        ("Sunset",    Color.FromRgb(0xFF, 0x6B, 0x35), Color.FromRgb(0xFF, 0xD7, 0x00)),
-        ("Ocean",     Color.FromRgb(0x00, 0x77, 0xB6), Color.FromRgb(0x00, 0xE5, 0xFF)),
-        ("Neon",      Color.FromRgb(0xFF, 0x00, 0xFF), Color.FromRgb(0x00, 0xFF, 0xFF)),
-        ("Forest",    Color.FromRgb(0x00, 0xC8, 0x53), Color.FromRgb(0xAE, 0xD5, 0x81)),
-        ("Lava",      Color.FromRgb(0xFF, 0x17, 0x44), Color.FromRgb(0xFF, 0x8A, 0x00)),
-        ("Arctic",    Color.FromRgb(0xE0, 0xF7, 0xFA), Color.FromRgb(0x00, 0x97, 0xA7)),
-        ("Galaxy",    Color.FromRgb(0x7C, 0x4D, 0xFF), Color.FromRgb(0xFF, 0x80, 0xAB)),
-        ("Toxic",     Color.FromRgb(0x76, 0xFF, 0x03), Color.FromRgb(0x00, 0xE6, 0x76)),
-        ("Inferno",   Color.FromRgb(0xFF, 0x00, 0x00), Color.FromRgb(0xFF, 0xD6, 0x00)),
-        ("Vaporwave", Color.FromRgb(0xFF, 0x71, 0xCE), Color.FromRgb(0x01, 0xCD, 0xFE)),
-        ("Ember",     Color.FromRgb(0xFF, 0x45, 0x00), Color.FromRgb(0x8B, 0x00, 0x00)),
-        ("Aurora",    Color.FromRgb(0x00, 0xFF, 0x87), Color.FromRgb(0x7B, 0x2F, 0xFF)),
+        ("Sunset",    new[] { Color.FromRgb(0xFF, 0x17, 0x44), Color.FromRgb(0xFF, 0x6B, 0x35), Color.FromRgb(0xFF, 0xD7, 0x00), Color.FromRgb(0xFF, 0x8C, 0x00), Color.FromRgb(0xFF, 0x45, 0x00) }),
+        ("Ocean",     new[] { Color.FromRgb(0x00, 0x33, 0x66), Color.FromRgb(0x00, 0x77, 0xB6), Color.FromRgb(0x00, 0xE5, 0xFF), Color.FromRgb(0x00, 0xB4, 0xD8), Color.FromRgb(0x48, 0xCA, 0xE4) }),
+        ("Neon",      new[] { Color.FromRgb(0xFF, 0x00, 0xFF), Color.FromRgb(0x00, 0xFF, 0xFF), Color.FromRgb(0xFF, 0x00, 0x80), Color.FromRgb(0x80, 0x00, 0xFF), Color.FromRgb(0x00, 0xFF, 0x80) }),
+        ("Forest",    new[] { Color.FromRgb(0x00, 0x44, 0x00), Color.FromRgb(0x00, 0x88, 0x33), Color.FromRgb(0x00, 0xC8, 0x53), Color.FromRgb(0xAE, 0xD5, 0x81), Color.FromRgb(0x76, 0xFF, 0x03) }),
+        ("Lava",      new[] { Color.FromRgb(0x8B, 0x00, 0x00), Color.FromRgb(0xFF, 0x17, 0x44), Color.FromRgb(0xFF, 0x45, 0x00), Color.FromRgb(0xFF, 0x8A, 0x00), Color.FromRgb(0xFF, 0xD6, 0x00) }),
+        ("Arctic",    new[] { Color.FromRgb(0xE0, 0xF7, 0xFA), Color.FromRgb(0x80, 0xDE, 0xEA), Color.FromRgb(0x00, 0xBD, 0xD0), Color.FromRgb(0x00, 0x97, 0xA7), Color.FromRgb(0xB2, 0xEB, 0xF2) }),
+        ("Galaxy",    new[] { Color.FromRgb(0x1A, 0x00, 0x5C), Color.FromRgb(0x7C, 0x4D, 0xFF), Color.FromRgb(0xFF, 0x80, 0xAB), Color.FromRgb(0xBA, 0x68, 0xC8), Color.FromRgb(0xE0, 0x40, 0xFF) }),
+        ("Toxic",     new[] { Color.FromRgb(0x00, 0x33, 0x00), Color.FromRgb(0x00, 0xE6, 0x76), Color.FromRgb(0x76, 0xFF, 0x03), Color.FromRgb(0x00, 0xFF, 0x00), Color.FromRgb(0xCC, 0xFF, 0x00) }),
+        ("Inferno",   new[] { Color.FromRgb(0xFF, 0x00, 0x00), Color.FromRgb(0xFF, 0x45, 0x00), Color.FromRgb(0xFF, 0x8C, 0x00), Color.FromRgb(0xFF, 0xD6, 0x00), Color.FromRgb(0xFF, 0xFF, 0x00) }),
+        ("Vaporwave", new[] { Color.FromRgb(0xFF, 0x71, 0xCE), Color.FromRgb(0x01, 0xCD, 0xFE), Color.FromRgb(0xB9, 0x67, 0xFF), Color.FromRgb(0x05, 0xFC, 0xC1), Color.FromRgb(0xFF, 0x00, 0xA0) }),
+        ("Ember",     new[] { Color.FromRgb(0x8B, 0x00, 0x00), Color.FromRgb(0xFF, 0x45, 0x00), Color.FromRgb(0xFF, 0x22, 0x00), Color.FromRgb(0xCC, 0x33, 0x00), Color.FromRgb(0x66, 0x00, 0x00) }),
+        ("Aurora",    new[] { Color.FromRgb(0x00, 0xFF, 0x87), Color.FromRgb(0x7B, 0x2F, 0xFF), Color.FromRgb(0x00, 0xE5, 0xFF), Color.FromRgb(0xFF, 0x00, 0xFF), Color.FromRgb(0x00, 0xFF, 0x00) }),
     };
 
     // Clipboard for light copy/paste
@@ -168,13 +169,14 @@ public partial class LightsView : UserControl
         _globalColor1 = Color.FromRgb((byte)gl.R, (byte)gl.G, (byte)gl.B);
         _globalColor2 = Color.FromRgb((byte)gl.R2, (byte)gl.G2, (byte)gl.B2);
         if (_globalColor1Swatch != null)
-            _globalColor1Swatch.Background = new SolidColorBrush(_globalColor1);
+            SetSwatchColor(_globalColor1Swatch, _globalColor1);
         if (_globalColor2Swatch != null)
-            _globalColor2Swatch.Background = new SolidColorBrush(_globalColor2);
+            SetSwatchColor(_globalColor2Swatch, _globalColor2);
         if (_globalSpeedSlider != null)
             _globalSpeedSlider.Value = Math.Clamp(gl.EffectSpeed, 1, 100);
         if (_globalReactiveModeCombo != null)
-            _globalReactiveModeCombo.SelectedItem = gl.ReactiveMode;
+            _globalReactiveModeCombo.Select(gl.ReactiveMode.ToString());
+        _globalGradientColors = gl.GradientColors ?? new();
 
         UpdateGlobalVisibility();
 
@@ -202,7 +204,7 @@ public partial class LightsView : UserControl
             _speedSliders[i].Value = Math.Clamp(light.EffectSpeed, 1, 100);
 
             if (_reactiveModeComboBoxes[i] != null)
-                _reactiveModeComboBoxes[i].SelectedItem = light.ReactiveMode;
+                _reactiveModeComboBoxes[i].Select(light.ReactiveMode.ToString());
 
             if (_programNameBoxes[i] != null)
                 _programNameBoxes[i].Text = light.ProgramName ?? "";
@@ -280,8 +282,8 @@ public partial class LightsView : UserControl
         // Color section with palettes + custom colors
         settings.Children.Add(MakeSectionHeader("COLOR"));
 
-        // Palette presets — prominent, shown when effect uses 2 colors
-        var paletteSection = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 10) };
+        // Palette presets — always shown
+        var paletteSection = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
         _globalPalettePanel = paletteSection;
 
         paletteSection.Children.Add(new TextBlock
@@ -294,22 +296,25 @@ public partial class LightsView : UserControl
         });
 
         var paletteWrap = new WrapPanel();
-        foreach (var (name, primary, secondary) in ColorPalettes)
+        foreach (var (name, colors) in ColorPalettes)
         {
-            var p1 = primary;
-            var p2 = secondary;
+            var capturedColors = colors;
 
             // Gradient tile with label
             var tileContent = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
 
-            // Gradient bar (46x24 with left-right gradient)
+            // Multi-stop gradient bar (46x24 with 5 color stops)
+            var gradientBrush = new LinearGradientBrush { StartPoint = new System.Windows.Point(0, 0.5), EndPoint = new System.Windows.Point(1, 0.5) };
+            for (int ci = 0; ci < capturedColors.Length; ci++)
+                gradientBrush.GradientStops.Add(new GradientStop(capturedColors[ci], ci / (double)(capturedColors.Length - 1)));
+
             var gradientBorder = new Border
             {
                 Width = 46,
                 Height = 24,
                 CornerRadius = new CornerRadius(4),
                 ClipToBounds = true,
-                Background = new LinearGradientBrush(p1, p2, 0),
+                Background = gradientBrush,
             };
             tileContent.Children.Add(gradientBorder);
 
@@ -332,7 +337,7 @@ public partial class LightsView : UserControl
                 Margin = new Thickness(0, 0, 6, 6),
                 Cursor = Cursors.Hand,
                 Child = tileContent,
-                ToolTip = $"{name}: {ColorToHex(p1)} → {ColorToHex(p2)}",
+                ToolTip = name,
             };
             tileBorder.MouseEnter += (_, _) =>
             {
@@ -346,12 +351,13 @@ public partial class LightsView : UserControl
             };
             tileBorder.MouseLeftButtonDown += (_, _) =>
             {
-                _globalColor1 = p1;
-                _globalColor2 = p2;
+                _globalColor1 = capturedColors[0];
+                _globalColor2 = capturedColors[capturedColors.Length - 1];
+                _globalGradientColors = capturedColors.Select(c => $"#{c.R:X2}{c.G:X2}{c.B:X2}").ToList();
                 if (_globalColor1Swatch != null)
-                    _globalColor1Swatch.Background = new SolidColorBrush(p1);
+                    SetSwatchColor(_globalColor1Swatch, capturedColors[0]);
                 if (_globalColor2Swatch != null)
-                    _globalColor2Swatch.Background = new SolidColorBrush(p2);
+                    SetSwatchColor(_globalColor2Swatch, capturedColors[capturedColors.Length - 1]);
                 if (!_loading) QueueSave();
             };
             paletteWrap.Children.Add(tileBorder);
@@ -371,7 +377,7 @@ public partial class LightsView : UserControl
             FontSize = 9,
             FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            Margin = new Thickness(0, 0, 0, 6),
+            Margin = new Thickness(0, 4, 0, 8),
         };
         settings.Children.Add(customColorLabel);
 
@@ -383,11 +389,13 @@ public partial class LightsView : UserControl
         var globalColorRow = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 10),
+            Margin = new Thickness(0, 0, 0, 12),
             VerticalAlignment = VerticalAlignment.Center,
         };
         globalColorRow.Children.Add(MakeSubLabel("PRIMARY"));
         globalColorRow.Children.Add(swatch1);
+        // Spacer between primary and secondary
+        globalColorRow.Children.Add(new Border { Width = 16 });
         globalColorRow.Children.Add(color2Panel);
         settings.Children.Add(globalColorRow);
 
@@ -424,18 +432,18 @@ public partial class LightsView : UserControl
         // Reactive mode (conditional)
         var reactiveModePanel = new StackPanel { Visibility = Visibility.Collapsed };
         reactiveModePanel.Children.Add(MakeLabel("REACTIVE MODE"));
-        var modeCombo = new ComboBox
+        var modePicker = new ActionPicker
         {
-            Style = FindStyle("HoverComboBox"),
-            ItemsSource = Enum.GetValues<ReactiveMode>(),
             Margin = new Thickness(0, 0, 0, 10),
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            FontSize = 12,
-            ToolTip = "BeatPulse: bass drives all LEDs. SpectrumBands: per-knob frequency. ColorShift: hue by energy",
         };
-        modeCombo.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
-        _globalReactiveModeCombo = modeCombo;
-        reactiveModePanel.Children.Add(modeCombo);
+        modePicker.AddItem("Beat Pulse", "BeatPulse", "♫", Color.FromRgb(0xFF, 0x80, 0xAB), "Bass drives all knob brightness simultaneously");
+        modePicker.AddItem("Spectrum Bands", "SpectrumBands", "≡", Color.FromRgb(0x64, 0xB5, 0xF6), "Each knob = its own frequency band");
+        modePicker.AddItem("Color Shift", "ColorShift", "◑", Color.FromRgb(0xBA, 0x68, 0xC8), "Hue shifts across spectrum based on audio energy");
+        modePicker.Select("SpectrumBands");
+        modePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+        _globalReactiveModeCombo = modePicker;
+        reactiveModePanel.Children.Add(modePicker);
         _globalReactiveModePanel = reactiveModePanel;
         settings.Children.Add(reactiveModePanel);
 
@@ -466,7 +474,7 @@ public partial class LightsView : UserControl
         if (_globalColor2Panel != null)
             _globalColor2Panel.Visibility = needsColor2 ? Visibility.Visible : Visibility.Collapsed;
         if (_globalPalettePanel != null)
-            _globalPalettePanel.Visibility = needsColor2 ? Visibility.Visible : Visibility.Collapsed;
+            _globalPalettePanel.Visibility = Visibility.Visible; // always show palettes
         if (_globalSpeedPanel != null)
             _globalSpeedPanel.Visibility = needsSpeed ? Visibility.Visible : Visibility.Collapsed;
         if (_globalReactiveModePanel != null)
@@ -488,14 +496,16 @@ public partial class LightsView : UserControl
             {
                 _globalColor2 = chosen;
                 if (_globalColor2Swatch != null)
-                    _globalColor2Swatch.Background = new SolidColorBrush(chosen);
+                    SetSwatchColor(_globalColor2Swatch, chosen);
             }
             else
             {
                 _globalColor1 = chosen;
                 if (_globalColor1Swatch != null)
-                    _globalColor1Swatch.Background = new SolidColorBrush(chosen);
+                    SetSwatchColor(_globalColor1Swatch, chosen);
             }
+            // Custom pick clears gradient preset
+            _globalGradientColors = new();
             QueueSave();
         }
     }
@@ -629,15 +639,15 @@ public partial class LightsView : UserControl
             // Reactive mode picker (only visible for AudioReactive)
             var reactiveContainer = new StackPanel();
             reactiveContainer.Children.Add(MakeLabel("REACTIVE MODE"));
-            var modeCombo = new ComboBox
+            var modeCombo = new ActionPicker
             {
-                Style = FindStyle("HoverComboBox"),
-                ItemsSource = Enum.GetValues<ReactiveMode>(),
                 Margin = new Thickness(0, 0, 0, 10),
                 HorizontalAlignment = HorizontalAlignment.Stretch,
-                FontSize = 12,
-                ToolTip = "BeatPulse: bass drives all LEDs. SpectrumBands: per-knob frequency. ColorShift: hue by energy",
             };
+            modeCombo.AddItem("Beat Pulse", "BeatPulse", "♫", Color.FromRgb(0xFF, 0x80, 0xAB), "Bass drives all knob brightness simultaneously");
+            modeCombo.AddItem("Spectrum Bands", "SpectrumBands", "≡", Color.FromRgb(0x64, 0xB5, 0xF6), "Each knob = its own frequency band");
+            modeCombo.AddItem("Color Shift", "ColorShift", "◑", Color.FromRgb(0xBA, 0x68, 0xC8), "Hue shifts across spectrum based on audio energy");
+            modeCombo.Select("SpectrumBands");
             modeCombo.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
             _reactiveModeComboBoxes[idx] = modeCombo;
             reactiveContainer.Children.Add(modeCombo);
@@ -952,7 +962,7 @@ public partial class LightsView : UserControl
                 _color2Swatches[idx].Background = new SolidColorBrush(_colors2[idx]);
                 _speedSliders[idx].Value = Math.Clamp(light.EffectSpeed, 1, 100);
                 if (_reactiveModeComboBoxes[idx] != null)
-                    _reactiveModeComboBoxes[idx].SelectedItem = light.ReactiveMode;
+                    _reactiveModeComboBoxes[idx].Select(light.ReactiveMode.ToString());
                 if (_programNameBoxes[idx] != null)
                     _programNameBoxes[idx].Text = light.ProgramName ?? "";
                 PopulateDeviceSelectPickers(idx);
@@ -1044,8 +1054,9 @@ public partial class LightsView : UserControl
         gl.B2 = _globalColor2.B;
         if (_globalSpeedSlider != null)
             gl.EffectSpeed = (int)_globalSpeedSlider.Value;
-        if (_globalReactiveModeCombo?.SelectedItem is ReactiveMode glMode)
+        if (_globalReactiveModeCombo != null && Enum.TryParse<ReactiveMode>(_globalReactiveModeCombo.SelectedValue, out var glMode))
             gl.ReactiveMode = glMode;
+        gl.GradientColors = _globalGradientColors;
 
         for (int i = 0; i < 5; i++)
         {
@@ -1064,7 +1075,7 @@ public partial class LightsView : UserControl
 
             light.EffectSpeed = (int)_speedSliders[i].Value;
 
-            if (_reactiveModeComboBoxes[i]?.SelectedItem is ReactiveMode mode)
+            if (_reactiveModeComboBoxes[i] != null && Enum.TryParse<ReactiveMode>(_reactiveModeComboBoxes[i].SelectedValue, out var mode))
                 light.ReactiveMode = mode;
 
             if (_programNameBoxes[i] != null)
@@ -1191,37 +1202,48 @@ public partial class LightsView : UserControl
 
     private Border MakeGlobalColorSwatch(Color initial, bool isColor2)
     {
-        var normalBorder = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
-        var swatch = new Border
+        // Outer ring — gives the swatch a clear boundary on dark bg
+        var outerRing = new Border
         {
-            Width = 36,
-            Height = 36,
-            CornerRadius = new CornerRadius(18),
-            Background = new SolidColorBrush(initial),
-            BorderBrush = normalBorder,
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(4, 0, 0, 0),
+            Width = 40,
+            Height = 40,
+            CornerRadius = new CornerRadius(20),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44)),
+            BorderThickness = new Thickness(2),
+            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+            Margin = new Thickness(6, 0, 0, 0),
             Cursor = Cursors.Hand,
-            ToolTip = isColor2 ? "Secondary color (accent/contrast for animated effects)" : "Primary LED color",
+            ToolTip = isColor2 ? "Secondary color — click to change" : "Primary color — click to change",
         };
-        swatch.MouseEnter += (_, _) =>
+
+        // Inner color circle
+        var innerColor = new Border
         {
-            swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0x88, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
-            swatch.Effect = new System.Windows.Media.Effects.DropShadowEffect
-            {
-                Color = ((SolidColorBrush)swatch.Background).Color,
-                BlurRadius = 10,
-                Opacity = 0.4,
-                ShadowDepth = 0,
-            };
+            Width = 30,
+            Height = 30,
+            CornerRadius = new CornerRadius(15),
+            Background = new SolidColorBrush(initial),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
         };
-        swatch.MouseLeave += (_, _) =>
+        outerRing.Child = innerColor;
+
+        outerRing.MouseEnter += (_, _) =>
         {
-            swatch.BorderBrush = normalBorder;
-            swatch.Effect = null;
+            var swatchColor = ((SolidColorBrush)innerColor.Background).Color;
+            outerRing.BorderBrush = new SolidColorBrush(Color.FromArgb(0xCC, swatchColor.R, swatchColor.G, swatchColor.B));
+            outerRing.Background = new SolidColorBrush(Color.FromArgb(0x20, swatchColor.R, swatchColor.G, swatchColor.B));
         };
-        swatch.MouseLeftButtonDown += (_, _) => OnPickGlobalColor(isColor2);
-        return swatch;
+        outerRing.MouseLeave += (_, _) =>
+        {
+            outerRing.BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
+            outerRing.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+        };
+        outerRing.MouseLeftButtonDown += (_, _) => OnPickGlobalColor(isColor2);
+
+        // Store inner border ref so we can update the color
+        outerRing.Tag = innerColor;
+        return outerRing;
     }
 
     private Brush FindBrush(string key)
@@ -1235,6 +1257,16 @@ public partial class LightsView : UserControl
     }
 
     private static string ColorToHex(Color c) => $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+
+    /// <summary>Update the inner color circle of a ring swatch.</summary>
+    private static void SetSwatchColor(Border? swatch, Color color)
+    {
+        if (swatch == null) return;
+        if (swatch.Tag is Border inner)
+            inner.Background = new SolidColorBrush(color);
+        else
+            swatch.Background = new SolidColorBrush(color);
+    }
 
     private static string FormatTargetName(string target)
     {
