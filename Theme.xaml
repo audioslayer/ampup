@@ -129,30 +129,40 @@
     <!-- ── ComboBox Hover Border Style ─────────────────────────────── -->
     <!-- ── ComboBox toggle button (dark arrow) ──────────────────── -->
     <ControlTemplate x:Key="DarkComboToggle" TargetType="ToggleButton">
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition />
-                <ColumnDefinition Width="28" />
-            </Grid.ColumnDefinitions>
-            <Border x:Name="Border" Grid.ColumnSpan="2"
-                    CornerRadius="6"
-                    Background="{StaticResource InputBgBrush}"
-                    BorderBrush="{StaticResource InputBorderBrush}"
-                    BorderThickness="1" />
-            <Border Grid.Column="0" CornerRadius="6,0,0,6" Background="Transparent" />
-            <Path x:Name="Arrow" Grid.Column="1"
-                  Data="M 0,0 L 4,4 L 8,0"
-                  Fill="{StaticResource TextPrimaryBrush}"
-                  HorizontalAlignment="Center" VerticalAlignment="Center"
-                  Margin="0,1,0,0" />
-        </Grid>
+        <Border x:Name="Border"
+                CornerRadius="6"
+                Background="#FF222222"
+                BorderBrush="#FF444444"
+                BorderThickness="1.5"
+                Padding="0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition />
+                    <ColumnDefinition Width="32" />
+                </Grid.ColumnDefinitions>
+                <!-- Arrow column with subtle divider -->
+                <Border Grid.Column="1"
+                        BorderBrush="#FF333333"
+                        BorderThickness="1,0,0,0">
+                    <Path x:Name="Arrow"
+                          Data="M 0,0 L 5,5 L 10,0"
+                          Stroke="{StaticResource TextPrimaryBrush}"
+                          StrokeThickness="1.5"
+                          Fill="Transparent"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center" />
+                </Border>
+            </Grid>
+        </Border>
         <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-                <Setter TargetName="Arrow" Property="Fill" Value="{DynamicResource AccentBrush}" />
+                <Setter TargetName="Border" Property="Background" Value="#FF282828" />
+                <Setter TargetName="Arrow" Property="Stroke" Value="{DynamicResource AccentBrush}" />
             </Trigger>
             <Trigger Property="IsChecked" Value="True">
                 <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                <Setter TargetName="Arrow" Property="Stroke" Value="{DynamicResource AccentBrush}" />
             </Trigger>
         </ControlTemplate.Triggers>
     </ControlTemplate>
@@ -160,10 +170,11 @@
     <!-- ── ComboBox full dark style ──────────────────────────────── -->
     <Style x:Key="HoverComboBox" TargetType="ComboBox">
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-        <Setter Property="Background" Value="{StaticResource InputBgBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource InputBorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="10,7" />
+        <Setter Property="Background" Value="#FF222222" />
+        <Setter Property="BorderBrush" Value="#FF444444" />
+        <Setter Property="BorderThickness" Value="1.5" />
+        <Setter Property="Padding" Value="10,8" />
+        <Setter Property="MinHeight" Value="34" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
         <Setter Property="Template">
