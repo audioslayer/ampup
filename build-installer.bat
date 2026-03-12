@@ -10,7 +10,7 @@ if exist installer\output rmdir /s /q installer\output
 
 :: Publish self-contained single-directory output
 echo [1/2] Publishing Amp Up...
-dotnet publish -c Release -r win-x64 --self-contained -o publish -p:PublishSingleFile=false -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishTrimmed=true -p:TrimMode=partial -p:DebugType=None -p:DebugSymbols=false
+dotnet publish -c Release -r win-x64 --self-contained -o publish -p:PublishSingleFile=false -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false
 if errorlevel 1 (
     echo ERROR: dotnet publish failed!
     pause
