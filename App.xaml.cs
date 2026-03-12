@@ -27,6 +27,7 @@ public partial class App : Application
     private AutoProfileSwitcher? _autoSwitcher;
     private TrayMixerPopup? _trayMixerPopup;
     private TrayContextMenu? _trayContextMenu;
+    private AmbienceSync? _ambienceSync;
 
     /// <summary>
     /// Last hardware knob positions (0-1), updated on every knob event.
@@ -79,6 +80,10 @@ public partial class App : Application
         _audioAnalyzer = new AudioAnalyzer();
         _rgb.SetAudioAnalyzer(_audioAnalyzer);
 
+        // Ambience sync (Govee LAN)
+        _ambienceSync = new AmbienceSync(_config.Ambience);
+        _rgb.OnFrameReady += _ambienceSync.OnFrame;
+
         _buttons.OnProfileSwitch += HandleProfileSwitch;
         _buttons.OnDeviceSwitched += HandleDeviceSwitched;
         _buttons.OnBrightnessCycle += HandleBrightnessCycle;
@@ -125,6 +130,7 @@ public partial class App : Application
         _mainWindow = new MainWindow();
         _mainWindow.Closing += MainWindow_Closing;
         _mainWindow.Initialize(_config, _mixer, OnConfigChanged);
+        _mainWindow.SetAmbienceSync(_ambienceSync);
 
         // Start minimized to tray if launched with --minimized (Windows startup)
         var args = Environment.GetCommandLineArgs();
@@ -321,6 +327,7 @@ public partial class App : Application
                 _ = _ha.TestConnectionAsync();
         }
         _autoSwitcher?.UpdateConfig(_config.AutoSwitch);
+        _ambienceSync?.UpdateConfig(_config.Ambience);
     }
 
     private void HandleKnob(KnobEvent e)
@@ -456,6 +463,7 @@ public partial class App : Application
         var serial = _config.Serial;
         var startWithWindows = _config.StartWithWindows;
         var ha = _config.HomeAssistant;
+        var ambience = _config.Ambience;
         var profiles = _config.Profiles;
         var profileIcons = _config.ProfileIcons;
         var ducking = _config.Ducking;
@@ -467,6 +475,7 @@ public partial class App : Application
         _config.Serial = serial;
         _config.StartWithWindows = startWithWindows;
         _config.HomeAssistant = ha;
+        _config.Ambience = ambience;
         _config.Profiles = profiles;
         _config.ProfileIcons = profileIcons;
         _config.Ducking = ducking;
@@ -815,6 +824,7 @@ public partial class App : Application
         _audioAnalyzer?.Dispose();
         _rgb?.Dispose();
         _ha?.Dispose();
+        _ambienceSync?.Dispose();
         _cachedMic?.Dispose();
         _cachedMaster?.Dispose();
         _pollEnumerator?.Dispose();

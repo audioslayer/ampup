@@ -34,6 +34,9 @@ public class AppConfig
     // Integrations
     public HomeAssistantConfig HomeAssistant { get; set; } = new();
 
+    // Ambience — Govee LAN room lighting sync
+    public AmbienceConfig Ambience { get; set; } = new();
+
     // Auto-Ducking
     public DuckingConfig Ducking { get; set; } = new();
 
@@ -399,4 +402,19 @@ public class HomeAssistantConfig
     public bool Enabled { get; set; } = false;
     public string Url { get; set; } = "http://homeassistant.local:8123";
     public string Token { get; set; } = "";
+}
+
+public class AmbienceConfig
+{
+    public bool GoveeEnabled { get; set; } = false;
+    public List<GoveeDeviceConfig> GoveeDevices { get; set; } = new();
+    public int BrightnessScale { get; set; } = 75;
+    public bool WarmToneShift { get; set; } = false;
+}
+
+public class GoveeDeviceConfig
+{
+    public string Ip { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string SyncMode { get; set; } = "off"; // "off" | "global" | "knob0"-"knob4"
 }

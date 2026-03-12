@@ -12,7 +12,14 @@ public class RgbController : IDisposable
 {
     private SerialPort? _port;
     private readonly byte[] _colorMsg = new byte[48];
+    private readonly byte[] _linearColors = new byte[45]; // pre-gamma, post-brightness — for external sync
     private System.Threading.Timer? _refreshTimer;
+
+    /// <summary>
+    /// Called after each frame is computed with pre-gamma linear RGB for all 15 LEDs.
+    /// byte[45]: knob0LED0 R/G/B, knob0LED1 R/G/B, ... knob4LED2 R/G/B
+    /// </summary>
+    public Action<byte[]>? OnFrameReady;
 
     // State tracking
     private readonly float[] _knobPositions = new float[5];
@@ -238,6 +245,11 @@ public class RgbController : IDisposable
             _colorMsg[knobIdx * 9 + led * 3 + 2] = gr;
             _colorMsg[knobIdx * 9 + led * 3 + 3] = gg;
             _colorMsg[knobIdx * 9 + led * 3 + 4] = gb;
+
+            // Store pre-gamma linear values for external sync (Ambience)
+            _linearColors[knobIdx * 9 + led * 3 + 0] = (byte)Math.Clamp(r, 0, 255);
+            _linearColors[knobIdx * 9 + led * 3 + 1] = (byte)Math.Clamp(g, 0, 255);
+            _linearColors[knobIdx * 9 + led * 3 + 2] = (byte)Math.Clamp(b, 0, 255);
         }
     }
 
@@ -257,6 +269,11 @@ public class RgbController : IDisposable
         _colorMsg[knobIdx * 9 + ledIdx * 3 + 2] = Gamma8[Math.Clamp(r, 0, 255)];
         _colorMsg[knobIdx * 9 + ledIdx * 3 + 3] = Gamma8[Math.Clamp(g, 0, 255)];
         _colorMsg[knobIdx * 9 + ledIdx * 3 + 4] = Gamma8[Math.Clamp(b, 0, 255)];
+
+        // Store pre-gamma linear values for external sync (Ambience)
+        _linearColors[knobIdx * 9 + ledIdx * 3 + 0] = (byte)Math.Clamp(r, 0, 255);
+        _linearColors[knobIdx * 9 + ledIdx * 3 + 1] = (byte)Math.Clamp(g, 0, 255);
+        _linearColors[knobIdx * 9 + ledIdx * 3 + 2] = (byte)Math.Clamp(b, 0, 255);
     }
 
     /// <summary>
@@ -304,11 +321,13 @@ public class RgbController : IDisposable
             if (_transitionTick >= TransitionDuration)
                 _transitionTick = -1; // transition complete
             Send();
+            OnFrameReady?.Invoke(_linearColors);
             return; // skip normal effects during transition
         }
 
         UpdateEffects();
         Send();
+        OnFrameReady?.Invoke(_linearColors);
     }
 
     /// <summary>

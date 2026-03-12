@@ -14,6 +14,7 @@ public partial class MainWindow : FluentWindow
     private readonly LightsView _lightsView = new();
     private readonly SettingsView _settingsView = new();
     private readonly HomeAssistantView _haView = new();
+    private readonly AmbienceView _ambienceView = new();
 
     private System.Windows.Controls.Button? _activeNavButton;
     private System.Windows.Controls.Border? _activeNavBar;
@@ -89,6 +90,7 @@ public partial class MainWindow : FluentWindow
         _buttonsView.LoadConfig(_config, _mixer!, saveHandler);
         _mixerView.LoadConfig(_config, _mixer!, saveHandler);
         _haView.LoadConfig(_config, saveHandler);
+        _ambienceView.LoadConfig(_config, saveHandler);
     }
 
     private void NavMixer_Click(object sender, RoutedEventArgs e) => NavigateTo(_mixerView, NavMixer);
@@ -112,6 +114,16 @@ public partial class MainWindow : FluentWindow
         });
         NavigateTo(_haView, NavHA);
     }
+    private void NavAmbience_Click(object sender, RoutedEventArgs e)
+    {
+        _ambienceView.LoadConfig(_config, cfg =>
+        {
+            _config = cfg;
+            _onConfigChanged?.Invoke(cfg);
+        });
+        NavigateTo(_ambienceView, NavAmbience);
+    }
+
     private void NavSettings_Click(object sender, RoutedEventArgs e) => NavigateTo(_settingsView, NavSettings);
 
     public void NavigateToSettings() => NavigateTo(_settingsView, NavSettings);
@@ -148,6 +160,7 @@ public partial class MainWindow : FluentWindow
         { NavButtons,  NavButtonsBar },
         { NavLights,   NavLightsBar },
         { NavHA,       NavHABar },
+        { NavAmbience, NavAmbienceBar },
         { NavSettings, NavSettingsBar },
     };
 
@@ -727,8 +740,14 @@ public partial class MainWindow : FluentWindow
         loaded.Serial = _config.Serial;
         loaded.StartWithWindows = _config.StartWithWindows;
         loaded.HomeAssistant = _config.HomeAssistant;
+        loaded.Ambience = _config.Ambience;
         loaded.Profiles = _config.Profiles;
         loaded.ProfileIcons = _config.ProfileIcons;
+    }
+
+    public void SetAmbienceSync(AmbienceSync sync)
+    {
+        _ambienceView.SetSync(sync);
     }
 
     private void SwitchToProfile(string profileName)
