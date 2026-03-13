@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.5.3--alpha-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.6.0--alpha-blue" alt="Version" />
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6" alt="Platform" />
   <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8" />
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License" />
@@ -18,49 +18,36 @@
 
 ---
 
-## :sparkles: What's New in v0.5.2
+## :sparkles: What's New in v0.6.0
 
-### :art: Complete UI Overhaul
-Every control has been rethemed for a polished dark glassmorphism look:
+### :bulb: Ambience Tab — Govee Room Lighting Sync
+Brand-new sidebar tab for syncing your room lights with AmpUp:
 
-- **Custom dropdowns** — ActionPicker and GridPicker replace stock WPF ComboBoxes with dark popups, colored icons, and accent hover states
-- **Ring-style color swatches** — outer ring border with inner color circle, hover glow matches swatch color
-- **Redesigned tray menu** — WPF popup replaces WinForms menu; inline app assignment with expandable knob list
-- **Smart Mix visual redesign** — human-readable flow ("When this app is active... lower these apps"), rule cards with accent arrows
-- **OSD glow** — separate glow layer eliminates square artifacts on rounded corners
-- **Gradient card borders** — subtle white highlight fade, 10px corner radius
+- **Govee LAN sync** — mirror knob RGB colors to your Govee lights in real-time at 20 FPS
+- **Govee Cloud dashboard** — on/off, brightness, color control, scenes, segment colors, and music mode from within AmpUp
+- **4-step API key setup wizard** — guided onboarding to connect your Govee account
+- **Brightness scaling and warm tone shift** — fine-tune how knob colors translate to room light output
 
-### :rainbow: Multi-Color LED Palettes
-- **12 preset palettes** — Sunset, Ocean, Neon, Galaxy, Vaporwave, Aurora, and more — each with 5 gradient colors mapped across all 15 LEDs
-- **Manual color picking** — primary + secondary ring swatches with full spectrum color picker and quick-pick presets
-- **All effect icons colored** — unique color per effect, dimmed when unselected, bright when selected
+### :new: AppGroupMute LED Effect
+New reactive per-knob effect: shows **Color1** when the knob's app group is unmuted, switches to **Color2** when all apps in the group are muted. Instant feedback at a glance.
 
-### :zap: Profile Switch Transitions
-- **3 new transitions** — Ripple (center-out wave), ColorBurst (white flash + triadic sparks), Wipe (left-to-right gradient sweep)
-- All transitions now derive multi-color patterns from the profile's icon color
+### :mag: Process Picker for Buttons
+`mute_program` and `close_program` button actions now include a **▾ picker** showing all currently running processes — no more typing process names. Improved labels and tooltips throughout the button config UI.
 
-### :speaker: Smart Mix — Auto-Ducking & Auto-Profiles
-- **Auto-Ducking** — automatically fades other apps when a trigger app (e.g. Discord) is speaking
-- **Auto-Profile Switching** — switches profiles based on the foreground window
+### :bug: Win11 Color Picker Fix
+`AllowsTransparency` on the color picker window was breaking hit-testing on Windows 11. Fixed — the color picker now responds correctly to all mouse events.
 
-### :package: Tray Quick Mixer & Quick Assign
-- **Left-click** tray → compact glassmorphic per-app volume mixer
-- **Right-click** tray → assign running apps to knobs instantly
+### :shield: Bug Audit — 8 Stability Fixes
+- Config write race condition (concurrent saves could corrupt config.json)
+- Serial port dispose on reconnect (COM port not fully released on disconnect)
+- AudioAnalyzer thread safety (FFT band reads were unsynchronized)
+- Tray mixer popup memory leak (event handlers not detached on close)
+- Mute poll reentrancy (overlapping timer ticks caused double-toggle)
+- Plus 3 additional stability and edge-case fixes
 
-### :clipboard: Copy / Paste Everywhere
-Right-click context menus on channel strips, LED columns, and button tiles for Copy / Paste / Reset.
-
-### :bulb: New LED Effects
-- **DeviceSelect**, **ProgramMute**, **PositionBlend**, **Wheel**, **RainbowWheel** — per-knob
-- **13 global-spanning effects** — TheaterChase, RainbowScanner, SparkleRain, BreathingSync, FireWall, DualRacer, Lightning, Fillup, Ocean, Collision, DNA, Rainfall, PoliceLights
-
-### :wrench: Quality of Life
-- **Welcome dialog** — 5-step setup guide on first run and updates
-- **Auto-suggest layout** — opt-in toggle in Settings → Preferences
-- **Friendly serial port selector** with Auto-Detect
-- **Per-gesture independent config** for all 3 button gestures
-- **Profile Export / Import** as standalone JSON files
-- **Crash handler** with friendly error dialog and log path
+### :art: Theme Consistency
+- **Accent color reserved for primary controls** — green accent now used only for the most important interactive elements
+- **All sliders theme-aware** — sliders update to match the current accent color dynamically
 
 ---
 
@@ -94,7 +81,7 @@ Amp Up is a community-built alternative for the Turn Up USB mixer with a modern 
   - LED brightness cycling
 
 ### :rainbow: Lights — Full RGB Control
-- :sparkles: **30+ LED effects** — per-knob effects (SingleColor, ColorBlend, PositionFill, GradientFill, PositionBlend, Wheel, RainbowWheel, Blink, Pulse, Breathing, Fire, Comet, Sparkle, PingPong, Stack, Wave, Candle, RainbowWave, RainbowCycle, MicStatus, DeviceMute, ProgramMute, DeviceSelect, AudioReactive)
+- :sparkles: **30+ LED effects** — per-knob effects (SingleColor, ColorBlend, PositionFill, GradientFill, PositionBlend, PositionBlendMute, Wheel, RainbowWheel, Blink, Pulse, Breathing, Fire, Comet, Sparkle, PingPong, Stack, Wave, Candle, RainbowWave, RainbowCycle, MicStatus, DeviceMute, ProgramMute, AppGroupMute, DeviceSelect, AudioReactive)
 - :globe_with_meridians: **17 global-spanning effects** — Scanner, MeteorRain, ColorWave, Segments, TheaterChase, RainbowScanner, SparkleRain, BreathingSync, FireWall, DualRacer, Lightning, Fillup, Ocean, Collision, DNA, Rainfall, PoliceLights (all 15 LEDs as one continuous strip)
 - :art: **Dual color support** — primary and secondary colors per effect
 - :fast_forward: **Speed control** — adjustable animation speed per knob
@@ -120,6 +107,12 @@ Amp Up is a community-built alternative for the Turn Up USB mixer with a modern 
 - :speaker: **Quick Mixer** — left-click tray icon for compact per-app volume popup
 - :mag: **Quick Assign** — right-click tray → Assign Running Apps → pick a knob instantly
 
+### :bulb: Ambience — Room Lighting
+- :globe_with_meridians: **Govee LAN sync** — mirror knob RGB colors to Govee lights in real-time at 20 FPS
+- :cloud: **Govee Cloud dashboard** — control on/off, brightness, color, scenes, segment colors, and music mode
+- :key: **API key setup wizard** — 4-step guided onboarding to connect your Govee account
+- :high_brightness: **Brightness scaling and warm tone shift** — fine-tune how knob colors translate to room light output
+
 ### :gear: System Integration
 - :house: **Home Assistant** — connect to your smart home for automation triggers
 - :arrow_up: **Auto-update** — checks for new releases on startup with one-click install
@@ -132,7 +125,7 @@ Amp Up is a community-built alternative for the Turn Up USB mixer with a modern 
 ## :inbox_tray: Install
 
 ### Installer (Recommended)
-1. Download `AmpUp-Setup-0.5.2-alpha.exe` from [Releases](https://github.com/audioslayer/ampup/releases)
+1. Download `AmpUp-Setup-0.6.0-alpha.exe` from [Releases](https://github.com/audioslayer/ampup/releases)
 2. Run the installer
 3. Amp Up appears in your system tray
 
@@ -162,6 +155,7 @@ Open the app from the system tray to access four configuration tabs:
 | :musical_keyboard: **Mixer** | Knob targets, response curves, volume range, app groups, Smart Mix |
 | :video_game: **Buttons** | Actions for tap / double-press / hold per button |
 | :rainbow: **Lights** | LED effects, colors, speed, global brightness |
+| :bulb: **Ambience** | Govee LAN sync, Govee Cloud dashboard, API key setup |
 | :gear: **Settings** | Serial port, startup, profiles, Home Assistant |
 
 All changes save automatically and apply in real-time.
@@ -213,10 +207,14 @@ Amp Up is designed for the **Turn Up** USB volume mixer (CH343 USB-to-serial). T
 - [x] Auto-Profile Switching
 - [x] Tray Quick Mixer
 - [x] Profile Export / Import
+- [x] Govee room lighting sync (Ambience tab — LAN + Cloud)
 - [ ] OBS WebSocket integration (scene switching, source control)
 - [ ] VoiceMeeter strip/bus control
 - [ ] Multi-device support
 - [ ] FanControl integration
+- [ ] OpenRGB integration (sync AmpUp LEDs with other RGB hardware)
+- [ ] Mobile companion app (view VU meters, swap profiles from phone)
+- [ ] Velopack delta updates (faster, smaller incremental app updates)
 
 ---
 
