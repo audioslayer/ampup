@@ -37,6 +37,7 @@ public class ActionPicker : Border
     private string? _activeSubParentValue;
     private List<SubItem> _activeSubItems = new();
     private readonly DispatcherTimer _subOpenTimer;
+    private readonly DispatcherTimer _closeTimer;
     private int _hoveredSubMenuIdx = -1;
 
     private int _selectedIndex = -1;
@@ -225,6 +226,31 @@ public class ActionPicker : Border
         {
             _popup.StaysOpen = false;
             _hoveredSubMenuIdx = -1;
+        };
+
+        // Timer to close both popups when mouse leaves all popup areas
+        _closeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        _closeTimer.Tick += (_, _) =>
+        {
+            _closeTimer.Stop();
+            if (_subPopup.IsOpen) _subPopup.IsOpen = false;
+            _popup.IsOpen = false;
+        };
+
+        // Cancel close when mouse enters either popup
+        _popupBorder.MouseEnter += (_, _) => _closeTimer.Stop();
+        _subPopupBorder.MouseEnter += (_, _) => _closeTimer.Stop();
+
+        // Start close timer when mouse leaves either popup
+        _popupBorder.MouseLeave += (_, _) =>
+        {
+            _closeTimer.Stop();
+            _closeTimer.Start();
+        };
+        _subPopupBorder.MouseLeave += (_, _) =>
+        {
+            _closeTimer.Stop();
+            _closeTimer.Start();
         };
 
         _subOpenTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
