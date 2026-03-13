@@ -150,19 +150,19 @@ public class GoveeSetupGuide : Window
 
         // Build step panels
         _stepPanels.Add(BuildStep(
-            "📱",
+            "1", "#4FC3F7",
             "Open the Govee App",
             "Open the Govee Home app on your phone.",
             "If you don't have it, download it from the App Store or Google Play."
         ));
         _stepPanels.Add(BuildStep(
-            "⚙️",
+            "2", "#AB47BC",
             "Go to Settings",
             "Tap your profile icon (bottom right), then the settings gear (top right).",
             "Look for the person icon → then the cog icon."
         ));
         _stepPanels.Add(BuildStep(
-            "🔑",
+            "3", "#FFA726",
             "Request API Key",
             "Tap \"Apply for API Key\" and fill out the short form.",
             "Govee will email your API key — usually within minutes."
@@ -181,7 +181,7 @@ public class GoveeSetupGuide : Window
         return outerBorder;
     }
 
-    private UIElement BuildStep(string icon, string title, string body, string subtext)
+    private UIElement BuildStep(string label, string colorHex, string title, string body, string subtext)
     {
         var panel = new StackPanel
         {
@@ -190,29 +190,32 @@ public class GoveeSetupGuide : Window
             Width = 400,
         };
 
-        // Icon in a circle card
+        // Colored numbered circle
+        var circleColor = (Color)ColorConverter.ConvertFromString(colorHex);
         var iconCard = new Border
         {
             Width = 72,
             Height = 72,
             CornerRadius = new CornerRadius(36),
-            Background = CardBg,
-            BorderBrush = CardBorder,
-            BorderThickness = new Thickness(1),
+            Background = new SolidColorBrush(Color.FromArgb(0x30, circleColor.R, circleColor.G, circleColor.B)),
+            BorderBrush = new SolidColorBrush(circleColor),
+            BorderThickness = new Thickness(2),
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 0, 0, 24),
             Effect = new DropShadowEffect
             {
-                Color = Color.FromRgb(0x00, 0xE6, 0x76),
+                Color = circleColor,
                 BlurRadius = 20,
                 ShadowDepth = 0,
-                Opacity = 0.18
+                Opacity = 0.25
             }
         };
         var iconText = new TextBlock
         {
-            Text = icon,
-            FontSize = 32,
+            Text = label,
+            FontSize = 28,
+            FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(circleColor),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -277,9 +280,9 @@ public class GoveeSetupGuide : Window
             Width = 72,
             Height = 72,
             CornerRadius = new CornerRadius(36),
-            Background = CardBg,
-            BorderBrush = CardBorder,
-            BorderThickness = new Thickness(1),
+            Background = new SolidColorBrush(Color.FromArgb(0x30, 0x00, 0xE6, 0x76)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76)),
+            BorderThickness = new Thickness(2),
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 0, 0, 24),
             Effect = new DropShadowEffect
@@ -287,13 +290,15 @@ public class GoveeSetupGuide : Window
                 Color = Color.FromRgb(0x00, 0xE6, 0x76),
                 BlurRadius = 20,
                 ShadowDepth = 0,
-                Opacity = 0.18
+                Opacity = 0.25
             }
         };
         iconCard.Child = new TextBlock
         {
-            Text = "✅",
-            FontSize = 32,
+            Text = "4",
+            FontSize = 28,
+            FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76)),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
