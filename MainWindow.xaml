@@ -157,7 +157,7 @@
                     </Popup>
 
                     <DockPanel Grid.Row="1" Margin="0,12,0,0" LastChildFill="True">
-                        <!-- Import button pinned to bottom -->
+                        <!-- Import at very bottom, Bindings directly above it -->
                         <Button x:Name="NavImport" Style="{StaticResource NavButton}" Click="NavImport_Click"
                                 DockPanel.Dock="Bottom" ToolTip="Import from Turn Up">
                             <Grid>
@@ -171,6 +171,23 @@
                                 <StackPanel Grid.Column="1" HorizontalAlignment="Center">
                                     <ui:SymbolIcon Symbol="ArrowUpload24" FontSize="20" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" />
                                     <TextBlock Text="Import" FontSize="9" Foreground="{StaticResource TextDimBrush}"
+                                               HorizontalAlignment="Center" Margin="0,3,0,0" />
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                        <Button x:Name="NavBindings" Style="{StaticResource NavButton}" Click="NavBindings_Click"
+                                DockPanel.Dock="Bottom" ToolTip="View all bindings across profiles">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="3" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border x:Name="NavBindingsBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
+                                        Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
+                                        Visibility="Collapsed" Margin="-4,0,0,0" />
+                                <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                                    <ui:SymbolIcon Symbol="DataBarVertical24" FontSize="22" Foreground="{StaticResource TextSecBrush}" HorizontalAlignment="Center" />
+                                    <TextBlock x:Name="NavBindingsLabel" Text="Bindings" FontSize="9" Foreground="{StaticResource TextSecBrush}"
                                                HorizontalAlignment="Center" Margin="0,3,0,0" />
                                 </StackPanel>
                             </Grid>
@@ -270,22 +287,6 @@
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
                                         <ui:SymbolIcon Symbol="Settings24" FontSize="22" Foreground="{StaticResource TextSecBrush}" HorizontalAlignment="Center" />
                                         <TextBlock x:Name="NavSettingsLabel" Text="Settings" FontSize="9" Foreground="{StaticResource TextSecBrush}"
-                                                   HorizontalAlignment="Center" Margin="0,3,0,0" />
-                                    </StackPanel>
-                                </Grid>
-                            </Button>
-                            <Button x:Name="NavBindings" Style="{StaticResource NavButton}" Click="NavBindings_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="3" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border x:Name="NavBindingsBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
-                                            Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
-                                            Visibility="Collapsed" Margin="-4,0,0,0" />
-                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <ui:SymbolIcon Symbol="DataBarVertical24" FontSize="22" Foreground="{StaticResource TextSecBrush}" HorizontalAlignment="Center" />
-                                        <TextBlock x:Name="NavBindingsLabel" Text="Bindings" FontSize="9" Foreground="{StaticResource TextSecBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
                                 </Grid>
