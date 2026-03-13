@@ -230,9 +230,9 @@ public partial class MainWindow : FluentWindow
             // Double-click to toggle maximize
             WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
         }
-        else
+        else if (e.ButtonState == MouseButtonState.Pressed)
         {
-            DragMove();
+            try { DragMove(); } catch (InvalidOperationException) { }
         }
     }
 
