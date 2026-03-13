@@ -1409,6 +1409,7 @@ public partial class AmbienceView : UserControl
             if (bar != null) bar.Background = new SolidColorBrush(accent);
             if (label != null) label.Foreground = new SolidColorBrush(accent);
         }
+        _brightnessSlider.AccentColor = accent;
     }
 
     // ── Resource helpers ──────────────────────────────────────────────

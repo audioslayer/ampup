@@ -100,9 +100,9 @@ public class StyledSlider : FrameworkElement
         dc.DrawRoundedRectangle(s_trackBg, null,
             new Rect(TrackLeft, trackTop, TrackWidth, TrackHeight), 1.5, 1.5);
 
-        // Filled portion
+        // Filled portion (accent colored)
         double vx = ValueToX(Value);
-        var fillBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+        var fillBrush = new SolidColorBrush(AccentColor);
         fillBrush.Freeze();
         if (vx > TrackLeft)
         {
@@ -110,8 +110,8 @@ public class StyledSlider : FrameworkElement
                 new Rect(TrackLeft, trackTop, vx - TrackLeft, TrackHeight), 1.5, 1.5);
         }
 
-        // Thumb
-        var thumbFillBrush = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
+        // Thumb (accent colored)
+        var thumbFillBrush = new SolidColorBrush(AccentColor);
         thumbFillBrush.Freeze();
         var thumbPen = new Pen(s_thumbBorder, 1.5);
         thumbPen.Freeze();
