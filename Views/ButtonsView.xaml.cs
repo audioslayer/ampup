@@ -345,6 +345,7 @@ public partial class ButtonsView : UserControl
         SelectPowerSegment(_tapPowerSegments[idx], btn.PowerAction);
         SelectKnobPicker(_tapKnobPickers[idx], btn.LinkedKnobIdx);
         SelectHaSubTag(_tapCombos[idx], btn.Action, btn.Path);
+        SelectDeviceSubTag(_tapCombos[idx], btn.Action, btn.DeviceId);
         SelectGoveeDevicePicker(_tapGoveeDevicePickers[idx], btn.Action, btn.Path);
         UpdateTapVisibility(idx, btn.Action);
         UpdateHeaderDisplay(idx);
@@ -359,9 +360,10 @@ public partial class ButtonsView : UserControl
         SelectPowerSegment(_dblPowerSegments[idx], btn.DoublePressPowerAction);
         SelectKnobPicker(_dblKnobPickers[idx], btn.DoublePressLinkedKnobIdx);
         SelectHaSubTag(_dblCombos[idx], btn.DoublePressAction, btn.DoublePressPath);
+        SelectDeviceSubTag(_dblCombos[idx], btn.DoublePressAction, btn.DoublePressDeviceId);
         SelectGoveeDevicePicker(_dblGoveeDevicePickers[idx], btn.DoublePressAction, btn.DoublePressPath);
         UpdateGestureVisibility(_dblPathPanels[idx], _dblPathLabels[idx], _dblBrowseButtons[idx], _dblPickButtons[idx], _dblMacroPanels[idx],
-            _dblDevicePanels[idx], _dblCycleDevicePanels[idx], _dblProfilePanels[idx],
+            _dblDevicePanels[idx], _dblCycleDevicePanels[idx], _dblCycleDevicePickers[idx], _dblProfilePanels[idx],
             _dblPowerPanels[idx], _dblKnobPanels[idx], _dblGoveeDevicePanels[idx], btn.DoublePressAction);
 
         // HOLD
@@ -374,9 +376,10 @@ public partial class ButtonsView : UserControl
         SelectPowerSegment(_holdPowerSegments[idx], btn.HoldPowerAction);
         SelectKnobPicker(_holdKnobPickers[idx], btn.HoldLinkedKnobIdx);
         SelectHaSubTag(_holdCombos[idx], btn.HoldAction, btn.HoldPath);
+        SelectDeviceSubTag(_holdCombos[idx], btn.HoldAction, btn.HoldDeviceId);
         SelectGoveeDevicePicker(_holdGoveeDevicePickers[idx], btn.HoldAction, btn.HoldPath);
         UpdateGestureVisibility(_holdPathPanels[idx], _holdPathLabels[idx], _holdBrowseButtons[idx], _holdPickButtons[idx], _holdMacroPanels[idx],
-            _holdDevicePanels[idx], _holdCycleDevicePanels[idx], _holdProfilePanels[idx],
+            _holdDevicePanels[idx], _holdCycleDevicePanels[idx], _holdCycleDevicePickers[idx], _holdProfilePanels[idx],
             _holdPowerPanels[idx], _holdKnobPanels[idx], _holdGoveeDevicePanels[idx], btn.HoldAction);
 
         _loading = false;
@@ -459,6 +462,7 @@ public partial class ButtonsView : UserControl
             SelectPowerSegment(_tapPowerSegments[i], btn.PowerAction);
             SelectKnobPicker(_tapKnobPickers[i], btn.LinkedKnobIdx);
             SelectHaSubTag(_tapCombos[i], btn.Action, btn.Path);
+            SelectDeviceSubTag(_tapCombos[i], btn.Action, btn.DeviceId);
             SelectGoveeDevicePicker(_tapGoveeDevicePickers[i], btn.Action, btn.Path);
             UpdateTapVisibility(i, btn.Action);
             UpdateHeaderDisplay(i);
@@ -473,9 +477,10 @@ public partial class ButtonsView : UserControl
             SelectPowerSegment(_dblPowerSegments[i], btn.DoublePressPowerAction);
             SelectKnobPicker(_dblKnobPickers[i], btn.DoublePressLinkedKnobIdx);
             SelectHaSubTag(_dblCombos[i], btn.DoublePressAction, btn.DoublePressPath);
+            SelectDeviceSubTag(_dblCombos[i], btn.DoublePressAction, btn.DoublePressDeviceId);
             SelectGoveeDevicePicker(_dblGoveeDevicePickers[i], btn.DoublePressAction, btn.DoublePressPath);
             UpdateGestureVisibility(_dblPathPanels[i], _dblPathLabels[i], _dblBrowseButtons[i], _dblPickButtons[i], _dblMacroPanels[i],
-                _dblDevicePanels[i], _dblCycleDevicePanels[i], _dblProfilePanels[i],
+                _dblDevicePanels[i], _dblCycleDevicePanels[i], _dblCycleDevicePickers[i], _dblProfilePanels[i],
                 _dblPowerPanels[i], _dblKnobPanels[i], _dblGoveeDevicePanels[i], btn.DoublePressAction);
 
             // HOLD
@@ -488,9 +493,10 @@ public partial class ButtonsView : UserControl
             SelectPowerSegment(_holdPowerSegments[i], btn.HoldPowerAction);
             SelectKnobPicker(_holdKnobPickers[i], btn.HoldLinkedKnobIdx);
             SelectHaSubTag(_holdCombos[i], btn.HoldAction, btn.HoldPath);
+            SelectDeviceSubTag(_holdCombos[i], btn.HoldAction, btn.HoldDeviceId);
             SelectGoveeDevicePicker(_holdGoveeDevicePickers[i], btn.HoldAction, btn.HoldPath);
             UpdateGestureVisibility(_holdPathPanels[i], _holdPathLabels[i], _holdBrowseButtons[i], _holdPickButtons[i], _holdMacroPanels[i],
-                _holdDevicePanels[i], _holdCycleDevicePanels[i], _holdProfilePanels[i],
+                _holdDevicePanels[i], _holdCycleDevicePanels[i], _holdCycleDevicePickers[i], _holdProfilePanels[i],
                 _holdPowerPanels[i], _holdKnobPanels[i], _holdGoveeDevicePanels[i], btn.HoldAction);
         }
 
@@ -761,7 +767,7 @@ public partial class ButtonsView : UserControl
                 if (_loading) return;
                 var val = GetComboActionValue(dblCombo);
                 UpdateGestureVisibility(_dblPathPanels[idx], _dblPathLabels[idx], _dblBrowseButtons[idx], _dblPickButtons[idx], _dblMacroPanels[idx],
-                    _dblDevicePanels[idx], _dblCycleDevicePanels[idx], _dblProfilePanels[idx],
+                    _dblDevicePanels[idx], _dblCycleDevicePanels[idx], _dblCycleDevicePickers[idx], _dblProfilePanels[idx],
                     _dblPowerPanels[idx], _dblKnobPanels[idx], _dblGoveeDevicePanels[idx], val);
                 QueueSave();
             };
@@ -840,7 +846,7 @@ public partial class ButtonsView : UserControl
                 if (_loading) return;
                 var val = GetComboActionValue(holdCombo);
                 UpdateGestureVisibility(_holdPathPanels[idx], _holdPathLabels[idx], _holdBrowseButtons[idx], _holdPickButtons[idx], _holdMacroPanels[idx],
-                    _holdDevicePanels[idx], _holdCycleDevicePanels[idx], _holdProfilePanels[idx],
+                    _holdDevicePanels[idx], _holdCycleDevicePanels[idx], _holdCycleDevicePickers[idx], _holdProfilePanels[idx],
                     _holdPowerPanels[idx], _holdKnobPanels[idx], _holdGoveeDevicePanels[idx], val);
                 QueueSave();
             };
@@ -885,23 +891,24 @@ public partial class ButtonsView : UserControl
 
     private void UpdateTapVisibility(int idx, string action)
     {
-        bool isHaEntityAction = action is "ha_toggle" or "ha_scene";
         bool isHaServiceAction = action == "ha_service";
         bool isGoveeAction = action is "govee_toggle" or "govee_color";
         _tapPathPanels[idx].Visibility = PathActions.Contains(action) || isHaServiceAction || action == "govee_color" ? Visibility.Visible : Visibility.Collapsed;
         ApplyPathLabelAndButtons(_tapPathLabels[idx], _tapPathBoxes[idx], _tapBrowseButtons[idx], _tapPickButtons[idx], action);
         _tapMacroPanels[idx].Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
-        _tapDevicePanels[idx].Visibility = action is "select_output" or "select_input" or "mute_device" ? Visibility.Visible : Visibility.Collapsed;
+        _tapDevicePanels[idx].Visibility = Visibility.Collapsed; // select/mute now use sub-flyout
         _tapCycleDevicePanels[idx].Visibility = action is "cycle_output" or "cycle_input" ? Visibility.Visible : Visibility.Collapsed;
+        if (action is "cycle_output" or "cycle_input")
+            PopulateCycleDevicePicker(_tapCycleDevicePickers[idx], action == "cycle_output");
         _tapProfilePanels[idx].Visibility = action == "switch_profile" ? Visibility.Visible : Visibility.Collapsed;
         _tapPowerPanels[idx].Visibility = action == "system_power" ? Visibility.Visible : Visibility.Collapsed;
         _tapKnobPanels[idx].Visibility = action == "mute_app_group" ? Visibility.Visible : Visibility.Collapsed;
         _tapGoveeDevicePanels[idx].Visibility = isGoveeAction ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private static void UpdateGestureVisibility(
+    private void UpdateGestureVisibility(
         StackPanel pathPanel, TextBlock pathLabel, Button browseBtn, Button pickBtn, StackPanel macroPanel,
-        StackPanel devicePanel, StackPanel cycleDevicePanel, StackPanel profilePanel,
+        StackPanel devicePanel, StackPanel cycleDevicePanel, CheckListPicker cycleDevicePicker, StackPanel profilePanel,
         StackPanel powerPanel, StackPanel knobPanel, StackPanel goveeDevicePanel, string action)
     {
         bool isHaServiceAction = action == "ha_service";
@@ -909,8 +916,10 @@ public partial class ButtonsView : UserControl
         pathPanel.Visibility = PathActions.Contains(action) || isHaServiceAction || action == "govee_color" ? Visibility.Visible : Visibility.Collapsed;
         ApplyPathLabelAndButtons(pathLabel, null, browseBtn, pickBtn, action);
         macroPanel.Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
-        devicePanel.Visibility = action is "select_output" or "select_input" or "mute_device" ? Visibility.Visible : Visibility.Collapsed;
+        devicePanel.Visibility = Visibility.Collapsed; // select/mute now use sub-flyout
         cycleDevicePanel.Visibility = action is "cycle_output" or "cycle_input" ? Visibility.Visible : Visibility.Collapsed;
+        if (action is "cycle_output" or "cycle_input")
+            PopulateCycleDevicePicker(cycleDevicePicker, action == "cycle_output");
         profilePanel.Visibility = action == "switch_profile" ? Visibility.Visible : Visibility.Collapsed;
         powerPanel.Visibility = action == "system_power" ? Visibility.Visible : Visibility.Collapsed;
         knobPanel.Visibility = action == "mute_app_group" ? Visibility.Visible : Visibility.Collapsed;
@@ -984,7 +993,7 @@ public partial class ButtonsView : UserControl
             btn.Action = GetComboActionValue(_tapCombos[i]);
             btn.Path = GetActionPath(_tapCombos[i], _tapGoveeDevicePickers[i], _tapPathBoxes[i]);
             btn.MacroKeys = GetTextBoxValue(_tapMacroBoxes[i]);
-            btn.DeviceId = GetSelectedDeviceId(_tapDevicePickers[i]);
+            btn.DeviceId = GetDeviceIdForAction(btn.Action, _tapCombos[i], _tapDevicePickers[i]);
             btn.DeviceIds = _tapCycleDevicePickers[i].GetCheckedIds();
             btn.ProfileName = _tapProfilePickers[i].SelectedTag as string ?? "";
             btn.PowerAction = GetSelectedPowerValue(_tapPowerSegments[i]);
@@ -993,7 +1002,7 @@ public partial class ButtonsView : UserControl
             btn.DoublePressAction = GetComboActionValue(_dblCombos[i]);
             btn.DoublePressPath = GetActionPath(_dblCombos[i], _dblGoveeDevicePickers[i], _dblPathBoxes[i]);
             btn.DoublePressMacroKeys = GetTextBoxValue(_dblMacroBoxes[i]);
-            btn.DoublePressDeviceId = GetSelectedDeviceId(_dblDevicePickers[i]);
+            btn.DoublePressDeviceId = GetDeviceIdForAction(btn.DoublePressAction, _dblCombos[i], _dblDevicePickers[i]);
             btn.DoublePressDeviceIds = _dblCycleDevicePickers[i].GetCheckedIds();
             btn.DoublePressProfileName = _dblProfilePickers[i].SelectedTag as string ?? "";
             btn.DoublePressPowerAction = GetSelectedPowerValue(_dblPowerSegments[i]);
@@ -1002,7 +1011,7 @@ public partial class ButtonsView : UserControl
             btn.HoldAction = GetComboActionValue(_holdCombos[i]);
             btn.HoldPath = GetActionPath(_holdCombos[i], _holdGoveeDevicePickers[i], _holdPathBoxes[i]);
             btn.HoldMacroKeys = GetTextBoxValue(_holdMacroBoxes[i]);
-            btn.HoldDeviceId = GetSelectedDeviceId(_holdDevicePickers[i]);
+            btn.HoldDeviceId = GetDeviceIdForAction(btn.HoldAction, _holdCombos[i], _holdDevicePickers[i]);
             btn.HoldDeviceIds = _holdCycleDevicePickers[i].GetCheckedIds();
             btn.HoldProfileName = _holdProfilePickers[i].SelectedTag as string ?? "";
             btn.HoldPowerAction = GetSelectedPowerValue(_holdPowerSegments[i]);
@@ -1150,16 +1159,22 @@ public partial class ButtonsView : UserControl
             PopulateActionPicker(_holdCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured);
         }
 
-        // Register sub-flyout providers for HA actions (entities slide out on hover)
-        if (haEnabled || anyHaConfigured)
+        // Register sub-flyout providers
+        for (int i = 0; i < 5; i++)
         {
-            for (int i = 0; i < 5; i++)
+            foreach (var picker in new[] { _tapCombos[i], _dblCombos[i], _holdCombos[i] })
             {
-                foreach (var picker in new[] { _tapCombos[i], _dblCombos[i], _holdCombos[i] })
+                // HA entity sub-menus
+                if (haEnabled || anyHaConfigured)
                 {
                     picker.RegisterSubMenu("ha_toggle", () => GetHASubItems("ha_toggle"));
                     picker.RegisterSubMenu("ha_scene", () => GetHASubItems("ha_scene"));
                 }
+
+                // Device sub-menus (filtered by direction)
+                picker.RegisterSubMenu("select_output", () => GetDeviceSubItems(isOutput: true));
+                picker.RegisterSubMenu("select_input", () => GetDeviceSubItems(isOutput: false));
+                picker.RegisterSubMenu("mute_device", () => GetDeviceSubItems(isOutput: true));
             }
         }
     }
@@ -1489,11 +1504,14 @@ public partial class ButtonsView : UserControl
         return (container, picker);
     }
 
-    private void PopulateCycleDevicePicker(CheckListPicker picker)
+    private void PopulateCycleDevicePicker(CheckListPicker picker, bool? outputOnly = null)
     {
         picker.ClearItems();
         foreach (var (id, name, isOutput) in _audioDevices)
-            picker.AddItem($"[{(isOutput ? "OUT" : "IN")}] {name}", id);
+        {
+            if (outputOnly.HasValue && isOutput != outputOnly.Value) continue;
+            picker.AddItem(name, id);
+        }
     }
 
     private (StackPanel panel, SegmentedControl segment) MakePowerSegmentRow(string label)
@@ -1581,11 +1599,14 @@ public partial class ButtonsView : UserControl
 
     // ── Picker helpers ──────────────────────────────────────────────
 
-    private void PopulateDevicePicker(ListPicker picker)
+    private void PopulateDevicePicker(ListPicker picker, bool? outputOnly = null)
     {
         picker.ClearItems();
         foreach (var (id, name, isOutput) in _audioDevices)
-            picker.AddItem($"[{(isOutput ? "OUT" : "IN")}] {name}", id);
+        {
+            if (outputOnly.HasValue && isOutput != outputOnly.Value) continue;
+            picker.AddItem(name, id);
+        }
     }
 
     private void SelectDevicePicker(ListPicker picker, string deviceId)
@@ -1597,6 +1618,14 @@ public partial class ButtonsView : UserControl
     }
 
     private string GetSelectedDeviceId(ListPicker picker) => picker.SelectedTag as string ?? "";
+
+    private string GetDeviceIdForAction(string action, ActionPicker combo, ListPicker legacyPicker)
+    {
+        // For select/mute actions, prefer sub-tag from ActionPicker flyout
+        if (action is "select_output" or "select_input" or "mute_device")
+            return combo.SelectedSubTag ?? GetSelectedDeviceId(legacyPicker);
+        return GetSelectedDeviceId(legacyPicker);
+    }
 
     private void PopulateProfilePicker(ListPicker picker, AppConfig config)
     {
@@ -1683,10 +1712,17 @@ public partial class ButtonsView : UserControl
         picker.SelectWithSub(action, entityId);
     }
 
+    private void SelectDeviceSubTag(ActionPicker picker, string action, string deviceId)
+    {
+        if (action is not ("select_output" or "select_input" or "mute_device") || string.IsNullOrEmpty(deviceId))
+            return;
+        picker.SelectWithSub(action, deviceId);
+    }
+
     private string GetActionPath(ActionPicker combo, ListPicker goveePicker, TextBox pathBox)
     {
         var action = GetComboActionValue(combo);
-        if (action is "ha_toggle" or "ha_scene")
+        if (action is "ha_toggle" or "ha_scene" or "select_output" or "select_input" or "mute_device")
             return combo.SelectedSubTag ?? "";
         if (action is "govee_toggle")
             return goveePicker.SelectedTag as string ?? "";
@@ -1719,6 +1755,16 @@ public partial class ButtonsView : UserControl
                 var (icon, color) = HADomainStyles.GetStyle(e.Domain);
                 return new ActionPicker.SubItem(e.FriendlyName, e.EntityId, icon, color);
             })
+            .ToList();
+    }
+
+    private List<ActionPicker.SubItem> GetDeviceSubItems(bool isOutput)
+    {
+        return _audioDevices
+            .Where(d => d.IsOutput == isOutput)
+            .OrderBy(d => d.Name)
+            .Select(d => new ActionPicker.SubItem(d.Name, d.Id, isOutput ? "🔊" : "🎙",
+                Color.FromRgb(0xAB, 0x47, 0xBC)))
             .ToList();
     }
 
