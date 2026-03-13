@@ -136,42 +136,70 @@ public class HAIntegration : IDisposable
         }
     }
 
-    // Knob controls
-
-    public async Task SetLightBrightnessAsync(string entityId, float value)
+    /// <summary>
+    /// Fire-and-forget service call — sends HTTP request without waiting for HA's full response.
+    /// Used by knob controls where HA's slow device confirmation (2-10s) would block the throttle loop.
+    /// </summary>
+    private void CallServiceFireAndForget(string domain, string service, object data)
     {
-        await CallServiceInternalAsync("light", "turn_on", new
+        if (_http == null) return;
+        try
+        {
+            var json = JsonConvert.SerializeObject(data);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            // Don't await — let it fly
+            _http.PostAsync($"/api/services/{domain}/{service}", content).ContinueWith(t =>
+            {
+                if (t.IsFaulted)
+                    Logger.Log($"HA fire-and-forget {domain}.{service} failed: {t.Exception?.InnerException?.Message}");
+            }, TaskContinuationOptions.OnlyOnFaulted);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"HA fire-and-forget {domain}.{service} error: {ex.Message}");
+        }
+    }
+
+    // Knob controls (fire-and-forget for responsiveness)
+
+    public Task SetLightBrightnessAsync(string entityId, float value)
+    {
+        CallServiceFireAndForget("light", "turn_on", new
         {
             entity_id = entityId,
             brightness = (int)(Math.Clamp(value, 0f, 1f) * 255)
         });
+        return Task.CompletedTask;
     }
 
-    public async Task SetMediaVolumeAsync(string entityId, float value)
+    public Task SetMediaVolumeAsync(string entityId, float value)
     {
-        await CallServiceInternalAsync("media_player", "volume_set", new
+        CallServiceFireAndForget("media_player", "volume_set", new
         {
             entity_id = entityId,
             volume_level = Math.Clamp(value, 0f, 1f)
         });
+        return Task.CompletedTask;
     }
 
-    public async Task SetCoverPositionAsync(string entityId, float value)
+    public Task SetCoverPositionAsync(string entityId, float value)
     {
-        await CallServiceInternalAsync("cover", "set_cover_position", new
+        CallServiceFireAndForget("cover", "set_cover_position", new
         {
             entity_id = entityId,
             position = (int)(Math.Clamp(value, 0f, 1f) * 100)
         });
+        return Task.CompletedTask;
     }
 
-    public async Task SetFanSpeedAsync(string entityId, float value)
+    public Task SetFanSpeedAsync(string entityId, float value)
     {
-        await CallServiceInternalAsync("fan", "turn_on", new
+        CallServiceFireAndForget("fan", "turn_on", new
         {
             entity_id = entityId,
             percentage = (int)(Math.Clamp(value, 0f, 1f) * 100)
         });
+        return Task.CompletedTask;
     }
 
     // Button actions
