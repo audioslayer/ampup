@@ -121,13 +121,14 @@ public static class UpdateChecker
 
         Logger.Log($"Update downloaded to {tempPath}, launching installer...");
 
-        // Launch a helper cmd that waits for us to exit, then runs the installer
+        // Launch a helper script that waits for us to exit, then runs the installer
+        var batPath = Path.Combine(Path.GetTempPath(), "AmpUp-Update.bat");
+        File.WriteAllText(batPath, $"@echo off\ntimeout /t 3 /nobreak >nul\nstart \"\" \"{tempPath}\"\ndel \"%~f0\"\n");
         Process.Start(new ProcessStartInfo
         {
-            FileName = "cmd.exe",
-            Arguments = $"/c timeout /t 2 /nobreak >nul & \"{tempPath}\"",
-            UseShellExecute = false,
-            CreateNoWindow = true
+            FileName = batPath,
+            UseShellExecute = true,
+            WindowStyle = ProcessWindowStyle.Hidden
         });
 
         // Shut down the app so the installer can replace files
