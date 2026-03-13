@@ -28,6 +28,7 @@
     <Resource Include="Assets\icon\ampup-256.png" />
     <Resource Include="Assets\icon\ampup-512.png" />
     <Resource Include="Fonts\MaterialSymbolsOutlined.ttf" />
+    <Resource Include="Fonts\SpaceGrotesk-VariableFont_wght.ttf" />
   </ItemGroup>
 
   <ItemGroup>

@@ -10,6 +10,9 @@
                 <ui:ControlsDictionary />
                 <ResourceDictionary Source="Theme.xaml" />
             </ResourceDictionary.MergedDictionaries>
+            <Style TargetType="Window">
+                <Setter Property="FontFamily" Value="pack://application:,,,/Fonts/#Space Grotesk" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

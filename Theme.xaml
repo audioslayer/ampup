@@ -1,6 +1,18 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
+    <!-- ── Typography ───────────────────────────────────────────── -->
+    <FontFamily x:Key="AppFont">pack://application:,,,/Fonts/#Space Grotesk</FontFamily>
+
+    <!-- Global font — TextBlock covers most text; TextBox for inputs.
+         Button/Label omitted to avoid overriding WPF-UI FluentButton templates. -->
+    <Style TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+    </Style>
+    <Style TargetType="TextBox">
+        <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+    </Style>
+
     <!-- ── Color Palette ─────────────────────────────────────────── -->
     <Color x:Key="BgBase">#0F0F0F</Color>
     <Color x:Key="BgDark">#141414</Color>
@@ -53,6 +65,23 @@
     <SolidColorBrush x:Key="DangerRedBrush" Color="{StaticResource DangerRed}" />
     <SolidColorBrush x:Key="SuccessGrnBrush" Color="{StaticResource SuccessGrn}" />
     <SolidColorBrush x:Key="WarnYellowBrush" Color="{StaticResource WarnYellow}" />
+
+    <!-- ── App Font ──────────────────────────────────────────────── -->
+    <FontFamily x:Key="AppFont">pack://application:,,,/Fonts/#Space Grotesk</FontFamily>
+
+    <!-- Global font overrides — apply Space Grotesk to all TextBlock, Button, TextBox, Label -->
+    <Style TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+    </Style>
+    <Style TargetType="Button">
+        <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+    </Style>
+    <Style TargetType="TextBox">
+        <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+    </Style>
+    <Style TargetType="Label">
+        <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+    </Style>
 
     <!-- ── Card Style ────────────────────────────────────────────── -->
     <Style x:Key="CardPanel" TargetType="Border">
