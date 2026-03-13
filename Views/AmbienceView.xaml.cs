@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
+using AmpUp.Controls;
 
 namespace AmpUp.Views;
 
@@ -23,8 +24,8 @@ public partial class AmbienceView : UserControl
     private StackPanel _goveeScanRow = null!;
 
     // Sync settings controls
-    private Slider _brightnessSlider = null!;
-    private TextBlock _brightnessValue = null!;
+    private StyledSlider _brightnessSlider = null!;
+    // brightness value is rendered by StyledSlider itself
     private CheckBox _warmToneShift = null!;
 
     // Cloud API state
@@ -87,7 +88,7 @@ public partial class AmbienceView : UserControl
         }
 
         _brightnessSlider.Value = ambience.BrightnessScale;
-        _brightnessValue.Text = $"{ambience.BrightnessScale}%";
+        // StyledSlider renders its own value label
         _warmToneShift.IsChecked = ambience.WarmToneShift;
 
         _loading = false;
@@ -410,33 +411,22 @@ public partial class AmbienceView : UserControl
 
         var brightnessRow = new StackPanel { Orientation = Orientation.Horizontal };
 
-        _brightnessSlider = new Slider
+        _brightnessSlider = new StyledSlider
         {
             Minimum = 0,
             Maximum = 100,
             Value = 75,
-            Width = 220,
-            TickFrequency = 25,
-            TickPlacement = System.Windows.Controls.Primitives.TickPlacement.None,
+            Width = 260,
+            Height = 32,
+            Suffix = "%",
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 12, 0),
         };
         _brightnessSlider.ValueChanged += (_, _) =>
         {
             if (_loading) return;
-            _brightnessValue.Text = $"{(int)_brightnessSlider.Value}%";
             QueueSave();
         };
         brightnessRow.Children.Add(_brightnessSlider);
-
-        _brightnessValue = new TextBlock
-        {
-            Text = "75%",
-            Width = 40,
-            Style = FindStyle("SecondaryText"),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        brightnessRow.Children.Add(_brightnessValue);
 
         brightnessSection.Children.Add(brightnessRow);
         Grid.SetRow(brightnessSection, 1);
