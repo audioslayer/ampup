@@ -15,6 +15,7 @@ public partial class MainWindow : FluentWindow
     private readonly SettingsView _settingsView = new();
     private readonly HomeAssistantView _haView = new();
     private readonly AmbienceView _ambienceView = new();
+    private readonly BindingsView _bindingsView = new();
 
     private System.Windows.Controls.Button? _activeNavButton;
     private System.Windows.Controls.Border? _activeNavBar;
@@ -32,6 +33,9 @@ public partial class MainWindow : FluentWindow
         VersionLabel.Text = $"v{UpdateChecker.CurrentVersion}";
         UpdateProfileButton();
         UpdateAccentDependentUI();
+        _bindingsView.SetNavigationCallbacks(
+            () => NavigateTo(_mixerView, NavMixer),
+            () => NavigateTo(_buttonsView, NavButtons));
         NavigateTo(_mixerView, NavMixer);
         SetupTrafficLightHovers();
 
@@ -94,6 +98,7 @@ public partial class MainWindow : FluentWindow
         _buttonsView.LoadConfig(_config, _mixer!, saveHandler);
         _mixerView.LoadConfig(_config, _mixer!, saveHandler);
         _ambienceView.LoadConfig(_config, saveHandler);
+        _bindingsView.LoadConfig(_config);
     }
 
     private void NavMixer_Click(object sender, RoutedEventArgs e) => NavigateTo(_mixerView, NavMixer);
@@ -128,6 +133,7 @@ public partial class MainWindow : FluentWindow
     }
 
     private void NavSettings_Click(object sender, RoutedEventArgs e) => NavigateTo(_settingsView, NavSettings);
+    private void NavBindings_Click(object sender, RoutedEventArgs e) => NavigateTo(_bindingsView, NavBindings);
 
     public void NavigateToSettings() => NavigateTo(_settingsView, NavSettings);
 
@@ -165,6 +171,7 @@ public partial class MainWindow : FluentWindow
         { NavHA,       NavHABar },
         { NavAmbience, NavAmbienceBar },
         { NavSettings, NavSettingsBar },
+        { NavBindings, NavBindingsBar },
     };
 
     private void NavigateTo(System.Windows.Controls.UserControl view, System.Windows.Controls.Button navButton)
