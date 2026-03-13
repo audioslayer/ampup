@@ -96,65 +96,84 @@ public class AmbienceSync : IDisposable
     {
         var results = new List<GoveeDeviceConfig>();
 
-        using var udp = new UdpClient();
-        udp.EnableBroadcast = true;
-
-        // Also bind to port 4002 to receive responses
-        using var listener = new UdpClient(new IPEndPoint(IPAddress.Any, 4002));
-        listener.Client.ReceiveTimeout = 3000;
-
-        // Send discovery broadcast
-        var msg = Encoding.UTF8.GetBytes("{\"msg\":{\"cmd\":\"scan\",\"data\":{\"account_topic\":\"reserve\"}}}");
+        UdpClient? listener = null;
         try
         {
+            using var udp = new UdpClient();
+            udp.EnableBroadcast = true;
+
+            // Bind listener to port 4002 for responses — allow address reuse in case of stale socket
+            listener = new UdpClient();
+            listener.Client.SetSocketOption(System.Net.Sockets.SocketOptionLevel.Socket,
+                System.Net.Sockets.SocketOptionName.ReuseAddress, true);
+            listener.Client.Bind(new IPEndPoint(IPAddress.Any, 4002));
+            listener.Client.ReceiveTimeout = 3000;
+            Logger.Log("Govee scan: listener bound to port 4002");
+
+            // Send discovery broadcast
+            var msg = Encoding.UTF8.GetBytes("{\"msg\":{\"cmd\":\"scan\",\"data\":{\"account_topic\":\"reserve\"}}}");
             await udp.SendAsync(msg, msg.Length, "239.255.255.250", 4001);
+            Logger.Log("Govee scan: broadcast sent to 239.255.255.250:4001");
+
+            // Collect responses for 3 seconds
+            var deadline = DateTime.UtcNow.AddSeconds(3);
+            while (!ct.IsCancellationRequested && DateTime.UtcNow < deadline)
+            {
+                try
+                {
+                    listener.Client.ReceiveTimeout = Math.Max(100, (int)(deadline - DateTime.UtcNow).TotalMilliseconds);
+                    var result = await Task.Run(() =>
+                    {
+                        try
+                        {
+                            IPEndPoint? ep = null;
+                            var data = listener.Receive(ref ep);
+                            return (Data: data, Ep: ep);
+                        }
+                        catch (Exception rx)
+                        {
+                            // SocketException on timeout is normal — only log unexpected errors
+                            if (rx is not System.Net.Sockets.SocketException)
+                                Logger.Log($"Govee scan receive error: {rx.Message}");
+                            return (Data: (byte[]?)null, Ep: (IPEndPoint?)null);
+                        }
+                    }, ct);
+
+                    if (result.Data == null || result.Ep == null) break;
+
+                    string json = Encoding.UTF8.GetString(result.Data);
+                    string ip = result.Ep.Address.ToString();
+                    Logger.Log($"Govee scan response from {ip}: {json}");
+                    var (name, sku, deviceMac) = ParseScanResponse(json, ip);
+                    Logger.Log($"Govee parsed: name={name}, sku={sku}, mac={deviceMac}");
+
+                    if (!results.Any(r => r.Ip == ip))
+                    {
+                        results.Add(new GoveeDeviceConfig
+                        {
+                            Ip = ip,
+                            Name = name,
+                            Sku = sku,
+                            DeviceId = deviceMac,
+                            SyncMode = "global",
+                        });
+                    }
+                }
+                catch (OperationCanceledException) { break; }
+                catch (Exception ex)
+                {
+                    Logger.Log($"Govee scan loop error: {ex.Message}");
+                    break;
+                }
+            }
         }
         catch (Exception ex)
         {
-            Logger.Log($"Govee scan broadcast failed: {ex.Message}");
-            return results;
+            Logger.Log($"Govee scan setup failed: {ex.Message}");
         }
-
-        // Collect responses for 3 seconds
-        var deadline = DateTime.UtcNow.AddSeconds(3);
-        while (!ct.IsCancellationRequested && DateTime.UtcNow < deadline)
+        finally
         {
-            try
-            {
-                listener.Client.ReceiveTimeout = Math.Max(100, (int)(deadline - DateTime.UtcNow).TotalMilliseconds);
-                var result = await Task.Run(() =>
-                {
-                    try
-                    {
-                        IPEndPoint? ep = null;
-                        var data = listener.Receive(ref ep);
-                        return (Data: data, Ep: ep);
-                    }
-                    catch { return (Data: (byte[]?)null, Ep: (IPEndPoint?)null); }
-                }, ct);
-
-                if (result.Data == null || result.Ep == null) break;
-
-                string json = Encoding.UTF8.GetString(result.Data);
-                string ip = result.Ep.Address.ToString();
-                Logger.Log($"Govee scan response from {ip}: {json}");
-                var (name, sku, deviceMac) = ParseScanResponse(json, ip);
-                Logger.Log($"Govee parsed: name={name}, sku={sku}, mac={deviceMac}");
-
-                if (!results.Any(r => r.Ip == ip))
-                {
-                    results.Add(new GoveeDeviceConfig
-                    {
-                        Ip = ip,
-                        Name = name,
-                        Sku = sku,
-                        DeviceId = deviceMac,
-                        SyncMode = "global",
-                    });
-                }
-            }
-            catch (OperationCanceledException) { break; }
-            catch { break; }
+            listener?.Dispose();
         }
 
         Logger.Log($"Govee scan: found {results.Count} device(s)");
