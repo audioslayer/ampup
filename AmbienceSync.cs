@@ -37,6 +37,52 @@ public class AmbienceSync : IDisposable
     /// Called by RgbController.OnFrameReady every 50ms on a timer thread.
     /// byte[45]: knob0LED0 R/G/B, knob0LED1 R/G/B, ..., knob4LED2 R/G/B
     /// </summary>
+    /// <summary>
+    /// Tracks devices currently under manual UI control (Ambience tab).
+    /// While a device IP is in this set, OnFrame sync is paused for it.
+    /// </summary>
+    private static readonly HashSet<string> _manualControlDevices = new();
+    private static readonly Dictionary<string, DateTime> _manualControlExpiry = new();
+
+    /// <summary>
+    /// Pause sync for a device for a duration (default 10s). Called when user controls device from Ambience UI.
+    /// </summary>
+    public static void PauseSync(string ip, int seconds = 10)
+    {
+        lock (_manualControlDevices)
+        {
+            _manualControlDevices.Add(ip);
+            _manualControlExpiry[ip] = DateTime.UtcNow.AddSeconds(seconds);
+        }
+    }
+
+    /// <summary>
+    /// Resume sync immediately for a device.
+    /// </summary>
+    public static void ResumeSync(string ip)
+    {
+        lock (_manualControlDevices)
+        {
+            _manualControlDevices.Remove(ip);
+            _manualControlExpiry.Remove(ip);
+        }
+    }
+
+    private static bool IsSyncPaused(string ip)
+    {
+        lock (_manualControlDevices)
+        {
+            if (!_manualControlDevices.Contains(ip)) return false;
+            if (_manualControlExpiry.TryGetValue(ip, out var expiry) && DateTime.UtcNow > expiry)
+            {
+                _manualControlDevices.Remove(ip);
+                _manualControlExpiry.Remove(ip);
+                return false;
+            }
+            return true;
+        }
+    }
+
     public void OnFrame(byte[] linear45)
     {
         if (_disposed) return;
@@ -50,7 +96,10 @@ public class AmbienceSync : IDisposable
         {
             if (string.IsNullOrWhiteSpace(device.Ip)) continue;
 
-            // Always mirror the global average color across all LEDs
+            // Skip devices under manual control from Ambience UI, or with sync disabled
+            if (device.SyncMode == "off" || IsSyncPaused(device.Ip)) continue;
+
+            // Mirror the global average color across all LEDs
             var (r, g, b) = DeriveColor(linear45);
             (r, g, b) = ApplySettings(r, g, b, cfg);
 

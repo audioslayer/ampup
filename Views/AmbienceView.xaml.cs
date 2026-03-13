@@ -349,14 +349,20 @@ public partial class AmbienceView : UserControl
         onOffCheck.Checked += async (_, _) =>
         {
             if (lanIp != null)
+            {
+                AmbienceSync.PauseSync(lanIp, 30);
                 await AmbienceSync.SendTurnAsync(lanIp, true);
+            }
             else if (_cloudApi != null)
                 await SafeCloudCall(() => _cloudApi.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.TurnOnOff(true)));
         };
         onOffCheck.Unchecked += async (_, _) =>
         {
             if (lanIp != null)
+            {
+                AmbienceSync.PauseSync(lanIp, 30);
                 await AmbienceSync.SendTurnAsync(lanIp, false);
+            }
             else if (_cloudApi != null)
                 await SafeCloudCall(() => _cloudApi.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.TurnOnOff(false)));
         };
@@ -378,7 +384,10 @@ public partial class AmbienceView : UserControl
         {
             brightnessDebounce.Stop();
             if (lanIp != null)
+            {
+                AmbienceSync.PauseSync(lanIp, 30);
                 await AmbienceSync.SendBrightnessAsync(lanIp, (int)brightnessSlider.Value);
+            }
             else if (_cloudApi != null)
                 await SafeCloudCall(() => _cloudApi.ControlDeviceAsync(
                     device.Device, device.Sku, GoveeCloudApi.SetBrightness((int)brightnessSlider.Value)));
@@ -394,7 +403,10 @@ public partial class AmbienceView : UserControl
         var colorSwatch = MakeColorSwatch(Colors.White, (r, g, b) =>
         {
             if (lanIp != null)
+            {
+                AmbienceSync.PauseSync(lanIp, 30);
                 _ = AmbienceSync.SendColorAsync(lanIp, r, g, b);
+            }
             else if (_cloudApi != null)
                 _ = SafeCloudCall(() => _cloudApi.ControlDeviceAsync(
                     device.Device, device.Sku, GoveeCloudApi.SetColor(r, g, b)));
