@@ -1407,14 +1407,6 @@ public partial class ButtonsView : UserControl
             return;
         }
 
-        var popup = new System.Windows.Controls.Primitives.Popup
-        {
-            PlacementTarget = anchor,
-            Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
-            StaysOpen = false,
-            AllowsTransparency = true,
-        };
-
         var scroll = new ScrollViewer
         {
             MaxHeight = 220,
@@ -1438,6 +1430,9 @@ public partial class ButtonsView : UserControl
         };
         scroll.Content = panel;
 
+        Window? procFlyout = null;
+        Action closeProcFlyout = () => { procFlyout?.Close(); procFlyout = null; };
+
         foreach (var proc in processes)
         {
             var procCapture = proc;
@@ -1458,14 +1453,29 @@ public partial class ButtonsView : UserControl
             {
                 targetBox.Text = procCapture;
                 targetBox.Foreground = FindBrush("TextPrimaryBrush");
-                popup.IsOpen = false;
+                closeProcFlyout();
                 QueueSave();
             };
             panel.Children.Add(item);
         }
 
-        popup.Child = border;
-        popup.IsOpen = true;
+        var screenPos = anchor.PointToScreen(new Point(0, anchor.ActualHeight + 2));
+        procFlyout = new Window
+        {
+            WindowStyle = WindowStyle.None,
+            ResizeMode = ResizeMode.NoResize,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            ShowInTaskbar = false,
+            Topmost = true,
+            AllowsTransparency = false,
+            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            Content = border,
+            Left = screenPos.X,
+            Top = screenPos.Y
+        };
+        procFlyout.Deactivated += (_, _) => closeProcFlyout();
+        procFlyout.KeyDown += (_, e2) => { if (e2.Key == Key.Escape) closeProcFlyout(); };
+        procFlyout.Show();
     }
 
     private static readonly Dictionary<string, string> PickerTooltips = new()
