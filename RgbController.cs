@@ -1140,10 +1140,12 @@ public class RgbController : IDisposable
             float brightness = Math.Max(0f, 1f - dist / 3f); // tail spans ~3 LEDs
             brightness *= brightness;
 
-            int r = (int)(gl.R * brightness + gl.R2 * 0.03f * (1f - brightness));
-            int g = (int)(gl.G * brightness + gl.G2 * 0.03f * (1f - brightness));
-            int b = (int)(gl.B * brightness + gl.B2 * 0.03f * (1f - brightness));
-            SetGlobalLed(i, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
+            // Use gradient color at each LED position for colorful scanner
+            var (cr, cg, cb) = GetGradientColor(gl, i / 14f);
+            int r = Math.Clamp((int)(cr * brightness), 0, 255);
+            int g = Math.Clamp((int)(cg * brightness), 0, 255);
+            int b = Math.Clamp((int)(cb * brightness), 0, 255);
+            SetGlobalLed(i, r, g, b);
         }
     }
 
@@ -1167,10 +1169,14 @@ public class RgbController : IDisposable
 
             brightness *= brightness; // sharper falloff
 
-            SetGlobalLed(i,
-                (int)(gl.R * brightness),
-                (int)(gl.G * brightness),
-                (int)(gl.B * brightness));
+            // Use gradient color per LED — meteor trails through the whole palette
+            var (cr, cg, cb) = GetGradientColor(gl, i / 14f);
+            // Head glows white-hot, tail shows full gradient color
+            float whiteBlend = brightness > 0.8f ? (brightness - 0.8f) / 0.2f * 0.5f : 0f;
+            int r = Math.Clamp((int)((cr * (1f - whiteBlend) + 255 * whiteBlend) * brightness), 0, 255);
+            int g = Math.Clamp((int)((cg * (1f - whiteBlend) + 255 * whiteBlend) * brightness), 0, 255);
+            int b = Math.Clamp((int)((cb * (1f - whiteBlend) + 255 * whiteBlend) * brightness), 0, 255);
+            SetGlobalLed(i, r, g, b);
         }
     }
 
@@ -1422,12 +1428,12 @@ public class RgbController : IDisposable
         // Strike frequency: speed=1 → every ~60 ticks, speed=100 → every ~8 ticks
         int strikeInterval = Math.Max(8, 60 - (speed * 52 / 100));
 
-        // Dim ambient base
-        int baseR = (int)(gl.R * 0.05f);
-        int baseG = (int)(gl.G * 0.05f);
-        int baseB = (int)(gl.B * 0.05f);
+        // Dim ambient base — gradient across the strip
         for (int i = 0; i < 15; i++)
-            SetGlobalLed(i, baseR, baseG, baseB);
+        {
+            var (br, bg, bb) = GetGradientColor(gl, i / 14f);
+            SetGlobalLed(i, (int)(br * 0.05f), (int)(bg * 0.05f), (int)(bb * 0.05f));
+        }
 
         // Count down to next strike
         if (_lightningCenter < 0)
@@ -1463,10 +1469,12 @@ public class RgbController : IDisposable
             {
                 float ledBright = peakBright * (1f - dist / (float)(cascadeRadius + 1));
                 ledBright *= ledBright;
-                // White-ish flash with color tint
-                int r = Math.Clamp((int)(255 * ledBright * 0.6f + gl.R * ledBright * 0.4f), 0, 255);
-                int g = Math.Clamp((int)(255 * ledBright * 0.6f + gl.G * ledBright * 0.4f), 0, 255);
-                int b = Math.Clamp((int)(255 * ledBright * 0.6f + gl.B * ledBright * 0.4f), 0, 255);
+                // White-hot core + gradient color tint at the edges
+                var (cr, cg, cb) = GetGradientColor(gl, i / 14f);
+                float whiteBlend = ledBright > 0.5f ? 0.7f : 0.3f;
+                int r = Math.Clamp((int)((255 * whiteBlend + cr * (1f - whiteBlend)) * ledBright), 0, 255);
+                int g = Math.Clamp((int)((255 * whiteBlend + cg * (1f - whiteBlend)) * ledBright), 0, 255);
+                int b = Math.Clamp((int)((255 * whiteBlend + cb * (1f - whiteBlend)) * ledBright), 0, 255);
                 SetGlobalLed(i, r, g, b);
             }
         }
@@ -1517,14 +1525,16 @@ public class RgbController : IDisposable
         {
             if (i < _fillupCount)
             {
-                // Leading edge gets bright flash
+                // Leading edge gets bright white-hot flash
                 bool isLeading = (_fillupDir == 1 && i == _fillupCount - 1) ||
                                  (_fillupDir == -1 && i == _fillupCount);
-                float bright = isLeading ? 1.5f : 1.0f;
+                float bright = isLeading ? 1.4f : 1.0f;
+                float whiteBlend = isLeading ? 0.4f : 0f;
+                var (cr, cg, cb) = GetGradientColor(gl, i / 14f);
                 SetGlobalLed(i,
-                    Math.Clamp((int)(gl.R * bright), 0, 255),
-                    Math.Clamp((int)(gl.G * bright), 0, 255),
-                    Math.Clamp((int)(gl.B * bright), 0, 255));
+                    Math.Clamp((int)((cr * (1f - whiteBlend) + 255 * whiteBlend) * bright), 0, 255),
+                    Math.Clamp((int)((cg * (1f - whiteBlend) + 255 * whiteBlend) * bright), 0, 255),
+                    Math.Clamp((int)((cb * (1f - whiteBlend) + 255 * whiteBlend) * bright), 0, 255));
             }
             else
             {
@@ -1625,16 +1635,14 @@ public class RgbController : IDisposable
         }
         else
         {
-            // Fade: everything dims to off
+            // Fade: gradient residual glow dims to off
             int fadeAge = phase - approachTicks - collisionTicks;
             float bright = 1f - fadeAge / (float)Math.Max(fadeTicks, 1);
             bright = Math.Max(0f, bright) * 0.3f; // dim residual glow
             for (int i = 0; i < 15; i++)
             {
-                SetGlobalLed(i,
-                    (int)(gl.R * bright),
-                    (int)(gl.G * bright),
-                    (int)(gl.B * bright));
+                var (cr, cg, cb) = GetGradientColor(gl, i / 14f);
+                SetGlobalLed(i, (int)(cr * bright), (int)(cg * bright), (int)(cb * bright));
             }
         }
     }
@@ -1686,12 +1694,12 @@ public class RgbController : IDisposable
         float baseSpeed = 0.2f + (speed / 100f) * 0.6f; // LEDs/tick
         int spawnInterval = Math.Max(3, 20 - (speed * 16 / 100));
 
-        // Dim base
-        int baseR = (int)(gl.R * 0.04f);
-        int baseG = (int)(gl.G * 0.04f);
-        int baseB = (int)(gl.B * 0.04f);
+        // Dim gradient base across the strip
         for (int i = 0; i < 15; i++)
-            SetGlobalLed(i, baseR, baseG, baseB);
+        {
+            var (br, bg, bb) = GetGradientColor(gl, i / 14f);
+            SetGlobalLed(i, (int)(br * 0.04f), (int)(bg * 0.04f), (int)(bb * 0.04f));
+        }
 
         // Try to spawn new drop
         _raindropNextTick--;
@@ -1724,9 +1732,12 @@ public class RgbController : IDisposable
                 int splashRadius = Math.Min(age + 1, 3);
                 for (int i = 0; i < splashRadius && i < 15; i++)
                 {
-                    int sr = Math.Clamp((int)(gl.R2 * splashBright), 0, 255);
-                    int sg = Math.Clamp((int)(gl.G2 * splashBright), 0, 255);
-                    int sb = Math.Clamp((int)(gl.B2 * splashBright), 0, 255);
+                    var (cr, cg, cb) = GetGradientColor(gl, i / 14f);
+                    // Splash blends toward white at peak
+                    float whiteBlend = splashBright * 0.5f;
+                    int sr = Math.Clamp((int)((cr * (1f - whiteBlend) + 255 * whiteBlend) * splashBright), 0, 255);
+                    int sg = Math.Clamp((int)((cg * (1f - whiteBlend) + 255 * whiteBlend) * splashBright), 0, 255);
+                    int sb = Math.Clamp((int)((cb * (1f - whiteBlend) + 255 * whiteBlend) * splashBright), 0, 255);
                     SetGlobalLed(i, sr, sg, sb);
                 }
                 _raindrops[s].SplashAge++;
@@ -1745,16 +1756,17 @@ public class RgbController : IDisposable
                 continue;
             }
 
-            // Draw drop with 2-LED tail (head is brightest)
+            // Draw drop with 2-LED tail — gradient colored at each position
             for (int tail = 0; tail < 3; tail++)
             {
                 int ledIdx = (int)(_raindrops[s].Pos) + tail;
                 if (ledIdx < 0 || ledIdx >= 15) continue;
                 float bright = tail == 0 ? 1f : tail == 1 ? 0.35f : 0.08f;
+                var (cr, cg, cb) = GetGradientColor(gl, ledIdx / 14f);
                 SetGlobalLed(ledIdx,
-                    Math.Clamp((int)(gl.R * bright), 0, 255),
-                    Math.Clamp((int)(gl.G * bright), 0, 255),
-                    Math.Clamp((int)(gl.B * bright), 0, 255));
+                    Math.Clamp((int)(cr * bright), 0, 255),
+                    Math.Clamp((int)(cg * bright), 0, 255),
+                    Math.Clamp((int)(cb * bright), 0, 255));
             }
         }
     }
