@@ -3,30 +3,34 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 
 namespace AmpUp.Controls;
 
 /// <summary>
 /// A categorized target picker. Shows current selection as a styled row;
-/// click opens a dark popup with categorized items as full-width text rows.
+/// click opens a dark borderless Window flyout with categorized items as full-width text rows.
 /// Items can optionally have sub-menus that slide out to the right.
+/// Uses borderless Windows instead of Popups to avoid Win11 click-through bugs.
 /// </summary>
 public class GridPicker : Border
 {
     private readonly TextBlock _label;
     private readonly TextBlock _chevron;
-    private readonly Popup _popup;
-    private readonly Border _popupBorder;
     private readonly StackPanel _categoriesPanel;
     private readonly ScrollViewer _scrollViewer;
+    private readonly Border _popupBorder;
+
+    // Main flyout
+    private Window? _flyout;
+    private bool _isOpen = false;
 
     // Sub-flyout
-    private readonly Popup _subPopup;
+    private Window? _subFlyout;
+    private bool _subIsOpen = false;
     private readonly Border _subPopupBorder;
     private readonly StackPanel _subItemsPanel;
     private readonly ScrollViewer _subScrollViewer;
@@ -38,6 +42,9 @@ public class GridPicker : Border
     private readonly DispatcherTimer _subOpenTimer;
     private readonly DispatcherTimer _closeTimer;
     private int _hoveredSubMenuIdx = -1;
+
+    // Tracks the screen position of hovered sub-menu item for sub-flyout placement
+    private UIElement? _lastSubMenuTarget;
 
     private int _selectedIndex = -1;
     private string? _selectedSubTag; // stores the sub-item tag when a sub-menu item is selected
@@ -116,7 +123,7 @@ public class GridPicker : Border
 
         Child = grid;
 
-        // Main popup
+        // Main flyout content
         _categoriesPanel = new StackPanel();
         _scrollViewer = new ScrollViewer
         {
@@ -134,28 +141,9 @@ public class GridPicker : Border
             Padding = new Thickness(6, 8, 6, 8),
             Child = _scrollViewer,
             MaxWidth = 280,
-            Effect = new DropShadowEffect
-            {
-                Color = Colors.Black,
-                BlurRadius = 28,
-                Opacity = 0.7,
-                ShadowDepth = 8,
-                Direction = 270
-            }
         };
 
-        _popup = new Popup
-        {
-            Child = _popupBorder,
-            PlacementTarget = this,
-            Placement = PlacementMode.Bottom,
-            StaysOpen = false,
-            AllowsTransparency = true,
-            PopupAnimation = PopupAnimation.Fade,
-            VerticalOffset = 4
-        };
-
-        // ── Sub-flyout popup ──
+        // ── Sub-flyout content ──
         _subItemsPanel = new StackPanel();
         _subScrollViewer = new ScrollViewer
         {
@@ -210,41 +198,21 @@ public class GridPicker : Border
             Child = subStack,
             MinWidth = 200,
             MaxWidth = 300,
-            Effect = new DropShadowEffect
-            {
-                Color = Colors.Black,
-                BlurRadius = 24,
-                Opacity = 0.6,
-                ShadowDepth = 6,
-                Direction = 270
-            }
         };
 
-        _subPopup = new Popup
-        {
-            Child = _subPopupBorder,
-            PlacementTarget = _popupBorder,
-            Placement = PlacementMode.Right,
-            StaysOpen = false,
-            AllowsTransparency = true,
-            PopupAnimation = PopupAnimation.Slide,
-            HorizontalOffset = -2,
-        };
-
-        // Polling timer: only runs while sub-popup is open, closes both when mouse leaves
-        int _closeGraceTicks = 0;
+        // Polling timer: closes both flyouts when mouse leaves all windows
         _closeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _closeTimer.Tick += (_, _) =>
         {
-            // Grace period: skip first 3 ticks (750ms) after sub-popup opens
-            if (_closeGraceTicks > 0) { _closeGraceTicks--; return; }
+            // Grace period: skip first 3 ticks (750ms) after sub-flyout opens
+            if (_closeGraceTicks_field > 0) { _closeGraceTicks_field--; return; }
 
-            // Check mouse position via hit-test (more reliable than IsMouseOver across HWNDs)
-            var pos = System.Windows.Input.Mouse.GetPosition(_popupBorder);
+            // Check mouse position (more reliable across HWNDs than IsMouseOver)
+            var pos = Mouse.GetPosition(_popupBorder);
             bool overMain = pos.X >= 0 && pos.Y >= 0
                 && pos.X <= _popupBorder.ActualWidth && pos.Y <= _popupBorder.ActualHeight;
 
-            var subPos = System.Windows.Input.Mouse.GetPosition(_subPopupBorder);
+            var subPos = Mouse.GetPosition(_subPopupBorder);
             bool overSub = subPos.X >= 0 && subPos.Y >= 0
                 && subPos.X <= _subPopupBorder.ActualWidth && subPos.Y <= _subPopupBorder.ActualHeight;
 
@@ -252,25 +220,9 @@ public class GridPicker : Border
                 return;
 
             _closeTimer.Stop();
-            _subPopup.IsOpen = false;
-            _popup.IsOpen = false;
+            CloseSubFlyout();
+            CloseFlyout();
         };
-
-        // Keep main popup open while sub is open; poll to close when mouse leaves both
-        _subPopup.Opened += (_, _) =>
-        {
-            _popup.StaysOpen = true;
-            _closeGraceTicks = 3;
-            _closeTimer.Start();
-        };
-        _subPopup.Closed += (_, _) =>
-        {
-            _closeTimer.Stop();
-            _popup.StaysOpen = false;
-            _hoveredSubMenuIdx = -1;
-        };
-
-        _popup.Closed += (_, _) => _closeTimer.Stop();
 
         // Timer for delayed sub-menu open on hover
         _subOpenTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
@@ -281,7 +233,7 @@ public class GridPicker : Border
             {
                 var tag = _items[_hoveredSubMenuIdx].Tag as string;
                 if (tag != null && _subMenuProviders.ContainsKey(tag))
-                    OpenSubMenu(tag, _hoveredSubMenuIdx);
+                    OpenSubFlyout(tag, _hoveredSubMenuIdx);
             }
         };
 
@@ -294,7 +246,7 @@ public class GridPicker : Border
         };
         MouseLeave += (_, _) =>
         {
-            if (!_popup.IsOpen)
+            if (!_isOpen)
             {
                 BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
                 Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
@@ -305,23 +257,186 @@ public class GridPicker : Border
         MouseLeftButtonUp += (_, e) =>
         {
             _popupBorder.MinWidth = Math.Max(ActualWidth, 200);
-            _popup.IsOpen = !_popup.IsOpen;
+            if (_isOpen) CloseFlyout(); else OpenFlyout();
             e.Handled = true;
         };
+    }
 
-        _popup.Opened += (_, _) =>
+    // ── Main flyout ───────────────────────────────────────────────
+
+    private void OpenFlyout()
+    {
+        RebuildPopupItems();
+
+        // Detach from any previous flyout so we can re-parent
+        if (_popupBorder.Parent is Border oldParent)
+            oldParent.Child = null;
+
+        var outerBorder = new Border
         {
-            BorderBrush = new SolidColorBrush(AccentColor);
-            Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
+            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
+            Child = _popupBorder,
         };
 
-        _popup.Closed += (_, _) =>
+        _flyout = new Window
         {
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
-            Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
-            _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
-            _subPopup.IsOpen = false;
+            WindowStyle = WindowStyle.None,
+            ResizeMode = ResizeMode.NoResize,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            ShowInTaskbar = false,
+            Topmost = true,
+            AllowsTransparency = false,
+            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
+            Content = outerBorder
         };
+
+        // Position below the trigger
+        var screenPos = PointToScreen(new Point(0, ActualHeight + 4));
+        _flyout.Left = screenPos.X;
+        _flyout.Top = screenPos.Y;
+
+        _flyout.Deactivated += (_, _) =>
+        {
+            // Don't close main if sub-flyout is activating
+            if (_subIsOpen) return;
+            CloseFlyout();
+        };
+        _flyout.KeyDown += (_, e) => { if (e.Key == Key.Escape) { CloseSubFlyout(); CloseFlyout(); } };
+
+        // Slide-down + fade-in animation (120ms)
+        var translate = new TranslateTransform(0, -8);
+        _popupBorder.RenderTransform = translate;
+        _popupBorder.Opacity = 0;
+
+        _flyout.Show();
+        _isOpen = true;
+
+        var slideAnim = new DoubleAnimation(-8, 0, new Duration(TimeSpan.FromMilliseconds(120)))
+            { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+        var fadeAnim = new DoubleAnimation(0, 1, new Duration(TimeSpan.FromMilliseconds(120)));
+        translate.BeginAnimation(TranslateTransform.YProperty, slideAnim);
+        _popupBorder.BeginAnimation(UIElement.OpacityProperty, fadeAnim);
+
+        BorderBrush = new SolidColorBrush(AccentColor);
+        Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
+    }
+
+    private void CloseFlyout()
+    {
+        if (!_isOpen) return;
+        _isOpen = false;
+        _closeTimer.Stop();
+        CloseSubFlyout();
+
+        // Detach child before close so _popupBorder can be reused
+        if (_flyout?.Content is Border b)
+            b.Child = null;
+
+        _flyout?.Close();
+        _flyout = null;
+
+        BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
+        Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+        _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+    }
+
+    // ── Sub-flyout ───────────────────────────────────────────────
+
+    private void OpenSubFlyout(string parentTag, int itemIdx)
+    {
+        if (!_subMenuProviders.TryGetValue(parentTag, out var provider))
+            return;
+
+        var items = provider();
+        if (items.Count == 0) return;
+
+        _activeSubParentTag = parentTag;
+        _activeSubItems = items;
+
+        RebuildSubItems();
+
+        var showFilter = _activeSubItems.Count > 8;
+        _subFilterBox.Visibility = showFilter ? Visibility.Visible : Visibility.Collapsed;
+        _subFilterPlaceholder.Visibility = showFilter ? Visibility.Visible : Visibility.Collapsed;
+        _subFilterBox.Text = "";
+        _subFilterText = "";
+
+        // Detach from any previous sub-flyout
+        if (_subPopupBorder.Parent is Border oldParent)
+            oldParent.Child = null;
+
+        var outerBorder = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
+            Child = _subPopupBorder,
+        };
+
+        _subFlyout = new Window
+        {
+            WindowStyle = WindowStyle.None,
+            ResizeMode = ResizeMode.NoResize,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            ShowInTaskbar = false,
+            Topmost = true,
+            AllowsTransparency = false,
+            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
+            Content = outerBorder
+        };
+
+        // Position to the right of the hovered item row
+        Point screenPos;
+        if (_lastSubMenuTarget != null && _isOpen)
+        {
+            try
+            {
+                screenPos = _lastSubMenuTarget.PointToScreen(
+                    new Point(_popupBorder.ActualWidth + 6, -6));
+            }
+            catch
+            {
+                screenPos = _popupBorder.PointToScreen(new Point(_popupBorder.ActualWidth + 6, 0));
+            }
+        }
+        else
+        {
+            screenPos = _popupBorder.PointToScreen(new Point(_popupBorder.ActualWidth + 6, 0));
+        }
+
+        _subFlyout.Left = screenPos.X;
+        _subFlyout.Top = screenPos.Y;
+
+        _subFlyout.Deactivated += (_, _) =>
+        {
+            // Don't auto-close; poll timer handles mouse-leave close
+        };
+        _subFlyout.KeyDown += (_, e) => { if (e.Key == Key.Escape) { CloseSubFlyout(); CloseFlyout(); } };
+
+        _subFlyout.Show();
+        _subIsOpen = true;
+
+        // Start polling timer now that sub is open
+        _closeGraceTicks_field = 3;
+        _closeTimer.Start();
+
+        if (showFilter)
+            _subFilterBox.Focus();
+    }
+
+    // Grace tick counter stored as field (DispatcherTimer closure can't capture locals across calls)
+    private int _closeGraceTicks_field = 0;
+
+    private void CloseSubFlyout()
+    {
+        if (!_subIsOpen) return;
+        _subIsOpen = false;
+        _hoveredSubMenuIdx = -1;
+        _closeTimer.Stop();
+
+        if (_subFlyout?.Content is Border b)
+            b.Child = null;
+
+        _subFlyout?.Close();
+        _subFlyout = null;
     }
 
     // ── Item management ─────────────────────────────────────────
@@ -413,65 +528,7 @@ public class GridPicker : Border
         }
     }
 
-    // ── Sub-flyout ───────────────────────────────────────────────
-
-    private void OpenSubMenu(string parentTag, int itemIdx)
-    {
-        if (!_subMenuProviders.TryGetValue(parentTag, out var provider))
-            return;
-
-        var items = provider();
-        if (items.Count == 0) return; // nothing to show
-
-        _activeSubParentTag = parentTag;
-        _activeSubItems = items;
-
-        RebuildSubItems();
-
-        // Position sub-popup next to the hovered item
-        if (itemIdx < _categoriesPanel.Children.Count)
-        {
-            var target = _categoriesPanel.Children[FindPopupChildForItemIdx(itemIdx)];
-            _subPopup.PlacementTarget = target;
-            _subPopup.Placement = PlacementMode.Right;
-            _subPopup.HorizontalOffset = 6;
-            _subPopup.VerticalOffset = -6;
-        }
-
-        // Show filter for lists > 8
-        var showFilter = _activeSubItems.Count > 8;
-        _subFilterBox.Visibility = showFilter ? Visibility.Visible : Visibility.Collapsed;
-        _subFilterPlaceholder.Visibility = showFilter ? Visibility.Visible : Visibility.Collapsed;
-        _subFilterBox.Text = "";
-        _subFilterText = "";
-
-        _subPopup.IsOpen = true;
-
-        if (showFilter)
-            _subFilterBox.Focus();
-    }
-
-    private int FindPopupChildForItemIdx(int itemIdx)
-    {
-        // The popup panel has category headers + item rows interleaved.
-        // We need to map item index to child index.
-        int childIdx = 0;
-        var categoryForItem = BuildCategoryMap();
-
-        int currentCat = -1;
-        for (int i = 0; i <= itemIdx && childIdx < _categoriesPanel.Children.Count; i++)
-        {
-            int cat = categoryForItem.GetValueOrDefault(i, -1);
-            if (cat != currentCat)
-            {
-                currentCat = cat;
-                if (cat >= 0) childIdx++; // skip category header
-            }
-            if (i == itemIdx) return childIdx;
-            childIdx++;
-        }
-        return Math.Min(childIdx, _categoriesPanel.Children.Count - 1);
-    }
+    // ── Sub-items rebuild ────────────────────────────────────────
 
     private void RebuildSubItems()
     {
@@ -586,8 +643,8 @@ public class GridPicker : Border
                 _label.Text = subItem.Display;
                 _label.Foreground = new SolidColorBrush(AccentColor);
 
-                _subPopup.IsOpen = false;
-                _popup.IsOpen = false;
+                CloseSubFlyout();
+                CloseFlyout();
 
                 RebuildPopupItems();
                 SelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -771,16 +828,17 @@ public class GridPicker : Border
                 if (hasSubMenu)
                 {
                     _hoveredSubMenuIdx = idx;
+                    _lastSubMenuTarget = itemRow;
                     _subOpenTimer.Stop();
                     _subOpenTimer.Start();
                 }
                 else
                 {
-                    // Close sub-popup if hovering a non-sub-menu item
+                    // Close sub-flyout if hovering a non-sub-menu item
                     _subOpenTimer.Stop();
                     _hoveredSubMenuIdx = -1;
-                    if (_subPopup.IsOpen)
-                        _subPopup.IsOpen = false;
+                    if (_subIsOpen)
+                        CloseSubFlyout();
                 }
             };
             itemRow.MouseLeave += (_, _) =>
@@ -799,7 +857,7 @@ public class GridPicker : Border
                 {
                     // Open sub-menu immediately on click
                     _subOpenTimer.Stop();
-                    OpenSubMenu(itemTag as string ?? "", idx);
+                    OpenSubFlyout(itemTag as string ?? "", idx);
                     e.Handled = true;
                     return;
                 }
@@ -808,7 +866,7 @@ public class GridPicker : Border
                 _selectedSubTag = null;
                 _label.Text = _items[idx].Display;
                 _label.Foreground = new SolidColorBrush(AccentColor);
-                _popup.IsOpen = false;
+                CloseFlyout();
                 RebuildPopupItems();
                 SelectionChanged?.Invoke(this, EventArgs.Empty);
                 e.Handled = true;
