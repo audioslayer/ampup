@@ -778,15 +778,9 @@ public partial class SettingsView : UserControl
             if (string.IsNullOrWhiteSpace(friendlyName) || nameIsIp)
                 friendlyName = !string.IsNullOrEmpty(dev.Sku) ? AmbienceSync.GetProductName(dev.Sku) : "";
 
-            // Build display: "Product Name (H6056) — 192.168.x.x" or "H6056 — 192.168.x.x"
-            string display;
-            bool nameIsSku = friendlyName == dev.Sku;
-            if (!string.IsNullOrWhiteSpace(friendlyName) && !nameIsSku && !string.IsNullOrEmpty(dev.Sku))
-                display = $"{friendlyName} ({dev.Sku})  —  {dev.Ip}";
-            else if (!string.IsNullOrWhiteSpace(friendlyName))
-                display = $"{friendlyName}  —  {dev.Ip}";
-            else
-                display = dev.Ip;
+            string display = !string.IsNullOrWhiteSpace(friendlyName)
+                ? $"{friendlyName}  —  {dev.Ip}"
+                : dev.Ip;
 
             var row = new TextBlock
             {
