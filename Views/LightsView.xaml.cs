@@ -1161,7 +1161,8 @@ public partial class LightsView : UserControl
         }
         if (_globalEffectPicker != null)
             _globalEffectPicker.AccentColor = accent;
-        _brightnessSlider.AccentColor = accent;
+        if (_brightnessSlider != null)
+            _brightnessSlider.AccentColor = accent;
         foreach (var s in _speedSliders)
             if (s != null) s.AccentColor = accent;
     }
