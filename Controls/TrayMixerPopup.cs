@@ -178,7 +178,7 @@ public class TrayMixerPopup : Window
             });
 
             // Per-app sessions
-            var sessionMgr = masterDevice.AudioSessionManager;
+            var sessionMgr = _masterDevice.AudioSessionManager;
             var sessions = sessionMgr.Sessions;
 
             for (int i = 0; i < sessions.Count; i++)

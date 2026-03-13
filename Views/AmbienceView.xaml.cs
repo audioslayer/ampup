@@ -805,8 +805,7 @@ public partial class AmbienceView : UserControl
         Grid.SetColumn(nameBlock, 0);
         headerRow.Children.Add(nameBlock);
 
-        bool isOnline = string.Equals(device.DeviceExt?.LastDeviceData?.Online, "true", StringComparison.OrdinalIgnoreCase)
-                        || device.DeviceExt?.LastDeviceData?.Online == "1";
+        bool isOnline = false; // online state requires a separate state query; not available on device list
         var onlineDot = new Border
         {
             Width = 8,
@@ -835,8 +834,8 @@ public partial class AmbienceView : UserControl
             Margin = new Thickness(0, 0, 16, 4),
             ToolTip = "Toggle device power",
         };
-        onOffCheck.Checked += async (_, _) => await SafeCloudCall(() => _cloudApi!.SetPowerAsync(device.Device, true));
-        onOffCheck.Unchecked += async (_, _) => await SafeCloudCall(() => _cloudApi!.SetPowerAsync(device.Device, false));
+        onOffCheck.Checked += async (_, _) => await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.TurnOnOff(true)));
+        onOffCheck.Unchecked += async (_, _) => await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.TurnOnOff(false)));
         controlsRow.Children.Add(onOffCheck);
 
         // Brightness label + slider
@@ -876,7 +875,7 @@ public partial class AmbienceView : UserControl
         brightnessDebounce.Tick += async (_, _) =>
         {
             brightnessDebounce.Stop();
-            await SafeCloudCall(() => _cloudApi!.SetBrightnessAsync(device.Device, (int)brightnessSlider.Value));
+            await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.SetBrightness((int)brightnessSlider.Value)));
         };
         brightnessSlider.ValueChanged += (_, _) =>
         {
@@ -910,7 +909,7 @@ public partial class AmbienceView : UserControl
             ShowColorPicker(r, g, b, async (nr, ng, nb) =>
             {
                 colorCircle.Background = new SolidColorBrush(Color.FromRgb(nr, ng, nb));
-                await SafeCloudCall(() => _cloudApi!.SetColorAsync(device.Device, nr, ng, nb));
+                await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.SetColor(nr, ng, nb)));
             });
         };
         controlsRow.Children.Add(colorCircle);
@@ -918,21 +917,21 @@ public partial class AmbienceView : UserControl
         stack.Children.Add(controlsRow);
 
         // ── Scene section ──
-        if (device.Capabilities?.Any(c => c.Type == "devices.capabilities.dynamic_scene") == true)
+        if (device.Capabilities?.Contains("devices.capabilities.dynamic_scene") == true)
         {
             var sceneSection = BuildCollapsibleSection("SCENES", () => BuildScenesContent(device));
             stack.Children.Add(sceneSection);
         }
 
         // ── Segment section ──
-        if (device.Capabilities?.Any(c => c.Type == "devices.capabilities.segment_color_setting") == true)
+        if (device.Capabilities?.Contains("devices.capabilities.segment_color_setting") == true)
         {
             var segSection = BuildCollapsibleSection("SEGMENTS", () => BuildSegmentsContent(device));
             stack.Children.Add(segSection);
         }
 
         // ── Music mode section ──
-        if (device.Capabilities?.Any(c => c.Type == "devices.capabilities.music_setting") == true)
+        if (device.Capabilities?.Contains("devices.capabilities.music_setting") == true)
         {
             var musicSection = BuildCollapsibleSection("MUSIC MODE", () => BuildMusicModeContent(device));
             stack.Children.Add(musicSection);
@@ -969,7 +968,6 @@ public partial class AmbienceView : UserControl
             FontSize = 10,
             FontWeight = FontWeights.Bold,
             Foreground = FindBrush("TextSecBrush"),
-            LetterSpacing = 1,
             VerticalAlignment = VerticalAlignment.Center,
         };
 
@@ -1126,7 +1124,8 @@ public partial class AmbienceView : UserControl
                 tile.BorderBrush = new SolidColorBrush(ThemeManager.Accent);
                 activeSceneId = sceneId;
 
-                await SafeCloudCall(() => _cloudApi!.SetDynamicSceneAsync(device.Device, device.Sku, sceneId));
+                var sc = scenes.FirstOrDefault(s => s.Id == sceneId);
+                await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.SetScene(sceneId, sc?.Name ?? "")));
             };
 
             wrap.Children.Add(tile);
@@ -1141,16 +1140,9 @@ public partial class AmbienceView : UserControl
     {
         var container = new StackPanel();
 
-        // Placeholder segment list — actual segment count would come from capability
-        int segmentCount = 6; // default; real count from capability if available
-
-        var capability = device.Capabilities?.FirstOrDefault(c => c.Type == "devices.capabilities.segment_color_setting");
-        if (capability?.Parameters?.Fields != null)
-        {
-            var segField = capability.Parameters.Fields.FirstOrDefault(f => f.FieldName == "segment");
-            if (segField?.Array != null)
-                segmentCount = segField.Array.Count;
-        }
+        // Segment count would ideally come from the capability parameters;
+        // since Capabilities is List<string> (type strings only), use a safe default.
+        int segmentCount = 6;
 
         var segColors = new (byte R, byte G, byte B)[segmentCount];
         for (int i = 0; i < segmentCount; i++) segColors[i] = (255, 255, 255);
@@ -1196,7 +1188,14 @@ public partial class AmbienceView : UserControl
         };
         applyBtn.Click += async (_, _) =>
         {
-            await SafeCloudCall(() => _cloudApi!.SetSegmentColorsAsync(device.Device, device.Sku, segColors));
+            for (int si = 0; si < segColors.Length; si++)
+            {
+                var (sr, sg, sb) = segColors[si];
+                int capturedIdx = si;
+                await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
+                    device.Device, device.Sku,
+                    GoveeCloudApi.SetSegmentColor(capturedIdx, sr, sg, sb)));
+            }
         };
         container.Children.Add(applyBtn);
 
@@ -1219,9 +1218,9 @@ public partial class AmbienceView : UserControl
             ToolTip = "Sync device LEDs to audio via Govee Cloud",
         };
         musicToggle.Checked += async (_, _) =>
-            await SafeCloudCall(() => _cloudApi!.SetMusicModeAsync(device.Device, device.Sku, true, 50));
+            await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.SetMusicMode(1, 50)));
         musicToggle.Unchecked += async (_, _) =>
-            await SafeCloudCall(() => _cloudApi!.SetMusicModeAsync(device.Device, device.Sku, false, 50));
+            await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.SetMusicMode(0, 0)));
 
         toggleRow.Children.Add(musicToggle);
         container.Children.Add(toggleRow);
@@ -1265,7 +1264,7 @@ public partial class AmbienceView : UserControl
         {
             sensDebounce.Stop();
             if (musicToggle.IsChecked == true)
-                await SafeCloudCall(() => _cloudApi!.SetMusicModeAsync(device.Device, device.Sku, true, (int)sensSlider.Value));
+                await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.SetMusicMode(1, (int)sensSlider.Value)));
         };
         sensSlider.ValueChanged += (_, _) =>
         {
