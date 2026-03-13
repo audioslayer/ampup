@@ -17,6 +17,7 @@ namespace AmpUp.Controls;
 /// </summary>
 public class ListPicker : Border
 {
+    private readonly TextBlock _labelIcon;
     private readonly TextBlock _label;
     private readonly TextBlock _chevron;
     private readonly Popup _popup;
@@ -27,7 +28,7 @@ public class ListPicker : Border
     private readonly StackPanel _popupStack;
 
     private int _selectedIndex = -1;
-    private readonly List<(string Display, object? Tag)> _items = new();
+    private readonly List<(string Display, object? Tag, string? Icon, Color? IconColor)> _items = new();
     private string _filterText = "";
 
     public event EventHandler? SelectionChanged;
@@ -54,10 +55,22 @@ public class ListPicker : Border
         Cursor = Cursors.Hand;
         SnapsToDevicePixels = true;
 
-        // Layout: label + chevron
+        // Layout: [icon] label + chevron
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        // Inner stack for icon + label text
+        var labelRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+
+        _labelIcon = new TextBlock
+        {
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 5, 0),
+            Visibility = Visibility.Collapsed
+        };
+        labelRow.Children.Add(_labelIcon);
 
         _label = new TextBlock
         {
@@ -67,8 +80,10 @@ public class ListPicker : Border
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis
         };
-        Grid.SetColumn(_label, 0);
-        grid.Children.Add(_label);
+        labelRow.Children.Add(_label);
+
+        Grid.SetColumn(labelRow, 0);
+        grid.Children.Add(labelRow);
 
         _chevron = new TextBlock
         {
@@ -210,8 +225,11 @@ public class ListPicker : Border
     // ── Item management ─────────────────────────────────────────
 
     public void AddItem(string display, object? tag = null)
+        => AddItem(display, tag, null, null);
+
+    public void AddItem(string display, object? tag, string? icon, Color? iconColor)
     {
-        _items.Add((display, tag));
+        _items.Add((display, tag, icon, iconColor));
         RebuildPopupItems();
     }
 
@@ -221,6 +239,7 @@ public class ListPicker : Border
         _selectedIndex = -1;
         _label.Text = "Select...";
         _label.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+        _labelIcon.Visibility = Visibility.Collapsed;
         RebuildPopupItems();
     }
 
@@ -234,6 +253,7 @@ public class ListPicker : Border
                 _selectedIndex = value;
                 _label.Text = _items[value].Display;
                 _label.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
+                UpdateLabelIcon(value);
                 HighlightSelectedItem();
             }
             else
@@ -241,6 +261,7 @@ public class ListPicker : Border
                 _selectedIndex = -1;
                 _label.Text = "Select...";
                 _label.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+                _labelIcon.Visibility = Visibility.Collapsed;
             }
         }
     }
@@ -291,7 +312,7 @@ public class ListPicker : Border
         for (int i = 0; i < _items.Count; i++)
         {
             int idx = i;
-            var (display, _) = _items[i];
+            var (display, _, icon, iconColor) = _items[i];
             bool selected = idx == _selectedIndex;
 
             // Left accent bar (visible only when selected)
@@ -305,6 +326,32 @@ public class ListPicker : Border
                 Margin = new Thickness(0, 2, 0, 2)
             };
 
+            var rowGrid = new Grid();
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // accent bar
+            Grid.SetColumn(accentBar, 0);
+            rowGrid.Children.Add(accentBar);
+
+            int textCol = 1;
+
+            // Optional colored icon
+            if (!string.IsNullOrEmpty(icon))
+            {
+                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                var iconText = new TextBlock
+                {
+                    Text = icon,
+                    FontSize = 12,
+                    Foreground = new SolidColorBrush(iconColor ?? AccentColor),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 6, 0)
+                };
+                Grid.SetColumn(iconText, 1);
+                rowGrid.Children.Add(iconText);
+                textCol = 2;
+            }
+
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
             var itemText = new TextBlock
             {
                 Text = display,
@@ -316,13 +363,7 @@ public class ListPicker : Border
                 VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
-
-            var rowGrid = new Grid();
-            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            Grid.SetColumn(accentBar, 0);
-            Grid.SetColumn(itemText, 1);
-            rowGrid.Children.Add(accentBar);
+            Grid.SetColumn(itemText, textCol);
             rowGrid.Children.Add(itemText);
 
             var itemBorder = new Border
@@ -362,6 +403,7 @@ public class ListPicker : Border
                 _selectedIndex = idx;
                 _label.Text = _items[idx].Display;
                 _label.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
+                UpdateLabelIcon(idx);
                 _popup.IsOpen = false;
                 HighlightSelectedItem();
                 SelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -371,6 +413,22 @@ public class ListPicker : Border
             _itemsPanel.Children.Add(itemBorder);
         }
         HighlightSelectedItem();
+    }
+
+    private void UpdateLabelIcon(int idx)
+    {
+        if (idx >= 0 && idx < _items.Count)
+        {
+            var (_, _, icon, iconColor) = _items[idx];
+            if (!string.IsNullOrEmpty(icon))
+            {
+                _labelIcon.Text = icon;
+                _labelIcon.Foreground = new SolidColorBrush(iconColor ?? AccentColor);
+                _labelIcon.Visibility = Visibility.Visible;
+                return;
+            }
+        }
+        _labelIcon.Visibility = Visibility.Collapsed;
     }
 
     private void HighlightSelectedItem()
@@ -386,7 +444,7 @@ public class ListPicker : Border
                     ? new SolidColorBrush(Color.FromArgb(0x1F, AccentColor.R, AccentColor.G, AccentColor.B))
                     : Brushes.Transparent;
 
-                // Update accent bar visibility
+                // Update accent bar (always Children[0])
                 if (g.Children[0] is Border accentBar)
                 {
                     accentBar.Background = selected
@@ -394,8 +452,8 @@ public class ListPicker : Border
                         : Brushes.Transparent;
                 }
 
-                // Update text style
-                if (g.Children[1] is TextBlock t)
+                // Update text style — last child is always the item text TextBlock
+                if (g.Children[g.Children.Count - 1] is TextBlock t)
                 {
                     t.Foreground = selected
                         ? new SolidColorBrush(AccentColor)

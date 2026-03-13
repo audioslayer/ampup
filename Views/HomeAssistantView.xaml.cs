@@ -37,40 +37,8 @@ public partial class HomeAssistantView : UserControl
     // Entity cache
     private List<HAEntity> _entities = new();
 
-    // Domain emoji + color mappings
-    private static readonly Dictionary<string, (string Icon, Color Color)> DomainStyles = new()
-    {
-        { "light",         ("💡", Color.FromRgb(0xFF, 0xD5, 0x4F)) },
-        { "switch",        ("🔌", Color.FromRgb(0x42, 0xA5, 0xF5)) },
-        { "scene",         ("🎬", Color.FromRgb(0xFF, 0xA7, 0x26)) },
-        { "fan",           ("🌀", Color.FromRgb(0x26, 0xC6, 0xDA)) },
-        { "climate",       ("🌡", Color.FromRgb(0xEF, 0x53, 0x50)) },
-        { "media_player",  ("🎵", Color.FromRgb(0x66, 0xBB, 0x6A)) },
-        { "cover",         ("🪟", Color.FromRgb(0xAB, 0x47, 0xBC)) },
-        { "automation",    ("⚡", Color.FromRgb(0xFF, 0xB7, 0x4D)) },
-        { "script",        ("📜", Color.FromRgb(0x78, 0x90, 0x9C)) },
-        { "input_boolean", ("🔘", Color.FromRgb(0x29, 0xB6, 0xF6)) },
-        { "lock",          ("🔒", Color.FromRgb(0xFF, 0xD5, 0x4F)) },
-        { "sensor",        ("📊", Color.FromRgb(0x78, 0x90, 0x9C)) },
-        { "binary_sensor", ("⬤",  Color.FromRgb(0x78, 0x90, 0x9C)) },
-        { "button",        ("⏺",  Color.FromRgb(0x42, 0xA5, 0xF5)) },
-    };
-
-    private static string GetDomainEmoji(string entityId)
-    {
-        var domain = entityId.Contains('.') ? entityId.Split('.')[0] : entityId;
-        return DomainStyles.TryGetValue(domain, out var style) ? style.Icon : "🏠";
-    }
-
-    public static string GetDomainEmojiForDomain(string domain)
-    {
-        return DomainStyles.TryGetValue(domain, out var style) ? style.Icon : "🏠";
-    }
-
     private static (string Icon, Color Color) GetDomainStyle(string domain)
-    {
-        return DomainStyles.TryGetValue(domain, out var style) ? style : ("🏠", Color.FromRgb(0x88, 0x88, 0x88));
-    }
+        => HADomainStyles.GetStyle(domain);
 
     // HA target types for knobs
     private static readonly (string Display, string Value, string Domain, string Icon)[] KnobTypes =
@@ -622,9 +590,9 @@ public partial class HomeAssistantView : UserControl
         var domain = KnobTypes[typeIdx].Domain;
         var filtered = _entities.Where(e => e.Domain == domain).OrderBy(e => e.FriendlyName).ToList();
 
-        var domainEmoji = DomainStyles.TryGetValue(domain, out var ds) ? ds.Icon : "🏠";
+        var (domainIcon, _) = HADomainStyles.GetStyle(domain);
         foreach (var entity in filtered)
-            combo.Items.Add(new ComboBoxItem { Content = $"{domainEmoji} {entity.FriendlyName}", Tag = entity.EntityId });
+            combo.Items.Add(new ComboBoxItem { Content = $"{domainIcon} {entity.FriendlyName}", Tag = entity.EntityId });
 
         // Restore stashed selection
         var stashedId = combo.Tag as string;
@@ -668,8 +636,8 @@ public partial class HomeAssistantView : UserControl
 
         foreach (var entity in filtered)
         {
-            var emoji = DomainStyles.TryGetValue(entity.Domain, out var domStyle) ? domStyle.Icon : "🏠";
-            combo.Items.Add(new ComboBoxItem { Content = $"{emoji} {entity.FriendlyName}", Tag = entity.EntityId });
+            var (domainIcon, _) = HADomainStyles.GetStyle(entity.Domain);
+            combo.Items.Add(new ComboBoxItem { Content = $"{domainIcon} {entity.FriendlyName}", Tag = entity.EntityId });
         }
 
         // Restore stashed selection
@@ -795,5 +763,36 @@ public partial class HomeAssistantView : UserControl
                 words[i] = char.ToUpper(words[i][0]) + words[i][1..];
         }
         return string.Join(' ', words);
+    }
+}
+
+/// <summary>
+/// Shared domain icon + color styles for Home Assistant entities.
+/// Uses Unicode symbols (not emoji) so WPF renders them with Foreground color.
+/// </summary>
+public static class HADomainStyles
+{
+    public static readonly Dictionary<string, (string Icon, Color Color)> Domains = new()
+    {
+        { "light",         ("\u2022",  Color.FromRgb(0xFF, 0xD5, 0x4F)) }, // bullet → yellow
+        { "switch",        ("\u23FB", Color.FromRgb(0x42, 0xA5, 0xF5)) }, // ⏻ power
+        { "scene",         ("\u25BA", Color.FromRgb(0xFF, 0xA7, 0x26)) }, // ► play
+        { "fan",           ("\u2749", Color.FromRgb(0x26, 0xC6, 0xDA)) }, // ❉ asterisk
+        { "climate",       ("\u25CE", Color.FromRgb(0xEF, 0x53, 0x50)) }, // ◎ bullseye
+        { "media_player",  ("\u266B", Color.FromRgb(0x66, 0xBB, 0x6A)) }, // ♫ music
+        { "cover",         ("\u2750", Color.FromRgb(0xAB, 0x47, 0xBC)) }, // ❐ dashed box
+        { "automation",    ("\u26A1", Color.FromRgb(0xFF, 0xB7, 0x4D)) }, // ⚡ lightning
+        { "script",        ("\u25B7", Color.FromRgb(0x78, 0x90, 0x9C)) }, // ▷ triangle
+        { "input_boolean", ("\u25CE", Color.FromRgb(0x29, 0xB6, 0xF6)) }, // ◎ bullseye
+        { "lock",          ("\u29BF", Color.FromRgb(0xFF, 0xD5, 0x4F)) }, // ⦿ circle dot
+        { "sensor",        ("\u25C8", Color.FromRgb(0x78, 0x90, 0x9C)) }, // ◈ diamond
+        { "binary_sensor", ("\u25CF", Color.FromRgb(0x78, 0x90, 0x9C)) }, // ● filled circle
+        { "button",        ("\u25C9", Color.FromRgb(0x42, 0xA5, 0xF5)) }, // ◉ fisheye
+    };
+
+    public static (string Icon, Color Color) GetStyle(string entityIdOrDomain)
+    {
+        var domain = entityIdOrDomain.Contains('.') ? entityIdOrDomain.Split('.')[0] : entityIdOrDomain;
+        return Domains.TryGetValue(domain, out var style) ? style : ("\u2022", Color.FromRgb(0x88, 0x88, 0x88));
     }
 }

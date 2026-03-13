@@ -793,9 +793,9 @@ public partial class MixerView : UserControl
             return;
 
         var filtered = _haEntities.Where(e => e.Domain == domain).OrderBy(e => e.FriendlyName).ToList();
-        var domainEmoji = HomeAssistantView.GetDomainEmojiForDomain(domain);
+        var (domainIcon, domainColor) = HADomainStyles.GetStyle(domain);
         foreach (var entity in filtered)
-            picker.AddItem($"{domainEmoji} {entity.FriendlyName}", entity.EntityId);
+            picker.AddItem(entity.FriendlyName, entity.EntityId, domainIcon, domainColor);
 
         if (_config != null)
         {

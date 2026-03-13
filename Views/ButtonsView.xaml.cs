@@ -1544,8 +1544,8 @@ public partial class ButtonsView : UserControl
                 picker.ClearItems();
                 foreach (var e in entities.OrderBy(e => e.FriendlyName))
                 {
-                    var emoji = HomeAssistantView.GetDomainEmojiForDomain(e.Domain);
-                    picker.AddItem($"{emoji} {e.FriendlyName}", e.EntityId);
+                    var (icon, color) = HADomainStyles.GetStyle(e.Domain);
+                    picker.AddItem(e.FriendlyName, e.EntityId, icon, color);
                 }
 
                 // Re-select previously selected entity
