@@ -27,11 +27,13 @@
     <Resource Include="Assets\icon\ampup-128.png" />
     <Resource Include="Assets\icon\ampup-256.png" />
     <Resource Include="Assets\icon\ampup-512.png" />
+    <Resource Include="Fonts\MaterialSymbolsOutlined.ttf" />
   </ItemGroup>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
     <PackageReference Include="WPF-UI" Version="4.*" />
+    <PackageReference Include="Material.Icons.WPF" Version="3.*" />
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="System.IO.Ports" Version="8.0.0" />

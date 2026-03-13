@@ -3,7 +3,8 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
-using Wpf.Ui.Controls;
+using Material.Icons;
+using Material.Icons.WPF;
 
 namespace AmpUp;
 
@@ -100,9 +101,8 @@ public partial class OsdOverlay : Window
 
     private void SetSymbolIcon(string symbolName, string colorHex)
     {
-        var icon = new SymbolIcon { FontSize = 26, VerticalAlignment = VerticalAlignment.Center };
-        if (Enum.TryParse<SymbolRegular>(symbolName, out var sym))
-            icon.Symbol = sym;
+        var kind = Enum.TryParse<MaterialIconKind>(symbolName, out var k) ? k : MaterialIconKind.VolumeHigh;
+        var icon = new MaterialIcon { Kind = kind, Width = 26, Height = 26, VerticalAlignment = VerticalAlignment.Center };
         try { icon.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(colorHex)); } catch { }
         OsdIconHost.Content = icon;
     }
@@ -110,7 +110,7 @@ public partial class OsdOverlay : Window
     /// <summary>
     /// Show volume change: label, percentage, animated bar.
     /// </summary>
-    public void ShowVolume(string label, int percent, string symbolName = "Speaker224")
+    public void ShowVolume(string label, int percent, string symbolName = "VolumeHigh")
     {
         _closing = false;
         _dismissTimer.Stop();
@@ -183,7 +183,7 @@ public partial class OsdOverlay : Window
         _dismissTimer.Stop();
 
         CategoryLabel.Text = isOutput ? "OUTPUT DEVICE" : "INPUT DEVICE";
-        SetSymbolIcon(isOutput ? "Speaker224" : "Mic24", ThemeManager.AccentHex);
+        SetSymbolIcon(isOutput ? "VolumeHigh" : "Microphone", ThemeManager.AccentHex);
         OsdTitle.Text = deviceName;
         OsdValue.Visibility = Visibility.Collapsed;
         BarContainer.Visibility = Visibility.Collapsed;

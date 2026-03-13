@@ -2,6 +2,8 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Material.Icons;
+using Material.Icons.WPF;
 using Wpf.Ui.Controls;
 using AmpUp.Views;
 
@@ -206,9 +208,10 @@ public partial class MainWindow : FluentWindow
         _activeNavButton = navButton;
     }
 
-    private static (SymbolIcon? Icon, System.Windows.Controls.TextBlock? Label) FindNavChildren(System.Windows.Controls.Button button)
+    private static (System.Windows.Controls.TextBlock? Icon, System.Windows.Controls.TextBlock? Label) FindNavChildren(System.Windows.Controls.Button button)
     {
-        // Content is now a Grid wrapping a Border (indicator bar) + StackPanel
+        // Content is a Grid wrapping a Border (indicator bar) + StackPanel.
+        // StackPanel children: [0] icon TextBlock (Material font), [1] label TextBlock.
         var grid = button.Content as System.Windows.Controls.Grid;
         var sp = grid != null
             ? grid.Children.OfType<System.Windows.Controls.StackPanel>().FirstOrDefault()
@@ -216,16 +219,12 @@ public partial class MainWindow : FluentWindow
 
         if (sp != null)
         {
-            SymbolIcon? icon = null;
-            System.Windows.Controls.TextBlock? label = null;
-            foreach (var child in sp.Children)
-            {
-                if (child is SymbolIcon si) icon = si;
-                if (child is System.Windows.Controls.TextBlock tb) label = tb;
-            }
+            var textBlocks = sp.Children.OfType<System.Windows.Controls.TextBlock>().ToList();
+            var icon = textBlocks.Count > 0 ? textBlocks[0] : null;
+            var label = textBlocks.Count > 1 ? textBlocks[1] : null;
             return (icon, label);
         }
-        return (button.Content as SymbolIcon, null);
+        return (null, null);
     }
 
     // ── Window drag ─────────────────────────────────────────────────
@@ -349,28 +348,28 @@ public partial class MainWindow : FluentWindow
 
     // ── Profile flyout ────────────────────────────────────────────
 
-    // Icon options for profile picker — Fluent SymbolRegular names
+    // Icon options for profile picker — MaterialIconKind names
     private static readonly (string Category, string[] Symbols)[] ProfileIconCategories =
     {
         ("Audio & Music", new[] {
-            "Speaker224", "Speaker024", "SpeakerMute24", "Headphones24",
-            "MusicNote124", "MusicNote224", "Mic24", "MicOff24"
+            "VolumeHigh", "VolumeOff", "VolumeMute", "Headphones",
+            "MusicNote", "MusicNoteEighth", "Microphone", "MicrophoneOff"
         }),
         ("Gaming & Fun", new[] {
-            "Games24", "Trophy24", "Rocket24", "Star24",
-            "Heart24", "Emoji24", "Bot24", "PersonBoard24"
+            "GamepadVariant", "Trophy", "Rocket", "Star",
+            "Heart", "EmoticonHappy", "Robot", "AccountCircleOutline"
         }),
         ("Lights & Effects", new[] {
-            "LightbulbFilament24", "Flash24", "Sparkle24", "Weather24",
-            "WeatherMoon24", "WeatherSunny24", "Drop24", "Fire24"
+            "LightbulbOnOutline", "Flash", "Shimmer", "WeatherCloudy",
+            "WeatherNight", "WeatherSunny", "WaterOutline", "Fire"
         }),
         ("Work & Streaming", new[] {
-            "Desktop24", "Laptop24", "Keyboard24", "Video24",
-            "Record24", "Globe24", "Megaphone24", "SlideText24"
+            "Monitor", "Laptop", "Keyboard", "Video",
+            "RecordCircle", "Earth", "Bullhorn", "PresentationPlay"
         }),
         ("Home & System", new[] {
-            "Home24", "Settings24", "Shield24", "Lock24",
-            "Eye24", "Power24", "Bluetooth24", "Wifi124"
+            "Home", "CogOutline", "Shield", "Lock",
+            "Eye", "Power", "Bluetooth", "Wifi"
         }),
     };
 
@@ -392,8 +391,8 @@ public partial class MainWindow : FluentWindow
     private void UpdateProfileButton()
     {
         var icon = _config.ProfileIcons.GetValueOrDefault(_config.ActiveProfile) ?? new ProfileIconConfig();
-        if (Enum.TryParse<Wpf.Ui.Controls.SymbolRegular>(icon.Symbol, out var sym))
-            ProfileIcon.Symbol = sym;
+        if (Enum.TryParse<MaterialIconKind>(icon.Symbol, out var kind))
+            ProfileIcon.Kind = kind;
         try { ProfileIcon.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(icon.Color)); } catch { }
         ProfileLabel.Text = _config.ActiveProfile;
     }
@@ -433,12 +432,17 @@ public partial class MainWindow : FluentWindow
             row.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = System.Windows.GridLength.Auto });
 
             // Icon button (clickable to change icon)
-            var iconElement = new SymbolIcon { FontSize = 18, Margin = new Thickness(0, 0, 8, 0) };
-            if (Enum.TryParse<Wpf.Ui.Controls.SymbolRegular>(iconCfg.Symbol, out var sym))
-                iconElement.Symbol = sym;
+            var iconElement = new MaterialIcon
+            {
+                Width = 18, Height = 18,
+                Margin = new Thickness(0, 0, 8, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Cursor = Cursors.Hand,
+                ToolTip = "Change icon"
+            };
+            if (Enum.TryParse<MaterialIconKind>(iconCfg.Symbol, out var iconKind))
+                iconElement.Kind = iconKind;
             try { iconElement.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(iconCfg.Color)); } catch { }
-            iconElement.Cursor = Cursors.Hand;
-            iconElement.ToolTip = "Change icon";
             iconElement.MouseLeftButtonDown += (_, ev) =>
             {
                 ev.Handled = true;
@@ -604,8 +608,8 @@ public partial class MainWindow : FluentWindow
         var colorWrap = new System.Windows.Controls.WrapPanel { Width = 280 };
         string selectedColor = currentIcon.Color;
 
-        // We'll track all icon symbols so we can update their color when user picks a new one
-        var allIconElements = new List<SymbolIcon>();
+        // We'll track all icon elements so we can update their color when user picks a new one
+        var allIconElements = new List<MaterialIcon>();
 
         foreach (var (name, hex) in ProfileIconColors)
         {
@@ -627,7 +631,7 @@ public partial class MainWindow : FluentWindow
                 selectedColor = colorHex;
                 _config.ProfileIcons[profileName] = new ProfileIconConfig
                 {
-                    Symbol = _config.ProfileIcons.GetValueOrDefault(profileName)?.Symbol ?? "Speaker224",
+                    Symbol = _config.ProfileIcons.GetValueOrDefault(profileName)?.Symbol ?? "VolumeHigh",
                     Color = colorHex
                 };
                 _onConfigChanged?.Invoke(_config);
@@ -635,7 +639,7 @@ public partial class MainWindow : FluentWindow
 
                 // Update all icon previews in the popup to show the new color
                 var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(colorHex));
-                foreach (var si in allIconElements) si.Foreground = brush;
+                foreach (var mi in allIconElements) mi.Foreground = brush;
 
                 // Update swatch borders
                 foreach (System.Windows.Controls.Border child in colorWrap.Children)
@@ -667,13 +671,14 @@ public partial class MainWindow : FluentWindow
             foreach (var symName in symbols)
             {
                 var symbolCapture = symName;
-                if (!Enum.TryParse<Wpf.Ui.Controls.SymbolRegular>(symName, out var parsedSym))
+                if (!Enum.TryParse<MaterialIconKind>(symName, out var parsedKind))
                     continue;
 
-                var iconEl = new SymbolIcon
+                var iconEl = new MaterialIcon
                 {
-                    Symbol = parsedSym,
-                    FontSize = 18,
+                    Kind = parsedKind,
+                    Width = 18,
+                    Height = 18,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center
                 };

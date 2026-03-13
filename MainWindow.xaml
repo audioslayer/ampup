@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:mi="clr-namespace:Material.Icons.WPF;assembly=Material.Icons.WPF"
         xmlns:views="clr-namespace:AmpUp.Views"
         Title="Amp Up"
         Width="1600" Height="1000"
@@ -11,6 +12,7 @@
         WindowBackdropType="Mica">
 
     <ui:FluentWindow.Resources>
+        <FontFamily x:Key="MaterialSymbols">pack://application:,,,/Fonts/#Material Symbols Outlined</FontFamily>
         <Storyboard x:Key="PulseAnimation" RepeatBehavior="Forever">
             <DoubleAnimation Storyboard.TargetName="ConnectionDot"
                              Storyboard.TargetProperty="Opacity"
@@ -129,9 +131,9 @@
                             <Border.Effect>
                                 <DropShadowEffect Color="#00E676" BlurRadius="12" Opacity="0.25" ShadowDepth="0" />
                             </Border.Effect>
-                            <ui:SymbolIcon x:Name="ProfileIcon" Symbol="Person24" FontSize="20"
-                                           Foreground="{DynamicResource AccentBrush}"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <mi:MaterialIcon x:Name="ProfileIcon" Kind="AccountCircleOutline"
+                                       Width="22" Height="22" Foreground="{DynamicResource AccentBrush}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <TextBlock x:Name="ProfileLabel" Text="Default" FontSize="8" FontWeight="Medium"
                                    Foreground="{StaticResource TextSecBrush}"
@@ -169,7 +171,9 @@
                                         Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                         Visibility="Collapsed" Margin="-4,0,0,0" />
                                 <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                    <ui:SymbolIcon Symbol="ArrowUpload24" FontSize="20" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" />
+                                    <TextBlock Text="&#xF09B;" FontFamily="{StaticResource MaterialSymbols}"
+                                               FontSize="20" Foreground="{DynamicResource AccentBrush}"
+                                               HorizontalAlignment="Center" TextAlignment="Center" />
                                     <TextBlock Text="Import" FontSize="9" Foreground="{StaticResource TextDimBrush}"
                                                HorizontalAlignment="Center" Margin="0,3,0,0" />
                                 </StackPanel>
@@ -186,7 +190,9 @@
                                         Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                         Visibility="Collapsed" Margin="-4,0,0,0" />
                                 <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                    <ui:SymbolIcon Symbol="DataBarVertical24" FontSize="22" Foreground="{StaticResource TextSecBrush}" HorizontalAlignment="Center" />
+                                    <TextBlock Text="&#xEF3E;" FontFamily="{StaticResource MaterialSymbols}"
+                                               FontSize="22" Foreground="{StaticResource TextSecBrush}"
+                                               HorizontalAlignment="Center" TextAlignment="Center" />
                                     <TextBlock x:Name="NavBindingsLabel" Text="Bindings" FontSize="9" Foreground="{StaticResource TextSecBrush}"
                                                HorizontalAlignment="Center" Margin="0,3,0,0" />
                                 </StackPanel>
@@ -205,7 +211,9 @@
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <ui:SymbolIcon Symbol="MusicNote124" FontSize="22" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" />
+                                        <TextBlock Text="&#xE405;" FontFamily="{StaticResource MaterialSymbols}"
+                                                   FontSize="22" Foreground="{DynamicResource AccentBrush}"
+                                                   HorizontalAlignment="Center" TextAlignment="Center" />
                                         <TextBlock x:Name="NavMixerLabel" Text="Knobs" FontSize="9" Foreground="{DynamicResource AccentBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
@@ -221,7 +229,9 @@
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <ui:SymbolIcon Symbol="ControlButton24" FontSize="22" Foreground="{StaticResource TextSecBrush}" HorizontalAlignment="Center" />
+                                        <TextBlock Text="&#xF1C1;" FontFamily="{StaticResource MaterialSymbols}"
+                                                   FontSize="22" Foreground="{StaticResource TextSecBrush}"
+                                                   HorizontalAlignment="Center" TextAlignment="Center" />
                                         <TextBlock x:Name="NavButtonsLabel" Text="Buttons" FontSize="9" Foreground="{StaticResource TextSecBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
@@ -237,7 +247,9 @@
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <ui:SymbolIcon Symbol="Color24" FontSize="22" Foreground="{StaticResource TextSecBrush}" HorizontalAlignment="Center" />
+                                        <TextBlock Text="&#xE40A;" FontFamily="{StaticResource MaterialSymbols}"
+                                                   FontSize="22" Foreground="{StaticResource TextSecBrush}"
+                                                   HorizontalAlignment="Center" TextAlignment="Center" />
                                         <TextBlock x:Name="NavLightsLabel" Text="Lights" FontSize="9" Foreground="{StaticResource TextSecBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
@@ -253,7 +265,9 @@
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <ui:SymbolIcon Symbol="LightbulbFilament24" FontSize="22" Foreground="{StaticResource TextSecBrush}" HorizontalAlignment="Center" />
+                                        <TextBlock Text="&#xE0F0;" FontFamily="{StaticResource MaterialSymbols}"
+                                                   FontSize="22" Foreground="{StaticResource TextSecBrush}"
+                                                   HorizontalAlignment="Center" TextAlignment="Center" />
                                         <TextBlock x:Name="NavAmbienceLabel" Text="Ambience" FontSize="9" Foreground="{StaticResource TextSecBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
@@ -269,7 +283,9 @@
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <ui:SymbolIcon Symbol="Settings24" FontSize="22" Foreground="{StaticResource TextSecBrush}" HorizontalAlignment="Center" />
+                                        <TextBlock Text="&#xE8B8;" FontFamily="{StaticResource MaterialSymbols}"
+                                                   FontSize="22" Foreground="{StaticResource TextSecBrush}"
+                                                   HorizontalAlignment="Center" TextAlignment="Center" />
                                         <TextBlock x:Name="NavSettingsLabel" Text="Settings" FontSize="9" Foreground="{StaticResource TextSecBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
