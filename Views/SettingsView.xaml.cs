@@ -692,6 +692,15 @@ public partial class SettingsView : UserControl
                     }
                 }
 
+                // Preserve sync modes from previously saved devices
+                var existing = _config.Ambience.GoveeDevices;
+                foreach (var dev in found)
+                {
+                    var prev = existing.FirstOrDefault(e => e.Ip == dev.Ip);
+                    if (prev != null && prev.SyncMode != "off")
+                        dev.SyncMode = prev.SyncMode;
+                }
+
                 _config.Ambience.GoveeDevices = found;
                 TxtGoveeScanStatus.Text = $"{found.Count} device(s) found";
                 RefreshGoveeDeviceList();

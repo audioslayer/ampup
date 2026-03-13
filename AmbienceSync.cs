@@ -137,7 +137,9 @@ public class AmbienceSync : IDisposable
 
                 string json = Encoding.UTF8.GetString(result.Data);
                 string ip = result.Ep.Address.ToString();
+                Logger.Log($"Govee scan response from {ip}: {json}");
                 var (name, sku, deviceMac) = ParseScanResponse(json, ip);
+                Logger.Log($"Govee parsed: name={name}, sku={sku}, mac={deviceMac}");
 
                 if (!results.Any(r => r.Ip == ip))
                 {
