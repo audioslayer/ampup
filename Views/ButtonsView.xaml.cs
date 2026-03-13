@@ -371,6 +371,8 @@ public partial class ButtonsView : UserControl
 
         _audioDevices = mixer.GetAudioDevices();
 
+        RebuildActionPickers(config);
+
         for (int i = 0; i < 5; i++)
         {
             PopulateDevicePicker(_tapDevicePickers[i]);
@@ -1082,6 +1084,50 @@ public partial class ButtonsView : UserControl
         { "ha_scene",           "Activate a Home Assistant scene" },
         { "ha_service",         "Call any Home Assistant service (format: domain.service:entity_id)" },
     };
+
+    private void RebuildActionPickers(AppConfig config)
+    {
+        bool haEnabled = config.HomeAssistant.Enabled;
+
+        // Check if any button currently has an HA action configured (so we can still show it even when disabled)
+        bool anyHaConfigured = config.Buttons.Any(b =>
+            IsHaAction(b.Action) || IsHaAction(b.DoublePressAction) || IsHaAction(b.HoldAction));
+
+        for (int i = 0; i < 5; i++)
+        {
+            PopulateActionPicker(_tapCombos[i], haEnabled, anyHaConfigured);
+            PopulateActionPicker(_dblCombos[i], haEnabled, anyHaConfigured);
+            PopulateActionPicker(_holdCombos[i], haEnabled, anyHaConfigured);
+        }
+    }
+
+    private static bool IsHaAction(string? action)
+        => action is "ha_toggle" or "ha_scene" or "ha_service";
+
+    private void PopulateActionPicker(ActionPicker picker, bool haEnabled, bool anyHaConfigured)
+    {
+        picker.ClearItems();
+
+        foreach (var (display, value) in Actions)
+        {
+            bool isHa = IsHaAction(value);
+
+            // Skip HA actions when HA is disabled AND no button has an HA action configured
+            if (isHa && !haEnabled && !anyHaConfigured)
+                continue;
+
+            string displayName = display;
+            if (isHa && !haEnabled)
+                displayName = $"{display} (HA disabled)";
+
+            var icon = ActionIcons.GetValueOrDefault(value, "—");
+            var color = isHa && !haEnabled
+                ? Color.FromRgb(0x55, 0x55, 0x55)
+                : ActionColors.GetValueOrDefault(value, Color.FromRgb(0x88, 0x88, 0x88));
+            var tooltip = ActionTooltips.GetValueOrDefault(value, display);
+            picker.AddItem(displayName, value, icon, color, tooltip);
+        }
+    }
 
     private ActionPicker MakeActionCombo()
     {

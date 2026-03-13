@@ -370,6 +370,10 @@ public partial class App : Application
                 _config.LedBrightness = pct;
                 _rgb.SetBrightness(pct);
             }
+            else if (knob.Target.Equals("govee", StringComparison.OrdinalIgnoreCase))
+            {
+                _ambienceSync?.SetBrightness(e.Value / 1023f);
+            }
             else
             {
                 _mixer.SetVolume(knob, e.Value);
@@ -388,6 +392,7 @@ public partial class App : Application
                     "mic" => "Mic24",
                     "monitor" => "Desktop24",
                     "led_brightness" => "Color24",
+                    "govee" => "Color24",
                     "spotify" => "MusicNote124",
                     "discord" => "Headphones24",
                     _ when knob.Target.StartsWith("ha_") => "Home24",

@@ -36,8 +36,8 @@ public partial class AmbienceView : UserControl
     // Section header elements (refreshed on accent change)
     private readonly List<(Border bar, TextBlock label)> _sectionHeaders = new();
 
-    // Device rows — maps IP → sync mode ComboBox
-    private readonly Dictionary<string, ComboBox> _deviceCombos = new();
+    // Device rows — maps IP → device name
+    private readonly Dictionary<string, string> _deviceCombos = new();
 
     public AmbienceView()
     {
@@ -76,7 +76,7 @@ public partial class AmbienceView : UserControl
             _goveeDeviceList.Children.Clear();
             _deviceCombos.Clear();
             foreach (var dev in ambience.GoveeDevices)
-                AddDeviceRow(dev.Ip, dev.Name, dev.SyncMode);
+                AddDeviceRow(dev.Ip, dev.Name);
 
             _goveeDeviceList.Visibility = Visibility.Visible;
             _goveeScanStatus.Text = $"{ambience.GoveeDevices.Count} device(s) configured";
@@ -367,9 +367,7 @@ public partial class AmbienceView : UserControl
 
             foreach (var (ip, name) in found)
             {
-                var existing = existingDevices.FirstOrDefault(d => d.Ip == ip);
-                string syncMode = existing?.SyncMode ?? "off";
-                AddDeviceRow(ip, name, syncMode);
+                AddDeviceRow(ip, name);
             }
 
             _goveeDeviceList.Visibility = Visibility.Visible;
@@ -379,11 +377,9 @@ public partial class AmbienceView : UserControl
         _goveeScanBtn.IsEnabled = true;
     }
 
-    private void AddDeviceRow(string ip, string name, string syncMode)
+    private void AddDeviceRow(string ip, string name)
     {
-        var row = new Grid { Margin = new Thickness(0, 0, 0, 8) };
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
+        var row = new Grid { Margin = new Thickness(0, 0, 0, 8), Tag = ip };
 
         var displayName = string.IsNullOrWhiteSpace(name) ? ip : $"{name} — {ip}";
         var nameBlock = new TextBlock
@@ -394,48 +390,10 @@ public partial class AmbienceView : UserControl
             TextTrimming = TextTrimming.CharacterEllipsis,
             ToolTip = ip,
         };
-        Grid.SetColumn(nameBlock, 0);
         row.Children.Add(nameBlock);
 
-        var combo = new ComboBox
-        {
-            Background = FindBrush("InputBgBrush"),
-            Foreground = FindBrush("TextPrimaryBrush"),
-            BorderBrush = FindBrush("InputBorderBrush"),
-            FontSize = 12,
-            Tag = ip,
-        };
-
-        var syncModeOptions = new[]
-        {
-            ("off",   "Off"),
-            ("global","Mirror Global"),
-            ("knob0", "Knob 1"),
-            ("knob1", "Knob 2"),
-            ("knob2", "Knob 3"),
-            ("knob3", "Knob 4"),
-            ("knob4", "Knob 5"),
-        };
-
-        int selectedIdx = 0;
-        for (int i = 0; i < syncModeOptions.Length; i++)
-        {
-            var (val, label) = syncModeOptions[i];
-            combo.Items.Add(new ComboBoxItem { Content = label, Tag = val });
-            if (val == syncMode) selectedIdx = i;
-        }
-        combo.SelectedIndex = selectedIdx;
-        combo.SelectionChanged += (_, _) =>
-        {
-            if (_loading) return;
-            QueueSave();
-        };
-
-        Grid.SetColumn(combo, 1);
-        row.Children.Add(combo);
-
         _goveeDeviceList.Children.Add(row);
-        _deviceCombos[ip] = combo;
+        _deviceCombos[ip] = string.IsNullOrWhiteSpace(name) ? ip : name;
     }
 
     private void UpdateGoveeStatusDot()
@@ -1473,27 +1431,11 @@ public partial class AmbienceView : UserControl
         cfg.BrightnessScale = (int)_brightnessSlider.Value;
         cfg.WarmToneShift = _warmToneShift.IsChecked == true;
 
-        // Collect device configs from device rows
+        // Collect device configs from device rows — sync mode is always "global" (controlled via Mixer tab knob)
         cfg.GoveeDevices.Clear();
-        foreach (var (ip, combo) in _deviceCombos)
+        foreach (var (ip, name) in _deviceCombos)
         {
-            string syncMode = "off";
-            if (combo.SelectedItem is ComboBoxItem item)
-                syncMode = item.Tag as string ?? "off";
-
-            // Recover name from the row's TextBlock
-            string name = ip;
-            foreach (var child in _goveeDeviceList.Children)
-            {
-                if (child is Grid rowGrid && rowGrid.Tag as string == ip)
-                {
-                    if (rowGrid.Children.Count > 0 && rowGrid.Children[0] is TextBlock tb)
-                        name = tb.Text;
-                    break;
-                }
-            }
-
-            cfg.GoveeDevices.Add(new GoveeDeviceConfig { Ip = ip, Name = name, SyncMode = syncMode });
+            cfg.GoveeDevices.Add(new GoveeDeviceConfig { Ip = ip, Name = name, SyncMode = "global" });
         }
 
         _sync?.UpdateConfig(cfg);

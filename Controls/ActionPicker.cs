@@ -162,6 +162,16 @@ public class ActionPicker : Border
         BuildPopupItem(_items.Count - 1);
     }
 
+    public void ClearItems()
+    {
+        _items.Clear();
+        _itemsPanel.Children.Clear();
+        _selectedIndex = -1;
+        _displayText.Text = "None";
+        _iconBlock.Text = "—";
+        _iconBlock.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+    }
+
     public void Select(string value)
     {
         for (int i = 0; i < _items.Count; i++)

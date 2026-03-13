@@ -49,9 +49,9 @@ public class AmbienceSync : IDisposable
         foreach (var device in cfg.GoveeDevices)
         {
             if (string.IsNullOrWhiteSpace(device.Ip)) continue;
-            if (device.SyncMode == "off") continue;
 
-            var (r, g, b) = DeriveColor(linear45, device.SyncMode);
+            // Always mirror the global average color across all LEDs
+            var (r, g, b) = DeriveColor(linear45);
             (r, g, b) = ApplySettings(r, g, b, cfg);
 
             // Rate limit: skip if sent too recently
@@ -143,32 +143,17 @@ public class AmbienceSync : IDisposable
 
     // ── Color derivation ────────────────────────────────────────────
 
-    private static (int R, int G, int B) DeriveColor(byte[] linear45, string syncMode)
+    private static (int R, int G, int B) DeriveColor(byte[] linear45)
     {
-        // "global" — average all 15 LEDs
-        if (syncMode == "global")
+        // Average all 15 LEDs (5 knobs × 3 LEDs) for a global room color
+        int rSum = 0, gSum = 0, bSum = 0;
+        for (int i = 0; i < 15; i++)
         {
-            int rSum = 0, gSum = 0, bSum = 0;
-            for (int i = 0; i < 15; i++)
-            {
-                rSum += linear45[i * 3 + 0];
-                gSum += linear45[i * 3 + 1];
-                bSum += linear45[i * 3 + 2];
-            }
-            return (rSum / 15, gSum / 15, bSum / 15);
+            rSum += linear45[i * 3 + 0];
+            gSum += linear45[i * 3 + 1];
+            bSum += linear45[i * 3 + 2];
         }
-
-        // "knob0"-"knob4" — average 3 LEDs for that knob
-        if (syncMode.StartsWith("knob") && int.TryParse(syncMode.AsSpan(4), out int knob) && knob >= 0 && knob <= 4)
-        {
-            int offset = knob * 9; // knob * 3 LEDs * 3 bytes
-            int rSum = linear45[offset + 0] + linear45[offset + 3] + linear45[offset + 6];
-            int gSum = linear45[offset + 1] + linear45[offset + 4] + linear45[offset + 7];
-            int bSum = linear45[offset + 2] + linear45[offset + 5] + linear45[offset + 8];
-            return (rSum / 3, gSum / 3, bSum / 3);
-        }
-
-        return (0, 0, 0);
+        return (rSum / 15, gSum / 15, bSum / 15);
     }
 
     private static (int R, int G, int B) ApplySettings(int r, int g, int b, AmbienceConfig cfg)
@@ -186,6 +171,46 @@ public class AmbienceSync : IDisposable
         }
 
         return (Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
+    }
+
+    // ── Knob brightness control ─────────────────────────────────────
+
+    /// <summary>
+    /// Sets Govee brightness (0.0–1.0) on all configured LAN devices.
+    /// Called when a knob is assigned target "govee".
+    /// </summary>
+    public void SetBrightness(float normalized)
+    {
+        if (_disposed) return;
+
+        AmbienceConfig cfg;
+        lock (_lock) cfg = _config;
+
+        if (!cfg.GoveeEnabled || cfg.GoveeDevices.Count == 0) return;
+
+        int value = (int)Math.Round(Math.Clamp(normalized, 0f, 1f) * 100);
+
+        foreach (var device in cfg.GoveeDevices)
+        {
+            if (string.IsNullOrWhiteSpace(device.Ip)) continue;
+            string ip = device.Ip;
+            _ = Task.Run(() => SendGoveeBrightness(ip, value));
+        }
+    }
+
+    private static async Task SendGoveeBrightness(string ip, int value)
+    {
+        try
+        {
+            string json = $"{{\"msg\":{{\"cmd\":\"brightness\",\"data\":{{\"value\":{value}}}}}}}";
+            byte[] data = Encoding.UTF8.GetBytes(json);
+            using var udp = new UdpClient();
+            await udp.SendAsync(data, data.Length, ip, 4001);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Govee brightness failed ({ip}): {ex.Message}");
+        }
     }
 
     // ── Govee UDP send ──────────────────────────────────────────────

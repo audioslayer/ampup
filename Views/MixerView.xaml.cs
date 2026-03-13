@@ -33,7 +33,8 @@ public partial class MixerView : UserControl
         { "ha_fan", "HA: Fan" },
         { "ha_cover", "HA: Cover" },
         { "apps", "App Group" },
-        { "led_brightness", "LED Brightness" }
+        { "led_brightness", "LED Brightness" },
+        { "govee", "Govee" }
     };
 
     // Per-channel control arrays
@@ -300,6 +301,8 @@ public partial class MixerView : UserControl
             else
                 _ha.UpdateConfig(config.HomeAssistant);
         }
+
+        RebuildTargetPickerItems(config);
 
         for (int i = 0; i < 5; i++)
         {
@@ -634,11 +637,8 @@ public partial class MixerView : UserControl
             targetPicker.AddItem("Monitor", "monitor");
             targetPicker.AddItem("LED Brightness", "led_brightness");
 
-            targetPicker.AddCategory("Integrations");
-            targetPicker.AddItem("HA: Light", "ha_light");
-            targetPicker.AddItem("HA: Media", "ha_media");
-            targetPicker.AddItem("HA: Fan", "ha_fan");
-            targetPicker.AddItem("HA: Cover", "ha_cover");
+            // Integration items (HA / Govee) are added conditionally in RebuildTargetPickerItems
+            // called from LoadConfig once we know which integrations are enabled.
 
             targetPicker.AddCategory("Apps");
             targetPicker.AddItem("Discord", "discord");
@@ -809,6 +809,58 @@ public partial class MixerView : UserControl
     }
 
     // --- Picker helpers ---
+
+    private void RebuildTargetPickerItems(AppConfig config)
+    {
+        bool haEnabled = config.HomeAssistant.Enabled;
+        bool goveeEnabled = config.Ambience.GoveeEnabled && config.Ambience.GoveeDevices.Count > 0;
+
+        for (int i = 0; i < 5; i++)
+        {
+            var picker = _targetPickers[i];
+            if (picker == null) continue;
+
+            picker.ClearItems();
+
+            picker.AddCategory("Audio");
+            picker.AddItem("Master", "master");
+            picker.AddItem("Mic", "mic");
+            picker.AddItem("System", "system");
+            picker.AddItem("Any", "any");
+            picker.AddItem("Active Window", "active_window");
+
+            picker.AddCategory("Devices");
+            picker.AddItem("Output Device", "output_device");
+            picker.AddItem("Input Device", "input_device");
+            picker.AddItem("Monitor", "monitor");
+            picker.AddItem("LED Brightness", "led_brightness");
+
+            bool hasIntegrations = haEnabled || goveeEnabled;
+            if (hasIntegrations)
+            {
+                picker.AddCategory("Integrations");
+
+                if (haEnabled)
+                {
+                    picker.AddItem("HA: Light", "ha_light");
+                    picker.AddItem("HA: Media", "ha_media");
+                    picker.AddItem("HA: Fan", "ha_fan");
+                    picker.AddItem("HA: Cover", "ha_cover");
+                }
+
+                if (goveeEnabled)
+                {
+                    picker.AddItem("Govee", "govee");
+                }
+            }
+
+            picker.AddCategory("Apps");
+            picker.AddItem("Discord", "discord");
+            picker.AddItem("Spotify", "spotify");
+            picker.AddItem("Chrome", "chrome");
+            picker.AddItem("App Group", "apps");
+        }
+    }
 
     private void SelectTarget(GridPicker picker, string target)
     {
