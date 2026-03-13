@@ -96,24 +96,36 @@ public class AmbienceSync : IDisposable
     {
         var results = new List<GoveeDeviceConfig>();
 
-        UdpClient? listener = null;
         try
         {
+            // Use a single UDP client bound to port 4002 for both send and receive.
+            // Govee devices respond to the sender's port, and also broadcast on 4002.
             using var udp = new UdpClient();
-            udp.EnableBroadcast = true;
-
-            // Bind listener to port 4002 for responses — allow address reuse in case of stale socket
-            listener = new UdpClient();
-            listener.Client.SetSocketOption(System.Net.Sockets.SocketOptionLevel.Socket,
+            udp.Client.SetSocketOption(System.Net.Sockets.SocketOptionLevel.Socket,
                 System.Net.Sockets.SocketOptionName.ReuseAddress, true);
-            listener.Client.Bind(new IPEndPoint(IPAddress.Any, 4002));
-            listener.Client.ReceiveTimeout = 3000;
-            Logger.Log("Govee scan: listener bound to port 4002");
+            udp.Client.Bind(new IPEndPoint(IPAddress.Any, 4002));
+            udp.EnableBroadcast = true;
+            udp.Client.ReceiveTimeout = 3000;
+            Logger.Log("Govee scan: bound to port 4002");
 
-            // Send discovery broadcast
+            // Send discovery to multicast address
             var msg = Encoding.UTF8.GetBytes("{\"msg\":{\"cmd\":\"scan\",\"data\":{\"account_topic\":\"reserve\"}}}");
             await udp.SendAsync(msg, msg.Length, "239.255.255.250", 4001);
-            Logger.Log("Govee scan: broadcast sent to 239.255.255.250:4001");
+            Logger.Log("Govee scan: multicast sent to 239.255.255.250:4001");
+
+            // Also send directly to known device IPs as fallback (some networks block multicast)
+            foreach (var known in _config.GoveeDevices)
+            {
+                if (!string.IsNullOrWhiteSpace(known.Ip))
+                {
+                    try
+                    {
+                        await udp.SendAsync(msg, msg.Length, known.Ip, 4001);
+                        Logger.Log($"Govee scan: unicast sent to {known.Ip}:4001");
+                    }
+                    catch { }
+                }
+            }
 
             // Collect responses for 3 seconds
             var deadline = DateTime.UtcNow.AddSeconds(3);
@@ -121,18 +133,17 @@ public class AmbienceSync : IDisposable
             {
                 try
                 {
-                    listener.Client.ReceiveTimeout = Math.Max(100, (int)(deadline - DateTime.UtcNow).TotalMilliseconds);
+                    udp.Client.ReceiveTimeout = Math.Max(100, (int)(deadline - DateTime.UtcNow).TotalMilliseconds);
                     var result = await Task.Run(() =>
                     {
                         try
                         {
                             IPEndPoint? ep = null;
-                            var data = listener.Receive(ref ep);
+                            var data = udp.Receive(ref ep);
                             return (Data: data, Ep: ep);
                         }
                         catch (Exception rx)
                         {
-                            // SocketException on timeout is normal — only log unexpected errors
                             if (rx is not System.Net.Sockets.SocketException)
                                 Logger.Log($"Govee scan receive error: {rx.Message}");
                             return (Data: (byte[]?)null, Ep: (IPEndPoint?)null);
@@ -170,10 +181,6 @@ public class AmbienceSync : IDisposable
         catch (Exception ex)
         {
             Logger.Log($"Govee scan setup failed: {ex.Message}");
-        }
-        finally
-        {
-            listener?.Dispose();
         }
 
         Logger.Log($"Govee scan: found {results.Count} device(s)");
