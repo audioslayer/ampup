@@ -243,22 +243,6 @@
                                     </StackPanel>
                                 </Grid>
                             </Button>
-                            <Button x:Name="NavHA" Style="{StaticResource NavButton}" Click="NavHA_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="3" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border x:Name="NavHABar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
-                                            Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
-                                            Visibility="Collapsed" Margin="-4,0,0,0" />
-                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <ui:SymbolIcon Symbol="Home24" FontSize="22" Foreground="{StaticResource TextSecBrush}" HorizontalAlignment="Center" />
-                                        <TextBlock x:Name="NavHALabel" Text="HA" FontSize="9" Foreground="{StaticResource TextSecBrush}"
-                                                   HorizontalAlignment="Center" Margin="0,3,0,0" />
-                                    </StackPanel>
-                                </Grid>
-                            </Button>
                             <Button x:Name="NavAmbience" Style="{StaticResource NavButton}" Click="NavAmbience_Click">
                                 <Grid>
                                     <Grid.ColumnDefinitions>

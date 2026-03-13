@@ -20,6 +20,7 @@ public class HAIntegration : IDisposable
     private bool _available = false;
 
     public bool IsAvailable => _available;
+    public List<HAEntity> CachedEntities { get; private set; } = new();
 
     public HAIntegration(HomeAssistantConfig config)
     {
@@ -266,6 +267,29 @@ public class HAIntegration : IDisposable
         if (parts.Length == 2 && parts[0].StartsWith("ha_"))
             return (parts[0].Substring(3), parts[1]); // "light", "light.entity_id"
         return ("", target);
+    }
+
+    public async Task<bool> RefreshEntitiesAsync()
+    {
+        var connected = await TestConnectionAsync();
+        if (!connected)
+        {
+            CachedEntities = new List<HAEntity>();
+            return false;
+        }
+
+        CachedEntities = await GetEntitiesAsync();
+        return true;
+    }
+
+    public List<HAEntity> GetCachedEntitiesByDomain(string domain)
+    {
+        return CachedEntities.Where(e => e.Domain == domain).ToList();
+    }
+
+    public List<HAEntity> GetCachedEntitiesByDomains(string[] domains)
+    {
+        return CachedEntities.Where(e => domains.Contains(e.Domain)).ToList();
     }
 
     public void Dispose()

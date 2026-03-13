@@ -13,7 +13,6 @@ public partial class MainWindow : FluentWindow
     private readonly ButtonsView _buttonsView = new();
     private readonly LightsView _lightsView = new();
     private readonly SettingsView _settingsView = new();
-    private readonly HomeAssistantView _haView = new();
     private readonly AmbienceView _ambienceView = new();
     private readonly BindingsView _bindingsView = new();
 
@@ -98,10 +97,7 @@ public partial class MainWindow : FluentWindow
         };
 
         _settingsView.LoadConfig(_config, saveHandler);
-        _settingsView.SetHomeAssistantView(_haView);
         _lightsView.LoadConfig(_config, saveHandler, _mixer);
-        _haView.LoadConfig(_config, saveHandler);
-        _buttonsView.SetHA(_haView.GetHA());
         _buttonsView.LoadConfig(_config, _mixer!, saveHandler);
         _mixerView.LoadConfig(_config, _mixer!, saveHandler);
         _ambienceView.LoadConfig(_config, saveHandler);
@@ -119,15 +115,6 @@ public partial class MainWindow : FluentWindow
             _onConfigChanged?.Invoke(cfg);
         }, _mixer);
         NavigateTo(_lightsView, NavLights);
-    }
-    private void NavHA_Click(object sender, RoutedEventArgs e)
-    {
-        _haView.LoadConfig(_config, cfg =>
-        {
-            _config = cfg;
-            _onConfigChanged?.Invoke(cfg);
-        });
-        NavigateTo(_haView, NavHA);
     }
     private void NavAmbience_Click(object sender, RoutedEventArgs e)
     {
@@ -175,7 +162,6 @@ public partial class MainWindow : FluentWindow
         { NavMixer,    NavMixerBar },
         { NavButtons,  NavButtonsBar },
         { NavLights,   NavLightsBar },
-        { NavHA,       NavHABar },
         { NavAmbience, NavAmbienceBar },
         { NavSettings, NavSettingsBar },
         { NavBindings, NavBindingsBar },

@@ -32,7 +32,7 @@ public partial class ButtonsView : UserControl
         ("Cycle Brightness", "cycle_brightness"),
         ("Sleep", "power_sleep"), ("Lock", "power_lock"), ("Off", "power_off"),
         ("Restart", "power_restart"), ("Logoff", "power_logoff"), ("Hibernate", "power_hibernate"),
-        ("HA: Toggle", "ha_toggle"), ("HA: Scene", "ha_scene"), ("HA: Service", "ha_service"),
+        ("Home Assistant: Toggle", "ha_toggle"), ("Home Assistant: Scene", "ha_scene"), ("Home Assistant: Service", "ha_service"),
         ("Govee: Toggle", "govee_toggle"), ("Govee: Color", "govee_color"),
     };
 
@@ -186,7 +186,6 @@ public partial class ButtonsView : UserControl
     private HAIntegration? _ha;
     private AmbienceSync? _ambienceSync;
 
-    public void SetHA(HAIntegration? ha) => _ha = ha;
     public void SetAmbienceSync(AmbienceSync? sync) => _ambienceSync = sync;
 
     public ButtonsView()
@@ -398,6 +397,15 @@ public partial class ButtonsView : UserControl
         _onSave = onSave;
 
         _audioDevices = mixer.GetAudioDevices();
+
+        // Create/update HA client if enabled
+        if (config.HomeAssistant.Enabled && !string.IsNullOrWhiteSpace(config.HomeAssistant.Token))
+        {
+            if (_ha == null)
+                _ha = new HAIntegration(config.HomeAssistant);
+            else
+                _ha.UpdateConfig(config.HomeAssistant);
+        }
 
         RebuildActionPickers(config);
 
@@ -676,7 +684,7 @@ public partial class ButtonsView : UserControl
             _tapKnobPickers[i] = knobPicker;
             tapSection.Children.Add(knobPanel);
 
-            var (tapHaPanel, tapHaPicker) = MakeListPickerRow("HA ENTITY");
+            var (tapHaPanel, tapHaPicker) = MakeListPickerRow("HOME ASSISTANT ENTITY");
             tapHaPicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
             tapHaPicker.DropdownOpening += (_, _) => LoadHaEntitiesIntoPicker(tapHaPicker, GetComboActionValue(_tapCombos[idx]));
             _tapHaEntityPanels[i] = tapHaPanel;
@@ -752,7 +760,7 @@ public partial class ButtonsView : UserControl
             _dblKnobPickers[i] = dblKnobPicker;
             dblSection.Children.Add(dblKnobPanel);
 
-            var (dblHaPanel, dblHaPicker) = MakeListPickerRow("HA ENTITY");
+            var (dblHaPanel, dblHaPicker) = MakeListPickerRow("HOME ASSISTANT ENTITY");
             dblHaPicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
             dblHaPicker.DropdownOpening += (_, _) => LoadHaEntitiesIntoPicker(dblHaPicker, GetComboActionValue(_dblCombos[idx]));
             _dblHaEntityPanels[i] = dblHaPanel;
@@ -838,7 +846,7 @@ public partial class ButtonsView : UserControl
             _holdKnobPickers[i] = holdKnobPicker;
             holdSection.Children.Add(holdKnobPanel);
 
-            var (holdHaPanel, holdHaPicker) = MakeListPickerRow("HA ENTITY");
+            var (holdHaPanel, holdHaPicker) = MakeListPickerRow("HOME ASSISTANT ENTITY");
             holdHaPicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
             holdHaPicker.DropdownOpening += (_, _) => LoadHaEntitiesIntoPicker(holdHaPicker, GetComboActionValue(_holdCombos[idx]));
             _holdHaEntityPanels[i] = holdHaPanel;
@@ -1442,7 +1450,7 @@ public partial class ButtonsView : UserControl
         { "CYCLE DEVICES","Devices to cycle through (check to include)" },
         { "PROFILE",      "Profile to switch to when pressed" },
         { "LINKED KNOB",  "Knob whose app group is muted" },
-        { "HA ENTITY",    "Home Assistant entity to control (click to load entities)" },
+        { "HOME ASSISTANT ENTITY",    "Home Assistant entity to control (click to load entities)" },
         { "GOVEE DEVICE", "Govee LAN device to control" },
     };
 

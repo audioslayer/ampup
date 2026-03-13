@@ -110,9 +110,6 @@ public partial class SettingsView : UserControl
     // Reference to AmbienceSync for LAN scanning (set from App.xaml.cs)
     private AmbienceSync? _ambienceSync;
 
-    // Reference to HA view for Test/Refresh (set from MainWindow)
-    private HomeAssistantView? _haView;
-
     public void LoadConfig(AppConfig config, Action<AppConfig> onSave)
     {
         _loading = true;
@@ -158,7 +155,6 @@ public partial class SettingsView : UserControl
     }
 
     public void SetAmbienceSync(AmbienceSync sync) => _ambienceSync = sync;
-    public void SetHomeAssistantView(HomeAssistantView haView) => _haView = haView;
 
     private void BuildAccentSwatches()
     {
@@ -664,11 +660,12 @@ public partial class SettingsView : UserControl
 
     private async void OnHaTest(object sender, RoutedEventArgs e)
     {
-        if (_haView == null) return;
+        if (_config == null) return;
         BtnHaTest.IsEnabled = false;
         TxtHaStatus.Text = "Testing...";
         HaStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFB800"));
-        var ok = await _haView.TestAndRefreshAsync();
+        using var ha = new HAIntegration(_config.HomeAssistant);
+        var ok = await ha.TestConnectionAsync();
         HaStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(ok ? "#00E676" : "#FF4444"));
         TxtHaStatus.Text = ok ? "Connected" : "Connection failed";
         BtnHaTest.IsEnabled = true;
@@ -676,12 +673,13 @@ public partial class SettingsView : UserControl
 
     private async void OnHaRefresh(object sender, RoutedEventArgs e)
     {
-        if (_haView == null) return;
+        if (_config == null) return;
         BtnHaRefresh.IsEnabled = false;
         TxtHaStatus.Text = "Refreshing...";
-        var ok = await _haView.TestAndRefreshAsync();
+        using var ha = new HAIntegration(_config.HomeAssistant);
+        var ok = await ha.RefreshEntitiesAsync();
         HaStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(ok ? "#00E676" : "#FF4444"));
-        TxtHaStatus.Text = ok ? "Refreshed" : "Connection failed";
+        TxtHaStatus.Text = ok ? $"Connected — {ha.CachedEntities.Count} entities" : "Connection failed";
         BtnHaRefresh.IsEnabled = true;
     }
 

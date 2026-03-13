@@ -28,10 +28,10 @@ public partial class MixerView : UserControl
     // Display names for targets
     private static readonly Dictionary<string, string> HATargetDisplayNames = new()
     {
-        { "ha_light", "HA: Light" },
-        { "ha_media", "HA: Media" },
-        { "ha_fan", "HA: Fan" },
-        { "ha_cover", "HA: Cover" },
+        { "ha_light", "Home Assistant: Light" },
+        { "ha_media", "Home Assistant: Media" },
+        { "ha_fan", "Home Assistant: Fan" },
+        { "ha_cover", "Home Assistant: Cover" },
         { "apps", "App Group" },
         { "led_brightness", "LED Brightness" },
         { "govee", "Govee" }
@@ -722,7 +722,7 @@ public partial class MixerView : UserControl
 
             // HA entity picker — ListPicker (hidden unless ha_*)
             var haContainer = new StackPanel { Visibility = Visibility.Collapsed };
-            haContainer.Children.Add(MakeLabel("HA ENTITY"));
+            haContainer.Children.Add(MakeLabel("HOME ASSISTANT ENTITY"));
             var haEntityPicker = new ListPicker { Margin = new Thickness(0, 0, 0, 4) };
             haEntityPicker.SelectionChanged += (_, _) =>
             {
@@ -842,10 +842,10 @@ public partial class MixerView : UserControl
 
                 if (haEnabled)
                 {
-                    picker.AddItem("HA: Light", "ha_light");
-                    picker.AddItem("HA: Media", "ha_media");
-                    picker.AddItem("HA: Fan", "ha_fan");
-                    picker.AddItem("HA: Cover", "ha_cover");
+                    picker.AddItem("Home Assistant: Light", "ha_light");
+                    picker.AddItem("Home Assistant: Media", "ha_media");
+                    picker.AddItem("Home Assistant: Fan", "ha_fan");
+                    picker.AddItem("Home Assistant: Cover", "ha_cover");
                 }
 
                 if (goveeEnabled)
