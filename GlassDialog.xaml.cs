@@ -15,7 +15,7 @@ public partial class GlassDialog : Window
     private GlassDialog()
     {
         InitializeComponent();
-        MouseLeftButtonDown += (_, _) => DragMove();
+        MouseLeftButtonDown += (_, _) => { try { DragMove(); } catch (InvalidOperationException) { } };
 
         // Apply accent color to border gradient, title, input elements
         var accent = ThemeManager.Accent;

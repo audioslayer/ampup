@@ -21,6 +21,7 @@ public partial class App : Application
     private DateTime _connectedAt = DateTime.MinValue;
     private Forms.NotifyIcon? _trayIcon;
     private bool _isConnected;
+    private static bool _isShuttingDown;
     private OsdOverlay? _osdOverlay;
     private HAIntegration? _ha;
     private readonly (string target, float value)[] _haLastValues = new (string, float)[5];
@@ -44,6 +45,7 @@ public partial class App : Application
         // Global crash handlers — wire up before anything else
         DispatcherUnhandledException += (_, ex) =>
         {
+            if (_isShuttingDown) { ex.Handled = true; return; }
             Logger.Log($"CRASH (UI): {ex.Exception}");
             ShowCrashDialog(ex.Exception);
             ex.Handled = true;
@@ -844,6 +846,12 @@ public partial class App : Application
         {
             Logger.Log($"Failed to update startup setting: {ex.Message}");
         }
+    }
+
+    public static void ShutdownForUpdate()
+    {
+        _isShuttingDown = true;
+        Application.Current.Shutdown();
     }
 
     protected override void OnExit(ExitEventArgs e)

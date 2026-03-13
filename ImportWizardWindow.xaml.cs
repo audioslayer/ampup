@@ -69,7 +69,7 @@ public partial class ImportWizardWindow : Window
     public ImportWizardWindow()
     {
         InitializeComponent();
-        MouseLeftButtonDown += (_, _) => DragMove();
+        MouseLeftButtonDown += (_, _) => { try { DragMove(); } catch (InvalidOperationException) { } };
 
         // Apply accent color to border gradient, title, input elements
         var accent = ThemeManager.Accent;

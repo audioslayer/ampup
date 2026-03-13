@@ -131,7 +131,10 @@ public static class UpdateChecker
             WindowStyle = ProcessWindowStyle.Hidden
         });
 
-        // Shut down the app so the installer can replace files
-        Application.Current.Dispatcher.Invoke(() => Application.Current.Shutdown());
+        // Shut down the app cleanly so the installer can replace files
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            App.ShutdownForUpdate();
+        });
     }
 }

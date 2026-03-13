@@ -78,7 +78,7 @@ public class GoveeSetupGuide : Window
 
         titleBar.MouseLeftButtonDown += (_, e) =>
         {
-            if (e.ButtonState == MouseButtonState.Pressed) DragMove();
+            if (e.ButtonState == MouseButtonState.Pressed) try { DragMove(); } catch (InvalidOperationException) { }
         };
 
         var titleStack = new StackPanel
