@@ -238,7 +238,7 @@ public partial class AmbienceView : UserControl
             var bannerRow = new StackPanel { Orientation = Orientation.Horizontal };
             bannerRow.Children.Add(new TextBlock
             {
-                Text = "Linked to Lights",
+                Text = "Linked to Ambience",
                 FontSize = 12, FontWeight = FontWeights.SemiBold,
                 Foreground = FindBrush("AccentBrush"),
                 VerticalAlignment = VerticalAlignment.Center,

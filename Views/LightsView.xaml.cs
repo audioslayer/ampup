@@ -276,7 +276,7 @@ public partial class LightsView : UserControl
         var linkLabel = new StackPanel { Orientation = Orientation.Horizontal };
         linkLabel.Children.Add(new TextBlock
         {
-            Text = "Link to Room Ambience",
+            Text = "Link to Ambience",
             FontSize = 12,
             Foreground = FindBrush("TextSecBrush"),
             VerticalAlignment = VerticalAlignment.Center,
