@@ -145,18 +145,8 @@
                                 Background="{DynamicResource AccentBorder22Brush}" />
                     </StackPanel>
 
-                    <!-- Profile flyout popup -->
-                    <Popup x:Name="ProfilePopup" PlacementTarget="{Binding ElementName=ProfileButton}"
-                           Placement="Right" StaysOpen="False" AllowsTransparency="True"
-                           PopupAnimation="Fade" HorizontalOffset="4">
-                        <Border x:Name="ProfilePopupBorder" Background="#FF151515" BorderBrush="{StaticResource CardBorderBrush}"
-                                BorderThickness="1" CornerRadius="8" Padding="6" MinWidth="200">
-                            <Border.Effect>
-                                <DropShadowEffect Color="Black" BlurRadius="24" Opacity="0.6" ShadowDepth="6" />
-                            </Border.Effect>
-                            <StackPanel x:Name="ProfilePopupPanel" />
-                        </Border>
-                    </Popup>
+                    <!-- ProfilePopupPanel is populated and shown via code-behind Window flyout -->
+                    <StackPanel x:Name="ProfilePopupPanel" Visibility="Collapsed" />
 
                     <DockPanel Grid.Row="1" Margin="0,12,0,0" LastChildFill="True">
                         <!-- Import at very bottom, Bindings directly above it -->

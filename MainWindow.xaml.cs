@@ -21,6 +21,9 @@ public partial class MainWindow : FluentWindow
     private System.Windows.Controls.Button? _activeNavButton;
     private System.Windows.Controls.Border? _activeNavBar;
 
+    private Window? _profileFlyout;
+    private bool _profileFlyoutOpen = false;
+
     private AppConfig _config;
     private AudioMixer? _mixer;
     private Action<AppConfig>? _onConfigChanged;
@@ -399,9 +402,64 @@ public partial class MainWindow : FluentWindow
 
     private void ProfileButton_Click(object sender, MouseButtonEventArgs e)
     {
-        BuildProfileFlyout();
-        ProfilePopup.IsOpen = !ProfilePopup.IsOpen;
+        if (_profileFlyoutOpen)
+            CloseProfileFlyout();
+        else
+            OpenProfileFlyout();
         e.Handled = true;
+    }
+
+    private void OpenProfileFlyout()
+    {
+        BuildProfileFlyout();
+
+        // Detach panel from any previous flyout
+        if (ProfilePopupPanel.Parent is System.Windows.Controls.Border oldParent)
+            oldParent.Child = null;
+
+        var popupBorder = new System.Windows.Controls.Border
+        {
+            Background = new System.Windows.Media.SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
+            BorderBrush = (System.Windows.Media.SolidColorBrush)FindResource("CardBorderBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(6),
+            MinWidth = 200,
+            Child = ProfilePopupPanel
+        };
+        ProfilePopupPanel.Visibility = System.Windows.Visibility.Visible;
+
+        var screenPos = ProfileButton.PointToScreen(new Point(ProfileButton.ActualWidth + 4, 0));
+        _profileFlyout = new Window
+        {
+            WindowStyle = WindowStyle.None,
+            ResizeMode = ResizeMode.NoResize,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            ShowInTaskbar = false,
+            Topmost = true,
+            AllowsTransparency = false,
+            Background = new System.Windows.Media.SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
+            Content = popupBorder,
+            Left = screenPos.X,
+            Top = screenPos.Y
+        };
+        _profileFlyout.Deactivated += (_, _) => CloseProfileFlyout();
+        _profileFlyout.KeyDown += (_, e2) => { if (e2.Key == Key.Escape) CloseProfileFlyout(); };
+        _profileFlyout.Show();
+        _profileFlyoutOpen = true;
+    }
+
+    private void CloseProfileFlyout()
+    {
+        if (!_profileFlyoutOpen) return;
+        _profileFlyoutOpen = false;
+
+        // Detach panel child before closing so it can be re-hosted next open
+        if (_profileFlyout?.Content is System.Windows.Controls.Border b)
+            b.Child = null;
+
+        _profileFlyout?.Close();
+        _profileFlyout = null;
     }
 
     private void BuildProfileFlyout()
@@ -518,7 +576,7 @@ public partial class MainWindow : FluentWindow
             {
                 if (profileCapture == _config.ActiveProfile) return;
                 SwitchToProfile(profileCapture);
-                ProfilePopup.IsOpen = false;
+                CloseProfileFlyout();
             };
 
             ProfilePopupPanel.Children.Add(rowBorder);
@@ -569,7 +627,7 @@ public partial class MainWindow : FluentWindow
         };
         addBorder.MouseLeftButtonDown += (_, _) =>
         {
-            ProfilePopup.IsOpen = false;
+            CloseProfileFlyout();
             AddNewProfile();
         };
         ProfilePopupPanel.Children.Add(addBorder);
@@ -578,7 +636,7 @@ public partial class MainWindow : FluentWindow
     private void ShowIconPicker(string profileName)
     {
         // Close profile popup, show icon picker popup
-        ProfilePopup.IsOpen = false;
+        CloseProfileFlyout();
 
         var currentIcon = _config.ProfileIcons.GetValueOrDefault(profileName) ?? new ProfileIconConfig();
 
@@ -823,7 +881,7 @@ public partial class MainWindow : FluentWindow
 
     private void DeleteProfile(string profileName)
     {
-        ProfilePopup.IsOpen = false;
+        CloseProfileFlyout();
 
         if (!GlassDialog.Confirm($"Delete profile \"{profileName}\"?", "DELETE PROFILE", dangerYes: true, owner: this))
             return;
