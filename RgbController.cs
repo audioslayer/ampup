@@ -97,7 +97,7 @@ public class RgbController : IDisposable
     // Transition state
     private ProfileTransition _transitionEffect = ProfileTransition.None;
     private int _transitionTick = -1;  // -1 = no transition active
-    private const int TransitionDuration = 60; // 60 ticks = 3 seconds at 20fps
+    private const int TransitionDuration = 20; // 20 ticks = 1 second at 20fps
     private struct TransitionColor { public byte R, G, B; }
     private TransitionColor _transitionColor = new() { R = 0, G = 230, B = 118 };
 
