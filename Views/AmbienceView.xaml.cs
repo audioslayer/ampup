@@ -417,7 +417,7 @@ public partial class AmbienceView : UserControl
             Maximum = 100,
             Value = 75,
             Width = 260,
-            Height = 32,
+            Height = 40,
             Suffix = "%",
             VerticalAlignment = VerticalAlignment.Center,
         };
