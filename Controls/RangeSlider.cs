@@ -114,19 +114,21 @@ public class RangeSlider : FrameworkElement
         // Filled range
         double lx = ValueToX(LowerValue);
         double ux = ValueToX(UpperValue);
-        var accentBrush = new SolidColorBrush(AccentColor);
-        accentBrush.Freeze();
+        var rangeFillBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+        rangeFillBrush.Freeze();
         if (ux > lx)
         {
-            dc.DrawRoundedRectangle(accentBrush, null,
+            dc.DrawRoundedRectangle(rangeFillBrush, null,
                 new Rect(lx, trackTop, ux - lx, TrackHeight), 1.5, 1.5);
         }
 
         // Thumbs (no glow — clean look)
+        var thumbFillBrush = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
+        thumbFillBrush.Freeze();
         var thumbPen = new Pen(s_thumbBorder, 1.5);
         thumbPen.Freeze();
-        dc.DrawEllipse(accentBrush, thumbPen, new Point(lx, cy), ThumbRadius, ThumbRadius);
-        dc.DrawEllipse(accentBrush, thumbPen, new Point(ux, cy), ThumbRadius, ThumbRadius);
+        dc.DrawEllipse(thumbFillBrush, thumbPen, new Point(lx, cy), ThumbRadius, ThumbRadius);
+        dc.DrawEllipse(thumbFillBrush, thumbPen, new Point(ux, cy), ThumbRadius, ThumbRadius);
 
         // Inner dot on thumbs (white center)
         var whiteDot = new SolidColorBrush(Color.FromArgb(0xCC, 0xFF, 0xFF, 0xFF));

@@ -102,18 +102,20 @@ public class StyledSlider : FrameworkElement
 
         // Filled portion
         double vx = ValueToX(Value);
-        var accentBrush = new SolidColorBrush(AccentColor);
-        accentBrush.Freeze();
+        var fillBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+        fillBrush.Freeze();
         if (vx > TrackLeft)
         {
-            dc.DrawRoundedRectangle(accentBrush, null,
+            dc.DrawRoundedRectangle(fillBrush, null,
                 new Rect(TrackLeft, trackTop, vx - TrackLeft, TrackHeight), 1.5, 1.5);
         }
 
         // Thumb
+        var thumbFillBrush = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
+        thumbFillBrush.Freeze();
         var thumbPen = new Pen(s_thumbBorder, 1.5);
         thumbPen.Freeze();
-        dc.DrawEllipse(accentBrush, thumbPen, new Point(vx, cy), ThumbRadius, ThumbRadius);
+        dc.DrawEllipse(thumbFillBrush, thumbPen, new Point(vx, cy), ThumbRadius, ThumbRadius);
 
         // Inner dot (white center)
         var whiteDot = new SolidColorBrush(Color.FromArgb(0xCC, 0xFF, 0xFF, 0xFF));

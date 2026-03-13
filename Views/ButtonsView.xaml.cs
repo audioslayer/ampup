@@ -1045,7 +1045,7 @@ public partial class ButtonsView : UserControl
             Padding = new Thickness(0, 3, 0, 3),
             Margin = new Thickness(4, 0, 0, 0),
             Background = FindBrush("InputBgBrush"),
-            Foreground = FindBrush("AccentBrush"),
+            Foreground = FindBrush("TextSecBrush"),
             BorderBrush = FindBrush("InputBorderBrush"),
             BorderThickness = new Thickness(1),
             Cursor = Cursors.Hand,

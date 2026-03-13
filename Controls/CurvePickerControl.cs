@@ -271,8 +271,8 @@ namespace AmpUp.Controls
                 Color.FromArgb(0x20, _accentColor.R, _accentColor.G, _accentColor.B));
             info.Container.BorderBrush = new SolidColorBrush(
                 Color.FromArgb(0x66, _accentColor.R, _accentColor.G, _accentColor.B));
-            info.CurveLine.Stroke = new SolidColorBrush(_accentColor);
-            info.Label.Foreground = new SolidColorBrush(_accentColor);
+            info.CurveLine.Stroke = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
+            info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
         }
     }
 }

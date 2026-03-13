@@ -1096,8 +1096,6 @@ public partial class MixerView : UserControl
         for (int i = 0; i < 5; i++)
         {
             _targetPickers[i].RefreshAccent();
-            _curvePickers[i].AccentColor = accent;
-            _rangeSliders[i].AccentColor = accent;
             _devicePickers[i].RefreshAccent();
             _haEntityPickers[i].RefreshAccent();
         }

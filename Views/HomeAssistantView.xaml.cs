@@ -287,7 +287,7 @@ public partial class HomeAssistantView : UserControl
                 Text = "\U0001F3E0", // house icon
                 FontSize = 28,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Foreground = FindBrush("AccentBrush"),
+                Foreground = FindBrush("TextDimBrush"),
             };
             _headerIcons[i] = headerIcon;
             headerStack.Children.Add(headerIcon);
@@ -412,9 +412,9 @@ public partial class HomeAssistantView : UserControl
         {
             var knobType = KnobTypes[typeIdx];
             _headerIcons[idx].Text = knobType.Icon;
-            _headerIcons[idx].Foreground = new SolidColorBrush(ThemeManager.Accent);
+            _headerIcons[idx].Foreground = FindBrush("TextPrimaryBrush");
             _headerTypes[idx].Text = knobType.Display;
-            _headerTypes[idx].Foreground = new SolidColorBrush(Color.FromArgb(0xCC, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
+            _headerTypes[idx].Foreground = FindBrush("TextSecBrush");
         }
     }
 

@@ -19,7 +19,6 @@ public partial class LightsView : UserControl
 
     // Section header elements (refreshed on accent change)
     private readonly List<(Border bar, TextBlock label)> _sectionHeaders = new();
-    private readonly List<TextBlock> _subLabels = new();
 
     // Effect icons
     private static readonly Dictionary<LightEffect, string> EffectIcons = new()
@@ -1156,20 +1155,12 @@ public partial class LightsView : UserControl
             bar.Background = new SolidColorBrush(accent);
             label.Foreground = new SolidColorBrush(accent);
         }
-        foreach (var lbl in _subLabels)
-            lbl.Foreground = new SolidColorBrush(Color.FromArgb(0x99, accent.R, accent.G, accent.B));
-
         for (int i = 0; i < 5; i++)
         {
             _effectPickers[i].AccentColor = accent;
-            _speedSliders[i].AccentColor = accent;
         }
         if (_globalEffectPicker != null)
             _globalEffectPicker.AccentColor = accent;
-        if (_globalSpeedSlider != null)
-            _globalSpeedSlider.AccentColor = accent;
-        if (_brightnessSlider != null)
-            _brightnessSlider.AccentColor = accent;
     }
 
     private TextBlock MakeLabel(string text)
@@ -1186,17 +1177,15 @@ public partial class LightsView : UserControl
 
     private TextBlock MakeSubLabel(string text)
     {
-        var accent = ThemeManager.Accent;
         var lbl = new TextBlock
         {
             Text = text,
             FontSize = 9,
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromArgb(0x99, accent.R, accent.G, accent.B)),
+            Foreground = new SolidColorBrush(Color.FromArgb(0x99, 0xCC, 0xCC, 0xCC)),
             Margin = new Thickness(0, 0, 4, 0),
             VerticalAlignment = VerticalAlignment.Center,
         };
-        _subLabels.Add(lbl);
         return lbl;
     }
 
