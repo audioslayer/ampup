@@ -235,10 +235,23 @@ public class ActionPicker : Border
         };
 
         // Polling timer: only runs while sub-popup is open, closes both when mouse leaves
+        int _closeGraceTicks = 0;
         _closeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _closeTimer.Tick += (_, _) =>
         {
-            if (IsMouseOver || _popupBorder.IsMouseOver || _subPopupBorder.IsMouseOver)
+            // Grace period: skip first 3 ticks (750ms) after sub-popup opens
+            if (_closeGraceTicks > 0) { _closeGraceTicks--; return; }
+
+            // Check mouse position via hit-test (more reliable than IsMouseOver across HWNDs)
+            var pos = System.Windows.Input.Mouse.GetPosition(_popupBorder);
+            bool overMain = pos.X >= 0 && pos.Y >= 0
+                && pos.X <= _popupBorder.ActualWidth && pos.Y <= _popupBorder.ActualHeight;
+
+            var subPos = System.Windows.Input.Mouse.GetPosition(_subPopupBorder);
+            bool overSub = subPos.X >= 0 && subPos.Y >= 0
+                && subPos.X <= _subPopupBorder.ActualWidth && subPos.Y <= _subPopupBorder.ActualHeight;
+
+            if (IsMouseOver || overMain || overSub)
                 return;
 
             _closeTimer.Stop();
@@ -250,6 +263,7 @@ public class ActionPicker : Border
         _subPopup.Opened += (_, _) =>
         {
             _popup.StaysOpen = true;
+            _closeGraceTicks = 3;
             _closeTimer.Start();
         };
         _subPopup.Closed += (_, _) =>
