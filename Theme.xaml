@@ -66,23 +66,6 @@
     <SolidColorBrush x:Key="SuccessGrnBrush" Color="{StaticResource SuccessGrn}" />
     <SolidColorBrush x:Key="WarnYellowBrush" Color="{StaticResource WarnYellow}" />
 
-    <!-- ── App Font ──────────────────────────────────────────────── -->
-    <FontFamily x:Key="AppFont">pack://application:,,,/Fonts/#Space Grotesk</FontFamily>
-
-    <!-- Global font overrides — apply Space Grotesk to all TextBlock, Button, TextBox, Label -->
-    <Style TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
-    </Style>
-    <Style TargetType="Button">
-        <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
-    </Style>
-    <Style TargetType="TextBox">
-        <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
-    </Style>
-    <Style TargetType="Label">
-        <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
-    </Style>
-
     <!-- ── Card Style ────────────────────────────────────────────── -->
     <Style x:Key="CardPanel" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource CardBgBrush}" />

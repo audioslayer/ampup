@@ -244,6 +244,10 @@ public class ListPicker : Border
 
         RebuildPopupItems();
 
+        // Detach from any previous flyout so we can re-parent
+        if (_popupStack.Parent is Border oldParent)
+            oldParent.Child = null;
+
         var popupBorder = new Border
         {
             Background = new SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
@@ -288,6 +292,11 @@ public class ListPicker : Border
     {
         if (!_isOpen) return;
         _isOpen = false;
+
+        // Detach child before close so _popupStack can be reused
+        if (_flyout?.Content is Border b)
+            b.Child = null;
+
         _flyout?.Close();
         _flyout = null;
         BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
