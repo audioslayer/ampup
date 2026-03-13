@@ -44,6 +44,7 @@ public class ActionPicker : Border
     private string? _selectedSubTag; // entity ID from sub-menu selection
     private readonly List<(string Display, string Value, string Icon, Color Color, string Tooltip)> _items = new();
     private readonly List<(int ItemIndex, string CategoryName)> _categories = new();
+    private readonly Dictionary<int, UIElement> _itemRowElements = new(); // itemIdx → popup row element
 
     // Category header styles (icon + color)
     public static readonly Dictionary<string, (string Icon, Color Color)> CategoryStyles = new()
@@ -424,9 +425,9 @@ public class ActionPicker : Border
         RebuildSubItems();
 
         // Position sub-popup next to the hovered item
-        if (itemIdx < _itemsPanel.Children.Count)
+        if (_itemRowElements.TryGetValue(itemIdx, out var targetRow))
         {
-            _subPopup.PlacementTarget = _itemsPanel.Children[itemIdx];
+            _subPopup.PlacementTarget = targetRow;
             _subPopup.Placement = PlacementMode.Right;
             _subPopup.HorizontalOffset = 6;
             _subPopup.VerticalOffset = -6;
@@ -741,6 +742,7 @@ public class ActionPicker : Border
         };
 
         _itemsPanel.Children.Add(row);
+        _itemRowElements[idx] = row;
     }
 
     private Dictionary<int, int> BuildCategoryMap()
@@ -759,6 +761,7 @@ public class ActionPicker : Border
     private void RebuildAllPopupItems()
     {
         _itemsPanel.Children.Clear();
+        _itemRowElements.Clear();
         var categoryMap = BuildCategoryMap();
         int currentCategory = -1;
         var accent = ThemeManager.Accent;
