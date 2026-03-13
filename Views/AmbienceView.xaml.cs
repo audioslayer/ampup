@@ -50,8 +50,8 @@ public partial class AmbienceView : UserControl
         _onSave = onSave;
         _loading = false;
 
-        // Initialize cloud API if key is configured
-        if (!string.IsNullOrEmpty(config.Ambience.GoveeApiKey))
+        // Initialize cloud API if enabled and key is configured
+        if (config.Ambience.GoveeCloudEnabled && !string.IsNullOrEmpty(config.Ambience.GoveeApiKey))
         {
             _cloudApi?.Dispose();
             _cloudApi = new GoveeCloudApi(config.Ambience.GoveeApiKey);
@@ -59,6 +59,8 @@ public partial class AmbienceView : UserControl
         }
         else
         {
+            _cloudApi?.Dispose();
+            _cloudApi = null;
             _cloudDevices.Clear();
             RebuildDevicePanel();
         }
@@ -127,29 +129,41 @@ public partial class AmbienceView : UserControl
     private void UpdateTopBarStatus(Border dot, TextBlock label)
     {
         if (_config == null) return;
-        bool enabled = _config.Ambience.GoveeEnabled;
+        bool lanEnabled = _config.Ambience.GoveeEnabled;
+        bool cloudEnabled = _config.Ambience.GoveeCloudEnabled;
         bool hasKey = !string.IsNullOrEmpty(_config.Ambience.GoveeApiKey);
-        int devices = _cloudDevices.Count;
+        int lanDevices = _config.Ambience.GoveeDevices.Count;
+        int cloudDevices = _cloudDevices.Count;
 
-        if (!enabled)
+        if (!lanEnabled && !cloudEnabled)
         {
             dot.Background = Brush("#555555");
             label.Text = "Govee disabled — enable in Settings";
         }
-        else if (!hasKey)
-        {
-            dot.Background = Brush("#FFB800");
-            label.Text = "No API key — add in Settings for full control";
-        }
-        else if (devices > 0)
+        else if (cloudEnabled && hasKey && cloudDevices > 0)
         {
             dot.Background = Brush("#00E676");
-            label.Text = $"Connected — {devices} device(s)";
+            label.Text = $"Connected — {cloudDevices} device(s)";
+        }
+        else if (lanEnabled && lanDevices > 0)
+        {
+            dot.Background = Brush("#00E676");
+            label.Text = $"LAN — {lanDevices} device(s)";
+        }
+        else if (cloudEnabled && hasKey)
+        {
+            dot.Background = Brush("#FFB800");
+            label.Text = "Cloud API — loading devices...";
+        }
+        else if (cloudEnabled && !hasKey)
+        {
+            dot.Background = Brush("#FFB800");
+            label.Text = "Cloud API enabled — add API key in Settings";
         }
         else
         {
             dot.Background = Brush("#FFB800");
-            label.Text = "API key set — loading devices...";
+            label.Text = "No devices — scan in Settings";
         }
     }
 
@@ -205,20 +219,20 @@ public partial class AmbienceView : UserControl
 
         bool hasKey = !string.IsNullOrEmpty(_config.Ambience.GoveeApiKey);
 
-        if (!_config.Ambience.GoveeEnabled)
+        if (!_config.Ambience.GoveeEnabled && !_config.Ambience.GoveeCloudEnabled)
         {
             DevicePanel.Children.Add(MakeSetupCard(
                 "Govee is disabled",
-                "Enable Govee LAN sync in Settings to get started.",
+                "Enable Govee LAN or Cloud API in Settings to get started.",
                 "Open Settings", () => NavigateToSettings?.Invoke()));
             return;
         }
 
-        if (!hasKey && _config.Ambience.GoveeDevices.Count == 0)
+        if (_cloudDevices.Count == 0 && _config.Ambience.GoveeDevices.Count == 0)
         {
             DevicePanel.Children.Add(MakeSetupCard(
                 "No devices found",
-                "Scan for devices in Settings, or add a Cloud API key for scenes and advanced control.\n\nGet your key at developer.govee.com",
+                "Scan for LAN devices or enable the Cloud API in Settings.",
                 "Open Settings", () => NavigateToSettings?.Invoke()));
             return;
         }
@@ -278,20 +292,20 @@ public partial class AmbienceView : UserControl
                 DevicePanel.Children.Add(BuildDeviceCard(deviceInfo));
             }
 
-            if (hasKey)
+            if (_config.Ambience.GoveeCloudEnabled && hasKey)
             {
-                // Has API key but cloud fetch returned empty — offer refresh
+                // Cloud enabled but fetch returned empty — offer refresh
                 DevicePanel.Children.Add(MakeSetupCard(
                     "Cloud devices not loaded",
                     "Couldn't fetch device list from Govee Cloud. LAN controls are available above.",
                     "Retry", () => _ = FetchCloudDevicesAndRebuild()));
             }
-            else
+            else if (!_config.Ambience.GoveeCloudEnabled)
             {
                 // LAN-only hint
                 DevicePanel.Children.Add(MakeSetupCard(
                     "Want scenes and more?",
-                    "Add a Cloud API key in Settings for scenes, segments, and music mode.",
+                    "Enable the Cloud API in Settings for scenes and music mode.",
                     "Open Settings", () => NavigateToSettings?.Invoke()));
             }
         }

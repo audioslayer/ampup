@@ -95,6 +95,8 @@ public partial class SettingsView : UserControl
             "4. Repeat for each device\n\n" +
             "Then click Scan Network again.",
             owner: Window.GetWindow(this));
+        ChkGoveeCloudEnabled.Checked += OnGoveeCloudEnabledChanged;
+        ChkGoveeCloudEnabled.Unchecked += OnGoveeCloudEnabledChanged;
         TxtGoveeApiKey.PasswordChanged += OnPasswordChanged;
         BtnGoveeSetupGuide.Click += OnGoveeSetupGuide;
 
@@ -138,8 +140,11 @@ public partial class SettingsView : UserControl
         // Integrations — Govee
         ChkGoveeEnabled.IsChecked = config.Ambience.GoveeEnabled;
         GoveeLanSection.Visibility = config.Ambience.GoveeEnabled ? Visibility.Visible : Visibility.Collapsed;
+        ChkGoveeCloudEnabled.IsChecked = config.Ambience.GoveeCloudEnabled;
+        GoveeCloudSection.Visibility = config.Ambience.GoveeCloudEnabled ? Visibility.Visible : Visibility.Collapsed;
         TxtGoveeApiKey.Password = config.Ambience.GoveeApiKey;
         RefreshGoveeStatus();
+        RefreshGoveeCloudStatus();
         RefreshGoveeDeviceList();
 
         BuildAccentSwatches();
@@ -190,6 +195,7 @@ public partial class SettingsView : UserControl
     private void OnPasswordChanged(object sender, RoutedEventArgs e)
     {
         if (_loading) return;
+        if (sender == TxtGoveeApiKey) RefreshGoveeCloudStatus();
         _debounceTimer.Stop();
         _debounceTimer.Start();
     }
@@ -429,6 +435,7 @@ public partial class SettingsView : UserControl
 
         // Govee
         _config.Ambience.GoveeEnabled = ChkGoveeEnabled.IsChecked == true;
+        _config.Ambience.GoveeCloudEnabled = ChkGoveeCloudEnabled.IsChecked == true;
         _config.Ambience.GoveeApiKey = TxtGoveeApiKey.Password;
 
         _onSave(_config);
@@ -658,6 +665,15 @@ public partial class SettingsView : UserControl
         _debounceTimer.Start();
     }
 
+    private void OnGoveeCloudEnabledChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        GoveeCloudSection.Visibility = ChkGoveeCloudEnabled.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        RefreshGoveeCloudStatus();
+        _debounceTimer.Stop();
+        _debounceTimer.Start();
+    }
+
     private async void OnGoveeScan(object sender, RoutedEventArgs e)
     {
         if (_ambienceSync == null || _config == null) return;
@@ -743,7 +759,6 @@ public partial class SettingsView : UserControl
         if (_config == null) return;
         bool enabled = ChkGoveeEnabled.IsChecked == true;
         int deviceCount = _config.Ambience.GoveeDevices.Count;
-        bool hasKey = !string.IsNullOrEmpty(TxtGoveeApiKey.Password);
 
         if (!enabled)
         {
@@ -759,6 +774,29 @@ public partial class SettingsView : UserControl
         {
             GoveeStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#555555"));
             TxtGoveeStatus.Text = "Scan to find devices";
+        }
+    }
+
+    private void RefreshGoveeCloudStatus()
+    {
+        if (_config == null) return;
+        bool enabled = ChkGoveeCloudEnabled.IsChecked == true;
+        bool hasKey = !string.IsNullOrEmpty(TxtGoveeApiKey.Password);
+
+        if (!enabled)
+        {
+            GoveeCloudStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#555555"));
+            TxtGoveeCloudStatus.Text = "Disabled";
+        }
+        else if (hasKey)
+        {
+            GoveeCloudStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#00E676"));
+            TxtGoveeCloudStatus.Text = "Connected";
+        }
+        else
+        {
+            GoveeCloudStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFB800"));
+            TxtGoveeCloudStatus.Text = "No API key";
         }
 
         TxtGoveeApiStatus.Text = hasKey ? "✓ API key configured" : "";

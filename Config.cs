@@ -412,6 +412,7 @@ public class HomeAssistantConfig
 public class AmbienceConfig
 {
     public bool GoveeEnabled { get; set; } = false;
+    public bool GoveeCloudEnabled { get; set; } = false;
     public List<GoveeDeviceConfig> GoveeDevices { get; set; } = new();
     public bool LinkToLights { get; set; } = false;  // Mirror Turn Up LEDs to Govee devices
     public int BrightnessScale { get; set; } = 75;

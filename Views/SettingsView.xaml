@@ -366,22 +366,38 @@
                                 <StackPanel x:Name="GoveeDeviceList" Margin="0,0,0,8" />
                             </StackPanel>
 
-                            <!-- API Key -->
-                            <StackPanel Margin="0,4,0,0">
-                                <TextBlock Text="Cloud API Key" Style="{StaticResource SecondaryText}" Margin="0,0,0,4"
-                                           ToolTip="Optional — enables scenes, segments, and music mode control" />
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                    <PasswordBox x:Name="TxtGoveeApiKey" Width="320"
-                                                 Background="{StaticResource InputBgBrush}"
-                                                 BorderBrush="{StaticResource InputBorderBrush}"
-                                                 Foreground="{StaticResource TextPrimaryBrush}" />
-                                    <ui:Button x:Name="BtnGoveeSetupGuide" Content="Setup Guide"
-                                               Appearance="Secondary" Margin="8,0,0,0" Height="32" />
+                            <!-- Cloud API -->
+                            <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0"
+                                    Margin="0,8,0,0" Padding="0,12,0,0">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                        <CheckBox x:Name="ChkGoveeCloudEnabled"
+                                                  Content="Enable Govee Cloud API"
+                                                  Foreground="{StaticResource TextPrimaryBrush}"
+                                                  Margin="0,0,16,0" />
+                                        <Ellipse x:Name="GoveeCloudStatusDot" Width="8" Height="8"
+                                                 Fill="#555555" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock x:Name="TxtGoveeCloudStatus" Text="Disabled"
+                                                   Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
+                                    </StackPanel>
+
+                                    <StackPanel x:Name="GoveeCloudSection" Visibility="Collapsed">
+                                        <TextBlock Text="API Key" Style="{StaticResource SecondaryText}" Margin="0,0,0,4"
+                                                   ToolTip="Enables scenes and music mode control" />
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                            <PasswordBox x:Name="TxtGoveeApiKey" Width="320"
+                                                         Background="{StaticResource InputBgBrush}"
+                                                         BorderBrush="{StaticResource InputBorderBrush}"
+                                                         Foreground="{StaticResource TextPrimaryBrush}" />
+                                            <ui:Button x:Name="BtnGoveeSetupGuide" Content="Setup Guide"
+                                                       Appearance="Secondary" Margin="8,0,0,0" Height="32" />
+                                        </StackPanel>
+                                        <TextBlock x:Name="TxtGoveeApiStatus" Text=""
+                                                   Style="{StaticResource SecondaryText}" FontSize="11"
+                                                   Margin="0,0,0,0" />
+                                    </StackPanel>
                                 </StackPanel>
-                                <TextBlock x:Name="TxtGoveeApiStatus" Text=""
-                                           Style="{StaticResource SecondaryText}" FontSize="11"
-                                           Margin="0,0,0,0" />
-                            </StackPanel>
+                            </Border>
                         </StackPanel>
                     </Border>
 
