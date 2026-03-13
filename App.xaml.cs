@@ -373,8 +373,8 @@ public partial class App : Application
                 _mixer.SetVolume(knob, e.Value);
             }
 
-            // Show OSD overlay when volume OSD is enabled
-            if (_config.Osd.ShowVolume)
+            // Show OSD overlay when volume OSD is enabled (skip unassigned knobs)
+            if (_config.Osd.ShowVolume && !knob.Target.Equals("none", StringComparison.OrdinalIgnoreCase))
             {
                 float pct = e.Value / 1023f;
                 // Apply min/max range
