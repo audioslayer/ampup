@@ -32,6 +32,7 @@ public partial class ButtonsView : UserControl
         ("Cycle Brightness", "cycle_brightness"),
         ("Sleep", "power_sleep"), ("Lock", "power_lock"), ("Off", "power_off"),
         ("Restart", "power_restart"), ("Logoff", "power_logoff"), ("Hibernate", "power_hibernate"),
+        ("HA: Toggle", "ha_toggle"), ("HA: Scene", "ha_scene"), ("HA: Service", "ha_service"),
     };
 
     private static readonly string[] PathActions = { "mute_program", "launch_exe", "close_program" };
@@ -53,6 +54,7 @@ public partial class ButtonsView : UserControl
         { "mute_device", "🔇" },
         { "power_sleep", "😴" }, { "power_lock", "🔒" }, { "power_off", "⏻" },
         { "power_restart", "🔄" }, { "power_logoff", "🚪" }, { "power_hibernate", "❄" },
+        { "ha_toggle", "⚡" }, { "ha_scene", "🎬" }, { "ha_service", "⚙" },
     };
 
     private static readonly Dictionary<string, Color> ActionColors = new()
@@ -82,6 +84,9 @@ public partial class ButtonsView : UserControl
         { "power_restart",      Color.FromRgb(0xFF, 0x8A, 0x3D) },
         { "power_logoff",       Color.FromRgb(0xAB, 0x47, 0xBC) },
         { "power_hibernate",    Color.FromRgb(0x42, 0xA5, 0xF5) },
+        { "ha_toggle",          Color.FromRgb(0x26, 0xC6, 0xDA) },
+        { "ha_scene",           Color.FromRgb(0xFF, 0xA7, 0x26) },
+        { "ha_service",         Color.FromRgb(0xAB, 0x47, 0xBC) },
     };
 
     // Clipboard for button copy/paste
@@ -157,7 +162,18 @@ public partial class ButtonsView : UserControl
     private readonly ListPicker[] _holdKnobPickers = new ListPicker[5];
     private readonly StackPanel[] _holdKnobPanels = new StackPanel[5];
 
+    // HA entity pickers (tap/double/hold)
+    private readonly ListPicker[] _tapHaEntityPickers = new ListPicker[5];
+    private readonly StackPanel[] _tapHaEntityPanels = new StackPanel[5];
+    private readonly ListPicker[] _dblHaEntityPickers = new ListPicker[5];
+    private readonly StackPanel[] _dblHaEntityPanels = new StackPanel[5];
+    private readonly ListPicker[] _holdHaEntityPickers = new ListPicker[5];
+    private readonly StackPanel[] _holdHaEntityPanels = new StackPanel[5];
+
     private List<(string Id, string Name, bool IsOutput)> _audioDevices = new();
+    private HAIntegration? _ha;
+
+    public void SetHA(HAIntegration? ha) => _ha = ha;
 
     public ButtonsView()
     {
@@ -311,6 +327,7 @@ public partial class ButtonsView : UserControl
         SelectProfilePicker(_tapProfilePickers[idx], btn.ProfileName);
         SelectPowerSegment(_tapPowerSegments[idx], btn.PowerAction);
         SelectKnobPicker(_tapKnobPickers[idx], btn.LinkedKnobIdx);
+        SelectHaEntityPicker(_tapHaEntityPickers[idx], btn.Action, btn.Path);
         UpdateTapVisibility(idx, btn.Action);
         UpdateHeaderDisplay(idx);
 
@@ -323,9 +340,10 @@ public partial class ButtonsView : UserControl
         SelectProfilePicker(_dblProfilePickers[idx], btn.DoublePressProfileName);
         SelectPowerSegment(_dblPowerSegments[idx], btn.DoublePressPowerAction);
         SelectKnobPicker(_dblKnobPickers[idx], btn.DoublePressLinkedKnobIdx);
+        SelectHaEntityPicker(_dblHaEntityPickers[idx], btn.DoublePressAction, btn.DoublePressPath);
         UpdateGestureVisibility(_dblPathPanels[idx], _dblPathLabels[idx], _dblBrowseButtons[idx], _dblPickButtons[idx], _dblMacroPanels[idx],
             _dblDevicePanels[idx], _dblCycleDevicePanels[idx], _dblProfilePanels[idx],
-            _dblPowerPanels[idx], _dblKnobPanels[idx], btn.DoublePressAction);
+            _dblPowerPanels[idx], _dblKnobPanels[idx], _dblHaEntityPanels[idx], btn.DoublePressAction);
 
         // HOLD
         SelectCombo(_holdCombos[idx], btn.HoldAction);
@@ -336,9 +354,10 @@ public partial class ButtonsView : UserControl
         SelectProfilePicker(_holdProfilePickers[idx], btn.HoldProfileName);
         SelectPowerSegment(_holdPowerSegments[idx], btn.HoldPowerAction);
         SelectKnobPicker(_holdKnobPickers[idx], btn.HoldLinkedKnobIdx);
+        SelectHaEntityPicker(_holdHaEntityPickers[idx], btn.HoldAction, btn.HoldPath);
         UpdateGestureVisibility(_holdPathPanels[idx], _holdPathLabels[idx], _holdBrowseButtons[idx], _holdPickButtons[idx], _holdMacroPanels[idx],
             _holdDevicePanels[idx], _holdCycleDevicePanels[idx], _holdProfilePanels[idx],
-            _holdPowerPanels[idx], _holdKnobPanels[idx], btn.HoldAction);
+            _holdPowerPanels[idx], _holdKnobPanels[idx], _holdHaEntityPanels[idx], btn.HoldAction);
 
         _loading = false;
     }
@@ -405,6 +424,7 @@ public partial class ButtonsView : UserControl
             SelectProfilePicker(_tapProfilePickers[i], btn.ProfileName);
             SelectPowerSegment(_tapPowerSegments[i], btn.PowerAction);
             SelectKnobPicker(_tapKnobPickers[i], btn.LinkedKnobIdx);
+            SelectHaEntityPicker(_tapHaEntityPickers[i], btn.Action, btn.Path);
             UpdateTapVisibility(i, btn.Action);
             UpdateHeaderDisplay(i);
 
@@ -417,9 +437,10 @@ public partial class ButtonsView : UserControl
             SelectProfilePicker(_dblProfilePickers[i], btn.DoublePressProfileName);
             SelectPowerSegment(_dblPowerSegments[i], btn.DoublePressPowerAction);
             SelectKnobPicker(_dblKnobPickers[i], btn.DoublePressLinkedKnobIdx);
+            SelectHaEntityPicker(_dblHaEntityPickers[i], btn.DoublePressAction, btn.DoublePressPath);
             UpdateGestureVisibility(_dblPathPanels[i], _dblPathLabels[i], _dblBrowseButtons[i], _dblPickButtons[i], _dblMacroPanels[i],
                 _dblDevicePanels[i], _dblCycleDevicePanels[i], _dblProfilePanels[i],
-                _dblPowerPanels[i], _dblKnobPanels[i], btn.DoublePressAction);
+                _dblPowerPanels[i], _dblKnobPanels[i], _dblHaEntityPanels[i], btn.DoublePressAction);
 
             // HOLD
             SelectCombo(_holdCombos[i], btn.HoldAction);
@@ -430,9 +451,10 @@ public partial class ButtonsView : UserControl
             SelectProfilePicker(_holdProfilePickers[i], btn.HoldProfileName);
             SelectPowerSegment(_holdPowerSegments[i], btn.HoldPowerAction);
             SelectKnobPicker(_holdKnobPickers[i], btn.HoldLinkedKnobIdx);
+            SelectHaEntityPicker(_holdHaEntityPickers[i], btn.HoldAction, btn.HoldPath);
             UpdateGestureVisibility(_holdPathPanels[i], _holdPathLabels[i], _holdBrowseButtons[i], _holdPickButtons[i], _holdMacroPanels[i],
                 _holdDevicePanels[i], _holdCycleDevicePanels[i], _holdProfilePanels[i],
-                _holdPowerPanels[i], _holdKnobPanels[i], btn.HoldAction);
+                _holdPowerPanels[i], _holdKnobPanels[i], _holdHaEntityPanels[i], btn.HoldAction);
         }
 
         _loading = false;
@@ -618,6 +640,13 @@ public partial class ButtonsView : UserControl
             _tapKnobPickers[i] = knobPicker;
             tapSection.Children.Add(knobPanel);
 
+            var (tapHaPanel, tapHaPicker) = MakeListPickerRow("HA ENTITY");
+            tapHaPicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            tapHaPicker.DropdownOpening += (_, _) => LoadHaEntitiesIntoPicker(tapHaPicker, GetComboActionValue(_tapCombos[idx]));
+            _tapHaEntityPanels[i] = tapHaPanel;
+            _tapHaEntityPickers[i] = tapHaPicker;
+            tapSection.Children.Add(tapHaPanel);
+
             Grid.SetRow(tapSection, 2);
             grid.Children.Add(tapSection);
 
@@ -681,13 +710,20 @@ public partial class ButtonsView : UserControl
             _dblKnobPickers[i] = dblKnobPicker;
             dblSection.Children.Add(dblKnobPanel);
 
+            var (dblHaPanel, dblHaPicker) = MakeListPickerRow("HA ENTITY");
+            dblHaPicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            dblHaPicker.DropdownOpening += (_, _) => LoadHaEntitiesIntoPicker(dblHaPicker, GetComboActionValue(_dblCombos[idx]));
+            _dblHaEntityPanels[i] = dblHaPanel;
+            _dblHaEntityPickers[i] = dblHaPicker;
+            dblSection.Children.Add(dblHaPanel);
+
             dblCombo.SelectionChanged += (_, _) =>
             {
                 if (_loading) return;
                 var val = GetComboActionValue(dblCombo);
                 UpdateGestureVisibility(_dblPathPanels[idx], _dblPathLabels[idx], _dblBrowseButtons[idx], _dblPickButtons[idx], _dblMacroPanels[idx],
                     _dblDevicePanels[idx], _dblCycleDevicePanels[idx], _dblProfilePanels[idx],
-                    _dblPowerPanels[idx], _dblKnobPanels[idx], val);
+                    _dblPowerPanels[idx], _dblKnobPanels[idx], _dblHaEntityPanels[idx], val);
                 QueueSave();
             };
 
@@ -754,13 +790,20 @@ public partial class ButtonsView : UserControl
             _holdKnobPickers[i] = holdKnobPicker;
             holdSection.Children.Add(holdKnobPanel);
 
+            var (holdHaPanel, holdHaPicker) = MakeListPickerRow("HA ENTITY");
+            holdHaPicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            holdHaPicker.DropdownOpening += (_, _) => LoadHaEntitiesIntoPicker(holdHaPicker, GetComboActionValue(_holdCombos[idx]));
+            _holdHaEntityPanels[i] = holdHaPanel;
+            _holdHaEntityPickers[i] = holdHaPicker;
+            holdSection.Children.Add(holdHaPanel);
+
             holdCombo.SelectionChanged += (_, _) =>
             {
                 if (_loading) return;
                 var val = GetComboActionValue(holdCombo);
                 UpdateGestureVisibility(_holdPathPanels[idx], _holdPathLabels[idx], _holdBrowseButtons[idx], _holdPickButtons[idx], _holdMacroPanels[idx],
                     _holdDevicePanels[idx], _holdCycleDevicePanels[idx], _holdProfilePanels[idx],
-                    _holdPowerPanels[idx], _holdKnobPanels[idx], val);
+                    _holdPowerPanels[idx], _holdKnobPanels[idx], _holdHaEntityPanels[idx], val);
                 QueueSave();
             };
 
@@ -804,7 +847,9 @@ public partial class ButtonsView : UserControl
 
     private void UpdateTapVisibility(int idx, string action)
     {
-        _tapPathPanels[idx].Visibility = PathActions.Contains(action) ? Visibility.Visible : Visibility.Collapsed;
+        bool isHaEntityAction = action is "ha_toggle" or "ha_scene";
+        bool isHaServiceAction = action == "ha_service";
+        _tapPathPanels[idx].Visibility = PathActions.Contains(action) || isHaServiceAction ? Visibility.Visible : Visibility.Collapsed;
         ApplyPathLabelAndButtons(_tapPathLabels[idx], _tapPathBoxes[idx], _tapBrowseButtons[idx], _tapPickButtons[idx], action);
         _tapMacroPanels[idx].Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
         _tapDevicePanels[idx].Visibility = action is "select_output" or "select_input" or "mute_device" ? Visibility.Visible : Visibility.Collapsed;
@@ -812,14 +857,17 @@ public partial class ButtonsView : UserControl
         _tapProfilePanels[idx].Visibility = action == "switch_profile" ? Visibility.Visible : Visibility.Collapsed;
         _tapPowerPanels[idx].Visibility = action == "system_power" ? Visibility.Visible : Visibility.Collapsed;
         _tapKnobPanels[idx].Visibility = action == "mute_app_group" ? Visibility.Visible : Visibility.Collapsed;
+        _tapHaEntityPanels[idx].Visibility = isHaEntityAction ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static void UpdateGestureVisibility(
         StackPanel pathPanel, TextBlock pathLabel, Button browseBtn, Button pickBtn, StackPanel macroPanel,
         StackPanel devicePanel, StackPanel cycleDevicePanel, StackPanel profilePanel,
-        StackPanel powerPanel, StackPanel knobPanel, string action)
+        StackPanel powerPanel, StackPanel knobPanel, StackPanel haEntityPanel, string action)
     {
-        pathPanel.Visibility = PathActions.Contains(action) ? Visibility.Visible : Visibility.Collapsed;
+        bool isHaEntityAction = action is "ha_toggle" or "ha_scene";
+        bool isHaServiceAction = action == "ha_service";
+        pathPanel.Visibility = PathActions.Contains(action) || isHaServiceAction ? Visibility.Visible : Visibility.Collapsed;
         ApplyPathLabelAndButtons(pathLabel, null, browseBtn, pickBtn, action);
         macroPanel.Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
         devicePanel.Visibility = action is "select_output" or "select_input" or "mute_device" ? Visibility.Visible : Visibility.Collapsed;
@@ -827,6 +875,7 @@ public partial class ButtonsView : UserControl
         profilePanel.Visibility = action == "switch_profile" ? Visibility.Visible : Visibility.Collapsed;
         powerPanel.Visibility = action == "system_power" ? Visibility.Visible : Visibility.Collapsed;
         knobPanel.Visibility = action == "mute_app_group" ? Visibility.Visible : Visibility.Collapsed;
+        haEntityPanel.Visibility = isHaEntityAction ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static void ApplyPathLabelAndButtons(TextBlock label, TextBox? box, Button browseBtn, Button pickBtn, string action)
@@ -849,6 +898,12 @@ public partial class ButtonsView : UserControl
                 label.Text = "PROGRAM PATH";
                 if (box != null) box.ToolTip = "Full path to the executable to launch";
                 browseBtn.Visibility = Visibility.Visible;
+                pickBtn.Visibility = Visibility.Collapsed;
+                break;
+            case "ha_service":
+                label.Text = "SERVICE CALL";
+                if (box != null) box.ToolTip = "Format: domain.service:entity_id (e.g. light.turn_on:light.office)";
+                browseBtn.Visibility = Visibility.Collapsed;
                 pickBtn.Visibility = Visibility.Collapsed;
                 break;
             default:
@@ -882,7 +937,7 @@ public partial class ButtonsView : UserControl
             btn.Label = labelText == $"Button {i + 1}" ? "" : labelText;
 
             btn.Action = GetComboActionValue(_tapCombos[i]);
-            btn.Path = GetTextBoxValue(_tapPathBoxes[i]);
+            btn.Path = GetHaOrPathValue(_tapCombos[i], _tapHaEntityPickers[i], _tapPathBoxes[i]);
             btn.MacroKeys = GetTextBoxValue(_tapMacroBoxes[i]);
             btn.DeviceId = GetSelectedDeviceId(_tapDevicePickers[i]);
             btn.DeviceIds = _tapCycleDevicePickers[i].GetCheckedIds();
@@ -891,7 +946,7 @@ public partial class ButtonsView : UserControl
             btn.LinkedKnobIdx = int.TryParse(_tapKnobPickers[i].SelectedTag as string, out int ki) ? ki : -1;
 
             btn.DoublePressAction = GetComboActionValue(_dblCombos[i]);
-            btn.DoublePressPath = GetTextBoxValue(_dblPathBoxes[i]);
+            btn.DoublePressPath = GetHaOrPathValue(_dblCombos[i], _dblHaEntityPickers[i], _dblPathBoxes[i]);
             btn.DoublePressMacroKeys = GetTextBoxValue(_dblMacroBoxes[i]);
             btn.DoublePressDeviceId = GetSelectedDeviceId(_dblDevicePickers[i]);
             btn.DoublePressDeviceIds = _dblCycleDevicePickers[i].GetCheckedIds();
@@ -900,7 +955,7 @@ public partial class ButtonsView : UserControl
             btn.DoublePressLinkedKnobIdx = int.TryParse(_dblKnobPickers[i].SelectedTag as string, out int dki) ? dki : -1;
 
             btn.HoldAction = GetComboActionValue(_holdCombos[i]);
-            btn.HoldPath = GetTextBoxValue(_holdPathBoxes[i]);
+            btn.HoldPath = GetHaOrPathValue(_holdCombos[i], _holdHaEntityPickers[i], _holdPathBoxes[i]);
             btn.HoldMacroKeys = GetTextBoxValue(_holdMacroBoxes[i]);
             btn.HoldDeviceId = GetSelectedDeviceId(_holdDevicePickers[i]);
             btn.HoldDeviceIds = _holdCycleDevicePickers[i].GetCheckedIds();
@@ -966,18 +1021,21 @@ public partial class ButtonsView : UserControl
             _tapDevicePickers[i].RefreshAccent();
             _tapProfilePickers[i].RefreshAccent();
             _tapKnobPickers[i].RefreshAccent();
+            _tapHaEntityPickers[i].RefreshAccent();
             _tapPowerSegments[i].AccentColor = accent;
             _tapCycleDevicePickers[i].AccentColor = accent;
 
             _dblDevicePickers[i].RefreshAccent();
             _dblProfilePickers[i].RefreshAccent();
             _dblKnobPickers[i].RefreshAccent();
+            _dblHaEntityPickers[i].RefreshAccent();
             _dblPowerSegments[i].AccentColor = accent;
             _dblCycleDevicePickers[i].AccentColor = accent;
 
             _holdDevicePickers[i].RefreshAccent();
             _holdProfilePickers[i].RefreshAccent();
             _holdKnobPickers[i].RefreshAccent();
+            _holdHaEntityPickers[i].RefreshAccent();
             _holdPowerSegments[i].AccentColor = accent;
             _holdCycleDevicePickers[i].AccentColor = accent;
         }
@@ -1020,6 +1078,9 @@ public partial class ButtonsView : UserControl
         { "power_restart",      "Restart the PC" },
         { "power_logoff",       "Log off the current user" },
         { "power_hibernate",    "Hibernate the PC" },
+        { "ha_toggle",          "Toggle a Home Assistant entity on/off" },
+        { "ha_scene",           "Activate a Home Assistant scene" },
+        { "ha_service",         "Call any Home Assistant service (format: domain.service:entity_id)" },
     };
 
     private ActionPicker MakeActionCombo()
@@ -1253,6 +1314,7 @@ public partial class ButtonsView : UserControl
         { "CYCLE DEVICES","Devices to cycle through (check to include)" },
         { "PROFILE",      "Profile to switch to when pressed" },
         { "LINKED KNOB",  "Knob whose app group is muted" },
+        { "HA ENTITY",    "Home Assistant entity to control (click to load entities)" },
     };
 
     private (StackPanel panel, ListPicker picker) MakeListPickerRow(string label)
@@ -1429,6 +1491,74 @@ public partial class ButtonsView : UserControl
         for (int i = 0; i < picker.ItemCount; i++)
             if (picker.GetTagAt(i) as string == profileName) { picker.SelectedIndex = i; return; }
         picker.SelectedIndex = -1;
+    }
+
+    private void SelectHaEntityPicker(ListPicker picker, string action, string entityId)
+    {
+        if (action is not ("ha_toggle" or "ha_scene") || string.IsNullOrEmpty(entityId))
+        {
+            picker.SelectedIndex = -1;
+            return;
+        }
+        // Try to find an existing item by tag (entity ID)
+        for (int i = 0; i < picker.ItemCount; i++)
+        {
+            if (picker.GetTagAt(i) as string == entityId)
+            {
+                picker.SelectedIndex = i;
+                return;
+            }
+        }
+        // Not yet loaded — pre-populate with a placeholder so the saved value shows up
+        picker.ClearItems();
+        picker.AddItem(entityId, entityId);
+        picker.SelectedIndex = 0;
+    }
+
+    private string GetHaOrPathValue(ActionPicker combo, ListPicker haPicker, TextBox pathBox)
+    {
+        var action = GetComboActionValue(combo);
+        if (action is "ha_toggle" or "ha_scene")
+            return haPicker.SelectedTag as string ?? "";
+        return GetTextBoxValue(pathBox);
+    }
+
+    private void LoadHaEntitiesIntoPicker(ListPicker picker, string action)
+    {
+        if (_ha == null || !_ha.IsAvailable) return;
+
+        // Keep current selection tag before reload
+        var currentTag = picker.SelectedTag as string;
+
+        // Only reload if still showing a placeholder (1 item matching its own display)
+        // or empty — avoids redundant network calls when already loaded
+        if (picker.ItemCount > 1) return;
+
+        var domain = action == "ha_scene" ? "scene" : null;
+
+        _ = Task.Run(async () =>
+        {
+            var entities = await _ha.GetEntitiesAsync(domain);
+            Dispatcher.BeginInvoke(() =>
+            {
+                picker.ClearItems();
+                foreach (var e in entities.OrderBy(e => e.FriendlyName))
+                    picker.AddItem(e.FriendlyName, e.EntityId);
+
+                // Re-select previously selected entity
+                if (!string.IsNullOrEmpty(currentTag))
+                {
+                    for (int i = 0; i < picker.ItemCount; i++)
+                    {
+                        if (picker.GetTagAt(i) as string == currentTag)
+                        {
+                            picker.SelectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+            });
+        });
     }
 
     private void SelectPowerSegment(SegmentedControl segment, string powerAction)

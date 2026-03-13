@@ -76,6 +76,8 @@ public partial class HomeAssistantView : UserControl
         BuildColumns();
     }
 
+    public HAIntegration? GetHA() => _ha;
+
     public void LoadConfig(AppConfig config, Action<AppConfig> onSave)
     {
         _loading = true;
