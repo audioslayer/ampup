@@ -1539,7 +1539,7 @@ public partial class ButtonsView : UserControl
         _ = Task.Run(async () =>
         {
             var entities = await _ha.GetEntitiesAsync(domain);
-            Dispatcher.BeginInvoke(() =>
+            await Dispatcher.BeginInvoke(() =>
             {
                 picker.ClearItems();
                 foreach (var e in entities.OrderBy(e => e.FriendlyName))
