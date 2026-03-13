@@ -460,15 +460,6 @@ public partial class AmbienceView : UserControl
             BuildScenesSection(device, sceneContainer);
         }
 
-        // ── Segments section ──
-        bool hasSegments = device.Capabilities?.Contains("devices.capabilities.segment_color_setting") == true;
-        if (hasSegments)
-        {
-            stack.Children.Add(MakeSeparator());
-            var (segBar, segLabel) = MakeSectionHeader("SEGMENTS");
-            stack.Children.Add(WrapHeader(segBar, segLabel));
-            BuildSegmentsSection(device, stack);
-        }
 
         // ── Music mode section ──
         bool hasMusic = device.Capabilities?.Contains("devices.capabilities.music_setting") == true;
@@ -546,15 +537,15 @@ public partial class AmbienceView : UserControl
 
         var wrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
 
-        // Assign a color to each scene based on its name hash for visual variety
         foreach (var scene in scenes)
         {
             var sceneId = scene.Id;
             var tileColor = GetSceneTileColor(scene.Name);
+            var icon = GetSceneIcon(scene.Name);
 
             var tile = new Border
             {
-                Width = 110, Height = 42,
+                Width = 82, Height = 58,
                 CornerRadius = new CornerRadius(6),
                 Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
                 BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
@@ -567,31 +558,33 @@ public partial class AmbienceView : UserControl
 
             var tileContent = new StackPanel
             {
-                Orientation = Orientation.Horizontal,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
             };
 
-            // Color accent dot
-            tileContent.Children.Add(new Border
+            // Icon
+            tileContent.Children.Add(new TextBlock
             {
-                Width = 6, Height = 6,
-                CornerRadius = new CornerRadius(3),
-                Background = new SolidColorBrush(tileColor),
-                Margin = new Thickness(0, 0, 6, 0),
-                VerticalAlignment = VerticalAlignment.Center,
+                Text = icon,
+                FontSize = 20,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                TextAlignment = TextAlignment.Center,
+                Foreground = new SolidColorBrush(Color.FromRgb(
+                    (byte)(tileColor.R * 0.7), (byte)(tileColor.G * 0.7), (byte)(tileColor.B * 0.7))),
             });
 
-            var label = new TextBlock
+            // Label
+            tileContent.Children.Add(new TextBlock
             {
                 Text = scene.Name,
-                FontSize = 11,
-                Foreground = FindBrush("TextSecBrush"),
+                FontSize = 9,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                TextAlignment = TextAlignment.Center,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxWidth = 86,
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            tileContent.Children.Add(label);
+                MaxWidth = 74,
+                Margin = new Thickness(0, 2, 0, 0),
+            });
             tile.Child = tileContent;
 
             // Hover effects
@@ -641,81 +634,6 @@ public partial class AmbienceView : UserControl
     }
 
     // ── Segments ──────────────────────────────────────────────────────
-
-    private void BuildSegmentsSection(GoveeDeviceInfo device, StackPanel parent)
-    {
-        int segmentCount = GoveeCloudApi.ExtractSegmentCount(device.RawCapabilities);
-        if (segmentCount <= 0) segmentCount = 10; // safe default
-
-        var segColors = new (byte R, byte G, byte B)[segmentCount];
-        for (int i = 0; i < segmentCount; i++) segColors[i] = (255, 255, 255);
-
-        var segRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-
-        for (int i = 0; i < segmentCount; i++)
-        {
-            var idx = i;
-            var segBorder = new Border
-            {
-                Width = 32, Height = 32,
-                CornerRadius = new CornerRadius(6),
-                Background = new SolidColorBrush(Colors.White),
-                BorderBrush = FindBrush("CardBorderBrush"),
-                BorderThickness = new Thickness(1),
-                Margin = new Thickness(0, 0, 4, 4),
-                Cursor = Cursors.Hand,
-                ToolTip = $"Segment {idx + 1}",
-            };
-
-            // Hover glow
-            segBorder.MouseEnter += (_, _) =>
-            {
-                segBorder.BorderBrush = FindBrush("AccentBrush");
-            };
-            segBorder.MouseLeave += (_, _) =>
-            {
-                segBorder.BorderBrush = FindBrush("CardBorderBrush");
-            };
-
-            segBorder.MouseLeftButtonUp += (_, _) =>
-            {
-                var (r, g, b) = segColors[idx];
-                var current = Color.FromRgb(r, g, b);
-                var dialog = new ColorPickerDialog(current) { Owner = Window.GetWindow(this) };
-                if (dialog.ShowDialog() == true)
-                {
-                    var c = dialog.SelectedColor;
-                    segColors[idx] = (c.R, c.G, c.B);
-                    segBorder.Background = new SolidColorBrush(c);
-                }
-            };
-
-            segRow.Children.Add(segBorder);
-        }
-
-        parent.Children.Add(segRow);
-
-        // Apply button
-        var applyBtn = new Button
-        {
-            Content = "Apply Segments",
-            Padding = new Thickness(14, 5, 14, 5),
-            FontSize = 12,
-            Margin = new Thickness(0, 0, 0, 8),
-        };
-        applyBtn.Click += async (_, _) =>
-        {
-            for (int si = 0; si < segColors.Length; si++)
-            {
-                var (sr, sg, sb) = segColors[si];
-                int capturedIdx = si;
-                await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
-                    device.Device, device.Sku,
-                    GoveeCloudApi.SetSegmentColor(capturedIdx, sr, sg, sb)));
-            }
-        };
-        parent.Children.Add(applyBtn);
-    }
 
     // ── Music Mode ────────────────────────────────────────────────────
 
@@ -816,6 +734,59 @@ public partial class AmbienceView : UserControl
         int hash = 0;
         foreach (var c in name) hash = hash * 31 + c;
         return ScenePalette[Math.Abs(hash) % ScenePalette.Length];
+    }
+
+    private static string GetSceneIcon(string name)
+    {
+        var n = name.ToLowerInvariant();
+        // Nature / Weather
+        if (n.Contains("snow") || n.Contains("flake")) return "❄";
+        if (n.Contains("fire") || n.Contains("flame")) return "🔥";
+        if (n.Contains("rain")) return "🌧";
+        if (n.Contains("aurora")) return "🌌";
+        if (n.Contains("ocean") || n.Contains("stream")) return "🌊";
+        if (n.Contains("desert")) return "🏜";
+        if (n.Contains("bloom") || n.Contains("flower")) return "🌸";
+        if (n.Contains("sand")) return "⏳";
+        if (n.Contains("meteor")) return "☄";
+        if (n.Contains("tunnel")) return "🕳";
+        if (n.Contains("forest")) return "🌲";
+        if (n.Contains("sunrise")) return "🌅";
+        if (n.Contains("sunset")) return "🌇";
+        // Light / Color
+        if (n.Contains("rainbow")) return "🌈";
+        if (n.Contains("candle")) return "🕯";
+        if (n.Contains("white light") || n.Contains("reading")) return "💡";
+        if (n.Contains("glitter") || n.Contains("sparkle")) return "✨";
+        if (n.Contains("colorful")) return "🎨";
+        if (n.Contains("neon")) return "💜";
+        // Mood / Activity
+        if (n.Contains("romantic") || n.Contains("romance")) return "💕";
+        if (n.Contains("party")) return "🎉";
+        if (n.Contains("energetic") || n.Contains("energic")) return "⚡";
+        if (n.Contains("breathe") || n.Contains("breathing")) return "🫧";
+        if (n.Contains("asleep") || n.Contains("sleep")) return "😴";
+        if (n.Contains("fright") || n.Contains("horror")) return "👻";
+        if (n.Contains("siren")) return "🚨";
+        // Music / Entertainment
+        if (n.Contains("drum") || n.Contains("beat")) return "🥁";
+        if (n.Contains("movie") || n.Contains("film")) return "🎬";
+        if (n.Contains("comedy") || n.Contains("comedies")) return "😂";
+        if (n.Contains("action")) return "💥";
+        if (n.Contains("suspense") || n.Contains("thriller")) return "😱";
+        if (n.Contains("documentary") || n.Contains("documentaries")) return "📽";
+        if (n.Contains("war")) return "⚔";
+        if (n.Contains("science fiction") || n.Contains("sci-fi")) return "🚀";
+        // Seasonal
+        if (n.Contains("season")) return "🍂";
+        if (n.Contains("christmas") || n.Contains("xmas")) return "🎄";
+        if (n.Contains("halloween")) return "🎃";
+        // Other
+        if (n.Contains("crossing")) return "🚦";
+        if (n.Contains("literary")) return "📖";
+        if (n.Contains("pulse")) return "💓";
+        // Fallback — use the first character as a styled icon
+        return "◆";
     }
 
     // ── LAN/Cloud routing ──────────────────────────────────────────────

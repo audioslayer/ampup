@@ -283,7 +283,7 @@ public partial class LightsView : UserControl
         });
         linkLabel.Children.Add(new TextBlock
         {
-            Text = "  Mirrors LED colors to Govee lights",
+            Text = "  Mirrors LED colors to Room lights",
             FontSize = 10,
             Foreground = FindBrush("TextDimBrush"),
             VerticalAlignment = VerticalAlignment.Center,
