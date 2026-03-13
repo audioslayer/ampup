@@ -187,13 +187,7 @@
                            Margin="0,8,0,4" />
                 <StackPanel x:Name="ButtonsPanel" />
 
-                <!-- Footer -->
-                <Border Height="1" Background="#1AFFFFFF" Margin="0,10,0,4" />
-                <TextBlock Text="Tap any knob to adjust"
-                           FontFamily="Segoe UI" FontSize="9"
-                           Foreground="#44FFFFFF"
-                           HorizontalAlignment="Center"
-                           Margin="0,0,0,2" />
+
             </StackPanel>
 
         </Grid>
