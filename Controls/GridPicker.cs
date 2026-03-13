@@ -1,17 +1,20 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
+using System.Windows.Threading;
 
 namespace AmpUp.Controls;
 
 /// <summary>
 /// A categorized target picker. Shows current selection as a styled row;
 /// click opens a dark popup with categorized items as full-width text rows.
+/// Items can optionally have sub-menus that slide out to the right.
 /// </summary>
 public class GridPicker : Border
 {
@@ -22,13 +25,36 @@ public class GridPicker : Border
     private readonly StackPanel _categoriesPanel;
     private readonly ScrollViewer _scrollViewer;
 
+    // Sub-flyout
+    private readonly Popup _subPopup;
+    private readonly Border _subPopupBorder;
+    private readonly StackPanel _subItemsPanel;
+    private readonly ScrollViewer _subScrollViewer;
+    private readonly TextBox _subFilterBox;
+    private readonly TextBlock _subFilterPlaceholder;
+    private string _subFilterText = "";
+    private object? _activeSubParentTag;
+    private List<SubItem> _activeSubItems = new();
+    private readonly DispatcherTimer _subOpenTimer;
+    private int _hoveredSubMenuIdx = -1;
+
     private int _selectedIndex = -1;
+    private string? _selectedSubTag; // stores the sub-item tag when a sub-menu item is selected
     private readonly List<(string Display, object? Tag)> _items = new();
     private readonly List<(int ItemIndex, string CategoryName)> _categories = new();
+
+    // Sub-menu providers: keyed by item tag string
+    private readonly Dictionary<string, Func<List<SubItem>>> _subMenuProviders = new();
 
     public event EventHandler? SelectionChanged;
 
     public Color AccentColor { get; set; } = ThemeManager.Accent;
+
+    /// <summary>
+    /// When a sub-menu item is selected, SelectedTag returns "parentTag:subTag".
+    /// SelectedSubTag returns just the sub-item tag, or null if no sub-item.
+    /// </summary>
+    public string? SelectedSubTag => _selectedSubTag;
 
     // Category icons and colors for visual identity
     private static readonly Dictionary<string, (string Icon, Color Color)> CategoryStyles = new()
@@ -38,6 +64,8 @@ public class GridPicker : Border
         { "INTEGRATIONS", ("◈", Color.FromRgb(0xFF, 0xB7, 0x4D)) },  // amber
         { "APPS",         ("◉", Color.FromRgb(0x66, 0xBB, 0x6A)) },  // green
     };
+
+    public record SubItem(string Display, string Tag, string? Icon = null, Color? IconColor = null);
 
     public void RefreshAccent()
     {
@@ -87,7 +115,7 @@ public class GridPicker : Border
 
         Child = grid;
 
-        // Popup
+        // Main popup
         _categoriesPanel = new StackPanel();
         _scrollViewer = new ScrollViewer
         {
@@ -126,7 +154,104 @@ public class GridPicker : Border
             VerticalOffset = 4
         };
 
-        // Hover
+        // ── Sub-flyout popup ──
+        _subItemsPanel = new StackPanel();
+        _subScrollViewer = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            MaxHeight = 300,
+            Content = _subItemsPanel
+        };
+
+        _subFilterBox = new TextBox
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            CaretBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding = new Thickness(8, 6, 8, 6),
+            FontSize = 12,
+            Visibility = Visibility.Collapsed,
+        };
+        _subFilterPlaceholder = new TextBlock
+        {
+            Text = "Filter...",
+            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            FontSize = 12,
+            Padding = new Thickness(10, 7, 0, 0),
+            IsHitTestVisible = false,
+            Visibility = Visibility.Collapsed,
+        };
+        _subFilterBox.TextChanged += (_, _) =>
+        {
+            _subFilterText = _subFilterBox.Text.Trim();
+            _subFilterPlaceholder.Visibility = string.IsNullOrEmpty(_subFilterBox.Text)
+                ? Visibility.Visible : Visibility.Collapsed;
+            ApplySubFilter();
+        };
+
+        var subFilterContainer = new Grid();
+        subFilterContainer.Children.Add(_subFilterBox);
+        subFilterContainer.Children.Add(_subFilterPlaceholder);
+
+        var subStack = new StackPanel();
+        subStack.Children.Add(subFilterContainer);
+        subStack.Children.Add(_subScrollViewer);
+
+        _subPopupBorder = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(4, 6, 4, 6),
+            Child = subStack,
+            MinWidth = 200,
+            MaxWidth = 300,
+            Effect = new DropShadowEffect
+            {
+                Color = Colors.Black,
+                BlurRadius = 24,
+                Opacity = 0.6,
+                ShadowDepth = 6,
+                Direction = 270
+            }
+        };
+
+        _subPopup = new Popup
+        {
+            Child = _subPopupBorder,
+            PlacementTarget = _popupBorder,
+            Placement = PlacementMode.Right,
+            StaysOpen = false,
+            AllowsTransparency = true,
+            PopupAnimation = PopupAnimation.Slide,
+            HorizontalOffset = -2,
+        };
+
+        // Keep main popup open while sub is open
+        _subPopup.Opened += (_, _) => _popup.StaysOpen = true;
+        _subPopup.Closed += (_, _) =>
+        {
+            _popup.StaysOpen = false;
+            _hoveredSubMenuIdx = -1;
+        };
+
+        // Timer for delayed sub-menu open on hover
+        _subOpenTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+        _subOpenTimer.Tick += (_, _) =>
+        {
+            _subOpenTimer.Stop();
+            if (_hoveredSubMenuIdx >= 0 && _hoveredSubMenuIdx < _items.Count)
+            {
+                var tag = _items[_hoveredSubMenuIdx].Tag as string;
+                if (tag != null && _subMenuProviders.ContainsKey(tag))
+                    OpenSubMenu(tag, _hoveredSubMenuIdx);
+            }
+        };
+
+        // Hover on trigger
         MouseEnter += (_, _) =>
         {
             BorderBrush = new SolidColorBrush(Color.FromArgb(0xAA, AccentColor.R, AccentColor.G, AccentColor.B));
@@ -161,6 +286,7 @@ public class GridPicker : Border
             BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
             Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
             _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+            _subPopup.IsOpen = false;
         };
     }
 
@@ -177,11 +303,26 @@ public class GridPicker : Border
         RebuildPopupItems();
     }
 
+    /// <summary>
+    /// Register a sub-menu provider for items with the given tag.
+    /// When hovered/clicked, a slide-out panel shows the provider's items.
+    /// </summary>
+    public void RegisterSubMenu(string parentTag, Func<List<SubItem>> provider)
+    {
+        _subMenuProviders[parentTag] = provider;
+    }
+
+    public void ClearSubMenus()
+    {
+        _subMenuProviders.Clear();
+    }
+
     public void ClearItems()
     {
         _items.Clear();
         _categories.Clear();
         _selectedIndex = -1;
+        _selectedSubTag = null;
         _label.Text = "Select...";
         _label.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
         RebuildPopupItems();
@@ -219,13 +360,227 @@ public class GridPicker : Border
     public object? GetTagAt(int index) =>
         index >= 0 && index < _items.Count ? _items[index].Tag : null;
 
+    /// <summary>
+    /// Select by tag, with optional sub-tag. Sets display label to displayOverride if provided.
+    /// </summary>
+    public void SelectByTag(string tag, string? subTag = null, string? displayOverride = null)
+    {
+        for (int i = 0; i < _items.Count; i++)
+        {
+            if (_items[i].Tag as string == tag)
+            {
+                _selectedIndex = i;
+                _selectedSubTag = subTag;
+                _label.Text = displayOverride ?? _items[i].Display;
+                _label.Foreground = new SolidColorBrush(AccentColor);
+                RebuildPopupItems();
+                return;
+            }
+        }
+    }
+
+    // ── Sub-flyout ───────────────────────────────────────────────
+
+    private void OpenSubMenu(string parentTag, int itemIdx)
+    {
+        if (!_subMenuProviders.TryGetValue(parentTag, out var provider))
+            return;
+
+        _activeSubParentTag = parentTag;
+        _activeSubItems = provider();
+
+        RebuildSubItems();
+
+        // Position sub-popup next to the hovered item
+        if (itemIdx < _categoriesPanel.Children.Count)
+        {
+            var target = _categoriesPanel.Children[FindPopupChildForItemIdx(itemIdx)];
+            _subPopup.PlacementTarget = target;
+            _subPopup.Placement = PlacementMode.Right;
+            _subPopup.HorizontalOffset = 6;
+            _subPopup.VerticalOffset = -6;
+        }
+
+        // Show filter for lists > 8
+        var showFilter = _activeSubItems.Count > 8;
+        _subFilterBox.Visibility = showFilter ? Visibility.Visible : Visibility.Collapsed;
+        _subFilterPlaceholder.Visibility = showFilter ? Visibility.Visible : Visibility.Collapsed;
+        _subFilterBox.Text = "";
+        _subFilterText = "";
+
+        _subPopup.IsOpen = true;
+
+        if (showFilter)
+            _subFilterBox.Focus();
+    }
+
+    private int FindPopupChildForItemIdx(int itemIdx)
+    {
+        // The popup panel has category headers + item rows interleaved.
+        // We need to map item index to child index.
+        int childIdx = 0;
+        var categoryForItem = BuildCategoryMap();
+
+        int currentCat = -1;
+        for (int i = 0; i <= itemIdx && childIdx < _categoriesPanel.Children.Count; i++)
+        {
+            int cat = categoryForItem.GetValueOrDefault(i, -1);
+            if (cat != currentCat)
+            {
+                currentCat = cat;
+                if (cat >= 0) childIdx++; // skip category header
+            }
+            if (i == itemIdx) return childIdx;
+            childIdx++;
+        }
+        return Math.Min(childIdx, _categoriesPanel.Children.Count - 1);
+    }
+
+    private void RebuildSubItems()
+    {
+        _subItemsPanel.Children.Clear();
+
+        for (int i = 0; i < _activeSubItems.Count; i++)
+        {
+            int idx = i;
+            var sub = _activeSubItems[i];
+            bool selected = _selectedSubTag == sub.Tag
+                && _activeSubParentTag as string == _items[_selectedIndex >= 0 ? _selectedIndex : 0].Tag as string;
+
+            var rowGrid = new Grid();
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // accent bar
+
+            // Accent bar
+            var accentBar = new Border
+            {
+                Width = 2,
+                Background = selected ? new SolidColorBrush(AccentColor) : Brushes.Transparent,
+                CornerRadius = new CornerRadius(1),
+                Margin = new Thickness(0, 2, 6, 2)
+            };
+            Grid.SetColumn(accentBar, 0);
+            rowGrid.Children.Add(accentBar);
+
+            int textCol = 1;
+
+            // Optional icon
+            if (!string.IsNullOrEmpty(sub.Icon))
+            {
+                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                var iconText = new TextBlock
+                {
+                    Text = sub.Icon,
+                    FontSize = 12,
+                    Foreground = new SolidColorBrush(sub.IconColor ?? AccentColor),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 6, 0)
+                };
+                Grid.SetColumn(iconText, 1);
+                rowGrid.Children.Add(iconText);
+                textCol = 2;
+            }
+
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var itemText = new TextBlock
+            {
+                Text = sub.Display,
+                FontSize = 11.5,
+                Foreground = selected
+                    ? new SolidColorBrush(AccentColor)
+                    : new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
+                FontWeight = selected ? FontWeights.Medium : FontWeights.Normal,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            };
+            Grid.SetColumn(itemText, textCol);
+            rowGrid.Children.Add(itemText);
+
+            var itemBorder = new Border
+            {
+                Padding = new Thickness(6, 6, 8, 6),
+                Cursor = Cursors.Hand,
+                Background = selected
+                    ? new SolidColorBrush(Color.FromArgb(0x1F, AccentColor.R, AccentColor.G, AccentColor.B))
+                    : Brushes.Transparent,
+                CornerRadius = new CornerRadius(4),
+                Margin = new Thickness(2, 1, 2, 1),
+                SnapsToDevicePixels = true,
+                Child = rowGrid
+            };
+
+            // Hover
+            itemBorder.MouseEnter += (_, _) =>
+            {
+                if (!selected)
+                {
+                    itemBorder.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+                    itemText.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
+                }
+            };
+            itemBorder.MouseLeave += (_, _) =>
+            {
+                if (!selected)
+                {
+                    itemBorder.Background = Brushes.Transparent;
+                    itemText.Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
+                }
+            };
+
+            // Click — select sub-item
+            itemBorder.MouseLeftButtonUp += (_, e) =>
+            {
+                var parentTag = _activeSubParentTag as string ?? "";
+                var subItem = _activeSubItems[idx];
+
+                // Find parent item index
+                for (int pi = 0; pi < _items.Count; pi++)
+                {
+                    if (_items[pi].Tag as string == parentTag)
+                    {
+                        _selectedIndex = pi;
+                        break;
+                    }
+                }
+
+                _selectedSubTag = subItem.Tag;
+
+                // Show friendly name on the trigger label
+                _label.Text = subItem.Display;
+                _label.Foreground = new SolidColorBrush(AccentColor);
+
+                _subPopup.IsOpen = false;
+                _popup.IsOpen = false;
+
+                RebuildPopupItems();
+                SelectionChanged?.Invoke(this, EventArgs.Empty);
+                e.Handled = true;
+            };
+
+            _subItemsPanel.Children.Add(itemBorder);
+        }
+    }
+
+    private void ApplySubFilter()
+    {
+        if (string.IsNullOrEmpty(_subFilterText))
+        {
+            foreach (UIElement child in _subItemsPanel.Children)
+                child.Visibility = Visibility.Visible;
+            return;
+        }
+
+        for (int i = 0; i < _activeSubItems.Count && i < _subItemsPanel.Children.Count; i++)
+        {
+            var match = _activeSubItems[i].Display.Contains(_subFilterText, StringComparison.OrdinalIgnoreCase);
+            _subItemsPanel.Children[i].Visibility = match ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
     // ── Popup rebuild ───────────────────────────────────────────
 
-    private void RebuildPopupItems()
+    private Dictionary<int, int> BuildCategoryMap()
     {
-        _categoriesPanel.Children.Clear();
-
-        // Map each item to its category
         var categoryForItem = new Dictionary<int, int>();
         for (int c = 0; c < _categories.Count; c++)
         {
@@ -234,7 +589,14 @@ public class GridPicker : Border
             for (int i = start; i < end; i++)
                 categoryForItem[i] = c;
         }
+        return categoryForItem;
+    }
 
+    private void RebuildPopupItems()
+    {
+        _categoriesPanel.Children.Clear();
+
+        var categoryForItem = BuildCategoryMap();
         int currentCategory = -1;
 
         for (int i = 0; i < _items.Count; i++)
@@ -273,22 +635,17 @@ public class GridPicker : Border
                         Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
                         FontWeight = FontWeights.SemiBold,
                         VerticalAlignment = VerticalAlignment.Center,
-                        // letter-spaced via padding
                     });
 
                     _categoriesPanel.Children.Add(headerRow);
                 }
             }
 
-            // Item row — full width, clean text
+            // Item row
             int idx = i;
-            var (display, _) = _items[i];
+            var (display, itemTag) = _items[i];
             bool selected = idx == _selectedIndex;
-            int catIdx = categoryForItem.GetValueOrDefault(i, -1);
-            var catStyle = catIdx >= 0
-                ? CategoryStyles.GetValueOrDefault(_categories[catIdx].CategoryName.ToUpperInvariant(), ("•", AccentColor))
-                : ("•", AccentColor);
-            var catColor = catStyle.Item2;
+            bool hasSubMenu = itemTag is string tagStr && _subMenuProviders.ContainsKey(tagStr);
 
             var itemRow = new Border
             {
@@ -319,6 +676,22 @@ public class GridPicker : Border
                 itemPanel.Children.Add(accentBar);
             }
 
+            // Sub-menu arrow on the right
+            if (hasSubMenu)
+            {
+                var arrow = new TextBlock
+                {
+                    Text = "›",
+                    FontSize = 14,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(8, 0, 0, 0),
+                    FontWeight = FontWeights.Bold
+                };
+                DockPanel.SetDock(arrow, Dock.Right);
+                itemPanel.Children.Add(arrow);
+            }
+
             var itemText = new TextBlock
             {
                 Text = display,
@@ -339,6 +712,22 @@ public class GridPicker : Border
                     itemRow.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
                     itemText.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
                 }
+
+                // Start sub-menu open timer if this item has a sub-menu
+                if (hasSubMenu)
+                {
+                    _hoveredSubMenuIdx = idx;
+                    _subOpenTimer.Stop();
+                    _subOpenTimer.Start();
+                }
+                else
+                {
+                    // Close sub-popup if hovering a non-sub-menu item
+                    _subOpenTimer.Stop();
+                    _hoveredSubMenuIdx = -1;
+                    if (_subPopup.IsOpen)
+                        _subPopup.IsOpen = false;
+                }
             };
             itemRow.MouseLeave += (_, _) =>
             {
@@ -352,7 +741,17 @@ public class GridPicker : Border
             // Click
             itemRow.MouseLeftButtonUp += (_, e) =>
             {
+                if (hasSubMenu)
+                {
+                    // Open sub-menu immediately on click
+                    _subOpenTimer.Stop();
+                    OpenSubMenu(itemTag as string ?? "", idx);
+                    e.Handled = true;
+                    return;
+                }
+
                 _selectedIndex = idx;
+                _selectedSubTag = null;
                 _label.Text = _items[idx].Display;
                 _label.Foreground = new SolidColorBrush(AccentColor);
                 _popup.IsOpen = false;

@@ -48,8 +48,6 @@ public partial class MixerView : UserControl
     private readonly RangeSlider[] _rangeSliders = new RangeSlider[5];
     private readonly ListPicker[] _devicePickers = new ListPicker[5];
     private readonly StackPanel[] _devicePanels = new StackPanel[5];
-    private readonly ListPicker[] _haEntityPickers = new ListPicker[5];
-    private readonly StackPanel[] _haEntityPanels = new StackPanel[5];
     private readonly TextBlock[] _muteLabels = new TextBlock[5];
     private readonly Border[] _stripBorders = new Border[5];
 
@@ -395,11 +393,15 @@ public partial class MixerView : UserControl
 
             Dispatcher.Invoke(() =>
             {
+                // Re-select HA targets to resolve friendly names from the entity cache
+                if (_config == null) return;
                 for (int i = 0; i < 5; i++)
                 {
-                    var target = GetSelectedTarget(_targetPickers[i]);
-                    if (HATargetDomains.ContainsKey(target))
-                        PopulateHAEntityPicker(i, target);
+                    var knob = _config.Knobs.FirstOrDefault(k => k.Idx == i);
+                    if (knob == null) continue;
+                    var baseTarget = knob.Target.Contains(':') ? knob.Target.Split(':')[0] : knob.Target;
+                    if (HATargetDomains.ContainsKey(baseTarget))
+                        SelectTarget(_targetPickers[i], knob.Target);
                 }
             });
         }
@@ -720,18 +722,6 @@ public partial class MixerView : UserControl
             deviceContainer.Children.Add(devicePicker);
             settingsPanel.Children.Add(deviceContainer);
 
-            // HA entity picker — ListPicker (hidden unless ha_*)
-            var haContainer = new StackPanel { Visibility = Visibility.Collapsed };
-            haContainer.Children.Add(MakeLabel("HOME ASSISTANT ENTITY"));
-            var haEntityPicker = new ListPicker { Margin = new Thickness(0, 0, 0, 4) };
-            haEntityPicker.SelectionChanged += (_, _) =>
-            {
-                if (!_loading) QueueSave();
-            };
-            _haEntityPickers[i] = haEntityPicker;
-            _haEntityPanels[i] = haContainer;
-            haContainer.Children.Add(haEntityPicker);
-            settingsPanel.Children.Add(haContainer);
 
             // App group picker (hidden unless "apps")
             var appsContainer = new StackPanel { Visibility = Visibility.Collapsed };
@@ -753,8 +743,19 @@ public partial class MixerView : UserControl
     {
         if (_targetPickers[idx].Tag is TextBlock display)
         {
-            var target = GetSelectedTarget(_targetPickers[idx]);
-            display.Text = HATargetDisplayNames.TryGetValue(target, out var dn) ? dn : FormatTargetName(target);
+            var picker = _targetPickers[idx];
+            var target = GetSelectedTarget(picker);
+
+            // If a sub-item is selected (HA entity), show its friendly name
+            if (!string.IsNullOrEmpty(picker.SelectedSubTag) && HATargetDomains.ContainsKey(target))
+            {
+                var entity = _haEntities.FirstOrDefault(e => e.EntityId == picker.SelectedSubTag);
+                display.Text = entity?.FriendlyName ?? picker.SelectedSubTag;
+            }
+            else
+            {
+                display.Text = HATargetDisplayNames.TryGetValue(target, out var dn) ? dn : FormatTargetName(target);
+            }
         }
     }
 
@@ -767,12 +768,6 @@ public partial class MixerView : UserControl
         bool showDevice = baseTarget == "output_device" || baseTarget == "input_device";
         _devicePanels[idx].Visibility = showDevice ? Visibility.Visible : Visibility.Collapsed;
 
-        bool showHA = HATargetDomains.ContainsKey(baseTarget);
-        _haEntityPanels[idx].Visibility = showHA ? Visibility.Visible : Visibility.Collapsed;
-
-        if (showHA)
-            PopulateHAEntityPicker(idx, baseTarget);
-
         bool showApps = baseTarget == "apps";
         _appsPanels[idx].Visibility = showApps ? Visibility.Visible : Visibility.Collapsed;
 
@@ -784,28 +779,20 @@ public partial class MixerView : UserControl
         UpdateTargetDisplay(idx);
     }
 
-    private void PopulateHAEntityPicker(int idx, string haTarget)
+    private List<GridPicker.SubItem> GetHASubItems(string haTarget)
     {
-        var picker = _haEntityPickers[idx];
-        picker.ClearItems();
-
         if (!HATargetDomains.TryGetValue(haTarget, out var domain))
-            return;
+            return new();
 
-        var filtered = _haEntities.Where(e => e.Domain == domain).OrderBy(e => e.FriendlyName).ToList();
-        var (domainIcon, domainColor) = HADomainStyles.GetStyle(domain);
-        foreach (var entity in filtered)
-            picker.AddItem(entity.FriendlyName, entity.EntityId, domainIcon, domainColor);
-
-        if (_config != null)
-        {
-            var knob = _config.Knobs.FirstOrDefault(k => k.Idx == idx);
-            if (knob != null && knob.Target.StartsWith(haTarget + ":"))
+        return _haEntities
+            .Where(e => e.Domain == domain)
+            .OrderBy(e => e.FriendlyName)
+            .Select(e =>
             {
-                var entityId = knob.Target.Substring(haTarget.Length + 1);
-                SelectPickerByTag(picker, entityId);
-            }
-        }
+                var (icon, color) = HADomainStyles.GetStyle(e.Domain);
+                return new GridPicker.SubItem(e.FriendlyName, e.EntityId, icon, color);
+            })
+            .ToList();
     }
 
     // --- Picker helpers ---
@@ -846,6 +833,13 @@ public partial class MixerView : UserControl
                     picker.AddItem("Home Assistant: Media", "ha_media");
                     picker.AddItem("Home Assistant: Fan", "ha_fan");
                     picker.AddItem("Home Assistant: Cover", "ha_cover");
+
+                    // Register sub-flyout providers for HA items
+                    foreach (var haKey in HATargetDomains.Keys)
+                    {
+                        var key = haKey; // capture for closure
+                        picker.RegisterSubMenu(key, () => GetHASubItems(key));
+                    }
                 }
 
                 if (goveeEnabled)
@@ -879,7 +873,20 @@ public partial class MixerView : UserControl
     {
         var baseTarget = target.Contains(':') ? target.Split(':')[0] : target;
 
-        // Try exact match first (handles "govee:IP", "ha_light:entity.id", etc.)
+        // HA targets with entity ID — use sub-tag selection
+        if (HATargetDomains.ContainsKey(baseTarget) && target.Contains(':'))
+        {
+            var entityId = target.Substring(baseTarget.Length + 1);
+            // Try to find friendly name from cache
+            var entity = _haEntities.FirstOrDefault(e => e.EntityId == entityId);
+            var displayName = entity?.FriendlyName ?? entityId;
+            picker.SelectByTag(baseTarget, entityId, displayName);
+            if (picker.Tag is TextBlock display)
+                display.Text = displayName;
+            return;
+        }
+
+        // Try exact match first (handles "govee:IP", etc.)
         for (int i = 0; i < picker.ItemCount; i++)
         {
             if (picker.GetTagAt(i) as string == target)
@@ -1081,7 +1088,7 @@ public partial class MixerView : UserControl
 
             if (HATargetDomains.ContainsKey(selectedTarget))
             {
-                var entityId = _haEntityPickers[i].SelectedTag as string ?? "";
+                var entityId = _targetPickers[i].SelectedSubTag ?? "";
                 knob.Target = !string.IsNullOrEmpty(entityId) ? $"{selectedTarget}:{entityId}" : selectedTarget;
             }
             else if (selectedTarget == "apps")
@@ -1179,7 +1186,6 @@ public partial class MixerView : UserControl
         {
             _targetPickers[i].RefreshAccent();
             _devicePickers[i].RefreshAccent();
-            _haEntityPickers[i].RefreshAccent();
             _rangeSliders[i].AccentColor = accent;
         }
     }
