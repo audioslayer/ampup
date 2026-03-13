@@ -732,14 +732,7 @@ public partial class HomeAssistantView : UserControl
 
             var actionIdx = _btnActionCombos[i].SelectedIndex;
             if (actionIdx <= 0)
-            {
-                if (btn.Action.StartsWith("ha_"))
-                {
-                    btn.Action = "none";
-                    btn.Path = "";
-                }
-                continue;
-            }
+                continue; // Don't clear — button may have been set from Buttons tab
 
             var entityId = GetSelectedEntityId(_btnEntityCombos[i]);
             btn.Action = BtnActions[actionIdx].Value;
