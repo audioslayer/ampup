@@ -11,6 +11,7 @@ public class BindingsView : UserControl
     private AppConfig? _config;
     private Action? _onNavigateToMixer;
     private Action? _onNavigateToButtons;
+    private Action<string>? _onSwitchProfile;
 
     // Action icons duplicated from ButtonsView (internal access)
     private static readonly Dictionary<string, string> ActionIcons = new()
@@ -92,10 +93,11 @@ public class BindingsView : UserControl
         Content = _scroll;
     }
 
-    public void SetNavigationCallbacks(Action onMixer, Action onButtons)
+    public void SetNavigationCallbacks(Action onMixer, Action onButtons, Action<string>? onSwitchProfile = null)
     {
         _onNavigateToMixer = onMixer;
         _onNavigateToButtons = onButtons;
+        _onSwitchProfile = onSwitchProfile;
     }
 
     public void LoadConfig(AppConfig config)
@@ -179,11 +181,17 @@ public class BindingsView : UserControl
 
         var sectionContent = new StackPanel();
 
-        // Profile header row
+        // Profile header row — clickable to switch + navigate
         var profileHeader = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 14)
+            Margin = new Thickness(0, 0, 0, 14),
+            Cursor = Cursors.Hand
+        };
+        var capturedName = profileName;
+        profileHeader.MouseLeftButtonDown += (_, _) =>
+        {
+            _onSwitchProfile?.Invoke(capturedName);
         };
 
         // Accent left bar

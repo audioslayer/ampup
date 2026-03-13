@@ -35,7 +35,13 @@ public partial class MainWindow : FluentWindow
         UpdateAccentDependentUI();
         _bindingsView.SetNavigationCallbacks(
             () => NavigateTo(_mixerView, NavMixer),
-            () => NavigateTo(_buttonsView, NavButtons));
+            () => NavigateTo(_buttonsView, NavButtons),
+            profileName =>
+            {
+                _onConfigChanged?.Invoke(_config); // save current first
+                (Application.Current as App)?.SwitchToProfile(profileName);
+                NavigateTo(_mixerView, NavMixer);
+            });
         NavigateTo(_mixerView, NavMixer);
         SetupTrafficLightHovers();
 

@@ -475,7 +475,7 @@ public partial class App : Application
     /// <summary>
     /// Switch to a named profile. Used by button gestures and AutoProfileSwitcher.
     /// </summary>
-    private void SwitchToProfile(string profileName)
+    public void SwitchToProfile(string profileName)
     {
         HandleProfileSwitch(profileName);
     }
