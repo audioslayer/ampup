@@ -77,8 +77,9 @@ public partial class MainWindow : FluentWindow
         RefreshViews();
     }
 
-    public void RefreshViews()
+    public void RefreshViews(AppConfig? newConfig = null)
     {
+        if (newConfig != null) _config = newConfig;
         Action<AppConfig> saveHandler = cfg =>
         {
             _config = cfg;

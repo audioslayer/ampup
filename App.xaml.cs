@@ -524,7 +524,7 @@ public partial class App : Application
         Logger.Log($"Switched to profile: {profileName}");
 
         // Refresh the UI to show the new profile's settings
-        Dispatcher.Invoke(() => (MainWindow as MainWindow)?.RefreshViews());
+        Dispatcher.Invoke(() => (MainWindow as MainWindow)?.RefreshViews(_config));
 
         // Show OSD for profile switch
         if (_config.Osd.ShowProfileSwitch)
