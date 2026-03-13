@@ -80,6 +80,7 @@ public partial class MainWindow : FluentWindow
     public void RefreshViews(AppConfig? newConfig = null)
     {
         if (newConfig != null) _config = newConfig;
+        UpdateProfileButton();
         Action<AppConfig> saveHandler = cfg =>
         {
             _config = cfg;
