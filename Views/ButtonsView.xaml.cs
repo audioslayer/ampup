@@ -492,7 +492,6 @@ public partial class ButtonsView : UserControl
                 CaretBrush = FindBrush("TextPrimaryBrush"),
                 MaxLength = 20,
             };
-            int idx = i;
             headerBox.GotFocus += (_, _) =>
             {
                 headerBox.Foreground = FindBrush("TextPrimaryBrush");
