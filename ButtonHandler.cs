@@ -4,7 +4,7 @@ using NAudio.CoreAudioApi;
 
 namespace AmpUp;
 
-public class ButtonHandler
+public class ButtonHandler : IDisposable
 {
     // P/Invoke declarations consolidated in NativeMethods.cs
 
@@ -925,6 +925,20 @@ public class ButtonHandler
         var pct = BrightnessPresets[_brightnessPresetIndex];
         Logger.Log($"cycle_brightness: {pct}%");
         OnBrightnessCycle?.Invoke(pct);
+    }
+
+    // ── Dispose ───────────────────────────────────────────────────────
+
+    public void Dispose()
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            _holdTimers[i]?.Dispose();
+            _holdTimers[i] = null;
+            _clickTimers[i]?.Dispose();
+            _clickTimers[i] = null;
+        }
+        _enumerator.Dispose();
     }
 
     // ── System power actions ──────────────────────────────────────────

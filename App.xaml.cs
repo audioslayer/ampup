@@ -880,6 +880,7 @@ public partial class App : Application
         _duckingEngine?.Dispose();
         _osdOverlay?.Close();
         _serial?.Dispose();
+        _buttons?.Dispose();
         _mixer?.Dispose();
         _audioAnalyzer?.Dispose();
         _rgb?.Dispose();
