@@ -565,9 +565,23 @@ public class RgbController : IDisposable
         bool led1On = pos >= 0.5f;
         bool led2On = pos >= (5f / 6f);
 
-        SetColor(k, 0, led0On ? light.R : 0, led0On ? light.G : 0, led0On ? light.B : 0);
-        SetColor(k, 1, led1On ? light.R : 0, led1On ? light.G : 0, led1On ? light.B : 0);
-        SetColor(k, 2, led2On ? light.R : 0, led2On ? light.G : 0, led2On ? light.B : 0);
+        // Gradient fill: color1 at bottom → color2 at top
+        bool[] leds = { led0On, led1On, led2On };
+        for (int led = 0; led < 3; led++)
+        {
+            if (leds[led])
+            {
+                float t = led / 2f;
+                int r = Math.Clamp((int)(light.R + (light.R2 - light.R) * t), 0, 255);
+                int g = Math.Clamp((int)(light.G + (light.G2 - light.G) * t), 0, 255);
+                int b = Math.Clamp((int)(light.B + (light.B2 - light.B) * t), 0, 255);
+                SetColor(k, led, r, g, b);
+            }
+            else
+            {
+                SetColor(k, led, 0, 0, 0);
+            }
+        }
     }
 
     /// <summary>
@@ -724,11 +738,21 @@ public class RgbController : IDisposable
         int speed = Math.Clamp(light.EffectSpeed, 1, 100);
         float periodSec = 4.0f - (speed / 100f * 3.6f); // 4.0s down to 0.4s
         float periodTicks = periodSec / 0.05f;
-        float angle = (_animTick % (int)Math.Max(periodTicks, 1)) / Math.Max(periodTicks, 1) * MathF.PI * 2f;
-        float brightness = (MathF.Sin(angle) + 1f) / 2f;
-        // Square for smoother, more organic look at low end
-        brightness *= brightness;
-        SetColor(k, (int)(light.R * brightness), (int)(light.G * brightness), (int)(light.B * brightness));
+        float baseAngle = (_animTick % (int)Math.Max(periodTicks, 1)) / Math.Max(periodTicks, 1) * MathF.PI * 2f;
+
+        // Each LED breathes with slight phase offset for a ripple feel
+        for (int led = 0; led < 3; led++)
+        {
+            float angle = baseAngle + led * 0.4f; // subtle wave across the 3 LEDs
+            float brightness = (MathF.Sin(angle) + 1f) / 2f;
+            brightness *= brightness;
+            // Blend from color1 toward color2 at peak brightness
+            float t = led / 2f;
+            int r = (int)((light.R + (light.R2 - light.R) * t) * brightness);
+            int g = (int)((light.G + (light.G2 - light.G) * t) * brightness);
+            int b = (int)((light.B + (light.B2 - light.B) * t) * brightness);
+            SetColor(k, led, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
+        }
     }
 
     /// <summary>
@@ -771,10 +795,16 @@ public class RgbController : IDisposable
                 1 => 0.35f,
                 _ => 0.08f,
             };
+            // Head glows white-hot, tail shows color1→color2 gradient
+            float ledT = led / 2f;
+            float whiteBlend = dist == 0 ? 0.3f : 0f;
+            int cr = (int)(light.R + (light.R2 - light.R) * ledT);
+            int cg = (int)(light.G + (light.G2 - light.G) * ledT);
+            int cb = (int)(light.B + (light.B2 - light.B) * ledT);
             SetColor(k, led,
-                (int)(light.R * brightness),
-                (int)(light.G * brightness),
-                (int)(light.B * brightness));
+                Math.Clamp((int)((cr * (1f - whiteBlend) + 255 * whiteBlend) * brightness), 0, 255),
+                Math.Clamp((int)((cg * (1f - whiteBlend) + 255 * whiteBlend) * brightness), 0, 255),
+                Math.Clamp((int)((cb * (1f - whiteBlend) + 255 * whiteBlend) * brightness), 0, 255));
         }
     }
 
@@ -786,12 +816,15 @@ public class RgbController : IDisposable
         int speed = Math.Clamp(light.EffectSpeed, 1, 100);
         int interval = Math.Max(1, 20 - speed / 5); // ticks between sparkles
 
-        // Set base dim color on all LEDs
-        int baseR = (int)(light.R * 0.15f);
-        int baseG = (int)(light.G * 0.15f);
-        int baseB = (int)(light.B * 0.15f);
+        // Set gradient base dim color on each LED (color1 → color2)
         for (int led = 0; led < 3; led++)
+        {
+            float t = led / 2f;
+            int baseR = (int)((light.R + (light.R2 - light.R) * t) * 0.15f);
+            int baseG = (int)((light.G + (light.G2 - light.G) * t) * 0.15f);
+            int baseB = (int)((light.B + (light.B2 - light.B) * t) * 0.15f);
             SetColor(k, led, baseR, baseG, baseB);
+        }
 
         // Manage sparkle timing
         _sparkleTick[k]++;
@@ -802,16 +835,18 @@ public class RgbController : IDisposable
             _sparkleNext[k] = interval + _rng.Next(Math.Max(1, interval));
         }
 
-        // Apply sparkle with decay (bright for 2 ticks, fade over 3 more)
+        // Apply sparkle with decay — color2 flash that fades to base
         int age = _sparkleTick[k];
         if (age < 5)
         {
             float sparkBright = age < 2 ? 1.0f : 1.0f - (age - 2) / 3f;
             int sLed = _sparkleLed[k];
-            int sr = (int)(255 * sparkBright + baseR * (1 - sparkBright));
-            int sg = (int)(255 * sparkBright + baseG * (1 - sparkBright));
-            int sb = (int)(255 * sparkBright + baseB * (1 - sparkBright));
-            SetColor(k, sLed, Math.Clamp(sr, 0, 255), Math.Clamp(sg, 0, 255), Math.Clamp(sb, 0, 255));
+            // Sparkle flashes color2 blended with white at peak
+            float whiteBlend = sparkBright * 0.4f;
+            int sr = Math.Clamp((int)((light.R2 * (1f - whiteBlend) + 255 * whiteBlend) * sparkBright), 0, 255);
+            int sg = Math.Clamp((int)((light.G2 * (1f - whiteBlend) + 255 * whiteBlend) * sparkBright), 0, 255);
+            int sb = Math.Clamp((int)((light.B2 * (1f - whiteBlend) + 255 * whiteBlend) * sparkBright), 0, 255);
+            SetColor(k, sLed, sr, sg, sb);
         }
     }
 
@@ -938,9 +973,18 @@ public class RgbController : IDisposable
         for (int led = 0; led < 3; led++)
         {
             if (led < litCount)
-                SetColor(k, led, light.R, light.G, light.B);
+            {
+                // Gradient across lit LEDs — color1 → color2
+                float t = led / 2f;
+                int r = Math.Clamp((int)(light.R + (light.R2 - light.R) * t), 0, 255);
+                int g = Math.Clamp((int)(light.G + (light.G2 - light.G) * t), 0, 255);
+                int b = Math.Clamp((int)(light.B + (light.B2 - light.B) * t), 0, 255);
+                SetColor(k, led, r, g, b);
+            }
             else
+            {
                 SetColor(k, led, 0, 0, 0);
+            }
         }
     }
 
@@ -961,10 +1005,12 @@ public class RgbController : IDisposable
             float brightness = (MathF.Sin(angle) + 1f) / 2f;
             brightness *= brightness; // make peaks brighter, troughs darker
 
-            SetColor(k, led,
-                (int)(light.R * brightness),
-                (int)(light.G * brightness),
-                (int)(light.B * brightness));
+            // Gradient from color1 → color2 across the 3 LEDs
+            float t = led / 2f;
+            int r = (int)((light.R + (light.R2 - light.R) * t) * brightness);
+            int g = (int)((light.G + (light.G2 - light.G) * t) * brightness);
+            int b = (int)((light.B + (light.B2 - light.B) * t) * brightness);
+            SetColor(k, led, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
         }
     }
 
@@ -1015,10 +1061,12 @@ public class RgbController : IDisposable
             else if (dist < 1.5f) brightness = 0.3f;      // 1 behind
             else brightness = 0.05f;                       // 2 behind (dim tail)
 
-            SetColor(k, led,
-                (int)(light.R * brightness),
-                (int)(light.G * brightness),
-                (int)(light.B * brightness));
+            // Head blends toward color2, tail stays color1
+            float blendT = dist < 0.5f ? 1f : dist < 1.5f ? 0.5f : 0f;
+            int r = (int)((light.R + (light.R2 - light.R) * blendT) * brightness);
+            int g = (int)((light.G + (light.G2 - light.G) * blendT) * brightness);
+            int b = (int)((light.B + (light.B2 - light.B) * blendT) * brightness);
+            SetColor(k, led, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
         }
     }
 
