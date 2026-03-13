@@ -46,8 +46,6 @@ public partial class MixerView : UserControl
     private readonly GridPicker[] _targetPickers = new GridPicker[5];
     private readonly CurvePickerControl[] _curvePickers = new CurvePickerControl[5];
     private readonly RangeSlider[] _rangeSliders = new RangeSlider[5];
-    private readonly ListPicker[] _devicePickers = new ListPicker[5];
-    private readonly StackPanel[] _devicePanels = new StackPanel[5];
     private readonly TextBlock[] _muteLabels = new TextBlock[5];
     private readonly Border[] _stripBorders = new Border[5];
 
@@ -192,11 +190,10 @@ public partial class MixerView : UserControl
 
                 _loading = true;
                 _channelLabels[idx].Text = GetDisplayLabel(knob);
-                SelectTarget(_targetPickers[idx], knob.Target);
+                SelectTarget(_targetPickers[idx], knob.Target, knob.DeviceId);
                 SelectCurve(_curvePickers[idx], knob.Curve);
                 _rangeSliders[idx].LowerValue = Math.Clamp(knob.MinVolume, 0, 100);
                 _rangeSliders[idx].UpperValue = Math.Clamp(knob.MaxVolume, 0, 100);
-                SelectPickerByTag(_devicePickers[idx], knob.DeviceId);
                 UpdatePickerVisibility(idx, knob.Target);
                 _loading = false;
 
@@ -223,7 +220,6 @@ public partial class MixerView : UserControl
                 SelectCurve(_curvePickers[idx], ResponseCurve.Linear);
                 _rangeSliders[idx].LowerValue = 0;
                 _rangeSliders[idx].UpperValue = 100;
-                SelectPickerByTag(_devicePickers[idx], "");
                 UpdatePickerVisibility(idx, "master");
                 _loading = false;
 
@@ -308,14 +304,11 @@ public partial class MixerView : UserControl
             if (knob == null) continue;
 
             _channelLabels[i].Text = GetDisplayLabel(knob);
-            SelectTarget(_targetPickers[i], knob.Target);
+            SelectTarget(_targetPickers[i], knob.Target, knob.DeviceId);
             SelectCurve(_curvePickers[i], knob.Curve);
 
             _rangeSliders[i].LowerValue = Math.Clamp(knob.MinVolume, 0, 100);
             _rangeSliders[i].UpperValue = Math.Clamp(knob.MaxVolume, 0, 100);
-
-            PopulateDevicePicker(_devicePickers[i]);
-            SelectPickerByTag(_devicePickers[i], knob.DeviceId);
 
             UpdatePickerVisibility(i, knob.Target);
 
@@ -705,24 +698,6 @@ public partial class MixerView : UserControl
             _rangeSliders[i] = rangeSlider;
             settingsPanel.Children.Add(rangeSlider);
 
-            // Device picker — ListPicker (hidden unless output_device / input_device)
-            var deviceContainer = new StackPanel { Visibility = Visibility.Collapsed };
-            deviceContainer.Children.Add(MakeLabel("DEVICE"));
-            var devicePicker = new ListPicker
-            {
-                Margin = new Thickness(0, 0, 0, 4),
-                ToolTip = "Audio device to control with this knob",
-            };
-            devicePicker.SelectionChanged += (_, _) =>
-            {
-                if (!_loading) QueueSave();
-            };
-            _devicePickers[i] = devicePicker;
-            _devicePanels[i] = deviceContainer;
-            deviceContainer.Children.Add(devicePicker);
-            settingsPanel.Children.Add(deviceContainer);
-
-
             // App group picker (hidden unless "apps")
             var appsContainer = new StackPanel { Visibility = Visibility.Collapsed };
             appsContainer.Children.Add(MakeLabel("APP GROUP"));
@@ -746,11 +721,23 @@ public partial class MixerView : UserControl
             var picker = _targetPickers[idx];
             var target = GetSelectedTarget(picker);
 
-            // If a sub-item is selected (HA entity), show its friendly name
-            if (!string.IsNullOrEmpty(picker.SelectedSubTag) && HATargetDomains.ContainsKey(target))
+            // If a sub-item is selected (HA entity or device), show its friendly name
+            if (!string.IsNullOrEmpty(picker.SelectedSubTag))
             {
-                var entity = _haEntities.FirstOrDefault(e => e.EntityId == picker.SelectedSubTag);
-                display.Text = entity?.FriendlyName ?? picker.SelectedSubTag;
+                if (HATargetDomains.ContainsKey(target))
+                {
+                    var entity = _haEntities.FirstOrDefault(e => e.EntityId == picker.SelectedSubTag);
+                    display.Text = entity?.FriendlyName ?? picker.SelectedSubTag;
+                }
+                else if (target is "output_device" or "input_device")
+                {
+                    var device = _audioDevices.FirstOrDefault(d => d.Id == picker.SelectedSubTag);
+                    display.Text = device.Name ?? picker.SelectedSubTag;
+                }
+                else
+                {
+                    display.Text = picker.SelectedSubTag;
+                }
             }
             else
             {
@@ -764,9 +751,6 @@ public partial class MixerView : UserControl
     private void UpdatePickerVisibility(int idx, string target)
     {
         var baseTarget = target.Contains(':') ? target.Split(':')[0] : target;
-
-        bool showDevice = baseTarget == "output_device" || baseTarget == "input_device";
-        _devicePanels[idx].Visibility = showDevice ? Visibility.Visible : Visibility.Collapsed;
 
         bool showApps = baseTarget == "apps";
         _appsPanels[idx].Visibility = showApps ? Visibility.Visible : Visibility.Collapsed;
@@ -792,6 +776,16 @@ public partial class MixerView : UserControl
                 var (icon, color) = HADomainStyles.GetStyle(e.Domain);
                 return new GridPicker.SubItem(e.FriendlyName, e.EntityId, icon, color);
             })
+            .ToList();
+    }
+
+    private List<GridPicker.SubItem> GetDeviceSubItems(bool isOutput)
+    {
+        return _audioDevices
+            .Where(d => d.IsOutput == isOutput)
+            .OrderBy(d => d.Name)
+            .Select(d => new GridPicker.SubItem(d.Name, d.Id, isOutput ? "🔊" : "🎙",
+                isOutput ? Color.FromRgb(0xB3, 0x88, 0xFF) : Color.FromRgb(0x26, 0xC6, 0xDA)))
             .ToList();
     }
 
@@ -821,6 +815,10 @@ public partial class MixerView : UserControl
             picker.AddItem("Input Device", "input_device");
             picker.AddItem("Monitor", "monitor");
             picker.AddItem("LED Brightness", "led_brightness");
+
+            // Register sub-flyout providers for device pickers
+            picker.RegisterSubMenu("output_device", () => GetDeviceSubItems(isOutput: true));
+            picker.RegisterSubMenu("input_device", () => GetDeviceSubItems(isOutput: false));
 
             bool hasIntegrations = haEnabled || goveeEnabled;
             if (hasIntegrations)
@@ -869,7 +867,7 @@ public partial class MixerView : UserControl
         }
     }
 
-    private void SelectTarget(GridPicker picker, string target)
+    private void SelectTarget(GridPicker picker, string target, string? deviceId = null)
     {
         var baseTarget = target.Contains(':') ? target.Split(':')[0] : target;
 
@@ -877,10 +875,20 @@ public partial class MixerView : UserControl
         if (HATargetDomains.ContainsKey(baseTarget) && target.Contains(':'))
         {
             var entityId = target.Substring(baseTarget.Length + 1);
-            // Try to find friendly name from cache
             var entity = _haEntities.FirstOrDefault(e => e.EntityId == entityId);
             var displayName = entity?.FriendlyName ?? entityId;
             picker.SelectByTag(baseTarget, entityId, displayName);
+            if (picker.Tag is TextBlock display)
+                display.Text = displayName;
+            return;
+        }
+
+        // Device targets with device ID — use sub-tag selection
+        if ((baseTarget == "output_device" || baseTarget == "input_device") && !string.IsNullOrEmpty(deviceId))
+        {
+            var device = _audioDevices.FirstOrDefault(d => d.Id == deviceId);
+            var displayName = device.Name ?? deviceId;
+            picker.SelectByTag(baseTarget, deviceId, displayName);
             if (picker.Tag is TextBlock display)
                 display.Text = displayName;
             return;
@@ -933,34 +941,6 @@ public partial class MixerView : UserControl
         return picker.SelectedTag as string ?? "none";
     }
 
-    private static bool SelectPickerByTag(ListPicker picker, string? tag)
-    {
-        if (string.IsNullOrEmpty(tag))
-        {
-            picker.SelectedIndex = -1;
-            return false;
-        }
-        for (int i = 0; i < picker.ItemCount; i++)
-        {
-            if (picker.GetTagAt(i) as string == tag)
-            {
-                picker.SelectedIndex = i;
-                return true;
-            }
-        }
-        picker.SelectedIndex = -1;
-        return false;
-    }
-
-    private void PopulateDevicePicker(ListPicker picker)
-    {
-        picker.ClearItems();
-        foreach (var (id, name, isOutput) in _audioDevices)
-        {
-            var tag = isOutput ? "OUT" : "IN";
-            picker.AddItem($"[{tag}] {name}", id);
-        }
-    }
 
     // --- App group helpers ---
 
@@ -1106,7 +1086,11 @@ public partial class MixerView : UserControl
             knob.MinVolume = (int)_rangeSliders[i].LowerValue;
             knob.MaxVolume = (int)_rangeSliders[i].UpperValue;
 
-            knob.DeviceId = _devicePickers[i].SelectedTag as string ?? "";
+            // Device ID from sub-flyout (output_device / input_device targets)
+            if (selectedTarget is "output_device" or "input_device")
+                knob.DeviceId = _targetPickers[i].SelectedSubTag ?? "";
+            else
+                knob.DeviceId = "";
         }
 
         // Auto-Ducking
@@ -1185,7 +1169,6 @@ public partial class MixerView : UserControl
         for (int i = 0; i < 5; i++)
         {
             _targetPickers[i].RefreshAccent();
-            _devicePickers[i].RefreshAccent();
             _rangeSliders[i].AccentColor = accent;
         }
     }
