@@ -1630,8 +1630,9 @@ public partial class ButtonsView : UserControl
         {
             if (!string.IsNullOrWhiteSpace(device.Ip))
             {
-                var displayName = !string.IsNullOrWhiteSpace(device.Name) ? device.Name
-                    : !string.IsNullOrWhiteSpace(device.Sku) ? device.Sku
+                var nameIsIp = device.Name == device.Ip || System.Net.IPAddress.TryParse(device.Name, out _);
+                var displayName = !string.IsNullOrWhiteSpace(device.Name) && !nameIsIp ? device.Name
+                    : !string.IsNullOrEmpty(device.Sku) ? AmbienceSync.GetProductName(device.Sku)
                     : device.Ip;
                 picker.AddItem($"{displayName} ({device.Ip})", device.Ip);
             }

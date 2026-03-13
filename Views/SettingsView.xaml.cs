@@ -763,9 +763,21 @@ public partial class SettingsView : UserControl
 
         foreach (var dev in _config.Ambience.GoveeDevices)
         {
-            var display = !string.IsNullOrWhiteSpace(dev.Name)
-                ? $"{dev.Name}  {dev.Sku}  —  {dev.Ip}"
-                : $"{dev.Sku}  —  {dev.Ip}";
+            // Resolve a friendly name: use Name if it's not just the IP, otherwise look up SKU
+            string friendlyName = dev.Name;
+            bool nameIsIp = friendlyName == dev.Ip || System.Net.IPAddress.TryParse(friendlyName, out _);
+            if (string.IsNullOrWhiteSpace(friendlyName) || nameIsIp)
+                friendlyName = !string.IsNullOrEmpty(dev.Sku) ? AmbienceSync.GetProductName(dev.Sku) : "";
+
+            // Build display: "Product Name (H6056) — 192.168.x.x" or "H6056 — 192.168.x.x"
+            string display;
+            bool nameIsSku = friendlyName == dev.Sku;
+            if (!string.IsNullOrWhiteSpace(friendlyName) && !nameIsSku && !string.IsNullOrEmpty(dev.Sku))
+                display = $"{friendlyName} ({dev.Sku})  —  {dev.Ip}";
+            else if (!string.IsNullOrWhiteSpace(friendlyName))
+                display = $"{friendlyName}  —  {dev.Ip}";
+            else
+                display = dev.Ip;
 
             var row = new TextBlock
             {

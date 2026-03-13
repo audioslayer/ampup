@@ -288,7 +288,12 @@ public partial class AmbienceView : UserControl
         card.Child = stack;
 
         // ── Header ──
-        var (headerBar, headerLabel) = MakeSectionHeader($"{device.DeviceName}  {device.Sku}");
+        var deviceLabel = !string.IsNullOrWhiteSpace(device.DeviceName) ? device.DeviceName
+            : !string.IsNullOrEmpty(device.Sku) ? AmbienceSync.GetProductName(device.Sku)
+            : "Govee Device";
+        var headerText = deviceLabel != device.Sku && !string.IsNullOrEmpty(device.Sku)
+            ? $"{deviceLabel}  ({device.Sku})" : deviceLabel;
+        var (headerBar, headerLabel) = MakeSectionHeader(headerText);
         stack.Children.Add(WrapHeader(headerBar, headerLabel));
 
         // ── Controls row: Power + Brightness + Color ──

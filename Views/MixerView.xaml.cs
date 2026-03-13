@@ -854,9 +854,10 @@ public partial class MixerView : UserControl
                     {
                         if (!string.IsNullOrWhiteSpace(device.Ip))
                         {
-                            // Show friendly name if available, otherwise SKU, with IP fallback
-                            var displayName = !string.IsNullOrWhiteSpace(device.Name) ? device.Name
-                                : !string.IsNullOrWhiteSpace(device.Sku) ? device.Sku
+                            // Show friendly product name from SKU, or Cloud API name if available
+                            var nameIsIp = device.Name == device.Ip || System.Net.IPAddress.TryParse(device.Name, out _);
+                            var displayName = !string.IsNullOrWhiteSpace(device.Name) && !nameIsIp ? device.Name
+                                : !string.IsNullOrEmpty(device.Sku) ? AmbienceSync.GetProductName(device.Sku)
                                 : device.Ip;
                             picker.AddItem($"Govee: {displayName}", $"govee:{device.Ip}");
                         }

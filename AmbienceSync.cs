@@ -320,8 +320,62 @@ public class AmbienceSync : IDisposable
         }
         catch { }
 
-        string name = !string.IsNullOrEmpty(sku) ? sku : $"Govee ({fallbackIp})";
+        string name = !string.IsNullOrEmpty(sku) ? GetProductName(sku) : $"Govee ({fallbackIp})";
         return (name, sku, deviceMac);
+    }
+
+    /// <summary>
+    /// Map Govee SKU to a friendly product name. Falls back to SKU if unknown.
+    /// </summary>
+    public static string GetProductName(string sku)
+    {
+        if (string.IsNullOrEmpty(sku)) return "";
+        // Common Govee LAN-enabled models
+        return sku.ToUpperInvariant() switch
+        {
+            "H6056" => "Glide Wall Light",
+            "H6057" => "Glide Wall Light",
+            "H6058" => "Glide Hexa Panels",
+            "H6059" => "Glide Hexa Panels",
+            "H6061" => "Glide Y Lights",
+            "H6062" => "Glide Y Lights",
+            "H6065" => "Glide Tri Panels",
+            "H6066" => "Glide Tri Panels",
+            "H6072" => "Glide Hexa Pro",
+            "H6076" => "Glide Tri Pro",
+            "H6601" => "LED Strip Light",
+            "H6602" => "LED Strip Light",
+            "H6604" => "RGBIC Strip Light",
+            "H6609" => "RGBIC Strip Light",
+            "H610A" => "RGBIC Strip Light Pro",
+            "H610B" => "RGBIC Strip Light Pro",
+            "H6110" => "RGBICWW Strip Light",
+            "H6117" => "RGBICWW Strip Light",
+            "H6046" => "RGBIC TV Light Bar",
+            "H6047" => "RGBIC TV Light Bar",
+            "H604A" => "RGBIC TV Backlight",
+            "H604B" => "RGBIC TV Backlight",
+            "H604C" => "RGBIC TV Backlight",
+            "H604D" => "RGBICWW TV Backlight",
+            "H6043" => "DreamView TV Backlight",
+            "H6049" => "DreamView G1 Gaming Light",
+            "H6199" => "LED Bulb",
+            "H6003" => "Table Lamp",
+            "H6008" => "Table Lamp",
+            "H6052" => "Floor Lamp",
+            "H6053" => "Floor Lamp",
+            "H6054" => "Floor Lamp",
+            "H7060" => "Outdoor Lights",
+            "H7061" => "Outdoor Lights",
+            "H7062" => "Outdoor Lights",
+            "H7065" => "Outdoor String Lights",
+            "H705A" => "Flood Light",
+            "H705B" => "Flood Light",
+            "H6089" => "Aura Table Lamp",
+            "H6087" => "Aura Glow",
+            "H6051" => "Lyra Floor Lamp",
+            _ => sku,  // Unknown model — show raw SKU
+        };
     }
 
     // Keep backward compat
