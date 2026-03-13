@@ -602,7 +602,7 @@ public partial class LightsView : UserControl
             colorRow.Children.Add(MakeSubLabel("PRIMARY"));
             colorRow.Children.Add(swatch1);
 
-            var color2Container = new StackPanel { Orientation = Orientation.Horizontal };
+            var color2Container = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12, 0, 0, 0) };
             color2Container.Children.Add(MakeSubLabel("SECONDARY"));
             color2Container.Children.Add(swatch2);
 
