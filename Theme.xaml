@@ -29,7 +29,7 @@
     <Color x:Key="AccentDim">#00A854</Color>
     <Color x:Key="TextPrimary">#E8E8E8</Color>
     <Color x:Key="TextSec">#9A9A9A</Color>
-    <Color x:Key="TextDim">#555555</Color>
+    <Color x:Key="TextDim">#6A6A6A</Color>
     <Color x:Key="DangerRed">#FF4444</Color>
     <Color x:Key="SuccessGrn">#00DD77</Color>
     <Color x:Key="WarnYellow">#FFB800</Color>
