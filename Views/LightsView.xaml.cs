@@ -263,7 +263,11 @@ public partial class LightsView : UserControl
             if (!_loading) QueueSave();
         };
 
-        // Link to Room Ambience checkbox — mirrors LED colors to Govee LAN devices
+        // Settings panel (collapsed when disabled)
+        var settings = new StackPanel { Visibility = Visibility.Collapsed };
+        _globalSettingsPanel = settings;
+
+        // Link to Room Ambience checkbox — inside settings so it only shows when global is on
         var linkCheck = new CheckBox
         {
             VerticalContentAlignment = VerticalAlignment.Center,
@@ -288,11 +292,7 @@ public partial class LightsView : UserControl
         linkCheck.Checked += (_, _) => { if (!_loading) QueueSave(); };
         linkCheck.Unchecked += (_, _) => { if (!_loading) QueueSave(); };
         _linkToAmbienceCheck = linkCheck;
-        panel.Children.Add(linkCheck);
-
-        // Settings panel (collapsed when disabled)
-        var settings = new StackPanel { Visibility = Visibility.Collapsed };
-        _globalSettingsPanel = settings;
+        settings.Children.Add(linkCheck);
 
         // Effect picker
         settings.Children.Add(MakeSectionHeader("EFFECT"));
