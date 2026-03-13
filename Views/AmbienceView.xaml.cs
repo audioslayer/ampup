@@ -204,6 +204,20 @@ public partial class AmbienceView : UserControl
         _goveeScanBtn.Click += async (_, _) => await RunScanAsync();
         _goveeScanRow.Children.Add(_goveeScanBtn);
 
+        var helpBtn = new Button
+        {
+            Content = "?",
+            Width = 24, Height = 24,
+            Padding = new Thickness(0),
+            FontSize = 12,
+            FontWeight = FontWeights.Bold,
+            ToolTip = "Not finding devices? Click for help",
+            Margin = new Thickness(6, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        helpBtn.Click += (_, _) => ShowLanControlHelp();
+        _goveeScanRow.Children.Add(helpBtn);
+
         _goveeScanStatus = new TextBlock
         {
             Text = "No devices found",
@@ -224,6 +238,93 @@ public partial class AmbienceView : UserControl
         };
         Grid.SetRow(_goveeDeviceList, 3);
         grid.Children.Add(_goveeDeviceList);
+    }
+
+    private void ShowLanControlHelp()
+    {
+        var accent = ThemeManager.Accent;
+        var accentBrush = new SolidColorBrush(accent);
+
+        var content = new StackPanel { MaxWidth = 380 };
+
+        content.Children.Add(new TextBlock
+        {
+            Text = "Enable LAN Control",
+            FontSize = 16, FontWeight = FontWeights.SemiBold,
+            Foreground = accentBrush,
+            Margin = new Thickness(0, 0, 0, 12)
+        });
+
+        content.Children.Add(new TextBlock
+        {
+            Text = "Govee devices require LAN Control to be enabled before AmpUp can discover them on your network.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 12,
+            Foreground = (SolidColorBrush)FindResource("TextSecBrush"),
+            Margin = new Thickness(0, 0, 0, 16)
+        });
+
+        var steps = new[]
+        {
+            ("1", "Open the Govee Home app on your phone"),
+            ("2", "Tap on the device you want to control"),
+            ("3", "Tap the ⚙ Settings gear icon (top right)"),
+            ("4", "Scroll down and find \"LAN Control\""),
+            ("5", "Toggle it ON"),
+            ("6", "Repeat for each Govee device"),
+        };
+
+        foreach (var (num, text) in steps)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+
+            var circle = new Border
+            {
+                Width = 22, Height = 22,
+                CornerRadius = new CornerRadius(11),
+                Background = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B)),
+                BorderBrush = accentBrush,
+                BorderThickness = new Thickness(1),
+                Margin = new Thickness(0, 0, 10, 0),
+                Child = new TextBlock
+                {
+                    Text = num,
+                    FontSize = 11, FontWeight = FontWeights.Bold,
+                    Foreground = accentBrush,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                }
+            };
+            row.Children.Add(circle);
+
+            row.Children.Add(new TextBlock
+            {
+                Text = text,
+                FontSize = 12,
+                Foreground = (SolidColorBrush)FindResource("TextBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+                TextWrapping = TextWrapping.Wrap
+            });
+
+            content.Children.Add(row);
+        }
+
+        content.Children.Add(new Border
+        {
+            Height = 1,
+            Background = (SolidColorBrush)FindResource("CardBorderBrush"),
+            Margin = new Thickness(0, 12, 0, 12)
+        });
+
+        content.Children.Add(new TextBlock
+        {
+            Text = "After enabling LAN Control, come back here and click \"Scan Network\" again. Devices should appear within a few seconds.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 11,
+            Foreground = (SolidColorBrush)FindResource("TextDimBrush"),
+        });
+
+        GlassDialog.ShowInfo("Govee LAN Setup", content);
     }
 
     private async Task RunScanAsync()

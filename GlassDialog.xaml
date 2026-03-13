@@ -73,6 +73,9 @@
                        TextWrapping="Wrap"
                        Margin="0,0,0,20" />
 
+            <!-- Custom content area (hidden by default) -->
+            <StackPanel x:Name="ContentArea" Margin="0,0,0,20" />
+
             <!-- Input (hidden by default, shown for Prompt dialogs) -->
             <Border x:Name="InputBorder" Visibility="Collapsed"
                     Background="#1A242424" BorderBrush="#3300E676"

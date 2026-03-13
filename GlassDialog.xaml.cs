@@ -101,6 +101,21 @@ public partial class GlassDialog : Window
         dlg.ShowDialog();
     }
 
+    public static void ShowInfo(string title, UIElement content, Window? owner = null)
+    {
+        var dlg = new GlassDialog();
+        dlg.TitleText.Text = title.ToUpperInvariant();
+        dlg.MessageText.Visibility = Visibility.Collapsed;
+        dlg.ContentArea.Children.Add(content);
+        if (owner != null) dlg.Owner = owner;
+
+        var ok = new Button { Content = "OK", Style = GlassButtonStyle(true) };
+        ok.Click += (_, _) => { dlg.Result = GlassResult.OK; dlg.Close(); };
+        dlg.ButtonPanel.Children.Add(ok);
+
+        dlg.ShowDialog();
+    }
+
     /// <summary>
     /// Show a glass-themed warning dialog with a single OK button.
     /// </summary>
