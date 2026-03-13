@@ -610,9 +610,15 @@ public class RgbController : IDisposable
     /// </summary>
     private void EffectRainbowWave(int k)
     {
-        float hue = ((_animTick * 2f) + k * 72f) % 360f;
-        var (r, g, b) = HsvToRgb(hue, 1f, 1f);
-        SetColor(k, r, g, b);
+        // Spread rainbow across all 15 LEDs individually (5 knobs × 3 LEDs)
+        // Each LED gets its own hue for a smooth gradient across the whole device
+        for (int led = 0; led < 3; led++)
+        {
+            int globalIdx = k * 3 + led;              // 0-14 across all knobs
+            float hue = ((_animTick * 2f) + globalIdx * 24f) % 360f;  // 24° per LED = full rainbow across 15 LEDs
+            var (r, g, b) = HsvToRgb(hue, 1f, 1f);
+            SetColor(k, led, r, g, b);
+        }
     }
 
     /// <summary>
