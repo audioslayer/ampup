@@ -582,15 +582,8 @@ public partial class MainWindow : FluentWindow
 
         var currentIcon = _config.ProfileIcons.GetValueOrDefault(profileName) ?? new ProfileIconConfig();
 
-        var iconPopup = new System.Windows.Controls.Primitives.Popup
-        {
-            PlacementTarget = ProfileButton,
-            Placement = System.Windows.Controls.Primitives.PlacementMode.Right,
-            StaysOpen = false,
-            AllowsTransparency = true,
-            PopupAnimation = System.Windows.Controls.Primitives.PopupAnimation.Fade,
-            HorizontalOffset = 4
-        };
+        Window? iconPopupWindow = null;
+        Action closeIconPopup = () => { iconPopupWindow?.Close(); iconPopupWindow = null; };
 
         var outerPanel = new System.Windows.Controls.StackPanel { Margin = new Thickness(8) };
 
@@ -713,7 +706,7 @@ public partial class MainWindow : FluentWindow
                     };
                     _onConfigChanged?.Invoke(_config);
                     UpdateProfileButton();
-                    iconPopup.IsOpen = false;
+                    closeIconPopup();
                 };
                 wrapPanel.Children.Add(btn);
             }
@@ -739,8 +732,25 @@ public partial class MainWindow : FluentWindow
             }
         };
 
-        iconPopup.Child = popupBorder;
-        iconPopup.IsOpen = true;
+        // Position to the right of the ProfileButton
+        var screenPos = ProfileButton.PointToScreen(new Point(ProfileButton.ActualWidth + 4, 0));
+
+        iconPopupWindow = new Window
+        {
+            WindowStyle = WindowStyle.None,
+            ResizeMode = ResizeMode.NoResize,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            ShowInTaskbar = false,
+            Topmost = true,
+            AllowsTransparency = false,
+            Background = new System.Windows.Media.SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
+            Content = popupBorder,
+            Left = screenPos.X,
+            Top = screenPos.Y
+        };
+        iconPopupWindow.Deactivated += (_, _) => closeIconPopup();
+        iconPopupWindow.KeyDown += (_, e) => { if (e.Key == Key.Escape) closeIconPopup(); };
+        iconPopupWindow.Show();
     }
 
     /// <summary>
