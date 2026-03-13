@@ -78,6 +78,7 @@ public enum ResponseCurve
 public class ButtonConfig
 {
     public int Idx { get; set; }
+    public string Label { get; set; } = "";
     public string Action { get; set; } = "none";
     public string Path { get; set; } = "";
     public string HoldAction { get; set; } = "none";

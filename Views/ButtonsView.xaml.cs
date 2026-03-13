@@ -91,7 +91,7 @@ public partial class ButtonsView : UserControl
     private readonly List<(Border bar, TextBlock label)> _sectionHeaders = new();
 
     // Per-column header elements
-    private readonly TextBlock[] _headers = new TextBlock[5];
+    private readonly TextBox[] _headers = new TextBox[5];
     private readonly TextBlock[] _headerIcons = new TextBlock[5];
     private readonly TextBlock[] _headerActions = new TextBlock[5];
     private readonly Border[] _columnCards = new Border[5];
@@ -375,10 +375,26 @@ public partial class ButtonsView : UserControl
             var btn = config.Buttons.FirstOrDefault(b => b.Idx == i);
             if (btn == null) continue;
 
-            // Header label from knob config
-            var knob = config.Knobs.FirstOrDefault(k => k.Idx == i);
-            if (knob != null && !string.IsNullOrWhiteSpace(knob.Label))
-                _headers[i].Text = knob.Label;
+            // Header label — use button label, fall back to knob label, then default
+            if (!string.IsNullOrWhiteSpace(btn.Label))
+            {
+                _headers[i].Text = btn.Label;
+                _headers[i].Foreground = FindBrush("TextSecBrush");
+            }
+            else
+            {
+                var knob = config.Knobs.FirstOrDefault(k => k.Idx == i);
+                if (knob != null && !string.IsNullOrWhiteSpace(knob.Label))
+                {
+                    _headers[i].Text = knob.Label;
+                    _headers[i].Foreground = FindBrush("TextSecBrush");
+                }
+                else
+                {
+                    _headers[i].Text = $"Button {i + 1}";
+                    _headers[i].Foreground = FindBrush("TextDimBrush");
+                }
+            }
 
             // TAP
             SelectCombo(_tapCombos[i], btn.Action);
@@ -461,17 +477,54 @@ public partial class ButtonsView : UserControl
                 Margin = new Thickness(0, 0, 0, 4),
             };
 
-            var header = new TextBlock
+            var headerBox = new TextBox
             {
-                Text = $"BTN {i + 1}",
+                Text = $"Button {i + 1}",
                 FontSize = 10,
                 FontWeight = FontWeights.Bold,
                 Foreground = FindBrush("TextDimBrush"),
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
                 HorizontalAlignment = HorizontalAlignment.Center,
+                TextAlignment = TextAlignment.Center,
                 Margin = new Thickness(0, 0, 0, 6),
+                Cursor = System.Windows.Input.Cursors.Hand,
+                CaretBrush = FindBrush("TextPrimaryBrush"),
+                MaxLength = 20,
             };
-            _headers[i] = header;
-            headerStack.Children.Add(header);
+            int idx = i;
+            headerBox.GotFocus += (_, _) =>
+            {
+                headerBox.Foreground = FindBrush("TextPrimaryBrush");
+                headerBox.Cursor = System.Windows.Input.Cursors.IBeam;
+                if (headerBox.Text == $"Button {idx + 1}")
+                    headerBox.SelectAll();
+            };
+            headerBox.LostFocus += (_, _) =>
+            {
+                headerBox.Cursor = System.Windows.Input.Cursors.Hand;
+                var text = headerBox.Text.Trim();
+                if (string.IsNullOrEmpty(text))
+                {
+                    headerBox.Text = $"Button {idx + 1}";
+                    headerBox.Foreground = FindBrush("TextDimBrush");
+                }
+                else
+                {
+                    headerBox.Foreground = FindBrush("TextSecBrush");
+                }
+                QueueSave();
+            };
+            headerBox.KeyDown += (_, e) =>
+            {
+                if (e.Key == System.Windows.Input.Key.Enter)
+                {
+                    System.Windows.Input.Keyboard.ClearFocus();
+                    e.Handled = true;
+                }
+            };
+            _headers[i] = headerBox;
+            headerStack.Children.Add(headerBox);
 
             var headerIcon = new TextBlock
             {
@@ -824,6 +877,10 @@ public partial class ButtonsView : UserControl
         {
             var btn = _config.Buttons.FirstOrDefault(b => b.Idx == i);
             if (btn == null) continue;
+
+            // Save button label (empty string = default "Button N")
+            var labelText = _headers[i].Text.Trim();
+            btn.Label = labelText == $"Button {i + 1}" ? "" : labelText;
 
             btn.Action = GetComboActionValue(_tapCombos[i]);
             btn.Path = GetTextBoxValue(_tapPathBoxes[i]);
