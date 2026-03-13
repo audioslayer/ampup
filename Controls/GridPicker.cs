@@ -41,7 +41,7 @@ public class GridPicker : Border
 
     private int _selectedIndex = -1;
     private string? _selectedSubTag; // stores the sub-item tag when a sub-menu item is selected
-    private readonly List<(string Display, object? Tag)> _items = new();
+    private readonly List<(string Display, object? Tag, string? Icon, Color? IconColor)> _items = new();
     private readonly List<(int ItemIndex, string CategoryName)> _categories = new();
 
     // Sub-menu providers: keyed by item tag string
@@ -331,9 +331,9 @@ public class GridPicker : Border
         _categories.Add((_items.Count, categoryName));
     }
 
-    public void AddItem(string display, object? tag = null)
+    public void AddItem(string display, object? tag = null, string? icon = null, Color? iconColor = null)
     {
-        _items.Add((display, tag));
+        _items.Add((display, tag, icon, iconColor));
         RebuildPopupItems();
     }
 
@@ -680,7 +680,7 @@ public class GridPicker : Border
 
             // Item row
             int idx = i;
-            var (display, itemTag) = _items[i];
+            var (display, itemTag, itemIcon, itemIconColor) = _items[i];
             bool selected = idx == _selectedIndex;
             bool hasSubMenu = itemTag is string tagStr
                 && _subMenuProviders.TryGetValue(tagStr, out var subProvider)
@@ -729,6 +729,21 @@ public class GridPicker : Border
                 };
                 DockPanel.SetDock(arrow, Dock.Right);
                 itemPanel.Children.Add(arrow);
+            }
+
+            // Optional icon
+            if (!string.IsNullOrEmpty(itemIcon))
+            {
+                var iconBlock = new TextBlock
+                {
+                    Text = itemIcon,
+                    FontSize = 13,
+                    Foreground = new SolidColorBrush(itemIconColor ?? AccentColor),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 6, 0)
+                };
+                DockPanel.SetDock(iconBlock, Dock.Left);
+                itemPanel.Children.Add(iconBlock);
             }
 
             var itemText = new TextBlock

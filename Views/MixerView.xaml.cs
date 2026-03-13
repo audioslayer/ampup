@@ -627,27 +627,35 @@ public partial class MixerView : UserControl
                 ToolTip = "What this knob controls",
             };
 
+            var _clrGreen  = Color.FromRgb(0x66, 0xBB, 0x6A);
+            var _clrRed    = Color.FromRgb(0xEF, 0x53, 0x50);
+            var _clrBlue   = Color.FromRgb(0x42, 0xA5, 0xF5);
+            var _clrTeal   = Color.FromRgb(0x26, 0xC6, 0xDA);
+            var _clrPurple = Color.FromRgb(0xAB, 0x47, 0xBC);
+            var _clrOrange = Color.FromRgb(0xFF, 0xA7, 0x26);
+            var _clrYellow = Color.FromRgb(0xFF, 0xD5, 0x4F);
+
             targetPicker.AddCategory("Audio");
-            targetPicker.AddItem("Master", "master");
-            targetPicker.AddItem("Mic", "mic");
-            targetPicker.AddItem("System", "system");
-            targetPicker.AddItem("Any", "any");
-            targetPicker.AddItem("Active Window", "active_window");
+            targetPicker.AddItem("Master",        "master",        "♪",  _clrGreen);
+            targetPicker.AddItem("Mic",           "mic",           "◎",  _clrRed);
+            targetPicker.AddItem("System",        "system",        "◆",  _clrBlue);
+            targetPicker.AddItem("Any",           "any",           "◈",  _clrTeal);
+            targetPicker.AddItem("Active Window", "active_window", "▣",  _clrPurple);
 
             targetPicker.AddCategory("Devices");
-            targetPicker.AddItem("Output Device", "output_device");
-            targetPicker.AddItem("Input Device", "input_device");
-            targetPicker.AddItem("Monitor", "monitor");
-            targetPicker.AddItem("LED Brightness", "led_brightness");
+            targetPicker.AddItem("Output Device",  "output_device",  "▶",  _clrPurple);
+            targetPicker.AddItem("Input Device",   "input_device",   "◀",  _clrRed);
+            targetPicker.AddItem("Monitor",        "monitor",        "▭",  _clrOrange);
+            targetPicker.AddItem("LED Brightness", "led_brightness", "◉",  _clrYellow);
 
             // Integration items (HA / Govee) are added conditionally in RebuildTargetPickerItems
             // called from LoadConfig once we know which integrations are enabled.
 
             targetPicker.AddCategory("Apps");
-            targetPicker.AddItem("Discord", "discord");
-            targetPicker.AddItem("Spotify", "spotify");
-            targetPicker.AddItem("Chrome", "chrome");
-            targetPicker.AddItem("App Group", "apps");
+            targetPicker.AddItem("Discord",   "discord",  "◉", Color.FromRgb(0x58, 0x65, 0xF2));
+            targetPicker.AddItem("Spotify",   "spotify",  "♪", Color.FromRgb(0x1D, 0xB9, 0x54));
+            targetPicker.AddItem("Chrome",    "chrome",   "◆", Color.FromRgb(0x42, 0x85, 0xF4));
+            targetPicker.AddItem("App Group", "apps",     "▣", _clrTeal);
 
             targetPicker.SelectionChanged += (_, _) =>
             {
@@ -811,18 +819,28 @@ public partial class MixerView : UserControl
 
             picker.ClearItems();
 
+            var clrGreen  = Color.FromRgb(0x66, 0xBB, 0x6A);
+            var clrRed    = Color.FromRgb(0xEF, 0x53, 0x50);
+            var clrBlue   = Color.FromRgb(0x42, 0xA5, 0xF5);
+            var clrTeal   = Color.FromRgb(0x26, 0xC6, 0xDA);
+            var clrPurple = Color.FromRgb(0xAB, 0x47, 0xBC);
+            var clrOrange = Color.FromRgb(0xFF, 0xA7, 0x26);
+            var clrYellow = Color.FromRgb(0xFF, 0xD5, 0x4F);
+            var clrGovee  = Color.FromRgb(0xFF, 0x6F, 0x00);
+            var clrHA     = Color.FromRgb(0x26, 0xC6, 0xDA);
+
             picker.AddCategory("Audio");
-            picker.AddItem("Master", "master");
-            picker.AddItem("Mic", "mic");
-            picker.AddItem("System", "system");
-            picker.AddItem("Any", "any");
-            picker.AddItem("Active Window", "active_window");
+            picker.AddItem("Master",        "master",        "♪",  clrGreen);
+            picker.AddItem("Mic",           "mic",           "◎",  clrRed);
+            picker.AddItem("System",        "system",        "◆",  clrBlue);
+            picker.AddItem("Any",           "any",           "◈",  clrTeal);
+            picker.AddItem("Active Window", "active_window", "▣",  clrPurple);
 
             picker.AddCategory("Devices");
-            picker.AddItem("Output Device", "output_device");
-            picker.AddItem("Input Device", "input_device");
-            picker.AddItem("Monitor", "monitor");
-            picker.AddItem("LED Brightness", "led_brightness");
+            picker.AddItem("Output Device", "output_device", "▶",  clrPurple);
+            picker.AddItem("Input Device",  "input_device",  "◀",  clrRed);
+            picker.AddItem("Monitor",       "monitor",       "▭",  clrOrange);
+            picker.AddItem("LED Brightness","led_brightness","◉",  clrYellow);
 
             // Register sub-flyout providers for device pickers
             picker.RegisterSubMenu("output_device", () => GetDeviceSubItems(isOutput: true));
@@ -835,10 +853,10 @@ public partial class MixerView : UserControl
 
                 if (haEnabled)
                 {
-                    picker.AddItem("Home Assistant: Light", "ha_light");
-                    picker.AddItem("Home Assistant: Media", "ha_media");
-                    picker.AddItem("Home Assistant: Fan", "ha_fan");
-                    picker.AddItem("Home Assistant: Cover", "ha_cover");
+                    picker.AddItem("HA: Light",  "ha_light",  "◈", clrHA);
+                    picker.AddItem("HA: Media",  "ha_media",  "♪", clrHA);
+                    picker.AddItem("HA: Fan",    "ha_fan",    "◎", clrHA);
+                    picker.AddItem("HA: Cover",  "ha_cover",  "▭", clrHA);
 
                     // Register sub-flyout providers for HA items
                     foreach (var haKey in HATargetDomains.Keys)
@@ -859,19 +877,19 @@ public partial class MixerView : UserControl
                             var displayName = !string.IsNullOrWhiteSpace(device.Name) && !nameIsIp ? device.Name
                                 : !string.IsNullOrEmpty(device.Sku) ? AmbienceSync.GetProductName(device.Sku)
                                 : device.Ip;
-                            picker.AddItem($"Govee: {displayName}", $"govee:{device.Ip}");
+                            picker.AddItem($"Govee: {displayName}", $"govee:{device.Ip}", "◈", clrGovee);
                         }
                     }
                     if (!config.Ambience.GoveeDevices.Any(d => !string.IsNullOrWhiteSpace(d.Ip)))
-                        picker.AddItem("Govee", "govee"); // fallback if no devices configured
+                        picker.AddItem("Govee", "govee", "◈", clrGovee); // fallback if no devices configured
                 }
             }
 
             picker.AddCategory("Apps");
-            picker.AddItem("Discord", "discord");
-            picker.AddItem("Spotify", "spotify");
-            picker.AddItem("Chrome", "chrome");
-            picker.AddItem("App Group", "apps");
+            picker.AddItem("Discord",   "discord",  "◉", Color.FromRgb(0x58, 0x65, 0xF2));
+            picker.AddItem("Spotify",   "spotify",  "♪", Color.FromRgb(0x1D, 0xB9, 0x54));
+            picker.AddItem("Chrome",    "chrome",   "◆", Color.FromRgb(0x42, 0x85, 0xF4));
+            picker.AddItem("App Group", "apps",     "▣", clrTeal);
         }
     }
 
