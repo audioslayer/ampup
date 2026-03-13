@@ -240,7 +240,7 @@ public class GridPicker : Border
         };
 
         // Timer to close both popups when mouse leaves all popup areas
-        _closeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        _closeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
         _closeTimer.Tick += (_, _) =>
         {
             _closeTimer.Stop();

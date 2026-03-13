@@ -1170,36 +1170,56 @@ public partial class ButtonsView : UserControl
     private static bool IsGoveeAction(string? action)
         => action is "govee_toggle" or "govee_color";
 
+    // Category groupings for the action picker
+    private static readonly (string Category, string[] Values)[] ActionCategories =
+    {
+        ("Media",           new[] { "none", "media_play_pause", "media_next", "media_prev" }),
+        ("Mute",            new[] { "mute_master", "mute_mic", "mute_program", "mute_active_window", "mute_app_group", "mute_device" }),
+        ("App Control",     new[] { "launch_exe", "close_program" }),
+        ("Device",          new[] { "cycle_output", "cycle_input", "select_output", "select_input" }),
+        ("System",          new[] { "macro", "switch_profile", "cycle_brightness" }),
+        ("Power",           new[] { "power_sleep", "power_lock", "power_off", "power_restart", "power_logoff", "power_hibernate" }),
+        ("Integrations",    new[] { "ha_toggle", "ha_scene", "ha_service", "govee_toggle", "govee_color" }),
+    };
+
+    private static readonly Dictionary<string, (string Display, string Value)> ActionLookup =
+        Actions.ToDictionary(a => a.Value, a => a);
+
     private void PopulateActionPicker(ActionPicker picker, bool haEnabled, bool anyHaConfigured, bool goveeEnabled, bool anyGoveeConfigured)
     {
         picker.ClearItems();
 
-        foreach (var (display, value) in Actions)
+        foreach (var (category, values) in ActionCategories)
         {
-            bool isHa = IsHaAction(value);
-            bool isGovee = IsGoveeAction(value);
+            bool anyAdded = false;
 
-            // Skip HA actions when HA is disabled AND no button has an HA action configured
-            if (isHa && !haEnabled && !anyHaConfigured)
-                continue;
+            foreach (var value in values)
+            {
+                if (!ActionLookup.TryGetValue(value, out var action))
+                    continue;
 
-            // Skip Govee actions when Govee is disabled AND no button has a Govee action configured
-            if (isGovee && !goveeEnabled && !anyGoveeConfigured)
-                continue;
+                bool isHa = IsHaAction(value);
+                bool isGovee = IsGoveeAction(value);
 
-            string displayName = display;
-            if (isHa && !haEnabled)
-                displayName = $"{display} (HA disabled)";
-            if (isGovee && !goveeEnabled)
-                displayName = $"{display} (Govee disabled)";
+                if (isHa && !haEnabled && !anyHaConfigured) continue;
+                if (isGovee && !goveeEnabled && !anyGoveeConfigured) continue;
 
-            var icon = ActionIcons.GetValueOrDefault(value, "—");
-            var color = (isHa && !haEnabled) || (isGovee && !goveeEnabled)
-                ? Color.FromRgb(0x55, 0x55, 0x55)
-                : ActionColors.GetValueOrDefault(value, Color.FromRgb(0x88, 0x88, 0x88));
-            var tooltip = ActionTooltips.GetValueOrDefault(value, display);
-            picker.AddItem(displayName, value, icon, color, tooltip);
+                if (!anyAdded) { picker.AddCategory(category); anyAdded = true; }
+
+                string displayName = action.Display;
+                if (isHa && !haEnabled) displayName = $"{action.Display} (HA disabled)";
+                if (isGovee && !goveeEnabled) displayName = $"{action.Display} (Govee disabled)";
+
+                var icon = ActionIcons.GetValueOrDefault(value, "—");
+                var color = (isHa && !haEnabled) || (isGovee && !goveeEnabled)
+                    ? Color.FromRgb(0x55, 0x55, 0x55)
+                    : ActionColors.GetValueOrDefault(value, Color.FromRgb(0x88, 0x88, 0x88));
+                var tooltip = ActionTooltips.GetValueOrDefault(value, action.Display);
+                picker.AddItem(displayName, value, icon, color, tooltip);
+            }
         }
+
+        picker.BuildPopup();
     }
 
     private ActionPicker MakeActionCombo()
@@ -1210,14 +1230,20 @@ public partial class ButtonsView : UserControl
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
 
-        foreach (var (display, value) in Actions)
+        foreach (var (category, values) in ActionCategories)
         {
-            var icon = ActionIcons.GetValueOrDefault(value, "—");
-            var color = ActionColors.GetValueOrDefault(value, Color.FromRgb(0x88, 0x88, 0x88));
-            var tooltip = ActionTooltips.GetValueOrDefault(value, display);
-            picker.AddItem(display, value, icon, color, tooltip);
+            picker.AddCategory(category);
+            foreach (var value in values)
+            {
+                if (!ActionLookup.TryGetValue(value, out var action)) continue;
+                var icon = ActionIcons.GetValueOrDefault(value, "—");
+                var color = ActionColors.GetValueOrDefault(value, Color.FromRgb(0x88, 0x88, 0x88));
+                var tooltip = ActionTooltips.GetValueOrDefault(value, action.Display);
+                picker.AddItem(action.Display, value, icon, color, tooltip);
+            }
         }
 
+        picker.BuildPopup();
         picker.Select("none");
         return picker;
     }

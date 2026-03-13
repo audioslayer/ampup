@@ -43,6 +43,19 @@ public class ActionPicker : Border
     private int _selectedIndex = -1;
     private string? _selectedSubTag; // entity ID from sub-menu selection
     private readonly List<(string Display, string Value, string Icon, Color Color, string Tooltip)> _items = new();
+    private readonly List<(int ItemIndex, string CategoryName)> _categories = new();
+
+    // Category header styles (icon + color)
+    public static readonly Dictionary<string, (string Icon, Color Color)> CategoryStyles = new()
+    {
+        { "MEDIA",              ("♫", Color.FromRgb(0x00, 0xE6, 0x76)) },
+        { "MUTE",               ("🔇", Color.FromRgb(0xFF, 0x52, 0x52)) },
+        { "APP CONTROL",        ("⬡", Color.FromRgb(0x44, 0x8A, 0xFF)) },
+        { "DEVICE",             ("🔌", Color.FromRgb(0xB3, 0x88, 0xFF)) },
+        { "SYSTEM",             ("⚙", Color.FromRgb(0xFF, 0xD7, 0x40)) },
+        { "POWER",              ("⏻", Color.FromRgb(0xFF, 0x52, 0x52)) },
+        { "INTEGRATIONS",       ("⚡", Color.FromRgb(0x26, 0xC6, 0xDA)) },
+    };
 
     // Sub-menu providers: keyed by action value
     private readonly Dictionary<string, Func<List<SubItem>>> _subMenuProviders = new();
@@ -229,7 +242,7 @@ public class ActionPicker : Border
         };
 
         // Timer to close both popups when mouse leaves all popup areas
-        _closeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        _closeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
         _closeTimer.Tick += (_, _) =>
         {
             _closeTimer.Stop();
@@ -312,7 +325,15 @@ public class ActionPicker : Border
     public void AddItem(string display, string value, string icon, Color color, string tooltip)
     {
         _items.Add((display, value, icon, color, tooltip));
-        BuildPopupItem(_items.Count - 1);
+    }
+
+    /// <summary>
+    /// Rebuild the popup after all items and categories have been added.
+    /// Must be called after AddItem/AddCategory to display items.
+    /// </summary>
+    public void BuildPopup()
+    {
+        RebuildAllPopupItems();
     }
 
     /// <summary>
@@ -329,9 +350,15 @@ public class ActionPicker : Border
         _subMenuProviders.Clear();
     }
 
+    public void AddCategory(string categoryName)
+    {
+        _categories.Add((_items.Count, categoryName));
+    }
+
     public void ClearItems()
     {
         _items.Clear();
+        _categories.Clear();
         _itemsPanel.Children.Clear();
         _selectedIndex = -1;
         _selectedSubTag = null;
@@ -519,7 +546,7 @@ public class ActionPicker : Border
                 _subPopup.IsOpen = false;
                 _popup.IsOpen = false;
 
-                RefreshPopupHighlights();
+                RebuildAllPopupItems();
                 SubItemSelected?.Invoke(parentValue, subItem.Tag);
                 SelectionChanged?.Invoke(this, EventArgs.Empty);
                 e.Handled = true;
@@ -566,7 +593,7 @@ public class ActionPicker : Border
             _iconBlock.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
         }
 
-        RefreshPopupHighlights();
+        RebuildAllPopupItems();
 
         if (fireEvent)
             SelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -703,30 +730,68 @@ public class ActionPicker : Border
         _itemsPanel.Children.Add(row);
     }
 
-    private void RefreshPopupHighlights()
+    private Dictionary<int, int> BuildCategoryMap()
     {
-        var accent = ThemeManager.Accent;
-        for (int i = 0; i < _itemsPanel.Children.Count; i++)
+        var map = new Dictionary<int, int>();
+        for (int c = 0; c < _categories.Count; c++)
         {
-            if (_itemsPanel.Children[i] is not Border row) continue;
-            if (row.Child is not Grid grid) continue;
+            int start = _categories[c].ItemIndex;
+            int end = c + 1 < _categories.Count ? _categories[c + 1].ItemIndex : _items.Count;
+            for (int i = start; i < end; i++)
+                map[i] = c;
+        }
+        return map;
+    }
 
-            bool sel = i == _selectedIndex;
+    private void RebuildAllPopupItems()
+    {
+        _itemsPanel.Children.Clear();
+        var categoryMap = BuildCategoryMap();
+        int currentCategory = -1;
+        var accent = ThemeManager.Accent;
 
-            row.Background = sel
-                ? new SolidColorBrush(Color.FromArgb(0x1F, accent.R, accent.G, accent.B))
-                : Brushes.Transparent;
+        for (int i = 0; i < _items.Count; i++)
+        {
+            int cat = categoryMap.GetValueOrDefault(i, -1);
 
-            if (grid.Children[0] is Border bar)
-                bar.Background = sel ? new SolidColorBrush(accent) : Brushes.Transparent;
-
-            if (grid.Children[2] is TextBlock name)
+            // Category header
+            if (cat != currentCategory)
             {
-                name.Foreground = sel
-                    ? new SolidColorBrush(accent)
-                    : new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
-                name.FontWeight = sel ? FontWeights.Medium : FontWeights.Normal;
+                currentCategory = cat;
+                if (cat >= 0)
+                {
+                    var catName = _categories[cat].CategoryName.ToUpperInvariant();
+                    var (icon, color) = CategoryStyles.GetValueOrDefault(catName, ("•", accent));
+
+                    var headerRow = new StackPanel
+                    {
+                        Orientation = Orientation.Horizontal,
+                        Margin = new Thickness(8, _itemsPanel.Children.Count > 0 ? 10 : 2, 0, 4)
+                    };
+
+                    headerRow.Children.Add(new TextBlock
+                    {
+                        Text = icon,
+                        FontSize = 10,
+                        Foreground = new SolidColorBrush(color),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(0, 0, 6, 0)
+                    });
+
+                    headerRow.Children.Add(new TextBlock
+                    {
+                        Text = catName,
+                        FontSize = 9,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
+                        FontWeight = FontWeights.SemiBold,
+                        VerticalAlignment = VerticalAlignment.Center,
+                    });
+
+                    _itemsPanel.Children.Add(headerRow);
+                }
             }
+
+            BuildPopupItem(i);
         }
     }
 }
