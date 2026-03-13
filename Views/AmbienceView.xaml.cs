@@ -214,26 +214,61 @@ public partial class AmbienceView : UserControl
             return;
         }
 
-        if (!hasKey)
+        if (!hasKey && _config.Ambience.GoveeDevices.Count == 0)
         {
             DevicePanel.Children.Add(MakeSetupCard(
-                "Connect your Govee account",
-                "Add your Cloud API key in Settings to unlock scenes, segments, and full device control.\n\nGet your key at developer.govee.com",
+                "No devices found",
+                "Scan for devices in Settings, or add a Cloud API key for scenes and advanced control.\n\nGet your key at developer.govee.com",
                 "Open Settings", () => NavigateToSettings?.Invoke()));
             return;
         }
 
-        if (_cloudDevices.Count == 0)
+        if (_cloudDevices.Count > 0)
+        {
+            // Cloud API mode — full control with scenes, segments, music
+            foreach (var device in _cloudDevices)
+                DevicePanel.Children.Add(BuildDeviceCard(device));
+        }
+        else if (_config.Ambience.GoveeDevices.Count > 0)
+        {
+            // LAN-only mode — create device info from LAN config for basic controls
+            foreach (var lan in _config.Ambience.GoveeDevices)
+            {
+                if (string.IsNullOrWhiteSpace(lan.Ip)) continue;
+                var deviceInfo = new GoveeDeviceInfo
+                {
+                    Device = lan.DeviceId,
+                    Sku = lan.Sku,
+                    DeviceName = lan.Name,
+                    Capabilities = new List<string>(),
+                };
+                DevicePanel.Children.Add(BuildDeviceCard(deviceInfo));
+            }
+
+            if (hasKey)
+            {
+                // Has API key but cloud fetch returned empty — offer refresh
+                DevicePanel.Children.Add(MakeSetupCard(
+                    "Cloud devices not loaded",
+                    "Couldn't fetch device list from Govee Cloud. LAN controls are available above.",
+                    "Retry", () => _ = FetchCloudDevicesAndRebuild()));
+            }
+            else
+            {
+                // LAN-only hint
+                DevicePanel.Children.Add(MakeSetupCard(
+                    "Want scenes and more?",
+                    "Add a Cloud API key in Settings for scenes, segments, and music mode.",
+                    "Open Settings", () => NavigateToSettings?.Invoke()));
+            }
+        }
+        else
         {
             DevicePanel.Children.Add(MakeSetupCard(
                 "No devices found",
-                "Make sure your Govee devices are online and connected to your account.",
-                "Refresh", () => _ = FetchCloudDevicesAndRebuild()));
-            return;
+                "Make sure your Govee devices are online, then scan in Settings.",
+                "Open Settings", () => NavigateToSettings?.Invoke()));
         }
-
-        foreach (var device in _cloudDevices)
-            DevicePanel.Children.Add(BuildDeviceCard(device));
     }
 
     private Border MakeSetupCard(string title, string description, string buttonText, Action onClick)
@@ -299,7 +334,10 @@ public partial class AmbienceView : UserControl
         // ── Controls row: Power + Brightness + Color ──
         var controlsRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
 
-        // Power toggle
+        // Find LAN IP for this device (match by MAC/DeviceId or SKU)
+        string? lanIp = FindLanIp(device);
+
+        // Power toggle — use LAN if available, fallback to Cloud API
         var onOffCheck = new CheckBox
         {
             Content = "On",
@@ -308,13 +346,23 @@ public partial class AmbienceView : UserControl
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 20, 0),
         };
-        onOffCheck.Checked += async (_, _) => await SafeCloudCall(() =>
-            _cloudApi!.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.TurnOnOff(true)));
-        onOffCheck.Unchecked += async (_, _) => await SafeCloudCall(() =>
-            _cloudApi!.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.TurnOnOff(false)));
+        onOffCheck.Checked += async (_, _) =>
+        {
+            if (lanIp != null)
+                await AmbienceSync.SendTurnAsync(lanIp, true);
+            else if (_cloudApi != null)
+                await SafeCloudCall(() => _cloudApi.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.TurnOnOff(true)));
+        };
+        onOffCheck.Unchecked += async (_, _) =>
+        {
+            if (lanIp != null)
+                await AmbienceSync.SendTurnAsync(lanIp, false);
+            else if (_cloudApi != null)
+                await SafeCloudCall(() => _cloudApi.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.TurnOnOff(false)));
+        };
         controlsRow.Children.Add(onOffCheck);
 
-        // Brightness
+        // Brightness — use LAN if available
         controlsRow.Children.Add(MakeSubLabel("BRIGHTNESS"));
         var brightnessSlider = new StyledSlider
         {
@@ -329,8 +377,11 @@ public partial class AmbienceView : UserControl
         brightnessDebounce.Tick += async (_, _) =>
         {
             brightnessDebounce.Stop();
-            await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
-                device.Device, device.Sku, GoveeCloudApi.SetBrightness((int)brightnessSlider.Value)));
+            if (lanIp != null)
+                await AmbienceSync.SendBrightnessAsync(lanIp, (int)brightnessSlider.Value);
+            else if (_cloudApi != null)
+                await SafeCloudCall(() => _cloudApi.ControlDeviceAsync(
+                    device.Device, device.Sku, GoveeCloudApi.SetBrightness((int)brightnessSlider.Value)));
         };
         brightnessSlider.ValueChanged += (_, _) =>
         {
@@ -339,11 +390,14 @@ public partial class AmbienceView : UserControl
         };
         controlsRow.Children.Add(brightnessSlider);
 
-        // Color swatch
+        // Color swatch — use LAN if available
         var colorSwatch = MakeColorSwatch(Colors.White, (r, g, b) =>
         {
-            _ = SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
-                device.Device, device.Sku, GoveeCloudApi.SetColor(r, g, b)));
+            if (lanIp != null)
+                _ = AmbienceSync.SendColorAsync(lanIp, r, g, b);
+            else if (_cloudApi != null)
+                _ = SafeCloudCall(() => _cloudApi.ControlDeviceAsync(
+                    device.Device, device.Sku, GoveeCloudApi.SetColor(r, g, b)));
         });
         controlsRow.Children.Add(colorSwatch);
 
@@ -717,6 +771,24 @@ public partial class AmbienceView : UserControl
         int hash = 0;
         foreach (var c in name) hash = hash * 31 + c;
         return ScenePalette[Math.Abs(hash) % ScenePalette.Length];
+    }
+
+    // ── LAN/Cloud routing ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Find the LAN IP for a cloud device by matching DeviceId (MAC) or SKU against config.
+    /// </summary>
+    private string? FindLanIp(GoveeDeviceInfo device)
+    {
+        if (_config == null || !_config.Ambience.GoveeEnabled) return null;
+        foreach (var lan in _config.Ambience.GoveeDevices)
+        {
+            if (!string.IsNullOrWhiteSpace(lan.DeviceId) && lan.DeviceId == device.Device)
+                return lan.Ip;
+            if (!string.IsNullOrWhiteSpace(lan.Sku) && lan.Sku == device.Sku)
+                return lan.Ip;
+        }
+        return null;
     }
 
     // ── Safe API call ─────────────────────────────────────────────────
