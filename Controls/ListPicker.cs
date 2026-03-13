@@ -23,9 +23,12 @@ public class ListPicker : Border
     private readonly Border _popupBorder;
     private readonly StackPanel _itemsPanel;
     private readonly ScrollViewer _scrollViewer;
+    private readonly TextBox _filterBox;
+    private readonly StackPanel _popupStack;
 
     private int _selectedIndex = -1;
     private readonly List<(string Display, object? Tag)> _items = new();
+    private string _filterText = "";
 
     public event EventHandler? SelectionChanged;
     public event EventHandler? DropdownOpening;
@@ -89,6 +92,41 @@ public class ListPicker : Border
             Content = _itemsPanel
         };
 
+        _filterBox = new TextBox
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            CaretBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding = new Thickness(8, 6, 8, 6),
+            FontSize = 12,
+            Visibility = Visibility.Collapsed, // shown only when > 8 items
+        };
+        var filterPlaceholder = new TextBlock
+        {
+            Text = "Filter...",
+            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            FontSize = 12,
+            Padding = new Thickness(10, 7, 0, 0),
+            IsHitTestVisible = false,
+            Visibility = Visibility.Collapsed,
+        };
+        _filterBox.TextChanged += (_, _) =>
+        {
+            _filterText = _filterBox.Text.Trim();
+            filterPlaceholder.Visibility = string.IsNullOrEmpty(_filterBox.Text) ? Visibility.Visible : Visibility.Collapsed;
+            ApplyFilter();
+        };
+
+        var filterContainer = new Grid();
+        filterContainer.Children.Add(_filterBox);
+        filterContainer.Children.Add(filterPlaceholder);
+
+        _popupStack = new StackPanel();
+        _popupStack.Children.Add(filterContainer);
+        _popupStack.Children.Add(_scrollViewer);
+
         _popupBorder = new Border
         {
             Background = new SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
@@ -96,7 +134,7 @@ public class ListPicker : Border
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(0),
-            Child = _scrollViewer,
+            Child = _popupStack,
             Effect = new DropShadowEffect
             {
                 Color = Colors.Black,
@@ -150,6 +188,15 @@ public class ListPicker : Border
         {
             BorderBrush = new SolidColorBrush(AccentColor);
             Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+            // Show filter box when there are many items
+            var showFilter = _items.Count > 8;
+            _filterBox.Visibility = showFilter ? Visibility.Visible : Visibility.Collapsed;
+            filterPlaceholder.Visibility = showFilter && string.IsNullOrEmpty(_filterBox.Text) ? Visibility.Visible : Visibility.Collapsed;
+            if (showFilter)
+            {
+                _filterBox.Text = "";
+                _filterBox.Focus();
+            }
         };
 
         _popup.Closed += (_, _) =>
@@ -220,6 +267,23 @@ public class ListPicker : Border
     }
 
     // ── Popup item rendering ────────────────────────────────────
+
+    private void ApplyFilter()
+    {
+        if (string.IsNullOrEmpty(_filterText))
+        {
+            // Show all
+            foreach (UIElement child in _itemsPanel.Children)
+                child.Visibility = Visibility.Visible;
+            return;
+        }
+
+        for (int i = 0; i < _items.Count && i < _itemsPanel.Children.Count; i++)
+        {
+            var match = _items[i].Display.Contains(_filterText, StringComparison.OrdinalIgnoreCase);
+            _itemsPanel.Children[i].Visibility = match ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
 
     private void RebuildPopupItems()
     {
