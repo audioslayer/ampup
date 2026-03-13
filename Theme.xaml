@@ -2,7 +2,11 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!-- ── Typography ───────────────────────────────────────────── -->
-    <FontFamily x:Key="AppFont">pack://application:,,,/Fonts/#Space Grotesk</FontFamily>
+    <!-- 🔄 FONT PICKER — uncomment ONE line to switch fonts:                    -->
+    <!--<FontFamily x:Key="AppFont">pack://application:,,,/Fonts/#Space Grotesk</FontFamily>-->
+    <FontFamily x:Key="AppFont">pack://application:,,,/Fonts/#DM Sans</FontFamily>
+    <!--<FontFamily x:Key="AppFont">pack://application:,,,/Fonts/#Inter</FontFamily>-->
+    <!--<FontFamily x:Key="AppFont">pack://application:,,,/Fonts/#Syne</FontFamily>-->
 
     <!-- Global font — TextBlock covers most text; TextBox for inputs.
          Button/Label omitted to avoid overriding WPF-UI FluentButton templates. -->
