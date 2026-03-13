@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 
 namespace AmpUp.Controls;
@@ -277,9 +278,21 @@ public class ListPicker : Border
         _flyout.Top = screenPos.Y;
 
         _flyout.Deactivated += (_, _) => CloseFlyout();
+        _flyout.KeyDown += (_, e) => { if (e.Key == Key.Escape) CloseFlyout(); };
+
+        // Slide-down + fade-in animation (120ms)
+        var translate = new TranslateTransform(0, -8);
+        popupBorder.RenderTransform = translate;
+        popupBorder.Opacity = 0;
 
         _flyout.Show();
         _isOpen = true;
+
+        var slideAnim = new DoubleAnimation(-8, 0, new Duration(TimeSpan.FromMilliseconds(120)))
+            { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+        var fadeAnim = new DoubleAnimation(0, 1, new Duration(TimeSpan.FromMilliseconds(120)));
+        translate.BeginAnimation(TranslateTransform.YProperty, slideAnim);
+        popupBorder.BeginAnimation(UIElement.OpacityProperty, fadeAnim);
 
         BorderBrush = new SolidColorBrush(AccentColor);
         Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
