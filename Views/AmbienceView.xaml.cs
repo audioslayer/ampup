@@ -395,6 +395,7 @@ public partial class AmbienceView : UserControl
         };
         onOffCheck.Checked += async (_, _) =>
         {
+            if (_loading) return;
             if (lanIp != null)
             {
                 AmbienceSync.PauseSync(lanIp, 30);
@@ -405,6 +406,7 @@ public partial class AmbienceView : UserControl
         };
         onOffCheck.Unchecked += async (_, _) =>
         {
+            if (_loading) return;
             if (lanIp != null)
             {
                 AmbienceSync.PauseSync(lanIp, 30);
@@ -447,6 +449,12 @@ public partial class AmbienceView : UserControl
         controlsRow.Children.Add(brightnessSlider);
 
         stack.Children.Add(controlsRow);
+
+        // ── Query actual device state via LAN ──
+        if (lanIp != null)
+        {
+            _ = QueryDeviceStateAsync(lanIp, onOffCheck, brightnessSlider);
+        }
 
         // ── Colors section (Solid tile + Cloud scenes if available) ──
         stack.Children.Add(MakeSeparator());
@@ -816,6 +824,29 @@ public partial class AmbienceView : UserControl
         if (n.Contains("pulse")) return "💓";
         // Fallback — use the first character as a styled icon
         return "◆";
+    }
+
+    // ── Device state query ────────────────────────────────────────────
+
+    private async Task QueryDeviceStateAsync(string ip, CheckBox onOffCheck, StyledSlider brightnessSlider)
+    {
+        try
+        {
+            var status = await AmbienceSync.GetDeviceStatusAsync(ip);
+            if (status == null) return;
+
+            Dispatcher.Invoke(() =>
+            {
+                _loading = true;
+                onOffCheck.IsChecked = status.Value.On;
+                brightnessSlider.Value = Math.Max(1, status.Value.Brightness);
+                _loading = false;
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[Ambience] Device state query failed ({ip}): {ex.Message}");
+        }
     }
 
     // ── LAN/Cloud routing ──────────────────────────────────────────────
