@@ -138,6 +138,11 @@ public partial class SettingsView : UserControl
         ChkHaEnabled.IsChecked = config.HomeAssistant.Enabled;
         TxtHaUrl.Text = config.HomeAssistant.Url;
         TxtHaToken.Password = config.HomeAssistant.Token;
+        RefreshHaHeaderStatus();
+
+        // Auto-test HA connection if enabled
+        if (config.HomeAssistant.Enabled && !string.IsNullOrWhiteSpace(config.HomeAssistant.Token))
+            _ = AutoTestHaAsync();
 
         // Integrations — Govee
         ChkGoveeEnabled.IsChecked = config.Ambience.GoveeEnabled;
@@ -148,6 +153,7 @@ public partial class SettingsView : UserControl
         RefreshGoveeStatus();
         RefreshGoveeCloudStatus();
         RefreshGoveeDeviceList();
+        RefreshGoveeAmbienceHint();
 
         BuildAccentSwatches();
 
@@ -669,6 +675,7 @@ public partial class SettingsView : UserControl
         HaStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(ok ? "#00E676" : "#FF4444"));
         TxtHaStatus.Text = ok ? "Connected" : "Connection failed";
         BtnHaTest.IsEnabled = true;
+        UpdateHaHeaderStatus(ok);
     }
 
     private async void OnHaRefresh(object sender, RoutedEventArgs e)
@@ -681,6 +688,56 @@ public partial class SettingsView : UserControl
         HaStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(ok ? "#00E676" : "#FF4444"));
         TxtHaStatus.Text = ok ? $"Connected — {ha.CachedEntities.Count} entities" : "Connection failed";
         BtnHaRefresh.IsEnabled = true;
+        UpdateHaHeaderStatus(ok);
+    }
+
+    private async Task AutoTestHaAsync()
+    {
+        if (_config == null) return;
+        UpdateHaHeaderStatus(null); // show "Testing..."
+        using var ha = new HAIntegration(_config.HomeAssistant);
+        var ok = await ha.TestConnectionAsync();
+        Dispatcher.Invoke(() =>
+        {
+            UpdateHaHeaderStatus(ok);
+            HaStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(ok ? "#00E676" : "#FF4444"));
+            TxtHaStatus.Text = ok ? "Connected" : "Connection failed";
+        });
+    }
+
+    private void RefreshHaHeaderStatus()
+    {
+        if (_config == null) return;
+        bool enabled = ChkHaEnabled.IsChecked == true;
+        if (!enabled)
+        {
+            HaStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#555555"));
+            TxtHaStatusHeader.Text = "Disabled";
+        }
+        else
+        {
+            HaStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFB800"));
+            TxtHaStatusHeader.Text = "Enabled";
+        }
+    }
+
+    private void UpdateHaHeaderStatus(bool? connected)
+    {
+        if (connected == null)
+        {
+            HaStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFB800"));
+            TxtHaStatusHeader.Text = "Testing...";
+        }
+        else if (connected == true)
+        {
+            HaStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#00E676"));
+            TxtHaStatusHeader.Text = "Connected";
+        }
+        else
+        {
+            HaStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FF4444"));
+            TxtHaStatusHeader.Text = "Disconnected";
+        }
     }
 
     // ── Govee settings ──────────────────────────────────────────────
@@ -690,6 +747,7 @@ public partial class SettingsView : UserControl
         if (_loading) return;
         GoveeLanSection.Visibility = ChkGoveeEnabled.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         RefreshGoveeStatus();
+        RefreshGoveeAmbienceHint();
         _debounceTimer.Stop();
         _debounceTimer.Start();
     }
@@ -699,8 +757,25 @@ public partial class SettingsView : UserControl
         if (_loading) return;
         GoveeCloudSection.Visibility = ChkGoveeCloudEnabled.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         RefreshGoveeCloudStatus();
+        RefreshGoveeAmbienceHint();
         _debounceTimer.Stop();
         _debounceTimer.Start();
+    }
+
+    private void RefreshGoveeAmbienceHint()
+    {
+        bool lanOn = ChkGoveeEnabled.IsChecked == true;
+        bool cloudOn = ChkGoveeCloudEnabled.IsChecked == true;
+        if (lanOn || cloudOn)
+        {
+            TxtGoveeAmbienceHint.Text = "✓ Ambience tab is available in the sidebar";
+            TxtGoveeAmbienceHint.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#00DD77"));
+        }
+        else
+        {
+            TxtGoveeAmbienceHint.Text = "Enable Govee to unlock the Ambience tab in the sidebar";
+            TxtGoveeAmbienceHint.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#9A9A9A"));
+        }
     }
 
     private async void OnGoveeScan(object sender, RoutedEventArgs e)

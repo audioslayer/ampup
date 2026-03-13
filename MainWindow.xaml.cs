@@ -102,6 +102,10 @@ public partial class MainWindow : FluentWindow
         _mixerView.LoadConfig(_config, _mixer!, saveHandler);
         _ambienceView.LoadConfig(_config, saveHandler);
         _bindingsView.LoadConfig(_config);
+
+        // Show/hide Ambience nav based on Govee enabled state
+        bool goveeEnabled = _config.Ambience.GoveeEnabled || _config.Ambience.GoveeCloudEnabled;
+        NavAmbience.Visibility = goveeEnabled ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void NavMixer_Click(object sender, RoutedEventArgs e) => NavigateTo(_mixerView, NavMixer);

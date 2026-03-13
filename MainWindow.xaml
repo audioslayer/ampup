@@ -206,7 +206,7 @@
                                             Visibility="Collapsed" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
                                         <ui:SymbolIcon Symbol="MusicNote124" FontSize="22" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" />
-                                        <TextBlock x:Name="NavMixerLabel" Text="Mixer" FontSize="9" Foreground="{DynamicResource AccentBrush}"
+                                        <TextBlock x:Name="NavMixerLabel" Text="Knobs" FontSize="9" Foreground="{DynamicResource AccentBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
                                 </Grid>
