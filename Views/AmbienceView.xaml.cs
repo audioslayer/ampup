@@ -707,47 +707,129 @@ public partial class AmbienceView : UserControl
 
     // ── Music Mode ────────────────────────────────────────────────────
 
+    private static readonly (int id, string name, string icon, Color color)[] MusicModes =
+    {
+        (3, "Rhythm", "🎵", Color.FromRgb(0x69, 0xF0, 0xAE)),
+        (4, "Rolling", "🌊", Color.FromRgb(0x64, 0xB5, 0xF6)),
+        (5, "Energic", "⚡", Color.FromRgb(0xFF, 0xD7, 0x40)),
+        (6, "Spectrum", "🌈", Color.FromRgb(0xBA, 0x68, 0xC8)),
+    };
+
     private void BuildMusicSection(GoveeDeviceInfo device, StackPanel parent)
     {
-        var musicToggle = new CheckBox
-        {
-            Content = "Enable Music Mode",
-            Foreground = FindBrush("TextPrimaryBrush"),
-            FontSize = 13,
-            Margin = new Thickness(0, 0, 0, 10),
-        };
-        musicToggle.Checked += async (_, _) =>
-            await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
-                device.Device, device.Sku, GoveeCloudApi.SetMusicMode(1, 50)));
-        musicToggle.Unchecked += async (_, _) =>
-            await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
-                device.Device, device.Sku, GoveeCloudApi.SetMusicMode(0, 0)));
-        parent.Children.Add(musicToggle);
+        int? activeModeId = null;
 
-        // Sensitivity slider
-        parent.Children.Add(MakeSubLabel("SENSITIVITY"));
+        // Sensitivity slider (placed after tiles)
         var sensSlider = new StyledSlider
         {
             Minimum = 1, Maximum = 100, Value = 50,
             Width = 200, Height = 40,
             Suffix = "",
             AccentColor = ThemeManager.Accent,
-            Margin = new Thickness(0, 0, 0, 8),
+            Margin = new Thickness(0, 4, 0, 8),
         };
+
+        // Mode tiles
+        var wrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+
+        foreach (var (modeId, modeName, icon, tileColor) in MusicModes)
+        {
+            var tile = new Border
+            {
+                Width = 82, Height = 58,
+                CornerRadius = new CornerRadius(6),
+                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                BorderThickness = new Thickness(1),
+                Margin = new Thickness(0, 0, 6, 6),
+                Cursor = Cursors.Hand,
+                ToolTip = modeName,
+                Tag = modeId,
+            };
+
+            var tileContent = new StackPanel
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            tileContent.Children.Add(new TextBlock
+            {
+                Text = icon,
+                FontSize = 20,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                TextAlignment = TextAlignment.Center,
+                Foreground = new SolidColorBrush(Color.FromRgb(
+                    (byte)(tileColor.R * 0.7), (byte)(tileColor.G * 0.7), (byte)(tileColor.B * 0.7))),
+            });
+            tileContent.Children.Add(new TextBlock
+            {
+                Text = modeName,
+                FontSize = 9,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                TextAlignment = TextAlignment.Center,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
+                Margin = new Thickness(0, 2, 0, 0),
+            });
+            tile.Child = tileContent;
+
+            tile.MouseEnter += (_, _) =>
+            {
+                if (tile.Tag is int id && id != activeModeId)
+                {
+                    tile.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+                    tile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, tileColor.R, tileColor.G, tileColor.B));
+                }
+            };
+            tile.MouseLeave += (_, _) =>
+            {
+                if (tile.Tag is int id && id != activeModeId)
+                {
+                    tile.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+                    tile.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+                }
+            };
+            tile.MouseLeftButtonUp += async (_, _) =>
+            {
+                // Deselect all
+                foreach (var child in wrap.Children)
+                    if (child is Border b)
+                    {
+                        b.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+                        b.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+                    }
+
+                // Select this
+                tile.Background = new SolidColorBrush(Color.FromArgb(0x30, tileColor.R, tileColor.G, tileColor.B));
+                tile.BorderBrush = new SolidColorBrush(tileColor);
+                activeModeId = modeId;
+
+                await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
+                    device.Device, device.Sku, GoveeCloudApi.SetMusicMode(modeId, (int)sensSlider.Value)));
+            };
+
+            wrap.Children.Add(tile);
+        }
+
+        parent.Children.Add(wrap);
+
+        // Sensitivity
+        var sensRow = new StackPanel { Orientation = Orientation.Horizontal };
+        sensRow.Children.Add(MakeSubLabel("SENSITIVITY"));
         var sensDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         sensDebounce.Tick += async (_, _) =>
         {
             sensDebounce.Stop();
-            if (musicToggle.IsChecked == true)
+            if (activeModeId.HasValue)
                 await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
-                    device.Device, device.Sku, GoveeCloudApi.SetMusicMode(1, (int)sensSlider.Value)));
+                    device.Device, device.Sku, GoveeCloudApi.SetMusicMode(activeModeId.Value, (int)sensSlider.Value)));
         };
         sensSlider.ValueChanged += (_, _) =>
         {
             sensDebounce.Stop();
             sensDebounce.Start();
         };
-        parent.Children.Add(sensSlider);
+        sensRow.Children.Add(sensSlider);
+        parent.Children.Add(sensRow);
     }
 
     // ── Scene tile colors ─────────────────────────────────────────────
