@@ -432,33 +432,15 @@ public partial class AmbienceView : UserControl
         };
         controlsRow.Children.Add(brightnessSlider);
 
-        // Color swatch — use LAN if available
-        var colorSwatch = MakeColorSwatch(Colors.White, (r, g, b) =>
-        {
-            if (lanIp != null)
-            {
-                AmbienceSync.PauseSync(lanIp, 30);
-                _ = AmbienceSync.SendColorAsync(lanIp, r, g, b);
-            }
-            else if (_cloudApi != null)
-                _ = SafeCloudCall(() => _cloudApi.ControlDeviceAsync(
-                    device.Device, device.Sku, GoveeCloudApi.SetColor(r, g, b)));
-        });
-        controlsRow.Children.Add(colorSwatch);
-
         stack.Children.Add(controlsRow);
 
-        // ── Scenes section ──
-        bool hasScenes = device.Capabilities?.Contains("devices.capabilities.dynamic_scene") == true;
-        if (hasScenes)
-        {
-            stack.Children.Add(MakeSeparator());
-            var (scBar, scLabel) = MakeSectionHeader("SCENES");
-            stack.Children.Add(WrapHeader(scBar, scLabel));
-            var sceneContainer = new StackPanel();
-            stack.Children.Add(sceneContainer);
-            BuildScenesSection(device, sceneContainer);
-        }
+        // ── Colors section (Solid tile + Cloud scenes if available) ──
+        stack.Children.Add(MakeSeparator());
+        var (scBar, scLabel) = MakeSectionHeader("COLORS");
+        stack.Children.Add(WrapHeader(scBar, scLabel));
+        var colorsContainer = new StackPanel();
+        stack.Children.Add(colorsContainer);
+        BuildColorsSection(device, colorsContainer, lanIp);
 
 
         // ── Music mode section ──
@@ -474,68 +456,136 @@ public partial class AmbienceView : UserControl
         return card;
     }
 
-    // ── Scenes ────────────────────────────────────────────────────────
+    // ── Colors (Solid + Scenes) ─────────────────────────────────────
 
-    private void BuildScenesSection(GoveeDeviceInfo device, StackPanel container)
+    private void BuildColorsSection(GoveeDeviceInfo device, StackPanel container, string? lanIp)
     {
-        // Extract scenes from raw capabilities (no extra API call)
-        var scenes = GoveeCloudApi.ExtractScenesFromCapabilities(device.RawCapabilities, "dynamic");
+        var wrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+        container.Children.Add(wrap);
 
-        if (scenes.Count == 0)
+        // Always add Solid tile first
+        BuildSolidTile(wrap, device, lanIp);
+
+        // Add scene tiles only if Cloud API is connected
+        if (_cloudApi == null) return;
+
+        var scenes = GoveeCloudApi.ExtractScenesFromCapabilities(device.RawCapabilities, "dynamic");
+        if (scenes.Count > 0)
+        {
+            RenderSceneTilesIntoWrap(wrap, device, scenes);
+        }
+        else
         {
             // Try fetching via API as fallback
-            var loadingText = new TextBlock
-            {
-                Text = "Loading scenes...",
-                Style = FindStyle("SecondaryText"),
-                FontSize = 11,
-            };
-            container.Children.Add(loadingText);
-            _ = FetchScenesAsync(device, container, loadingText);
-            return;
+            _ = FetchScenesIntoWrapAsync(device, wrap);
         }
-
-        RenderSceneTiles(container, device, scenes);
     }
 
-    private async Task FetchScenesAsync(GoveeDeviceInfo device, StackPanel container, TextBlock loadingText)
+    private void BuildSolidTile(WrapPanel wrap, GoveeDeviceInfo device, string? lanIp)
+    {
+        var solidColor = Color.FromRgb(0x00, 0xE6, 0x76); // accent green
+        var tile = new Border
+        {
+            Width = 82, Height = 58,
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(0, 0, 6, 6),
+            Cursor = Cursors.Hand,
+            ToolTip = "Set a solid color",
+            Tag = "__solid__",
+        };
+
+        var tileContent = new StackPanel
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        tileContent.Children.Add(new TextBlock
+        {
+            Text = "🎨",
+            FontSize = 20,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TextAlignment = TextAlignment.Center,
+            Foreground = new SolidColorBrush(solidColor),
+        });
+        tileContent.Children.Add(new TextBlock
+        {
+            Text = "Solid",
+            FontSize = 9,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TextAlignment = TextAlignment.Center,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
+            Margin = new Thickness(0, 2, 0, 0),
+        });
+        tile.Child = tileContent;
+
+        tile.MouseEnter += (_, _) =>
+        {
+            tile.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+            tile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, solidColor.R, solidColor.G, solidColor.B));
+        };
+        tile.MouseLeave += (_, _) =>
+        {
+            tile.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+            tile.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+        };
+
+        tile.MouseLeftButtonUp += (_, _) =>
+        {
+            // Deselect all tiles in the wrap
+            foreach (var child in wrap.Children)
+                if (child is Border b)
+                {
+                    b.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+                    b.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+                }
+
+            // Select solid
+            tile.Background = new SolidColorBrush(Color.FromArgb(0x30, solidColor.R, solidColor.G, solidColor.B));
+            tile.BorderBrush = new SolidColorBrush(solidColor);
+
+            // Open color picker
+            var current = Colors.White;
+            var dialog = new ColorPickerDialog(current) { Owner = Window.GetWindow(this) };
+            if (dialog.ShowDialog() == true)
+            {
+                var c = dialog.SelectedColor;
+                if (lanIp != null)
+                {
+                    AmbienceSync.PauseSync(lanIp, 30);
+                    _ = AmbienceSync.SendColorAsync(lanIp, c.R, c.G, c.B);
+                }
+                else if (_cloudApi != null)
+                    _ = SafeCloudCall(() => _cloudApi.ControlDeviceAsync(
+                        device.Device, device.Sku, GoveeCloudApi.SetColor(c.R, c.G, c.B)));
+            }
+        };
+
+        wrap.Children.Add(tile);
+    }
+
+    private async Task FetchScenesIntoWrapAsync(GoveeDeviceInfo device, WrapPanel wrap)
     {
         try
         {
             var scenes = await _cloudApi!.GetDynamicScenesAsync(device.Device, device.Sku);
             Dispatcher.Invoke(() =>
             {
-                container.Children.Remove(loadingText);
-                if (scenes == null || scenes.Count == 0)
-                {
-                    container.Children.Add(new TextBlock
-                    {
-                        Text = "No scenes available for this device",
-                        Style = FindStyle("SecondaryText"),
-                        FontSize = 11,
-                        Foreground = FindBrush("TextDimBrush"),
-                    });
-                    return;
-                }
-                RenderSceneTiles(container, device, scenes);
+                if (scenes != null && scenes.Count > 0)
+                    RenderSceneTilesIntoWrap(wrap, device, scenes);
             });
         }
         catch (Exception ex)
         {
             Logger.Log($"[Ambience] Scene fetch error: {ex.Message}");
-            Dispatcher.Invoke(() =>
-            {
-                loadingText.Text = "Failed to load scenes";
-                loadingText.Foreground = FindBrush("DangerRedBrush");
-            });
         }
     }
 
-    private void RenderSceneTiles(StackPanel container, GoveeDeviceInfo device, List<GoveeScene> scenes)
+    private void RenderSceneTilesIntoWrap(WrapPanel wrap, GoveeDeviceInfo device, List<GoveeScene> scenes)
     {
         string? activeSceneId = null;
-
-        var wrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
 
         foreach (var scene in scenes)
         {
@@ -629,8 +679,6 @@ public partial class AmbienceView : UserControl
 
             wrap.Children.Add(tile);
         }
-
-        container.Children.Add(wrap);
     }
 
     // ── Segments ──────────────────────────────────────────────────────
@@ -678,39 +726,6 @@ public partial class AmbienceView : UserControl
             sensDebounce.Start();
         };
         parent.Children.Add(sensSlider);
-    }
-
-    // ── Color swatch helper ───────────────────────────────────────────
-
-    private Border MakeColorSwatch(Color initial, Action<byte, byte, byte> onColorSelected)
-    {
-        var swatch = new Border
-        {
-            Width = 28, Height = 28,
-            CornerRadius = new CornerRadius(14),
-            Background = new SolidColorBrush(initial),
-            BorderBrush = FindBrush("CardBorderBrush"),
-            BorderThickness = new Thickness(2),
-            Cursor = Cursors.Hand,
-            VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = "Click to set color",
-        };
-        swatch.MouseEnter += (_, _) => swatch.BorderBrush = FindBrush("AccentBrush");
-        swatch.MouseLeave += (_, _) => swatch.BorderBrush = FindBrush("CardBorderBrush");
-
-        swatch.MouseLeftButtonUp += (_, _) =>
-        {
-            var current = (swatch.Background as SolidColorBrush)?.Color ?? Colors.White;
-            var dialog = new ColorPickerDialog(current) { Owner = Window.GetWindow(this) };
-            if (dialog.ShowDialog() == true)
-            {
-                var c = dialog.SelectedColor;
-                swatch.Background = new SolidColorBrush(c);
-                onColorSelected(c.R, c.G, c.B);
-            }
-        };
-
-        return swatch;
     }
 
     // ── Scene tile colors ─────────────────────────────────────────────
