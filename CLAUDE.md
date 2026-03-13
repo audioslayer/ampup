@@ -56,6 +56,7 @@ Views/
   LightsView.xaml / .cs    Global lighting card + 5 LED columns — visual effect picker, colors, speed
   SettingsView.xaml / .cs  Connection, startup, profiles, integrations (HA + FanControl)
   HomeAssistantView.xaml/.cs  Home Assistant entity control
+  AmbienceView.xaml / .cs  Govee room lighting — LAN sync + Cloud dashboard (scenes, segments, music mode)
 
 Controls/
   AnimatedKnobControl.cs   WPF FrameworkElement — arc sweep knob, glow, frozen resources
@@ -70,7 +71,11 @@ Controls/
   ListPicker.cs            Dropdown list picker
   FlyoutPicker.cs          Floating picker popup
   RangeSlider.cs           Dual-thumb range slider
+  StyledSlider.cs          Single-thumb slider matching RangeSlider style (accent-aware)
+  GoveeSetupGuide.cs       4-step wizard window for Govee API key setup
 
+AmbienceSync.cs            Govee LAN UDP sync engine — discovery, color mirroring, rate limiting
+GoveeCloudApi.cs           Govee Platform REST client — devices, scenes, segments, music mode
 AudioAnalyzer.cs           WASAPI loopback capture + FFT — 5 frequency bands for audio-reactive LEDs
 SerialReader.cs            Reads COM port, parses fe/ff frames, fires OnKnob / OnButton events, ±3 jitter deadzone
 AudioMixer.cs              WASAPI per-app volume + GetPeakLevel, response curves, volume range
@@ -122,6 +127,15 @@ installer/ampup-setup.iss  Inno Setup script (reads version from auto-generated 
     "enabled": false, "effect": "RainbowWave",
     "r": 0, "g": 230, "b": 118, "r2": 255, "g2": 255, "b2": 255,
     "effectSpeed": 50, "reactiveMode": "SpectrumBands"
+  },
+  "ambience": {
+    "goveeEnabled": false,
+    "goveeApiKey": "",
+    "goveeDevices": [
+      { "ip": "192.168.1.50", "name": "Living Room Strip", "syncMode": "global" }
+    ],
+    "brightnessScale": 75,
+    "warmToneShift": false
   },
   "profileTransition": "Cascade",
   "startWithWindows": true,
@@ -236,6 +250,11 @@ Each button supports 3 gestures (15 total bindings):
 | `MicStatus` | 2 | Color1=unmuted, Color2=muted (mic state) |
 | `DeviceMute` | 2 | Color1=unmuted, Color2=muted (master state) |
 | `AudioReactive` | 2 | FFT-driven. Color1=idle, Color2=peak. Modes: BeatPulse, SpectrumBands, ColorShift |
+| `ProgramMute` | 2 | Color1=unmuted, Color2=muted (watches single program by name) |
+| `AppGroupMute` | 2 | Color1=any unmuted, Color2=all muted (watches linked knob's app group) |
+| `DeviceSelect` | per-device | Shows mapped color based on current default audio output device |
+| `PositionBlend` | 2 | Blend between color1→color2 based on knob position |
+| `PositionBlendMute` | 2 | PositionBlend + dims to Color2 when linked knob's group is muted |
 
 ### Audio-Reactive Modes (ReactiveMode)
 | Mode | Behavior |
@@ -416,6 +435,12 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - **Sleep uses graceful suspend** (forceCritical=false) — required for proper GPU/USB wake
 - **Newtonsoft.Json PascalCase** — config props in memory are PascalCase, JSON file is camelCase
 - **Cannot `dotnet build` on Linux** — WPF is Windows-only
+- **AllowsTransparency=true breaks Win11** — creates WS_EX_LAYERED window, mouse hit-testing fails on Canvas/Image. Never use on popup/dialog windows.
+- **WPF TextBlock has no LetterSpacing** — not a real WPF property, don't try to set it
+- **WPF emoji render monochrome** — Unicode emoji in TextBlock render as black glyphs, not color. Use colored text/shapes instead.
+- **Parallel agents can mismatch APIs** — when agents build caller and callee in parallel, method names may not match. Always verify interface alignment or build sequentially.
+- **Govee LAN API** — UDP multicast to 239.255.255.250:4001 for discovery, listen on 4002. Control via unicast to device IP:4001. Rate limit: max 10 sends/sec. Only supports on/off, brightness, solid color. No scenes/segments.
+- **Govee Cloud API** — REST at openapi.api.govee.com, header `Govee-API-Key`. Supports scenes, segments, music mode. Rate limit: ~100 req/min, 10k/day. API key from Govee app settings.
 
 ---
 
@@ -429,3 +454,4 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - **v0.5.1-alpha** — Quick Assign from Tray (right-click tray → Assign Running Apps submenu → pick knob), Auto-Detect & Suggest Layout (amber banner in MixerView when known apps detected and knobs unconfigured), Knob Copy/Paste (right-click channel strip → Copy/Paste/Reset context menu with static clipboard).
 - **v0.5.2-alpha** — Bug fix: knob UI updates immediately on hardware turn (push position directly to MixerView via Dispatcher.BeginInvoke, bypassing 50ms poll). Bug fix: potentiometer jitter deadzone in SerialReader (±3 ADC count threshold suppresses noise). New LED effect: DeviceSelect — shows per-device colors based on which Windows output device is currently default (up to 3 device→color mappings per knob, configured in LightsView).
 - **v0.5.x (Mar 11 polish)** — Copy/paste context menus for Lights and Buttons views. UI consistency audit + tooltips across all views (standardized headers, labels, ComboBox styles; tooltips on every control explaining what it does). Moved Auto-Ducking and Auto-Profile Switching from Settings to collapsible "Smart Mix" section in Mixer tab. Friendly serial port selector with auto-detect (COM port dropdown, auto-detect button probes for CH343/CH340, connection status indicator, raw port/baud hidden under Advanced). 4 new per-knob LED effects (PositionBlend, Wheel, RainbowWheel, ProgramMute). Mute Device button action. 13 new global-spanning LED effects (TheaterChase, RainbowScanner, SparkleRain, BreathingSync, FireWall, DualRacer, Lightning, Fillup, Ocean, Collision, DNA, Rainfall, PoliceLights).
+- **v0.6.0-alpha (Mar 12)** — **Ambience tab**: new sidebar nav item for Govee room lighting sync. Govee LAN real-time sync (UDP multicast, 20 FPS color mirroring from Turn Up LEDs to room lights). Govee Cloud API dashboard (REST client with scenes, segments, music mode, device on/off/brightness/color control). 4-step API key setup wizard (`Controls/GoveeSetupGuide.cs`). Brightness scaling + warm tone shift. **AppGroupMute** LED effect (reactive, Color1=unmuted, Color2=all muted). **Process picker UX** for mute_program/close_program (▾ button lists running processes, better labels/tooltips). **Win11 color picker fix** (removed AllowsTransparency which broke WS_EX_LAYERED hit-testing). **Bug audit**: config write race condition, serial CancellationTokenSource leak, audio analyzer thread safety, tray mixer device handle leak, mute poll timer reentrancy guard, ambience dispose patterns, button handler dead code. **Theme consistency**: accent color for primary controls only, curve picker → white, all StyledSlider/RangeSlider accent-aware and refresh on theme change. Fixed PRIMARY/SECONDARY label clipping in Lights tab.
