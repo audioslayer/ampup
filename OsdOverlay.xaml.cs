@@ -102,7 +102,7 @@ public partial class OsdOverlay : Window
     private void SetSymbolIcon(string symbolName, string colorHex)
     {
         var kind = Enum.TryParse<MaterialIconKind>(symbolName, out var k) ? k : MaterialIconKind.VolumeHigh;
-        var icon = new MaterialIcon { Kind = kind, Width = 26, Height = 26, VerticalAlignment = VerticalAlignment.Center };
+        var icon = new Material.Icons.WPF.MaterialIcon { Kind = kind, Width = 26, Height = 26, VerticalAlignment = VerticalAlignment.Center };
         try { icon.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(colorHex)); } catch { }
         OsdIconHost.Content = icon;
     }

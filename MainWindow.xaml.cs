@@ -3,7 +3,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Material.Icons;
-using Material.Icons.WPF;
+using MiIcon = Material.Icons.WPF.MaterialIcon;
 using Wpf.Ui.Controls;
 using AmpUp.Views;
 
@@ -432,7 +432,7 @@ public partial class MainWindow : FluentWindow
             row.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = System.Windows.GridLength.Auto });
 
             // Icon button (clickable to change icon)
-            var iconElement = new MaterialIcon
+            var iconElement = new MiIcon
             {
                 Width = 18, Height = 18,
                 Margin = new Thickness(0, 0, 8, 0),
@@ -609,7 +609,7 @@ public partial class MainWindow : FluentWindow
         string selectedColor = currentIcon.Color;
 
         // We'll track all icon elements so we can update their color when user picks a new one
-        var allIconElements = new List<MaterialIcon>();
+        var allIconElements = new List<MiIcon>();
 
         foreach (var (name, hex) in ProfileIconColors)
         {
@@ -674,7 +674,7 @@ public partial class MainWindow : FluentWindow
                 if (!Enum.TryParse<MaterialIconKind>(symName, out var parsedKind))
                     continue;
 
-                var iconEl = new MaterialIcon
+                var iconEl = new MiIcon
                 {
                     Kind = parsedKind,
                     Width = 18,

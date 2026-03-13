@@ -986,7 +986,7 @@ public partial class SettingsView : UserControl
         // Show a preview OSD at the configured position
         var overlay = new OsdOverlay();
         overlay.SetPosition(_config.Osd.Position);
-        overlay.ShowVolume("Preview", 75, "Speaker224");
+        overlay.ShowVolume("Preview", 75, "VolumeHigh");
     }
 
     private async void OnCheckUpdate(object sender, RoutedEventArgs e)

@@ -393,16 +393,16 @@ public partial class App : Application
                 string label = !string.IsNullOrEmpty(knob.Label) ? knob.Label : knob.Target;
                 string symbol = knob.Target switch
                 {
-                    "master" => "Speaker224",
-                    "mic" => "Mic24",
-                    "monitor" => "Desktop24",
-                    "led_brightness" => "Color24",
-                    "govee" => "Color24",
-                    _ when knob.Target.StartsWith("govee:") => "Color24",
-                    "spotify" => "MusicNote124",
-                    "discord" => "Headphones24",
-                    _ when knob.Target.StartsWith("ha_") => "Home24",
-                    _ => "Speaker124"
+                    "master" => "VolumeHigh",
+                    "mic" => "Microphone",
+                    "monitor" => "Monitor",
+                    "led_brightness" => "Palette",
+                    "govee" => "Palette",
+                    _ when knob.Target.StartsWith("govee:") => "Palette",
+                    "spotify" => "MusicNote",
+                    "discord" => "Headphones",
+                    _ when knob.Target.StartsWith("ha_") => "Home",
+                    _ => "VolumeHigh"
                 };
                 Dispatcher.Invoke(() =>
                 {
@@ -560,7 +560,7 @@ public partial class App : Application
             Dispatcher.Invoke(() =>
             {
                 EnsureOsd();
-                _osdOverlay!.ShowVolume("LED Brightness", pct, "Color24");
+                _osdOverlay!.ShowVolume("LED Brightness", pct, "Palette");
             });
         }
     }

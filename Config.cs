@@ -398,7 +398,7 @@ public enum OsdPosition
 
 public class ProfileIconConfig
 {
-    public string Symbol { get; set; } = "Person24";
+    public string Symbol { get; set; } = "AccountCircleOutline";
     public string Color { get; set; } = "#00E676";
 }
 
