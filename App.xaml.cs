@@ -23,6 +23,8 @@ public partial class App : Application
     private bool _isConnected;
     private OsdOverlay? _osdOverlay;
     private HAIntegration? _ha;
+    private readonly (string target, float value)[] _haLastValues = new (string, float)[5];
+    private readonly bool[] _haThrottleActive = new bool[5];
     private DuckingEngine? _duckingEngine;
     private AutoProfileSwitcher? _autoSwitcher;
     private TrayMixerPopup? _trayMixerPopup;
@@ -343,11 +345,16 @@ public partial class App : Application
         {
             if (knob.Target.StartsWith("ha_", StringComparison.OrdinalIgnoreCase))
             {
-                // Route to Home Assistant
+                // Route to Home Assistant (throttled — HA can't handle rapid-fire HTTP calls)
                 if (_ha != null && _ha.IsAvailable)
                 {
                     float vol = e.Value / 1023f;
-                    _ = _ha.HandleKnobAsync(knob.Target, vol);
+                    _haLastValues[e.Idx] = (knob.Target, vol);
+                    if (!_haThrottleActive[e.Idx])
+                    {
+                        _haThrottleActive[e.Idx] = true;
+                        _ = SendHaThrottledAsync(e.Idx);
+                    }
                 }
             }
             else if (knob.Target.Equals("monitor", StringComparison.OrdinalIgnoreCase))
@@ -397,6 +404,26 @@ public partial class App : Application
         // (don't wait for the 50ms LiveTimer_Tick poll)
         float pos = e.Value / 1023f;
         Dispatcher.BeginInvoke(() => _mainWindow?.UpdateKnobPosition(e.Idx, pos));
+    }
+
+    private async Task SendHaThrottledAsync(int idx)
+    {
+        while (true)
+        {
+            var (target, value) = _haLastValues[idx];
+            try { await _ha!.HandleKnobAsync(target, value); }
+            catch (Exception ex) { Logger.Log($"HA throttled send failed: {ex.Message}"); }
+
+            await Task.Delay(80); // ~12 updates/sec max — responsive but not flooding
+
+            // Check if value changed while we were waiting
+            var (newTarget, newValue) = _haLastValues[idx];
+            if (Math.Abs(newValue - value) < 0.001f)
+            {
+                _haThrottleActive[idx] = false;
+                return;
+            }
+        }
     }
 
     private void HandleButton(ButtonEvent e)
