@@ -239,30 +239,21 @@ public class GridPicker : Border
             _hoveredSubMenuIdx = -1;
         };
 
-        // Timer to close both popups when mouse leaves all popup areas
-        _closeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
+        // Polling timer: checks if mouse is still over either popup, closes if not
+        _closeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
         _closeTimer.Tick += (_, _) =>
         {
+            // If mouse is over the trigger control, main popup, or sub-popup — stay open
+            if (IsMouseOver || _popupBorder.IsMouseOver || (_subPopup.IsOpen && _subPopupBorder.IsMouseOver))
+                return;
+
             _closeTimer.Stop();
             if (_subPopup.IsOpen) _subPopup.IsOpen = false;
             _popup.IsOpen = false;
         };
 
-        // Cancel close when mouse enters either popup
-        _popupBorder.MouseEnter += (_, _) => _closeTimer.Stop();
-        _subPopupBorder.MouseEnter += (_, _) => _closeTimer.Stop();
-
-        // Start close timer when mouse leaves either popup
-        _popupBorder.MouseLeave += (_, _) =>
-        {
-            _closeTimer.Stop();
-            _closeTimer.Start();
-        };
-        _subPopupBorder.MouseLeave += (_, _) =>
-        {
-            _closeTimer.Stop();
-            _closeTimer.Start();
-        };
+        _popup.Opened += (_, _) => _closeTimer.Start();
+        _popup.Closed += (_, _) => _closeTimer.Stop();
 
         // Timer for delayed sub-menu open on hover
         _subOpenTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
