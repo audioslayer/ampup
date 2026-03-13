@@ -85,7 +85,16 @@ public class AmbienceSync : IDisposable
     /// </summary>
     public async Task<List<(string Ip, string Name)>> ScanAsync(CancellationToken ct = default)
     {
-        var results = new List<(string, string)>();
+        var rich = await ScanDevicesAsync(ct);
+        return rich.Select(d => (d.Ip, d.Name)).ToList();
+    }
+
+    /// <summary>
+    /// Broadcast Govee LAN discovery and return full device info (IP, name, SKU, MAC).
+    /// </summary>
+    public async Task<List<GoveeDeviceConfig>> ScanDevicesAsync(CancellationToken ct = default)
+    {
+        var results = new List<GoveeDeviceConfig>();
 
         using var udp = new UdpClient();
         udp.EnableBroadcast = true;
@@ -128,10 +137,19 @@ public class AmbienceSync : IDisposable
 
                 string json = Encoding.UTF8.GetString(result.Data);
                 string ip = result.Ep.Address.ToString();
-                string name = ParseGoveeName(json, ip);
+                var (name, sku, deviceMac) = ParseScanResponse(json, ip);
 
-                if (!results.Any(r => r.Item1 == ip))
-                    results.Add((ip, name));
+                if (!results.Any(r => r.Ip == ip))
+                {
+                    results.Add(new GoveeDeviceConfig
+                    {
+                        Ip = ip,
+                        Name = name,
+                        Sku = sku,
+                        DeviceId = deviceMac,
+                        SyncMode = "global",
+                    });
+                }
             }
             catch (OperationCanceledException) { break; }
             catch { break; }
@@ -282,26 +300,33 @@ public class AmbienceSync : IDisposable
 
     // ── JSON helpers ────────────────────────────────────────────────
 
-    private static string ParseGoveeName(string json, string fallbackIp)
+    /// <summary>
+    /// Parse Govee LAN scan response JSON to extract sku, device MAC, and a display name.
+    /// Returns (displayName, sku, deviceMac).
+    /// </summary>
+    public static (string Name, string Sku, string DeviceMac) ParseScanResponse(string json, string fallbackIp)
     {
-        // Govee scan response contains "sku" and "device" fields — extract sku as friendly name
+        string sku = "";
+        string deviceMac = "";
         try
         {
-            int skuStart = json.IndexOf("\"sku\":", StringComparison.Ordinal);
-            if (skuStart >= 0)
+            var obj = Newtonsoft.Json.Linq.JObject.Parse(json);
+            var data = obj["msg"]?["data"];
+            if (data != null)
             {
-                int valStart = json.IndexOf('"', skuStart + 6);
-                if (valStart >= 0)
-                {
-                    int valEnd = json.IndexOf('"', valStart + 1);
-                    if (valEnd > valStart)
-                        return json.Substring(valStart + 1, valEnd - valStart - 1);
-                }
+                sku = data["sku"]?.ToString() ?? "";
+                deviceMac = data["device"]?.ToString() ?? "";
             }
         }
         catch { }
-        return $"Govee ({fallbackIp})";
+
+        string name = !string.IsNullOrEmpty(sku) ? sku : $"Govee ({fallbackIp})";
+        return (name, sku, deviceMac);
     }
+
+    // Keep backward compat
+    private static string ParseGoveeName(string json, string fallbackIp)
+        => ParseScanResponse(json, fallbackIp).Name;
 
     public void Dispose()
     {

@@ -421,6 +421,8 @@ public class AmbienceConfig
 public class GoveeDeviceConfig
 {
     public string Ip { get; set; } = "";
-    public string Name { get; set; } = "";
-    public string SyncMode { get; set; } = "off"; // "off" | "global" | "knob0"-"knob4"
+    public string Name { get; set; } = "";         // friendly name from Cloud API, or SKU fallback
+    public string Sku { get; set; } = "";           // model number e.g. "H6056"
+    public string DeviceId { get; set; } = "";      // MAC address from LAN scan or Cloud API device ID
+    public string SyncMode { get; set; } = "off";   // "off" | "global" | "knob0"-"knob4"
 }

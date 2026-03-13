@@ -853,7 +853,13 @@ public partial class MixerView : UserControl
                     foreach (var device in config.Ambience.GoveeDevices)
                     {
                         if (!string.IsNullOrWhiteSpace(device.Ip))
-                            picker.AddItem($"Govee: {device.Name}", $"govee:{device.Ip}");
+                        {
+                            // Show friendly name if available, otherwise SKU, with IP fallback
+                            var displayName = !string.IsNullOrWhiteSpace(device.Name) ? device.Name
+                                : !string.IsNullOrWhiteSpace(device.Sku) ? device.Sku
+                                : device.Ip;
+                            picker.AddItem($"Govee: {displayName}", $"govee:{device.Ip}");
+                        }
                     }
                     if (!config.Ambience.GoveeDevices.Any(d => !string.IsNullOrWhiteSpace(d.Ip)))
                         picker.AddItem("Govee", "govee"); // fallback if no devices configured

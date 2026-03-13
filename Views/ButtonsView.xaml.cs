@@ -1629,7 +1629,12 @@ public partial class ButtonsView : UserControl
         foreach (var device in config.Ambience.GoveeDevices)
         {
             if (!string.IsNullOrWhiteSpace(device.Ip))
-                picker.AddItem($"{device.Name} ({device.Ip})", device.Ip);
+            {
+                var displayName = !string.IsNullOrWhiteSpace(device.Name) ? device.Name
+                    : !string.IsNullOrWhiteSpace(device.Sku) ? device.Sku
+                    : device.Ip;
+                picker.AddItem($"{displayName} ({device.Ip})", device.Ip);
+            }
         }
     }
 

@@ -12,6 +12,8 @@ public class GoveeDeviceInfo
     public string Sku { get; set; } = "";
     public string DeviceName { get; set; } = "";
     public List<string> Capabilities { get; set; } = new();
+    // Full capability JSON for extracting scene options, segment info, etc.
+    public JArray? RawCapabilities { get; set; }
 }
 
 public class GoveeDeviceState
@@ -130,7 +132,8 @@ public class GoveeCloudApi : IDisposable
                     Device = item["device"]?.ToString() ?? "",
                     Sku = item["sku"]?.ToString() ?? "",
                     DeviceName = item["deviceName"]?.ToString() ?? "",
-                    Capabilities = caps
+                    Capabilities = caps,
+                    RawCapabilities = item["capabilities"] as JArray,
                 });
             }
 
@@ -292,6 +295,91 @@ public class GoveeCloudApi : IDisposable
         {
             Logger.Log($"[Govee] GetScenesInternalAsync({category}) exception: {ex.Message}");
             return new();
+        }
+    }
+
+    /// <summary>
+    /// Extract scenes from device's raw capabilities (no extra API call needed).
+    /// </summary>
+    public static List<GoveeScene> ExtractScenesFromCapabilities(JArray? capabilities, string category = "dynamic")
+    {
+        var result = new List<GoveeScene>();
+        if (capabilities == null) return result;
+
+        foreach (var cap in capabilities)
+        {
+            var capType = cap["type"]?.ToString() ?? "";
+            bool isDiy = capType.Contains("diy", StringComparison.OrdinalIgnoreCase);
+            bool isDynamic = capType.Contains("dynamic", StringComparison.OrdinalIgnoreCase);
+
+            bool matches = category == "diy" ? isDiy : isDynamic;
+            if (!matches) continue;
+
+            var options = cap["parameters"]?["options"] as JArray ?? new JArray();
+            foreach (var opt in options)
+            {
+                result.Add(new GoveeScene
+                {
+                    Id = opt["value"]?.ToString() ?? "",
+                    Name = opt["name"]?.ToString() ?? "",
+                    Category = category,
+                });
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Extract segment count from device's raw capabilities.
+    /// </summary>
+    public static int ExtractSegmentCount(JArray? capabilities)
+    {
+        if (capabilities == null) return 0;
+
+        foreach (var cap in capabilities)
+        {
+            var instance = cap["instance"]?.ToString() ?? "";
+            if (instance == "segmentedColorRgb" || instance == "segmentedBrightness")
+            {
+                // Look for segment array length in parameters
+                var fields = cap["parameters"]?["fields"] as JArray;
+                if (fields != null)
+                {
+                    foreach (var field in fields)
+                    {
+                        if (field["fieldName"]?.ToString() == "segment")
+                        {
+                            var range = field["range"];
+                            if (range != null)
+                                return range["max"]?.ToObject<int>() ?? 0;
+                            var options = field["options"] as JArray;
+                            if (options != null)
+                                return options.Count;
+                        }
+                    }
+                }
+            }
+        }
+        return 0;
+    }
+
+    /// <summary>
+    /// Cross-reference LAN-discovered devices with Cloud API devices to populate friendly names.
+    /// Updates GoveeDeviceConfig.Name with the Cloud API deviceName when SKU matches.
+    /// </summary>
+    public static void EnrichLanDevicesWithCloudNames(List<GoveeDeviceConfig> lanDevices, List<GoveeDeviceInfo> cloudDevices)
+    {
+        foreach (var lan in lanDevices)
+        {
+            // Match by device ID (MAC) first, then by SKU
+            var match = cloudDevices.FirstOrDefault(c =>
+                !string.IsNullOrEmpty(lan.DeviceId) && c.Device == lan.DeviceId)
+                ?? cloudDevices.FirstOrDefault(c =>
+                    !string.IsNullOrEmpty(lan.Sku) && c.Sku == lan.Sku);
+
+            if (match != null && !string.IsNullOrWhiteSpace(match.DeviceName))
+                lan.Name = match.DeviceName;
         }
     }
 

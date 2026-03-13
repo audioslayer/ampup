@@ -764,7 +764,9 @@ public partial class MainWindow : FluentWindow
     public void SetAmbienceSync(AmbienceSync sync)
     {
         _ambienceView.SetSync(sync);
+        _ambienceView.NavigateToSettings = () => NavigateTo(_settingsView, NavSettings);
         _buttonsView.SetAmbienceSync(sync);
+        _settingsView.SetAmbienceSync(sync);
     }
 
     private void SwitchToProfile(string profileName)

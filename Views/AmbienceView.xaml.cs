@@ -1,8 +1,10 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using AmpUp.Controls;
+using Newtonsoft.Json.Linq;
 
 namespace AmpUp.Views;
 
@@ -14,30 +16,15 @@ public partial class AmbienceView : UserControl
     private bool _loading;
     private readonly DispatcherTimer _debounce;
 
-    // Govee card controls
-    private CheckBox _goveeEnabled = null!;
-    private Border _goveeStatusDot = null!;
-    private TextBlock _goveeStatusLabel = null!;
-    private Button _goveeScanBtn = null!;
-    private TextBlock _goveeScanStatus = null!;
-    private StackPanel _goveeDeviceList = null!;
-    private StackPanel _goveeScanRow = null!;
-
-    // Sync settings controls
-    private StyledSlider _brightnessSlider = null!;
-    // brightness value is rendered by StyledSlider itself
-    private CheckBox _warmToneShift = null!;
-
-    // Cloud API state
+    // Cloud API
     private GoveeCloudApi? _cloudApi;
     private List<GoveeDeviceInfo> _cloudDevices = new();
-    private readonly Dictionary<string, List<GoveeScene>> _deviceScenes = new();
 
     // Section header elements (refreshed on accent change)
     private readonly List<(Border bar, TextBlock label)> _sectionHeaders = new();
 
-    // Device rows — maps IP → device name
-    private readonly Dictionary<string, string> _deviceCombos = new();
+    // Navigation callback (set by MainWindow to navigate to Settings)
+    public Action? NavigateToSettings { get; set; }
 
     public AmbienceView()
     {
@@ -48,9 +35,7 @@ public partial class AmbienceView : UserControl
 
         ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshAccentColors);
 
-        BuildGoveeCard();
-        BuildSyncCard();
-        BuildApiKeyCard();
+        BuildTopBar();
     }
 
     public void SetSync(AmbienceSync sync)
@@ -63,704 +48,114 @@ public partial class AmbienceView : UserControl
         _loading = true;
         _config = config;
         _onSave = onSave;
-
-        var ambience = config.Ambience;
-
-        _goveeEnabled.IsChecked = ambience.GoveeEnabled;
-        _goveeScanRow.Visibility = ambience.GoveeEnabled ? Visibility.Visible : Visibility.Collapsed;
-        UpdateGoveeStatusDot();
-
-        // Restore saved devices immediately (don't require re-scan)
-        if (ambience.GoveeDevices.Count > 0)
-        {
-            _goveeDeviceList.Children.Clear();
-            _deviceCombos.Clear();
-            foreach (var dev in ambience.GoveeDevices)
-                AddDeviceRow(dev.Ip, dev.Name);
-
-            _goveeDeviceList.Visibility = Visibility.Visible;
-            _goveeScanStatus.Text = $"{ambience.GoveeDevices.Count} device(s) configured";
-        }
-        else
-        {
-            _goveeDeviceList.Visibility = Visibility.Collapsed;
-            _goveeScanStatus.Text = "No devices found";
-        }
-
-        _brightnessSlider.Value = ambience.BrightnessScale;
-        // StyledSlider renders its own value label
-        _warmToneShift.IsChecked = ambience.WarmToneShift;
-
         _loading = false;
 
         // Initialize cloud API if key is configured
-        if (!string.IsNullOrEmpty(ambience.GoveeApiKey))
+        if (!string.IsNullOrEmpty(config.Ambience.GoveeApiKey))
         {
             _cloudApi?.Dispose();
-            _cloudApi = new GoveeCloudApi(ambience.GoveeApiKey);
-            RefreshApiKeyCard();
-            _ = FetchCloudDevicesAsync();
+            _cloudApi = new GoveeCloudApi(config.Ambience.GoveeApiKey);
+            _ = FetchCloudDevicesAndRebuild();
         }
         else
         {
-            RefreshApiKeyCard();
+            _cloudDevices.Clear();
+            RebuildDevicePanel();
         }
     }
 
-    // ── Govee Card ───────────────────────────────────────────────────
+    // ── Top Bar ──────────────────────────────────────────────────────
 
-    private void BuildGoveeCard()
+    private void BuildTopBar()
     {
-        var grid = GoveeContent;
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // header
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // enable
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // scan row
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // device list
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
 
-        // Row 0: Header
-        var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
-
-        var accentBar = new Border
+        var settingsBtn = new TextBlock
         {
-            Width = 3,
-            CornerRadius = new CornerRadius(2),
-            Background = FindBrush("AccentBrush"),
-            Margin = new Thickness(0, 0, 10, 0),
-        };
-        headerRow.Children.Add(accentBar);
-        _sectionHeaders.Add((accentBar, null!));
-
-        var titleBlock = new TextBlock
-        {
-            Text = "GOVEE",
-            Style = FindStyle("HeaderText"),
+            Text = "⚙ Settings",
+            FontSize = 12,
+            Foreground = FindBrush("AccentBrush"),
+            Cursor = Cursors.Hand,
             VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 16, 0),
+            ToolTip = "Go to Settings to configure Govee connection",
         };
-        headerRow.Children.Add(titleBlock);
-        _sectionHeaders[_sectionHeaders.Count - 1] = (accentBar, titleBlock);
+        settingsBtn.MouseLeftButtonUp += (_, _) => NavigateToSettings?.Invoke();
+        row.Children.Add(settingsBtn);
 
-        _goveeStatusDot = new Border
+        var helpBtn = new TextBlock
         {
-            Width = 8,
-            Height = 8,
+            Text = "? Help",
+            FontSize = 12,
+            Foreground = FindBrush("AccentBrush"),
+            Cursor = Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 16, 0),
+        };
+        helpBtn.MouseLeftButtonUp += (_, _) => GlassDialog.ShowInfo(
+            "Govee Ambience controls your Govee lights via Cloud API.\n\n" +
+            "1. Enable Govee LAN sync in Settings\n" +
+            "2. Add your Cloud API key for scenes, segments, and music mode\n" +
+            "3. Get your API key at developer.govee.com",
+            owner: Window.GetWindow(this));
+        row.Children.Add(helpBtn);
+
+        // Status indicator
+        var statusDot = new Border
+        {
+            Width = 8, Height = 8,
             CornerRadius = new CornerRadius(4),
-            Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#555555")),
-            Margin = new Thickness(12, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 6, 0),
         };
-        headerRow.Children.Add(_goveeStatusDot);
-
-        _goveeStatusLabel = new TextBlock
+        var statusLabel = new TextBlock
         {
-            Text = "Disabled",
-            Style = FindStyle("SecondaryText"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(6, 0, 0, 0),
-        };
-        headerRow.Children.Add(_goveeStatusLabel);
-
-        Grid.SetRow(headerRow, 0);
-        grid.Children.Add(headerRow);
-
-        // Row 1: Enable checkbox
-        _goveeEnabled = new CheckBox
-        {
-            Content = "Enable Govee LAN sync",
-            Foreground = FindBrush("TextPrimaryBrush"),
-            Margin = new Thickness(0, 0, 0, 12),
-            FontSize = 13,
-        };
-        _goveeEnabled.Checked += (_, _) =>
-        {
-            if (_loading) return;
-            _goveeScanRow.Visibility = Visibility.Visible;
-            UpdateGoveeStatusDot();
-            QueueSave();
-        };
-        _goveeEnabled.Unchecked += (_, _) =>
-        {
-            if (_loading) return;
-            _goveeScanRow.Visibility = Visibility.Collapsed;
-            UpdateGoveeStatusDot();
-            QueueSave();
-        };
-        Grid.SetRow(_goveeEnabled, 1);
-        grid.Children.Add(_goveeEnabled);
-
-        // Row 2: Scan row (button + status)
-        _goveeScanRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 10),
-            Visibility = Visibility.Collapsed,
-        };
-
-        _goveeScanBtn = new Button
-        {
-            Content = "Scan Network",
-            Padding = new Thickness(12, 4, 12, 4),
-            FontSize = 12,
-        };
-        _goveeScanBtn.Click += async (_, _) => await RunScanAsync();
-        _goveeScanRow.Children.Add(_goveeScanBtn);
-
-        var helpBtn = new Button
-        {
-            Content = "?",
-            Width = 24, Height = 24,
-            Padding = new Thickness(0),
-            FontSize = 12,
-            FontWeight = FontWeights.Bold,
-            ToolTip = "Not finding devices? Click for help",
-            Margin = new Thickness(6, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        helpBtn.Click += (_, _) => ShowLanControlHelp();
-        _goveeScanRow.Children.Add(helpBtn);
-
-        _goveeScanStatus = new TextBlock
-        {
-            Text = "No devices found",
-            Style = FindStyle("SecondaryText"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(10, 0, 0, 0),
-        };
-        _goveeScanRow.Children.Add(_goveeScanStatus);
-
-        Grid.SetRow(_goveeScanRow, 2);
-        grid.Children.Add(_goveeScanRow);
-
-        // Row 3: Device list
-        _goveeDeviceList = new StackPanel
-        {
-            Margin = new Thickness(0, 4, 0, 0),
-            Visibility = Visibility.Collapsed,
-        };
-        Grid.SetRow(_goveeDeviceList, 3);
-        grid.Children.Add(_goveeDeviceList);
-    }
-
-    private void ShowLanControlHelp()
-    {
-        var accent = ThemeManager.Accent;
-        var accentBrush = new SolidColorBrush(accent);
-
-        var content = new StackPanel { MaxWidth = 380 };
-
-        content.Children.Add(new TextBlock
-        {
-            Text = "Enable LAN Control",
-            FontSize = 16, FontWeight = FontWeights.SemiBold,
-            Foreground = accentBrush,
-            Margin = new Thickness(0, 0, 0, 12)
-        });
-
-        content.Children.Add(new TextBlock
-        {
-            Text = "Govee devices require LAN Control to be enabled before AmpUp can discover them on your network.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 12,
-            Foreground = (SolidColorBrush)FindResource("TextSecBrush"),
-            Margin = new Thickness(0, 0, 0, 16)
-        });
-
-        var steps = new[]
-        {
-            ("1", "Open the Govee Home app on your phone"),
-            ("2", "Tap on the device you want to control"),
-            ("3", "Tap the ⚙ Settings gear icon (top right)"),
-            ("4", "Scroll down and find \"LAN Control\""),
-            ("5", "Toggle it ON"),
-            ("6", "Repeat for each Govee device"),
-        };
-
-        foreach (var (num, text) in steps)
-        {
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-
-            var circle = new Border
-            {
-                Width = 22, Height = 22,
-                CornerRadius = new CornerRadius(11),
-                Background = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B)),
-                BorderBrush = accentBrush,
-                BorderThickness = new Thickness(1),
-                Margin = new Thickness(0, 0, 10, 0),
-                Child = new TextBlock
-                {
-                    Text = num,
-                    FontSize = 11, FontWeight = FontWeights.Bold,
-                    Foreground = accentBrush,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center
-                }
-            };
-            row.Children.Add(circle);
-
-            row.Children.Add(new TextBlock
-            {
-                Text = text,
-                FontSize = 12,
-                Foreground = (SolidColorBrush)FindResource("TextBrush"),
-                VerticalAlignment = VerticalAlignment.Center,
-                TextWrapping = TextWrapping.Wrap
-            });
-
-            content.Children.Add(row);
-        }
-
-        content.Children.Add(new Border
-        {
-            Height = 1,
-            Background = (SolidColorBrush)FindResource("CardBorderBrush"),
-            Margin = new Thickness(0, 12, 0, 12)
-        });
-
-        content.Children.Add(new TextBlock
-        {
-            Text = "After enabling LAN Control, come back here and click \"Scan Network\" again. Devices should appear within a few seconds.",
-            TextWrapping = TextWrapping.Wrap,
             FontSize = 11,
-            Foreground = (SolidColorBrush)FindResource("TextDimBrush"),
-        });
-
-        GlassDialog.ShowInfo("Govee LAN Setup", content);
-    }
-
-    private async Task RunScanAsync()
-    {
-        if (_sync == null) return;
-
-        _goveeScanBtn.IsEnabled = false;
-        _goveeScanStatus.Text = "Scanning...";
-        SetGoveeStatusDotColor("#FFB800"); // yellow = scanning
-
-        List<(string Ip, string Name)> found;
-        try
-        {
-            found = await _sync.ScanAsync();
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"Govee scan error: {ex.Message}");
-            _goveeScanStatus.Text = "Scan failed";
-            SetGoveeStatusDotColor("#FF4444"); // red = error
-            _goveeScanBtn.IsEnabled = true;
-            return;
-        }
-
-        if (found.Count == 0)
-        {
-            _goveeScanStatus.Text = "No devices found";
-            SetGoveeStatusDotColor("#555555");
-        }
-        else
-        {
-            _goveeScanStatus.Text = $"{found.Count} device(s) found";
-            SetGoveeStatusDotColor("#00E676"); // green = found
-
-            // Merge: keep existing configs for already-known IPs, add new ones
-            var existingDevices = _config?.Ambience.GoveeDevices ?? new List<GoveeDeviceConfig>();
-
-            _goveeDeviceList.Children.Clear();
-            _deviceCombos.Clear();
-
-            foreach (var (ip, name) in found)
-            {
-                AddDeviceRow(ip, name);
-            }
-
-            _goveeDeviceList.Visibility = Visibility.Visible;
-            Save(); // persist newly found devices immediately
-        }
-
-        _goveeScanBtn.IsEnabled = true;
-    }
-
-    private void AddDeviceRow(string ip, string name)
-    {
-        var row = new Grid { Margin = new Thickness(0, 0, 0, 8), Tag = ip };
-
-        var displayName = string.IsNullOrWhiteSpace(name) ? ip : $"{name} — {ip}";
-        var nameBlock = new TextBlock
-        {
-            Text = displayName,
             Style = FindStyle("SecondaryText"),
             VerticalAlignment = VerticalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            ToolTip = ip,
         };
-        row.Children.Add(nameBlock);
 
-        _goveeDeviceList.Children.Add(row);
-        _deviceCombos[ip] = string.IsNullOrWhiteSpace(name) ? ip : name;
+        row.Children.Add(statusDot);
+        row.Children.Add(statusLabel);
+
+        // Update status on load
+        Loaded += (_, _) => UpdateTopBarStatus(statusDot, statusLabel);
+
+        TopBar.Children.Add(row);
     }
 
-    private void UpdateGoveeStatusDot()
+    private void UpdateTopBarStatus(Border dot, TextBlock label)
     {
-        bool enabled = _goveeEnabled.IsChecked == true;
+        if (_config == null) return;
+        bool enabled = _config.Ambience.GoveeEnabled;
+        bool hasKey = !string.IsNullOrEmpty(_config.Ambience.GoveeApiKey);
+        int devices = _cloudDevices.Count;
+
         if (!enabled)
         {
-            SetGoveeStatusDotColor("#555555");
-            _goveeStatusLabel.Text = "Disabled";
+            dot.Background = Brush("#555555");
+            label.Text = "Govee disabled — enable in Settings";
         }
-        else if (_deviceCombos.Count > 0)
+        else if (!hasKey)
         {
-            SetGoveeStatusDotColor("#00E676");
-            _goveeStatusLabel.Text = $"{_deviceCombos.Count} device(s)";
+            dot.Background = Brush("#FFB800");
+            label.Text = "No API key — add in Settings for full control";
         }
-        else
+        else if (devices > 0)
         {
-            SetGoveeStatusDotColor("#555555");
-            _goveeStatusLabel.Text = "Scan to find devices";
-        }
-    }
-
-    private void SetGoveeStatusDotColor(string hex)
-    {
-        _goveeStatusDot.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
-    }
-
-    // ── Sync Settings Card ────────────────────────────────────────────
-
-    private void BuildSyncCard()
-    {
-        var grid = SyncContent;
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // header
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // brightness
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // warm tone
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // note
-
-        // Row 0: Header
-        var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
-
-        var accentBar = new Border
-        {
-            Width = 3,
-            CornerRadius = new CornerRadius(2),
-            Background = FindBrush("AccentBrush"),
-            Margin = new Thickness(0, 0, 10, 0),
-        };
-        headerRow.Children.Add(accentBar);
-
-        var titleBlock = new TextBlock
-        {
-            Text = "SYNC SETTINGS",
-            Style = FindStyle("HeaderText"),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        headerRow.Children.Add(titleBlock);
-        _sectionHeaders.Add((accentBar, titleBlock));
-
-        Grid.SetRow(headerRow, 0);
-        grid.Children.Add(headerRow);
-
-        // Row 1: Brightness scale
-        var brightnessSection = new StackPanel { Margin = new Thickness(0, 0, 0, 14) };
-
-        var brightnessLabel = new TextBlock
-        {
-            Text = "Room Brightness Scale",
-            Style = FindStyle("SecondaryText"),
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 0, 0, 6),
-            ToolTip = "Scales all sent colors — room lights often look better at lower intensity",
-        };
-        brightnessSection.Children.Add(brightnessLabel);
-
-        var brightnessRow = new StackPanel { Orientation = Orientation.Horizontal };
-
-        _brightnessSlider = new StyledSlider
-        {
-            Minimum = 0,
-            Maximum = 100,
-            Value = 75,
-            Width = 260,
-            Height = 40,
-            Suffix = "%",
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        _brightnessSlider.ValueChanged += (_, _) =>
-        {
-            if (_loading) return;
-            QueueSave();
-        };
-        brightnessRow.Children.Add(_brightnessSlider);
-
-        brightnessSection.Children.Add(brightnessRow);
-        Grid.SetRow(brightnessSection, 1);
-        grid.Children.Add(brightnessSection);
-
-        // Row 2: Warm tone shift
-        _warmToneShift = new CheckBox
-        {
-            Content = "Warm tone shift",
-            Foreground = FindBrush("TextPrimaryBrush"),
-            Margin = new Thickness(0, 0, 0, 12),
-            FontSize = 13,
-            ToolTip = "Boost reds and shift cool colors warmer (matches LED bulb color temperature)",
-        };
-        _warmToneShift.Checked += (_, _) => { if (!_loading) QueueSave(); };
-        _warmToneShift.Unchecked += (_, _) => { if (!_loading) QueueSave(); };
-        Grid.SetRow(_warmToneShift, 2);
-        grid.Children.Add(_warmToneShift);
-
-        // Row 3: Update rate note
-        var noteBlock = new TextBlock
-        {
-            Text = "Syncs at 20 FPS alongside device LEDs",
-            Style = FindStyle("SecondaryText"),
-            Foreground = FindBrush("TextDimBrush"),
-            FontSize = 11,
-        };
-        Grid.SetRow(noteBlock, 3);
-        grid.Children.Add(noteBlock);
-    }
-
-    // ── API Key Card ──────────────────────────────────────────────────
-
-    private void BuildApiKeyCard()
-    {
-        var grid = ApiKeyContent;
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // header
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // content
-
-        // Row 0: Header
-        var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
-
-        var accentBar = new Border
-        {
-            Width = 3,
-            CornerRadius = new CornerRadius(2),
-            Background = FindBrush("AccentBrush"),
-            Margin = new Thickness(0, 0, 10, 0),
-        };
-        headerRow.Children.Add(accentBar);
-
-        var titleBlock = new TextBlock
-        {
-            Text = "GOVEE ACCOUNT",
-            Style = FindStyle("HeaderText"),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        headerRow.Children.Add(titleBlock);
-        _sectionHeaders.Add((accentBar, titleBlock));
-
-        Grid.SetRow(headerRow, 0);
-        grid.Children.Add(headerRow);
-
-        // Row 1: content — placeholder, replaced by RefreshApiKeyCard()
-        var placeholder = new StackPanel { Tag = "ApiKeyBody" };
-        Grid.SetRow(placeholder, 1);
-        grid.Children.Add(placeholder);
-    }
-
-    private void RefreshApiKeyCard()
-    {
-        // Find the body panel (row 1 of ApiKeyContent)
-        StackPanel? body = null;
-        foreach (UIElement el in ApiKeyContent.Children)
-        {
-            if (el is StackPanel sp && sp.Tag as string == "ApiKeyBody") { body = sp; break; }
-        }
-        if (body == null) return;
-
-        body.Children.Clear();
-
-        bool hasKey = !string.IsNullOrEmpty(_config?.Ambience.GoveeApiKey);
-
-        if (!hasKey)
-        {
-            // No key — show prompt
-            var descText = new TextBlock
-            {
-                Text = "Connect your Govee account to unlock scenes, segments, and music mode",
-                Style = FindStyle("SecondaryText"),
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 0, 0, 12),
-            };
-            body.Children.Add(descText);
-
-            var btnRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
-
-            var setupBtn = new Button
-            {
-                Content = "Setup Guide",
-                Padding = new Thickness(14, 6, 14, 6),
-                FontSize = 12,
-                Margin = new Thickness(0, 0, 10, 0),
-            };
-            setupBtn.Click += (_, _) => OpenSetupGuide();
-            btnRow.Children.Add(setupBtn);
-
-            body.Children.Add(btnRow);
-
-            // Inline paste link
-            var pasteLink = new TextBlock
-            {
-                Text = "or paste key directly ▾",
-                Style = FindStyle("SecondaryText"),
-                Foreground = FindBrush("AccentBrush"),
-                FontSize = 11,
-                Cursor = System.Windows.Input.Cursors.Hand,
-                Margin = new Thickness(0, 0, 0, 8),
-            };
-
-            var inlineRow = new StackPanel { Orientation = Orientation.Horizontal, Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 8) };
-            var keyBox = new TextBox
-            {
-                Width = 280,
-                Background = FindBrush("InputBgBrush"),
-                Foreground = FindBrush("TextPrimaryBrush"),
-                BorderBrush = FindBrush("InputBorderBrush"),
-                FontSize = 12,
-                Margin = new Thickness(0, 0, 8, 0),
-                ToolTip = "Paste your Govee API key here",
-            };
-            var saveKeyBtn = new Button
-            {
-                Content = "Save",
-                Padding = new Thickness(12, 4, 12, 4),
-                FontSize = 12,
-            };
-            saveKeyBtn.Click += (_, _) =>
-            {
-                var key = keyBox.Text.Trim();
-                if (!string.IsNullOrEmpty(key) && _config != null)
-                {
-                    _config.Ambience.GoveeApiKey = key;
-                    _cloudApi?.Dispose();
-                    _cloudApi = new GoveeCloudApi(key);
-                    _onSave?.Invoke(_config);
-                    RefreshApiKeyCard();
-                    _ = FetchCloudDevicesAsync();
-                }
-            };
-
-            inlineRow.Children.Add(keyBox);
-            inlineRow.Children.Add(saveKeyBtn);
-
-            pasteLink.MouseLeftButtonUp += (_, _) =>
-            {
-                inlineRow.Visibility = inlineRow.Visibility == Visibility.Visible
-                    ? Visibility.Collapsed
-                    : Visibility.Visible;
-                pasteLink.Text = inlineRow.Visibility == Visibility.Visible
-                    ? "or paste key directly ▴"
-                    : "or paste key directly ▾";
-            };
-
-            body.Children.Add(pasteLink);
-            body.Children.Add(inlineRow);
+            dot.Background = Brush("#00E676");
+            label.Text = $"Connected — {devices} device(s)";
         }
         else
         {
-            // Key set — show connected state
-            var connectedRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
-
-            var dot = new Border
-            {
-                Width = 8,
-                Height = 8,
-                CornerRadius = new CornerRadius(4),
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#00E676")),
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 8, 0),
-            };
-            connectedRow.Children.Add(dot);
-
-            int deviceCount = _cloudDevices.Count;
-            var connectedLabel = new TextBlock
-            {
-                Text = deviceCount > 0
-                    ? $"Connected \u2713 — {deviceCount} device(s)"
-                    : "Connected \u2713",
-                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#00E676")),
-                FontSize = 13,
-                FontWeight = FontWeights.SemiBold,
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            connectedRow.Children.Add(connectedLabel);
-            body.Children.Add(connectedRow);
-
-            var linkRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-
-            var changeKeyLink = new TextBlock
-            {
-                Text = "Change Key",
-                Style = FindStyle("SecondaryText"),
-                Foreground = FindBrush("AccentBrush"),
-                FontSize = 11,
-                Cursor = System.Windows.Input.Cursors.Hand,
-                Margin = new Thickness(0, 0, 16, 0),
-            };
-            changeKeyLink.MouseLeftButtonUp += (_, _) =>
-            {
-                if (_config != null)
-                {
-                    _config.Ambience.GoveeApiKey = "";
-                    _cloudApi?.Dispose();
-                    _cloudApi = null;
-                    _cloudDevices.Clear();
-                    DevicePanel.Children.Clear();
-                    _onSave?.Invoke(_config);
-                    RefreshApiKeyCard();
-                }
-            };
-            linkRow.Children.Add(changeKeyLink);
-
-            var guideLink = new TextBlock
-            {
-                Text = "Setup Guide",
-                Style = FindStyle("SecondaryText"),
-                Foreground = FindBrush("AccentBrush"),
-                FontSize = 11,
-                Cursor = System.Windows.Input.Cursors.Hand,
-            };
-            guideLink.MouseLeftButtonUp += (_, _) => OpenSetupGuide();
-            linkRow.Children.Add(guideLink);
-
-            body.Children.Add(linkRow);
-
-            var refreshBtn = new Button
-            {
-                Content = "Refresh Devices",
-                Padding = new Thickness(12, 5, 12, 5),
-                FontSize = 12,
-            };
-            refreshBtn.Click += (_, _) => _ = FetchCloudDevicesAsync();
-            body.Children.Add(refreshBtn);
-        }
-    }
-
-    private void OpenSetupGuide()
-    {
-        var guide = new Controls.GoveeSetupGuide();
-        guide.ValidateKeyAsync = async (key) =>
-        {
-            using var api = new GoveeCloudApi(key);
-            var devices = await api.GetDevicesAsync();
-            return devices != null && devices.Count > 0;
-        };
-        guide.Owner = Window.GetWindow(this);
-        if (guide.ShowDialog() == true)
-        {
-            var key = guide.ApiKey;
-            if (!string.IsNullOrEmpty(key) && _config != null)
-            {
-                _config.Ambience.GoveeApiKey = key;
-                _cloudApi?.Dispose();
-                _cloudApi = new GoveeCloudApi(key);
-                _onSave?.Invoke(_config);
-                RefreshApiKeyCard();
-                _ = FetchCloudDevicesAsync();
-            }
+            dot.Background = Brush("#FFB800");
+            label.Text = "API key set — loading devices...";
         }
     }
 
     // ── Cloud Device Fetching ─────────────────────────────────────────
 
-    private async Task FetchCloudDevicesAsync()
+    private async Task FetchCloudDevicesAndRebuild()
     {
         if (_cloudApi == null) return;
 
@@ -772,59 +167,114 @@ public partial class AmbienceView : UserControl
             Dispatcher.Invoke(() =>
             {
                 _cloudDevices = devices;
-                RefreshApiKeyCard();
+
+                // Also enrich LAN devices with cloud names
+                if (_config != null)
+                    GoveeCloudApi.EnrichLanDevicesWithCloudNames(_config.Ambience.GoveeDevices, devices);
+
                 RebuildDevicePanel();
             });
         }
         catch (Exception ex)
         {
-            Logger.Log($"Govee cloud fetch error: {ex.Message}");
+            Logger.Log($"[Ambience] Cloud fetch error: {ex.Message}");
             Dispatcher.Invoke(() =>
             {
-                ShowDevicePanelError($"Failed to fetch devices: {ex.Message}");
+                DevicePanel.Children.Clear();
+                DevicePanel.Children.Add(MakeErrorText($"Failed to load devices: {ex.Message}"));
             });
         }
     }
 
-    private void ShowDevicePanelError(string message)
-    {
-        DevicePanel.Children.Clear();
-        var errBlock = new TextBlock
-        {
-            Text = message,
-            Foreground = FindBrush("DangerRedBrush"),
-            FontSize = 12,
-            Margin = new Thickness(0, 4, 0, 8),
-            TextWrapping = TextWrapping.Wrap,
-        };
-        DevicePanel.Children.Add(errBlock);
-    }
+    // ── Device Panel ──────────────────────────────────────────────────
 
     private void RebuildDevicePanel()
     {
         DevicePanel.Children.Clear();
 
+        // Update top bar status
+        var topBarRow = TopBar.Children.Count > 0 ? TopBar.Children[0] as StackPanel : null;
+        if (topBarRow != null && topBarRow.Children.Count >= 4)
+        {
+            UpdateTopBarStatus(
+                topBarRow.Children[2] as Border ?? new Border(),
+                topBarRow.Children[3] as TextBlock ?? new TextBlock());
+        }
+
+        if (_config == null) return;
+
+        bool hasKey = !string.IsNullOrEmpty(_config.Ambience.GoveeApiKey);
+
+        if (!_config.Ambience.GoveeEnabled)
+        {
+            DevicePanel.Children.Add(MakeSetupCard(
+                "Govee is disabled",
+                "Enable Govee LAN sync in Settings to get started.",
+                "Open Settings", () => NavigateToSettings?.Invoke()));
+            return;
+        }
+
+        if (!hasKey)
+        {
+            DevicePanel.Children.Add(MakeSetupCard(
+                "Connect your Govee account",
+                "Add your Cloud API key in Settings to unlock scenes, segments, and full device control.\n\nGet your key at developer.govee.com",
+                "Open Settings", () => NavigateToSettings?.Invoke()));
+            return;
+        }
+
         if (_cloudDevices.Count == 0)
         {
-            var emptyBlock = new TextBlock
-            {
-                Text = "No Govee Cloud devices found",
-                Style = FindStyle("SecondaryText"),
-                Foreground = FindBrush("TextDimBrush"),
-                FontSize = 12,
-                Margin = new Thickness(0, 4, 0, 0),
-            };
-            DevicePanel.Children.Add(emptyBlock);
+            DevicePanel.Children.Add(MakeSetupCard(
+                "No devices found",
+                "Make sure your Govee devices are online and connected to your account.",
+                "Refresh", () => _ = FetchCloudDevicesAndRebuild()));
             return;
         }
 
         foreach (var device in _cloudDevices)
-            DevicePanel.Children.Add(BuildCloudDeviceCard(device));
+            DevicePanel.Children.Add(BuildDeviceCard(device));
     }
 
-    // ── Cloud Device Card ─────────────────────────────────────────────
+    private Border MakeSetupCard(string title, string description, string buttonText, Action onClick)
+    {
+        var card = new Border
+        {
+            Style = FindStyle("CardPanel") as Style,
+            Margin = new Thickness(0, 0, 0, 12),
+        };
+        var stack = new StackPanel();
+        card.Child = stack;
 
-    private Border BuildCloudDeviceCard(GoveeDeviceInfo device)
+        stack.Children.Add(new TextBlock
+        {
+            Text = title,
+            FontSize = 16, FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            Margin = new Thickness(0, 0, 0, 8),
+        });
+        stack.Children.Add(new TextBlock
+        {
+            Text = description,
+            Style = FindStyle("SecondaryText"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 14),
+        });
+        var btn = new Button
+        {
+            Content = buttonText,
+            Padding = new Thickness(16, 6, 16, 6),
+            FontSize = 12,
+        };
+        btn.Click += (_, _) => onClick();
+        stack.Children.Add(btn);
+
+        return card;
+    }
+
+    // ── Device Card ──────────────────────────────────────────────────
+
+    private Border BuildDeviceCard(GoveeDeviceInfo device)
     {
         var card = new Border
         {
@@ -837,94 +287,45 @@ public partial class AmbienceView : UserControl
         var stack = new StackPanel();
         card.Child = stack;
 
-        // ── Header row ──
-        var headerRow = new Grid { Margin = new Thickness(0, 0, 0, 12) };
-        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        // ── Header ──
+        var (headerBar, headerLabel) = MakeSectionHeader($"{device.DeviceName}  {device.Sku}");
+        stack.Children.Add(WrapHeader(headerBar, headerLabel));
 
-        var nameBlock = new TextBlock
-        {
-            Text = $"{device.DeviceName}  {device.Sku}",
-            Foreground = FindBrush("TextPrimaryBrush"),
-            FontSize = 14,
-            FontWeight = FontWeights.SemiBold,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-        };
-        Grid.SetColumn(nameBlock, 0);
-        headerRow.Children.Add(nameBlock);
+        // ── Controls row: Power + Brightness + Color ──
+        var controlsRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
 
-        bool isOnline = false; // online state requires a separate state query; not available on device list
-        var onlineDot = new Border
-        {
-            Width = 8,
-            Height = 8,
-            CornerRadius = new CornerRadius(4),
-            Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(isOnline ? "#00E676" : "#555555")),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0),
-            ToolTip = isOnline ? "Online" : "Offline",
-        };
-        Grid.SetColumn(onlineDot, 1);
-        headerRow.Children.Add(onlineDot);
-
-        stack.Children.Add(headerRow);
-
-        // ── Controls row ──
-        var controlsRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
-
-        // On/Off toggle
+        // Power toggle
         var onOffCheck = new CheckBox
         {
             Content = "On",
             Foreground = FindBrush("TextPrimaryBrush"),
             FontSize = 13,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 16, 4),
-            ToolTip = "Toggle device power",
+            Margin = new Thickness(0, 0, 20, 0),
         };
-        onOffCheck.Checked += async (_, _) => await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.TurnOnOff(true)));
-        onOffCheck.Unchecked += async (_, _) => await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.TurnOnOff(false)));
+        onOffCheck.Checked += async (_, _) => await SafeCloudCall(() =>
+            _cloudApi!.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.TurnOnOff(true)));
+        onOffCheck.Unchecked += async (_, _) => await SafeCloudCall(() =>
+            _cloudApi!.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.TurnOnOff(false)));
         controlsRow.Children.Add(onOffCheck);
 
-        // Brightness label + slider
-        var brightnessLabel = new TextBlock
+        // Brightness
+        controlsRow.Children.Add(MakeSubLabel("BRIGHTNESS"));
+        var brightnessSlider = new StyledSlider
         {
-            Text = "Brightness",
-            Style = FindStyle("SecondaryText"),
+            Minimum = 1, Maximum = 100, Value = 100,
+            Width = 180, Height = 40,
+            Suffix = "%",
+            AccentColor = ThemeManager.Accent,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 8, 4),
-        };
-        controlsRow.Children.Add(brightnessLabel);
-
-        var brightnessValText = new TextBlock
-        {
-            Text = "100",
-            Width = 30,
-            Style = FindStyle("SecondaryText"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 4, 4),
-        };
-
-        var brightnessSlider = new Slider
-        {
-            Minimum = 1,
-            Maximum = 100,
-            Value = 100,
-            Width = 140,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 4, 4),
-            ToolTip = "Device brightness (1-100)",
-        };
-        brightnessSlider.ValueChanged += (_, _) =>
-        {
-            brightnessValText.Text = ((int)brightnessSlider.Value).ToString();
+            Margin = new Thickness(0, 0, 20, 0),
         };
         var brightnessDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
         brightnessDebounce.Tick += async (_, _) =>
         {
             brightnessDebounce.Stop();
-            await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.SetBrightness((int)brightnessSlider.Value)));
+            await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
+                device.Device, device.Sku, GoveeCloudApi.SetBrightness((int)brightnessSlider.Value)));
         };
         brightnessSlider.ValueChanged += (_, _) =>
         {
@@ -932,164 +333,101 @@ public partial class AmbienceView : UserControl
             brightnessDebounce.Start();
         };
         controlsRow.Children.Add(brightnessSlider);
-        controlsRow.Children.Add(brightnessValText);
 
-        // Color circle
-        var colorCircle = new Border
+        // Color swatch
+        var colorSwatch = MakeColorSwatch(Colors.White, (r, g, b) =>
         {
-            Width = 24,
-            Height = 24,
-            CornerRadius = new CornerRadius(12),
-            Background = new SolidColorBrush(Colors.White),
-            BorderBrush = FindBrush("CardBorderBrush"),
-            BorderThickness = new Thickness(1),
-            Cursor = System.Windows.Input.Cursors.Hand,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 4),
-            ToolTip = "Click to set device color",
-        };
-        colorCircle.MouseLeftButtonUp += (_, _) =>
-        {
-            var currentBrush = colorCircle.Background as SolidColorBrush;
-            byte r = currentBrush?.Color.R ?? 255;
-            byte g = currentBrush?.Color.G ?? 255;
-            byte b = currentBrush?.Color.B ?? 255;
-
-            ShowColorPicker(r, g, b, async (nr, ng, nb) =>
-            {
-                colorCircle.Background = new SolidColorBrush(Color.FromRgb(nr, ng, nb));
-                await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.SetColor(nr, ng, nb)));
-            });
-        };
-        controlsRow.Children.Add(colorCircle);
+            _ = SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
+                device.Device, device.Sku, GoveeCloudApi.SetColor(r, g, b)));
+        });
+        controlsRow.Children.Add(colorSwatch);
 
         stack.Children.Add(controlsRow);
 
-        // ── Scene section ──
-        if (device.Capabilities?.Contains("devices.capabilities.dynamic_scene") == true)
+        // ── Scenes section ──
+        bool hasScenes = device.Capabilities?.Contains("devices.capabilities.dynamic_scene") == true;
+        if (hasScenes)
         {
-            var sceneSection = BuildCollapsibleSection("SCENES", () => BuildScenesContent(device));
-            stack.Children.Add(sceneSection);
+            stack.Children.Add(MakeSeparator());
+            var (scBar, scLabel) = MakeSectionHeader("SCENES");
+            stack.Children.Add(WrapHeader(scBar, scLabel));
+            var sceneContainer = new StackPanel();
+            stack.Children.Add(sceneContainer);
+            BuildScenesSection(device, sceneContainer);
         }
 
-        // ── Segment section ──
-        if (device.Capabilities?.Contains("devices.capabilities.segment_color_setting") == true)
+        // ── Segments section ──
+        bool hasSegments = device.Capabilities?.Contains("devices.capabilities.segment_color_setting") == true;
+        if (hasSegments)
         {
-            var segSection = BuildCollapsibleSection("SEGMENTS", () => BuildSegmentsContent(device));
-            stack.Children.Add(segSection);
+            stack.Children.Add(MakeSeparator());
+            var (segBar, segLabel) = MakeSectionHeader("SEGMENTS");
+            stack.Children.Add(WrapHeader(segBar, segLabel));
+            BuildSegmentsSection(device, stack);
         }
 
         // ── Music mode section ──
-        if (device.Capabilities?.Contains("devices.capabilities.music_setting") == true)
+        bool hasMusic = device.Capabilities?.Contains("devices.capabilities.music_setting") == true;
+        if (hasMusic)
         {
-            var musicSection = BuildCollapsibleSection("MUSIC MODE", () => BuildMusicModeContent(device));
-            stack.Children.Add(musicSection);
+            stack.Children.Add(MakeSeparator());
+            var (musBar, musLabel) = MakeSectionHeader("MUSIC MODE");
+            stack.Children.Add(WrapHeader(musBar, musLabel));
+            BuildMusicSection(device, stack);
         }
 
         return card;
     }
 
-    // ── Collapsible section ───────────────────────────────────────────
+    // ── Scenes ────────────────────────────────────────────────────────
 
-    private StackPanel BuildCollapsibleSection(string title, Func<UIElement> contentBuilder)
+    private void BuildScenesSection(GoveeDeviceInfo device, StackPanel container)
     {
-        var section = new StackPanel { Margin = new Thickness(0, 4, 0, 4) };
+        // Extract scenes from raw capabilities (no extra API call)
+        var scenes = GoveeCloudApi.ExtractScenesFromCapabilities(device.RawCapabilities, "dynamic");
 
-        var header = new StackPanel
+        if (scenes.Count == 0)
         {
-            Orientation = Orientation.Horizontal,
-            Cursor = System.Windows.Input.Cursors.Hand,
-            Margin = new Thickness(0, 0, 0, 6),
-        };
-
-        var chevron = new TextBlock
-        {
-            Text = "▶",
-            Foreground = FindBrush("TextDimBrush"),
-            FontSize = 9,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 6, 0),
-        };
-
-        var titleBlock = new TextBlock
-        {
-            Text = title,
-            FontSize = 10,
-            FontWeight = FontWeights.Bold,
-            Foreground = FindBrush("TextSecBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-
-        header.Children.Add(chevron);
-        header.Children.Add(titleBlock);
-        section.Children.Add(header);
-
-        Border? contentBorder = null;
-
-        header.MouseLeftButtonUp += (_, _) =>
-        {
-            if (contentBorder == null)
+            // Try fetching via API as fallback
+            var loadingText = new TextBlock
             {
-                // Build content lazily on first expand
-                var content = contentBuilder();
-                contentBorder = new Border
-                {
-                    Child = content,
-                    Margin = new Thickness(0, 0, 0, 4),
-                };
-                section.Children.Add(contentBorder);
-                chevron.Text = "▼";
-            }
-            else
-            {
-                bool isVisible = contentBorder.Visibility == Visibility.Visible;
-                contentBorder.Visibility = isVisible ? Visibility.Collapsed : Visibility.Visible;
-                chevron.Text = isVisible ? "▶" : "▼";
-            }
-        };
-
-        return section;
-    }
-
-    // ── Scene content ─────────────────────────────────────────────────
-
-    private UIElement BuildScenesContent(GoveeDeviceInfo device)
-    {
-        var container = new StackPanel();
-
-        var loadingText = new TextBlock
-        {
-            Text = "Loading scenes...",
-            Style = FindStyle("SecondaryText"),
-            FontSize = 11,
-            Margin = new Thickness(0, 0, 0, 4),
-        };
-        container.Children.Add(loadingText);
-
-        // Fetch scenes (cached)
-        _ = LoadScenesAsync(device, container, loadingText);
-
-        return container;
-    }
-
-    private async Task LoadScenesAsync(GoveeDeviceInfo device, StackPanel container, TextBlock loadingText)
-    {
-        if (_deviceScenes.TryGetValue(device.Device, out var cached))
-        {
-            Dispatcher.Invoke(() => RenderSceneGrid(container, loadingText, device, cached));
+                Text = "Loading scenes...",
+                Style = FindStyle("SecondaryText"),
+                FontSize = 11,
+            };
+            container.Children.Add(loadingText);
+            _ = FetchScenesAsync(device, container, loadingText);
             return;
         }
 
+        RenderSceneTiles(container, device, scenes);
+    }
+
+    private async Task FetchScenesAsync(GoveeDeviceInfo device, StackPanel container, TextBlock loadingText)
+    {
         try
         {
             var scenes = await _cloudApi!.GetDynamicScenesAsync(device.Device, device.Sku);
-            if (scenes != null) _deviceScenes[device.Device] = scenes;
-
-            Dispatcher.Invoke(() => RenderSceneGrid(container, loadingText, device, scenes ?? new List<GoveeScene>()));
+            Dispatcher.Invoke(() =>
+            {
+                container.Children.Remove(loadingText);
+                if (scenes == null || scenes.Count == 0)
+                {
+                    container.Children.Add(new TextBlock
+                    {
+                        Text = "No scenes available for this device",
+                        Style = FindStyle("SecondaryText"),
+                        FontSize = 11,
+                        Foreground = FindBrush("TextDimBrush"),
+                    });
+                    return;
+                }
+                RenderSceneTiles(container, device, scenes);
+            });
         }
         catch (Exception ex)
         {
-            Logger.Log($"Govee scenes fetch error ({device.Device}): {ex.Message}");
+            Logger.Log($"[Ambience] Scene fetch error: {ex.Message}");
             Dispatcher.Invoke(() =>
             {
                 loadingText.Text = "Failed to load scenes";
@@ -1098,41 +436,47 @@ public partial class AmbienceView : UserControl
         }
     }
 
-    private void RenderSceneGrid(StackPanel container, TextBlock loadingText, GoveeDeviceInfo device, List<GoveeScene> scenes)
+    private void RenderSceneTiles(StackPanel container, GoveeDeviceInfo device, List<GoveeScene> scenes)
     {
-        container.Children.Remove(loadingText);
-
-        if (scenes.Count == 0)
-        {
-            container.Children.Add(new TextBlock
-            {
-                Text = "No scenes available",
-                Style = FindStyle("SecondaryText"),
-                FontSize = 11,
-            });
-            return;
-        }
-
         string? activeSceneId = null;
 
-        var wrap = new WrapPanel { Orientation = Orientation.Horizontal };
+        var wrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
 
+        // Assign a color to each scene based on its name hash for visual variety
         foreach (var scene in scenes)
         {
             var sceneId = scene.Id;
+            var tileColor = GetSceneTileColor(scene.Name);
+
             var tile = new Border
             {
-                Width = 100,
-                Height = 32,
-                CornerRadius = new CornerRadius(4),
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1C1C1C")),
-                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2A2A2A")),
+                Width = 110, Height = 42,
+                CornerRadius = new CornerRadius(6),
+                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
                 BorderThickness = new Thickness(1),
                 Margin = new Thickness(0, 0, 6, 6),
-                Cursor = System.Windows.Input.Cursors.Hand,
+                Cursor = Cursors.Hand,
                 ToolTip = scene.Name,
                 Tag = sceneId,
             };
+
+            var tileContent = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+
+            // Color accent dot
+            tileContent.Children.Add(new Border
+            {
+                Width = 6, Height = 6,
+                CornerRadius = new CornerRadius(3),
+                Background = new SolidColorBrush(tileColor),
+                Margin = new Thickness(0, 0, 6, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+            });
 
             var label = new TextBlock
             {
@@ -1140,41 +484,49 @@ public partial class AmbienceView : UserControl
                 FontSize = 11,
                 Foreground = FindBrush("TextSecBrush"),
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                HorizontalAlignment = HorizontalAlignment.Center,
+                MaxWidth = 86,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(4, 0, 4, 0),
             };
-            tile.Child = label;
+            tileContent.Children.Add(label);
+            tile.Child = tileContent;
 
+            // Hover effects
             tile.MouseEnter += (_, _) =>
             {
                 if (tile.Tag as string != activeSceneId)
-                    tile.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2A2A2A"));
+                {
+                    tile.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+                    tile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, tileColor.R, tileColor.G, tileColor.B));
+                }
             };
             tile.MouseLeave += (_, _) =>
             {
                 if (tile.Tag as string != activeSceneId)
-                    tile.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1C1C1C"));
+                {
+                    tile.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+                    tile.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+                }
             };
             tile.MouseLeftButtonUp += async (_, _) =>
             {
-                // Reset previous active tile
+                // Deselect previous
                 foreach (var child in wrap.Children)
                 {
                     if (child is Border b && b.Tag as string != sceneId)
                     {
-                        b.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1C1C1C"));
-                        b.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2A2A2A"));
+                        b.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+                        b.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
                     }
                 }
 
-                // Highlight active tile
-                tile.Background = new SolidColorBrush(ThemeManager.Accent) { Opacity = 0.25 };
-                tile.BorderBrush = new SolidColorBrush(ThemeManager.Accent);
+                // Select this tile
+                tile.Background = new SolidColorBrush(Color.FromArgb(0x30, tileColor.R, tileColor.G, tileColor.B));
+                tile.BorderBrush = new SolidColorBrush(tileColor);
                 activeSceneId = sceneId;
 
                 var sc = scenes.FirstOrDefault(s => s.Id == sceneId);
-                await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.SetScene(sceneId, sc?.Name ?? "")));
+                await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
+                    device.Device, device.Sku, GoveeCloudApi.SetScene(sceneId, sc?.Name ?? "")));
             };
 
             wrap.Children.Add(tile);
@@ -1183,15 +535,12 @@ public partial class AmbienceView : UserControl
         container.Children.Add(wrap);
     }
 
-    // ── Segment content ───────────────────────────────────────────────
+    // ── Segments ──────────────────────────────────────────────────────
 
-    private UIElement BuildSegmentsContent(GoveeDeviceInfo device)
+    private void BuildSegmentsSection(GoveeDeviceInfo device, StackPanel parent)
     {
-        var container = new StackPanel();
-
-        // Segment count would ideally come from the capability parameters;
-        // since Capabilities is List<string> (type strings only), use a safe default.
-        int segmentCount = 6;
+        int segmentCount = GoveeCloudApi.ExtractSegmentCount(device.RawCapabilities);
+        if (segmentCount <= 0) segmentCount = 10; // safe default
 
         var segColors = new (byte R, byte G, byte B)[segmentCount];
         for (int i = 0; i < segmentCount; i++) segColors[i] = (255, 255, 255);
@@ -1203,37 +552,51 @@ public partial class AmbienceView : UserControl
             var idx = i;
             var segBorder = new Border
             {
-                Width = 36,
-                Height = 36,
-                CornerRadius = new CornerRadius(4),
-                Background = new SolidColorBrush(Color.FromRgb(255, 255, 255)),
+                Width = 32, Height = 32,
+                CornerRadius = new CornerRadius(6),
+                Background = new SolidColorBrush(Colors.White),
                 BorderBrush = FindBrush("CardBorderBrush"),
                 BorderThickness = new Thickness(1),
                 Margin = new Thickness(0, 0, 4, 4),
-                Cursor = System.Windows.Input.Cursors.Hand,
+                Cursor = Cursors.Hand,
                 ToolTip = $"Segment {idx + 1}",
+            };
+
+            // Hover glow
+            segBorder.MouseEnter += (_, _) =>
+            {
+                segBorder.BorderBrush = FindBrush("AccentBrush");
+            };
+            segBorder.MouseLeave += (_, _) =>
+            {
+                segBorder.BorderBrush = FindBrush("CardBorderBrush");
             };
 
             segBorder.MouseLeftButtonUp += (_, _) =>
             {
                 var (r, g, b) = segColors[idx];
-                ShowColorPicker(r, g, b, (nr, ng, nb) =>
+                var current = Color.FromRgb(r, g, b);
+                var dialog = new ColorPickerDialog(current) { Owner = Window.GetWindow(this) };
+                if (dialog.ShowDialog() == true)
                 {
-                    segColors[idx] = (nr, ng, nb);
-                    segBorder.Background = new SolidColorBrush(Color.FromRgb(nr, ng, nb));
-                });
+                    var c = dialog.SelectedColor;
+                    segColors[idx] = (c.R, c.G, c.B);
+                    segBorder.Background = new SolidColorBrush(c);
+                }
             };
 
             segRow.Children.Add(segBorder);
         }
 
-        container.Children.Add(segRow);
+        parent.Children.Add(segRow);
 
+        // Apply button
         var applyBtn = new Button
         {
             Content = "Apply Segments",
-            Padding = new Thickness(12, 5, 12, 5),
+            Padding = new Thickness(14, 5, 14, 5),
             FontSize = 12,
+            Margin = new Thickness(0, 0, 0, 8),
         };
         applyBtn.Click += async (_, _) =>
         {
@@ -1246,171 +609,116 @@ public partial class AmbienceView : UserControl
                     GoveeCloudApi.SetSegmentColor(capturedIdx, sr, sg, sb)));
             }
         };
-        container.Children.Add(applyBtn);
-
-        return container;
+        parent.Children.Add(applyBtn);
     }
 
-    // ── Music mode content ────────────────────────────────────────────
+    // ── Music Mode ────────────────────────────────────────────────────
 
-    private UIElement BuildMusicModeContent(GoveeDeviceInfo device)
+    private void BuildMusicSection(GoveeDeviceInfo device, StackPanel parent)
     {
-        var container = new StackPanel();
-
-        var toggleRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
-
         var musicToggle = new CheckBox
         {
             Content = "Enable Music Mode",
             Foreground = FindBrush("TextPrimaryBrush"),
             FontSize = 13,
-            ToolTip = "Sync device LEDs to audio via Govee Cloud",
+            Margin = new Thickness(0, 0, 0, 10),
         };
         musicToggle.Checked += async (_, _) =>
-            await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.SetMusicMode(1, 50)));
+            await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
+                device.Device, device.Sku, GoveeCloudApi.SetMusicMode(1, 50)));
         musicToggle.Unchecked += async (_, _) =>
-            await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.SetMusicMode(0, 0)));
+            await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
+                device.Device, device.Sku, GoveeCloudApi.SetMusicMode(0, 0)));
+        parent.Children.Add(musicToggle);
 
-        toggleRow.Children.Add(musicToggle);
-        container.Children.Add(toggleRow);
-
-        // Sensitivity
-        var sensLabel = new TextBlock
+        // Sensitivity slider
+        parent.Children.Add(MakeSubLabel("SENSITIVITY"));
+        var sensSlider = new StyledSlider
         {
-            Text = "Sensitivity",
-            Style = FindStyle("SecondaryText"),
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 0, 0, 6),
-        };
-        container.Children.Add(sensLabel);
-
-        var sensRow = new StackPanel { Orientation = Orientation.Horizontal };
-
-        var sensValText = new TextBlock
-        {
-            Text = "50",
-            Width = 30,
-            Style = FindStyle("SecondaryText"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0),
-        };
-
-        var sensSlider = new Slider
-        {
-            Minimum = 1,
-            Maximum = 100,
-            Value = 50,
-            Width = 180,
-            VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = "Music mode sensitivity (1-100)",
-        };
-        sensSlider.ValueChanged += (_, _) =>
-        {
-            sensValText.Text = ((int)sensSlider.Value).ToString();
+            Minimum = 1, Maximum = 100, Value = 50,
+            Width = 200, Height = 40,
+            Suffix = "",
+            AccentColor = ThemeManager.Accent,
+            Margin = new Thickness(0, 0, 0, 8),
         };
         var sensDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         sensDebounce.Tick += async (_, _) =>
         {
             sensDebounce.Stop();
             if (musicToggle.IsChecked == true)
-                await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.SetMusicMode(1, (int)sensSlider.Value)));
+                await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
+                    device.Device, device.Sku, GoveeCloudApi.SetMusicMode(1, (int)sensSlider.Value)));
         };
         sensSlider.ValueChanged += (_, _) =>
         {
             sensDebounce.Stop();
             sensDebounce.Start();
         };
-
-        sensRow.Children.Add(sensSlider);
-        sensRow.Children.Add(sensValText);
-        container.Children.Add(sensRow);
-
-        return container;
+        parent.Children.Add(sensSlider);
     }
 
-    // ── Color picker helper ───────────────────────────────────────────
+    // ── Color swatch helper ───────────────────────────────────────────
 
-    private void ShowColorPicker(byte r, byte g, byte b, Action<byte, byte, byte> onColorSelected)
+    private Border MakeColorSwatch(Color initial, Action<byte, byte, byte> onColorSelected)
     {
-        var win = new Window
+        var swatch = new Border
         {
-            Title = "Color",
-            Width = 240,
-            Height = 200,
-            WindowStyle = WindowStyle.ToolWindow,
-            ResizeMode = ResizeMode.NoResize,
-            Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1C1C1C")),
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Owner = Window.GetWindow(this),
+            Width = 28, Height = 28,
+            CornerRadius = new CornerRadius(14),
+            Background = new SolidColorBrush(initial),
+            BorderBrush = FindBrush("CardBorderBrush"),
+            BorderThickness = new Thickness(2),
+            Cursor = Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = "Click to set color",
+        };
+        swatch.MouseEnter += (_, _) => swatch.BorderBrush = FindBrush("AccentBrush");
+        swatch.MouseLeave += (_, _) => swatch.BorderBrush = FindBrush("CardBorderBrush");
+
+        swatch.MouseLeftButtonUp += (_, _) =>
+        {
+            var current = (swatch.Background as SolidColorBrush)?.Color ?? Colors.White;
+            var dialog = new ColorPickerDialog(current) { Owner = Window.GetWindow(this) };
+            if (dialog.ShowDialog() == true)
+            {
+                var c = dialog.SelectedColor;
+                swatch.Background = new SolidColorBrush(c);
+                onColorSelected(c.R, c.G, c.B);
+            }
         };
 
-        var stack = new StackPanel { Margin = new Thickness(16) };
-
-        var rLabel = new TextBlock { Text = "R", Foreground = new SolidColorBrush(Colors.OrangeRed), FontSize = 11 };
-        var rSlider = new Slider { Minimum = 0, Maximum = 255, Value = r, Margin = new Thickness(0, 0, 0, 8) };
-        var gLabel = new TextBlock { Text = "G", Foreground = new SolidColorBrush(Colors.LightGreen), FontSize = 11 };
-        var gSlider = new Slider { Minimum = 0, Maximum = 255, Value = g, Margin = new Thickness(0, 0, 0, 8) };
-        var bLabel = new TextBlock { Text = "B", Foreground = new SolidColorBrush(Colors.CornflowerBlue), FontSize = 11 };
-        var bSlider = new Slider { Minimum = 0, Maximum = 255, Value = b, Margin = new Thickness(0, 0, 0, 12) };
-
-        var preview = new Border
-        {
-            Height = 24,
-            CornerRadius = new CornerRadius(4),
-            Background = new SolidColorBrush(Color.FromRgb(r, g, b)),
-            Margin = new Thickness(0, 0, 0, 12),
-        };
-
-        Action updatePreview = () =>
-        {
-            preview.Background = new SolidColorBrush(Color.FromRgb(
-                (byte)rSlider.Value, (byte)gSlider.Value, (byte)bSlider.Value));
-        };
-
-        rSlider.ValueChanged += (_, _) => updatePreview();
-        gSlider.ValueChanged += (_, _) => updatePreview();
-        bSlider.ValueChanged += (_, _) => updatePreview();
-
-        var okBtn = new Button
-        {
-            Content = "OK",
-            Padding = new Thickness(20, 4, 20, 4),
-            HorizontalAlignment = HorizontalAlignment.Right,
-        };
-        okBtn.Click += (_, _) => { win.DialogResult = true; };
-
-        stack.Children.Add(rLabel);
-        stack.Children.Add(rSlider);
-        stack.Children.Add(gLabel);
-        stack.Children.Add(gSlider);
-        stack.Children.Add(bLabel);
-        stack.Children.Add(bSlider);
-        stack.Children.Add(preview);
-        stack.Children.Add(okBtn);
-
-        win.Content = stack;
-
-        if (win.ShowDialog() == true)
-        {
-            onColorSelected(
-                (byte)rSlider.Value,
-                (byte)gSlider.Value,
-                (byte)bSlider.Value);
-        }
+        return swatch;
     }
 
-    // ── Safe API call wrapper ─────────────────────────────────────────
+    // ── Scene tile colors ─────────────────────────────────────────────
+
+    private static readonly Color[] ScenePalette =
+    {
+        Color.FromRgb(0xFF, 0x6B, 0x35), // orange
+        Color.FromRgb(0x64, 0xB5, 0xF6), // blue
+        Color.FromRgb(0xFF, 0x80, 0xAB), // pink
+        Color.FromRgb(0x69, 0xF0, 0xAE), // green
+        Color.FromRgb(0xBA, 0x68, 0xC8), // purple
+        Color.FromRgb(0xFF, 0xD7, 0x40), // gold
+        Color.FromRgb(0x4D, 0xD0, 0xE1), // cyan
+        Color.FromRgb(0xFF, 0x52, 0x52), // red
+        Color.FromRgb(0xAE, 0xD5, 0x81), // lime
+        Color.FromRgb(0xE0, 0x40, 0xFF), // magenta
+    };
+
+    private static Color GetSceneTileColor(string name)
+    {
+        int hash = 0;
+        foreach (var c in name) hash = hash * 31 + c;
+        return ScenePalette[Math.Abs(hash) % ScenePalette.Length];
+    }
+
+    // ── Safe API call ─────────────────────────────────────────────────
 
     private static async Task SafeCloudCall(Func<Task> action)
     {
-        try
-        {
-            await action();
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"Govee cloud API error: {ex.Message}");
-        }
+        try { await action(); }
+        catch (Exception ex) { Logger.Log($"[Ambience] Cloud API error: {ex.Message}"); }
     }
 
     // ── Save ──────────────────────────────────────────────────────────
@@ -1424,23 +732,69 @@ public partial class AmbienceView : UserControl
     private void Save()
     {
         if (_config == null || _onSave == null || _loading) return;
-
-        var cfg = _config.Ambience;
-
-        cfg.GoveeEnabled = _goveeEnabled.IsChecked == true;
-        cfg.BrightnessScale = (int)_brightnessSlider.Value;
-        cfg.WarmToneShift = _warmToneShift.IsChecked == true;
-
-        // Collect device configs from device rows — sync mode is always "global" (controlled via Mixer tab knob)
-        cfg.GoveeDevices.Clear();
-        foreach (var (ip, name) in _deviceCombos)
-        {
-            cfg.GoveeDevices.Add(new GoveeDeviceConfig { Ip = ip, Name = name, SyncMode = "global" });
-        }
-
-        _sync?.UpdateConfig(cfg);
         _onSave(_config);
     }
+
+    // ── UI Helpers ────────────────────────────────────────────────────
+
+    private (Border bar, TextBlock label) MakeSectionHeader(string text)
+    {
+        var bar = new Border
+        {
+            Width = 3,
+            CornerRadius = new CornerRadius(2),
+            Background = FindBrush("AccentBrush"),
+            Margin = new Thickness(0, 0, 10, 0),
+        };
+        var label = new TextBlock
+        {
+            Text = text,
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("AccentBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        _sectionHeaders.Add((bar, label));
+        return (bar, label);
+    }
+
+    private StackPanel WrapHeader(Border bar, TextBlock label)
+    {
+        var row = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+        row.Children.Add(bar);
+        row.Children.Add(label);
+        return row;
+    }
+
+    private TextBlock MakeSubLabel(string text) => new()
+    {
+        Text = text,
+        FontSize = 9,
+        FontWeight = FontWeights.SemiBold,
+        Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+        VerticalAlignment = VerticalAlignment.Center,
+        Margin = new Thickness(0, 0, 8, 0),
+    };
+
+    private Border MakeSeparator() => new()
+    {
+        Height = 1,
+        Background = FindBrush("CardBorderBrush"),
+        Margin = new Thickness(0, 4, 0, 12),
+    };
+
+    private TextBlock MakeErrorText(string text) => new()
+    {
+        Text = text,
+        Foreground = FindBrush("DangerRedBrush"),
+        FontSize = 12,
+        TextWrapping = TextWrapping.Wrap,
+        Margin = new Thickness(0, 4, 0, 8),
+    };
 
     // ── Accent color refresh ──────────────────────────────────────────
 
@@ -1452,11 +806,11 @@ public partial class AmbienceView : UserControl
             if (bar != null) bar.Background = new SolidColorBrush(accent);
             if (label != null) label.Foreground = new SolidColorBrush(accent);
         }
-        _brightnessSlider.AccentColor = accent;
     }
 
     // ── Resource helpers ──────────────────────────────────────────────
 
     private Brush FindBrush(string key) => (Brush)(FindResource(key) ?? Brushes.White);
     private Style? FindStyle(string key) => FindResource(key) as Style;
+    private static SolidColorBrush Brush(string hex) => new((Color)ColorConverter.ConvertFromString(hex));
 }

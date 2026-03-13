@@ -83,10 +83,28 @@ public partial class SettingsView : UserControl
         BtnExportProfile.Click += OnExportProfile;
         BtnImportProfile.Click += OnImportProfile;
 
+        // Govee
+        ChkGoveeEnabled.Checked += OnGoveeEnabledChanged;
+        ChkGoveeEnabled.Unchecked += OnGoveeEnabledChanged;
+        BtnGoveeScan.Click += OnGoveeScan;
+        BtnGoveeLanHelp.Click += (_, _) => GlassDialog.ShowInfo(
+            "Enable LAN Control in the Govee Home app:\n\n" +
+            "1. Open Govee Home on your phone\n" +
+            "2. Tap the device → ⚙ Settings\n" +
+            "3. Find \"LAN Control\" and toggle ON\n" +
+            "4. Repeat for each device\n\n" +
+            "Then click Scan Network again.",
+            owner: Window.GetWindow(this));
+        TxtGoveeApiKey.PasswordChanged += OnPasswordChanged;
+        BtnGoveeSetupGuide.Click += OnGoveeSetupGuide;
+
         // About
         TxtVersion.Text = $"Amp Up v{UpdateChecker.CurrentVersion}";
         BtnCheckUpdate.Click += OnCheckUpdate;
     }
+
+    // Reference to AmbienceSync for LAN scanning (set from App.xaml.cs)
+    private AmbienceSync? _ambienceSync;
 
     public void LoadConfig(AppConfig config, Action<AppConfig> onSave)
     {
@@ -117,10 +135,19 @@ public partial class SettingsView : UserControl
         TxtHaUrl.Text = config.HomeAssistant.Url;
         TxtHaToken.Password = config.HomeAssistant.Token;
 
+        // Integrations — Govee
+        ChkGoveeEnabled.IsChecked = config.Ambience.GoveeEnabled;
+        GoveeLanSection.Visibility = config.Ambience.GoveeEnabled ? Visibility.Visible : Visibility.Collapsed;
+        TxtGoveeApiKey.Password = config.Ambience.GoveeApiKey;
+        RefreshGoveeStatus();
+        RefreshGoveeDeviceList();
+
         BuildAccentSwatches();
 
         _loading = false;
     }
+
+    public void SetAmbienceSync(AmbienceSync sync) => _ambienceSync = sync;
 
     private void BuildAccentSwatches()
     {
@@ -181,6 +208,7 @@ public partial class SettingsView : UserControl
         loaded.ProfileIcons = _config.ProfileIcons;
         loaded.Ducking = _config.Ducking;
         loaded.AutoSwitch = _config.AutoSwitch;
+        loaded.Ambience = _config.Ambience;
     }
 
     private void OnProfileSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -399,6 +427,10 @@ public partial class SettingsView : UserControl
         _config.HomeAssistant.Url = TxtHaUrl.Text.Trim();
         _config.HomeAssistant.Token = TxtHaToken.Password;
 
+        // Govee
+        _config.Ambience.GoveeEnabled = ChkGoveeEnabled.IsChecked == true;
+        _config.Ambience.GoveeApiKey = TxtGoveeApiKey.Password;
+
         _onSave(_config);
     }
 
@@ -612,6 +644,137 @@ public partial class SettingsView : UserControl
         catch (Exception ex)
         {
             GlassDialog.ShowWarning($"Import failed: {ex.Message}", owner: Window.GetWindow(this));
+        }
+    }
+
+    // ── Govee settings ──────────────────────────────────────────────
+
+    private void OnGoveeEnabledChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        GoveeLanSection.Visibility = ChkGoveeEnabled.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        RefreshGoveeStatus();
+        _debounceTimer.Stop();
+        _debounceTimer.Start();
+    }
+
+    private async void OnGoveeScan(object sender, RoutedEventArgs e)
+    {
+        if (_ambienceSync == null || _config == null) return;
+
+        BtnGoveeScan.IsEnabled = false;
+        TxtGoveeScanStatus.Text = "Scanning...";
+        GoveeStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFB800"));
+
+        try
+        {
+            var found = await _ambienceSync.ScanDevicesAsync();
+
+            if (found.Count == 0)
+            {
+                TxtGoveeScanStatus.Text = "No devices found";
+                GoveeStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#555555"));
+            }
+            else
+            {
+                // If Cloud API is available, enrich with friendly names
+                if (!string.IsNullOrEmpty(_config.Ambience.GoveeApiKey))
+                {
+                    try
+                    {
+                        using var api = new GoveeCloudApi(_config.Ambience.GoveeApiKey);
+                        var cloudDevices = await api.GetDevicesAsync();
+                        GoveeCloudApi.EnrichLanDevicesWithCloudNames(found, cloudDevices);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"Govee cloud name enrichment failed: {ex.Message}");
+                    }
+                }
+
+                _config.Ambience.GoveeDevices = found;
+                TxtGoveeScanStatus.Text = $"{found.Count} device(s) found";
+                RefreshGoveeDeviceList();
+                RefreshGoveeStatus();
+                _debounceTimer.Stop();
+                _debounceTimer.Start();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Govee scan error: {ex.Message}");
+            TxtGoveeScanStatus.Text = "Scan failed";
+            GoveeStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FF4444"));
+        }
+
+        BtnGoveeScan.IsEnabled = true;
+    }
+
+    private void OnGoveeSetupGuide(object sender, RoutedEventArgs e)
+    {
+        var guide = new Controls.GoveeSetupGuide();
+        guide.ValidateKeyAsync = async (key) =>
+        {
+            using var api = new GoveeCloudApi(key);
+            var devices = await api.GetDevicesAsync();
+            return devices != null && devices.Count > 0;
+        };
+        guide.Owner = Window.GetWindow(this);
+        if (guide.ShowDialog() == true && !string.IsNullOrEmpty(guide.ApiKey))
+        {
+            TxtGoveeApiKey.Password = guide.ApiKey;
+            RefreshGoveeStatus();
+            _debounceTimer.Stop();
+            _debounceTimer.Start();
+        }
+    }
+
+    private void RefreshGoveeStatus()
+    {
+        if (_config == null) return;
+        bool enabled = ChkGoveeEnabled.IsChecked == true;
+        int deviceCount = _config.Ambience.GoveeDevices.Count;
+        bool hasKey = !string.IsNullOrEmpty(TxtGoveeApiKey.Password);
+
+        if (!enabled)
+        {
+            GoveeStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#555555"));
+            TxtGoveeStatus.Text = "Disabled";
+        }
+        else if (deviceCount > 0)
+        {
+            GoveeStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#00E676"));
+            TxtGoveeStatus.Text = $"{deviceCount} device(s)";
+        }
+        else
+        {
+            GoveeStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#555555"));
+            TxtGoveeStatus.Text = "Scan to find devices";
+        }
+
+        TxtGoveeApiStatus.Text = hasKey ? "✓ API key configured" : "";
+        TxtGoveeApiStatus.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#00E676"));
+    }
+
+    private void RefreshGoveeDeviceList()
+    {
+        GoveeDeviceList.Children.Clear();
+        if (_config == null) return;
+
+        foreach (var dev in _config.Ambience.GoveeDevices)
+        {
+            var display = !string.IsNullOrWhiteSpace(dev.Name)
+                ? $"{dev.Name}  {dev.Sku}  —  {dev.Ip}"
+                : $"{dev.Sku}  —  {dev.Ip}";
+
+            var row = new TextBlock
+            {
+                Text = display,
+                Style = FindResource("SecondaryText") as Style,
+                Margin = new Thickness(0, 0, 0, 4),
+                ToolTip = dev.Ip,
+            };
+            GoveeDeviceList.Children.Add(row);
         }
     }
 
