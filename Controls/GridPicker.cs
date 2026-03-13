@@ -420,8 +420,11 @@ public class GridPicker : Border
         if (!_subMenuProviders.TryGetValue(parentTag, out var provider))
             return;
 
+        var items = provider();
+        if (items.Count == 0) return; // nothing to show
+
         _activeSubParentTag = parentTag;
-        _activeSubItems = provider();
+        _activeSubItems = items;
 
         RebuildSubItems();
 
@@ -679,7 +682,9 @@ public class GridPicker : Border
             int idx = i;
             var (display, itemTag) = _items[i];
             bool selected = idx == _selectedIndex;
-            bool hasSubMenu = itemTag is string tagStr && _subMenuProviders.ContainsKey(tagStr);
+            bool hasSubMenu = itemTag is string tagStr
+                && _subMenuProviders.TryGetValue(tagStr, out var subProvider)
+                && subProvider().Count > 0;
 
             var itemRow = new Border
             {

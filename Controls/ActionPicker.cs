@@ -415,8 +415,11 @@ public class ActionPicker : Border
         if (!_subMenuProviders.TryGetValue(actionValue, out var provider))
             return;
 
+        var items = provider();
+        if (items.Count == 0) return; // nothing to show
+
         _activeSubParentValue = actionValue;
-        _activeSubItems = provider();
+        _activeSubItems = items;
 
         RebuildSubItems();
 
@@ -612,7 +615,8 @@ public class ActionPicker : Border
     {
         var item = _items[idx];
         bool selected = idx == _selectedIndex;
-        bool hasSubMenu = _subMenuProviders.ContainsKey(item.Value);
+        bool hasSubMenu = _subMenuProviders.TryGetValue(item.Value, out var subProvider)
+            && subProvider().Count > 0;
 
         var accentBar = new Border
         {
