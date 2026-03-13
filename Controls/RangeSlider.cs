@@ -111,10 +111,10 @@ public class RangeSlider : FrameworkElement
         dc.DrawRoundedRectangle(s_trackBg, null,
             new Rect(TrackLeft, trackTop, TrackWidth, TrackHeight), 1.5, 1.5);
 
-        // Filled range
+        // Filled range (accent colored)
         double lx = ValueToX(LowerValue);
         double ux = ValueToX(UpperValue);
-        var rangeFillBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+        var rangeFillBrush = new SolidColorBrush(AccentColor);
         rangeFillBrush.Freeze();
         if (ux > lx)
         {
@@ -122,8 +122,8 @@ public class RangeSlider : FrameworkElement
                 new Rect(lx, trackTop, ux - lx, TrackHeight), 1.5, 1.5);
         }
 
-        // Thumbs (no glow — clean look)
-        var thumbFillBrush = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
+        // Thumbs (accent colored)
+        var thumbFillBrush = new SolidColorBrush(AccentColor);
         thumbFillBrush.Freeze();
         var thumbPen = new Pen(s_thumbBorder, 1.5);
         thumbPen.Freeze();
