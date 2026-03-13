@@ -302,6 +302,38 @@ public class ButtonHandler
                         }
                     }
                     break;
+                case "govee_toggle":
+                    // path = device IP
+                    if (!string.IsNullOrEmpty(path))
+                        _ = AmbienceSync.SendToggleAsync(path);
+                    break;
+                case "govee_color":
+                    // path = "ip|hexcolor" e.g. "192.168.1.50|FF0080"
+                    if (!string.IsNullOrEmpty(path))
+                    {
+                        var govParts = path.Split('|', 2);
+                        if (govParts.Length == 2 && !string.IsNullOrEmpty(govParts[0]) && !string.IsNullOrEmpty(govParts[1]))
+                        {
+                            var ip = govParts[0];
+                            var hex = govParts[1].TrimStart('#');
+                            if (hex.Length == 6 && int.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out int rgb))
+                            {
+                                byte r = (byte)((rgb >> 16) & 0xFF);
+                                byte g = (byte)((rgb >> 8) & 0xFF);
+                                byte b = (byte)(rgb & 0xFF);
+                                _ = AmbienceSync.SendColorAsync(ip, r, g, b);
+                            }
+                            else
+                            {
+                                Logger.Log($"govee_color: invalid hex '{govParts[1]}'");
+                            }
+                        }
+                        else if (govParts.Length == 1 && !string.IsNullOrEmpty(govParts[0]))
+                        {
+                            Logger.Log("govee_color: missing hex color in path (expected ip|hexcolor)");
+                        }
+                    }
+                    break;
             }
         }
         catch (Exception ex)

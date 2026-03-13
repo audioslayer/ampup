@@ -198,6 +198,55 @@ public class AmbienceSync : IDisposable
         }
     }
 
+    /// <summary>
+    /// Sets Govee brightness (0.0–1.0) on a single specific device by IP.
+    /// Called when a knob is assigned target "govee:IP".
+    /// </summary>
+    public void SetBrightnessForDevice(string ip, float normalized)
+    {
+        if (_disposed || string.IsNullOrWhiteSpace(ip)) return;
+        int value = (int)Math.Round(Math.Clamp(normalized, 0f, 1f) * 100);
+        _ = Task.Run(() => SendGoveeBrightness(ip, value));
+    }
+
+    // ── Static helpers for button actions ──────────────────────────
+
+    // Track last known power state per device IP for toggle
+    private static readonly Dictionary<string, bool> _devicePowerState = new();
+
+    /// <summary>
+    /// Toggles a Govee device on/off via LAN UDP. Used by button action govee_toggle.
+    /// Tracks last state to alternate between on and off.
+    /// </summary>
+    public static async Task SendToggleAsync(string ip)
+    {
+        if (string.IsNullOrWhiteSpace(ip)) return;
+        // Assume starts ON if unknown; toggle to opposite
+        bool currentlyOn = _devicePowerState.TryGetValue(ip, out bool last) ? last : true;
+        bool newState = !currentlyOn;
+        _devicePowerState[ip] = newState;
+        try
+        {
+            string json = $"{{\"msg\":{{\"cmd\":\"turn\",\"data\":{{\"value\":{(newState ? 1 : 0)}}}}}}}";
+            byte[] data = Encoding.UTF8.GetBytes(json);
+            using var udp = new UdpClient();
+            await udp.SendAsync(data, data.Length, ip, 4001);
+            Logger.Log($"Govee toggle ({ip}): {(newState ? "on" : "off")}");
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Govee toggle failed ({ip}): {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Sets a Govee device to a specific color via LAN UDP. Used by button action govee_color.
+    /// </summary>
+    public static async Task SendColorAsync(string ip, byte r, byte g, byte b)
+    {
+        await SendGoveeColor(ip, r, g, b);
+    }
+
     private static async Task SendGoveeBrightness(string ip, int value)
     {
         try

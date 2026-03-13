@@ -374,6 +374,11 @@ public partial class App : Application
             {
                 _ambienceSync?.SetBrightness(e.Value / 1023f);
             }
+            else if (knob.Target.StartsWith("govee:", StringComparison.OrdinalIgnoreCase))
+            {
+                var ip = knob.Target.Substring(6);
+                _ambienceSync?.SetBrightnessForDevice(ip, e.Value / 1023f);
+            }
             else
             {
                 _mixer.SetVolume(knob, e.Value);
@@ -393,6 +398,7 @@ public partial class App : Application
                     "monitor" => "Desktop24",
                     "led_brightness" => "Color24",
                     "govee" => "Color24",
+                    _ when knob.Target.StartsWith("govee:") => "Color24",
                     "spotify" => "MusicNote124",
                     "discord" => "Headphones24",
                     _ when knob.Target.StartsWith("ha_") => "Home24",

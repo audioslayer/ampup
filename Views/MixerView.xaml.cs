@@ -850,7 +850,13 @@ public partial class MixerView : UserControl
 
                 if (goveeEnabled)
                 {
-                    picker.AddItem("Govee", "govee");
+                    foreach (var device in config.Ambience.GoveeDevices)
+                    {
+                        if (!string.IsNullOrWhiteSpace(device.Ip))
+                            picker.AddItem($"Govee: {device.Name}", $"govee:{device.Ip}");
+                    }
+                    if (!config.Ambience.GoveeDevices.Any(d => !string.IsNullOrWhiteSpace(d.Ip)))
+                        picker.AddItem("Govee", "govee"); // fallback if no devices configured
                 }
             }
 
@@ -866,6 +872,19 @@ public partial class MixerView : UserControl
     {
         var baseTarget = target.Contains(':') ? target.Split(':')[0] : target;
 
+        // Try exact match first (handles "govee:IP", "ha_light:entity.id", etc.)
+        for (int i = 0; i < picker.ItemCount; i++)
+        {
+            if (picker.GetTagAt(i) as string == target)
+            {
+                picker.SelectedIndex = i;
+                if (picker.Tag is TextBlock display)
+                    display.Text = HATargetDisplayNames.TryGetValue(baseTarget, out var dn) ? dn : FormatTargetName(baseTarget);
+                return;
+            }
+        }
+
+        // Fallback: base target match
         for (int i = 0; i < picker.ItemCount; i++)
         {
             if (picker.GetTagAt(i) as string == baseTarget)

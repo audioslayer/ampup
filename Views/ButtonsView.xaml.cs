@@ -33,6 +33,7 @@ public partial class ButtonsView : UserControl
         ("Sleep", "power_sleep"), ("Lock", "power_lock"), ("Off", "power_off"),
         ("Restart", "power_restart"), ("Logoff", "power_logoff"), ("Hibernate", "power_hibernate"),
         ("HA: Toggle", "ha_toggle"), ("HA: Scene", "ha_scene"), ("HA: Service", "ha_service"),
+        ("Govee: Toggle", "govee_toggle"), ("Govee: Color", "govee_color"),
     };
 
     private static readonly string[] PathActions = { "mute_program", "launch_exe", "close_program" };
@@ -55,6 +56,7 @@ public partial class ButtonsView : UserControl
         { "power_sleep", "😴" }, { "power_lock", "🔒" }, { "power_off", "⏻" },
         { "power_restart", "🔄" }, { "power_logoff", "🚪" }, { "power_hibernate", "❄" },
         { "ha_toggle", "⚡" }, { "ha_scene", "🎬" }, { "ha_service", "⚙" },
+        { "govee_toggle", "◈" }, { "govee_color", "◉" },
     };
 
     private static readonly Dictionary<string, Color> ActionColors = new()
@@ -87,6 +89,8 @@ public partial class ButtonsView : UserControl
         { "ha_toggle",          Color.FromRgb(0x26, 0xC6, 0xDA) },
         { "ha_scene",           Color.FromRgb(0xFF, 0xA7, 0x26) },
         { "ha_service",         Color.FromRgb(0xAB, 0x47, 0xBC) },
+        { "govee_toggle",       Color.FromRgb(0x66, 0xBB, 0x6A) },
+        { "govee_color",        Color.FromRgb(0xAB, 0x47, 0xBC) },
     };
 
     // Clipboard for button copy/paste
@@ -170,10 +174,20 @@ public partial class ButtonsView : UserControl
     private readonly ListPicker[] _holdHaEntityPickers = new ListPicker[5];
     private readonly StackPanel[] _holdHaEntityPanels = new StackPanel[5];
 
+    // Govee device pickers (tap/double/hold)
+    private readonly ListPicker[] _tapGoveeDevicePickers = new ListPicker[5];
+    private readonly StackPanel[] _tapGoveeDevicePanels = new StackPanel[5];
+    private readonly ListPicker[] _dblGoveeDevicePickers = new ListPicker[5];
+    private readonly StackPanel[] _dblGoveeDevicePanels = new StackPanel[5];
+    private readonly ListPicker[] _holdGoveeDevicePickers = new ListPicker[5];
+    private readonly StackPanel[] _holdGoveeDevicePanels = new StackPanel[5];
+
     private List<(string Id, string Name, bool IsOutput)> _audioDevices = new();
     private HAIntegration? _ha;
+    private AmbienceSync? _ambienceSync;
 
     public void SetHA(HAIntegration? ha) => _ha = ha;
+    public void SetAmbienceSync(AmbienceSync? sync) => _ambienceSync = sync;
 
     public ButtonsView()
     {
@@ -314,13 +328,24 @@ public partial class ButtonsView : UserControl
         }
     }
 
+    private static string ExtractPathBoxValue(string action, string path)
+    {
+        // For govee_color, path is "ip|hexcolor" — only show hex in path box
+        if (action == "govee_color" && path.Contains('|'))
+            return path.Split('|', 2)[1];
+        // For govee_toggle, path is just ip — no path box needed
+        if (action is "govee_toggle")
+            return "";
+        return path;
+    }
+
     private void ReloadButtonColumn(int idx, ButtonConfig btn)
     {
         _loading = true;
 
         // TAP
         SelectCombo(_tapCombos[idx], btn.Action);
-        SetTextBoxValue(_tapPathBoxes[idx], btn.Path);
+        SetTextBoxValue(_tapPathBoxes[idx], ExtractPathBoxValue(btn.Action, btn.Path));
         SetTextBoxValue(_tapMacroBoxes[idx], btn.MacroKeys);
         SelectDevicePicker(_tapDevicePickers[idx], btn.DeviceId);
         _tapCycleDevicePickers[idx].SetCheckedIds(btn.DeviceIds);
@@ -328,12 +353,13 @@ public partial class ButtonsView : UserControl
         SelectPowerSegment(_tapPowerSegments[idx], btn.PowerAction);
         SelectKnobPicker(_tapKnobPickers[idx], btn.LinkedKnobIdx);
         SelectHaEntityPicker(_tapHaEntityPickers[idx], btn.Action, btn.Path);
+        SelectGoveeDevicePicker(_tapGoveeDevicePickers[idx], btn.Action, btn.Path);
         UpdateTapVisibility(idx, btn.Action);
         UpdateHeaderDisplay(idx);
 
         // DOUBLE
         SelectCombo(_dblCombos[idx], btn.DoublePressAction);
-        SetTextBoxValue(_dblPathBoxes[idx], btn.DoublePressPath);
+        SetTextBoxValue(_dblPathBoxes[idx], ExtractPathBoxValue(btn.DoublePressAction, btn.DoublePressPath));
         SetTextBoxValue(_dblMacroBoxes[idx], btn.DoublePressMacroKeys);
         SelectDevicePicker(_dblDevicePickers[idx], btn.DoublePressDeviceId);
         _dblCycleDevicePickers[idx].SetCheckedIds(btn.DoublePressDeviceIds);
@@ -341,13 +367,14 @@ public partial class ButtonsView : UserControl
         SelectPowerSegment(_dblPowerSegments[idx], btn.DoublePressPowerAction);
         SelectKnobPicker(_dblKnobPickers[idx], btn.DoublePressLinkedKnobIdx);
         SelectHaEntityPicker(_dblHaEntityPickers[idx], btn.DoublePressAction, btn.DoublePressPath);
+        SelectGoveeDevicePicker(_dblGoveeDevicePickers[idx], btn.DoublePressAction, btn.DoublePressPath);
         UpdateGestureVisibility(_dblPathPanels[idx], _dblPathLabels[idx], _dblBrowseButtons[idx], _dblPickButtons[idx], _dblMacroPanels[idx],
             _dblDevicePanels[idx], _dblCycleDevicePanels[idx], _dblProfilePanels[idx],
-            _dblPowerPanels[idx], _dblKnobPanels[idx], _dblHaEntityPanels[idx], btn.DoublePressAction);
+            _dblPowerPanels[idx], _dblKnobPanels[idx], _dblHaEntityPanels[idx], _dblGoveeDevicePanels[idx], btn.DoublePressAction);
 
         // HOLD
         SelectCombo(_holdCombos[idx], btn.HoldAction);
-        SetTextBoxValue(_holdPathBoxes[idx], btn.HoldPath);
+        SetTextBoxValue(_holdPathBoxes[idx], ExtractPathBoxValue(btn.HoldAction, btn.HoldPath));
         SetTextBoxValue(_holdMacroBoxes[idx], btn.HoldMacroKeys);
         SelectDevicePicker(_holdDevicePickers[idx], btn.HoldDeviceId);
         _holdCycleDevicePickers[idx].SetCheckedIds(btn.HoldDeviceIds);
@@ -355,9 +382,10 @@ public partial class ButtonsView : UserControl
         SelectPowerSegment(_holdPowerSegments[idx], btn.HoldPowerAction);
         SelectKnobPicker(_holdKnobPickers[idx], btn.HoldLinkedKnobIdx);
         SelectHaEntityPicker(_holdHaEntityPickers[idx], btn.HoldAction, btn.HoldPath);
+        SelectGoveeDevicePicker(_holdGoveeDevicePickers[idx], btn.HoldAction, btn.HoldPath);
         UpdateGestureVisibility(_holdPathPanels[idx], _holdPathLabels[idx], _holdBrowseButtons[idx], _holdPickButtons[idx], _holdMacroPanels[idx],
             _holdDevicePanels[idx], _holdCycleDevicePanels[idx], _holdProfilePanels[idx],
-            _holdPowerPanels[idx], _holdKnobPanels[idx], _holdHaEntityPanels[idx], btn.HoldAction);
+            _holdPowerPanels[idx], _holdKnobPanels[idx], _holdHaEntityPanels[idx], _holdGoveeDevicePanels[idx], btn.HoldAction);
 
         _loading = false;
     }
@@ -379,16 +407,19 @@ public partial class ButtonsView : UserControl
             PopulateCycleDevicePicker(_tapCycleDevicePickers[i]);
             PopulateProfilePicker(_tapProfilePickers[i], config);
             PopulateKnobPicker(_tapKnobPickers[i], config);
+            PopulateGoveeDevicePicker(_tapGoveeDevicePickers[i], config);
 
             PopulateDevicePicker(_dblDevicePickers[i]);
             PopulateCycleDevicePicker(_dblCycleDevicePickers[i]);
             PopulateProfilePicker(_dblProfilePickers[i], config);
             PopulateKnobPicker(_dblKnobPickers[i], config);
+            PopulateGoveeDevicePicker(_dblGoveeDevicePickers[i], config);
 
             PopulateDevicePicker(_holdDevicePickers[i]);
             PopulateCycleDevicePicker(_holdCycleDevicePickers[i]);
             PopulateProfilePicker(_holdProfilePickers[i], config);
             PopulateKnobPicker(_holdKnobPickers[i], config);
+            PopulateGoveeDevicePicker(_holdGoveeDevicePickers[i], config);
         }
 
         for (int i = 0; i < 5; i++)
@@ -419,7 +450,7 @@ public partial class ButtonsView : UserControl
 
             // TAP
             SelectCombo(_tapCombos[i], btn.Action);
-            SetTextBoxValue(_tapPathBoxes[i], btn.Path);
+            SetTextBoxValue(_tapPathBoxes[i], ExtractPathBoxValue(btn.Action, btn.Path));
             SetTextBoxValue(_tapMacroBoxes[i], btn.MacroKeys);
             SelectDevicePicker(_tapDevicePickers[i], btn.DeviceId);
             _tapCycleDevicePickers[i].SetCheckedIds(btn.DeviceIds);
@@ -427,12 +458,13 @@ public partial class ButtonsView : UserControl
             SelectPowerSegment(_tapPowerSegments[i], btn.PowerAction);
             SelectKnobPicker(_tapKnobPickers[i], btn.LinkedKnobIdx);
             SelectHaEntityPicker(_tapHaEntityPickers[i], btn.Action, btn.Path);
+            SelectGoveeDevicePicker(_tapGoveeDevicePickers[i], btn.Action, btn.Path);
             UpdateTapVisibility(i, btn.Action);
             UpdateHeaderDisplay(i);
 
             // DOUBLE
             SelectCombo(_dblCombos[i], btn.DoublePressAction);
-            SetTextBoxValue(_dblPathBoxes[i], btn.DoublePressPath);
+            SetTextBoxValue(_dblPathBoxes[i], ExtractPathBoxValue(btn.DoublePressAction, btn.DoublePressPath));
             SetTextBoxValue(_dblMacroBoxes[i], btn.DoublePressMacroKeys);
             SelectDevicePicker(_dblDevicePickers[i], btn.DoublePressDeviceId);
             _dblCycleDevicePickers[i].SetCheckedIds(btn.DoublePressDeviceIds);
@@ -440,13 +472,14 @@ public partial class ButtonsView : UserControl
             SelectPowerSegment(_dblPowerSegments[i], btn.DoublePressPowerAction);
             SelectKnobPicker(_dblKnobPickers[i], btn.DoublePressLinkedKnobIdx);
             SelectHaEntityPicker(_dblHaEntityPickers[i], btn.DoublePressAction, btn.DoublePressPath);
+            SelectGoveeDevicePicker(_dblGoveeDevicePickers[i], btn.DoublePressAction, btn.DoublePressPath);
             UpdateGestureVisibility(_dblPathPanels[i], _dblPathLabels[i], _dblBrowseButtons[i], _dblPickButtons[i], _dblMacroPanels[i],
                 _dblDevicePanels[i], _dblCycleDevicePanels[i], _dblProfilePanels[i],
-                _dblPowerPanels[i], _dblKnobPanels[i], _dblHaEntityPanels[i], btn.DoublePressAction);
+                _dblPowerPanels[i], _dblKnobPanels[i], _dblHaEntityPanels[i], _dblGoveeDevicePanels[i], btn.DoublePressAction);
 
             // HOLD
             SelectCombo(_holdCombos[i], btn.HoldAction);
-            SetTextBoxValue(_holdPathBoxes[i], btn.HoldPath);
+            SetTextBoxValue(_holdPathBoxes[i], ExtractPathBoxValue(btn.HoldAction, btn.HoldPath));
             SetTextBoxValue(_holdMacroBoxes[i], btn.HoldMacroKeys);
             SelectDevicePicker(_holdDevicePickers[i], btn.HoldDeviceId);
             _holdCycleDevicePickers[i].SetCheckedIds(btn.HoldDeviceIds);
@@ -454,9 +487,10 @@ public partial class ButtonsView : UserControl
             SelectPowerSegment(_holdPowerSegments[i], btn.HoldPowerAction);
             SelectKnobPicker(_holdKnobPickers[i], btn.HoldLinkedKnobIdx);
             SelectHaEntityPicker(_holdHaEntityPickers[i], btn.HoldAction, btn.HoldPath);
+            SelectGoveeDevicePicker(_holdGoveeDevicePickers[i], btn.HoldAction, btn.HoldPath);
             UpdateGestureVisibility(_holdPathPanels[i], _holdPathLabels[i], _holdBrowseButtons[i], _holdPickButtons[i], _holdMacroPanels[i],
                 _holdDevicePanels[i], _holdCycleDevicePanels[i], _holdProfilePanels[i],
-                _holdPowerPanels[i], _holdKnobPanels[i], _holdHaEntityPanels[i], btn.HoldAction);
+                _holdPowerPanels[i], _holdKnobPanels[i], _holdHaEntityPanels[i], _holdGoveeDevicePanels[i], btn.HoldAction);
         }
 
         _loading = false;
@@ -649,6 +683,12 @@ public partial class ButtonsView : UserControl
             _tapHaEntityPickers[i] = tapHaPicker;
             tapSection.Children.Add(tapHaPanel);
 
+            var (tapGoveePanel, tapGoveePicker) = MakeListPickerRow("GOVEE DEVICE");
+            tapGoveePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _tapGoveeDevicePanels[i] = tapGoveePanel;
+            _tapGoveeDevicePickers[i] = tapGoveePicker;
+            tapSection.Children.Add(tapGoveePanel);
+
             Grid.SetRow(tapSection, 2);
             grid.Children.Add(tapSection);
 
@@ -719,13 +759,19 @@ public partial class ButtonsView : UserControl
             _dblHaEntityPickers[i] = dblHaPicker;
             dblSection.Children.Add(dblHaPanel);
 
+            var (dblGoveePanel, dblGoveePicker) = MakeListPickerRow("GOVEE DEVICE");
+            dblGoveePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _dblGoveeDevicePanels[i] = dblGoveePanel;
+            _dblGoveeDevicePickers[i] = dblGoveePicker;
+            dblSection.Children.Add(dblGoveePanel);
+
             dblCombo.SelectionChanged += (_, _) =>
             {
                 if (_loading) return;
                 var val = GetComboActionValue(dblCombo);
                 UpdateGestureVisibility(_dblPathPanels[idx], _dblPathLabels[idx], _dblBrowseButtons[idx], _dblPickButtons[idx], _dblMacroPanels[idx],
                     _dblDevicePanels[idx], _dblCycleDevicePanels[idx], _dblProfilePanels[idx],
-                    _dblPowerPanels[idx], _dblKnobPanels[idx], _dblHaEntityPanels[idx], val);
+                    _dblPowerPanels[idx], _dblKnobPanels[idx], _dblHaEntityPanels[idx], _dblGoveeDevicePanels[idx], val);
                 QueueSave();
             };
 
@@ -799,13 +845,19 @@ public partial class ButtonsView : UserControl
             _holdHaEntityPickers[i] = holdHaPicker;
             holdSection.Children.Add(holdHaPanel);
 
+            var (holdGoveePanel, holdGoveePicker) = MakeListPickerRow("GOVEE DEVICE");
+            holdGoveePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _holdGoveeDevicePanels[i] = holdGoveePanel;
+            _holdGoveeDevicePickers[i] = holdGoveePicker;
+            holdSection.Children.Add(holdGoveePanel);
+
             holdCombo.SelectionChanged += (_, _) =>
             {
                 if (_loading) return;
                 var val = GetComboActionValue(holdCombo);
                 UpdateGestureVisibility(_holdPathPanels[idx], _holdPathLabels[idx], _holdBrowseButtons[idx], _holdPickButtons[idx], _holdMacroPanels[idx],
                     _holdDevicePanels[idx], _holdCycleDevicePanels[idx], _holdProfilePanels[idx],
-                    _holdPowerPanels[idx], _holdKnobPanels[idx], _holdHaEntityPanels[idx], val);
+                    _holdPowerPanels[idx], _holdKnobPanels[idx], _holdHaEntityPanels[idx], _holdGoveeDevicePanels[idx], val);
                 QueueSave();
             };
 
@@ -851,7 +903,8 @@ public partial class ButtonsView : UserControl
     {
         bool isHaEntityAction = action is "ha_toggle" or "ha_scene";
         bool isHaServiceAction = action == "ha_service";
-        _tapPathPanels[idx].Visibility = PathActions.Contains(action) || isHaServiceAction ? Visibility.Visible : Visibility.Collapsed;
+        bool isGoveeAction = action is "govee_toggle" or "govee_color";
+        _tapPathPanels[idx].Visibility = PathActions.Contains(action) || isHaServiceAction || action == "govee_color" ? Visibility.Visible : Visibility.Collapsed;
         ApplyPathLabelAndButtons(_tapPathLabels[idx], _tapPathBoxes[idx], _tapBrowseButtons[idx], _tapPickButtons[idx], action);
         _tapMacroPanels[idx].Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
         _tapDevicePanels[idx].Visibility = action is "select_output" or "select_input" or "mute_device" ? Visibility.Visible : Visibility.Collapsed;
@@ -860,16 +913,18 @@ public partial class ButtonsView : UserControl
         _tapPowerPanels[idx].Visibility = action == "system_power" ? Visibility.Visible : Visibility.Collapsed;
         _tapKnobPanels[idx].Visibility = action == "mute_app_group" ? Visibility.Visible : Visibility.Collapsed;
         _tapHaEntityPanels[idx].Visibility = isHaEntityAction ? Visibility.Visible : Visibility.Collapsed;
+        _tapGoveeDevicePanels[idx].Visibility = isGoveeAction ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static void UpdateGestureVisibility(
         StackPanel pathPanel, TextBlock pathLabel, Button browseBtn, Button pickBtn, StackPanel macroPanel,
         StackPanel devicePanel, StackPanel cycleDevicePanel, StackPanel profilePanel,
-        StackPanel powerPanel, StackPanel knobPanel, StackPanel haEntityPanel, string action)
+        StackPanel powerPanel, StackPanel knobPanel, StackPanel haEntityPanel, StackPanel goveeDevicePanel, string action)
     {
         bool isHaEntityAction = action is "ha_toggle" or "ha_scene";
         bool isHaServiceAction = action == "ha_service";
-        pathPanel.Visibility = PathActions.Contains(action) || isHaServiceAction ? Visibility.Visible : Visibility.Collapsed;
+        bool isGoveeAction = action is "govee_toggle" or "govee_color";
+        pathPanel.Visibility = PathActions.Contains(action) || isHaServiceAction || action == "govee_color" ? Visibility.Visible : Visibility.Collapsed;
         ApplyPathLabelAndButtons(pathLabel, null, browseBtn, pickBtn, action);
         macroPanel.Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
         devicePanel.Visibility = action is "select_output" or "select_input" or "mute_device" ? Visibility.Visible : Visibility.Collapsed;
@@ -878,6 +933,7 @@ public partial class ButtonsView : UserControl
         powerPanel.Visibility = action == "system_power" ? Visibility.Visible : Visibility.Collapsed;
         knobPanel.Visibility = action == "mute_app_group" ? Visibility.Visible : Visibility.Collapsed;
         haEntityPanel.Visibility = isHaEntityAction ? Visibility.Visible : Visibility.Collapsed;
+        goveeDevicePanel.Visibility = isGoveeAction ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static void ApplyPathLabelAndButtons(TextBlock label, TextBox? box, Button browseBtn, Button pickBtn, string action)
@@ -905,6 +961,12 @@ public partial class ButtonsView : UserControl
             case "ha_service":
                 label.Text = "SERVICE CALL";
                 if (box != null) box.ToolTip = "Format: domain.service:entity_id (e.g. light.turn_on:light.office)";
+                browseBtn.Visibility = Visibility.Collapsed;
+                pickBtn.Visibility = Visibility.Collapsed;
+                break;
+            case "govee_color":
+                label.Text = "HEX COLOR";
+                if (box != null) box.ToolTip = "Hex color to set (e.g. FF0080 for pink, 00FF00 for green)";
                 browseBtn.Visibility = Visibility.Collapsed;
                 pickBtn.Visibility = Visibility.Collapsed;
                 break;
@@ -939,7 +1001,7 @@ public partial class ButtonsView : UserControl
             btn.Label = labelText == $"Button {i + 1}" ? "" : labelText;
 
             btn.Action = GetComboActionValue(_tapCombos[i]);
-            btn.Path = GetHaOrPathValue(_tapCombos[i], _tapHaEntityPickers[i], _tapPathBoxes[i]);
+            btn.Path = GetActionPath(_tapCombos[i], _tapHaEntityPickers[i], _tapGoveeDevicePickers[i], _tapPathBoxes[i]);
             btn.MacroKeys = GetTextBoxValue(_tapMacroBoxes[i]);
             btn.DeviceId = GetSelectedDeviceId(_tapDevicePickers[i]);
             btn.DeviceIds = _tapCycleDevicePickers[i].GetCheckedIds();
@@ -948,7 +1010,7 @@ public partial class ButtonsView : UserControl
             btn.LinkedKnobIdx = int.TryParse(_tapKnobPickers[i].SelectedTag as string, out int ki) ? ki : -1;
 
             btn.DoublePressAction = GetComboActionValue(_dblCombos[i]);
-            btn.DoublePressPath = GetHaOrPathValue(_dblCombos[i], _dblHaEntityPickers[i], _dblPathBoxes[i]);
+            btn.DoublePressPath = GetActionPath(_dblCombos[i], _dblHaEntityPickers[i], _dblGoveeDevicePickers[i], _dblPathBoxes[i]);
             btn.DoublePressMacroKeys = GetTextBoxValue(_dblMacroBoxes[i]);
             btn.DoublePressDeviceId = GetSelectedDeviceId(_dblDevicePickers[i]);
             btn.DoublePressDeviceIds = _dblCycleDevicePickers[i].GetCheckedIds();
@@ -957,7 +1019,7 @@ public partial class ButtonsView : UserControl
             btn.DoublePressLinkedKnobIdx = int.TryParse(_dblKnobPickers[i].SelectedTag as string, out int dki) ? dki : -1;
 
             btn.HoldAction = GetComboActionValue(_holdCombos[i]);
-            btn.HoldPath = GetHaOrPathValue(_holdCombos[i], _holdHaEntityPickers[i], _holdPathBoxes[i]);
+            btn.HoldPath = GetActionPath(_holdCombos[i], _holdHaEntityPickers[i], _holdGoveeDevicePickers[i], _holdPathBoxes[i]);
             btn.HoldMacroKeys = GetTextBoxValue(_holdMacroBoxes[i]);
             btn.HoldDeviceId = GetSelectedDeviceId(_holdDevicePickers[i]);
             btn.HoldDeviceIds = _holdCycleDevicePickers[i].GetCheckedIds();
@@ -1024,6 +1086,7 @@ public partial class ButtonsView : UserControl
             _tapProfilePickers[i].RefreshAccent();
             _tapKnobPickers[i].RefreshAccent();
             _tapHaEntityPickers[i].RefreshAccent();
+            _tapGoveeDevicePickers[i].RefreshAccent();
             _tapPowerSegments[i].AccentColor = accent;
             _tapCycleDevicePickers[i].AccentColor = accent;
 
@@ -1031,6 +1094,7 @@ public partial class ButtonsView : UserControl
             _dblProfilePickers[i].RefreshAccent();
             _dblKnobPickers[i].RefreshAccent();
             _dblHaEntityPickers[i].RefreshAccent();
+            _dblGoveeDevicePickers[i].RefreshAccent();
             _dblPowerSegments[i].AccentColor = accent;
             _dblCycleDevicePickers[i].AccentColor = accent;
 
@@ -1038,6 +1102,7 @@ public partial class ButtonsView : UserControl
             _holdProfilePickers[i].RefreshAccent();
             _holdKnobPickers[i].RefreshAccent();
             _holdHaEntityPickers[i].RefreshAccent();
+            _holdGoveeDevicePickers[i].RefreshAccent();
             _holdPowerSegments[i].AccentColor = accent;
             _holdCycleDevicePickers[i].AccentColor = accent;
         }
@@ -1083,45 +1148,62 @@ public partial class ButtonsView : UserControl
         { "ha_toggle",          "Toggle a Home Assistant entity on/off" },
         { "ha_scene",           "Activate a Home Assistant scene" },
         { "ha_service",         "Call any Home Assistant service (format: domain.service:entity_id)" },
+        { "govee_toggle",       "Toggle a Govee device on/off via LAN" },
+        { "govee_color",        "Set a Govee device to a specific color (enter hex in path, e.g. FF0080)" },
     };
 
     private void RebuildActionPickers(AppConfig config)
     {
         bool haEnabled = config.HomeAssistant.Enabled;
+        bool goveeEnabled = config.Ambience.GoveeEnabled && config.Ambience.GoveeDevices.Count > 0;
 
         // Check if any button currently has an HA action configured (so we can still show it even when disabled)
         bool anyHaConfigured = config.Buttons.Any(b =>
             IsHaAction(b.Action) || IsHaAction(b.DoublePressAction) || IsHaAction(b.HoldAction));
 
+        // Check if any button currently has a Govee action configured
+        bool anyGoveeConfigured = config.Buttons.Any(b =>
+            IsGoveeAction(b.Action) || IsGoveeAction(b.DoublePressAction) || IsGoveeAction(b.HoldAction));
+
         for (int i = 0; i < 5; i++)
         {
-            PopulateActionPicker(_tapCombos[i], haEnabled, anyHaConfigured);
-            PopulateActionPicker(_dblCombos[i], haEnabled, anyHaConfigured);
-            PopulateActionPicker(_holdCombos[i], haEnabled, anyHaConfigured);
+            PopulateActionPicker(_tapCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured);
+            PopulateActionPicker(_dblCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured);
+            PopulateActionPicker(_holdCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured);
         }
     }
 
     private static bool IsHaAction(string? action)
         => action is "ha_toggle" or "ha_scene" or "ha_service";
 
-    private void PopulateActionPicker(ActionPicker picker, bool haEnabled, bool anyHaConfigured)
+    private static bool IsGoveeAction(string? action)
+        => action is "govee_toggle" or "govee_color";
+
+    private void PopulateActionPicker(ActionPicker picker, bool haEnabled, bool anyHaConfigured, bool goveeEnabled, bool anyGoveeConfigured)
     {
         picker.ClearItems();
 
         foreach (var (display, value) in Actions)
         {
             bool isHa = IsHaAction(value);
+            bool isGovee = IsGoveeAction(value);
 
             // Skip HA actions when HA is disabled AND no button has an HA action configured
             if (isHa && !haEnabled && !anyHaConfigured)
                 continue;
 
+            // Skip Govee actions when Govee is disabled AND no button has a Govee action configured
+            if (isGovee && !goveeEnabled && !anyGoveeConfigured)
+                continue;
+
             string displayName = display;
             if (isHa && !haEnabled)
                 displayName = $"{display} (HA disabled)";
+            if (isGovee && !goveeEnabled)
+                displayName = $"{display} (Govee disabled)";
 
             var icon = ActionIcons.GetValueOrDefault(value, "—");
-            var color = isHa && !haEnabled
+            var color = (isHa && !haEnabled) || (isGovee && !goveeEnabled)
                 ? Color.FromRgb(0x55, 0x55, 0x55)
                 : ActionColors.GetValueOrDefault(value, Color.FromRgb(0x88, 0x88, 0x88));
             var tooltip = ActionTooltips.GetValueOrDefault(value, display);
@@ -1361,6 +1443,7 @@ public partial class ButtonsView : UserControl
         { "PROFILE",      "Profile to switch to when pressed" },
         { "LINKED KNOB",  "Knob whose app group is muted" },
         { "HA ENTITY",    "Home Assistant entity to control (click to load entities)" },
+        { "GOVEE DEVICE", "Govee LAN device to control" },
     };
 
     private (StackPanel panel, ListPicker picker) MakeListPickerRow(string label)
@@ -1539,6 +1622,37 @@ public partial class ButtonsView : UserControl
         picker.SelectedIndex = -1;
     }
 
+    private void PopulateGoveeDevicePicker(ListPicker picker, AppConfig config)
+    {
+        picker.ClearItems();
+        if (!config.Ambience.GoveeEnabled) return;
+        foreach (var device in config.Ambience.GoveeDevices)
+        {
+            if (!string.IsNullOrWhiteSpace(device.Ip))
+                picker.AddItem($"{device.Name} ({device.Ip})", device.Ip);
+        }
+    }
+
+    private static void SelectGoveeDevicePicker(ListPicker picker, string action, string path)
+    {
+        if (action is not ("govee_toggle" or "govee_color") || string.IsNullOrEmpty(path))
+        {
+            picker.SelectedIndex = -1;
+            return;
+        }
+        // path may be "ip" or "ip|hexcolor" — extract IP
+        var ip = path.Contains('|') ? path.Split('|')[0] : path;
+        for (int i = 0; i < picker.ItemCount; i++)
+        {
+            if (picker.GetTagAt(i) as string == ip)
+            {
+                picker.SelectedIndex = i;
+                return;
+            }
+        }
+        picker.SelectedIndex = -1;
+    }
+
     private void SelectHaEntityPicker(ListPicker picker, string action, string entityId)
     {
         if (action is not ("ha_toggle" or "ha_scene") || string.IsNullOrEmpty(entityId))
@@ -1561,11 +1675,22 @@ public partial class ButtonsView : UserControl
         picker.SelectedIndex = 0;
     }
 
-    private string GetHaOrPathValue(ActionPicker combo, ListPicker haPicker, TextBox pathBox)
+    private string GetActionPath(ActionPicker combo, ListPicker haPicker, ListPicker goveePicker, TextBox pathBox)
     {
         var action = GetComboActionValue(combo);
         if (action is "ha_toggle" or "ha_scene")
             return haPicker.SelectedTag as string ?? "";
+        if (action is "govee_toggle")
+            return goveePicker.SelectedTag as string ?? "";
+        if (action is "govee_color")
+        {
+            // Combine device IP + hex color: "ip|hexcolor"
+            var ip = goveePicker.SelectedTag as string ?? "";
+            var hex = GetTextBoxValue(pathBox);
+            if (!string.IsNullOrEmpty(ip) && !string.IsNullOrEmpty(hex))
+                return $"{ip}|{hex}";
+            return ip; // fall back to just IP
+        }
         return GetTextBoxValue(pathBox);
     }
 
