@@ -418,6 +418,7 @@ public class AmbienceConfig
     public int BrightnessScale { get; set; } = 75;
     public bool WarmToneShift { get; set; } = false;
     public string GoveeApiKey { get; set; } = "";
+    public ScreenSyncConfig ScreenSync { get; set; } = new();
 }
 
 public class GoveeDeviceConfig
@@ -427,4 +428,32 @@ public class GoveeDeviceConfig
     public string Sku { get; set; } = "";           // model number e.g. "H6056"
     public string DeviceId { get; set; } = "";      // MAC address from LAN scan or Cloud API device ID
     public string SyncMode { get; set; } = "off";   // "off" | "global" | "knob0"-"knob4"
+}
+
+// ── DreamView / Screen Sync ─────────────────────────────────────────────────
+
+public enum ZoneSide
+{
+    Full,       // entire screen averaged into one color
+    Left,       // left half of screen
+    Right,      // right half of screen
+    Top,        // top half of screen
+    Bottom,     // bottom half of screen
+}
+
+public class ZoneDeviceMapping
+{
+    public string DeviceIp { get; set; } = "";      // Govee LAN device IP
+    public ZoneSide Side { get; set; } = ZoneSide.Full; // which zone to sample for this device
+}
+
+public class ScreenSyncConfig
+{
+    public bool Enabled { get; set; } = false;
+    public int MonitorIndex { get; set; } = 0;      // 0 = primary monitor
+    public int TargetFps { get; set; } = 30;        // 15 / 30 / 60
+    public int ZoneCount { get; set; } = 8;         // 4, 8, or 16 zones across the screen
+    public float Saturation { get; set; } = 1.2f;   // 0.5 - 2.0 saturation boost
+    public int Sensitivity { get; set; } = 5;       // 1-20: minimum color delta to trigger send
+    public List<ZoneDeviceMapping> DeviceMappings { get; set; } = new();
 }

@@ -31,6 +31,7 @@ public partial class App : Application
     private TrayMixerPopup? _trayMixerPopup;
     private TrayContextMenu? _trayContextMenu;
     private AmbienceSync? _ambienceSync;
+    private DreamSyncController? _dreamSync;
 
     /// <summary>
     /// Last hardware knob positions (0-1), updated on every knob event.
@@ -88,6 +89,11 @@ public partial class App : Application
         _ambienceSync = new AmbienceSync(_config.Ambience);
         _rgb.OnFrameReady += _ambienceSync.OnFrame;
 
+        // DreamView / Screen Sync
+        _dreamSync = new DreamSyncController(_config.Ambience.ScreenSync, _config.Ambience);
+        if (_config.Ambience.ScreenSync.Enabled)
+            _dreamSync.Start();
+
         _buttons.OnProfileSwitch += HandleProfileSwitch;
         _buttons.OnDeviceSwitched += HandleDeviceSwitched;
         _buttons.OnBrightnessCycle += HandleBrightnessCycle;
@@ -135,6 +141,7 @@ public partial class App : Application
         _mainWindow.Closing += MainWindow_Closing;
         _mainWindow.Initialize(_config, _mixer, OnConfigChanged);
         _mainWindow.SetAmbienceSync(_ambienceSync);
+        _mainWindow.SetDreamSync(_dreamSync);
 
         // Start minimized to tray if launched with --minimized (Windows startup)
         var args = Environment.GetCommandLineArgs();
@@ -334,6 +341,7 @@ public partial class App : Application
         }
         _autoSwitcher?.UpdateConfig(_config.AutoSwitch);
         _ambienceSync?.UpdateConfig(_config.Ambience);
+        _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
     }
 
     private void HandleKnob(KnobEvent e)
@@ -886,6 +894,7 @@ public partial class App : Application
         _rgb?.Dispose();
         _ha?.Dispose();
         _ambienceSync?.Dispose();
+        _dreamSync?.Dispose();
         _cachedMic?.Dispose();
         _cachedMaster?.Dispose();
         _pollEnumerator?.Dispose();

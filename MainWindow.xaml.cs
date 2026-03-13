@@ -833,6 +833,12 @@ public partial class MainWindow : FluentWindow
         _settingsView.SetAmbienceSync(sync);
     }
 
+    public void SetDreamSync(DreamSyncController? dreamSync)
+    {
+        if (dreamSync != null)
+            _ambienceView.SetDreamSync(dreamSync);
+    }
+
     private void SwitchToProfile(string profileName)
     {
         // Save current profile before switching

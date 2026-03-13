@@ -15,6 +15,7 @@
     <FileVersion>0.7.0.0</FileVersion>
     <!-- Trimming flags are passed via build-installer.bat, not here -->
     <!-- WPF doesn't support PublishTrimmed in the project file -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

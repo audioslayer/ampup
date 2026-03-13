@@ -13,6 +13,7 @@ public partial class AmbienceView : UserControl
     private AppConfig? _config;
     private Action<AppConfig>? _onSave;
     private AmbienceSync? _sync;
+    private DreamSyncController? _dreamSync;
     private bool _loading;
     private readonly DispatcherTimer _debounce;
 
@@ -22,6 +23,10 @@ public partial class AmbienceView : UserControl
 
     // Section header elements (refreshed on accent change)
     private readonly List<(Border bar, TextBlock label)> _sectionHeaders = new();
+
+    // DreamView live preview swatches
+    private readonly List<Border> _dreamZoneSwatches = new();
+    private TextBlock? _dreamStatusLabel;
 
     // Navigation callback (set by MainWindow to navigate to Settings)
     public Action? NavigateToSettings { get; set; }
@@ -41,6 +46,15 @@ public partial class AmbienceView : UserControl
     public void SetSync(AmbienceSync sync)
     {
         _sync = sync;
+    }
+
+    public void SetDreamSync(DreamSyncController dreamSync)
+    {
+        _dreamSync = dreamSync;
+
+        // Wire zone color preview updates
+        _dreamSync.OnZoneColors += colors =>
+            Dispatcher.BeginInvoke(() => UpdateDreamZonePreview(colors));
     }
 
     public void LoadConfig(AppConfig config, Action<AppConfig> onSave)
@@ -225,6 +239,7 @@ public partial class AmbienceView : UserControl
                 "Govee is disabled",
                 "Enable Govee LAN or Cloud API in Settings to get started.",
                 "Open Settings", () => NavigateToSettings?.Invoke()));
+            AppendDreamViewCard();
             return;
         }
 
@@ -234,6 +249,7 @@ public partial class AmbienceView : UserControl
                 "No devices found",
                 "Scan for LAN devices or enable the Cloud API in Settings.",
                 "Open Settings", () => NavigateToSettings?.Invoke()));
+            AppendDreamViewCard();
             return;
         }
 
@@ -316,6 +332,9 @@ public partial class AmbienceView : UserControl
                 "Make sure your Govee devices are online, then scan in Settings.",
                 "Open Settings", () => NavigateToSettings?.Invoke()));
         }
+
+        // Always show DreamView card at the bottom
+        AppendDreamViewCard();
     }
 
     private Border MakeSetupCard(string title, string description, string buttonText, Action onClick)
@@ -955,6 +974,321 @@ public partial class AmbienceView : UserControl
     {
         try { await action(); }
         catch (Exception ex) { Logger.Log($"[Ambience] Cloud API error: {ex.Message}"); }
+    }
+
+    // ── DreamView Card ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Build and append the DreamView / Screen Sync card to the device panel.
+    /// Call from RebuildDevicePanel after the Govee device cards.
+    /// </summary>
+    private void AppendDreamViewCard()
+    {
+        if (_config == null) return;
+
+        var cfg = _config.Ambience.ScreenSync;
+
+        var card = new Border
+        {
+            Style = FindStyle("CardPanel") as Style,
+            Margin = new Thickness(0, 12, 0, 12),
+        };
+        var stack = new StackPanel();
+        card.Child = stack;
+
+        // ── Section header ──
+        var (headerBar, headerLabel) = MakeSectionHeader("DREAMVIEW — Screen Sync");
+        var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+        headerRow.Children.Add(headerBar);
+        headerRow.Children.Add(headerLabel);
+
+        // Toggle ON/OFF button in header row
+        var enableToggle = new CheckBox
+        {
+            Content = "Enable",
+            IsChecked = cfg.Enabled,
+            FontSize = 12,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(16, 0, 0, 0),
+            ToolTip = "Start/stop real-time screen color sync to Govee lights",
+        };
+        enableToggle.Checked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.Enabled = true;
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            QueueSave();
+        };
+        enableToggle.Unchecked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.Enabled = false;
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            if (_dreamStatusLabel != null) _dreamStatusLabel.Text = "Stopped";
+            QueueSave();
+        };
+        headerRow.Children.Add(enableToggle);
+        stack.Children.Add(headerRow);
+
+        // ── Description ──
+        stack.Children.Add(new TextBlock
+        {
+            Text = "Captures your screen in real time and maps zone colors to Govee lights. Assign each device to a screen region below.",
+            Style = FindStyle("SecondaryText"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 12),
+        });
+
+        stack.Children.Add(MakeSeparator());
+
+        // ── Settings row 1: Monitor + FPS + Zones ──
+        var row1 = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+
+        // Monitor selector
+        var monitorCount = ScreenCapture.MonitorCount;
+        row1.Children.Add(MakeSubLabel("MONITOR"));
+        var monitorCombo = new ComboBox { Width = 80, Margin = new Thickness(0, 0, 20, 0), ToolTip = "Which monitor to capture" };
+        for (int i = 0; i < monitorCount; i++)
+            monitorCombo.Items.Add($"Monitor {i + 1}");
+        monitorCombo.SelectedIndex = Math.Clamp(cfg.MonitorIndex, 0, Math.Max(0, monitorCount - 1));
+        monitorCombo.SelectionChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.MonitorIndex = monitorCombo.SelectedIndex;
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            QueueSave();
+        };
+        row1.Children.Add(monitorCombo);
+
+        // FPS selector
+        row1.Children.Add(MakeSubLabel("FPS"));
+        var fpsCombo = new ComboBox { Width = 70, Margin = new Thickness(0, 0, 20, 0), ToolTip = "Capture rate — 30fps is smooth; 15fps uses less CPU" };
+        foreach (var fps in new[] { 15, 30, 60 })
+            fpsCombo.Items.Add($"{fps}fps");
+        fpsCombo.SelectedIndex = cfg.TargetFps switch { 60 => 2, 15 => 0, _ => 1 };
+        fpsCombo.SelectionChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            int selected = fpsCombo.SelectedIndex switch { 0 => 15, 2 => 60, _ => 30 };
+            _config.Ambience.ScreenSync.TargetFps = selected;
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            QueueSave();
+        };
+        row1.Children.Add(fpsCombo);
+
+        // Zone count
+        row1.Children.Add(MakeSubLabel("ZONES"));
+        var zoneCombo = new ComboBox { Width = 70, Margin = new Thickness(0, 0, 20, 0), ToolTip = "Number of screen zones sampled per frame" };
+        foreach (var z in new[] { 4, 8, 16 })
+            zoneCombo.Items.Add($"{z} zones");
+        zoneCombo.SelectedIndex = cfg.ZoneCount switch { 4 => 0, 16 => 2, _ => 1 };
+        zoneCombo.SelectionChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            int selected = zoneCombo.SelectedIndex switch { 0 => 4, 2 => 16, _ => 8 };
+            _config.Ambience.ScreenSync.ZoneCount = selected;
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            QueueSave();
+        };
+        row1.Children.Add(zoneCombo);
+
+        stack.Children.Add(row1);
+
+        // ── Settings row 2: Saturation + Sensitivity ──
+        var row2 = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+
+        row2.Children.Add(MakeSubLabel("SATURATION"));
+        var satLabel = new TextBlock
+        {
+            Text = $"{cfg.Saturation:F1}×",
+            FontSize = 11,
+            Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Width = 32,
+            Margin = new Thickness(4, 0, 8, 0),
+        };
+        var satSlider = new AmpUp.Controls.StyledSlider
+        {
+            Minimum = 0.5, Maximum = 2.0, Value = cfg.Saturation,
+            Width = 120, Margin = new Thickness(0, 0, 20, 0),
+            ToolTip = "Boost color saturation — higher = more vivid room colors",
+        };
+        satSlider.ValueChanged += (_, e) =>
+        {
+            if (_loading || _config == null) return;
+            float v = (float)Math.Round(e.NewValue, 1);
+            satLabel.Text = $"{v:F1}×";
+            _config.Ambience.ScreenSync.Saturation = v;
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            QueueSave();
+        };
+        row2.Children.Add(satSlider);
+        row2.Children.Add(satLabel);
+
+        row2.Children.Add(MakeSubLabel("SENSITIVITY"));
+        var sensLabel = new TextBlock
+        {
+            Text = cfg.Sensitivity.ToString(),
+            FontSize = 11,
+            Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Width = 24,
+            Margin = new Thickness(4, 0, 0, 0),
+        };
+        var sensSlider = new AmpUp.Controls.StyledSlider
+        {
+            Minimum = 1, Maximum = 20, Value = cfg.Sensitivity,
+            Width = 120, Margin = new Thickness(0, 0, 8, 0),
+            ToolTip = "Minimum color change to trigger a send — lower = more reactive; higher = less flicker",
+        };
+        sensSlider.ValueChanged += (_, e) =>
+        {
+            if (_loading || _config == null) return;
+            int v = (int)e.NewValue;
+            sensLabel.Text = v.ToString();
+            _config.Ambience.ScreenSync.Sensitivity = v;
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            QueueSave();
+        };
+        row2.Children.Add(sensSlider);
+        row2.Children.Add(sensLabel);
+
+        stack.Children.Add(row2);
+
+        stack.Children.Add(MakeSeparator());
+
+        // ── Live zone preview ──
+        stack.Children.Add(new TextBlock
+        {
+            Text = "ZONE PREVIEW",
+            FontSize = 9, FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Margin = new Thickness(0, 0, 0, 6),
+        });
+
+        var previewPanel = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+        _dreamZoneSwatches.Clear();
+        for (int i = 0; i < cfg.ZoneCount; i++)
+        {
+            var swatch = new Border
+            {
+                Width = 24, Height = 24,
+                CornerRadius = new CornerRadius(4),
+                Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+                Margin = new Thickness(0, 0, 4, 4),
+                ToolTip = $"Zone {i + 1}",
+            };
+            _dreamZoneSwatches.Add(swatch);
+            previewPanel.Children.Add(swatch);
+        }
+        stack.Children.Add(previewPanel);
+
+        // Status label
+        _dreamStatusLabel = new TextBlock
+        {
+            Text = _dreamSync?.Status ?? "Stopped",
+            FontSize = 11,
+            Style = FindStyle("SecondaryText"),
+            Margin = new Thickness(0, 0, 0, 12),
+        };
+        stack.Children.Add(_dreamStatusLabel);
+
+        // Start a timer to refresh the status label every second
+        var statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        statusTimer.Tick += (_, _) =>
+        {
+            if (_dreamStatusLabel != null && _dreamSync != null)
+                _dreamStatusLabel.Text = _dreamSync.Status;
+        };
+        card.Unloaded += (_, _) => statusTimer.Stop();
+        statusTimer.Start();
+
+        stack.Children.Add(MakeSeparator());
+
+        // ── Device zone assignment ──
+        stack.Children.Add(new TextBlock
+        {
+            Text = "DEVICE ZONE MAPPING",
+            FontSize = 9, FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Margin = new Thickness(0, 0, 0, 8),
+        });
+
+        if (_config.Ambience.GoveeDevices.Count == 0)
+        {
+            stack.Children.Add(new TextBlock
+            {
+                Text = "No Govee LAN devices configured. Add devices in Settings → Ambience.",
+                Style = FindStyle("SecondaryText"),
+                TextWrapping = TextWrapping.Wrap,
+            });
+        }
+        else
+        {
+            foreach (var dev in _config.Ambience.GoveeDevices)
+            {
+                if (string.IsNullOrWhiteSpace(dev.Ip)) continue;
+
+                var devRow = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Margin = new Thickness(0, 0, 0, 8),
+                };
+
+                var devName = new TextBlock
+                {
+                    Text = !string.IsNullOrWhiteSpace(dev.Name) ? dev.Name : dev.Ip,
+                    FontSize = 12,
+                    Foreground = FindBrush("TextPrimaryBrush"),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Width = 160,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                };
+                devRow.Children.Add(devName);
+
+                var zoneComboDevice = new ComboBox { Width = 100, Margin = new Thickness(8, 0, 0, 0) };
+                foreach (ZoneSide side in Enum.GetValues<ZoneSide>())
+                    zoneComboDevice.Items.Add(side.ToString());
+
+                // Find current mapping for this device
+                var existing = cfg.DeviceMappings.FirstOrDefault(m => m.DeviceIp == dev.Ip);
+                if (existing != null)
+                    zoneComboDevice.SelectedIndex = (int)existing.Side;
+                else
+                    zoneComboDevice.SelectedIndex = 0; // Full
+
+                string devIp = dev.Ip; // capture for lambda
+                zoneComboDevice.SelectionChanged += (_, _) =>
+                {
+                    if (_loading || _config == null) return;
+                    var mappings = _config.Ambience.ScreenSync.DeviceMappings;
+                    var m = mappings.FirstOrDefault(x => x.DeviceIp == devIp);
+                    if (m == null)
+                    {
+                        m = new ZoneDeviceMapping { DeviceIp = devIp };
+                        mappings.Add(m);
+                    }
+                    m.Side = (ZoneSide)zoneComboDevice.SelectedIndex;
+                    _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+                    QueueSave();
+                };
+                devRow.Children.Add(zoneComboDevice);
+
+                stack.Children.Add(devRow);
+            }
+        }
+
+        DevicePanel.Children.Add(card);
+    }
+
+    private void UpdateDreamZonePreview((byte R, byte G, byte B)[] zones)
+    {
+        for (int i = 0; i < _dreamZoneSwatches.Count && i < zones.Length; i++)
+        {
+            _dreamZoneSwatches[i].Background = new SolidColorBrush(
+                Color.FromRgb(zones[i].R, zones[i].G, zones[i].B));
+        }
     }
 
     // ── Save ──────────────────────────────────────────────────────────
