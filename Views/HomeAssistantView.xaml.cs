@@ -37,6 +37,41 @@ public partial class HomeAssistantView : UserControl
     // Entity cache
     private List<HAEntity> _entities = new();
 
+    // Domain emoji + color mappings
+    private static readonly Dictionary<string, (string Icon, Color Color)> DomainStyles = new()
+    {
+        { "light",         ("💡", Color.FromRgb(0xFF, 0xD5, 0x4F)) },
+        { "switch",        ("🔌", Color.FromRgb(0x42, 0xA5, 0xF5)) },
+        { "scene",         ("🎬", Color.FromRgb(0xFF, 0xA7, 0x26)) },
+        { "fan",           ("🌀", Color.FromRgb(0x26, 0xC6, 0xDA)) },
+        { "climate",       ("🌡", Color.FromRgb(0xEF, 0x53, 0x50)) },
+        { "media_player",  ("🎵", Color.FromRgb(0x66, 0xBB, 0x6A)) },
+        { "cover",         ("🪟", Color.FromRgb(0xAB, 0x47, 0xBC)) },
+        { "automation",    ("⚡", Color.FromRgb(0xFF, 0xB7, 0x4D)) },
+        { "script",        ("📜", Color.FromRgb(0x78, 0x90, 0x9C)) },
+        { "input_boolean", ("🔘", Color.FromRgb(0x29, 0xB6, 0xF6)) },
+        { "lock",          ("🔒", Color.FromRgb(0xFF, 0xD5, 0x4F)) },
+        { "sensor",        ("📊", Color.FromRgb(0x78, 0x90, 0x9C)) },
+        { "binary_sensor", ("⬤",  Color.FromRgb(0x78, 0x90, 0x9C)) },
+        { "button",        ("⏺",  Color.FromRgb(0x42, 0xA5, 0xF5)) },
+    };
+
+    private static string GetDomainEmoji(string entityId)
+    {
+        var domain = entityId.Contains('.') ? entityId.Split('.')[0] : entityId;
+        return DomainStyles.TryGetValue(domain, out var style) ? style.Icon : "🏠";
+    }
+
+    public static string GetDomainEmojiForDomain(string domain)
+    {
+        return DomainStyles.TryGetValue(domain, out var style) ? style.Icon : "🏠";
+    }
+
+    private static (string Icon, Color Color) GetDomainStyle(string domain)
+    {
+        return DomainStyles.TryGetValue(domain, out var style) ? style : ("🏠", Color.FromRgb(0x88, 0x88, 0x88));
+    }
+
     // HA target types for knobs
     private static readonly (string Display, string Value, string Domain, string Icon)[] KnobTypes =
     {
@@ -413,10 +448,11 @@ public partial class HomeAssistantView : UserControl
         else
         {
             var knobType = KnobTypes[typeIdx];
-            _headerIcons[idx].Text = knobType.Icon;
-            _headerIcons[idx].Foreground = FindBrush("TextPrimaryBrush");
+            var (domainIcon, domainColor) = GetDomainStyle(knobType.Domain);
+            _headerIcons[idx].Text = domainIcon;
+            _headerIcons[idx].Foreground = new SolidColorBrush(domainColor);
             _headerTypes[idx].Text = knobType.Display;
-            _headerTypes[idx].Foreground = FindBrush("TextSecBrush");
+            _headerTypes[idx].Foreground = new SolidColorBrush(Color.FromArgb(0xCC, domainColor.R, domainColor.G, domainColor.B));
         }
     }
 
@@ -586,8 +622,9 @@ public partial class HomeAssistantView : UserControl
         var domain = KnobTypes[typeIdx].Domain;
         var filtered = _entities.Where(e => e.Domain == domain).OrderBy(e => e.FriendlyName).ToList();
 
+        var domainEmoji = DomainStyles.TryGetValue(domain, out var ds) ? ds.Icon : "🏠";
         foreach (var entity in filtered)
-            combo.Items.Add(new ComboBoxItem { Content = entity.FriendlyName, Tag = entity.EntityId });
+            combo.Items.Add(new ComboBoxItem { Content = $"{domainEmoji} {entity.FriendlyName}", Tag = entity.EntityId });
 
         // Restore stashed selection
         var stashedId = combo.Tag as string;
@@ -630,7 +667,10 @@ public partial class HomeAssistantView : UserControl
             filtered = _entities.OrderBy(e => e.FriendlyName).ToList();
 
         foreach (var entity in filtered)
-            combo.Items.Add(new ComboBoxItem { Content = $"[{entity.Domain}] {entity.FriendlyName}", Tag = entity.EntityId });
+        {
+            var emoji = DomainStyles.TryGetValue(entity.Domain, out var domStyle) ? domStyle.Icon : "🏠";
+            combo.Items.Add(new ComboBoxItem { Content = $"{emoji} {entity.FriendlyName}", Tag = entity.EntityId });
+        }
 
         // Restore stashed selection
         var stashedId = combo.Tag as string;

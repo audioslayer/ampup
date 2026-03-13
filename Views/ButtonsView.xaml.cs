@@ -1543,7 +1543,10 @@ public partial class ButtonsView : UserControl
             {
                 picker.ClearItems();
                 foreach (var e in entities.OrderBy(e => e.FriendlyName))
-                    picker.AddItem(e.FriendlyName, e.EntityId);
+                {
+                    var emoji = HomeAssistantView.GetDomainEmojiForDomain(e.Domain);
+                    picker.AddItem($"{emoji} {e.FriendlyName}", e.EntityId);
+                }
 
                 // Re-select previously selected entity
                 if (!string.IsNullOrEmpty(currentTag))
