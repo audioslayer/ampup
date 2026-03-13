@@ -414,7 +414,7 @@ public partial class App : Application
             try { await _ha!.HandleKnobAsync(target, value); }
             catch (Exception ex) { Logger.Log($"HA throttled send failed: {ex.Message}"); }
 
-            await Task.Delay(80); // ~12 updates/sec max — responsive but not flooding
+            await Task.Delay(30); // Short delay — HTTP response time naturally throttles
 
             // Check if value changed while we were waiting
             var (newTarget, newValue) = _haLastValues[idx];

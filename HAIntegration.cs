@@ -39,7 +39,7 @@ public class HAIntegration : IDisposable
         _http = new HttpClient
         {
             BaseAddress = new Uri(_config.Url.TrimEnd('/')),
-            Timeout = TimeSpan.FromSeconds(5)
+            Timeout = TimeSpan.FromSeconds(15)
         };
 
         if (!string.IsNullOrWhiteSpace(_config.Token))
