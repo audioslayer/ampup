@@ -325,6 +325,9 @@ public partial class MixerView : UserControl
                     (byte)Math.Clamp(light.R, 0, 255),
                     (byte)Math.Clamp(light.G, 0, 255),
                     (byte)Math.Clamp(light.B, 0, 255));
+                // If LED color is black/too dark, fall back to accent
+                if (color.R < 10 && color.G < 10 && color.B < 10)
+                    color = ThemeManager.Accent;
                 _knobs[i].ArcColor = color;
                 _volLabels[i].Foreground = new SolidColorBrush(color);
                 _vuMeters[i].BarColor = color;
