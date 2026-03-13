@@ -6,7 +6,9 @@ namespace AmpUp;
 /// <summary>
 /// DreamView / Screen Sync orchestrator.
 /// Captures screen zones via GDI, averages colors per zone, and pushes them
-/// to configured Govee LAN devices via UDP at up to 60fps.
+/// to configured Govee LAN devices via UDP. Capture runs at user-selected fps
+/// (15/30/60) for smooth color averaging, but UDP sends are capped at 30fps
+/// (Govee LED hardware can't transition faster — sending more causes flicker).
 ///
 /// Architecture:
 ///   - One background thread runs the capture+send loop
@@ -33,6 +35,10 @@ public class DreamSyncController : IDisposable
 
     // Per-device last-sent color for delta suppression
     private readonly Dictionary<string, (byte R, byte G, byte B)> _lastSent = new();
+
+    // Cap UDP send rate at 30fps (hardware can't transition faster — sending more causes flicker)
+    private const int MaxSendFps = 30;
+    private readonly System.Diagnostics.Stopwatch _sendThrottle = System.Diagnostics.Stopwatch.StartNew();
 
     // Raised each frame with current zone colors — used by the live preview in AmbienceView
     public event Action<(byte R, byte G, byte B)[]>? OnZoneColors;
@@ -118,8 +124,9 @@ public class DreamSyncController : IDisposable
                     // Notify UI for live preview (fire and forget — UI marshal on receipt)
                     OnZoneColors?.Invoke(zones);
 
-                    // Push to each configured Govee device
-                    if (amb.GoveeEnabled && amb.GoveeDevices.Count > 0)
+                    // Push to each configured Govee device (capped at 30fps — hardware limit)
+                    bool sendThisFrame = _sendThrottle.ElapsedMilliseconds >= (1000 / MaxSendFps);
+                    if (sendThisFrame && amb.GoveeEnabled && amb.GoveeDevices.Count > 0)
                     {
                         foreach (var mapping in cfg.DeviceMappings)
                         {
@@ -151,7 +158,9 @@ public class DreamSyncController : IDisposable
                         }
                     }
 
-                    Status = $"Syncing at {fps}fps";
+                    if (sendThisFrame)
+                        _sendThrottle.Restart();
+                    Status = $"Syncing at {fps}fps (send ≤{MaxSendFps}fps)";
                 }
             }
             catch (Exception ex)
