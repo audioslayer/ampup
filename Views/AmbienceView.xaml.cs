@@ -223,6 +223,39 @@ public partial class AmbienceView : UserControl
             return;
         }
 
+        // Show banner when LED sync is active
+        if (_config.Ambience.LinkToLights)
+        {
+            var banner = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(0x20, 0x00, 0xE6, 0x76)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 0x00, 0xE6, 0x76)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(14, 10, 14, 10),
+                Margin = new Thickness(0, 0, 0, 12),
+            };
+            var bannerRow = new StackPanel { Orientation = Orientation.Horizontal };
+            bannerRow.Children.Add(new TextBlock
+            {
+                Text = "Linked to Lights",
+                FontSize = 12, FontWeight = FontWeights.SemiBold,
+                Foreground = FindBrush("AccentBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 8, 0),
+            });
+            bannerRow.Children.Add(new TextBlock
+            {
+                Text = "LED colors are being mirrored to your Govee devices. Unlink in the Lights tab to control independently.",
+                FontSize = 11,
+                Foreground = FindBrush("TextSecBrush"),
+                TextWrapping = TextWrapping.Wrap,
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            banner.Child = bannerRow;
+            DevicePanel.Children.Add(banner);
+        }
+
         if (_cloudDevices.Count > 0)
         {
             // Cloud API mode — full control with scenes, segments, music

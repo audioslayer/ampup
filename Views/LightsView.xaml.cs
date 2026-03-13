@@ -75,6 +75,7 @@ public partial class LightsView : UserControl
     private List<string> _globalGradientColors = new();
     private StackPanel? _globalSettingsPanel;
     private StackPanel? _globalPalettePanel;
+    private CheckBox? _linkToAmbienceCheck;
     private StyledSlider? _brightnessSlider;
 
     private static readonly (string Name, Color[] Colors)[] ColorPalettes = new[]
@@ -177,6 +178,10 @@ public partial class LightsView : UserControl
             _globalReactiveModeCombo.Select(gl.ReactiveMode.ToString());
         _globalGradientColors = gl.GradientColors ?? new();
 
+        // Link to Room Ambience
+        if (_linkToAmbienceCheck != null)
+            _linkToAmbienceCheck.IsChecked = config.Ambience.LinkToLights;
+
         UpdateGlobalVisibility();
 
         for (int i = 0; i < 5; i++)
@@ -257,6 +262,33 @@ public partial class LightsView : UserControl
             UpdateGlobalVisibility();
             if (!_loading) QueueSave();
         };
+
+        // Link to Room Ambience checkbox — mirrors LED colors to Govee LAN devices
+        var linkCheck = new CheckBox
+        {
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+        var linkLabel = new StackPanel { Orientation = Orientation.Horizontal };
+        linkLabel.Children.Add(new TextBlock
+        {
+            Text = "Link to Room Ambience",
+            FontSize = 12,
+            Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        linkLabel.Children.Add(new TextBlock
+        {
+            Text = "  Mirrors LED colors to Govee lights",
+            FontSize = 10,
+            Foreground = FindBrush("TextDimBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        linkCheck.Content = linkLabel;
+        linkCheck.Checked += (_, _) => { if (!_loading) QueueSave(); };
+        linkCheck.Unchecked += (_, _) => { if (!_loading) QueueSave(); };
+        _linkToAmbienceCheck = linkCheck;
+        panel.Children.Add(linkCheck);
 
         // Settings panel (collapsed when disabled)
         var settings = new StackPanel { Visibility = Visibility.Collapsed };
@@ -1056,6 +1088,9 @@ public partial class LightsView : UserControl
         if (_globalReactiveModeCombo != null && Enum.TryParse<ReactiveMode>(_globalReactiveModeCombo.SelectedValue, out var glMode))
             gl.ReactiveMode = glMode;
         gl.GradientColors = _globalGradientColors;
+
+        // Link to Room Ambience
+        _config.Ambience.LinkToLights = _linkToAmbienceCheck?.IsChecked ?? false;
 
         for (int i = 0; i < 5; i++)
         {

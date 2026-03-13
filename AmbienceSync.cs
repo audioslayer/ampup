@@ -90,7 +90,8 @@ public class AmbienceSync : IDisposable
         AmbienceConfig cfg;
         lock (_lock) cfg = _config;
 
-        if (!cfg.GoveeEnabled || cfg.GoveeDevices.Count == 0) return;
+        // Only mirror LEDs when "Link to Room Ambience" is enabled
+        if (!cfg.GoveeEnabled || !cfg.LinkToLights || cfg.GoveeDevices.Count == 0) return;
 
         foreach (var device in cfg.GoveeDevices)
         {
