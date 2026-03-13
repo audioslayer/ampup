@@ -59,7 +59,7 @@ public partial class MixerView : UserControl
     // Smart Mix (ducking + auto-profile) controls
     private bool _smartMixExpanded = false;
     private Wpf.Ui.Controls.TextBox[] _autoRuleAppBoxes = null!;
-    private ComboBox[] _autoRuleProfileCombos = null!;
+    private ListPicker[] _autoRuleProfileCombos = null!;
 
     // Clipboard for knob copy/paste
     private static KnobConfig? _clipboard;
@@ -343,18 +343,26 @@ public partial class MixerView : UserControl
         ChkAutoSwitchRevert.IsChecked = config.AutoSwitch.RevertToDefault;
         for (int i = 0; i < _autoRuleProfileCombos.Length; i++)
         {
-            _autoRuleProfileCombos[i].Items.Clear();
-            _autoRuleProfileCombos[i].Items.Add("");
+            _autoRuleProfileCombos[i].ClearItems();
+            _autoRuleProfileCombos[i].AddItem("", tag: "");
             foreach (var p in config.Profiles)
-                _autoRuleProfileCombos[i].Items.Add(p);
+                _autoRuleProfileCombos[i].AddItem(p, tag: p);
 
             if (i < config.AutoSwitch.Rules.Count)
             {
                 var r = config.AutoSwitch.Rules[i];
                 _autoRuleAppBoxes[i].Text = r.ProcessName;
-                _autoRuleProfileCombos[i].SelectedItem = r.ProfileName;
-                if (_autoRuleProfileCombos[i].SelectedIndex < 0)
-                    _autoRuleProfileCombos[i].SelectedIndex = 0;
+                // Find index of the profile name
+                var profileIdx = -1;
+                for (int j = 0; j < _autoRuleProfileCombos[i].ItemCount; j++)
+                {
+                    if (_autoRuleProfileCombos[i].GetTagAt(j)?.ToString() == r.ProfileName)
+                    {
+                        profileIdx = j;
+                        break;
+                    }
+                }
+                _autoRuleProfileCombos[i].SelectedIndex = profileIdx >= 0 ? profileIdx : 0;
             }
             else
             {
@@ -1112,7 +1120,7 @@ public partial class MixerView : UserControl
         for (int i = 0; i < _autoRuleAppBoxes.Length; i++)
         {
             var appName = _autoRuleAppBoxes[i].Text.Trim();
-            var profileName = _autoRuleProfileCombos[i].SelectedItem?.ToString() ?? "";
+            var profileName = _autoRuleProfileCombos[i].SelectedTag?.ToString() ?? "";
             if (!string.IsNullOrEmpty(appName) && !string.IsNullOrEmpty(profileName))
                 switchRules.Add(new AutoSwitchRule { ProcessName = appName, ProfileName = profileName });
         }
@@ -1426,8 +1434,8 @@ public partial class MixerView : UserControl
         };
         foreach (var tb in _autoRuleAppBoxes)
             tb.TextChanged += OnSmartMixChanged;
-        foreach (var cmb in _autoRuleProfileCombos)
-            cmb.SelectionChanged += OnSmartMixChanged;
+        foreach (var picker in _autoRuleProfileCombos)
+            picker.SelectionChanged += OnSmartMixChanged;
     }
 
     private void OnSmartMixChanged(object sender, EventArgs e)

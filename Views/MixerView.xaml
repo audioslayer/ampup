@@ -270,10 +270,7 @@
                                                        Foreground="{DynamicResource AccentBrush}"
                                                        FontSize="16" FontWeight="SemiBold"
                                                        VerticalAlignment="Center" Margin="10,0" />
-                                            <ComboBox x:Name="CmbAutoRule0Profile" Grid.Column="2"
-                                                      Background="{StaticResource InputBgBrush}"
-                                                      BorderBrush="{StaticResource InputBorderBrush}"
-                                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                            <controls:ListPicker x:Name="CmbAutoRule0Profile" Grid.Column="2"
                                                       ToolTip="Profile to activate when the app is focused" />
                                         </Grid>
                                     </Border>
@@ -296,10 +293,7 @@
                                                        Foreground="{DynamicResource AccentBrush}"
                                                        FontSize="16" FontWeight="SemiBold"
                                                        VerticalAlignment="Center" Margin="10,0" />
-                                            <ComboBox x:Name="CmbAutoRule1Profile" Grid.Column="2"
-                                                      Background="{StaticResource InputBgBrush}"
-                                                      BorderBrush="{StaticResource InputBorderBrush}"
-                                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                            <controls:ListPicker x:Name="CmbAutoRule1Profile" Grid.Column="2"
                                                       ToolTip="Profile to activate when the app is focused" />
                                         </Grid>
                                     </Border>
@@ -322,10 +316,7 @@
                                                        Foreground="{DynamicResource AccentBrush}"
                                                        FontSize="16" FontWeight="SemiBold"
                                                        VerticalAlignment="Center" Margin="10,0" />
-                                            <ComboBox x:Name="CmbAutoRule2Profile" Grid.Column="2"
-                                                      Background="{StaticResource InputBgBrush}"
-                                                      BorderBrush="{StaticResource InputBorderBrush}"
-                                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                            <controls:ListPicker x:Name="CmbAutoRule2Profile" Grid.Column="2"
                                                       ToolTip="Profile to activate when the app is focused" />
                                         </Grid>
                                     </Border>
@@ -348,10 +339,7 @@
                                                        Foreground="{DynamicResource AccentBrush}"
                                                        FontSize="16" FontWeight="SemiBold"
                                                        VerticalAlignment="Center" Margin="10,0" />
-                                            <ComboBox x:Name="CmbAutoRule3Profile" Grid.Column="2"
-                                                      Background="{StaticResource InputBgBrush}"
-                                                      BorderBrush="{StaticResource InputBorderBrush}"
-                                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                            <controls:ListPicker x:Name="CmbAutoRule3Profile" Grid.Column="2"
                                                       ToolTip="Profile to activate when the app is focused" />
                                         </Grid>
                                     </Border>
@@ -374,10 +362,7 @@
                                                        Foreground="{DynamicResource AccentBrush}"
                                                        FontSize="16" FontWeight="SemiBold"
                                                        VerticalAlignment="Center" Margin="10,0" />
-                                            <ComboBox x:Name="CmbAutoRule4Profile" Grid.Column="2"
-                                                      Background="{StaticResource InputBgBrush}"
-                                                      BorderBrush="{StaticResource InputBorderBrush}"
-                                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                            <controls:ListPicker x:Name="CmbAutoRule4Profile" Grid.Column="2"
                                                       ToolTip="Profile to activate when the app is focused" />
                                         </Grid>
                                     </Border>

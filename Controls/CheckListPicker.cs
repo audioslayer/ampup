@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
@@ -11,16 +10,17 @@ namespace AmpUp.Controls;
 
 /// <summary>
 /// Multi-select list picker with checkboxes — for cycle device subset selection.
-/// Opens a floating popup with a scrollable checklist. API mirrors ListPicker.
+/// Opens a floating borderless Window flyout to avoid WPF Popup / AllowsTransparency bugs on Win11.
+/// API mirrors ListPicker.
 /// </summary>
 public class CheckListPicker : Border
 {
     private readonly TextBlock _label;
     private readonly TextBlock _chevron;
-    private readonly Popup _popup;
     private readonly Border _popupBorder;
     private readonly StackPanel _itemsPanel;
     private readonly ScrollViewer _scrollViewer;
+    private Window? _flyout;
 
     private readonly List<(string Display, string Id, bool Checked)> _items = new();
 
@@ -91,20 +91,9 @@ public class CheckListPicker : Border
             }
         };
 
-        _popup = new Popup
-        {
-            Child = _popupBorder,
-            PlacementTarget = this,
-            Placement = PlacementMode.Bottom,
-            StaysOpen = false,
-            AllowsTransparency = true,
-            PopupAnimation = PopupAnimation.Fade,
-            VerticalOffset = 2
-        };
-
         MouseEnter += (_, _) =>
         {
-            if (!_popup.IsOpen)
+            if (_flyout == null || !_flyout.IsVisible)
             {
                 BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, AccentColor.R, AccentColor.G, AccentColor.B));
                 Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
@@ -112,7 +101,7 @@ public class CheckListPicker : Border
         };
         MouseLeave += (_, _) =>
         {
-            if (!_popup.IsOpen)
+            if (_flyout == null || !_flyout.IsVisible)
             {
                 BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
                 Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
@@ -121,21 +110,54 @@ public class CheckListPicker : Border
 
         MouseLeftButtonUp += (_, e) =>
         {
-            _popupBorder.MinWidth = ActualWidth;
-            _popup.IsOpen = !_popup.IsOpen;
+            if (_flyout != null && _flyout.IsVisible)
+                CloseFlyout();
+            else
+                OpenFlyout();
             e.Handled = true;
         };
+    }
 
-        _popup.Opened += (_, _) =>
+    private void OpenFlyout()
+    {
+        _popupBorder.MinWidth = Math.Max(ActualWidth, 140);
+
+        var flyout = new Window
         {
-            BorderBrush = new SolidColorBrush(AccentColor);
-            Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+            WindowStyle = WindowStyle.None,
+            AllowsTransparency = false,
+            ShowInTaskbar = false,
+            Topmost = true,
+            ResizeMode = ResizeMode.NoResize,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            Background = new SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
+            Content = _popupBorder,
         };
-        _popup.Closed += (_, _) =>
-        {
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
-        };
+
+        var pt = PointToScreen(new Point(0, ActualHeight + 2));
+        flyout.Left = pt.X;
+        flyout.Top = pt.Y;
+
+        flyout.Deactivated += (_, _) => CloseFlyout();
+
+        _flyout = flyout;
+
+        BorderBrush = new SolidColorBrush(AccentColor);
+        Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+
+        flyout.Show();
+    }
+
+    private void CloseFlyout()
+    {
+        if (_flyout == null) return;
+        var f = _flyout;
+        _flyout = null;
+        f.Content = null;
+        f.Close();
+
+        BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+        Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
     }
 
     public void AddItem(string display, string id, bool isChecked = false)

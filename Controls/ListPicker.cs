@@ -10,9 +10,9 @@ namespace AmpUp.Controls;
 
 /// <summary>
 /// SteelSeries Sonar-inspired list picker — styled trigger button that opens
-/// a floating flyout Window with a clean scrollable list. Replaces Popup-based
-/// dropdown for reliable close-on-click-outside behavior on all Windows versions.
-/// API-compatible with the previous Popup-based version.
+/// a floating borderless Window flyout with a clean scrollable list.
+/// Uses a borderless Window instead of Popup to avoid Win11 click-through bugs.
+/// API-compatible with FlyoutPicker for easy swap.
 /// </summary>
 public class ListPicker : Border
 {
@@ -22,11 +22,13 @@ public class ListPicker : Border
     private readonly StackPanel _itemsPanel;
     private readonly ScrollViewer _scrollViewer;
     private readonly TextBox _filterBox;
-    private PickerFlyout? _flyout;
+    private readonly StackPanel _popupStack;
+    private Window? _flyout;
 
     private int _selectedIndex = -1;
     private readonly List<(string Display, object? Tag, string? Icon, Color? IconColor)> _items = new();
     private string _filterText = "";
+    private bool _isOpen = false;
 
     public event EventHandler? SelectionChanged;
     public event EventHandler? DropdownOpening;
@@ -38,7 +40,6 @@ public class ListPicker : Border
         AccentColor = ThemeManager.Accent;
         if (_selectedIndex >= 0)
             _label.Foreground = new SolidColorBrush(AccentColor);
-        RebuildPopupItems();
     }
 
     public ListPicker()
@@ -94,13 +95,23 @@ public class ListPicker : Border
 
         Child = grid;
 
-        // Flyout content (items panel + filter box)
+        // Popup content
         _itemsPanel = new StackPanel();
         _scrollViewer = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             MaxHeight = 250,
             Content = _itemsPanel
+        };
+
+        var filterPlaceholder = new TextBlock
+        {
+            Text = "Filter...",
+            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            FontSize = 12,
+            Padding = new Thickness(10, 7, 0, 0),
+            IsHitTestVisible = false,
+            Visibility = Visibility.Collapsed,
         };
 
         _filterBox = new TextBox
@@ -114,16 +125,6 @@ public class ListPicker : Border
             FontSize = 12,
             Visibility = Visibility.Collapsed,
         };
-
-        var filterPlaceholder = new TextBlock
-        {
-            Text = "Filter...",
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            FontSize = 12,
-            Padding = new Thickness(10, 7, 0, 0),
-            IsHitTestVisible = false,
-            Visibility = Visibility.Collapsed,
-        };
         _filterBox.TextChanged += (_, _) =>
         {
             _filterText = _filterBox.Text.Trim();
@@ -135,32 +136,14 @@ public class ListPicker : Border
         filterContainer.Children.Add(_filterBox);
         filterContainer.Children.Add(filterPlaceholder);
 
-        var popupStack = new StackPanel();
-        popupStack.Children.Add(filterContainer);
-        popupStack.Children.Add(_scrollViewer);
-
-        var popupBorder = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(0),
-            Child = popupStack,
-        };
-
-        _flyout = new PickerFlyout(popupBorder);
-        _flyout.Closed += (_, _) =>
-        {
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
-            _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
-        };
+        _popupStack = new StackPanel();
+        _popupStack.Children.Add(filterContainer);
+        _popupStack.Children.Add(_scrollViewer);
 
         // Hover effects on trigger button
         MouseEnter += (_, _) =>
         {
-            if (_flyout?.IsVisible != true)
+            if (!_isOpen)
             {
                 BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, AccentColor.R, AccentColor.G, AccentColor.B));
                 Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
@@ -168,7 +151,7 @@ public class ListPicker : Border
         };
         MouseLeave += (_, _) =>
         {
-            if (_flyout?.IsVisible != true)
+            if (!_isOpen)
             {
                 BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
                 Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
@@ -176,51 +159,13 @@ public class ListPicker : Border
             }
         };
 
-        // Open flyout on click
         MouseLeftButtonUp += (_, e) =>
         {
-            if (_flyout?.IsVisible == true)
-            {
-                _flyout.Hide();
-                return;
-            }
-
-            DropdownOpening?.Invoke(this, EventArgs.Empty);
-            ShowFlyout(popupBorder, filterPlaceholder);
+            if (!_isOpen)
+                DropdownOpening?.Invoke(this, EventArgs.Empty);
+            if (_isOpen) CloseFlyout(); else OpenFlyout();
             e.Handled = true;
         };
-    }
-
-    private void ShowFlyout(Border popupBorder, TextBlock filterPlaceholder)
-    {
-        if (_flyout == null || !IsLoaded) return;
-
-        // Size flyout to at least as wide as the trigger button
-        _flyout.MinWidth = ActualWidth;
-        popupBorder.MinWidth = ActualWidth;
-
-        // Show or hide filter box based on item count
-        var showFilter = _items.Count > 8;
-        _filterBox.Visibility = showFilter ? Visibility.Visible : Visibility.Collapsed;
-        filterPlaceholder.Visibility = showFilter && string.IsNullOrEmpty(_filterBox.Text) ? Visibility.Visible : Visibility.Collapsed;
-        if (showFilter)
-        {
-            _filterBox.Text = "";
-        }
-
-        // Position below the trigger button
-        var screen = PointToScreen(new Point(0, ActualHeight + 2));
-        _flyout.Left = screen.X;
-        _flyout.Top = screen.Y;
-
-        // Apply open state styling
-        BorderBrush = new SolidColorBrush(AccentColor);
-        Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
-
-        _flyout.Show();
-
-        if (showFilter)
-            _filterBox.Focus();
     }
 
     // ── Item management ─────────────────────────────────────────
@@ -286,6 +231,68 @@ public class ListPicker : Border
     public object? GetTagAt(int index)
     {
         return index >= 0 && index < _items.Count ? _items[index].Tag : null;
+    }
+
+    // ── Flyout window ────────────────────────────────────────────
+
+    private void OpenFlyout()
+    {
+        var showFilter = _items.Count > 8;
+        _filterBox.Visibility = showFilter ? Visibility.Visible : Visibility.Collapsed;
+        if (showFilter)
+            _filterBox.Text = "";
+
+        RebuildPopupItems();
+
+        var popupBorder = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(0),
+            Child = _popupStack,
+            MinWidth = Math.Max(ActualWidth, 120),
+        };
+
+        _flyout = new Window
+        {
+            WindowStyle = WindowStyle.None,
+            ResizeMode = ResizeMode.NoResize,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            ShowInTaskbar = false,
+            Topmost = true,
+            AllowsTransparency = false,
+            Background = new SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
+            Content = popupBorder
+        };
+
+        // Position below the trigger
+        var screenPos = PointToScreen(new Point(0, ActualHeight + 2));
+        _flyout.Left = screenPos.X;
+        _flyout.Top = screenPos.Y;
+
+        _flyout.Deactivated += (_, _) => CloseFlyout();
+
+        _flyout.Show();
+        _isOpen = true;
+
+        BorderBrush = new SolidColorBrush(AccentColor);
+        Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+
+        if (showFilter)
+            _filterBox.Focus();
+    }
+
+    private void CloseFlyout()
+    {
+        if (!_isOpen) return;
+        _isOpen = false;
+        _flyout?.Close();
+        _flyout = null;
+        BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+        Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+        _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
     }
 
     // ── Popup item rendering ────────────────────────────────────
@@ -400,7 +407,7 @@ public class ListPicker : Border
                 _label.Text = _items[idx].Display;
                 _label.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
                 UpdateLabelIcon(idx);
-                _flyout?.Hide();
+                CloseFlyout();
                 HighlightSelectedItem();
                 SelectionChanged?.Invoke(this, EventArgs.Empty);
                 e.Handled = true;
@@ -455,43 +462,5 @@ public class ListPicker : Border
                 }
             }
         }
-    }
-}
-
-/// <summary>
-/// Lightweight borderless Window used as a flyout for ListPicker / CheckListPicker.
-/// Hides on deactivation (click outside). No taskbar entry.
-/// </summary>
-internal class PickerFlyout : Window
-{
-    public PickerFlyout(UIElement content)
-    {
-        AllowsTransparency = true;
-        WindowStyle = WindowStyle.None;
-        Background = Brushes.Transparent;
-        ResizeMode = ResizeMode.NoResize;
-        ShowInTaskbar = false;
-        Topmost = true;
-        SizeToContent = SizeToContent.WidthAndHeight;
-
-        Deactivated += (_, _) => Hide();
-
-        // Wrap in a Border with drop shadow
-        var wrapper = new Border
-        {
-            Background = Brushes.Transparent,
-            Margin = new Thickness(8),
-            Effect = new DropShadowEffect
-            {
-                Color = Colors.Black,
-                BlurRadius = 20,
-                Opacity = 0.65,
-                ShadowDepth = 4,
-                Direction = 270
-            },
-            Child = content
-        };
-
-        Content = wrapper;
     }
 }
