@@ -96,6 +96,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <!-- Row 0: Category label -->
@@ -165,6 +166,36 @@
                     </Border.Background>
                 </Border>
             </Grid>
+            <!-- Row 3: Profile bindings panel (hidden by default, shown on profile switch) -->
+            <StackPanel x:Name="ProfileBindingsPanel" Grid.Row="3"
+                        Visibility="Collapsed"
+                        Margin="0,4,0,0">
+
+                <!-- Knobs section -->
+                <TextBlock x:Name="KnobsSectionLabel"
+                           Text="KNOBS"
+                           FontFamily="Segoe UI" FontSize="9" FontWeight="SemiBold"
+                           Foreground="#6600E676"
+                           Margin="0,6,0,4" />
+                <StackPanel x:Name="KnobsPanel" />
+
+                <!-- Buttons section -->
+                <TextBlock x:Name="ButtonsSectionLabel"
+                           Text="BUTTONS"
+                           FontFamily="Segoe UI" FontSize="9" FontWeight="SemiBold"
+                           Foreground="#6600E676"
+                           Margin="0,8,0,4" />
+                <StackPanel x:Name="ButtonsPanel" />
+
+                <!-- Footer -->
+                <Border Height="1" Background="#1AFFFFFF" Margin="0,10,0,4" />
+                <TextBlock Text="Tap any knob to adjust"
+                           FontFamily="Segoe UI" FontSize="9"
+                           Foreground="#44FFFFFF"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,2" />
+            </StackPanel>
+
         </Grid>
         </Border>
     </Grid>

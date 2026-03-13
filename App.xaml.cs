@@ -544,7 +544,7 @@ public partial class App : Application
             {
                 EnsureOsd();
                 var iconCfg = _config.ProfileIcons.GetValueOrDefault(profileName) ?? new ProfileIconConfig();
-                _osdOverlay!.ShowProfileSwitch(profileName, iconCfg);
+                _osdOverlay!.ShowProfileSwitch(profileName, iconCfg, _config);
             });
         }
     }
