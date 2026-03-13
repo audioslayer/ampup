@@ -590,9 +590,14 @@ public partial class HomeAssistantView : UserControl
         var domain = KnobTypes[typeIdx].Domain;
         var filtered = _entities.Where(e => e.Domain == domain).OrderBy(e => e.FriendlyName).ToList();
 
-        var (domainIcon, _) = HADomainStyles.GetStyle(domain);
         foreach (var entity in filtered)
-            combo.Items.Add(new ComboBoxItem { Content = $"{domainIcon} {entity.FriendlyName}", Tag = entity.EntityId });
+        {
+            var (dIcon, dColor) = HADomainStyles.GetStyle(entity.EntityId);
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            row.Children.Add(new TextBlock { Text = dIcon, Foreground = new SolidColorBrush(dColor), FontSize = 12, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center });
+            row.Children.Add(new TextBlock { Text = entity.FriendlyName, VerticalAlignment = VerticalAlignment.Center });
+            combo.Items.Add(new ComboBoxItem { Content = row, Tag = entity.EntityId });
+        }
 
         // Restore stashed selection
         var stashedId = combo.Tag as string;
@@ -636,8 +641,11 @@ public partial class HomeAssistantView : UserControl
 
         foreach (var entity in filtered)
         {
-            var (domainIcon, _) = HADomainStyles.GetStyle(entity.Domain);
-            combo.Items.Add(new ComboBoxItem { Content = $"{domainIcon} {entity.FriendlyName}", Tag = entity.EntityId });
+            var (dIcon, dColor) = HADomainStyles.GetStyle(entity.EntityId);
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            row.Children.Add(new TextBlock { Text = dIcon, Foreground = new SolidColorBrush(dColor), FontSize = 12, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center });
+            row.Children.Add(new TextBlock { Text = entity.FriendlyName, VerticalAlignment = VerticalAlignment.Center });
+            combo.Items.Add(new ComboBoxItem { Content = row, Tag = entity.EntityId });
         }
 
         // Restore stashed selection
