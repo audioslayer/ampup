@@ -255,28 +255,97 @@ public class AmbienceSync : IDisposable
         _ = Task.Run(() => SendGoveeBrightness(ip, value));
     }
 
-    // ── Static helpers for button actions ──────────────────────────
+    // ── LAN control commands (all send to device IP:4003) ──────────
+
+    private const int LanControlPort = 4003;
 
     // Track last known power state per device IP for toggle
     private static readonly Dictionary<string, bool> _devicePowerState = new();
 
     /// <summary>
-    /// Toggles a Govee device on/off via LAN UDP. Used by button action govee_toggle.
-    /// Tracks last state to alternate between on and off.
+    /// Send a raw LAN UDP command to a Govee device.
+    /// </summary>
+    private static async Task SendLanCommand(string ip, string json)
+    {
+        byte[] data = Encoding.UTF8.GetBytes(json);
+        using var udp = new UdpClient();
+        await udp.SendAsync(data, data.Length, ip, LanControlPort);
+    }
+
+    /// <summary>
+    /// Query device status via LAN UDP. Returns (onOff, brightness, r, g, b, colorTempK) or null on timeout.
+    /// </summary>
+    public static async Task<(bool On, int Brightness, int R, int G, int B, int ColorTempK)?> GetDeviceStatusAsync(string ip)
+    {
+        if (string.IsNullOrWhiteSpace(ip)) return null;
+        try
+        {
+            using var udp = new UdpClient();
+            string json = "{\"msg\":{\"cmd\":\"devStatus\",\"data\":{}}}";
+            byte[] data = Encoding.UTF8.GetBytes(json);
+            await udp.SendAsync(data, data.Length, ip, LanControlPort);
+
+            udp.Client.ReceiveTimeout = 2000;
+            var result = await Task.Run(() =>
+            {
+                try
+                {
+                    IPEndPoint? ep = null;
+                    var resp = udp.Receive(ref ep);
+                    return Encoding.UTF8.GetString(resp);
+                }
+                catch { return null; }
+            });
+
+            if (result == null) return null;
+
+            var obj = Newtonsoft.Json.Linq.JObject.Parse(result);
+            var d = obj["msg"]?["data"];
+            if (d == null) return null;
+
+            bool on = d["onOff"]?.ToObject<int>() == 1;
+            int brightness = d["brightness"]?.ToObject<int>() ?? 100;
+            int r = d["color"]?["r"]?.ToObject<int>() ?? 0;
+            int g = d["color"]?["g"]?.ToObject<int>() ?? 0;
+            int b = d["color"]?["b"]?.ToObject<int>() ?? 0;
+            int colorTemp = d["colorTemInKelvin"]?.ToObject<int>() ?? 0;
+
+            // Update cached power state
+            _devicePowerState[ip] = on;
+            Logger.Log($"Govee status ({ip}): on={on} bright={brightness} rgb=({r},{g},{b}) temp={colorTemp}K");
+            return (on, brightness, r, g, b, colorTemp);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Govee status query failed ({ip}): {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Toggles a Govee device on/off via LAN UDP. Queries real state first, falls back to cached state.
     /// </summary>
     public static async Task SendToggleAsync(string ip)
     {
         if (string.IsNullOrWhiteSpace(ip)) return;
-        // Assume starts ON if unknown; toggle to opposite
-        bool currentlyOn = _devicePowerState.TryGetValue(ip, out bool last) ? last : true;
-        bool newState = !currentlyOn;
-        _devicePowerState[ip] = newState;
         try
         {
-            string json = $"{{\"msg\":{{\"cmd\":\"turn\",\"data\":{{\"value\":{(newState ? 1 : 0)}}}}}}}";
-            byte[] data = Encoding.UTF8.GetBytes(json);
-            using var udp = new UdpClient();
-            await udp.SendAsync(data, data.Length, ip, 4001);
+            // Try to get real state first
+            var status = await GetDeviceStatusAsync(ip);
+            bool currentlyOn;
+            if (status.HasValue)
+            {
+                currentlyOn = status.Value.On;
+            }
+            else
+            {
+                // Fallback to cached state; assume ON if unknown
+                currentlyOn = _devicePowerState.TryGetValue(ip, out bool last) ? last : true;
+            }
+
+            bool newState = !currentlyOn;
+            _devicePowerState[ip] = newState;
+            await SendTurnAsync(ip, newState);
             Logger.Log($"Govee toggle ({ip}): {(newState ? "on" : "off")}");
         }
         catch (Exception ex)
@@ -286,21 +355,69 @@ public class AmbienceSync : IDisposable
     }
 
     /// <summary>
-    /// Sets a Govee device to a specific color via LAN UDP. Used by button action govee_color.
+    /// Turns a Govee device on or off via LAN UDP.
+    /// </summary>
+    public static async Task SendTurnAsync(string ip, bool on)
+    {
+        if (string.IsNullOrWhiteSpace(ip)) return;
+        try
+        {
+            string json = $"{{\"msg\":{{\"cmd\":\"turn\",\"data\":{{\"value\":{(on ? 1 : 0)}}}}}}}";
+            await SendLanCommand(ip, json);
+            _devicePowerState[ip] = on;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Govee turn failed ({ip}): {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Sets a Govee device to a specific color via LAN UDP.
     /// </summary>
     public static async Task SendColorAsync(string ip, byte r, byte g, byte b)
     {
-        await SendGoveeColor(ip, r, g, b);
-    }
-
-    private static async Task SendGoveeBrightness(string ip, int value)
-    {
+        if (string.IsNullOrWhiteSpace(ip)) return;
         try
         {
+            string json = $"{{\"msg\":{{\"cmd\":\"colorwc\",\"data\":{{\"color\":{{\"r\":{r},\"g\":{g},\"b\":{b}}},\"colorTemInKelvin\":0}}}}}}";
+            await SendLanCommand(ip, json);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Govee color failed ({ip}): {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Sets a Govee device color temperature via LAN UDP. Range: 2000-9000K.
+    /// </summary>
+    public static async Task SendColorTempAsync(string ip, int kelvin)
+    {
+        if (string.IsNullOrWhiteSpace(ip)) return;
+        try
+        {
+            kelvin = Math.Clamp(kelvin, 2000, 9000);
+            string json = $"{{\"msg\":{{\"cmd\":\"colorwc\",\"data\":{{\"color\":{{\"r\":0,\"g\":0,\"b\":0}},\"colorTemInKelvin\":{kelvin}}}}}}}";
+            await SendLanCommand(ip, json);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Govee color temp failed ({ip}): {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Sets Govee device brightness via LAN UDP. Range: 0-100.
+    /// </summary>
+    public static async Task SendBrightnessAsync(string ip, int value)
+    {
+        if (string.IsNullOrWhiteSpace(ip)) return;
+        try
+        {
+            value = Math.Clamp(value, 0, 100);
             string json = $"{{\"msg\":{{\"cmd\":\"brightness\",\"data\":{{\"value\":{value}}}}}}}";
-            byte[] data = Encoding.UTF8.GetBytes(json);
-            using var udp = new UdpClient();
-            await udp.SendAsync(data, data.Length, ip, 4001);
+            await SendLanCommand(ip, json);
         }
         catch (Exception ex)
         {
@@ -308,22 +425,14 @@ public class AmbienceSync : IDisposable
         }
     }
 
-    // ── Govee UDP send ──────────────────────────────────────────────
+    private static async Task SendGoveeBrightness(string ip, int value)
+    {
+        await SendBrightnessAsync(ip, value);
+    }
 
     private static async Task SendGoveeColor(string ip, int r, int g, int b)
     {
-        try
-        {
-            string json = $"{{\"msg\":{{\"cmd\":\"colorwc\",\"data\":{{\"color\":{{\"r\":{r},\"g\":{g},\"b\":{b}}},\"colorTemInKelvin\":0}}}}}}";
-            byte[] data = Encoding.UTF8.GetBytes(json);
-
-            using var udp = new UdpClient();
-            await udp.SendAsync(data, data.Length, ip, 4001);
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"Govee send failed ({ip}): {ex.Message}");
-        }
+        await SendColorAsync(ip, (byte)Math.Clamp(r, 0, 255), (byte)Math.Clamp(g, 0, 255), (byte)Math.Clamp(b, 0, 255));
     }
 
     // ── JSON helpers ────────────────────────────────────────────────

@@ -530,8 +530,9 @@ public partial class AmbienceView : UserControl
                 activeSceneId = sceneId;
 
                 var sc = scenes.FirstOrDefault(s => s.Id == sceneId);
+                var sceneValue = sc?.RawValue ?? (object)new { id = sceneId };
                 await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
-                    device.Device, device.Sku, GoveeCloudApi.SetScene(sceneId, sc?.Name ?? "")));
+                    device.Device, device.Sku, GoveeCloudApi.SetScene(sceneValue)));
             };
 
             wrap.Children.Add(tile);

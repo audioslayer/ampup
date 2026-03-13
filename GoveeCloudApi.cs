@@ -32,6 +32,11 @@ public class GoveeScene
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
     public string Category { get; set; } = "";
+    /// <summary>
+    /// Raw value object from the API (e.g., {"id": 3853, "paramId": 4280}).
+    /// Pass this directly to SetScene()/SetDiyScene() for the control command.
+    /// </summary>
+    public JToken? RawValue { get; set; }
 }
 
 public class GoveeCapability
@@ -253,8 +258,16 @@ public class GoveeCloudApi : IDisposable
         try
         {
             await ThrottleAsync();
-            using var req = BuildRequest(HttpMethod.Get,
-                $"/router/api/v1/device/scenes?device={Uri.EscapeDataString(device)}&sku={Uri.EscapeDataString(sku)}");
+            // Scenes endpoint requires POST with device/sku in body; separate endpoints for dynamic vs DIY
+            var endpoint = category == "diy"
+                ? "/router/api/v1/device/diy-scenes"
+                : "/router/api/v1/device/scenes";
+            var body = new
+            {
+                requestId = Guid.NewGuid().ToString(),
+                payload = new { sku, device }
+            };
+            using var req = BuildRequest(HttpMethod.Post, endpoint, body);
             using var resp = await _http.SendAsync(req);
             if (!resp.IsSuccessStatusCode)
             {
@@ -270,13 +283,6 @@ public class GoveeCloudApi : IDisposable
             var caps = root["payload"]?["capabilities"] as JArray ?? new JArray();
             foreach (var cap in caps)
             {
-                var capType = cap["type"]?.ToString() ?? "";
-                bool isDiy = capType.Contains("diy", StringComparison.OrdinalIgnoreCase);
-                bool isDynamic = capType.Contains("dynamic", StringComparison.OrdinalIgnoreCase);
-
-                bool matches = category == "diy" ? isDiy : isDynamic;
-                if (!matches) continue;
-
                 var options = cap["parameters"]?["options"] as JArray ?? new JArray();
                 foreach (var opt in options)
                 {
@@ -284,7 +290,8 @@ public class GoveeCloudApi : IDisposable
                     {
                         Id = opt["value"]?.ToString() ?? "",
                         Name = opt["name"]?.ToString() ?? "",
-                        Category = category
+                        Category = category,
+                        RawValue = opt["value"],
                     });
                 }
             }
@@ -323,6 +330,7 @@ public class GoveeCloudApi : IDisposable
                     Id = opt["value"]?.ToString() ?? "",
                     Name = opt["name"]?.ToString() ?? "",
                     Category = category,
+                    RawValue = opt["value"],
                 });
             }
         }
@@ -413,18 +421,22 @@ public class GoveeCloudApi : IDisposable
         Value = Math.Clamp(kelvin, 2000, 9000)
     };
 
-    public static GoveeCapability SetScene(string sceneId, string sceneName) => new()
+    /// <summary>
+    /// Set a dynamic scene. The sceneValue should be the raw value object from the API
+    /// (e.g., {"id": 3853, "paramId": 4280}) — pass it as a parsed JToken or anonymous object.
+    /// </summary>
+    public static GoveeCapability SetScene(object sceneValue) => new()
     {
         Type = "devices.capabilities.dynamic_scene",
         Instance = "lightScene",
-        Value = new { id = sceneId, name = sceneName }
+        Value = sceneValue
     };
 
-    public static GoveeCapability SetDiyScene(string sceneId) => new()
+    public static GoveeCapability SetDiyScene(object sceneValue) => new()
     {
         Type = "devices.capabilities.dynamic_scene",
         Instance = "diyScene",
-        Value = new { id = sceneId }
+        Value = sceneValue
     };
 
     public static GoveeCapability SetSegmentColor(int segmentIndex, int r, int g, int b) => new()
