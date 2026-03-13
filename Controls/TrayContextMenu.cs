@@ -2,7 +2,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 
 namespace AmpUp.Controls;
 
@@ -35,9 +34,9 @@ public class TrayContextMenu : Window
         _onSave = onSave;
         _onRefresh = onRefresh;
 
-        AllowsTransparency = true;
+        AllowsTransparency = false;
         WindowStyle = WindowStyle.None;
-        Background = Brushes.Transparent;
+        Background = new SolidColorBrush(Color.FromRgb(0x11, 0x11, 0x11));
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
         Topmost = true;
@@ -100,18 +99,9 @@ public class TrayContextMenu : Window
         var outer = new Border
         {
             CornerRadius = new CornerRadius(12),
-            Background = new SolidColorBrush(Color.FromArgb(242, 0x11, 0x11, 0x11)),
+            Background = new SolidColorBrush(Color.FromRgb(0x11, 0x11, 0x11)),
             BorderBrush = new SolidColorBrush(Color.FromArgb(64, accent.R, accent.G, accent.B)),
             BorderThickness = new Thickness(1),
-            Effect = new DropShadowEffect
-            {
-                Color = Colors.Black,
-                BlurRadius = 24,
-                ShadowDepth = 6,
-                Opacity = 0.75,
-                Direction = 270
-            },
-            Margin = new Thickness(10, 10, 10, 10)
         };
 
         var root = new StackPanel { Orientation = Orientation.Vertical };
