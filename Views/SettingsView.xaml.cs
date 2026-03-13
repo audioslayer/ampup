@@ -72,6 +72,8 @@ public partial class SettingsView : UserControl
         ChkHaEnabled.Unchecked += OnValueChanged;
         TxtHaUrl.TextChanged += OnValueChanged;
         TxtHaToken.PasswordChanged += OnPasswordChanged;
+        BtnHaTest.Click += OnHaTest;
+        BtnHaRefresh.Click += OnHaRefresh;
         // Profile buttons
         BtnSaveProfile.Click += OnSaveProfile;
         BtnLoadProfile.Click += OnLoadProfile;
@@ -107,6 +109,9 @@ public partial class SettingsView : UserControl
 
     // Reference to AmbienceSync for LAN scanning (set from App.xaml.cs)
     private AmbienceSync? _ambienceSync;
+
+    // Reference to HA view for Test/Refresh (set from MainWindow)
+    private HomeAssistantView? _haView;
 
     public void LoadConfig(AppConfig config, Action<AppConfig> onSave)
     {
@@ -153,6 +158,7 @@ public partial class SettingsView : UserControl
     }
 
     public void SetAmbienceSync(AmbienceSync sync) => _ambienceSync = sync;
+    public void SetHomeAssistantView(HomeAssistantView haView) => _haView = haView;
 
     private void BuildAccentSwatches()
     {
@@ -652,6 +658,31 @@ public partial class SettingsView : UserControl
         {
             GlassDialog.ShowWarning($"Import failed: {ex.Message}", owner: Window.GetWindow(this));
         }
+    }
+
+    // ── Home Assistant settings ────────────────────────────────────
+
+    private async void OnHaTest(object sender, RoutedEventArgs e)
+    {
+        if (_haView == null) return;
+        BtnHaTest.IsEnabled = false;
+        TxtHaStatus.Text = "Testing...";
+        HaStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFB800"));
+        var ok = await _haView.TestAndRefreshAsync();
+        HaStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(ok ? "#00E676" : "#FF4444"));
+        TxtHaStatus.Text = ok ? "Connected" : "Connection failed";
+        BtnHaTest.IsEnabled = true;
+    }
+
+    private async void OnHaRefresh(object sender, RoutedEventArgs e)
+    {
+        if (_haView == null) return;
+        BtnHaRefresh.IsEnabled = false;
+        TxtHaStatus.Text = "Refreshing...";
+        var ok = await _haView.TestAndRefreshAsync();
+        HaStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(ok ? "#00E676" : "#FF4444"));
+        TxtHaStatus.Text = ok ? "Refreshed" : "Connection failed";
+        BtnHaRefresh.IsEnabled = true;
     }
 
     // ── Govee settings ──────────────────────────────────────────────

@@ -98,6 +98,7 @@ public partial class MainWindow : FluentWindow
         };
 
         _settingsView.LoadConfig(_config, saveHandler);
+        _settingsView.SetHomeAssistantView(_haView);
         _lightsView.LoadConfig(_config, saveHandler, _mixer);
         _haView.LoadConfig(_config, saveHandler);
         _buttonsView.SetHA(_haView.GetHA());

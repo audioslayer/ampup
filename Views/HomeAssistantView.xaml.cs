@@ -16,9 +16,6 @@ public partial class HomeAssistantView : UserControl
     // Connection status
     private TextBlock _statusLabel = null!;
     private Border _statusDot = null!;
-    private Button _testBtn = null!;
-    private Button _refreshBtn = null!;
-
     // Per-column header labels
     private readonly TextBlock[] _headerLabels = new TextBlock[5];
     private readonly TextBlock[] _headerIcons = new TextBlock[5];
@@ -80,6 +77,15 @@ public partial class HomeAssistantView : UserControl
     }
 
     public HAIntegration? GetHA() => _ha;
+
+    public async Task<bool> TestAndRefreshAsync()
+    {
+        if (_ha == null) return false;
+        var ok = await _ha.TestConnectionAsync();
+        Dispatcher.Invoke(() => SetConnectionDot(ok));
+        if (ok) await FetchEntitiesAsync();
+        return ok;
+    }
 
     public void LoadConfig(AppConfig config, Action<AppConfig> onSave)
     {
@@ -205,49 +211,6 @@ public partial class HomeAssistantView : UserControl
         Grid.SetRow(headerRow, 0);
         Grid.SetColumnSpan(headerRow, 2);
         grid.Children.Add(headerRow);
-
-        // Buttons row
-        var btnRow = new StackPanel { Orientation = Orientation.Horizontal };
-
-        _testBtn = new Button
-        {
-            Content = "Test Connection",
-            Padding = new Thickness(12, 4, 12, 4),
-            FontSize = 12,
-        };
-        _testBtn.Click += async (_, _) =>
-        {
-            _testBtn.IsEnabled = false;
-            _statusLabel.Text = "Testing...";
-            if (_ha != null)
-            {
-                var ok = await _ha.TestConnectionAsync();
-                SetConnectionDot(ok);
-                _statusLabel.Text = ok ? "Connected" : "Connection failed";
-                if (ok) await FetchEntitiesAsync();
-            }
-            _testBtn.IsEnabled = true;
-        };
-        btnRow.Children.Add(_testBtn);
-
-        _refreshBtn = new Button
-        {
-            Content = "Refresh Entities",
-            Padding = new Thickness(12, 4, 12, 4),
-            FontSize = 12,
-            Margin = new Thickness(6, 0, 0, 0),
-        };
-        _refreshBtn.Click += async (_, _) =>
-        {
-            _refreshBtn.IsEnabled = false;
-            await FetchEntitiesAsync();
-            _refreshBtn.IsEnabled = true;
-        };
-        btnRow.Children.Add(_refreshBtn);
-
-        Grid.SetRow(btnRow, 1);
-        Grid.SetColumnSpan(btnRow, 2);
-        grid.Children.Add(btnRow);
     }
 
     // ── Build 5 columns ─────────────────────────────────────────────
