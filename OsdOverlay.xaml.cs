@@ -234,12 +234,17 @@ public partial class OsdOverlay : Window
                 Margin = new Thickness(i > 0 ? 3 : 0, 0, i < 4 ? 3 : 0, 0),
             };
 
-            var stack = new StackPanel();
-            string target = knob?.Target ?? "none";
-            var targetColor = GetTargetColor(target);
+            // Use Grid with fixed rows so button actions align across columns
+            var grid = new System.Windows.Controls.Grid();
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });    // badge
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // knob label (stretches)
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });    // divider
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });    // button action
 
-            // Number badge — centered on top
-            stack.Children.Add(new Border
+            string target = knob?.Target ?? "none";
+
+            // Row 0: Number badge
+            var badge = new Border
             {
                 Width = 18, Height = 18,
                 CornerRadius = new CornerRadius(9),
@@ -255,9 +260,11 @@ public partial class OsdOverlay : Window
                     VerticalAlignment = VerticalAlignment.Center,
                     FontFamily = new FontFamily("Segoe UI")
                 }
-            });
+            };
+            System.Windows.Controls.Grid.SetRow(badge, 0);
+            grid.Children.Add(badge);
 
-            // Knob label — icon + text centered, with wrapping
+            // Row 1: Knob label (star row — stretches to fill, pushes divider/action to bottom)
             string knobLabel;
             if (knob != null && !string.IsNullOrEmpty(knob.Label))
                 knobLabel = knob.Label;
@@ -270,7 +277,7 @@ public partial class OsdOverlay : Window
             string icon = GetTargetIcon(target);
             string labelText = string.IsNullOrEmpty(icon) ? knobLabel : icon + " " + knobLabel;
 
-            stack.Children.Add(new TextBlock
+            var knobText = new TextBlock
             {
                 Text = labelText,
                 FontSize = 11,
@@ -281,22 +288,27 @@ public partial class OsdOverlay : Window
                 TextAlignment = TextAlignment.Center,
                 TextWrapping = TextWrapping.Wrap,
                 HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Top,
                 FontFamily = new FontFamily("Segoe UI")
-            });
+            };
+            System.Windows.Controls.Grid.SetRow(knobText, 1);
+            grid.Children.Add(knobText);
 
-            // Divider
-            stack.Children.Add(new Border
+            // Row 2: Divider
+            var divider = new Border
             {
                 Height = 1,
                 Background = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x33)),
                 Margin = new Thickness(0, 4, 0, 4)
-            });
+            };
+            System.Windows.Controls.Grid.SetRow(divider, 2);
+            grid.Children.Add(divider);
 
-            // Button action — left-aligned with wrapping
+            // Row 3: Button action
             string action = btn?.Action ?? "none";
             bool hasAction = !string.IsNullOrEmpty(action) && action != "none";
             var actionLabel = hasAction ? FormatActionForOsd(action, btn) : "\u2014";
-            stack.Children.Add(new TextBlock
+            var btnText = new TextBlock
             {
                 Text = hasAction ? "\u25B8 " + actionLabel : "\u2014",
                 FontSize = 10.5,
@@ -305,9 +317,11 @@ public partial class OsdOverlay : Window
                     : Color.FromRgb(0x44, 0x44, 0x44)),
                 TextWrapping = TextWrapping.Wrap,
                 FontFamily = new FontFamily("Segoe UI")
-            });
+            };
+            System.Windows.Controls.Grid.SetRow(btnText, 3);
+            grid.Children.Add(btnText);
 
-            card.Child = stack;
+            card.Child = grid;
             System.Windows.Controls.Grid.SetColumn(card, i);
             columnsGrid.Children.Add(card);
         }
