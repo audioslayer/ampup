@@ -1,7 +1,8 @@
 <UserControl x:Class="AmpUp.Views.SettingsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:controls="clr-namespace:AmpUp.Controls">
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                   Background="Transparent">
@@ -157,9 +158,8 @@
                                       Margin="0,0,0,6"
                                       ToolTip="Show overlay when you adjust a knob" />
                             <StackPanel Orientation="Horizontal">
-                                <Slider x:Name="SldOsdVolumeDur"
+                                <controls:StyledSlider x:Name="SldOsdVolumeDur"
                                         Minimum="1" Maximum="8" Value="2"
-                                        TickFrequency="0.5" IsSnapToTickEnabled="True"
                                         Width="100" VerticalAlignment="Center"
                                         ToolTip="How long the volume overlay stays visible" />
                                 <TextBlock x:Name="TxtOsdVolumeDur" Text="2s"
@@ -177,9 +177,8 @@
                                       Margin="0,0,0,6"
                                       ToolTip="Show overlay when switching profiles" />
                             <StackPanel Orientation="Horizontal">
-                                <Slider x:Name="SldOsdProfileDur"
+                                <controls:StyledSlider x:Name="SldOsdProfileDur"
                                         Minimum="1" Maximum="8" Value="3.5"
-                                        TickFrequency="0.5" IsSnapToTickEnabled="True"
                                         Width="100" VerticalAlignment="Center"
                                         ToolTip="How long the profile overlay stays visible" />
                                 <TextBlock x:Name="TxtOsdProfileDur" Text="3.5s"
@@ -197,9 +196,8 @@
                                       Margin="0,0,0,6"
                                       ToolTip="Show overlay when cycling audio devices" />
                             <StackPanel Orientation="Horizontal">
-                                <Slider x:Name="SldOsdDeviceDur"
+                                <controls:StyledSlider x:Name="SldOsdDeviceDur"
                                         Minimum="1" Maximum="8" Value="2.5"
-                                        TickFrequency="0.5" IsSnapToTickEnabled="True"
                                         Width="100" VerticalAlignment="Center"
                                         ToolTip="How long the device overlay stays visible" />
                                 <TextBlock x:Name="TxtOsdDeviceDur" Text="2.5s"

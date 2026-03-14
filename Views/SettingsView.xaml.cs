@@ -65,9 +65,9 @@ public partial class SettingsView : UserControl
         ChkOsdProfile.Unchecked += OnValueChanged;
         ChkOsdDevice.Checked += OnValueChanged;
         ChkOsdDevice.Unchecked += OnValueChanged;
-        SldOsdVolumeDur.ValueChanged += (s, _) => { TxtOsdVolumeDur.Text = $"{SldOsdVolumeDur.Value:0.#}s"; OnValueChanged(s!, EventArgs.Empty); };
-        SldOsdProfileDur.ValueChanged += (s, _) => { TxtOsdProfileDur.Text = $"{SldOsdProfileDur.Value:0.#}s"; OnValueChanged(s!, EventArgs.Empty); };
-        SldOsdDeviceDur.ValueChanged += (s, _) => { TxtOsdDeviceDur.Text = $"{SldOsdDeviceDur.Value:0.#}s"; OnValueChanged(s!, EventArgs.Empty); };
+        SldOsdVolumeDur.ValueChanged += (s, _) => { var v = Math.Round(SldOsdVolumeDur.Value * 2) / 2; TxtOsdVolumeDur.Text = $"{v:0.#}s"; OnValueChanged(s!, EventArgs.Empty); };
+        SldOsdProfileDur.ValueChanged += (s, _) => { var v = Math.Round(SldOsdProfileDur.Value * 2) / 2; TxtOsdProfileDur.Text = $"{v:0.#}s"; OnValueChanged(s!, EventArgs.Empty); };
+        SldOsdDeviceDur.ValueChanged += (s, _) => { var v = Math.Round(SldOsdDeviceDur.Value * 2) / 2; TxtOsdDeviceDur.Text = $"{v:0.#}s"; OnValueChanged(s!, EventArgs.Empty); };
         BtnOsdPreview.Click += OnOsdPreview;
 
         // Integration events
@@ -444,9 +444,9 @@ public partial class SettingsView : UserControl
         _config.Osd.ShowVolume = ChkOsdVolume.IsChecked == true;
         _config.Osd.ShowProfileSwitch = ChkOsdProfile.IsChecked == true;
         _config.Osd.ShowDeviceSwitch = ChkOsdDevice.IsChecked == true;
-        _config.Osd.VolumeDuration = SldOsdVolumeDur.Value;
-        _config.Osd.ProfileDuration = SldOsdProfileDur.Value;
-        _config.Osd.DeviceDuration = SldOsdDeviceDur.Value;
+        _config.Osd.VolumeDuration = Math.Round(SldOsdVolumeDur.Value * 2) / 2;
+        _config.Osd.ProfileDuration = Math.Round(SldOsdProfileDur.Value * 2) / 2;
+        _config.Osd.DeviceDuration = Math.Round(SldOsdDeviceDur.Value * 2) / 2;
 
         // Integrations
         _config.HomeAssistant.Enabled = ChkHaEnabled.IsChecked == true;
