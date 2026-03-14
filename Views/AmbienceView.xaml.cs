@@ -1177,7 +1177,8 @@ public partial class AmbienceView : UserControl
         var previewPanel = new WrapPanel
         {
             Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 12),
+            Margin = new Thickness(0, 0, 0, 6),
+            ClipToBounds = false,
         };
         _dreamZoneSwatches.Clear();
         for (int i = 0; i < cfg.ZoneCount; i++)
@@ -1304,55 +1305,38 @@ public partial class AmbienceView : UserControl
         }
     }
 
-    private void SetDevicePanelDimmed(bool dimmed)
+    private void SetDevicePanelDimmed(bool dreamActive)
     {
-        if (dimmed)
+        if (dreamActive)
         {
-            // Add warning banner if not already present
             if (_dreamActiveBanner == null)
             {
                 var accent = ThemeManager.Accent;
                 _dreamActiveBanner = new Border
                 {
-                    Background = new SolidColorBrush(Color.FromArgb(0x18, accent.R, accent.G, accent.B)),
-                    BorderBrush = new SolidColorBrush(Color.FromArgb(0x44, accent.R, accent.G, accent.B)),
+                    Background = new SolidColorBrush(Color.FromArgb(0x15, accent.R, accent.G, accent.B)),
+                    BorderBrush = new SolidColorBrush(Color.FromArgb(0x33, accent.R, accent.G, accent.B)),
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(8),
                     Padding = new Thickness(12, 8, 12, 8),
                     Margin = new Thickness(0, 0, 0, 12),
                     Child = new TextBlock
                     {
-                        Text = "DreamView is active — scene controls are paused while screen sync is running.",
+                        Text = "Screen Sync is active — selecting a scene will override the sync.",
                         FontSize = 11,
-                        Foreground = new SolidColorBrush(Color.FromArgb(0xCC, accent.R, accent.G, accent.B)),
+                        Foreground = new SolidColorBrush(Color.FromArgb(0xAA, accent.R, accent.G, accent.B)),
                         TextWrapping = TextWrapping.Wrap,
                     }
                 };
                 DevicePanel.Children.Insert(0, _dreamActiveBanner);
             }
-            // Dim all device cards (skip the banner)
-            foreach (UIElement child in DevicePanel.Children)
-            {
-                if (child != _dreamActiveBanner)
-                {
-                    child.Opacity = 0.35;
-                    child.IsEnabled = false;
-                }
-            }
         }
         else
         {
-            // Remove banner
             if (_dreamActiveBanner != null)
             {
                 DevicePanel.Children.Remove(_dreamActiveBanner);
                 _dreamActiveBanner = null;
-            }
-            // Restore all device cards
-            foreach (UIElement child in DevicePanel.Children)
-            {
-                child.Opacity = 1.0;
-                child.IsEnabled = true;
             }
         }
     }
