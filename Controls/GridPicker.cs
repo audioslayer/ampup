@@ -44,7 +44,7 @@ public class GridPicker : Border
 
     private int _selectedIndex = -1;
     private string? _selectedSubTag; // stores the sub-item tag when a sub-menu item is selected
-    private readonly List<(string Display, object? Tag, string? Icon, Color? IconColor)> _items = new();
+    private readonly List<(string Display, object? Tag, string? Icon, Color? IconColor, string? Subtitle)> _items = new();
     private readonly List<(int ItemIndex, string CategoryName)> _categories = new();
 
     // Sub-menu providers: keyed by item tag string
@@ -386,9 +386,9 @@ public class GridPicker : Border
         _categories.Add((_items.Count, categoryName));
     }
 
-    public void AddItem(string display, object? tag = null, string? icon = null, Color? iconColor = null)
+    public void AddItem(string display, object? tag = null, string? icon = null, Color? iconColor = null, string? subtitle = null)
     {
-        _items.Add((display, tag, icon, iconColor));
+        _items.Add((display, tag, icon, iconColor, subtitle));
         RebuildPopupItems();
     }
 
@@ -676,7 +676,7 @@ public class GridPicker : Border
 
             // Item row
             int idx = i;
-            var (display, itemTag, itemIcon, itemIconColor) = _items[i];
+            var (display, itemTag, itemIcon, itemIconColor, itemSubtitle) = _items[i];
             bool selected = idx == _selectedIndex;
             bool hasSubMenu = itemTag is string tagStr
                 && _subMenuProviders.TryGetValue(tagStr, out var subProvider)
@@ -746,25 +746,47 @@ public class GridPicker : Border
                 itemPanel.Children.Add(iconBlock);
             }
 
-            var itemText = new TextBlock
+            if (!string.IsNullOrEmpty(itemSubtitle))
             {
-                Text = display,
-                FontSize = 12,
-                Foreground = new SolidColorBrush(selected || isActiveSubParent ? AccentColor : Color.FromRgb(0xCC, 0xCC, 0xCC)),
-                FontWeight = selected || isActiveSubParent ? FontWeights.Medium : FontWeights.Normal,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            itemPanel.Children.Add(itemText);
+                var textStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                textStack.Children.Add(new TextBlock
+                {
+                    Text = display,
+                    FontSize = 12,
+                    Foreground = new SolidColorBrush(selected || isActiveSubParent ? AccentColor : Color.FromRgb(0xCC, 0xCC, 0xCC)),
+                    FontWeight = selected || isActiveSubParent ? FontWeights.Medium : FontWeights.Normal,
+                });
+                textStack.Children.Add(new TextBlock
+                {
+                    Text = itemSubtitle,
+                    FontSize = 9.5,
+                    Foreground = new SolidColorBrush(selected || isActiveSubParent
+                        ? Color.FromArgb(0x99, AccentColor.R, AccentColor.G, AccentColor.B)
+                        : Color.FromRgb(0x66, 0x66, 0x66)),
+                    Margin = new Thickness(0, 1, 0, 0),
+                });
+                itemPanel.Children.Add(textStack);
+            }
+            else
+            {
+                itemPanel.Children.Add(new TextBlock
+                {
+                    Text = display,
+                    FontSize = 12,
+                    Foreground = new SolidColorBrush(selected || isActiveSubParent ? AccentColor : Color.FromRgb(0xCC, 0xCC, 0xCC)),
+                    FontWeight = selected || isActiveSubParent ? FontWeights.Medium : FontWeights.Normal,
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+            }
 
             itemRow.Child = itemPanel;
 
             // Hover
             itemRow.MouseEnter += (_, _) =>
             {
-                if (idx != _selectedIndex)
+                if (idx != _selectedIndex && !isActiveSubParent)
                 {
                     itemRow.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
-                    itemText.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
                 }
 
                 // Start sub-menu open timer if this item has a sub-menu
@@ -786,8 +808,9 @@ public class GridPicker : Border
                 bool sel = idx == _selectedIndex;
                 itemRow.Background = sel
                     ? new SolidColorBrush(Color.FromArgb(0x18, AccentColor.R, AccentColor.G, AccentColor.B))
-                    : Brushes.Transparent;
-                itemText.Foreground = new SolidColorBrush(sel ? AccentColor : Color.FromRgb(0xCC, 0xCC, 0xCC));
+                    : isActiveSubParent
+                        ? new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E))
+                        : Brushes.Transparent;
             };
 
             // Click

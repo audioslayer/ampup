@@ -853,10 +853,10 @@ public partial class MixerView : UserControl
 
                 if (haEnabled)
                 {
-                    picker.AddItem("HA: Light",  "ha_light",  "◈", clrHA);
-                    picker.AddItem("HA: Media",  "ha_media",  "♪", clrHA);
-                    picker.AddItem("HA: Fan",    "ha_fan",    "◎", clrHA);
-                    picker.AddItem("HA: Cover",  "ha_cover",  "▭", clrHA);
+                    picker.AddItem("Home Assistant",  "ha_light",  "◈", clrHA, "Light");
+                    picker.AddItem("Home Assistant",  "ha_media",  "♪", clrHA, "Media Player");
+                    picker.AddItem("Home Assistant",  "ha_fan",    "◎", clrHA, "Fan");
+                    picker.AddItem("Home Assistant",  "ha_cover",  "▭", clrHA, "Cover");
 
                     // Register sub-flyout providers for HA items
                     foreach (var haKey in HATargetDomains.Keys)
