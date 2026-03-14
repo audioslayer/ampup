@@ -43,11 +43,18 @@ public partial class OsdOverlay : Window
     {
         var accent = ThemeManager.Accent;
 
-        // Border gradient
-        var borderBrush = new LinearGradientBrush(
-            ThemeManager.WithAlpha(accent, 0x55),
-            ThemeManager.WithAlpha(accent, 0x22),
-            new System.Windows.Point(0, 0), new System.Windows.Point(1, 1));
+        // Border gradient — visible accent glow on all edges
+        var borderBrush = new LinearGradientBrush
+        {
+            StartPoint = new System.Windows.Point(0, 0),
+            EndPoint = new System.Windows.Point(1, 1),
+            GradientStops = new GradientStopCollection
+            {
+                new GradientStop(ThemeManager.WithAlpha(accent, 0x66), 0.0),
+                new GradientStop(ThemeManager.WithAlpha(accent, 0x33), 0.5),
+                new GradientStop(ThemeManager.WithAlpha(accent, 0x55), 1.0),
+            }
+        };
         borderBrush.Freeze();
         GlassPanel.BorderBrush = borderBrush;
 
@@ -84,7 +91,7 @@ public partial class OsdOverlay : Window
             RadiusX = 0.6, RadiusY = 0.8,
             GradientStops = new GradientStopCollection
             {
-                new GradientStop(ThemeManager.WithAlpha(accent, 0x22), 0.4),
+                new GradientStop(ThemeManager.WithAlpha(accent, 0x30), 0.3),
                 new GradientStop(ThemeManager.WithAlpha(accent, 0x00), 1.0),
             }
         };
