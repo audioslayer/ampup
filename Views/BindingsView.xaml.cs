@@ -373,7 +373,6 @@ public class BindingsView : UserControl
                 Foreground = (SolidColorBrush)FindResource("TextPrimaryBrush"),
                 VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxWidth = 160,
             });
         }
         content.Children.Add(titleRow);
@@ -600,20 +599,38 @@ public class BindingsView : UserControl
             "monitor" => "Monitor Brightness",
             "led_brightness" => "LED Brightness",
             _ when t.StartsWith("ha_") => FormatHATarget(t),
+            _ when t.StartsWith("govee:") => "Govee",
+            _ when t == "govee" => "Govee",
             _ => CamelToTitle(t)
         };
     }
 
     private static string FormatHATarget(string target)
     {
-        return target switch
+        // Config stores "ha_light:light.office_lamp" — extract domain and entity
+        var parts = target.Split(':', 2);
+        var domain = parts[0];
+        var entityId = parts.Length > 1 ? parts[1] : "";
+
+        var domainName = domain switch
         {
-            "ha_light" => "HA: Light",
-            "ha_media" => "HA: Media",
-            "ha_fan" => "HA: Fan",
-            "ha_cover" => "HA: Cover",
-            _ => target.Replace("ha_", "HA: ")
+            "ha_light" => "Light",
+            "ha_media" => "Media Player",
+            "ha_fan" => "Fan",
+            "ha_cover" => "Cover",
+            _ => domain.Replace("ha_", "")
         };
+
+        if (!string.IsNullOrEmpty(entityId))
+        {
+            // Convert "light.office_lamp" → "Office Lamp"
+            var name = entityId.Contains('.') ? entityId.Split('.', 2)[1] : entityId;
+            name = name.Replace("_", " ");
+            name = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(name);
+            return name;
+        }
+
+        return $"Home Assistant ({domainName})";
     }
 
     private static string FormatAppName(string app)
