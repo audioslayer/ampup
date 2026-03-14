@@ -1078,16 +1078,20 @@ public partial class AmbienceView : UserControl
         // ── Settings row 1: Monitor + FPS + Zones ──
         var row1 = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
 
-        // Monitor selector — show display name (e.g. "DELL U2723QE") or fallback
+        // Monitor selector — show friendly display name (e.g. "DELL U2723QE")
         var screens = System.Windows.Forms.Screen.AllScreens;
         var monitorCount = screens.Length;
+        var friendlyNames = NativeMethods.GetMonitorFriendlyNames();
         row1.Children.Add(MakeSubLabel("MONITOR"));
-        var monitorCombo = new ComboBox { Width = 180, Margin = new Thickness(0, 0, 20, 0), ToolTip = "Which monitor to capture" };
+        var monitorCombo = new ComboBox { Width = 200, Margin = new Thickness(0, 0, 20, 0), ToolTip = "Which monitor to capture" };
         for (int i = 0; i < monitorCount; i++)
         {
             var screen = screens[i];
-            var name = screen.DeviceName.Replace("\\\\.\\", "");
-            var label = screen.Primary ? $"{name} (Primary)" : name;
+            var gdiName = screen.DeviceName.TrimEnd('\0');
+            var friendly = friendlyNames.GetValueOrDefault(gdiName, "");
+            var label = !string.IsNullOrEmpty(friendly)
+                ? (screen.Primary ? $"{friendly} (Primary)" : friendly)
+                : (screen.Primary ? $"Display {i + 1} (Primary)" : $"Display {i + 1}");
             monitorCombo.Items.Add(label);
         }
         monitorCombo.SelectedIndex = Math.Clamp(cfg.MonitorIndex, 0, Math.Max(0, monitorCount - 1));
@@ -1151,7 +1155,7 @@ public partial class AmbienceView : UserControl
         {
             Minimum = 0.5, Maximum = 2.0, Value = cfg.Saturation,
             Width = 120, Margin = new Thickness(0, 0, 20, 0),
-            Suffix = "",
+            ShowLabel = false,
             ToolTip = "Boost color saturation — higher = more vivid room colors",
         };
         satSlider.ValueChanged += (_, _) =>
@@ -1180,7 +1184,7 @@ public partial class AmbienceView : UserControl
         {
             Minimum = 1, Maximum = 20, Value = cfg.Sensitivity,
             Width = 120, Margin = new Thickness(0, 0, 8, 0),
-            Suffix = "",
+            ShowLabel = false,
             ToolTip = "Minimum color change to trigger a send — lower = more reactive; higher = less flicker",
         };
         sensSlider.ValueChanged += (_, _) =>

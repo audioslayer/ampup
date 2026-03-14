@@ -54,6 +54,7 @@ public class StyledSlider : FrameworkElement
     public Color AccentColor { get => (Color)GetValue(AccentColorProperty); set => SetValue(AccentColorProperty, value); }
 
     public string Suffix { get; set; } = "%";
+    public bool ShowLabel { get; set; } = true;
 
     // ── Events ──────────────────────────────────────────────────
 
@@ -123,12 +124,15 @@ public class StyledSlider : FrameworkElement
         dc.DrawEllipse(whiteDot, null, new Point(vx, cy), 2, 2);
 
         // Value label below thumb
-        var textBrush = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
-        textBrush.Freeze();
-        var text = new FormattedText($"{(int)Value}{Suffix}", CultureInfo.InvariantCulture,
-            FlowDirection.LeftToRight, s_typeface, 10, textBrush,
-            VisualTreeHelper.GetDpi(this).PixelsPerDip);
-        dc.DrawText(text, new Point(vx - text.Width / 2, cy + ThumbRadius + 4));
+        if (ShowLabel)
+        {
+            var textBrush = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+            textBrush.Freeze();
+            var text = new FormattedText($"{(int)Value}{Suffix}", CultureInfo.InvariantCulture,
+                FlowDirection.LeftToRight, s_typeface, 10, textBrush,
+                VisualTreeHelper.GetDpi(this).PixelsPerDip);
+            dc.DrawText(text, new Point(vx - text.Width / 2, cy + ThumbRadius + 4));
+        }
     }
 
     // ── Mouse interaction ───────────────────────────────────────
