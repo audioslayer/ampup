@@ -232,17 +232,35 @@ public partial class OsdOverlay : Window
             var stack = new StackPanel();
 
             // Number badge — centered circle
-            // Mini knob visual — same knob PNG + colored arc as Mixer tab
+            // Mini knob image with number
             var knobColor = GetTargetColor(knob?.Target ?? "none");
-            var miniKnob = new Controls.AnimatedKnobControl
+            var knobImg = new System.Windows.Controls.Image
             {
-                Width = 38, Height = 38,
-                ArcColor = knobColor,
+                Source = new System.Windows.Media.Imaging.BitmapImage(
+                    new Uri("pack://application:,,,/Assets/knob-face.png", UriKind.Absolute)),
+                Width = 24, Height = 24,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                RenderTransformOrigin = new System.Windows.Point(0.5, 0.5),
+                RenderTransform = new RotateTransform(180), // needle pointing up
+            };
+            var knobNum = new TextBlock
+            {
+                Text = (i + 1).ToString(),
+                FontSize = 8, FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(knobColor),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 26, 0, 0),
+                FontFamily = new FontFamily("Segoe UI"),
+            };
+            var knobGrid = new Grid
+            {
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 0, 0, 4),
-                Value = 0.6f,
             };
-            stack.Children.Add(miniKnob);
+            knobGrid.Children.Add(knobImg);
+            knobGrid.Children.Add(knobNum);
+            stack.Children.Add(knobGrid);
 
             // Knob target row — icon + label, horizontally centered
             var knobRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
