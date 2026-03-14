@@ -56,10 +56,19 @@ public partial class MixerView : UserControl
     // Suggestion banner
     private Border? _suggestionBanner;
 
-    // Smart Mix (ducking + auto-profile) controls
+    // Smart Mix (ducking + auto-profile) controls — built in code-behind
     private bool _smartMixExpanded = false;
-    private Wpf.Ui.Controls.TextBox[] _autoRuleAppBoxes = null!;
-    private ListPicker[] _autoRuleProfileCombos = null!;
+    private CheckBox? _chkDuckingEnabled;
+    private ListPicker? _duckTriggerPicker;
+    private StyledSlider? _duckAmountSlider;
+    private TextBlock? _duckAmountLabel;
+    private TextBox? _duckFadeOutBox;
+    private TextBox? _duckFadeInBox;
+    private StackPanel? _duckAdvancedPanel;
+
+    private CheckBox? _chkAutoSwitchEnabled;
+    private CheckBox? _chkAutoSwitchRevert;
+    private StackPanel? _autoSwitchRulesPanel;
 
     // Clipboard for knob copy/paste
     private static KnobConfig? _clipboard;
@@ -104,7 +113,7 @@ public partial class MixerView : UserControl
         SetupStripHoverEffects();
         SetupStripContextMenus();
         SetupSuggestionBanner();
-        SetupSmartMix();
+        BuildSmartMixSection();
     }
 
     private void SetupStripHoverEffects()
@@ -328,48 +337,36 @@ public partial class MixerView : UserControl
             }
         }
 
-        // Auto-Ducking
-        ChkDuckingEnabled.IsChecked = config.Ducking.Enabled;
-        var duckRule = config.Ducking.Rules.Count > 0 ? config.Ducking.Rules[0] : new DuckingRule();
-        TxtDuckTriggerApp.Text = duckRule.TriggerApp;
-        TxtDuckTargetApps.Text = string.Join(", ", duckRule.TargetApps);
-        SldDuckPercent.Value = duckRule.DuckPercent;
-        TxtDuckPercentLabel.Text = $"{duckRule.DuckPercent}%";
-        TxtDuckFadeOut.Text = duckRule.FadeOutMs.ToString();
-        TxtDuckFadeIn.Text = duckRule.FadeInMs.ToString();
-
-        // Auto-Profile Switching
-        ChkAutoSwitchEnabled.IsChecked = config.AutoSwitch.Enabled;
-        ChkAutoSwitchRevert.IsChecked = config.AutoSwitch.RevertToDefault;
-        for (int i = 0; i < _autoRuleProfileCombos.Length; i++)
+        // Smart Mix — Ducking
+        if (_chkDuckingEnabled != null)
         {
-            _autoRuleProfileCombos[i].ClearItems();
-            _autoRuleProfileCombos[i].AddItem("", tag: "");
-            foreach (var p in config.Profiles)
-                _autoRuleProfileCombos[i].AddItem(p, tag: p);
+            _chkDuckingEnabled.IsChecked = config.Ducking.Enabled;
+            var duckRule = config.Ducking.Rules.Count > 0 ? config.Ducking.Rules[0] : new DuckingRule();
 
-            if (i < config.AutoSwitch.Rules.Count)
+            // Populate trigger picker with the saved app so it appears selected
+            if (_duckTriggerPicker != null && !string.IsNullOrEmpty(duckRule.TriggerApp))
             {
-                var r = config.AutoSwitch.Rules[i];
-                _autoRuleAppBoxes[i].Text = r.ProcessName;
-                // Find index of the profile name
-                var profileIdx = -1;
-                for (int j = 0; j < _autoRuleProfileCombos[i].ItemCount; j++)
-                {
-                    if (_autoRuleProfileCombos[i].GetTagAt(j)?.ToString() == r.ProfileName)
-                    {
-                        profileIdx = j;
-                        break;
-                    }
-                }
-                _autoRuleProfileCombos[i].SelectedIndex = profileIdx >= 0 ? profileIdx : 0;
+                _duckTriggerPicker.ClearItems();
+                _duckTriggerPicker.AddItem(duckRule.TriggerApp, tag: duckRule.TriggerApp);
+                _duckTriggerPicker.SelectedIndex = 0;
             }
-            else
+
+            if (_duckAmountSlider != null)
             {
-                _autoRuleAppBoxes[i].Text = "";
-                _autoRuleProfileCombos[i].SelectedIndex = 0;
+                _duckAmountSlider.Value = duckRule.DuckPercent;
+                if (_duckAmountLabel != null)
+                    _duckAmountLabel.Text = $"{duckRule.DuckPercent}%";
             }
+            if (_duckFadeOutBox != null) _duckFadeOutBox.Text = duckRule.FadeOutMs.ToString();
+            if (_duckFadeInBox != null) _duckFadeInBox.Text = duckRule.FadeInMs.ToString();
         }
+
+        // Smart Mix — Auto-Switch
+        if (_chkAutoSwitchEnabled != null)
+            _chkAutoSwitchEnabled.IsChecked = config.AutoSwitch.Enabled;
+        if (_chkAutoSwitchRevert != null)
+            _chkAutoSwitchRevert.IsChecked = config.AutoSwitch.RevertToDefault;
+        RebuildAutoSwitchRules();
 
         _loading = false;
 
@@ -1158,28 +1155,34 @@ public partial class MixerView : UserControl
                 knob.DeviceId = "";
         }
 
-        // Auto-Ducking
-        _config.Ducking.Enabled = ChkDuckingEnabled.IsChecked == true;
+        // Smart Mix — Ducking
+        _config.Ducking.Enabled = _chkDuckingEnabled?.IsChecked == true;
         var duckRule = _config.Ducking.Rules.Count > 0 ? _config.Ducking.Rules[0] : new DuckingRule();
-        duckRule.TriggerApp = TxtDuckTriggerApp.Text.Trim();
-        duckRule.TargetApps = TxtDuckTargetApps.Text
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToList();
-        duckRule.DuckPercent = (int)SldDuckPercent.Value;
-        if (int.TryParse(TxtDuckFadeOut.Text.Trim(), out var fadeOut)) duckRule.FadeOutMs = fadeOut;
-        if (int.TryParse(TxtDuckFadeIn.Text.Trim(), out var fadeIn)) duckRule.FadeInMs = fadeIn;
-        _config.Ducking.Rules = new List<DuckingRule> { duckRule };
+        if (_config.Ducking.Rules.Count == 0) _config.Ducking.Rules.Add(duckRule);
+        duckRule.TriggerApp = _duckTriggerPicker?.SelectedTag as string ?? "";
+        duckRule.TargetApps = new List<string>(); // empty = duck all
+        duckRule.DuckPercent = (int)(_duckAmountSlider?.Value ?? 50);
+        duckRule.FadeOutMs = int.TryParse(_duckFadeOutBox?.Text, out var fadeOut) ? fadeOut : 200;
+        duckRule.FadeInMs = int.TryParse(_duckFadeInBox?.Text, out var fadeIn) ? fadeIn : 500;
 
-        // Auto-Profile Switching
-        _config.AutoSwitch.Enabled = ChkAutoSwitchEnabled.IsChecked == true;
-        _config.AutoSwitch.RevertToDefault = ChkAutoSwitchRevert.IsChecked == true;
+        // Smart Mix — Auto-Switch
+        _config.AutoSwitch.Enabled = _chkAutoSwitchEnabled?.IsChecked == true;
+        _config.AutoSwitch.RevertToDefault = _chkAutoSwitchRevert?.IsChecked == true;
         var switchRules = new List<AutoSwitchRule>();
-        for (int i = 0; i < _autoRuleAppBoxes.Length; i++)
+        if (_autoSwitchRulesPanel != null)
         {
-            var appName = _autoRuleAppBoxes[i].Text.Trim();
-            var profileName = _autoRuleProfileCombos[i].SelectedTag?.ToString() ?? "";
-            if (!string.IsNullOrEmpty(appName) && !string.IsNullOrEmpty(profileName))
-                switchRules.Add(new AutoSwitchRule { ProcessName = appName, ProfileName = profileName });
+            foreach (var child in _autoSwitchRulesPanel.Children)
+            {
+                if (child is Border row && row.Child is Grid g)
+                {
+                    var appPicker = g.Children.OfType<ListPicker>().FirstOrDefault();
+                    var profilePicker = g.Children.OfType<ListPicker>().Skip(1).FirstOrDefault();
+                    var appName = appPicker?.SelectedTag?.ToString() ?? "";
+                    var profileName = profilePicker?.SelectedTag?.ToString() ?? "";
+                    if (!string.IsNullOrEmpty(appName) && !string.IsNullOrEmpty(profileName))
+                        switchRules.Add(new AutoSwitchRule { ProcessName = appName, ProfileName = profileName });
+                }
+            }
         }
         _config.AutoSwitch.Rules = switchRules;
 
@@ -1459,40 +1462,540 @@ public partial class MixerView : UserControl
 
     // ── Smart Mix Setup ────────────────────────────────────────────────
 
-    private void SetupSmartMix()
+    private void BuildSmartMixSection()
     {
-        // Wire up ducking change events
-        ChkDuckingEnabled.Checked += OnSmartMixChanged;
-        ChkDuckingEnabled.Unchecked += OnSmartMixChanged;
-        TxtDuckTriggerApp.TextChanged += OnSmartMixChanged;
-        TxtDuckTargetApps.TextChanged += OnSmartMixChanged;
-        TxtDuckFadeOut.TextChanged += OnSmartMixChanged;
-        TxtDuckFadeIn.TextChanged += OnSmartMixChanged;
-        SldDuckPercent.ValueChanged += (_, e) =>
+        var cardBg = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+        var cardBorder = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+        var inputBg = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+        var inputBorder = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
+        var textPrimary = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
+        var textSec = FindBrush("TextSecBrush") ?? new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
+        var accent = ThemeManager.Accent;
+        var accentBrush = new SolidColorBrush(accent);
+
+        // ── VOICE DUCKING CARD ─────────────────────────────────────
+        var duckCard = new Border
         {
-            TxtDuckPercentLabel.Text = $"{(int)e.NewValue}%";
-            OnSmartMixChanged(SldDuckPercent, e);
+            Background = cardBg,
+            BorderBrush = cardBorder,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(14),
+            Margin = new Thickness(0, 0, 0, 12),
         };
 
-        // Wire up auto-switch change events
-        ChkAutoSwitchEnabled.Checked += OnSmartMixChanged;
-        ChkAutoSwitchEnabled.Unchecked += OnSmartMixChanged;
-        ChkAutoSwitchRevert.Checked += OnSmartMixChanged;
-        ChkAutoSwitchRevert.Unchecked += OnSmartMixChanged;
+        var duckStack = new StackPanel();
 
-        // Build indexed arrays for auto-switch rule rows
-        _autoRuleAppBoxes = new[]
+        // Header: accent bar + title + checkbox
+        var duckHeader = new Grid { Margin = new Thickness(0, 0, 0, 14) };
+        duckHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        duckHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        duckHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        duckHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var duckBar = new Border
         {
-            TxtAutoRule0App, TxtAutoRule1App, TxtAutoRule2App, TxtAutoRule3App, TxtAutoRule4App
+            Width = 3, CornerRadius = new CornerRadius(2),
+            Background = accentBrush, Margin = new Thickness(0, 0, 10, 0),
         };
-        _autoRuleProfileCombos = new[]
+        Grid.SetColumn(duckBar, 0);
+        duckHeader.Children.Add(duckBar);
+
+        var duckTitle = new TextBlock
         {
-            CmbAutoRule0Profile, CmbAutoRule1Profile, CmbAutoRule2Profile, CmbAutoRule3Profile, CmbAutoRule4Profile
+            Text = "VOICE DUCKING",
+            FontSize = 11, FontWeight = FontWeights.SemiBold,
+            Foreground = accentBrush, VerticalAlignment = VerticalAlignment.Center,
         };
-        foreach (var tb in _autoRuleAppBoxes)
-            tb.TextChanged += OnSmartMixChanged;
-        foreach (var picker in _autoRuleProfileCombos)
-            picker.SelectionChanged += OnSmartMixChanged;
+        Grid.SetColumn(duckTitle, 1);
+        duckHeader.Children.Add(duckTitle);
+
+        _chkDuckingEnabled = new CheckBox
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = "Automatically lower other apps when trigger app is speaking",
+        };
+        Grid.SetColumn(_chkDuckingEnabled, 3);
+        duckHeader.Children.Add(_chkDuckingEnabled);
+
+        _sectionHeaders.Add((duckBar, duckTitle));
+        duckStack.Children.Add(duckHeader);
+
+        // Content panel (disabled/dimmed when unchecked)
+        var duckContent = new StackPanel();
+
+        // "When this app is active:"
+        duckContent.Children.Add(new TextBlock
+        {
+            Text = "When this app is active:",
+            Foreground = textSec, FontSize = 12, Margin = new Thickness(0, 0, 0, 6),
+        });
+
+        // Trigger app ListPicker
+        _duckTriggerPicker = new ListPicker
+        {
+            ToolTip = "App that triggers volume reduction when active",
+            Margin = new Thickness(0, 0, 0, 14),
+        };
+        _duckTriggerPicker.DropdownOpening += (_, _) => PopulateDuckTriggerPicker();
+        _duckTriggerPicker.SelectionChanged += OnSmartMixChanged;
+        duckContent.Children.Add(_duckTriggerPicker);
+
+        // "Lower other apps by:"
+        duckContent.Children.Add(new TextBlock
+        {
+            Text = "Lower other apps by:",
+            Foreground = textSec, FontSize = 12, Margin = new Thickness(0, 0, 0, 6),
+        });
+
+        // Slider row: StyledSlider + percent label
+        var sliderBorder = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x18, 0x18, 0x18)),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(14, 8, 14, 8),
+            Margin = new Thickness(0, 0, 0, 14),
+        };
+        var sliderGrid = new Grid();
+        sliderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        sliderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        _duckAmountSlider = new StyledSlider
+        {
+            Minimum = 0, Maximum = 100, Value = 50,
+            AccentColor = accent,
+            ToolTip = "How much to reduce volume (100% = fully muted)",
+        };
+        _duckAmountSlider.ValueChanged += (_, _) =>
+        {
+            if (_duckAmountLabel != null)
+                _duckAmountLabel.Text = $"{(int)_duckAmountSlider.Value}%";
+            OnSmartMixChanged(_duckAmountSlider, EventArgs.Empty);
+        };
+        Grid.SetColumn(_duckAmountSlider, 0);
+        sliderGrid.Children.Add(_duckAmountSlider);
+
+        _duckAmountLabel = new TextBlock
+        {
+            Text = "50%",
+            Foreground = accentBrush,
+            FontSize = 13, FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+        Grid.SetColumn(_duckAmountLabel, 1);
+        sliderGrid.Children.Add(_duckAmountLabel);
+
+        sliderBorder.Child = sliderGrid;
+        duckContent.Children.Add(sliderBorder);
+
+        // "Advanced" toggle
+        var advancedToggle = new TextBlock
+        {
+            Text = "\u25B8 Advanced",
+            Foreground = textSec, FontSize = 11,
+            Cursor = System.Windows.Input.Cursors.Hand,
+            Margin = new Thickness(0, 0, 0, 6),
+        };
+
+        _duckAdvancedPanel = new StackPanel { Visibility = Visibility.Collapsed };
+
+        advancedToggle.MouseLeftButtonDown += (_, _) =>
+        {
+            if (_duckAdvancedPanel!.Visibility == Visibility.Visible)
+            {
+                _duckAdvancedPanel.Visibility = Visibility.Collapsed;
+                advancedToggle.Text = "\u25B8 Advanced";
+            }
+            else
+            {
+                _duckAdvancedPanel.Visibility = Visibility.Visible;
+                advancedToggle.Text = "\u25BE Advanced";
+            }
+        };
+        duckContent.Children.Add(advancedToggle);
+
+        // Advanced: Fade Out / Fade In
+        var fadeGrid = new Grid();
+        fadeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        fadeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
+        fadeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        // Fade Out
+        var fadeOutBorder = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x18, 0x18, 0x18)),
+            CornerRadius = new CornerRadius(8), Padding = new Thickness(14, 10, 14, 10),
+        };
+        var fadeOutStack = new StackPanel();
+        fadeOutStack.Children.Add(new TextBlock
+        {
+            Text = "Fade Out", Foreground = textSec, FontSize = 11, Margin = new Thickness(0, 0, 0, 6),
+        });
+        var fadeOutRow = new Grid();
+        fadeOutRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        fadeOutRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _duckFadeOutBox = new TextBox
+        {
+            Text = "200",
+            Background = inputBg, BorderBrush = inputBorder, Foreground = textPrimary,
+            FontSize = 12, Padding = new Thickness(6, 4, 6, 4),
+            ToolTip = "Time to fade volume down when trigger starts (ms)",
+        };
+        _duckFadeOutBox.TextChanged += (_, _) => OnSmartMixChanged(_duckFadeOutBox, EventArgs.Empty);
+        Grid.SetColumn(_duckFadeOutBox, 0);
+        fadeOutRow.Children.Add(_duckFadeOutBox);
+        var fadeOutMs = new TextBlock
+        {
+            Text = "ms", Foreground = textSec, FontSize = 11,
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0),
+        };
+        Grid.SetColumn(fadeOutMs, 1);
+        fadeOutRow.Children.Add(fadeOutMs);
+        fadeOutStack.Children.Add(fadeOutRow);
+        fadeOutBorder.Child = fadeOutStack;
+        Grid.SetColumn(fadeOutBorder, 0);
+        fadeGrid.Children.Add(fadeOutBorder);
+
+        // Fade In
+        var fadeInBorder = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x18, 0x18, 0x18)),
+            CornerRadius = new CornerRadius(8), Padding = new Thickness(14, 10, 14, 10),
+        };
+        var fadeInStack = new StackPanel();
+        fadeInStack.Children.Add(new TextBlock
+        {
+            Text = "Fade In", Foreground = textSec, FontSize = 11, Margin = new Thickness(0, 0, 0, 6),
+        });
+        var fadeInRow = new Grid();
+        fadeInRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        fadeInRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _duckFadeInBox = new TextBox
+        {
+            Text = "500",
+            Background = inputBg, BorderBrush = inputBorder, Foreground = textPrimary,
+            FontSize = 12, Padding = new Thickness(6, 4, 6, 4),
+            ToolTip = "Time to restore volume after trigger stops (ms)",
+        };
+        _duckFadeInBox.TextChanged += (_, _) => OnSmartMixChanged(_duckFadeInBox, EventArgs.Empty);
+        Grid.SetColumn(_duckFadeInBox, 0);
+        fadeInRow.Children.Add(_duckFadeInBox);
+        var fadeInMs = new TextBlock
+        {
+            Text = "ms", Foreground = textSec, FontSize = 11,
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0),
+        };
+        Grid.SetColumn(fadeInMs, 1);
+        fadeInRow.Children.Add(fadeInMs);
+        fadeInStack.Children.Add(fadeInRow);
+        fadeInBorder.Child = fadeInStack;
+        Grid.SetColumn(fadeInBorder, 2);
+        fadeGrid.Children.Add(fadeInBorder);
+
+        _duckAdvancedPanel.Children.Add(fadeGrid);
+        duckContent.Children.Add(_duckAdvancedPanel);
+
+        // Wire enabled toggle to dim/disable content
+        _chkDuckingEnabled.Checked += (_, _) =>
+        {
+            duckContent.Opacity = 1.0;
+            duckContent.IsEnabled = true;
+            OnSmartMixChanged(_chkDuckingEnabled, EventArgs.Empty);
+        };
+        _chkDuckingEnabled.Unchecked += (_, _) =>
+        {
+            duckContent.Opacity = 0.4;
+            duckContent.IsEnabled = false;
+            OnSmartMixChanged(_chkDuckingEnabled, EventArgs.Empty);
+        };
+        // Set initial state
+        duckContent.Opacity = 0.4;
+        duckContent.IsEnabled = false;
+
+        duckStack.Children.Add(duckContent);
+        duckCard.Child = duckStack;
+        SmartMixContent.Children.Add(duckCard);
+
+        // ── APP PROFILES CARD ──────────────────────────────────────
+        var profileCard = new Border
+        {
+            Background = cardBg,
+            BorderBrush = cardBorder,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(14),
+        };
+
+        var profileStack = new StackPanel();
+
+        // Header: accent bar + title + checkbox
+        var profileHeader = new Grid { Margin = new Thickness(0, 0, 0, 10) };
+        profileHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        profileHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        profileHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        profileHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var profileBar = new Border
+        {
+            Width = 3, CornerRadius = new CornerRadius(2),
+            Background = accentBrush, Margin = new Thickness(0, 0, 10, 0),
+        };
+        Grid.SetColumn(profileBar, 0);
+        profileHeader.Children.Add(profileBar);
+
+        var profileTitle = new TextBlock
+        {
+            Text = "APP PROFILES",
+            FontSize = 11, FontWeight = FontWeights.SemiBold,
+            Foreground = accentBrush, VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(profileTitle, 1);
+        profileHeader.Children.Add(profileTitle);
+
+        _chkAutoSwitchEnabled = new CheckBox
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = "Switch profiles automatically based on the focused app",
+        };
+        Grid.SetColumn(_chkAutoSwitchEnabled, 3);
+        profileHeader.Children.Add(_chkAutoSwitchEnabled);
+
+        _sectionHeaders.Add((profileBar, profileTitle));
+        profileStack.Children.Add(profileHeader);
+
+        // Content panel (disabled/dimmed when unchecked)
+        var profileContent = new StackPanel();
+
+        // Revert checkbox
+        _chkAutoSwitchRevert = new CheckBox
+        {
+            Content = "Revert to default when no rule matches",
+            Foreground = textSec, FontSize = 12,
+            Margin = new Thickness(0, 0, 0, 12),
+            ToolTip = "Go back to Default profile when no rule matches the focused app",
+        };
+        _chkAutoSwitchRevert.Checked += OnSmartMixChanged;
+        _chkAutoSwitchRevert.Unchecked += OnSmartMixChanged;
+        profileContent.Children.Add(_chkAutoSwitchRevert);
+
+        // Dynamic rules panel
+        _autoSwitchRulesPanel = new StackPanel();
+        profileContent.Children.Add(_autoSwitchRulesPanel);
+
+        // "Add Rule" button
+        var addRuleBtn = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(0, 8, 0, 8),
+            Margin = new Thickness(0, 6, 0, 0),
+            Cursor = System.Windows.Input.Cursors.Hand,
+        };
+        var addRuleText = new TextBlock
+        {
+            Text = "+ Add Rule",
+            Foreground = accentBrush,
+            FontSize = 12, FontWeight = FontWeights.SemiBold,
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        addRuleBtn.Child = addRuleText;
+        addRuleBtn.MouseEnter += (_, _) => addRuleBtn.Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
+        addRuleBtn.MouseLeave += (_, _) => addRuleBtn.Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
+        addRuleBtn.MouseLeftButtonUp += (_, _) =>
+        {
+            AddAutoSwitchRule("", "");
+            OnSmartMixChanged(addRuleBtn, EventArgs.Empty);
+        };
+        profileContent.Children.Add(addRuleBtn);
+
+        // Wire enabled toggle
+        _chkAutoSwitchEnabled.Checked += (_, _) =>
+        {
+            profileContent.Opacity = 1.0;
+            profileContent.IsEnabled = true;
+            OnSmartMixChanged(_chkAutoSwitchEnabled, EventArgs.Empty);
+        };
+        _chkAutoSwitchEnabled.Unchecked += (_, _) =>
+        {
+            profileContent.Opacity = 0.4;
+            profileContent.IsEnabled = false;
+            OnSmartMixChanged(_chkAutoSwitchEnabled, EventArgs.Empty);
+        };
+        profileContent.Opacity = 0.4;
+        profileContent.IsEnabled = false;
+
+        profileStack.Children.Add(profileContent);
+        profileCard.Child = profileStack;
+        SmartMixContent.Children.Add(profileCard);
+    }
+
+    private void PopulateDuckTriggerPicker()
+    {
+        if (_duckTriggerPicker == null || _mixer == null) return;
+
+        var currentTag = _duckTriggerPicker.SelectedTag?.ToString() ?? "";
+        _duckTriggerPicker.ClearItems();
+
+        // Common voice apps (always shown)
+        var commonApps = new[] { "discord", "teams", "zoom", "slack" };
+        var added = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Get running audio apps
+        List<string> running;
+        try { running = _mixer.GetRunningAudioApps(); }
+        catch { running = new List<string>(); }
+
+        // Add running apps first
+        foreach (var app in running)
+        {
+            _duckTriggerPicker.AddItem(app, tag: app);
+            added.Add(app);
+        }
+
+        // Add common apps that aren't already listed
+        foreach (var app in commonApps)
+        {
+            if (!added.Contains(app))
+            {
+                _duckTriggerPicker.AddItem($"{app} (not running)", tag: app);
+                added.Add(app);
+            }
+        }
+
+        // Re-select previous value
+        if (!string.IsNullOrEmpty(currentTag))
+            SelectPickerByTag(_duckTriggerPicker, currentTag);
+    }
+
+    private void AddAutoSwitchRule(string app, string profile)
+    {
+        if (_autoSwitchRulesPanel == null) return;
+
+        var textSec = FindBrush("TextSecBrush") ?? new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
+        var accent = ThemeManager.Accent;
+        var accentBrush = new SolidColorBrush(accent);
+
+        var row = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12, 10, 12, 10),
+            Margin = new Thickness(0, 0, 0, 6),
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        // App ListPicker
+        var appPicker = new ListPicker
+        {
+            ToolTip = "When this app is in the foreground, switch to the profile",
+        };
+        appPicker.DropdownOpening += (_, _) => PopulateAppPicker(appPicker);
+        // Pre-populate with current selection if any
+        if (!string.IsNullOrEmpty(app))
+        {
+            appPicker.AddItem(app, tag: app);
+            appPicker.SelectedIndex = 0;
+        }
+        appPicker.SelectionChanged += OnSmartMixChanged;
+        Grid.SetColumn(appPicker, 0);
+        grid.Children.Add(appPicker);
+
+        // Arrow
+        var arrow = new TextBlock
+        {
+            Text = "\u2192",
+            Foreground = accentBrush,
+            FontSize = 16, FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(10, 0, 10, 0),
+        };
+        Grid.SetColumn(arrow, 1);
+        grid.Children.Add(arrow);
+
+        // Profile ListPicker
+        var profilePicker = new ListPicker
+        {
+            ToolTip = "Profile to activate when the app is focused",
+        };
+        if (_config != null)
+        {
+            foreach (var p in _config.Profiles)
+                profilePicker.AddItem(p, tag: p);
+        }
+        if (!string.IsNullOrEmpty(profile))
+            SelectPickerByTag(profilePicker, profile);
+        profilePicker.SelectionChanged += OnSmartMixChanged;
+        Grid.SetColumn(profilePicker, 2);
+        grid.Children.Add(profilePicker);
+
+        // Delete button
+        var deleteBtn = new TextBlock
+        {
+            Text = "\u00D7",
+            Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
+            FontSize = 16, FontWeight = FontWeights.Bold,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+            Cursor = System.Windows.Input.Cursors.Hand,
+        };
+        deleteBtn.MouseEnter += (_, _) => deleteBtn.Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x44, 0x44));
+        deleteBtn.MouseLeave += (_, _) => deleteBtn.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+        deleteBtn.MouseLeftButtonUp += (_, _) =>
+        {
+            _autoSwitchRulesPanel?.Children.Remove(row);
+            OnSmartMixChanged(deleteBtn, EventArgs.Empty);
+        };
+        Grid.SetColumn(deleteBtn, 3);
+        grid.Children.Add(deleteBtn);
+
+        row.Child = grid;
+        _autoSwitchRulesPanel.Children.Add(row);
+    }
+
+    private void PopulateAppPicker(ListPicker picker)
+    {
+        if (_mixer == null) return;
+
+        var currentTag = picker.SelectedTag?.ToString() ?? "";
+        picker.ClearItems();
+
+        List<string> running;
+        try { running = _mixer.GetRunningAudioApps(); }
+        catch { running = new List<string>(); }
+
+        foreach (var app in running)
+            picker.AddItem(app, tag: app);
+
+        if (!string.IsNullOrEmpty(currentTag))
+            SelectPickerByTag(picker, currentTag);
+    }
+
+    private void RebuildAutoSwitchRules()
+    {
+        if (_autoSwitchRulesPanel == null || _config == null) return;
+        _autoSwitchRulesPanel.Children.Clear();
+        foreach (var rule in _config.AutoSwitch.Rules)
+            AddAutoSwitchRule(rule.ProcessName, rule.ProfileName);
+    }
+
+    private static void SelectPickerByTag(ListPicker picker, string tag)
+    {
+        for (int i = 0; i < picker.ItemCount; i++)
+        {
+            if (picker.GetTagAt(i)?.ToString() == tag)
+            {
+                picker.SelectedIndex = i;
+                return;
+            }
+        }
     }
 
     private void OnSmartMixChanged(object? sender, EventArgs e)
