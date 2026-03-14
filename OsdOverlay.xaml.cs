@@ -116,6 +116,9 @@ public partial class OsdOverlay : Window
         _closing = false;
         _dismissTimer.Stop();
 
+        Width = 372;
+        ProfileBindingsPanel.Visibility = Visibility.Collapsed;
+
         CategoryLabel.Text = "VOLUME";
         SetSymbolIcon(symbolName, ThemeManager.AccentHex);
         OsdTitle.Text = label;
@@ -172,13 +175,13 @@ public partial class OsdOverlay : Window
 
         if (config != null)
         {
+            Width = 620;
             BuildBindingsPanel(config);
             ProfileBindingsPanel.Visibility = Visibility.Visible;
-            KnobsSectionLabel.Foreground = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x66));
-            ButtonsSectionLabel.Foreground = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x66));
         }
         else
         {
+            Width = 372;
             ProfileBindingsPanel.Visibility = Visibility.Collapsed;
         }
 
@@ -189,145 +192,124 @@ public partial class OsdOverlay : Window
 
     private void BuildBindingsPanel(AppConfig config)
     {
-        KnobsPanel.Children.Clear();
-        ButtonsPanel.Children.Clear();
+        ProfileBindingsPanel.Children.Clear();
 
-        // Knob rows
-        foreach (var knob in config.Knobs.OrderBy(k => k.Idx))
+        var accent = ThemeManager.Accent;
+
+        // 5-column horizontal Grid matching physical device layout
+        var columnsGrid = new System.Windows.Controls.Grid { Margin = new Thickness(0, 6, 0, 0) };
+        for (int c = 0; c < 5; c++)
         {
-            var row = BuildKnobRow(knob);
-            KnobsPanel.Children.Add(row);
+            columnsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         }
 
-        // Button rows — only non-none tap actions
-        bool anyButtons = false;
-        foreach (var btn in config.Buttons.OrderBy(b => b.Idx))
+        for (int i = 0; i < 5; i++)
         {
-            if (string.IsNullOrEmpty(btn.Action) || btn.Action == "none")
-                continue;
+            var knob = config.Knobs.FirstOrDefault(k => k.Idx == i);
+            var btn = config.Buttons.FirstOrDefault(b => b.Idx == i);
 
-            var row = BuildButtonRow(btn);
-            ButtonsPanel.Children.Add(row);
-            anyButtons = true;
+            // Card border
+            var card = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(10, 8, 10, 8),
+                Margin = new Thickness(i > 0 ? 3 : 0, 0, i < 4 ? 3 : 0, 0),
+            };
+
+            var stack = new StackPanel();
+
+            // Number badge — centered circle
+            var badge = new Border
+            {
+                Width = 20, Height = 20,
+                CornerRadius = new CornerRadius(10),
+                Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 6)
+            };
+            badge.Child = new TextBlock
+            {
+                Text = (i + 1).ToString(),
+                FontSize = 10, FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x77, 0x77, 0x77)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                FontFamily = new FontFamily("Segoe UI")
+            };
+            stack.Children.Add(badge);
+
+            // Knob target row — icon + label, horizontally centered
+            var knobRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+            string target = knob?.Target ?? "none";
+
+            var iconText = new TextBlock
+            {
+                Text = GetTargetIcon(target),
+                FontSize = 11,
+                Foreground = new SolidColorBrush(GetTargetColor(target)),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 4, 0)
+            };
+            knobRow.Children.Add(iconText);
+
+            // Determine knob display label
+            string knobLabel;
+            if (knob != null && !string.IsNullOrEmpty(knob.Label))
+                knobLabel = knob.Label;
+            else if (knob != null && target == "apps" && knob.Apps.Count > 0)
+                knobLabel = knob.Apps.Count == 1 ? knob.Apps[0] : "App Group";
+            else
+                knobLabel = FormatTarget(target);
+
+            bool knobDim = knobLabel == "\u2014"; // em dash
+            var knobLabelText = new TextBlock
+            {
+                Text = knobLabel,
+                FontSize = 10.5,
+                Foreground = new SolidColorBrush(knobDim
+                    ? Color.FromRgb(0x44, 0x44, 0x44)
+                    : Color.FromRgb(0xE0, 0xE0, 0xE0)),
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = 70,
+                FontFamily = new FontFamily("Segoe UI")
+            };
+            knobRow.Children.Add(knobLabelText);
+            stack.Children.Add(knobRow);
+
+            // Divider
+            var divider = new Border
+            {
+                Height = 1,
+                Background = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x4D)), // ~30% alpha
+                Margin = new Thickness(0, 6, 0, 6)
+            };
+            stack.Children.Add(divider);
+
+            // Button action
+            string action = btn?.Action ?? "none";
+            bool hasAction = !string.IsNullOrEmpty(action) && action != "none";
+            var btnText = new TextBlock
+            {
+                Text = hasAction ? "\u25B8 " + FormatAction(action) : "\u2014",
+                FontSize = 10,
+                Foreground = new SolidColorBrush(hasAction
+                    ? Color.FromRgb(0x99, 0x99, 0x99)
+                    : Color.FromRgb(0x44, 0x44, 0x44)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = 80,
+                FontFamily = new FontFamily("Segoe UI")
+            };
+            stack.Children.Add(btnText);
+
+            card.Child = stack;
+            System.Windows.Controls.Grid.SetColumn(card, i);
+            columnsGrid.Children.Add(card);
         }
 
-        ButtonsSectionLabel.Visibility = anyButtons ? Visibility.Visible : Visibility.Collapsed;
-        ButtonsPanel.Visibility = anyButtons ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    private UIElement BuildKnobRow(KnobConfig knob)
-    {
-        var grid = new System.Windows.Controls.Grid { Height = 28, Margin = new Thickness(0, 0, 0, 2) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        // Number circle
-        var circle = new Border
-        {
-            Width = 16, Height = 16,
-            CornerRadius = new CornerRadius(8),
-            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        circle.Child = new TextBlock
-        {
-            Text = (knob.Idx + 1).ToString(),
-            FontSize = 9, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        System.Windows.Controls.Grid.SetColumn(circle, 0);
-        grid.Children.Add(circle);
-
-        // Target icon
-        var iconColor = GetTargetColor(knob.Target);
-        var iconText = new TextBlock
-        {
-            Text = GetTargetIcon(knob.Target),
-            FontSize = 13,
-            Foreground = new SolidColorBrush(iconColor),
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        System.Windows.Controls.Grid.SetColumn(iconText, 1);
-        grid.Children.Add(iconText);
-
-        // Label
-        string label = !string.IsNullOrEmpty(knob.Label) ? knob.Label : FormatTarget(knob.Target);
-        bool isDim = label == "—";
-        var labelText = new TextBlock
-        {
-            Text = label,
-            FontSize = 12,
-            Foreground = new SolidColorBrush(isDim
-                ? Color.FromRgb(0x44, 0x44, 0x44)
-                : Color.FromRgb(0xC8, 0xC8, 0xC8)),
-            VerticalAlignment = VerticalAlignment.Center,
-            MaxWidth = 180,
-            TextTrimming = TextTrimming.CharacterEllipsis
-        };
-        System.Windows.Controls.Grid.SetColumn(labelText, 2);
-        grid.Children.Add(labelText);
-
-        return grid;
-    }
-
-    private UIElement BuildButtonRow(ButtonConfig btn)
-    {
-        var grid = new System.Windows.Controls.Grid { Height = 28, Margin = new Thickness(0, 0, 0, 2) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        // Number circle
-        var circle = new Border
-        {
-            Width = 16, Height = 16,
-            CornerRadius = new CornerRadius(8),
-            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        circle.Child = new TextBlock
-        {
-            Text = (btn.Idx + 1).ToString(),
-            FontSize = 9, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        System.Windows.Controls.Grid.SetColumn(circle, 0);
-        grid.Children.Add(circle);
-
-        // Action icon (bullet)
-        var iconText = new TextBlock
-        {
-            Text = "▸",
-            FontSize = 11,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        System.Windows.Controls.Grid.SetColumn(iconText, 1);
-        grid.Children.Add(iconText);
-
-        // Action label
-        var labelText = new TextBlock
-        {
-            Text = FormatAction(btn.Action),
-            FontSize = 12,
-            Foreground = new SolidColorBrush(Color.FromRgb(0xC8, 0xC8, 0xC8)),
-            VerticalAlignment = VerticalAlignment.Center,
-            MaxWidth = 180,
-            TextTrimming = TextTrimming.CharacterEllipsis
-        };
-        System.Windows.Controls.Grid.SetColumn(labelText, 2);
-        grid.Children.Add(labelText);
-
-        return grid;
+        ProfileBindingsPanel.Children.Add(columnsGrid);
     }
 
     private static string FormatTarget(string target) => target switch
@@ -416,6 +398,9 @@ public partial class OsdOverlay : Window
         _closing = false;
         _dismissTimer.Stop();
 
+        Width = 372;
+        ProfileBindingsPanel.Visibility = Visibility.Collapsed;
+
         CategoryLabel.Text = isOutput ? "OUTPUT DEVICE" : "INPUT DEVICE";
         SetSymbolIcon(isOutput ? "VolumeHigh" : "Microphone", ThemeManager.AccentHex);
         OsdTitle.Text = deviceName;
@@ -431,6 +416,9 @@ public partial class OsdOverlay : Window
     {
         var workArea = SystemParameters.WorkArea;
         const double margin = 20;
+        double w = Width;
+        // Estimate height: profile bindings are taller than volume/device OSD
+        double estimatedHeight = ProfileBindingsPanel.Visibility == Visibility.Visible ? 200 : 120;
 
         switch (_position)
         {
@@ -439,25 +427,25 @@ public partial class OsdOverlay : Window
                 Top = workArea.Top + margin;
                 break;
             case OsdPosition.TopCenter:
-                Left = workArea.Left + (workArea.Width - Width) / 2;
+                Left = workArea.Left + (workArea.Width - w) / 2;
                 Top = workArea.Top + margin;
                 break;
             case OsdPosition.TopRight:
-                Left = workArea.Right - Width - margin;
+                Left = workArea.Right - w - margin;
                 Top = workArea.Top + margin;
                 break;
             case OsdPosition.BottomLeft:
                 Left = workArea.Left + margin;
-                Top = workArea.Bottom - 120;
+                Top = workArea.Bottom - estimatedHeight - margin;
                 break;
             case OsdPosition.BottomCenter:
-                Left = workArea.Left + (workArea.Width - Width) / 2;
-                Top = workArea.Bottom - 120;
+                Left = workArea.Left + (workArea.Width - w) / 2;
+                Top = workArea.Bottom - estimatedHeight - margin;
                 break;
             case OsdPosition.BottomRight:
             default:
-                Left = workArea.Right - Width - margin;
-                Top = workArea.Bottom - 120;
+                Left = workArea.Right - w - margin;
+                Top = workArea.Bottom - estimatedHeight - margin;
                 break;
         }
 

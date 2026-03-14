@@ -9,6 +9,7 @@
         ShowActivated="False"
         SizeToContent="Height"
         Width="372"
+        MinWidth="372"
         ResizeMode="NoResize">
 
     <Window.Resources>
@@ -169,26 +170,7 @@
             <!-- Row 3: Profile bindings panel (hidden by default, shown on profile switch) -->
             <StackPanel x:Name="ProfileBindingsPanel" Grid.Row="3"
                         Visibility="Collapsed"
-                        Margin="0,4,0,0">
-
-                <!-- Knobs section -->
-                <TextBlock x:Name="KnobsSectionLabel"
-                           Text="KNOBS"
-                           FontFamily="Segoe UI" FontSize="9" FontWeight="SemiBold"
-                           Foreground="#6600E676"
-                           Margin="0,6,0,4" />
-                <StackPanel x:Name="KnobsPanel" />
-
-                <!-- Buttons section -->
-                <TextBlock x:Name="ButtonsSectionLabel"
-                           Text="BUTTONS"
-                           FontFamily="Segoe UI" FontSize="9" FontWeight="SemiBold"
-                           Foreground="#6600E676"
-                           Margin="0,8,0,4" />
-                <StackPanel x:Name="ButtonsPanel" />
-
-
-            </StackPanel>
+                        Margin="0,4,0,0" />
 
         </Grid>
         </Border>
