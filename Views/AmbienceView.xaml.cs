@@ -1112,7 +1112,7 @@ public partial class AmbienceView : UserControl
 
         // Zone count
         row1.Children.Add(MakeSubLabel("ZONES"));
-        var zoneCombo = new ComboBox { Width = 90, Margin = new Thickness(0, 0, 20, 0), ToolTip = "Number of screen zones sampled per frame" };
+        var zoneCombo = new ComboBox { Width = 120, Margin = new Thickness(0, 0, 20, 0), ToolTip = "Number of screen zones sampled per frame" };
         foreach (var z in new[] { 4, 8, 16 })
             zoneCombo.Items.Add($"{z} zones");
         zoneCombo.SelectedIndex = cfg.ZoneCount switch { 4 => 0, 16 => 2, _ => 1 };
