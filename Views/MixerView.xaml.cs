@@ -75,7 +75,7 @@ public partial class MixerView : UserControl
 
     // App group picker (for "apps" target)
     private readonly StackPanel[] _appsPanels = new StackPanel[5];
-    private readonly StackPanel[] _appsListPanels = new StackPanel[5];
+    private readonly WrapPanel[] _appsListPanels = new WrapPanel[5];
 
 
     // HA entities cache
@@ -717,9 +717,9 @@ public partial class MixerView : UserControl
             // App group picker (hidden unless "apps")
             var appsContainer = new StackPanel { Visibility = Visibility.Collapsed };
             appsContainer.Children.Add(MakeLabel("APP GROUP"));
-            appsContainer.ToolTip = "Check the apps to include in this group";
+            appsContainer.ToolTip = "Click apps to add or remove from this group";
 
-            var appsListPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 6) };
+            var appsListPanel = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
             _appsListPanels[i] = appsListPanel;
             appsContainer.Children.Add(appsListPanel);
 
@@ -997,6 +997,7 @@ public partial class MixerView : UserControl
         var knob = _config.Knobs.FirstOrDefault(k => k.Idx == idx);
         if (knob == null) return;
 
+        var accent = ThemeManager.Accent;
         var runningApps = _mixer.GetRunningAudioApps();
 
         // Show apps already in the group that might not be running
@@ -1019,68 +1020,87 @@ public partial class MixerView : UserControl
             return;
         }
 
-        foreach (var app in allApps.OrderBy(a => a))
+        // Sort: in-group first, then alphabetical
+        foreach (var app in allApps.OrderByDescending(a => knob.Apps.Contains(a, StringComparer.OrdinalIgnoreCase)).ThenBy(a => a))
         {
             bool isInGroup = knob.Apps.Contains(app, StringComparer.OrdinalIgnoreCase);
             bool isRunning = runningApps.Contains(app, StringComparer.OrdinalIgnoreCase);
             var appCapture = app;
 
-            var row = new Grid { Margin = new Thickness(0, 0, 0, 2) };
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            // Chip content: dot + name
+            var chipContent = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
 
-            // App name + running indicator
-            var namePanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            var dot = new Border
+            if (isInGroup && isRunning)
             {
-                Width = 6, Height = 6,
-                CornerRadius = new CornerRadius(3),
-                Background = new SolidColorBrush(isRunning
-                    ? ThemeManager.Accent  // accent = running
-                    : Color.FromRgb(0x55, 0x55, 0x55)), // dim = not running
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 6, 0),
-                ToolTip = isRunning ? "Running" : "Not running",
-            };
-            namePanel.Children.Add(dot);
+                chipContent.Children.Add(new Border
+                {
+                    Width = 5, Height = 5,
+                    CornerRadius = new CornerRadius(3),
+                    Background = new SolidColorBrush(accent),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 5, 0),
+                });
+            }
 
-            var label = new TextBlock
+            chipContent.Children.Add(new TextBlock
             {
                 Text = app,
-                FontSize = 11,
-                Foreground = new SolidColorBrush(isRunning
-                    ? Color.FromRgb(0xCC, 0xCC, 0xCC)
-                    : Color.FromRgb(0x77, 0x77, 0x77)),
+                FontSize = 10.5,
+                FontStyle = (!isRunning && isInGroup) ? FontStyles.Italic : FontStyles.Normal,
+                Foreground = new SolidColorBrush(
+                    isInGroup ? Color.FromRgb(0xE8, 0xE8, 0xE8)
+                    : isRunning ? Color.FromRgb(0x77, 0x77, 0x77)
+                    : Color.FromRgb(0x55, 0x55, 0x55)),
                 VerticalAlignment = VerticalAlignment.Center,
-            };
-            namePanel.Children.Add(label);
-            Grid.SetColumn(namePanel, 0);
-            row.Children.Add(namePanel);
+            });
 
-            // Toggle checkbox
-            var toggle = new CheckBox
+            var chip = new Border
             {
-                IsChecked = isInGroup,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(8, 0, 0, 0),
+                Background = new SolidColorBrush(isInGroup
+                    ? Color.FromArgb(0x28, accent.R, accent.G, accent.B)
+                    : Color.FromRgb(0x1A, 0x1A, 0x1A)),
+                BorderBrush = new SolidColorBrush(isInGroup
+                    ? Color.FromArgb(0x66, accent.R, accent.G, accent.B)
+                    : Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(12),
+                Padding = new Thickness(10, 4, 10, 4),
+                Margin = new Thickness(0, 0, 4, 4),
+                Cursor = System.Windows.Input.Cursors.Hand,
+                Child = chipContent,
+                ToolTip = isInGroup
+                    ? (isRunning ? "Click to remove from group" : "Not running — click to remove")
+                    : "Click to add to group",
             };
-            toggle.Checked += (_, _) =>
+
+            // Hover effect
+            chip.MouseEnter += (_, _) =>
+            {
+                chip.Background = new SolidColorBrush(isInGroup
+                    ? Color.FromArgb(0x3A, accent.R, accent.G, accent.B)
+                    : Color.FromRgb(0x24, 0x24, 0x24));
+            };
+            chip.MouseLeave += (_, _) =>
+            {
+                chip.Background = new SolidColorBrush(isInGroup
+                    ? Color.FromArgb(0x28, accent.R, accent.G, accent.B)
+                    : Color.FromRgb(0x1A, 0x1A, 0x1A));
+            };
+
+            // Click to toggle
+            chip.MouseLeftButtonUp += (_, e) =>
             {
                 if (_loading) return;
-                if (!knob.Apps.Contains(appCapture, StringComparer.OrdinalIgnoreCase))
+                if (knob.Apps.Contains(appCapture, StringComparer.OrdinalIgnoreCase))
+                    knob.Apps.RemoveAll(a => a.Equals(appCapture, StringComparison.OrdinalIgnoreCase));
+                else
                     knob.Apps.Add(appCapture);
                 QueueSave();
+                RebuildAppToggles(idx);
+                e.Handled = true;
             };
-            toggle.Unchecked += (_, _) =>
-            {
-                if (_loading) return;
-                knob.Apps.RemoveAll(a => a.Equals(appCapture, StringComparison.OrdinalIgnoreCase));
-                QueueSave();
-            };
-            Grid.SetColumn(toggle, 1);
-            row.Children.Add(toggle);
 
-            panel.Children.Add(row);
+            panel.Children.Add(chip);
         }
     }
 
