@@ -16,6 +16,9 @@ public class ScreenCapture : IDisposable
     // Pixel stride for downsampled sampling (every Nth pixel — good balance of speed vs accuracy)
     private const int SampleStride = 4;
 
+    // Pixels darker than this (R+G+B sum) are ignored to prevent dark UI from washing out colors
+    private const int DarkThreshold = 30; // ~10 per channel
+
     // ── Public API ───────────────────────────────────────────────────────────
 
     /// <summary>
@@ -102,6 +105,7 @@ public class ScreenCapture : IDisposable
 
     /// <summary>
     /// Divide the bitmap into `zoneCount` horizontal slices and average each zone's pixels.
+    /// Uses gamma-correct (linear space) averaging and filters dark pixels for accurate colors.
     /// Returns an array of (R,G,B) per zone, left→right.
     /// </summary>
     private static (byte R, byte G, byte B)[] SampleZones(Bitmap bmp, int zoneCount)
@@ -130,7 +134,9 @@ public class ScreenCapture : IDisposable
                     int xStart = z * zoneWidth;
                     int xEnd = (z == zoneCount - 1) ? width : xStart + zoneWidth;
 
-                    long rSum = 0, gSum = 0, bSum = 0, count = 0;
+                    // Accumulate in linear space for gamma-correct averaging
+                    double rLin = 0, gLin = 0, bLin = 0;
+                    long count = 0;
 
                     for (int y = 0; y < height; y += SampleStride)
                     {
@@ -138,16 +144,33 @@ public class ScreenCapture : IDisposable
                         for (int x = xStart; x < xEnd; x += SampleStride)
                         {
                             int offset = x * bytesPerPixel;
-                            bSum += row[offset];
-                            gSum += row[offset + 1];
-                            rSum += row[offset + 2];
+                            byte pb = row[offset];
+                            byte pg = row[offset + 1];
+                            byte pr = row[offset + 2];
+
+                            // Skip very dark pixels — prevents dark UI from washing out colors
+                            if (pr + pg + pb < DarkThreshold)
+                                continue;
+
+                            // sRGB → linear (approximate gamma 2.2)
+                            double rl = pr / 255.0; rl *= rl;
+                            double gl = pg / 255.0; gl *= gl;
+                            double bl = pb / 255.0; bl *= bl;
+
+                            rLin += rl;
+                            gLin += gl;
+                            bLin += bl;
                             count++;
                         }
                     }
 
                     if (count > 0)
                     {
-                        results[z] = ((byte)(rSum / count), (byte)(gSum / count), (byte)(bSum / count));
+                        // Linear → sRGB (sqrt for gamma 2.2 approx)
+                        results[z] = (
+                            (byte)Math.Clamp(Math.Sqrt(rLin / count) * 255, 0, 255),
+                            (byte)Math.Clamp(Math.Sqrt(gLin / count) * 255, 0, 255),
+                            (byte)Math.Clamp(Math.Sqrt(bLin / count) * 255, 0, 255));
                     }
                 }
             }
@@ -162,10 +185,10 @@ public class ScreenCapture : IDisposable
 
     /// <summary>
     /// Average pixels in a specific rectangle region of the bitmap.
+    /// Uses gamma-correct averaging and dark pixel filtering.
     /// </summary>
     private static (byte R, byte G, byte B) SampleRegion(Bitmap bmp, Rectangle region)
     {
-        // Clamp to bitmap bounds
         region.Intersect(new Rectangle(0, 0, bmp.Width, bmp.Height));
         if (region.Width == 0 || region.Height == 0) return (0, 0, 0);
 
@@ -174,7 +197,8 @@ public class ScreenCapture : IDisposable
             ImageLockMode.ReadOnly,
             PixelFormat.Format32bppRgb);
 
-        long rSum = 0, gSum = 0, bSum = 0, count = 0;
+        double rLin = 0, gLin = 0, bLin = 0;
+        long count = 0;
 
         try
         {
@@ -188,9 +212,17 @@ public class ScreenCapture : IDisposable
                     for (int x = region.Left; x < region.Right; x += SampleStride)
                     {
                         int offset = x * 4;
-                        bSum += row[offset];
-                        gSum += row[offset + 1];
-                        rSum += row[offset + 2];
+                        byte pb = row[offset];
+                        byte pg = row[offset + 1];
+                        byte pr = row[offset + 2];
+
+                        if (pr + pg + pb < DarkThreshold)
+                            continue;
+
+                        double rl = pr / 255.0; rl *= rl;
+                        double gl = pg / 255.0; gl *= gl;
+                        double bl = pb / 255.0; bl *= bl;
+                        rLin += rl; gLin += gl; bLin += bl;
                         count++;
                     }
                 }
@@ -202,7 +234,10 @@ public class ScreenCapture : IDisposable
         }
 
         if (count == 0) return (0, 0, 0);
-        return ((byte)(rSum / count), (byte)(gSum / count), (byte)(bSum / count));
+        return (
+            (byte)Math.Clamp(Math.Sqrt(rLin / count) * 255, 0, 255),
+            (byte)Math.Clamp(Math.Sqrt(gLin / count) * 255, 0, 255),
+            (byte)Math.Clamp(Math.Sqrt(bLin / count) * 255, 0, 255));
     }
 
     /// <summary>
