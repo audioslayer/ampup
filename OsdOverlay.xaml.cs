@@ -314,22 +314,33 @@ public partial class OsdOverlay : Window
             System.Windows.Controls.Grid.SetRow(divider, 2);
             grid.Children.Add(divider);
 
-            // Row 3: Button action
-            string action = btn?.Action ?? "none";
-            bool hasAction = !string.IsNullOrEmpty(action) && action != "none";
-            var actionLabel = hasAction ? FormatActionForOsd(action, btn) : "\u2014";
-            var btnText = new TextBlock
+            // Row 3: Button actions — all gestures with colored badges
+            var actionsPanel = new StackPanel();
+
+            bool hasTap = btn != null && !string.IsNullOrEmpty(btn.Action) && btn.Action != "none";
+            bool hasDbl = btn != null && !string.IsNullOrEmpty(btn.DoublePressAction) && btn.DoublePressAction != "none";
+            bool hasHold = btn != null && !string.IsNullOrEmpty(btn.HoldAction) && btn.HoldAction != "none";
+
+            if (hasTap)
+                actionsPanel.Children.Add(BuildOsdGestureRow("TAP", FormatActionForOsd(btn!.Action, btn), Color.FromRgb(0x66, 0xBB, 0x6A)));
+            if (hasDbl)
+                actionsPanel.Children.Add(BuildOsdGestureRow("DBL", FormatActionForOsd(btn!.DoublePressAction, btn), Color.FromRgb(0xFF, 0xD5, 0x4F)));
+            if (hasHold)
+                actionsPanel.Children.Add(BuildOsdGestureRow("HOLD", FormatActionForOsd(btn!.HoldAction, btn), Color.FromRgb(0xFF, 0x8A, 0x3D)));
+
+            if (!hasTap && !hasDbl && !hasHold)
             {
-                Text = hasAction ? "\u25B8 " + actionLabel : "\u2014",
-                FontSize = 10.5,
-                Foreground = new SolidColorBrush(hasAction
-                    ? Color.FromRgb(0xAA, 0xAA, 0xAA)
-                    : Color.FromRgb(0x44, 0x44, 0x44)),
-                TextWrapping = TextWrapping.Wrap,
-                FontFamily = new FontFamily("Segoe UI")
-            };
-            System.Windows.Controls.Grid.SetRow(btnText, 3);
-            grid.Children.Add(btnText);
+                actionsPanel.Children.Add(new TextBlock
+                {
+                    Text = "\u2014",
+                    FontSize = 10,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44)),
+                    FontFamily = new FontFamily("Segoe UI")
+                });
+            }
+
+            System.Windows.Controls.Grid.SetRow(actionsPanel, 3);
+            grid.Children.Add(actionsPanel);
 
             card.Child = grid;
             System.Windows.Controls.Grid.SetColumn(card, i);
@@ -426,6 +437,46 @@ public partial class OsdOverlay : Window
     /// For the OSD, show just the context (app name, profile name) for space-constrained display.
     /// Falls back to the action name if no context available.
     /// </summary>
+    private static UIElement BuildOsdGestureRow(string gestureLabel, string actionText, Color gestureColor)
+    {
+        var row = new System.Windows.Controls.Grid { Margin = new Thickness(0, 1, 0, 1) };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var badge = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(0x30, gestureColor.R, gestureColor.G, gestureColor.B)),
+            CornerRadius = new CornerRadius(3),
+            Padding = new Thickness(3, 1, 3, 1),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new TextBlock
+            {
+                Text = gestureLabel,
+                FontSize = 7,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(gestureColor),
+                FontFamily = new FontFamily("Segoe UI")
+            }
+        };
+        System.Windows.Controls.Grid.SetColumn(badge, 0);
+        row.Children.Add(badge);
+
+        var label = new TextBlock
+        {
+            Text = actionText,
+            FontSize = 10,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA)),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            FontFamily = new FontFamily("Segoe UI")
+        };
+        System.Windows.Controls.Grid.SetColumn(label, 1);
+        row.Children.Add(label);
+
+        return row;
+    }
+
     private static string FormatActionForOsd(string action, ButtonConfig? btn)
     {
         if (btn == null) return FormatAction(action);
