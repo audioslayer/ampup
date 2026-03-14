@@ -487,7 +487,7 @@ public partial class AmbienceView : UserControl
         stack.Children.Add(WrapHeader(scBar, scLabel));
         var colorsContainer = new StackPanel();
         stack.Children.Add(colorsContainer);
-        BuildColorsSection(device, colorsContainer, lanIp);
+        BuildColorsSection(device, colorsContainer, lanIp, onOffCheck);
 
 
         // ── Music mode section ──
@@ -505,7 +505,7 @@ public partial class AmbienceView : UserControl
 
     // ── Colors (Solid + Scenes) ─────────────────────────────────────
 
-    private void BuildColorsSection(GoveeDeviceInfo device, StackPanel container, string? lanIp)
+    private void BuildColorsSection(GoveeDeviceInfo device, StackPanel container, string? lanIp, CheckBox? powerCheck = null)
     {
         var wrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
         container.Children.Add(wrap);
@@ -519,12 +519,28 @@ public partial class AmbienceView : UserControl
         var scenes = GoveeCloudApi.ExtractScenesFromCapabilities(device.RawCapabilities, "dynamic");
         if (scenes.Count > 0)
         {
-            RenderSceneTilesIntoWrap(wrap, device, scenes);
+            RenderSceneTilesIntoWrap(wrap, device, scenes, powerCheck);
         }
         else
         {
             // Try fetching via API as fallback
-            _ = FetchScenesIntoWrapAsync(device, wrap);
+            _ = FetchScenesIntoWrapAsync(device, wrap, powerCheck);
+        }
+
+        // When power is turned off, deselect all scene tiles
+        if (powerCheck != null)
+        {
+            powerCheck.Unchecked += (_, _) =>
+            {
+                foreach (var child in wrap.Children)
+                {
+                    if (child is Border b)
+                    {
+                        b.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+                        b.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+                    }
+                }
+            };
         }
     }
 
@@ -613,7 +629,7 @@ public partial class AmbienceView : UserControl
         wrap.Children.Add(tile);
     }
 
-    private async Task FetchScenesIntoWrapAsync(GoveeDeviceInfo device, WrapPanel wrap)
+    private async Task FetchScenesIntoWrapAsync(GoveeDeviceInfo device, WrapPanel wrap, CheckBox? powerCheck = null)
     {
         try
         {
@@ -621,7 +637,7 @@ public partial class AmbienceView : UserControl
             Dispatcher.Invoke(() =>
             {
                 if (scenes != null && scenes.Count > 0)
-                    RenderSceneTilesIntoWrap(wrap, device, scenes);
+                    RenderSceneTilesIntoWrap(wrap, device, scenes, powerCheck);
             });
         }
         catch (Exception ex)
@@ -630,7 +646,7 @@ public partial class AmbienceView : UserControl
         }
     }
 
-    private void RenderSceneTilesIntoWrap(WrapPanel wrap, GoveeDeviceInfo device, List<GoveeScene> scenes)
+    private void RenderSceneTilesIntoWrap(WrapPanel wrap, GoveeDeviceInfo device, List<GoveeScene> scenes, CheckBox? powerCheck = null)
     {
         string? activeSceneId = null;
 
@@ -722,6 +738,14 @@ public partial class AmbienceView : UserControl
                 var sceneValue = sc?.RawValue ?? (object)new { id = sceneId };
                 await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
                     device.Device, device.Sku, GoveeCloudApi.SetScene(sceneValue)));
+
+                // Selecting a scene turns the light on
+                if (powerCheck != null && powerCheck.IsChecked != true)
+                {
+                    _loading = true;
+                    powerCheck.IsChecked = true;
+                    _loading = false;
+                }
             };
 
             wrap.Children.Add(tile);
