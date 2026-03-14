@@ -232,24 +232,36 @@ public partial class OsdOverlay : Window
             var stack = new StackPanel();
 
             // Number badge — centered circle
-            var badge = new Border
+            // Mini knob visual with number overlay
+            var knobColor = GetTargetColor(knob?.Target ?? "none");
+            var miniKnob = new Controls.AnimatedKnobControl
             {
-                Width = 20, Height = 20,
-                CornerRadius = new CornerRadius(10),
-                Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                Width = 32, Height = 32,
+                ArcColor = knobColor,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 6)
+                Margin = new Thickness(0, 0, 0, 4),
             };
-            badge.Child = new TextBlock
+            // Set a mid-range position so the arc is visible
+            miniKnob.Value = 0.6f;
+
+            var knobNumLabel = new TextBlock
             {
                 Text = (i + 1).ToString(),
-                FontSize = 10, FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x77, 0x77, 0x77)),
+                FontSize = 10, FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
-                FontFamily = new FontFamily("Segoe UI")
+                FontFamily = new FontFamily("Segoe UI"),
             };
-            stack.Children.Add(badge);
+            var knobContainer = new Grid
+            {
+                Width = 32, Height = 32,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 4),
+            };
+            knobContainer.Children.Add(miniKnob);
+            knobContainer.Children.Add(knobNumLabel);
+            stack.Children.Add(knobContainer);
 
             // Knob target row — icon + label, horizontally centered
             var knobRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
@@ -284,7 +296,7 @@ public partial class OsdOverlay : Window
                     : Color.FromRgb(0xE0, 0xE0, 0xE0)),
                 VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxWidth = 70,
+                MaxWidth = 90,
                 FontFamily = new FontFamily("Segoe UI")
             };
             knobRow.Children.Add(knobLabelText);
@@ -302,7 +314,7 @@ public partial class OsdOverlay : Window
             // Button action
             string action = btn?.Action ?? "none";
             bool hasAction = !string.IsNullOrEmpty(action) && action != "none";
-            var actionLabel = hasAction ? FormatActionWithContext(action, btn) : "\u2014";
+            var actionLabel = hasAction ? FormatActionForOsd(action, btn) : "\u2014";
             var btnText = new TextBlock
             {
                 Text = hasAction ? "\u25B8 " + actionLabel : "\u2014",
@@ -312,7 +324,7 @@ public partial class OsdOverlay : Window
                     : Color.FromRgb(0x44, 0x44, 0x44)),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxWidth = 80,
+                MaxWidth = 90,
                 FontFamily = new FontFamily("Segoe UI")
             };
             stack.Children.Add(btnText);
@@ -344,14 +356,19 @@ public partial class OsdOverlay : Window
 
     private static string GetTargetIcon(string target) => target switch
     {
-        "master" or "system" or "any" or "active_window" or "spotify" => "♪",
-        "mic" or "input_device" => "◎",
-        "output_device" or "monitor" => "▶",
-        "discord" => "◉",
+        "master" => "🔊",
+        "system" => "🔔",
+        "any" or "active_window" => "🪟",
+        "spotify" => "♪",
+        "mic" or "input_device" => "🎙",
+        "output_device" => "🔈",
+        "monitor" => "🖥",
+        "discord" => "💬",
         "chrome" => "◆",
+        "apps" => "▣",
         _ when target.StartsWith("ha_") => "◈",
         _ when target.StartsWith("govee") => "◈",
-        "led_brightness" => "◉",
+        "led_brightness" => "💡",
         "none" or "" => "",
         _ => "♪"
     };
@@ -403,16 +420,23 @@ public partial class OsdOverlay : Window
         _ => string.Join(" ", action.Split('_').Select(w => w.Length > 0 ? char.ToUpper(w[0]) + w[1..] : w))
     };
 
-    private static string FormatActionWithContext(string action, ButtonConfig? btn)
+    /// <summary>
+    /// For the OSD, show just the context (app name, profile name) for space-constrained display.
+    /// Falls back to the action name if no context available.
+    /// </summary>
+    private static string FormatActionForOsd(string action, ButtonConfig? btn)
     {
-        var name = FormatAction(action);
-        if (btn == null) return name;
+        if (btn == null) return FormatAction(action);
 
+        // For actions with context, show just the context name (shorter for OSD)
         var context = action switch
         {
-            "launch_exe" or "close_program" or "mute_program"
-                when !string.IsNullOrEmpty(btn.Path)
-                => System.IO.Path.GetFileNameWithoutExtension(btn.Path),
+            "launch_exe" when !string.IsNullOrEmpty(btn.Path)
+                => "Launch " + System.IO.Path.GetFileNameWithoutExtension(btn.Path),
+            "close_program" when !string.IsNullOrEmpty(btn.Path)
+                => "Close " + System.IO.Path.GetFileNameWithoutExtension(btn.Path),
+            "mute_program" when !string.IsNullOrEmpty(btn.Path)
+                => "Mute " + System.IO.Path.GetFileNameWithoutExtension(btn.Path),
             "switch_profile" when !string.IsNullOrEmpty(btn.ProfileName)
                 => btn.ProfileName,
             "switch_profile" when !string.IsNullOrEmpty(btn.Path)
@@ -422,7 +446,7 @@ public partial class OsdOverlay : Window
             _ => null
         };
 
-        return context != null ? $"{name}: {context}" : name;
+        return context ?? FormatAction(action);
     }
 
     /// <summary>
