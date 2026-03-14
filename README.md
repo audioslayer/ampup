@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.6.0--alpha-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.7.0--alpha-blue" alt="Version" />
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6" alt="Platform" />
   <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8" />
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License" />
@@ -18,36 +18,39 @@
 
 ---
 
-## :sparkles: What's New in v0.6.0
+## :sparkles: What's New in v0.7.0 — Polish & Ease of Use
 
-### :bulb: Ambience Tab — Govee Room Lighting Sync
-Brand-new sidebar tab for syncing your room lights with AmpUp:
+### :dart: Smarter Menus
+All dropdown pickers (knob targets, button actions) now use **inline sub-panels** instead of separate popup windows. No more menus closing unexpectedly when your mouse moves between them. Sub-panels show a context header and highlight the active parent item.
 
-- **Govee LAN sync** — mirror knob RGB colors to your Govee lights in real-time at 20 FPS
-- **Govee Cloud dashboard** — on/off, brightness, color control, scenes, segment colors, and music mode from within AmpUp
-- **4-step API key setup wizard** — guided onboarding to connect your Govee account
-- **Brightness scaling and warm tone shift** — fine-tune how knob colors translate to room light output
+### :house: Home Assistant & Govee Integration
+- **Home Assistant** targets display as "Home Assistant" with a clean domain subtitle (Light, Media Player, Fan, Cover)
+- **Govee** now uses a sub-flyout for device selection — pick from your configured devices instead of seeing one entry per light
+- Scene selection **auto-checks the power toggle**; turning off clears the active scene
 
-### :new: AppGroupMute LED Effect
-New reactive per-knob effect: shows **Color1** when the knob's app group is unmuted, switches to **Color2** when all apps in the group are muted. Instant feedback at a glance.
+### :jigsaw: App Group Chips
+Replaced the old checkbox list with **clickable pill-shaped tags**. Selected apps show as accent-colored chips, available apps as subtle dark pills. Click to toggle. In-group apps sort first.
 
-### :mag: Process Picker for Buttons
-`mute_program` and `close_program` button actions now include a **▾ picker** showing all currently running processes — no more typing process names. Improved labels and tooltips throughout the button config UI.
+### :control_knobs: Smart Mix Redesign
+Complete UX overhaul of the Smart Mix section:
+- **Voice Ducking** — pick your trigger app from a dropdown instead of typing a process name. Target apps field removed (ducks everything by default). Fade timing hidden behind a collapsible "Advanced" toggle
+- **App Profiles** — dynamic add/remove rules replace the old 5 fixed empty slots. Each rule uses app and profile dropdowns populated from running apps
 
-### :bug: Win11 Color Picker Fix
-`AllowsTransparency` on the color picker window was breaking hit-testing on Windows 11. Fixed — the color picker now responds correctly to all mouse events.
+### :tv: OSD Overhaul
+- **Horizontal 5-column layout** for profile switches — mirrors the physical Turn Up device (knob targets on top, button actions below)
+- **Configurable display duration** per notification type (volume, profile, device) with themed sliders in Settings
+- Stronger accent border glow for consistent visual impact
 
-### :shield: Bug Audit — 8 Stability Fixes
-- Config write race condition (concurrent saves could corrupt config.json)
-- Serial port dispose on reconnect (COM port not fully released on disconnect)
-- AudioAnalyzer thread safety (FFT band reads were unsynchronized)
-- Tray mixer popup memory leak (event handlers not detached on close)
-- Mute poll reentrancy (overlapping timer ticks caused double-toggle)
-- Plus 3 additional stability and edge-case fixes
+### :movie_camera: DreamView Improvements
+- **Gamma-correct color capture** — colors are linearized before averaging, producing vibrant and accurate results instead of washed-out muddy tones
+- **Dark pixel filtering** — taskbars and dark UI elements no longer drag zone colors toward black
+- **Real monitor names** — dropdown shows "LG ULTRAGEAR+" instead of "DISPLAY1" (via Windows DisplayConfig API)
+- **Conflict prevention** — device scene/color controls dim when DreamView is active, with a clear info banner
 
-### :art: Theme Consistency
-- **Accent color reserved for primary controls** — green accent now used only for the most important interactive elements
-- **All sliders theme-aware** — sliders update to match the current accent color dynamically
+### :wrench: Quality of Life
+- `StyledSlider` gains a `ShowLabel` toggle — hide the thumb label when the value is already shown elsewhere
+- Wider combo boxes throughout DreamView so text doesn't clip
+- Zone preview swatches enlarged with subtle borders
 
 ---
 
@@ -96,11 +99,12 @@ Amp Up is a community-built alternative for the Turn Up USB mixer with a modern 
 - :video_game: **Per-game / per-workflow** setups with Auto-Profile Switching
 
 ### :tv: OSD Overlay
-- :window: **Glassmorphism notifications** — sleek dark glass overlay with green glow accent
+- :window: **Glassmorphism notifications** — sleek dark glass overlay with accent glow border
 - :loud_sound: **Volume changes** — shows knob label, percentage, and animated fill bar
-- :busts_in_silhouette: **Profile switches** — colored Fluent icon + profile name
+- :busts_in_silhouette: **Profile switches** — horizontal 5-column layout mirroring the physical device (knob targets + button actions)
 - :speaker: **Device switches** — output/input device name with icon
 - :round_pushpin: **Configurable position** — 6 screen positions (Fraps-style picker in Settings)
+- :stopwatch: **Per-type duration** — set how long each OSD type stays visible (1–8 seconds)
 - :control_knobs: **Per-type toggles** — enable/disable OSD for volume, profiles, and devices independently
 
 ### :package: Tray Integration
@@ -110,6 +114,7 @@ Amp Up is a community-built alternative for the Turn Up USB mixer with a modern 
 ### :bulb: Ambience — Room Lighting
 - :globe_with_meridians: **Govee LAN sync** — mirror knob RGB colors to Govee lights in real-time at 20 FPS
 - :cloud: **Govee Cloud dashboard** — control on/off, brightness, color, scenes, segment colors, and music mode
+- :movie_camera: **DreamView — Screen Sync** — capture screen zones in real-time and map colors to Govee lights with gamma-correct color processing
 - :key: **API key setup wizard** — 4-step guided onboarding to connect your Govee account
 - :high_brightness: **Brightness scaling and warm tone shift** — fine-tune how knob colors translate to room light output
 
@@ -125,7 +130,7 @@ Amp Up is a community-built alternative for the Turn Up USB mixer with a modern 
 ## :inbox_tray: Install
 
 ### Installer (Recommended)
-1. Download `AmpUp-Setup-0.6.0-alpha.exe` from [Releases](https://github.com/audioslayer/ampup/releases)
+1. Download `AmpUp-Setup-0.7.0-alpha.exe` from [Releases](https://github.com/audioslayer/ampup/releases)
 2. Run the installer
 3. Amp Up appears in your system tray
 
@@ -208,6 +213,7 @@ Amp Up is designed for the **Turn Up** USB volume mixer (CH343 USB-to-serial). T
 - [x] Tray Quick Mixer
 - [x] Profile Export / Import
 - [x] Govee room lighting sync (Ambience tab — LAN + Cloud)
+- [x] DreamView screen sync (gamma-correct zone capture to Govee lights)
 - [ ] OBS WebSocket integration (scene switching, source control)
 - [ ] VoiceMeeter strip/bus control
 - [ ] Multi-device support
