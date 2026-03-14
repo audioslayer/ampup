@@ -382,6 +382,9 @@ public class OsdConfig
     public bool ShowVolume { get; set; } = true;
     public bool ShowProfileSwitch { get; set; } = true;
     public bool ShowDeviceSwitch { get; set; } = true;
+    public double VolumeDuration { get; set; } = 2.0;       // seconds
+    public double ProfileDuration { get; set; } = 3.5;      // seconds
+    public double DeviceDuration { get; set; } = 2.5;       // seconds
     [JsonConverter(typeof(StringEnumConverter))]
     public OsdPosition Position { get; set; } = OsdPosition.BottomRight;
 }

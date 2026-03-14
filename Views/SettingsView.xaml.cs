@@ -65,6 +65,9 @@ public partial class SettingsView : UserControl
         ChkOsdProfile.Unchecked += OnValueChanged;
         ChkOsdDevice.Checked += OnValueChanged;
         ChkOsdDevice.Unchecked += OnValueChanged;
+        SldOsdVolumeDur.ValueChanged += (s, _) => { TxtOsdVolumeDur.Text = $"{SldOsdVolumeDur.Value:0.#}s"; OnValueChanged(s!, EventArgs.Empty); };
+        SldOsdProfileDur.ValueChanged += (s, _) => { TxtOsdProfileDur.Text = $"{SldOsdProfileDur.Value:0.#}s"; OnValueChanged(s!, EventArgs.Empty); };
+        SldOsdDeviceDur.ValueChanged += (s, _) => { TxtOsdDeviceDur.Text = $"{SldOsdDeviceDur.Value:0.#}s"; OnValueChanged(s!, EventArgs.Empty); };
         BtnOsdPreview.Click += OnOsdPreview;
 
         // Integration events
@@ -126,6 +129,12 @@ public partial class SettingsView : UserControl
         ChkOsdVolume.IsChecked = config.Osd.ShowVolume;
         ChkOsdProfile.IsChecked = config.Osd.ShowProfileSwitch;
         ChkOsdDevice.IsChecked = config.Osd.ShowDeviceSwitch;
+        SldOsdVolumeDur.Value = config.Osd.VolumeDuration;
+        SldOsdProfileDur.Value = config.Osd.ProfileDuration;
+        SldOsdDeviceDur.Value = config.Osd.DeviceDuration;
+        TxtOsdVolumeDur.Text = $"{config.Osd.VolumeDuration:0.#}s";
+        TxtOsdProfileDur.Text = $"{config.Osd.ProfileDuration:0.#}s";
+        TxtOsdDeviceDur.Text = $"{config.Osd.DeviceDuration:0.#}s";
         HighlightOsdPosition(config.Osd.Position);
 
         // Profiles
@@ -435,6 +444,9 @@ public partial class SettingsView : UserControl
         _config.Osd.ShowVolume = ChkOsdVolume.IsChecked == true;
         _config.Osd.ShowProfileSwitch = ChkOsdProfile.IsChecked == true;
         _config.Osd.ShowDeviceSwitch = ChkOsdDevice.IsChecked == true;
+        _config.Osd.VolumeDuration = SldOsdVolumeDur.Value;
+        _config.Osd.ProfileDuration = SldOsdProfileDur.Value;
+        _config.Osd.DeviceDuration = SldOsdDeviceDur.Value;
 
         // Integrations
         _config.HomeAssistant.Enabled = ChkHaEnabled.IsChecked == true;

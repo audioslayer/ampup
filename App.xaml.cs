@@ -587,6 +587,9 @@ public partial class App : Application
     {
         _osdOverlay ??= new OsdOverlay();
         _osdOverlay.SetPosition(_config.Osd.Position);
+        _osdOverlay.VolumeDuration = _config.Osd.VolumeDuration;
+        _osdOverlay.ProfileDuration = _config.Osd.ProfileDuration;
+        _osdOverlay.DeviceDuration = _config.Osd.DeviceDuration;
     }
 
     private string _lastDefaultOutputDeviceId = "";

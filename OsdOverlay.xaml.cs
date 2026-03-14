@@ -16,6 +16,11 @@ public partial class OsdOverlay : Window
     private bool _closing;
     private OsdPosition _position = OsdPosition.BottomRight;
 
+    // Configurable durations (seconds)
+    public double VolumeDuration { get; set; } = 2.0;
+    public double ProfileDuration { get; set; } = 3.5;
+    public double DeviceDuration { get; set; } = 2.5;
+
     public OsdOverlay()
     {
         InitializeComponent();
@@ -127,7 +132,7 @@ public partial class OsdOverlay : Window
         BarContainer.Visibility = Visibility.Visible;
 
         PositionAndShow();
-        _dismissTimer.Interval = TimeSpan.FromSeconds(2);
+        _dismissTimer.Interval = TimeSpan.FromSeconds(VolumeDuration);
 
         // Animate bar fill after layout
         Dispatcher.InvokeAsync(() =>
@@ -186,7 +191,7 @@ public partial class OsdOverlay : Window
         }
 
         PositionAndShow();
-        _dismissTimer.Interval = TimeSpan.FromSeconds(3.5);
+        _dismissTimer.Interval = TimeSpan.FromSeconds(ProfileDuration);
         _dismissTimer.Start();
     }
 
@@ -408,7 +413,7 @@ public partial class OsdOverlay : Window
         BarContainer.Visibility = Visibility.Collapsed;
 
         PositionAndShow();
-        _dismissTimer.Interval = TimeSpan.FromSeconds(2.5);
+        _dismissTimer.Interval = TimeSpan.FromSeconds(DeviceDuration);
         _dismissTimer.Start();
     }
 
