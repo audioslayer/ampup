@@ -288,7 +288,8 @@ public class BindingsView : UserControl
         for (int i = 0; i < 5; i++)
         {
             var knob = config.Knobs.FirstOrDefault(k => k.Idx == i) ?? new KnobConfig { Idx = i };
-            knobsRow.Children.Add(BuildKnobCard(i, knob, capturedName));
+            var light = config.Lights.FirstOrDefault(l => l.Idx == i);
+            knobsRow.Children.Add(BuildKnobCard(i, knob, capturedName, light));
         }
         sectionContent.Children.Add(knobsRow);
 
@@ -322,13 +323,27 @@ public class BindingsView : UserControl
         Margin = new Thickness(0, 0, 0, 0)
     };
 
-    private UIElement BuildKnobCard(int idx, KnobConfig knob, string profileName)
+    private UIElement BuildKnobCard(int idx, KnobConfig knob, string profileName, LightConfig? light = null)
     {
         bool isEmpty = string.IsNullOrEmpty(knob.Target) || knob.Target == "none";
 
+        // Tint card background with the knob's LED color (very subtle)
+        Brush cardBg;
+        if (light != null && (light.R > 10 || light.G > 10 || light.B > 10))
+        {
+            cardBg = new SolidColorBrush(Color.FromArgb(0x18,
+                (byte)Math.Clamp(light.R, 0, 255),
+                (byte)Math.Clamp(light.G, 0, 255),
+                (byte)Math.Clamp(light.B, 0, 255)));
+        }
+        else
+        {
+            cardBg = (SolidColorBrush)FindResource("BgDarkBrush");
+        }
+
         var card = new Border
         {
-            Background = (SolidColorBrush)FindResource("BgDarkBrush"),
+            Background = cardBg,
             BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
