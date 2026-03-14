@@ -548,6 +548,8 @@ public class BindingsView : UserControl
                 => System.IO.Path.GetFileNameWithoutExtension(path),
             "switch_profile" when !string.IsNullOrEmpty(profileName)
                 => profileName,
+            "switch_profile" when !string.IsNullOrEmpty(path)
+                => path,
             "macro" when !string.IsNullOrEmpty(macroKeys)
                 => macroKeys,
             _ => null

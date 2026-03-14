@@ -415,6 +415,8 @@ public partial class OsdOverlay : Window
                 => System.IO.Path.GetFileNameWithoutExtension(btn.Path),
             "switch_profile" when !string.IsNullOrEmpty(btn.ProfileName)
                 => btn.ProfileName,
+            "switch_profile" when !string.IsNullOrEmpty(btn.Path)
+                => btn.Path,
             "macro" when !string.IsNullOrEmpty(btn.MacroKeys)
                 => btn.MacroKeys,
             _ => null
