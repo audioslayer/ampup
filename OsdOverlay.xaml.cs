@@ -232,35 +232,25 @@ public partial class OsdOverlay : Window
             var stack = new StackPanel();
 
             // Number badge — centered circle
-            // Mini knob image with number
-            var knobColor = GetTargetColor(knob?.Target ?? "none");
-            var knobImg = new System.Windows.Controls.Image
+            // Number badge
+            var badge = new Border
             {
-                Source = new System.Windows.Media.Imaging.BitmapImage(
-                    new Uri("pack://application:,,,/Assets/knob-face.png", UriKind.Absolute)),
-                Width = 24, Height = 24,
+                Width = 22, Height = 22,
+                CornerRadius = new CornerRadius(11),
+                Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
                 HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-                RenderTransformOrigin = new System.Windows.Point(0.5, 0.5),
-                RenderTransform = new RotateTransform(180), // needle pointing up
+                Margin = new Thickness(0, 0, 0, 6),
+                Child = new TextBlock
+                {
+                    Text = (i + 1).ToString(),
+                    FontSize = 11, FontWeight = FontWeights.SemiBold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x99, 0x99, 0x99)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    FontFamily = new FontFamily("Segoe UI")
+                }
             };
-            var knobNum = new TextBlock
-            {
-                Text = (i + 1).ToString(),
-                FontSize = 8, FontWeight = FontWeights.Bold,
-                Foreground = new SolidColorBrush(knobColor),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 26, 0, 0),
-                FontFamily = new FontFamily("Segoe UI"),
-            };
-            var knobGrid = new Grid
-            {
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 4),
-            };
-            knobGrid.Children.Add(knobImg);
-            knobGrid.Children.Add(knobNum);
-            stack.Children.Add(knobGrid);
+            stack.Children.Add(badge);
 
             // Knob target row — icon + label, horizontally centered
             var knobRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
