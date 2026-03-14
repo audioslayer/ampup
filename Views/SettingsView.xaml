@@ -157,16 +157,10 @@
                                       Foreground="{StaticResource TextPrimaryBrush}"
                                       Margin="0,0,0,6"
                                       ToolTip="Show overlay when you adjust a knob" />
-                            <StackPanel Orientation="Horizontal">
-                                <controls:StyledSlider x:Name="SldOsdVolumeDur"
-                                        Minimum="1" Maximum="8" Value="2"
-                                        Width="100" VerticalAlignment="Center"
-                                        ToolTip="How long the volume overlay stays visible" />
-                                <TextBlock x:Name="TxtOsdVolumeDur" Text="2s"
-                                           Foreground="{DynamicResource AccentBrush}"
-                                           FontSize="11" FontWeight="SemiBold"
-                                           VerticalAlignment="Center" Margin="6,0,0,0" />
-                            </StackPanel>
+                            <controls:StyledSlider x:Name="SldOsdVolumeDur"
+                                    Minimum="1" Maximum="8" Value="2" Suffix="s"
+                                    Width="120"
+                                    ToolTip="How long the volume overlay stays visible" />
                         </StackPanel>
 
                         <!-- Profile -->
@@ -176,16 +170,10 @@
                                       Foreground="{StaticResource TextPrimaryBrush}"
                                       Margin="0,0,0,6"
                                       ToolTip="Show overlay when switching profiles" />
-                            <StackPanel Orientation="Horizontal">
-                                <controls:StyledSlider x:Name="SldOsdProfileDur"
-                                        Minimum="1" Maximum="8" Value="3.5"
-                                        Width="100" VerticalAlignment="Center"
-                                        ToolTip="How long the profile overlay stays visible" />
-                                <TextBlock x:Name="TxtOsdProfileDur" Text="3.5s"
-                                           Foreground="{DynamicResource AccentBrush}"
-                                           FontSize="11" FontWeight="SemiBold"
-                                           VerticalAlignment="Center" Margin="6,0,0,0" />
-                            </StackPanel>
+                            <controls:StyledSlider x:Name="SldOsdProfileDur"
+                                    Minimum="1" Maximum="8" Value="3.5" Suffix="s"
+                                    Width="120"
+                                    ToolTip="How long the profile overlay stays visible" />
                         </StackPanel>
 
                         <!-- Device -->
@@ -195,16 +183,10 @@
                                       Foreground="{StaticResource TextPrimaryBrush}"
                                       Margin="0,0,0,6"
                                       ToolTip="Show overlay when cycling audio devices" />
-                            <StackPanel Orientation="Horizontal">
-                                <controls:StyledSlider x:Name="SldOsdDeviceDur"
-                                        Minimum="1" Maximum="8" Value="2.5"
-                                        Width="100" VerticalAlignment="Center"
-                                        ToolTip="How long the device overlay stays visible" />
-                                <TextBlock x:Name="TxtOsdDeviceDur" Text="2.5s"
-                                           Foreground="{DynamicResource AccentBrush}"
-                                           FontSize="11" FontWeight="SemiBold"
-                                           VerticalAlignment="Center" Margin="6,0,0,0" />
-                            </StackPanel>
+                            <controls:StyledSlider x:Name="SldOsdDeviceDur"
+                                    Minimum="1" Maximum="8" Value="2.5" Suffix="s"
+                                    Width="120"
+                                    ToolTip="How long the device overlay stays visible" />
                         </StackPanel>
                     </Grid>
 

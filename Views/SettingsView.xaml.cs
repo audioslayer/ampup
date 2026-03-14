@@ -65,9 +65,9 @@ public partial class SettingsView : UserControl
         ChkOsdProfile.Unchecked += OnValueChanged;
         ChkOsdDevice.Checked += OnValueChanged;
         ChkOsdDevice.Unchecked += OnValueChanged;
-        SldOsdVolumeDur.ValueChanged += (s, _) => { var v = Math.Round(SldOsdVolumeDur.Value * 2) / 2; TxtOsdVolumeDur.Text = $"{v:0.#}s"; OnValueChanged(s!, EventArgs.Empty); };
-        SldOsdProfileDur.ValueChanged += (s, _) => { var v = Math.Round(SldOsdProfileDur.Value * 2) / 2; TxtOsdProfileDur.Text = $"{v:0.#}s"; OnValueChanged(s!, EventArgs.Empty); };
-        SldOsdDeviceDur.ValueChanged += (s, _) => { var v = Math.Round(SldOsdDeviceDur.Value * 2) / 2; TxtOsdDeviceDur.Text = $"{v:0.#}s"; OnValueChanged(s!, EventArgs.Empty); };
+        SldOsdVolumeDur.ValueChanged += (s, _) => OnValueChanged(s!, EventArgs.Empty);
+        SldOsdProfileDur.ValueChanged += (s, _) => OnValueChanged(s!, EventArgs.Empty);
+        SldOsdDeviceDur.ValueChanged += (s, _) => OnValueChanged(s!, EventArgs.Empty);
         BtnOsdPreview.Click += OnOsdPreview;
 
         // Integration events
@@ -132,9 +132,6 @@ public partial class SettingsView : UserControl
         SldOsdVolumeDur.Value = config.Osd.VolumeDuration;
         SldOsdProfileDur.Value = config.Osd.ProfileDuration;
         SldOsdDeviceDur.Value = config.Osd.DeviceDuration;
-        TxtOsdVolumeDur.Text = $"{config.Osd.VolumeDuration:0.#}s";
-        TxtOsdProfileDur.Text = $"{config.Osd.ProfileDuration:0.#}s";
-        TxtOsdDeviceDur.Text = $"{config.Osd.DeviceDuration:0.#}s";
         HighlightOsdPosition(config.Osd.Position);
 
         // Profiles
