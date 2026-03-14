@@ -232,36 +232,17 @@ public partial class OsdOverlay : Window
             var stack = new StackPanel();
 
             // Number badge — centered circle
-            // Mini knob visual with number overlay
+            // Mini knob visual — same knob PNG + colored arc as Mixer tab
             var knobColor = GetTargetColor(knob?.Target ?? "none");
             var miniKnob = new Controls.AnimatedKnobControl
             {
-                Width = 32, Height = 32,
+                Width = 38, Height = 38,
                 ArcColor = knobColor,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 0, 0, 4),
+                Value = 0.6f,
             };
-            // Set a mid-range position so the arc is visible
-            miniKnob.Value = 0.6f;
-
-            var knobNumLabel = new TextBlock
-            {
-                Text = (i + 1).ToString(),
-                FontSize = 10, FontWeight = FontWeights.Bold,
-                Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-                FontFamily = new FontFamily("Segoe UI"),
-            };
-            var knobContainer = new Grid
-            {
-                Width = 32, Height = 32,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 4),
-            };
-            knobContainer.Children.Add(miniKnob);
-            knobContainer.Children.Add(knobNumLabel);
-            stack.Children.Add(knobContainer);
+            stack.Children.Add(miniKnob);
 
             // Knob target row — icon + label, horizontally centered
             var knobRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
