@@ -38,13 +38,38 @@ public partial class MainWindow : FluentWindow
         UpdateProfileButton();
         UpdateAccentDependentUI();
         _bindingsView.SetNavigationCallbacks(
-            () => NavigateTo(_mixerView, NavMixer),
-            () => NavigateTo(_buttonsView, NavButtons),
             profileName =>
             {
-                _onConfigChanged?.Invoke(_config); // save current first
+                if (_config.ActiveProfile != profileName)
+                {
+                    _onConfigChanged?.Invoke(_config);
+                    (Application.Current as App)?.SwitchToProfile(profileName);
+                }
+                NavigateTo(_mixerView, NavMixer);
+            },
+            profileName =>
+            {
+                if (_config.ActiveProfile != profileName)
+                {
+                    _onConfigChanged?.Invoke(_config);
+                    (Application.Current as App)?.SwitchToProfile(profileName);
+                }
+                NavigateTo(_buttonsView, NavButtons);
+            },
+            profileName =>
+            {
+                _onConfigChanged?.Invoke(_config);
                 (Application.Current as App)?.SwitchToProfile(profileName);
                 NavigateTo(_mixerView, NavMixer);
+            },
+            profileName =>
+            {
+                // Preview OSD for this profile without switching
+                var app = Application.Current as App;
+                if (app == null) return;
+                var profileConfig = ConfigManager.LoadProfile(profileName) ?? _config;
+                var iconCfg = _config.ProfileIcons.GetValueOrDefault(profileName) ?? new ProfileIconConfig();
+                app.PreviewProfileOsd(profileName, iconCfg, profileConfig);
             });
         NavigateTo(_mixerView, NavMixer);
         SetupTrafficLightHovers();

@@ -9,9 +9,10 @@ namespace AmpUp.Views;
 public class BindingsView : UserControl
 {
     private AppConfig? _config;
-    private Action? _onNavigateToMixer;
-    private Action? _onNavigateToButtons;
+    private Action<string>? _onNavigateToMixer;   // profile name
+    private Action<string>? _onNavigateToButtons;  // profile name
     private Action<string>? _onSwitchProfile;
+    private Action<string>? _onPreviewOsd;         // profile name → show OSD
 
     // Action icons duplicated from ButtonsView (internal access)
     private static readonly Dictionary<string, string> ActionIcons = new()
@@ -93,11 +94,14 @@ public class BindingsView : UserControl
         Content = _scroll;
     }
 
-    public void SetNavigationCallbacks(Action onMixer, Action onButtons, Action<string>? onSwitchProfile = null)
+    public void SetNavigationCallbacks(
+        Action<string> onMixer, Action<string> onButtons,
+        Action<string>? onSwitchProfile = null, Action<string>? onPreviewOsd = null)
     {
         _onNavigateToMixer = onMixer;
         _onNavigateToButtons = onButtons;
         _onSwitchProfile = onSwitchProfile;
+        _onPreviewOsd = onPreviewOsd;
     }
 
     public void LoadConfig(AppConfig config)
@@ -235,7 +239,41 @@ public class BindingsView : UserControl
             });
         }
 
-        sectionContent.Children.Add(profileHeader);
+        // "Preview OSD" button — right side of header
+        var previewBtn = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(8, 3, 8, 3),
+            Margin = new Thickness(0),
+            Cursor = Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new TextBlock
+            {
+                Text = "Preview OSD",
+                FontSize = 10,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x99, 0x99, 0x99)),
+            }
+        };
+        previewBtn.MouseEnter += (_, _) => previewBtn.Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
+        previewBtn.MouseLeave += (_, _) => previewBtn.Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
+        previewBtn.MouseLeftButtonDown += (_, e) =>
+        {
+            _onPreviewOsd?.Invoke(capturedName);
+            e.Handled = true;
+        };
+
+        var headerGrid = new Grid { Margin = new Thickness(0, 0, 0, 14) };
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(profileHeader, 0);
+        profileHeader.Margin = new Thickness(0);
+        headerGrid.Children.Add(profileHeader);
+        Grid.SetColumn(previewBtn, 1);
+        headerGrid.Children.Add(previewBtn);
+        sectionContent.Children.Add(headerGrid);
 
         // Knobs subsection label
         sectionContent.Children.Add(MakeSectionLabel("KNOBS"));
@@ -250,7 +288,7 @@ public class BindingsView : UserControl
         for (int i = 0; i < 5; i++)
         {
             var knob = config.Knobs.FirstOrDefault(k => k.Idx == i) ?? new KnobConfig { Idx = i };
-            knobsRow.Children.Add(BuildKnobCard(i, knob));
+            knobsRow.Children.Add(BuildKnobCard(i, knob, capturedName));
         }
         sectionContent.Children.Add(knobsRow);
 
@@ -267,7 +305,7 @@ public class BindingsView : UserControl
         for (int i = 0; i < 5; i++)
         {
             var btn = config.Buttons.FirstOrDefault(b => b.Idx == i) ?? new ButtonConfig { Idx = i };
-            buttonsRow.Children.Add(BuildButtonCard(i, btn));
+            buttonsRow.Children.Add(BuildButtonCard(i, btn, capturedName));
         }
         sectionContent.Children.Add(buttonsRow);
 
@@ -284,7 +322,7 @@ public class BindingsView : UserControl
         Margin = new Thickness(0, 0, 0, 0)
     };
 
-    private UIElement BuildKnobCard(int idx, KnobConfig knob)
+    private UIElement BuildKnobCard(int idx, KnobConfig knob, string profileName)
     {
         bool isEmpty = string.IsNullOrEmpty(knob.Target) || knob.Target == "none";
 
@@ -309,7 +347,7 @@ public class BindingsView : UserControl
         {
             card.BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush");
         };
-        card.MouseLeftButtonDown += (_, _) => _onNavigateToMixer?.Invoke();
+        card.MouseLeftButtonDown += (_, _) => _onNavigateToMixer?.Invoke(profileName);
 
         var content = new StackPanel();
 
@@ -379,7 +417,7 @@ public class BindingsView : UserControl
         return card;
     }
 
-    private UIElement BuildButtonCard(int idx, ButtonConfig btn)
+    private UIElement BuildButtonCard(int idx, ButtonConfig btn, string profileName)
     {
         bool hasTap = btn.Action != "none" && !string.IsNullOrEmpty(btn.Action);
         bool hasDouble = btn.DoublePressAction != "none" && !string.IsNullOrEmpty(btn.DoublePressAction);
@@ -407,7 +445,7 @@ public class BindingsView : UserControl
         {
             card.BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush");
         };
-        card.MouseLeftButtonDown += (_, _) => _onNavigateToButtons?.Invoke();
+        card.MouseLeftButtonDown += (_, _) => _onNavigateToButtons?.Invoke(profileName);
 
         var content = new StackPanel();
 

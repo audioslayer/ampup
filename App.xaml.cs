@@ -592,6 +592,18 @@ public partial class App : Application
         _osdOverlay.DeviceDuration = _config.Osd.DeviceDuration;
     }
 
+    /// <summary>
+    /// Show the profile OSD preview without switching profiles. Used by BindingsView.
+    /// </summary>
+    public void PreviewProfileOsd(string profileName, ProfileIconConfig iconCfg, AppConfig config)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            EnsureOsd();
+            _osdOverlay!.ShowProfileSwitch(profileName, iconCfg, config);
+        });
+    }
+
     private string _lastDefaultOutputDeviceId = "";
 
     // Cached enumerator for mute polling (created once, lives for the app lifetime)
