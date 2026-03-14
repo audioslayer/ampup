@@ -1456,7 +1456,7 @@ public partial class MixerView : UserControl
             picker.SelectionChanged += OnSmartMixChanged;
     }
 
-    private void OnSmartMixChanged(object sender, EventArgs e)
+    private void OnSmartMixChanged(object? sender, EventArgs e)
     {
         if (_loading) return;
         _debounce.Stop();

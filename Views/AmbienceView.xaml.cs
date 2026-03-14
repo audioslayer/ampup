@@ -1114,10 +1114,10 @@ public partial class AmbienceView : UserControl
             Width = 120, Margin = new Thickness(0, 0, 20, 0),
             ToolTip = "Boost color saturation — higher = more vivid room colors",
         };
-        satSlider.ValueChanged += (_, e) =>
+        satSlider.ValueChanged += (_, _) =>
         {
             if (_loading || _config == null) return;
-            float v = (float)Math.Round(e.NewValue, 1);
+            float v = (float)Math.Round(satSlider.Value, 1);
             satLabel.Text = $"{v:F1}×";
             _config.Ambience.ScreenSync.Saturation = v;
             _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
@@ -1142,10 +1142,10 @@ public partial class AmbienceView : UserControl
             Width = 120, Margin = new Thickness(0, 0, 8, 0),
             ToolTip = "Minimum color change to trigger a send — lower = more reactive; higher = less flicker",
         };
-        sensSlider.ValueChanged += (_, e) =>
+        sensSlider.ValueChanged += (_, _) =>
         {
             if (_loading || _config == null) return;
-            int v = (int)e.NewValue;
+            int v = (int)sensSlider.Value;
             sensLabel.Text = v.ToString();
             _config.Ambience.ScreenSync.Sensitivity = v;
             _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
