@@ -1322,13 +1322,21 @@ public partial class AmbienceView : UserControl
                     Margin = new Thickness(0, 0, 0, 12),
                     Child = new TextBlock
                     {
-                        Text = "Screen Sync is active — selecting a scene will override the sync.",
+                        Text = "Screen Sync is active — disable DreamView to use scenes and colors.",
                         FontSize = 11,
                         Foreground = new SolidColorBrush(Color.FromArgb(0xAA, accent.R, accent.G, accent.B)),
                         TextWrapping = TextWrapping.Wrap,
                     }
                 };
                 DevicePanel.Children.Insert(0, _dreamActiveBanner);
+            }
+            foreach (UIElement child in DevicePanel.Children)
+            {
+                if (child != _dreamActiveBanner)
+                {
+                    child.Opacity = 0.3;
+                    child.IsEnabled = false;
+                }
             }
         }
         else
@@ -1337,6 +1345,11 @@ public partial class AmbienceView : UserControl
             {
                 DevicePanel.Children.Remove(_dreamActiveBanner);
                 _dreamActiveBanner = null;
+            }
+            foreach (UIElement child in DevicePanel.Children)
+            {
+                child.Opacity = 1.0;
+                child.IsEnabled = true;
             }
         }
     }
