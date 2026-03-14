@@ -28,6 +28,7 @@ public partial class AmbienceView : UserControl
     private readonly List<Border> _dreamZoneSwatches = new();
     private TextBlock? _dreamStatusLabel;
     private Border? _dreamActiveBanner;
+    private Border? _dreamViewCard;
 
     // Navigation callback (set by MainWindow to navigate to Settings)
     public Action? NavigateToSettings { get; set; }
@@ -998,6 +999,7 @@ public partial class AmbienceView : UserControl
             Style = FindStyle("CardPanel") as Style,
             Margin = new Thickness(0, 12, 0, 12),
         };
+        _dreamViewCard = card;
         var stack = new StackPanel();
         card.Child = stack;
 
@@ -1332,11 +1334,10 @@ public partial class AmbienceView : UserControl
             }
             foreach (UIElement child in DevicePanel.Children)
             {
-                if (child != _dreamActiveBanner)
-                {
-                    child.Opacity = 0.3;
-                    child.IsEnabled = false;
-                }
+                if (child == _dreamActiveBanner || child == _dreamViewCard)
+                    continue;
+                child.Opacity = 0.3;
+                child.IsEnabled = false;
             }
         }
         else
