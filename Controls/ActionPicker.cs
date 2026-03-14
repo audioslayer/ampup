@@ -13,7 +13,7 @@ namespace AmpUp.Controls;
 /// <summary>
 /// Custom action picker dropdown — replaces ComboBox for button action selection.
 /// Shows icon + label on a dark button, opens a borderless Window flyout with hoverable rows.
-/// Items can optionally have sub-menus that slide out to the right.
+/// Items can optionally have sub-menus that expand inline to the right within the same Window.
 /// Uses borderless Windows instead of Popups to avoid Win11 click-through bugs.
 /// </summary>
 public class ActionPicker : Border
@@ -29,10 +29,9 @@ public class ActionPicker : Border
     private Window? _flyout;
     private bool _isOpen = false;
 
-    // Sub-flyout
-    private Window? _subFlyout;
-    private bool _subIsOpen = false;
-    private readonly Border _subPopupBorder;
+    // Inline sub-panel (replaces second Window sub-flyout)
+    private readonly Border _subPanelBorder;
+    private readonly Border _subDivider;
     private readonly StackPanel _subItemsPanel;
     private readonly ScrollViewer _subScrollViewer;
     private readonly TextBox _subFilterBox;
@@ -41,26 +40,23 @@ public class ActionPicker : Border
     private string? _activeSubParentValue;
     private List<SubItem> _activeSubItems = new();
     private readonly DispatcherTimer _subOpenTimer;
-    private readonly DispatcherTimer _closeTimer;
     private int _hoveredSubMenuIdx = -1;
-    private int _closeGraceTicks = 0;
 
     private int _selectedIndex = -1;
     private string? _selectedSubTag; // entity ID from sub-menu selection
     private readonly List<(string Display, string Value, string Icon, Color Color, string Tooltip)> _items = new();
     private readonly List<(int ItemIndex, string CategoryName)> _categories = new();
-    private readonly Dictionary<int, UIElement> _itemRowElements = new(); // itemIdx → popup row element
 
     // Category header styles (icon + color)
     public static readonly Dictionary<string, (string Icon, Color Color)> CategoryStyles = new()
     {
-        { "MEDIA",              ("♫", Color.FromRgb(0x00, 0xE6, 0x76)) },
-        { "MUTE",               ("🔇", Color.FromRgb(0xFF, 0x52, 0x52)) },
-        { "APP CONTROL",        ("⬡", Color.FromRgb(0x44, 0x8A, 0xFF)) },
-        { "DEVICE",             ("🔌", Color.FromRgb(0xB3, 0x88, 0xFF)) },
-        { "SYSTEM",             ("⚙", Color.FromRgb(0xFF, 0xD7, 0x40)) },
-        { "POWER",              ("⏻", Color.FromRgb(0xFF, 0x52, 0x52)) },
-        { "INTEGRATIONS",       ("⚡", Color.FromRgb(0x26, 0xC6, 0xDA)) },
+        { "MEDIA",              ("\u266B", Color.FromRgb(0x00, 0xE6, 0x76)) },
+        { "MUTE",               ("\uD83D\uDD07", Color.FromRgb(0xFF, 0x52, 0x52)) },
+        { "APP CONTROL",        ("\u2B21", Color.FromRgb(0x44, 0x8A, 0xFF)) },
+        { "DEVICE",             ("\uD83D\uDD0C", Color.FromRgb(0xB3, 0x88, 0xFF)) },
+        { "SYSTEM",             ("\u2699", Color.FromRgb(0xFF, 0xD7, 0x40)) },
+        { "POWER",              ("\u23FB", Color.FromRgb(0xFF, 0x52, 0x52)) },
+        { "INTEGRATIONS",       ("\u26A1", Color.FromRgb(0x26, 0xC6, 0xDA)) },
     };
 
     // Sub-menu providers: keyed by action value
@@ -92,7 +88,7 @@ public class ActionPicker : Border
         Cursor = Cursors.Hand;
         SnapsToDevicePixels = true;
 
-        // Layout: [icon] [label — fills] [chevron]
+        // Layout: [icon] [label -- fills] [chevron]
         var dock = new DockPanel { LastChildFill = true };
 
         _iconBlock = new TextBlock
@@ -100,7 +96,7 @@ public class ActionPicker : Border
             FontSize = 14,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 7, 0),
-            Text = "—",
+            Text = "\u2014",
             Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
         };
         DockPanel.SetDock(_iconBlock, Dock.Left);
@@ -108,7 +104,7 @@ public class ActionPicker : Border
 
         _chevron = new TextBlock
         {
-            Text = "▾",
+            Text = "\u25BE",
             FontSize = 10,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(7, 0, 0, 0),
@@ -137,16 +133,7 @@ public class ActionPicker : Border
             Content = _itemsPanel,
         };
 
-        _popupBorder = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
-            Child = _scrollViewer,
-        };
-
-        // ── Sub-flyout content ──
+        // ── Inline sub-panel content ──
         _subItemsPanel = new StackPanel();
         _subScrollViewer = new ScrollViewer
         {
@@ -191,40 +178,38 @@ public class ActionPicker : Border
         subStack.Children.Add(subFilterContainer);
         subStack.Children.Add(_subScrollViewer);
 
-        _subPopupBorder = new Border
+        _subPanelBorder = new Border
         {
             Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
             Padding = new Thickness(4, 6, 4, 6),
             Child = subStack,
             MinWidth = 200,
             MaxWidth = 300,
+            Visibility = Visibility.Collapsed,
         };
 
-        // Polling timer: closes both flyouts when mouse leaves all windows
-        _closeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
-        _closeTimer.Tick += (_, _) =>
+        // Thin vertical divider between main items and sub-panel
+        _subDivider = new Border
         {
-            // Grace period: skip first 3 ticks (750ms) after sub-flyout opens
-            if (_closeGraceTicks > 0) { _closeGraceTicks--; return; }
+            Width = 1,
+            Background = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
+            Margin = new Thickness(0, 8, 0, 8),
+            Visibility = Visibility.Collapsed,
+        };
 
-            // Check mouse position via hit-test (more reliable than IsMouseOver across HWNDs)
-            var pos = Mouse.GetPosition(_popupBorder);
-            bool overMain = pos.X >= 0 && pos.Y >= 0
-                && pos.X <= _popupBorder.ActualWidth && pos.Y <= _popupBorder.ActualHeight;
+        // Horizontal layout: [main items] [divider] [sub-panel]
+        var hStack = new StackPanel { Orientation = Orientation.Horizontal };
+        hStack.Children.Add(_scrollViewer);
+        hStack.Children.Add(_subDivider);
+        hStack.Children.Add(_subPanelBorder);
 
-            var subPos = Mouse.GetPosition(_subPopupBorder);
-            bool overSub = subPos.X >= 0 && subPos.Y >= 0
-                && subPos.X <= _subPopupBorder.ActualWidth && subPos.Y <= _subPopupBorder.ActualHeight;
-
-            if (IsMouseOver || overMain || overSub)
-                return;
-
-            _closeTimer.Stop();
-            CloseSubFlyout();
-            CloseFlyout();
+        _popupBorder = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Child = hStack,
         };
 
         _subOpenTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
@@ -235,7 +220,7 @@ public class ActionPicker : Border
             {
                 var value = _items[_hoveredSubMenuIdx].Value;
                 if (_subMenuProviders.ContainsKey(value))
-                    OpenSubFlyout(value, _hoveredSubMenuIdx);
+                    OpenSubMenu(value);
             }
         };
 
@@ -264,12 +249,15 @@ public class ActionPicker : Border
             if (_isOpen) CloseFlyout(); else OpenFlyout();
             e.Handled = true;
         };
+
+        Unloaded += (_, _) => _subOpenTimer.Stop();
     }
 
     // ── Main flyout ───────────────────────────────────────────────
 
     private void OpenFlyout()
     {
+        CloseSubPanel();
         _popupBorder.MinWidth = ActualWidth;
         RebuildAllPopupItems();
 
@@ -302,11 +290,9 @@ public class ActionPicker : Border
 
         _flyout.Deactivated += (_, _) =>
         {
-            // Don't close main if sub-flyout is activating
-            if (_subIsOpen) return;
             CloseFlyout();
         };
-        _flyout.KeyDown += (_, e) => { if (e.Key == Key.Escape) { CloseSubFlyout(); CloseFlyout(); } };
+        _flyout.KeyDown += (_, e) => { if (e.Key == Key.Escape) CloseFlyout(); };
 
         // Slide-down + fade-in animation (120ms)
         var translate = new TranslateTransform(0, -8);
@@ -330,8 +316,8 @@ public class ActionPicker : Border
     {
         if (!_isOpen) return;
         _isOpen = false;
-        _closeTimer.Stop();
-        CloseSubFlyout();
+        _subOpenTimer.Stop();
+        CloseSubPanel();
 
         // Detach child before close so _popupBorder can be reused
         if (_flyout?.Content is Border b)
@@ -344,9 +330,9 @@ public class ActionPicker : Border
         _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
     }
 
-    // ── Sub-flyout ──────────────────────────────────────────────────
+    // ── Inline sub-panel ──────────────────────────────────────────
 
-    private void OpenSubFlyout(string actionValue, int itemIdx)
+    private void OpenSubMenu(string actionValue)
     {
         if (!_subMenuProviders.TryGetValue(actionValue, out var provider))
             return;
@@ -365,79 +351,19 @@ public class ActionPicker : Border
         _subFilterBox.Text = "";
         _subFilterText = "";
 
-        // Detach from any previous sub-flyout
-        if (_subPopupBorder.Parent is Border oldParent)
-            oldParent.Child = null;
-
-        var outerBorder = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
-            Child = _subPopupBorder,
-        };
-
-        _subFlyout = new Window
-        {
-            WindowStyle = WindowStyle.None,
-            ResizeMode = ResizeMode.NoResize,
-            SizeToContent = SizeToContent.WidthAndHeight,
-            ShowInTaskbar = false,
-            Topmost = true,
-            AllowsTransparency = false,
-            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
-            Content = outerBorder
-        };
-
-        // Position to the right of the hovered item row
-        Point screenPos;
-        if (_itemRowElements.TryGetValue(itemIdx, out var targetRow) && _isOpen)
-        {
-            try
-            {
-                screenPos = targetRow.PointToScreen(
-                    new Point(_popupBorder.ActualWidth + 6, -6));
-            }
-            catch
-            {
-                screenPos = _popupBorder.PointToScreen(new Point(_popupBorder.ActualWidth + 6, 0));
-            }
-        }
-        else
-        {
-            screenPos = _popupBorder.PointToScreen(new Point(_popupBorder.ActualWidth + 6, 0));
-        }
-
-        _subFlyout.Left = screenPos.X;
-        _subFlyout.Top = screenPos.Y;
-
-        _subFlyout.Deactivated += (_, _) =>
-        {
-            // Don't auto-close; poll timer handles mouse-leave close
-        };
-        _subFlyout.KeyDown += (_, e) => { if (e.Key == Key.Escape) { CloseSubFlyout(); CloseFlyout(); } };
-
-        _subFlyout.Show();
-        _subIsOpen = true;
-
-        // Start polling timer now that sub is open
-        _closeGraceTicks = 3;
-        _closeTimer.Start();
+        // Show the inline sub-panel and divider
+        _subDivider.Visibility = Visibility.Visible;
+        _subPanelBorder.Visibility = Visibility.Visible;
 
         if (showFilter)
             _subFilterBox.Focus();
     }
 
-    private void CloseSubFlyout()
+    private void CloseSubPanel()
     {
-        if (!_subIsOpen) return;
-        _subIsOpen = false;
         _hoveredSubMenuIdx = -1;
-        _closeTimer.Stop();
-
-        if (_subFlyout?.Content is Border b)
-            b.Child = null;
-
-        _subFlyout?.Close();
-        _subFlyout = null;
+        _subDivider.Visibility = Visibility.Collapsed;
+        _subPanelBorder.Visibility = Visibility.Collapsed;
     }
 
     // ── Item management ─────────────────────────────────────────────
@@ -483,7 +409,7 @@ public class ActionPicker : Border
         _selectedIndex = -1;
         _selectedSubTag = null;
         _displayText.Text = "None";
-        _iconBlock.Text = "—";
+        _iconBlock.Text = "\u2014";
         _iconBlock.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
     }
 
@@ -632,7 +558,6 @@ public class ActionPicker : Border
                 // Show entity name on the button
                 _displayText.Text = subItem.Display;
 
-                CloseSubFlyout();
                 CloseFlyout();
 
                 RebuildAllPopupItems();
@@ -678,7 +603,7 @@ public class ActionPicker : Border
         else
         {
             _displayText.Text = "None";
-            _iconBlock.Text = "—";
+            _iconBlock.Text = "\u2014";
             _iconBlock.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
         }
 
@@ -742,7 +667,7 @@ public class ActionPicker : Border
             rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var arrow = new TextBlock
             {
-                Text = "›",
+                Text = "\u203A",
                 FontSize = 14,
                 Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
                 VerticalAlignment = VerticalAlignment.Center,
@@ -785,8 +710,8 @@ public class ActionPicker : Border
             {
                 _subOpenTimer.Stop();
                 _hoveredSubMenuIdx = -1;
-                if (_subIsOpen)
-                    CloseSubFlyout();
+                // Don't close sub-panel here -- prevents premature close during
+                // diagonal mouse movement between main item and sub-panel
             }
         };
         row.MouseLeave += (_, _) =>
@@ -806,7 +731,7 @@ public class ActionPicker : Border
             if (hasSubMenu)
             {
                 _subOpenTimer.Stop();
-                OpenSubFlyout(item.Value, capturedIdx);
+                OpenSubMenu(item.Value);
                 e.Handled = true;
                 return;
             }
@@ -818,7 +743,6 @@ public class ActionPicker : Border
         };
 
         _itemsPanel.Children.Add(row);
-        _itemRowElements[idx] = row;
     }
 
     private Dictionary<int, int> BuildCategoryMap()
@@ -837,7 +761,6 @@ public class ActionPicker : Border
     private void RebuildAllPopupItems()
     {
         _itemsPanel.Children.Clear();
-        _itemRowElements.Clear();
         var categoryMap = BuildCategoryMap();
         int currentCategory = -1;
         var accent = ThemeManager.Accent;
@@ -853,7 +776,7 @@ public class ActionPicker : Border
                 if (cat >= 0)
                 {
                     var catName = _categories[cat].CategoryName.ToUpperInvariant();
-                    var (icon, color) = CategoryStyles.GetValueOrDefault(catName, ("•", accent));
+                    var (icon, color) = CategoryStyles.GetValueOrDefault(catName, ("\u2022", accent));
 
                     var headerRow = new StackPanel
                     {

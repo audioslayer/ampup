@@ -13,8 +13,8 @@ namespace AmpUp.Controls;
 /// <summary>
 /// A categorized target picker. Shows current selection as a styled row;
 /// click opens a dark borderless Window flyout with categorized items as full-width text rows.
-/// Items can optionally have sub-menus that slide out to the right.
-/// Uses borderless Windows instead of Popups to avoid Win11 click-through bugs.
+/// Items with sub-menus expand an inline sub-panel to the right within the same Window.
+/// Uses a borderless Window instead of Popup to avoid Win11 click-through bugs.
 /// </summary>
 public class GridPicker : Border
 {
@@ -28,10 +28,9 @@ public class GridPicker : Border
     private Window? _flyout;
     private bool _isOpen = false;
 
-    // Sub-flyout
-    private Window? _subFlyout;
-    private bool _subIsOpen = false;
-    private readonly Border _subPopupBorder;
+    // Inline sub-panel (replaces second Window)
+    private readonly Border _subPanelBorder;
+    private readonly Border _subDivider;
     private readonly StackPanel _subItemsPanel;
     private readonly ScrollViewer _subScrollViewer;
     private readonly TextBox _subFilterBox;
@@ -40,11 +39,7 @@ public class GridPicker : Border
     private object? _activeSubParentTag;
     private List<SubItem> _activeSubItems = new();
     private readonly DispatcherTimer _subOpenTimer;
-    private readonly DispatcherTimer _closeTimer;
     private int _hoveredSubMenuIdx = -1;
-
-    // Tracks the screen position of hovered sub-menu item for sub-flyout placement
-    private UIElement? _lastSubMenuTarget;
 
     private int _selectedIndex = -1;
     private string? _selectedSubTag; // stores the sub-item tag when a sub-menu item is selected
@@ -129,21 +124,11 @@ public class GridPicker : Border
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             MaxHeight = 420,
+            MaxWidth = 280,
             Content = _categoriesPanel
         };
 
-        _popupBorder = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(6, 8, 6, 8),
-            Child = _scrollViewer,
-            MaxWidth = 280,
-        };
-
-        // ── Sub-flyout content ──
+        // ── Inline sub-panel content ──
         _subItemsPanel = new StackPanel();
         _subScrollViewer = new ScrollViewer
         {
@@ -188,40 +173,39 @@ public class GridPicker : Border
         subStack.Children.Add(subFilterContainer);
         subStack.Children.Add(_subScrollViewer);
 
-        _subPopupBorder = new Border
+        _subPanelBorder = new Border
+        {
+            Background = Brushes.Transparent,
+            Padding = new Thickness(4, 6, 4, 6),
+            Child = subStack,
+            MinWidth = 200,
+            MaxWidth = 300,
+            Visibility = Visibility.Collapsed,
+        };
+
+        // Thin vertical divider between main items and sub-panel
+        _subDivider = new Border
+        {
+            Width = 1,
+            Background = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
+            Margin = new Thickness(0, 8, 0, 8),
+            Visibility = Visibility.Collapsed,
+        };
+
+        // Horizontal layout: main items | divider | sub-panel
+        var hStack = new StackPanel { Orientation = Orientation.Horizontal };
+        hStack.Children.Add(_scrollViewer);
+        hStack.Children.Add(_subDivider);
+        hStack.Children.Add(_subPanelBorder);
+
+        _popupBorder = new Border
         {
             Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
             BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(4, 6, 4, 6),
-            Child = subStack,
-            MinWidth = 200,
-            MaxWidth = 300,
-        };
-
-        // Polling timer: closes both flyouts when mouse leaves all windows
-        _closeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
-        _closeTimer.Tick += (_, _) =>
-        {
-            // Grace period: skip first 3 ticks (750ms) after sub-flyout opens
-            if (_closeGraceTicks_field > 0) { _closeGraceTicks_field--; return; }
-
-            // Check mouse position (more reliable across HWNDs than IsMouseOver)
-            var pos = Mouse.GetPosition(_popupBorder);
-            bool overMain = pos.X >= 0 && pos.Y >= 0
-                && pos.X <= _popupBorder.ActualWidth && pos.Y <= _popupBorder.ActualHeight;
-
-            var subPos = Mouse.GetPosition(_subPopupBorder);
-            bool overSub = subPos.X >= 0 && subPos.Y >= 0
-                && subPos.X <= _subPopupBorder.ActualWidth && subPos.Y <= _subPopupBorder.ActualHeight;
-
-            if (IsMouseOver || overMain || overSub)
-                return;
-
-            _closeTimer.Stop();
-            CloseSubFlyout();
-            CloseFlyout();
+            Padding = new Thickness(6, 8, 6, 8),
+            Child = hStack,
         };
 
         // Timer for delayed sub-menu open on hover
@@ -233,7 +217,7 @@ public class GridPicker : Border
             {
                 var tag = _items[_hoveredSubMenuIdx].Tag as string;
                 if (tag != null && _subMenuProviders.ContainsKey(tag))
-                    OpenSubFlyout(tag, _hoveredSubMenuIdx);
+                    OpenSubMenu(tag);
             }
         };
 
@@ -260,6 +244,8 @@ public class GridPicker : Border
             if (_isOpen) CloseFlyout(); else OpenFlyout();
             e.Handled = true;
         };
+
+        Unloaded += (_, _) => _subOpenTimer.Stop();
     }
 
     // ── Main flyout ───────────────────────────────────────────────
@@ -297,11 +283,9 @@ public class GridPicker : Border
 
         _flyout.Deactivated += (_, _) =>
         {
-            // Don't close main if sub-flyout is activating
-            if (_subIsOpen) return;
             CloseFlyout();
         };
-        _flyout.KeyDown += (_, e) => { if (e.Key == Key.Escape) { CloseSubFlyout(); CloseFlyout(); } };
+        _flyout.KeyDown += (_, e) => { if (e.Key == Key.Escape) CloseFlyout(); };
 
         // Slide-down + fade-in animation (120ms)
         var translate = new TranslateTransform(0, -8);
@@ -325,8 +309,8 @@ public class GridPicker : Border
     {
         if (!_isOpen) return;
         _isOpen = false;
-        _closeTimer.Stop();
-        CloseSubFlyout();
+        _subOpenTimer.Stop();
+        CloseSubPanel();
 
         // Detach child before close so _popupBorder can be reused
         if (_flyout?.Content is Border b)
@@ -340,9 +324,9 @@ public class GridPicker : Border
         _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
     }
 
-    // ── Sub-flyout ───────────────────────────────────────────────
+    // ── Inline sub-panel ──────────────────────────────────────────
 
-    private void OpenSubFlyout(string parentTag, int itemIdx)
+    private void OpenSubMenu(string parentTag)
     {
         if (!_subMenuProviders.TryGetValue(parentTag, out var provider))
             return;
@@ -361,82 +345,19 @@ public class GridPicker : Border
         _subFilterBox.Text = "";
         _subFilterText = "";
 
-        // Detach from any previous sub-flyout
-        if (_subPopupBorder.Parent is Border oldParent)
-            oldParent.Child = null;
-
-        var outerBorder = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
-            Child = _subPopupBorder,
-        };
-
-        _subFlyout = new Window
-        {
-            WindowStyle = WindowStyle.None,
-            ResizeMode = ResizeMode.NoResize,
-            SizeToContent = SizeToContent.WidthAndHeight,
-            ShowInTaskbar = false,
-            Topmost = true,
-            AllowsTransparency = false,
-            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
-            Content = outerBorder
-        };
-
-        // Position to the right of the hovered item row
-        Point screenPos;
-        if (_lastSubMenuTarget != null && _isOpen)
-        {
-            try
-            {
-                screenPos = _lastSubMenuTarget.PointToScreen(
-                    new Point(_popupBorder.ActualWidth + 6, -6));
-            }
-            catch
-            {
-                screenPos = _popupBorder.PointToScreen(new Point(_popupBorder.ActualWidth + 6, 0));
-            }
-        }
-        else
-        {
-            screenPos = _popupBorder.PointToScreen(new Point(_popupBorder.ActualWidth + 6, 0));
-        }
-
-        _subFlyout.Left = screenPos.X;
-        _subFlyout.Top = screenPos.Y;
-
-        _subFlyout.Deactivated += (_, _) =>
-        {
-            // Don't auto-close; poll timer handles mouse-leave close
-        };
-        _subFlyout.KeyDown += (_, e) => { if (e.Key == Key.Escape) { CloseSubFlyout(); CloseFlyout(); } };
-
-        _subFlyout.Show();
-        _subIsOpen = true;
-
-        // Start polling timer now that sub is open
-        _closeGraceTicks_field = 3;
-        _closeTimer.Start();
+        // Show the inline sub-panel and divider
+        _subDivider.Visibility = Visibility.Visible;
+        _subPanelBorder.Visibility = Visibility.Visible;
 
         if (showFilter)
             _subFilterBox.Focus();
     }
 
-    // Grace tick counter stored as field (DispatcherTimer closure can't capture locals across calls)
-    private int _closeGraceTicks_field = 0;
-
-    private void CloseSubFlyout()
+    private void CloseSubPanel()
     {
-        if (!_subIsOpen) return;
-        _subIsOpen = false;
         _hoveredSubMenuIdx = -1;
-        _closeTimer.Stop();
-
-        if (_subFlyout?.Content is Border b)
-            b.Child = null;
-
-        _subFlyout?.Close();
-        _subFlyout = null;
+        _subDivider.Visibility = Visibility.Collapsed;
+        _subPanelBorder.Visibility = Visibility.Collapsed;
     }
 
     // ── Item management ─────────────────────────────────────────
@@ -454,7 +375,7 @@ public class GridPicker : Border
 
     /// <summary>
     /// Register a sub-menu provider for items with the given tag.
-    /// When hovered/clicked, a slide-out panel shows the provider's items.
+    /// When hovered/clicked, an inline panel shows the provider's items.
     /// </summary>
     public void RegisterSubMenu(string parentTag, Func<List<SubItem>> provider)
     {
@@ -643,7 +564,6 @@ public class GridPicker : Border
                 _label.Text = subItem.Display;
                 _label.Foreground = new SolidColorBrush(AccentColor);
 
-                CloseSubFlyout();
                 CloseFlyout();
 
                 RebuildPopupItems();
@@ -828,17 +748,14 @@ public class GridPicker : Border
                 if (hasSubMenu)
                 {
                     _hoveredSubMenuIdx = idx;
-                    _lastSubMenuTarget = itemRow;
                     _subOpenTimer.Stop();
                     _subOpenTimer.Start();
                 }
                 else
                 {
-                    // Close sub-flyout if hovering a non-sub-menu item
+                    // Non-sub-menu item: stop timer, clear hover index, but don't close sub-panel
                     _subOpenTimer.Stop();
                     _hoveredSubMenuIdx = -1;
-                    if (_subIsOpen)
-                        CloseSubFlyout();
                 }
             };
             itemRow.MouseLeave += (_, _) =>
@@ -857,7 +774,7 @@ public class GridPicker : Border
                 {
                     // Open sub-menu immediately on click
                     _subOpenTimer.Stop();
-                    OpenSubFlyout(itemTag as string ?? "", idx);
+                    OpenSubMenu(itemTag as string ?? "");
                     e.Handled = true;
                     return;
                 }
