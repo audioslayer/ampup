@@ -373,43 +373,61 @@ public class BindingsView : UserControl
                 Foreground = (SolidColorBrush)FindResource("TextPrimaryBrush"),
                 VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxWidth = 90
+                MaxWidth = 160,
             });
         }
         content.Children.Add(titleRow);
 
         // Target
         var targetDisplay = FormatTarget(knob);
-        content.Children.Add(new TextBlock
-        {
-            Text = targetDisplay,
-            FontSize = 11,
-            Foreground = isEmpty
-                ? (SolidColorBrush)FindResource("TextDimBrush")
-                : (SolidColorBrush)FindResource("AccentBrush"),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 4)
-        });
 
-        // Range (only if not default 0-100)
-        if (knob.MinVolume != 0 || knob.MaxVolume != 100)
+        if (knob.Target == "apps" && knob.Apps.Count > 0)
         {
-            content.Children.Add(new TextBlock
+            // Show apps as chips
+            var chipWrap = new WrapPanel { Margin = new Thickness(0, 0, 0, 2) };
+            foreach (var app in knob.Apps.Take(4))
             {
-                Text = $"Range: {knob.MinVolume}–{knob.MaxVolume}%",
-                FontSize = 10,
-                Foreground = (SolidColorBrush)FindResource("TextSecBrush")
-            });
+                var accent = ThemeManager.Accent;
+                chipWrap.Children.Add(new Border
+                {
+                    Background = new SolidColorBrush(Color.FromArgb(0x20, accent.R, accent.G, accent.B)),
+                    BorderBrush = new SolidColorBrush(Color.FromArgb(0x44, accent.R, accent.G, accent.B)),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(8),
+                    Padding = new Thickness(6, 1, 6, 1),
+                    Margin = new Thickness(0, 0, 3, 3),
+                    Child = new TextBlock
+                    {
+                        Text = app,
+                        FontSize = 9,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
+                    }
+                });
+            }
+            if (knob.Apps.Count > 4)
+            {
+                chipWrap.Children.Add(new TextBlock
+                {
+                    Text = $"+{knob.Apps.Count - 4}",
+                    FontSize = 9,
+                    Foreground = (SolidColorBrush)FindResource("TextDimBrush"),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(2, 0, 0, 3),
+                });
+            }
+            content.Children.Add(chipWrap);
         }
-
-        // Curve (only if not Linear)
-        if (knob.Curve != ResponseCurve.Linear)
+        else
         {
             content.Children.Add(new TextBlock
             {
-                Text = $"Curve: {knob.Curve}",
-                FontSize = 10,
-                Foreground = (SolidColorBrush)FindResource("TextSecBrush")
+                Text = targetDisplay,
+                FontSize = 11,
+                Foreground = isEmpty
+                    ? (SolidColorBrush)FindResource("TextDimBrush")
+                    : (SolidColorBrush)FindResource("AccentBrush"),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                Margin = new Thickness(0, 0, 0, 2)
             });
         }
 
@@ -508,19 +526,19 @@ public class BindingsView : UserControl
         ActionDisplayNames.TryGetValue(action, out var displayName);
 
         displayName ??= action;
-        icon ??= "•";
 
-        var row = new StackPanel { Margin = new Thickness(0, 2, 0, 2) };
+        // Grid: [badge 36px] [icon+action fills]
+        var grid = new Grid { Margin = new Thickness(0, 1, 0, 1) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var topRow = new WrapPanel();
-
-        // Gesture type badge
-        topRow.Children.Add(new Border
+        // Gesture badge — fixed width so TAP/DBL/HOLD all align
+        var badge = new Border
         {
             Background = new SolidColorBrush(Color.FromArgb(0x30, gestureColor.R, gestureColor.G, gestureColor.B)),
-            CornerRadius = new CornerRadius(2),
-            Padding = new Thickness(3, 0, 3, 0),
-            Margin = new Thickness(0, 0, 4, 0),
+            CornerRadius = new CornerRadius(3),
+            Padding = new Thickness(4, 1, 4, 1),
+            HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
             Child = new TextBlock
             {
@@ -529,46 +547,24 @@ public class BindingsView : UserControl
                 FontWeight = FontWeights.SemiBold,
                 Foreground = new SolidColorBrush(gestureColor)
             }
-        });
+        };
+        Grid.SetColumn(badge, 0);
+        grid.Children.Add(badge);
 
-        // Action icon + name
-        if (!string.IsNullOrEmpty(icon) && icon != "—")
-        {
-            topRow.Children.Add(new TextBlock
-            {
-                Text = icon + " ",
-                FontSize = 10,
-                VerticalAlignment = VerticalAlignment.Center
-            });
-        }
-
-        topRow.Children.Add(new TextBlock
+        // Action name (no icon — cleaner)
+        var actionText = new TextBlock
         {
             Text = displayName,
             FontSize = 10,
             FontWeight = FontWeights.Medium,
             Foreground = new SolidColorBrush(actionColor),
-            VerticalAlignment = VerticalAlignment.Center
-        });
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        Grid.SetColumn(actionText, 1);
+        grid.Children.Add(actionText);
 
-        row.Children.Add(topRow);
-
-        // Context detail (path / macro / profile)
-        var detail = GetActionDetail(action, path, macroKeys, profileName);
-        if (!string.IsNullOrEmpty(detail))
-        {
-            row.Children.Add(new TextBlock
-            {
-                Text = detail,
-                FontSize = 9,
-                Foreground = (SolidColorBrush)Application.Current.MainWindow!.FindResource("TextSecBrush"),
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                Margin = new Thickness(0, 1, 0, 0),
-                MaxWidth = 130
-            });
-        }
-
-        return row;
+        return grid;
     }
 
     private static string GetActionDetail(string action, string path, string macroKeys, string profileName)
