@@ -805,6 +805,22 @@ public partial class MixerView : UserControl
             .ToList();
     }
 
+    private List<GridPicker.SubItem> GetGoveeSubItems(AppConfig config)
+    {
+        var clr = Color.FromRgb(0xFF, 0xB7, 0x4D);
+        return config.Ambience.GoveeDevices
+            .Where(d => !string.IsNullOrWhiteSpace(d.Ip))
+            .Select(d =>
+            {
+                var nameIsIp = d.Name == d.Ip || System.Net.IPAddress.TryParse(d.Name, out _);
+                var displayName = !string.IsNullOrWhiteSpace(d.Name) && !nameIsIp ? d.Name
+                    : !string.IsNullOrEmpty(d.Sku) ? AmbienceSync.GetProductName(d.Sku)
+                    : d.Ip;
+                return new GridPicker.SubItem(displayName, d.Ip, "◈", clr);
+            })
+            .ToList();
+    }
+
     // --- Picker helpers ---
 
     private void RebuildTargetPickerItems(AppConfig config)
@@ -868,20 +884,8 @@ public partial class MixerView : UserControl
 
                 if (goveeEnabled)
                 {
-                    foreach (var device in config.Ambience.GoveeDevices)
-                    {
-                        if (!string.IsNullOrWhiteSpace(device.Ip))
-                        {
-                            // Show friendly product name from SKU, or Cloud API name if available
-                            var nameIsIp = device.Name == device.Ip || System.Net.IPAddress.TryParse(device.Name, out _);
-                            var displayName = !string.IsNullOrWhiteSpace(device.Name) && !nameIsIp ? device.Name
-                                : !string.IsNullOrEmpty(device.Sku) ? AmbienceSync.GetProductName(device.Sku)
-                                : device.Ip;
-                            picker.AddItem($"Govee: {displayName}", $"govee:{device.Ip}", "◈", clrGovee);
-                        }
-                    }
-                    if (!config.Ambience.GoveeDevices.Any(d => !string.IsNullOrWhiteSpace(d.Ip)))
-                        picker.AddItem("Govee", "govee", "◈", clrGovee); // fallback if no devices configured
+                    picker.AddItem("Govee", "govee", "◈", clrGovee, "Room Lighting");
+                    picker.RegisterSubMenu("govee", () => GetGoveeSubItems(config));
                 }
             }
 
@@ -920,7 +924,17 @@ public partial class MixerView : UserControl
             return;
         }
 
-        // Try exact match first (handles "govee:IP", etc.)
+        // Govee target with device IP — use sub-tag selection
+        if (baseTarget == "govee" && target.Contains(':'))
+        {
+            var deviceIp = target.Substring(6); // skip "govee:"
+            var goveeDevice = _config?.Ambience.GoveeDevices.FirstOrDefault(d => d.Ip == deviceIp);
+            var displayName = goveeDevice?.Name ?? deviceIp;
+            picker.SelectByTag("govee", deviceIp, displayName);
+            return;
+        }
+
+        // Try exact match first
         for (int i = 0; i < picker.ItemCount; i++)
         {
             if (picker.GetTagAt(i) as string == target)
@@ -1096,6 +1110,11 @@ public partial class MixerView : UserControl
             {
                 var entityId = _targetPickers[i].SelectedSubTag ?? "";
                 knob.Target = !string.IsNullOrEmpty(entityId) ? $"{selectedTarget}:{entityId}" : selectedTarget;
+            }
+            else if (selectedTarget == "govee")
+            {
+                var deviceIp = _targetPickers[i].SelectedSubTag ?? "";
+                knob.Target = !string.IsNullOrEmpty(deviceIp) ? $"govee:{deviceIp}" : "govee";
             }
             else if (selectedTarget == "apps")
             {
