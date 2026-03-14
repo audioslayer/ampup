@@ -35,6 +35,7 @@ public class GridPicker : Border
     private readonly ScrollViewer _subScrollViewer;
     private readonly TextBox _subFilterBox;
     private readonly TextBlock _subFilterPlaceholder;
+    private readonly TextBlock _subHeaderLabel;
     private string _subFilterText = "";
     private object? _activeSubParentTag;
     private List<SubItem> _activeSubItems = new();
@@ -129,31 +130,40 @@ public class GridPicker : Border
         };
 
         // ── Inline sub-panel content ──
+        _subHeaderLabel = new TextBlock
+        {
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
+            Margin = new Thickness(8, 2, 0, 6),
+        };
+
         _subItemsPanel = new StackPanel();
         _subScrollViewer = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            MaxHeight = 300,
+            MaxHeight = 380,
             Content = _subItemsPanel
         };
 
         _subFilterBox = new TextBox
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+            Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
             Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
             CaretBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Padding = new Thickness(8, 6, 8, 6),
-            FontSize = 12,
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(8, 5, 8, 5),
+            FontSize = 11,
             Visibility = Visibility.Collapsed,
+            Margin = new Thickness(4, 0, 4, 6),
         };
         _subFilterPlaceholder = new TextBlock
         {
-            Text = "Filter...",
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            FontSize = 12,
-            Padding = new Thickness(10, 7, 0, 0),
+            Text = "Search...",
+            Foreground = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44)),
+            FontSize = 11,
+            Padding = new Thickness(14, 6, 0, 0),
             IsHitTestVisible = false,
             Visibility = Visibility.Collapsed,
         };
@@ -165,17 +175,19 @@ public class GridPicker : Border
             ApplySubFilter();
         };
 
-        var subFilterContainer = new Grid();
+        var subFilterContainer = new Grid { Margin = new Thickness(0, 0, 0, 0) };
         subFilterContainer.Children.Add(_subFilterBox);
         subFilterContainer.Children.Add(_subFilterPlaceholder);
 
         var subStack = new StackPanel();
+        subStack.Children.Add(_subHeaderLabel);
         subStack.Children.Add(subFilterContainer);
         subStack.Children.Add(_subScrollViewer);
 
         _subPanelBorder = new Border
         {
-            Background = Brushes.Transparent,
+            Background = new SolidColorBrush(Color.FromRgb(0x11, 0x11, 0x11)),
+            CornerRadius = new CornerRadius(0, 8, 8, 0),
             Padding = new Thickness(4, 6, 4, 6),
             Child = subStack,
             MinWidth = 200,
@@ -187,8 +199,8 @@ public class GridPicker : Border
         _subDivider = new Border
         {
             Width = 1,
-            Background = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
-            Margin = new Thickness(0, 8, 0, 8),
+            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            Margin = new Thickness(0, 10, 0, 10),
             Visibility = Visibility.Collapsed,
         };
 
@@ -337,6 +349,10 @@ public class GridPicker : Border
         _activeSubParentTag = parentTag;
         _activeSubItems = items;
 
+        // Set header from parent item display name
+        var parentDisplay = _items.FirstOrDefault(i => i.Tag as string == parentTag).Display ?? parentTag;
+        _subHeaderLabel.Text = parentDisplay.ToUpperInvariant();
+
         RebuildSubItems();
 
         var showFilter = _activeSubItems.Count > 8;
@@ -348,6 +364,9 @@ public class GridPicker : Border
         // Show the inline sub-panel and divider
         _subDivider.Visibility = Visibility.Visible;
         _subPanelBorder.Visibility = Visibility.Visible;
+
+        // Refresh main items to highlight the active parent
+        RebuildPopupItems();
 
         if (showFilter)
             _subFilterBox.Focus();
@@ -662,12 +681,16 @@ public class GridPicker : Border
             bool hasSubMenu = itemTag is string tagStr
                 && _subMenuProviders.TryGetValue(tagStr, out var subProvider)
                 && subProvider().Count > 0;
+            bool isActiveSubParent = hasSubMenu && _subPanelBorder.Visibility == Visibility.Visible
+                && itemTag as string == _activeSubParentTag as string;
 
             var itemRow = new Border
             {
                 Background = selected
                     ? new SolidColorBrush(Color.FromArgb(0x18, AccentColor.R, AccentColor.G, AccentColor.B))
-                    : Brushes.Transparent,
+                    : isActiveSubParent
+                        ? new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E))
+                        : Brushes.Transparent,
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(10, 7, 10, 7),
                 Margin = new Thickness(2, 1, 2, 1),
@@ -699,7 +722,7 @@ public class GridPicker : Border
                 {
                     Text = "›",
                     FontSize = 14,
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
+                    Foreground = new SolidColorBrush(isActiveSubParent ? AccentColor : Color.FromRgb(0x66, 0x66, 0x66)),
                     VerticalAlignment = VerticalAlignment.Center,
                     Margin = new Thickness(8, 0, 0, 0),
                     FontWeight = FontWeights.Bold
@@ -727,8 +750,8 @@ public class GridPicker : Border
             {
                 Text = display,
                 FontSize = 12,
-                Foreground = new SolidColorBrush(selected ? AccentColor : Color.FromRgb(0xCC, 0xCC, 0xCC)),
-                FontWeight = selected ? FontWeights.Medium : FontWeights.Normal,
+                Foreground = new SolidColorBrush(selected || isActiveSubParent ? AccentColor : Color.FromRgb(0xCC, 0xCC, 0xCC)),
+                FontWeight = selected || isActiveSubParent ? FontWeights.Medium : FontWeights.Normal,
                 VerticalAlignment = VerticalAlignment.Center
             };
             itemPanel.Children.Add(itemText);

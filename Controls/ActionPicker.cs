@@ -36,6 +36,7 @@ public class ActionPicker : Border
     private readonly ScrollViewer _subScrollViewer;
     private readonly TextBox _subFilterBox;
     private readonly TextBlock _subFilterPlaceholder;
+    private readonly TextBlock _subHeaderLabel;
     private string _subFilterText = "";
     private string? _activeSubParentValue;
     private List<SubItem> _activeSubItems = new();
@@ -134,31 +135,40 @@ public class ActionPicker : Border
         };
 
         // ── Inline sub-panel content ──
+        _subHeaderLabel = new TextBlock
+        {
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
+            Margin = new Thickness(8, 2, 0, 6),
+        };
+
         _subItemsPanel = new StackPanel();
         _subScrollViewer = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            MaxHeight = 300,
+            MaxHeight = 360,
             Content = _subItemsPanel
         };
 
         _subFilterBox = new TextBox
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+            Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
             Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
             CaretBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Padding = new Thickness(8, 6, 8, 6),
-            FontSize = 12,
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(8, 5, 8, 5),
+            FontSize = 11,
             Visibility = Visibility.Collapsed,
+            Margin = new Thickness(4, 0, 4, 6),
         };
         _subFilterPlaceholder = new TextBlock
         {
-            Text = "Filter...",
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            FontSize = 12,
-            Padding = new Thickness(10, 7, 0, 0),
+            Text = "Search...",
+            Foreground = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44)),
+            FontSize = 11,
+            Padding = new Thickness(14, 6, 0, 0),
             IsHitTestVisible = false,
             Visibility = Visibility.Collapsed,
         };
@@ -175,12 +185,14 @@ public class ActionPicker : Border
         subFilterContainer.Children.Add(_subFilterPlaceholder);
 
         var subStack = new StackPanel();
+        subStack.Children.Add(_subHeaderLabel);
         subStack.Children.Add(subFilterContainer);
         subStack.Children.Add(_subScrollViewer);
 
         _subPanelBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
+            Background = new SolidColorBrush(Color.FromRgb(0x11, 0x11, 0x11)),
+            CornerRadius = new CornerRadius(0, 6, 6, 0),
             Padding = new Thickness(4, 6, 4, 6),
             Child = subStack,
             MinWidth = 200,
@@ -192,8 +204,8 @@ public class ActionPicker : Border
         _subDivider = new Border
         {
             Width = 1,
-            Background = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
-            Margin = new Thickness(0, 8, 0, 8),
+            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            Margin = new Thickness(0, 10, 0, 10),
             Visibility = Visibility.Collapsed,
         };
 
@@ -343,6 +355,10 @@ public class ActionPicker : Border
         _activeSubParentValue = actionValue;
         _activeSubItems = items;
 
+        // Set header from parent item display name
+        var parentDisplay = _items.FirstOrDefault(i => i.Value == actionValue).Display ?? actionValue;
+        _subHeaderLabel.Text = parentDisplay.ToUpperInvariant();
+
         RebuildSubItems();
 
         var showFilter = _activeSubItems.Count > 8;
@@ -354,6 +370,9 @@ public class ActionPicker : Border
         // Show the inline sub-panel and divider
         _subDivider.Visibility = Visibility.Visible;
         _subPanelBorder.Visibility = Visibility.Visible;
+
+        // Refresh main items to highlight active parent
+        RebuildAllPopupItems();
 
         if (showFilter)
             _subFilterBox.Focus();
@@ -619,11 +638,13 @@ public class ActionPicker : Border
         bool selected = idx == _selectedIndex;
         bool hasSubMenu = _subMenuProviders.TryGetValue(item.Value, out var subProvider)
             && subProvider().Count > 0;
+        bool isActiveSubParent = hasSubMenu && _subPanelBorder.Visibility == Visibility.Visible
+            && item.Value == _activeSubParentValue;
 
         var accentBar = new Border
         {
             Width = 3,
-            Background = selected
+            Background = selected || isActiveSubParent
                 ? new SolidColorBrush(ThemeManager.Accent)
                 : Brushes.Transparent,
             CornerRadius = new CornerRadius(1),
@@ -644,10 +665,10 @@ public class ActionPicker : Border
             Text = item.Display,
             FontSize = 12,
             VerticalAlignment = VerticalAlignment.Center,
-            Foreground = selected
+            Foreground = selected || isActiveSubParent
                 ? new SolidColorBrush(ThemeManager.Accent)
                 : new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
-            FontWeight = selected ? FontWeights.Medium : FontWeights.Normal,
+            FontWeight = selected || isActiveSubParent ? FontWeights.Medium : FontWeights.Normal,
         };
 
         var rowGrid = new Grid();
@@ -669,7 +690,7 @@ public class ActionPicker : Border
             {
                 Text = "\u203A",
                 FontSize = 14,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
+                Foreground = new SolidColorBrush(isActiveSubParent ? ThemeManager.Accent : Color.FromRgb(0x66, 0x66, 0x66)),
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(8, 0, 4, 0),
                 FontWeight = FontWeights.Bold
@@ -684,7 +705,9 @@ public class ActionPicker : Border
             Cursor = Cursors.Hand,
             Background = selected
                 ? new SolidColorBrush(Color.FromArgb(0x1F, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B))
-                : Brushes.Transparent,
+                : isActiveSubParent
+                    ? new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E))
+                    : Brushes.Transparent,
             SnapsToDevicePixels = true,
             Child = rowGrid,
             ToolTip = item.Tooltip,
