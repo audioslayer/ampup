@@ -541,6 +541,20 @@ public class BindingsView : UserControl
 
         displayName ??= action;
 
+        // Append context for actions that need it
+        var context = action switch
+        {
+            "launch_exe" or "close_program" or "mute_program" when !string.IsNullOrEmpty(path)
+                => System.IO.Path.GetFileNameWithoutExtension(path),
+            "switch_profile" when !string.IsNullOrEmpty(profileName)
+                => profileName,
+            "macro" when !string.IsNullOrEmpty(macroKeys)
+                => macroKeys,
+            _ => null
+        };
+        if (context != null)
+            displayName = $"{displayName}: {context}";
+
         // Grid: [badge 36px] [icon+action fills]
         var grid = new Grid { Margin = new Thickness(0, 1, 0, 1) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });

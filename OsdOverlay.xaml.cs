@@ -302,9 +302,10 @@ public partial class OsdOverlay : Window
             // Button action
             string action = btn?.Action ?? "none";
             bool hasAction = !string.IsNullOrEmpty(action) && action != "none";
+            var actionLabel = hasAction ? FormatActionWithContext(action, btn) : "\u2014";
             var btnText = new TextBlock
             {
-                Text = hasAction ? "\u25B8 " + FormatAction(action) : "\u2014",
+                Text = hasAction ? "\u25B8 " + actionLabel : "\u2014",
                 FontSize = 10,
                 Foreground = new SolidColorBrush(hasAction
                     ? Color.FromRgb(0x99, 0x99, 0x99)
@@ -401,6 +402,26 @@ public partial class OsdOverlay : Window
         "power_hibernate" => "Hibernate",
         _ => string.Join(" ", action.Split('_').Select(w => w.Length > 0 ? char.ToUpper(w[0]) + w[1..] : w))
     };
+
+    private static string FormatActionWithContext(string action, ButtonConfig? btn)
+    {
+        var name = FormatAction(action);
+        if (btn == null) return name;
+
+        var context = action switch
+        {
+            "launch_exe" or "close_program" or "mute_program"
+                when !string.IsNullOrEmpty(btn.Path)
+                => System.IO.Path.GetFileNameWithoutExtension(btn.Path),
+            "switch_profile" when !string.IsNullOrEmpty(btn.ProfileName)
+                => btn.ProfileName,
+            "macro" when !string.IsNullOrEmpty(btn.MacroKeys)
+                => btn.MacroKeys,
+            _ => null
+        };
+
+        return context != null ? $"{name}: {context}" : name;
+    }
 
     /// <summary>
     /// Show device switch: device name + output/input type.
