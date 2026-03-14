@@ -1078,12 +1078,18 @@ public partial class AmbienceView : UserControl
         // ── Settings row 1: Monitor + FPS + Zones ──
         var row1 = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
 
-        // Monitor selector
-        var monitorCount = ScreenCapture.MonitorCount;
+        // Monitor selector — show display name (e.g. "DELL U2723QE") or fallback
+        var screens = System.Windows.Forms.Screen.AllScreens;
+        var monitorCount = screens.Length;
         row1.Children.Add(MakeSubLabel("MONITOR"));
-        var monitorCombo = new ComboBox { Width = 110, Margin = new Thickness(0, 0, 20, 0), ToolTip = "Which monitor to capture" };
+        var monitorCombo = new ComboBox { Width = 180, Margin = new Thickness(0, 0, 20, 0), ToolTip = "Which monitor to capture" };
         for (int i = 0; i < monitorCount; i++)
-            monitorCombo.Items.Add($"Monitor {i + 1}");
+        {
+            var screen = screens[i];
+            var name = screen.DeviceName.Replace("\\\\.\\", "");
+            var label = screen.Primary ? $"{name} (Primary)" : name;
+            monitorCombo.Items.Add(label);
+        }
         monitorCombo.SelectedIndex = Math.Clamp(cfg.MonitorIndex, 0, Math.Max(0, monitorCount - 1));
         monitorCombo.SelectionChanged += (_, _) =>
         {
@@ -1145,6 +1151,7 @@ public partial class AmbienceView : UserControl
         {
             Minimum = 0.5, Maximum = 2.0, Value = cfg.Saturation,
             Width = 120, Margin = new Thickness(0, 0, 20, 0),
+            Suffix = "",
             ToolTip = "Boost color saturation — higher = more vivid room colors",
         };
         satSlider.ValueChanged += (_, _) =>
@@ -1173,6 +1180,7 @@ public partial class AmbienceView : UserControl
         {
             Minimum = 1, Maximum = 20, Value = cfg.Sensitivity,
             Width = 120, Margin = new Thickness(0, 0, 8, 0),
+            Suffix = "",
             ToolTip = "Minimum color change to trigger a send — lower = more reactive; higher = less flicker",
         };
         sensSlider.ValueChanged += (_, _) =>
