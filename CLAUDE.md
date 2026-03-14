@@ -51,27 +51,31 @@ MainWindow.xaml / .cs      FluentWindow with Mica, sidebar nav, connection statu
 Theme.xaml                 Glassmorphism color palette, card/text styles, custom green scrollbar, styled controls
 
 Views/
-  MixerView.xaml / .cs     5 channel strips — knob, VU meter, volume %, target/curve/range controls
-  ButtonsView.xaml / .cs   5 button tiles — 3 gesture rows (tap/double/hold), colorful action tiles
+  MixerView.xaml / .cs     5 channel strips — knob, VU meter, volume %, target/curve/range controls (sidebar label: "Knobs")
+                           App group uses chip/pill tags. Smart Mix (Voice Ducking + App Profiles) built in code-behind.
+  ButtonsView.xaml / .cs   5 button columns — 3 gesture rows (tap/double/hold), categorized action picker with sub-flyouts
   LightsView.xaml / .cs    Global lighting card + 5 LED columns — visual effect picker, colors, speed
-  SettingsView.xaml / .cs  Connection, startup, profiles, integrations (HA + FanControl)
-  HomeAssistantView.xaml/.cs  Home Assistant entity control
+  SettingsView.xaml / .cs  Connection, startup, profiles, OSD duration sliders, integrations (HA + Govee side-by-side)
   AmbienceView.xaml / .cs  Govee room lighting — LAN sync + Cloud dashboard (scenes, segments, music mode)
+                           DreamView screen sync card with zone preview. Hidden in sidebar when Govee not enabled.
+  BindingsView.xaml.cs     Profile Overview — all knob/button assignments across profiles with Preview OSD button
+                           (sidebar label: "Overview"). Cards tinted with LED colors. Click navigates to correct profile.
 
 Controls/
   AnimatedKnobControl.cs   WPF FrameworkElement — arc sweep knob, glow, frozen resources
   VuMeterControl.cs        WPF FrameworkElement — 16-segment VU meter, DrawingVisual, peak hold
   CurvePickerControl.cs    3 clickable mini graphs showing Linear/Log/Exp response curves
   EffectPickerControl.cs   Categorized grid of colorful icon tiles for LED effects (30+ effects)
-  ActionPickerControl.cs   Categorized grid of colorful icon tiles for button actions (26 actions)
-  CheckListPicker.cs       Multi-select checklist picker (for cycle device subset selection)
+  ActionPicker.cs          Categorized action dropdown with inline sub-panel for button actions
+  GridPicker.cs            Categorized target dropdown with inline sub-panel for knob targets
+                           Both use borderless Window flyout + inline sub-panel (single HWND, no cross-window issues).
+                           Items support optional subtitle text. Sub-panel shows context header + highlights active parent.
+  CheckListPicker.cs       Multi-select checklist picker (for cycle device subset selection, filtered by direction)
+  ListPicker.cs            Dropdown list picker with optional filter, accent highlighting
   TrayMixerPopup.cs        Glassmorphic per-app volume mixer popup (shown on tray left-click)
   SegmentedControl.cs      Pill-style segmented buttons
-  GridPicker.cs            Categorized grid picker (legacy, replaced by ActionPickerControl)
-  ListPicker.cs            Dropdown list picker
-  FlyoutPicker.cs          Floating picker popup
   RangeSlider.cs           Dual-thumb range slider
-  StyledSlider.cs          Single-thumb slider matching RangeSlider style (accent-aware)
+  StyledSlider.cs          Single-thumb slider matching RangeSlider style (accent-aware, ShowLabel toggle)
   GoveeSetupGuide.cs       4-step wizard window for Govee API key setup
 
 AmbienceSync.cs            Govee LAN UDP sync engine — discovery, color mirroring, rate limiting
@@ -84,13 +88,14 @@ RgbController.cs           RGB effects engine — 30+ effects (per-knob + global
 DuckingEngine.cs           Auto-ducking: monitors trigger app audio, fades target app volumes with smooth interpolation
 AutoProfileSwitcher.cs     Auto-profile switching: monitors foreground window, fires profile switch events with debounce
 MonitorBrightness.cs       DDC/CI physical monitor brightness via dxva2.dll
-NativeMethods.cs           Consolidated P/Invoke declarations (user32, PowrProf)
+DreamSyncController.cs     Screen sync engine — captures screen zones, sends colors to Govee via LAN UDP
+ScreenCapture.cs           GDI screen capture with zone sampling, gamma-correct averaging, dark pixel filtering
+NativeMethods.cs           P/Invoke declarations (user32, PowrProf, DisplayConfig for monitor friendly names)
 Config.cs                  Loads/saves config.json + profile system (Newtonsoft.Json)
 Logger.cs                  Appends to %AppData%\AmpUp\ampup.log
 UpdateChecker.cs           GitHub release version check — reads version from assembly at runtime
 config.json                User config — knob targets, button actions, RGB effects, profiles
 
-release.bat                One-command release: bumps version, commits, tags, pushes
 deploy.bat                 Local dev: git pull → build → kill old → launch
 build-installer.bat        Local installer build (dotnet publish + Inno Setup)
 .github/workflows/release.yml.disabled  GitHub Actions workflow (DISABLED — manual installer flow)
@@ -306,21 +311,27 @@ All transitions run 3 seconds (60 ticks at 20 FPS) then auto-clear.
 
 - **EffectPickerControl** — 15 LED effects as categorized icon tiles. 3 categories: STATIC, ANIMATED, REACTIVE. Each tile has its own unique color (Fire=orange, Sparkle=yellow, etc.). Dark glass tiles with accent glow on selection.
 
-- **ActionPickerControl** — 25 button actions as categorized icon tiles. 6 categories: MEDIA (green), MUTE (red), APP CONTROL (blue), DEVICE (purple), SYSTEM (gold), POWER (red). Tiles are 82×58px with 22px icons.
+- **GridPicker** — Categorized target dropdown with inline sub-panel. Used in MixerView for knob targets. Uses borderless Window flyout with inline sub-panel (single HWND, no cross-window issues). Items support subtitle text (e.g. "Home Assistant" + "Light"). Sub-panel shows context header + highlights active parent item.
 
-- **AnimatedKnobControl** — WPF FrameworkElement, `OnRender(DrawingContext)`. Arc sweep 225° start / 270° sweep via `StreamGeometry`. All Pen/Brush frozen as static fields.
+- **ActionPicker** — Categorized action dropdown with inline sub-panel. Used in ButtonsView for all 15 gesture action slots. 7 categories: MEDIA (green), MUTE (red), APP CONTROL (blue), DEVICE (purple), SYSTEM (gold), POWER (red), INTEGRATIONS (cyan). Same inline sub-panel pattern as GridPicker.
+
+- **AnimatedKnobControl** — WPF FrameworkElement, `OnRender(DrawingContext)`. Arc sweep 225° start / 270° sweep via `StreamGeometry`. All Pen/Brush frozen as static fields. Renders knob-face.png with colored arc ring.
 
 - **VuMeterControl** — WPF FrameworkElement, `DrawingVisual` child. 16 segments, color zones (cyan→yellow→red), peak hold 1.5s.
 
 ### View Details
 
-- **MixerView:** 5 channel strips with visual curve pickers (CurvePickerControl), app group toggle lists (inline checkboxes for running apps), hover glow on strip borders.
+- **MixerView (sidebar: "Knobs"):** 5 channel strips with visual curve pickers (CurvePickerControl), app group chip/pill tags (clickable, accent-tinted, wrap layout), hover glow on strip borders. GridPicker with sub-flyouts for output_device/input_device, HA entities (shown as "Home Assistant" + domain subtitle), Govee devices. Smart Mix section built in code-behind: Voice Ducking (ListPicker for trigger app, amount slider, collapsible Advanced for fade timing) + App Profiles (dynamic add/remove rules with app + profile ListPickers).
 
-- **ButtonsView:** Colorful button strip at top — tiles tinted by their action's color. 3 gesture sections per button with colored headers (TAP=green, DOUBLE=gold, HOLD=orange). ActionPickerControl for all 15 action slots.
+- **ButtonsView:** 5 column layout — one per button. 3 gesture sections per button with colored headers (TAP=green, DOUBLE=gold, HOLD=orange). ActionPicker with categorized dropdown and sub-flyouts for HA entities and audio device actions.
 
 - **LightsView:** Global Lighting card at top (checkbox + EffectPickerControl + colors + speed + brightness slider on right). 5 per-knob panels below (hidden when global is on). EffectPickerControl replaces dropdown.
 
-- **SettingsView:** Section headers with accent left-border indicators.
+- **SettingsView:** Section headers with accent left-border indicators. HA and Govee integrations displayed side-by-side. OSD section with per-type duration sliders (StyledSlider with ShowLabel=false, Suffix="s"). Profile section has Overview button.
+
+- **BindingsView (sidebar: "Overview"):** Profile Overview page showing all knob/button assignments across profiles. Knob cards tinted with LED color. Button cards show all gestures with colored TAP/DBL/HOLD badges. Preview OSD button per profile. Click any card to switch to that profile and navigate to the correct tab.
+
+- **AmbienceView:** Govee device cards with on/off, brightness, color scenes, music mode. DreamView screen sync card with monitor picker (friendly names via DisplayConfig API), FPS/zone selectors, saturation/sensitivity sliders (ShowLabel=false), live zone preview. Device cards dim when DreamView is active.
 
 ### Theme (Theme.xaml)
 
@@ -440,7 +451,12 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - **WPF emoji render monochrome** — Unicode emoji in TextBlock render as black glyphs, not color. Use colored text/shapes instead.
 - **Parallel agents can mismatch APIs** — when agents build caller and callee in parallel, method names may not match. Always verify interface alignment or build sequentially.
 - **Govee LAN API** — UDP multicast to 239.255.255.250:4001 for discovery, listen on 4002. Control via unicast to device IP:4001. Rate limit: max 10 sends/sec. Only supports on/off, brightness, solid color. No scenes/segments.
-- **Govee Cloud API** — REST at openapi.api.govee.com, header `Govee-API-Key`. Supports scenes, segments, music mode. Rate limit: ~100 req/min, 10k/day. API key from Govee app settings.
+- **Govee Cloud API** — REST at openapi.api.govee.com, header `Govee-API-Key`. Supports scenes, segments, music mode. Rate limit: ~100 req/min, 10k/day. API key from Govee app settings. No speed control for dynamic scenes (animation speed is baked into preset).
+- **Govee DreamView conflict** — DreamView sends screen colors at 30fps via LAN UDP. Cloud scene commands get immediately overridden. UI dims device cards when DreamView is active.
+- **WPF Popup HWND isolation** — Popups live in separate native windows, making MouseLeave/MouseEnter unreliable. GridPicker and ActionPicker avoid this by using borderless Window flyouts with inline sub-panels (no second window needed).
+- **Monitor friendly names** — `Screen.DeviceName` only gives `\\.\DISPLAY1`. Use `NativeMethods.GetMonitorFriendlyNames()` (DisplayConfig API) for real names like "DELL U2723QE".
+- **ScreenCapture gamma** — sRGB pixels must be linearized before averaging, then re-encoded. Simple RGB averaging produces darker/muddier results.
+- **StyledSlider ShowLabel** — Set `ShowLabel = false` when the value is displayed in a separate label to avoid duplicate display under the thumb.
 
 ---
 
@@ -454,4 +470,5 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - **v0.5.1-alpha** — Quick Assign from Tray (right-click tray → Assign Running Apps submenu → pick knob), Auto-Detect & Suggest Layout (amber banner in MixerView when known apps detected and knobs unconfigured), Knob Copy/Paste (right-click channel strip → Copy/Paste/Reset context menu with static clipboard).
 - **v0.5.2-alpha** — Bug fix: knob UI updates immediately on hardware turn (push position directly to MixerView via Dispatcher.BeginInvoke, bypassing 50ms poll). Bug fix: potentiometer jitter deadzone in SerialReader (±3 ADC count threshold suppresses noise). New LED effect: DeviceSelect — shows per-device colors based on which Windows output device is currently default (up to 3 device→color mappings per knob, configured in LightsView).
 - **v0.5.x (Mar 11 polish)** — Copy/paste context menus for Lights and Buttons views. UI consistency audit + tooltips across all views (standardized headers, labels, ComboBox styles; tooltips on every control explaining what it does). Moved Auto-Ducking and Auto-Profile Switching from Settings to collapsible "Smart Mix" section in Mixer tab. Friendly serial port selector with auto-detect (COM port dropdown, auto-detect button probes for CH343/CH340, connection status indicator, raw port/baud hidden under Advanced). 4 new per-knob LED effects (PositionBlend, Wheel, RainbowWheel, ProgramMute). Mute Device button action. 13 new global-spanning LED effects (TheaterChase, RainbowScanner, SparkleRain, BreathingSync, FireWall, DualRacer, Lightning, Fillup, Ocean, Collision, DNA, Rainfall, PoliceLights).
-- **v0.6.0-alpha (Mar 12)** — **Ambience tab**: new sidebar nav item for Govee room lighting sync. Govee LAN real-time sync (UDP multicast, 20 FPS color mirroring from Turn Up LEDs to room lights). Govee Cloud API dashboard (REST client with scenes, segments, music mode, device on/off/brightness/color control). 4-step API key setup wizard (`Controls/GoveeSetupGuide.cs`). Brightness scaling + warm tone shift. **AppGroupMute** LED effect (reactive, Color1=unmuted, Color2=all muted). **Process picker UX** for mute_program/close_program (▾ button lists running processes, better labels/tooltips). **Win11 color picker fix** (removed AllowsTransparency which broke WS_EX_LAYERED hit-testing). **Bug audit**: config write race condition, serial CancellationTokenSource leak, audio analyzer thread safety, tray mixer device handle leak, mute poll timer reentrancy guard, ambience dispose patterns, button handler dead code. **Theme consistency**: accent color for primary controls only, curve picker → white, all StyledSlider/RangeSlider accent-aware and refresh on theme change. Fixed PRIMARY/SECONDARY label clipping in Lights tab.
+- **v0.6.0-alpha (Mar 12)** — **Ambience tab**: Govee LAN sync + Cloud dashboard. 4-step API key setup wizard. AppGroupMute LED effect. Process picker UX. Win11 color picker fix. Bug audit (8 fixes). Theme consistency pass.
+- **v0.7.0-alpha (Mar 14)** — **Polish & ease of use release.** Inline sub-panel pickers (GridPicker/ActionPicker use single borderless Window with inline right panel — eliminates cross-HWND hover bugs). HA targets show "Home Assistant" with domain subtitle. Govee uses sub-flyout for device selection. App Group chips (pill tags replace checkboxes). Smart Mix redesign (Voice Ducking with ListPicker, App Profiles with dynamic add/remove rules). OSD horizontal 5-column profile layout (number badges, all 3 gestures with colored TAP/DBL/HOLD badges, LED color tints, configurable per-type duration). DreamView improvements (gamma-correct screen capture, dark pixel filtering, real monitor names via DisplayConfig API, device cards dim when active). Profile Overview page (renamed from Bindings, profile-aware navigation, Preview OSD button, LED color card tints). StyledSlider ShowLabel toggle. Wider combo boxes throughout.
