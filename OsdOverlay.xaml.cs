@@ -230,7 +230,7 @@ public partial class OsdOverlay : Window
             {
                 Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
                 CornerRadius = new CornerRadius(8),
-                Padding = new Thickness(10, 10, 10, 10),
+                Padding = new Thickness(10, 8, 10, 8),
                 Margin = new Thickness(i > 0 ? 3 : 0, 0, i < 4 ? 3 : 0, 0),
             };
 
@@ -238,17 +238,14 @@ public partial class OsdOverlay : Window
             string target = knob?.Target ?? "none";
             var targetColor = GetTargetColor(target);
 
-            // Knob row: [number] [icon] [label]
-            var knobRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
-
-            // Number badge — small inline circle
-            knobRow.Children.Add(new Border
+            // Number badge — centered on top
+            stack.Children.Add(new Border
             {
                 Width = 18, Height = 18,
                 CornerRadius = new CornerRadius(9),
                 Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-                Margin = new Thickness(0, 0, 6, 0),
-                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 4),
                 Child = new TextBlock
                 {
                     Text = (i + 1).ToString(),
@@ -260,17 +257,7 @@ public partial class OsdOverlay : Window
                 }
             });
 
-            // Target icon
-            knobRow.Children.Add(new TextBlock
-            {
-                Text = GetTargetIcon(target),
-                FontSize = 11,
-                Foreground = new SolidColorBrush(targetColor),
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 4, 0)
-            });
-
-            // Knob label
+            // Knob label — icon + text centered, with wrapping
             string knobLabel;
             if (knob != null && !string.IsNullOrEmpty(knob.Label))
                 knobLabel = knob.Label;
@@ -280,19 +267,22 @@ public partial class OsdOverlay : Window
                 knobLabel = FormatTarget(target);
 
             bool knobDim = knobLabel == "\u2014";
-            knobRow.Children.Add(new TextBlock
+            string icon = GetTargetIcon(target);
+            string labelText = string.IsNullOrEmpty(icon) ? knobLabel : icon + " " + knobLabel;
+
+            stack.Children.Add(new TextBlock
             {
-                Text = knobLabel,
+                Text = labelText,
                 FontSize = 11,
                 FontWeight = FontWeights.Medium,
                 Foreground = new SolidColorBrush(knobDim
                     ? Color.FromRgb(0x44, 0x44, 0x44)
                     : Color.FromRgb(0xE8, 0xE8, 0xE8)),
-                VerticalAlignment = VerticalAlignment.Center,
-                TextTrimming = TextTrimming.CharacterEllipsis,
+                TextAlignment = TextAlignment.Center,
+                TextWrapping = TextWrapping.Wrap,
+                HorizontalAlignment = HorizontalAlignment.Center,
                 FontFamily = new FontFamily("Segoe UI")
             });
-            stack.Children.Add(knobRow);
 
             // Divider
             stack.Children.Add(new Border
@@ -302,19 +292,18 @@ public partial class OsdOverlay : Window
                 Margin = new Thickness(0, 4, 0, 4)
             });
 
-            // Button action
+            // Button action — left-aligned with wrapping
             string action = btn?.Action ?? "none";
             bool hasAction = !string.IsNullOrEmpty(action) && action != "none";
             var actionLabel = hasAction ? FormatActionForOsd(action, btn) : "\u2014";
             stack.Children.Add(new TextBlock
             {
                 Text = hasAction ? "\u25B8 " + actionLabel : "\u2014",
-                FontSize = 11,
+                FontSize = 10.5,
                 Foreground = new SolidColorBrush(hasAction
                     ? Color.FromRgb(0xAA, 0xAA, 0xAA)
                     : Color.FromRgb(0x44, 0x44, 0x44)),
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                TextWrapping = TextWrapping.NoWrap,
+                TextWrapping = TextWrapping.Wrap,
                 FontFamily = new FontFamily("Segoe UI")
             });
 
