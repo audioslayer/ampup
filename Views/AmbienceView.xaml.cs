@@ -1057,7 +1057,7 @@ public partial class AmbienceView : UserControl
         // Monitor selector
         var monitorCount = ScreenCapture.MonitorCount;
         row1.Children.Add(MakeSubLabel("MONITOR"));
-        var monitorCombo = new ComboBox { Width = 80, Margin = new Thickness(0, 0, 20, 0), ToolTip = "Which monitor to capture" };
+        var monitorCombo = new ComboBox { Width = 110, Margin = new Thickness(0, 0, 20, 0), ToolTip = "Which monitor to capture" };
         for (int i = 0; i < monitorCount; i++)
             monitorCombo.Items.Add($"Monitor {i + 1}");
         monitorCombo.SelectedIndex = Math.Clamp(cfg.MonitorIndex, 0, Math.Max(0, monitorCount - 1));
@@ -1072,7 +1072,7 @@ public partial class AmbienceView : UserControl
 
         // FPS selector
         row1.Children.Add(MakeSubLabel("FPS"));
-        var fpsCombo = new ComboBox { Width = 70, Margin = new Thickness(0, 0, 20, 0), ToolTip = "Capture rate — 30fps is smooth; 15fps uses less CPU" };
+        var fpsCombo = new ComboBox { Width = 90, Margin = new Thickness(0, 0, 20, 0), ToolTip = "Capture rate — 30fps is smooth; 15fps uses less CPU" };
         foreach (var fps in new[] { 15, 30, 60 })
             fpsCombo.Items.Add($"{fps}fps");
         fpsCombo.SelectedIndex = cfg.TargetFps switch { 60 => 2, 15 => 0, _ => 1 };
@@ -1088,7 +1088,7 @@ public partial class AmbienceView : UserControl
 
         // Zone count
         row1.Children.Add(MakeSubLabel("ZONES"));
-        var zoneCombo = new ComboBox { Width = 70, Margin = new Thickness(0, 0, 20, 0), ToolTip = "Number of screen zones sampled per frame" };
+        var zoneCombo = new ComboBox { Width = 90, Margin = new Thickness(0, 0, 20, 0), ToolTip = "Number of screen zones sampled per frame" };
         foreach (var z in new[] { 4, 8, 16 })
             zoneCombo.Items.Add($"{z} zones");
         zoneCombo.SelectedIndex = cfg.ZoneCount switch { 4 => 0, 16 => 2, _ => 1 };
