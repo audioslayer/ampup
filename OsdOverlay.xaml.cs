@@ -130,6 +130,8 @@ public partial class OsdOverlay : Window
 
         Width = 372;
         ProfileBindingsPanel.Visibility = Visibility.Collapsed;
+        OsdTitle.FontSize = 16;
+        CategoryLabel.Margin = new Thickness(0, 0, 0, 8);
 
         CategoryLabel.Text = "VOLUME";
         SetSymbolIcon(symbolName, ThemeManager.AccentHex);
@@ -187,7 +189,10 @@ public partial class OsdOverlay : Window
 
         if (config != null)
         {
-            Width = 720;
+            Width = 740;
+            // Compact header — smaller icon and title when showing bindings
+            OsdTitle.FontSize = 14;
+            CategoryLabel.Margin = new Thickness(0, 0, 0, 4);
             BuildBindingsPanel(config);
             ProfileBindingsPanel.Visibility = Visibility.Visible;
         }
@@ -225,7 +230,7 @@ public partial class OsdOverlay : Window
             {
                 Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
                 CornerRadius = new CornerRadius(8),
-                Padding = new Thickness(10, 8, 10, 8),
+                Padding = new Thickness(10, 10, 10, 10),
                 Margin = new Thickness(i > 0 ? 3 : 0, 0, i < 4 ? 3 : 0, 0),
             };
 
@@ -304,11 +309,12 @@ public partial class OsdOverlay : Window
             stack.Children.Add(new TextBlock
             {
                 Text = hasAction ? "\u25B8 " + actionLabel : "\u2014",
-                FontSize = 10,
+                FontSize = 11,
                 Foreground = new SolidColorBrush(hasAction
-                    ? Color.FromRgb(0x99, 0x99, 0x99)
+                    ? Color.FromRgb(0xAA, 0xAA, 0xAA)
                     : Color.FromRgb(0x44, 0x44, 0x44)),
                 TextTrimming = TextTrimming.CharacterEllipsis,
+                TextWrapping = TextWrapping.NoWrap,
                 FontFamily = new FontFamily("Segoe UI")
             });
 
