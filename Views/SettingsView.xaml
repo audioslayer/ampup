@@ -293,8 +293,11 @@
                                            Appearance="Secondary" Margin="0,0,6,0"
                                            ToolTip="Create a new profile from current settings" />
                                 <ui:Button x:Name="BtnDeleteProfile" Content="Delete"
-                                           Appearance="Danger"
+                                           Appearance="Danger" Margin="0,0,6,0"
                                            ToolTip="Delete the selected profile (cannot be undone)" />
+                                <ui:Button x:Name="BtnOverview" Content="Overview"
+                                           Appearance="Secondary"
+                                           ToolTip="View all knob and button assignments across profiles" />
                             </StackPanel>
                         </StackPanel>
                     </StackPanel>

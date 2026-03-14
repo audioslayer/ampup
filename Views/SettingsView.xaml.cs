@@ -27,6 +27,7 @@ public partial class SettingsView : UserControl
 
     private AppConfig? _config;
     private Action<AppConfig>? _onSave;
+    public Action? OnNavigateToOverview { get; set; }
     private readonly DispatcherTimer _debounceTimer;
     private bool _loading;
 
@@ -82,6 +83,7 @@ public partial class SettingsView : UserControl
         BtnLoadProfile.Click += OnLoadProfile;
         BtnNewProfile.Click += OnNewProfile;
         BtnDeleteProfile.Click += OnDeleteProfile;
+        BtnOverview.Click += (_, _) => OnNavigateToOverview?.Invoke();
 
         // Import / Export
         BtnImportTurnUp.Click += OnImportTurnUp;

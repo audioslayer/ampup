@@ -170,7 +170,7 @@
                             </Grid>
                         </Button>
                         <Button x:Name="NavBindings" Style="{StaticResource NavButton}" Click="NavBindings_Click"
-                                DockPanel.Dock="Bottom" ToolTip="View all bindings across profiles">
+                                DockPanel.Dock="Bottom" ToolTip="Overview of all knob and button bindings across profiles">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="3" />
@@ -183,7 +183,7 @@
                                     <TextBlock Text="&#xEF3E;" FontFamily="{StaticResource MaterialSymbols}"
                                                FontSize="22" Foreground="{StaticResource TextSecBrush}"
                                                HorizontalAlignment="Center" TextAlignment="Center" />
-                                    <TextBlock x:Name="NavBindingsLabel" Text="Bindings" FontSize="9" Foreground="{StaticResource TextSecBrush}"
+                                    <TextBlock x:Name="NavBindingsLabel" Text="Overview" FontSize="9" Foreground="{StaticResource TextSecBrush}"
                                                HorizontalAlignment="Center" Margin="0,3,0,0" />
                                 </StackPanel>
                             </Grid>

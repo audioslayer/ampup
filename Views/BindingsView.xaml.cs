@@ -119,14 +119,14 @@ public class BindingsView : UserControl
         var headerPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 20) };
         headerPanel.Children.Add(new TextBlock
         {
-            Text = "Bindings Overview",
+            Text = "Profile Overview",
             FontSize = 22,
             FontWeight = FontWeights.SemiBold,
             Foreground = (SolidColorBrush)FindResource("TextPrimaryBrush"),
         });
         headerPanel.Children.Add(new TextBlock
         {
-            Text = "All knob and button configurations across profiles",
+            Text = "All knob and button assignments across your profiles",
             FontSize = 12,
             Foreground = (SolidColorBrush)FindResource("TextSecBrush"),
             Margin = new Thickness(0, 4, 0, 0)

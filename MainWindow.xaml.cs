@@ -126,6 +126,7 @@ public partial class MainWindow : FluentWindow
             _onConfigChanged?.Invoke(cfg);
         };
 
+        _settingsView.OnNavigateToOverview = () => NavigateTo(_bindingsView, NavBindings);
         _settingsView.LoadConfig(_config, saveHandler);
         _lightsView.LoadConfig(_config, saveHandler, _mixer);
         _buttonsView.LoadConfig(_config, _mixer!, saveHandler);
