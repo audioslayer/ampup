@@ -187,7 +187,7 @@ public partial class OsdOverlay : Window
 
         if (config != null)
         {
-            Width = 620;
+            Width = 720;
             BuildBindingsPanel(config);
             ProfileBindingsPanel.Visibility = Visibility.Visible;
         }
@@ -230,43 +230,42 @@ public partial class OsdOverlay : Window
             };
 
             var stack = new StackPanel();
+            string target = knob?.Target ?? "none";
+            var targetColor = GetTargetColor(target);
 
-            // Number badge — centered circle
-            // Number badge
-            var badge = new Border
+            // Knob row: [number] [icon] [label]
+            var knobRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+
+            // Number badge — small inline circle
+            knobRow.Children.Add(new Border
             {
-                Width = 22, Height = 22,
-                CornerRadius = new CornerRadius(11),
+                Width = 18, Height = 18,
+                CornerRadius = new CornerRadius(9),
                 Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 6),
+                Margin = new Thickness(0, 0, 6, 0),
+                VerticalAlignment = VerticalAlignment.Center,
                 Child = new TextBlock
                 {
                     Text = (i + 1).ToString(),
-                    FontSize = 11, FontWeight = FontWeights.SemiBold,
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x99, 0x99, 0x99)),
+                    FontSize = 9, FontWeight = FontWeights.SemiBold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
                     FontFamily = new FontFamily("Segoe UI")
                 }
-            };
-            stack.Children.Add(badge);
+            });
 
-            // Knob target row — icon + label, horizontally centered
-            var knobRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-            string target = knob?.Target ?? "none";
-
-            var iconText = new TextBlock
+            // Target icon
+            knobRow.Children.Add(new TextBlock
             {
                 Text = GetTargetIcon(target),
                 FontSize = 11,
-                Foreground = new SolidColorBrush(GetTargetColor(target)),
+                Foreground = new SolidColorBrush(targetColor),
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 4, 0)
-            };
-            knobRow.Children.Add(iconText);
+            });
 
-            // Determine knob display label
+            // Knob label
             string knobLabel;
             if (knob != null && !string.IsNullOrEmpty(knob.Label))
                 knobLabel = knob.Label;
@@ -275,48 +274,43 @@ public partial class OsdOverlay : Window
             else
                 knobLabel = FormatTarget(target);
 
-            bool knobDim = knobLabel == "\u2014"; // em dash
-            var knobLabelText = new TextBlock
+            bool knobDim = knobLabel == "\u2014";
+            knobRow.Children.Add(new TextBlock
             {
                 Text = knobLabel,
-                FontSize = 10.5,
+                FontSize = 11,
+                FontWeight = FontWeights.Medium,
                 Foreground = new SolidColorBrush(knobDim
                     ? Color.FromRgb(0x44, 0x44, 0x44)
-                    : Color.FromRgb(0xE0, 0xE0, 0xE0)),
+                    : Color.FromRgb(0xE8, 0xE8, 0xE8)),
                 VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxWidth = 90,
                 FontFamily = new FontFamily("Segoe UI")
-            };
-            knobRow.Children.Add(knobLabelText);
+            });
             stack.Children.Add(knobRow);
 
             // Divider
-            var divider = new Border
+            stack.Children.Add(new Border
             {
                 Height = 1,
-                Background = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x4D)), // ~30% alpha
-                Margin = new Thickness(0, 6, 0, 6)
-            };
-            stack.Children.Add(divider);
+                Background = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x33)),
+                Margin = new Thickness(0, 4, 0, 4)
+            });
 
             // Button action
             string action = btn?.Action ?? "none";
             bool hasAction = !string.IsNullOrEmpty(action) && action != "none";
             var actionLabel = hasAction ? FormatActionForOsd(action, btn) : "\u2014";
-            var btnText = new TextBlock
+            stack.Children.Add(new TextBlock
             {
                 Text = hasAction ? "\u25B8 " + actionLabel : "\u2014",
                 FontSize = 10,
                 Foreground = new SolidColorBrush(hasAction
                     ? Color.FromRgb(0x99, 0x99, 0x99)
                     : Color.FromRgb(0x44, 0x44, 0x44)),
-                HorizontalAlignment = HorizontalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxWidth = 90,
                 FontFamily = new FontFamily("Segoe UI")
-            };
-            stack.Children.Add(btnText);
+            });
 
             card.Child = stack;
             System.Windows.Controls.Grid.SetColumn(card, i);
