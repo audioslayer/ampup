@@ -413,9 +413,13 @@ public partial class MainWindow : FluentWindow
     {
         BuildProfileFlyout();
 
-        // Detach panel from any previous flyout
-        if (ProfilePopupPanel.Parent is System.Windows.Controls.Border oldParent)
-            oldParent.Child = null;
+        // Detach panel from any previous parent (Border, Grid, Window, etc.)
+        if (ProfilePopupPanel.Parent is System.Windows.Controls.Decorator oldDecorator)
+            oldDecorator.Child = null;
+        else if (ProfilePopupPanel.Parent is System.Windows.Controls.Panel oldPanel)
+            oldPanel.Children.Remove(ProfilePopupPanel);
+        else if (ProfilePopupPanel.Parent is System.Windows.Controls.ContentControl oldContent)
+            oldContent.Content = null;
 
         var popupBorder = new System.Windows.Controls.Border
         {
