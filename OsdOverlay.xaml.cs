@@ -225,10 +225,20 @@ public partial class OsdOverlay : Window
             var knob = config.Knobs.FirstOrDefault(k => k.Idx == i);
             var btn = config.Buttons.FirstOrDefault(b => b.Idx == i);
 
-            // Card border
+            // Card border — tinted with LED color if set
+            var light = config.Lights.FirstOrDefault(l => l.Idx == i);
+            Brush cardBg;
+            if (light != null && (light.R > 10 || light.G > 10 || light.B > 10))
+                cardBg = new SolidColorBrush(Color.FromArgb(0x20,
+                    (byte)Math.Clamp(light.R, 0, 255),
+                    (byte)Math.Clamp(light.G, 0, 255),
+                    (byte)Math.Clamp(light.B, 0, 255)));
+            else
+                cardBg = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+
             var card = new Border
             {
-                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+                Background = cardBg,
                 CornerRadius = new CornerRadius(8),
                 Padding = new Thickness(10, 8, 10, 8),
                 Margin = new Thickness(i > 0 ? 3 : 0, 0, i < 4 ? 3 : 0, 0),
