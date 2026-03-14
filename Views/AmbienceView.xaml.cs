@@ -1083,7 +1083,7 @@ public partial class AmbienceView : UserControl
         var monitorCount = screens.Length;
         var friendlyNames = NativeMethods.GetMonitorFriendlyNames();
         row1.Children.Add(MakeSubLabel("MONITOR"));
-        var monitorCombo = new ComboBox { Width = 200, Margin = new Thickness(0, 0, 20, 0), ToolTip = "Which monitor to capture" };
+        var monitorCombo = new ComboBox { MinWidth = 200, MaxWidth = 350, Margin = new Thickness(0, 0, 20, 0), ToolTip = "Which monitor to capture" };
         for (int i = 0; i < monitorCount; i++)
         {
             var screen = screens[i];
