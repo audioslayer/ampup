@@ -478,53 +478,38 @@ public class TrayMixerPopup : Window
 
     private static Style BuildSliderStyle(Color accent)
     {
+        // Use XAML string to build the slider template — FrameworkElementFactory
+        // can't set Track.Thumb/DecreaseRepeatButton/IncreaseRepeatButton as properties.
+        var accentHex = $"#{accent.R:X2}{accent.G:X2}{accent.B:X2}";
+        var xaml = $@"
+<ControlTemplate TargetType='Slider'
+    xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'
+    xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>
+    <Grid>
+        <Border Height='4' CornerRadius='2' Background='#363636' VerticalAlignment='Center' />
+        <Track x:Name='PART_Track'>
+            <Track.DecreaseRepeatButton>
+                <RepeatButton Opacity='0' IsHitTestVisible='False' />
+            </Track.DecreaseRepeatButton>
+            <Track.IncreaseRepeatButton>
+                <RepeatButton Opacity='0' IsHitTestVisible='False' />
+            </Track.IncreaseRepeatButton>
+            <Track.Thumb>
+                <Thumb Width='12' Height='12' Cursor='Hand'>
+                    <Thumb.Template>
+                        <ControlTemplate TargetType='Thumb'>
+                            <Border Background='White' CornerRadius='6' Width='12' Height='12' />
+                        </ControlTemplate>
+                    </Thumb.Template>
+                </Thumb>
+            </Track.Thumb>
+        </Track>
+    </Grid>
+</ControlTemplate>";
+
+        var template = (ControlTemplate)System.Windows.Markup.XamlReader.Parse(xaml);
         var style = new Style(typeof(Slider));
-
-        var template = new ControlTemplate(typeof(Slider));
-
-        // Track background
-        var trackBg = new FrameworkElementFactory(typeof(Border));
-        trackBg.SetValue(Border.HeightProperty, 4.0);
-        trackBg.SetValue(Border.CornerRadiusProperty, new CornerRadius(2));
-        trackBg.SetValue(Border.BackgroundProperty, new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)));
-        trackBg.SetValue(Border.VerticalAlignmentProperty, VerticalAlignment.Center);
-
-        // Selection range (filled portion)
-        var selectionFill = new FrameworkElementFactory(typeof(Border));
-        selectionFill.SetValue(Border.HeightProperty, 4.0);
-        selectionFill.SetValue(Border.CornerRadiusProperty, new CornerRadius(2));
-        selectionFill.SetValue(Border.BackgroundProperty, new SolidColorBrush(accent));
-        selectionFill.SetValue(Border.VerticalAlignmentProperty, VerticalAlignment.Center);
-        selectionFill.SetValue(Border.HorizontalAlignmentProperty, HorizontalAlignment.Left);
-
-        // Thumb
-        var thumb = new FrameworkElementFactory(typeof(Thumb));
-        thumb.SetValue(Thumb.WidthProperty, 12.0);
-        thumb.SetValue(Thumb.HeightProperty, 12.0);
-        thumb.SetValue(Thumb.CursorProperty, Cursors.Hand);
-
-        var thumbBorder = new FrameworkElementFactory(typeof(Border));
-        thumbBorder.SetValue(Border.BackgroundProperty, new SolidColorBrush(Colors.White));
-        thumbBorder.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
-        thumbBorder.SetValue(Border.WidthProperty, 12.0);
-        thumbBorder.SetValue(Border.HeightProperty, 12.0);
-
-        var thumbTemplate = new ControlTemplate(typeof(Thumb));
-        thumbTemplate.VisualTree = thumbBorder;
-        thumb.SetValue(Thumb.TemplateProperty, thumbTemplate);
-
-        // Track
-        var track = new FrameworkElementFactory(typeof(Track));
-        track.SetValue(Track.NameProperty, "PART_Track");
-        track.AppendChild(thumb);
-
-        var grid = new FrameworkElementFactory(typeof(Grid));
-        grid.AppendChild(trackBg);
-        grid.AppendChild(track);
-
-        template.VisualTree = grid;
         style.Setters.Add(new Setter(TemplateProperty, template));
-
         return style;
     }
 
