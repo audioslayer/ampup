@@ -451,9 +451,13 @@ public class AudioMixer : IDisposable
 
             if (target == "master")
             {
-                MMDevice? device;
-                lock (_enumLock) device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                using (device) { return device!.AudioMeterInformation.MasterPeakValue; }
+                // Use the persistent render device (kept alive by RefreshSessions)
+                lock (_lock)
+                {
+                    if (_renderDevice != null)
+                        return _renderDevice.AudioMeterInformation.MasterPeakValue;
+                }
+                return 0f;
             }
 
             if (target == "mic")
