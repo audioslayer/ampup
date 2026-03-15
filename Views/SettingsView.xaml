@@ -258,8 +258,8 @@
                             </Border>
                         </StackPanel>
 
-                        <!-- Monitor selector + Preview -->
-                        <StackPanel Margin="16,0,0,0">
+                        <!-- Monitor selector + Preview — vertically centered to position picker -->
+                        <StackPanel Margin="16,0,0,0" VerticalAlignment="Center">
                             <TextBlock Text="Monitor" Style="{StaticResource SecondaryText}" Margin="0,0,0,6" />
                             <StackPanel Orientation="Horizontal">
                                 <ComboBox x:Name="CmbOsdMonitor" Width="280"
