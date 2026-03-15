@@ -273,22 +273,22 @@ public partial class MixerView : UserControl
     public void UpdateKnobPosition(int idx, float position)
     {
         if (idx < 0 || idx >= 5) return;
-        int pct = (int)(position * 100);
         if (_config?.Knobs.FirstOrDefault(k => k.Idx == idx) is { } knob)
         {
             var baseTarget = knob.Target.Contains(':') ? knob.Target.Split(':')[0] : knob.Target;
-            // For audio targets, the live timer handles it via WASAPI; only update directly for non-audio
-            if (!baseTarget.StartsWith("ha_") && baseTarget != "monitor" && baseTarget != "led_brightness")
+            bool isNonAudio = baseTarget.StartsWith("ha_") || baseTarget == "monitor" || baseTarget == "led_brightness";
+            // Only update knob arc directly for non-audio targets.
+            // Audio targets are driven by LiveTimer_Tick via WASAPI — updating here
+            // would fight with the WASAPI-reported volume causing oscillation.
+            if (isNonAudio)
             {
-                // Apply min/max range remapping same as live timer
-                int mapped = (int)Math.Round(knob.MinVolume + position * (knob.MaxVolume - knob.MinVolume));
-                pct = mapped;
+                int pct = (int)Math.Round(knob.MinVolume + position * (knob.MaxVolume - knob.MinVolume));
+                _knobs[idx].SetTarget(position);
+                _knobs[idx].Tick();
+                _knobs[idx].PercentText = $"{pct}%";
+                _volLabels[idx].Text = $"{pct}%";
             }
         }
-        _knobs[idx].SetTarget(position);
-        _knobs[idx].Tick();
-        _knobs[idx].PercentText = $"{pct}%";
-        _volLabels[idx].Text = $"{pct}%";
     }
 
     public void LoadConfig(AppConfig config, AudioMixer mixer, Action<AppConfig> onConfigChanged)
