@@ -1247,6 +1247,29 @@ public partial class MixerView : UserControl
             _targetPickers[i].RefreshAccent();
             _rangeSliders[i].AccentColor = accent;
         }
+
+        // Re-apply LED/accent colors to knobs, VU meters, and glow
+        if (_config != null)
+        {
+            for (int i = 0; i < 5; i++)
+            {
+                var light = _config.Lights.FirstOrDefault(l => l.Idx == i);
+                Color color = accent;
+                if (light != null)
+                {
+                    color = Color.FromRgb(
+                        (byte)Math.Clamp(light.R, 0, 255),
+                        (byte)Math.Clamp(light.G, 0, 255),
+                        (byte)Math.Clamp(light.B, 0, 255));
+                    if (color.R < 10 && color.G < 10 && color.B < 10)
+                        color = accent;
+                }
+                _knobs[i].ArcColor = color;
+                _volLabels[i].Foreground = new SolidColorBrush(color);
+                _vuMeters[i].BarColor = color;
+                _glowControls[i].GlowColor = color;
+            }
+        }
     }
 
     private Border MakeSeparator(int spacing = 10)

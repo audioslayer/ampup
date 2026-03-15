@@ -17,7 +17,7 @@ namespace AmpUp.Controls
         private const double GlowStroke = 8.0;
         private const double ArcInset = 6.0;
         private const double DirtyThreshold = 0.003;
-        private const float LerpSpeed = 0.35f; // smoothing factor per tick (0=no move, 1=instant snap)
+        private const float LerpSpeed = 0.5f; // smoothing factor per tick (0=no move, 1=instant snap)
         private const double KnobImageRatio = 0.72; // knob image fills 72% of control size
 
         // ── Static frozen resources (color-independent) ────────────────
