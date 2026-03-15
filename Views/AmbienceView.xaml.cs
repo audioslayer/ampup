@@ -1304,14 +1304,20 @@ public partial class AmbienceView : UserControl
                 foreach (ZoneSide side in Enum.GetValues<ZoneSide>())
                     zoneComboDevice.Items.Add(side.ToString());
 
-                // Find current mapping for this device
-                var existing = cfg.DeviceMappings.FirstOrDefault(m => m.DeviceIp == dev.Ip);
-                if (existing != null)
-                    zoneComboDevice.SelectedIndex = (int)existing.Side;
-                else
-                    zoneComboDevice.SelectedIndex = 0; // Full
-
+                // Find or create mapping for this device
                 string devIp = dev.Ip; // capture for lambda
+                var existing = cfg.DeviceMappings.FirstOrDefault(m => m.DeviceIp == devIp);
+                if (existing == null)
+                {
+                    // Auto-create mapping so the device is always synced
+                    existing = new ZoneDeviceMapping { DeviceIp = devIp, Side = ZoneSide.Full };
+                    cfg.DeviceMappings.Add(existing);
+                    // Push new mapping to DreamSync and save
+                    _dreamSync?.UpdateConfig(cfg, _config?.Ambience ?? new AmbienceConfig());
+                    QueueSave();
+                }
+                zoneComboDevice.SelectedIndex = (int)existing.Side;
+
                 zoneComboDevice.SelectionChanged += (_, _) =>
                 {
                     if (_loading || _config == null) return;
