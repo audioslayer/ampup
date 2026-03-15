@@ -1024,30 +1024,54 @@ public class TrayMixerPopup : Window
 
     private void PositionNearTray()
     {
-        // Use the monitor where the cursor is (near the tray icon)
+        // Get DPI scale factor (Screen returns physical pixels, WPF uses DIPs)
+        var src = PresentationSource.FromVisual(this)
+                  ?? PresentationSource.FromVisual(Application.Current.MainWindow!);
+        double dpi = src?.CompositionTarget?.TransformFromDevice.M11 ?? 1.0;
+
         var cursorPos = System.Windows.Forms.Cursor.Position;
         var screen = System.Windows.Forms.Screen.FromPoint(cursorPos);
-        var workArea = screen.WorkingArea;
-        // Measure the window to get actual height
+        var wa = screen.WorkingArea;
+        var bounds = screen.Bounds;
+
+        // Convert physical pixels to WPF DIPs
+        double waLeft = wa.Left * dpi, waTop = wa.Top * dpi;
+        double waRight = wa.Right * dpi, waBottom = wa.Bottom * dpi;
+        double boundsBottom = bounds.Bottom * dpi;
+        double cursorX = cursorPos.X * dpi, cursorY = cursorPos.Y * dpi;
+
+        // Measure popup height
         Measure(new Size(Width, double.PositiveInfinity));
         double height = DesiredSize.Height > 0 ? DesiredSize.Height : 400;
 
-        Left = workArea.Right - Width - 12;
-        Top = workArea.Bottom - height - 8;
+        // Detect taskbar edge by comparing work area to full monitor bounds
+        bool taskbarOnBottom = wa.Bottom < bounds.Bottom;
+        bool taskbarOnTop = wa.Top > bounds.Top;
+        bool taskbarOnRight = wa.Right < bounds.Right;
+
+        // Position horizontally: align right edge near cursor, keep on screen
+        double x = cursorX - Width / 2;
+        x = Math.Max(waLeft + 4, Math.Min(x, waRight - Width - 4));
+
+        // Position vertically: anchor above taskbar (bottom) or below taskbar (top)
+        double y;
+        if (taskbarOnTop)
+            y = waTop + 8;
+        else
+            y = waBottom - height - 8;  // bottom or side taskbar
+
+        // Clamp to work area
+        y = Math.Max(waTop + 4, Math.Min(y, waBottom - height - 4));
+
+        Left = x;
+        Top = y;
     }
 
     private void RepositionOnScreen()
     {
-        // Re-measure and ensure the popup doesn't go off-screen after content changes
+        // Re-measure and reposition after content changes
         UpdateLayout();
-        Measure(new Size(Width, double.PositiveInfinity));
-        double height = DesiredSize.Height > 0 ? DesiredSize.Height : ActualHeight;
-
-        var cursorPos = System.Windows.Forms.Cursor.Position;
-        var screen = System.Windows.Forms.Screen.FromPoint(cursorPos);
-        var workArea = screen.WorkingArea;
-
-        Top = Math.Max(workArea.Top + 4, workArea.Bottom - height - 8);
+        PositionNearTray();
     }
 
     private static Color GetAppColor(string processName)
