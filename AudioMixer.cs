@@ -421,6 +421,10 @@ public class AudioMixer : IDisposable
             NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
             if (pid == 0) return 0f;
 
+            // Skip AmpUp's own window — user is just looking at the mixer
+            int myPid = Environment.ProcessId;
+            if (pid == myPid) return -1f; // -1 signals "no valid active window"
+
             lock (_lock)
             {
                 if (_sessionsByPid.TryGetValue(pid, out var session))
@@ -585,6 +589,9 @@ public class AudioMixer : IDisposable
 
             NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
             if (pid == 0) return 0f;
+
+            // Skip AmpUp's own window
+            if (pid == Environment.ProcessId) return 0f;
 
             lock (_lock)
             {

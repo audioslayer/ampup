@@ -439,7 +439,7 @@ public partial class MixerView : UserControl
                 else
                 {
                     vol = _mixer.GetVolume(knob);
-                    // If WASAPI returns 0 (no active sessions), show hardware knob position
+                    // If WASAPI returns 0 or -1 (no active sessions / own window), show hardware knob position
                     if (vol <= 0f)
                         vol = App.KnobPositions[i];
                     // WASAPI peak values are very low — master endpoint even lower than per-app
