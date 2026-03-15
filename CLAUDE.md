@@ -22,18 +22,19 @@ All frames are wrapped with `0xFE` (start) and `0xFF` (end).
 | Event | Frame | Notes |
 |-|-|-|
 | Knob move | `fe 03 [idx] [hi] [lo] ff` | 6 bytes. idx=0-4, value=hi*256+lo, range 0-1023 |
-| Knob batch | `fe 04 [5x hi+lo] ff` | 13 bytes. All 5 knob values on connect |
-| Health/ping | `fe 02 ff` | 3 bytes. Periodic heartbeat |
+| Knob batch | `fe 04 [5x hi+lo] ff` | 13 bytes. All 5 knob values (response to info request) |
+| Health/ping | `fe 02 ff` | 3 bytes. Periodic heartbeat (~500ms) |
 | Button down | `fe 06 [idx] ff` | 4 bytes. idx=0-4, button pressed |
 | Button up | `fe 07 [idx] ff` | 4 bytes. idx=0-4, button released |
-| Device ID | `fe 08 [4 bytes] ff` | 7 bytes. Sent on connect |
+| Device ID | `fe 08 [4 bytes] ff` | 7 bytes. Response to info request |
+| Info request | `fe 01 ff` | 3 bytes. **PC→Device.** Triggers Device ID + Knob batch response |
 
 ### RGB Write Protocol
 
 - **Frame:** 48 bytes — `FE 05 [45 bytes RGB data] FF`
 - **Layout:** 5 knobs × 3 LEDs × 3 bytes (R,G,B) = 45 data bytes
 - **Byte offset for knob K, LED L:** `K*9 + L*3 + 2` (R), `+3` (G), `+4` (B)
-- **Gamma correction:** 256-entry lookup table applied before sending
+- **Gamma correction:** Standard gamma 2.0 curve (computed at startup, not firmware table)
 - **Refresh:** 50ms (20 FPS) for animated effects. Device turns LEDs off without periodic frames.
 - **Brightness:** Global 0-100% multiplier applied before gamma
 - **Per-LED control:** `SetColor(knobIdx, ledIdx, r, g, b)` — each of the 3 LEDs per knob is independently addressable
@@ -72,7 +73,12 @@ Controls/
                            Items support optional subtitle text. Sub-panel shows context header + highlights active parent.
   CheckListPicker.cs       Multi-select checklist picker (for cycle device subset selection, filtered by direction)
   ListPicker.cs            Dropdown list picker with optional filter, accent highlighting
-  TrayMixerPopup.cs        Glassmorphic per-app volume mixer popup (shown on tray left-click)
+  TrayMixerPopup.cs        Unified tray popup — volume mixer + device switcher + app assignment + controls
+                           Both left and right tray click open this popup. Includes connection status,
+                           output/input device cycling, per-app sliders (live updating), Assign Running Apps,
+                           Open/Exit, and update-available banner.
+  TrayContextMenu.cs       Legacy right-click menu (still exists but both clicks now use TrayMixerPopup)
+  ChannelGlowControl.cs    Audio-reactive ambient glow behind mixer channel cards (DrawingVisual)
   SegmentedControl.cs      Pill-style segmented buttons
   RangeSlider.cs           Dual-thumb range slider
   StyledSlider.cs          Single-thumb slider matching RangeSlider style (accent-aware, ShowLabel toggle)
@@ -82,13 +88,18 @@ AmbienceSync.cs            Govee LAN UDP sync engine — discovery, color mirror
 GoveeCloudApi.cs           Govee Platform REST client — devices, scenes, segments, music mode
 AudioAnalyzer.cs           WASAPI loopback capture + FFT — 5 frequency bands for audio-reactive LEDs
 SerialReader.cs            Reads COM port, parses fe/ff frames, fires OnKnob / OnButton events, ±3 jitter deadzone
+                           Sends FE 01 FF on connect to request knob positions from hardware
 AudioMixer.cs              WASAPI per-app volume + GetPeakLevel, response curves, volume range
+                           Persistent _renderDevice for session COM objects; dedicated _masterPeakDevice for metering
+                           Skips AmpUp's own PID for active_window target
 ButtonHandler.cs           Gesture state machine (press/double/hold) → 26 action types (incl. mute_device)
 RgbController.cs           RGB effects engine — 30+ effects (per-knob + global spanning), 20 FPS animation
 DuckingEngine.cs           Auto-ducking: monitors trigger app audio, fades target app volumes with smooth interpolation
 AutoProfileSwitcher.cs     Auto-profile switching: monitors foreground window, fires profile switch events with debounce
 MonitorBrightness.cs       DDC/CI physical monitor brightness via dxva2.dll
 DreamSyncController.cs     Screen sync engine — captures screen zones, sends colors to Govee via LAN UDP
+                           Per-segment support via Govee "razer" protocol for capable devices (H6056=6 segments)
+                           Falls back to single-color colorwc for devices without segment support
 ScreenCapture.cs           GDI screen capture with zone sampling, gamma-correct averaging, dark pixel filtering
 NativeMethods.cs           P/Invoke declarations (user32, PowrProf, DisplayConfig for monitor friendly names)
 Config.cs                  Loads/saves config.json + profile system (Newtonsoft.Json)
@@ -137,10 +148,20 @@ installer/ampup-setup.iss  Inno Setup script (reads version from auto-generated 
     "goveeEnabled": false,
     "goveeApiKey": "",
     "goveeDevices": [
-      { "ip": "192.168.1.50", "name": "Living Room Strip", "syncMode": "global" }
+      { "ip": "192.168.1.50", "name": "Living Room Strip", "sku": "H6056", "syncMode": "global", "useSegmentProtocol": true }
     ],
     "brightnessScale": 75,
-    "warmToneShift": false
+    "warmToneShift": false,
+    "screenSync": {
+      "enabled": false, "monitorIndex": 0, "targetFps": 30, "zoneCount": 8,
+      "saturation": 1.2, "sensitivity": 5,
+      "deviceMappings": [{ "deviceIp": "192.168.1.50", "side": "Full" }]
+    }
+  },
+  "osd": {
+    "showVolume": true, "showProfileSwitch": true, "showDeviceSwitch": true,
+    "volumeDuration": 2.0, "profileDuration": 3.5, "deviceDuration": 2.5,
+    "position": "BottomRight", "monitorIndex": 0
   },
   "profileTransition": "Cascade",
   "startWithWindows": true,
@@ -315,9 +336,11 @@ All transitions run 3 seconds (60 ticks at 20 FPS) then auto-clear.
 
 - **ActionPicker** — Categorized action dropdown with inline sub-panel. Used in ButtonsView for all 15 gesture action slots. 7 categories: MEDIA (green), MUTE (red), APP CONTROL (blue), DEVICE (purple), SYSTEM (gold), POWER (red), INTEGRATIONS (cyan). Same inline sub-panel pattern as GridPicker.
 
-- **AnimatedKnobControl** — WPF FrameworkElement, `OnRender(DrawingContext)`. Arc sweep 225° start / 270° sweep via `StreamGeometry`. All Pen/Brush frozen as static fields. Renders knob-face.png with colored arc ring.
+- **AnimatedKnobControl** — WPF FrameworkElement, `OnRender(DrawingContext)`. Arc sweep 225° start / 270° sweep via `StreamGeometry`. All Pen/Brush frozen as static fields. Renders knob-face.png with colored arc ring. Smooth lerp animation via `SetTarget()` + `Tick()` (0.5 per tick). Arc color syncs with live LED color from RgbController.
 
-- **VuMeterControl** — WPF FrameworkElement, `DrawingVisual` child. 16 segments, color zones (cyan→yellow→red), peak hold 1.5s.
+- **VuMeterControl** — WPF FrameworkElement, `DrawingVisual` child. 16 segments, standard green (0-9) / orange (10-12) / red (13-15), peak hold 1.5s.
+
+- **ChannelGlowControl** — Audio-reactive radial gradient glow behind mixer channel cards. Tinted with live LED color. Fast attack (0.4), slow decay (0.92). Skips re-render when alpha/color unchanged (perf).
 
 ### View Details
 
@@ -421,7 +444,7 @@ Two clones of the same repo:
 Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyson Wolf / audioslayer@gmail.com (set per-repo, not global).
 
 - Log: `%AppData%\AmpUp\ampup.log`
-- Config: `C:\Users\audio\Desktop\AmpUp\bin\Debug\net8.0-windows\config.json`
+- Config: `%AppData%\AmpUp\config.json`
 
 ---
 
@@ -450,13 +473,19 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - **WPF TextBlock has no LetterSpacing** — not a real WPF property, don't try to set it
 - **WPF emoji render monochrome** — Unicode emoji in TextBlock render as black glyphs, not color. Use colored text/shapes instead.
 - **Parallel agents can mismatch APIs** — when agents build caller and callee in parallel, method names may not match. Always verify interface alignment or build sequentially.
-- **Govee LAN API** — UDP multicast to 239.255.255.250:4001 for discovery, listen on 4002. Control via unicast to device IP:4001. Rate limit: max 10 sends/sec. Only supports on/off, brightness, solid color. No scenes/segments.
+- **Govee LAN API** — UDP multicast to 239.255.255.250:4001 for discovery, listen on 4002. Control via unicast to device IP:**4003**. Rate limit: max 10 sends/sec. Supports on/off, brightness, solid color, and per-segment colors via "razer" command (binary frames with base64 encoding). Segment protocol: enable=`BB 00 01 B1 01 [xor]`, colors=`BB [len] B0 00 [count] [RGB...] [xor]`, auto-disables after ~60s (keepalive every 30s).
 - **Govee Cloud API** — REST at openapi.api.govee.com, header `Govee-API-Key`. Supports scenes, segments, music mode. Rate limit: ~100 req/min, 10k/day. API key from Govee app settings. No speed control for dynamic scenes (animation speed is baked into preset).
 - **Govee DreamView conflict** — DreamView sends screen colors at 30fps via LAN UDP. Cloud scene commands get immediately overridden. UI dims device cards when DreamView is active.
 - **WPF Popup HWND isolation** — Popups live in separate native windows, making MouseLeave/MouseEnter unreliable. GridPicker and ActionPicker avoid this by using borderless Window flyouts with inline sub-panels (no second window needed).
 - **Monitor friendly names** — `Screen.DeviceName` only gives `\\.\DISPLAY1`. Use `NativeMethods.GetMonitorFriendlyNames()` (DisplayConfig API) for real names like "DELL U2723QE".
 - **ScreenCapture gamma** — sRGB pixels must be linearized before averaging, then re-encoded. Simple RGB averaging produces darker/muddier results.
 - **StyledSlider ShowLabel** — Set `ShowLabel = false` when the value is displayed in a separate label to avoid duplicate display under the thumb.
+- **Turn Up device doesn't auto-report positions** — Device only sends health pings on connect, NOT a knob batch. Must send `FE 01 FF` (info request) to get initial positions. Discovered via serial probe (all commands 0x00-0x20 tested, only 0x01 responds).
+- **USB chip:** WCH CH343 (`VID_1A86 PID_55D3`), serial number `5185001494`. Device ID from firmware: `00 1F CC E4`.
+- **WASAPI master peak very low** — Master endpoint `AudioMeterInformation.MasterPeakValue` returns ~0.02-0.04 for normal audio. Per-app sessions return 0.2-0.5. VU meter uses 2.3x uniform boost.
+- **Active window reads AmpUp's own PID** — `GetActiveWindowVolume` must skip `Environment.ProcessId` to avoid showing wrong volume when mixer window is focused.
+- **Govee device SKU can be empty** — Devices added before LAN scan SKU detection have empty `Sku` field. `GetSegmentCount` falls back to name matching (e.g. "Light Bar" → 6 segments).
+- **Govee LAN control port is 4003** — Not 4001 as some docs suggest. Discovery uses multicast 4001, listen on 4002, but all control commands go to unicast device:4003.
 
 ---
 
@@ -472,3 +501,7 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - **v0.5.x (Mar 11 polish)** — Copy/paste context menus for Lights and Buttons views. UI consistency audit + tooltips across all views (standardized headers, labels, ComboBox styles; tooltips on every control explaining what it does). Moved Auto-Ducking and Auto-Profile Switching from Settings to collapsible "Smart Mix" section in Mixer tab. Friendly serial port selector with auto-detect (COM port dropdown, auto-detect button probes for CH343/CH340, connection status indicator, raw port/baud hidden under Advanced). 4 new per-knob LED effects (PositionBlend, Wheel, RainbowWheel, ProgramMute). Mute Device button action. 13 new global-spanning LED effects (TheaterChase, RainbowScanner, SparkleRain, BreathingSync, FireWall, DualRacer, Lightning, Fillup, Ocean, Collision, DNA, Rainfall, PoliceLights).
 - **v0.6.0-alpha (Mar 12)** — **Ambience tab**: Govee LAN sync + Cloud dashboard. 4-step API key setup wizard. AppGroupMute LED effect. Process picker UX. Win11 color picker fix. Bug audit (8 fixes). Theme consistency pass.
 - **v0.7.0-alpha (Mar 14)** — **Polish & ease of use release.** Inline sub-panel pickers (GridPicker/ActionPicker use single borderless Window with inline right panel — eliminates cross-HWND hover bugs). HA targets show "Home Assistant" with domain subtitle. Govee uses sub-flyout for device selection. App Group chips (pill tags replace checkboxes). Smart Mix redesign (Voice Ducking with ListPicker, App Profiles with dynamic add/remove rules). OSD horizontal 5-column profile layout (number badges, all 3 gestures with colored TAP/DBL/HOLD badges, LED color tints, configurable per-type duration). DreamView improvements (gamma-correct screen capture, dark pixel filtering, real monitor names via DisplayConfig API, device cards dim when active). Profile Overview page (renamed from Bindings, profile-aware navigation, Preview OSD button, LED color card tints). StyledSlider ShowLabel toggle. Wider combo boxes throughout.
+- **v0.7.2-alpha (Mar 14)** — **Bug fix release.** Fixed purple LED colors (gamma 2.8→2.0). Fixed DeviceSelect persistence (CollectAndSave was wiping DeviceMappings). Fixed multi-monitor tray menu positioning (Screen.FromPoint). OSD monitor selector with friendly names. Fixed tray mixer popup crash (Track.AppendChild). Fixed VU meters (persistent MMDevice for COM objects). Fixed VU freezing on theme change (Loaded handler restarts timer).
+- **v0.7.3-alpha (Mar 14)** — **Unified tray popup.** Left+right click open same popup with mixer, device switcher (click to cycle output/input), app assignment, Open/Exit, update banner. Ambient glow effect on mixer cards (audio-reactive, LED-tinted). Smooth knob lerp animation. Live LED color sync in UI (rainbow/fire effects cycle in mixer). OSD throttled to 10fps. Performance: visibility guards on all UI timers, brush caching, ~60% less background CPU.
+- **v0.7.4-alpha (Mar 14)** — **Hardware position request.** Discovered `FE 01 FF` command requests knob positions from device on connect (confirmed via serial probe — device only sends health pings, not auto-batch). Button cards dynamic height. OSD friendly labels. Full Turn Up protocol mapped (0x00-0x20 probed, only 0x01 responds).
+- **v0.7.5-alpha (Mar 14)** — **Per-segment DreamView.** Govee devices with known segments (H6056=6) receive individual colors via segment protocol instead of single solid color. Screen zones proportionally mapped to device segments. Fixed DreamView not syncing (auto-create device mappings). Fixed active_window showing wrong volume when AmpUp focused (skip own PID). Standard green/orange/red VU meters (2.3x boost). Channel label input UX (green caret, dark bg on focus, select-all).
