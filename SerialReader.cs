@@ -61,15 +61,15 @@ public class SerialReader : IDisposable
                 OnConnectionChanged?.Invoke(true);
                 _buf.Clear();
 
-                // Replay probe data — the device sends knob batch on first connect,
-                // which was consumed during port detection. Re-parse it now that
-                // event handlers are attached.
-                if (_probeData != null && _probeData.Count > 0)
+                // Request device info + knob positions (FE 01 FF)
+                try
                 {
-                    Logger.Log($"Replaying {_probeData.Count} probe bytes for initial knob positions");
-                    _buf.AddRange(_probeData);
-                    _probeData = null;
-                    ParseFrames();
+                    _port.Write(new byte[] { 0xFE, 0x01, 0xFF }, 0, 3);
+                    Logger.Log("Sent position request (FE 01 FF)");
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"Failed to request positions: {ex.Message}");
                 }
 
                 await ReadLoop(ct);
@@ -91,12 +91,8 @@ public class SerialReader : IDisposable
     /// Tries the configured port first. If it fails, scans all available COM ports
     /// and probes each for Turn Up protocol frames (health ping, device ID, knob batch).
     /// </summary>
-    private List<byte>? _probeData; // data captured during port probe — may contain knob batch
-
     private async Task<string?> FindDevicePort(CancellationToken ct)
     {
-        _probeData = null;
-
         // Always try configured port first even if GetPortNames() doesn't list it —
         // the registry-based enumeration can briefly miss a port after process restart
         var allPorts = SerialPort.GetPortNames();
@@ -131,26 +127,7 @@ public class SerialReader : IDisposable
 
                         if (ContainsTurnUpFrame(data))
                         {
-                            // Keep reading briefly to capture the knob batch frame
-                            // (device sends health ping first, then batch shortly after)
-                            if (!ContainsKnobBatch(data))
-                            {
-                                try
-                                {
-                                    var extraDeadline = DateTime.UtcNow.AddMilliseconds(500);
-                                    while (DateTime.UtcNow < extraDeadline)
-                                    {
-                                        int extra = await probe.BaseStream.ReadAsync(probeBuf, 0, probeBuf.Length, ct)
-                                            .WaitAsync(TimeSpan.FromMilliseconds(300), ct);
-                                        for (int j = 0; j < extra; j++) data.Add(probeBuf[j]);
-                                        if (ContainsKnobBatch(data)) break;
-                                    }
-                                }
-                                catch { }
-                            }
-
                             Logger.Log($"Turn Up device detected on {portName}");
-                            _probeData = data; // save for replay after main connect
                             probe.Close();
                             return portName;
                         }
@@ -174,16 +151,6 @@ public class SerialReader : IDisposable
     /// <summary>
     /// Checks if the byte buffer contains any valid Turn Up protocol frame.
     /// </summary>
-    private static bool ContainsKnobBatch(List<byte> data)
-    {
-        for (int i = 0; i < data.Count - 12; i++)
-        {
-            if (data[i] == 0xFE && data[i + 1] == 0x04 && data[i + 12] == 0xFF)
-                return true;
-        }
-        return false;
-    }
-
     private static bool ContainsTurnUpFrame(List<byte> data)
     {
         for (int i = 0; i < data.Count - 2; i++)
