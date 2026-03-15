@@ -23,40 +23,51 @@ public class AudioMixer : IDisposable
         _pollTimer = new System.Threading.Timer(_ => RefreshSessions(), null, 2000, 2000);
     }
 
+    private MMDevice? _renderDevice; // kept alive so session COM objects remain valid
+
     private void RefreshSessions()
     {
         try
         {
+            MMDevice? device;
+            lock (_enumLock) device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+
+            var newSessions = new Dictionary<string, AudioSessionControl>();
+            var newPidSessions = new Dictionary<uint, AudioSessionControl>();
+
+            var sessionMgr = device!.AudioSessionManager;
+            var sessions = sessionMgr.Sessions;
+            for (int i = 0; i < sessions.Count; i++)
+            {
+                var s = sessions[i];
+                try
+                {
+                    var pid = (int)s.GetProcessID;
+                    if (pid == 0) continue;
+                    var proc = System.Diagnostics.Process.GetProcessById(pid);
+                    var name = proc.ProcessName.ToLowerInvariant();
+                    if (!newSessions.ContainsKey(name))
+                        newSessions[name] = s;
+                    var upid = (uint)pid;
+                    if (!newPidSessions.ContainsKey(upid))
+                        newPidSessions[upid] = s;
+                }
+                catch { }
+            }
+
+            // Swap atomically — old device disposed after new sessions are live
             lock (_lock)
             {
-                _sessions.Clear();
-                _sessionsByPid.Clear();
-                MMDevice? device;
-                lock (_enumLock) device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                using var _dev = device;
-                var sessionMgr = device!.AudioSessionManager;
-                var sessions = sessionMgr.Sessions;
-                for (int i = 0; i < sessions.Count; i++)
-                {
-                    var s = sessions[i];
-                    try
-                    {
-                        var pid = (int)s.GetProcessID;
-                        if (pid == 0) continue;
-                        var proc = System.Diagnostics.Process.GetProcessById(pid);
-                        var name = proc.ProcessName.ToLowerInvariant();
-                        if (!_sessions.ContainsKey(name))
-                            _sessions[name] = s;
-                        var upid = (uint)pid;
-                        if (!_sessionsByPid.ContainsKey(upid))
-                            _sessionsByPid[upid] = s;
-                    }
-                    catch { }
-                }
+                _sessions = newSessions;
+                _sessionsByPid = newPidSessions;
+                var oldDevice = _renderDevice;
+                _renderDevice = device;
+                oldDevice?.Dispose();
             }
         }
         catch (Exception ex)
         {
+            // Don't clear _sessions on failure — keep stale data rather than empty
             Logger.Log($"Session refresh error: {ex.Message}");
         }
     }
