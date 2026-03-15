@@ -41,6 +41,7 @@ public partial class App : Application
     public static RgbController? Rgb { get; private set; }
     private readonly long[] _lastKnobUiTick = new long[5]; // throttle UI updates
     private readonly long[] _lastOsdTick = new long[5]; // throttle OSD updates
+    private readonly long _startupTick = Environment.TickCount64; // suppress OSD on launch
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -424,7 +425,8 @@ public partial class App : Application
             // Throttled to ~100ms to avoid rapid flashing during fast knob turns
             long osdNow = Environment.TickCount64;
             if (_config.Osd.ShowVolume && !knob.Target.Equals("none", StringComparison.OrdinalIgnoreCase)
-                && osdNow - _lastOsdTick[e.Idx] >= 100)
+                && osdNow - _lastOsdTick[e.Idx] >= 100
+                && osdNow - _startupTick >= 3000)
             {
                 _lastOsdTick[e.Idx] = osdNow;
                 float pct = e.Value / 1023f;
