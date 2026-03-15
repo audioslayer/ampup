@@ -649,10 +649,12 @@ public class BindingsView : UserControl
     private static UIElement BuildGestureRow(string gestureLabel, string action, string path, string macroKeys, string profileName, Color gestureColor)
     {
         ActionIcons.TryGetValue(action, out var icon);
-        ActionColors.TryGetValue(action, out var actionColor);
+        if (!ActionColors.TryGetValue(action, out var actionColor))
+            actionColor = Color.FromRgb(0xCC, 0xCC, 0xCC); // fallback for unknown actions
         ActionDisplayNames.TryGetValue(action, out var displayName);
 
-        displayName ??= action;
+        displayName ??= System.Globalization.CultureInfo.CurrentCulture.TextInfo
+            .ToTitleCase(action.Replace("_", " "));
 
         // Append context for actions that need it
         var context = action switch
