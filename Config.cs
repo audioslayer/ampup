@@ -433,6 +433,7 @@ public class GoveeDeviceConfig
     public string Sku { get; set; } = "";           // model number e.g. "H6056"
     public string DeviceId { get; set; } = "";      // MAC address from LAN scan or Cloud API device ID
     public string SyncMode { get; set; } = "off";   // "off" | "global" | "knob0"-"knob4"
+    public bool UseSegmentProtocol { get; set; } = true; // per-segment DreamView (auto-enabled for capable SKUs)
 }
 
 // ── DreamView / Screen Sync ─────────────────────────────────────────────────

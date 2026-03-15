@@ -33,8 +33,14 @@ public class DreamSyncController : IDisposable
     private readonly Dictionary<string, UdpClient> _udpClients = new();
     private const int LanControlPort = 4003;
 
-    // Per-device last-sent color for delta suppression
+    // Per-device last-sent color for delta suppression (single-color fallback)
     private readonly Dictionary<string, (byte R, byte G, byte B)> _lastSent = new();
+
+    // Per-segment protocol state
+    private readonly HashSet<string> _segmentEnabled = new();        // devices with segment mode active
+    private readonly Dictionary<string, long> _segmentEnableTick = new(); // keepalive timer
+    private readonly Dictionary<string, (byte R, byte G, byte B)[]> _lastSegmentColors = new();
+    private const long SegmentKeepaliveMs = 30_000; // re-send enable every 30s (device times out ~60s)
 
     // Cap UDP send rate at 30fps (hardware can't transition faster — sending more causes flicker)
     private const int MaxSendFps = 30;
@@ -89,6 +95,7 @@ public class DreamSyncController : IDisposable
         _loopTask = null;
         _cts?.Dispose();
         _cts = null;
+        DisableAllSegments();
         Status = "Stopped";
         Logger.Log("DreamSync: stopped");
     }
@@ -132,29 +139,56 @@ public class DreamSyncController : IDisposable
                         {
                             if (string.IsNullOrWhiteSpace(mapping.DeviceIp)) continue;
 
-                            // Find the device in ambience config — must be enabled (not "off")
                             var dev = amb.GoveeDevices.FirstOrDefault(d => d.Ip == mapping.DeviceIp);
                             if (dev == null) continue;
 
-                            // Sample the correct zone color for this device's side
-                            var color = SampleColorForSide(zones, cfg.ZoneCount, mapping.Side);
+                            int segCount = AmbienceSync.GetSegmentCount(dev.Sku);
+                            bool useSegments = segCount > 0 && dev.UseSegmentProtocol;
 
-                            // Apply brightness scale from ambience config
-                            color = ApplyBrightness(color, amb.BrightnessScale);
-
-                            // Delta check — only send if color changed enough
-                            int sensitivity = cfg.Sensitivity; // 1-20
-                            if (_lastSent.TryGetValue(mapping.DeviceIp, out var prev))
+                            if (useSegments)
                             {
-                                int dr = Math.Abs(color.R - prev.R);
-                                int dg = Math.Abs(color.G - prev.G);
-                                int db = Math.Abs(color.B - prev.B);
-                                if (dr <= sensitivity && dg <= sensitivity && db <= sensitivity)
-                                    continue;
-                            }
+                                // ── Per-segment path ──
+                                // Enable segment mode if not yet active or keepalive expired
+                                long nowMs = Environment.TickCount64;
+                                if (!_segmentEnabled.Contains(mapping.DeviceIp) ||
+                                    nowMs - (_segmentEnableTick.GetValueOrDefault(mapping.DeviceIp)) > SegmentKeepaliveMs)
+                                {
+                                    SendSegmentEnable(mapping.DeviceIp, true);
+                                    _segmentEnabled.Add(mapping.DeviceIp);
+                                    _segmentEnableTick[mapping.DeviceIp] = nowMs;
+                                }
 
-                            _lastSent[mapping.DeviceIp] = color;
-                            SendColorFast(mapping.DeviceIp, color.R, color.G, color.B);
+                                // Map screen zones to device segments
+                                var segColors = MapZonesToSegments(zones, segCount);
+                                for (int s = 0; s < segColors.Length; s++)
+                                    segColors[s] = ApplyBrightness(segColors[s], amb.BrightnessScale);
+
+                                // Delta check across all segments
+                                if (SegmentColorsChanged(mapping.DeviceIp, segColors, cfg.Sensitivity))
+                                {
+                                    _lastSegmentColors[mapping.DeviceIp] = segColors;
+                                    SendSegmentColors(mapping.DeviceIp, segColors);
+                                }
+                            }
+                            else
+                            {
+                                // ── Single-color fallback (colorwc) ──
+                                var color = SampleColorForSide(zones, cfg.ZoneCount, mapping.Side);
+                                color = ApplyBrightness(color, amb.BrightnessScale);
+
+                                int sensitivity = cfg.Sensitivity;
+                                if (_lastSent.TryGetValue(mapping.DeviceIp, out var prev))
+                                {
+                                    int dr = Math.Abs(color.R - prev.R);
+                                    int dg = Math.Abs(color.G - prev.G);
+                                    int db = Math.Abs(color.B - prev.B);
+                                    if (dr <= sensitivity && dg <= sensitivity && db <= sensitivity)
+                                        continue;
+                                }
+
+                                _lastSent[mapping.DeviceIp] = color;
+                                SendColorFast(mapping.DeviceIp, color.R, color.G, color.B);
+                            }
                         }
                     }
 
@@ -247,6 +281,123 @@ public class DreamSyncController : IDisposable
 
         // Fire and forget — don't await; capture loop shouldn't block on network I/O
         _ = udp.SendAsync(data, data.Length, ip, LanControlPort);
+    }
+
+    // ── Per-segment protocol (Govee "razer" command) ─────────────────────────
+
+    private static byte XorChecksum(byte[] data, int length)
+    {
+        byte xor = 0;
+        for (int i = 0; i < length; i++) xor ^= data[i];
+        return xor;
+    }
+
+    private void SendSegmentEnable(string ip, bool enable)
+    {
+        // Binary: BB 00 01 B1 [01=enable/00=disable] [xor]
+        var pkt = new byte[] { 0xBB, 0x00, 0x01, 0xB1, (byte)(enable ? 1 : 0), 0 };
+        pkt[5] = XorChecksum(pkt, 5);
+
+        string b64 = Convert.ToBase64String(pkt);
+        string json = $"{{\"msg\":{{\"cmd\":\"razer\",\"data\":{{\"pt\":\"{b64}\"}}}}}}";
+        byte[] data = Encoding.UTF8.GetBytes(json);
+
+        if (!_udpClients.TryGetValue(ip, out var udp))
+        {
+            udp = new UdpClient();
+            _udpClients[ip] = udp;
+        }
+        _ = udp.SendAsync(data, data.Length, ip, LanControlPort);
+        Logger.Log($"DreamSync: segment {(enable ? "enabled" : "disabled")} for {ip}");
+    }
+
+    private void SendSegmentColors(string ip, (byte R, byte G, byte B)[] colors)
+    {
+        // Binary: BB [len_hi] [len_lo] B0 00 [count] [R G B]... [xor]
+        int count = colors.Length;
+        int payloadLen = 2 + 1 + count * 3; // B0 00 + count + RGB data
+        int totalLen = 3 + payloadLen + 1;   // header(3) + payload + checksum
+        var pkt = new byte[totalLen];
+
+        pkt[0] = 0xBB;
+        pkt[1] = (byte)(payloadLen >> 8);
+        pkt[2] = (byte)(payloadLen & 0xFF);
+        pkt[3] = 0xB0;
+        pkt[4] = 0x00;
+        pkt[5] = (byte)count;
+
+        for (int i = 0; i < count; i++)
+        {
+            pkt[6 + i * 3] = colors[i].R;
+            pkt[7 + i * 3] = colors[i].G;
+            pkt[8 + i * 3] = colors[i].B;
+        }
+        pkt[totalLen - 1] = XorChecksum(pkt, totalLen - 1);
+
+        string b64 = Convert.ToBase64String(pkt);
+        string json = $"{{\"msg\":{{\"cmd\":\"razer\",\"data\":{{\"pt\":\"{b64}\"}}}}}}";
+        byte[] data = Encoding.UTF8.GetBytes(json);
+
+        if (!_udpClients.TryGetValue(ip, out var udp))
+        {
+            udp = new UdpClient();
+            _udpClients[ip] = udp;
+        }
+        _ = udp.SendAsync(data, data.Length, ip, LanControlPort);
+    }
+
+    /// <summary>
+    /// Map N screen zones to M device segments by proportional grouping.
+    /// </summary>
+    private static (byte R, byte G, byte B)[] MapZonesToSegments(
+        (byte R, byte G, byte B)[] zones, int segmentCount)
+    {
+        var result = new (byte R, byte G, byte B)[segmentCount];
+        int zoneCount = zones.Length;
+
+        for (int seg = 0; seg < segmentCount; seg++)
+        {
+            // Proportional mapping: which zones contribute to this segment
+            float start = (float)seg / segmentCount * zoneCount;
+            float end = (float)(seg + 1) / segmentCount * zoneCount;
+
+            int r = 0, g = 0, b = 0, count = 0;
+            for (int z = (int)start; z < (int)Math.Ceiling(end) && z < zoneCount; z++)
+            {
+                r += zones[z].R;
+                g += zones[z].G;
+                b += zones[z].B;
+                count++;
+            }
+            if (count > 0)
+                result[seg] = ((byte)(r / count), (byte)(g / count), (byte)(b / count));
+        }
+        return result;
+    }
+
+    private bool SegmentColorsChanged(string ip, (byte R, byte G, byte B)[] colors, int sensitivity)
+    {
+        if (!_lastSegmentColors.TryGetValue(ip, out var prev) || prev.Length != colors.Length)
+            return true;
+        for (int i = 0; i < colors.Length; i++)
+        {
+            if (Math.Abs(colors[i].R - prev[i].R) > sensitivity ||
+                Math.Abs(colors[i].G - prev[i].G) > sensitivity ||
+                Math.Abs(colors[i].B - prev[i].B) > sensitivity)
+                return true;
+        }
+        return false;
+    }
+
+    private void DisableAllSegments()
+    {
+        foreach (var ip in _segmentEnabled)
+        {
+            try { SendSegmentEnable(ip, false); } catch { }
+        }
+        _segmentEnabled.Clear();
+        _segmentEnableTick.Clear();
+        _lastSegmentColors.Clear();
     }
 
     // ── IDisposable ───────────────────────────────────────────────────────────

@@ -1300,39 +1300,54 @@ public partial class AmbienceView : UserControl
                 };
                 devRow.Children.Add(devName);
 
-                var zoneComboDevice = new ComboBox { Width = 100, Margin = new Thickness(8, 0, 0, 0) };
-                foreach (ZoneSide side in Enum.GetValues<ZoneSide>())
-                    zoneComboDevice.Items.Add(side.ToString());
-
                 // Find or create mapping for this device
-                string devIp = dev.Ip; // capture for lambda
+                string devIp = dev.Ip;
                 var existing = cfg.DeviceMappings.FirstOrDefault(m => m.DeviceIp == devIp);
                 if (existing == null)
                 {
-                    // Auto-create mapping so the device is always synced
                     existing = new ZoneDeviceMapping { DeviceIp = devIp, Side = ZoneSide.Full };
                     cfg.DeviceMappings.Add(existing);
-                    // Push new mapping to DreamSync and save
                     _dreamSync?.UpdateConfig(cfg, _config?.Ambience ?? new AmbienceConfig());
                     QueueSave();
                 }
-                zoneComboDevice.SelectedIndex = (int)existing.Side;
 
-                zoneComboDevice.SelectionChanged += (_, _) =>
+                int segCount = AmbienceSync.GetSegmentCount(dev.Sku);
+                if (segCount > 0)
                 {
-                    if (_loading || _config == null) return;
-                    var mappings = _config.Ambience.ScreenSync.DeviceMappings;
-                    var m = mappings.FirstOrDefault(x => x.DeviceIp == devIp);
-                    if (m == null)
+                    // Segment-capable device — show segment info label
+                    devRow.Children.Add(new TextBlock
                     {
-                        m = new ZoneDeviceMapping { DeviceIp = devIp };
-                        mappings.Add(m);
-                    }
-                    m.Side = (ZoneSide)zoneComboDevice.SelectedIndex;
-                    _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-                    QueueSave();
-                };
-                devRow.Children.Add(zoneComboDevice);
+                        Text = $"Per-segment ({segCount} zones)",
+                        FontSize = 11,
+                        Foreground = FindBrush("AccentBrush"),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(8, 0, 0, 0),
+                    });
+                }
+                else
+                {
+                    // Fallback — show zone side picker
+                    var zoneComboDevice = new ComboBox { Width = 100, Margin = new Thickness(8, 0, 0, 0) };
+                    foreach (ZoneSide side in Enum.GetValues<ZoneSide>())
+                        zoneComboDevice.Items.Add(side.ToString());
+                    zoneComboDevice.SelectedIndex = (int)existing.Side;
+
+                    zoneComboDevice.SelectionChanged += (_, _) =>
+                    {
+                        if (_loading || _config == null) return;
+                        var mappings = _config.Ambience.ScreenSync.DeviceMappings;
+                        var m = mappings.FirstOrDefault(x => x.DeviceIp == devIp);
+                        if (m == null)
+                        {
+                            m = new ZoneDeviceMapping { DeviceIp = devIp };
+                            mappings.Add(m);
+                        }
+                        m.Side = (ZoneSide)zoneComboDevice.SelectedIndex;
+                        _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+                        QueueSave();
+                    };
+                    devRow.Children.Add(zoneComboDevice);
+                }
 
                 stack.Children.Add(devRow);
             }

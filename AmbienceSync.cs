@@ -512,6 +512,28 @@ public class AmbienceSync : IDisposable
     }
 
     /// <summary>
+    /// Get the number of individually addressable segments for a Govee device SKU.
+    /// Returns 0 if the device doesn't support per-segment control.
+    /// </summary>
+    public static int GetSegmentCount(string sku) => sku?.ToUpperInvariant() switch
+    {
+        "H6056" => 6,   // Flow Plus Light Bar
+        "H6057" => 6,   // Flow Plus Light Bar
+        "H6046" => 12,  // RGBIC TV Light Bars
+        "H6047" => 12,
+        "H604A" => 20,  // RGBIC TV Backlight
+        "H604B" => 20,
+        "H604C" => 20,
+        "H6049" => 12,  // DreamView G1
+        "H6043" => 15,  // DreamView TV Backlight
+        "H6062" => 10,  // Glide Wall Light
+        "H6601" => 10,  // Curtain Lights
+        _ => 0
+    };
+
+    public static bool SupportsSegments(string sku) => GetSegmentCount(sku) > 0;
+
+    /// <summary>
     /// Map Govee SKU to a friendly product name. Falls back to SKU if unknown.
     /// </summary>
     public static string GetProductName(string sku)
