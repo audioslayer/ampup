@@ -355,6 +355,7 @@ public partial class App : Application
     {
         _config = config;
         ConfigManager.Save(_config);
+        ConfigManager.SaveProfile(_config, _config.ActiveProfile);
         ApplyRgbConfig();
         UpdateAudioAnalyzer();
         ApplyStartupSetting();
@@ -556,6 +557,9 @@ public partial class App : Application
             Logger.Log($"Profile '{profileName}' not found");
             return;
         }
+
+        // Save current profile before switching so changes aren't lost
+        ConfigManager.SaveProfile(_config, _config.ActiveProfile);
 
         // Preserve global settings that shouldn't change per-profile
         var osd = _config.Osd;
