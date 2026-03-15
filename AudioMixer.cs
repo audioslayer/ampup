@@ -461,7 +461,10 @@ public class AudioMixer : IDisposable
                 }
                 try
                 {
-                    return _masterPeakDevice.AudioMeterInformation.MasterPeakValue;
+                    float peak = _masterPeakDevice.AudioMeterInformation.MasterPeakValue;
+                    if (peak > 0.01f)
+                        Logger.Log($"Master peak: {peak:F4}");
+                    return peak;
                 }
                 catch
                 {
