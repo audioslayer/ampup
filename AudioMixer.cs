@@ -462,8 +462,7 @@ public class AudioMixer : IDisposable
                 try
                 {
                     float peak = _masterPeakDevice.AudioMeterInformation.MasterPeakValue;
-                    if (peak > 0.01f)
-                        Logger.Log($"Master peak: {peak:F4}");
+                    Logger.Log($"Master peak: {peak:F4} device={_masterPeakDevice.FriendlyName}");
                     return peak;
                 }
                 catch
