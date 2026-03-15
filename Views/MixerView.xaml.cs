@@ -444,7 +444,7 @@ public partial class MixerView : UserControl
                         vol = App.KnobPositions[i];
                     // WASAPI peak is 0.0–1.0 but typical audio sits around 0.2–0.4.
                     // 3x boost so normal listening hits the upper segments.
-                    peak = Math.Min(_mixer.GetPeakLevel(knob) * 3f, 1f);
+                    peak = Math.Min(_mixer.GetPeakLevel(knob) * 2.3f, 1f);
                 }
 
                 _knobs[i].SetTarget(vol);
