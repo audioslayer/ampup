@@ -442,8 +442,10 @@ public partial class MixerView : UserControl
                     // If WASAPI returns 0 (no active sessions), show hardware knob position
                     if (vol <= 0f)
                         vol = App.KnobPositions[i];
-                    // WASAPI peak values rarely exceed ~0.5, so boost 2.5x for a full meter
-                    peak = Math.Min(_mixer.GetPeakLevel(knob) * 2.5f, 1f);
+                    // WASAPI peak values are very low — master endpoint even lower than per-app
+                    float rawPeak = _mixer.GetPeakLevel(knob);
+                    float boost = knob.Target.Equals("master", StringComparison.OrdinalIgnoreCase) ? 8f : 2.5f;
+                    peak = Math.Min(rawPeak * boost, 1f);
                 }
 
                 _knobs[i].SetTarget(vol);

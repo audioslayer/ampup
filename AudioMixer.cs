@@ -461,9 +461,7 @@ public class AudioMixer : IDisposable
                 }
                 try
                 {
-                    float peak = _masterPeakDevice.AudioMeterInformation.MasterPeakValue;
-                    Logger.Log($"Master peak: {peak:F4} device={_masterPeakDevice.FriendlyName}");
-                    return peak;
+                    return _masterPeakDevice.AudioMeterInformation.MasterPeakValue;
                 }
                 catch
                 {
