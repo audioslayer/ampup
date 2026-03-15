@@ -121,6 +121,20 @@ public class TrayMixerPopup : Window
         DockPanel.SetDock(divider, Dock.Top);
         root.Children.Add(divider);
 
+        // Device switcher section
+        var deviceSection = BuildDeviceSwitcher();
+        DockPanel.SetDock(deviceSection, Dock.Top);
+        root.Children.Add(deviceSection);
+
+        // Divider after devices
+        var divider2 = new Border
+        {
+            Height = 1,
+            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A))
+        };
+        DockPanel.SetDock(divider2, Dock.Top);
+        root.Children.Add(divider2);
+
         // Scrollable session list
         var scroll = new ScrollViewer
         {
@@ -279,6 +293,117 @@ public class TrayMixerPopup : Window
         {
             _updatingFromPoll = false;
         }
+    }
+
+    private UIElement BuildDeviceSwitcher()
+    {
+        var panel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Margin = new Thickness(6, 6, 6, 4)
+        };
+
+        // Output device row
+        panel.Children.Add(BuildDeviceRow("OUTPUT", DataFlow.Render));
+
+        // Input device row
+        panel.Children.Add(BuildDeviceRow("INPUT", DataFlow.Capture));
+
+        return panel;
+    }
+
+    private UIElement BuildDeviceRow(string label, DataFlow flow)
+    {
+        var row = new Border
+        {
+            Background = Brushes.Transparent,
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(10, 7, 10, 7),
+            Cursor = Cursors.Hand,
+        };
+
+        var dock = new DockPanel { LastChildFill = true };
+
+        // Label (OUTPUT / INPUT)
+        var typeLabel = new TextBlock
+        {
+            Text = label,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            FontSize = 9,
+            FontWeight = FontWeights.Bold,
+            FontFamily = new FontFamily("Segoe UI"),
+            Width = 48,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        DockPanel.SetDock(typeLabel, Dock.Left);
+        dock.Children.Add(typeLabel);
+
+        // Current device name
+        string currentName = "Unknown";
+        try
+        {
+            var role = flow == DataFlow.Capture ? Role.Communications : Role.Multimedia;
+            using var device = _enumerator.GetDefaultAudioEndpoint(flow, role);
+            currentName = device.FriendlyName;
+            // Shorten long names
+            if (currentName.Length > 30)
+                currentName = currentName[..28] + "…";
+        }
+        catch { }
+
+        var nameLabel = new TextBlock
+        {
+            Text = currentName,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            FontSize = 11,
+            FontFamily = new FontFamily("Segoe UI"),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        dock.Children.Add(nameLabel);
+
+        row.Child = dock;
+
+        // Hover effect
+        var accent = GetAccentColor();
+        row.MouseEnter += (_, _) =>
+            row.Background = new SolidColorBrush(Color.FromArgb(26, accent.R, accent.G, accent.B));
+        row.MouseLeave += (_, _) =>
+            row.Background = Brushes.Transparent;
+
+        // Click to cycle to next device
+        row.MouseLeftButtonDown += (_, _) =>
+        {
+            try
+            {
+                var devices = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
+                if (devices.Count < 2) return; // nothing to cycle
+
+                var role = flow == DataFlow.Capture ? Role.Communications : Role.Multimedia;
+                using var current = _enumerator.GetDefaultAudioEndpoint(flow, role);
+                string currentId = current.ID;
+
+                // Find next device
+                int currentIdx = -1;
+                for (int i = 0; i < devices.Count; i++)
+                {
+                    if (devices[i].ID == currentId) { currentIdx = i; break; }
+                }
+                int nextIdx = (currentIdx + 1) % devices.Count;
+                var next = devices[nextIdx];
+
+                ButtonHandler.SetDefaultAudioDevice(next.ID);
+                nameLabel.Text = next.FriendlyName.Length > 30
+                    ? next.FriendlyName[..28] + "…"
+                    : next.FriendlyName;
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"TrayMixerPopup device switch error: {ex.Message}");
+            }
+        };
+
+        return row;
     }
 
     private UIElement BuildMasterRow(MMDevice device, float vol, bool muted)

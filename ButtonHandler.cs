@@ -740,7 +740,7 @@ public class ButtonHandler : IDisposable
 
     // ── Set default audio device via IPolicyConfig COM ─────────────────
 
-    private static void SetDefaultAudioDevice(string deviceId)
+    internal static void SetDefaultAudioDevice(string deviceId)
     {
         var policyConfigType = Type.GetTypeFromCLSID(CLSID_PolicyConfigClient);
         if (policyConfigType == null)
