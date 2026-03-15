@@ -114,6 +114,9 @@ public class BindingsView : UserControl
         Unloaded += (_, _) => _colorTimer.Stop();
     }
 
+    public Action<string>? OnDuplicateProfile { get; set; }
+    public Action<string, int>? OnMoveProfile { get; set; } // profileName, direction (-1=up, +1=down)
+
     public void SetNavigationCallbacks(
         Action<string> onMixer, Action<string> onButtons,
         Action<string>? onSwitchProfile = null, Action<string>? onPreviewOsd = null)
@@ -283,31 +286,60 @@ public class BindingsView : UserControl
             });
         }
 
-        // "Preview OSD" button — right side of header
-        var previewBtn = new Border
+        // Right side action buttons
+        var actionRow = new StackPanel
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(8, 3, 8, 3),
-            Margin = new Thickness(0),
-            Cursor = Cursors.Hand,
-            VerticalAlignment = VerticalAlignment.Center,
-            Child = new TextBlock
-            {
-                Text = "Preview OSD",
-                FontSize = 10,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x99, 0x99, 0x99)),
-            }
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center
         };
-        previewBtn.MouseEnter += (_, _) => previewBtn.Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
-        previewBtn.MouseLeave += (_, _) => previewBtn.Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
+
+        // Move up/down arrows
+        int profileIdx = _config?.Profiles.IndexOf(profileName) ?? -1;
+        int profileCount = _config?.Profiles.Count ?? 0;
+
+        var moveUpBtn = MakeHeaderButton("\u25B2", "Move up"); // ▲
+        moveUpBtn.Opacity = profileIdx > 0 ? 1.0 : 0.3;
+        if (profileIdx > 0)
+        {
+            moveUpBtn.MouseLeftButtonDown += (_, e) =>
+            {
+                OnMoveProfile?.Invoke(capturedName, -1);
+                e.Handled = true;
+            };
+        }
+        actionRow.Children.Add(moveUpBtn);
+
+        var moveDownBtn = MakeHeaderButton("\u25BC", "Move down"); // ▼
+        moveDownBtn.Opacity = profileIdx < profileCount - 1 ? 1.0 : 0.3;
+        if (profileIdx < profileCount - 1)
+        {
+            moveDownBtn.MouseLeftButtonDown += (_, e) =>
+            {
+                OnMoveProfile?.Invoke(capturedName, 1);
+                e.Handled = true;
+            };
+        }
+        actionRow.Children.Add(moveDownBtn);
+
+        // Duplicate button
+        var dupeBtn = MakeHeaderButton("Duplicate", "Duplicate this profile");
+        dupeBtn.Margin = new Thickness(6, 0, 0, 0);
+        dupeBtn.MouseLeftButtonDown += (_, e) =>
+        {
+            OnDuplicateProfile?.Invoke(capturedName);
+            e.Handled = true;
+        };
+        actionRow.Children.Add(dupeBtn);
+
+        // Preview OSD button
+        var previewBtn = MakeHeaderButton("Preview OSD", "Show OSD for this profile");
+        previewBtn.Margin = new Thickness(6, 0, 0, 0);
         previewBtn.MouseLeftButtonDown += (_, e) =>
         {
             _onPreviewOsd?.Invoke(capturedName);
             e.Handled = true;
         };
+        actionRow.Children.Add(previewBtn);
 
         var headerGrid = new Grid { Margin = new Thickness(0, 0, 0, 14) };
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -315,8 +347,8 @@ public class BindingsView : UserControl
         Grid.SetColumn(profileHeader, 0);
         profileHeader.Margin = new Thickness(0);
         headerGrid.Children.Add(profileHeader);
-        Grid.SetColumn(previewBtn, 1);
-        headerGrid.Children.Add(previewBtn);
+        Grid.SetColumn(actionRow, 1);
+        headerGrid.Children.Add(actionRow);
         sectionContent.Children.Add(headerGrid);
 
         // Knobs subsection label
@@ -356,6 +388,30 @@ public class BindingsView : UserControl
 
         section.Child = sectionContent;
         return section;
+    }
+
+    private static Border MakeHeaderButton(string text, string tooltip)
+    {
+        var btn = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(8, 3, 8, 3),
+            Cursor = Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = tooltip,
+            Child = new TextBlock
+            {
+                Text = text,
+                FontSize = 10,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x99, 0x99, 0x99)),
+            }
+        };
+        btn.MouseEnter += (_, _) => btn.Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
+        btn.MouseLeave += (_, _) => btn.Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
+        return btn;
     }
 
     private static TextBlock MakeSectionLabel(string text) => new()

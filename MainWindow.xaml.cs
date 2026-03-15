@@ -72,6 +72,16 @@ public partial class MainWindow : FluentWindow
                 var iconCfg = _config.ProfileIcons.GetValueOrDefault(profileName) ?? new ProfileIconConfig();
                 app.PreviewProfileOsd(profileName, iconCfg, profileConfig);
             });
+
+        _bindingsView.OnDuplicateProfile = profileName =>
+        {
+            DuplicateProfile(profileName);
+        };
+        _bindingsView.OnMoveProfile = (profileName, direction) =>
+        {
+            MoveProfile(profileName, direction);
+        };
+
         NavigateTo(_mixerView, NavMixer);
         SetupTrafficLightHovers();
 
@@ -970,6 +980,51 @@ public partial class MainWindow : FluentWindow
                 System.IO.File.Move(oldPath, newPath);
         }
         catch { }
+    }
+
+    private void DuplicateProfile(string sourceProfileName)
+    {
+        // Generate unique name
+        string baseName = sourceProfileName + " Copy";
+        string newName = baseName;
+        int counter = 2;
+        while (_config.Profiles.Contains(newName))
+        {
+            newName = $"{baseName} {counter}";
+            counter++;
+        }
+
+        // Copy profile data
+        var sourceConfig = ConfigManager.LoadProfile(sourceProfileName);
+        if (sourceConfig == null) sourceConfig = new AppConfig();
+
+        _config.Profiles.Add(newName);
+        _config.ProfileIcons[newName] = new ProfileIconConfig
+        {
+            Symbol = (_config.ProfileIcons.GetValueOrDefault(sourceProfileName) ?? new ProfileIconConfig()).Symbol,
+            Color = (_config.ProfileIcons.GetValueOrDefault(sourceProfileName) ?? new ProfileIconConfig()).Color
+        };
+
+        // Save the duplicated profile
+        sourceConfig.ActiveProfile = newName;
+        ConfigManager.SaveProfile(sourceConfig, newName);
+
+        _onConfigChanged?.Invoke(_config);
+        UpdateProfileButton();
+        RefreshViews();
+    }
+
+    private void MoveProfile(string profileName, int direction)
+    {
+        int idx = _config.Profiles.IndexOf(profileName);
+        int newIdx = idx + direction;
+        if (idx < 0 || newIdx < 0 || newIdx >= _config.Profiles.Count) return;
+
+        _config.Profiles.RemoveAt(idx);
+        _config.Profiles.Insert(newIdx, profileName);
+
+        _onConfigChanged?.Invoke(_config);
+        RefreshViews();
     }
 
     private void ShowIconPicker(string profileName)
