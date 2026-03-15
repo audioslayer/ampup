@@ -205,6 +205,13 @@ public class CheckListPicker : Border
         };
 
         var screenPos = PointToScreen(new Point(0, ActualHeight + 2));
+        var source = PresentationSource.FromVisual(this);
+        if (source?.CompositionTarget != null)
+        {
+            var dpiX = source.CompositionTarget.TransformToDevice.M11;
+            var dpiY = source.CompositionTarget.TransformToDevice.M22;
+            screenPos = new Point(screenPos.X / dpiX, screenPos.Y / dpiY);
+        }
         _flyout.Left = screenPos.X;
         _flyout.Top = screenPos.Y;
 

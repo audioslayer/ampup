@@ -1460,6 +1460,13 @@ public partial class ButtonsView : UserControl
         }
 
         var screenPos = anchor.PointToScreen(new Point(0, anchor.ActualHeight + 2));
+        var dpiSource = PresentationSource.FromVisual(anchor);
+        if (dpiSource?.CompositionTarget != null)
+        {
+            var dpiX = dpiSource.CompositionTarget.TransformToDevice.M11;
+            var dpiY = dpiSource.CompositionTarget.TransformToDevice.M22;
+            screenPos = new Point(screenPos.X / dpiX, screenPos.Y / dpiY);
+        }
         procFlyout = new Window
         {
             WindowStyle = WindowStyle.None,

@@ -463,6 +463,13 @@ public partial class MainWindow : FluentWindow
         ProfilePopupPanel.Visibility = System.Windows.Visibility.Visible;
 
         var screenPos = ProfileButton.PointToScreen(new Point(ProfileButton.ActualWidth + 4, 0));
+        var dpiSource = PresentationSource.FromVisual(ProfileButton);
+        if (dpiSource?.CompositionTarget != null)
+        {
+            var dpiX = dpiSource.CompositionTarget.TransformToDevice.M11;
+            var dpiY = dpiSource.CompositionTarget.TransformToDevice.M22;
+            screenPos = new Point(screenPos.X / dpiX, screenPos.Y / dpiY);
+        }
         _profileFlyout = new Window
         {
             WindowStyle = WindowStyle.None,
@@ -825,6 +832,13 @@ public partial class MainWindow : FluentWindow
 
         // Position to the right of the ProfileButton
         var screenPos = ProfileButton.PointToScreen(new Point(ProfileButton.ActualWidth + 4, 0));
+        var dpiSource2 = PresentationSource.FromVisual(ProfileButton);
+        if (dpiSource2?.CompositionTarget != null)
+        {
+            var dpiX = dpiSource2.CompositionTarget.TransformToDevice.M11;
+            var dpiY = dpiSource2.CompositionTarget.TransformToDevice.M22;
+            screenPos = new Point(screenPos.X / dpiX, screenPos.Y / dpiY);
+        }
 
         iconPopupWindow = new Window
         {
