@@ -25,9 +25,6 @@ namespace AmpUp.Controls
         private const double KnobStartX = 40;
         private const double KnobY = 30;
         private const double ButtonY = 145;
-        private const double LedDotSize = 6;
-        private const double LedDotY = 18;
-        private const double LedDotSpacing = 12;
 
         // Arc constants (matching AnimatedKnobControl)
         private const double StartAngleDeg = 225.0;
@@ -57,7 +54,6 @@ namespace AmpUp.Controls
         private readonly Border[] _knobHitAreas = new Border[5];
         private readonly Border[] _buttonBorders = new Border[5];
         private readonly KnobVisual[] _knobVisuals = new KnobVisual[5];
-        private readonly Border[][] _ledDots = new Border[5][];
         private readonly TextBlock[] _knobLabels = new TextBlock[5];
         private readonly System.Windows.Threading.DispatcherTimer _updateTimer;
 
@@ -170,24 +166,6 @@ namespace AmpUp.Controls
         {
             double knobCenterX = x + KnobSize / 2;
 
-            // 3 LED dots above the knob
-            _ledDots[idx] = new Border[3];
-            for (int led = 0; led < 3; led++)
-            {
-                double dotX = knobCenterX - LedDotSpacing + led * LedDotSpacing - LedDotSize / 2;
-                var dot = new Border
-                {
-                    Width = LedDotSize,
-                    Height = LedDotSize,
-                    CornerRadius = new CornerRadius(LedDotSize / 2),
-                    Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22))
-                };
-                Canvas.SetLeft(dot, dotX);
-                Canvas.SetTop(dot, LedDotY);
-                _canvas.Children.Add(dot);
-                _ledDots[idx][led] = dot;
-            }
-
             // Knob visual (custom DrawingVisual for arc + knob image)
             var knobVisual = new KnobVisual(KnobSize);
             Canvas.SetLeft(knobVisual, x);
@@ -210,6 +188,7 @@ namespace AmpUp.Controls
             hitArea.MouseLeftButtonDown += (_, _) => _onKnobClick?.Invoke(capturedIdx);
             hitArea.MouseEnter += (_, _) => knobVisual.SetHovered(true);
             hitArea.MouseLeave += (_, _) => knobVisual.SetHovered(false);
+            hitArea.ToolTip = BuildToolTipStyle($"Knob {idx + 1}", "Not assigned");
             _canvas.Children.Add(hitArea);
             _knobHitAreas[idx] = hitArea;
 
@@ -262,6 +241,7 @@ namespace AmpUp.Controls
             {
                 UpdateButtonColor(capturedIdx);
             };
+            button.ToolTip = BuildToolTipStyle($"Button {idx + 1}", "Not assigned");
             _canvas.Children.Add(button);
             _buttonBorders[idx] = button;
         }
@@ -296,29 +276,6 @@ namespace AmpUp.Controls
 
                         // Update arc color
                         _knobVisuals[i].SetArcColor(color);
-
-                        // Update LED dots with glow
-                        for (int led = 0; led < 3; led++)
-                        {
-                            var dotBrush = new SolidColorBrush(color);
-                            dotBrush.Freeze();
-                            _ledDots[i][led].Background = dotBrush;
-
-                            if (r > 5 || g > 5 || b > 5)
-                            {
-                                _ledDots[i][led].Effect = new DropShadowEffect
-                                {
-                                    Color = color,
-                                    BlurRadius = 8,
-                                    ShadowDepth = 0,
-                                    Opacity = 0.7
-                                };
-                            }
-                            else
-                            {
-                                _ledDots[i][led].Effect = null;
-                            }
-                        }
                     }
                 }
             }
@@ -330,14 +287,145 @@ namespace AmpUp.Controls
 
             for (int i = 0; i < 5; i++)
             {
-                // Knob labels
+                // Knob labels + tooltips
                 var knob = _config.Knobs.Count > i ? _config.Knobs[i] : null;
                 string label = !string.IsNullOrEmpty(knob?.Label) ? knob!.Label : $"Knob {i + 1}";
                 _knobLabels[i].Text = label;
+                _knobHitAreas[i].ToolTip = BuildKnobTooltip(i, knob);
 
-                // Button colors based on tap action category
+                // Button colors + tooltips
+                var btn = _config.Buttons.Count > i ? _config.Buttons[i] : null;
+                _buttonBorders[i].ToolTip = BuildButtonTooltip(i, btn);
                 UpdateButtonColor(i);
             }
+        }
+
+        // ── Tooltip builders ────────────────────────────────────────────
+
+        private static object BuildKnobTooltip(int idx, KnobConfig? knob)
+        {
+            string title = !string.IsNullOrEmpty(knob?.Label) ? knob!.Label : $"Knob {idx + 1}";
+            string target = FormatTarget(knob);
+
+            string detail = target;
+            if (knob?.Target == "apps" && knob.Apps.Count > 0)
+                detail = "App Group: " + string.Join(", ", knob.Apps);
+
+            string curve = (knob?.Curve ?? ResponseCurve.Linear).ToString();
+            string range = $"{knob?.MinVolume ?? 0}% – {knob?.MaxVolume ?? 100}%";
+            string body = $"{detail}\nCurve: {curve}  |  Range: {range}";
+
+            return BuildToolTipStyle(title, body);
+        }
+
+        private static object BuildButtonTooltip(int idx, ButtonConfig? btn)
+        {
+            string title = !string.IsNullOrEmpty(btn?.Label) ? btn!.Label : $"Button {idx + 1}";
+
+            var lines = new System.Text.StringBuilder();
+            bool any = false;
+
+            string? tap = FormatAction(btn?.Action, btn?.Path, btn?.MacroKeys, btn?.ProfileName);
+            if (tap != null) { lines.AppendLine($"Tap:  {tap}"); any = true; }
+
+            string? dbl = FormatAction(btn?.DoublePressAction, btn?.DoublePressPath, btn?.DoublePressMacroKeys, btn?.DoublePressProfileName);
+            if (dbl != null) { lines.AppendLine($"Dbl:   {dbl}"); any = true; }
+
+            string? hold = FormatAction(btn?.HoldAction, btn?.HoldPath, btn?.HoldMacroKeys, btn?.HoldProfileName);
+            if (hold != null) { lines.Append($"Hold: {hold}"); any = true; }
+
+            return BuildToolTipStyle(title, any ? lines.ToString().TrimEnd() : "Not assigned");
+        }
+
+        private static ToolTip BuildToolTipStyle(string title, string body)
+        {
+            var panel = new StackPanel { MaxWidth = 260 };
+
+            panel.Children.Add(new TextBlock
+            {
+                Text = title,
+                FontWeight = FontWeights.SemiBold,
+                FontSize = 12,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+                Margin = new Thickness(0, 0, 0, 4)
+            });
+
+            panel.Children.Add(new TextBlock
+            {
+                Text = body,
+                FontSize = 11,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x99, 0x99, 0x99)),
+                TextWrapping = TextWrapping.Wrap
+            });
+
+            return new ToolTip
+            {
+                Content = panel,
+                Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(10, 8, 10, 8)
+            };
+        }
+
+        // ── Formatting helpers ──────────────────────────────────────────
+
+        private static readonly Dictionary<string, string> s_actionNames = new()
+        {
+            { "none", "" }, { "media_play_pause", "Play/Pause" }, { "media_next", "Next Track" },
+            { "media_prev", "Prev Track" }, { "mute_master", "Mute Volume" }, { "mute_mic", "Mute Mic" },
+            { "mute_program", "Mute App" }, { "mute_active_window", "Mute Window" },
+            { "mute_app_group", "Mute Group" }, { "mute_device", "Mute Device" },
+            { "launch_exe", "Launch" }, { "close_program", "Close App" },
+            { "cycle_output", "Cycle Output" }, { "cycle_input", "Cycle Input" },
+            { "select_output", "Set Output" }, { "select_input", "Set Input" },
+            { "macro", "Macro" }, { "switch_profile", "Switch Profile" },
+            { "cycle_brightness", "Cycle Brightness" },
+            { "power_sleep", "Sleep" }, { "power_lock", "Lock" }, { "power_off", "Shut Down" },
+            { "power_restart", "Restart" }, { "power_logoff", "Log Off" }, { "power_hibernate", "Hibernate" },
+            { "ha_toggle", "HA Toggle" }, { "ha_scene", "HA Scene" }, { "ha_service", "HA Service" },
+        };
+
+        /// <summary>Returns formatted action string, or null if action is none/empty.</summary>
+        private static string? FormatAction(string? action, string? path, string? macroKeys, string? profileName)
+        {
+            if (string.IsNullOrEmpty(action) || action == "none") return null;
+
+            s_actionNames.TryGetValue(action, out var name);
+            name ??= action;
+
+            var context = action switch
+            {
+                "launch_exe" or "close_program" or "mute_program" when !string.IsNullOrEmpty(path)
+                    => System.IO.Path.GetFileNameWithoutExtension(path),
+                "switch_profile" when !string.IsNullOrEmpty(profileName) => profileName,
+                "macro" when !string.IsNullOrEmpty(macroKeys) => macroKeys,
+                _ => null
+            };
+
+            return context != null ? $"{name}: {context}" : name;
+        }
+
+        private static string FormatTarget(KnobConfig? knob)
+        {
+            var t = knob?.Target ?? "none";
+            return t switch
+            {
+                "none" or "" => "Not assigned",
+                "master" => "Master Volume",
+                "mic" => "Microphone",
+                "system" => "System Sounds",
+                "any" => "Any Active App",
+                "active_window" => "Active Window",
+                "apps" => "App Group",
+                "output_device" => "Output Device",
+                "input_device" => "Input Device",
+                "monitor" => "Monitor Brightness",
+                "led_brightness" => "LED Brightness",
+                _ when t.StartsWith("ha_") => "Home Assistant",
+                _ when t.StartsWith("govee") => "Govee",
+                _ => t
+            };
         }
 
         private void UpdateButtonColor(int idx)

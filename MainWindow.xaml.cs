@@ -60,7 +60,8 @@ public partial class MainWindow : FluentWindow
             {
                 _onConfigChanged?.Invoke(_config);
                 (Application.Current as App)?.SwitchToProfile(profileName);
-                NavigateTo(_mixerView, NavMixer);
+                // Stay on Overview — don't navigate away
+                NavigateTo(_bindingsView, NavBindings);
             },
             profileName =>
             {
