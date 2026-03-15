@@ -709,7 +709,14 @@ public partial class MainWindow : FluentWindow
     {
         var currentIcon = _config.ProfileIcons.GetValueOrDefault(profileName) ?? new ProfileIconConfig();
         Window? editorWindow = null;
-        Action closeEditor = () => { editorWindow?.Close(); editorWindow = null; };
+        bool closing = false;
+        Action closeEditor = () =>
+        {
+            if (closing) return;
+            closing = true;
+            editorWindow?.Close();
+            editorWindow = null;
+        };
 
         var outerPanel = new System.Windows.Controls.StackPanel { Margin = new Thickness(10) };
 
@@ -891,11 +898,13 @@ public partial class MainWindow : FluentWindow
         saveBtn.MouseLeftButtonDown += (_, _) =>
         {
             var newName = nameBox.Text.Trim();
-            if (string.IsNullOrEmpty(newName))
-            {
-                GlassDialog.ShowWarning("Profile name cannot be empty.", owner: this);
-                return;
-            }
+
+            // Validate before closing
+            if (string.IsNullOrEmpty(newName)) return;
+            if (newName != profileName && _config.Profiles.Contains(newName)) return;
+
+            // Close editor first to avoid Deactivated conflicts
+            closeEditor();
 
             // Save icon/color
             _config.ProfileIcons[profileName] = new ProfileIconConfig
@@ -906,20 +915,11 @@ public partial class MainWindow : FluentWindow
 
             // Handle rename
             if (newName != profileName)
-            {
-                if (_config.Profiles.Contains(newName))
-                {
-                    GlassDialog.ShowWarning($"Profile \"{newName}\" already exists.", owner: this);
-                    return;
-                }
-
                 RenameProfile(profileName, newName);
-            }
 
             _onConfigChanged?.Invoke(_config);
             UpdateProfileButton();
             RefreshViews();
-            closeEditor();
         };
         buttonRow.Children.Add(saveBtn);
         outerPanel.Children.Add(buttonRow);
