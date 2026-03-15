@@ -153,7 +153,7 @@
                         <!-- Volume -->
                         <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
                             <CheckBox x:Name="ChkOsdVolume"
-                                      Content="Volume changes"
+                                      Content="Volume Changes"
                                       Foreground="{StaticResource TextPrimaryBrush}"
                                       ToolTip="Show overlay when you adjust a knob" />
                             <controls:StyledSlider x:Name="SldOsdVolumeDur"
@@ -165,7 +165,7 @@
                         <!-- Profile -->
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
                             <CheckBox x:Name="ChkOsdProfile"
-                                      Content="Profile switches"
+                                      Content="Profile Changes"
                                       Foreground="{StaticResource TextPrimaryBrush}"
                                       ToolTip="Show overlay when switching profiles" />
                             <controls:StyledSlider x:Name="SldOsdProfileDur"
@@ -177,7 +177,7 @@
                         <!-- Device -->
                         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                             <CheckBox x:Name="ChkOsdDevice"
-                                      Content="Device switches"
+                                      Content="Device Changes"
                                       Foreground="{StaticResource TextPrimaryBrush}"
                                       ToolTip="Show overlay when cycling audio devices" />
                             <controls:StyledSlider x:Name="SldOsdDeviceDur"
