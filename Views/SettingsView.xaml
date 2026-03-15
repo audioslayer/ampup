@@ -295,6 +295,9 @@
                                 <ui:Button x:Name="BtnLoadProfile" Content="Load"
                                            Appearance="Secondary" Margin="0,0,6,0"
                                            ToolTip="Load the selected profile" />
+                                <ui:Button x:Name="BtnEditProfile" Content="Edit"
+                                           Appearance="Secondary" Margin="0,0,6,0"
+                                           ToolTip="Edit profile name, icon, and color" />
                                 <ui:Button x:Name="BtnNewProfile" Content="New"
                                            Appearance="Secondary" Margin="0,0,6,0"
                                            ToolTip="Create a new profile from current settings" />

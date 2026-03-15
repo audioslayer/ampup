@@ -128,6 +128,7 @@ public partial class MainWindow : FluentWindow
         };
 
         _settingsView.OnNavigateToOverview = () => NavigateTo(_bindingsView, NavBindings);
+        _settingsView.OnEditProfile = profileName => ShowProfileEditor(profileName);
         _settingsView.LoadConfig(_config, saveHandler);
         _lightsView.LoadConfig(_config, saveHandler, _mixer);
         _buttonsView.LoadConfig(_config, _mixer!, saveHandler);
@@ -564,6 +565,34 @@ public partial class MainWindow : FluentWindow
             System.Windows.Controls.Grid.SetColumn(nameBlock, 1);
             row.Children.Add(nameBlock);
 
+            // Edit + Delete buttons
+            var actionPanel = new System.Windows.Controls.StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Horizontal,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            // Edit button (pencil)
+            var editBtn = new System.Windows.Controls.TextBlock
+            {
+                Text = "\u270E", // ✎ pencil
+                FontSize = 11,
+                Foreground = (SolidColorBrush)FindResource("TextSecBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Cursor = Cursors.Hand,
+                Margin = new Thickness(8, 0, 0, 0),
+                ToolTip = "Edit profile"
+            };
+            editBtn.MouseEnter += (_, _) => editBtn.Foreground = (SolidColorBrush)FindResource("AccentBrush");
+            editBtn.MouseLeave += (_, _) => editBtn.Foreground = (SolidColorBrush)FindResource("TextSecBrush");
+            editBtn.MouseLeftButtonDown += (_, ev) =>
+            {
+                ev.Handled = true;
+                CloseProfileFlyout();
+                ShowProfileEditor(profileCapture);
+            };
+            actionPanel.Children.Add(editBtn);
+
             // Delete button (not for Default)
             if (profile != "Default")
             {
@@ -574,7 +603,7 @@ public partial class MainWindow : FluentWindow
                     Foreground = (SolidColorBrush)FindResource("DangerRedBrush"),
                     VerticalAlignment = VerticalAlignment.Center,
                     Cursor = Cursors.Hand,
-                    Margin = new Thickness(8, 0, 0, 0),
+                    Margin = new Thickness(6, 0, 0, 0),
                     ToolTip = "Delete profile"
                 };
                 deleteBtn.MouseEnter += (_, _) => deleteBtn.Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x77, 0x77));
@@ -584,9 +613,11 @@ public partial class MainWindow : FluentWindow
                     ev.Handled = true;
                     DeleteProfile(profileCapture);
                 };
-                System.Windows.Controls.Grid.SetColumn(deleteBtn, 2);
-                row.Children.Add(deleteBtn);
+                actionPanel.Children.Add(deleteBtn);
             }
+
+            System.Windows.Controls.Grid.SetColumn(actionPanel, 2);
+            row.Children.Add(actionPanel);
 
             var rowBorder = new System.Windows.Controls.Border
             {
@@ -672,6 +703,308 @@ public partial class MainWindow : FluentWindow
             AddNewProfile();
         };
         ProfilePopupPanel.Children.Add(addBorder);
+    }
+
+    private void ShowProfileEditor(string profileName)
+    {
+        var currentIcon = _config.ProfileIcons.GetValueOrDefault(profileName) ?? new ProfileIconConfig();
+        Window? editorWindow = null;
+        Action closeEditor = () => { editorWindow?.Close(); editorWindow = null; };
+
+        var outerPanel = new System.Windows.Controls.StackPanel { Margin = new Thickness(10) };
+
+        // ── Rename section ──
+        var renameLabel = new System.Windows.Controls.TextBlock
+        {
+            Text = "NAME",
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (SolidColorBrush)FindResource("TextDimBrush"),
+            Margin = new Thickness(2, 0, 0, 4)
+        };
+        outerPanel.Children.Add(renameLabel);
+
+        var nameBox = new System.Windows.Controls.TextBox
+        {
+            Text = profileName,
+            FontSize = 12,
+            Width = 280,
+            Foreground = (SolidColorBrush)FindResource("TextPrimaryBrush"),
+            Background = (SolidColorBrush)FindResource("InputBgBrush"),
+            BorderBrush = (SolidColorBrush)FindResource("InputBorderBrush"),
+            CaretBrush = (SolidColorBrush)FindResource("AccentBrush"),
+            Padding = new Thickness(8, 6, 8, 6),
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        // Select all on focus
+        nameBox.GotFocus += (_, _) => nameBox.SelectAll();
+        outerPanel.Children.Add(nameBox);
+
+        // ── Color swatches ──
+        var colorLabel = new System.Windows.Controls.TextBlock
+        {
+            Text = "COLOR",
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (SolidColorBrush)FindResource("TextDimBrush"),
+            Margin = new Thickness(2, 12, 0, 4)
+        };
+        outerPanel.Children.Add(colorLabel);
+
+        var colorWrap = new System.Windows.Controls.WrapPanel { Width = 280 };
+        string selectedColor = currentIcon.Color;
+        string selectedSymbol = currentIcon.Symbol;
+        var allIconElements = new List<MiIcon>();
+
+        foreach (var (name, hex) in ProfileIconColors)
+        {
+            var colorHex = hex;
+            var swatch = new System.Windows.Controls.Border
+            {
+                Width = 24, Height = 24,
+                CornerRadius = new CornerRadius(12),
+                Cursor = Cursors.Hand,
+                Margin = new Thickness(2),
+                ToolTip = name,
+                BorderThickness = new Thickness(colorHex == selectedColor ? 2 : 0),
+                BorderBrush = new SolidColorBrush(Colors.White)
+            };
+            try { swatch.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(colorHex)); } catch { }
+
+            swatch.MouseLeftButtonDown += (_, _) =>
+            {
+                selectedColor = colorHex;
+                var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(colorHex));
+                foreach (var mi in allIconElements) mi.Foreground = brush;
+                foreach (System.Windows.Controls.Border child in colorWrap.Children)
+                    child.BorderThickness = new Thickness(0);
+                swatch.BorderThickness = new Thickness(2);
+            };
+            colorWrap.Children.Add(swatch);
+        }
+        outerPanel.Children.Add(colorWrap);
+
+        // ── Icon categories ──
+        bool first = true;
+        foreach (var (category, symbols) in ProfileIconCategories)
+        {
+            var header = new System.Windows.Controls.TextBlock
+            {
+                Text = category.ToUpperInvariant(),
+                FontSize = 9,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = (SolidColorBrush)FindResource("TextDimBrush"),
+                Margin = new Thickness(2, first ? 10 : 8, 0, 4)
+            };
+            first = false;
+            outerPanel.Children.Add(header);
+
+            var wrapPanel = new System.Windows.Controls.WrapPanel { Width = 280 };
+            foreach (var symName in symbols)
+            {
+                var symbolCapture = symName;
+                if (!Enum.TryParse<MaterialIconKind>(symName, out var parsedKind))
+                    continue;
+
+                var iconEl = new MiIcon
+                {
+                    Kind = parsedKind,
+                    Width = 18, Height = 18,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                try { iconEl.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(selectedColor)); } catch { }
+                allIconElements.Add(iconEl);
+
+                var btn = new System.Windows.Controls.Border
+                {
+                    Width = 34, Height = 34,
+                    CornerRadius = new CornerRadius(6),
+                    Cursor = Cursors.Hand,
+                    Margin = new Thickness(1),
+                    Child = iconEl,
+                    Background = symbolCapture == currentIcon.Symbol
+                        ? new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A))
+                        : System.Windows.Media.Brushes.Transparent
+                };
+                btn.MouseEnter += (_, _) => btn.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+                btn.MouseLeave += (_, _) =>
+                {
+                    btn.Background = symbolCapture == selectedSymbol
+                        ? new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A))
+                        : System.Windows.Media.Brushes.Transparent;
+                };
+                btn.MouseLeftButtonDown += (_, _) =>
+                {
+                    selectedSymbol = symbolCapture;
+                };
+                wrapPanel.Children.Add(btn);
+            }
+            outerPanel.Children.Add(wrapPanel);
+        }
+
+        // ── Save / Cancel buttons ──
+        var buttonRow = new System.Windows.Controls.StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 14, 0, 0)
+        };
+
+        var cancelBtn = new System.Windows.Controls.Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(16, 6, 16, 6),
+            Margin = new Thickness(0, 0, 8, 0),
+            Cursor = Cursors.Hand,
+            Child = new System.Windows.Controls.TextBlock
+            {
+                Text = "Cancel",
+                FontSize = 11,
+                Foreground = (SolidColorBrush)FindResource("TextSecBrush")
+            }
+        };
+        cancelBtn.MouseEnter += (_, _) => cancelBtn.Background = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33));
+        cancelBtn.MouseLeave += (_, _) => cancelBtn.Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
+        cancelBtn.MouseLeftButtonDown += (_, _) => closeEditor();
+        buttonRow.Children.Add(cancelBtn);
+
+        var saveBtn = new System.Windows.Controls.Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x00, 0xA8, 0x54)),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(16, 6, 16, 6),
+            Cursor = Cursors.Hand,
+            Child = new System.Windows.Controls.TextBlock
+            {
+                Text = "Save",
+                FontSize = 11,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Colors.White)
+            }
+        };
+        saveBtn.MouseEnter += (_, _) => saveBtn.Background = new SolidColorBrush(Color.FromRgb(0x00, 0xC8, 0x64));
+        saveBtn.MouseLeave += (_, _) => saveBtn.Background = new SolidColorBrush(Color.FromRgb(0x00, 0xA8, 0x54));
+        saveBtn.MouseLeftButtonDown += (_, _) =>
+        {
+            var newName = nameBox.Text.Trim();
+            if (string.IsNullOrEmpty(newName))
+            {
+                GlassDialog.ShowWarning("Profile name cannot be empty.", owner: this);
+                return;
+            }
+
+            // Save icon/color
+            _config.ProfileIcons[profileName] = new ProfileIconConfig
+            {
+                Symbol = selectedSymbol,
+                Color = selectedColor
+            };
+
+            // Handle rename
+            if (newName != profileName)
+            {
+                if (_config.Profiles.Contains(newName))
+                {
+                    GlassDialog.ShowWarning($"Profile \"{newName}\" already exists.", owner: this);
+                    return;
+                }
+
+                RenameProfile(profileName, newName);
+            }
+
+            _onConfigChanged?.Invoke(_config);
+            UpdateProfileButton();
+            RefreshViews();
+            closeEditor();
+        };
+        buttonRow.Children.Add(saveBtn);
+        outerPanel.Children.Add(buttonRow);
+
+        // ── Window ──
+        var popupBorder = new System.Windows.Controls.Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
+            BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(4),
+            Child = new System.Windows.Controls.ScrollViewer
+            {
+                Content = outerPanel,
+                VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
+                MaxHeight = 500
+            },
+            Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = Colors.Black, BlurRadius = 24, Opacity = 0.6, ShadowDepth = 6
+            }
+        };
+
+        var screenPos = ProfileButton.PointToScreen(new Point(ProfileButton.ActualWidth + 4, 0));
+        var dpiSource = PresentationSource.FromVisual(ProfileButton);
+        if (dpiSource?.CompositionTarget != null)
+        {
+            var dpiX = dpiSource.CompositionTarget.TransformToDevice.M11;
+            var dpiY = dpiSource.CompositionTarget.TransformToDevice.M22;
+            screenPos = new Point(screenPos.X / dpiX, screenPos.Y / dpiY);
+        }
+
+        editorWindow = new Window
+        {
+            WindowStyle = WindowStyle.None,
+            ResizeMode = ResizeMode.NoResize,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            ShowInTaskbar = false,
+            Topmost = true,
+            AllowsTransparency = false,
+            Background = new SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
+            Content = popupBorder,
+            Left = screenPos.X,
+            Top = screenPos.Y
+        };
+        editorWindow.Deactivated += (_, _) => closeEditor();
+        editorWindow.KeyDown += (_, e) => { if (e.Key == Key.Escape) closeEditor(); };
+        editorWindow.Show();
+        nameBox.Focus();
+    }
+
+    private void RenameProfile(string oldName, string newName)
+    {
+        // Update profiles list
+        int idx = _config.Profiles.IndexOf(oldName);
+        if (idx >= 0) _config.Profiles[idx] = newName;
+
+        // Move icon config
+        if (_config.ProfileIcons.TryGetValue(oldName, out var iconCfg))
+        {
+            _config.ProfileIcons.Remove(oldName);
+            _config.ProfileIcons[newName] = iconCfg;
+        }
+
+        // Update active profile if it was the renamed one
+        if (_config.ActiveProfile == oldName)
+            _config.ActiveProfile = newName;
+
+        // Rename profile file
+        var configDir = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AmpUp");
+
+        string SafeName(string n) => string.Concat(n.ToLowerInvariant()
+            .Select(c => char.IsLetterOrDigit(c) || c == '-' ? c : '_'));
+
+        var oldPath = System.IO.Path.Combine(configDir, $"profile_{SafeName(oldName)}.json");
+        var newPath = System.IO.Path.Combine(configDir, $"profile_{SafeName(newName)}.json");
+
+        try
+        {
+            if (System.IO.File.Exists(oldPath) && !System.IO.File.Exists(newPath))
+                System.IO.File.Move(oldPath, newPath);
+        }
+        catch { }
     }
 
     private void ShowIconPicker(string profileName)

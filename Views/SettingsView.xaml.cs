@@ -28,6 +28,7 @@ public partial class SettingsView : UserControl
     private AppConfig? _config;
     private Action<AppConfig>? _onSave;
     public Action? OnNavigateToOverview { get; set; }
+    public Action<string>? OnEditProfile { get; set; }
     private readonly DispatcherTimer _debounceTimer;
     private bool _loading;
 
@@ -81,6 +82,7 @@ public partial class SettingsView : UserControl
         // Profile buttons
         BtnSaveProfile.Click += OnSaveProfile;
         BtnLoadProfile.Click += OnLoadProfile;
+        BtnEditProfile.Click += (_, _) => OnEditProfile?.Invoke(_config?.ActiveProfile ?? "Default");
         BtnNewProfile.Click += OnNewProfile;
         BtnDeleteProfile.Click += OnDeleteProfile;
         BtnOverview.Click += (_, _) => OnNavigateToOverview?.Invoke();
