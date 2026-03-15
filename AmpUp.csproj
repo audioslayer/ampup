@@ -36,6 +36,18 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="AmpUp.Core\AmpUp.Core.csproj" />
+  </ItemGroup>
+
+  <!-- Exclude Core project subdirectory from this project's compilation -->
+  <ItemGroup>
+    <Compile Remove="AmpUp.Core\**" />
+    <None Remove="AmpUp.Core\**" />
+    <Content Remove="AmpUp.Core\**" />
+    <EmbeddedResource Remove="AmpUp.Core\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
     <PackageReference Include="WPF-UI" Version="4.*" />
     <PackageReference Include="Material.Icons.WPF" Version="3.*" />

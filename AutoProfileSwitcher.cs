@@ -3,19 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace AmpUp;
 
-public class AutoSwitchConfig
-{
-    public bool Enabled { get; set; } = false;
-    public List<AutoSwitchRule> Rules { get; set; } = new();
-    public bool RevertToDefault { get; set; } = true;
-    public string DefaultProfile { get; set; } = "Default";
-}
-
-public class AutoSwitchRule
-{
-    public string ProcessName { get; set; } = "";
-    public string ProfileName { get; set; } = "";
-}
+// AutoSwitchConfig and AutoSwitchRule are now in AmpUp.Core.Models
 
 public class AutoProfileSwitcher
 {

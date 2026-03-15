@@ -2,21 +2,7 @@ using NAudio.CoreAudioApi;
 
 namespace AmpUp;
 
-public class DuckingConfig
-{
-    public bool Enabled { get; set; } = false;
-    public List<DuckingRule> Rules { get; set; } = new();
-}
-
-public class DuckingRule
-{
-    public string TriggerApp { get; set; } = "";           // process name that triggers ducking (e.g. "discord")
-    public List<string> TargetApps { get; set; } = new();  // apps to duck (empty = duck all non-trigger)
-    public int DuckPercent { get; set; } = 50;             // reduce volume by this % (0-100)
-    public int FadeInMs { get; set; } = 500;               // ms to fade volume back up after trigger stops
-    public int FadeOutMs { get; set; } = 200;              // ms to fade volume down when trigger starts
-    public float ActivationThreshold { get; set; } = 0.01f;// audio level to consider trigger 'active'
-}
+// DuckingConfig and DuckingRule are now in AmpUp.Core.Models
 
 public class DuckingEngine : IDisposable
 {
