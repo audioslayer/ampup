@@ -24,6 +24,7 @@ public class AudioMixer : IDisposable
     }
 
     private MMDevice? _renderDevice; // kept alive so session COM objects remain valid
+    private MMDevice? _masterPeakDevice; // dedicated persistent device for master peak metering
 
     private void RefreshSessions()
     {
@@ -451,13 +452,24 @@ public class AudioMixer : IDisposable
 
             if (target == "master")
             {
-                // Use the persistent render device (kept alive by RefreshSessions)
-                lock (_lock)
+                // Use a dedicated persistent device for peak metering
+                // (separate from _renderDevice which gets swapped during RefreshSessions)
+                if (_masterPeakDevice == null)
                 {
-                    if (_renderDevice != null)
-                        return _renderDevice.AudioMeterInformation.MasterPeakValue;
+                    lock (_enumLock)
+                        _masterPeakDevice = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
                 }
-                return 0f;
+                try
+                {
+                    return _masterPeakDevice.AudioMeterInformation.MasterPeakValue;
+                }
+                catch
+                {
+                    // Device may have changed — recreate on next call
+                    try { _masterPeakDevice?.Dispose(); } catch { }
+                    _masterPeakDevice = null;
+                    return 0f;
+                }
             }
 
             if (target == "mic")
