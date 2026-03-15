@@ -478,6 +478,9 @@ public class TrayMixerPopup : Window
                 arrowLabel.Text = "›";
                 _assignExpandPanel.Visibility = Visibility.Collapsed;
             }
+            // Reposition after expand/collapse so popup stays on screen
+            Dispatcher.BeginInvoke(new Action(RepositionOnScreen),
+                System.Windows.Threading.DispatcherPriority.Loaded);
         };
 
         items.Children.Add(assignHeader);
@@ -570,7 +573,11 @@ public class TrayMixerPopup : Window
             var appRow = BuildFooterItem($"{display}{assignedText}",
                 new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)), false, null);
             appRow.MouseLeftButtonDown += (_, _) =>
+            {
                 knobList.Visibility = knobList.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+                Dispatcher.BeginInvoke(new Action(RepositionOnScreen),
+                    System.Windows.Threading.DispatcherPriority.Loaded);
+            };
 
             _assignExpandPanel.Children.Add(appRow);
 
@@ -1027,6 +1034,20 @@ public class TrayMixerPopup : Window
 
         Left = workArea.Right - Width - 12;
         Top = workArea.Bottom - height - 8;
+    }
+
+    private void RepositionOnScreen()
+    {
+        // Re-measure and ensure the popup doesn't go off-screen after content changes
+        UpdateLayout();
+        Measure(new Size(Width, double.PositiveInfinity));
+        double height = DesiredSize.Height > 0 ? DesiredSize.Height : ActualHeight;
+
+        var cursorPos = System.Windows.Forms.Cursor.Position;
+        var screen = System.Windows.Forms.Screen.FromPoint(cursorPos);
+        var workArea = screen.WorkingArea;
+
+        Top = Math.Max(workArea.Top + 4, workArea.Bottom - height - 8);
     }
 
     private static Color GetAppColor(string processName)
