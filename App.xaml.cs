@@ -111,6 +111,17 @@ public partial class App : Application
         // Start audio mixer
         _mixer.Start();
 
+        // Restore last known knob positions from config (device doesn't report on connect)
+        foreach (var knob in _config.Knobs)
+        {
+            if (knob.Idx >= 0 && knob.Idx < 5)
+            {
+                KnobPositions[knob.Idx] = knob.LastRawValue / 1023f;
+                // Apply the saved volume to WASAPI
+                HandleKnob(new KnobEvent { Idx = knob.Idx, Value = knob.LastRawValue });
+            }
+        }
+
         // Ducking engine
         _duckingEngine = new DuckingEngine();
 
@@ -262,6 +273,9 @@ public partial class App : Application
 
     private void ExitApp()
     {
+        // Save last knob positions so they restore on next launch
+        ConfigManager.Save(_config);
+
         if (_trayIcon != null)
         {
             _trayIcon.Visible = false;
@@ -364,6 +378,8 @@ public partial class App : Application
         var knob = _config.Knobs.FirstOrDefault(k => k.Idx == e.Idx);
         if (knob != null)
         {
+            // Persist last raw position for startup restore
+            knob.LastRawValue = e.Value;
             if (knob.Target.StartsWith("ha_", StringComparison.OrdinalIgnoreCase))
             {
                 // Route to Home Assistant (throttled — HA can't handle rapid-fire HTTP calls)

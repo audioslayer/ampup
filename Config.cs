@@ -66,6 +66,7 @@ public class KnobConfig
     [JsonConverter(typeof(StringEnumConverter))]
     public ResponseCurve Curve { get; set; } = ResponseCurve.Linear;
     public List<string> Apps { get; set; } = new();   // for "apps" target — multiple process names
+    public int LastRawValue { get; set; } = 1023;     // last known hardware position (0-1023), persisted for startup
 }
 
 public enum ResponseCurve
