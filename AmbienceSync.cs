@@ -515,7 +515,7 @@ public class AmbienceSync : IDisposable
     /// Get the number of individually addressable segments for a Govee device SKU.
     /// Returns 0 if the device doesn't support per-segment control.
     /// </summary>
-    public static int GetSegmentCount(string sku) => sku?.ToUpperInvariant() switch
+    public static int GetSegmentCount(string? sku) => sku?.ToUpperInvariant() switch
     {
         "H6056" => 6,   // Flow Plus Light Bar
         "H6057" => 6,   // Flow Plus Light Bar
@@ -531,7 +531,25 @@ public class AmbienceSync : IDisposable
         _ => 0
     };
 
-    public static bool SupportsSegments(string sku) => GetSegmentCount(sku) > 0;
+    /// <summary>
+    /// Get segment count, trying SKU first, then falling back to device name matching.
+    /// </summary>
+    public static int GetSegmentCount(GoveeDeviceConfig dev)
+    {
+        int count = GetSegmentCount(dev.Sku);
+        if (count > 0) return count;
+
+        // Fallback: match by product name (for devices added before SKU detection)
+        var name = dev.Name?.ToLowerInvariant() ?? "";
+        if (name.Contains("flow") && name.Contains("light bar")) return 6;
+        if (name.Contains("dreamview") && name.Contains("g1")) return 12;
+        if (name.Contains("tv backlight")) return 20;
+        if (name.Contains("tv light bar")) return 12;
+        if (name.Contains("glide")) return 10;
+        return 0;
+    }
+
+    public static bool SupportsSegments(GoveeDeviceConfig dev) => GetSegmentCount(dev) > 0;
 
     /// <summary>
     /// Map Govee SKU to a friendly product name. Falls back to SKU if unknown.

@@ -142,7 +142,7 @@ public class DreamSyncController : IDisposable
                             var dev = amb.GoveeDevices.FirstOrDefault(d => d.Ip == mapping.DeviceIp);
                             if (dev == null) continue;
 
-                            int segCount = AmbienceSync.GetSegmentCount(dev.Sku);
+                            int segCount = AmbienceSync.GetSegmentCount(dev);
                             bool useSegments = segCount > 0 && dev.UseSegmentProtocol;
 
                             if (useSegments)

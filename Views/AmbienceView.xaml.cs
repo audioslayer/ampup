@@ -1311,7 +1311,7 @@ public partial class AmbienceView : UserControl
                     QueueSave();
                 }
 
-                int segCount = AmbienceSync.GetSegmentCount(dev.Sku);
+                int segCount = AmbienceSync.GetSegmentCount(dev);
                 if (segCount > 0)
                 {
                     // Segment-capable device — show segment info label
