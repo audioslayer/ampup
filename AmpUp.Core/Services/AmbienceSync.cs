@@ -1,8 +1,9 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using AmpUp.Core.Models;
 
-namespace AmpUp;
+namespace AmpUp.Core.Services;
 
 /// <summary>
 /// Govee LAN UDP sync for Ambience feature.

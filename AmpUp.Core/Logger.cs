@@ -1,7 +1,7 @@
 using System.IO;
 using System.Reflection;
 
-namespace AmpUp;
+namespace AmpUp.Core;
 
 public static class Logger
 {

@@ -1,9 +1,11 @@
 using System.Net.Http;
 using System.Net.Http.Headers;
+using AmpUp.Core;
+using AmpUp.Core.Models;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace AmpUp;
+namespace AmpUp.Core.Services;
 
 // Data models
 public class GoveeDeviceInfo

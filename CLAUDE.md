@@ -4,6 +4,9 @@ AmpUp is a C# .NET 8 WPF app that replaces the "Turn Up" USB volume mixer app.
 It reads serial events from the Turn Up hardware and maps them to Windows per-app audio volume control.
 Uses WPF-UI (FluentWindow, Mica backdrop) with a glassmorphism dark theme, sidebar navigation, and code-behind pattern (no MVVM).
 
+**macOS port in progress** — see [CLAUDE-MAC.md](CLAUDE-MAC.md) for Mac-specific docs, SSH access, and architecture plan.
+**Shared library:** `AmpUp.Core/` contains platform-agnostic code (models, serial, RGB, config, integrations).
+
 ---
 
 ## Hardware — Turn Up Device

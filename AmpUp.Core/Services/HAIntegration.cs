@@ -3,8 +3,10 @@ using System.Net.Http.Headers;
 using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using AmpUp.Core;
+using AmpUp.Core.Models;
 
-namespace AmpUp;
+namespace AmpUp.Core.Services;
 
 public class HAEntity
 {

@@ -1,6 +1,7 @@
 using System.IO.Ports;
+using AmpUp.Core;
 
-namespace AmpUp;
+namespace AmpUp.Core.Protocol;
 
 public class KnobEvent { public int Idx; public int Value; }
 public class ButtonEvent { public int Idx; public bool IsDown; }
