@@ -528,11 +528,13 @@ public partial class MixerView : UserControl
                 FontSize = 12,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = FindBrush("TextPrimaryBrush"),
+                CaretBrush = FindBrush("AccentBrush"),
+                SelectionBrush = FindBrush("AccentDimBrush"),
                 Background = Brushes.Transparent,
                 BorderThickness = new Thickness(0),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
-                Padding = new Thickness(4, 1, 4, 1),
+                Padding = new Thickness(4, 2, 4, 2),
                 Margin = new Thickness(0, 0, 0, 2),
                 MaxLength = 20,
                 Cursor = System.Windows.Input.Cursors.IBeam,
@@ -540,11 +542,14 @@ public partial class MixerView : UserControl
             };
             label.GotFocus += (_, _) =>
             {
+                label.Background = FindBrush("InputBgBrush");
                 label.BorderThickness = new Thickness(0, 0, 0, 1);
                 label.BorderBrush = FindBrush("AccentBrush");
+                label.SelectAll();
             };
             label.LostFocus += (_, _) =>
             {
+                label.Background = Brushes.Transparent;
                 label.BorderThickness = new Thickness(0);
                 if (!_loading) QueueSave();
             };
