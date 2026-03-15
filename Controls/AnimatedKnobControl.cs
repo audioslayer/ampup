@@ -16,7 +16,8 @@ namespace AmpUp.Controls
         private const double ArcStroke = 4.0;
         private const double GlowStroke = 8.0;
         private const double ArcInset = 6.0;
-        private const double DirtyThreshold = 0.005; // ~5 ADC steps on 10-bit pot
+        private const double DirtyThreshold = 0.003;
+        private const float LerpSpeed = 0.35f; // smoothing factor per tick (0=no move, 1=instant snap)
         private const double KnobImageRatio = 0.72; // knob image fills 72% of control size
 
         // ── Static frozen resources (color-independent) ────────────────
@@ -115,6 +116,44 @@ namespace AmpUp.Controls
         {
             get => (string)GetValue(PercentTextProperty);
             set => SetValue(PercentTextProperty, value);
+        }
+
+        private float _targetValue;
+        private float _displayedValue;
+        private bool _initialized;
+
+        /// <summary>
+        /// Set the target position. The arc will smoothly lerp toward it on each Tick().
+        /// </summary>
+        public void SetTarget(float target)
+        {
+            _targetValue = Math.Clamp(target, 0f, 1f);
+            // Snap immediately on first set (startup) to avoid sweep-up from 0
+            if (!_initialized)
+            {
+                _initialized = true;
+                _displayedValue = _targetValue;
+                Value = _displayedValue;
+            }
+        }
+
+        /// <summary>
+        /// Called by parent's 50ms timer. Lerps displayed value toward target for smooth animation.
+        /// </summary>
+        public void Tick()
+        {
+            float diff = _targetValue - _displayedValue;
+            if (Math.Abs(diff) < 0.001f)
+            {
+                if (_displayedValue != _targetValue)
+                {
+                    _displayedValue = _targetValue;
+                    Value = _displayedValue;
+                }
+                return;
+            }
+            _displayedValue += diff * LerpSpeed;
+            Value = _displayedValue;
         }
 
         // ── Cached ArcColor-dependent resources ────────────────────────

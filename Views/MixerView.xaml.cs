@@ -284,7 +284,8 @@ public partial class MixerView : UserControl
                 pct = mapped;
             }
         }
-        _knobs[idx].Value = position;
+        _knobs[idx].SetTarget(position);
+        _knobs[idx].Tick();
         _knobs[idx].PercentText = $"{pct}%";
         _volLabels[idx].Text = $"{pct}%";
     }
@@ -440,7 +441,8 @@ public partial class MixerView : UserControl
                     peak = Math.Min(_mixer.GetPeakLevel(knob) * 2.5f, 1f);
                 }
 
-                _knobs[i].Value = vol;
+                _knobs[i].SetTarget(vol);
+                _knobs[i].Tick();
                 int pct = (int)(vol * 100);
                 _knobs[i].PercentText = $"{pct}%";
                 _volLabels[i].Text = $"{pct}%";
