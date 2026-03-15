@@ -12,19 +12,19 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,4,0">
+            <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,4,0" VerticalAlignment="Top">
                 <Grid x:Name="Btn0Grid" />
             </Border>
-            <Border Grid.Column="1" Style="{StaticResource CardPanel}" Margin="4,0">
+            <Border Grid.Column="1" Style="{StaticResource CardPanel}" Margin="4,0" VerticalAlignment="Top">
                 <Grid x:Name="Btn1Grid" />
             </Border>
-            <Border Grid.Column="2" Style="{StaticResource CardPanel}" Margin="4,0">
+            <Border Grid.Column="2" Style="{StaticResource CardPanel}" Margin="4,0" VerticalAlignment="Top">
                 <Grid x:Name="Btn2Grid" />
             </Border>
-            <Border Grid.Column="3" Style="{StaticResource CardPanel}" Margin="4,0">
+            <Border Grid.Column="3" Style="{StaticResource CardPanel}" Margin="4,0" VerticalAlignment="Top">
                 <Grid x:Name="Btn3Grid" />
             </Border>
-            <Border Grid.Column="4" Style="{StaticResource CardPanel}" Margin="4,0,0,0">
+            <Border Grid.Column="4" Style="{StaticResource CardPanel}" Margin="4,0,0,0" VerticalAlignment="Top">
                 <Grid x:Name="Btn4Grid" />
             </Border>
         </Grid>
