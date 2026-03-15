@@ -1250,6 +1250,7 @@ public partial class AmbienceView : UserControl
         var statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         statusTimer.Tick += (_, _) =>
         {
+            if (!IsVisible) return;
             if (_dreamStatusLabel != null && _dreamSync != null)
                 _dreamStatusLabel.Text = _dreamSync.Status;
         };

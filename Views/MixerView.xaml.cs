@@ -49,6 +49,7 @@ public partial class MixerView : UserControl
     private readonly RangeSlider[] _rangeSliders = new RangeSlider[5];
     private readonly TextBlock[] _muteLabels = new TextBlock[5];
     private readonly Border[] _stripBorders = new Border[5];
+    private readonly Color[] _lastLedColors = new Color[5]; // cache to skip redundant brush creation
 
     // Collapsible settings
     private readonly Border[] _settingsBorders = new Border[5];
@@ -463,10 +464,16 @@ public partial class MixerView : UserControl
                     if (cr > 0 || cg > 0 || cb > 0)
                     {
                         var ledColor = Color.FromRgb(cr, cg, cb);
-                        _knobs[i].ArcColor = ledColor;
-                        _vuMeters[i].BarColor = ledColor;
-                        _glowControls[i].GlowColor = ledColor;
-                        _volLabels[i].Foreground = new SolidColorBrush(ledColor);
+                        if (ledColor != _lastLedColors[i])
+                        {
+                            _lastLedColors[i] = ledColor;
+                            _knobs[i].ArcColor = ledColor;
+                            _vuMeters[i].BarColor = ledColor;
+                            _glowControls[i].GlowColor = ledColor;
+                            var brush = new SolidColorBrush(ledColor);
+                            brush.Freeze();
+                            _volLabels[i].Foreground = brush;
+                        }
                     }
                 }
             }

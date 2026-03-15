@@ -22,6 +22,8 @@ namespace AmpUp.Controls
         private float _targetLevel;
         private float _smoothedLevel;
         private Color _glowColor = ThemeManager.Accent;
+        private byte _lastAlpha;
+        private Color _lastColor;
 
         public ChannelGlowControl()
         {
@@ -105,9 +107,10 @@ namespace AmpUp.Controls
             float opacity = BaseOpacity + _smoothedLevel * (PeakOpacity - BaseOpacity);
             byte alpha = (byte)(opacity * 255);
 
-            var center = new Point(w * 0.45, h * 0.38); // slightly above center, toward knob
-            double radiusX = w * 0.7;
-            double radiusY = h * 0.6;
+            // Skip re-render if nothing changed
+            if (alpha == _lastAlpha && _glowColor == _lastColor) return;
+            _lastAlpha = alpha;
+            _lastColor = _glowColor;
 
             using (DrawingContext dc = _drawingVisual.RenderOpen())
             {

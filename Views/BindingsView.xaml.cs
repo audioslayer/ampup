@@ -99,7 +99,7 @@ public class BindingsView : UserControl
         {
             Interval = TimeSpan.FromMilliseconds(100)
         };
-        _colorTimer.Tick += (_, _) => UpdateCardColors();
+        _colorTimer.Tick += (_, _) => { if (IsVisible) UpdateCardColors(); };
 
         Loaded += (_, _) => _colorTimer.Start();
         Unloaded += (_, _) => _colorTimer.Stop();
@@ -115,6 +115,8 @@ public class BindingsView : UserControl
         _onPreviewOsd = onPreviewOsd;
     }
 
+    private readonly byte[] _lastCardR = new byte[5], _lastCardG = new byte[5], _lastCardB = new byte[5];
+
     private void UpdateCardColors()
     {
         if (App.Rgb == null) return;
@@ -122,11 +124,13 @@ public class BindingsView : UserControl
         {
             if (_knobCards[i] == null) continue;
             var (r, g, b) = App.Rgb.GetCurrentColor(i);
-            if (r > 10 || g > 10 || b > 10)
-            {
-                _knobCards[i]!.Background = new SolidColorBrush(
-                    Color.FromArgb(0x18, r, g, b));
-            }
+            if (r <= 10 && g <= 10 && b <= 10) continue;
+            // Skip if color hasn't changed — avoids brush allocation
+            if (r == _lastCardR[i] && g == _lastCardG[i] && b == _lastCardB[i]) continue;
+            _lastCardR[i] = r; _lastCardG[i] = g; _lastCardB[i] = b;
+            var brush = new SolidColorBrush(Color.FromArgb(0x18, r, g, b));
+            brush.Freeze();
+            _knobCards[i]!.Background = brush;
         }
     }
 
