@@ -429,7 +429,20 @@ public partial class App : Application
                 float pct = e.Value / 1023f;
                 // Apply min/max range
                 int displayPct = (int)Math.Round(knob.MinVolume + pct * (knob.MaxVolume - knob.MinVolume));
-                string label = !string.IsNullOrEmpty(knob.Label) ? knob.Label : knob.Target;
+                string label = !string.IsNullOrEmpty(knob.Label) ? knob.Label : knob.Target switch
+                {
+                    "master" => "Master",
+                    "mic" => "Microphone",
+                    "active_window" => "Active Window",
+                    "system" => "System Sounds",
+                    "any" => "Auto",
+                    "apps" => "App Group",
+                    "monitor" => "Monitor",
+                    "led_brightness" => "LED Brightness",
+                    "output_device" => "Output Device",
+                    "input_device" => "Input Device",
+                    _ => knob.Target
+                };
                 string symbol = knob.Target switch
                 {
                     "master" => "VolumeHigh",
