@@ -442,9 +442,9 @@ public partial class MixerView : UserControl
                     // If WASAPI returns 0 or -1 (no active sessions / own window), show hardware knob position
                     if (vol <= 0f)
                         vol = App.KnobPositions[i];
-                    // WASAPI peak is 0.0–1.0 but typical audio sits around 0.2–0.5.
-                    // Scale so 0.5 peak = full meter (2x multiplier).
-                    peak = Math.Min(_mixer.GetPeakLevel(knob) * 2f, 1f);
+                    // WASAPI peak is 0.0–1.0 but typical audio sits around 0.2–0.4.
+                    // 3x boost so normal listening hits the upper segments.
+                    peak = Math.Min(_mixer.GetPeakLevel(knob) * 3f, 1f);
                 }
 
                 _knobs[i].SetTarget(vol);
