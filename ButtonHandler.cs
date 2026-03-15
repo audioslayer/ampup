@@ -1,6 +1,9 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using NAudio.CoreAudioApi;
+using AmpUp.Core.Engine;
+using AmpUp.Core.Models;
+using AmpUp.Core.Services;
 
 namespace AmpUp;
 
@@ -36,38 +39,39 @@ public class ButtonHandler : IDisposable
     private const byte VK_SNAPSHOT = 0x2C; // Print Screen
     private const uint KEYEVENTF_KEYUP = 0x0002;
 
-    // ── Gesture state machine constants ───────────────────────────────
-
-    private const int HoldThresholdMs = 500;
-    private const int DoubleClickWindowMs = 300;
-
     // ── Fields ────────────────────────────────────────────────────────
 
     private HAIntegration? _ha;
     private readonly MMDeviceEnumerator _enumerator = new();
+    private readonly ButtonGestureEngine _gestureEngine = new();
 
-    // Per-button gesture state
-    private readonly DateTime[] _downAt = new DateTime[5];
-    private readonly int[] _clickCount = new int[5];
-    private readonly bool[] _held = new bool[5];
-    private readonly System.Threading.Timer?[] _holdTimers = new System.Threading.Timer?[5];
-    private readonly System.Threading.Timer?[] _clickTimers = new System.Threading.Timer?[5];
-
-    // Stash config ref for timer callbacks — volatile so timer threads see the latest value
+    // Stash config ref for action execution (needed by MuteAppGroup etc.)
     private volatile AppConfig? _lastConfig;
 
     // Cycle state: tracks current index per button for cycle_output / cycle_input
     private readonly Dictionary<int, int> _cycleIndex = new();
 
-    // ── Events ────────────────────────────────────────────────────────
+    // ── Events (forwarded from gesture engine) ──────────────────────
 
     public void SetHAIntegration(HAIntegration? ha) => _ha = ha;
 
-    public event Action<string>? OnProfileSwitch;
+    public event Action<string>? OnProfileSwitch
+    {
+        add => _gestureEngine.OnProfileSwitch += value;
+        remove => _gestureEngine.OnProfileSwitch -= value;
+    }
     /// <summary>Fires with (deviceName, isOutput) when the default audio device changes.</summary>
-    public event Action<string, bool>? OnDeviceSwitched;
+    public event Action<string, bool>? OnDeviceSwitched
+    {
+        add => _gestureEngine.OnDeviceSwitched += value;
+        remove => _gestureEngine.OnDeviceSwitched -= value;
+    }
     /// <summary>Fires with new brightness percentage when cycle_brightness is triggered.</summary>
-    public event Action<int>? OnBrightnessCycle;
+    public event Action<int>? OnBrightnessCycle
+    {
+        add => _gestureEngine.OnBrightnessCycle += value;
+        remove => _gestureEngine.OnBrightnessCycle -= value;
+    }
 
     // Brightness cycle presets (matches Turn Up behavior)
     private static readonly int[] BrightnessPresets = { 100, 75, 50, 25, 0 };
@@ -101,121 +105,30 @@ public class ButtonHandler : IDisposable
 
     private static readonly Guid CLSID_PolicyConfigClient = new("870af99c-171d-4f9e-af0d-e63df40c2bc9");
 
-    // ── Gesture state machine ─────────────────────────────────────────
+    // ── Constructor ─────────────────────────────────────────────────
+
+    public ButtonHandler()
+    {
+        _gestureEngine.OnGestureAction += HandleGestureAction;
+    }
+
+    // ── Gesture forwarding (delegates to core engine) ───────────────
 
     public void HandleDown(int idx, AppConfig config)
     {
-        if (idx < 0 || idx > 4) return;
         _lastConfig = config;
-        _downAt[idx] = DateTime.UtcNow;
-        _held[idx] = false;
-
-        // Start hold timer — fires if button stays down for 500ms
-        _holdTimers[idx]?.Dispose();
-        _holdTimers[idx] = new System.Threading.Timer(_ => OnHoldFired(idx), null, HoldThresholdMs, Timeout.Infinite);
+        _gestureEngine.HandleDown(idx, config);
     }
 
     public void HandleUp(int idx, AppConfig config)
     {
-        if (idx < 0 || idx > 4) return;
         _lastConfig = config;
-
-        // Cancel hold timer
-        _holdTimers[idx]?.Dispose();
-        _holdTimers[idx] = null;
-
-        // If hold already fired, consume the release
-        if (_held[idx])
-        {
-            _held[idx] = false;
-            return;
-        }
-
-        // Short press — count it for single/double detection
-        _clickCount[idx]++;
-
-        // Restart the double-click window timer
-        _clickTimers[idx]?.Dispose();
-        _clickTimers[idx] = new System.Threading.Timer(_ => OnClickWindowExpired(idx), null, DoubleClickWindowMs, Timeout.Infinite);
+        _gestureEngine.HandleUp(idx, config);
     }
 
-    private void OnHoldFired(int idx)
+    private void HandleGestureAction(int idx, string gesture, string action, ButtonConfig btn)
     {
-        _holdTimers[idx]?.Dispose();
-        _holdTimers[idx] = null;
-        _held[idx] = true;
-
-        // Cancel any pending click detection (hold wins)
-        _clickTimers[idx]?.Dispose();
-        _clickTimers[idx] = null;
-        _clickCount[idx] = 0;
-
-        var btn = _lastConfig?.Buttons.FirstOrDefault(b => b.Idx == idx);
-        if (btn == null) return;
-
-        var action = btn.HoldAction ?? "none";
-        var path = btn.HoldPath ?? "";
-        if (!string.Equals(action, "none", StringComparison.OrdinalIgnoreCase))
-        {
-            Logger.Log($"Button {idx} hold → action: {action}");
-            var holdBtn = new ButtonConfig
-            {
-                Idx = btn.Idx,
-                Action = action,
-                Path = path,
-                DeviceId = btn.HoldDeviceId,
-                DeviceIds = btn.HoldDeviceIds,
-                MacroKeys = btn.HoldMacroKeys,
-                ProfileName = btn.HoldProfileName,
-                PowerAction = btn.HoldPowerAction,
-                LinkedKnobIdx = btn.HoldLinkedKnobIdx
-            };
-            ExecuteAction(action, path, holdBtn);
-        }
-    }
-
-    private void OnClickWindowExpired(int idx)
-    {
-        _clickTimers[idx]?.Dispose();
-        _clickTimers[idx] = null;
-
-        int clicks = _clickCount[idx];
-        _clickCount[idx] = 0;
-
-        var btn = _lastConfig?.Buttons.FirstOrDefault(b => b.Idx == idx);
-        if (btn == null) return;
-
-        if (clicks >= 2)
-        {
-            var action = btn.DoublePressAction ?? "none";
-            var path = btn.DoublePressPath ?? "";
-            if (!string.Equals(action, "none", StringComparison.OrdinalIgnoreCase))
-            {
-                Logger.Log($"Button {idx} double-press → action: {action}");
-                var dblBtn = new ButtonConfig
-                {
-                    Idx = btn.Idx,
-                    Action = action,
-                    Path = path,
-                    DeviceId = btn.DoublePressDeviceId,
-                    DeviceIds = btn.DoublePressDeviceIds,
-                    MacroKeys = btn.DoublePressMacroKeys,
-                    ProfileName = btn.DoublePressProfileName,
-                    PowerAction = btn.DoublePressPowerAction,
-                    LinkedKnobIdx = btn.DoublePressLinkedKnobIdx
-                };
-                ExecuteAction(action, path, dblBtn);
-            }
-        }
-        else
-        {
-            // Single press
-            if (!string.Equals(btn.Action, "none", StringComparison.OrdinalIgnoreCase))
-            {
-                Logger.Log($"Button {idx} press → action: {btn.Action}");
-                ExecuteAction(btn.Action, btn.Path ?? "", btn);
-            }
-        }
+        ExecuteAction(action, btn.Path ?? "", btn);
     }
 
     // ── Action dispatcher ─────────────────────────────────────────────
@@ -695,7 +608,7 @@ public class ButtonHandler : IDisposable
                 {
                     var name = d.FriendlyName;
                     Logger.Log($"cycle_{(flow == DataFlow.Render ? "output" : "input")}: switched to {name}");
-                    OnDeviceSwitched?.Invoke(name, flow == DataFlow.Render);
+                    _gestureEngine.RaiseDeviceSwitched(name, flow == DataFlow.Render);
                     break;
                 }
             }
@@ -724,7 +637,7 @@ public class ButtonHandler : IDisposable
                     using var d = allDevs[i];
                     if (d.ID == deviceId)
                     {
-                        OnDeviceSwitched?.Invoke(d.FriendlyName, flow == DataFlow.Render);
+                        _gestureEngine.RaiseDeviceSwitched(d.FriendlyName, flow == DataFlow.Render);
                         break;
                     }
                 }
@@ -914,7 +827,7 @@ public class ButtonHandler : IDisposable
             return;
         }
         Logger.Log($"switch_profile: requesting switch to '{profileName}'");
-        OnProfileSwitch?.Invoke(profileName);
+        _gestureEngine.RaiseProfileSwitch(profileName);
     }
 
     // ── LED brightness cycle ──────────────────────────────────────────
@@ -924,20 +837,15 @@ public class ButtonHandler : IDisposable
         _brightnessPresetIndex = (_brightnessPresetIndex + 1) % BrightnessPresets.Length;
         var pct = BrightnessPresets[_brightnessPresetIndex];
         Logger.Log($"cycle_brightness: {pct}%");
-        OnBrightnessCycle?.Invoke(pct);
+        _gestureEngine.RaiseBrightnessCycle(pct);
     }
 
     // ── Dispose ───────────────────────────────────────────────────────
 
     public void Dispose()
     {
-        for (int i = 0; i < 5; i++)
-        {
-            _holdTimers[i]?.Dispose();
-            _holdTimers[i] = null;
-            _clickTimers[i]?.Dispose();
-            _clickTimers[i] = null;
-        }
+        _gestureEngine.OnGestureAction -= HandleGestureAction;
+        _gestureEngine.Dispose();
         _enumerator.Dispose();
     }
 
