@@ -16,6 +16,10 @@ public class TrayMixerPopup : Window
     private readonly MMDeviceEnumerator _enumerator = new();
     private readonly List<SessionRow> _rows = new();
     private MMDevice? _masterDevice;
+    private Slider? _masterSlider;
+    private TextBlock? _masterVolLabel;
+    private readonly System.Windows.Threading.DispatcherTimer _pollTimer;
+    private bool _updatingFromPoll; // prevent slider.ValueChanged feedback loop
 
     private record SessionRow(
         string ProcessName,
@@ -37,6 +41,12 @@ public class TrayMixerPopup : Window
         SizeToContent = SizeToContent.Height;
 
         Deactivated += (_, _) => Hide();
+
+        _pollTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(100)
+        };
+        _pollTimer.Tick += PollVolumes;
 
         Content = BuildContent();
     }
@@ -146,11 +156,18 @@ public class TrayMixerPopup : Window
             PositionNearTray();
             Show();
             Activate();
+            _pollTimer.Start();
         }
         catch (Exception ex)
         {
             Logger.Log($"TrayMixerPopup.ShowPopup error: {ex.Message}");
         }
+    }
+
+    private new void Hide()
+    {
+        _pollTimer.Stop();
+        base.Hide();
     }
 
     private void RefreshSessions()
@@ -226,6 +243,44 @@ public class TrayMixerPopup : Window
         }
     }
 
+    private void PollVolumes(object? sender, EventArgs e)
+    {
+        if (!IsVisible) return;
+        _updatingFromPoll = true;
+        try
+        {
+            // Update master slider
+            if (_masterDevice != null && _masterSlider != null && _masterVolLabel != null)
+            {
+                try
+                {
+                    float vol = _masterDevice.AudioEndpointVolume.MasterVolumeLevelScalar;
+                    int pct = (int)Math.Round(vol * 100);
+                    _masterSlider.Value = pct;
+                    _masterVolLabel.Text = $"{pct}%";
+                }
+                catch { }
+            }
+
+            // Update per-app sliders
+            foreach (var row in _rows)
+            {
+                try
+                {
+                    float vol = row.Session.SimpleAudioVolume.Volume;
+                    int pct = (int)Math.Round(vol * 100);
+                    row.VolumeSlider.Value = pct;
+                    row.VolLabel.Text = $"{pct}%";
+                }
+                catch { }
+            }
+        }
+        finally
+        {
+            _updatingFromPoll = false;
+        }
+    }
+
     private UIElement BuildMasterRow(MMDevice device, float vol, bool muted)
     {
         var row = new Border
@@ -274,8 +329,11 @@ public class TrayMixerPopup : Window
         };
 
         var slider = BuildVolumeSlider(vol * 100);
+        _masterSlider = slider;
+        _masterVolLabel = volLabel;
         slider.ValueChanged += (_, e) =>
         {
+            if (_updatingFromPoll) return;
             try
             {
                 float newVol = (float)(e.NewValue / 100.0);
@@ -361,8 +419,10 @@ public class TrayMixerPopup : Window
             };
 
             var slider = BuildVolumeSlider(vol * 100);
+            _rows.Add(new SessionRow(processName, session, slider, volLabel, muteBtn));
             slider.ValueChanged += (_, e) =>
             {
+                if (_updatingFromPoll) return;
                 try
                 {
                     session.SimpleAudioVolume.Volume = (float)(e.NewValue / 100.0);
