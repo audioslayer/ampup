@@ -870,7 +870,7 @@ public partial class LightsView : UserControl
             // Select device in picker
             for (int p = 0; p < _dsDevicePickers[idx][row].ItemCount; p++)
             {
-                if (_dsDevicePickers[idx][row].GetTagAt(p) as string == entry.DeviceId)
+                if (string.Equals(_dsDevicePickers[idx][row].GetTagAt(p) as string, entry.DeviceId, StringComparison.OrdinalIgnoreCase))
                 {
                     _dsDevicePickers[idx][row].SelectedIndex = p;
                     break;
@@ -1115,8 +1115,9 @@ public partial class LightsView : UserControl
             if (_programNameBoxes[i] != null)
                 light.ProgramName = _programNameBoxes[i].Text.Trim();
 
-            // Save DeviceSelect mappings
-            if (_dsDevicePickers[i] != null)
+            // Save DeviceSelect mappings — only overwrite when the effect is DeviceSelect
+            // and the pickers are initialized, otherwise preserve existing config
+            if (light.Effect == LightEffect.DeviceSelect && _dsDevicePickers[i] != null)
             {
                 light.DeviceColors = new List<DeviceColorEntry>();
                 for (int row = 0; row < 3; row++)

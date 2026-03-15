@@ -537,7 +537,10 @@ public class TrayMixerPopup : Window
 
     private void PositionNearTray()
     {
-        var workArea = SystemParameters.WorkArea;
+        // Use the monitor where the cursor is (near the tray icon)
+        var cursorPos = System.Windows.Forms.Cursor.Position;
+        var screen = System.Windows.Forms.Screen.FromPoint(cursorPos);
+        var workArea = screen.WorkingArea;
         // Measure the window to get actual height
         Measure(new Size(Width, double.PositiveInfinity));
         double height = DesiredSize.Height > 0 ? DesiredSize.Height : 400;

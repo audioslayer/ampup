@@ -586,7 +586,7 @@ public partial class App : Application
     private void EnsureOsd()
     {
         _osdOverlay ??= new OsdOverlay();
-        _osdOverlay.SetPosition(_config.Osd.Position);
+        _osdOverlay.SetPosition(_config.Osd.Position, _config.Osd.MonitorIndex);
         _osdOverlay.VolumeDuration = _config.Osd.VolumeDuration;
         _osdOverlay.ProfileDuration = _config.Osd.ProfileDuration;
         _osdOverlay.DeviceDuration = _config.Osd.DeviceDuration;

@@ -387,6 +387,7 @@ public class OsdConfig
     public double DeviceDuration { get; set; } = 2.5;       // seconds
     [JsonConverter(typeof(StringEnumConverter))]
     public OsdPosition Position { get; set; } = OsdPosition.BottomRight;
+    public int MonitorIndex { get; set; } = 0; // 0 = primary monitor
 }
 
 public enum OsdPosition

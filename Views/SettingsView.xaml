@@ -258,6 +258,14 @@
                             </Border>
                         </StackPanel>
 
+                        <!-- Monitor selector -->
+                        <StackPanel Margin="16,0,16,0">
+                            <TextBlock Text="Monitor" Style="{StaticResource SecondaryText}" Margin="0,0,0,6" />
+                            <ComboBox x:Name="CmbOsdMonitor" Width="200"
+                                      SelectionChanged="CmbOsdMonitor_SelectionChanged"
+                                      ToolTip="Which monitor to show the OSD on" />
+                        </StackPanel>
+
                         <ui:Button x:Name="BtnOsdPreview" Content="Preview"
                                    Appearance="Secondary" VerticalAlignment="Bottom" />
                     </StackPanel>

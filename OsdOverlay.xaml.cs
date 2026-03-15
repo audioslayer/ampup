@@ -15,6 +15,7 @@ public partial class OsdOverlay : Window
     private readonly Storyboard _fadeOut;
     private bool _closing;
     private OsdPosition _position = OsdPosition.BottomRight;
+    private int _monitorIndex; // 0 = primary
 
     // Configurable durations (seconds)
     public double VolumeDuration { get; set; } = 2.0;
@@ -97,9 +98,10 @@ public partial class OsdOverlay : Window
         };
     }
 
-    public void SetPosition(OsdPosition position)
+    public void SetPosition(OsdPosition position, int monitorIndex = 0)
     {
         _position = position;
+        _monitorIndex = monitorIndex;
     }
 
     private void SetTextIcon(string text, double fontSize = 24)
@@ -526,7 +528,13 @@ public partial class OsdOverlay : Window
 
     private void PositionAndShow()
     {
-        var workArea = SystemParameters.WorkArea;
+        // Use selected monitor's work area (0 = primary)
+        var screens = System.Windows.Forms.Screen.AllScreens;
+        var screen = (_monitorIndex >= 0 && _monitorIndex < screens.Length)
+            ? screens[_monitorIndex]
+            : System.Windows.Forms.Screen.PrimaryScreen ?? screens[0];
+        var wa = screen.WorkingArea;
+        var workArea = new Rect(wa.X, wa.Y, wa.Width, wa.Height);
         const double margin = 20;
         double w = Width;
         // Estimate height: profile bindings are taller than volume/device OSD

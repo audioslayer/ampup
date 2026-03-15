@@ -62,8 +62,10 @@ public class TrayContextMenu : Window
         double h = DesiredSize.Height > 0 ? DesiredSize.Height : 200;
         double w = Width;
 
-        // Position above cursor, right-aligned to cursor, but keep on screen
-        var workArea = SystemParameters.WorkArea;
+        // Position above cursor, right-aligned to cursor, but keep on correct monitor
+        var screen = System.Windows.Forms.Screen.FromPoint(
+            new System.Drawing.Point((int)screenX, (int)screenY));
+        var workArea = screen.WorkingArea;
         double left = Math.Min(screenX - w, workArea.Right - w - 4);
         double top = Math.Max(screenY - h - 4, workArea.Top + 4);
 

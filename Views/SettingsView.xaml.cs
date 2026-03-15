@@ -135,6 +135,7 @@ public partial class SettingsView : UserControl
         SldOsdProfileDur.Value = config.Osd.ProfileDuration;
         SldOsdDeviceDur.Value = config.Osd.DeviceDuration;
         HighlightOsdPosition(config.Osd.Position);
+        PopulateOsdMonitorPicker(config.Osd.MonitorIndex);
 
         // Profiles
         CmbProfiles.Items.Clear();
@@ -991,12 +992,39 @@ public partial class SettingsView : UserControl
         }
     }
 
+    private void PopulateOsdMonitorPicker(int selectedIndex)
+    {
+        CmbOsdMonitor.Items.Clear();
+        var screens = System.Windows.Forms.Screen.AllScreens;
+        var friendlyNames = NativeMethods.GetMonitorFriendlyNames();
+
+        for (int i = 0; i < screens.Length; i++)
+        {
+            string name = friendlyNames.TryGetValue(screens[i].DeviceName, out var friendly)
+                ? friendly
+                : screens[i].DeviceName;
+            string label = screens[i].Primary ? $"{name} (Primary)" : name;
+            CmbOsdMonitor.Items.Add(label);
+        }
+
+        CmbOsdMonitor.SelectedIndex = (selectedIndex >= 0 && selectedIndex < screens.Length)
+            ? selectedIndex : 0;
+    }
+
+    private void CmbOsdMonitor_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || _config == null || CmbOsdMonitor.SelectedIndex < 0) return;
+        _config.Osd.MonitorIndex = CmbOsdMonitor.SelectedIndex;
+        _debounceTimer.Stop();
+        _debounceTimer.Start();
+    }
+
     private void OnOsdPreview(object sender, RoutedEventArgs e)
     {
         if (_config == null) return;
         // Show a preview OSD at the configured position
         var overlay = new OsdOverlay();
-        overlay.SetPosition(_config.Osd.Position);
+        overlay.SetPosition(_config.Osd.Position, _config.Osd.MonitorIndex);
         overlay.ShowVolume("Preview", 75, "VolumeHigh");
     }
 
