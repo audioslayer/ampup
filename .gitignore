@@ -10,3 +10,4 @@ wolfmixer.log
 publish/
 installer/output/
 installer/version.iss
+.claude/settings.local.json
