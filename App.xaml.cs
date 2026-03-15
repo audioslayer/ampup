@@ -40,6 +40,7 @@ public partial class App : Application
     public static readonly float[] KnobPositions = { 1f, 1f, 1f, 1f, 1f };
     public static RgbController? Rgb { get; private set; }
     private readonly long[] _lastKnobUiTick = new long[5]; // throttle UI updates
+    private readonly long[] _lastOsdTick = new long[5]; // throttle OSD updates
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -403,8 +404,12 @@ public partial class App : Application
             }
 
             // Show OSD overlay when volume OSD is enabled (skip unassigned knobs)
-            if (_config.Osd.ShowVolume && !knob.Target.Equals("none", StringComparison.OrdinalIgnoreCase))
+            // Throttled to ~100ms to avoid rapid flashing during fast knob turns
+            long osdNow = Environment.TickCount64;
+            if (_config.Osd.ShowVolume && !knob.Target.Equals("none", StringComparison.OrdinalIgnoreCase)
+                && osdNow - _lastOsdTick[e.Idx] >= 100)
             {
+                _lastOsdTick[e.Idx] = osdNow;
                 float pct = e.Value / 1023f;
                 // Apply min/max range
                 int displayPct = (int)Math.Round(knob.MinVolume + pct * (knob.MaxVolume - knob.MinVolume));
@@ -422,7 +427,7 @@ public partial class App : Application
                     _ when knob.Target.StartsWith("ha_") => "Home",
                     _ => "VolumeHigh"
                 };
-                Dispatcher.Invoke(() =>
+                Dispatcher.BeginInvoke(() =>
                 {
                     EnsureOsd();
                     _osdOverlay!.ShowVolume(label, displayPct, symbol);
