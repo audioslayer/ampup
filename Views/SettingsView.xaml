@@ -158,7 +158,7 @@
                                       ToolTip="Show overlay when you adjust a knob" />
                             <controls:StyledSlider x:Name="SldOsdVolumeDur"
                                     Minimum="1" Maximum="8" Value="2" Suffix="s"
-                                    Width="100" Margin="8,0,0,0"
+                                    Width="200" Margin="8,0,0,0"
                                     ToolTip="How long the volume overlay stays visible" />
                         </StackPanel>
 
@@ -170,7 +170,7 @@
                                       ToolTip="Show overlay when switching profiles" />
                             <controls:StyledSlider x:Name="SldOsdProfileDur"
                                     Minimum="1" Maximum="8" Value="3.5" Suffix="s"
-                                    Width="100" Margin="8,0,0,0"
+                                    Width="200" Margin="8,0,0,0"
                                     ToolTip="How long the profile overlay stays visible" />
                         </StackPanel>
 
@@ -182,7 +182,7 @@
                                       ToolTip="Show overlay when cycling audio devices" />
                             <controls:StyledSlider x:Name="SldOsdDeviceDur"
                                     Minimum="1" Maximum="8" Value="2.5" Suffix="s"
-                                    Width="100" Margin="8,0,0,0"
+                                    Width="200" Margin="8,0,0,0"
                                     ToolTip="How long the device overlay stays visible" />
                         </StackPanel>
                     </Grid>
