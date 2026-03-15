@@ -18,28 +18,43 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- Channel 1 -->
-                <Border x:Name="Ch0Border" Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,4,0" Padding="10,12">
-                    <StackPanel x:Name="Ch0Panel" />
+                <Border x:Name="Ch0Border" Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,4,0" Padding="0" ClipToBounds="True">
+                    <Grid>
+                        <controls:ChannelGlowControl x:Name="Ch0Glow" />
+                        <StackPanel x:Name="Ch0Panel" Margin="10,12" />
+                    </Grid>
                 </Border>
 
                 <!-- Channel 2 -->
-                <Border x:Name="Ch1Border" Grid.Column="1" Style="{StaticResource CardPanel}" Margin="4,0" Padding="10,12">
-                    <StackPanel x:Name="Ch1Panel" />
+                <Border x:Name="Ch1Border" Grid.Column="1" Style="{StaticResource CardPanel}" Margin="4,0" Padding="0" ClipToBounds="True">
+                    <Grid>
+                        <controls:ChannelGlowControl x:Name="Ch1Glow" />
+                        <StackPanel x:Name="Ch1Panel" Margin="10,12" />
+                    </Grid>
                 </Border>
 
                 <!-- Channel 3 -->
-                <Border x:Name="Ch2Border" Grid.Column="2" Style="{StaticResource CardPanel}" Margin="4,0" Padding="10,12">
-                    <StackPanel x:Name="Ch2Panel" />
+                <Border x:Name="Ch2Border" Grid.Column="2" Style="{StaticResource CardPanel}" Margin="4,0" Padding="0" ClipToBounds="True">
+                    <Grid>
+                        <controls:ChannelGlowControl x:Name="Ch2Glow" />
+                        <StackPanel x:Name="Ch2Panel" Margin="10,12" />
+                    </Grid>
                 </Border>
 
                 <!-- Channel 4 -->
-                <Border x:Name="Ch3Border" Grid.Column="3" Style="{StaticResource CardPanel}" Margin="4,0" Padding="10,12">
-                    <StackPanel x:Name="Ch3Panel" />
+                <Border x:Name="Ch3Border" Grid.Column="3" Style="{StaticResource CardPanel}" Margin="4,0" Padding="0" ClipToBounds="True">
+                    <Grid>
+                        <controls:ChannelGlowControl x:Name="Ch3Glow" />
+                        <StackPanel x:Name="Ch3Panel" Margin="10,12" />
+                    </Grid>
                 </Border>
 
                 <!-- Channel 5 -->
-                <Border x:Name="Ch4Border" Grid.Column="4" Style="{StaticResource CardPanel}" Margin="4,0,0,0" Padding="10,12">
-                    <StackPanel x:Name="Ch4Panel" />
+                <Border x:Name="Ch4Border" Grid.Column="4" Style="{StaticResource CardPanel}" Margin="4,0,0,0" Padding="0" ClipToBounds="True">
+                    <Grid>
+                        <controls:ChannelGlowControl x:Name="Ch4Glow" />
+                        <StackPanel x:Name="Ch4Panel" Margin="10,12" />
+                    </Grid>
                 </Border>
             </Grid>
 

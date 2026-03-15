@@ -462,6 +462,8 @@ public partial class MixerView : UserControl
     private void BuildChannelControls()
     {
         var panels = new[] { Ch0Panel, Ch1Panel, Ch2Panel, Ch3Panel, Ch4Panel };
+        var glows = new[] { Ch0Glow, Ch1Glow, Ch2Glow, Ch3Glow, Ch4Glow };
+        for (int g = 0; g < 5; g++) _glowControls[g] = glows[g];
 
         for (int i = 0; i < 5; i++)
         {
@@ -556,16 +558,6 @@ public partial class MixerView : UserControl
                 VerticalAlignment = VerticalAlignment.Center,
                 ToolTip = "Turn the physical knob to adjust volume",
             };
-            // Ambient glow behind the knob — audio-reactive, tinted with LED color
-            var glow = new ChannelGlowControl
-            {
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                VerticalAlignment = VerticalAlignment.Stretch,
-            };
-            Grid.SetColumn(glow, 0);
-            _glowControls[i] = glow;
-            knobVuGrid.Children.Add(glow); // added first = rendered behind knob
-
             Grid.SetColumn(knob, 0);
             _knobs[i] = knob;
             knobVuGrid.Children.Add(knob);
