@@ -1,18 +1,21 @@
 using System.Net.Sockets;
 using System.Text;
+using AmpUp.Core;
+using AmpUp.Core.Models;
+using AmpUp.Core.Interfaces;
 
-namespace AmpUp;
+namespace AmpUp.Core.Services;
 
 /// <summary>
 /// DreamView / Screen Sync orchestrator.
-/// Captures screen zones via GDI, averages colors per zone, and pushes them
+/// Captures screen zones via an injected IScreenCapture, averages colors per zone, and pushes them
 /// to configured Govee LAN devices via UDP. Capture runs at user-selected fps
 /// (15/30/60) for smooth color averaging, but UDP sends are capped at 30fps
 /// (Govee LED hardware can't transition faster — sending more causes flicker).
 ///
 /// Architecture:
 ///   - One background thread runs the capture+send loop
-///   - ScreenCapture handles GDI BitBlt + zone sampling
+///   - IScreenCapture handles platform-specific screen capture + zone sampling
 ///   - A persistent UdpClient per device avoids per-frame socket allocation
 ///   - Delta threshold suppresses sends when color hasn't changed enough
 /// </summary>
@@ -20,7 +23,7 @@ public class DreamSyncController : IDisposable
 {
     private ScreenSyncConfig _config;
     private AmbienceConfig _ambience;
-    private readonly ScreenCapture _capture = new();
+    private readonly IScreenCapture _capture;
     private readonly object _lock = new();
     private bool _disposed;
 
@@ -54,10 +57,11 @@ public class DreamSyncController : IDisposable
 
     public bool IsRunning => _running;
 
-    public DreamSyncController(ScreenSyncConfig config, AmbienceConfig ambience)
+    public DreamSyncController(ScreenSyncConfig config, AmbienceConfig ambience, IScreenCapture capture)
     {
         _config = config;
         _ambience = ambience;
+        _capture = capture;
     }
 
     public void UpdateConfig(ScreenSyncConfig config, AmbienceConfig ambience)
@@ -125,7 +129,7 @@ public class DreamSyncController : IDisposable
                     for (int i = 0; i < zones.Length; i++)
                     {
                         var (r, g, b) = zones[i];
-                        zones[i] = ScreenCapture.BoostSaturation(r, g, b, cfg.Saturation);
+                        zones[i] = BoostSaturation(r, g, b, cfg.Saturation);
                     }
 
                     // Notify UI for live preview (fire and forget — UI marshal on receipt)
@@ -261,6 +265,57 @@ public class DreamSyncController : IDisposable
             (byte)(c.R * scale / 100),
             (byte)(c.G * scale / 100),
             (byte)(c.B * scale / 100)
+        );
+    }
+
+    /// <summary>
+    /// Apply HSV saturation multiplier to an RGB color. Clamps to 0-255.
+    /// </summary>
+    private static (byte R, byte G, byte B) BoostSaturation(byte r, byte g, byte b, float saturation)
+    {
+        if (Math.Abs(saturation - 1.0f) < 0.01f) return (r, g, b);
+
+        // RGB → HSV
+        float rf = r / 255f, gf = g / 255f, bf = b / 255f;
+        float max = Math.Max(rf, Math.Max(gf, bf));
+        float min = Math.Min(rf, Math.Min(gf, bf));
+        float delta = max - min;
+
+        float h = 0, s = 0, v = max;
+        if (max > 0) s = delta / max;
+        if (delta > 0)
+        {
+            if (max == rf) h = (gf - bf) / delta % 6;
+            else if (max == gf) h = (bf - rf) / delta + 2;
+            else h = (rf - gf) / delta + 4;
+            h /= 6;
+            if (h < 0) h += 1;
+        }
+
+        // Boost saturation
+        s = Math.Clamp(s * saturation, 0f, 1f);
+
+        // HSV → RGB
+        float c = v * s;
+        float x = c * (1 - Math.Abs(h * 6 % 2 - 1));
+        float m = v - c;
+
+        float ro, go, bo;
+        int hi = (int)(h * 6);
+        switch (hi % 6)
+        {
+            case 0: ro = c; go = x; bo = 0; break;
+            case 1: ro = x; go = c; bo = 0; break;
+            case 2: ro = 0; go = c; bo = x; break;
+            case 3: ro = 0; go = x; bo = c; break;
+            case 4: ro = x; go = 0; bo = c; break;
+            default: ro = c; go = 0; bo = x; break;
+        }
+
+        return (
+            (byte)Math.Clamp((ro + m) * 255, 0, 255),
+            (byte)Math.Clamp((go + m) * 255, 0, 255),
+            (byte)Math.Clamp((bo + m) * 255, 0, 255)
         );
     }
 

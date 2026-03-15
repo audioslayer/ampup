@@ -2,10 +2,9 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Reflection;
-using System.Windows;
 using Newtonsoft.Json.Linq;
 
-namespace AmpUp;
+namespace AmpUp.Core.Services;
 
 public static class UpdateChecker
 {
@@ -14,6 +13,12 @@ public static class UpdateChecker
             ?.InformationalVersion?.Split('+')[0] ?? "0.0.0";
     private const string GitHubRepo = "audioslayer/ampup";
     private static readonly HttpClient _http = new();
+
+    /// <summary>
+    /// Set by the platform host to handle clean shutdown when an update is ready to install.
+    /// On WPF: App sets this to call App.ShutdownForUpdate().
+    /// </summary>
+    public static Action? OnShutdownRequested { get; set; }
 
     static UpdateChecker()
     {
@@ -94,6 +99,8 @@ public static class UpdateChecker
 
     /// <summary>
     /// Downloads the installer to a temp file and launches it.
+    /// The bat-file launch logic is Windows-specific; on other platforms a different
+    /// update mechanism will be needed.
     /// </summary>
     public static async Task DownloadAndInstallAsync(string downloadUrl, Action<int>? onProgress = null)
     {
@@ -132,9 +139,6 @@ public static class UpdateChecker
         });
 
         // Shut down the app cleanly so the installer can replace files
-        Application.Current.Dispatcher.Invoke(() =>
-        {
-            App.ShutdownForUpdate();
-        });
+        OnShutdownRequested?.Invoke();
     }
 }

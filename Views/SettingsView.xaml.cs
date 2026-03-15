@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using AmpUp.Core.Services;
 
 namespace AmpUp.Views;
 

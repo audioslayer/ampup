@@ -1,3 +1,4 @@
+using AmpUp.Core.Engine;
 using NAudio.CoreAudioApi;
 
 namespace AmpUp;
@@ -74,39 +75,11 @@ public class AudioMixer : IDisposable
     }
 
     /// <summary>
-    /// Apply response curve to a 0-1 raw volume value.
-    /// </summary>
-    private static float ApplyCurve(float raw, ResponseCurve curve)
-    {
-        return curve switch
-        {
-            ResponseCurve.Logarithmic => (float)(Math.Log10(1.0 + raw * 9.0) / Math.Log10(10.0)),
-            ResponseCurve.Exponential => raw * raw,
-            _ => raw // Linear
-        };
-    }
-
-    /// <summary>
-    /// Remap a 0-1 curved value into the MinVolume..MaxVolume range (both 0-100), returning 0-1.
-    /// </summary>
-    private static float ApplyVolumeRange(float curved, int minVolume, int maxVolume)
-    {
-        float min = Math.Clamp(minVolume, 0, 100) / 100f;
-        float max = Math.Clamp(maxVolume, 0, 100) / 100f;
-        if (max <= min) max = min + 0.01f; // safety
-        return min + curved * (max - min);
-    }
-
-    /// <summary>
     /// Full pipeline: raw 0-1023 -> 0-1 -> curve -> range clamp -> final 0-1 volume.
+    /// Delegates to <see cref="VolumePipeline.ComputeVolume(int, KnobConfig)"/>.
     /// </summary>
     private static float ComputeVolume(int rawValue, KnobConfig knob)
-    {
-        float raw = Math.Clamp(rawValue / 1023f, 0f, 1f);
-        float curved = ApplyCurve(raw, knob.Curve);
-        float vol = ApplyVolumeRange(curved, knob.MinVolume, knob.MaxVolume);
-        return Math.Clamp(vol, 0f, 1f);
-    }
+        => VolumePipeline.ComputeVolume(rawValue, knob);
 
     public void SetVolume(KnobConfig knob, int rawValue)
     {

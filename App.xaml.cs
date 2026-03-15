@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Windows;
 using Microsoft.Win32;
 using AmpUp.Controls;
+using AmpUp.Core.Services;
 using Forms = System.Windows.Forms;
 
 namespace AmpUp;
@@ -77,6 +78,10 @@ public partial class App : Application
 
         Logger.Log("Amp Up starting (WPF)...");
 
+        // Wire up platform-specific shutdown delegate for UpdateChecker
+        UpdateChecker.OnShutdownRequested = () =>
+            Application.Current.Dispatcher.Invoke(() => ShutdownForUpdate());
+
         // Load config and create backend
         _config = ConfigManager.Load();
 
@@ -88,14 +93,14 @@ public partial class App : Application
         _rgb = new RgbController();
         Rgb = _rgb;
         _audioAnalyzer = new AudioAnalyzer();
-        _rgb.SetAudioAnalyzer(_audioAnalyzer);
+        _rgb.SetAudioBandsProvider(() => _audioAnalyzer.SmoothedBands);
 
         // Ambience sync (Govee LAN)
         _ambienceSync = new AmbienceSync(_config.Ambience);
         _rgb.OnFrameReady += _ambienceSync.OnFrame;
 
         // DreamView / Screen Sync
-        _dreamSync = new DreamSyncController(_config.Ambience.ScreenSync, _config.Ambience);
+        _dreamSync = new DreamSyncController(_config.Ambience.ScreenSync, _config.Ambience, new WindowsScreenCapture());
         if (_config.Ambience.ScreenSync.Enabled)
             _dreamSync.Start();
 
@@ -127,7 +132,18 @@ public partial class App : Application
         _duckingEngine = new DuckingEngine();
 
         // Auto-profile switcher
-        _autoSwitcher = new AutoProfileSwitcher(_config.AutoSwitch);
+        _autoSwitcher = new AutoProfileSwitcher(_config.AutoSwitch, () =>
+        {
+            try
+            {
+                var hwnd = NativeMethods.GetForegroundWindow();
+                if (hwnd == IntPtr.Zero) return null;
+                NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
+                if (pid == 0) return null;
+                return System.Diagnostics.Process.GetProcessById((int)pid).ProcessName;
+            }
+            catch { return null; }
+        });
         _autoSwitcher.OnProfileSwitchRequested += profileName =>
             Dispatcher.Invoke(() => SwitchToProfile(profileName));
         _autoSwitchTimer = new System.Threading.Timer(_ => _autoSwitcher?.Poll(), null, 2000, 1500);
@@ -523,7 +539,9 @@ public partial class App : Application
                 _rgb.SetKnobPosition(i, 1f);
 
             _rgb.SetBrightness(_config.LedBrightness);
-            _rgb.SetPort(_serial.Port);
+            _rgb.SetOutput(
+                (buf, off, len) => { try { _serial.Port?.Write(buf, off, len); } catch { } },
+                () => _serial.Port?.IsOpen == true);
             _rgb.ApplyColors(_config.Lights);
             UpdateAudioAnalyzer();
         }

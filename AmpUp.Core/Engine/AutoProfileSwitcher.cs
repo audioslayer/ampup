@@ -1,22 +1,22 @@
-using System.Diagnostics;
-using System.Runtime.InteropServices;
+using AmpUp.Core;
+using AmpUp.Core.Models;
 
-namespace AmpUp;
-
-// AutoSwitchConfig and AutoSwitchRule are now in AmpUp.Core.Models
+namespace AmpUp.Core.Engine;
 
 public class AutoProfileSwitcher
 {
     public event Action<string>? OnProfileSwitchRequested;
 
     private AutoSwitchConfig _config;
+    private readonly Func<string?> _getForegroundProcessName;
     private string? _lastRequestedProfile;
     private DateTime _lastSwitchTime = DateTime.MinValue;
     private static readonly TimeSpan Cooldown = TimeSpan.FromMilliseconds(500);
 
-    public AutoProfileSwitcher(AutoSwitchConfig config)
+    public AutoProfileSwitcher(AutoSwitchConfig config, Func<string?> getForegroundProcessName)
     {
         _config = config;
+        _getForegroundProcessName = getForegroundProcessName;
     }
 
     public void UpdateConfig(AutoSwitchConfig config)
@@ -31,7 +31,7 @@ public class AutoProfileSwitcher
         // Debounce — don't process switches faster than the cooldown
         if (DateTime.UtcNow - _lastSwitchTime < Cooldown) return;
 
-        string? processName = GetForegroundProcessName();
+        string? processName = _getForegroundProcessName();
         string? targetProfile = ResolveProfile(processName);
 
         if (targetProfile == null) return;
@@ -63,35 +63,5 @@ public class AutoProfileSwitcher
             return _config.DefaultProfile;
 
         return null;
-    }
-
-    private static string? GetForegroundProcessName()
-    {
-        try
-        {
-            IntPtr hwnd = NativeMethods.GetForegroundWindow();
-            if (hwnd == IntPtr.Zero) return null;
-
-            NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
-            if (pid == 0) return null;
-
-            using var proc = Process.GetProcessById((int)pid);
-            return proc.ProcessName;
-        }
-        catch (ArgumentException)
-        {
-            // Process already exited
-            return null;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            // Access denied (e.g. elevated system process)
-            return null;
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"[AutoProfileSwitcher] GetForegroundProcessName error: {ex.Message}");
-            return null;
-        }
     }
 }

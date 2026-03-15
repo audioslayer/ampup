@@ -6,6 +6,7 @@ using Material.Icons;
 using MiIcon = Material.Icons.WPF.MaterialIcon;
 using Wpf.Ui.Controls;
 using AmpUp.Views;
+using AmpUp.Core.Services;
 
 namespace AmpUp;
 

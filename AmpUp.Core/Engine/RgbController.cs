@@ -1,6 +1,7 @@
-using System.IO.Ports;
+using AmpUp.Core.Models;
+using AmpUp.Core;
 
-namespace AmpUp;
+namespace AmpUp.Core.Engine;
 
 /// <summary>
 /// Controls the Turn Up device's RGB lighting via serial.
@@ -10,7 +11,8 @@ namespace AmpUp;
 /// </summary>
 public class RgbController : IDisposable
 {
-    private SerialPort? _port;
+    private Action<byte[], int, int>? _writeBytes;
+    private Func<bool>? _isPortOpen;
     private readonly byte[] _colorMsg = new byte[48];
     private readonly byte[] _linearColors = new byte[45]; // pre-gamma, post-brightness — for external sync
     private System.Threading.Timer? _refreshTimer;
@@ -28,7 +30,7 @@ public class RgbController : IDisposable
     private int _brightness = 100; // 0-100 global brightness
     private volatile List<LightConfig> _lights = new();
     private int _animTick; // incremented every timer tick (50ms)
-    private AudioAnalyzer? _audioAnalyzer;
+    private Func<float[]>? _getAudioBands;
     private volatile GlobalLightConfig? _globalLight;
 
     // Sparkle state per knob
@@ -122,12 +124,13 @@ public class RgbController : IDisposable
         _colorMsg[47] = 0xFF;  // end
     }
 
-    public void SetPort(SerialPort? port)
+    public void SetOutput(Action<byte[], int, int>? write, Func<bool>? isOpen)
     {
-        _port = port;
+        _writeBytes = write;
+        _isPortOpen = isOpen;
 
         // Start or stop the refresh timer based on connection state
-        if (port != null && port.IsOpen)
+        if (write != null && isOpen?.Invoke() == true)
         {
             _refreshTimer?.Dispose();
             _refreshTimer = new System.Threading.Timer(_ => Tick(), null, 50, 50);
@@ -222,9 +225,10 @@ public class RgbController : IDisposable
     public void UpdateGlobalConfig(GlobalLightConfig? config) => _globalLight = config;
 
     /// <summary>
-    /// Set or clear the audio analyzer used by the AudioReactive effect.
+    /// Set or clear the audio bands provider used by the AudioReactive effect.
+    /// The provider should return a float[] with 5 smoothed frequency band levels.
     /// </summary>
-    public void SetAudioAnalyzer(AudioAnalyzer? analyzer) => _audioAnalyzer = analyzer;
+    public void SetAudioBandsProvider(Func<float[]>? provider) => _getAudioBands = provider;
 
     // --- Color setting ---
 
@@ -296,11 +300,11 @@ public class RgbController : IDisposable
     /// </summary>
     public void Send()
     {
-        if (_port == null || !_port.IsOpen) return;
+        if (_writeBytes == null || _isPortOpen?.Invoke() != true) return;
 
         try
         {
-            _port.Write(_colorMsg, 0, _colorMsg.Length);
+            _writeBytes.Invoke(_colorMsg, 0, _colorMsg.Length);
         }
         catch { }
     }
@@ -678,13 +682,14 @@ public class RgbController : IDisposable
     }
 
     /// <summary>
-    /// Audio-reactive effect. Uses FFT band levels from AudioAnalyzer.
+    /// Audio-reactive effect. Uses FFT band levels from the audio bands provider.
     /// EffectSpeed acts as sensitivity (50 = 1x, 1 = 0.02x, 100 = 2x).
     /// R/G/B = idle/base color, R2/G2/B2 = peak/loud color.
     /// </summary>
     private void EffectAudioReactive(int k, LightConfig light)
     {
-        if (_audioAnalyzer == null)
+        var bands = _getAudioBands?.Invoke();
+        if (bands == null || bands.Length < 5)
         {
             SetColor(k, light.R, light.G, light.B);
             return;
@@ -697,18 +702,18 @@ public class RgbController : IDisposable
         {
             case ReactiveMode.BeatPulse:
                 // Bass (band 1) drives all knobs simultaneously
-                level = Math.Clamp(_audioAnalyzer.SmoothedBands[1] * sensitivity, 0f, 1f);
+                level = Math.Clamp(bands[1] * sensitivity, 0f, 1f);
                 break;
 
             case ReactiveMode.SpectrumBands:
                 // Each knob = its own frequency band (0=sub-bass .. 4=treble)
-                level = Math.Clamp(_audioAnalyzer.SmoothedBands[Math.Clamp(k, 0, 4)] * sensitivity, 0f, 1f);
+                level = Math.Clamp(bands[Math.Clamp(k, 0, 4)] * sensitivity, 0f, 1f);
                 break;
 
             case ReactiveMode.ColorShift:
                 // Average all bands for overall energy
                 float avg = 0f;
-                for (int b = 0; b < 5; b++) avg += _audioAnalyzer.SmoothedBands[b];
+                for (int b = 0; b < 5; b++) avg += bands[b];
                 avg /= 5f;
                 level = Math.Clamp(avg * sensitivity, 0f, 1f);
 
