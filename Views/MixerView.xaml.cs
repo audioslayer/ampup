@@ -40,6 +40,7 @@ public partial class MixerView : UserControl
     // Per-channel control arrays
     private readonly AnimatedKnobControl[] _knobs = new AnimatedKnobControl[5];
     private readonly VuMeterControl[] _vuMeters = new VuMeterControl[5];
+    private readonly ChannelGlowControl[] _glowControls = new ChannelGlowControl[5];
     private readonly TextBlock[] _volLabels = new TextBlock[5];
     private readonly TextBox[] _channelLabels = new TextBox[5];
     private readonly Image[] _icons = new Image[5];
@@ -334,6 +335,7 @@ public partial class MixerView : UserControl
                 _knobs[i].ArcColor = color;
                 _volLabels[i].Foreground = new SolidColorBrush(color);
                 _vuMeters[i].BarColor = color;
+                _glowControls[i].GlowColor = color;
             }
         }
 
@@ -445,6 +447,8 @@ public partial class MixerView : UserControl
 
                 _vuMeters[i].Level = peak;
                 _vuMeters[i].Tick();
+                _glowControls[i].SetLevel(peak);
+                _glowControls[i].Tick();
             }
             catch (Exception ex)
             {
@@ -550,6 +554,16 @@ public partial class MixerView : UserControl
                 VerticalAlignment = VerticalAlignment.Center,
                 ToolTip = "Turn the physical knob to adjust volume",
             };
+            // Ambient glow behind the knob — audio-reactive, tinted with LED color
+            var glow = new ChannelGlowControl
+            {
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch,
+            };
+            Grid.SetColumn(glow, 0);
+            _glowControls[i] = glow;
+            knobVuGrid.Children.Add(glow); // added first = rendered behind knob
+
             Grid.SetColumn(knob, 0);
             _knobs[i] = knob;
             knobVuGrid.Children.Add(knob);

@@ -16,7 +16,7 @@ namespace AmpUp.Controls
         private const double ArcStroke = 4.0;
         private const double GlowStroke = 8.0;
         private const double ArcInset = 6.0;
-        private const double DirtyThreshold = 0.001;
+        private const double DirtyThreshold = 0.005; // ~5 ADC steps on 10-bit pot
         private const double KnobImageRatio = 0.72; // knob image fills 72% of control size
 
         // ── Static frozen resources (color-independent) ────────────────

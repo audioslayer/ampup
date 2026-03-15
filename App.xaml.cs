@@ -38,6 +38,7 @@ public partial class App : Application
     /// Used by MixerView to display position for non-audio targets.
     /// </summary>
     public static readonly float[] KnobPositions = { 1f, 1f, 1f, 1f, 1f };
+    private readonly long[] _lastKnobUiTick = new long[5]; // throttle UI updates
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -421,10 +422,14 @@ public partial class App : Application
         }
         _rgb.SetKnobPosition(e.Idx, e.Value / 1023f);
 
-        // Push position directly to MixerView so the knob arc updates immediately
-        // (don't wait for the 50ms LiveTimer_Tick poll)
-        float pos = e.Value / 1023f;
-        Dispatcher.BeginInvoke(() => _mainWindow?.UpdateKnobPosition(e.Idx, pos));
+        // Push position to MixerView — throttled to ~33fps to avoid flooding the dispatcher
+        long now = Environment.TickCount64;
+        if (now - _lastKnobUiTick[e.Idx] >= 30)
+        {
+            _lastKnobUiTick[e.Idx] = now;
+            float pos = e.Value / 1023f;
+            Dispatcher.BeginInvoke(() => _mainWindow?.UpdateKnobPosition(e.Idx, pos));
+        }
     }
 
     private async Task SendHaThrottledAsync(int idx)
