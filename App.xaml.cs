@@ -189,10 +189,8 @@ public partial class App : Application
         _trayIcon.DoubleClick += (_, _) => ShowMainWindow();
         _trayIcon.MouseClick += (_, e) =>
         {
-            if (e.Button == Forms.MouseButtons.Left)
+            if (e.Button == Forms.MouseButtons.Left || e.Button == Forms.MouseButtons.Right)
                 ShowTrayMixer();
-            else if (e.Button == Forms.MouseButtons.Right)
-                ShowTrayContextMenu();
         };
     }
 
@@ -212,6 +210,15 @@ public partial class App : Application
         Dispatcher.Invoke(() =>
         {
             _trayMixerPopup ??= new TrayMixerPopup();
+            _trayMixerPopup.SetCallbacks(
+                onOpen: ShowMainWindow,
+                onExit: ExitApp,
+                mixer: _mixer,
+                config: _config,
+                onSave: cfg => { ConfigManager.Save(cfg); _mainWindow?.RefreshViews(); },
+                onRefresh: () => _mainWindow?.RefreshViews()
+            );
+            _trayMixerPopup.UpdateStatus(_isConnected, _isConnected ? _serial.Port?.PortName : null);
             _trayMixerPopup.ShowPopup();
         });
     }
@@ -494,6 +501,7 @@ public partial class App : Application
         }
 
         _trayContextMenu?.UpdateStatus(connected, connected ? _serial.Port?.PortName : null);
+        _trayMixerPopup?.UpdateStatus(connected, connected ? _serial.Port?.PortName : null);
 
         _mainWindow?.SetConnectionStatus(connected, connected ? _serial.Port?.PortName : null);
     }
@@ -597,6 +605,11 @@ public partial class App : Application
         _osdOverlay.VolumeDuration = _config.Osd.VolumeDuration;
         _osdOverlay.ProfileDuration = _config.Osd.ProfileDuration;
         _osdOverlay.DeviceDuration = _config.Osd.DeviceDuration;
+    }
+
+    public void NotifyUpdateAvailable()
+    {
+        Dispatcher.Invoke(() => _trayMixerPopup?.ShowUpdateAvailable());
     }
 
     /// <summary>

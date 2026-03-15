@@ -314,6 +314,9 @@ public partial class MainWindow : FluentWindow
                 _pendingUpdate = update;
                 VersionLabel.Text = $"Update available: {update.Value.Tag}";
                 VersionLabel.Foreground = (SolidColorBrush)FindResource("AccentBrush");
+                // Notify tray popup
+                if (Application.Current is App app)
+                    app.NotifyUpdateAvailable();
             }
         }
         catch (Exception ex)

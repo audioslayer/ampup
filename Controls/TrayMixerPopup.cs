@@ -21,6 +21,25 @@ public class TrayMixerPopup : Window
     private readonly System.Windows.Threading.DispatcherTimer _pollTimer;
     private bool _updatingFromPoll; // prevent slider.ValueChanged feedback loop
 
+    // Context menu callbacks
+    private Action? _onOpen;
+    private Action? _onExit;
+    private AudioMixer? _mixer;
+    private AppConfig? _config;
+    private Action<AppConfig>? _onSave;
+    private Action? _onRefresh;
+
+    // Connection status
+    private TextBlock _statusDot = null!;
+    private TextBlock _statusText = null!;
+
+    // Assign panel
+    private StackPanel _assignExpandPanel = null!;
+    private bool _assignExpanded;
+
+    // Update indicator
+    private Border? _updateBanner;
+
     private record SessionRow(
         string ProcessName,
         AudioSessionControl Session,
@@ -74,7 +93,7 @@ public class TrayMixerPopup : Window
         var root = new DockPanel();
         outer.Child = root;
 
-        // Header
+        // Header with connection status
         var header = new Border
         {
             Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
@@ -84,14 +103,7 @@ public class TrayMixerPopup : Window
         DockPanel.SetDock(header, Dock.Top);
 
         var headerPanel = new DockPanel();
-        var title = new TextBlock
-        {
-            Text = "AMP UP MIXER",
-            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
-            FontSize = 11,
-            FontWeight = FontWeights.Bold,
-            VerticalAlignment = VerticalAlignment.Center
-        };
+
         var closeBtn = new Button
         {
             Content = "✕",
@@ -108,7 +120,53 @@ public class TrayMixerPopup : Window
         closeBtn.MouseLeave += (_, _) => closeBtn.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
         DockPanel.SetDock(closeBtn, Dock.Right);
         headerPanel.Children.Add(closeBtn);
-        headerPanel.Children.Add(title);
+
+        // Title + status in a vertical stack
+        var titleStack = new StackPanel();
+
+        // Title row with icon
+        var titleRow = new StackPanel { Orientation = Orientation.Horizontal };
+        try
+        {
+            var iconUri = new Uri("pack://application:,,,/Assets/icon/ampup-16.png", UriKind.Absolute);
+            var bitmapImage = new System.Windows.Media.Imaging.BitmapImage(iconUri);
+            titleRow.Children.Add(new System.Windows.Controls.Image
+            {
+                Source = bitmapImage, Width = 14, Height = 14,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 6, 0)
+            });
+        }
+        catch { }
+        titleRow.Children.Add(new TextBlock
+        {
+            Text = "AMP UP",
+            Foreground = new SolidColorBrush(GetAccentColor()),
+            FontSize = 11, FontWeight = FontWeights.Bold,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        titleStack.Children.Add(titleRow);
+
+        // Connection status
+        var statusRow = new StackPanel { Orientation = Orientation.Horizontal };
+        _statusDot = new TextBlock
+        {
+            Text = "○",
+            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            FontSize = 8, VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 4, 0)
+        };
+        _statusText = new TextBlock
+        {
+            Text = "Disconnected",
+            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            FontSize = 9, VerticalAlignment = VerticalAlignment.Center
+        };
+        statusRow.Children.Add(_statusDot);
+        statusRow.Children.Add(_statusText);
+        titleStack.Children.Add(statusRow);
+
+        headerPanel.Children.Add(titleStack);
         header.Child = headerPanel;
         root.Children.Add(header);
 
@@ -148,18 +206,58 @@ public class TrayMixerPopup : Window
         _sessionList = new StackPanel { Orientation = Orientation.Vertical };
         scroll.Content = _sessionList;
 
-        // Wrap scroll in padded container with bottom radius
+        // Wrap scroll in padded container
         var wrapper = new Border
         {
-            CornerRadius = new CornerRadius(0, 0, 10, 10),
             Background = new SolidColorBrush(Color.FromRgb(0x0F, 0x0F, 0x0F)),
-            Padding = new Thickness(0, 4, 0, 8),
+            Padding = new Thickness(0, 4, 0, 4),
             Child = scroll
         };
         DockPanel.SetDock(wrapper, Dock.Top);
         root.Children.Add(wrapper);
 
+        // Footer — Open, Assign Apps, Exit
+        var footer = BuildFooter();
+        DockPanel.SetDock(footer, Dock.Top);
+        root.Children.Add(footer);
+
         return outer;
+    }
+
+    public void SetCallbacks(Action onOpen, Action onExit, AudioMixer mixer, AppConfig config,
+        Action<AppConfig> onSave, Action onRefresh)
+    {
+        _onOpen = onOpen;
+        _onExit = onExit;
+        _mixer = mixer;
+        _config = config;
+        _onSave = onSave;
+        _onRefresh = onRefresh;
+    }
+
+    public void UpdateStatus(bool connected, string? port)
+    {
+        if (_statusDot == null || _statusText == null) return;
+        if (connected)
+        {
+            _statusDot.Text = "●";
+            _statusDot.Foreground = new SolidColorBrush(Color.FromRgb(0x00, 0xDD, 0x77));
+            _statusText.Text = port != null ? $"Connected ({port})" : "Connected";
+            _statusText.Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
+        }
+        else
+        {
+            _statusDot.Text = "○";
+            _statusDot.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+            _statusText.Text = "Disconnected";
+            _statusText.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+        }
+    }
+
+    public void ShowUpdateAvailable()
+    {
+        if (_updateBanner != null)
+            _updateBanner.Visibility = Visibility.Visible;
     }
 
     public void ShowPopup()
@@ -292,6 +390,218 @@ public class TrayMixerPopup : Window
         finally
         {
             _updatingFromPoll = false;
+        }
+    }
+
+    private UIElement BuildFooter()
+    {
+        var accent = GetAccentColor();
+        var footer = new StackPanel
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+        };
+
+        // Divider
+        footer.Children.Add(new Border
+        {
+            Height = 1,
+            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+        });
+
+        var items = new StackPanel { Margin = new Thickness(6, 4, 6, 4) };
+
+        // Update banner (hidden by default)
+        _updateBanner = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(30, 0xFF, 0xB8, 0x00)),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(8, 5, 8, 5),
+            Margin = new Thickness(0, 0, 0, 4),
+            Cursor = Cursors.Hand,
+            Visibility = Visibility.Collapsed,
+        };
+        _updateBanner.Child = new TextBlock
+        {
+            Text = "Update available — click to download",
+            Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xB8, 0x00)),
+            FontSize = 9.5, FontFamily = new FontFamily("Segoe UI"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        _updateBanner.MouseLeftButtonDown += (_, _) =>
+        {
+            Hide();
+            try { Process.Start(new ProcessStartInfo("https://github.com/audioslayer/ampup/releases/latest") { UseShellExecute = true }); } catch { }
+        };
+        _updateBanner.MouseEnter += (_, _) => _updateBanner.Background = new SolidColorBrush(Color.FromArgb(50, 0xFF, 0xB8, 0x00));
+        _updateBanner.MouseLeave += (_, _) => _updateBanner.Background = new SolidColorBrush(Color.FromArgb(30, 0xFF, 0xB8, 0x00));
+        items.Children.Add(_updateBanner);
+
+        // Open Amp Up
+        items.Children.Add(BuildFooterItem("▶  Open Amp Up",
+            new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)), true,
+            () => { Hide(); _onOpen?.Invoke(); }));
+
+        // Assign Running Apps
+        var assignHeader = BuildFooterItem("Assign Running Apps",
+            new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)), false, null);
+
+        _assignExpandPanel = new StackPanel
+        {
+            Visibility = Visibility.Collapsed,
+            Margin = new Thickness(4, 0, 4, 4)
+        };
+
+        var arrowLabel = new TextBlock
+        {
+            Text = "›",
+            Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+            FontSize = 14, VerticalAlignment = VerticalAlignment.Center,
+        };
+        // Add arrow to the header row
+        if (assignHeader is Border b && b.Child is DockPanel dp)
+        {
+            DockPanel.SetDock(arrowLabel, Dock.Right);
+            dp.Children.Insert(0, arrowLabel);
+        }
+
+        assignHeader.MouseLeftButtonDown += (_, _) =>
+        {
+            _assignExpanded = !_assignExpanded;
+            if (_assignExpanded)
+            {
+                arrowLabel.Text = "⌄";
+                PopulateAssignPanel();
+                _assignExpandPanel.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                arrowLabel.Text = "›";
+                _assignExpandPanel.Visibility = Visibility.Collapsed;
+            }
+        };
+
+        items.Children.Add(assignHeader);
+        items.Children.Add(_assignExpandPanel);
+
+        // Divider before exit
+        items.Children.Add(new Border
+        {
+            Height = 1,
+            Background = new SolidColorBrush(Color.FromArgb(40, accent.R, accent.G, accent.B)),
+            Margin = new Thickness(10, 4, 10, 4),
+        });
+
+        // Exit
+        items.Children.Add(BuildFooterItem("Exit",
+            new SolidColorBrush(Color.FromRgb(0xFF, 0x44, 0x44)), false,
+            () => { Hide(); _onExit?.Invoke(); }));
+
+        footer.Children.Add(items);
+        return footer;
+    }
+
+    private Border BuildFooterItem(string text, Brush foreground, bool bold, Action? onClick)
+    {
+        var row = new Border
+        {
+            Background = Brushes.Transparent,
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(8, 6, 8, 6),
+            Cursor = Cursors.Hand,
+        };
+
+        var dock = new DockPanel { LastChildFill = true };
+        dock.Children.Add(new TextBlock
+        {
+            Text = text,
+            Foreground = foreground,
+            FontSize = 10,
+            FontWeight = bold ? FontWeights.Bold : FontWeights.Normal,
+            FontFamily = new FontFamily("Segoe UI"),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        row.Child = dock;
+
+        var accent = GetAccentColor();
+        row.MouseEnter += (_, _) =>
+            row.Background = new SolidColorBrush(Color.FromArgb(26, accent.R, accent.G, accent.B));
+        row.MouseLeave += (_, _) =>
+            row.Background = Brushes.Transparent;
+
+        if (onClick != null)
+            row.MouseLeftButtonDown += (_, _) => onClick();
+
+        return row;
+    }
+
+    private void PopulateAssignPanel()
+    {
+        _assignExpandPanel.Children.Clear();
+        if (_mixer == null || _config == null) return;
+        var accent = GetAccentColor();
+
+        List<string> apps;
+        try { apps = _mixer.GetRunningAudioApps(); }
+        catch { apps = new List<string>(); }
+
+        if (apps.Count == 0)
+        {
+            _assignExpandPanel.Children.Add(new TextBlock
+            {
+                Text = "No audio apps running",
+                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                FontSize = 9, FontStyle = FontStyles.Italic,
+                Margin = new Thickness(12, 6, 12, 4),
+            });
+            return;
+        }
+
+        foreach (var appName in apps)
+        {
+            var appCapture = appName;
+            var display = char.ToUpperInvariant(appName[0]) + appName[1..].ToLowerInvariant();
+
+            var assignedKnob = _config.Knobs.FirstOrDefault(kn =>
+                kn.Target?.Equals(appCapture, StringComparison.OrdinalIgnoreCase) == true);
+            string assignedText = assignedKnob != null ? $"  →  Knob {assignedKnob.Idx + 1}" : "";
+
+            var knobList = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(16, 0, 0, 0) };
+
+            var appRow = BuildFooterItem($"{display}{assignedText}",
+                new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)), false, null);
+            appRow.MouseLeftButtonDown += (_, _) =>
+                knobList.Visibility = knobList.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+
+            _assignExpandPanel.Children.Add(appRow);
+
+            for (int k = 0; k < 5; k++)
+            {
+                int knobIdx = k;
+                var knob = _config.Knobs.FirstOrDefault(kn => kn.Idx == knobIdx);
+                string knobName = knob != null && !string.IsNullOrWhiteSpace(knob.Label)
+                    ? knob.Label : $"Knob {knobIdx + 1}";
+                bool isCurrent = knob?.Target?.Equals(appCapture, StringComparison.OrdinalIgnoreCase) == true;
+
+                var knobRow = BuildFooterItem(
+                    isCurrent ? $"✓  {knobName}" : $"     {knobName}",
+                    isCurrent ? new SolidColorBrush(accent) : new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+                    isCurrent, null);
+
+                knobRow.MouseLeftButtonDown += (_, _) =>
+                {
+                    var cfg = _config.Knobs.FirstOrDefault(kn => kn.Idx == knobIdx);
+                    if (cfg != null)
+                    {
+                        cfg.Target = appCapture;
+                        cfg.Label = appCapture;
+                        _onSave?.Invoke(_config);
+                        _onRefresh?.Invoke();
+                        Hide();
+                    }
+                };
+                knobList.Children.Add(knobRow);
+            }
+            _assignExpandPanel.Children.Add(knobList);
         }
     }
 
