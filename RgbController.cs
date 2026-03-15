@@ -193,6 +193,17 @@ public class RgbController : IDisposable
     /// The hardware has a dead zone below ~33% where LEDs can't display,
     /// so we remap 1-100% to 33-100% device brightness. 0% = off.
     /// </summary>
+    /// <summary>
+    /// Get the current rendered color for a knob (pre-gamma, post-brightness).
+    /// Returns the color of LED 0 (center LED) which represents the knob's current color.
+    /// </summary>
+    public (byte R, byte G, byte B) GetCurrentColor(int knobIdx)
+    {
+        if (knobIdx < 0 || knobIdx > 4) return (0, 0, 0);
+        int offset = knobIdx * 9; // LED 0 of this knob
+        return (_linearColors[offset], _linearColors[offset + 1], _linearColors[offset + 2]);
+    }
+
     public void SetBrightness(int pct)
     {
         pct = Math.Clamp(pct, 0, 100);

@@ -38,6 +38,7 @@ public partial class App : Application
     /// Used by MixerView to display position for non-audio targets.
     /// </summary>
     public static readonly float[] KnobPositions = { 1f, 1f, 1f, 1f, 1f };
+    public static RgbController? Rgb { get; private set; }
     private readonly long[] _lastKnobUiTick = new long[5]; // throttle UI updates
 
     protected override void OnStartup(StartupEventArgs e)
@@ -83,6 +84,7 @@ public partial class App : Application
         _mixer = new AudioMixer();
         _buttons = new ButtonHandler();
         _rgb = new RgbController();
+        Rgb = _rgb;
         _audioAnalyzer = new AudioAnalyzer();
         _rgb.SetAudioAnalyzer(_audioAnalyzer);
 

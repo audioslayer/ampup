@@ -455,6 +455,20 @@ public partial class MixerView : UserControl
                 _vuMeters[i].Tick();
                 _glowControls[i].SetLevel(peak);
                 _glowControls[i].Tick();
+
+                // Sync UI colors with current LED color (supports animated effects like Rainbow)
+                if (App.Rgb != null)
+                {
+                    var (cr, cg, cb) = App.Rgb.GetCurrentColor(i);
+                    if (cr > 0 || cg > 0 || cb > 0)
+                    {
+                        var ledColor = Color.FromRgb(cr, cg, cb);
+                        _knobs[i].ArcColor = ledColor;
+                        _vuMeters[i].BarColor = ledColor;
+                        _glowControls[i].GlowColor = ledColor;
+                        _volLabels[i].Foreground = new SolidColorBrush(ledColor);
+                    }
+                }
             }
             catch (Exception ex)
             {
