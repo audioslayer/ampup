@@ -30,6 +30,18 @@ namespace AmpUp.Controls
             IsHitTestVisible = false; // don't block mouse events to controls above
         }
 
+        #region Layout
+
+        protected override Size MeasureOverride(Size availableSize)
+        {
+            // Take whatever space the parent gives us
+            return new Size(
+                double.IsInfinity(availableSize.Width) ? 100 : availableSize.Width,
+                double.IsInfinity(availableSize.Height) ? 100 : availableSize.Height);
+        }
+
+        #endregion
+
         #region Visual tree plumbing
 
         protected override int VisualChildrenCount => _visuals.Count;
