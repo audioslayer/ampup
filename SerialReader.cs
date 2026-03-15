@@ -131,6 +131,24 @@ public class SerialReader : IDisposable
 
                         if (ContainsTurnUpFrame(data))
                         {
+                            // Keep reading briefly to capture the knob batch frame
+                            // (device sends health ping first, then batch shortly after)
+                            if (!ContainsKnobBatch(data))
+                            {
+                                try
+                                {
+                                    var extraDeadline = DateTime.UtcNow.AddMilliseconds(500);
+                                    while (DateTime.UtcNow < extraDeadline)
+                                    {
+                                        int extra = await probe.BaseStream.ReadAsync(probeBuf, 0, probeBuf.Length, ct)
+                                            .WaitAsync(TimeSpan.FromMilliseconds(300), ct);
+                                        for (int j = 0; j < extra; j++) data.Add(probeBuf[j]);
+                                        if (ContainsKnobBatch(data)) break;
+                                    }
+                                }
+                                catch { }
+                            }
+
                             Logger.Log($"Turn Up device detected on {portName}");
                             _probeData = data; // save for replay after main connect
                             probe.Close();
@@ -156,6 +174,16 @@ public class SerialReader : IDisposable
     /// <summary>
     /// Checks if the byte buffer contains any valid Turn Up protocol frame.
     /// </summary>
+    private static bool ContainsKnobBatch(List<byte> data)
+    {
+        for (int i = 0; i < data.Count - 12; i++)
+        {
+            if (data[i] == 0xFE && data[i + 1] == 0x04 && data[i + 12] == 0xFF)
+                return true;
+        }
+        return false;
+    }
+
     private static bool ContainsTurnUpFrame(List<byte> data)
     {
         for (int i = 0; i < data.Count - 2; i++)
