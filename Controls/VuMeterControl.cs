@@ -15,16 +15,12 @@ namespace AmpUp.Controls
         private const double DefaultHeight = 80;
         private const double SegmentGap = 1;
 
-        // Pre-allocated frozen brushes
-        private static readonly SolidColorBrush DefaultBarBrush = Freeze(new SolidColorBrush(ThemeManager.Accent));
-        private static readonly SolidColorBrush YellowBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xFF, 0xB8, 0x00)));
-        private static readonly SolidColorBrush RedBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xFF, 0x44, 0x44)));
+        // Pre-allocated frozen brushes — standard green/orange/red VU meter
+        private static readonly SolidColorBrush GreenBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x00, 0xDD, 0x44)));
+        private static readonly SolidColorBrush OrangeBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xFF, 0xA0, 0x00)));
+        private static readonly SolidColorBrush RedBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xFF, 0x33, 0x33)));
         private static readonly SolidColorBrush UnlitBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)));
         private static readonly SolidColorBrush PeakBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xE6, 0xE6, 0xE6)));
-
-        // Transitional brushes (blended between bar color and yellow) — rebuilt when BarColor changes
-        private SolidColorBrush _trans1Brush = null!;
-        private SolidColorBrush _trans2Brush = null!;
 
         private readonly VisualCollection _visuals;
         private readonly DrawingVisual _drawingVisual;
@@ -58,7 +54,7 @@ namespace AmpUp.Controls
                 nameof(BarColor),
                 typeof(Color),
                 typeof(VuMeterControl),
-                new PropertyMetadata(ThemeManager.Accent, OnBarColorChanged));
+                new PropertyMetadata(ThemeManager.Accent));
 
         public Color BarColor
         {
@@ -73,7 +69,6 @@ namespace AmpUp.Controls
             _drawingVisual = new DrawingVisual();
             _visuals = new VisualCollection(this) { _drawingVisual };
             _segmentRects = Array.Empty<Rect>();
-            BuildTransitionalBrushes(ThemeManager.Accent);
         }
 
         #region Visual tree plumbing
@@ -168,13 +163,6 @@ namespace AmpUp.Controls
             meter.UpdateVisuals();
         }
 
-        private static void OnBarColorChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        {
-            var meter = (VuMeterControl)d;
-            meter.BuildTransitionalBrushes((Color)e.NewValue);
-            meter.UpdateVisuals();
-        }
-
         #endregion
 
         #region Peak tracking
@@ -230,51 +218,15 @@ namespace AmpUp.Controls
 
         private Brush GetSegmentBrush(int index)
         {
-            if (index <= 9)
-                return GetCurrentBarBrush();
-            if (index == 10)
-                return _trans1Brush;
-            if (index == 11)
-                return _trans2Brush;
-            if (index <= 14)
-                return YellowBrush;
-            return RedBrush; // index 15
-        }
-
-        private Brush GetCurrentBarBrush()
-        {
-            Color c = BarColor;
-            if (c == ThemeManager.Accent)
-                return DefaultBarBrush;
-
-            // Custom bar color — create a frozen brush
-            // This is called frequently, so cache if needed in the future
-            var brush = new SolidColorBrush(c);
-            brush.Freeze();
-            return brush;
+            // 0-9: green, 10-12: orange, 13-15: red
+            if (index <= 9) return GreenBrush;
+            if (index <= 12) return OrangeBrush;
+            return RedBrush;
         }
 
         #endregion
 
         #region Helpers
-
-        private void BuildTransitionalBrushes(Color barColor)
-        {
-            Color yellow = Color.FromRgb(0xFF, 0xB8, 0x00);
-
-            // Segment 10: 1/3 toward yellow
-            _trans1Brush = Freeze(new SolidColorBrush(LerpColor(barColor, yellow, 0.33f)));
-            // Segment 11: 2/3 toward yellow
-            _trans2Brush = Freeze(new SolidColorBrush(LerpColor(barColor, yellow, 0.67f)));
-        }
-
-        private static Color LerpColor(Color a, Color b, float t)
-        {
-            return Color.FromRgb(
-                (byte)(a.R + (b.R - a.R) * t),
-                (byte)(a.G + (b.G - a.G) * t),
-                (byte)(a.B + (b.B - a.B) * t));
-        }
 
         private static SolidColorBrush Freeze(SolidColorBrush brush)
         {
