@@ -1151,10 +1151,8 @@ public partial class MixerView : UserControl
             var knob = _config.Knobs.FirstOrDefault(k => k.Idx == i);
             if (knob == null) continue;
 
-            var labelText = _channelLabels[i].Text.Trim();
+            knob.Label = _channelLabels[i].Text.Trim();
             var selectedTarget = GetSelectedTarget(_targetPickers[i]);
-            var autoName = FormatTargetName(selectedTarget);
-            knob.Label = (labelText == autoName || labelText == $"Knob {i + 1}") ? "" : labelText;
 
             if (HATargetDomains.ContainsKey(selectedTarget))
             {
