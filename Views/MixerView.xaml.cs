@@ -106,6 +106,7 @@ public partial class MixerView : UserControl
         _liveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
         _liveTimer.Tick += LiveTimer_Tick;
 
+        Loaded += (_, _) => _liveTimer.Start();
         Unloaded += (_, _) => _liveTimer.Stop();
 
         ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshAccentColors);
