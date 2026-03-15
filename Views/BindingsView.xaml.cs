@@ -79,6 +79,8 @@ public class BindingsView : UserControl
 
     private readonly ScrollViewer _scroll;
     private readonly StackPanel _root;
+    private readonly Border?[] _knobCards = new Border?[5]; // for live LED color sync
+    private readonly System.Windows.Threading.DispatcherTimer _colorTimer;
 
     public BindingsView()
     {
@@ -92,6 +94,15 @@ public class BindingsView : UserControl
         };
 
         Content = _scroll;
+
+        _colorTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(100)
+        };
+        _colorTimer.Tick += (_, _) => UpdateCardColors();
+
+        Loaded += (_, _) => _colorTimer.Start();
+        Unloaded += (_, _) => _colorTimer.Stop();
     }
 
     public void SetNavigationCallbacks(
@@ -104,6 +115,21 @@ public class BindingsView : UserControl
         _onPreviewOsd = onPreviewOsd;
     }
 
+    private void UpdateCardColors()
+    {
+        if (App.Rgb == null) return;
+        for (int i = 0; i < 5; i++)
+        {
+            if (_knobCards[i] == null) continue;
+            var (r, g, b) = App.Rgb.GetCurrentColor(i);
+            if (r > 10 || g > 10 || b > 10)
+            {
+                _knobCards[i]!.Background = new SolidColorBrush(
+                    Color.FromArgb(0x18, r, g, b));
+            }
+        }
+    }
+
     public void LoadConfig(AppConfig config)
     {
         _config = config;
@@ -114,6 +140,7 @@ public class BindingsView : UserControl
     {
         if (_config == null) return;
         _root.Children.Clear();
+        Array.Clear(_knobCards);
 
         // Page header
         var headerPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 20) };
@@ -326,10 +353,19 @@ public class BindingsView : UserControl
     private UIElement BuildKnobCard(int idx, KnobConfig knob, string profileName, LightConfig? light = null)
     {
         bool isEmpty = string.IsNullOrEmpty(knob.Target) || knob.Target == "none";
+        bool isActiveProfile = profileName == _config?.ActiveProfile;
 
         // Tint card background with the knob's LED color (very subtle)
         Brush cardBg;
-        if (light != null && (light.R > 10 || light.G > 10 || light.B > 10))
+        if (isActiveProfile && App.Rgb != null)
+        {
+            // Use live LED color for active profile
+            var (r, g, b) = App.Rgb.GetCurrentColor(idx);
+            cardBg = (r > 10 || g > 10 || b > 10)
+                ? new SolidColorBrush(Color.FromArgb(0x18, r, g, b))
+                : (SolidColorBrush)FindResource("BgDarkBrush");
+        }
+        else if (light != null && (light.R > 10 || light.G > 10 || light.B > 10))
         {
             cardBg = new SolidColorBrush(Color.FromArgb(0x18,
                 (byte)Math.Clamp(light.R, 0, 255),
@@ -363,6 +399,10 @@ public class BindingsView : UserControl
             card.BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush");
         };
         card.MouseLeftButtonDown += (_, _) => _onNavigateToMixer?.Invoke(profileName);
+
+        // Track active profile knob cards for live LED color sync
+        if (isActiveProfile && idx >= 0 && idx < 5)
+            _knobCards[idx] = card;
 
         var content = new StackPanel();
 
