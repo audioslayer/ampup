@@ -511,9 +511,12 @@ public class AudioMixer : IDisposable
                         foreach (var kv in _sessions)
                         {
                             if (kv.Key.Contains(app))
-                                try { maxPeak = Math.Max(maxPeak, kv.Value.AudioMeterInformation.MasterPeakValue); } catch { }
+                                try { maxPeak = Math.Max(maxPeak, kv.Value.AudioMeterInformation.MasterPeakValue); }
+                                catch (Exception ex) { Logger.Log($"GetPeakLevel apps '{app}' match '{kv.Key}': {ex.Message}"); }
                         }
                     }
+                    if (maxPeak == 0f && knob.Apps.Count > 0)
+                        Logger.Log($"GetPeakLevel apps: sessions={_sessions.Count}, apps=[{string.Join(",", knob.Apps)}], keys=[{string.Join(",", _sessions.Keys.Take(10))}]");
                     return maxPeak;
                 }
             }
