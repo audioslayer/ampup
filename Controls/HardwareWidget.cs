@@ -322,33 +322,82 @@ namespace AmpUp.Controls
         {
             string title = !string.IsNullOrEmpty(btn?.Label) ? btn!.Label : $"Button {idx + 1}";
 
-            var lines = new System.Text.StringBuilder();
+            var panel = new StackPanel { MaxWidth = 280 };
+            panel.Children.Add(MakeTooltipTitle(title));
+
             bool any = false;
 
             string? tap = FormatAction(btn?.Action, btn?.Path, btn?.MacroKeys, btn?.ProfileName);
-            if (tap != null) { lines.AppendLine($"Tap:  {tap}"); any = true; }
+            if (tap != null) { panel.Children.Add(MakeGestureRow("TAP", tap, Color.FromRgb(0x66, 0xBB, 0x6A))); any = true; }
 
             string? dbl = FormatAction(btn?.DoublePressAction, btn?.DoublePressPath, btn?.DoublePressMacroKeys, btn?.DoublePressProfileName);
-            if (dbl != null) { lines.AppendLine($"Dbl:   {dbl}"); any = true; }
+            if (dbl != null) { panel.Children.Add(MakeGestureRow("DBL", dbl, Color.FromRgb(0xFF, 0xD5, 0x4F))); any = true; }
 
             string? hold = FormatAction(btn?.HoldAction, btn?.HoldPath, btn?.HoldMacroKeys, btn?.HoldProfileName);
-            if (hold != null) { lines.Append($"Hold: {hold}"); any = true; }
+            if (hold != null) { panel.Children.Add(MakeGestureRow("HOLD", hold, Color.FromRgb(0xFF, 0x8A, 0x3D))); any = true; }
 
-            return BuildToolTipStyle(title, any ? lines.ToString().TrimEnd() : "Not assigned");
+            if (!any)
+            {
+                panel.Children.Add(new TextBlock
+                {
+                    Text = "Not assigned",
+                    FontSize = 11,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
+                    FontStyle = FontStyles.Italic
+                });
+            }
+
+            return WrapTooltip(panel);
         }
+
+        private static UIElement MakeGestureRow(string badge, string action, Color badgeColor)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
+
+            // Colored badge
+            row.Children.Add(new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(0x30, badgeColor.R, badgeColor.G, badgeColor.B)),
+                CornerRadius = new CornerRadius(3),
+                Padding = new Thickness(5, 1, 5, 1),
+                Margin = new Thickness(0, 0, 8, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = new TextBlock
+                {
+                    Text = badge,
+                    FontSize = 9,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = new SolidColorBrush(badgeColor)
+                }
+            });
+
+            // Action text
+            row.Children.Add(new TextBlock
+            {
+                Text = action,
+                FontSize = 11,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = 200
+            });
+
+            return row;
+        }
+
+        private static TextBlock MakeTooltipTitle(string text) => new()
+        {
+            Text = text,
+            FontWeight = FontWeights.SemiBold,
+            FontSize = 12,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            Margin = new Thickness(0, 0, 0, 4)
+        };
 
         private static ToolTip BuildToolTipStyle(string title, string body)
         {
             var panel = new StackPanel { MaxWidth = 260 };
-
-            panel.Children.Add(new TextBlock
-            {
-                Text = title,
-                FontWeight = FontWeights.SemiBold,
-                FontSize = 12,
-                Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
-                Margin = new Thickness(0, 0, 0, 4)
-            });
+            panel.Children.Add(MakeTooltipTitle(title));
 
             panel.Children.Add(new TextBlock
             {
@@ -358,15 +407,17 @@ namespace AmpUp.Controls
                 TextWrapping = TextWrapping.Wrap
             });
 
-            return new ToolTip
-            {
-                Content = panel,
-                Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(10, 8, 10, 8)
-            };
+            return WrapTooltip(panel);
         }
+
+        private static ToolTip WrapTooltip(StackPanel panel) => new()
+        {
+            Content = panel,
+            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(10, 8, 10, 8)
+        };
 
         // ── Formatting helpers ──────────────────────────────────────────
 
@@ -384,6 +435,7 @@ namespace AmpUp.Controls
             { "power_sleep", "Sleep" }, { "power_lock", "Lock" }, { "power_off", "Shut Down" },
             { "power_restart", "Restart" }, { "power_logoff", "Log Off" }, { "power_hibernate", "Hibernate" },
             { "ha_toggle", "HA Toggle" }, { "ha_scene", "HA Scene" }, { "ha_service", "HA Service" },
+            { "govee_toggle", "Govee Toggle" }, { "govee_scene", "Govee Scene" },
         };
 
         /// <summary>Returns formatted action string, or null if action is none/empty.</summary>
@@ -392,7 +444,9 @@ namespace AmpUp.Controls
             if (string.IsNullOrEmpty(action) || action == "none") return null;
 
             s_actionNames.TryGetValue(action, out var name);
-            name ??= action;
+            // Clean fallback: replace underscores with spaces and title-case
+            name ??= System.Globalization.CultureInfo.CurrentCulture.TextInfo
+                .ToTitleCase(action.Replace("_", " "));
 
             var context = action switch
             {
