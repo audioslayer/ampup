@@ -104,22 +104,30 @@ public class TrayMixerPopup : Window
 
         var headerPanel = new DockPanel();
 
-        var closeBtn = new Button
+        // Close button — red macOS-style circle
+        var closeCircle = new Border
         {
-            Content = "✕",
-            Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            FontSize = 12,
-            Padding = new Thickness(4, 0, 0, 0),
+            Width = 14, Height = 14, CornerRadius = new CornerRadius(7),
+            Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x5F, 0x56)),
             Cursor = Cursors.Hand,
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = "Close",
         };
-        closeBtn.Click += (_, _) => Hide();
-        closeBtn.MouseEnter += (_, _) => closeBtn.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
-        closeBtn.MouseLeave += (_, _) => closeBtn.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
-        DockPanel.SetDock(closeBtn, Dock.Right);
-        headerPanel.Children.Add(closeBtn);
+        var closeX = new TextBlock
+        {
+            Text = "✕", FontSize = 8, FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x99, 0x0F, 0x04)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, -1, 0, 0),
+            Opacity = 0,
+        };
+        closeCircle.Child = closeX;
+        closeCircle.MouseLeftButtonDown += (_, _) => Hide();
+        closeCircle.MouseEnter += (_, _) => closeX.Opacity = 1;
+        closeCircle.MouseLeave += (_, _) => closeX.Opacity = 0;
+        DockPanel.SetDock(closeCircle, Dock.Right);
+        headerPanel.Children.Add(closeCircle);
 
         // Title + status in a vertical stack
         var titleStack = new StackPanel();
