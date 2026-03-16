@@ -442,7 +442,7 @@ public partial class App : Application
             long osdNow = Environment.TickCount64;
             if (_config.Osd.ShowVolume && !knob.Target.Equals("none", StringComparison.OrdinalIgnoreCase)
                 && osdNow - _lastOsdTick[e.Idx] >= 100
-                && osdNow - _startupTick >= 3000)
+                && osdNow - _startupTick >= 5000)
             {
                 _lastOsdTick[e.Idx] = osdNow;
                 float pct = e.Value / 1023f;
