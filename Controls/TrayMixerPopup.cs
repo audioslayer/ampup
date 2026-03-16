@@ -168,6 +168,10 @@ public class TrayMixerPopup : Window
 
         headerPanel.Children.Add(titleStack);
         header.Child = headerPanel;
+        header.Cursor = Cursors.Hand;
+        header.MouseLeftButtonDown += (_, _) => { Hide(); _onOpen?.Invoke(); };
+        header.MouseEnter += (_, _) => header.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+        header.MouseLeave += (_, _) => header.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
         root.Children.Add(header);
 
         // Divider
@@ -242,7 +246,7 @@ public class TrayMixerPopup : Window
         {
             _statusDot.Text = "●";
             _statusDot.Foreground = new SolidColorBrush(Color.FromRgb(0x00, 0xDD, 0x77));
-            _statusText.Text = port != null ? $"Connected ({port})" : "Connected";
+            _statusText.Text = "Connected";
             _statusText.Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
         }
         else
@@ -498,8 +502,8 @@ public class TrayMixerPopup : Window
         actionRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         actionRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var openBtn = BuildFooterItem("Open",
-            new SolidColorBrush(accent), false,
+        var openBtn = BuildFooterItem("Open Amp Up",
+            new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76)), false,
             () => { Hide(); _onOpen?.Invoke(); });
         Grid.SetColumn(openBtn, 0);
         actionRow.Children.Add(openBtn);
