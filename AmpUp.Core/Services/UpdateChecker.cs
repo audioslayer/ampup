@@ -9,7 +9,8 @@ namespace AmpUp.Core.Services;
 public static class UpdateChecker
 {
     public static readonly string CurrentVersion =
-        typeof(UpdateChecker).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+        (Assembly.GetEntryAssembly() ?? typeof(UpdateChecker).Assembly)
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
             ?.InformationalVersion?.Split('+')[0] ?? "0.0.0";
     private const string GitHubRepo = "audioslayer/ampup";
     private static readonly HttpClient _http = new();
