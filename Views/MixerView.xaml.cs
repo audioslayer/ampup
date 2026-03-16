@@ -50,6 +50,8 @@ public partial class MixerView : UserControl
     private readonly TextBlock[] _muteLabels = new TextBlock[5];
     private readonly Border[] _stripBorders = new Border[5];
     private readonly Color[] _lastLedColors = new Color[5]; // cache to skip redundant brush creation
+    private readonly Color[] _displayedColors = new Color[5]; // smoothed colors currently shown on UI
+    private const float ColorLerpSpeed = 0.15f; // how fast UI color catches up (0=frozen, 1=instant)
 
     // Collapsible settings
     private readonly Border[] _settingsBorders = new Border[5];
@@ -333,6 +335,7 @@ public partial class MixerView : UserControl
                     (byte)Math.Clamp(light.G, 0, 255),
                     (byte)Math.Clamp(light.B, 0, 255)));
                 _knobs[i].ArcColor = color;
+                _displayedColors[i] = color;
                 _volLabels[i].Foreground = new SolidColorBrush(color);
                 _vuMeters[i].BarColor = color;
                 _glowControls[i].GlowColor = color;
@@ -455,20 +458,29 @@ public partial class MixerView : UserControl
                 _glowControls[i].SetLevel(peak);
                 _glowControls[i].Tick();
 
-                // Sync UI colors with current LED color (supports animated effects like Rainbow)
+                // Sync UI colors with current LED color (smooth lerp for animated effects)
                 if (App.Rgb != null)
                 {
                     var (cr, cg, cb) = App.Rgb.GetCurrentColor(i);
                     if (cr > 0 || cg > 0 || cb > 0)
                     {
-                        var ledColor = EnsureMinBrightness(Color.FromRgb(cr, cg, cb));
-                        if (ledColor != _lastLedColors[i])
+                        var targetColor = EnsureMinBrightness(Color.FromRgb(cr, cg, cb));
+                        _lastLedColors[i] = targetColor;
+
+                        // Smooth lerp toward target color to avoid rapid flashing
+                        var cur = _displayedColors[i];
+                        var lerped = Color.FromRgb(
+                            (byte)(cur.R + (targetColor.R - cur.R) * ColorLerpSpeed),
+                            (byte)(cur.G + (targetColor.G - cur.G) * ColorLerpSpeed),
+                            (byte)(cur.B + (targetColor.B - cur.B) * ColorLerpSpeed));
+
+                        if (lerped != cur)
                         {
-                            _lastLedColors[i] = ledColor;
-                            _knobs[i].ArcColor = ledColor;
-                            _vuMeters[i].BarColor = ledColor;
-                            _glowControls[i].GlowColor = ledColor;
-                            var brush = new SolidColorBrush(ledColor);
+                            _displayedColors[i] = lerped;
+                            _knobs[i].ArcColor = lerped;
+                            _vuMeters[i].BarColor = lerped;
+                            _glowControls[i].GlowColor = lerped;
+                            var brush = new SolidColorBrush(lerped);
                             brush.Freeze();
                             _volLabels[i].Foreground = brush;
                         }
@@ -1289,6 +1301,7 @@ public partial class MixerView : UserControl
                         (byte)Math.Clamp(light.B, 0, 255)));
                 }
                 _knobs[i].ArcColor = color;
+                _displayedColors[i] = color;
                 _volLabels[i].Foreground = new SolidColorBrush(color);
                 _vuMeters[i].BarColor = color;
                 _glowControls[i].GlowColor = color;
