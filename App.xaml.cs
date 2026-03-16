@@ -401,7 +401,9 @@ public partial class App : Application
             if (knob.Target.StartsWith("ha_", StringComparison.OrdinalIgnoreCase))
             {
                 // Route to Home Assistant (throttled — HA can't handle rapid-fire HTTP calls)
-                if (_ha != null && _ha.IsAvailable)
+                // Skip during startup restore to avoid changing HA entity state on app launch
+                if (_ha != null && _ha.IsAvailable
+                    && Environment.TickCount64 - _startupTick >= 5000)
                 {
                     float vol = e.Value / 1023f;
                     _haLastValues[e.Idx] = (knob.Target, vol);
