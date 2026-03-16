@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using AmpUp.Controls;
 
@@ -1072,10 +1074,23 @@ public partial class MixerView : UserControl
             bool isRunning = runningApps.Contains(app, StringComparer.OrdinalIgnoreCase);
             var appCapture = app;
 
-            // Chip content: dot + name
+            // Chip content: icon + name
             var chipContent = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
 
-            if (isInGroup && isRunning)
+            // Try app icon, fall back to accent dot for in-group running apps
+            var appIcon = isRunning ? GetAppIcon(app) : null;
+            if (appIcon != null)
+            {
+                chipContent.Children.Add(new Image
+                {
+                    Source = appIcon,
+                    Width = 14, Height = 14,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 5, 0),
+                    Opacity = isInGroup ? 1.0 : 0.4,
+                });
+            }
+            else if (isInGroup && isRunning)
             {
                 chipContent.Children.Add(new Border
                 {
@@ -1346,6 +1361,44 @@ public partial class MixerView : UserControl
         if (!string.IsNullOrWhiteSpace(knob.Label))
             return knob.Label;
         return FormatTargetName(knob.Target);
+    }
+
+    // Cache app icons so we don't re-extract from exe on every rebuild
+    private static readonly Dictionary<string, BitmapSource?> _appIconCache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Try to get the app icon from a running process by name. Cached.
+    /// </summary>
+    private static BitmapSource? GetAppIcon(string processName)
+    {
+        if (_appIconCache.TryGetValue(processName, out var cached))
+            return cached;
+
+        BitmapSource? icon = null;
+        try
+        {
+            var procs = Process.GetProcessesByName(processName);
+            if (procs.Length > 0)
+            {
+                var exePath = procs[0].MainModule?.FileName;
+                if (!string.IsNullOrEmpty(exePath))
+                {
+                    var sysIcon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
+                    if (sysIcon != null)
+                    {
+                        icon = System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(
+                            sysIcon.Handle, Int32Rect.Empty,
+                            BitmapSizeOptions.FromEmptyOptions());
+                        icon.Freeze();
+                        sysIcon.Dispose();
+                    }
+                }
+            }
+        }
+        catch { }
+
+        _appIconCache[processName] = icon;
+        return icon;
     }
 
     /// <summary>
