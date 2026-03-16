@@ -5,6 +5,8 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
+using Material.Icons;
+using Material.Icons.WPF;
 using NAudio.CoreAudioApi;
 using Wpf.Ui.Appearance;
 
@@ -1067,13 +1069,13 @@ public class TrayMixerPopup : Window
 
     private static void UpdateMuteButton(Button btn, bool muted)
     {
-        btn.Content = new TextBlock
+        btn.Content = new MaterialIcon
         {
-            Text = muted ? "🔇" : "🔊",
-            FontSize = 13,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Opacity = muted ? 0.5 : 1.0
+            Kind = muted ? MaterialIconKind.VolumeOff : MaterialIconKind.VolumeHigh,
+            Width = 16, Height = 16,
+            Foreground = new SolidColorBrush(muted
+                ? Color.FromRgb(0xFF, 0x44, 0x44)
+                : Color.FromRgb(0x9A, 0x9A, 0x9A)),
         };
         btn.ToolTip = muted ? "Unmute" : "Mute";
     }
