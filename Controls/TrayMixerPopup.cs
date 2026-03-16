@@ -93,67 +93,12 @@ public class TrayMixerPopup : Window
         var root = new DockPanel();
         outer.Child = root;
 
-        // Header with connection status
-        var header = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
-            CornerRadius = new CornerRadius(10, 10, 0, 0),
-            Padding = new Thickness(14, 12, 14, 12)
-        };
-        DockPanel.SetDock(header, Dock.Top);
-
-        var headerPanel = new DockPanel();
-
-        var closeBtn = new Button
-        {
-            Content = "✕",
-            Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            FontSize = 12,
-            Padding = new Thickness(4, 0, 0, 0),
-            Cursor = Cursors.Hand,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        closeBtn.Click += (_, _) => Hide();
-        closeBtn.MouseEnter += (_, _) => closeBtn.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
-        closeBtn.MouseLeave += (_, _) => closeBtn.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
-        DockPanel.SetDock(closeBtn, Dock.Right);
-        headerPanel.Children.Add(closeBtn);
-
-        // Title + status in a vertical stack
-        var titleStack = new StackPanel();
-
-        // Title row with icon
-        var titleRow = new StackPanel { Orientation = Orientation.Horizontal };
-        try
-        {
-            var iconUri = new Uri("pack://application:,,,/Assets/icon/ampup-16.png", UriKind.Absolute);
-            var bitmapImage = new System.Windows.Media.Imaging.BitmapImage(iconUri);
-            titleRow.Children.Add(new System.Windows.Controls.Image
-            {
-                Source = bitmapImage, Width = 14, Height = 14,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 6, 0)
-            });
-        }
-        catch { }
-        titleRow.Children.Add(new TextBlock
-        {
-            Text = "AMP UP",
-            Foreground = new SolidColorBrush(GetAccentColor()),
-            FontSize = 11, FontWeight = FontWeights.Bold,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-        titleStack.Children.Add(titleRow);
-
-        // Connection status
-        var statusRow = new StackPanel { Orientation = Orientation.Horizontal };
+        // Status dot/text (hidden, updated via UpdateStatus)
         _statusDot = new TextBlock
         {
             Text = "○",
             Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            FontSize = 8, VerticalAlignment = VerticalAlignment.Center,
+            FontSize = 7, VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 4, 0)
         };
         _statusText = new TextBlock
@@ -162,42 +107,22 @@ public class TrayMixerPopup : Window
             Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
             FontSize = 9, VerticalAlignment = VerticalAlignment.Center
         };
-        statusRow.Children.Add(_statusDot);
-        statusRow.Children.Add(_statusText);
-        titleStack.Children.Add(statusRow);
 
-        headerPanel.Children.Add(titleStack);
-        header.Child = headerPanel;
-        header.Cursor = Cursors.Hand;
-        header.MouseLeftButtonDown += (_, _) => { Hide(); _onOpen?.Invoke(); };
-        header.MouseEnter += (_, _) => header.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
-        header.MouseLeave += (_, _) => header.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
-        root.Children.Add(header);
+        // Device switcher at top (with rounded top corners)
+        var deviceSection = BuildDeviceSwitcher();
+        var deviceBorder = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            CornerRadius = new CornerRadius(10, 10, 0, 0),
+            Child = deviceSection,
+        };
+        DockPanel.SetDock(deviceBorder, Dock.Top);
+        root.Children.Add(deviceBorder);
 
         // Divider
-        var divider = new Border
-        {
-            Height = 1,
-            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A))
-        };
-        DockPanel.SetDock(divider, Dock.Top);
-        root.Children.Add(divider);
+        root.Children.Add(MakeDivider());
 
-        // Device switcher section
-        var deviceSection = BuildDeviceSwitcher();
-        DockPanel.SetDock(deviceSection, Dock.Top);
-        root.Children.Add(deviceSection);
-
-        // Divider after devices
-        var divider2 = new Border
-        {
-            Height = 1,
-            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A))
-        };
-        DockPanel.SetDock(divider2, Dock.Top);
-        root.Children.Add(divider2);
-
-        // Scrollable session list
+        // Scrollable session list (master + apps)
         var scroll = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -210,7 +135,6 @@ public class TrayMixerPopup : Window
         _sessionList = new StackPanel { Orientation = Orientation.Vertical };
         scroll.Content = _sessionList;
 
-        // Wrap scroll in padded container
         var wrapper = new Border
         {
             Background = new SolidColorBrush(Color.FromRgb(0x0F, 0x0F, 0x0F)),
@@ -220,7 +144,7 @@ public class TrayMixerPopup : Window
         DockPanel.SetDock(wrapper, Dock.Top);
         root.Children.Add(wrapper);
 
-        // Footer — Open, Assign Apps, Exit
+        // Footer — Assign Apps, Open, Exit
         var footer = BuildFooter();
         DockPanel.SetDock(footer, Dock.Top);
         root.Children.Add(footer);
@@ -403,15 +327,27 @@ public class TrayMixerPopup : Window
         }
     }
 
+    private static Border MakeDivider()
+    {
+        var d = new Border
+        {
+            Height = 1,
+            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A))
+        };
+        DockPanel.SetDock(d, Dock.Top);
+        return d;
+    }
+
     private UIElement BuildFooter()
     {
         var accent = GetAccentColor();
         var footer = new StackPanel
         {
             Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            // Rounded bottom corners
         };
 
-        // Divider
+        // Divider at top of footer
         footer.Children.Add(new Border
         {
             Height = 1,
@@ -489,32 +425,58 @@ public class TrayMixerPopup : Window
         items.Children.Add(assignHeader);
         items.Children.Add(_assignExpandPanel);
 
-        // Divider before Open / Exit
+        // Divider before bottom bar
         items.Children.Add(new Border
         {
             Height = 1,
             Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-            Margin = new Thickness(10, 4, 10, 4),
+            Margin = new Thickness(0, 4, 0, 4),
         });
 
-        // Open + Exit side by side
-        var actionRow = new Grid { Margin = new Thickness(0, 0, 0, 0) };
-        actionRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        actionRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        // Bottom bar: icon + AMP UP + status dot | Open Amp Up | Exit
+        var bottomRow = new DockPanel { Margin = new Thickness(2, 2, 2, 2) };
 
-        var openBtn = BuildFooterItem("Open Amp Up",
-            new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76)), false,
-            () => { Hide(); _onOpen?.Invoke(); });
-        Grid.SetColumn(openBtn, 0);
-        actionRow.Children.Add(openBtn);
-
+        // Exit on far right
         var exitBtn = BuildFooterItem("Exit",
             new SolidColorBrush(Color.FromRgb(0xFF, 0x44, 0x44)), false,
             () => { Hide(); _onExit?.Invoke(); });
-        Grid.SetColumn(exitBtn, 1);
-        actionRow.Children.Add(exitBtn);
+        DockPanel.SetDock(exitBtn, Dock.Right);
+        bottomRow.Children.Add(exitBtn);
 
-        items.Children.Add(actionRow);
+        // Open Amp Up next to exit
+        var openBtn = BuildFooterItem("Open Amp Up",
+            new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76)), false,
+            () => { Hide(); _onOpen?.Invoke(); });
+        DockPanel.SetDock(openBtn, Dock.Right);
+        bottomRow.Children.Add(openBtn);
+
+        // Brand + status on the left
+        var brandRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+        try
+        {
+            var iconUri = new Uri("pack://application:,,,/Assets/icon/ampup-16.png", UriKind.Absolute);
+            var bitmapImage = new System.Windows.Media.Imaging.BitmapImage(iconUri);
+            brandRow.Children.Add(new System.Windows.Controls.Image
+            {
+                Source = bitmapImage, Width = 12, Height = 12,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 5, 0)
+            });
+        }
+        catch { }
+        brandRow.Children.Add(new TextBlock
+        {
+            Text = "AMP UP",
+            Foreground = new SolidColorBrush(accent),
+            FontSize = 9, FontWeight = FontWeights.Bold,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 6, 0),
+        });
+        brandRow.Children.Add(_statusDot);
+        brandRow.Children.Add(_statusText);
+        bottomRow.Children.Add(brandRow);
+
+        items.Children.Add(bottomRow);
 
         footer.Children.Add(items);
         return footer;
