@@ -36,4 +36,4 @@ start "" "%~dp0bin\Debug\net8.0-windows\AmpUp.exe"
 
 echo.
 echo Amp Up deployed and launched.
-pause
+timeout /t 2 /nobreak >nul
