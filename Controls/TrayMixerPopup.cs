@@ -56,7 +56,7 @@ public class TrayMixerPopup : Window
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
         Topmost = true;
-        Width = 290;
+        Width = 340;
         SizeToContent = SizeToContent.Height;
 
         Deactivated += (_, _) => Hide();
@@ -98,7 +98,7 @@ public class TrayMixerPopup : Window
         {
             Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
             CornerRadius = new CornerRadius(10, 10, 0, 0),
-            Padding = new Thickness(14, 10, 14, 10)
+            Padding = new Thickness(14, 12, 14, 12)
         };
         DockPanel.SetDock(header, Dock.Top);
 
@@ -198,7 +198,7 @@ public class TrayMixerPopup : Window
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            MaxHeight = 440,
+            MaxHeight = 500,
             Style = BuildScrollViewerStyle()
         };
         DockPanel.SetDock(scroll, Dock.Top);
@@ -442,11 +442,6 @@ public class TrayMixerPopup : Window
         _updateBanner.MouseLeave += (_, _) => _updateBanner.Background = new SolidColorBrush(Color.FromArgb(30, 0xFF, 0xB8, 0x00));
         items.Children.Add(_updateBanner);
 
-        // Open Amp Up
-        items.Children.Add(BuildFooterItem("▶  Open Amp Up",
-            new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)), true,
-            () => { Hide(); _onOpen?.Invoke(); }));
-
         // Assign Running Apps
         var assignHeader = BuildFooterItem("Assign Running Apps",
             new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)), false, null);
@@ -463,7 +458,6 @@ public class TrayMixerPopup : Window
             Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
             FontSize = 14, VerticalAlignment = VerticalAlignment.Center,
         };
-        // Add arrow to the header row
         if (assignHeader is Border b && b.Child is DockPanel dp)
         {
             DockPanel.SetDock(arrowLabel, Dock.Right);
@@ -484,7 +478,6 @@ public class TrayMixerPopup : Window
                 arrowLabel.Text = "›";
                 _assignExpandPanel.Visibility = Visibility.Collapsed;
             }
-            // Reposition after expand/collapse so popup stays on screen
             Dispatcher.BeginInvoke(new Action(RepositionOnScreen),
                 System.Windows.Threading.DispatcherPriority.Loaded);
         };
@@ -492,18 +485,32 @@ public class TrayMixerPopup : Window
         items.Children.Add(assignHeader);
         items.Children.Add(_assignExpandPanel);
 
-        // Divider before exit
+        // Divider before Open / Exit
         items.Children.Add(new Border
         {
             Height = 1,
-            Background = new SolidColorBrush(Color.FromArgb(40, accent.R, accent.G, accent.B)),
+            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
             Margin = new Thickness(10, 4, 10, 4),
         });
 
-        // Exit
-        items.Children.Add(BuildFooterItem("Exit",
+        // Open + Exit side by side
+        var actionRow = new Grid { Margin = new Thickness(0, 0, 0, 0) };
+        actionRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        actionRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var openBtn = BuildFooterItem("Open",
+            new SolidColorBrush(accent), false,
+            () => { Hide(); _onOpen?.Invoke(); });
+        Grid.SetColumn(openBtn, 0);
+        actionRow.Children.Add(openBtn);
+
+        var exitBtn = BuildFooterItem("Exit",
             new SolidColorBrush(Color.FromRgb(0xFF, 0x44, 0x44)), false,
-            () => { Hide(); _onExit?.Invoke(); }));
+            () => { Hide(); _onExit?.Invoke(); });
+        Grid.SetColumn(exitBtn, 1);
+        actionRow.Children.Add(exitBtn);
+
+        items.Children.Add(actionRow);
 
         footer.Children.Add(items);
         return footer;
@@ -841,7 +848,7 @@ public class TrayMixerPopup : Window
         var row = new Border
         {
             Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
-            Padding = new Thickness(10, 8, 10, 8),
+            Padding = new Thickness(12, 10, 12, 10),
             Margin = new Thickness(6, 4, 6, 2),
             CornerRadius = new CornerRadius(6)
         };
@@ -926,8 +933,8 @@ public class TrayMixerPopup : Window
             var row = new Border
             {
                 Background = Brushes.Transparent,
-                Padding = new Thickness(10, 6, 10, 6),
-                Margin = new Thickness(6, 1, 6, 1),
+                Padding = new Thickness(12, 8, 12, 8),
+                Margin = new Thickness(6, 2, 6, 2),
                 CornerRadius = new CornerRadius(6)
             };
             row.MouseEnter += (_, _) => row.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
