@@ -30,10 +30,14 @@ public static class Logger
         catch { /* ignore startup log failures */ }
     }
 
+    /// <summary>Optional callback for UI log display (e.g. Mac app log panel).</summary>
+    public static event Action<string>? OnLogMessage;
+
     public static void Log(string message)
     {
         var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}";
         Console.WriteLine(line);
+        OnLogMessage?.Invoke(line);
         lock (_lock)
         {
             try { File.AppendAllText(LogPath, line + Environment.NewLine); }
