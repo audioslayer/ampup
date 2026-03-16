@@ -310,6 +310,8 @@ public class TrayMixerPopup : Window
             var sessionMgr = _masterDevice.AudioSessionManager;
             var sessions = sessionMgr.Sessions;
 
+            var hiddenApps = _config?.HiddenTrayApps ?? new();
+
             for (int i = 0; i < sessions.Count; i++)
             {
                 var s = sessions[i];
@@ -320,6 +322,10 @@ public class TrayMixerPopup : Window
 
                     var proc = Process.GetProcessById(pid);
                     var name = proc.ProcessName;
+
+                    // Skip hidden apps
+                    if (hiddenApps.Any(h => h.Equals(name, StringComparison.OrdinalIgnoreCase)))
+                        continue;
 
                     var row = BuildSessionRow(name, s);
                     if (row != null)
@@ -542,6 +548,7 @@ public class TrayMixerPopup : Window
         _assignExpandPanel.Children.Clear();
         if (_mixer == null || _config == null) return;
         var accent = GetAccentColor();
+        var hiddenApps = _config.HiddenTrayApps ?? new();
 
         List<string> apps;
         try { apps = _mixer.GetRunningAudioApps(); }
@@ -559,57 +566,163 @@ public class TrayMixerPopup : Window
             return;
         }
 
-        foreach (var appName in apps)
+        // Visible apps first
+        var visibleApps = apps.Where(a => !hiddenApps.Any(h => h.Equals(a, StringComparison.OrdinalIgnoreCase))).ToList();
+        var hiddenRunning = apps.Where(a => hiddenApps.Any(h => h.Equals(a, StringComparison.OrdinalIgnoreCase))).ToList();
+
+        foreach (var appName in visibleApps)
+            _assignExpandPanel.Children.Add(BuildAssignAppRow(appName, accent, isHidden: false));
+
+        // Hidden apps section
+        if (hiddenRunning.Count > 0)
         {
-            var appCapture = appName;
-            var display = char.ToUpperInvariant(appName[0]) + appName[1..].ToLowerInvariant();
+            var hiddenSection = new StackPanel { Visibility = Visibility.Collapsed };
+            foreach (var appName in hiddenRunning)
+                hiddenSection.Children.Add(BuildAssignAppRow(appName, accent, isHidden: true));
 
-            var assignedKnob = _config.Knobs.FirstOrDefault(kn =>
-                kn.Target?.Equals(appCapture, StringComparison.OrdinalIgnoreCase) == true);
-            string assignedText = assignedKnob != null ? $"  →  Knob {assignedKnob.Idx + 1}" : "";
-
-            var knobList = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(16, 0, 0, 0) };
-
-            var appRow = BuildFooterItem($"{display}{assignedText}",
-                new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)), false, null);
-            appRow.MouseLeftButtonDown += (_, _) =>
+            var showHiddenRow = BuildFooterItem($"Hidden ({hiddenRunning.Count})",
+                new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)), false, null);
+            var chevron = new TextBlock
             {
-                knobList.Visibility = knobList.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+                Text = "›",
+                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                FontSize = 14, VerticalAlignment = VerticalAlignment.Center,
+            };
+            if (showHiddenRow.Child is DockPanel dp2)
+            {
+                DockPanel.SetDock(chevron, Dock.Right);
+                dp2.Children.Insert(0, chevron);
+            }
+            showHiddenRow.MouseLeftButtonDown += (_, _) =>
+            {
+                bool show = hiddenSection.Visibility != Visibility.Visible;
+                hiddenSection.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+                chevron.Text = show ? "⌄" : "›";
                 Dispatcher.BeginInvoke(new Action(RepositionOnScreen),
                     System.Windows.Threading.DispatcherPriority.Loaded);
             };
 
-            _assignExpandPanel.Children.Add(appRow);
-
-            for (int k = 0; k < 5; k++)
+            _assignExpandPanel.Children.Add(new Border
             {
-                int knobIdx = k;
-                var knob = _config.Knobs.FirstOrDefault(kn => kn.Idx == knobIdx);
-                string knobName = knob != null && !string.IsNullOrWhiteSpace(knob.Label)
-                    ? knob.Label : $"Knob {knobIdx + 1}";
-                bool isCurrent = knob?.Target?.Equals(appCapture, StringComparison.OrdinalIgnoreCase) == true;
-
-                var knobRow = BuildFooterItem(
-                    isCurrent ? $"✓  {knobName}" : $"     {knobName}",
-                    isCurrent ? new SolidColorBrush(accent) : new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
-                    isCurrent, null);
-
-                knobRow.MouseLeftButtonDown += (_, _) =>
-                {
-                    var cfg = _config.Knobs.FirstOrDefault(kn => kn.Idx == knobIdx);
-                    if (cfg != null)
-                    {
-                        cfg.Target = appCapture;
-                        cfg.Label = appCapture;
-                        _onSave?.Invoke(_config);
-                        _onRefresh?.Invoke();
-                        Hide();
-                    }
-                };
-                knobList.Children.Add(knobRow);
-            }
-            _assignExpandPanel.Children.Add(knobList);
+                Height = 1,
+                Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                Margin = new Thickness(8, 4, 8, 4),
+            });
+            _assignExpandPanel.Children.Add(showHiddenRow);
+            _assignExpandPanel.Children.Add(hiddenSection);
         }
+    }
+
+    private UIElement BuildAssignAppRow(string appName, Color accent, bool isHidden)
+    {
+        var appCapture = appName;
+        var display = char.ToUpperInvariant(appName[0]) + appName[1..].ToLowerInvariant();
+
+        var assignedKnob = _config!.Knobs.FirstOrDefault(kn =>
+            kn.Target?.Equals(appCapture, StringComparison.OrdinalIgnoreCase) == true);
+        string assignedText = assignedKnob != null ? $"  →  Knob {assignedKnob.Idx + 1}" : "";
+
+        var knobList = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(16, 0, 0, 0) };
+
+        // App row with hide/show button
+        var appRowBorder = new Border
+        {
+            Background = Brushes.Transparent,
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(8, 6, 8, 6),
+            Cursor = Cursors.Hand,
+        };
+        var appDock = new DockPanel { LastChildFill = true };
+
+        // Hide/Show toggle button on the right
+        var hideBtn = new TextBlock
+        {
+            Text = isHidden ? "Show" : "Hide",
+            Foreground = new SolidColorBrush(isHidden
+                ? Color.FromRgb(0x00, 0xE6, 0x76)
+                : Color.FromRgb(0x55, 0x55, 0x55)),
+            FontSize = 9,
+            VerticalAlignment = VerticalAlignment.Center,
+            Cursor = Cursors.Hand,
+            Margin = new Thickness(6, 0, 0, 0),
+        };
+        hideBtn.MouseEnter += (_, _) => hideBtn.Foreground = new SolidColorBrush(Colors.White);
+        hideBtn.MouseLeave += (_, _) => hideBtn.Foreground = new SolidColorBrush(isHidden
+            ? Color.FromRgb(0x00, 0xE6, 0x76)
+            : Color.FromRgb(0x55, 0x55, 0x55));
+        hideBtn.MouseLeftButtonDown += (_, e) =>
+        {
+            e.Handled = true;
+            var hidden = _config.HiddenTrayApps;
+            if (isHidden)
+                hidden.RemoveAll(h => h.Equals(appCapture, StringComparison.OrdinalIgnoreCase));
+            else if (!hidden.Any(h => h.Equals(appCapture, StringComparison.OrdinalIgnoreCase)))
+                hidden.Add(appCapture);
+            _onSave?.Invoke(_config);
+            // Refresh the panel and session list
+            PopulateAssignPanel();
+            RefreshSessions();
+            Dispatcher.BeginInvoke(new Action(RepositionOnScreen),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+        };
+        DockPanel.SetDock(hideBtn, Dock.Right);
+        appDock.Children.Add(hideBtn);
+
+        appDock.Children.Add(new TextBlock
+        {
+            Text = $"{display}{assignedText}",
+            Foreground = new SolidColorBrush(isHidden
+                ? Color.FromRgb(0x55, 0x55, 0x55)
+                : Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            FontSize = 10,
+            FontStyle = isHidden ? FontStyles.Italic : FontStyles.Normal,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+
+        appRowBorder.Child = appDock;
+        appRowBorder.MouseEnter += (_, _) =>
+            appRowBorder.Background = new SolidColorBrush(Color.FromArgb(26, accent.R, accent.G, accent.B));
+        appRowBorder.MouseLeave += (_, _) =>
+            appRowBorder.Background = Brushes.Transparent;
+        appRowBorder.MouseLeftButtonDown += (_, _) =>
+        {
+            knobList.Visibility = knobList.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+            Dispatcher.BeginInvoke(new Action(RepositionOnScreen),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+        };
+
+        var container = new StackPanel();
+        container.Children.Add(appRowBorder);
+
+        for (int k = 0; k < 5; k++)
+        {
+            int knobIdx = k;
+            var knob = _config.Knobs.FirstOrDefault(kn => kn.Idx == knobIdx);
+            string knobName = knob != null && !string.IsNullOrWhiteSpace(knob.Label)
+                ? knob.Label : $"Knob {knobIdx + 1}";
+            bool isCurrent = knob?.Target?.Equals(appCapture, StringComparison.OrdinalIgnoreCase) == true;
+
+            var knobRow = BuildFooterItem(
+                isCurrent ? $"✓  {knobName}" : $"     {knobName}",
+                isCurrent ? new SolidColorBrush(accent) : new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+                isCurrent, null);
+
+            knobRow.MouseLeftButtonDown += (_, _) =>
+            {
+                var cfg = _config.Knobs.FirstOrDefault(kn => kn.Idx == knobIdx);
+                if (cfg != null)
+                {
+                    cfg.Target = appCapture;
+                    cfg.Label = appCapture;
+                    _onSave?.Invoke(_config);
+                    _onRefresh?.Invoke();
+                    Hide();
+                }
+            };
+            knobList.Children.Add(knobRow);
+        }
+        container.Children.Add(knobList);
+        return container;
     }
 
     private UIElement BuildDeviceSwitcher()
