@@ -822,10 +822,53 @@ public class TrayMixerPopup : Window
 
             var panel = new DockPanel { LastChildFill = true };
 
-            // Icon letter
-            var firstChar = processName.Length > 0 ? char.ToUpperInvariant(processName[0]).ToString() : "?";
+            // Try to get app icon from process executable, fall back to letter icon
             var iconColor = GetAppColor(processName);
-            var icon = BuildLetterIcon(firstChar, iconColor);
+            UIElement icon;
+            try
+            {
+                var pid = (int)session.GetProcessID;
+                var proc = Process.GetProcessById(pid);
+                var exePath = proc.MainModule?.FileName;
+                if (!string.IsNullOrEmpty(exePath))
+                {
+                    var sysIcon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
+                    if (sysIcon != null)
+                    {
+                        var bmpSource = System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(
+                            sysIcon.Handle, Int32Rect.Empty,
+                            System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
+                        bmpSource.Freeze();
+                        icon = new Border
+                        {
+                            Width = 28, Height = 28,
+                            CornerRadius = new CornerRadius(6),
+                            Background = new SolidColorBrush(Color.FromArgb(30, iconColor.R, iconColor.G, iconColor.B)),
+                            VerticalAlignment = VerticalAlignment.Center,
+                            Child = new System.Windows.Controls.Image
+                            {
+                                Source = bmpSource, Width = 18, Height = 18,
+                                HorizontalAlignment = HorizontalAlignment.Center,
+                                VerticalAlignment = VerticalAlignment.Center,
+                            }
+                        };
+                        sysIcon.Dispose();
+                    }
+                    else
+                    {
+                        icon = BuildLetterIcon(processName.Length > 0 ? char.ToUpperInvariant(processName[0]).ToString() : "?", iconColor);
+                    }
+                }
+                else
+                {
+                    icon = BuildLetterIcon(processName.Length > 0 ? char.ToUpperInvariant(processName[0]).ToString() : "?", iconColor);
+                }
+            }
+            catch
+            {
+                var firstChar = processName.Length > 0 ? char.ToUpperInvariant(processName[0]).ToString() : "?";
+                icon = BuildLetterIcon(firstChar, iconColor);
+            }
             DockPanel.SetDock(icon, Dock.Left);
             panel.Children.Add(icon);
 
@@ -1024,44 +1067,20 @@ public class TrayMixerPopup : Window
 
     private void PositionNearTray()
     {
-        // Get DPI scale factor (Screen returns physical pixels, WPF uses DIPs)
-        var src = PresentationSource.FromVisual(this)
-                  ?? PresentationSource.FromVisual(Application.Current.MainWindow!);
-        double dpi = src?.CompositionTarget?.TransformFromDevice.M11 ?? 1.0;
-
-        var cursorPos = System.Windows.Forms.Cursor.Position;
-        var screen = System.Windows.Forms.Screen.FromPoint(cursorPos);
-        var wa = screen.WorkingArea;
-        var bounds = screen.Bounds;
-
-        // Convert physical pixels to WPF DIPs
-        double waLeft = wa.Left * dpi, waTop = wa.Top * dpi;
-        double waRight = wa.Right * dpi, waBottom = wa.Bottom * dpi;
-        double boundsBottom = bounds.Bottom * dpi;
-        double cursorX = cursorPos.X * dpi, cursorY = cursorPos.Y * dpi;
+        // Use SystemParameters.WorkArea — already in WPF DIPs, avoids DPI conversion bugs
+        var wa = SystemParameters.WorkArea;
 
         // Measure popup height
         Measure(new Size(Width, double.PositiveInfinity));
         double height = DesiredSize.Height > 0 ? DesiredSize.Height : 400;
 
-        // Detect taskbar edge by comparing work area to full monitor bounds
-        bool taskbarOnBottom = wa.Bottom < bounds.Bottom;
-        bool taskbarOnTop = wa.Top > bounds.Top;
-        bool taskbarOnRight = wa.Right < bounds.Right;
-
-        // Position horizontally: align right edge near cursor, keep on screen
-        double x = cursorX - Width / 2;
-        x = Math.Max(waLeft + 4, Math.Min(x, waRight - Width - 4));
-
-        // Position vertically: anchor above taskbar (bottom) or below taskbar (top)
-        double y;
-        if (taskbarOnTop)
-            y = waTop + 8;
-        else
-            y = waBottom - height - 8;  // bottom or side taskbar
+        // Snap to bottom-right corner, just above the taskbar (like native Win11 popups)
+        double x = wa.Right - Width - 12;
+        double y = wa.Bottom - height - 12;
 
         // Clamp to work area
-        y = Math.Max(waTop + 4, Math.Min(y, waBottom - height - 4));
+        x = Math.Max(wa.Left + 4, x);
+        y = Math.Max(wa.Top + 4, y);
 
         Left = x;
         Top = y;
