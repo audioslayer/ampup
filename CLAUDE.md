@@ -4,8 +4,9 @@ AmpUp is a C# .NET 8 WPF app that replaces the "Turn Up" USB volume mixer app.
 It reads serial events from the Turn Up hardware and maps them to Windows per-app audio volume control.
 Uses WPF-UI (FluentWindow, Mica backdrop) with a glassmorphism dark theme, sidebar navigation, and code-behind pattern (no MVVM).
 
-**macOS port in progress** — see [CLAUDE-MAC.md](CLAUDE-MAC.md) for Mac-specific docs, SSH access, and architecture plan.
+**macOS port: v0.1.0-alpha released** — see [CLAUDE-MAC.md](CLAUDE-MAC.md) for Mac-specific docs, SSH access, and architecture plan.
 **Shared library:** `AmpUp.Core/` contains platform-agnostic code (models, serial, RGB, config, integrations).
+**Official Turn Up source:** We have admin access to `JaredWF/TurnUpCustomizer` — protocol fully confirmed, see memory for analysis.
 
 ---
 
@@ -509,3 +510,36 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - **v0.7.4-alpha (Mar 14)** — **Hardware position request.** Discovered `FE 01 FF` command requests knob positions from device on connect (confirmed via serial probe — device only sends health pings, not auto-batch). Button cards dynamic height. OSD friendly labels. Full Turn Up protocol mapped (0x00-0x20 probed, only 0x01 responds).
 - **v0.7.5-alpha (Mar 14)** — **Per-segment DreamView.** Govee devices with known segments (H6056=6) receive individual colors via segment protocol instead of single solid color. Screen zones proportionally mapped to device segments. Fixed DreamView not syncing (auto-create device mappings). Fixed active_window showing wrong volume when AmpUp focused (skip own PID). Standard green/orange/red VU meters (2.3x boost). Channel label input UX (green caret, dark bg on focus, select-all).
 - **v0.7.6-alpha (Mar 14)** — **Bug fix: profile switching via button.** Fixed button-triggered profile switch discarding unsaved config (button bindings reverted when switching back). UI edits now persist to profile file immediately.
+- **v0.7.7-alpha (Mar 15)** — **DPI fix.** Fixed flyout popup positioning on multi-monitor setups with mixed DPI scaling (#6). All 7 PointToScreen sites corrected for PerMonitorV2.
+- **v0.8.0-alpha (Mar 15)** — **Interactive hardware widget + macOS port foundation.** Hardware device visualization on Overview page (live knob positions, LED colors, button states, tooltips). Profile editor (rename, icon, color — real-time save). Duplicate profile + reorder. AmpUp.Core shared library extracted (10-step refactor for cross-platform). OSD startup suppression. Unknown action color fix.
+- **v0.1.0-alpha-mac (Mar 15)** — **First macOS release.** Per-app volume control via Core Audio Process Taps (first hardware mixer to do this on Mac). Avalonia UI with dark theme. All views: Mixer, Buttons, Lights, Settings. Serial + LEDs + buttons all working on Apple Silicon.
+
+---
+
+## Roadmap
+
+### High Priority
+- [ ] **OBS Studio integration** — source gain, mute, scene switching, streaming/recording toggle (v27 + v28+ APIs)
+- [ ] **VoiceMeeter integration** — strip/bus gain control and mute
+- [ ] **Plugin system** — DLL-based extensibility (ITurnUpPlugin, ITurnUpKnobAction, ITurnUpButtonAction, ITurnUpLightEffect)
+- [ ] **Mac: editable views** — knob target picker, button action picker, light effect picker (currently display-only)
+- [ ] **Mac: proper .app bundle** — drag-to-Applications install, no Terminal needed
+- [ ] **Mac: menu bar tray icon** — NSStatusBarItem with quick mixer popup
+
+### Medium Priority
+- [ ] **Exponential2 response curve** — steeper x³/10000 for fine control at low volumes (from Turn Up source)
+- [ ] **Audio device type distinction** — separate Media vs Communications vs Both when cycling/selecting devices
+- [ ] **Multi-device support** — multiple Turn Up units simultaneously, each with own profile
+- [ ] **Mac: Govee LAN/Cloud integration** — code in Core, needs wiring
+- [ ] **Mac: Home Assistant integration** — code in Core, needs wiring
+- [ ] **Mac: DreamView screen capture** — needs macOS CGWindowList implementation
+- [ ] **Streamlabs integration** — source gain, mute, scene switching
+- [ ] **SteelSeries Sonar integration** — volume and mute control
+
+### Low Priority
+- [ ] **System theme following** — match light/dark mode on both Windows and Mac
+- [ ] **Mac: auto-update** — in-app download + replace (currently opens browser)
+- [ ] **Mac: Intel support** — x86_64 build alongside ARM64
+- [ ] **GitHub Actions CI** — auto-build Windows .exe + Mac .dmg on release
+- [ ] **Razer Chroma integration** — RGB sync
+- [ ] **Advanced macro system** — per-key-event macros with delays (from Turn Up source)

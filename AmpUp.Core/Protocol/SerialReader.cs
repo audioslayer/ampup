@@ -56,7 +56,7 @@ public class SerialReader : IDisposable
                     continue;
                 }
 
-                _port = new SerialPort(portName, _baud) { ReadTimeout = 500 };
+                _port = new SerialPort(portName, _baud) { ReadTimeout = 500, DtrEnable = true, RtsEnable = true };
                 _port.Open();
                 Logger.Log($"Connected to {portName} @ {_baud} baud");
                 OnConnectionChanged?.Invoke(true);
@@ -110,7 +110,7 @@ public class SerialReader : IDisposable
 
             try
             {
-                using var probe = new SerialPort(portName, _baud) { ReadTimeout = 500 };
+                using var probe = new SerialPort(portName, _baud) { ReadTimeout = 500, DtrEnable = true, RtsEnable = true };
                 probe.Open();
 
                 // Listen for up to 2 seconds for a valid Turn Up frame
