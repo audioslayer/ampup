@@ -16,7 +16,7 @@ public class SerialReader : IDisposable
     private bool _running;
 
     // Jitter deadzone: only fire OnKnob if value changed by >= this many ADC counts
-    private const int JitterDeadzone = 3;
+    private const int JitterDeadzone = 5;
     private readonly int[] _lastFiredValues = { -1, -1, -1, -1, -1 };
 
     public event Action<KnobEvent>? OnKnob;
