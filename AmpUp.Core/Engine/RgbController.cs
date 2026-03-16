@@ -335,8 +335,33 @@ public class RgbController : IDisposable
         }
 
         UpdateEffects();
+        ApplyDisabledKnobs();
         Send();
         OnFrameReady?.Invoke(_linearColors);
+    }
+
+    /// <summary>
+    /// Zero out LEDs for knobs that are disabled in global lighting config.
+    /// </summary>
+    private void ApplyDisabledKnobs()
+    {
+        var gl = _globalLight;
+        if (gl == null || !gl.Enabled || gl.DisabledKnobs.Count == 0) return;
+
+        foreach (var k in gl.DisabledKnobs)
+        {
+            if (k < 0 || k > 4) continue;
+            for (int led = 0; led < 3; led++)
+            {
+                int offset = k * 9 + led * 3;
+                _colorMsg[offset + 2] = 0;
+                _colorMsg[offset + 3] = 0;
+                _colorMsg[offset + 4] = 0;
+                _linearColors[offset + 0] = 0;
+                _linearColors[offset + 1] = 0;
+                _linearColors[offset + 2] = 0;
+            }
+        }
     }
 
     /// <summary>

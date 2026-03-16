@@ -130,6 +130,7 @@ public class GlobalLightConfig
     [JsonConverter(typeof(StringEnumConverter))]
     public ReactiveMode ReactiveMode { get; set; } = ReactiveMode.SpectrumBands;
     public List<string> GradientColors { get; set; } = new();
+    public List<int> DisabledKnobs { get; set; } = new();
 }
 
 public enum LightEffect

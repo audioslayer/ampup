@@ -328,13 +328,10 @@ public partial class MixerView : UserControl
             var light = config.Lights.FirstOrDefault(l => l.Idx == i);
             if (light != null)
             {
-                var color = Color.FromRgb(
+                var color = EnsureMinBrightness(Color.FromRgb(
                     (byte)Math.Clamp(light.R, 0, 255),
                     (byte)Math.Clamp(light.G, 0, 255),
-                    (byte)Math.Clamp(light.B, 0, 255));
-                // If LED color is black/too dark, fall back to accent
-                if (color.R < 10 && color.G < 10 && color.B < 10)
-                    color = ThemeManager.Accent;
+                    (byte)Math.Clamp(light.B, 0, 255)));
                 _knobs[i].ArcColor = color;
                 _volLabels[i].Foreground = new SolidColorBrush(color);
                 _vuMeters[i].BarColor = color;
@@ -464,7 +461,7 @@ public partial class MixerView : UserControl
                     var (cr, cg, cb) = App.Rgb.GetCurrentColor(i);
                     if (cr > 0 || cg > 0 || cb > 0)
                     {
-                        var ledColor = Color.FromRgb(cr, cg, cb);
+                        var ledColor = EnsureMinBrightness(Color.FromRgb(cr, cg, cb));
                         if (ledColor != _lastLedColors[i])
                         {
                             _lastLedColors[i] = ledColor;
@@ -1286,12 +1283,10 @@ public partial class MixerView : UserControl
                 Color color = accent;
                 if (light != null)
                 {
-                    color = Color.FromRgb(
+                    color = EnsureMinBrightness(Color.FromRgb(
                         (byte)Math.Clamp(light.R, 0, 255),
                         (byte)Math.Clamp(light.G, 0, 255),
-                        (byte)Math.Clamp(light.B, 0, 255));
-                    if (color.R < 10 && color.G < 10 && color.B < 10)
-                        color = accent;
+                        (byte)Math.Clamp(light.B, 0, 255)));
                 }
                 _knobs[i].ArcColor = color;
                 _volLabels[i].Foreground = new SolidColorBrush(color);
@@ -1338,6 +1333,25 @@ public partial class MixerView : UserControl
         if (!string.IsNullOrWhiteSpace(knob.Label))
             return knob.Label;
         return FormatTargetName(knob.Target);
+    }
+
+    /// <summary>
+    /// Ensures a color has enough brightness to be visible on the dark UI.
+    /// If the color is too dark, it's boosted while preserving hue.
+    /// </summary>
+    private static Color EnsureMinBrightness(Color c)
+    {
+        const byte minChannel = 40; // minimum perceived brightness threshold
+        byte maxCh = Math.Max(c.R, Math.Max(c.G, c.B));
+        if (maxCh >= minChannel) return c;
+        if (maxCh == 0) return ThemeManager.Accent; // pure black → accent
+
+        // Scale up to minimum brightness, preserving hue ratios
+        float scale = minChannel / (float)maxCh;
+        return Color.FromRgb(
+            (byte)Math.Min(255, (int)(c.R * scale)),
+            (byte)Math.Min(255, (int)(c.G * scale)),
+            (byte)Math.Min(255, (int)(c.B * scale)));
     }
 
     private static string FormatTargetName(string target)

@@ -77,6 +77,12 @@ public partial class LightsView : UserControl
     private StackPanel? _globalPalettePanel;
     private CheckBox? _linkToAmbienceCheck;
     private StyledSlider? _brightnessSlider;
+    private readonly Border[] _ledToggleBorders = new Border[5];
+    private readonly bool[] _ledEnabled = { true, true, true, true, true };
+    private StackPanel? _ledTogglePanel;
+    private readonly Dictionary<string, Border> _paletteTiles = new();
+    private string? _activePresetName;
+    private StackPanel? _manualColorSection;
 
     private static readonly (string Name, Color[] Colors)[] ColorPalettes = new[]
     {
@@ -177,6 +183,25 @@ public partial class LightsView : UserControl
         if (_globalReactiveModeCombo != null)
             _globalReactiveModeCombo.Select(gl.ReactiveMode.ToString());
         _globalGradientColors = gl.GradientColors ?? new();
+
+        // LED enable/disable toggles
+        var disabled = gl.DisabledKnobs ?? new();
+        for (int i = 0; i < 5; i++)
+        {
+            _ledEnabled[i] = !disabled.Contains(i);
+            UpdateLedToggleVisual(i);
+        }
+
+        // Update Solid tile to show current primary color
+        if (_paletteTiles.TryGetValue("Solid", out var solidTile))
+        {
+            var inner = (solidTile.Child as StackPanel)?.Children[0] as Border;
+            if (inner != null) inner.Background = new SolidColorBrush(_globalColor1);
+        }
+
+        // Highlight matching palette preset
+        _activePresetName = null; // force re-detection
+        UpdatePaletteHighlight();
 
         // Link to Room Ambience
         if (_linkToAmbienceCheck != null)
@@ -294,6 +319,60 @@ public partial class LightsView : UserControl
         _linkToAmbienceCheck = linkCheck;
         settings.Children.Add(linkCheck);
 
+        // LED enable/disable toggles — 5 clickable indicators
+        var ledToggleRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
+        var ledToggleLabel = new TextBlock
+        {
+            Text = "ACTIVE LEDS",
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 12, 0),
+        };
+        ledToggleRow.Children.Add(ledToggleLabel);
+        for (int i = 0; i < 5; i++)
+        {
+            int idx = i;
+            var knobLabel = _config?.Knobs.FirstOrDefault(k => k.Idx == i);
+            var label = (knobLabel != null && !string.IsNullOrWhiteSpace(knobLabel.Label))
+                ? knobLabel.Label : $"LED {i + 1}";
+
+            var numText = new TextBlock
+            {
+                Text = (i + 1).ToString(),
+                FontSize = 11,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Colors.White),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+
+            var toggleBorder = new Border
+            {
+                Width = 32,
+                Height = 32,
+                CornerRadius = new CornerRadius(6),
+                Background = new SolidColorBrush(ThemeManager.Accent),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
+                BorderThickness = new Thickness(1.5),
+                Margin = new Thickness(0, 0, 6, 0),
+                Cursor = Cursors.Hand,
+                Child = numText,
+                ToolTip = $"Click to toggle {label} — currently ON",
+            };
+            toggleBorder.MouseLeftButtonDown += (_, _) =>
+            {
+                _ledEnabled[idx] = !_ledEnabled[idx];
+                UpdateLedToggleVisual(idx);
+                if (!_loading) QueueSave();
+            };
+            _ledToggleBorders[i] = toggleBorder;
+            ledToggleRow.Children.Add(toggleBorder);
+        }
+        _ledTogglePanel = ledToggleRow;
+        settings.Children.Add(ledToggleRow);
+
         // Effect picker
         settings.Children.Add(MakeSectionHeader("EFFECT"));
         var effectPicker = new EffectPickerControl(showGlobal: true)
@@ -327,17 +406,13 @@ public partial class LightsView : UserControl
         });
 
         var paletteWrap = new WrapPanel();
-        foreach (var (name, colors) in ColorPalettes)
+        _paletteTiles.Clear();
+
+        // Helper to build a palette tile
+        Border MakePaletteTile(string name, Brush tileBackground, Color[] colors)
         {
             var capturedColors = colors;
-
-            // Gradient tile with label
             var tileContent = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
-
-            // Multi-stop gradient bar (46x24 with 5 color stops)
-            var gradientBrush = new LinearGradientBrush { StartPoint = new System.Windows.Point(0, 0.5), EndPoint = new System.Windows.Point(1, 0.5) };
-            for (int ci = 0; ci < capturedColors.Length; ci++)
-                gradientBrush.GradientStops.Add(new GradientStop(capturedColors[ci], ci / (double)(capturedColors.Length - 1)));
 
             var gradientBorder = new Border
             {
@@ -345,7 +420,7 @@ public partial class LightsView : UserControl
                 Height = 24,
                 CornerRadius = new CornerRadius(4),
                 ClipToBounds = true,
-                Background = gradientBrush,
+                Background = tileBackground,
             };
             tileContent.Children.Add(gradientBorder);
 
@@ -369,38 +444,72 @@ public partial class LightsView : UserControl
                 Cursor = Cursors.Hand,
                 Child = tileContent,
                 ToolTip = name,
+                Tag = name,
             };
             tileBorder.MouseEnter += (_, _) =>
             {
-                tileBorder.BorderBrush = new SolidColorBrush(Colors.White);
-                tileBorder.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+                if (_activePresetName != name)
+                {
+                    tileBorder.BorderBrush = new SolidColorBrush(Colors.White);
+                    tileBorder.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+                }
             };
             tileBorder.MouseLeave += (_, _) =>
             {
-                tileBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-                tileBorder.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+                if (_activePresetName != name)
+                {
+                    tileBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+                    tileBorder.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+                }
             };
             tileBorder.MouseLeftButtonDown += (_, _) =>
             {
-                _globalColor1 = capturedColors[0];
-                _globalColor2 = capturedColors[capturedColors.Length - 1];
-                _globalGradientColors = capturedColors.Select(c => $"#{c.R:X2}{c.G:X2}{c.B:X2}").ToList();
+                if (name == "Solid")
+                {
+                    // Solid = use current primary color only, clear gradient
+                    _globalGradientColors = new();
+                }
+                else
+                {
+                    _globalColor1 = capturedColors[0];
+                    _globalColor2 = capturedColors[capturedColors.Length - 1];
+                    _globalGradientColors = capturedColors.Select(c => $"#{c.R:X2}{c.G:X2}{c.B:X2}").ToList();
+                }
                 if (_globalColor1Swatch != null)
-                    SetSwatchColor(_globalColor1Swatch, capturedColors[0]);
-                if (_globalColor2Swatch != null)
+                    SetSwatchColor(_globalColor1Swatch, name == "Solid" ? _globalColor1 : capturedColors[0]);
+                if (_globalColor2Swatch != null && name != "Solid")
                     SetSwatchColor(_globalColor2Swatch, capturedColors[capturedColors.Length - 1]);
+                _activePresetName = name;
+                UpdatePaletteHighlight();
                 if (!_loading) QueueSave();
             };
-            paletteWrap.Children.Add(tileBorder);
+            _paletteTiles[name] = tileBorder;
+            return tileBorder;
+        }
+
+        // "Solid" preset — single color tile
+        var solidBrush = new SolidColorBrush(ThemeManager.Accent);
+        paletteWrap.Children.Add(MakePaletteTile("Solid", solidBrush, new[] { ThemeManager.Accent }));
+
+        // Gradient presets
+        foreach (var (name, colors) in ColorPalettes)
+        {
+            var gradientBrush = new LinearGradientBrush { StartPoint = new System.Windows.Point(0, 0.5), EndPoint = new System.Windows.Point(1, 0.5) };
+            for (int ci = 0; ci < colors.Length; ci++)
+                gradientBrush.GradientStops.Add(new GradientStop(colors[ci], ci / (double)(colors.Length - 1)));
+            paletteWrap.Children.Add(MakePaletteTile(name, gradientBrush, colors));
         }
         paletteSection.Children.Add(paletteWrap);
         settings.Children.Add(paletteSection);
 
-        // Custom colors — PRIMARY + SECONDARY swatches
+        // Custom colors — PRIMARY + SECONDARY swatches (in collapsible manual section)
         var swatch1 = MakeGlobalColorSwatch(_globalColor1, isColor2: false);
         _globalColor1Swatch = swatch1;
         var swatch2 = MakeGlobalColorSwatch(_globalColor2, isColor2: true);
         _globalColor2Swatch = swatch2;
+
+        var manualSection = new StackPanel();
+        _manualColorSection = manualSection;
 
         var customColorLabel = new TextBlock
         {
@@ -410,7 +519,7 @@ public partial class LightsView : UserControl
             Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
             Margin = new Thickness(0, 4, 0, 8),
         };
-        settings.Children.Add(customColorLabel);
+        manualSection.Children.Add(customColorLabel);
 
         var color2Panel = new StackPanel { Orientation = Orientation.Horizontal, Visibility = Visibility.Collapsed };
         color2Panel.Children.Add(MakeSubLabel("SECONDARY"));
@@ -425,10 +534,10 @@ public partial class LightsView : UserControl
         };
         globalColorRow.Children.Add(MakeSubLabel("PRIMARY"));
         globalColorRow.Children.Add(swatch1);
-        // Spacer between primary and secondary
         globalColorRow.Children.Add(new Border { Width = 16 });
         globalColorRow.Children.Add(color2Panel);
-        settings.Children.Add(globalColorRow);
+        manualSection.Children.Add(globalColorRow);
+        settings.Children.Add(manualSection);
 
         // Speed slider (conditional)
         var speedPanel = new StackPanel { Visibility = Visibility.Collapsed };
@@ -479,6 +588,72 @@ public partial class LightsView : UserControl
         settings.Children.Add(reactiveModePanel);
 
         panel.Children.Add(settings);
+    }
+
+    private void UpdatePaletteHighlight()
+    {
+        // Determine which preset matches current gradient colors
+        if (_globalGradientColors == null || _globalGradientColors.Count == 0)
+        {
+            _activePresetName = "Solid";
+        }
+        else if (_activePresetName == null)
+        {
+            // Try to match by gradient colors
+            _activePresetName = null;
+            foreach (var (name, colors) in ColorPalettes)
+            {
+                var hex = colors.Select(c => $"#{c.R:X2}{c.G:X2}{c.B:X2}").ToList();
+                if (hex.Count == _globalGradientColors.Count && hex.SequenceEqual(_globalGradientColors))
+                {
+                    _activePresetName = name;
+                    break;
+                }
+            }
+        }
+
+        var accent = ThemeManager.Accent;
+        foreach (var (name, tile) in _paletteTiles)
+        {
+            bool active = name == _activePresetName;
+            tile.BorderBrush = active
+                ? new SolidColorBrush(accent)
+                : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+            tile.BorderThickness = new Thickness(active ? 1.5 : 1);
+            tile.Background = active
+                ? new SolidColorBrush(Color.FromArgb(0x20, accent.R, accent.G, accent.B))
+                : new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+        }
+
+        // Show manual section only when "Solid" is active (custom color picking)
+        if (_manualColorSection != null)
+            _manualColorSection.Visibility = _activePresetName == "Solid" ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void UpdateLedToggleVisual(int idx)
+    {
+        var border = _ledToggleBorders[idx];
+        if (border == null) return;
+        bool on = _ledEnabled[idx];
+        var accent = ThemeManager.Accent;
+
+        if (on)
+        {
+            border.Background = new SolidColorBrush(accent);
+            border.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, accent.R, accent.G, accent.B));
+            border.Opacity = 1.0;
+        }
+        else
+        {
+            border.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+            border.BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
+            border.Opacity = 0.4;
+        }
+
+        var knob = _config?.Knobs.FirstOrDefault(k => k.Idx == idx);
+        var label = (knob != null && !string.IsNullOrWhiteSpace(knob.Label))
+            ? knob.Label : $"LED {idx + 1}";
+        border.ToolTip = $"Click to toggle {label} — currently {(on ? "ON" : "OFF")}";
     }
 
     private void UpdateGlobalVisibility()
@@ -535,8 +710,16 @@ public partial class LightsView : UserControl
                 if (_globalColor1Swatch != null)
                     SetSwatchColor(_globalColor1Swatch, chosen);
             }
-            // Custom pick clears gradient preset
+            // Custom pick switches to Solid preset
             _globalGradientColors = new();
+            _activePresetName = "Solid";
+            UpdatePaletteHighlight();
+            // Update solid tile swatch to reflect the new color
+            if (!isColor2 && _paletteTiles.TryGetValue("Solid", out var solidTile))
+            {
+                var inner = (solidTile.Child as StackPanel)?.Children[0] as Border;
+                if (inner != null) inner.Background = new SolidColorBrush(chosen);
+            }
             QueueSave();
         }
     }
@@ -1088,6 +1271,11 @@ public partial class LightsView : UserControl
         if (_globalReactiveModeCombo != null && Enum.TryParse<ReactiveMode>(_globalReactiveModeCombo.SelectedValue, out var glMode))
             gl.ReactiveMode = glMode;
         gl.GradientColors = _globalGradientColors;
+        gl.DisabledKnobs = new List<int>();
+        for (int i = 0; i < 5; i++)
+        {
+            if (!_ledEnabled[i]) gl.DisabledKnobs.Add(i);
+        }
 
         // Link to Room Ambience
         _config.Ambience.LinkToLights = _linkToAmbienceCheck?.IsChecked ?? false;
