@@ -93,6 +93,9 @@ public class RgbController : IDisposable
     // Police state: tracks the double-flash sub-pattern
     private int _policeSubTick;     // position within flash cadence cycle
 
+    // Preview color override — when set, all 15 LEDs show this color (for color picker live preview)
+    private volatile byte[]? _previewColor; // null = normal, byte[3] = {R,G,B}
+
     // Random number generator for stochastic effects
     private static readonly Random _rng = new();
 
@@ -189,6 +192,25 @@ public class RgbController : IDisposable
         {
             lock (_stateLock) _appGroupMuteStates[knobIdx] = allMuted;
         }
+    }
+
+    /// <summary>
+    /// Set or clear preview color override. When set (non-null), all 15 LEDs
+    /// display this color (with brightness + gamma), overriding normal effects.
+    /// Used by the color picker dialog for live hardware preview.
+    /// Pass null to resume normal effect rendering.
+    /// </summary>
+    public void SetPreviewColor(byte r, byte g, byte b)
+    {
+        _previewColor = new byte[] { r, g, b };
+    }
+
+    /// <summary>
+    /// Clear the preview color override. Resumes normal effect rendering.
+    /// </summary>
+    public void ClearPreviewColor()
+    {
+        _previewColor = null;
     }
 
     /// <summary>
@@ -322,6 +344,17 @@ public class RgbController : IDisposable
     private void Tick()
     {
         _animTick++;
+
+        // Preview color override — used by color picker for live hardware preview
+        var preview = _previewColor;
+        if (preview != null)
+        {
+            for (int knob = 0; knob < 5; knob++)
+                SetColor(knob, preview[0], preview[1], preview[2]);
+            Send();
+            OnFrameReady?.Invoke(_linearColors);
+            return; // skip normal effects during preview
+        }
 
         if (_transitionTick >= 0)
         {
@@ -685,25 +718,71 @@ public class RgbController : IDisposable
     }
 
     /// <summary>
-    /// Show color1 when mic is NOT muted, color2 when muted.
+    /// Mic status with animated states:
+    /// Unmuted = gentle breathing/pulse on color1 (subtle live-mic indicator).
+    /// Muted = color2 with slow blink (clear muted indicator).
     /// </summary>
     private void EffectMicStatus(int k, LightConfig light)
     {
         if (_micMuted)
-            SetColor(k, light.R2, light.G2, light.B2);
+            ApplyMutedBlink(k, light.R2, light.G2, light.B2);
         else
-            SetColor(k, light.R, light.G, light.B);
+            ApplyUnmutedBreathing(k, light.R, light.G, light.B);
     }
 
     /// <summary>
-    /// Show color1 when master is NOT muted, color2 when muted.
+    /// Master device mute with animated states:
+    /// Unmuted = gentle breathing/pulse on color1 (subtle active indicator).
+    /// Muted = color2 with slow blink (clear muted indicator).
     /// </summary>
     private void EffectDeviceMute(int k, LightConfig light)
     {
         if (_masterMuted)
-            SetColor(k, light.R2, light.G2, light.B2);
+            ApplyMutedBlink(k, light.R2, light.G2, light.B2);
         else
-            SetColor(k, light.R, light.G, light.B);
+            ApplyUnmutedBreathing(k, light.R, light.G, light.B);
+    }
+
+    /// <summary>
+    /// Gentle breathing animation for unmuted/active state.
+    /// Brightness oscillates between 70%-100% with a 3-second period — subtle and non-distracting.
+    /// Slight phase offset per LED creates a gentle ripple effect.
+    /// </summary>
+    private void ApplyUnmutedBreathing(int k, int r, int g, int b)
+    {
+        // 3-second breathing cycle (60 ticks at 20fps)
+        const float periodTicks = 60f;
+        float angle = (_animTick % (int)periodTicks) / periodTicks * MathF.PI * 2f;
+
+        for (int led = 0; led < 3; led++)
+        {
+            // Slight phase offset per LED for a gentle ripple
+            float ledAngle = angle + led * 0.3f;
+            // Oscillate brightness between 0.70 and 1.0
+            float ledBrightness = 0.85f + 0.15f * MathF.Sin(ledAngle);
+            SetColor(k, led,
+                Math.Clamp((int)(r * ledBrightness), 0, 255),
+                Math.Clamp((int)(g * ledBrightness), 0, 255),
+                Math.Clamp((int)(b * ledBrightness), 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Slow blink for muted state. Smooth sine transition between 30% and 100% brightness
+    /// with a 2-second period — clearly signals muted without being jarring.
+    /// </summary>
+    private void ApplyMutedBlink(int k, int r, int g, int b)
+    {
+        // 2-second blink cycle (40 ticks at 20fps)
+        const float periodTicks = 40f;
+        float angle = (_animTick % (int)periodTicks) / periodTicks * MathF.PI * 2f;
+        // Smooth oscillation between 30% and 100% brightness
+        float brightness = 0.65f + 0.35f * MathF.Sin(angle);
+
+        SetColor(k,
+            Math.Clamp((int)(r * brightness), 0, 255),
+            Math.Clamp((int)(g * brightness), 0, 255),
+            Math.Clamp((int)(b * brightness), 0, 255));
     }
 
     /// <summary>

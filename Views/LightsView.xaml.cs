@@ -695,6 +695,11 @@ public partial class LightsView : UserControl
             Owner = Window.GetWindow(this)
         };
 
+        // Live LED preview: show picked color on hardware while dialog is open
+        App.Rgb?.SetPreviewColor(current.R, current.G, current.B);
+        dialog.ColorChanged += c => App.Rgb?.SetPreviewColor(c.R, c.G, c.B);
+        dialog.Closed += (_, _) => App.Rgb?.ClearPreviewColor();
+
         if (dialog.ShowDialog() == true)
         {
             var chosen = dialog.SelectedColor;
@@ -1011,6 +1016,11 @@ public partial class LightsView : UserControl
             Owner = Window.GetWindow(this)
         };
 
+        // Live LED preview: show picked color on hardware while dialog is open
+        App.Rgb?.SetPreviewColor(current.R, current.G, current.B);
+        dialog.ColorChanged += c => App.Rgb?.SetPreviewColor(c.R, c.G, c.B);
+        dialog.Closed += (_, _) => App.Rgb?.ClearPreviewColor();
+
         if (dialog.ShowDialog() == true)
         {
             var chosen = dialog.SelectedColor;
@@ -1072,6 +1082,12 @@ public partial class LightsView : UserControl
     {
         var current = _dsColors[idx][row];
         var dialog = new ColorPickerDialog(current) { Owner = Window.GetWindow(this) };
+
+        // Live LED preview: show picked color on hardware while dialog is open
+        App.Rgb?.SetPreviewColor(current.R, current.G, current.B);
+        dialog.ColorChanged += c => App.Rgb?.SetPreviewColor(c.R, c.G, c.B);
+        dialog.Closed += (_, _) => App.Rgb?.ClearPreviewColor();
+
         if (dialog.ShowDialog() == true)
         {
             _dsColors[idx][row] = dialog.SelectedColor;
@@ -1506,6 +1522,12 @@ public class ColorPickerDialog : Window
 {
     public Color SelectedColor { get; private set; }
 
+    /// <summary>
+    /// Fired whenever the user changes the color (spectrum drag, hue bar, sliders, presets, hex input).
+    /// Used for live LED preview on hardware.
+    /// </summary>
+    public event Action<Color>? ColorChanged;
+
     private readonly Border _spectrumArea;
     private readonly WriteableBitmap _spectrumBitmap;
     private readonly Ellipse _spectrumCursor;
@@ -1924,6 +1946,7 @@ public class ColorPickerDialog : Window
         var c = HsvToColor(_hue, _sat, _val);
         _preview.Background = new SolidColorBrush(c);
         _hexInput.Text = ColorToHex(c);
+        ColorChanged?.Invoke(c);
     }
 
     // ── Rendering ──
