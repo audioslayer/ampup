@@ -63,6 +63,10 @@ Views/
   SettingsView.xaml / .cs  Connection, startup, profiles, OSD duration sliders, integrations (HA + Govee side-by-side)
   AmbienceView.xaml / .cs  Govee room lighting — LAN sync + Cloud dashboard (scenes, segments, music mode)
                            DreamView screen sync card with zone preview. Hidden in sidebar when Govee not enabled.
+  OsdView.xaml / .cs       OSD settings (moved from Settings) + Quick Wheel config
+                           Checkboxes for volume/profile/device OSD, position picker, duration sliders.
+                           Quick Wheel: enable toggle, trigger button picker, navigation knob picker.
+                           Auto-syncs button HoldAction with Quick Wheel config.
   BindingsView.xaml.cs     Profile Overview — all knob/button assignments across profiles with Preview OSD button
                            (sidebar label: "Overview"). Cards tinted with LED colors. Click navigates to correct profile.
 
@@ -100,7 +104,11 @@ ButtonHandler.cs           Gesture state machine (press/double/hold) → 26 acti
 RgbController.cs           RGB effects engine — 30+ effects (per-knob + global spanning), 20 FPS animation
 DuckingEngine.cs           Auto-ducking: monitors trigger app audio, fades target app volumes with smooth interpolation
 AutoProfileSwitcher.cs     Auto-profile switching: monitors foreground window, fires profile switch events with debounce
-MonitorBrightness.cs       DDC/CI physical monitor brightness via dxva2.dll
+MonitorBrightness.cs       DDC/CI physical monitor brightness via dxva2.dll. Cached handles + throttled
+                           SetThrottled() at 60ms intervals (last-value-wins). 5s startup guard.
+RadialWheelOverlay.xaml/.cs  Radial pie-menu OSD overlay for Quick Wheel — glass dark theme, accent glow
+                           segments, center label, fade in/out animations. Mouse hover/click + Escape support.
+                           Public: Show(), Highlight(), GetSelectedIndex(), Dismiss(), OnSegmentClicked event.
 DreamSyncController.cs     Screen sync engine — captures screen zones, sends colors to Govee via LAN UDP
                            Per-segment support via Govee "razer" protocol for capable devices (H6056=6 segments)
                            Falls back to single-color colorwc for devices without segment support
@@ -165,7 +173,10 @@ installer/ampup-setup.iss  Inno Setup script (reads version from auto-generated 
   "osd": {
     "showVolume": true, "showProfileSwitch": true, "showDeviceSwitch": true,
     "volumeDuration": 2.0, "profileDuration": 3.5, "deviceDuration": 2.5,
-    "position": "BottomRight", "monitorIndex": 0
+    "position": "BottomRight", "monitorIndex": 0,
+    "quickWheel": {
+      "enabled": false, "triggerButton": 0, "triggerGesture": "hold", "navigationKnob": 0
+    }
   },
   "profileTransition": "Cascade",
   "startWithWindows": true,
@@ -231,6 +242,7 @@ installer/ampup-setup.iss  Inno Setup script (reads version from auto-generated 
 | `"macro"` | Send keyboard combo from `macroKeys` (e.g. `"ctrl+shift+m"`) |
 | `"switch_profile"` | Switch to named profile from `profileName` |
 | `"cycle_brightness"` | Cycle LED brightness |
+| `"quick_wheel"` | Hold to open radial profile picker (auto-set by OSD Quick Wheel config) |
 
 **Power (individual actions — no sub-picker):**
 | Action | Behavior |
@@ -354,7 +366,9 @@ All transitions run 3 seconds (60 ticks at 20 FPS) then auto-clear.
 
 - **LightsView:** Global Lighting card at top (checkbox + EffectPickerControl + colors + speed + brightness slider on right). 5 per-knob panels below (hidden when global is on). EffectPickerControl replaces dropdown.
 
-- **SettingsView:** Section headers with accent left-border indicators. HA and Govee integrations displayed side-by-side. OSD section with per-type duration sliders (StyledSlider with ShowLabel=false, Suffix="s"). Profile section has Overview button.
+- **SettingsView:** Section headers with accent left-border indicators. HA and Govee integrations displayed side-by-side. Profile section has Overview button. (OSD settings moved to OsdView in v0.8.1.)
+
+- **OsdView:** OSD overlay toggles (volume/profile/device) with per-type duration sliders, position grid picker. Quick Wheel section: enable toggle, trigger button picker (1-5), navigation knob picker (1-5). Auto-syncs button HoldAction.
 
 - **BindingsView (sidebar: "Overview"):** Profile Overview page showing all knob/button assignments across profiles. Knob cards tinted with LED color. Button cards show all gestures with colored TAP/DBL/HOLD badges. Preview OSD button per profile. Click any card to switch to that profile and navigate to the correct tab.
 
@@ -512,6 +526,7 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - **v0.7.6-alpha (Mar 14)** — **Bug fix: profile switching via button.** Fixed button-triggered profile switch discarding unsaved config (button bindings reverted when switching back). UI edits now persist to profile file immediately.
 - **v0.7.7-alpha (Mar 15)** — **DPI fix.** Fixed flyout popup positioning on multi-monitor setups with mixed DPI scaling (#6). All 7 PointToScreen sites corrected for PerMonitorV2.
 - **v0.8.0-alpha (Mar 15)** — **Interactive hardware widget + macOS port foundation.** Hardware device visualization on Overview page (live knob positions, LED colors, button states, tooltips). Profile editor (rename, icon, color — real-time save). Duplicate profile + reorder. AmpUp.Core shared library extracted (10-step refactor for cross-platform). OSD startup suppression. Unknown action color fix.
+- **v0.8.1-alpha (Mar 16)** — **Quick Wheel OSD + Monitor Brightness fix.** New OSD tab (moved OSD settings from Settings, added Quick Wheel config). RadialWheelOverlay: glass radial pie-menu for profile switching — hold button to open, spin knob or mouse hover to navigate, release/click to select, Escape to dismiss. Three input modes: hardware knob (30 ADC delta threshold), mouse (hover+click), keyboard (Escape). `quick_wheel` button action auto-syncs between OSD tab and Buttons tab. Monitor brightness throttle fix (#7): cached DDC/CI handles + 60ms throttled `SetThrottled()` with last-value-wins pattern. 5-second startup guard on monitor brightness (prevents flicker on boot, same pattern as HA). Quick Wheel added to button action picker under System category.
 - **v0.1.0-alpha-mac (Mar 15)** — **First macOS release.** Per-app volume control via Core Audio Process Taps (first hardware mixer to do this on Mac). Avalonia UI with dark theme. All views: Mixer, Buttons, Lights, Settings. Serial + LEDs + buttons all working on Apple Silicon.
 
 ---
