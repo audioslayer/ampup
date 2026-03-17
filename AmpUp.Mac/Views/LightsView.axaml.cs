@@ -26,6 +26,8 @@ public partial class LightsView : UserControl
     private readonly StackPanel[] _color2Panels = new StackPanel[5];
     private readonly Slider[] _speedSliders = new Slider[5];
     private readonly StackPanel[] _speedPanels = new StackPanel[5];
+    private readonly ComboBox[] _reactiveModes = new ComboBox[5];
+    private readonly StackPanel[] _reactiveModePanels = new StackPanel[5];
     private readonly Color[] _colors1 = new Color[5];
     private readonly Color[] _colors2 = new Color[5];
 
@@ -58,6 +60,11 @@ public partial class LightsView : UserControl
         LightEffect.PingPong, LightEffect.Stack, LightEffect.Wave, LightEffect.Candle,
         LightEffect.Scanner, LightEffect.MeteorRain, LightEffect.ColorWave, LightEffect.Segments,
         LightEffect.Wheel, LightEffect.RainbowWheel,
+    };
+
+    private static readonly LightEffect[] EffectsNeedingReactiveMode =
+    {
+        LightEffect.AudioReactive,
     };
 
     public LightsView()
@@ -106,6 +113,7 @@ public partial class LightsView : UserControl
             UpdateSwatchColor(_color2Swatches[i], _colors2[i]);
 
             _speedSliders[i].Value = Math.Clamp(light.EffectSpeed, 1, 100);
+            SelectReactiveMode(_reactiveModes[i], light.ReactiveMode);
             UpdatePerKnobVisibility(i, light.Effect);
         }
 
@@ -153,10 +161,9 @@ public partial class LightsView : UserControl
         _globalSettingsPanel.Children.Add(MakeSectionHeader("COLOR"));
         var colorRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
         colorRow.Children.Add(MakeSubLabel("PRIMARY"));
-        _globalColor1Swatch = MakeColorSwatch(_globalColor1, () =>
+        _globalColor1Swatch = MakeColorSwatch(_globalColor1, c =>
         {
-            // Simple: cycle hue on click (placeholder for full color picker)
-            _globalColor1 = CycleHue(_globalColor1);
+            _globalColor1 = c;
             UpdateSwatchColor(_globalColor1Swatch, _globalColor1);
             if (!_loading) Save();
         });
@@ -164,9 +171,9 @@ public partial class LightsView : UserControl
 
         _globalColor2Panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
         _globalColor2Panel.Children.Add(MakeSubLabel("SECONDARY"));
-        _globalColor2Swatch = MakeColorSwatch(_globalColor2, () =>
+        _globalColor2Swatch = MakeColorSwatch(_globalColor2, c =>
         {
-            _globalColor2 = CycleHue(_globalColor2);
+            _globalColor2 = c;
             UpdateSwatchColor(_globalColor2Swatch, _globalColor2);
             if (!_loading) Save();
         });
@@ -262,9 +269,9 @@ public partial class LightsView : UserControl
             var colorRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
 
             colorRow.Children.Add(MakeSubLabel("PRIMARY"));
-            _color1Swatches[i] = MakeColorSwatch(Colors.Green, () =>
+            _color1Swatches[i] = MakeColorSwatch(Colors.Green, c =>
             {
-                _colors1[idx] = CycleHue(_colors1[idx]);
+                _colors1[idx] = c;
                 UpdateSwatchColor(_color1Swatches[idx], _colors1[idx]);
                 if (!_loading) Save();
             });
@@ -272,9 +279,9 @@ public partial class LightsView : UserControl
 
             _color2Panels[i] = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
             _color2Panels[i].Children.Add(MakeSubLabel("SECONDARY"));
-            _color2Swatches[i] = MakeColorSwatch(Colors.Red, () =>
+            _color2Swatches[i] = MakeColorSwatch(Colors.Red, c =>
             {
-                _colors2[idx] = CycleHue(_colors2[idx]);
+                _colors2[idx] = c;
                 UpdateSwatchColor(_color2Swatches[idx], _colors2[idx]);
                 if (!_loading) Save();
             });
@@ -282,8 +289,28 @@ public partial class LightsView : UserControl
             colorRow.Children.Add(_color2Panels[i]);
             panel.Children.Add(colorRow);
 
+            // Reactive mode picker (for AudioReactive)
+            _reactiveModePanels[i] = new StackPanel { Spacing = 4, IsVisible = false, Margin = new Thickness(0, 6, 0, 0) };
+            _reactiveModePanels[i].Children.Add(MakeSectionHeader("REACTIVE MODE"));
+            var reactiveMode = new ComboBox
+            {
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                FontSize = 11,
+            };
+            reactiveMode.Items.Add(new ComboBoxItem { Content = "Beat Pulse",     Tag = "BeatPulse" });
+            reactiveMode.Items.Add(new ComboBoxItem { Content = "Spectrum Bands", Tag = "SpectrumBands" });
+            reactiveMode.Items.Add(new ComboBoxItem { Content = "Color Shift",    Tag = "ColorShift" });
+            reactiveMode.SelectedIndex = 1; // SpectrumBands default
+            reactiveMode.SelectionChanged += (_, _) =>
+            {
+                if (!_loading) Save();
+            };
+            _reactiveModes[i] = reactiveMode;
+            _reactiveModePanels[i].Children.Add(reactiveMode);
+            panel.Children.Add(_reactiveModePanels[i]);
+
             // Speed slider
-            _speedPanels[i] = new StackPanel { Spacing = 4 };
+            _speedPanels[i] = new StackPanel { Spacing = 4, Margin = new Thickness(0, 6, 0, 0) };
             _speedPanels[i].Children.Add(MakeSectionHeader("SPEED"));
             _speedSliders[i] = new Slider { Minimum = 1, Maximum = 100, Value = 50 };
             _speedSliders[i].PropertyChanged += (_, e) =>
@@ -318,6 +345,7 @@ public partial class LightsView : UserControl
     {
         _color2Panels[idx].IsVisible = EffectsNeedingColor2.Contains(effect);
         _speedPanels[idx].IsVisible = EffectsNeedingSpeed.Contains(effect);
+        _reactiveModePanels[idx].IsVisible = EffectsNeedingReactiveMode.Contains(effect);
     }
 
     private void UpdateHeaderEffect(int idx)
@@ -327,6 +355,34 @@ public partial class LightsView : UserControl
         _headerEffects[idx].Text = display;
         var color = EffectPickerControl.EffectColors.GetValueOrDefault(effect, Color.Parse("#00E676"));
         _headerEffects[idx].Foreground = new SolidColorBrush(color);
+    }
+
+    private static void SelectReactiveMode(ComboBox combo, ReactiveMode mode)
+    {
+        var tag = mode.ToString();
+        for (int i = 0; i < combo.Items.Count; i++)
+        {
+            if (combo.Items[i] is ComboBoxItem item && item.Tag as string == tag)
+            {
+                combo.SelectedIndex = i;
+                return;
+            }
+        }
+        combo.SelectedIndex = 1; // SpectrumBands default
+    }
+
+    private static ReactiveMode GetReactiveMode(ComboBox combo)
+    {
+        if (combo.SelectedItem is ComboBoxItem item && item.Tag is string tag)
+        {
+            return tag switch
+            {
+                "BeatPulse" => ReactiveMode.BeatPulse,
+                "ColorShift" => ReactiveMode.ColorShift,
+                _ => ReactiveMode.SpectrumBands,
+            };
+        }
+        return ReactiveMode.SpectrumBands;
     }
 
     private void Save()
@@ -349,11 +405,110 @@ public partial class LightsView : UserControl
             light.R = _colors1[i].R; light.G = _colors1[i].G; light.B = _colors1[i].B;
             light.R2 = _colors2[i].R; light.G2 = _colors2[i].G; light.B2 = _colors2[i].B;
             light.EffectSpeed = (int)_speedSliders[i].Value;
+            light.ReactiveMode = GetReactiveMode(_reactiveModes[i]);
         }
 
         if (_brightnessSlider != null) _config.LedBrightness = (int)_brightnessSlider.Value;
 
         _onSave(_config);
+    }
+
+    // ── Color Picker Flyout ─────────────────────────────────────────
+
+    /// <summary>
+    /// Shows an HSV color picker flyout anchored below the swatch.
+    /// Calls onColorChosen when the user presses OK.
+    /// </summary>
+    private static void ShowColorPicker(Border swatch, Color initial, Action<Color> onColorChosen)
+    {
+        RgbToHsv(initial, out double h, out double s, out double v);
+
+        var hSlider = new Slider { Minimum = 0, Maximum = 360, Value = h, Width = 160 };
+        var sSlider = new Slider { Minimum = 0, Maximum = 1, Value = s, Width = 160 };
+        var vSlider = new Slider { Minimum = 0, Maximum = 1, Value = v, Width = 160 };
+
+        var previewSwatch = new Border
+        {
+            Width = 32, Height = 32,
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(initial),
+            Margin = new Thickness(0, 4),
+        };
+
+        void UpdatePreview()
+        {
+            var c = HsvToRgb(hSlider.Value, sSlider.Value, vSlider.Value);
+            previewSwatch.Background = new SolidColorBrush(c);
+        }
+
+        hSlider.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty) UpdatePreview(); };
+        sSlider.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty) UpdatePreview(); };
+        vSlider.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty) UpdatePreview(); };
+
+        var flyout = new Flyout();
+
+        var okBtn = new Border
+        {
+            Background = new SolidColorBrush(Color.Parse("#1A3D2B")),
+            BorderBrush = new SolidColorBrush(Color.Parse("#00E676")),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(14, 6),
+            Cursor = new Cursor(StandardCursorType.Hand),
+            Child = new TextBlock
+            {
+                Text = "OK",
+                FontSize = 11,
+                FontWeight = FontWeight.SemiBold,
+                Foreground = new SolidColorBrush(Color.Parse("#00E676")),
+            },
+        };
+        okBtn.PointerPressed += (_, _) =>
+        {
+            flyout.Hide();
+            var chosen = HsvToRgb(hSlider.Value, sSlider.Value, vSlider.Value);
+            onColorChosen(chosen);
+        };
+
+        flyout.Content = new Border
+        {
+            Background = new SolidColorBrush(Color.Parse("#222222")),
+            BorderBrush = new SolidColorBrush(Color.Parse("#363636")),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12),
+            Child = new StackPanel
+            {
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock { Text = "COLOR PICKER", FontSize = 9, FontWeight = FontWeight.SemiBold, Foreground = new SolidColorBrush(Color.Parse("#555555")) },
+                    previewSwatch,
+                    MakeSliderRow("H", hSlider),
+                    MakeSliderRow("S", sSlider),
+                    MakeSliderRow("V", vSlider),
+                    okBtn,
+                },
+            },
+        };
+
+        flyout.ShowAt(swatch);
+    }
+
+    private static StackPanel MakeSliderRow(string label, Slider slider)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        row.Children.Add(new TextBlock
+        {
+            Text = label,
+            FontSize = 10,
+            FontWeight = FontWeight.SemiBold,
+            Foreground = new SolidColorBrush(Color.Parse("#9A9A9A")),
+            Width = 12,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        row.Children.Add(slider);
+        return row;
     }
 
     // ── UI Helpers ──────────────────────────────────────────────────
@@ -405,7 +560,10 @@ public partial class LightsView : UserControl
         VerticalAlignment = VerticalAlignment.Center,
     };
 
-    private static Border MakeColorSwatch(Color initial, Action onClick)
+    /// <summary>
+    /// Creates a color swatch button that opens the HSV color picker flyout when clicked.
+    /// </summary>
+    private static Border MakeColorSwatch(Color initial, Action<Color> onColorChosen)
     {
         var inner = new Border
         {
@@ -424,7 +582,11 @@ public partial class LightsView : UserControl
             Child = inner,
             Tag = inner,
         };
-        outer.PointerPressed += (_, _) => onClick();
+        outer.PointerPressed += (_, _) =>
+        {
+            var current = (inner.Background as SolidColorBrush)?.Color ?? initial;
+            ShowColorPicker(outer, current, onColorChosen);
+        };
         return outer;
     }
 
@@ -434,27 +596,31 @@ public partial class LightsView : UserControl
             inner.Background = new SolidColorBrush(color);
     }
 
-    private static Color CycleHue(Color c)
+    // ── Color Math ──────────────────────────────────────────────────
+
+    private static void RgbToHsv(Color c, out double h, out double s, out double v)
     {
-        // Simple hue rotation by 30 degrees for click-to-change color
         double r = c.R / 255.0, g = c.G / 255.0, b = c.B / 255.0;
         double max = Math.Max(r, Math.Max(g, b)), min = Math.Min(r, Math.Min(g, b));
-        double h = 0, s, v = max;
+        v = max;
         double d = max - min;
         s = max == 0 ? 0 : d / max;
+        h = 0;
         if (d > 0)
         {
             if (max == r) h = (g - b) / d + (g < b ? 6 : 0);
             else if (max == g) h = (b - r) / d + 2;
             else h = (r - g) / d + 4;
-            h /= 6;
+            h *= 60;
         }
-        h = (h + 1.0 / 12.0) % 1.0; // rotate 30°
-        if (s < 0.1) s = 0.8;
-        if (v < 0.1) v = 0.8;
-        // HSV to RGB
-        int hi = (int)(h * 6) % 6;
-        double f = h * 6 - (int)(h * 6);
+    }
+
+    private static Color HsvToRgb(double h, double s, double v)
+    {
+        if (s == 0) { byte gv = (byte)(v * 255); return Color.FromRgb(gv, gv, gv); }
+        h = h % 360;
+        int hi = (int)(h / 60) % 6;
+        double f = h / 60 - (int)(h / 60);
         double p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
         double ro, go, bo;
         switch (hi)

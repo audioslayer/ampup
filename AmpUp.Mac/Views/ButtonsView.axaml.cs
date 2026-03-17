@@ -16,28 +16,42 @@ public partial class ButtonsView : UserControl
     private Action<AppConfig>? _onSave;
     private bool _loading;
 
-    // Action definitions
+    // Action definitions — full 26-action set
     private static readonly (string Display, string Value, string Icon, string Category, Color Color)[] AllActions =
     {
-        ("None",              "none",              "—", "Media",       Color.Parse("#444444")),
-        ("Play / Pause",      "media_play_pause",  "⏯", "Media",      Color.Parse("#66BB6A")),
-        ("Next Track",        "media_next",        "⏭", "Media",      Color.Parse("#66BB6A")),
-        ("Prev Track",        "media_prev",        "⏮", "Media",      Color.Parse("#66BB6A")),
-        ("Mute Volume",       "mute_master",       "🔇", "Mute",      Color.Parse("#EF5350")),
-        ("Mute Mic",          "mute_mic",          "🎤", "Mute",      Color.Parse("#EF5350")),
-        ("Mute App",          "mute_program",      "🔇", "Mute",      Color.Parse("#EF5350")),
-        ("Mute Active Win",   "mute_active_window","🔇", "Mute",      Color.Parse("#EF5350")),
-        ("Mute App Group",    "mute_app_group",    "🔇", "Mute",      Color.Parse("#EF5350")),
-        ("Launch App",        "launch_exe",        "🚀", "App",       Color.Parse("#42A5F5")),
-        ("Close App",         "close_program",     "✕", "App",        Color.Parse("#FF7C43")),
-        ("Cycle Output",      "cycle_output",      "🔊", "Device",    Color.Parse("#AB47BC")),
-        ("Cycle Input",       "cycle_input",       "🎙", "Device",    Color.Parse("#AB47BC")),
-        ("Keyboard Macro",    "macro",             "⌨", "System",     Color.Parse("#FFD54F")),
-        ("Switch Profile",    "switch_profile",    "📋", "System",    Color.Parse("#29B6F6")),
-        ("Cycle Brightness",  "cycle_brightness",  "💡", "System",    Color.Parse("#FFF176")),
+        ("None",              "none",              "—",  "Media",        Color.Parse("#444444")),
+        ("Play / Pause",      "media_play_pause",  "⏯", "Media",        Color.Parse("#66BB6A")),
+        ("Next Track",        "media_next",        "⏭", "Media",        Color.Parse("#66BB6A")),
+        ("Prev Track",        "media_prev",        "⏮", "Media",        Color.Parse("#66BB6A")),
+        ("Mute Volume",       "mute_master",       "🔇", "Mute",        Color.Parse("#EF5350")),
+        ("Mute Mic",          "mute_mic",          "🎤", "Mute",        Color.Parse("#EF5350")),
+        ("Mute App",          "mute_program",      "🔇", "Mute",        Color.Parse("#EF5350")),
+        ("Mute Active Win",   "mute_active_window","🔇", "Mute",        Color.Parse("#EF5350")),
+        ("Mute App Group",    "mute_app_group",    "🔇", "Mute",        Color.Parse("#EF5350")),
+        ("Mute Device",       "mute_device",       "🔇", "Mute",        Color.Parse("#EF5350")),
+        ("Launch App",        "launch_exe",        "🚀", "App",         Color.Parse("#42A5F5")),
+        ("Close App",         "close_program",     "✕",  "App",         Color.Parse("#FF7C43")),
+        ("Cycle Output",      "cycle_output",      "🔊", "Device",      Color.Parse("#AB47BC")),
+        ("Cycle Input",       "cycle_input",       "🎙", "Device",      Color.Parse("#AB47BC")),
+        ("Select Output",     "select_output",     "🔊", "Device",      Color.Parse("#CE93D8")),
+        ("Select Input",      "select_input",      "🎙", "Device",      Color.Parse("#CE93D8")),
+        ("Keyboard Macro",    "macro",             "⌨",  "System",      Color.Parse("#FFD54F")),
+        ("Switch Profile",    "switch_profile",    "📋", "System",      Color.Parse("#29B6F6")),
+        ("Cycle Brightness",  "cycle_brightness",  "💡", "System",      Color.Parse("#FFF176")),
+        ("Quick Wheel",       "quick_wheel",       "🎡", "System",      Color.Parse("#80DEEA")),
+        ("Sleep",             "power_sleep",       "💤", "Power",       Color.Parse("#78909C")),
+        ("Lock Screen",       "power_lock",        "🔒", "Power",       Color.Parse("#90A4AE")),
+        ("Shut Down",         "power_off",         "⏻",  "Power",       Color.Parse("#FF7043")),
+        ("Restart",           "power_restart",     "🔄", "Power",       Color.Parse("#FF8A65")),
+        ("Log Off",           "power_logoff",      "🚪", "Power",       Color.Parse("#BCAAA4")),
+        ("Hibernate",         "power_hibernate",   "🌙", "Power",       Color.Parse("#7986CB")),
     };
 
     private static readonly string[] PathActions = { "mute_program", "launch_exe", "close_program" };
+    private static readonly string[] MacroActions = { "macro" };
+    private static readonly string[] ProfileActions = { "switch_profile" };
+    private static readonly string[] KnobActions = { "mute_app_group" };
+    private static readonly string[] DeviceSelectActions = { "select_output", "select_input" };
 
     // Per-column controls
     private readonly TextBlock[] _headers = new TextBlock[5];
@@ -50,6 +64,10 @@ public partial class ButtonsView : UserControl
     private readonly StackPanel[][] _pathPanels = new StackPanel[3][];
     private readonly TextBox[][] _macroBoxes = new TextBox[3][];
     private readonly StackPanel[][] _macroPanels = new StackPanel[3][];
+    private readonly ComboBox[][] _profilePickers = new ComboBox[3][];
+    private readonly StackPanel[][] _profilePanels = new StackPanel[3][];
+    private readonly ComboBox[][] _knobPickers = new ComboBox[3][];
+    private readonly StackPanel[][] _knobPanels = new StackPanel[3][];
 
     private static readonly string[] GestureNames = { "TAP", "DOUBLE", "HOLD" };
     private static readonly Color[] GestureColors =
@@ -70,6 +88,10 @@ public partial class ButtonsView : UserControl
             _pathPanels[g] = new StackPanel[5];
             _macroBoxes[g] = new TextBox[5];
             _macroPanels[g] = new StackPanel[5];
+            _profilePickers[g] = new ComboBox[5];
+            _profilePanels[g] = new StackPanel[5];
+            _knobPickers[g] = new ComboBox[5];
+            _knobPanels[g] = new StackPanel[5];
         }
 
         BuildColumns();
@@ -80,6 +102,16 @@ public partial class ButtonsView : UserControl
         _loading = true;
         _config = config;
         _onSave = onSave;
+
+        // Rebuild profile pickers with current profiles list
+        for (int g = 0; g < 3; g++)
+        {
+            for (int i = 0; i < 5; i++)
+            {
+                RebuildProfilePicker(_profilePickers[g][i], config);
+                RebuildKnobPicker(_knobPickers[g][i], config);
+            }
+        }
 
         for (int i = 0; i < 5; i++)
         {
@@ -97,18 +129,24 @@ public partial class ButtonsView : UserControl
             SelectCombo(_combos[0][i], btn.Action);
             SetText(_pathBoxes[0][i], btn.Path);
             SetText(_macroBoxes[0][i], btn.MacroKeys);
+            SelectComboByValue(_profilePickers[0][i], btn.ProfileName);
+            SelectKnobByIdx(_knobPickers[0][i], btn.LinkedKnobIdx);
             UpdateGestureVisibility(0, i, btn.Action);
 
             // DOUBLE
             SelectCombo(_combos[1][i], btn.DoublePressAction);
             SetText(_pathBoxes[1][i], btn.DoublePressPath);
             SetText(_macroBoxes[1][i], btn.DoublePressMacroKeys);
+            SelectComboByValue(_profilePickers[1][i], btn.DoublePressProfileName);
+            SelectKnobByIdx(_knobPickers[1][i], btn.DoublePressLinkedKnobIdx);
             UpdateGestureVisibility(1, i, btn.DoublePressAction);
 
             // HOLD
             SelectCombo(_combos[2][i], btn.HoldAction);
             SetText(_pathBoxes[2][i], btn.HoldPath);
             SetText(_macroBoxes[2][i], btn.HoldMacroKeys);
+            SelectComboByValue(_profilePickers[2][i], btn.HoldProfileName);
+            SelectKnobByIdx(_knobPickers[2][i], btn.HoldLinkedKnobIdx);
             UpdateGestureVisibility(2, i, btn.HoldAction);
 
             UpdateHeaderDisplay(i);
@@ -187,7 +225,7 @@ public partial class ButtonsView : UserControl
                 _combos[g][i] = combo;
                 panel.Children.Add(combo);
 
-                // Path field
+                // Path field (for mute_program, launch_exe, close_program)
                 var pathPanel = new StackPanel { IsVisible = false, Spacing = 4, Margin = new Thickness(0, 4, 0, 0) };
                 pathPanel.Children.Add(MakeLabel("PROCESS / PATH"));
                 var pathBox = new TextBox { FontSize = 11 };
@@ -213,6 +251,40 @@ public partial class ButtonsView : UserControl
                 _macroPanels[g][i] = macroPanel;
                 panel.Children.Add(macroPanel);
 
+                // Profile picker (for switch_profile)
+                var profilePanel = new StackPanel { IsVisible = false, Spacing = 4, Margin = new Thickness(0, 4, 0, 0) };
+                profilePanel.Children.Add(MakeLabel("PROFILE"));
+                var profilePicker = new ComboBox
+                {
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    FontSize = 11,
+                };
+                profilePicker.SelectionChanged += (_, _) =>
+                {
+                    if (!_loading) Save();
+                };
+                _profilePickers[g][i] = profilePicker;
+                profilePanel.Children.Add(profilePicker);
+                _profilePanels[g][i] = profilePanel;
+                panel.Children.Add(profilePanel);
+
+                // Knob picker (for mute_app_group)
+                var knobPanel = new StackPanel { IsVisible = false, Spacing = 4, Margin = new Thickness(0, 4, 0, 0) };
+                knobPanel.Children.Add(MakeLabel("LINKED KNOB"));
+                var knobPicker = new ComboBox
+                {
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    FontSize = 11,
+                };
+                knobPicker.SelectionChanged += (_, _) =>
+                {
+                    if (!_loading) Save();
+                };
+                _knobPickers[g][i] = knobPicker;
+                knobPanel.Children.Add(knobPicker);
+                _knobPanels[g][i] = knobPanel;
+                panel.Children.Add(knobPanel);
+
                 // Separator between gestures (not after last)
                 if (g < 2) panel.Children.Add(MakeSeparator());
             }
@@ -222,7 +294,9 @@ public partial class ButtonsView : UserControl
     private void UpdateGestureVisibility(int gesture, int idx, string action)
     {
         _pathPanels[gesture][idx].IsVisible = PathActions.Contains(action);
-        _macroPanels[gesture][idx].IsVisible = action == "macro";
+        _macroPanels[gesture][idx].IsVisible = MacroActions.Contains(action);
+        _profilePanels[gesture][idx].IsVisible = ProfileActions.Contains(action);
+        _knobPanels[gesture][idx].IsVisible = KnobActions.Contains(action);
     }
 
     private void UpdateHeaderDisplay(int idx)
@@ -244,6 +318,72 @@ public partial class ButtonsView : UserControl
         }
     }
 
+    private static void RebuildProfilePicker(ComboBox picker, AppConfig config)
+    {
+        var current = picker.SelectedItem as ComboBoxItem;
+        var currentValue = current?.Tag as string ?? "";
+
+        picker.Items.Clear();
+        foreach (var name in config.Profiles)
+        {
+            picker.Items.Add(new ComboBoxItem { Content = name, Tag = name });
+        }
+
+        // Re-select previous value if still valid
+        if (!string.IsNullOrEmpty(currentValue))
+            SelectComboByValue(picker, currentValue);
+        else if (picker.Items.Count > 0)
+            picker.SelectedIndex = 0;
+    }
+
+    private static void RebuildKnobPicker(ComboBox picker, AppConfig config)
+    {
+        var current = picker.SelectedItem as ComboBoxItem;
+        int currentIdx = current?.Tag is int t ? t : -1;
+
+        picker.Items.Clear();
+        picker.Items.Add(new ComboBoxItem { Content = "None", Tag = -1 });
+        for (int i = 0; i < 5; i++)
+        {
+            var knob = config.Knobs.FirstOrDefault(k => k.Idx == i);
+            var label = knob != null && !string.IsNullOrWhiteSpace(knob.Label) ? knob.Label : $"Knob {i + 1}";
+            picker.Items.Add(new ComboBoxItem { Content = label, Tag = i });
+        }
+
+        SelectKnobByIdx(picker, currentIdx);
+    }
+
+    private static void SelectComboByValue(ComboBox picker, string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            if (picker.Items.Count > 0) picker.SelectedIndex = 0;
+            return;
+        }
+        for (int i = 0; i < picker.Items.Count; i++)
+        {
+            if (picker.Items[i] is ComboBoxItem item && item.Tag as string == value)
+            {
+                picker.SelectedIndex = i;
+                return;
+            }
+        }
+        if (picker.Items.Count > 0) picker.SelectedIndex = 0;
+    }
+
+    private static void SelectKnobByIdx(ComboBox picker, int idx)
+    {
+        for (int i = 0; i < picker.Items.Count; i++)
+        {
+            if (picker.Items[i] is ComboBoxItem item && item.Tag is int t && t == idx)
+            {
+                picker.SelectedIndex = i;
+                return;
+            }
+        }
+        picker.SelectedIndex = 0; // None
+    }
+
     private void Save()
     {
         if (_config == null || _onSave == null) return;
@@ -256,14 +396,20 @@ public partial class ButtonsView : UserControl
             btn.Action = GetComboValue(_combos[0][i]);
             btn.Path = _pathBoxes[0][i].Text?.Trim() ?? "";
             btn.MacroKeys = _macroBoxes[0][i].Text?.Trim() ?? "";
+            btn.ProfileName = GetProfilePickerValue(_profilePickers[0][i]);
+            btn.LinkedKnobIdx = GetKnobPickerIdx(_knobPickers[0][i]);
 
             btn.DoublePressAction = GetComboValue(_combos[1][i]);
             btn.DoublePressPath = _pathBoxes[1][i].Text?.Trim() ?? "";
             btn.DoublePressMacroKeys = _macroBoxes[1][i].Text?.Trim() ?? "";
+            btn.DoublePressProfileName = GetProfilePickerValue(_profilePickers[1][i]);
+            btn.DoublePressLinkedKnobIdx = GetKnobPickerIdx(_knobPickers[1][i]);
 
             btn.HoldAction = GetComboValue(_combos[2][i]);
             btn.HoldPath = _pathBoxes[2][i].Text?.Trim() ?? "";
             btn.HoldMacroKeys = _macroBoxes[2][i].Text?.Trim() ?? "";
+            btn.HoldProfileName = GetProfilePickerValue(_profilePickers[2][i]);
+            btn.HoldLinkedKnobIdx = GetKnobPickerIdx(_knobPickers[2][i]);
         }
 
         _onSave(_config);
@@ -341,6 +487,20 @@ public partial class ButtonsView : UserControl
         if (combo.SelectedItem is ComboBoxItem item)
             return item.Tag as string ?? "none";
         return "none";
+    }
+
+    private static string GetProfilePickerValue(ComboBox picker)
+    {
+        if (picker.SelectedItem is ComboBoxItem item && item.Tag is string s)
+            return s;
+        return "";
+    }
+
+    private static int GetKnobPickerIdx(ComboBox picker)
+    {
+        if (picker.SelectedItem is ComboBoxItem item && item.Tag is int t)
+            return t;
+        return -1;
     }
 
     private Grid MakeGestureHeader(string title, Color color)
