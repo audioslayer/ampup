@@ -36,9 +36,10 @@ public class TrayMixerPopup : Window
     private TextBlock _statusDot = null!;
     private TextBlock _statusText = null!;
 
-    // Assign panel
-    private StackPanel _assignExpandPanel = null!;
-    private bool _assignExpanded;
+    // Quick Assign panel
+    private Border _quickAssignPanel = null!;
+    private bool _quickAssignVisible;
+    private string? _expandedAppName; // which app cell is expanded for knob selection
 
     // Update indicator
     private Border? _updateBanner;
@@ -148,7 +149,13 @@ public class TrayMixerPopup : Window
         DockPanel.SetDock(wrapper, Dock.Top);
         root.Children.Add(wrapper);
 
-        // Footer — Assign Apps, Open, Exit
+        // Quick Assign panel (hidden by default, slides in above footer)
+        _quickAssignPanel = BuildQuickAssignPanel();
+        _quickAssignPanel.Visibility = Visibility.Collapsed;
+        DockPanel.SetDock(_quickAssignPanel, Dock.Top);
+        root.Children.Add(_quickAssignPanel);
+
+        // Footer — Quick Assign button, Open, Exit
         var footer = BuildFooter();
         DockPanel.SetDock(footer, Dock.Top);
         root.Children.Add(footer);
@@ -215,6 +222,13 @@ public class TrayMixerPopup : Window
     private new void Hide()
     {
         _pollTimer.Stop();
+        // Close quick assign panel when popup hides
+        if (_quickAssignVisible)
+        {
+            _quickAssignVisible = false;
+            _expandedAppName = null;
+            _quickAssignPanel.Visibility = Visibility.Collapsed;
+        }
         base.Hide();
     }
 
@@ -369,13 +383,461 @@ public class TrayMixerPopup : Window
         return d;
     }
 
+    // ── Quick Assign Panel ────────────────────────────────────────────
+
+    private Border BuildQuickAssignPanel()
+    {
+        var panel = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Padding = new Thickness(10, 8, 10, 10),
+            Tag = "quickassign" // marker for refresh
+        };
+
+        panel.Child = BuildQuickAssignContent();
+        return panel;
+    }
+
+    private FrameworkElement BuildQuickAssignContent()
+    {
+        var accent = GetAccentColor();
+        var root = new StackPanel();
+
+        // Panel header
+        var header = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
+        header.Children.Add(new TextBlock
+        {
+            Text = "QUICK ASSIGN",
+            Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        root.Children.Add(header);
+
+        if (_mixer == null || _config == null)
+        {
+            root.Children.Add(new TextBlock
+            {
+                Text = "Not available",
+                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                FontSize = 10,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 8, 0, 0)
+            });
+            return root;
+        }
+
+        List<string> apps;
+        try { apps = _mixer.GetRunningAudioApps(); }
+        catch { apps = new List<string>(); }
+
+        var hiddenApps = _config.HiddenTrayApps ?? new();
+        var visibleApps = apps.Where(a => !hiddenApps.Any(h => h.Equals(a, StringComparison.OrdinalIgnoreCase))).ToList();
+        var hiddenRunning = apps.Where(a => hiddenApps.Any(h => h.Equals(a, StringComparison.OrdinalIgnoreCase))).ToList();
+
+        if (visibleApps.Count == 0 && hiddenRunning.Count == 0)
+        {
+            root.Children.Add(new TextBlock
+            {
+                Text = "No audio apps running",
+                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                FontSize = 10,
+                FontStyle = FontStyles.Italic,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 8, 0, 4)
+            });
+            return root;
+        }
+
+        // App grid — 2 columns
+        if (visibleApps.Count > 0)
+        {
+            var grid = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) }); // gap
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            int totalRows = (int)Math.Ceiling(visibleApps.Count / 2.0);
+            for (int r = 0; r < totalRows; r++)
+                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            for (int i = 0; i < visibleApps.Count; i++)
+            {
+                var appName = visibleApps[i];
+                int col = (i % 2 == 0) ? 0 : 2;
+                int row = i / 2;
+
+                var cell = BuildAppAssignCell(appName, accent);
+                Grid.SetColumn(cell, col);
+                Grid.SetRow(cell, row);
+                grid.Children.Add(cell);
+            }
+            root.Children.Add(grid);
+        }
+
+        // Hidden apps section
+        if (hiddenRunning.Count > 0)
+        {
+            var hiddenToggleRow = new Border
+            {
+                Background = Brushes.Transparent,
+                Padding = new Thickness(4, 4, 4, 4),
+                Cursor = Cursors.Hand,
+                Margin = new Thickness(0, 4, 0, 0),
+            };
+            var hiddenSection = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 4, 0, 0) };
+
+            var chevron = new TextBlock
+            {
+                Text = "›",
+                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                FontSize = 11, VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(4, 0, 0, 0)
+            };
+            var hiddenDock = new DockPanel();
+            DockPanel.SetDock(chevron, Dock.Right);
+            hiddenDock.Children.Add(chevron);
+            hiddenDock.Children.Add(new TextBlock
+            {
+                Text = $"Hidden apps ({hiddenRunning.Count})",
+                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                FontSize = 9,
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            hiddenToggleRow.Child = hiddenDock;
+            hiddenToggleRow.MouseEnter += (_, _) => hiddenToggleRow.Background = new SolidColorBrush(Color.FromArgb(15, accent.R, accent.G, accent.B));
+            hiddenToggleRow.MouseLeave += (_, _) => hiddenToggleRow.Background = Brushes.Transparent;
+            hiddenToggleRow.MouseLeftButtonDown += (_, _) =>
+            {
+                bool show = hiddenSection.Visibility != Visibility.Visible;
+                hiddenSection.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+                chevron.Text = show ? "⌄" : "›";
+                Dispatcher.BeginInvoke(new Action(RepositionOnScreen),
+                    System.Windows.Threading.DispatcherPriority.Loaded);
+            };
+            root.Children.Add(hiddenToggleRow);
+
+            // Hidden apps in a simple list with "Show" buttons
+            foreach (var appName in hiddenRunning)
+            {
+                var appCapture = appName;
+                var hiddenRow = new Border
+                {
+                    Background = Brushes.Transparent,
+                    Padding = new Thickness(6, 5, 6, 5),
+                    Margin = new Thickness(0, 1, 0, 1),
+                    CornerRadius = new CornerRadius(4),
+                    Cursor = Cursors.Hand,
+                };
+                var dock = new DockPanel();
+                var showBtn = new TextBlock
+                {
+                    Text = "Show",
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76)),
+                    FontSize = 9, VerticalAlignment = VerticalAlignment.Center,
+                    Cursor = Cursors.Hand,
+                };
+                showBtn.MouseLeftButtonDown += (_, e) =>
+                {
+                    e.Handled = true;
+                    var hidden = _config.HiddenTrayApps;
+                    hidden.RemoveAll(h => h.Equals(appCapture, StringComparison.OrdinalIgnoreCase));
+                    _onSave?.Invoke(_config);
+                    RefreshSessions();
+                    RefreshQuickAssignPanel();
+                };
+                DockPanel.SetDock(showBtn, Dock.Right);
+                dock.Children.Add(showBtn);
+                dock.Children.Add(new TextBlock
+                {
+                    Text = TitleCase(appCapture),
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
+                    FontSize = 10, FontStyle = FontStyles.Italic,
+                    VerticalAlignment = VerticalAlignment.Center,
+                });
+                hiddenRow.Child = dock;
+                hiddenRow.MouseEnter += (_, _) => hiddenRow.Background = new SolidColorBrush(Color.FromArgb(15, accent.R, accent.G, accent.B));
+                hiddenRow.MouseLeave += (_, _) => hiddenRow.Background = Brushes.Transparent;
+                hiddenSection.Children.Add(hiddenRow);
+            }
+            root.Children.Add(hiddenSection);
+        }
+
+        return root;
+    }
+
+    private Border BuildAppAssignCell(string appName, Color accent)
+    {
+        var appCapture = appName;
+        bool isExpanded = _expandedAppName?.Equals(appName, StringComparison.OrdinalIgnoreCase) == true;
+
+        // Find current knob assignment
+        var assignedKnob = _config!.Knobs.FirstOrDefault(kn =>
+            kn.Target?.Equals(appCapture, StringComparison.OrdinalIgnoreCase) == true);
+        bool isAssigned = assignedKnob != null;
+
+        var appColor = GetAppColor(appName);
+
+        // Card container
+        var card = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            CornerRadius = new CornerRadius(6),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(0, 2, 0, 2),
+            Cursor = Cursors.Hand,
+            Tag = appCapture,
+        };
+
+        if (isExpanded)
+        {
+            card.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, accent.R, accent.G, accent.B));
+        }
+        else if (isAssigned)
+        {
+            card.BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, appColor.R, appColor.G, appColor.B));
+        }
+        else
+        {
+            card.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+        }
+
+        var cellContent = new StackPanel { Margin = new Thickness(7, 6, 7, 6) };
+
+        // Top row: icon + name
+        var topRow = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
+
+        // App icon
+        UIElement icon = BuildLetterIcon(
+            appName.Length > 0 ? char.ToUpperInvariant(appName[0]).ToString() : "?",
+            appColor, size: 24);
+        DockPanel.SetDock(icon, Dock.Left);
+        topRow.Children.Add(icon);
+
+        var nameText = new TextBlock
+        {
+            Text = TitleCase(appName),
+            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            FontSize = 10,
+            FontWeight = FontWeights.Medium,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(6, 0, 0, 0),
+        };
+        topRow.Children.Add(nameText);
+        cellContent.Children.Add(topRow);
+
+        // Assignment badge or "Unassigned" label
+        var badgeContainer = new StackPanel { Orientation = Orientation.Horizontal };
+        if (isAssigned)
+        {
+            var knobLabel = _config.Knobs.FirstOrDefault(kn => kn.Idx == assignedKnob!.Idx);
+            string label = !string.IsNullOrWhiteSpace(knobLabel?.Label) ? knobLabel!.Label : $"K{assignedKnob!.Idx + 1}";
+            var badge = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, accent.R, accent.G, accent.B)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(5, 1, 5, 1),
+                Child = new TextBlock
+                {
+                    Text = label,
+                    Foreground = new SolidColorBrush(Color.FromArgb(0xDD, accent.R, accent.G, accent.B)),
+                    FontSize = 8.5,
+                    FontWeight = FontWeights.SemiBold,
+                }
+            };
+            // Glow effect on assigned badge
+            badge.Effect = new DropShadowEffect
+            {
+                Color = accent,
+                BlurRadius = 6,
+                ShadowDepth = 0,
+                Opacity = 0.3,
+            };
+            badgeContainer.Children.Add(badge);
+        }
+        else
+        {
+            badgeContainer.Children.Add(new TextBlock
+            {
+                Text = "Unassigned",
+                Foreground = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44)),
+                FontSize = 8.5,
+                FontStyle = FontStyles.Italic,
+            });
+        }
+        cellContent.Children.Add(badgeContainer);
+
+        // Knob picker row (shown when expanded)
+        var knobPicker = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 6, 0, 0),
+            Visibility = isExpanded ? Visibility.Visible : Visibility.Collapsed,
+        };
+
+        for (int k = 0; k < 5; k++)
+        {
+            int knobIdx = k;
+            var knobCfg = _config.Knobs.FirstOrDefault(kn => kn.Idx == knobIdx);
+            bool isCurrent = knobCfg?.Target?.Equals(appCapture, StringComparison.OrdinalIgnoreCase) == true;
+            string knobLbl = !string.IsNullOrWhiteSpace(knobCfg?.Label) ? knobCfg!.Label : $"K{knobIdx + 1}";
+            // Truncate label to 3 chars for pill
+            string pill = knobLbl.Length > 3 ? knobLbl[..3] : knobLbl;
+
+            var pillBorder = new Border
+            {
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(5, 2, 5, 2),
+                Margin = new Thickness(0, 0, 3, 0),
+                Cursor = Cursors.Hand,
+                ToolTip = isCurrent ? $"Unassign {knobLbl}" : $"Assign to {knobLbl}",
+            };
+
+            if (isCurrent)
+            {
+                pillBorder.Background = new SolidColorBrush(Color.FromArgb(0x50, accent.R, accent.G, accent.B));
+                pillBorder.BorderBrush = new SolidColorBrush(accent);
+                pillBorder.BorderThickness = new Thickness(1);
+            }
+            else
+            {
+                pillBorder.Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
+                pillBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0x40, 0x40, 0x40));
+                pillBorder.BorderThickness = new Thickness(1);
+            }
+
+            pillBorder.Child = new TextBlock
+            {
+                Text = pill,
+                Foreground = isCurrent
+                    ? new SolidColorBrush(accent)
+                    : new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
+                FontSize = 8,
+                FontWeight = isCurrent ? FontWeights.Bold : FontWeights.Normal,
+                HorizontalAlignment = HorizontalAlignment.Center,
+            };
+
+            pillBorder.MouseEnter += (_, _) =>
+            {
+                if (!isCurrent)
+                {
+                    pillBorder.Background = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B));
+                    pillBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(0xA0, accent.R, accent.G, accent.B));
+                    if (pillBorder.Child is TextBlock pt)
+                        pt.Foreground = new SolidColorBrush(Color.FromArgb(0xCC, accent.R, accent.G, accent.B));
+                }
+            };
+            pillBorder.MouseLeave += (_, _) =>
+            {
+                if (!isCurrent)
+                {
+                    pillBorder.Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
+                    pillBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0x40, 0x40, 0x40));
+                    if (pillBorder.Child is TextBlock pt)
+                        pt.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+                }
+            };
+
+            pillBorder.MouseLeftButtonDown += (_, e) =>
+            {
+                e.Handled = true;
+                AssignAppToKnob(appCapture, knobIdx, isCurrent);
+            };
+
+            knobPicker.Children.Add(pillBorder);
+        }
+        cellContent.Children.Add(knobPicker);
+        card.Child = cellContent;
+
+        // Card hover effects
+        card.MouseEnter += (_, _) =>
+        {
+            if (!isExpanded)
+                card.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+        };
+        card.MouseLeave += (_, _) =>
+        {
+            if (!isExpanded)
+                card.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+        };
+
+        // Click card to toggle expanded state
+        card.MouseLeftButtonDown += (_, e) =>
+        {
+            if (e.Handled) return;
+            _expandedAppName = isExpanded ? null : appCapture;
+            RefreshQuickAssignPanel();
+            Dispatcher.BeginInvoke(new Action(RepositionOnScreen),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+        };
+
+        return card;
+    }
+
+    private void AssignAppToKnob(string appName, int knobIdx, bool isCurrent)
+    {
+        if (_config == null) return;
+        var cfg = _config.Knobs.FirstOrDefault(kn => kn.Idx == knobIdx);
+        if (cfg == null) return;
+
+        if (isCurrent)
+        {
+            // Unassign — clear the target
+            cfg.Target = "none";
+            cfg.Label = $"Knob {knobIdx + 1}";
+        }
+        else
+        {
+            cfg.Target = appName;
+            cfg.Label = appName;
+        }
+
+        _onSave?.Invoke(_config);
+        _onRefresh?.Invoke();
+
+        // Collapse after assignment
+        _expandedAppName = null;
+        RefreshQuickAssignPanel();
+        Dispatcher.BeginInvoke(new Action(RepositionOnScreen),
+            System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    private void RefreshQuickAssignPanel()
+    {
+        _quickAssignPanel.Child = BuildQuickAssignContent();
+    }
+
+    private void ToggleQuickAssignPanel()
+    {
+        _quickAssignVisible = !_quickAssignVisible;
+        _expandedAppName = null;
+        if (_quickAssignVisible)
+        {
+            RefreshQuickAssignPanel();
+            _quickAssignPanel.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            _quickAssignPanel.Visibility = Visibility.Collapsed;
+        }
+        Dispatcher.BeginInvoke(new Action(RepositionOnScreen),
+            System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    // ── Footer ───────────────────────────────────────────────────────
+
     private UIElement BuildFooter()
     {
         var accent = GetAccentColor();
         var footer = new StackPanel
         {
             Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
-            // Rounded bottom corners
         };
 
         // Divider at top of footer
@@ -413,58 +875,15 @@ public class TrayMixerPopup : Window
         _updateBanner.MouseLeave += (_, _) => _updateBanner.Background = new SolidColorBrush(Color.FromArgb(30, 0xFF, 0xB8, 0x00));
         items.Children.Add(_updateBanner);
 
-        // Assign Running Apps
-        var assignHeader = BuildFooterItem("Assign Running Apps",
-            new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)), false, null);
-
-        _assignExpandPanel = new StackPanel
-        {
-            Visibility = Visibility.Collapsed,
-            Margin = new Thickness(4, 0, 4, 4)
-        };
-
-        var arrowLabel = new TextBlock
-        {
-            Text = "›",
-            Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
-            FontSize = 14, VerticalAlignment = VerticalAlignment.Center,
-        };
-        if (assignHeader is Border b && b.Child is DockPanel dp)
-        {
-            DockPanel.SetDock(arrowLabel, Dock.Right);
-            dp.Children.Insert(0, arrowLabel);
-        }
-
-        assignHeader.MouseLeftButtonDown += (_, _) =>
-        {
-            _assignExpanded = !_assignExpanded;
-            if (_assignExpanded)
-            {
-                arrowLabel.Text = "⌄";
-                PopulateAssignPanel();
-                _assignExpandPanel.Visibility = Visibility.Visible;
-            }
-            else
-            {
-                arrowLabel.Text = "›";
-                _assignExpandPanel.Visibility = Visibility.Collapsed;
-            }
-            Dispatcher.BeginInvoke(new Action(RepositionOnScreen),
-                System.Windows.Threading.DispatcherPriority.Loaded);
-        };
-
-        items.Children.Add(assignHeader);
-        items.Children.Add(_assignExpandPanel);
-
         // Divider before bottom bar
         items.Children.Add(new Border
         {
             Height = 1,
             Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-            Margin = new Thickness(0, 4, 0, 4),
+            Margin = new Thickness(0, 2, 0, 4),
         });
 
-        // Bottom bar: icon + AMP UP + status dot | Open Amp Up | Exit
+        // Bottom bar: icon + AMP UP + status dot | ⚡ Quick Assign | Open Amp Up | Exit
         var bottomRow = new DockPanel { Margin = new Thickness(2, 2, 2, 2) };
 
         // Exit on far right
@@ -480,6 +899,11 @@ public class TrayMixerPopup : Window
             () => { Hide(); _onOpen?.Invoke(); });
         DockPanel.SetDock(openBtn, Dock.Right);
         bottomRow.Children.Add(openBtn);
+
+        // ⚡ Quick Assign button
+        var qaBtn = BuildQuickAssignButton(accent);
+        DockPanel.SetDock(qaBtn, Dock.Right);
+        bottomRow.Children.Add(qaBtn);
 
         // Brand + status on the left
         var brandRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
@@ -511,6 +935,45 @@ public class TrayMixerPopup : Window
 
         footer.Children.Add(items);
         return footer;
+    }
+
+    private Border BuildQuickAssignButton(Color accent)
+    {
+        var btn = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(0x20, accent.R, accent.G, accent.B)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x50, accent.R, accent.G, accent.B)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(8, 4, 8, 4),
+            Margin = new Thickness(2, 0, 2, 0),
+            Cursor = Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var dock = new DockPanel();
+        dock.Children.Add(new TextBlock
+        {
+            Text = "⚡ Quick Assign",
+            Foreground = new SolidColorBrush(Color.FromArgb(0xCC, accent.R, accent.G, accent.B)),
+            FontSize = 9.5,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        btn.Child = dock;
+
+        btn.MouseEnter += (_, _) =>
+        {
+            btn.Background = new SolidColorBrush(Color.FromArgb(0x35, accent.R, accent.G, accent.B));
+            btn.BorderBrush = new SolidColorBrush(accent);
+        };
+        btn.MouseLeave += (_, _) =>
+        {
+            bool active = _quickAssignVisible;
+            btn.Background = new SolidColorBrush(Color.FromArgb(active ? 0x35 : 0x20, accent.R, accent.G, accent.B));
+            btn.BorderBrush = new SolidColorBrush(Color.FromArgb(active ? 0xFF : 0x50, accent.R, accent.G, accent.B));
+        };
+
+        btn.MouseLeftButtonDown += (_, _) => ToggleQuickAssignPanel();
+        return btn;
     }
 
     private Border BuildFooterItem(string text, Brush foreground, bool bold, Action? onClick)
@@ -547,187 +1010,7 @@ public class TrayMixerPopup : Window
         return row;
     }
 
-    private void PopulateAssignPanel()
-    {
-        _assignExpandPanel.Children.Clear();
-        if (_mixer == null || _config == null) return;
-        var accent = GetAccentColor();
-        var hiddenApps = _config.HiddenTrayApps ?? new();
-
-        List<string> apps;
-        try { apps = _mixer.GetRunningAudioApps(); }
-        catch { apps = new List<string>(); }
-
-        if (apps.Count == 0)
-        {
-            _assignExpandPanel.Children.Add(new TextBlock
-            {
-                Text = "No audio apps running",
-                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-                FontSize = 9, FontStyle = FontStyles.Italic,
-                Margin = new Thickness(12, 6, 12, 4),
-            });
-            return;
-        }
-
-        // Visible apps first
-        var visibleApps = apps.Where(a => !hiddenApps.Any(h => h.Equals(a, StringComparison.OrdinalIgnoreCase))).ToList();
-        var hiddenRunning = apps.Where(a => hiddenApps.Any(h => h.Equals(a, StringComparison.OrdinalIgnoreCase))).ToList();
-
-        foreach (var appName in visibleApps)
-            _assignExpandPanel.Children.Add(BuildAssignAppRow(appName, accent, isHidden: false));
-
-        // Hidden apps section
-        if (hiddenRunning.Count > 0)
-        {
-            var hiddenSection = new StackPanel { Visibility = Visibility.Collapsed };
-            foreach (var appName in hiddenRunning)
-                hiddenSection.Children.Add(BuildAssignAppRow(appName, accent, isHidden: true));
-
-            var showHiddenRow = BuildFooterItem($"Hidden ({hiddenRunning.Count})",
-                new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)), false, null);
-            var chevron = new TextBlock
-            {
-                Text = "›",
-                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-                FontSize = 14, VerticalAlignment = VerticalAlignment.Center,
-            };
-            if (showHiddenRow.Child is DockPanel dp2)
-            {
-                DockPanel.SetDock(chevron, Dock.Right);
-                dp2.Children.Insert(0, chevron);
-            }
-            showHiddenRow.MouseLeftButtonDown += (_, _) =>
-            {
-                bool show = hiddenSection.Visibility != Visibility.Visible;
-                hiddenSection.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-                chevron.Text = show ? "⌄" : "›";
-                Dispatcher.BeginInvoke(new Action(RepositionOnScreen),
-                    System.Windows.Threading.DispatcherPriority.Loaded);
-            };
-
-            _assignExpandPanel.Children.Add(new Border
-            {
-                Height = 1,
-                Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-                Margin = new Thickness(8, 4, 8, 4),
-            });
-            _assignExpandPanel.Children.Add(showHiddenRow);
-            _assignExpandPanel.Children.Add(hiddenSection);
-        }
-    }
-
-    private UIElement BuildAssignAppRow(string appName, Color accent, bool isHidden)
-    {
-        var appCapture = appName;
-        var display = char.ToUpperInvariant(appName[0]) + appName[1..].ToLowerInvariant();
-
-        var assignedKnob = _config!.Knobs.FirstOrDefault(kn =>
-            kn.Target?.Equals(appCapture, StringComparison.OrdinalIgnoreCase) == true);
-        string assignedText = assignedKnob != null ? $"  →  Knob {assignedKnob.Idx + 1}" : "";
-
-        var knobList = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(16, 0, 0, 0) };
-
-        // App row with hide/show button
-        var appRowBorder = new Border
-        {
-            Background = Brushes.Transparent,
-            CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(8, 6, 8, 6),
-            Cursor = Cursors.Hand,
-        };
-        var appDock = new DockPanel { LastChildFill = true };
-
-        // Hide/Show toggle button on the right
-        var hideBtn = new TextBlock
-        {
-            Text = isHidden ? "Show" : "Hide",
-            Foreground = new SolidColorBrush(isHidden
-                ? Color.FromRgb(0x00, 0xE6, 0x76)
-                : Color.FromRgb(0x55, 0x55, 0x55)),
-            FontSize = 9,
-            VerticalAlignment = VerticalAlignment.Center,
-            Cursor = Cursors.Hand,
-            Margin = new Thickness(6, 0, 0, 0),
-        };
-        hideBtn.MouseEnter += (_, _) => hideBtn.Foreground = new SolidColorBrush(Colors.White);
-        hideBtn.MouseLeave += (_, _) => hideBtn.Foreground = new SolidColorBrush(isHidden
-            ? Color.FromRgb(0x00, 0xE6, 0x76)
-            : Color.FromRgb(0x55, 0x55, 0x55));
-        hideBtn.MouseLeftButtonDown += (_, e) =>
-        {
-            e.Handled = true;
-            var hidden = _config.HiddenTrayApps;
-            if (isHidden)
-                hidden.RemoveAll(h => h.Equals(appCapture, StringComparison.OrdinalIgnoreCase));
-            else if (!hidden.Any(h => h.Equals(appCapture, StringComparison.OrdinalIgnoreCase)))
-                hidden.Add(appCapture);
-            _onSave?.Invoke(_config);
-            // Refresh the panel and session list
-            PopulateAssignPanel();
-            RefreshSessions();
-            Dispatcher.BeginInvoke(new Action(RepositionOnScreen),
-                System.Windows.Threading.DispatcherPriority.Loaded);
-        };
-        DockPanel.SetDock(hideBtn, Dock.Right);
-        appDock.Children.Add(hideBtn);
-
-        appDock.Children.Add(new TextBlock
-        {
-            Text = $"{display}{assignedText}",
-            Foreground = new SolidColorBrush(isHidden
-                ? Color.FromRgb(0x55, 0x55, 0x55)
-                : Color.FromRgb(0xE8, 0xE8, 0xE8)),
-            FontSize = 10,
-            FontStyle = isHidden ? FontStyles.Italic : FontStyles.Normal,
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-
-        appRowBorder.Child = appDock;
-        appRowBorder.MouseEnter += (_, _) =>
-            appRowBorder.Background = new SolidColorBrush(Color.FromArgb(26, accent.R, accent.G, accent.B));
-        appRowBorder.MouseLeave += (_, _) =>
-            appRowBorder.Background = Brushes.Transparent;
-        appRowBorder.MouseLeftButtonDown += (_, _) =>
-        {
-            knobList.Visibility = knobList.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
-            Dispatcher.BeginInvoke(new Action(RepositionOnScreen),
-                System.Windows.Threading.DispatcherPriority.Loaded);
-        };
-
-        var container = new StackPanel();
-        container.Children.Add(appRowBorder);
-
-        for (int k = 0; k < 5; k++)
-        {
-            int knobIdx = k;
-            var knob = _config.Knobs.FirstOrDefault(kn => kn.Idx == knobIdx);
-            string knobName = knob != null && !string.IsNullOrWhiteSpace(knob.Label)
-                ? knob.Label : $"Knob {knobIdx + 1}";
-            bool isCurrent = knob?.Target?.Equals(appCapture, StringComparison.OrdinalIgnoreCase) == true;
-
-            var knobRow = BuildFooterItem(
-                isCurrent ? $"✓  {knobName}" : $"     {knobName}",
-                isCurrent ? new SolidColorBrush(accent) : new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
-                isCurrent, null);
-
-            knobRow.MouseLeftButtonDown += (_, _) =>
-            {
-                var cfg = _config.Knobs.FirstOrDefault(kn => kn.Idx == knobIdx);
-                if (cfg != null)
-                {
-                    cfg.Target = appCapture;
-                    cfg.Label = appCapture;
-                    _onSave?.Invoke(_config);
-                    _onRefresh?.Invoke();
-                    Hide();
-                }
-            };
-            knobList.Children.Add(knobRow);
-        }
-        container.Children.Add(knobList);
-        return container;
-    }
+    // ── Session Rows with Right-Click Context Menu ────────────────────
 
     private UIElement BuildDeviceSwitcher()
     {
@@ -928,6 +1211,13 @@ public class TrayMixerPopup : Window
             row.MouseEnter += (_, _) => row.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
             row.MouseLeave += (_, _) => row.Background = Brushes.Transparent;
 
+            // Right-click context menu
+            row.MouseRightButtonDown += (_, e) =>
+            {
+                e.Handled = true;
+                ShowSessionContextMenu(processName, row);
+            };
+
             var panel = new DockPanel { LastChildFill = true };
 
             // Try to get app icon from process executable, fall back to letter icon
@@ -1059,13 +1349,237 @@ public class TrayMixerPopup : Window
         }
     }
 
-    private static Border BuildLetterIcon(string letter, Color bg)
+    private void ShowSessionContextMenu(string processName, Border rowBorder)
+    {
+        if (_config == null) return;
+        var accent = GetAccentColor();
+
+        var menuWin = new Window
+        {
+            WindowStyle = WindowStyle.None,
+            AllowsTransparency = false,
+            ResizeMode = ResizeMode.NoResize,
+            ShowInTaskbar = false,
+            Topmost = true,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
+        };
+
+        var isHidden = _config.HiddenTrayApps.Any(h => h.Equals(processName, StringComparison.OrdinalIgnoreCase));
+        var displayName = TitleCase(processName);
+
+        var outer = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x18, 0x18, 0x18)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x30, 0x30, 0x30)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 16, ShadowDepth = 3, Opacity = 0.7 },
+            Padding = new Thickness(4, 4, 4, 4),
+            MinWidth = 200,
+        };
+
+        var menuStack = new StackPanel();
+        outer.Child = menuStack;
+        menuWin.Content = outer;
+
+        // Helper: build a menu item
+        UIElement MakeItem(string text, Brush fg, Action action, bool isSub = false)
+        {
+            var item = new Border
+            {
+                Background = Brushes.Transparent,
+                CornerRadius = new CornerRadius(3),
+                Padding = new Thickness(isSub ? 18 : 10, 6, 10, 6),
+                Cursor = Cursors.Hand,
+            };
+            item.Child = new TextBlock
+            {
+                Text = text,
+                Foreground = fg,
+                FontSize = 10.5,
+                FontFamily = new FontFamily("Segoe UI"),
+            };
+            item.MouseEnter += (_, _) => item.Background = new SolidColorBrush(Color.FromArgb(30, accent.R, accent.G, accent.B));
+            item.MouseLeave += (_, _) => item.Background = Brushes.Transparent;
+            item.MouseLeftButtonDown += (_, _) =>
+            {
+                menuWin.Close();
+                action();
+            };
+            return item;
+        }
+
+        UIElement MakeSeparator()
+        {
+            return new Border
+            {
+                Height = 1,
+                Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                Margin = new Thickness(8, 2, 8, 2),
+            };
+        }
+
+        // "Assign to Knob" header (non-clickable label)
+        menuStack.Children.Add(new Border
+        {
+            Padding = new Thickness(10, 5, 10, 3),
+            Child = new TextBlock
+            {
+                Text = "ASSIGN TO KNOB",
+                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                FontSize = 8.5,
+                FontWeight = FontWeights.SemiBold,
+            }
+        });
+
+        // Knob items
+        for (int k = 0; k < 5; k++)
+        {
+            int knobIdx = k;
+            var knobCfg = _config.Knobs.FirstOrDefault(kn => kn.Idx == knobIdx);
+            bool isCurrent = knobCfg?.Target?.Equals(processName, StringComparison.OrdinalIgnoreCase) == true;
+            string kLabel = !string.IsNullOrWhiteSpace(knobCfg?.Label) ? knobCfg!.Label : $"Knob {knobIdx + 1}";
+            string prefix = isCurrent ? "✓  " : "   ";
+            var fg = isCurrent
+                ? new SolidColorBrush(accent)
+                : new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
+
+            menuStack.Children.Add(MakeItem($"{prefix}{kLabel}", fg, () =>
+            {
+                AssignAppToKnob(processName, knobIdx, isCurrent);
+                RefreshSessions();
+            }, isSub: true));
+        }
+
+        menuStack.Children.Add(MakeSeparator());
+
+        // Move to device submenu header
+        var deviceMenuStack = new StackPanel();
+        var deviceSection = new Border
+        {
+            Padding = new Thickness(10, 5, 10, 3),
+            Child = new TextBlock
+            {
+                Text = "MOVE TO DEVICE",
+                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                FontSize = 8.5,
+                FontWeight = FontWeights.SemiBold,
+            }
+        };
+        menuStack.Children.Add(deviceSection);
+
+        try
+        {
+            var renderDevices = new List<MMDevice>();
+            var enumerated = _enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+            foreach (var d in enumerated) renderDevices.Add(d);
+
+            foreach (var dev in renderDevices)
+            {
+                var devCapture = dev;
+                var devName = dev.FriendlyName.Length > 30 ? dev.FriendlyName[..28] + "…" : dev.FriendlyName;
+                menuStack.Children.Add(MakeItem($"   {devName}",
+                    new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
+                    () =>
+                    {
+                        try { ButtonHandler.SetDefaultAudioDevice(devCapture.ID); }
+                        catch { }
+                    }, isSub: true));
+            }
+            if (renderDevices.Count == 0)
+            {
+                menuStack.Children.Add(new Border
+                {
+                    Padding = new Thickness(18, 4, 10, 4),
+                    Child = new TextBlock
+                    {
+                        Text = "No devices found",
+                        Foreground = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44)),
+                        FontSize = 10,
+                    }
+                });
+            }
+        }
+        catch { }
+
+        menuStack.Children.Add(MakeSeparator());
+
+        // Hide/Show toggle
+        if (isHidden)
+        {
+            menuStack.Children.Add(MakeItem($"Show {displayName} in mixer",
+                new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76)),
+                () =>
+                {
+                    _config.HiddenTrayApps.RemoveAll(h => h.Equals(processName, StringComparison.OrdinalIgnoreCase));
+                    _onSave?.Invoke(_config);
+                    RefreshSessions();
+                    if (_quickAssignVisible) RefreshQuickAssignPanel();
+                }));
+        }
+        else
+        {
+            menuStack.Children.Add(MakeItem($"Hide {displayName} from mixer",
+                new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+                () =>
+                {
+                    if (!_config.HiddenTrayApps.Any(h => h.Equals(processName, StringComparison.OrdinalIgnoreCase)))
+                        _config.HiddenTrayApps.Add(processName);
+                    _onSave?.Invoke(_config);
+                    RefreshSessions();
+                    if (_quickAssignVisible) RefreshQuickAssignPanel();
+                }));
+        }
+
+        menuStack.Children.Add(MakeSeparator());
+
+        // Open app
+        menuStack.Children.Add(MakeItem($"Open {displayName}",
+            new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
+            () =>
+            {
+                try
+                {
+                    var proc = Process.GetProcessesByName(processName).FirstOrDefault();
+                    if (proc != null)
+                    {
+                        NativeMethods.SetForegroundWindow(proc.MainWindowHandle);
+                    }
+                }
+                catch { }
+            }));
+
+        menuWin.Deactivated += (_, _) => menuWin.Close();
+
+        // Position near cursor
+        var cursorPos = System.Windows.Forms.Cursor.Position;
+        menuWin.Left = cursorPos.X + 4;
+        menuWin.Top = cursorPos.Y - 20;
+        menuWin.Show();
+
+        // Clamp to screen
+        var screen = System.Windows.Forms.Screen.FromPoint(cursorPos);
+        menuWin.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        double mw = menuWin.DesiredSize.Width > 0 ? menuWin.DesiredSize.Width : 200;
+        double mh = menuWin.DesiredSize.Height > 0 ? menuWin.DesiredSize.Height : 300;
+        if (menuWin.Left + mw > screen.WorkingArea.Right)
+            menuWin.Left = screen.WorkingArea.Right - mw - 4;
+        if (menuWin.Top + mh > screen.WorkingArea.Bottom)
+            menuWin.Top = screen.WorkingArea.Bottom - mh - 4;
+
+        menuWin.Activate();
+    }
+
+    // ── Shared helpers ────────────────────────────────────────────────
+
+    private static Border BuildLetterIcon(string letter, Color bg, int size = 28)
     {
         return new Border
         {
-            Width = 28,
-            Height = 28,
-            CornerRadius = new CornerRadius(6),
+            Width = size,
+            Height = size,
+            CornerRadius = new CornerRadius(size / 4.0),
             Background = new SolidColorBrush(Color.FromArgb(60, bg.R, bg.G, bg.B)),
             BorderBrush = new SolidColorBrush(Color.FromArgb(100, bg.R, bg.G, bg.B)),
             BorderThickness = new Thickness(1),
@@ -1075,7 +1589,7 @@ public class TrayMixerPopup : Window
             {
                 Text = letter,
                 Foreground = new SolidColorBrush(bg),
-                FontSize = 12,
+                FontSize = size * 0.43,
                 FontWeight = FontWeights.Bold,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
