@@ -55,6 +55,10 @@ public class StyledSlider : FrameworkElement
 
     public string Suffix { get; set; } = "%";
     public bool ShowLabel { get; set; } = true;
+    /// <summary>Rounding step for values. 1.0 = integer snap (default), 0.1 = one decimal, 0 = continuous.</summary>
+    public double Step { get; set; } = 1.0;
+    /// <summary>Format string for the label. Default "F0" (integer). Use "F1" for one decimal.</summary>
+    public string LabelFormat { get; set; } = "F0";
 
     // ── Events ──────────────────────────────────────────────────
 
@@ -88,6 +92,13 @@ public class StyledSlider : FrameworkElement
     {
         double ratio = Math.Clamp((x - TrackLeft) / TrackWidth, 0, 1);
         return Minimum + ratio * (Maximum - Minimum);
+    }
+
+    private double SnapValue(double v)
+    {
+        v = Math.Clamp(v, Minimum, Maximum);
+        if (Step > 0) v = Math.Round(v / Step) * Step;
+        return Math.Clamp(v, Minimum, Maximum);
     }
 
     // ── Rendering ───────────────────────────────────────────────
@@ -128,7 +139,7 @@ public class StyledSlider : FrameworkElement
         {
             var textBrush = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
             textBrush.Freeze();
-            var text = new FormattedText($"{(int)Value}{Suffix}", CultureInfo.InvariantCulture,
+            var text = new FormattedText($"{Value.ToString(LabelFormat)}{Suffix}", CultureInfo.InvariantCulture,
                 FlowDirection.LeftToRight, s_typeface, 10, textBrush,
                 VisualTreeHelper.GetDpi(this).PixelsPerDip);
             dc.DrawText(text, new Point(vx - text.Width / 2, cy + ThumbRadius + 4));
@@ -141,7 +152,7 @@ public class StyledSlider : FrameworkElement
     {
         base.OnMouseLeftButtonDown(e);
         var pos = e.GetPosition(this);
-        Value = Math.Round(Math.Clamp(XToValue(pos.X), Minimum, Maximum));
+        Value = SnapValue(XToValue(pos.X));
         _dragging = true;
         CaptureMouse();
     }
@@ -151,7 +162,7 @@ public class StyledSlider : FrameworkElement
         base.OnMouseMove(e);
         if (!_dragging) return;
         var pos = e.GetPosition(this);
-        Value = Math.Round(Math.Clamp(XToValue(pos.X), Minimum, Maximum));
+        Value = SnapValue(XToValue(pos.X));
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)

@@ -1030,8 +1030,8 @@ public partial class SettingsView : UserControl
             var slider = new Controls.StyledSlider
             {
                 Minimum = 0.5, Maximum = 4.0, Value = 2.0,
-                AccentColor = color, Height = 24,
-                ShowLabel = true, Suffix = "",
+                AccentColor = color, Height = 28,
+                ShowLabel = true, Suffix = "", Step = 0.1, LabelFormat = "F1",
                 Margin = new Thickness(8, 0, 0, 0),
             };
             System.Windows.Controls.Grid.SetColumn(slider, 1);
@@ -1050,11 +1050,6 @@ public partial class SettingsView : UserControl
     private void OnGammaSliderChanged(object? sender, EventArgs e)
     {
         if (_loading) return;
-
-        // Snap to 0.1 increments
-        if (_sldGammaR != null) _sldGammaR.Value = Math.Round(_sldGammaR.Value * 10) / 10;
-        if (_sldGammaG != null) _sldGammaG.Value = Math.Round(_sldGammaG.Value * 10) / 10;
-        if (_sldGammaB != null) _sldGammaB.Value = Math.Round(_sldGammaB.Value * 10) / 10;
 
         // Live-update gamma on hardware if previewing a test color
         if (_calibPreviewColor != null)
