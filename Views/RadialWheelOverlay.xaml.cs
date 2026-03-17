@@ -21,6 +21,7 @@ public partial class RadialWheelOverlay : Window
     public Action<int>? OnSegmentClicked;
 
     private const int TotalSlots = 8; // always 8 petals
+    private int _monitorIndex; // which monitor to center on (from OSD config)
     private List<string> _profiles = new();
     private readonly string[] _slotLabels = new string[TotalSlots]; // padded to 8
     private readonly Color[] _slotColors = new Color[TotalSlots];
@@ -321,14 +322,17 @@ public partial class RadialWheelOverlay : Window
         });
     }
 
+    /// <summary>Set which monitor to display on (matches OSD MonitorIndex).</summary>
+    public void SetMonitor(int monitorIndex) => _monitorIndex = monitorIndex;
+
     private void CenterOnScreen()
     {
-        var screen = System.Windows.Forms.Screen.PrimaryScreen;
-        if (screen != null)
-        {
-            Left = screen.WorkingArea.Left + (screen.WorkingArea.Width - Width) / 2;
-            Top = screen.WorkingArea.Top + (screen.WorkingArea.Height - Height) / 2;
-        }
+        var screens = System.Windows.Forms.Screen.AllScreens;
+        var screen = (_monitorIndex >= 0 && _monitorIndex < screens.Length)
+            ? screens[_monitorIndex]
+            : System.Windows.Forms.Screen.PrimaryScreen ?? screens[0];
+        Left = screen.WorkingArea.Left + (screen.WorkingArea.Width - Width) / 2;
+        Top = screen.WorkingArea.Top + (screen.WorkingArea.Height - Height) / 2;
     }
 
     // ── Animation helpers ────────────────────────────────────────────
