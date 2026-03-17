@@ -46,6 +46,7 @@ public partial class App : Application
     public static RgbController? Rgb { get; private set; }
     private readonly long[] _lastKnobUiTick = new long[5]; // throttle UI updates
     private readonly long[] _lastOsdTick = new long[5]; // throttle OSD updates
+    private readonly int[] _lastOsdValue = { -1, -1, -1, -1, -1 }; // suppress OSD if value unchanged
     private readonly long _startupTick = Environment.TickCount64; // suppress OSD on launch
 
     protected override void OnStartup(StartupEventArgs e)
@@ -471,12 +472,18 @@ public partial class App : Application
 
             // Show OSD overlay when volume OSD is enabled (skip unassigned knobs)
             // Throttled to ~100ms to avoid rapid flashing during fast knob turns
+            // Suppress during startup (5s) and reconnection (2s) to avoid phantom popups
+            // Suppress if value hasn't meaningfully changed (e.g. batch re-report on reconnect)
             long osdNow = Environment.TickCount64;
+            bool osdSuppressed = osdNow - _startupTick < 5000
+                || (DateTime.UtcNow - _connectedAt).TotalMilliseconds < 2000
+                || (_lastOsdValue[e.Idx] >= 0 && Math.Abs(e.Value - _lastOsdValue[e.Idx]) < 8);
             if (_config.Osd.ShowVolume && !knob.Target.Equals("none", StringComparison.OrdinalIgnoreCase)
                 && osdNow - _lastOsdTick[e.Idx] >= 100
-                && osdNow - _startupTick >= 5000)
+                && !osdSuppressed)
             {
                 _lastOsdTick[e.Idx] = osdNow;
+                _lastOsdValue[e.Idx] = e.Value;
                 float pct = e.Value / 1023f;
                 // Apply min/max range
                 int displayPct = (int)Math.Round(knob.MinVolume + pct * (knob.MaxVolume - knob.MinVolume));
