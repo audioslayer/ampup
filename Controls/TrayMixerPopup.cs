@@ -44,13 +44,20 @@ public class TrayMixerPopup : Window
     // Update indicator
     private Border? _updateBanner;
 
+    // Search / filter bar
+    private TextBox? _searchBox;
+    private Border? _searchClearBtn;
+    private string _searchText = "";
+
     private record SessionRow(
         string ProcessName,
         AudioSessionControl Session,
         Slider VolumeSlider,
         TextBlock VolLabel,
         Button MuteBtn,
-        Border? PeakBar = null
+        Border? PeakBar = null,
+        Border? RowBorder = null,
+        bool IsSystemSounds = false
     );
 
     public TrayMixerPopup()
@@ -132,6 +139,11 @@ public class TrayMixerPopup : Window
         // Divider
         root.Children.Add(MakeDivider());
 
+        // Search / filter bar
+        var searchBar = BuildSearchBar();
+        DockPanel.SetDock(searchBar, Dock.Top);
+        root.Children.Add(searchBar);
+
         // Scrollable session list (master + apps)
         var scroll = new ScrollViewer
         {
@@ -208,6 +220,11 @@ public class TrayMixerPopup : Window
     {
         try
         {
+            // Clear search filter on each open so the full list is visible
+            if (_searchBox != null && !string.IsNullOrEmpty(_searchBox.Text))
+                _searchBox.Text = "";
+            _searchText = "";
+
             RefreshSessions();
             // Show first (off-screen) so PresentationSource is available for DPI conversion,
             // then position correctly and activate
@@ -266,18 +283,27 @@ public class TrayMixerPopup : Window
             var sessions = sessionMgr.Sessions;
 
             var hiddenApps = _config?.HiddenTrayApps ?? new();
+            var pinnedApps = _config?.PinnedTrayApps ?? new();
 
-            // Deduplicate by process name — apps like Discord can have multiple audio sessions
-            // (voice, streaming, notifications). Show only the first session per app name.
+            // Collect all app sessions (deduplicated by display name)
             var seenApps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            bool firstApp = true;
+            AudioSessionControl? systemSoundsSession = null; // pid==0, show at bottom
+
+            // Gather as (displayName, session) pairs for sorting
+            var appEntries = new List<(string DisplayName, AudioSessionControl Session)>();
+
             for (int i = 0; i < sessions.Count; i++)
             {
                 var s = sessions[i];
                 try
                 {
                     var pid = (int)s.GetProcessID;
-                    if (pid == 0) continue; // skip System Sounds
+                    if (pid == 0)
+                    {
+                        // System Sounds — keep first occurrence
+                        systemSoundsSession ??= s;
+                        continue;
+                    }
 
                     var proc = Process.GetProcessById(pid);
                     var name = proc.ProcessName;
@@ -303,24 +329,60 @@ public class TrayMixerPopup : Window
                     if (!seenApps.Add(displayName))
                         continue;
 
-                    var row = BuildSessionRow(displayName, s);
-                    if (row != null)
-                    {
-                        // Subtle separator between app rows (not before the first)
-                        if (!firstApp)
-                        {
-                            _sessionList.Children.Add(new Border
-                            {
-                                Height = 1,
-                                Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
-                                Margin = new Thickness(6, 0, 6, 0)
-                            });
-                        }
-                        firstApp = false;
-                        _sessionList.Children.Add(row);
-                    }
+                    appEntries.Add((displayName, s));
                 }
                 catch { }
+            }
+
+            // Sort: pinned apps first (in pin order), then rest alphabetically
+            appEntries.Sort((a, b) =>
+            {
+                int pinA = pinnedApps.FindIndex(p => p.Equals(a.DisplayName, StringComparison.OrdinalIgnoreCase));
+                int pinB = pinnedApps.FindIndex(p => p.Equals(b.DisplayName, StringComparison.OrdinalIgnoreCase));
+                bool isPinnedA = pinA >= 0;
+                bool isPinnedB = pinB >= 0;
+                if (isPinnedA && isPinnedB) return pinA.CompareTo(pinB);
+                if (isPinnedA) return -1;
+                if (isPinnedB) return 1;
+                return string.Compare(a.DisplayName, b.DisplayName, StringComparison.OrdinalIgnoreCase);
+            });
+
+            bool firstApp = true;
+            foreach (var (displayName, s) in appEntries)
+            {
+                bool isPinned = pinnedApps.Any(p => p.Equals(displayName, StringComparison.OrdinalIgnoreCase));
+                var row = BuildSessionRow(displayName, s, isPinned);
+                if (row != null)
+                {
+                    if (!firstApp)
+                    {
+                        _sessionList.Children.Add(new Border
+                        {
+                            Height = 1,
+                            Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
+                            Margin = new Thickness(6, 0, 6, 0)
+                        });
+                    }
+                    firstApp = false;
+                    _sessionList.Children.Add(row);
+                }
+            }
+
+            // System Sounds row at the bottom
+            if (systemSoundsSession != null)
+            {
+                if (!firstApp)
+                {
+                    _sessionList.Children.Add(new Border
+                    {
+                        Height = 1,
+                        Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                        Margin = new Thickness(6, 2, 6, 2)
+                    });
+                }
+                var sysRow = BuildSystemSoundsRow(systemSoundsSession);
+                if (sysRow != null)
+                    _sessionList.Children.Add(sysRow);
             }
 
             if (_sessionList.Children.Count <= 2) // only master + divider
@@ -360,6 +422,9 @@ public class TrayMixerPopup : Window
                 Margin = new Thickness(0, 14, 0, 10)
             });
         }
+
+        // Re-apply current search filter
+        ApplySearchFilter();
     }
 
     private void PollVolumes(object? sender, EventArgs e)
@@ -432,6 +497,128 @@ public class TrayMixerPopup : Window
         };
         DockPanel.SetDock(d, Dock.Top);
         return d;
+    }
+
+    // ── Search Bar ───────────────────────────────────────────────────
+
+    private UIElement BuildSearchBar()
+    {
+        var accent = GetAccentColor();
+
+        var container = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x0F, 0x0F, 0x0F)),
+            Padding = new Thickness(8, 5, 8, 5),
+        };
+
+        var dock = new DockPanel { LastChildFill = true };
+
+        // Clear (×) button — shown only when text is present
+        _searchClearBtn = new Border
+        {
+            Width = 18, Height = 18,
+            CornerRadius = new CornerRadius(9),
+            Background = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
+            Cursor = Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(4, 0, 0, 0),
+            Visibility = Visibility.Collapsed,
+            Child = new TextBlock
+            {
+                Text = "×",
+                Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
+                FontSize = 11,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            }
+        };
+        _searchClearBtn.MouseLeftButtonDown += (_, _) =>
+        {
+            _searchBox!.Text = "";
+            _searchBox.Focus();
+        };
+        DockPanel.SetDock(_searchClearBtn, Dock.Right);
+        dock.Children.Add(_searchClearBtn);
+
+        // Search textbox
+        _searchBox = new TextBox
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            CaretBrush = new SolidColorBrush(Color.FromRgb(accent.R, accent.G, accent.B)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            BorderThickness = new Thickness(1),
+            FontSize = 10,
+            Height = 28,
+            Padding = new Thickness(8, 0, 8, 0),
+            VerticalContentAlignment = VerticalAlignment.Center,
+            FontFamily = new FontFamily("Segoe UI"),
+        };
+
+        // Rounded corners via ControlTemplate
+        var sbFactory = new FrameworkElementFactory(typeof(Border));
+        sbFactory.Name = "bd";
+        sbFactory.SetBinding(Border.BackgroundProperty, new System.Windows.Data.Binding("Background") { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) });
+        sbFactory.SetBinding(Border.BorderBrushProperty, new System.Windows.Data.Binding("BorderBrush") { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) });
+        sbFactory.SetBinding(Border.BorderThicknessProperty, new System.Windows.Data.Binding("BorderThickness") { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) });
+        sbFactory.SetValue(Border.CornerRadiusProperty, new CornerRadius(5));
+        var scrollViewerFactory = new FrameworkElementFactory(typeof(ScrollViewer));
+        scrollViewerFactory.Name = "PART_ContentHost";
+        scrollViewerFactory.SetValue(ScrollViewer.MarginProperty, new Thickness(2, 0, 2, 0));
+        sbFactory.AppendChild(scrollViewerFactory);
+        var sbTemplate = new ControlTemplate(typeof(TextBox)) { VisualTree = sbFactory };
+        // Focus trigger — accent border
+        var focusTrigger = new Trigger { Property = TextBox.IsFocusedProperty, Value = true };
+        focusTrigger.Setters.Add(new Setter(Border.BorderBrushProperty,
+            new SolidColorBrush(Color.FromArgb(0xAA, accent.R, accent.G, accent.B)), "bd"));
+        sbTemplate.Triggers.Add(focusTrigger);
+        _searchBox.Template = sbTemplate;
+
+        // Placeholder text via TextChanged
+        _searchBox.TextChanged += (_, _) =>
+        {
+            _searchText = _searchBox.Text;
+            if (_searchClearBtn != null)
+                _searchClearBtn.Visibility = string.IsNullOrEmpty(_searchText) ? Visibility.Collapsed : Visibility.Visible;
+            ApplySearchFilter();
+        };
+
+        dock.Children.Add(_searchBox);
+        container.Child = dock;
+
+        // Overlay placeholder hint
+        var grid = new Grid();
+        grid.Children.Add(container);
+
+        var placeholder = new TextBlock
+        {
+            Text = "Search apps...",
+            Foreground = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44)),
+            FontSize = 10,
+            FontFamily = new FontFamily("Segoe UI"),
+            IsHitTestVisible = false,
+            Margin = new Thickness(17, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        // Hide placeholder when textbox has text
+        _searchBox.TextChanged += (_, _) =>
+            placeholder.Visibility = string.IsNullOrEmpty(_searchBox.Text) ? Visibility.Visible : Visibility.Collapsed;
+        grid.Children.Add(placeholder);
+
+        return grid;
+    }
+
+    private void ApplySearchFilter()
+    {
+        string q = _searchText.Trim();
+        foreach (var row in _rows)
+        {
+            if (row.RowBorder == null) continue;
+            bool visible = string.IsNullOrEmpty(q)
+                || row.ProcessName.Contains(q, StringComparison.OrdinalIgnoreCase);
+            row.RowBorder.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        }
     }
 
     // ── Quick Assign Panel ────────────────────────────────────────────
@@ -1326,7 +1513,7 @@ public class TrayMixerPopup : Window
         return row;
     }
 
-    private UIElement? BuildSessionRow(string processName, AudioSessionControl session)
+    private UIElement? BuildSessionRow(string processName, AudioSessionControl session, bool isPinned = false)
     {
         try
         {
@@ -1427,7 +1614,7 @@ public class TrayMixerPopup : Window
             // Center: name row + slider + peak bar
             var center = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(8, 0, 0, 0) };
 
-            // Name row: app name + optional device badge
+            // Name row: app name + pin indicator + optional device badge
             var nameRow = new StackPanel { Orientation = Orientation.Horizontal };
             var nameLabel = new TextBlock
             {
@@ -1439,6 +1626,20 @@ public class TrayMixerPopup : Window
                 VerticalAlignment = VerticalAlignment.Center,
             };
             nameRow.Children.Add(nameLabel);
+
+            // Pin indicator — small accent dot for pinned apps
+            if (isPinned)
+            {
+                nameRow.Children.Add(new Border
+                {
+                    Width = 6, Height = 6,
+                    CornerRadius = new CornerRadius(3),
+                    Background = new SolidColorBrush(Color.FromArgb(0xCC, accent.R, accent.G, accent.B)),
+                    Margin = new Thickness(4, 0, 0, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    ToolTip = "Pinned to top",
+                });
+            }
 
             // Per-app device badge — show if session uses a non-default device
             var deviceBadge = BuildDeviceBadge(session);
@@ -1458,7 +1659,7 @@ public class TrayMixerPopup : Window
                 Background = new SolidColorBrush(Color.FromArgb(0xCC, iconColor.R, iconColor.G, iconColor.B)),
             };
 
-            _rows.Add(new SessionRow(processName, session, slider, volLabel, muteBtn, peakBar));
+            _rows.Add(new SessionRow(processName, session, slider, volLabel, muteBtn, peakBar, row));
             slider.ValueChanged += (_, e) =>
             {
                 if (_updatingFromPoll) return;
@@ -1498,6 +1699,126 @@ public class TrayMixerPopup : Window
             };
 
             center.Children.Add(nameRow);
+            center.Children.Add(slider);
+            center.Children.Add(peakBar);
+            panel.Children.Add(center);
+            row.Child = panel;
+            return row;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Builds a mixer row for System Sounds (pid==0 WASAPI session). Shown at the bottom.
+    /// </summary>
+    private UIElement? BuildSystemSoundsRow(AudioSessionControl session)
+    {
+        try
+        {
+            float vol = session.SimpleAudioVolume.Volume;
+            bool muted = session.SimpleAudioVolume.Mute;
+            var accent = GetAccentColor();
+            var iconColor = Color.FromRgb(0x00, 0xCC, 0xFF); // cyan for system sounds
+
+            var row = new Border
+            {
+                Background = Brushes.Transparent,
+                Padding = new Thickness(12, 9, 12, 9),
+                Margin = new Thickness(6, 0, 6, 0),
+                CornerRadius = new CornerRadius(6)
+            };
+            row.MouseEnter += (_, _) => row.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+            row.MouseLeave += (_, _) => row.Background = Brushes.Transparent;
+
+            var panel = new DockPanel { LastChildFill = true };
+
+            // Speaker icon using letter "S"
+            var icon = BuildLetterIcon("S", iconColor);
+            DockPanel.SetDock(icon, Dock.Left);
+            panel.Children.Add(icon);
+
+            var muteBtn = BuildMuteButton(muted);
+            DockPanel.SetDock(muteBtn, Dock.Right);
+
+            var volLabel = new TextBlock
+            {
+                Text = $"{(int)Math.Round(vol * 100)}%",
+                Foreground = new SolidColorBrush(accent),
+                FontSize = 11,
+                Width = 34,
+                TextAlignment = TextAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(4, 0, 6, 0)
+            };
+            DockPanel.SetDock(volLabel, Dock.Right);
+
+            panel.Children.Add(muteBtn);
+            panel.Children.Add(volLabel);
+
+            var center = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(8, 0, 0, 0) };
+            var nameLabel = new TextBlock
+            {
+                Text = "System Sounds",
+                Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
+                FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            center.Children.Add(nameLabel);
+
+            var slider = BuildVolumeSlider(vol * 100);
+
+            var peakBar = new Border
+            {
+                Height = 3,
+                CornerRadius = new CornerRadius(1.5),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Width = 0,
+                Margin = new Thickness(0, 2, 0, 0),
+                Background = new SolidColorBrush(Color.FromArgb(0xCC, iconColor.R, iconColor.G, iconColor.B)),
+            };
+
+            _rows.Add(new SessionRow("System Sounds", session, slider, volLabel, muteBtn, peakBar, row, IsSystemSounds: true));
+
+            slider.ValueChanged += (_, e) =>
+            {
+                if (_updatingFromPoll) return;
+                try
+                {
+                    session.SimpleAudioVolume.Volume = (float)(e.NewValue / 100.0);
+                    volLabel.Text = $"{(int)Math.Round(e.NewValue)}%";
+                }
+                catch { }
+            };
+
+            muteBtn.Click += (_, _) =>
+            {
+                try
+                {
+                    session.SimpleAudioVolume.Mute = !session.SimpleAudioVolume.Mute;
+                    UpdateMuteButton(muteBtn, session.SimpleAudioVolume.Mute);
+                }
+                catch { }
+            };
+
+            row.MouseWheel += (_, e) =>
+            {
+                try
+                {
+                    int delta = e.Delta > 0 ? 2 : -2;
+                    float cur = session.SimpleAudioVolume.Volume;
+                    float next = Math.Clamp(cur + delta / 100f, 0f, 1f);
+                    session.SimpleAudioVolume.Volume = next;
+                    int pct = (int)Math.Round(next * 100);
+                    slider.Value = pct;
+                    volLabel.Text = $"{pct}%";
+                }
+                catch { }
+                e.Handled = true;
+            };
+
             center.Children.Add(slider);
             center.Children.Add(peakBar);
             panel.Children.Add(center);
@@ -1599,6 +1920,7 @@ public class TrayMixerPopup : Window
         };
 
         var isHidden = _config.HiddenTrayApps.Any(h => h.Equals(processName, StringComparison.OrdinalIgnoreCase));
+        var isPinned = _config.PinnedTrayApps.Any(p => p.Equals(processName, StringComparison.OrdinalIgnoreCase));
         var displayName = TitleCase(processName);
 
         var outer = new Border
@@ -1735,6 +2057,33 @@ public class TrayMixerPopup : Window
             }
         }
         catch { }
+
+        menuStack.Children.Add(MakeSeparator());
+
+        // Pin / Unpin
+        if (isPinned)
+        {
+            menuStack.Children.Add(MakeItem($"Unpin {displayName}",
+                new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+                () =>
+                {
+                    _config.PinnedTrayApps.RemoveAll(p => p.Equals(processName, StringComparison.OrdinalIgnoreCase));
+                    _onSave?.Invoke(_config);
+                    RefreshSessions();
+                }));
+        }
+        else
+        {
+            menuStack.Children.Add(MakeItem($"📌 Pin {displayName} to top",
+                new SolidColorBrush(Color.FromArgb(0xCC, accent.R, accent.G, accent.B)),
+                () =>
+                {
+                    if (!_config.PinnedTrayApps.Any(p => p.Equals(processName, StringComparison.OrdinalIgnoreCase)))
+                        _config.PinnedTrayApps.Add(processName);
+                    _onSave?.Invoke(_config);
+                    RefreshSessions();
+                }));
+        }
 
         menuStack.Children.Add(MakeSeparator());
 

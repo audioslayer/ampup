@@ -255,6 +255,9 @@ public partial class App : Application
         }
     }
 
+    // HwndSource hook on the NotifyIcon's internal message window (for scroll wheel)
+    private HwndSource? _trayIconHwndSource;
+
     private void SetupTrayIcon()
     {
         _trayIcon = new Forms.NotifyIcon
@@ -269,7 +272,101 @@ public partial class App : Application
         {
             if (e.Button == Forms.MouseButtons.Left || e.Button == Forms.MouseButtons.Right)
                 ShowTrayMixer();
+            else if (e.Button == Forms.MouseButtons.Middle)
+                ToggleMasterMute();
         };
+
+        // Hook the NotifyIcon's internal message window to catch WM_MOUSEWHEEL
+        HookTrayIconWindow();
+    }
+
+    /// <summary>
+    /// Toggle master output mute. Called on middle-click tray icon.
+    /// </summary>
+    private void ToggleMasterMute()
+    {
+        try
+        {
+            _pollEnumerator ??= new NAudio.CoreAudioApi.MMDeviceEnumerator();
+            using var device = _pollEnumerator.GetDefaultAudioEndpoint(
+                NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
+            bool nowMuted = !device.AudioEndpointVolume.Mute;
+            device.AudioEndpointVolume.Mute = nowMuted;
+            Logger.Log($"Tray middle-click: master mute toggled → {(nowMuted ? "muted" : "unmuted")}");
+            // Tray icon update comes from OnMasterVolumeNotification callback
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ToggleMasterMute error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Uses reflection to get the internal HWND of the WinForms NotifyIcon message window
+    /// and hooks WndProc to catch WM_MOUSEWHEEL over the tray icon.
+    /// </summary>
+    private void HookTrayIconWindow()
+    {
+        if (_trayIcon == null) return;
+        try
+        {
+            // WinForms NotifyIcon stores its NativeWindow in a private field named "window"
+            var field = typeof(Forms.NotifyIcon).GetField("window",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var nativeWindow = field?.GetValue(_trayIcon);
+            if (nativeWindow == null) return;
+
+            var handleProp = nativeWindow.GetType().GetProperty("Handle",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+            var hwnd = (IntPtr?)handleProp?.GetValue(nativeWindow);
+            if (hwnd == null || hwnd == IntPtr.Zero) return;
+
+            _trayIconHwndSource?.Dispose();
+            _trayIconHwndSource = HwndSource.FromHwnd(hwnd.Value);
+            _trayIconHwndSource?.AddHook(TrayIconWndProc);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"HookTrayIconWindow error: {ex.Message}");
+        }
+    }
+
+    private const int WM_MOUSEWHEEL = 0x020A;
+    private const int WM_MBUTTONUP = 0x0208;
+
+    private IntPtr TrayIconWndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg == WM_MOUSEWHEEL)
+        {
+            // HIWORD(wParam) = signed wheel delta (positive = up/louder, negative = down/quieter)
+            int delta = (short)((wParam.ToInt64() >> 16) & 0xFFFF);
+            int change = delta > 0 ? 2 : -2;
+            Dispatcher.BeginInvoke(() => AdjustMasterVolume(change));
+            handled = true;
+        }
+        return IntPtr.Zero;
+    }
+
+    /// <summary>
+    /// Adjusts master volume by delta percent (e.g. +2 or -2). Clamps to 0–100%.
+    /// Updates tray icon immediately.
+    /// </summary>
+    private void AdjustMasterVolume(int deltaPercent)
+    {
+        try
+        {
+            _pollEnumerator ??= new NAudio.CoreAudioApi.MMDeviceEnumerator();
+            using var device = _pollEnumerator.GetDefaultAudioEndpoint(
+                NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
+            float cur = device.AudioEndpointVolume.MasterVolumeLevelScalar;
+            float next = Math.Clamp(cur + deltaPercent / 100f, 0f, 1f);
+            device.AudioEndpointVolume.MasterVolumeLevelScalar = next;
+            // Tray icon update comes from OnMasterVolumeNotification callback
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"AdjustMasterVolume error: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -282,6 +379,8 @@ public partial class App : Application
         {
             try
             {
+                _trayIconHwndSource?.Dispose();
+                _trayIconHwndSource = null;
                 if (_trayIcon != null)
                 {
                     _trayIcon.Visible = false;
@@ -402,6 +501,8 @@ public partial class App : Application
 
         SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
 
+        _trayIconHwndSource?.Dispose();
+        _trayIconHwndSource = null;
         if (_trayIcon != null)
         {
             _trayIcon.Visible = false;
@@ -1407,6 +1508,7 @@ public partial class App : Application
     {
         SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
 
+        _trayIconHwndSource?.Dispose();
         if (_trayIcon != null)
         {
             _trayIcon.Visible = false;

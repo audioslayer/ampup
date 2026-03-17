@@ -36,6 +36,7 @@ public class AppConfig
     public bool AutoSuggestLayout { get; set; } = false;
     public string LastWelcomeVersion { get; set; } = "";
     public List<string> HiddenTrayApps { get; set; } = new();
+    public List<string> PinnedTrayApps { get; set; } = new();
 }
 
 public class SerialConfig
