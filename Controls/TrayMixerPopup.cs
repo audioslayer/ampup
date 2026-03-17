@@ -258,7 +258,7 @@ public class TrayMixerPopup : Window
             {
                 Height = 1,
                 Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
-                Margin = new Thickness(10, 2, 10, 2)
+                Margin = new Thickness(6, 1, 6, 1)
             });
 
             // Per-app sessions
@@ -293,7 +293,7 @@ public class TrayMixerPopup : Window
                             {
                                 Height = 1,
                                 Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
-                                Margin = new Thickness(18, 0, 18, 0)
+                                Margin = new Thickness(6, 0, 6, 0)
                             });
                         }
                         firstApp = false;
@@ -305,15 +305,27 @@ public class TrayMixerPopup : Window
 
             if (_sessionList.Children.Count <= 2) // only master + divider
             {
-                var empty = new TextBlock
+                var emptyPanel = new StackPanel
+                {
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 14, 0, 10),
+                };
+                emptyPanel.Children.Add(new MaterialIcon
+                {
+                    Kind = MaterialIconKind.VolumeOff,
+                    Width = 20, Height = 20,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 0, 0, 5),
+                });
+                emptyPanel.Children.Add(new TextBlock
                 {
                     Text = "No active audio apps",
                     Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-                    FontSize = 12,
+                    FontSize = 11,
                     HorizontalAlignment = HorizontalAlignment.Center,
-                    Margin = new Thickness(0, 12, 0, 8)
-                };
-                _sessionList.Children.Add(empty);
+                });
+                _sessionList.Children.Add(emptyPanel);
             }
         }
         catch (Exception ex)
@@ -323,9 +335,9 @@ public class TrayMixerPopup : Window
             {
                 Text = "Audio unavailable",
                 Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-                FontSize = 12,
+                FontSize = 11,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 12, 0, 8)
+                Margin = new Thickness(0, 14, 0, 10)
             });
         }
     }
@@ -411,7 +423,7 @@ public class TrayMixerPopup : Window
             Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
             BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
             BorderThickness = new Thickness(0, 1, 0, 0),
-            Padding = new Thickness(10, 8, 10, 10),
+            Padding = new Thickness(10, 10, 10, 10),
             Tag = "quickassign" // marker for refresh
         };
 
@@ -424,17 +436,23 @@ public class TrayMixerPopup : Window
         var accent = GetAccentColor();
         var root = new StackPanel();
 
-        // Panel header
-        var header = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
-        header.Children.Add(new TextBlock
+        // Panel header with bottom separator
+        var headerStack = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
+        var headerLabel = new TextBlock
         {
             Text = "QUICK ASSIGN",
-            Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
-            FontSize = 9,
+            Foreground = new SolidColorBrush(Color.FromArgb(0xAA, accent.R, accent.G, accent.B)),
+            FontSize = 8.5,
             FontWeight = FontWeights.SemiBold,
-            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 6),
+        };
+        headerStack.Children.Add(headerLabel);
+        headerStack.Children.Add(new Border
+        {
+            Height = 1,
+            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
         });
-        root.Children.Add(header);
+        root.Children.Add(headerStack);
 
         if (_mixer == null || _config == null)
         {
@@ -555,7 +573,7 @@ public class TrayMixerPopup : Window
                 var showBtn = new TextBlock
                 {
                     Text = "Show",
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76)),
+                    Foreground = new SolidColorBrush(accent),
                     FontSize = 9, VerticalAlignment = VerticalAlignment.Center,
                     Cursor = Cursors.Hand,
                 };
@@ -865,7 +883,7 @@ public class TrayMixerPopup : Window
             Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
         });
 
-        var items = new StackPanel { Margin = new Thickness(6, 4, 6, 4) };
+        var items = new StackPanel { Margin = new Thickness(6, 6, 6, 4) };
 
         // Update banner (hidden by default)
         _updateBanner = new Border
@@ -893,14 +911,6 @@ public class TrayMixerPopup : Window
         _updateBanner.MouseLeave += (_, _) => _updateBanner.Background = new SolidColorBrush(Color.FromArgb(30, 0xFF, 0xB8, 0x00));
         items.Children.Add(_updateBanner);
 
-        // Divider before bottom bar
-        items.Children.Add(new Border
-        {
-            Height = 1,
-            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-            Margin = new Thickness(0, 2, 0, 4),
-        });
-
         // Bottom bar: icon + AMP UP + status dot | ⚡ Quick Assign | Open Amp Up | Exit
         var bottomRow = new DockPanel { Margin = new Thickness(2, 2, 2, 2) };
 
@@ -913,7 +923,7 @@ public class TrayMixerPopup : Window
 
         // Open Amp Up next to exit
         var openBtn = BuildFooterItem("Open Amp Up",
-            new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76)), false,
+            new SolidColorBrush(accent), false,
             () => { Hide(); _onOpen?.Invoke(); });
         DockPanel.SetDock(openBtn, Dock.Right);
         bottomRow.Children.Add(openBtn);
@@ -964,7 +974,7 @@ public class TrayMixerPopup : Window
             BorderBrush = new SolidColorBrush(Color.FromArgb(0x50, accent.R, accent.G, accent.B)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(8, 4, 8, 4),
+            Padding = new Thickness(8, 6, 8, 6),
             Margin = new Thickness(2, 0, 2, 0),
             Cursor = Cursors.Hand,
             VerticalAlignment = VerticalAlignment.Center,
@@ -1108,11 +1118,15 @@ public class TrayMixerPopup : Window
 
     private UIElement BuildDeviceRow(string label, DataFlow flow)
     {
+        var accent2 = GetAccentColor();
         var row = new Border
         {
             Background = Brushes.Transparent,
             Padding = new Thickness(10, 5, 10, 5),
+            CornerRadius = new CornerRadius(4),
         };
+        row.MouseEnter += (_, _) => row.Background = new SolidColorBrush(Color.FromArgb(12, accent2.R, accent2.G, accent2.B));
+        row.MouseLeave += (_, _) => row.Background = Brushes.Transparent;
 
         var dock = new DockPanel { LastChildFill = true };
 
@@ -1193,18 +1207,21 @@ public class TrayMixerPopup : Window
     private UIElement BuildMasterRow(MMDevice device, float vol, bool muted)
     {
         var accent = GetAccentColor();
+        // Master row: accent-tinted bg + border to distinguish clearly from app rows
         var row = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            Background = new SolidColorBrush(Color.FromArgb(0x18, accent.R, accent.G, accent.B)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x45, accent.R, accent.G, accent.B)),
+            BorderThickness = new Thickness(1),
             Padding = new Thickness(12, 9, 12, 9),
             Margin = new Thickness(6, 4, 6, 2),
-            CornerRadius = new CornerRadius(6)
+            CornerRadius = new CornerRadius(6),
         };
 
         var panel = new DockPanel { LastChildFill = true };
 
-        // Icon letter — 32px
-        var icon = BuildLetterIcon("M", Color.FromRgb(0x00, 0xE6, 0x76));
+        // Icon letter — 32px, use accent color
+        var icon = BuildLetterIcon("M", accent);
         DockPanel.SetDock(icon, Dock.Left);
         panel.Children.Add(icon);
 
@@ -1233,9 +1250,9 @@ public class TrayMixerPopup : Window
         var label = new TextBlock
         {
             Text = "MASTER",
-            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
-            FontSize = 12,
-            FontWeight = FontWeights.SemiBold
+            Foreground = new SolidColorBrush(Color.FromArgb(0xCC, accent.R, accent.G, accent.B)),
+            FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
         };
 
         var slider = BuildVolumeSlider(vol * 100);
@@ -1398,7 +1415,7 @@ public class TrayMixerPopup : Window
                 Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
                 FontSize = 12,
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxWidth = 110,
+                MaxWidth = 155,
                 VerticalAlignment = VerticalAlignment.Center,
             };
             nameRow.Children.Add(nameLabel);
@@ -1705,7 +1722,7 @@ public class TrayMixerPopup : Window
         if (isHidden)
         {
             menuStack.Children.Add(MakeItem($"Show {displayName} in mixer",
-                new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76)),
+                new SolidColorBrush(accent),
                 () =>
                 {
                     _config.HiddenTrayApps.RemoveAll(h => h.Equals(processName, StringComparison.OrdinalIgnoreCase));
@@ -1794,16 +1811,41 @@ public class TrayMixerPopup : Window
 
     private static Button BuildMuteButton(bool muted)
     {
+        // Build a style with hover/pressed triggers so the button has visible feedback
+        var style = new Style(typeof(Button));
+        style.Setters.Add(new Setter(Button.BackgroundProperty, Brushes.Transparent));
+        style.Setters.Add(new Setter(Button.BorderThicknessProperty, new Thickness(0)));
+        style.Setters.Add(new Setter(Button.CursorProperty, Cursors.Hand));
+        style.Setters.Add(new Setter(Button.PaddingProperty, new Thickness(0)));
+
+        // Template to avoid WPF default aero hover chrome
+        var factory = new FrameworkElementFactory(typeof(Border));
+        factory.Name = "bd";
+        factory.SetValue(Border.BackgroundProperty, Brushes.Transparent);
+        factory.SetValue(Border.CornerRadiusProperty, new CornerRadius(4));
+        var presenterFactory = new FrameworkElementFactory(typeof(ContentPresenter));
+        presenterFactory.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+        presenterFactory.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+        factory.AppendChild(presenterFactory);
+        var template = new ControlTemplate(typeof(Button)) { VisualTree = factory };
+
+        var hoverTrigger = new Trigger { Property = Button.IsMouseOverProperty, Value = true };
+        hoverTrigger.Setters.Add(new Setter(Border.BackgroundProperty, new SolidColorBrush(Color.FromArgb(25, 0xEE, 0xEE, 0xEE)), "bd"));
+        template.Triggers.Add(hoverTrigger);
+
+        var pressedTrigger = new Trigger { Property = Button.IsPressedProperty, Value = true };
+        pressedTrigger.Setters.Add(new Setter(Border.BackgroundProperty, new SolidColorBrush(Color.FromArgb(40, 0xEE, 0xEE, 0xEE)), "bd"));
+        template.Triggers.Add(pressedTrigger);
+
+        style.Setters.Add(new Setter(Button.TemplateProperty, template));
+
         var btn = new Button
         {
             Width = 26,
             Height = 26,
-            Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            Cursor = Cursors.Hand,
             VerticalAlignment = VerticalAlignment.Center,
-            Padding = new Thickness(0),
-            ToolTip = muted ? "Unmute" : "Mute"
+            ToolTip = muted ? "Unmute" : "Mute",
+            Style = style,
         };
         UpdateMuteButton(btn, muted);
         return btn;
@@ -1861,19 +1903,29 @@ public class TrayMixerPopup : Window
     xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'
     xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>
     <Grid>
-        <Border Height='4' CornerRadius='2' Background='#363636' VerticalAlignment='Center' />
+        <Border Height='4' CornerRadius='2' Background='#2A2A2A' VerticalAlignment='Center' />
         <Track x:Name='PART_Track'>
             <Track.DecreaseRepeatButton>
-                <RepeatButton Opacity='0' IsHitTestVisible='False' />
+                <RepeatButton IsHitTestVisible='False' Focusable='False'>
+                    <RepeatButton.Template>
+                        <ControlTemplate TargetType='RepeatButton'>
+                            <Border Height='4' CornerRadius='2' Background='{accentHex}' VerticalAlignment='Center' Opacity='0.85' />
+                        </ControlTemplate>
+                    </RepeatButton.Template>
+                </RepeatButton>
             </Track.DecreaseRepeatButton>
             <Track.IncreaseRepeatButton>
-                <RepeatButton Opacity='0' IsHitTestVisible='False' />
+                <RepeatButton Opacity='0' IsHitTestVisible='False' Focusable='False' />
             </Track.IncreaseRepeatButton>
             <Track.Thumb>
                 <Thumb Width='12' Height='12' Cursor='Hand'>
                     <Thumb.Template>
                         <ControlTemplate TargetType='Thumb'>
-                            <Border Background='White' CornerRadius='6' Width='12' Height='12' />
+                            <Border Background='White' CornerRadius='6' Width='12' Height='12'>
+                                <Border.Effect>
+                                    <DropShadowEffect Color='{accentHex}' BlurRadius='6' ShadowDepth='0' Opacity='0.5' />
+                                </Border.Effect>
+                            </Border>
                         </ControlTemplate>
                     </Thumb.Template>
                 </Thumb>
@@ -1980,7 +2032,7 @@ public class TrayMixerPopup : Window
             var n when n.Contains("chrome") => Color.FromRgb(0xFF, 0xA0, 0x00),
             var n when n.Contains("firefox") => Color.FromRgb(0xFF, 0x67, 0x11),
             var n when n.Contains("vlc") => Color.FromRgb(0xFF, 0x87, 0x00),
-            var n when n.Contains("steam") => Color.FromRgb(0x17, 0x1A, 0x21),
+            var n when n.Contains("steam") => Color.FromRgb(0x4C, 0x6B, 0x9A), // Steam blue (legible on dark bg)
             var n when n.Contains("foobar") => Color.FromRgb(0x00, 0x9A, 0xFF),
             var n when n.Contains("msedge") || n.Contains("edge") => Color.FromRgb(0x00, 0x78, 0xD4),
             var n when n.Contains("teams") => Color.FromRgb(0x46, 0x4E, 0xB8),
