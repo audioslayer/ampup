@@ -5,232 +5,228 @@
 <h1 align="center">Amp Up</h1>
 
 <p align="center">
-  <strong>A powerful replacement app for the Turn Up USB volume mixer.</strong><br/>
-  Per-app audio control, RGB lighting, macro buttons, and a sleek dark UI.
+  <strong>The ultimate replacement app for the Turn Up USB volume mixer.</strong><br/>
+  Per-app audio control, RGB lighting, smart automation, and a gorgeous dark UI.<br/>
+  <em>Now on Windows and macOS.</em>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-0.8.5--alpha-blue" alt="Version" />
-  <img src="https://img.shields.io/badge/platform-Windows%20|%20macOS-0078D6" alt="Platform" />
-  <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8" />
+  <img src="https://img.shields.io/badge/Windows%2010%2F11-0078D6?logo=windows&logoColor=white" alt="Windows" />
+  <img src="https://img.shields.io/badge/macOS%2014.2+-000000?logo=apple&logoColor=white" alt="macOS" />
+  <img src="https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white" alt=".NET 8" />
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License" />
 </p>
 
 ---
 
-## :sparkles: What's New in v0.8.1 — Quick Wheel & Quality of Life
+## 🎯 What is Amp Up?
 
-### :ferris_wheel: Quick Wheel — Radial Profile & Device Switcher
-- **Hold a button** to open a radial pie-segment overlay centered on screen
-- **Turn any knob** to spin through options — volume is suppressed while the wheel is open
-- **Release to confirm** — switches to the highlighted profile or output device
-- **Two modes:** Profile (8 slots with profile icons/colors) or Output Device (active audio outputs)
-- Configurable trigger button and mode in OSD settings
+Amp Up is a community-built, open-source replacement for the official Turn Up software. It takes the 5-knob USB mixer hardware and supercharges it with features the original app never had — per-app audio routing, 30+ LED effects, Home Assistant integration, Govee room lighting sync, macro buttons, response curves, and a sleek modern UI inspired by SteelSeries Sonar and Elgato Wave Link.
 
-### :speaker: Tray Popup Audio Activity
-- **Live peak level bars** under each app's volume slider — see which apps are actively playing audio (like EarTrumpet)
-- Bar color matches the app's icon color (Spotify=green, Discord=blue, etc.)
-
-### :musical_note: Fuzzy Process Name Matching
-- **MS Store app support** — "Apple Music" now matches "AppleMusic" process name
-- Spaces are stripped before matching, so app names typed with spaces still work
-- Applied to volume control, mute, app groups, and peak metering
-
-### :sun_with_face: Monitor Brightness Fix
-- **Throttled DDC/CI calls** — prevents overwhelming monitors with rapid-fire brightness commands
-- **Startup guard** — skips brightness restore during the first 5 seconds to avoid flicker on launch
-
-### :wrench: Quality of Life
-- Quick Wheel shows on the OSD-configured monitor (not where the mouse is)
-- Toggling Quick Wheel in OSD settings immediately syncs the Buttons tab
-- Updated tray popup description text
+**Works on Windows and macOS.** Same hardware, same features, both platforms.
 
 ---
 
-## :zap: Why Amp Up?
+## 📥 Install
 
-Amp Up is a community-built alternative for the Turn Up USB mixer with a modern dark UI inspired by SteelSeries Sonar and Elgato Wave Link. It extends the hardware with smart mixing automation, Home Assistant integration, response curves, volume range clamping, and more.
+### 🪟 Windows
+1. Download **`AmpUp-Setup-0.8.5-alpha.exe`** from [Releases](https://github.com/audioslayer/ampup/releases)
+2. Run the installer (auto-installs .NET 8 if needed — one-time)
+3. Amp Up appears in your system tray ✨
 
----
+### 🍎 macOS
+1. Download **`AmpUp-0.8.5-alpha.dmg`** from [Releases](https://github.com/audioslayer/ampup/releases)
+2. Open the DMG → drag to Applications
+3. Launch and grant audio permission on first run 🎤
 
-## :joystick: Features
-
-### :musical_keyboard: Mixer — 5 Channel Strips
-- :sound: **Per-app volume control** — assign any knob to a specific app, master volume, mic input, or the active window
-- :link: **App groups** — control multiple apps with a single knob
-- :chart_with_upwards_trend: **Response curves** — Linear, Logarithmic, or Exponential per channel
-- :straight_ruler: **Volume range clamping** — restrict a knob to sweep only a portion of the volume range (e.g. 40–100%)
-- :bar_chart: **Live VU meters** — real-time audio level visualization with peak hold
-- :bulb: **Monitor brightness** — control physical monitor brightness via DDC/CI
-- :mute: **Smart Mix** — Auto-Ducking and Auto-Profile Switching in a collapsible Mixer tab section
-
-### :video_game: Buttons — 15 Programmable Actions
-- :point_up_2: **3 gestures per button** — single press, double press, and hold (each with independent settings)
-- :hammer_and_wrench: **26 action types:**
-  - Media controls (play/pause, next, previous)
-  - Mute toggles (master, mic, per-app, active window, app group, output device)
-  - App launcher / process killer
-  - Audio device switching (cycle with optional device subset, or direct select)
-  - Keyboard macros (any key combo)
-  - System power (sleep, lock, shutdown, restart, hibernate, logoff)
-  - Profile switching
-  - LED brightness cycling
-
-### :rainbow: Lights — Full RGB Control
-- :sparkles: **30+ LED effects** — per-knob effects (SingleColor, ColorBlend, PositionFill, GradientFill, PositionBlend, PositionBlendMute, Wheel, RainbowWheel, Blink, Pulse, Breathing, Fire, Comet, Sparkle, PingPong, Stack, Wave, Candle, RainbowWave, RainbowCycle, MicStatus, DeviceMute, ProgramMute, AppGroupMute, DeviceSelect, AudioReactive)
-- :globe_with_meridians: **17 global-spanning effects** — Scanner, MeteorRain, ColorWave, Segments, TheaterChase, RainbowScanner, SparkleRain, BreathingSync, FireWall, DualRacer, Lightning, Fillup, Ocean, Collision, DNA, Rainfall, PoliceLights (all 15 LEDs as one continuous strip)
-- :art: **Dual color support** — primary and secondary colors per effect
-- :fast_forward: **Speed control** — adjustable animation speed per knob
-- :high_brightness: **Global brightness** — master brightness slider for all LEDs
-- :clipboard: **Copy / Paste** — right-click any LED column to copy settings to another
-
-### :busts_in_silhouette: Profiles
-- :floppy_disk: **Save and load** full configurations (knobs, buttons, lights)
-- :arrows_counterclockwise: **Switch profiles** via button press or sidebar profile picker
-- :outbox_tray: **Export / Import** — save profiles as standalone JSON files
-- :framed_picture: **Colored Fluent icons** — 40+ icons with 10 color presets per profile
-- :video_game: **Per-game / per-workflow** setups with Auto-Profile Switching
-
-### :tv: OSD Overlay
-- :window: **Glassmorphism notifications** — sleek dark glass overlay with accent glow border
-- :loud_sound: **Volume changes** — shows knob label, percentage, and animated fill bar
-- :busts_in_silhouette: **Profile switches** — horizontal 5-column layout mirroring the physical device (knob targets + button actions)
-- :speaker: **Device switches** — output/input device name with icon
-- :ferris_wheel: **Quick Wheel** — hold a button to open a radial pie-segment overlay, turn any knob to navigate, release to switch profiles or output devices
-- :round_pushpin: **Configurable position** — 6 screen positions (Fraps-style picker in Settings)
-- :stopwatch: **Per-type duration** — set how long each OSD type stays visible (1–8 seconds)
-- :control_knobs: **Per-type toggles** — enable/disable OSD for volume, profiles, and devices independently
-
-### :package: Tray Integration
-- :speaker: **Quick Mixer** — left-click tray icon for compact per-app volume popup with live audio activity bars
-- :mag: **Quick Assign** — right-click tray → Assign Running Apps → pick a knob instantly
-
-### :bulb: Ambience — Room Lighting
-- :globe_with_meridians: **Govee LAN sync** — mirror knob RGB colors to Govee lights in real-time at 20 FPS
-- :cloud: **Govee Cloud dashboard** — control on/off, brightness, color, scenes, segment colors, and music mode
-- :movie_camera: **DreamView — Screen Sync** — capture screen zones in real-time and map colors to Govee lights with gamma-correct color processing
-- :key: **API key setup wizard** — 4-step guided onboarding to connect your Govee account
-- :high_brightness: **Brightness scaling and warm tone shift** — fine-tune how knob colors translate to room light output
-
-### :gear: System Integration
-- :house: **Home Assistant** — connect to your smart home for automation triggers
-- :arrow_up: **Auto-update** — checks for new releases on startup with one-click install
-- :rocket: **Start with Windows** — launches silently to system tray
-- :zap: **Hot-reload config** — changes apply instantly, no restart needed
-- :electric_plug: **Auto COM port detection** — friendly dropdown with auto-detect for the Turn Up device
+> **Note:** Kill the official Turn Up app first — it holds the COM/serial port.
 
 ---
 
-## :inbox_tray: Install
+## ✨ Features
 
-### Windows (Recommended)
-1. Download `AmpUp-Setup-0.8.5-alpha.exe` from [Releases](https://github.com/audioslayer/ampup/releases)
-2. Run the installer (auto-installs .NET 8 Desktop Runtime if needed)
-3. Amp Up appears in your system tray
+### 🎛️ Mixer — 5 Channel Strips
+- **Per-app volume control** — assign any knob to Spotify, Discord, Chrome, or any running app
+- **Master volume, mic input, monitor brightness** — all assignable to knobs
+- **App groups** — control multiple apps with a single knob
+- **Response curves** — Linear, Logarithmic, Exponential, or Exponential² per channel
+- **Volume range clamping** — restrict a knob to sweep only part of the range (e.g. 40–100%)
+- **Live VU meters** — real-time 16-segment audio level visualization
+- **Fuzzy matching** — "Apple Music" matches the `AppleMusic` process automatically
 
-### macOS
-1. Download `AmpUp-0.8.5-alpha.dmg` from [Releases](https://github.com/audioslayer/ampup/releases)
-2. Open the DMG, drag Amp Up to Applications
-3. Launch from Applications (grant audio permission on first run)
+### 🎮 Buttons — 15 Programmable Actions
+- **3 gestures per button** — tap, double-press, and hold (each independent)
+- **26 action types** including:
+  - 🎵 Media controls (play/pause, next, previous)
+  - 🔇 Mute toggles (master, mic, per-app, active window, app group, output device)
+  - 🚀 App launcher / process killer
+  - 🔊 Audio device switching (cycle, direct select, device subsets)
+  - ⌨️ Keyboard macros (any key combo)
+  - 💤 System power (sleep, lock, shutdown, restart, hibernate)
+  - 👤 Profile switching
+  - 💡 LED brightness cycling
 
-### Build from Source
+### 🌈 Lights — Full RGB Control
+- **30+ per-knob effects** — SingleColor, ColorBlend, Breathing, Fire, Comet, Sparkle, PingPong, Wave, RainbowCycle, AudioReactive, MicStatus, DeviceMute, and more
+- **17 global-spanning effects** — all 15 LEDs as one continuous strip (Scanner, MeteorRain, FireWall, DNA, PoliceLights, Lightning, Ocean...)
+- **12 built-in presets** — Cyberpunk, Stealth, Party, Aurora, etc.
+- **Dual color support** — primary + secondary colors per effect
+- **Speed & brightness control** — per-knob speed slider + global brightness
+- **LED calibration** — per-channel R/G/B gamma sliders with live hardware preview
+- **Copy/paste** — right-click any LED column to clone settings
+
+### 🎡 Quick Wheel — Radial Switcher
+- **Hold a button** → radial pie-menu appears on screen
+- **Spin any knob** or hover with mouse to navigate
+- **Release to confirm** — switches profile or output device instantly
+- **Two modes:** Profile (8 slots) or Output Device
+
+### 📊 Smart Mix — Automation
+- **Auto-Ducking** — automatically lower music when Discord/Zoom activates
+- **Auto-Profile Switching** — switch profiles when specific apps are focused
+- **Auto-Suggest Layout** — detects running apps and suggests knob assignments
+
+### 🏠 Smart Home Integration
+- **Home Assistant** — control lights, media players, fans, covers via button presses or knob turns
+- **Govee LAN sync** — mirror knob RGB colors to Govee room lights at 20 FPS
+- **Govee Cloud dashboard** — control on/off, brightness, color, scenes, music mode
+- **DreamView screen sync** — capture screen zones and map colors to Govee lights in real-time
+
+### 🎬 Streaming & Production
+- **OBS Studio** — WebSocket v5: scene switching, source gain/mute, streaming/recording toggle
+- **VoiceMeeter** — strip/bus gain control and mute toggle
+
+### 📺 OSD Overlay
+- **Glassmorphism notifications** — volume changes, profile switches, device changes
+- **Quick Wheel** — full-screen radial overlay
+- **6 screen positions** — configurable per your setup
+- **Per-type toggles & durations** — show/hide each OSD type independently
+
+### 🔊 System Tray — Quick Mixer
+- **Left-click** → compact per-app volume popup with live audio peak bars
+- **Scroll wheel on tray icon** → adjust master volume without opening anything
+- **Middle-click** → instant master mute toggle
+- **Search bar** — filter apps by name when the list gets long
+- **📌 Pin to top** — keep your most-used apps at the top
+- **Right-click any app** → assign to knob, move to device, hide from mixer
+- **⚡ Quick Assign** — visual app grid with inline knob picker
+- **Device dropdowns** — switch output/input devices from a proper list
+- **Tray icon** — shows current volume % (or "M" when muted)
+
+### 🎛️ Hardware Preview
+- **Always-visible status bar** at the bottom of the main window
+- Live LED colors, knob positions, audio levels for all 5 channels
+- Connection status at a glance
+
+### 📊 Audio Dashboard
+- **Activity tab** — see every app producing audio right now
+- Peak levels, volume %, knob assignments, mute status
+- Quick-assign unassigned apps to knobs with one click
+
+### 👤 Profiles
+- **Save & load** full configurations (knobs, buttons, lights)
+- **Switch via button press**, sidebar picker, Quick Wheel, or tray
+- **Export / Import** — share profiles as standalone JSON files
+- **40+ icons** with 10 color presets per profile
+- **Per-game / per-workflow** setups with auto-switching
+
+### ⚙️ Quality of Life
+- **Auto-update** — checks GitHub for new releases, one-click install
+- **Start with Windows** — launches silently to system tray
+- **Hot-reload config** — changes apply instantly, no restart needed
+- **Auto COM port detection** — friendly dropdown with auto-detect
+- **Framework-dependent builds** — ~5-8MB updates (not 55MB)
+- **Turn Up config import** — migrate your existing setup in one click
+
+---
+
+## 🔌 Hardware
+
+Amp Up is designed for the **Turn Up** USB volume mixer:
+
+| Component | Spec |
+|-|-|
+| 🎛️ Knobs | 5 rotary encoders (10-bit, 0–1023) |
+| 🔘 Buttons | 5 push buttons (tap, double, hold) |
+| 💡 LEDs | 15 RGB LEDs (3 per knob) |
+| 🔗 USB | CH343 USB-to-serial (115200 baud) |
+
+---
+
+## 🛠️ Tech Stack
+
+| | Windows | macOS |
+|-|-|-|
+| **UI** | WPF + WPF-UI (Fluent/Mica) | Avalonia 11.2 |
+| **Audio** | NAudio (WASAPI) | CoreAudio Process Tap API |
+| **Framework** | .NET 8 | .NET 8 + Swift bridge |
+| **Serial** | System.IO.Ports | System.IO.Ports |
+| **Installer** | Inno Setup | DMG (drag to Applications) |
+
+**Architecture:** `AmpUp.Core` shared library (models, protocol, engine, services) + platform-specific UI.
+
+---
+
+## 🏗️ Build from Source
+
 ```bash
 # Windows
 git clone https://github.com/audioslayer/ampup.git
-cd ampup && dotnet build
+cd ampup
+dotnet build
 
-# macOS (Apple Silicon, requires .NET 8 SDK + Swift)
-cd AmpUp.Mac && ./build.sh
+# macOS (Apple Silicon, requires .NET 8 SDK + Swift 5.9+)
+cd AmpUp.Mac
+./build.sh    # dev build
+./bundle.sh   # full .app + .dmg
 ```
 
-> **Note:** Kill the official Turn Up app first — it holds the COM port.
-> ```powershell
-> taskkill /f /im "Turn Up.exe"
-> taskkill /f /im TurnUpService.exe
-> ```
+---
+
+## 🗺️ Roadmap
+
+- [x] Per-app audio control (Windows + macOS)
+- [x] 30+ LED effects + 17 global-spanning effects
+- [x] OBS Studio + VoiceMeeter integration
+- [x] Home Assistant + Govee smart home control
+- [x] DreamView screen-to-light sync
+- [x] Quick Wheel radial switcher
+- [x] Auto-Ducking + Auto-Profile Switching
+- [x] EarTrumpet-inspired tray mixer
+- [x] macOS Avalonia port (feature-complete)
+- [x] Framework-dependent builds (~5MB updates)
+- [ ] Multi-device support (multiple Turn Up units)
+- [ ] Mobile companion app
+- [ ] GitHub Actions CI (auto-build both platforms)
+- [ ] Razer Chroma RGB sync
+- [ ] Advanced macro system
 
 ---
 
-## :wrench: Configuration
+## 📋 Changelog Highlights
 
-Open the app from the system tray to access four configuration tabs:
-
-| Tab | What You Configure |
-|---|---|
-| :musical_keyboard: **Mixer** | Knob targets, response curves, volume range, app groups, Smart Mix |
-| :video_game: **Buttons** | Actions for tap / double-press / hold per button |
-| :rainbow: **Lights** | LED effects, colors, speed, global brightness |
-| :bulb: **Ambience** | Govee LAN sync, Govee Cloud dashboard, API key setup |
-| :gear: **Settings** | Serial port, startup, profiles, Home Assistant |
-
-All changes save automatically and apply in real-time.
-
----
-
-## :knobs: Knob Targets
-
-| Target | Controls |
-|---|---|
-| Master | Windows master volume |
-| Mic | Default microphone input level |
-| Monitor | Physical monitor brightness (DDC/CI) |
-| Active Window | Volume of the currently focused app |
-| App Group | Multiple apps on one knob |
-| Any | First active audio session not already assigned |
-| Process name | Any substring match (e.g. `discord`, `spotify`, `chrome`) |
-| Output Device | Specific audio output by device ID |
-| Input Device | Specific audio input by device ID |
+| Version | Highlights |
+|-|-|
+| **v0.8.5** | Mac port complete, tray overhaul, user bug fixes, framework-dependent builds |
+| **v0.8.4** | Multi-monitor tray fix, fullscreen OSD |
+| **v0.8.3** | LED gamma calibration, Apple Music fix |
+| **v0.8.1** | Quick Wheel radial switcher, monitor brightness fix |
+| **v0.8.0** | Hardware widget, profile editor, AmpUp.Core extraction |
+| **v0.7.0** | Inline pickers, Smart Mix, DreamView, Profile Overview |
+| **v0.6.0** | Ambience tab (Govee LAN + Cloud), setup wizard |
+| **v0.5.0** | Auto-Ducking, auto-profile switching, tray quick mixer |
+| **v0.4.0** | Audio-reactive RGB, global lighting, dynamic theming |
+| **v0.3.1** | Renamed WolfMixer → AmpUp, auto-updater, GitHub releases |
 
 ---
 
-## :electric_plug: Hardware
-
-Amp Up is designed for the **Turn Up** USB volume mixer (CH343 USB-to-serial). The device has:
-- :control_knobs: 5 rotary knobs (10-bit resolution, 0–1023)
-- :radio_button: 5 push buttons (supporting tap, double-press, and hold)
-- :bulb: 15 RGB LEDs (3 per knob)
-
----
-
-## :hammer_and_wrench: Tech Stack
-
-- **C# / .NET 8** — WPF with WPF-UI (Fluent design + Mica backdrop)
-- **NAudio** — WASAPI per-app audio control and FFT audio analysis
-- **System.IO.Ports** — serial communication with Turn Up hardware
-- **Custom controls** — animated arc knob, 16-segment VU meter, styled sliders
-- **Code-behind architecture** — lightweight, no MVVM overhead
-
----
-
-## :world_map: Roadmap
-
-- [x] OSD overlay for volume, profiles, and device switching
-- [x] Auto COM port detection
-- [x] Auto-update checker
-- [x] Global-spanning LED effects (15 LEDs as one strip)
-- [x] Auto-Ducking (Smart Mix)
-- [x] Auto-Profile Switching
-- [x] Tray Quick Mixer
-- [x] Profile Export / Import
-- [x] Govee room lighting sync (Ambience tab — LAN + Cloud)
-- [x] DreamView screen sync (gamma-correct zone capture to Govee lights)
-- [x] Quick Wheel — radial profile/device switcher (hold button + turn knob)
-- [x] OBS WebSocket v5 integration (scene switching, source control)
-- [x] VoiceMeeter strip/bus control
-- [x] macOS port (Avalonia UI, Core Audio Process Taps, all views)
-- [x] EarTrumpet-inspired tray mixer (search, pin, scroll wheel, Quick Assign)
-- [ ] Multi-device support
-- [ ] Mobile companion app (view VU meters, swap profiles from phone)
-- [ ] Velopack delta updates (faster, smaller incremental app updates)
-
----
-
-## :page_facing_up: License
+## 📄 License
 
 MIT — see [LICENSE](LICENSE) for details.
 
 ---
 
 <p align="center">
-  Built by <a href="https://github.com/audioslayer">Tyson Wolf</a>
+  Built by <a href="https://github.com/audioslayer">Tyson Wolf</a> 🐺
 </p>
