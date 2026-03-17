@@ -959,6 +959,7 @@ public partial class App : Application
 
     private void ApplyRgbConfig()
     {
+        _rgb.SetGamma(_config.GammaR, _config.GammaG, _config.GammaB);
         _rgb.SetBrightness(_config.LedBrightness);
         _rgb.UpdateConfig(_config.Lights);
         _rgb.UpdateGlobalConfig(_config.GlobalLight);

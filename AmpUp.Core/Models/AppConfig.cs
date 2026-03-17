@@ -11,6 +11,9 @@ public class AppConfig
     public List<LightConfig> Lights { get; set; } = new();
     public bool StartWithWindows { get; set; } = true;
     public int LedBrightness { get; set; } = 100;
+    public double GammaR { get; set; } = 2.0;
+    public double GammaG { get; set; } = 2.0;
+    public double GammaB { get; set; } = 2.0;
     public string AccentColor { get; set; } = "#00E676";
     public string ActiveProfile { get; set; } = "Default";
     public List<string> Profiles { get; set; } = new() { "Default" };

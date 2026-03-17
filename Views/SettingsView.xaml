@@ -202,6 +202,83 @@
                 </StackPanel>
             </Border>
 
+            <!-- ── LED CALIBRATION ──────────────────────────────────── -->
+            <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="LED CALIBRATION" Style="{StaticResource HeaderText}" Margin="0" />
+                    </StackPanel>
+                    <TextBlock Text="Adjust per-channel gamma to match your LEDs. Pick a test color to preview on the hardware while tuning."
+                               Style="{StaticResource SecondaryText}" Margin="0,0,0,12" TextWrapping="Wrap" />
+
+                    <!-- Test color row -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <TextBlock Text="Test Color" Style="{StaticResource SecondaryText}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <Border x:Name="CalibTestRed" Width="32" Height="32" CornerRadius="6" Margin="0,0,6,0" Cursor="Hand"
+                                Background="#FF0000" BorderThickness="2" BorderBrush="#333333" ToolTip="Red" />
+                        <Border x:Name="CalibTestGreen" Width="32" Height="32" CornerRadius="6" Margin="0,0,6,0" Cursor="Hand"
+                                Background="#00FF00" BorderThickness="2" BorderBrush="#333333" ToolTip="Green" />
+                        <Border x:Name="CalibTestBlue" Width="32" Height="32" CornerRadius="6" Margin="0,0,6,0" Cursor="Hand"
+                                Background="#0000FF" BorderThickness="2" BorderBrush="#333333" ToolTip="Blue" />
+                        <Border x:Name="CalibTestPurple" Width="32" Height="32" CornerRadius="6" Margin="0,0,6,0" Cursor="Hand"
+                                Background="#8800FF" BorderThickness="2" BorderBrush="#333333" ToolTip="Purple" />
+                        <Border x:Name="CalibTestWhite" Width="32" Height="32" CornerRadius="6" Margin="0,0,6,0" Cursor="Hand"
+                                Background="#FFFFFF" BorderThickness="2" BorderBrush="#333333" ToolTip="White" />
+                        <Border x:Name="CalibTestOff" Width="32" Height="32" CornerRadius="6" Margin="0,0,0,0" Cursor="Hand"
+                                Background="#1A1A1A" BorderThickness="2" BorderBrush="#333333" ToolTip="Off (resume normal)" />
+                    </StackPanel>
+
+                    <!-- Gamma sliders -->
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="50" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="40" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Red -->
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Red" VerticalAlignment="Center"
+                                   Foreground="#EF5350" FontSize="12" FontWeight="SemiBold" />
+                        <Slider x:Name="SldGammaR" Grid.Row="0" Grid.Column="1"
+                                Minimum="0.5" Maximum="4.0" Value="2.0"
+                                TickFrequency="0.1" IsSnapToTickEnabled="True"
+                                Margin="8,4,8,4" />
+                        <TextBlock x:Name="LblGammaR" Grid.Row="0" Grid.Column="2" Text="2.0"
+                                   Foreground="#9A9A9A" FontSize="11" VerticalAlignment="Center" />
+
+                        <!-- Green -->
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Green" VerticalAlignment="Center"
+                                   Foreground="#66BB6A" FontSize="12" FontWeight="SemiBold" />
+                        <Slider x:Name="SldGammaG" Grid.Row="1" Grid.Column="1"
+                                Minimum="0.5" Maximum="4.0" Value="2.0"
+                                TickFrequency="0.1" IsSnapToTickEnabled="True"
+                                Margin="8,4,8,4" />
+                        <TextBlock x:Name="LblGammaG" Grid.Row="1" Grid.Column="2" Text="2.0"
+                                   Foreground="#9A9A9A" FontSize="11" VerticalAlignment="Center" />
+
+                        <!-- Blue -->
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Blue" VerticalAlignment="Center"
+                                   Foreground="#42A5F5" FontSize="12" FontWeight="SemiBold" />
+                        <Slider x:Name="SldGammaB" Grid.Row="2" Grid.Column="1"
+                                Minimum="0.5" Maximum="4.0" Value="2.0"
+                                TickFrequency="0.1" IsSnapToTickEnabled="True"
+                                Margin="8,4,8,4" />
+                        <TextBlock x:Name="LblGammaB" Grid.Row="2" Grid.Column="2" Text="2.0"
+                                   Foreground="#9A9A9A" FontSize="11" VerticalAlignment="Center" />
+                    </Grid>
+
+                    <ui:Button x:Name="BtnGammaReset" Content="Reset to Default (2.0)"
+                               Appearance="Secondary" Margin="0,8,0,0"
+                               ToolTip="Reset all gamma channels to 2.0" />
+                </StackPanel>
+            </Border>
+
             <!-- ── INTEGRATIONS ────────────────────────────────────── -->
             <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
                 <StackPanel>

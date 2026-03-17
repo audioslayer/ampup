@@ -98,6 +98,18 @@ public partial class SettingsView : UserControl
         TxtGoveeApiKey.PasswordChanged += OnPasswordChanged;
         BtnGoveeSetupGuide.Click += OnGoveeSetupGuide;
 
+        // LED Calibration
+        SldGammaR.ValueChanged += OnGammaChanged;
+        SldGammaG.ValueChanged += OnGammaChanged;
+        SldGammaB.ValueChanged += OnGammaChanged;
+        BtnGammaReset.Click += OnGammaReset;
+        CalibTestRed.MouseLeftButtonDown += (_, _) => SetCalibPreview(255, 0, 0, CalibTestRed);
+        CalibTestGreen.MouseLeftButtonDown += (_, _) => SetCalibPreview(0, 255, 0, CalibTestGreen);
+        CalibTestBlue.MouseLeftButtonDown += (_, _) => SetCalibPreview(0, 0, 255, CalibTestBlue);
+        CalibTestPurple.MouseLeftButtonDown += (_, _) => SetCalibPreview(136, 0, 255, CalibTestPurple);
+        CalibTestWhite.MouseLeftButtonDown += (_, _) => SetCalibPreview(255, 255, 255, CalibTestWhite);
+        CalibTestOff.MouseLeftButtonDown += (_, _) => ClearCalibPreview();
+
         // About
         TxtVersion.Text = $"Amp Up v{UpdateChecker.CurrentVersion}";
         BtnCheckUpdate.Click += OnCheckUpdate;
@@ -146,6 +158,14 @@ public partial class SettingsView : UserControl
         RefreshGoveeAmbienceHint();
 
         BuildAccentSwatches();
+
+        // LED Calibration
+        SldGammaR.Value = config.GammaR;
+        SldGammaG.Value = config.GammaG;
+        SldGammaB.Value = config.GammaB;
+        LblGammaR.Text = config.GammaR.ToString("F1");
+        LblGammaG.Text = config.GammaG.ToString("F1");
+        LblGammaB.Text = config.GammaB.ToString("F1");
 
         _loading = false;
     }
@@ -430,6 +450,11 @@ public partial class SettingsView : UserControl
         _config.Ambience.GoveeEnabled = ChkGoveeEnabled.IsChecked == true;
         _config.Ambience.GoveeCloudEnabled = ChkGoveeCloudEnabled.IsChecked == true;
         _config.Ambience.GoveeApiKey = TxtGoveeApiKey.Password;
+
+        // LED Calibration
+        _config.GammaR = Math.Round(SldGammaR.Value, 1);
+        _config.GammaG = Math.Round(SldGammaG.Value, 1);
+        _config.GammaB = Math.Round(SldGammaB.Value, 1);
 
         _onSave(_config);
     }
@@ -964,6 +989,67 @@ public partial class SettingsView : UserControl
             BtnCheckUpdate.IsEnabled = true;
             BtnCheckUpdate.Content = "Check for Updates";
         }
+    }
+
+    // ── LED Calibration ────────────────────────────────────────────────
+
+    private Border? _activeCalibSwatch;
+    private (byte R, byte G, byte B)? _calibPreviewColor;
+
+    private void OnGammaChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading) return;
+        LblGammaR.Text = SldGammaR.Value.ToString("F1");
+        LblGammaG.Text = SldGammaG.Value.ToString("F1");
+        LblGammaB.Text = SldGammaB.Value.ToString("F1");
+
+        // Live-update gamma on hardware if previewing a test color
+        if (_calibPreviewColor != null)
+        {
+            var rgb = App.Rgb;
+            if (rgb != null)
+            {
+                rgb.SetGamma(
+                    Math.Round(SldGammaR.Value, 1),
+                    Math.Round(SldGammaG.Value, 1),
+                    Math.Round(SldGammaB.Value, 1));
+            }
+        }
+
+        _debounceTimer.Stop();
+        _debounceTimer.Start();
+    }
+
+    private void OnGammaReset(object sender, RoutedEventArgs e)
+    {
+        SldGammaR.Value = 2.0;
+        SldGammaG.Value = 2.0;
+        SldGammaB.Value = 2.0;
+    }
+
+    private void SetCalibPreview(byte r, byte g, byte b, Border swatch)
+    {
+        // Highlight active swatch
+        if (_activeCalibSwatch != null)
+            _activeCalibSwatch.BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33));
+        _activeCalibSwatch = swatch;
+        swatch.BorderBrush = new SolidColorBrush(ThemeManager.Accent);
+
+        _calibPreviewColor = (r, g, b);
+
+        // Send test color to all LEDs via preview override
+        App.Rgb?.SetPreviewColor(r, g, b);
+    }
+
+    private void ClearCalibPreview()
+    {
+        if (_activeCalibSwatch != null)
+            _activeCalibSwatch.BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33));
+        _activeCalibSwatch = null;
+        _calibPreviewColor = null;
+
+        // Resume normal LED effects
+        App.Rgb?.ClearPreviewColor();
     }
 }
 

@@ -106,11 +106,12 @@ public class RgbController : IDisposable
     private struct TransitionColor { public byte R, G, B; }
     private TransitionColor _transitionColor = new() { R = 0, G = 230, B = 118 };
 
-    // Gamma correction table — standard gamma 2.0 curve.
-    // Gentler than the original Turn Up firmware table (which was ~2.8 and crushed
-    // mid-range values, making purple appear as blue). Gamma 2.0 preserves color
-    // fidelity while still compensating for LED non-linearity.
-    private static readonly byte[] Gamma8 = BuildGammaTable(2.0);
+    // Per-channel gamma correction tables — default 2.0 curve.
+    // Users can adjust per-channel via Settings → LED Calibration to compensate
+    // for LED manufacturing variance (e.g. weak red making purple look blue).
+    private byte[] _gammaR = BuildGammaTable(2.0);
+    private byte[] _gammaG = BuildGammaTable(2.0);
+    private byte[] _gammaB = BuildGammaTable(2.0);
 
     private static byte[] BuildGammaTable(double gamma)
     {
@@ -118,6 +119,14 @@ public class RgbController : IDisposable
         for (int i = 0; i < 256; i++)
             table[i] = (byte)(Math.Pow(i / 255.0, gamma) * 255.0 + 0.5);
         return table;
+    }
+
+    /// <summary>Update per-channel gamma curves. Called on config load/change.</summary>
+    public void SetGamma(double gammaR, double gammaG, double gammaB)
+    {
+        _gammaR = BuildGammaTable(Math.Clamp(gammaR, 0.5, 4.0));
+        _gammaG = BuildGammaTable(Math.Clamp(gammaG, 0.5, 4.0));
+        _gammaB = BuildGammaTable(Math.Clamp(gammaB, 0.5, 4.0));
     }
 
     public RgbController()
@@ -267,9 +276,9 @@ public class RgbController : IDisposable
         g = g * _brightness / 100;
         b = b * _brightness / 100;
 
-        byte gr = Gamma8[Math.Clamp(r, 0, 255)];
-        byte gg = Gamma8[Math.Clamp(g, 0, 255)];
-        byte gb = Gamma8[Math.Clamp(b, 0, 255)];
+        byte gr = _gammaR[Math.Clamp(r, 0, 255)];
+        byte gg = _gammaG[Math.Clamp(g, 0, 255)];
+        byte gb = _gammaB[Math.Clamp(b, 0, 255)];
 
         for (int led = 0; led < 3; led++)
         {
@@ -297,9 +306,9 @@ public class RgbController : IDisposable
         g = g * _brightness / 100;
         b = b * _brightness / 100;
 
-        _colorMsg[knobIdx * 9 + ledIdx * 3 + 2] = Gamma8[Math.Clamp(r, 0, 255)];
-        _colorMsg[knobIdx * 9 + ledIdx * 3 + 3] = Gamma8[Math.Clamp(g, 0, 255)];
-        _colorMsg[knobIdx * 9 + ledIdx * 3 + 4] = Gamma8[Math.Clamp(b, 0, 255)];
+        _colorMsg[knobIdx * 9 + ledIdx * 3 + 2] = _gammaR[Math.Clamp(r, 0, 255)];
+        _colorMsg[knobIdx * 9 + ledIdx * 3 + 3] = _gammaG[Math.Clamp(g, 0, 255)];
+        _colorMsg[knobIdx * 9 + ledIdx * 3 + 4] = _gammaB[Math.Clamp(b, 0, 255)];
 
         // Store pre-gamma linear values for external sync (Ambience)
         _linearColors[knobIdx * 9 + ledIdx * 3 + 0] = (byte)Math.Clamp(r, 0, 255);
