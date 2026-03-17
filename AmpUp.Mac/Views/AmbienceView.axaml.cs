@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using AmpUp.Core.Models;
 using AmpUp.Core.Services;
 
@@ -18,11 +19,20 @@ public partial class AmbienceView : UserControl
     private GoveeCloudApi? _cloudApi;
     private List<GoveeDeviceInfo> _cloudDevices = new();
 
+    // LAN sync engine reference (for LAN scan)
+    private AmbienceSync? _ambienceSync;
+
+    // DreamSync reference for enable/disable
+    private DreamSyncController? _dreamSync;
+
     // Per-device UI references for live updates
     private readonly Dictionary<string, (CheckBox onOff, Slider brightness)> _deviceControls = new();
 
     // DreamView zone preview swatches
     private readonly List<Border> _dreamZoneSwatches = new();
+
+    // DreamView enable checkbox reference
+    private CheckBox? _dreamEnableCheck;
 
     public Action? NavigateToSettings { get; set; }
 
@@ -32,11 +42,14 @@ public partial class AmbienceView : UserControl
         TxtSettingsLink.PointerPressed += (_, _) => NavigateToSettings?.Invoke();
     }
 
-    public void LoadConfig(AppConfig config, Action<AppConfig> onSave)
+    public void LoadConfig(AppConfig config, Action<AppConfig> onSave,
+        AmbienceSync? ambienceSync = null, DreamSyncController? dreamSync = null)
     {
         _loading = true;
         _config = config;
         _onSave = onSave;
+        _ambienceSync = ambienceSync;
+        _dreamSync = dreamSync;
         _loading = false;
 
         if (config.Ambience.GoveeCloudEnabled && !string.IsNullOrEmpty(config.Ambience.GoveeApiKey))
@@ -52,6 +65,21 @@ public partial class AmbienceView : UserControl
             _cloudDevices.Clear();
             RebuildDevicePanel();
         }
+    }
+
+    /// <summary>Called from App when DreamSync emits new zone colors — updates the live preview swatches.</summary>
+    public void UpdateDreamZoneColors((byte R, byte G, byte B)[] zones)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            for (int i = 0; i < _dreamZoneSwatches.Count && i < zones.Length; i++)
+            {
+                _dreamZoneSwatches[i].Background = new SolidColorBrush(
+                    Color.FromRgb(zones[i].R, zones[i].G, zones[i].B));
+                _dreamZoneSwatches[i].BorderBrush = new SolidColorBrush(
+                    Color.FromArgb(0x80, zones[i].R, zones[i].G, zones[i].B));
+            }
+        });
     }
 
     // ── Status Bar ────────────────────────────────────────────────
@@ -115,31 +143,200 @@ public partial class AmbienceView : UserControl
 
         if (_config == null) return;
 
+        // ── LAN device section (always visible when Govee is enabled) ──
+        if (_config.Ambience.GoveeEnabled)
+        {
+            AppendLanSection();
+        }
+
+        // ── Cloud device section ──
         if (!_config.Ambience.GoveeCloudEnabled)
         {
             DevicePanel.Children.Add(MakeSetupCard(
-                "Govee is disabled",
-                "Enable Govee Cloud API in Settings to control your lights."));
-            AppendDreamViewPlaceholder();
-            return;
+                "Govee Cloud disabled",
+                "Enable Govee Cloud API in Settings to control scenes and dynamic effects."));
         }
-
-        if (_cloudDevices.Count == 0)
+        else if (_cloudDevices.Count == 0)
         {
             DevicePanel.Children.Add(MakeSetupCard(
-                "No devices found",
+                "No cloud devices found",
                 "Check your API key in Settings, or wait for devices to load."));
-            AppendDreamViewPlaceholder();
-            return;
         }
-
-        // Build device cards
-        foreach (var device in _cloudDevices)
+        else
         {
-            DevicePanel.Children.Add(BuildDeviceCard(device));
+            // Build cloud device cards
+            foreach (var device in _cloudDevices)
+            {
+                DevicePanel.Children.Add(BuildDeviceCard(device));
+            }
         }
 
         AppendDreamViewPlaceholder();
+    }
+
+    // ── LAN Section ───────────────────────────────────────────────
+
+    private void AppendLanSection()
+    {
+        if (_config == null) return;
+
+        var card = new Border
+        {
+            Classes = { "CardPanel" },
+            Margin = new Thickness(0, 0, 0, 12),
+            BorderThickness = new Thickness(2, 0, 0, 0),
+            BorderBrush = new SolidColorBrush(Color.Parse("#42A5F5")),
+        };
+        var stack = new StackPanel();
+        card.Child = stack;
+
+        stack.Children.Add(MakeSectionHeader("GOVEE LAN DEVICES"));
+
+        // Scan button row
+        var scanRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+        var scanBtn = new Button
+        {
+            Content = "Scan Network",
+            FontSize = 12,
+            Padding = new Thickness(12, 6),
+            Margin = new Thickness(0, 0, 12, 0),
+        };
+        var scanStatus = new TextBlock
+        {
+            Text = $"{_config.Ambience.GoveeDevices.Count} device(s) configured",
+            FontSize = 11,
+            Foreground = new SolidColorBrush(Color.Parse("#9A9A9A")),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        scanBtn.Click += async (_, _) =>
+        {
+            if (_ambienceSync == null || _config == null) return;
+            scanBtn.IsEnabled = false;
+            scanStatus.Text = "Scanning...";
+            scanStatus.Foreground = new SolidColorBrush(Color.Parse("#FFB800"));
+
+            try
+            {
+                var found = await _ambienceSync.ScanDevicesAsync();
+                if (found.Count == 0)
+                {
+                    scanStatus.Text = "No devices found";
+                    scanStatus.Foreground = new SolidColorBrush(Color.Parse("#FF4444"));
+                }
+                else
+                {
+                    // Merge newly found devices into config (don't duplicate by IP)
+                    foreach (var dev in found)
+                    {
+                        if (!_config.Ambience.GoveeDevices.Any(d => d.Ip == dev.Ip))
+                            _config.Ambience.GoveeDevices.Add(dev);
+                    }
+                    _onSave?.Invoke(_config);
+                    scanStatus.Text = $"Found {found.Count} device(s)";
+                    scanStatus.Foreground = new SolidColorBrush(Color.Parse("#00E676"));
+                    RebuildDevicePanel();
+                }
+            }
+            catch (Exception ex)
+            {
+                scanStatus.Text = $"Scan failed: {ex.Message}";
+                scanStatus.Foreground = new SolidColorBrush(Color.Parse("#FF4444"));
+            }
+            finally
+            {
+                scanBtn.IsEnabled = true;
+            }
+        };
+        scanRow.Children.Add(scanBtn);
+        scanRow.Children.Add(scanStatus);
+        stack.Children.Add(scanRow);
+
+        // LAN devices list
+        if (_config.Ambience.GoveeDevices.Count > 0)
+        {
+            stack.Children.Add(MakeSeparator());
+            foreach (var dev in _config.Ambience.GoveeDevices.ToList())
+            {
+                stack.Children.Add(BuildLanDeviceRow(dev));
+            }
+        }
+
+        DevicePanel.Children.Add(card);
+    }
+
+    private StackPanel BuildLanDeviceRow(GoveeDeviceConfig dev)
+    {
+        var row = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 0, 0, 8),
+        };
+
+        // Power toggle
+        var pwrCheck = new CheckBox
+        {
+            IsChecked = dev.PoweredOn,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 10, 0),
+        };
+        pwrCheck.IsCheckedChanged += async (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            dev.PoweredOn = pwrCheck.IsChecked == true;
+            _onSave?.Invoke(_config);
+            await AmbienceSync.SendTurnAsync(dev.Ip, dev.PoweredOn);
+        };
+        row.Children.Add(pwrCheck);
+
+        // Name / IP label
+        var nameText = new TextBlock
+        {
+            Text = !string.IsNullOrEmpty(dev.Name) ? $"{dev.Name} ({dev.Ip})" : dev.Ip,
+            FontSize = 12,
+            Foreground = new SolidColorBrush(Color.Parse("#E8E8E8")),
+            VerticalAlignment = VerticalAlignment.Center,
+            MinWidth = 180,
+        };
+        row.Children.Add(nameText);
+
+        // SKU badge
+        if (!string.IsNullOrEmpty(dev.Sku))
+        {
+            row.Children.Add(new Border
+            {
+                CornerRadius = new CornerRadius(4),
+                Background = new SolidColorBrush(Color.Parse("#242424")),
+                Padding = new Thickness(6, 2),
+                Margin = new Thickness(8, 0, 0, 0),
+                Child = new TextBlock
+                {
+                    Text = dev.Sku,
+                    FontSize = 10,
+                    Foreground = new SolidColorBrush(Color.Parse("#9A9A9A")),
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
+            });
+        }
+
+        // Remove button
+        var removeBtn = new Button
+        {
+            Content = "✕",
+            FontSize = 10,
+            Padding = new Thickness(6, 2),
+            Margin = new Thickness(8, 0, 0, 0),
+            Opacity = 0.5,
+        };
+        removeBtn.Click += (_, _) =>
+        {
+            if (_config == null) return;
+            _config.Ambience.GoveeDevices.Remove(dev);
+            _onSave?.Invoke(_config);
+            RebuildDevicePanel();
+        };
+        row.Children.Add(removeBtn);
+
+        return row;
     }
 
     // ── Device Card ───────────────────────────────────────────────
@@ -384,9 +581,15 @@ public partial class AmbienceView : UserControl
         parent.Children.Add(sensRow);
     }
 
-    // ── DreamView Placeholder ─────────────────────────────────────
+    // ── DreamView Card ────────────────────────────────────────────
 
     private void AppendDreamViewPlaceholder()
+    {
+        if (_config == null) return;
+        AppendDreamViewCard();
+    }
+
+    private void AppendDreamViewCard()
     {
         if (_config == null) return;
 
@@ -399,19 +602,100 @@ public partial class AmbienceView : UserControl
         card.Child = stack;
 
         stack.Children.Add(MakeSectionHeader("DREAMVIEW — Screen Sync"));
-        stack.Children.Add(new TextBlock
-        {
-            Text = "Screen capture sync is not yet available on macOS. This feature requires CGWindowList implementation.",
-            Classes = { "SecondaryText" },
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 8),
-        });
 
-        // Zone preview placeholder
-        stack.Children.Add(MakeSubLabel("ZONE PREVIEW"));
-        var previewPanel = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 8) };
+        // Enable toggle row
+        var enableRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+        _dreamEnableCheck = new CheckBox
+        {
+            Content = "Enable screen sync",
+            IsChecked = _config.Ambience.ScreenSync.Enabled,
+            FontSize = 13,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 16, 0),
+        };
+        _dreamEnableCheck.IsCheckedChanged += OnDreamEnableChanged;
+        enableRow.Children.Add(_dreamEnableCheck);
+
+        var dreamStatus = new TextBlock
+        {
+            Text = _config.Ambience.ScreenSync.Enabled ? "Active" : "Stopped",
+            FontSize = 11,
+            Foreground = new SolidColorBrush(_config.Ambience.ScreenSync.Enabled
+                ? Color.Parse("#00E676") : Color.Parse("#555555")),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        enableRow.Children.Add(dreamStatus);
+        stack.Children.Add(enableRow);
+
+        // FPS selector
+        var fpsRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+        fpsRow.Children.Add(MakeSubLabel("FPS"));
+        var fpsCombo = new ComboBox
+        {
+            Width = 80,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 16, 0),
+        };
+        fpsCombo.Items.Add(15);
+        fpsCombo.Items.Add(30);
+        fpsCombo.Items.Add(60);
+        fpsCombo.SelectedItem = _config.Ambience.ScreenSync.TargetFps is 15 or 60
+            ? _config.Ambience.ScreenSync.TargetFps
+            : 30;
+        fpsCombo.SelectionChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.TargetFps = (int)(fpsCombo.SelectedItem ?? 30);
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            _onSave?.Invoke(_config);
+        };
+        fpsRow.Children.Add(fpsCombo);
+
+        fpsRow.Children.Add(MakeSubLabel("ZONES"));
+        var zonesCombo = new ComboBox
+        {
+            Width = 80,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        foreach (var z in new[] { 4, 8, 12, 16 }) zonesCombo.Items.Add(z);
+        zonesCombo.SelectedItem = _config.Ambience.ScreenSync.ZoneCount;
+        if (zonesCombo.SelectedIndex < 0) zonesCombo.SelectedIndex = 1;
+        zonesCombo.SelectionChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.ZoneCount = (int)(zonesCombo.SelectedItem ?? 8);
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            _onSave?.Invoke(_config);
+        };
+        fpsRow.Children.Add(zonesCombo);
+        stack.Children.Add(fpsRow);
+
+        // Saturation slider
+        var satRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+        satRow.Children.Add(MakeSubLabel("SATURATION"));
+        var satSlider = new Slider
+        {
+            Minimum = 0.5, Maximum = 3.0, Value = _config.Ambience.ScreenSync.Saturation,
+            Width = 180, Height = 30, VerticalAlignment = VerticalAlignment.Center,
+        };
+        satSlider.PropertyChanged += (_, e) =>
+        {
+            if (e.Property.Name != "Value" || _loading || _config == null) return;
+            _config.Ambience.ScreenSync.Saturation = (float)satSlider.Value;
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            _onSave?.Invoke(_config);
+        };
+        satRow.Children.Add(satSlider);
+        stack.Children.Add(satRow);
+
+        stack.Children.Add(MakeSeparator());
+
+        // Zone preview row
+        stack.Children.Add(MakeSubLabel("LIVE ZONE PREVIEW"));
+        var previewPanel = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 8) };
         _dreamZoneSwatches.Clear();
-        for (int i = 0; i < 8; i++)
+        int zoneCount = _config.Ambience.ScreenSync.ZoneCount > 0 ? _config.Ambience.ScreenSync.ZoneCount : 8;
+        for (int i = 0; i < zoneCount; i++)
         {
             var swatch = new Border
             {
@@ -427,7 +711,59 @@ public partial class AmbienceView : UserControl
         }
         stack.Children.Add(previewPanel);
 
+        // Govee device mappings section
+        if (_config.Ambience.GoveeEnabled && _config.Ambience.GoveeDevices.Count > 0)
+        {
+            stack.Children.Add(MakeSeparator());
+            stack.Children.Add(MakeSectionHeader("DEVICE MAPPINGS"));
+            foreach (var dev in _config.Ambience.GoveeDevices)
+            {
+                var devRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+                devRow.Children.Add(new TextBlock
+                {
+                    Text = !string.IsNullOrEmpty(dev.Name) ? dev.Name : dev.Ip,
+                    FontSize = 12,
+                    Foreground = new SolidColorBrush(Color.Parse("#9A9A9A")),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 12, 0),
+                    MinWidth = 160,
+                });
+
+                // Auto-create mapping if not present
+                var mapping = _config.Ambience.ScreenSync.DeviceMappings
+                    .FirstOrDefault(m => m.DeviceIp == dev.Ip);
+                if (mapping == null)
+                {
+                    mapping = new ZoneDeviceMapping { DeviceIp = dev.Ip, Side = ZoneSide.Full };
+                    _config.Ambience.ScreenSync.DeviceMappings.Add(mapping);
+                }
+
+                var sideCombo = new ComboBox { Width = 90, VerticalAlignment = VerticalAlignment.Center };
+                foreach (ZoneSide side in Enum.GetValues<ZoneSide>())
+                    sideCombo.Items.Add(side.ToString());
+                sideCombo.SelectedIndex = (int)mapping.Side;
+                sideCombo.SelectionChanged += (_, _) =>
+                {
+                    if (_loading || _config == null) return;
+                    mapping.Side = (ZoneSide)sideCombo.SelectedIndex;
+                    _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+                    _onSave?.Invoke(_config);
+                };
+                devRow.Children.Add(sideCombo);
+                stack.Children.Add(devRow);
+            }
+        }
+
         DevicePanel.Children.Add(card);
+    }
+
+    private void OnDreamEnableChanged(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_loading || _config == null || _dreamEnableCheck == null) return;
+        bool enable = _dreamEnableCheck.IsChecked == true;
+        _config.Ambience.ScreenSync.Enabled = enable;
+        _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+        _onSave?.Invoke(_config);
     }
 
     // ── Helpers ───────────────────────────────────────────────────

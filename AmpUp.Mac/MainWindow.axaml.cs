@@ -2,6 +2,9 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Threading;
+using AmpUp.Core.Models;
+using AmpUp.Core.Services;
 using AmpUp.Mac.Views;
 
 namespace AmpUp.Mac;
@@ -28,6 +31,46 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         NavigateTo(_mixerView, NavMixer);
+    }
+
+    // ── Called by App after backend is ready ─────────────────────
+
+    public void SetViewDependencies(
+        AppConfig config,
+        Action<AppConfig> onSave,
+        AmbienceSync? ambienceSync,
+        DreamSyncController? dreamSync)
+    {
+        _mixerView.LoadConfig(config, onSave);
+        _buttonsView.LoadConfig(config, onSave);
+        _lightsView.LoadConfig(config, onSave);
+        _settingsView.LoadConfig(config, onSave);
+        _bindingsView.LoadConfig(config);
+        _osdView.LoadConfig(config, onSave);
+        _ambienceView.LoadConfig(config, onSave, ambienceSync, dreamSync);
+
+        // Wire cross-view navigation
+        _settingsView.OnNavigateToOverview = () => NavigateTo(_bindingsView, NavBindings);
+        _ambienceView.NavigateToSettings = () => NavigateTo(_settingsView, NavSettings);
+    }
+
+    /// <summary>Called when DreamSync emits new zone colors — forwards to AmbienceView preview.</summary>
+    public void UpdateDreamZones((byte R, byte G, byte B)[] zones)
+    {
+        _ambienceView.UpdateDreamZoneColors(zones);
+    }
+
+    /// <summary>Reload relevant views after a profile switch.</summary>
+    public void RefreshViews(AppConfig config)
+    {
+        _mixerView.LoadConfig(config);
+        _bindingsView.LoadConfig(config);
+    }
+
+    /// <summary>Update the connection status shown in SettingsView.</summary>
+    public void UpdateSettingsConnectionStatus(bool connected, string? portName)
+    {
+        Dispatcher.UIThread.Post(() => _settingsView.UpdateConnectionStatus(connected, portName));
     }
 
     // ── Navigation click handlers ────────────────────────────────
