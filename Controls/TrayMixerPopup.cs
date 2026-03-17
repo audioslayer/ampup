@@ -47,7 +47,8 @@ public class TrayMixerPopup : Window
         AudioSessionControl Session,
         Slider VolumeSlider,
         TextBlock VolLabel,
-        Button MuteBtn
+        Button MuteBtn,
+        Border? PeakBar = null
     );
 
     public TrayMixerPopup()
@@ -310,7 +311,7 @@ public class TrayMixerPopup : Window
                 catch { }
             }
 
-            // Update per-app sliders
+            // Update per-app sliders + peak activity bars
             foreach (var row in _rows)
             {
                 try
@@ -319,6 +320,14 @@ public class TrayMixerPopup : Window
                     int pct = (int)Math.Round(vol * 100);
                     row.VolumeSlider.Value = pct;
                     row.VolLabel.Text = $"{pct}%";
+
+                    // Update peak activity bar
+                    if (row.PeakBar != null)
+                    {
+                        float peak = row.Session.AudioMeterInformation.MasterPeakValue;
+                        double maxWidth = row.VolumeSlider.ActualWidth > 0 ? row.VolumeSlider.ActualWidth : 140;
+                        row.PeakBar.Width = peak * maxWidth;
+                    }
                 }
                 catch { }
             }
@@ -992,7 +1001,19 @@ public class TrayMixerPopup : Window
             };
 
             var slider = BuildVolumeSlider(vol * 100);
-            _rows.Add(new SessionRow(processName, session, slider, volLabel, muteBtn));
+
+            // Audio activity bar — thin bar under slider showing peak level
+            var peakBar = new Border
+            {
+                Height = 2,
+                CornerRadius = new CornerRadius(1),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Width = 0,
+                Margin = new Thickness(0, 2, 0, 0),
+                Background = new SolidColorBrush(Color.FromArgb(0xCC, iconColor.R, iconColor.G, iconColor.B)),
+            };
+
+            _rows.Add(new SessionRow(processName, session, slider, volLabel, muteBtn, peakBar));
             slider.ValueChanged += (_, e) =>
             {
                 if (_updatingFromPoll) return;
@@ -1016,6 +1037,7 @@ public class TrayMixerPopup : Window
 
             center.Children.Add(nameLabel);
             center.Children.Add(slider);
+            center.Children.Add(peakBar);
             panel.Children.Add(center);
             row.Child = panel;
             return row;

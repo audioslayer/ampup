@@ -147,6 +147,7 @@ public partial class MainWindow : FluentWindow
         _mixerView.LoadConfig(_config, _mixer!, saveHandler);
         _ambienceView.LoadConfig(_config, saveHandler);
         _bindingsView.LoadConfig(_config);
+        _osdView.OnRequestRefresh = () => RefreshViews();
         _osdView.LoadConfig(_config, saveHandler);
 
         // Show/hide Ambience nav based on Govee enabled state

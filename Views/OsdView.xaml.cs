@@ -13,6 +13,9 @@ public partial class OsdView : UserControl
     private readonly DispatcherTimer _debounceTimer;
     private bool _loading;
 
+    /// <summary>Set by MainWindow — called when Quick Wheel changes require a full view refresh.</summary>
+    public Action? OnRequestRefresh;
+
     public OsdView()
     {
         InitializeComponent();
@@ -106,9 +109,14 @@ public partial class OsdView : UserControl
         _config.Osd.QuickWheel.TriggerGesture = "hold";
 
         // Sync: keep button HoldAction in sync with Quick Wheel config
+        bool wheelChanged = wasEnabled != _config.Osd.QuickWheel.Enabled
+                         || oldButton != _config.Osd.QuickWheel.TriggerButton;
         SyncButtonHoldAction(wasEnabled, oldButton);
 
         _onSave(_config);
+
+        // Refresh other views (Buttons tab) when wheel config changes button hold actions
+        if (wheelChanged) OnRequestRefresh?.Invoke();
     }
 
     /// <summary>
