@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.7.0--alpha-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.8.1--alpha-blue" alt="Version" />
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6" alt="Platform" />
   <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8" />
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License" />
@@ -18,39 +18,32 @@
 
 ---
 
-## :sparkles: What's New in v0.7.0 — Polish & Ease of Use
+## :sparkles: What's New in v0.8.1 — Quick Wheel & Quality of Life
 
-### :dart: Smarter Menus
-All dropdown pickers (knob targets, button actions) now use **inline sub-panels** instead of separate popup windows. No more menus closing unexpectedly when your mouse moves between them. Sub-panels show a context header and highlight the active parent item.
+### :ferris_wheel: Quick Wheel — Radial Profile & Device Switcher
+- **Hold a button** to open a radial pie-segment overlay centered on screen
+- **Turn any knob** to spin through options — volume is suppressed while the wheel is open
+- **Release to confirm** — switches to the highlighted profile or output device
+- **Two modes:** Profile (8 slots with profile icons/colors) or Output Device (active audio outputs)
+- Configurable trigger button and mode in OSD settings
 
-### :house: Home Assistant & Govee Integration
-- **Home Assistant** targets display as "Home Assistant" with a clean domain subtitle (Light, Media Player, Fan, Cover)
-- **Govee** now uses a sub-flyout for device selection — pick from your configured devices instead of seeing one entry per light
-- Scene selection **auto-checks the power toggle**; turning off clears the active scene
+### :speaker: Tray Popup Audio Activity
+- **Live peak level bars** under each app's volume slider — see which apps are actively playing audio (like EarTrumpet)
+- Bar color matches the app's icon color (Spotify=green, Discord=blue, etc.)
 
-### :jigsaw: App Group Chips
-Replaced the old checkbox list with **clickable pill-shaped tags**. Selected apps show as accent-colored chips, available apps as subtle dark pills. Click to toggle. In-group apps sort first.
+### :musical_note: Fuzzy Process Name Matching
+- **MS Store app support** — "Apple Music" now matches "AppleMusic" process name
+- Spaces are stripped before matching, so app names typed with spaces still work
+- Applied to volume control, mute, app groups, and peak metering
 
-### :control_knobs: Smart Mix Redesign
-Complete UX overhaul of the Smart Mix section:
-- **Voice Ducking** — pick your trigger app from a dropdown instead of typing a process name. Target apps field removed (ducks everything by default). Fade timing hidden behind a collapsible "Advanced" toggle
-- **App Profiles** — dynamic add/remove rules replace the old 5 fixed empty slots. Each rule uses app and profile dropdowns populated from running apps
-
-### :tv: OSD Overhaul
-- **Horizontal 5-column layout** for profile switches — mirrors the physical Turn Up device (knob targets on top, button actions below)
-- **Configurable display duration** per notification type (volume, profile, device) with themed sliders in Settings
-- Stronger accent border glow for consistent visual impact
-
-### :movie_camera: DreamView Improvements
-- **Gamma-correct color capture** — colors are linearized before averaging, producing vibrant and accurate results instead of washed-out muddy tones
-- **Dark pixel filtering** — taskbars and dark UI elements no longer drag zone colors toward black
-- **Real monitor names** — dropdown shows "LG ULTRAGEAR+" instead of "DISPLAY1" (via Windows DisplayConfig API)
-- **Conflict prevention** — device scene/color controls dim when DreamView is active, with a clear info banner
+### :sun_with_face: Monitor Brightness Fix
+- **Throttled DDC/CI calls** — prevents overwhelming monitors with rapid-fire brightness commands
+- **Startup guard** — skips brightness restore during the first 5 seconds to avoid flicker on launch
 
 ### :wrench: Quality of Life
-- `StyledSlider` gains a `ShowLabel` toggle — hide the thumb label when the value is already shown elsewhere
-- Wider combo boxes throughout DreamView so text doesn't clip
-- Zone preview swatches enlarged with subtle borders
+- Quick Wheel shows on the OSD-configured monitor (not where the mouse is)
+- Toggling Quick Wheel in OSD settings immediately syncs the Buttons tab
+- Updated tray popup description text
 
 ---
 
@@ -103,12 +96,13 @@ Amp Up is a community-built alternative for the Turn Up USB mixer with a modern 
 - :loud_sound: **Volume changes** — shows knob label, percentage, and animated fill bar
 - :busts_in_silhouette: **Profile switches** — horizontal 5-column layout mirroring the physical device (knob targets + button actions)
 - :speaker: **Device switches** — output/input device name with icon
+- :ferris_wheel: **Quick Wheel** — hold a button to open a radial pie-segment overlay, turn any knob to navigate, release to switch profiles or output devices
 - :round_pushpin: **Configurable position** — 6 screen positions (Fraps-style picker in Settings)
 - :stopwatch: **Per-type duration** — set how long each OSD type stays visible (1–8 seconds)
 - :control_knobs: **Per-type toggles** — enable/disable OSD for volume, profiles, and devices independently
 
 ### :package: Tray Integration
-- :speaker: **Quick Mixer** — left-click tray icon for compact per-app volume popup
+- :speaker: **Quick Mixer** — left-click tray icon for compact per-app volume popup with live audio activity bars
 - :mag: **Quick Assign** — right-click tray → Assign Running Apps → pick a knob instantly
 
 ### :bulb: Ambience — Room Lighting
@@ -130,7 +124,7 @@ Amp Up is a community-built alternative for the Turn Up USB mixer with a modern 
 ## :inbox_tray: Install
 
 ### Installer (Recommended)
-1. Download `AmpUp-Setup-0.7.0-alpha.exe` from [Releases](https://github.com/audioslayer/ampup/releases)
+1. Download `AmpUp-Setup-0.8.1-alpha.exe` from [Releases](https://github.com/audioslayer/ampup/releases)
 2. Run the installer
 3. Amp Up appears in your system tray
 
@@ -214,6 +208,7 @@ Amp Up is designed for the **Turn Up** USB volume mixer (CH343 USB-to-serial). T
 - [x] Profile Export / Import
 - [x] Govee room lighting sync (Ambience tab — LAN + Cloud)
 - [x] DreamView screen sync (gamma-correct zone capture to Govee lights)
+- [x] Quick Wheel — radial profile/device switcher (hold button + turn knob)
 - [ ] OBS WebSocket integration (scene switching, source control)
 - [ ] VoiceMeeter strip/bus control
 - [ ] Multi-device support
