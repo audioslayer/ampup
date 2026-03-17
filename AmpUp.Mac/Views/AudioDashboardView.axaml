@@ -1,0 +1,41 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="AmpUp.Mac.Views.AudioDashboardView">
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- ── Header toolbar ── -->
+        <Border Grid.Row="0" Padding="0,0,0,12">
+            <Grid ColumnDefinitions="*,Auto,Auto">
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,10,0" VerticalAlignment="Center">
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="AUDIO ACTIVITY" Classes="HeaderText" />
+                    </StackPanel>
+                    <TextBlock x:Name="SessionCountLabel" Text="0 sessions"
+                               Classes="SecondaryText" VerticalAlignment="Center" FontSize="12" />
+                </StackPanel>
+
+                <!-- Quick assign hint -->
+                <TextBlock x:Name="AssignHintLabel" Grid.Column="1"
+                           Text="Click an app to assign to a knob"
+                           Classes="SecondaryText" FontSize="11"
+                           VerticalAlignment="Center" Margin="0,0,12,0"
+                           IsVisible="False" />
+
+                <!-- Refresh button -->
+                <Button x:Name="BtnRefresh" Grid.Column="2"
+                        Content="↻  Refresh" FontSize="12"
+                        ToolTip.Tip="Rescan audio sessions"
+                        Padding="10,6" />
+            </Grid>
+        </Border>
+
+        <!-- ── Session list ── -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel x:Name="SessionListPanel" Spacing="4" />
+        </ScrollViewer>
+
+    </Grid>
+</UserControl>
