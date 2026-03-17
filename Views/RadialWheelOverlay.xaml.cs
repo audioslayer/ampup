@@ -101,12 +101,6 @@ public partial class RadialWheelOverlay : Window
         {
             double startAngle = -90.0 + i * sweep;
             var path = BuildSegmentPath(startAngle, sweep, i == _highlighted);
-            path.MouseEnter += (_, _) =>
-            {
-                int idx = _segPaths.IndexOf((Path)((FrameworkElement)_ !).Source!);
-                // re-resolve at mouse time from actual sender
-            };
-
             int cap = i;
             path.MouseEnter += (s, _) => OnSegHover(cap);
             path.MouseLeave += (_, _) => { /* leave is handled by re-entering another */ };
