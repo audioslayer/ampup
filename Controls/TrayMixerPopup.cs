@@ -1206,13 +1206,42 @@ public class TrayMixerPopup : Window
         Measure(new Size(Width, double.PositiveInfinity));
         double height = DesiredSize.Height > 0 ? DesiredSize.Height : 400;
 
-        // Snap to bottom-right corner of the tray's monitor, just above taskbar
-        double x = waRight - Width - 12;
-        double y = waBottom - height - 12;
+        // Detect taskbar position by comparing work area to full screen bounds
+        var bounds = screen.Bounds;
+        double bLeft = bounds.Left * dpiScale;
+        double bTop = bounds.Top * dpiScale;
+        double bRight = bounds.Right * dpiScale;
+        double bBottom = bounds.Bottom * dpiScale;
+
+        double x, y;
+        if (waRight < bRight - 10)
+        {
+            // Taskbar on the right — position flush against the left edge of the taskbar
+            x = waRight - Width - 12;
+            y = waBottom - height - 12;
+        }
+        else if (waLeft > bLeft + 10)
+        {
+            // Taskbar on the left — position at left edge of work area
+            x = waLeft + 12;
+            y = waBottom - height - 12;
+        }
+        else if (waTop > bTop + 10)
+        {
+            // Taskbar on top — position at top of work area
+            x = waRight - Width - 12;
+            y = waTop + 12;
+        }
+        else
+        {
+            // Taskbar on bottom (default) — bottom-right corner
+            x = waRight - Width - 12;
+            y = waBottom - height - 12;
+        }
 
         // Clamp to work area
-        x = Math.Max(waLeft + 4, x);
-        y = Math.Max(waTop + 4, y);
+        x = Math.Max(waLeft + 4, Math.Min(x, waRight - Width - 4));
+        y = Math.Max(waTop + 4, Math.Min(y, waBottom - height - 4));
 
         Left = x;
         Top = y;
