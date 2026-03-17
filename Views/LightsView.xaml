@@ -3,19 +3,26 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Grid>
         <Grid.RowDefinitions>
+            <!-- Presets section -->
+            <RowDefinition Height="Auto" />
             <!-- Global Lighting card (includes brightness) -->
             <RowDefinition Height="Auto" />
             <!-- LED cards -->
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
+        <!-- Presets Section (built in code-behind via BuildPresetsSection) -->
+        <Border x:Name="PresetsCard" Grid.Row="0" Style="{StaticResource CardPanel}" Margin="0,0,0,12">
+            <StackPanel x:Name="PresetsPanel" />
+        </Border>
+
         <!-- Global Lighting Card (built in code-behind via BuildGlobalCard) -->
-        <Border x:Name="GlobalLightCard" Grid.Row="0" Style="{StaticResource CardPanel}" Margin="0,0,0,12">
+        <Border x:Name="GlobalLightCard" Grid.Row="1" Style="{StaticResource CardPanel}" Margin="0,0,0,12">
             <StackPanel x:Name="GlobalLightCardPanel" />
         </Border>
 
         <!-- 5 LED Channel Cards -->
-        <Grid x:Name="PerKnobGrid" Grid.Row="1">
+        <Grid x:Name="PerKnobGrid" Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="*" />

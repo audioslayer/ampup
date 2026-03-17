@@ -100,6 +100,12 @@ public partial class LightsView : UserControl
         ("Aurora",    new[] { Color.FromRgb(0x00, 0xFF, 0x87), Color.FromRgb(0x7B, 0x2F, 0xFF), Color.FromRgb(0x00, 0xE5, 0xFF), Color.FromRgb(0xFF, 0x00, 0xFF), Color.FromRgb(0x00, 0xFF, 0x00) }),
     };
 
+    // Preset system
+    private List<LedPreset> _allPresets = new();
+    private string _presetFilter = "All";
+    private WrapPanel? _presetCardsPanel;
+    private StackPanel? _presetFilterPanel;
+
     // Clipboard for light copy/paste
     private static LightConfig? _lightClipboard;
 
@@ -152,6 +158,7 @@ public partial class LightsView : UserControl
             if (!_loading) QueueSave();
         };
 
+        BuildPresetsSection();
         BuildGlobalCard();
         BuildChannelControls();
         SetupStripContextMenus();
@@ -249,6 +256,341 @@ public partial class LightsView : UserControl
             _brightnessSlider.Value = Math.Clamp(config.LedBrightness, 0, 100);
 
         _loading = false;
+    }
+
+    private void BuildPresetsSection()
+    {
+        var panel = PresetsPanel;
+
+        // Section header
+        var headerRow = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
+        var headerBar = new Border
+        {
+            Width = 3, Background = new SolidColorBrush(ThemeManager.Accent),
+            CornerRadius = new CornerRadius(2), Margin = new Thickness(0, 0, 8, 0),
+            VerticalAlignment = VerticalAlignment.Stretch,
+        };
+        var headerLabel = new TextBlock
+        {
+            Text = "PRESETS", FontSize = 12, FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(ThemeManager.Accent),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        _sectionHeaders.Add((headerBar, headerLabel));
+        DockPanel.SetDock(headerBar, Dock.Left);
+        headerRow.Children.Add(headerBar);
+
+        // Save Current button on right
+        var saveBtn = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
+            CornerRadius = new CornerRadius(4), Padding = new Thickness(10, 4, 10, 4),
+            Cursor = Cursors.Hand, HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var saveTxt = new TextBlock
+        {
+            Text = "💾 SAVE CURRENT", FontSize = 10, FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+        };
+        saveBtn.Child = saveTxt;
+        saveBtn.MouseLeftButtonUp += (_, _) => SaveCurrentAsPreset();
+        saveBtn.MouseEnter += (s, _) => ((Border)s!).Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+        saveBtn.MouseLeave += (s, _) => ((Border)s!).Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+        DockPanel.SetDock(saveBtn, Dock.Right);
+        headerRow.Children.Add(saveBtn);
+        headerRow.Children.Add(headerLabel);
+        panel.Children.Add(headerRow);
+
+        // Category filter tabs
+        _presetFilterPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+        var categories = new[] { "All", "Gaming", "Music", "Work", "Party", "Ambient" };
+        foreach (var cat in categories)
+        {
+            var pill = new Border
+            {
+                Background = new SolidColorBrush(cat == "All" ? Color.FromRgb(0x2A, 0x2A, 0x2A) : Color.FromRgb(0x1C, 0x1C, 0x1C)),
+                CornerRadius = new CornerRadius(10), Padding = new Thickness(10, 4, 10, 4),
+                Margin = new Thickness(0, 0, 6, 0), Cursor = Cursors.Hand,
+                Tag = cat,
+            };
+            var txt = new TextBlock
+            {
+                Text = cat, FontSize = 10,
+                Foreground = new SolidColorBrush(cat == "All" ? Color.FromRgb(0xE8, 0xE8, 0xE8) : Color.FromRgb(0x9A, 0x9A, 0x9A)),
+            };
+            pill.Child = txt;
+            pill.MouseLeftButtonUp += (s, _) =>
+            {
+                var border = (Border)s!;
+                _presetFilter = (string)border.Tag;
+                UpdatePresetFilterHighlight();
+                RefreshPresetCards();
+            };
+            _presetFilterPanel.Children.Add(pill);
+        }
+        panel.Children.Add(_presetFilterPanel);
+
+        // Scrollable preset cards
+        var scroll = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Padding = new Thickness(0),
+        };
+        _presetCardsPanel = new WrapPanel { Orientation = Orientation.Horizontal };
+        scroll.Content = _presetCardsPanel;
+        panel.Children.Add(scroll);
+
+        // Load presets
+        _allPresets = PresetManager.GetBuiltInPresets();
+        _allPresets.AddRange(PresetManager.LoadCustomPresets());
+        RefreshPresetCards();
+    }
+
+    private void UpdatePresetFilterHighlight()
+    {
+        if (_presetFilterPanel == null) return;
+        foreach (Border pill in _presetFilterPanel.Children)
+        {
+            var isActive = (string)pill.Tag == _presetFilter;
+            pill.Background = new SolidColorBrush(isActive ? Color.FromRgb(0x2A, 0x2A, 0x2A) : Color.FromRgb(0x1C, 0x1C, 0x1C));
+            if (pill.Child is TextBlock txt)
+                txt.Foreground = new SolidColorBrush(isActive ? Color.FromRgb(0xE8, 0xE8, 0xE8) : Color.FromRgb(0x9A, 0x9A, 0x9A));
+        }
+    }
+
+    private void RefreshPresetCards()
+    {
+        if (_presetCardsPanel == null) return;
+        _presetCardsPanel.Children.Clear();
+
+        var filtered = _presetFilter == "All"
+            ? _allPresets
+            : _allPresets.Where(p => p.Category == _presetFilter).ToList();
+
+        foreach (var preset in filtered)
+        {
+            _presetCardsPanel.Children.Add(BuildPresetCard(preset));
+        }
+    }
+
+    private Border BuildPresetCard(LedPreset preset)
+    {
+        // Pick a representative color from the preset
+        Color previewColor;
+        if (preset.GlobalLight != null)
+            previewColor = Color.FromRgb((byte)preset.GlobalLight.R, (byte)preset.GlobalLight.G, (byte)preset.GlobalLight.B);
+        else if (preset.Lights.Count > 0)
+            previewColor = Color.FromRgb((byte)preset.Lights[0].R, (byte)preset.Lights[0].G, (byte)preset.Lights[0].B);
+        else
+            previewColor = ThemeManager.Accent;
+
+        var card = new Border
+        {
+            Width = 110, Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            CornerRadius = new CornerRadius(8), Padding = new Thickness(8),
+            Margin = new Thickness(0, 0, 8, 8), Cursor = Cursors.Hand,
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            BorderThickness = new Thickness(1),
+        };
+
+        var stack = new StackPanel();
+
+        // Color preview strip (shows up to 5 LED colors)
+        var previewRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+        if (preset.GlobalLight != null)
+        {
+            // Global: single color bar
+            var bar = new Border
+            {
+                Width = 94, Height = 6,
+                CornerRadius = new CornerRadius(3),
+                Background = new SolidColorBrush(previewColor),
+            };
+            previewRow.Children.Add(bar);
+        }
+        else
+        {
+            // Per-knob: 5 small color dots
+            for (int i = 0; i < Math.Min(preset.Lights.Count, 5); i++)
+            {
+                var l = preset.Lights[i];
+                var dot = new Ellipse
+                {
+                    Width = 14, Height = 14,
+                    Fill = new SolidColorBrush(Color.FromRgb((byte)l.R, (byte)l.G, (byte)l.B)),
+                    Margin = new Thickness(i > 0 ? 3 : 0, 0, 0, 0),
+                };
+                previewRow.Children.Add(dot);
+            }
+        }
+        stack.Children.Add(previewRow);
+
+        // Name
+        var name = new TextBlock
+        {
+            Text = preset.Name, FontSize = 11, FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+        };
+        stack.Children.Add(name);
+
+        // Category badge
+        var catColor = GetCategoryColor(preset.Category);
+        var badge = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(0x30, catColor.R, catColor.G, catColor.B)),
+            CornerRadius = new CornerRadius(3), Padding = new Thickness(5, 1, 5, 1),
+            Margin = new Thickness(0, 4, 0, 0), HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        badge.Child = new TextBlock
+        {
+            Text = preset.Category, FontSize = 9,
+            Foreground = new SolidColorBrush(catColor),
+        };
+        stack.Children.Add(badge);
+
+        card.Child = stack;
+
+        // Hover effect
+        card.MouseEnter += (s, _) =>
+        {
+            var b = (Border)s!;
+            b.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, previewColor.R, previewColor.G, previewColor.B));
+            b.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+        };
+        card.MouseLeave += (s, _) =>
+        {
+            var b = (Border)s!;
+            b.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+            b.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+        };
+
+        // Click to apply
+        card.MouseLeftButtonUp += (_, _) => ApplyPreset(preset);
+
+        // Right-click to delete custom presets
+        if (!preset.IsBuiltIn)
+        {
+            var menu = new ContextMenu();
+            var deleteItem = new MenuItem { Header = "Delete Preset" };
+            deleteItem.Click += (_, _) =>
+            {
+                PresetManager.DeleteCustomPreset(preset.Name);
+                _allPresets.Remove(preset);
+                RefreshPresetCards();
+            };
+            menu.Items.Add(deleteItem);
+            card.ContextMenu = menu;
+        }
+
+        card.ToolTip = preset.Description;
+        return card;
+    }
+
+    private static Color GetCategoryColor(string category) => category switch
+    {
+        "Gaming" => Color.FromRgb(0xFF, 0x44, 0x44),
+        "Music" => Color.FromRgb(0x80, 0x00, 0xFF),
+        "Work" => Color.FromRgb(0x00, 0xBD, 0xD0),
+        "Party" => Color.FromRgb(0xFF, 0xB8, 0x00),
+        "Ambient" => Color.FromRgb(0x00, 0xDD, 0x77),
+        _ => Color.FromRgb(0x9A, 0x9A, 0x9A),
+    };
+
+    private void ApplyPreset(LedPreset preset)
+    {
+        if (_config == null) return;
+
+        var result = MessageBox.Show(
+            $"Apply \"{preset.Name}\" preset?\nThis will replace your current LED settings.",
+            "Apply Preset", MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+        if (result != MessageBoxResult.Yes) return;
+
+        PresetManager.ApplyPreset(preset, _config);
+        _onSave?.Invoke(_config);
+
+        // Reload the UI to reflect changes
+        LoadConfig(_config, _onSave!);
+    }
+
+    private void SaveCurrentAsPreset()
+    {
+        if (_config == null) return;
+
+        // Build a small save dialog window
+        var dlg = new Window
+        {
+            Title = "Save Preset",
+            Width = 340, Height = 220,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.NoResize,
+            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            Owner = Window.GetWindow(this),
+        };
+
+        var stack = new StackPanel { Margin = new Thickness(16) };
+        stack.Children.Add(new TextBlock
+        {
+            Text = "Preset Name", Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            FontSize = 12, Margin = new Thickness(0, 0, 0, 4),
+        });
+        var nameBox = new TextBox
+        {
+            Text = "My Preset", FontSize = 12,
+            Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+            Padding = new Thickness(6, 4, 6, 4),
+        };
+        stack.Children.Add(nameBox);
+
+        stack.Children.Add(new TextBlock
+        {
+            Text = "Category", Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            FontSize = 12, Margin = new Thickness(0, 12, 0, 4),
+        });
+        var catCombo = new ComboBox
+        {
+            FontSize = 12,
+            Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+        };
+        foreach (var cat in new[] { "Gaming", "Music", "Work", "Party", "Ambient" })
+            catCombo.Items.Add(cat);
+        catCombo.SelectedIndex = 4; // Ambient default
+        stack.Children.Add(catCombo);
+
+        var btnRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 16, 0, 0),
+        };
+        var cancelBtn = new Button
+        {
+            Content = "Cancel", Width = 70, Margin = new Thickness(0, 0, 8, 0),
+        };
+        cancelBtn.Click += (_, _) => dlg.DialogResult = false;
+        var saveBtn = new Button { Content = "Save", Width = 70 };
+        saveBtn.Click += (_, _) => dlg.DialogResult = true;
+        btnRow.Children.Add(cancelBtn);
+        btnRow.Children.Add(saveBtn);
+        stack.Children.Add(btnRow);
+
+        dlg.Content = stack;
+
+        if (dlg.ShowDialog() != true) return;
+        var presetName = nameBox.Text?.Trim();
+        if (string.IsNullOrEmpty(presetName)) return;
+
+        var category = catCombo.SelectedItem as string ?? "Ambient";
+        var preset = PresetManager.CreateFromConfig(_config, presetName, category);
+        PresetManager.SaveCustomPreset(preset);
+
+        _allPresets.Add(preset);
+        RefreshPresetCards();
     }
 
     private void BuildGlobalCard()
