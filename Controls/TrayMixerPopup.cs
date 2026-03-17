@@ -267,6 +267,9 @@ public class TrayMixerPopup : Window
 
             var hiddenApps = _config?.HiddenTrayApps ?? new();
 
+            // Deduplicate by process name — apps like Discord can have multiple audio sessions
+            // (voice, streaming, notifications). Show only the first session per app name.
+            var seenApps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             bool firstApp = true;
             for (int i = 0; i < sessions.Count; i++)
             {
@@ -281,6 +284,10 @@ public class TrayMixerPopup : Window
 
                     // Skip hidden apps
                     if (hiddenApps.Any(h => h.Equals(name, StringComparison.OrdinalIgnoreCase)))
+                        continue;
+
+                    // Skip duplicate sessions for the same app
+                    if (!seenApps.Add(name))
                         continue;
 
                     var row = BuildSessionRow(name, s);
