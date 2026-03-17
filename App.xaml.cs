@@ -458,12 +458,24 @@ public partial class App : Application
             }
             else if (knob.Target.Equals("govee", StringComparison.OrdinalIgnoreCase))
             {
-                _ambienceSync?.SetBrightness(e.Value / 1023f);
+                // Skip during startup restore to avoid turning on Govee devices on app launch
+                if (Environment.TickCount64 - _startupTick >= 5000)
+                {
+                    // Active knob turn = user intent — turn on devices if off
+                    _ambienceSync?.EnsureDevicesPoweredOn();
+                    _ambienceSync?.SetBrightness(e.Value / 1023f);
+                }
             }
             else if (knob.Target.StartsWith("govee:", StringComparison.OrdinalIgnoreCase))
             {
-                var ip = knob.Target.Substring(6);
-                _ambienceSync?.SetBrightnessForDevice(ip, e.Value / 1023f);
+                // Skip during startup restore to avoid turning on Govee devices on app launch
+                if (Environment.TickCount64 - _startupTick >= 5000)
+                {
+                    var ip = knob.Target.Substring(6);
+                    // Active knob turn = user intent — turn on device if off
+                    _ambienceSync?.EnsureDevicePoweredOn(ip);
+                    _ambienceSync?.SetBrightnessForDevice(ip, e.Value / 1023f);
+                }
             }
             else
             {

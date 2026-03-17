@@ -289,7 +289,7 @@ public class AmbienceSync : IDisposable
 
         foreach (var device in cfg.GoveeDevices)
         {
-            if (string.IsNullOrWhiteSpace(device.Ip)) continue;
+            if (string.IsNullOrWhiteSpace(device.Ip) || !device.PoweredOn) continue;
             string ip = device.Ip;
             _ = Task.Run(() => SendGoveeBrightness(ip, value));
         }
@@ -299,9 +299,46 @@ public class AmbienceSync : IDisposable
     /// Sets Govee brightness (0.0–1.0) on a single specific device by IP.
     /// Called when a knob is assigned target "govee:IP".
     /// </summary>
+    /// <summary>Turn on all Govee devices that are currently powered off (user intent from knob turn).</summary>
+    public void EnsureDevicesPoweredOn()
+    {
+        AmbienceConfig cfg;
+        lock (_lock) cfg = _config;
+        foreach (var device in cfg.GoveeDevices)
+        {
+            if (!device.PoweredOn && !string.IsNullOrWhiteSpace(device.Ip))
+            {
+                device.PoweredOn = true;
+                string ip = device.Ip;
+                _ = Task.Run(() => SendTurnAsync(ip, true));
+            }
+        }
+    }
+
+    /// <summary>Turn on a specific Govee device if powered off (user intent from knob turn).</summary>
+    public void EnsureDevicePoweredOn(string ip)
+    {
+        if (string.IsNullOrWhiteSpace(ip)) return;
+        AmbienceConfig cfg;
+        lock (_lock) cfg = _config;
+        var device = cfg.GoveeDevices.FirstOrDefault(d => d.Ip == ip);
+        if (device != null && !device.PoweredOn)
+        {
+            device.PoweredOn = true;
+            _ = Task.Run(() => SendTurnAsync(ip, true));
+        }
+    }
+
     public void SetBrightnessForDevice(string ip, float normalized)
     {
         if (_disposed || string.IsNullOrWhiteSpace(ip)) return;
+
+        // Respect device PoweredOn state
+        AmbienceConfig cfg;
+        lock (_lock) cfg = _config;
+        var device = cfg.GoveeDevices.FirstOrDefault(d => d.Ip == ip);
+        if (device != null && !device.PoweredOn) return;
+
         int value = (int)Math.Round(Math.Clamp(normalized, 0f, 1f) * 100);
         _ = Task.Run(() => SendGoveeBrightness(ip, value));
     }
