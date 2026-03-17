@@ -105,10 +105,7 @@ public partial class SettingsView : UserControl
         TxtGoveeApiKey.PasswordChanged += OnPasswordChanged;
         BtnGoveeSetupGuide.Click += OnGoveeSetupGuide;
 
-        // LED Calibration
-        SldGammaR.ValueChanged += OnGammaChanged;
-        SldGammaG.ValueChanged += OnGammaChanged;
-        SldGammaB.ValueChanged += OnGammaChanged;
+        // LED Calibration (sliders built in code-behind via BuildGammaSliders)
         BtnGammaReset.Click += OnGammaReset;
         CalibTestRed.MouseLeftButtonDown += (_, _) => SetCalibPreview(255, 0, 0, CalibTestRed);
         CalibTestGreen.MouseLeftButtonDown += (_, _) => SetCalibPreview(0, 255, 0, CalibTestGreen);
@@ -167,12 +164,10 @@ public partial class SettingsView : UserControl
         BuildAccentSwatches();
 
         // LED Calibration
-        SldGammaR.Value = config.GammaR;
-        SldGammaG.Value = config.GammaG;
-        SldGammaB.Value = config.GammaB;
-        LblGammaR.Text = config.GammaR.ToString("F1");
-        LblGammaG.Text = config.GammaG.ToString("F1");
-        LblGammaB.Text = config.GammaB.ToString("F1");
+        BuildGammaSliders();
+        if (_sldGammaR != null) _sldGammaR.Value = config.GammaR;
+        if (_sldGammaG != null) _sldGammaG.Value = config.GammaG;
+        if (_sldGammaB != null) _sldGammaB.Value = config.GammaB;
 
         _loading = false;
     }
@@ -459,9 +454,9 @@ public partial class SettingsView : UserControl
         _config.Ambience.GoveeApiKey = TxtGoveeApiKey.Password;
 
         // LED Calibration
-        _config.GammaR = Math.Round(SldGammaR.Value, 1);
-        _config.GammaG = Math.Round(SldGammaG.Value, 1);
-        _config.GammaB = Math.Round(SldGammaB.Value, 1);
+        _config.GammaR = Math.Round(_sldGammaR?.Value ?? 2.0, 1);
+        _config.GammaG = Math.Round(_sldGammaG?.Value ?? 2.0, 1);
+        _config.GammaB = Math.Round(_sldGammaB?.Value ?? 2.0, 1);
 
         _onSave(_config);
     }
@@ -1002,25 +997,72 @@ public partial class SettingsView : UserControl
 
     private Border? _activeCalibSwatch;
     private (byte R, byte G, byte B)? _calibPreviewColor;
+    private Controls.StyledSlider? _sldGammaR, _sldGammaG, _sldGammaB;
 
-    private void OnGammaChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    private void BuildGammaSliders()
+    {
+        GammaSlidersPanel.Children.Clear();
+
+        var channels = new[]
+        {
+            ("Red",   Color.FromRgb(0xEF, 0x53, 0x50)),
+            ("Green", Color.FromRgb(0x66, 0xBB, 0x6A)),
+            ("Blue",  Color.FromRgb(0x42, 0xA5, 0xF5)),
+        };
+        Controls.StyledSlider?[] refs = new Controls.StyledSlider?[3];
+
+        for (int i = 0; i < 3; i++)
+        {
+            var (label, color) = channels[i];
+            var row = new System.Windows.Controls.Grid { Margin = new Thickness(0, 2, 0, 2) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var lbl = new TextBlock
+            {
+                Text = label, Foreground = new SolidColorBrush(color),
+                FontSize = 12, FontWeight = FontWeights.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            System.Windows.Controls.Grid.SetColumn(lbl, 0);
+            row.Children.Add(lbl);
+
+            var slider = new Controls.StyledSlider
+            {
+                Minimum = 0.5, Maximum = 4.0, Value = 2.0,
+                AccentColor = color, Height = 24,
+                ShowLabel = true, Suffix = "",
+                Margin = new Thickness(8, 0, 0, 0),
+            };
+            System.Windows.Controls.Grid.SetColumn(slider, 1);
+            row.Children.Add(slider);
+            refs[i] = slider;
+
+            slider.ValueChanged += OnGammaSliderChanged;
+            GammaSlidersPanel.Children.Add(row);
+        }
+
+        _sldGammaR = refs[0];
+        _sldGammaG = refs[1];
+        _sldGammaB = refs[2];
+    }
+
+    private void OnGammaSliderChanged(object? sender, EventArgs e)
     {
         if (_loading) return;
-        LblGammaR.Text = SldGammaR.Value.ToString("F1");
-        LblGammaG.Text = SldGammaG.Value.ToString("F1");
-        LblGammaB.Text = SldGammaB.Value.ToString("F1");
+
+        // Snap to 0.1 increments
+        if (_sldGammaR != null) _sldGammaR.Value = Math.Round(_sldGammaR.Value * 10) / 10;
+        if (_sldGammaG != null) _sldGammaG.Value = Math.Round(_sldGammaG.Value * 10) / 10;
+        if (_sldGammaB != null) _sldGammaB.Value = Math.Round(_sldGammaB.Value * 10) / 10;
 
         // Live-update gamma on hardware if previewing a test color
         if (_calibPreviewColor != null)
         {
-            var rgb = App.Rgb;
-            if (rgb != null)
-            {
-                rgb.SetGamma(
-                    Math.Round(SldGammaR.Value, 1),
-                    Math.Round(SldGammaG.Value, 1),
-                    Math.Round(SldGammaB.Value, 1));
-            }
+            App.Rgb?.SetGamma(
+                Math.Round(_sldGammaR?.Value ?? 2.0, 1),
+                Math.Round(_sldGammaG?.Value ?? 2.0, 1),
+                Math.Round(_sldGammaB?.Value ?? 2.0, 1));
         }
 
         _debounceTimer.Stop();
@@ -1029,9 +1071,9 @@ public partial class SettingsView : UserControl
 
     private void OnGammaReset(object sender, RoutedEventArgs e)
     {
-        SldGammaR.Value = 2.0;
-        SldGammaG.Value = 2.0;
-        SldGammaB.Value = 2.0;
+        if (_sldGammaR != null) _sldGammaR.Value = 2.0;
+        if (_sldGammaG != null) _sldGammaG.Value = 2.0;
+        if (_sldGammaB != null) _sldGammaB.Value = 2.0;
     }
 
     private void SetCalibPreview(byte r, byte g, byte b, Border swatch)

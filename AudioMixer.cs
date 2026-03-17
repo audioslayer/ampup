@@ -15,7 +15,6 @@ public class AudioMixer : IDisposable
 
     // Map of processName (lowercase) -> AudioSessionControl
     private Dictionary<string, AudioSessionControl> _sessions = new();
-    private int _logMissThrottle; // throttle AppGroup miss logging
 
     /// <summary>
     /// Fuzzy process name match: strips spaces so "Apple Music" matches "AppleMusic".
@@ -59,6 +58,21 @@ public class AudioMixer : IDisposable
                     var name = proc.ProcessName.ToLowerInvariant();
                     if (!newSessions.ContainsKey(name))
                         newSessions[name] = s;
+
+                    // Also index by WASAPI display name — catches UWP/packaged apps
+                    // where audio runs in a helper process (e.g. AMPLibraryAgent for Apple Music)
+                    try
+                    {
+                        var displayName = s.DisplayName;
+                        if (!string.IsNullOrEmpty(displayName))
+                        {
+                            var dnKey = displayName.ToLowerInvariant();
+                            if (!newSessions.ContainsKey(dnKey))
+                                newSessions[dnKey] = s;
+                        }
+                    }
+                    catch { }
+
                     var upid = (uint)pid;
                     if (!newPidSessions.ContainsKey(upid))
                         newPidSessions[upid] = s;
@@ -148,20 +162,10 @@ public class AudioMixer : IDisposable
                     foreach (var appName in knob.Apps)
                     {
                         var app = appName.ToLowerInvariant();
-                        bool matched = false;
                         foreach (var kv in _sessions)
                         {
                             if (FuzzyContains(kv.Key, app))
-                            {
-                                matched = true;
                                 try { kv.Value.SimpleAudioVolume.Volume = vol; } catch { }
-                            }
-                        }
-                        if (!matched && _logMissThrottle++ % 100 == 0)
-                        {
-                            // Log periodically on miss to help debug matching issues (#8)
-                            var keys = string.Join(", ", _sessions.Keys);
-                            Logger.Log($"AppGroup: no match for '{app}' in sessions: [{keys}]");
                         }
                     }
                 }
