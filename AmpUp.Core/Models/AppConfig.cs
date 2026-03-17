@@ -60,7 +60,15 @@ public enum ResponseCurve
 {
     Linear,
     Logarithmic,
-    Exponential
+    Exponential,
+    Exponential2
+}
+
+public enum CycleDeviceType
+{
+    Both,
+    Media,
+    Communications
 }
 
 public class ButtonConfig
@@ -79,18 +87,24 @@ public class ButtonConfig
     public string ProfileName { get; set; } = "";
     public string PowerAction { get; set; } = "";
     public int LinkedKnobIdx { get; set; } = -1;
+    [JsonConverter(typeof(StringEnumConverter))]
+    public CycleDeviceType CycleDeviceType { get; set; } = CycleDeviceType.Both;
     public string HoldDeviceId { get; set; } = "";
     public List<string> HoldDeviceIds { get; set; } = new();
     public string HoldMacroKeys { get; set; } = "";
     public string HoldProfileName { get; set; } = "";
     public string HoldPowerAction { get; set; } = "";
     public int HoldLinkedKnobIdx { get; set; } = -1;
+    [JsonConverter(typeof(StringEnumConverter))]
+    public CycleDeviceType HoldCycleDeviceType { get; set; } = CycleDeviceType.Both;
     public string DoublePressDeviceId { get; set; } = "";
     public List<string> DoublePressDeviceIds { get; set; } = new();
     public string DoublePressMacroKeys { get; set; } = "";
     public string DoublePressProfileName { get; set; } = "";
     public string DoublePressPowerAction { get; set; } = "";
     public int DoublePressLinkedKnobIdx { get; set; } = -1;
+    [JsonConverter(typeof(StringEnumConverter))]
+    public CycleDeviceType DoublePressCycleDeviceType { get; set; } = CycleDeviceType.Both;
 }
 
 public class DeviceColorEntry

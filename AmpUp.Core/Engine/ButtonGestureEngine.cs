@@ -121,7 +121,8 @@ public class ButtonGestureEngine : IDisposable
                 MacroKeys = btn.HoldMacroKeys,
                 ProfileName = btn.HoldProfileName,
                 PowerAction = btn.HoldPowerAction,
-                LinkedKnobIdx = btn.HoldLinkedKnobIdx
+                LinkedKnobIdx = btn.HoldLinkedKnobIdx,
+                CycleDeviceType = btn.HoldCycleDeviceType
             };
             OnGestureAction?.Invoke(idx, "hold", action, holdBtn);
         }
@@ -155,7 +156,8 @@ public class ButtonGestureEngine : IDisposable
                     MacroKeys = btn.DoublePressMacroKeys,
                     ProfileName = btn.DoublePressProfileName,
                     PowerAction = btn.DoublePressPowerAction,
-                    LinkedKnobIdx = btn.DoublePressLinkedKnobIdx
+                    LinkedKnobIdx = btn.DoublePressLinkedKnobIdx,
+                    CycleDeviceType = btn.DoublePressCycleDeviceType
                 };
                 OnGestureAction?.Invoke(idx, "double", action, dblBtn);
             }

@@ -17,6 +17,7 @@ public static class VolumePipeline
         {
             ResponseCurve.Logarithmic => (float)(Math.Log10(1.0 + raw * 9.0) / Math.Log10(10.0)),
             ResponseCurve.Exponential => raw * raw,
+            ResponseCurve.Exponential2 => raw * raw * raw, // x³ — steeper curve for fine low-volume control
             _ => raw // Linear
         };
     }

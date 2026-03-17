@@ -42,6 +42,7 @@ public class ButtonHandler : IDisposable
     // ── Fields ────────────────────────────────────────────────────────
 
     private HAIntegration? _ha;
+    private ObsIntegration? _obs;
     private readonly MMDeviceEnumerator _enumerator = new();
     private readonly ButtonGestureEngine _gestureEngine = new();
 
@@ -54,6 +55,7 @@ public class ButtonHandler : IDisposable
     // ── Events (forwarded from gesture engine) ──────────────────────
 
     public void SetHAIntegration(HAIntegration? ha) => _ha = ha;
+    public void SetObsIntegration(ObsIntegration? obs) => _obs = obs;
 
     /// <summary>Fires with button index when quick_wheel is triggered.</summary>
     public event Action<int>? OnQuickWheelOpen;
@@ -256,6 +258,22 @@ public class ButtonHandler : IDisposable
                         _quickWheelActiveButton = btn.Idx;
                         OnQuickWheelOpen?.Invoke(btn.Idx);
                     }
+                    break;
+                case "obs_record":
+                    if (_obs != null && _obs.IsAvailable)
+                        _ = _obs.ToggleRecordingAsync();
+                    break;
+                case "obs_stream":
+                    if (_obs != null && _obs.IsAvailable)
+                        _ = _obs.ToggleStreamingAsync();
+                    break;
+                case "obs_scene":
+                    if (_obs != null && _obs.IsAvailable && !string.IsNullOrEmpty(path))
+                        _ = _obs.SetSceneAsync(path);
+                    break;
+                case "obs_mute":
+                    if (_obs != null && _obs.IsAvailable && !string.IsNullOrEmpty(path))
+                        _ = _obs.ToggleMuteAsync(path);
                     break;
                 case "govee_color":
                     // path = "ip|hexcolor" e.g. "192.168.1.50|FF0080"
@@ -572,7 +590,7 @@ public class ButtonHandler : IDisposable
     {
         try
         {
-            CycleDevice(DataFlow.Render, btn?.DeviceIds, btn?.Idx ?? -1);
+            CycleDevice(DataFlow.Render, btn?.DeviceIds, btn?.Idx ?? -1, btn?.CycleDeviceType ?? CycleDeviceType.Both);
         }
         catch (Exception ex)
         {
@@ -586,7 +604,7 @@ public class ButtonHandler : IDisposable
     {
         try
         {
-            CycleDevice(DataFlow.Capture, btn?.DeviceIds, btn?.Idx ?? -1);
+            CycleDevice(DataFlow.Capture, btn?.DeviceIds, btn?.Idx ?? -1, btn?.CycleDeviceType ?? CycleDeviceType.Both);
         }
         catch (Exception ex)
         {
@@ -594,7 +612,7 @@ public class ButtonHandler : IDisposable
         }
     }
 
-    private void CycleDevice(DataFlow flow, List<string>? allowedIds, int buttonIdx)
+    private void CycleDevice(DataFlow flow, List<string>? allowedIds, int buttonIdx, CycleDeviceType deviceType = CycleDeviceType.Both)
     {
         var role = flow == DataFlow.Render ? Role.Multimedia : Role.Communications;
         using var currentDevice = _enumerator.GetDefaultAudioEndpoint(flow, role);
@@ -635,7 +653,7 @@ public class ButtonHandler : IDisposable
         int nextIdx = (currentIdx + 1) % deviceIds.Count;
         var nextId = deviceIds[nextIdx];
 
-        SetDefaultAudioDevice(nextId);
+        SetDefaultAudioDevice(nextId, deviceType);
 
         // Log friendly name and fire event
         try
@@ -693,7 +711,7 @@ public class ButtonHandler : IDisposable
 
     // ── Set default audio device via IPolicyConfig COM ─────────────────
 
-    internal static void SetDefaultAudioDevice(string deviceId)
+    internal static void SetDefaultAudioDevice(string deviceId, CycleDeviceType deviceType = CycleDeviceType.Both)
     {
         var policyConfigType = Type.GetTypeFromCLSID(CLSID_PolicyConfigClient);
         if (policyConfigType == null)
@@ -701,10 +719,21 @@ public class ButtonHandler : IDisposable
 
         var policyConfig = (IPolicyConfig)Activator.CreateInstance(policyConfigType)!;
 
-        // Set for all three roles: Console=0, Multimedia=1, Communications=2
-        policyConfig.SetDefaultEndpoint(deviceId, 0);
-        policyConfig.SetDefaultEndpoint(deviceId, 1);
-        policyConfig.SetDefaultEndpoint(deviceId, 2);
+        switch (deviceType)
+        {
+            case CycleDeviceType.Media:
+                policyConfig.SetDefaultEndpoint(deviceId, 0); // Console
+                policyConfig.SetDefaultEndpoint(deviceId, 1); // Multimedia
+                break;
+            case CycleDeviceType.Communications:
+                policyConfig.SetDefaultEndpoint(deviceId, 2); // Communications
+                break;
+            default: // Both
+                policyConfig.SetDefaultEndpoint(deviceId, 0);
+                policyConfig.SetDefaultEndpoint(deviceId, 1);
+                policyConfig.SetDefaultEndpoint(deviceId, 2);
+                break;
+        }
     }
 
     // ── Close / kill program ──────────────────────────────────────────

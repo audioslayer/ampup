@@ -63,11 +63,12 @@ namespace AmpUp.Controls
         }
 
         // Curve definitions
-        private static readonly (ResponseCurve Curve, string Label)[] CurveDefs =
+        private static readonly (ResponseCurve Curve, string Label, string? Tooltip)[] CurveDefs =
         {
-            (ResponseCurve.Linear,      "Linear"),
-            (ResponseCurve.Logarithmic, "Log"),
-            (ResponseCurve.Exponential, "Exp"),
+            (ResponseCurve.Linear,       "Linear",  null),
+            (ResponseCurve.Logarithmic,  "Log",     null),
+            (ResponseCurve.Exponential,  "Exp",     null),
+            (ResponseCurve.Exponential2, "Exp²",    "Steeper exponential — maximum fine control at low volumes"),
         };
 
         // ── Constructor ──────────────────────────────────────────────────
@@ -80,12 +81,12 @@ namespace AmpUp.Controls
             _grid = new Grid();
             Child = _grid;
 
-            foreach (var (curve, label) in CurveDefs)
-                AddCard(curve, label);
+            foreach (var (curve, label, tooltip) in CurveDefs)
+                AddCard(curve, label, tooltip);
         }
 
         // ── Card builder ─────────────────────────────────────────────────
-        private void AddCard(ResponseCurve curve, string labelText)
+        private void AddCard(ResponseCurve curve, string labelText, string? tooltip = null)
         {
             var info = new CurveCard { Curve = curve };
 
@@ -167,6 +168,8 @@ namespace AmpUp.Controls
                 SnapsToDevicePixels = true,
             };
             info.Container = container;
+            if (tooltip != null)
+                container.ToolTip = tooltip;
 
             int index = _cards.Count;
             _cards.Add(info);
@@ -220,10 +223,11 @@ namespace AmpUp.Controls
 
                 double y = curve switch
                 {
-                    ResponseCurve.Linear      => t,
-                    ResponseCurve.Logarithmic => Math.Log10(1.0 + t * 9.0) / Math.Log10(10.0),
-                    ResponseCurve.Exponential => t * t,
-                    _                         => t,
+                    ResponseCurve.Linear       => t,
+                    ResponseCurve.Logarithmic  => Math.Log10(1.0 + t * 9.0) / Math.Log10(10.0),
+                    ResponseCurve.Exponential  => t * t,
+                    ResponseCurve.Exponential2 => t * t * t,
+                    _                          => t,
                 };
 
                 double px = Pad + t * drawW;
