@@ -516,7 +516,7 @@ public partial class App : Application
                 };
                 Dispatcher.BeginInvoke(() =>
                 {
-                    EnsureOsd();
+                    if (!EnsureOsd()) return;
                     _osdOverlay!.ShowVolume(label, displayPct, symbol);
                 });
             }
@@ -662,7 +662,7 @@ public partial class App : Application
         {
             Dispatcher.Invoke(() =>
             {
-                EnsureOsd();
+                if (!EnsureOsd()) return;
                 var iconCfg = _config.ProfileIcons.GetValueOrDefault(profileName) ?? new ProfileIconConfig();
                 _osdOverlay!.ShowProfileSwitch(profileName, iconCfg, _config);
             });
@@ -679,7 +679,7 @@ public partial class App : Application
         {
             Dispatcher.Invoke(() =>
             {
-                EnsureOsd();
+                if (!EnsureOsd()) return;
                 _osdOverlay!.ShowVolume("LED Brightness", pct, "Palette");
             });
         }
@@ -690,18 +690,26 @@ public partial class App : Application
         if (!_config.Osd.ShowDeviceSwitch) return;
         Dispatcher.Invoke(() =>
         {
-            EnsureOsd();
+            if (!EnsureOsd()) return;
             _osdOverlay!.ShowDevice(deviceName, isOutput);
         });
     }
 
-    private void EnsureOsd()
+    /// <summary>
+    /// Ensures OSD overlay exists and is configured. Returns false if OSD should be
+    /// suppressed (e.g. fullscreen game detected with HideInFullscreen enabled).
+    /// </summary>
+    private bool EnsureOsd()
     {
+        if (_config.Osd.HideInFullscreen && NativeMethods.IsForegroundFullscreen())
+            return false;
+
         _osdOverlay ??= new OsdOverlay();
         _osdOverlay.SetPosition(_config.Osd.Position, _config.Osd.MonitorIndex);
         _osdOverlay.VolumeDuration = _config.Osd.VolumeDuration;
         _osdOverlay.ProfileDuration = _config.Osd.ProfileDuration;
         _osdOverlay.DeviceDuration = _config.Osd.DeviceDuration;
+        return true;
     }
 
     public void NotifyUpdateAvailable()

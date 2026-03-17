@@ -142,6 +142,13 @@
                             </StackPanel>
                         </StackPanel>
                     </StackPanel>
+
+                    <!-- Fullscreen suppression -->
+                    <CheckBox x:Name="ChkHideInFullscreen"
+                              Content="Hide OSD in fullscreen apps and games"
+                              Foreground="{StaticResource TextPrimaryBrush}"
+                              Margin="0,12,0,0"
+                              ToolTip="Suppress OSD when a fullscreen application is in the foreground" />
                 </StackPanel>
             </Border>
 

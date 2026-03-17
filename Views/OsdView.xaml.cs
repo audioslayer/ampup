@@ -34,6 +34,8 @@ public partial class OsdView : UserControl
         SldOsdProfileDur.ValueChanged += (s, _) => OnValueChanged(s!, EventArgs.Empty);
         SldOsdDeviceDur.ValueChanged += (s, _) => OnValueChanged(s!, EventArgs.Empty);
         BtnOsdPreview.Click += OnOsdPreview;
+        ChkHideInFullscreen.Checked += OnValueChanged;
+        ChkHideInFullscreen.Unchecked += OnValueChanged;
 
         // Quick wheel events
         ChkWheelEnabled.Checked += OnWheelEnabledChanged;
@@ -57,6 +59,7 @@ public partial class OsdView : UserControl
         SldOsdDeviceDur.Value = config.Osd.DeviceDuration;
         HighlightOsdPosition(config.Osd.Position);
         PopulateOsdMonitorPicker(config.Osd.MonitorIndex);
+        ChkHideInFullscreen.IsChecked = config.Osd.HideInFullscreen;
 
         // Quick wheel
         ChkWheelEnabled.IsChecked = config.Osd.QuickWheel.Enabled;
@@ -99,6 +102,7 @@ public partial class OsdView : UserControl
         _config.Osd.VolumeDuration = Math.Round(SldOsdVolumeDur.Value * 2) / 2;
         _config.Osd.ProfileDuration = Math.Round(SldOsdProfileDur.Value * 2) / 2;
         _config.Osd.DeviceDuration = Math.Round(SldOsdDeviceDur.Value * 2) / 2;
+        _config.Osd.HideInFullscreen = ChkHideInFullscreen.IsChecked == true;
 
         bool wasEnabled = _config.Osd.QuickWheel.Enabled;
         int oldButton = _config.Osd.QuickWheel.TriggerButton;

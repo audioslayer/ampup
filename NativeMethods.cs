@@ -12,6 +12,27 @@ internal static class NativeMethods
     internal static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
 
     [DllImport("user32.dll")]
+    internal static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct RECT { public int Left, Top, Right, Bottom; }
+
+    /// <summary>
+    /// Returns true if the foreground window covers the entire screen (fullscreen game/app).
+    /// </summary>
+    internal static bool IsForegroundFullscreen()
+    {
+        var hwnd = GetForegroundWindow();
+        if (hwnd == IntPtr.Zero) return false;
+        if (!GetWindowRect(hwnd, out var rect)) return false;
+        var screen = System.Windows.Forms.Screen.FromHandle(hwnd);
+        return rect.Left <= screen.Bounds.Left
+            && rect.Top <= screen.Bounds.Top
+            && rect.Right >= screen.Bounds.Right
+            && rect.Bottom >= screen.Bounds.Bottom;
+    }
+
+    [DllImport("user32.dll")]
     internal static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 
     [DllImport("user32.dll")]
