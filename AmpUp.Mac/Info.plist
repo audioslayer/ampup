@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Bundle identity -->
+    <key>CFBundleIdentifier</key>
+    <string>com.wolfden.ampup</string>
+    <key>CFBundleName</key>
+    <string>AmpUp</string>
+    <key>CFBundleDisplayName</key>
+    <string>AmpUp</string>
+    <key>CFBundleExecutable</key>
+    <string>AmpUp</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleSignature</key>
+    <string>????</string>
+
+    <!-- Version — keep in sync with AmpUp.Mac.csproj <Version> -->
+    <key>CFBundleVersion</key>
+    <string>0.1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0-alpha</string>
+
+    <!-- Icon -->
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
+
+    <!-- macOS minimum version — required for CATapDescription (Process Tap API) -->
+    <key>LSMinimumSystemVersion</key>
+    <string>14.2</string>
+
+    <!-- Architecture -->
+    <key>LSArchitecturePriority</key>
+    <array>
+        <string>arm64</string>
+        <string>x86_64</string>
+    </array>
+
+    <!-- Don't show in Dock during background operation -->
+    <key>LSUIElement</key>
+    <false/>
+
+    <!-- Privacy usage descriptions — required for TCC consent dialogs -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>AmpUp captures system audio to provide per-app volume control via your Turn Up hardware mixer.</string>
+
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>AmpUp does not use Bluetooth.</string>
+
+    <!-- USB/serial access — no NSUSBUsageDescription needed; IOKit covered by entitlements -->
+
+    <!-- Prevent sleep while running (serial I/O) -->
+    <key>NSSupportsAutomaticTermination</key>
+    <false/>
+    <key>NSSupportsSuddenTermination</key>
+    <false/>
+
+    <!-- High resolution display support -->
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSSupportsAutomaticGraphicsSwitching</key>
+    <true/>
+
+    <!-- Document types — none for now -->
+
+    <!-- URL schemes — none for now -->
+
+    <!-- Permissions for IOKit USB access (serial device) -->
+    <key>com.apple.security.device.usb</key>
+    <true/>
+</dict>
+</plist>

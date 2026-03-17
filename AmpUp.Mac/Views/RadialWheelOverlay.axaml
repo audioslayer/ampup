@@ -1,0 +1,47 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="AmpUp.Mac.Views.RadialWheelOverlay"
+        Width="460" Height="460"
+        SystemDecorations="None"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen"
+        TransparencyLevelHint="Transparent"
+        ExtendClientAreaToDecorationsHint="True">
+
+    <!-- Root grid: transparent background to capture mouse -->
+    <Grid x:Name="RootGrid" Opacity="0" Focusable="True">
+
+        <!-- Outer dark ring / glass circle -->
+        <Ellipse Width="420" Height="420"
+                 HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Ellipse.Fill>
+                <SolidColorBrush Color="#CC141414" />
+            </Ellipse.Fill>
+        </Ellipse>
+
+        <!-- Segment canvas — pie paths drawn in code-behind -->
+        <Canvas x:Name="SegmentCanvas"
+                Width="420" Height="420"
+                HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+        <!-- Center circle overlay -->
+        <Ellipse Width="120" Height="120"
+                 HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Ellipse.Fill>
+                <SolidColorBrush Color="#EE0F0F0F" />
+            </Ellipse.Fill>
+        </Ellipse>
+
+        <!-- Center profile name label -->
+        <TextBlock x:Name="CenterLabel"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   TextAlignment="Center"
+                   FontSize="13" FontWeight="SemiBold"
+                   Foreground="#E8E8E8"
+                   MaxWidth="110" TextWrapping="Wrap" />
+
+    </Grid>
+</Window>

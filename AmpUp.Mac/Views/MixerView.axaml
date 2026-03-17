@@ -1,0 +1,114 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:AmpUp.Mac.Controls"
+             x:Class="AmpUp.Mac.Views.MixerView">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="0,0,0,24">
+
+            <!-- ── CHANNEL STRIPS ─────────────────────────────────── -->
+            <Grid x:Name="ChannelGrid" ColumnDefinitions="*,*,*,*,*">
+
+                <!-- Channel 1 -->
+                <Border x:Name="Ch0Border" Grid.Column="0" Classes="CardPanel"
+                        Margin="0,0,4,0" Padding="0" ClipToBounds="True">
+                    <StackPanel x:Name="Ch0Panel" Margin="10,12" />
+                </Border>
+
+                <!-- Channel 2 -->
+                <Border x:Name="Ch1Border" Grid.Column="1" Classes="CardPanel"
+                        Margin="4,0" Padding="0" ClipToBounds="True">
+                    <StackPanel x:Name="Ch1Panel" Margin="10,12" />
+                </Border>
+
+                <!-- Channel 3 -->
+                <Border x:Name="Ch2Border" Grid.Column="2" Classes="CardPanel"
+                        Margin="4,0" Padding="0" ClipToBounds="True">
+                    <StackPanel x:Name="Ch2Panel" Margin="10,12" />
+                </Border>
+
+                <!-- Channel 4 -->
+                <Border x:Name="Ch3Border" Grid.Column="3" Classes="CardPanel"
+                        Margin="4,0" Padding="0" ClipToBounds="True">
+                    <StackPanel x:Name="Ch3Panel" Margin="10,12" />
+                </Border>
+
+                <!-- Channel 5 -->
+                <Border x:Name="Ch4Border" Grid.Column="4" Classes="CardPanel"
+                        Margin="4,0,0,0" Padding="0" ClipToBounds="True">
+                    <StackPanel x:Name="Ch4Panel" Margin="10,12" />
+                </Border>
+
+            </Grid>
+
+            <!-- ── SMART MIX ──────────────────────────────────────── -->
+            <Border x:Name="SmartMixSection" Margin="0,12,0,0">
+                <StackPanel>
+
+                    <!-- Collapsible header -->
+                    <Border x:Name="SmartMixHeader" Cursor="Hand"
+                            Background="Transparent" Padding="0"
+                            PointerPressed="SmartMixHeader_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="3" CornerRadius="2"
+                                    Background="{DynamicResource AccentBrush}"
+                                    Margin="0,0,10,0" />
+                            <TextBlock Text="SMART MIX" Classes="SectionHeader"
+                                       VerticalAlignment="Center" Margin="0" />
+                            <TextBlock x:Name="SmartMixArrow" Text="▶" FontSize="9"
+                                       Foreground="{DynamicResource AccentBrush}"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Collapsible content -->
+                    <StackPanel x:Name="SmartMixContent" IsVisible="False" Margin="0,12,0,0">
+
+                        <!-- Voice Ducking Card (stub) -->
+                        <Border Classes="CardPanel" Margin="0,0,0,12" Padding="14">
+                            <StackPanel Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Border Width="3" CornerRadius="2"
+                                            Background="{DynamicResource AccentBrush}" />
+                                    <TextBlock Text="VOICE DUCKING" FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AccentBrush}"
+                                               VerticalAlignment="Center" />
+                                    <CheckBox x:Name="ChkDuckingEnabled"
+                                              VerticalAlignment="Center"
+                                              ToolTip.Tip="Auto-lower other apps when trigger speaks" />
+                                </StackPanel>
+                                <TextBlock Classes="SecondaryText"
+                                           Text="Configure voice ducking rules to automatically reduce volume of other apps."
+                                           Opacity="0.5" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- App Profiles Card (stub) -->
+                        <Border Classes="CardPanel" Padding="14">
+                            <StackPanel Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Border Width="3" CornerRadius="2"
+                                            Background="{DynamicResource AccentBrush}" />
+                                    <TextBlock Text="APP PROFILES" FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AccentBrush}"
+                                               VerticalAlignment="Center" />
+                                    <CheckBox x:Name="ChkAutoSwitchEnabled"
+                                              VerticalAlignment="Center"
+                                              ToolTip.Tip="Switch profiles based on focused app" />
+                                </StackPanel>
+                                <TextBlock Classes="SecondaryText"
+                                           Text="Auto-switch profiles when specific apps are focused."
+                                           Opacity="0.5" />
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+
+</UserControl>

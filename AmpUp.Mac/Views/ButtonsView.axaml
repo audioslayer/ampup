@@ -1,0 +1,23 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="AmpUp.Mac.Views.ButtonsView">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Grid x:Name="ColumnsGrid" ColumnDefinitions="*,*,*,*,*">
+            <Border Grid.Column="0" Classes="CardPanel" Margin="0,0,4,0" VerticalAlignment="Top">
+                <StackPanel x:Name="Btn0Panel" Spacing="6" />
+            </Border>
+            <Border Grid.Column="1" Classes="CardPanel" Margin="4,0" VerticalAlignment="Top">
+                <StackPanel x:Name="Btn1Panel" Spacing="6" />
+            </Border>
+            <Border Grid.Column="2" Classes="CardPanel" Margin="4,0" VerticalAlignment="Top">
+                <StackPanel x:Name="Btn2Panel" Spacing="6" />
+            </Border>
+            <Border Grid.Column="3" Classes="CardPanel" Margin="4,0" VerticalAlignment="Top">
+                <StackPanel x:Name="Btn3Panel" Spacing="6" />
+            </Border>
+            <Border Grid.Column="4" Classes="CardPanel" Margin="4,0,0,0" VerticalAlignment="Top">
+                <StackPanel x:Name="Btn4Panel" Spacing="6" />
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,19 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="AmpUp.Mac.Controls.HardwarePreviewStrip"
+             Height="64">
+    <!-- Dark strip with subtle top border -->
+    <Border Background="#0F0F0F"
+            BorderBrush="#1E1E1E"
+            BorderThickness="0,1,0,0">
+        <Grid ColumnDefinitions="*,*,*,*,*"
+              Margin="8,4,8,4">
+            <!-- 5 knob columns built in code-behind -->
+            <Canvas x:Name="Strip0" Grid.Column="0" />
+            <Canvas x:Name="Strip1" Grid.Column="1" />
+            <Canvas x:Name="Strip2" Grid.Column="2" />
+            <Canvas x:Name="Strip3" Grid.Column="3" />
+            <Canvas x:Name="Strip4" Grid.Column="4" />
+        </Grid>
+    </Border>
+</UserControl>

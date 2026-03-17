@@ -1,0 +1,142 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="AmpUp.Mac.Views.OsdView">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="24,16,24,24">
+
+            <!-- ── OSD OVERLAY ────────────────────────────────────── -->
+            <Border Classes="CardPanel" Margin="0,0,0,12">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="OSD OVERLAY" Classes="HeaderText" />
+                    </StackPanel>
+                    <TextBlock Text="Show overlay notifications when the app is minimized."
+                               Classes="SecondaryText" Margin="0,0,0,14" />
+
+                    <!-- Volume row -->
+                    <Grid Margin="0,0,0,4" ColumnDefinitions="160,*,40" RowDefinitions="Auto,Auto,Auto">
+
+                        <CheckBox x:Name="ChkOsdVolume" Grid.Row="0" Grid.Column="0"
+                                  Content="Volume Changes" Margin="0,6,0,6" />
+                        <Slider x:Name="SldOsdVolumeDur" Grid.Row="0" Grid.Column="1"
+                                Minimum="1" Maximum="8" Value="2"
+                                Height="24" Margin="0,6,8,6"
+                                ToolTip.Tip="How long the volume overlay stays visible" />
+                        <TextBlock x:Name="LblOsdVolumeDur" Grid.Row="0" Grid.Column="2"
+                                   Text="2.0s" Classes="SecondaryText"
+                                   FontSize="12" VerticalAlignment="Center" />
+
+                        <CheckBox x:Name="ChkOsdProfile" Grid.Row="1" Grid.Column="0"
+                                  Content="Profile Changes" Margin="0,6,0,6" />
+                        <Slider x:Name="SldOsdProfileDur" Grid.Row="1" Grid.Column="1"
+                                Minimum="1" Maximum="8" Value="3.5"
+                                Height="24" Margin="0,6,8,6"
+                                ToolTip.Tip="How long the profile overlay stays visible" />
+                        <TextBlock x:Name="LblOsdProfileDur" Grid.Row="1" Grid.Column="2"
+                                   Text="3.5s" Classes="SecondaryText"
+                                   FontSize="12" VerticalAlignment="Center" />
+
+                        <CheckBox x:Name="ChkOsdDevice" Grid.Row="2" Grid.Column="0"
+                                  Content="Device Changes" Margin="0,6,0,6" />
+                        <Slider x:Name="SldOsdDeviceDur" Grid.Row="2" Grid.Column="1"
+                                Minimum="1" Maximum="8" Value="2.5"
+                                Height="24" Margin="0,6,8,6"
+                                ToolTip.Tip="How long the device overlay stays visible" />
+                        <TextBlock x:Name="LblOsdDeviceDur" Grid.Row="2" Grid.Column="2"
+                                   Text="2.5s" Classes="SecondaryText"
+                                   FontSize="12" VerticalAlignment="Center" />
+                    </Grid>
+
+                    <!-- Divider -->
+                    <Border Height="1" Background="{DynamicResource CardBorderBrush}" Margin="0,10,0,12" />
+
+                    <!-- Position + Monitor row -->
+                    <Grid ColumnDefinitions="Auto,24,Auto,*">
+
+                        <!-- Position picker -->
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Position" Classes="SecondaryText" Margin="0,0,0,6" />
+                            <Border Background="{DynamicResource InputBgBrush}"
+                                    BorderBrush="{DynamicResource InputBorderBrush}"
+                                    BorderThickness="1" CornerRadius="6"
+                                    Width="160" Height="100" Padding="6">
+                                <Grid x:Name="OsdPositionGrid"
+                                      RowDefinitions="*,*" ColumnDefinitions="*,*,*">
+
+                                    <Border x:Name="PosTopLeft" Grid.Row="0" Grid.Column="0"
+                                            Classes="CardPanel" Margin="2" Padding="0"
+                                            CornerRadius="4" Cursor="Hand" Tag="TopLeft">
+                                        <TextBlock Text="TL" FontSize="9" Foreground="{DynamicResource TextDimBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <Border x:Name="PosTopCenter" Grid.Row="0" Grid.Column="1"
+                                            Classes="CardPanel" Margin="2" Padding="0"
+                                            CornerRadius="4" Cursor="Hand" Tag="TopCenter">
+                                        <TextBlock Text="TC" FontSize="9" Foreground="{DynamicResource TextDimBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <Border x:Name="PosTopRight" Grid.Row="0" Grid.Column="2"
+                                            Classes="CardPanel" Margin="2" Padding="0"
+                                            CornerRadius="4" Cursor="Hand" Tag="TopRight">
+                                        <TextBlock Text="TR" FontSize="9" Foreground="{DynamicResource TextDimBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <Border x:Name="PosBottomLeft" Grid.Row="1" Grid.Column="0"
+                                            Classes="CardPanel" Margin="2" Padding="0"
+                                            CornerRadius="4" Cursor="Hand" Tag="BottomLeft">
+                                        <TextBlock Text="BL" FontSize="9" Foreground="{DynamicResource TextDimBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <Border x:Name="PosBottomCenter" Grid.Row="1" Grid.Column="1"
+                                            Classes="CardPanel" Margin="2" Padding="0"
+                                            CornerRadius="4" Cursor="Hand" Tag="BottomCenter">
+                                        <TextBlock Text="BC" FontSize="9" Foreground="{DynamicResource TextDimBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <Border x:Name="PosBottomRight" Grid.Row="1" Grid.Column="2"
+                                            Classes="CardPanel" Margin="2" Padding="0"
+                                            CornerRadius="4" Cursor="Hand" Tag="BottomRight">
+                                        <TextBlock Text="BR" FontSize="9" Foreground="{DynamicResource TextDimBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Monitor -->
+                        <StackPanel Grid.Column="2" VerticalAlignment="Top">
+                            <TextBlock Text="Monitor" Classes="SecondaryText" Margin="0,0,0,6" />
+                            <ComboBox x:Name="CmbOsdMonitor" Width="280"
+                                      ToolTip.Tip="Which monitor to show the OSD on" />
+
+                            <CheckBox x:Name="ChkHideInFullscreen"
+                                      Content="Hide OSD over fullscreen apps and games"
+                                      Margin="0,14,0,0" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- ── QUICK WHEELS ───────────────────────────────────── -->
+            <Border Classes="CardPanel" Margin="0,0,0,12">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="QUICK WHEELS" Classes="HeaderText" />
+                    </StackPanel>
+                    <TextBlock Text="Hold a button to open a radial overlay. Turn any knob to navigate. Release to confirm."
+                               Classes="SecondaryText" Margin="0,0,0,12" TextWrapping="Wrap" />
+
+                    <!-- Dynamic wheel rows -->
+                    <StackPanel x:Name="WheelRowsPanel" />
+
+                    <Button x:Name="BtnAddWheel" Content="+ Add Quick Wheel"
+                            Margin="0,8,0,0" />
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

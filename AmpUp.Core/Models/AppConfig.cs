@@ -10,6 +10,7 @@ public class AppConfig
     public List<ButtonConfig> Buttons { get; set; } = new();
     public List<LightConfig> Lights { get; set; } = new();
     public bool StartWithWindows { get; set; } = true;
+    public bool StartMinimized { get; set; } = false;
     public int LedBrightness { get; set; } = 100;
     public double GammaR { get; set; } = 1.0;
     public double GammaG { get; set; } = 1.0;
@@ -37,6 +38,7 @@ public class AppConfig
     public string LastWelcomeVersion { get; set; } = "";
     public List<string> HiddenTrayApps { get; set; } = new();
     public List<string> PinnedTrayApps { get; set; } = new();
+    public bool AutoCheckUpdates { get; set; } = true;
 }
 
 public class SerialConfig

@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="AmpUp.Mac.Views.LightsView">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="12">
+            <!-- Global Lighting Card -->
+            <Border Classes="CardPanel">
+                <StackPanel x:Name="GlobalCardPanel" Spacing="8" />
+            </Border>
+
+            <!-- Per-Knob LED Cards (5 columns) -->
+            <Grid x:Name="PerKnobGrid" ColumnDefinitions="*,*,*,*,*">
+                <Border Grid.Column="0" Classes="CardPanel" Margin="0,0,4,0">
+                    <StackPanel x:Name="Led0Panel" Spacing="6" />
+                </Border>
+                <Border Grid.Column="1" Classes="CardPanel" Margin="4,0">
+                    <StackPanel x:Name="Led1Panel" Spacing="6" />
+                </Border>
+                <Border Grid.Column="2" Classes="CardPanel" Margin="4,0">
+                    <StackPanel x:Name="Led2Panel" Spacing="6" />
+                </Border>
+                <Border Grid.Column="3" Classes="CardPanel" Margin="4,0">
+                    <StackPanel x:Name="Led3Panel" Spacing="6" />
+                </Border>
+                <Border Grid.Column="4" Classes="CardPanel" Margin="4,0,0,0">
+                    <StackPanel x:Name="Led4Panel" Spacing="6" />
+                </Border>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
