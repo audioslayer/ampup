@@ -1,0 +1,193 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ── Color Palette ─────────────────────────────────────────── -->
+    <Style>
+        <Style.Resources>
+            <Color x:Key="BgBase">#0F0F0F</Color>
+            <Color x:Key="BgDark">#141414</Color>
+            <Color x:Key="CardBg">#1C1C1C</Color>
+            <Color x:Key="CardBorder">#2A2A2A</Color>
+            <Color x:Key="InputBg">#242424</Color>
+            <Color x:Key="InputBorder">#363636</Color>
+            <Color x:Key="Accent">#00E676</Color>
+            <Color x:Key="AccentGlow">#69F0AE</Color>
+            <Color x:Key="AccentDim">#00A854</Color>
+            <Color x:Key="TextPrimary">#E8E8E8</Color>
+            <Color x:Key="TextSec">#9A9A9A</Color>
+            <Color x:Key="TextDim">#6A6A6A</Color>
+            <Color x:Key="DangerRed">#FF4444</Color>
+            <Color x:Key="SuccessGrn">#00DD77</Color>
+            <Color x:Key="WarnYellow">#FFB800</Color>
+
+            <!-- ── Brushes ───────────────────────────────────────────────── -->
+            <SolidColorBrush x:Key="BgBaseBrush" Color="{StaticResource BgBase}" />
+            <SolidColorBrush x:Key="BgDarkBrush" Color="{StaticResource BgDark}" />
+            <SolidColorBrush x:Key="CardBgBrush" Color="{StaticResource CardBg}" />
+            <SolidColorBrush x:Key="CardBorderBrush" Color="{StaticResource CardBorder}" />
+            <SolidColorBrush x:Key="InputBgBrush" Color="{StaticResource InputBg}" />
+            <SolidColorBrush x:Key="InputBorderBrush" Color="{StaticResource InputBorder}" />
+            <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource Accent}" />
+            <SolidColorBrush x:Key="AccentGlowBrush" Color="{StaticResource AccentGlow}" />
+            <SolidColorBrush x:Key="AccentDimBrush" Color="{StaticResource AccentDim}" />
+            <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimary}" />
+            <SolidColorBrush x:Key="TextSecBrush" Color="{StaticResource TextSec}" />
+            <SolidColorBrush x:Key="TextDimBrush" Color="{StaticResource TextDim}" />
+            <SolidColorBrush x:Key="DangerRedBrush" Color="{StaticResource DangerRed}" />
+            <SolidColorBrush x:Key="SuccessGrnBrush" Color="{StaticResource SuccessGrn}" />
+            <SolidColorBrush x:Key="WarnYellowBrush" Color="{StaticResource WarnYellow}" />
+
+            <!-- Alpha-variant accent brushes -->
+            <SolidColorBrush x:Key="AccentBorder55Brush" Color="#5500E676" />
+            <SolidColorBrush x:Key="AccentBorder22Brush" Color="#2200E676" />
+            <SolidColorBrush x:Key="AccentBorder33Brush" Color="#3300E676" />
+            <SolidColorBrush x:Key="AccentHover1ABrush" Color="#1A00E676" />
+            <SolidColorBrush x:Key="AccentScroll40Brush" Color="#4000E676" />
+            <SolidColorBrush x:Key="AccentScroll70Brush" Color="#7000E676" />
+            <SolidColorBrush x:Key="AccentScrollAABrush" Color="#AA00E676" />
+        </Style.Resources>
+    </Style>
+
+    <!-- ── Global TextBlock font ─────────────────────────────────── -->
+    <Style Selector="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource InterFont}" />
+    </Style>
+
+    <!-- ── Label Styles ──────────────────────────────────────────── -->
+    <Style Selector="TextBlock.HeaderText">
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="TextBlock.BodyText">
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+
+    <Style Selector="TextBlock.SecondaryText">
+        <Setter Property="Foreground" Value="{DynamicResource TextSecBrush}" />
+        <Setter Property="FontSize" Value="12" />
+    </Style>
+
+    <Style Selector="TextBlock.DimText">
+        <Setter Property="Foreground" Value="{DynamicResource TextDimBrush}" />
+        <Setter Property="FontSize" Value="11" />
+    </Style>
+
+    <Style Selector="TextBlock.SectionHeader">
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="0,0,0,12" />
+    </Style>
+
+    <!-- ── Card Panel ────────────────────────────────────────────── -->
+    <Style Selector="Border.CardPanel">
+        <Setter Property="Background" Value="{DynamicResource CardBgBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="16" />
+        <Setter Property="BorderBrush">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                    <GradientStop Color="#30FFFFFF" Offset="0" />
+                    <GradientStop Color="#10FFFFFF" Offset="0.5" />
+                    <GradientStop Color="#08FFFFFF" Offset="1" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="BoxShadow" Value="0 4 20 0 #99000000" />
+    </Style>
+
+    <!-- ── Glow Card (active/selected) ───────────────────────────── -->
+    <Style Selector="Border.GlowCardPanel">
+        <Setter Property="Background" Value="{DynamicResource CardBgBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="16" />
+        <Setter Property="BorderBrush">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                    <GradientStop Color="{DynamicResource AccentDim}" Offset="0" />
+                    <GradientStop Color="#10FFFFFF" Offset="1" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="BoxShadow" Value="0 4 20 0 #99000000" />
+    </Style>
+
+    <!-- ── Nav Button Style ──────────────────────────────────────── -->
+    <Style Selector="Button.NavButton">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Width" Value="62" />
+        <Setter Property="Height" Value="56" />
+        <Setter Property="Margin" Value="7,2" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="0,4" />
+    </Style>
+    <Style Selector="Button.NavButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AccentHover1ABrush}" />
+    </Style>
+
+    <!-- ── TextBox (dark input) ──────────────────────────────────── -->
+    <Style Selector="TextBox">
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="Background" Value="{DynamicResource InputBgBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
+        <Setter Property="CaretBrush" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="10,8" />
+    </Style>
+    <Style Selector="TextBox:focus">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
+
+    <!-- ── ComboBox (dark) ───────────────────────────────────────── -->
+    <Style Selector="ComboBox">
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="Background" Value="#FF222222" />
+        <Setter Property="BorderBrush" Value="#FF444444" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="10,8" />
+        <Setter Property="MinHeight" Value="34" />
+    </Style>
+    <Style Selector="ComboBox:pointerover">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
+
+    <!-- ── CheckBox ──────────────────────────────────────────────── -->
+    <Style Selector="CheckBox">
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+
+    <!-- ── Scrollbar — slim green thumb ──────────────────────────── -->
+    <Style Selector="ScrollBar">
+        <Setter Property="Width" Value="8" />
+    </Style>
+    <Style Selector="ScrollBar /template/ Thumb">
+        <Setter Property="Background" Value="{DynamicResource AccentScroll40Brush}" />
+        <Setter Property="MinHeight" Value="20" />
+    </Style>
+    <Style Selector="ScrollBar /template/ Thumb:pointerover">
+        <Setter Property="Background" Value="{DynamicResource AccentScroll70Brush}" />
+    </Style>
+    <Style Selector="ScrollBar /template/ Thumb:pressed">
+        <Setter Property="Background" Value="{DynamicResource AccentScrollAABrush}" />
+    </Style>
+
+    <!-- ── ToolTip ───────────────────────────────────────────────── -->
+    <Style Selector="ToolTip">
+        <Setter Property="Background" Value="#FF1A1A1A" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="8,4" />
+        <Setter Property="FontSize" Value="11" />
+    </Style>
+
+</Styles>

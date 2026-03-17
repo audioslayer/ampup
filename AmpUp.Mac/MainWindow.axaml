@@ -1,0 +1,189 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="AmpUp.Mac.MainWindow"
+        Title="Amp Up"
+        Width="1600" Height="1000"
+        MinWidth="900" MinHeight="600"
+        WindowStartupLocation="CenterScreen"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="48"
+        Background="{DynamicResource BgBaseBrush}">
+
+    <Grid RowDefinitions="48,*">
+
+        <!-- ══ Header Bar ══ -->
+        <Grid Grid.Row="0" Background="{DynamicResource BgBaseBrush}"
+              ColumnDefinitions="Auto,*,Auto">
+
+            <!-- Branding -->
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="80,0,0,0" VerticalAlignment="Center">
+                <TextBlock VerticalAlignment="Center">
+                    <Run Text="AMP" FontSize="16" FontWeight="Black" Foreground="#2E8B38" />
+                    <Run Text=" " FontSize="4" />
+                    <Run Text="UP" FontSize="16" FontWeight="Black" Foreground="#4CAF50" />
+                </TextBlock>
+            </StackPanel>
+
+            <!-- Connection Status -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,16,0" VerticalAlignment="Center">
+                <Ellipse x:Name="ConnectionDot" Width="8" Height="8"
+                         Fill="{DynamicResource TextDimBrush}" Margin="0,0,8,0" />
+                <TextBlock x:Name="ConnectionLabel" Text="Disconnected"
+                           Classes="SecondaryText" VerticalAlignment="Center" />
+                <TextBlock x:Name="VersionLabel" Text="v0.1.0-alpha"
+                           Foreground="{DynamicResource TextDimBrush}" FontSize="10"
+                           VerticalAlignment="Center" Margin="10,0,0,0" />
+            </StackPanel>
+        </Grid>
+
+        <!-- ══ Main Layout: Sidebar + Content ══ -->
+        <Grid Grid.Row="1" Background="{DynamicResource BgDarkBrush}"
+              ColumnDefinitions="76,*">
+
+            <!-- Sidebar Navigation -->
+            <Border Grid.Column="0" Background="{DynamicResource BgBaseBrush}"
+                    BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,0,1,0">
+                <Grid RowDefinitions="Auto,*">
+
+                    <!-- Profile button at top -->
+                    <StackPanel Grid.Row="0" Margin="0,12,0,0">
+                        <Border x:Name="ProfileButton" Width="48" Height="48" CornerRadius="24"
+                                Background="{DynamicResource CardBgBrush}"
+                                BorderBrush="{DynamicResource AccentBorder55Brush}"
+                                BorderThickness="2" Cursor="Hand"
+                                HorizontalAlignment="Center"
+                                BoxShadow="0 0 12 0 #4000E676">
+                            <TextBlock Text="👤" FontSize="20"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock x:Name="ProfileLabel" Text="Default" FontSize="8" FontWeight="Medium"
+                                   Foreground="{DynamicResource TextSecBrush}"
+                                   HorizontalAlignment="Center" Margin="0,5,0,0"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="60" TextAlignment="Center" />
+                        <!-- Separator -->
+                        <Border Height="1" Margin="14,10,14,0"
+                                Background="{DynamicResource AccentBorder22Brush}" />
+                    </StackPanel>
+
+                    <!-- Nav items -->
+                    <DockPanel Grid.Row="1" Margin="0,12,0,0" LastChildFill="True">
+                        <!-- Bottom nav items -->
+                        <Button x:Name="NavBindings" Classes="NavButton" DockPanel.Dock="Bottom"
+                                Click="NavBindings_Click" ToolTip.Tip="Profile Overview">
+                            <StackPanel HorizontalAlignment="Center">
+                                <Border x:Name="NavBindingsBar" Width="3" Height="20" CornerRadius="2"
+                                        Background="{DynamicResource AccentBrush}"
+                                        IsVisible="False" HorizontalAlignment="Left" Margin="-4,0,0,0" />
+                                <TextBlock x:Name="NavBindingsIcon" Text="📋" FontSize="20"
+                                           HorizontalAlignment="Center" />
+                                <TextBlock x:Name="NavBindingsLabel" Text="Overview" FontSize="9"
+                                           Foreground="{DynamicResource TextSecBrush}"
+                                           HorizontalAlignment="Center" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Main nav items -->
+                        <StackPanel>
+                            <Button x:Name="NavMixer" Classes="NavButton" Click="NavMixer_Click">
+                                <Grid ColumnDefinitions="3,*">
+                                    <Border x:Name="NavMixerBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
+                                            Background="{DynamicResource AccentBrush}"
+                                            VerticalAlignment="Center" IsVisible="False" Margin="-4,0,0,0" />
+                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                                        <TextBlock x:Name="NavMixerIcon" Text="🎛" FontSize="20"
+                                                   HorizontalAlignment="Center" />
+                                        <TextBlock x:Name="NavMixerLabel" Text="Knobs" FontSize="9"
+                                                   Foreground="{DynamicResource TextSecBrush}"
+                                                   HorizontalAlignment="Center" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+
+                            <Button x:Name="NavButtons" Classes="NavButton" Click="NavButtons_Click">
+                                <Grid ColumnDefinitions="3,*">
+                                    <Border x:Name="NavButtonsBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
+                                            Background="{DynamicResource AccentBrush}"
+                                            VerticalAlignment="Center" IsVisible="False" Margin="-4,0,0,0" />
+                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                                        <TextBlock x:Name="NavButtonsIcon" Text="🔘" FontSize="20"
+                                                   HorizontalAlignment="Center" />
+                                        <TextBlock x:Name="NavButtonsLabel" Text="Buttons" FontSize="9"
+                                                   Foreground="{DynamicResource TextSecBrush}"
+                                                   HorizontalAlignment="Center" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+
+                            <Button x:Name="NavLights" Classes="NavButton" Click="NavLights_Click">
+                                <Grid ColumnDefinitions="3,*">
+                                    <Border x:Name="NavLightsBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
+                                            Background="{DynamicResource AccentBrush}"
+                                            VerticalAlignment="Center" IsVisible="False" Margin="-4,0,0,0" />
+                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                                        <TextBlock x:Name="NavLightsIcon" Text="💡" FontSize="20"
+                                                   HorizontalAlignment="Center" />
+                                        <TextBlock x:Name="NavLightsLabel" Text="Lights" FontSize="9"
+                                                   Foreground="{DynamicResource TextSecBrush}"
+                                                   HorizontalAlignment="Center" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+
+                            <Button x:Name="NavAmbience" Classes="NavButton" Click="NavAmbience_Click">
+                                <Grid ColumnDefinitions="3,*">
+                                    <Border x:Name="NavAmbienceBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
+                                            Background="{DynamicResource AccentBrush}"
+                                            VerticalAlignment="Center" IsVisible="False" Margin="-4,0,0,0" />
+                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                                        <TextBlock x:Name="NavAmbienceIcon" Text="🌊" FontSize="20"
+                                                   HorizontalAlignment="Center" />
+                                        <TextBlock x:Name="NavAmbienceLabel" Text="Ambience" FontSize="9"
+                                                   Foreground="{DynamicResource TextSecBrush}"
+                                                   HorizontalAlignment="Center" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+
+                            <Button x:Name="NavOsd" Classes="NavButton" Click="NavOsd_Click"
+                                    ToolTip.Tip="OSD Overlay &amp; Quick Wheel settings">
+                                <Grid ColumnDefinitions="3,*">
+                                    <Border x:Name="NavOsdBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
+                                            Background="{DynamicResource AccentBrush}"
+                                            VerticalAlignment="Center" IsVisible="False" Margin="-4,0,0,0" />
+                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                                        <TextBlock x:Name="NavOsdIcon" Text="📺" FontSize="20"
+                                                   HorizontalAlignment="Center" />
+                                        <TextBlock x:Name="NavOsdLabel" Text="OSD" FontSize="9"
+                                                   Foreground="{DynamicResource TextSecBrush}"
+                                                   HorizontalAlignment="Center" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+
+                            <Button x:Name="NavSettings" Classes="NavButton" Click="NavSettings_Click">
+                                <Grid ColumnDefinitions="3,*">
+                                    <Border x:Name="NavSettingsBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
+                                            Background="{DynamicResource AccentBrush}"
+                                            VerticalAlignment="Center" IsVisible="False" Margin="-4,0,0,0" />
+                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                                        <TextBlock x:Name="NavSettingsIcon" Text="⚙" FontSize="20"
+                                                   HorizontalAlignment="Center" />
+                                        <TextBlock x:Name="NavSettingsLabel" Text="Settings" FontSize="9"
+                                                   Foreground="{DynamicResource TextSecBrush}"
+                                                   HorizontalAlignment="Center" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+                        </StackPanel>
+                    </DockPanel>
+                </Grid>
+            </Border>
+
+            <!-- Content Area -->
+            <Border Grid.Column="1" Padding="24,16">
+                <ContentControl x:Name="ContentArea" />
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

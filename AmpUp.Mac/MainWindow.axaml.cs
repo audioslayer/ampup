@@ -1,0 +1,90 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Avalonia.Media;
+using AmpUp.Mac.Views;
+
+namespace AmpUp.Mac;
+
+public partial class MainWindow : Window
+{
+    private readonly MixerView _mixerView = new();
+    private readonly ButtonsView _buttonsView = new();
+    private readonly LightsView _lightsView = new();
+    private readonly SettingsView _settingsView = new();
+    private readonly AmbienceView _ambienceView = new();
+    private readonly BindingsView _bindingsView = new();
+    private readonly OsdView _osdView = new();
+
+    private Button? _activeNavButton;
+    private Border? _activeNavBar;
+    private TextBlock? _activeNavIcon;
+    private TextBlock? _activeNavLabel;
+
+    // Map nav buttons to (bar, icon, label) by name
+    private readonly record struct NavInfo(Border Bar, TextBlock Icon, TextBlock Label);
+
+    public MainWindow()
+    {
+        InitializeComponent();
+        NavigateTo(_mixerView, NavMixer);
+    }
+
+    // ── Navigation click handlers ────────────────────────────────
+    private void NavMixer_Click(object? sender, RoutedEventArgs e) => NavigateTo(_mixerView, NavMixer);
+    private void NavButtons_Click(object? sender, RoutedEventArgs e) => NavigateTo(_buttonsView, NavButtons);
+    private void NavLights_Click(object? sender, RoutedEventArgs e) => NavigateTo(_lightsView, NavLights);
+    private void NavAmbience_Click(object? sender, RoutedEventArgs e) => NavigateTo(_ambienceView, NavAmbience);
+    private void NavOsd_Click(object? sender, RoutedEventArgs e) => NavigateTo(_osdView, NavOsd);
+    private void NavSettings_Click(object? sender, RoutedEventArgs e) => NavigateTo(_settingsView, NavSettings);
+    private void NavBindings_Click(object? sender, RoutedEventArgs e) => NavigateTo(_bindingsView, NavBindings);
+
+    private Dictionary<Button, NavInfo> GetNavMap() => new()
+    {
+        { NavMixer,    new(NavMixerBar, NavMixerIcon, NavMixerLabel) },
+        { NavButtons,  new(NavButtonsBar, NavButtonsIcon, NavButtonsLabel) },
+        { NavLights,   new(NavLightsBar, NavLightsIcon, NavLightsLabel) },
+        { NavAmbience, new(NavAmbienceBar, NavAmbienceIcon, NavAmbienceLabel) },
+        { NavOsd,      new(NavOsdBar, NavOsdIcon, NavOsdLabel) },
+        { NavSettings, new(NavSettingsBar, NavSettingsIcon, NavSettingsLabel) },
+        { NavBindings, new(NavBindingsBar, NavBindingsIcon, NavBindingsLabel) },
+    };
+
+    private void NavigateTo(UserControl view, Button navButton)
+    {
+        ContentArea.Content = view;
+
+        var accent = this.FindResource("AccentBrush") as ISolidColorBrush
+                     ?? new SolidColorBrush(Color.Parse("#00E676"));
+        var dim = this.FindResource("TextSecBrush") as ISolidColorBrush
+                  ?? new SolidColorBrush(Color.Parse("#9A9A9A"));
+
+        // Reset previous active
+        if (_activeNavBar != null) _activeNavBar.IsVisible = false;
+        if (_activeNavLabel != null) _activeNavLabel.Foreground = dim;
+
+        // Activate new
+        var map = GetNavMap();
+        if (map.TryGetValue(navButton, out var info))
+        {
+            info.Bar.IsVisible = true;
+            info.Label.Foreground = accent;
+            _activeNavBar = info.Bar;
+            _activeNavLabel = info.Label;
+        }
+
+        _activeNavButton = navButton;
+    }
+
+    // ── Connection status (called externally) ────────────────────
+    public void SetConnectionStatus(bool connected)
+    {
+        var green = this.FindResource("SuccessGrnBrush") as ISolidColorBrush
+                    ?? new SolidColorBrush(Color.Parse("#00DD77"));
+        var dimBrush = this.FindResource("TextDimBrush") as ISolidColorBrush
+                       ?? new SolidColorBrush(Color.Parse("#6A6A6A"));
+
+        ConnectionDot.Fill = connected ? green : dimBrush;
+        ConnectionLabel.Text = connected ? "Connected" : "Disconnected";
+    }
+}
