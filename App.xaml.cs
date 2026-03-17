@@ -399,19 +399,19 @@ public partial class App : Application
         if (e.Idx >= 0 && e.Idx < 5)
             KnobPositions[e.Idx] = e.Value / 1023f;
 
-        // Always track raw value so wheel delta is accurate on first event.
-        // Route nav knob to radial wheel when wheel is open.
+        // Route ANY knob to radial wheel when wheel is open.
+        // Only update baseline on successful step so small turns accumulate.
         if (e.Idx >= 0 && e.Idx < 5)
         {
-            if (_wheelVisible && e.Idx == _config.Osd.QuickWheel.NavigationKnob)
+            if (_wheelVisible)
             {
                 int delta = e.Value - _lastKnobRaw[e.Idx];
-                _lastKnobRaw[e.Idx] = e.Value;
-                if (Math.Abs(delta) >= 30 && _radialWheel != null)
+                if (Math.Abs(delta) >= 50 && _radialWheel != null)
                 {
-                    int count = _config.Profiles.Count;
+                    _lastKnobRaw[e.Idx] = e.Value; // only reset on step
+                    int totalSlots = _radialWheel.GetTotalSlots();
                     int step = delta > 0 ? 1 : -1;
-                    int next = ((_radialWheel.GetSelectedIndex() + step) % count + count) % count;
+                    int next = ((_radialWheel.GetSelectedIndex() + step) % totalSlots + totalSlots) % totalSlots;
                     Dispatcher.BeginInvoke(() => _radialWheel?.Highlight(next));
                 }
                 return; // don't also adjust audio volume while wheel is open
@@ -1020,6 +1020,7 @@ public partial class App : Application
             {
                 _wheelVisible = false;
                 _radialWheel = null;
+                // idx maps to profile list (slots beyond count are empty)
                 if (idx >= 0 && idx < _config.Profiles.Count)
                 {
                     var profileName = _config.Profiles[idx];
