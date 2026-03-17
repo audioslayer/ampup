@@ -1029,7 +1029,7 @@ public partial class SettingsView : UserControl
 
             var slider = new Controls.StyledSlider
             {
-                Minimum = 0.5, Maximum = 4.0, Value = 2.0,
+                Minimum = 0.5, Maximum = 4.0, Value = 1.0,
                 AccentColor = color, Height = 28,
                 ShowLabel = true, Suffix = "", Step = 0.1, LabelFormat = "F1",
                 Margin = new Thickness(8, 0, 0, 0),
@@ -1066,9 +1066,9 @@ public partial class SettingsView : UserControl
 
     private void OnGammaReset(object sender, RoutedEventArgs e)
     {
-        if (_sldGammaR != null) _sldGammaR.Value = 2.0;
-        if (_sldGammaG != null) _sldGammaG.Value = 2.0;
-        if (_sldGammaB != null) _sldGammaB.Value = 2.0;
+        if (_sldGammaR != null) _sldGammaR.Value = 1.0;
+        if (_sldGammaG != null) _sldGammaG.Value = 1.0;
+        if (_sldGammaB != null) _sldGammaB.Value = 1.0;
     }
 
     private void SetCalibPreview(byte r, byte g, byte b, Border swatch)

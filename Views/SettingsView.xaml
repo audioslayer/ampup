@@ -235,9 +235,9 @@
                     <!-- Gamma sliders (built in code-behind as StyledSliders) -->
                     <StackPanel x:Name="GammaSlidersPanel" Margin="0,0,0,4" />
 
-                    <ui:Button x:Name="BtnGammaReset" Content="Reset to Default (2.0)"
+                    <ui:Button x:Name="BtnGammaReset" Content="Reset to Default (1.0)"
                                Appearance="Secondary" Margin="0,8,0,0"
-                               ToolTip="Reset all gamma channels to 2.0" />
+                               ToolTip="Reset all gamma channels to 1.0 (linear, no correction)" />
                 </StackPanel>
             </Border>
 

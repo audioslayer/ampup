@@ -106,12 +106,12 @@ public class RgbController : IDisposable
     private struct TransitionColor { public byte R, G, B; }
     private TransitionColor _transitionColor = new() { R = 0, G = 230, B = 118 };
 
-    // Per-channel gamma correction tables — default 2.0 curve.
-    // Users can adjust per-channel via Settings → LED Calibration to compensate
-    // for LED manufacturing variance (e.g. weak red making purple look blue).
-    private byte[] _gammaR = BuildGammaTable(2.0);
-    private byte[] _gammaG = BuildGammaTable(2.0);
-    private byte[] _gammaB = BuildGammaTable(2.0);
+    // Per-channel gamma correction tables — default 1.0 (linear, no correction).
+    // The official Turn Up app sends raw RGB with no gamma. Users can adjust
+    // per-channel via Settings → LED Calibration if their LEDs need correction.
+    private byte[] _gammaR = BuildGammaTable(1.0);
+    private byte[] _gammaG = BuildGammaTable(1.0);
+    private byte[] _gammaB = BuildGammaTable(1.0);
 
     private static byte[] BuildGammaTable(double gamma)
     {
