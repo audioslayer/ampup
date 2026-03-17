@@ -461,9 +461,10 @@ public partial class App : Application
                 // Skip during startup restore to avoid turning on Govee devices on app launch
                 if (Environment.TickCount64 - _startupTick >= 5000)
                 {
-                    // Active knob turn = user intent — turn on devices if off
+                    float norm = e.Value / 1023f;
                     _ambienceSync?.EnsureDevicesPoweredOn();
-                    _ambienceSync?.SetBrightness(e.Value / 1023f);
+                    _ambienceSync?.SetBrightness(norm);
+                    Dispatcher.BeginInvoke(() => _mainWindow?.UpdateGoveeDeviceBrightness(null, norm, true));
                 }
             }
             else if (knob.Target.StartsWith("govee:", StringComparison.OrdinalIgnoreCase))
@@ -472,9 +473,10 @@ public partial class App : Application
                 if (Environment.TickCount64 - _startupTick >= 5000)
                 {
                     var ip = knob.Target.Substring(6);
-                    // Active knob turn = user intent — turn on device if off
+                    float norm = e.Value / 1023f;
                     _ambienceSync?.EnsureDevicePoweredOn(ip);
-                    _ambienceSync?.SetBrightnessForDevice(ip, e.Value / 1023f);
+                    _ambienceSync?.SetBrightnessForDevice(ip, norm);
+                    Dispatcher.BeginInvoke(() => _mainWindow?.UpdateGoveeDeviceBrightness(ip, norm, true));
                 }
             }
             else

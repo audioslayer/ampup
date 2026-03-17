@@ -1246,6 +1246,14 @@ public partial class MainWindow : FluentWindow
             _ambienceView.SetDreamSync(dreamSync);
     }
 
+    public void UpdateGoveeDeviceBrightness(string? ip, float normalized, bool poweredOn)
+    {
+        if (ip != null)
+            _ambienceView.UpdateDeviceBrightness(ip, normalized, poweredOn);
+        else
+            _ambienceView.UpdateAllDeviceBrightness(normalized, poweredOn);
+    }
+
     private void SwitchToProfile(string profileName)
     {
         // Save current profile before switching

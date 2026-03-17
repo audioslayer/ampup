@@ -24,6 +24,9 @@ public partial class AmbienceView : UserControl
     // Section header elements (refreshed on accent change)
     private readonly List<(Border bar, TextBlock label)> _sectionHeaders = new();
 
+    // Per-device UI references for live knob updates
+    private readonly Dictionary<string, (CheckBox onOff, Controls.StyledSlider brightness)> _deviceControls = new();
+
     // DreamView live preview swatches
     private readonly List<Border> _dreamZoneSwatches = new();
     private TextBlock? _dreamStatusLabel;
@@ -480,6 +483,10 @@ public partial class AmbienceView : UserControl
         controlsRow.Children.Add(brightnessSlider);
 
         stack.Children.Add(controlsRow);
+
+        // Store references for live knob updates
+        if (lanIp != null)
+            _deviceControls[lanIp] = (onOffCheck, brightnessSlider);
 
         // ── Query actual device state via LAN ──
         if (lanIp != null)
@@ -961,6 +968,31 @@ public partial class AmbienceView : UserControl
         if (n.Contains("pulse")) return "💓";
         // Fallback — use the first character as a styled icon
         return "◆";
+    }
+
+    /// <summary>
+    /// Update the on/off checkbox and brightness slider for a device from a knob event.
+    /// Called from App.xaml.cs when a Govee knob is turned.
+    /// </summary>
+    public void UpdateDeviceBrightness(string ip, float normalized, bool poweredOn)
+    {
+        if (!_deviceControls.TryGetValue(ip, out var controls)) return;
+        _loading = true;
+        controls.onOff.IsChecked = poweredOn;
+        controls.brightness.Value = Math.Max(1, (int)Math.Round(normalized * 100));
+        _loading = false;
+    }
+
+    /// <summary>Update all Govee device checkboxes/brightness from knob events.</summary>
+    public void UpdateAllDeviceBrightness(float normalized, bool poweredOn)
+    {
+        _loading = true;
+        foreach (var (_, controls) in _deviceControls)
+        {
+            controls.onOff.IsChecked = poweredOn;
+            controls.brightness.Value = Math.Max(1, (int)Math.Round(normalized * 100));
+        }
+        _loading = false;
     }
 
     // ── Device state query ────────────────────────────────────────────
