@@ -1,0 +1,6 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="AmpUp.Mac.Controls.KnobControl"
+             Width="100" Height="100">
+    <Canvas x:Name="KnobCanvas" Width="100" Height="100" />
+</UserControl>
