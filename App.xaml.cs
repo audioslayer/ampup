@@ -442,8 +442,12 @@ public partial class App : Application
             }
             else if (knob.Target.Equals("monitor", StringComparison.OrdinalIgnoreCase))
             {
-                float vol = e.Value / 1023f;
-                MonitorBrightness.SetThrottled(vol);
+                // Skip during startup restore to avoid flickering monitor brightness on app launch
+                if (Environment.TickCount64 - _startupTick >= 5000)
+                {
+                    float vol = e.Value / 1023f;
+                    MonitorBrightness.SetThrottled(vol);
+                }
             }
             else if (knob.Target.Equals("led_brightness", StringComparison.OrdinalIgnoreCase))
             {
