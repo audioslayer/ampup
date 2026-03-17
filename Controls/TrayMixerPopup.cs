@@ -751,9 +751,7 @@ public class TrayMixerPopup : Window
         var row = new Border
         {
             Background = Brushes.Transparent,
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(10, 7, 10, 7),
-            Cursor = Cursors.Hand,
+            Padding = new Thickness(10, 5, 10, 5),
         };
 
         var dock = new DockPanel { LastChildFill = true };
@@ -772,64 +770,58 @@ public class TrayMixerPopup : Window
         DockPanel.SetDock(typeLabel, Dock.Left);
         dock.Children.Add(typeLabel);
 
-        // Current device name
-        string currentName = "Unknown";
+        // Build device list + find current default
+        var devices = new List<MMDevice>();
+        string currentId = "";
         try
         {
             var role = flow == DataFlow.Capture ? Role.Communications : Role.Multimedia;
-            using var device = _enumerator.GetDefaultAudioEndpoint(flow, role);
-            currentName = device.FriendlyName;
-            // Shorten long names
-            if (currentName.Length > 30)
-                currentName = currentName[..28] + "…";
+            var enumerated = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
+            foreach (var d in enumerated) devices.Add(d);
+            using var def = _enumerator.GetDefaultAudioEndpoint(flow, role);
+            currentId = def.ID;
         }
         catch { }
 
-        var nameLabel = new TextBlock
+        // ComboBox styled to match the dark theme
+        var accent = GetAccentColor();
+        var combo = new ComboBox
         {
-            Text = currentName,
-            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
             FontSize = 11,
             FontFamily = new FontFamily("Segoe UI"),
-            VerticalAlignment = VerticalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis,
+            Height = 28,
+            Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(60, accent.R, accent.G, accent.B)),
+            BorderThickness = new Thickness(1),
+            VerticalContentAlignment = VerticalAlignment.Center,
         };
-        dock.Children.Add(nameLabel);
 
-        row.Child = dock;
-
-        // Hover effect
-        var accent = GetAccentColor();
-        row.MouseEnter += (_, _) =>
-            row.Background = new SolidColorBrush(Color.FromArgb(26, accent.R, accent.G, accent.B));
-        row.MouseLeave += (_, _) =>
-            row.Background = Brushes.Transparent;
-
-        // Click to cycle to next device
-        row.MouseLeftButtonDown += (_, _) =>
+        int selectedIdx = 0;
+        for (int i = 0; i < devices.Count; i++)
         {
+            var d = devices[i];
+            var name = d.FriendlyName.Length > 36 ? d.FriendlyName[..34] + "…" : d.FriendlyName;
+            combo.Items.Add(name);
+            if (d.ID == currentId) selectedIdx = i;
+        }
+
+        if (combo.Items.Count == 0)
+        {
+            combo.Items.Add("No devices found");
+            combo.IsEnabled = false;
+        }
+
+        combo.SelectedIndex = selectedIdx;
+
+        // Switch device on selection change
+        combo.SelectionChanged += (_, _) =>
+        {
+            int idx = combo.SelectedIndex;
+            if (idx < 0 || idx >= devices.Count) return;
             try
             {
-                var devices = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
-                if (devices.Count < 2) return; // nothing to cycle
-
-                var role = flow == DataFlow.Capture ? Role.Communications : Role.Multimedia;
-                using var current = _enumerator.GetDefaultAudioEndpoint(flow, role);
-                string currentId = current.ID;
-
-                // Find next device
-                int currentIdx = -1;
-                for (int i = 0; i < devices.Count; i++)
-                {
-                    if (devices[i].ID == currentId) { currentIdx = i; break; }
-                }
-                int nextIdx = (currentIdx + 1) % devices.Count;
-                var next = devices[nextIdx];
-
-                ButtonHandler.SetDefaultAudioDevice(next.ID);
-                nameLabel.Text = next.FriendlyName.Length > 30
-                    ? next.FriendlyName[..28] + "…"
-                    : next.FriendlyName;
+                ButtonHandler.SetDefaultAudioDevice(devices[idx].ID);
             }
             catch (Exception ex)
             {
@@ -837,6 +829,8 @@ public class TrayMixerPopup : Window
             }
         };
 
+        dock.Children.Add(combo);
+        row.Child = dock;
         return row;
     }
 
