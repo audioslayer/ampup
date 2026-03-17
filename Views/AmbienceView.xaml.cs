@@ -224,6 +224,7 @@ public partial class AmbienceView : UserControl
     private void RebuildDevicePanel()
     {
         DevicePanel.Children.Clear();
+        _deviceControls.Clear();
 
         // Update top bar status
         var topBarRow = TopBar.Children.Count > 0 ? TopBar.Children[0] as StackPanel : null;
@@ -484,9 +485,12 @@ public partial class AmbienceView : UserControl
 
         stack.Children.Add(controlsRow);
 
-        // Store references for live knob updates
+        // Store references for live knob updates — index by all known IPs
         if (lanIp != null)
             _deviceControls[lanIp] = (onOffCheck, brightnessSlider);
+        // Also index by device config IP directly (for LAN-only mode)
+        if (devConfig != null && !string.IsNullOrWhiteSpace(devConfig.Ip))
+            _deviceControls[devConfig.Ip] = (onOffCheck, brightnessSlider);
 
         // ── Query actual device state via LAN ──
         if (lanIp != null)
