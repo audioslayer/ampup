@@ -47,6 +47,9 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern bool DestroyIcon(IntPtr hIcon);
 
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    internal static extern uint RegisterWindowMessage(string lpString);
+
     // PowrProf.dll — replaces WinForms Application.SetSuspendState
     [DllImport("PowrProf.dll", SetLastError = true)]
     internal static extern bool SetSuspendState(bool hibernate, bool forceCritical, bool disableWakeEvent);

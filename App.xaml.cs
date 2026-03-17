@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Windows;
+using System.Windows.Interop;
 using Microsoft.Win32;
 using AmpUp.Controls;
 using AmpUp.Core.Services;
@@ -50,6 +51,7 @@ public partial class App : Application
     private readonly long[] _lastOsdTick = new long[5]; // throttle OSD updates
     private readonly int[] _lastOsdValue = { -1, -1, -1, -1, -1 }; // suppress OSD if value unchanged
     private readonly long _startupTick = Environment.TickCount64; // suppress OSD on launch
+    private uint _wmTaskbarCreated; // registered window message ID for WM_TASKBARCREATED
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -191,6 +193,13 @@ public partial class App : Application
         // Create tray icon
         SetupTrayIcon();
 
+        // Listen for display configuration changes (e.g. monitor on/off) — tray icon
+        // handle can become invalid when Explorer restarts or display settings change.
+        SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+
+        // Register WM_TASKBARCREATED so we can recreate the tray icon if Explorer crashes/restarts
+        _wmTaskbarCreated = NativeMethods.RegisterWindowMessage("TaskbarCreated");
+
         // Create main window
         _mainWindow = new MainWindow();
         _mainWindow.Closing += MainWindow_Closing;
@@ -202,6 +211,23 @@ public partial class App : Application
         var args = Environment.GetCommandLineArgs();
         if (!args.Contains("--minimized"))
             _mainWindow.Show();
+
+        // Hook WM_TASKBARCREATED on the main window's HWND so we can recreate the tray
+        // icon if Explorer crashes or the taskbar is restarted for any reason.
+        // We must ensure the window's HWND exists first (Show() does that; for the
+        // minimized-to-tray case we force handle creation via EnsureHandle).
+        _mainWindow.SourceInitialized += (_, _) =>
+        {
+            var hwndSource = HwndSource.FromHwnd(new WindowInteropHelper(_mainWindow).Handle);
+            hwndSource?.AddHook(WndProc);
+        };
+        // If the window was already shown above, SourceInitialized already fired — hook now.
+        var existingHandle = new WindowInteropHelper(_mainWindow).Handle;
+        if (existingHandle != IntPtr.Zero)
+        {
+            var hwndSource = HwndSource.FromHwnd(existingHandle);
+            hwndSource?.AddHook(WndProc);
+        }
 
         // Sync connection status — serial may have connected before window was created
         if (_isConnected)
@@ -244,6 +270,64 @@ public partial class App : Application
             if (e.Button == Forms.MouseButtons.Left || e.Button == Forms.MouseButtons.Right)
                 ShowTrayMixer();
         };
+    }
+
+    /// <summary>
+    /// Recreate the tray icon (dispose old + create new) and re-apply connection status.
+    /// Called when display settings change or the taskbar is recreated.
+    /// </summary>
+    private void RecreateTrayIcon()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            try
+            {
+                if (_trayIcon != null)
+                {
+                    _trayIcon.Visible = false;
+                    _trayIcon.Dispose();
+                    _trayIcon = null;
+                }
+                SetupTrayIcon();
+                // Re-apply current connection status icon/text
+                if (_trayIcon != null)
+                {
+                    var oldIcon = _trayIcon.Icon;
+                    _trayIcon.Icon = CreateTrayIcon(_isConnected);
+                    _trayIcon.Text = _isConnected ? "Amp Up — Connected" : "Amp Up — Disconnected";
+                    oldIcon?.Dispose();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"RecreateTrayIcon error: {ex.Message}");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Fired by Microsoft.Win32.SystemEvents when display settings change (monitors on/off, resolution, etc.).
+    /// Explorer sometimes restarts the taskbar in response, invalidating the NotifyIcon handle.
+    /// </summary>
+    private void OnDisplaySettingsChanged(object? sender, EventArgs e)
+    {
+        Logger.Log("Display settings changed — recreating tray icon");
+        RecreateTrayIcon();
+    }
+
+    /// <summary>
+    /// WndProc hook on the main window. Catches WM_TASKBARCREATED, which Windows sends to
+    /// all top-level windows when Explorer restarts the shell/taskbar (crash recovery, logoff,
+    /// or display changes). On receipt we recreate the tray icon so it reappears automatically.
+    /// </summary>
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (_wmTaskbarCreated != 0 && (uint)msg == _wmTaskbarCreated)
+        {
+            Logger.Log("WM_TASKBARCREATED received — recreating tray icon");
+            RecreateTrayIcon();
+        }
+        return IntPtr.Zero;
     }
 
     private void ShowMainWindow()
@@ -315,6 +399,8 @@ public partial class App : Application
     {
         // Save last knob positions so they restore on next launch
         ConfigManager.Save(_config);
+
+        SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
 
         if (_trayIcon != null)
         {
@@ -1268,6 +1354,8 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+
         if (_trayIcon != null)
         {
             _trayIcon.Visible = false;
