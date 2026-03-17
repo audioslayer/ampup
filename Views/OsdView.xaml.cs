@@ -100,12 +100,46 @@ public partial class OsdView : UserControl
         _config.Osd.ProfileDuration = Math.Round(SldOsdProfileDur.Value * 2) / 2;
         _config.Osd.DeviceDuration = Math.Round(SldOsdDeviceDur.Value * 2) / 2;
 
+        bool wasEnabled = _config.Osd.QuickWheel.Enabled;
+        int oldButton = _config.Osd.QuickWheel.TriggerButton;
+
         _config.Osd.QuickWheel.Enabled = ChkWheelEnabled.IsChecked == true;
         _config.Osd.QuickWheel.TriggerButton = CmbWheelButton.SelectedIndex;
         _config.Osd.QuickWheel.NavigationKnob = CmbWheelKnob.SelectedIndex;
         _config.Osd.QuickWheel.TriggerGesture = "hold";
 
+        // Sync: keep button HoldAction in sync with Quick Wheel config
+        SyncButtonHoldAction(wasEnabled, oldButton);
+
         _onSave(_config);
+    }
+
+    /// <summary>
+    /// Keep button HoldAction in sync with Quick Wheel config.
+    /// When enabled, set the trigger button's hold to quick_wheel.
+    /// When disabled or trigger changes, clear the old button's hold if it was quick_wheel.
+    /// </summary>
+    private void SyncButtonHoldAction(bool wasEnabled, int oldButton)
+    {
+        if (_config == null) return;
+        var buttons = _config.Buttons;
+        if (buttons == null) return;
+
+        // Clear old button if it was set to quick_wheel
+        if (wasEnabled && oldButton >= 0 && oldButton < buttons.Count)
+        {
+            var oldBtn = buttons[oldButton];
+            if (oldBtn.HoldAction == "quick_wheel")
+                oldBtn.HoldAction = "none";
+        }
+
+        // Set new trigger button's hold to quick_wheel
+        if (_config.Osd.QuickWheel.Enabled)
+        {
+            int newButton = _config.Osd.QuickWheel.TriggerButton;
+            if (newButton >= 0 && newButton < buttons.Count)
+                buttons[newButton].HoldAction = "quick_wheel";
+        }
     }
 
     private void OsdPosition_Click(object sender, MouseButtonEventArgs e)
