@@ -226,7 +226,10 @@
                         <Border x:Name="CalibTestWhite" Width="32" Height="32" CornerRadius="6" Margin="0,0,6,0" Cursor="Hand"
                                 Background="#FFFFFF" BorderThickness="2" BorderBrush="#333333" ToolTip="White" />
                         <Border x:Name="CalibTestOff" Width="32" Height="32" CornerRadius="6" Margin="0,0,0,0" Cursor="Hand"
-                                Background="#1A1A1A" BorderThickness="2" BorderBrush="#333333" ToolTip="Off (resume normal)" />
+                                Background="#1A1A1A" BorderThickness="2" BorderBrush="#333333" ToolTip="Stop preview (resume normal)">
+                            <TextBlock Text="✕" Foreground="#666666" FontSize="14" FontWeight="Bold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
                     </StackPanel>
 
                     <!-- Gamma sliders -->

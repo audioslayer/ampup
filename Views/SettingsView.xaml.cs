@@ -47,6 +47,13 @@ public partial class SettingsView : UserControl
             CollectAndSave();
         };
 
+        // Clear LED preview when navigating away from Settings
+        IsVisibleChanged += (_, e) =>
+        {
+            if (e.NewValue is false && _calibPreviewColor != null)
+                ClearCalibPreview();
+        };
+
         // Wire up change events
         TxtSerialPort.TextChanged += OnValueChanged;
         TxtBaudRate.TextChanged += OnValueChanged;
