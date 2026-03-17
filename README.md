@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.8.1--alpha-blue" alt="Version" />
-  <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6" alt="Platform" />
+  <img src="https://img.shields.io/badge/version-0.8.5--alpha-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/platform-Windows%20|%20macOS-0078D6" alt="Platform" />
   <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8" />
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License" />
 </p>
@@ -123,19 +123,25 @@ Amp Up is a community-built alternative for the Turn Up USB mixer with a modern 
 
 ## :inbox_tray: Install
 
-### Installer (Recommended)
-1. Download `AmpUp-Setup-0.8.1-alpha.exe` from [Releases](https://github.com/audioslayer/ampup/releases)
-2. Run the installer
+### Windows (Recommended)
+1. Download `AmpUp-Setup-0.8.5-alpha.exe` from [Releases](https://github.com/audioslayer/ampup/releases)
+2. Run the installer (auto-installs .NET 8 Desktop Runtime if needed)
 3. Amp Up appears in your system tray
 
-### Build from Source
-```powershell
-git clone https://github.com/audioslayer/ampup.git
-cd ampup
-dotnet build
-```
+### macOS
+1. Download `AmpUp-0.8.5-alpha.dmg` from [Releases](https://github.com/audioslayer/ampup/releases)
+2. Open the DMG, drag Amp Up to Applications
+3. Launch from Applications (grant audio permission on first run)
 
-Requires [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0). Output: `bin\Debug\net8.0-windows\AmpUp.exe`
+### Build from Source
+```bash
+# Windows
+git clone https://github.com/audioslayer/ampup.git
+cd ampup && dotnet build
+
+# macOS (Apple Silicon, requires .NET 8 SDK + Swift)
+cd AmpUp.Mac && ./build.sh
+```
 
 > **Note:** Kill the official Turn Up app first — it holds the COM port.
 > ```powershell
@@ -209,11 +215,11 @@ Amp Up is designed for the **Turn Up** USB volume mixer (CH343 USB-to-serial). T
 - [x] Govee room lighting sync (Ambience tab — LAN + Cloud)
 - [x] DreamView screen sync (gamma-correct zone capture to Govee lights)
 - [x] Quick Wheel — radial profile/device switcher (hold button + turn knob)
-- [ ] OBS WebSocket integration (scene switching, source control)
-- [ ] VoiceMeeter strip/bus control
+- [x] OBS WebSocket v5 integration (scene switching, source control)
+- [x] VoiceMeeter strip/bus control
+- [x] macOS port (Avalonia UI, Core Audio Process Taps, all views)
+- [x] EarTrumpet-inspired tray mixer (search, pin, scroll wheel, Quick Assign)
 - [ ] Multi-device support
-- [ ] FanControl integration
-- [ ] OpenRGB integration (sync AmpUp LEDs with other RGB hardware)
 - [ ] Mobile companion app (view VU meters, swap profiles from phone)
 - [ ] Velopack delta updates (faster, smaller incremental app updates)
 
