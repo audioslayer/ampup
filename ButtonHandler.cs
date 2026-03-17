@@ -356,7 +356,8 @@ public class ButtonHandler : IDisposable
                     var pid = (int)session.GetProcessID;
                     if (pid == 0) continue;
                     var proc = Process.GetProcessById(pid);
-                    if (proc.ProcessName.Contains(processName, StringComparison.OrdinalIgnoreCase))
+                    if (proc.ProcessName.Contains(processName, StringComparison.OrdinalIgnoreCase)
+                        || proc.ProcessName.Replace(" ", "").Contains(processName.Replace(" ", ""), StringComparison.OrdinalIgnoreCase))
                     {
                         session.SimpleAudioVolume.Mute = !session.SimpleAudioVolume.Mute;
                         Logger.Log($"mute_program: {proc.ProcessName} mute={session.SimpleAudioVolume.Mute}");
@@ -484,7 +485,9 @@ public class ButtonHandler : IDisposable
 
                     foreach (var appName in knob.Apps)
                     {
-                        if (procName.Contains(appName.ToLowerInvariant()))
+                        var appLower = appName.ToLowerInvariant();
+                        if (procName.Contains(appLower)
+                            || procName.Replace(" ", "").Contains(appLower.Replace(" ", "")))
                         {
                             matchingSessions.Add(session);
                             break;

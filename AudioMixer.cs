@@ -15,6 +15,14 @@ public class AudioMixer : IDisposable
 
     // Map of processName (lowercase) -> AudioSessionControl
     private Dictionary<string, AudioSessionControl> _sessions = new();
+
+    /// <summary>
+    /// Fuzzy process name match: strips spaces so "Apple Music" matches "AppleMusic".
+    /// Both strings should already be lowercase.
+    /// </summary>
+    private static bool FuzzyContains(string processName, string search)
+        => processName.Contains(search)
+        || processName.Replace(" ", "").Contains(search.Replace(" ", ""));
     // Map of processId -> AudioSessionControl (for active_window lookups)
     private Dictionary<uint, AudioSessionControl> _sessionsByPid = new();
 
@@ -141,7 +149,7 @@ public class AudioMixer : IDisposable
                         var app = appName.ToLowerInvariant();
                         foreach (var kv in _sessions)
                         {
-                            if (kv.Key.Contains(app))
+                            if (FuzzyContains(kv.Key, app))
                                 try { kv.Value.SimpleAudioVolume.Volume = vol; } catch { }
                         }
                     }
@@ -184,7 +192,7 @@ public class AudioMixer : IDisposable
                 }
 
                 // Match by process name substring
-                var match = _sessions.FirstOrDefault(kv => kv.Key.Contains(target));
+                var match = _sessions.FirstOrDefault(kv => FuzzyContains(kv.Key, target));
                 if (match.Value != null)
                     match.Value.SimpleAudioVolume.Volume = vol;
             }
@@ -334,7 +342,7 @@ public class AudioMixer : IDisposable
                         var app = appName.ToLowerInvariant();
                         foreach (var kv in _sessions)
                         {
-                            if (kv.Key.Contains(app))
+                            if (FuzzyContains(kv.Key, app))
                                 try { maxVol = Math.Max(maxVol, kv.Value.SimpleAudioVolume.Volume); } catch { }
                         }
                     }
@@ -355,7 +363,7 @@ public class AudioMixer : IDisposable
             // Process name substring match
             lock (_lock)
             {
-                var match = _sessions.FirstOrDefault(kv => kv.Key.Contains(target));
+                var match = _sessions.FirstOrDefault(kv => FuzzyContains(kv.Key, target));
                 if (match.Value != null) return match.Value.SimpleAudioVolume.Volume;
             }
         }
@@ -503,7 +511,7 @@ public class AudioMixer : IDisposable
                         var app = appName.ToLowerInvariant();
                         foreach (var kv in _sessions)
                         {
-                            if (kv.Key.Contains(app))
+                            if (FuzzyContains(kv.Key, app))
                                 try { maxPeak = Math.Max(maxPeak, kv.Value.AudioMeterInformation.MasterPeakValue); } catch { }
                         }
                     }
@@ -524,7 +532,7 @@ public class AudioMixer : IDisposable
             // Process name substring match
             lock (_lock)
             {
-                var match = _sessions.FirstOrDefault(kv => kv.Key.Contains(target));
+                var match = _sessions.FirstOrDefault(kv => FuzzyContains(kv.Key, target));
                 if (match.Value != null) return match.Value.AudioMeterInformation.MasterPeakValue;
             }
         }
