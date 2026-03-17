@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -163,20 +164,131 @@ public partial class SettingsView : UserControl
 
     // ── Profiles ──────────────────────────────────────────────────
 
-    private void OnAddProfile()
+    private async void OnAddProfile()
     {
-        // TODO: Show input dialog for profile name
         if (_config == null) return;
-        var name = $"Profile {_config.Profiles.Count + 1}";
+        var suggested = $"Profile {_config.Profiles.Count + 1}";
+        var name = await ShowInputDialog("New Profile", "Enter profile name:", suggested);
+        if (string.IsNullOrWhiteSpace(name)) return;
+        name = name.Trim();
+        if (_config.Profiles.Contains(name)) return;
         _config.Profiles.Add(name);
         _config.ActiveProfile = name;
         CollectAndSave();
         LoadConfig(_config, _onSave!);
     }
 
-    private void OnRenameProfile()
+    private async void OnRenameProfile()
     {
-        // TODO: Show rename dialog
+        if (_config == null || CmbProfiles.SelectedItem == null) return;
+        var current = CmbProfiles.SelectedItem.ToString()!;
+        var newName = await ShowInputDialog("Rename Profile", "Enter new profile name:", current);
+        if (string.IsNullOrWhiteSpace(newName)) return;
+        newName = newName.Trim();
+        if (newName == current || _config.Profiles.Contains(newName)) return;
+        var idx = _config.Profiles.IndexOf(current);
+        if (idx >= 0) _config.Profiles[idx] = newName;
+        if (_config.ActiveProfile == current) _config.ActiveProfile = newName;
+        // Rename profile icon config key if present
+        if (_config.ProfileIcons.TryGetValue(current, out var icon))
+        {
+            _config.ProfileIcons.Remove(current);
+            _config.ProfileIcons[newName] = icon;
+        }
+        CollectAndSave();
+        LoadConfig(_config, _onSave!);
+    }
+
+    /// <summary>Shows a small modal input dialog and returns the entered text (or null on cancel).</summary>
+    private async Task<string?> ShowInputDialog(string title, string prompt, string defaultValue)
+    {
+        string? result = null;
+
+        var win = new Avalonia.Controls.Window
+        {
+            Title = title,
+            Width = 360,
+            Height = 160,
+            SystemDecorations = Avalonia.Controls.SystemDecorations.Full,
+            WindowStartupLocation = Avalonia.Controls.WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#141414")),
+        };
+
+        var promptLabel = new Avalonia.Controls.TextBlock
+        {
+            Text = prompt,
+            Foreground = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#9A9A9A")),
+            FontSize = 12,
+            Margin = new Avalonia.Thickness(16, 16, 16, 6),
+        };
+
+        var input = new Avalonia.Controls.TextBox
+        {
+            Text = defaultValue,
+            Margin = new Avalonia.Thickness(16, 0, 16, 0),
+            FontSize = 13,
+            Padding = new Avalonia.Thickness(8, 6),
+        };
+
+        var okBtn = new Avalonia.Controls.Button
+        {
+            Content = "OK",
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+            Margin = new Avalonia.Thickness(0, 0, 12, 0),
+            Width = 80, Height = 32,
+            Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#00A854")),
+            Foreground = Avalonia.Media.Brushes.White,
+        };
+
+        var cancelBtn = new Avalonia.Controls.Button
+        {
+            Content = "Cancel",
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+            Width = 80, Height = 32,
+        };
+
+        var btnRow = new Avalonia.Controls.StackPanel
+        {
+            Orientation = Avalonia.Layout.Orientation.Horizontal,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+            Margin = new Avalonia.Thickness(0, 12, 16, 0),
+            Spacing = 8,
+        };
+        btnRow.Children.Add(cancelBtn);
+        btnRow.Children.Add(okBtn);
+
+        var root = new Avalonia.Controls.StackPanel();
+        root.Children.Add(promptLabel);
+        root.Children.Add(input);
+        root.Children.Add(btnRow);
+        win.Content = root;
+
+        okBtn.Click += (_, _) => { result = input.Text; win.Close(); };
+        cancelBtn.Click += (_, _) => win.Close();
+        input.KeyDown += (_, e) =>
+        {
+            if (e.Key == Avalonia.Input.Key.Return) { result = input.Text; win.Close(); }
+            else if (e.Key == Avalonia.Input.Key.Escape) win.Close();
+        };
+
+        // Focus input after open
+        win.Opened += (_, _) =>
+        {
+            input.Focus();
+            input.SelectAll();
+        };
+
+        var ownerWindow = Avalonia.Application.Current?.ApplicationLifetime is
+            Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+            ? desktop.MainWindow : null;
+
+        if (ownerWindow != null)
+            await win.ShowDialog(ownerWindow);
+        else
+            win.Show();
+
+        return result;
     }
 
     private void OnDeleteProfile()

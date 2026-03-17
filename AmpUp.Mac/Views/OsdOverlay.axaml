@@ -1,0 +1,64 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="AmpUp.Mac.Views.OsdOverlay"
+        Width="320" Height="90"
+        SystemDecorations="None"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True"
+        CanResize="False"
+        IsHitTestVisible="False"
+        TransparencyLevelHint="Transparent"
+        ExtendClientAreaToDecorationsHint="True">
+
+    <!-- Root container — fades in/out via code-behind -->
+    <Grid x:Name="RootGrid" Opacity="0">
+
+        <!-- Glass card background -->
+        <Border x:Name="Card"
+                Background="#CC0F0F0F"
+                BorderBrush="#4000E676"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="18,12,18,12">
+
+            <Grid RowDefinitions="Auto,10,Auto">
+
+                <!-- Top row: knob label + value -->
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                    <TextBlock x:Name="LabelText"
+                               Grid.Column="0"
+                               Text="Master"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Foreground="#E8E8E8"
+                               VerticalAlignment="Center" />
+                    <TextBlock x:Name="ValueText"
+                               Grid.Column="1"
+                               Text="75%"
+                               FontSize="20"
+                               FontWeight="Bold"
+                               Foreground="#00E676"
+                               VerticalAlignment="Center"
+                               FontFamily="Menlo, Consolas, monospace" />
+                </Grid>
+
+                <!-- Fill bar -->
+                <Border Grid.Row="2"
+                        Background="#22FFFFFF"
+                        CornerRadius="3"
+                        Height="6">
+                    <Grid>
+                        <Border x:Name="FillBar"
+                                Background="#00E676"
+                                CornerRadius="3"
+                                Height="6"
+                                HorizontalAlignment="Left"
+                                Width="0" />
+                    </Grid>
+                </Border>
+
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

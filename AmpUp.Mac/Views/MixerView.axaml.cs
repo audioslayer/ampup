@@ -127,30 +127,13 @@ public partial class MixerView : UserControl
 
     private void LiveTimer_Tick(object? sender, EventArgs e)
     {
-        if (!IsVisible || _config == null) return;
+        if (!IsVisible) return;
 
+        // Tick animations only — positions are driven by hardware events via UpdateKnobPosition().
+        // We do NOT reset knob positions here; that would override live hardware values.
         for (int i = 0; i < 5; i++)
         {
-            var knob = _config.Knobs.FirstOrDefault(k => k.Idx == i);
-            if (knob == null) continue;
-
-            // In the Mac port, we read knob positions from the shared state
-            // For now, use a placeholder — real audio integration will feed these
-            float vol = 0f;
-            float peak = 0f;
-
-            // TODO: Wire up MacAudioMixer when available
-            // For now, knob positions come from serial hardware events via UpdateKnobPosition()
-            vol = 0f;
-            peak = 0f;
-
-            _knobs[i].SetTarget(vol);
             _knobs[i].Tick();
-            int pct = (int)(vol * 100);
-            _knobs[i].PercentText = $"{pct}%";
-            _volLabels[i].Text = $"{pct}%";
-
-            _vuMeters[i].Level = peak;
             _vuMeters[i].Tick();
         }
     }

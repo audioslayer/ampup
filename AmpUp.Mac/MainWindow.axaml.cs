@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -31,6 +32,9 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         NavigateTo(_mixerView, NavMixer);
+
+        // Keyboard shortcuts: Cmd+1..7 for tabs
+        KeyDown += OnWindowKeyDown;
     }
 
     // ── Called by App after backend is ready ─────────────────────
@@ -52,6 +56,23 @@ public partial class MainWindow : Window
         // Wire cross-view navigation
         _settingsView.OnNavigateToOverview = () => NavigateTo(_bindingsView, NavBindings);
         _ambienceView.NavigateToSettings = () => NavigateTo(_settingsView, NavSettings);
+
+        // Wire BindingsView navigation callbacks
+        _bindingsView.SetNavigationCallbacks(
+            onMixer: _ => NavigateTo(_mixerView, NavMixer),
+            onButtons: _ => NavigateTo(_buttonsView, NavButtons));
+
+        // Sync active profile label
+        SetActiveProfile(config.ActiveProfile);
+
+        // Apply start-minimized from config
+        StartMinimized = config.StartMinimized;
+    }
+
+    /// <summary>Called from hardware knob event — pushes live position to MixerView.</summary>
+    public void UpdateKnobPosition(int idx, float position)
+    {
+        _mixerView.UpdateKnobPosition(idx, position);
     }
 
     /// <summary>Called when DreamSync emits new zone colors — forwards to AmbienceView preview.</summary>
@@ -81,6 +102,26 @@ public partial class MainWindow : Window
     private void NavOsd_Click(object? sender, RoutedEventArgs e) => NavigateTo(_osdView, NavOsd);
     private void NavSettings_Click(object? sender, RoutedEventArgs e) => NavigateTo(_settingsView, NavSettings);
     private void NavBindings_Click(object? sender, RoutedEventArgs e) => NavigateTo(_bindingsView, NavBindings);
+
+    // ── Keyboard shortcuts ────────────────────────────────────────
+    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
+    {
+        // Cmd+1-7 for tab navigation (⌘1=Knobs, ⌘2=Buttons, ⌘3=Lights,
+        //   ⌘4=Ambience, ⌘5=OSD, ⌘6=Settings, ⌘7=Overview)
+        bool cmd = e.KeyModifiers.HasFlag(KeyModifiers.Meta);
+        if (!cmd) return;
+
+        switch (e.Key)
+        {
+            case Key.D1: NavigateTo(_mixerView, NavMixer); e.Handled = true; break;
+            case Key.D2: NavigateTo(_buttonsView, NavButtons); e.Handled = true; break;
+            case Key.D3: NavigateTo(_lightsView, NavLights); e.Handled = true; break;
+            case Key.D4: NavigateTo(_ambienceView, NavAmbience); e.Handled = true; break;
+            case Key.D5: NavigateTo(_osdView, NavOsd); e.Handled = true; break;
+            case Key.D6: NavigateTo(_settingsView, NavSettings); e.Handled = true; break;
+            case Key.D7: NavigateTo(_bindingsView, NavBindings); e.Handled = true; break;
+        }
+    }
 
     private Dictionary<Button, NavInfo> GetNavMap() => new()
     {
@@ -144,7 +185,7 @@ public partial class MainWindow : Window
     // ── Start minimized support ───────────────────────────────────
     /// <summary>
     /// If true, window starts hidden (minimized to menu bar tray).
-    /// Called by the Mac orchestrator after loading config.
+    /// Set from config.StartMinimized in SetViewDependencies.
     /// </summary>
     public bool StartMinimized { get; set; } = false;
 
