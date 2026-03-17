@@ -552,6 +552,38 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - **v0.8.4-alpha (Mar 16)** — **Multi-monitor tray fix + fullscreen OSD.** DPI-aware tray popup positioning (pixel→DIP conversion). Vertical taskbar detection. Hide OSD in fullscreen option. Quick Wheel follows theme accent color.
 - **v0.8.5-alpha (Mar 16)** — **Multiple Quick Wheels + Govee fixes.** Config changed from single QuickWheel to list of QuickWheels — each button can trigger a different wheel mode. OSD layout redesign (vertical flow, separate value labels). Govee PoweredOn state: on/off checkbox persists to config, color sync respects it, 5s startup guard. Govee knob turns update Ambience UI live (on/off checkbox + brightness slider). StyledSlider Step/LabelFormat properties for decimal sliders.
 - **v0.1.0-alpha-mac (Mar 15)** — **First macOS release.** Per-app volume control via Core Audio Process Taps (first hardware mixer to do this on Mac). Avalonia UI with dark theme. All views: Mixer, Buttons, Lights, Settings. Serial + LEDs + buttons all working on Apple Silicon.
+- **v0.8.5-alpha (Mar 17)** — **Massive update: Mac port complete, tray overhaul, bug fixes from first user (Rapdactyl).**
+  - **User-reported bug fixes:** Instant mute LED feedback (OnVolumeNotification callbacks), solid mute LED colors (removed unwanted breathing/pink shift), tray icon resilience (survives monitor config changes via DisplaySettingsChanged + WM_TASKBARCREATED).
+  - **Tray mixer overhaul (EarTrumpet-inspired):** 32px rounded app icons, scroll wheel volume on rows, volume % tray icon indicator, per-app device badges, search/filter bar, pin apps to top, System Sounds row, scroll wheel on tray icon for master volume, middle-click mute toggle, Quick Assign panel (app grid + inline knob picker), right-click context menu (assign to knob, move to device, hide/show), themed HoverComboBox device dropdowns, live mute state polling, deduplicated app list (Discord fix), friendly display names (Apple Music fix).
+  - **New views:** Live Hardware Preview strip (bottom bar — LED colors, knob positions, VU levels), Audio Dashboard (Activity tab — all audio sessions with levels, knob assignments, quick-assign).
+  - **Mac port feature-complete:** All views ported to Avalonia, editable pickers (knob/button/LED), menu bar tray icon, .app bundle + DMG installer, Govee LAN/Cloud + HA + DreamView wiring, auto-update, Hardware Preview strip, Audio Dashboard, real OSD overlay (transparent topmost window), keyboard shortcuts (Cmd+1-6), full polish audit.
+  - **Build:** Framework-dependent builds (installer ~55MB → ~5-8MB), .NET 8 Desktop Runtime auto-detection in installer.
+  - **Repo:** Mac code merged into master (single branch), versions synced (both 0.8.5-alpha).
+
+---
+
+## Release Workflow
+
+### Windows
+1. `deploy.bat` — pull + Debug build + launch (for testing)
+2. Tell Howl to bump version → updates `AmpUp.csproj` + `AmpUp.Mac.csproj` + `Info.plist`
+3. `build-installer.bat` — Release publish (framework-dependent ~5-8MB) + Inno Setup installer
+4. Tell Howl → creates GitHub release + uploads `.exe`
+
+### macOS
+1. SSH to Mac: `ssh audio@192.168.189.234`
+2. `cd ~/Projects/AmpUp.Mac && ./deploy.sh` — pull + build + launch (for testing)
+3. `./deploy.sh --release` — pull + full .app bundle + DMG
+4. Tell Howl → uploads `.dmg` to same GitHub release
+
+### Version bumping
+- Both platforms share the same version number
+- Files to update: `AmpUp.csproj`, `AmpUp.Mac/AmpUp.Mac.csproj`, `AmpUp.Mac/Info.plist`
+- Howl handles all three when asked
+
+### Build types
+- **Windows:** Framework-dependent (requires .NET 8 Desktop Runtime — auto-detected by installer)
+- **Mac:** Self-contained ARM64 .app bundle in DMG (no runtime needed)
 
 ---
 
@@ -570,6 +602,14 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - [x] **Mac: Home Assistant integration** — wired into button actions
 - [x] **Mac: DreamView screen capture** — CGWindowList implementation
 - [x] **Mac: auto-update** — GitHub releases download + install flow
+- [x] **Mac: Hardware Preview** — live 5-knob status bar
+- [x] **Mac: Audio Dashboard** — real-time session view with quick-assign
+- [x] **Mac: OSD overlay** — transparent topmost window for volume/profile/device changes
+- [x] **Tray mixer overhaul** — EarTrumpet-inspired polish, search, pin, Quick Assign, context menus
+- [x] **Framework-dependent builds** — ~5-8MB updates instead of ~55MB
+- [x] **Instant mute LED feedback** — volume notification callbacks
+- [x] **Solid mute LED colors** — no unwanted breathing animation
+- [x] **Tray icon resilience** — survives monitor/taskbar changes
 
 ### Remaining
 - [ ] **Multi-device support** — multiple Turn Up units simultaneously, each with own profile
