@@ -1,10 +1,202 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="AmpUp.Mac.Views.SettingsView">
-    <Border Classes="CardPanel" Margin="0" VerticalAlignment="Top">
-        <StackPanel Spacing="8">
-            <TextBlock Classes="HeaderText" Text="Settings View" />
-            <TextBlock Classes="SecondaryText" Text="Coming Soon — This view will be ported from the Windows version." />
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="24,16,24,24">
+
+            <!-- ── CONNECTION ──────────────────────────────────────── -->
+            <Border Classes="CardPanel" Margin="0,0,0,12">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="CONNECTION" Classes="HeaderText" />
+                    </StackPanel>
+
+                    <!-- Status indicator -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Ellipse x:Name="ConnectionDot" Width="8" Height="8"
+                                 Fill="#FF4444" Margin="0,0,8,0" VerticalAlignment="Center" />
+                        <TextBlock x:Name="TxtConnectionStatus"
+                                   Text="Disconnected"
+                                   Classes="SecondaryText"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <!-- Port selector row -->
+                    <StackPanel Margin="0,0,0,10">
+                        <TextBlock Text="Device Port" Classes="SecondaryText" Margin="0,0,0,6"
+                                   ToolTip.Tip="Select the serial port for your Turn Up hardware" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <ComboBox x:Name="CmbSerialPort" Width="220" MinHeight="38"
+                                      ToolTip.Tip="Available serial ports" />
+                            <Button x:Name="BtnRefreshPorts" Content="Refresh" MinHeight="38" />
+                            <Button x:Name="BtnAutoDetect" Content="Auto-Detect" MinHeight="38"
+                                    Background="{DynamicResource AccentDimBrush}"
+                                    Foreground="{DynamicResource TextPrimaryBrush}" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Advanced toggle -->
+                    <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0"
+                            Margin="0,4,0,0" Padding="0,10,0,0">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Cursor="Hand"
+                                        x:Name="AdvancedToggle">
+                                <TextBlock x:Name="AdvancedArrow" Text="▶" FontSize="9"
+                                           Foreground="{DynamicResource TextDimBrush}"
+                                           VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <TextBlock Text="Advanced" Classes="SecondaryText"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="AdvancedSection" IsVisible="False" Margin="0,10,0,0">
+                                <StackPanel Orientation="Horizontal" Spacing="24">
+                                    <StackPanel>
+                                        <TextBlock Text="Serial Port" Classes="SecondaryText" Margin="0,0,0,4" />
+                                        <TextBox x:Name="TxtSerialPort" Width="160"
+                                                 Watermark="/dev/tty.usbmodem*" />
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="Baud Rate" Classes="SecondaryText" Margin="0,0,0,4" />
+                                        <TextBox x:Name="TxtBaudRate" Width="160"
+                                                 Watermark="115200" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- ── STARTUP ─────────────────────────────────────────── -->
+            <Border Classes="CardPanel" Margin="0,0,0,12">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="STARTUP" Classes="HeaderText" />
+                    </StackPanel>
+                    <CheckBox x:Name="ChkStartWithSystem" Content="Start with system"
+                              ToolTip.Tip="Launch AmpUp automatically on login" />
+                    <CheckBox x:Name="ChkStartMinimized" Content="Start minimized"
+                              Margin="0,6,0,0"
+                              ToolTip.Tip="Start the app minimized to the menu bar" />
+                </StackPanel>
+            </Border>
+
+            <!-- ── PROFILES ────────────────────────────────────────── -->
+            <Border Classes="CardPanel" Margin="0,0,0,12">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="PROFILES" Classes="HeaderText" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="16">
+                        <StackPanel>
+                            <TextBlock Text="Active Profile" Classes="SecondaryText" Margin="0,0,0,4" />
+                            <ComboBox x:Name="CmbProfiles" Width="200" />
+                        </StackPanel>
+                        <StackPanel VerticalAlignment="Bottom">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Button x:Name="BtnAddProfile" Content="Add"
+                                        Background="{DynamicResource AccentDimBrush}"
+                                        Foreground="{DynamicResource TextPrimaryBrush}" />
+                                <Button x:Name="BtnRenameProfile" Content="Rename" />
+                                <Button x:Name="BtnDeleteProfile" Content="Delete"
+                                        Background="{DynamicResource DangerRedBrush}"
+                                        Foreground="{DynamicResource TextPrimaryBrush}" />
+                                <Button x:Name="BtnOverview" Content="Overview" />
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ── HOME ASSISTANT ──────────────────────────────────── -->
+            <Border Classes="CardPanel" Margin="0,0,0,12">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="HOME ASSISTANT" Classes="HeaderText" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <CheckBox x:Name="ChkHaEnabled" Content="Enabled" />
+                        <Ellipse x:Name="HaStatusDot" Width="8" Height="8"
+                                 Fill="#555555" VerticalAlignment="Center" Margin="16,0,6,0" />
+                        <TextBlock x:Name="TxtHaStatus" Text="Disabled"
+                                   Classes="SecondaryText" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="HaSection" IsVisible="False">
+                        <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,0,0,8">
+                            <StackPanel>
+                                <TextBlock Text="URL" Classes="SecondaryText" Margin="0,0,0,4" />
+                                <TextBox x:Name="TxtHaUrl" Width="320"
+                                         Watermark="http://homeassistant.local:8123" />
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="Token" Classes="SecondaryText" Margin="0,0,0,4" />
+                                <TextBox x:Name="TxtHaToken" Width="320"
+                                         PasswordChar="●"
+                                         Watermark="Long-lived access token" />
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button x:Name="BtnHaTest" Content="Test Connection" />
+                            <TextBlock x:Name="TxtHaTestResult" Classes="SecondaryText"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ── GOVEE ───────────────────────────────────────────── -->
+            <Border Classes="CardPanel" Margin="0,0,0,12">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="GOVEE" Classes="HeaderText" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <CheckBox x:Name="ChkGoveeEnabled" Content="Enable Govee Cloud API" />
+                        <Ellipse x:Name="GoveeStatusDot" Width="8" Height="8"
+                                 Fill="#555555" VerticalAlignment="Center" Margin="16,0,6,0" />
+                        <TextBlock x:Name="TxtGoveeStatus" Text="Disabled"
+                                   Classes="SecondaryText" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="GoveeSection" IsVisible="False">
+                        <TextBlock Text="API Key" Classes="SecondaryText" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                            <TextBox x:Name="TxtGoveeApiKey" Width="320"
+                                     PasswordChar="●"
+                                     Watermark="Govee API key" />
+                            <Button x:Name="BtnGoveeSetupGuide" Content="Setup Guide" />
+                        </StackPanel>
+                        <TextBlock x:Name="TxtGoveeApiStatus" Classes="SecondaryText" FontSize="11" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ── ABOUT ─────────────────────────────────────────── -->
+            <Border Classes="CardPanel" Margin="0,0,0,0">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="ABOUT" Classes="HeaderText" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="16">
+                        <TextBlock x:Name="TxtVersion" Classes="BodyText" VerticalAlignment="Center"
+                                   Text="Amp Up v0.1.0-alpha-mac" />
+                        <Button x:Name="BtnCheckUpdate" Content="Check for Updates" />
+                    </StackPanel>
+                    <TextBlock x:Name="TxtUpdateStatus" Classes="SecondaryText" Margin="0,8,0,0"
+                               IsVisible="False" />
+                </StackPanel>
+            </Border>
+
         </StackPanel>
-    </Border>
+    </ScrollViewer>
 </UserControl>

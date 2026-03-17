@@ -1,10 +1,25 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="AmpUp.Mac.Views.AmbienceView">
-    <Border Classes="CardPanel" Margin="0" VerticalAlignment="Top">
-        <StackPanel Spacing="8">
-            <TextBlock Classes="HeaderText" Text="Ambience View" />
-            <TextBlock Classes="SecondaryText" Text="Coming Soon — This view will be ported from the Windows version." />
-        </StackPanel>
-    </Border>
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- Top bar -->
+        <Border Grid.Row="0" Classes="CardPanel" Margin="0,0,0,12">
+            <StackPanel x:Name="TopBar" Orientation="Horizontal" Spacing="16">
+                <TextBlock x:Name="TxtSettingsLink" Text="⚙ Settings"
+                           FontSize="12" Foreground="{DynamicResource AccentBrush}"
+                           Cursor="Hand" VerticalAlignment="Center" />
+                <Ellipse x:Name="StatusDot" Width="8" Height="8"
+                         Fill="#555555" VerticalAlignment="Center" />
+                <TextBlock x:Name="TxtStatus" Text="Govee disabled"
+                           Classes="SecondaryText" VerticalAlignment="Center" />
+            </StackPanel>
+        </Border>
+
+        <!-- Main content -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel x:Name="DevicePanel" Margin="0,0,0,24" />
+        </ScrollViewer>
+    </Grid>
 </UserControl>
