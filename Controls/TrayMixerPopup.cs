@@ -788,13 +788,9 @@ public class TrayMixerPopup : Window
         var combo = new ComboBox
         {
             FontSize = 11,
-            FontFamily = new FontFamily("Segoe UI"),
             Height = 28,
-            Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
-            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(60, accent.R, accent.G, accent.B)),
-            BorderThickness = new Thickness(1),
             VerticalContentAlignment = VerticalAlignment.Center,
+            Style = Application.Current.TryFindResource("HoverComboBox") as Style,
         };
 
         int selectedIdx = 0;
