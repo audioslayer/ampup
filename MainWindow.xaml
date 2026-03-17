@@ -4,6 +4,7 @@
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         xmlns:mi="clr-namespace:Material.Icons.WPF;assembly=Material.Icons.WPF"
         xmlns:views="clr-namespace:AmpUp.Views"
+        xmlns:controls="clr-namespace:AmpUp.Controls"
         Title="Amp Up"
         Width="1600" Height="1000"
         MinWidth="900" MinHeight="600"
@@ -27,6 +28,8 @@
             <RowDefinition Height="48" />
             <!-- Content -->
             <RowDefinition Height="*" />
+            <!-- Hardware preview strip -->
+            <RowDefinition Height="52" />
         </Grid.RowDefinitions>
 
         <!-- Header Bar (draggable) -->
@@ -96,6 +99,10 @@
                 </StackPanel>
             </StackPanel>
         </Grid>
+
+        <!-- Hardware Preview Strip (Row 2 — always visible, full width) -->
+        <controls:HardwarePreview x:Name="HwPreview" Grid.Row="2"
+            ToolTip="Live hardware status — click a knob to navigate to Knobs tab" />
 
         <!-- Main Layout: Sidebar + Content -->
         <Grid Grid.Row="1" Background="{StaticResource BgDarkBrush}">
