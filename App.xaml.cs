@@ -180,8 +180,10 @@ public partial class App : Application
         ApplyRgbConfig();
         UpdateAudioAnalyzer();
 
-        // Poll mute states every 500ms for LED status effects
+        // Poll mute states every 500ms for LED status effects (fallback)
         _mutePollingTimer = new System.Threading.Timer(_ => PollMuteStates(), null, 1000, 500);
+        // Subscribe to instant mute notifications so LEDs react within one frame (~50ms)
+        SubscribeMuteNotifications();
 
         // Apply startup setting
         ApplyStartupSetting();
@@ -800,6 +802,68 @@ public partial class App : Application
     // Reentrancy guard: skip poll if the previous one hasn't finished yet
     private int _pollMuteRunning;
 
+    // Devices held open specifically for OnVolumeNotification subscriptions (instant mute feedback)
+    private NAudio.CoreAudioApi.MMDevice? _notifyMaster;
+    private NAudio.CoreAudioApi.MMDevice? _notifyMic;
+
+    /// <summary>
+    /// Subscribe to OnVolumeNotification on the default output and capture devices so that
+    /// mute/unmute is reflected in the LEDs within one animation frame (~50ms) instead of
+    /// waiting up to 500ms for the next poll cycle. Called once at startup and again whenever
+    /// the default output device changes.
+    /// </summary>
+    private void SubscribeMuteNotifications()
+    {
+        try
+        {
+            _pollEnumerator ??= new NAudio.CoreAudioApi.MMDeviceEnumerator();
+
+            // --- Master output ---
+            try
+            {
+                // Unsubscribe from old device before replacing it
+                if (_notifyMaster != null)
+                {
+                    try { _notifyMaster.AudioEndpointVolume.OnVolumeNotification -= OnMasterVolumeNotification; } catch { }
+                    _notifyMaster.Dispose();
+                    _notifyMaster = null;
+                }
+                _notifyMaster = _pollEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
+                _notifyMaster.AudioEndpointVolume.OnVolumeNotification += OnMasterVolumeNotification;
+                // Seed current state immediately
+                _rgb.SetMasterMuted(_notifyMaster.AudioEndpointVolume.Mute);
+            }
+            catch { }
+
+            // --- Mic capture ---
+            try
+            {
+                if (_notifyMic != null)
+                {
+                    try { _notifyMic.AudioEndpointVolume.OnVolumeNotification -= OnMicVolumeNotification; } catch { }
+                    _notifyMic.Dispose();
+                    _notifyMic = null;
+                }
+                _notifyMic = _pollEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Capture, NAudio.CoreAudioApi.Role.Communications);
+                _notifyMic.AudioEndpointVolume.OnVolumeNotification += OnMicVolumeNotification;
+                // Seed current state immediately
+                _rgb.SetMicMuted(_notifyMic.AudioEndpointVolume.Mute);
+            }
+            catch { }
+        }
+        catch { }
+    }
+
+    private void OnMasterVolumeNotification(NAudio.CoreAudioApi.AudioVolumeNotificationData data)
+    {
+        _rgb.SetMasterMuted(data.Muted);
+    }
+
+    private void OnMicVolumeNotification(NAudio.CoreAudioApi.AudioVolumeNotificationData data)
+    {
+        _rgb.SetMicMuted(data.Muted);
+    }
+
     private void PollMuteStates()
     {
         // Skip if a previous poll is still running (protects _cachedMaster from concurrent access)
@@ -842,6 +906,8 @@ public partial class App : Application
                     // Default device changed — clear master cache so next poll fetches the new default
                     _cachedMaster.Dispose();
                     _cachedMaster = null;
+                    // Re-subscribe to the new default device for instant mute notifications
+                    SubscribeMuteNotifications();
                 }
             }
             catch
@@ -1224,6 +1290,16 @@ public partial class App : Application
         _dreamSync?.Dispose();
         _cachedMic?.Dispose();
         _cachedMaster?.Dispose();
+        if (_notifyMaster != null)
+        {
+            try { _notifyMaster.AudioEndpointVolume.OnVolumeNotification -= OnMasterVolumeNotification; } catch { }
+            _notifyMaster.Dispose();
+        }
+        if (_notifyMic != null)
+        {
+            try { _notifyMic.AudioEndpointVolume.OnVolumeNotification -= OnMicVolumeNotification; } catch { }
+            _notifyMic.Dispose();
+        }
         _pollEnumerator?.Dispose();
         MonitorBrightness.Dispose();
         _mutex?.Dispose();
