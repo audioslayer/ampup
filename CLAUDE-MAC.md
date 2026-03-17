@@ -128,4 +128,4 @@ AmpUp.Mac/                macOS Avalonia app
 - Home Assistant integration (code in Core, needs wiring)
 - DreamView screen capture (needs macOS CGWindowList implementation)
 - Auto-update (currently just checks + opens browser)
-- Intel Mac support (x86_64 build)
+- ~~Intel Mac support (x86_64 build)~~ — shelved (tiny audience: only 2018-2020 Intel Macs on Sonoma 14.2+)

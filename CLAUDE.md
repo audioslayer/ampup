@@ -557,28 +557,26 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 
 ## Roadmap
 
-### High Priority
-- [ ] **OBS Studio integration** — source gain, mute, scene switching, streaming/recording toggle (v27 + v28+ APIs)
-- [ ] **VoiceMeeter integration** — strip/bus gain control and mute
-- [ ] **Plugin system** — DLL-based extensibility (ITurnUpPlugin, ITurnUpKnobAction, ITurnUpButtonAction, ITurnUpLightEffect)
-- [ ] **Mac: editable views** — knob target picker, button action picker, light effect picker (currently display-only)
-- [ ] **Mac: proper .app bundle** — drag-to-Applications install, no Terminal needed
-- [ ] **Mac: menu bar tray icon** — NSStatusBarItem with quick mixer popup
+### Completed ✅
+- [x] **OBS Studio integration** — source gain, mute, scene switching (WebSocket v5)
+- [x] **VoiceMeeter integration** — strip/bus gain control and mute
+- [x] **Plugin system** — interfaces (ITurnUpPlugin, etc.) + LED presets (12 built-in)
+- [x] **Exponential2 response curve** — steeper x³/10000 for fine control at low volumes
+- [x] **Audio device type distinction** — separate Media vs Communications vs Both when cycling/selecting
+- [x] **Mac: editable views** — knob target picker, button action picker, light effect picker
+- [x] **Mac: proper .app bundle** — drag-to-Applications DMG install
+- [x] **Mac: menu bar tray icon** — NSStatusBarItem with quick mixer popup
+- [x] **Mac: Govee LAN/Cloud integration** — wired into App + AmbienceView
+- [x] **Mac: Home Assistant integration** — wired into button actions
+- [x] **Mac: DreamView screen capture** — CGWindowList implementation
+- [x] **Mac: auto-update** — GitHub releases download + install flow
 
-### Medium Priority
-- [ ] **Exponential2 response curve** — steeper x³/10000 for fine control at low volumes (from Turn Up source)
-- [ ] **Audio device type distinction** — separate Media vs Communications vs Both when cycling/selecting devices
+### Remaining
 - [ ] **Multi-device support** — multiple Turn Up units simultaneously, each with own profile
-- [ ] **Mac: Govee LAN/Cloud integration** — code in Core, needs wiring
-- [ ] **Mac: Home Assistant integration** — code in Core, needs wiring
-- [ ] **Mac: DreamView screen capture** — needs macOS CGWindowList implementation
 - [ ] **Streamlabs integration** — source gain, mute, scene switching
 - [ ] **SteelSeries Sonar integration** — volume and mute control
-
-### Low Priority
 - [ ] **System theme following** — match light/dark mode on both Windows and Mac
-- [ ] **Mac: auto-update** — in-app download + replace (currently opens browser)
-- [ ] **Mac: Intel support** — x86_64 build alongside ARM64
 - [ ] **GitHub Actions CI** — auto-build Windows .exe + Mac .dmg on release
 - [ ] **Razer Chroma integration** — RGB sync
 - [ ] **Advanced macro system** — per-key-event macros with delays (from Turn Up source)
+- [ ] ~~**Mac: Intel support**~~ — shelved (tiny audience: only 2018-2020 Intel Macs on Sonoma 14.2+)

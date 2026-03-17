@@ -20,6 +20,7 @@ public class TrayMixerPopup : Window
     private MMDevice? _masterDevice;
     private Slider? _masterSlider;
     private TextBlock? _masterVolLabel;
+    private Button? _masterMuteBtn;
     private readonly System.Windows.Threading.DispatcherTimer _pollTimer;
     private bool _updatingFromPoll; // prevent slider.ValueChanged feedback loop
 
@@ -315,7 +316,18 @@ public class TrayMixerPopup : Window
                 catch { }
             }
 
-            // Update per-app sliders + peak activity bars
+            // Update master mute state
+            if (_masterDevice != null && _masterMuteBtn != null)
+            {
+                try
+                {
+                    bool muted = _masterDevice.AudioEndpointVolume.Mute;
+                    UpdateMuteButton(_masterMuteBtn, muted);
+                }
+                catch { }
+            }
+
+            // Update per-app sliders + peak activity bars + mute state
             foreach (var row in _rows)
             {
                 try
@@ -324,6 +336,10 @@ public class TrayMixerPopup : Window
                     int pct = (int)Math.Round(vol * 100);
                     row.VolumeSlider.Value = pct;
                     row.VolLabel.Text = $"{pct}%";
+
+                    // Update mute state from actual session
+                    bool muted = row.Session.SimpleAudioVolume.Mute;
+                    UpdateMuteButton(row.MuteBtn, muted);
 
                     // Update peak activity bar
                     if (row.PeakBar != null)
@@ -874,6 +890,7 @@ public class TrayMixerPopup : Window
         var slider = BuildVolumeSlider(vol * 100);
         _masterSlider = slider;
         _masterVolLabel = volLabel;
+        _masterMuteBtn = muteBtn;
         slider.ValueChanged += (_, e) =>
         {
             if (_updatingFromPoll) return;
