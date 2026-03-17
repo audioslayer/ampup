@@ -86,5 +86,29 @@ public partial class MainWindow : Window
 
         ConnectionDot.Fill = connected ? green : dimBrush;
         ConnectionLabel.Text = connected ? "Connected" : "Disconnected";
+
+        // Mirror to tray icon
+        App.Tray?.SetConnectionStatus(connected);
+    }
+
+    // ── Active profile (called externally) ───────────────────────
+    public void SetActiveProfile(string profileName)
+    {
+        ProfileLabel.Text = profileName;
+        App.Tray?.SetActiveProfile(profileName);
+    }
+
+    // ── Start minimized support ───────────────────────────────────
+    /// <summary>
+    /// If true, window starts hidden (minimized to menu bar tray).
+    /// Called by the Mac orchestrator after loading config.
+    /// </summary>
+    public bool StartMinimized { get; set; } = false;
+
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+        if (StartMinimized)
+            Hide();
     }
 }

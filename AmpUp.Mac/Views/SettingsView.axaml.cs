@@ -54,7 +54,7 @@ public partial class SettingsView : UserControl
         RefreshPortList(config.Serial.Port);
 
         ChkStartWithSystem.IsChecked = config.StartWithWindows;
-        ChkStartMinimized.IsChecked = false; // Mac-specific, not in config yet
+        ChkStartMinimized.IsChecked = config.StartMinimized;
 
         // Profiles
         CmbProfiles.Items.Clear();
@@ -299,6 +299,7 @@ public partial class SettingsView : UserControl
             _config.Serial.Baud = baud;
 
         _config.StartWithWindows = ChkStartWithSystem.IsChecked == true;
+        _config.StartMinimized = ChkStartMinimized.IsChecked == true;
 
         // Home Assistant
         _config.HomeAssistant.Enabled = ChkHaEnabled.IsChecked == true;
