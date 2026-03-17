@@ -168,6 +168,15 @@ public class OsdConfig
     [JsonConverter(typeof(StringEnumConverter))]
     public OsdPosition Position { get; set; } = OsdPosition.BottomRight;
     public int MonitorIndex { get; set; } = 0;
+    public QuickWheelConfig QuickWheel { get; set; } = new();
+}
+
+public class QuickWheelConfig
+{
+    public bool Enabled { get; set; } = false;
+    public int TriggerButton { get; set; } = 0;
+    public string TriggerGesture { get; set; } = "hold";
+    public int NavigationKnob { get; set; } = 0;
 }
 
 public enum OsdPosition

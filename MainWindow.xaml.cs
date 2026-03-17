@@ -18,6 +18,7 @@ public partial class MainWindow : FluentWindow
     private readonly SettingsView _settingsView = new();
     private readonly AmbienceView _ambienceView = new();
     private readonly BindingsView _bindingsView = new();
+    private readonly OsdView _osdView = new();
 
     private System.Windows.Controls.Button? _activeNavButton;
     private System.Windows.Controls.Border? _activeNavBar;
@@ -146,6 +147,7 @@ public partial class MainWindow : FluentWindow
         _mixerView.LoadConfig(_config, _mixer!, saveHandler);
         _ambienceView.LoadConfig(_config, saveHandler);
         _bindingsView.LoadConfig(_config);
+        _osdView.LoadConfig(_config, saveHandler);
 
         // Show/hide Ambience nav based on Govee enabled state
         bool goveeEnabled = _config.Ambience.GoveeEnabled || _config.Ambience.GoveeCloudEnabled;
@@ -176,6 +178,7 @@ public partial class MainWindow : FluentWindow
 
     private void NavSettings_Click(object sender, RoutedEventArgs e) => NavigateTo(_settingsView, NavSettings);
     private void NavBindings_Click(object sender, RoutedEventArgs e) => NavigateTo(_bindingsView, NavBindings);
+    private void NavOsd_Click(object sender, RoutedEventArgs e) => NavigateTo(_osdView, NavOsd);
 
     public void NavigateToSettings() => NavigateTo(_settingsView, NavSettings);
 
@@ -211,6 +214,7 @@ public partial class MainWindow : FluentWindow
         { NavButtons,  NavButtonsBar },
         { NavLights,   NavLightsBar },
         { NavAmbience, NavAmbienceBar },
+        { NavOsd,      NavOsdBar },
         { NavSettings, NavSettingsBar },
         { NavBindings, NavBindingsBar },
     };

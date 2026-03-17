@@ -61,18 +61,6 @@ public partial class SettingsView : UserControl
         BtnRefreshPorts.Click += (_, _) => RefreshPortList();
         BtnAutoDetect.Click += OnAutoDetect;
 
-        // OSD events
-        ChkOsdVolume.Checked += OnValueChanged;
-        ChkOsdVolume.Unchecked += OnValueChanged;
-        ChkOsdProfile.Checked += OnValueChanged;
-        ChkOsdProfile.Unchecked += OnValueChanged;
-        ChkOsdDevice.Checked += OnValueChanged;
-        ChkOsdDevice.Unchecked += OnValueChanged;
-        SldOsdVolumeDur.ValueChanged += (s, _) => OnValueChanged(s!, EventArgs.Empty);
-        SldOsdProfileDur.ValueChanged += (s, _) => OnValueChanged(s!, EventArgs.Empty);
-        SldOsdDeviceDur.ValueChanged += (s, _) => OnValueChanged(s!, EventArgs.Empty);
-        BtnOsdPreview.Click += OnOsdPreview;
-
         // Integration events
         ChkHaEnabled.Checked += OnValueChanged;
         ChkHaEnabled.Unchecked += OnValueChanged;
@@ -129,16 +117,6 @@ public partial class SettingsView : UserControl
         RefreshPortList(selectPort: config.Serial.Port);
         ChkStartWithWindows.IsChecked = config.StartWithWindows;
         ChkAutoSuggestLayout.IsChecked = config.AutoSuggestLayout;
-
-        // OSD
-        ChkOsdVolume.IsChecked = config.Osd.ShowVolume;
-        ChkOsdProfile.IsChecked = config.Osd.ShowProfileSwitch;
-        ChkOsdDevice.IsChecked = config.Osd.ShowDeviceSwitch;
-        SldOsdVolumeDur.Value = config.Osd.VolumeDuration;
-        SldOsdProfileDur.Value = config.Osd.ProfileDuration;
-        SldOsdDeviceDur.Value = config.Osd.DeviceDuration;
-        HighlightOsdPosition(config.Osd.Position);
-        PopulateOsdMonitorPicker(config.Osd.MonitorIndex);
 
         // Profiles
         CmbProfiles.Items.Clear();
@@ -442,14 +420,6 @@ public partial class SettingsView : UserControl
 
         _config.StartWithWindows = ChkStartWithWindows.IsChecked == true;
         _config.AutoSuggestLayout = ChkAutoSuggestLayout.IsChecked == true;
-
-        // OSD
-        _config.Osd.ShowVolume = ChkOsdVolume.IsChecked == true;
-        _config.Osd.ShowProfileSwitch = ChkOsdProfile.IsChecked == true;
-        _config.Osd.ShowDeviceSwitch = ChkOsdDevice.IsChecked == true;
-        _config.Osd.VolumeDuration = Math.Round(SldOsdVolumeDur.Value * 2) / 2;
-        _config.Osd.ProfileDuration = Math.Round(SldOsdProfileDur.Value * 2) / 2;
-        _config.Osd.DeviceDuration = Math.Round(SldOsdDeviceDur.Value * 2) / 2;
 
         // Integrations
         _config.HomeAssistant.Enabled = ChkHaEnabled.IsChecked == true;
@@ -948,87 +918,6 @@ public partial class SettingsView : UserControl
             };
             GoveeDeviceList.Children.Add(row);
         }
-    }
-
-    private void OsdPosition_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
-    {
-        if (_loading || _config == null) return;
-        if (sender is System.Windows.Controls.Border border && border.Tag is string posStr)
-        {
-            if (Enum.TryParse<OsdPosition>(posStr, out var pos))
-            {
-                _config.Osd.Position = pos;
-                HighlightOsdPosition(pos);
-                _debounceTimer.Stop();
-                _debounceTimer.Start();
-            }
-        }
-    }
-
-    private void HighlightOsdPosition(OsdPosition active)
-    {
-        var accentBrush = (System.Windows.Media.SolidColorBrush)FindResource("AccentBrush");
-        var dimBrush = (System.Windows.Media.SolidColorBrush)FindResource("TextDimBrush");
-        var activeBg = new System.Windows.Media.SolidColorBrush(
-            ThemeManager.WithAlpha(ThemeManager.Accent, 0x30));
-        var normalBg = (System.Windows.Media.SolidColorBrush)FindResource("CardBgBrush");
-        var accentBorder = (System.Windows.Media.SolidColorBrush)FindResource("AccentDimBrush");
-        var normalBorder = (System.Windows.Media.SolidColorBrush)FindResource("CardBorderBrush");
-
-        var positions = new (System.Windows.Controls.Border Border, OsdPosition Pos)[]
-        {
-            (PosTopLeft, OsdPosition.TopLeft),
-            (PosTopCenter, OsdPosition.TopCenter),
-            (PosTopRight, OsdPosition.TopRight),
-            (PosBottomLeft, OsdPosition.BottomLeft),
-            (PosBottomCenter, OsdPosition.BottomCenter),
-            (PosBottomRight, OsdPosition.BottomRight),
-        };
-
-        foreach (var (border, pos) in positions)
-        {
-            bool isActive = pos == active;
-            border.Background = isActive ? activeBg : normalBg;
-            border.BorderBrush = isActive ? accentBorder : normalBorder;
-            if (border.Child is System.Windows.Controls.TextBlock tb)
-                tb.Foreground = isActive ? accentBrush : dimBrush;
-        }
-    }
-
-    private void PopulateOsdMonitorPicker(int selectedIndex)
-    {
-        CmbOsdMonitor.Items.Clear();
-        var screens = System.Windows.Forms.Screen.AllScreens;
-        var friendlyNames = NativeMethods.GetMonitorFriendlyNames();
-
-        for (int i = 0; i < screens.Length; i++)
-        {
-            string name = friendlyNames.TryGetValue(screens[i].DeviceName, out var friendly)
-                ? friendly
-                : screens[i].DeviceName;
-            string label = screens[i].Primary ? $"{name} (Primary)" : name;
-            CmbOsdMonitor.Items.Add(label);
-        }
-
-        CmbOsdMonitor.SelectedIndex = (selectedIndex >= 0 && selectedIndex < screens.Length)
-            ? selectedIndex : 0;
-    }
-
-    private void CmbOsdMonitor_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_loading || _config == null || CmbOsdMonitor.SelectedIndex < 0) return;
-        _config.Osd.MonitorIndex = CmbOsdMonitor.SelectedIndex;
-        _debounceTimer.Stop();
-        _debounceTimer.Start();
-    }
-
-    private void OnOsdPreview(object sender, RoutedEventArgs e)
-    {
-        if (_config == null) return;
-        // Show a preview OSD at the configured position
-        var overlay = new OsdOverlay();
-        overlay.SetPosition(_config.Osd.Position, _config.Osd.MonitorIndex);
-        overlay.ShowVolume("Preview", 75, "VolumeHigh");
     }
 
     private async void OnCheckUpdate(object sender, RoutedEventArgs e)

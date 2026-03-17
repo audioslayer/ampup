@@ -55,6 +55,14 @@ public class ButtonHandler : IDisposable
 
     public void SetHAIntegration(HAIntegration? ha) => _ha = ha;
 
+    /// <summary>Fires with button index when quick_wheel is triggered.</summary>
+    public event Action<int>? OnQuickWheelOpen;
+    /// <summary>Fires with button index when the quick_wheel button is released.</summary>
+    public event Action<int>? OnQuickWheelClose;
+
+    // Track which button opened the wheel (for release detection)
+    private int _quickWheelActiveButton = -1;
+
     public event Action<string>? OnProfileSwitch
     {
         add => _gestureEngine.OnProfileSwitch += value;
@@ -124,6 +132,13 @@ public class ButtonHandler : IDisposable
     {
         _lastConfig = config;
         _gestureEngine.HandleUp(idx, config);
+
+        // If this button was holding the wheel open, fire close event
+        if (_quickWheelActiveButton == idx)
+        {
+            _quickWheelActiveButton = -1;
+            OnQuickWheelClose?.Invoke(idx);
+        }
     }
 
     private void HandleGestureAction(int idx, string gesture, string action, ButtonConfig btn)
@@ -219,6 +234,14 @@ public class ButtonHandler : IDisposable
                     // path = device IP
                     if (!string.IsNullOrEmpty(path))
                         _ = AmbienceSync.SendToggleAsync(path);
+                    break;
+                case "quick_wheel":
+                    // Fired by gesture engine (hold gesture) — open the radial wheel
+                    if (btn != null)
+                    {
+                        _quickWheelActiveButton = btn.Idx;
+                        OnQuickWheelOpen?.Invoke(btn.Idx);
+                    }
                     break;
                 case "govee_color":
                     // path = "ip|hexcolor" e.g. "192.168.1.50|FF0080"

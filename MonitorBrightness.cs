@@ -5,6 +5,7 @@ namespace AmpUp;
 /// <summary>
 /// Controls physical monitor brightness via DDC/CI (Monitor Control Command Set).
 /// Uses the Windows High-Level Monitor API (dxva2.dll).
+/// Caches physical monitor handles; auto-invalidates on failure.
 /// </summary>
 public static class MonitorBrightness
 {
@@ -42,8 +43,15 @@ public static class MonitorBrightness
         public string szPhysicalMonitorDescription;
     }
 
-    private static List<PHYSICAL_MONITOR> GetPhysicalMonitors()
+    // ── Handle cache ────────────────────────────────────────────────
+
+    private static readonly object _cacheLock = new();
+    private static List<PHYSICAL_MONITOR>? _cachedMonitors;
+
+    private static List<PHYSICAL_MONITOR> GetCachedMonitors()
     {
+        if (_cachedMonitors != null) return _cachedMonitors;
+
         var monitors = new List<PHYSICAL_MONITOR>();
         EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData) =>
         {
@@ -55,30 +63,130 @@ public static class MonitorBrightness
             }
             return true;
         }, IntPtr.Zero);
+
+        _cachedMonitors = monitors;
         return monitors;
     }
 
-    /// <summary>
-    /// Set brightness on all physical monitors. Value 0.0 to 1.0.
-    /// </summary>
-    public static void SetAll(float brightness)
+    private static void InvalidateCache()
     {
-        var monitors = GetPhysicalMonitors();
-        foreach (var m in monitors)
+        if (_cachedMonitors == null) return;
+        foreach (var m in _cachedMonitors)
+        {
+            try { DestroyPhysicalMonitor(m.hPhysicalMonitor); } catch { }
+        }
+        _cachedMonitors = null;
+    }
+
+    // ── Throttled set (last-value-wins, 60ms interval) ──────────────
+
+    private static float _pendingBrightness = -1f;
+    private static bool _throttleRunning;
+    private static readonly object _throttleLock = new();
+
+    /// <summary>
+    /// Stores the brightness value and applies it at 60ms intervals (last-value-wins).
+    /// Safe to call on every knob event.
+    /// </summary>
+    public static void SetThrottled(float brightness)
+    {
+        _pendingBrightness = Math.Clamp(brightness, 0f, 1f);
+
+        lock (_throttleLock)
+        {
+            if (_throttleRunning) return;
+            _throttleRunning = true;
+        }
+
+        _ = Task.Run(async () =>
         {
             try
             {
-                if (GetMonitorBrightness(m.hPhysicalMonitor, out uint min, out uint cur, out uint max))
+                while (true)
                 {
-                    uint val = (uint)(min + (max - min) * Math.Clamp(brightness, 0f, 1f));
-                    SetMonitorBrightness(m.hPhysicalMonitor, val);
+                    float target = _pendingBrightness;
+                    ApplyBrightness(target);
+
+                    await Task.Delay(60);
+
+                    // If value didn't change while we were applying, we're done
+                    if (Math.Abs(_pendingBrightness - target) < 0.001f)
+                        break;
                 }
             }
-            catch { }
             finally
             {
-                DestroyPhysicalMonitor(m.hPhysicalMonitor);
+                lock (_throttleLock) { _throttleRunning = false; }
             }
+        });
+    }
+
+    private static void ApplyBrightness(float brightness)
+    {
+        lock (_cacheLock)
+        {
+            try
+            {
+                var monitors = GetCachedMonitors();
+                bool anyFailed = false;
+                foreach (var m in monitors)
+                {
+                    try
+                    {
+                        if (GetMonitorBrightness(m.hPhysicalMonitor, out uint min, out _, out uint max))
+                        {
+                            uint val = (uint)(min + (max - min) * brightness);
+                            SetMonitorBrightness(m.hPhysicalMonitor, val);
+                        }
+                        else
+                        {
+                            anyFailed = true;
+                        }
+                    }
+                    catch
+                    {
+                        anyFailed = true;
+                    }
+                }
+                if (anyFailed)
+                    InvalidateCache();
+            }
+            catch
+            {
+                InvalidateCache();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Set brightness on all physical monitors immediately (no throttle). Value 0.0 to 1.0.
+    /// </summary>
+    public static void SetAll(float brightness)
+    {
+        lock (_cacheLock)
+        {
+            brightness = Math.Clamp(brightness, 0f, 1f);
+            bool anyFailed = false;
+            try
+            {
+                var monitors = GetCachedMonitors();
+                foreach (var m in monitors)
+                {
+                    try
+                    {
+                        if (GetMonitorBrightness(m.hPhysicalMonitor, out uint min, out _, out uint max))
+                        {
+                            uint val = (uint)(min + (max - min) * brightness);
+                            SetMonitorBrightness(m.hPhysicalMonitor, val);
+                        }
+                        else anyFailed = true;
+                    }
+                    catch { anyFailed = true; }
+                }
+            }
+            catch { anyFailed = true; }
+
+            if (anyFailed) InvalidateCache();
         }
     }
 
@@ -87,22 +195,29 @@ public static class MonitorBrightness
     /// </summary>
     public static float GetCurrent()
     {
-        var monitors = GetPhysicalMonitors();
-        foreach (var m in monitors)
+        lock (_cacheLock)
         {
             try
             {
-                if (GetMonitorBrightness(m.hPhysicalMonitor, out uint min, out uint cur, out uint max))
+                var monitors = GetCachedMonitors();
+                foreach (var m in monitors)
                 {
-                    if (max <= min) return 0f;
-                    return (float)(cur - min) / (max - min);
+                    try
+                    {
+                        if (GetMonitorBrightness(m.hPhysicalMonitor, out uint min, out uint cur, out uint max))
+                        {
+                            if (max <= min) return 0f;
+                            return (float)(cur - min) / (max - min);
+                        }
+                    }
+                    catch
+                    {
+                        InvalidateCache();
+                        return -1f;
+                    }
                 }
             }
-            catch { }
-            finally
-            {
-                DestroyPhysicalMonitor(m.hPhysicalMonitor);
-            }
+            catch { InvalidateCache(); }
         }
         return -1f;
     }
@@ -112,13 +227,28 @@ public static class MonitorBrightness
     /// </summary>
     public static List<string> GetMonitorNames()
     {
-        var names = new List<string>();
-        var monitors = GetPhysicalMonitors();
-        foreach (var m in monitors)
+        lock (_cacheLock)
         {
-            names.Add(m.szPhysicalMonitorDescription);
-            DestroyPhysicalMonitor(m.hPhysicalMonitor);
+            var names = new List<string>();
+            try
+            {
+                var monitors = GetCachedMonitors();
+                foreach (var m in monitors)
+                    names.Add(m.szPhysicalMonitorDescription);
+            }
+            catch { }
+            return names;
         }
-        return names;
+    }
+
+    /// <summary>
+    /// Release cached monitor handles. Call on app exit.
+    /// </summary>
+    public static void Dispose()
+    {
+        lock (_cacheLock)
+        {
+            InvalidateCache();
+        }
     }
 }

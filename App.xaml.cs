@@ -3,6 +3,7 @@ using System.Windows;
 using Microsoft.Win32;
 using AmpUp.Controls;
 using AmpUp.Core.Services;
+using AmpUp.Views;
 using Forms = System.Windows.Forms;
 
 namespace AmpUp;
@@ -33,6 +34,9 @@ public partial class App : Application
     private TrayContextMenu? _trayContextMenu;
     private AmbienceSync? _ambienceSync;
     private DreamSyncController? _dreamSync;
+    private RadialWheelOverlay? _radialWheel;
+    private bool _wheelVisible;
+    private readonly int[] _lastKnobRaw = new int[5];
 
     /// <summary>
     /// Last hardware knob positions (0-1), updated on every knob event.
@@ -107,6 +111,8 @@ public partial class App : Application
         _buttons.OnProfileSwitch += HandleProfileSwitch;
         _buttons.OnDeviceSwitched += HandleDeviceSwitched;
         _buttons.OnBrightnessCycle += HandleBrightnessCycle;
+        _buttons.OnQuickWheelOpen += HandleQuickWheelOpen;
+        _buttons.OnQuickWheelClose += HandleQuickWheelClose;
 
         // Start Home Assistant integration
         _ha = new HAIntegration(_config.HomeAssistant);
@@ -393,6 +399,26 @@ public partial class App : Application
         if (e.Idx >= 0 && e.Idx < 5)
             KnobPositions[e.Idx] = e.Value / 1023f;
 
+        // Always track raw value so wheel delta is accurate on first event.
+        // Route nav knob to radial wheel when wheel is open.
+        if (e.Idx >= 0 && e.Idx < 5)
+        {
+            if (_wheelVisible && e.Idx == _config.Osd.QuickWheel.NavigationKnob)
+            {
+                int delta = e.Value - _lastKnobRaw[e.Idx];
+                _lastKnobRaw[e.Idx] = e.Value;
+                if (Math.Abs(delta) >= 30 && _radialWheel != null)
+                {
+                    int count = _config.Profiles.Count;
+                    int step = delta > 0 ? 1 : -1;
+                    int next = ((_radialWheel.GetSelectedIndex() + step) % count + count) % count;
+                    Dispatcher.BeginInvoke(() => _radialWheel?.Highlight(next));
+                }
+                return; // don't also adjust audio volume while wheel is open
+            }
+            _lastKnobRaw[e.Idx] = e.Value;
+        }
+
         var knob = _config.Knobs.FirstOrDefault(k => k.Idx == e.Idx);
         if (knob != null)
         {
@@ -417,7 +443,7 @@ public partial class App : Application
             else if (knob.Target.Equals("monitor", StringComparison.OrdinalIgnoreCase))
             {
                 float vol = e.Value / 1023f;
-                MonitorBrightness.SetAll(vol);
+                MonitorBrightness.SetThrottled(vol);
             }
             else if (knob.Target.Equals("led_brightness", StringComparison.OrdinalIgnoreCase))
             {
@@ -965,6 +991,65 @@ public partial class App : Application
         }
     }
 
+    // ── Quick Wheel (radial profile switcher) ────────────────────────
+
+    private void HandleQuickWheelOpen(int buttonIdx)
+    {
+        if (!_config.Osd.QuickWheel.Enabled) return;
+        if (_config.Profiles.Count < 2) return;
+
+        Dispatcher.Invoke(() =>
+        {
+            if (_wheelVisible) return;
+            _wheelVisible = true;
+
+            // Initialize last raw values so first delta is correct
+            for (int i = 0; i < 5; i++)
+                _lastKnobRaw[i] = (int)(KnobPositions[i] * 1023f);
+
+            int currentIdx = _config.Profiles.IndexOf(_config.ActiveProfile);
+            if (currentIdx < 0) currentIdx = 0;
+
+            _radialWheel = new RadialWheelOverlay();
+            _radialWheel.SetProfiles(new List<string>(_config.Profiles), currentIdx);
+            _radialWheel.OnSegmentClicked = idx =>
+            {
+                _wheelVisible = false;
+                _radialWheel = null;
+                if (idx >= 0 && idx < _config.Profiles.Count)
+                {
+                    var profileName = _config.Profiles[idx];
+                    if (profileName != _config.ActiveProfile)
+                        HandleProfileSwitch(profileName);
+                }
+            };
+            _radialWheel.Closed += (_, _) => { _wheelVisible = false; _radialWheel = null; };
+            _radialWheel.Show();
+        });
+    }
+
+    private void HandleQuickWheelClose(int buttonIdx)
+    {
+        if (!_wheelVisible || _radialWheel == null) return;
+        Dispatcher.Invoke(() =>
+        {
+            if (_radialWheel == null || !_wheelVisible) return;
+            int idx = _radialWheel.GetSelectedIndex();
+            var wheel = _radialWheel;
+            // Detach callback so Dismiss doesn't double-fire
+            wheel.OnSegmentClicked = null;
+            _wheelVisible = false;
+            _radialWheel = null;
+            wheel.Dismiss();
+            if (idx >= 0 && idx < _config.Profiles.Count)
+            {
+                var profileName = _config.Profiles[idx];
+                if (profileName != _config.ActiveProfile)
+                    HandleProfileSwitch(profileName);
+            }
+        });
+    }
+
     public static void ShutdownForUpdate()
     {
         _isShuttingDown = true;
@@ -982,6 +1067,7 @@ public partial class App : Application
         _autoSwitchTimer?.Dispose();
         _duckingEngine?.Dispose();
         _osdOverlay?.Close();
+        _radialWheel?.Close();
         _serial?.Dispose();
         _buttons?.Dispose();
         _mixer?.Dispose();
@@ -993,6 +1079,7 @@ public partial class App : Application
         _cachedMic?.Dispose();
         _cachedMaster?.Dispose();
         _pollEnumerator?.Dispose();
+        MonitorBrightness.Dispose();
         _mutex?.Dispose();
         base.OnExit(e);
     }
