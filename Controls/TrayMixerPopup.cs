@@ -76,19 +76,20 @@ public class TrayMixerPopup : Window
 
     private UIElement BuildContent()
     {
-        // Outer border — drop shadow + rounded glass
+        var accent = GetAccentColor();
+        // Outer border — clean 1px accent-tinted border, no heavy drop shadow
         var outer = new Border
         {
             CornerRadius = new CornerRadius(10),
             Background = new SolidColorBrush(Color.FromArgb(242, 0x0F, 0x0F, 0x0F)), // #F20F0F0F
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(60, accent.R, accent.G, accent.B)),
             BorderThickness = new Thickness(1),
             Effect = new DropShadowEffect
             {
                 Color = Colors.Black,
-                BlurRadius = 24,
-                ShadowDepth = 4,
-                Opacity = 0.7,
+                BlurRadius = 16,
+                ShadowDepth = 2,
+                Opacity = 0.5,
                 Direction = 270
             },
             Margin = new Thickness(8, 8, 8, 8) // room for shadow
@@ -112,12 +113,16 @@ public class TrayMixerPopup : Window
             FontSize = 9, VerticalAlignment = VerticalAlignment.Center
         };
 
-        // Device switcher at top (with rounded top corners)
+        // Header bar — AmpUp brand on left, connection status on right
+        var headerBar = BuildHeaderBar();
+        DockPanel.SetDock(headerBar, Dock.Top);
+        root.Children.Add(headerBar);
+
+        // Device switcher below header
         var deviceSection = BuildDeviceSwitcher();
         var deviceBorder = new Border
         {
             Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
-            CornerRadius = new CornerRadius(10, 10, 0, 0),
             Child = deviceSection,
         };
         DockPanel.SetDock(deviceBorder, Dock.Top);
@@ -234,11 +239,11 @@ public class TrayMixerPopup : Window
 
             _sessionList.Children.Add(BuildMasterRow(_masterDevice, masterVol, masterMuted));
 
-            // Divider after master
+            // Subtle separator after master
             _sessionList.Children.Add(new Border
             {
                 Height = 1,
-                Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
                 Margin = new Thickness(10, 2, 10, 2)
             });
 
@@ -248,6 +253,7 @@ public class TrayMixerPopup : Window
 
             var hiddenApps = _config?.HiddenTrayApps ?? new();
 
+            bool firstApp = true;
             for (int i = 0; i < sessions.Count; i++)
             {
                 var s = sessions[i];
@@ -265,7 +271,20 @@ public class TrayMixerPopup : Window
 
                     var row = BuildSessionRow(name, s);
                     if (row != null)
+                    {
+                        // Subtle separator between app rows (not before the first)
+                        if (!firstApp)
+                        {
+                            _sessionList.Children.Add(new Border
+                            {
+                                Height = 1,
+                                Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
+                                Margin = new Thickness(18, 0, 18, 0)
+                            });
+                        }
+                        firstApp = false;
                         _sessionList.Children.Add(row);
+                    }
                 }
                 catch { }
             }
@@ -371,7 +390,6 @@ public class TrayMixerPopup : Window
 
     private UIElement BuildFooter()
     {
-        var accent = GetAccentColor();
         var footer = new StackPanel
         {
             Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
@@ -464,7 +482,7 @@ public class TrayMixerPopup : Window
             Margin = new Thickness(0, 4, 0, 4),
         });
 
-        // Bottom bar: icon + AMP UP + status dot | Open Amp Up | Exit
+        // Bottom bar: Open Amp Up | Exit
         var bottomRow = new DockPanel { Margin = new Thickness(2, 2, 2, 2) };
 
         // Exit on far right
@@ -480,32 +498,6 @@ public class TrayMixerPopup : Window
             () => { Hide(); _onOpen?.Invoke(); });
         DockPanel.SetDock(openBtn, Dock.Right);
         bottomRow.Children.Add(openBtn);
-
-        // Brand + status on the left
-        var brandRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
-        try
-        {
-            var iconUri = new Uri("pack://application:,,,/Assets/icon/ampup-16.png", UriKind.Absolute);
-            var bitmapImage = new System.Windows.Media.Imaging.BitmapImage(iconUri);
-            brandRow.Children.Add(new System.Windows.Controls.Image
-            {
-                Source = bitmapImage, Width = 12, Height = 12,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 5, 0)
-            });
-        }
-        catch { }
-        brandRow.Children.Add(new TextBlock
-        {
-            Text = "AMP UP",
-            Foreground = new SolidColorBrush(accent),
-            FontSize = 9, FontWeight = FontWeights.Bold,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 6, 0),
-        });
-        brandRow.Children.Add(_statusDot);
-        brandRow.Children.Add(_statusText);
-        bottomRow.Children.Add(brandRow);
 
         items.Children.Add(bottomRow);
 
@@ -729,6 +721,64 @@ public class TrayMixerPopup : Window
         return container;
     }
 
+    private UIElement BuildHeaderBar()
+    {
+        var accent = GetAccentColor();
+        var header = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
+            CornerRadius = new CornerRadius(10, 10, 0, 0),
+            Padding = new Thickness(12, 8, 12, 8),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+        };
+
+        var dock = new DockPanel { LastChildFill = false };
+
+        // Right: connection dot + port text
+        var statusRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        statusRow.Children.Add(_statusDot);
+        statusRow.Children.Add(_statusText);
+        DockPanel.SetDock(statusRow, Dock.Right);
+        dock.Children.Add(statusRow);
+
+        // Left: icon + "AMP UP" label
+        var brandRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        try
+        {
+            var iconUri = new Uri("pack://application:,,,/Assets/icon/ampup-16.png", UriKind.Absolute);
+            var bmp = new System.Windows.Media.Imaging.BitmapImage(iconUri);
+            brandRow.Children.Add(new System.Windows.Controls.Image
+            {
+                Source = bmp, Width = 14, Height = 14,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 5, 0)
+            });
+        }
+        catch { }
+        brandRow.Children.Add(new TextBlock
+        {
+            Text = "AMP UP",
+            Foreground = new SolidColorBrush(accent),
+            FontSize = 10, FontWeight = FontWeights.Bold,
+            VerticalAlignment = VerticalAlignment.Center,
+            FontFamily = new FontFamily("Segoe UI"),
+        });
+        DockPanel.SetDock(brandRow, Dock.Left);
+        dock.Children.Add(brandRow);
+
+        header.Child = dock;
+        return header;
+    }
+
     private UIElement BuildDeviceSwitcher()
     {
         var panel = new StackPanel
@@ -832,17 +882,18 @@ public class TrayMixerPopup : Window
 
     private UIElement BuildMasterRow(MMDevice device, float vol, bool muted)
     {
+        var accent = GetAccentColor();
         var row = new Border
         {
             Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
-            Padding = new Thickness(12, 10, 12, 10),
+            Padding = new Thickness(12, 9, 12, 9),
             Margin = new Thickness(6, 4, 6, 2),
             CornerRadius = new CornerRadius(6)
         };
 
         var panel = new DockPanel { LastChildFill = true };
 
-        // Icon letter
+        // Icon letter — 32px
         var icon = BuildLetterIcon("M", Color.FromRgb(0x00, 0xE6, 0x76));
         DockPanel.SetDock(icon, Dock.Left);
         panel.Children.Add(icon);
@@ -851,11 +902,11 @@ public class TrayMixerPopup : Window
         var muteBtn = BuildMuteButton(muted);
         DockPanel.SetDock(muteBtn, Dock.Right);
 
-        // Vol% label
+        // Vol% label — accent color
         var volLabel = new TextBlock
         {
             Text = $"{(int)Math.Round(vol * 100)}%",
-            Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+            Foreground = new SolidColorBrush(accent),
             FontSize = 11,
             Width = 34,
             TextAlignment = TextAlignment.Right,
@@ -873,7 +924,7 @@ public class TrayMixerPopup : Window
         {
             Text = "MASTER",
             Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
-            FontSize = 11,
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold
         };
 
@@ -904,6 +955,23 @@ public class TrayMixerPopup : Window
             catch { }
         };
 
+        // Scroll wheel: ±2% per tick
+        row.MouseWheel += (_, e) =>
+        {
+            try
+            {
+                int delta = e.Delta > 0 ? 2 : -2;
+                float cur = device.AudioEndpointVolume.MasterVolumeLevelScalar;
+                float next = Math.Clamp(cur + delta / 100f, 0f, 1f);
+                device.AudioEndpointVolume.MasterVolumeLevelScalar = next;
+                int pct = (int)Math.Round(next * 100);
+                slider.Value = pct;
+                volLabel.Text = $"{pct}%";
+            }
+            catch { }
+            e.Handled = true;
+        };
+
         center.Children.Add(label);
         center.Children.Add(slider);
         panel.Children.Add(center);
@@ -917,12 +985,13 @@ public class TrayMixerPopup : Window
         {
             float vol = session.SimpleAudioVolume.Volume;
             bool muted = session.SimpleAudioVolume.Mute;
+            var accent = GetAccentColor();
 
             var row = new Border
             {
                 Background = Brushes.Transparent,
-                Padding = new Thickness(12, 8, 12, 8),
-                Margin = new Thickness(6, 2, 6, 2),
+                Padding = new Thickness(12, 9, 12, 9),
+                Margin = new Thickness(6, 0, 6, 0),
                 CornerRadius = new CornerRadius(6)
             };
             row.MouseEnter += (_, _) => row.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
@@ -947,15 +1016,16 @@ public class TrayMixerPopup : Window
                             sysIcon.Handle, Int32Rect.Empty,
                             System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
                         bmpSource.Freeze();
+                        // 32px icon with dark #1A1A1A background so transparent icons look clean
                         icon = new Border
                         {
-                            Width = 28, Height = 28,
+                            Width = 32, Height = 32,
                             CornerRadius = new CornerRadius(6),
-                            Background = new SolidColorBrush(Color.FromArgb(30, iconColor.R, iconColor.G, iconColor.B)),
+                            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
                             VerticalAlignment = VerticalAlignment.Center,
                             Child = new System.Windows.Controls.Image
                             {
-                                Source = bmpSource, Width = 18, Height = 18,
+                                Source = bmpSource, Width = 20, Height = 20,
                                 HorizontalAlignment = HorizontalAlignment.Center,
                                 VerticalAlignment = VerticalAlignment.Center,
                             }
@@ -984,11 +1054,11 @@ public class TrayMixerPopup : Window
             var muteBtn = BuildMuteButton(muted);
             DockPanel.SetDock(muteBtn, Dock.Right);
 
-            // Vol% label
+            // Vol% label — accent color
             var volLabel = new TextBlock
             {
                 Text = $"{(int)Math.Round(vol * 100)}%",
-                Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+                Foreground = new SolidColorBrush(accent),
                 FontSize = 11,
                 Width = 34,
                 TextAlignment = TextAlignment.Right,
@@ -1000,24 +1070,34 @@ public class TrayMixerPopup : Window
             panel.Children.Add(muteBtn);
             panel.Children.Add(volLabel);
 
-            // Center: name + slider
+            // Center: name row + slider + peak bar
             var center = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(8, 0, 0, 0) };
+
+            // Name row: app name + optional device badge
+            var nameRow = new StackPanel { Orientation = Orientation.Horizontal };
             var nameLabel = new TextBlock
             {
                 Text = TitleCase(processName),
                 Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
-                FontSize = 11,
+                FontSize = 12,
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxWidth = 120
+                MaxWidth = 110,
+                VerticalAlignment = VerticalAlignment.Center,
             };
+            nameRow.Children.Add(nameLabel);
+
+            // Per-app device badge — show if session uses a non-default device
+            var deviceBadge = BuildDeviceBadge(session);
+            if (deviceBadge != null)
+                nameRow.Children.Add(deviceBadge);
 
             var slider = BuildVolumeSlider(vol * 100);
 
-            // Audio activity bar — thin bar under slider showing peak level
+            // Audio activity bar — 3px tall, rounded, full width of row
             var peakBar = new Border
             {
-                Height = 2,
-                CornerRadius = new CornerRadius(1),
+                Height = 3,
+                CornerRadius = new CornerRadius(1.5),
                 HorizontalAlignment = HorizontalAlignment.Left,
                 Width = 0,
                 Margin = new Thickness(0, 2, 0, 0),
@@ -1046,7 +1126,24 @@ public class TrayMixerPopup : Window
                 catch { }
             };
 
-            center.Children.Add(nameLabel);
+            // Scroll wheel: ±2% per tick
+            row.MouseWheel += (_, e) =>
+            {
+                try
+                {
+                    int delta = e.Delta > 0 ? 2 : -2;
+                    float cur = session.SimpleAudioVolume.Volume;
+                    float next = Math.Clamp(cur + delta / 100f, 0f, 1f);
+                    session.SimpleAudioVolume.Volume = next;
+                    int pct = (int)Math.Round(next * 100);
+                    slider.Value = pct;
+                    volLabel.Text = $"{pct}%";
+                }
+                catch { }
+                e.Handled = true;
+            };
+
+            center.Children.Add(nameRow);
             center.Children.Add(slider);
             center.Children.Add(peakBar);
             panel.Children.Add(center);
@@ -1059,23 +1156,94 @@ public class TrayMixerPopup : Window
         }
     }
 
+    /// <summary>
+    /// Returns a small pill badge showing the app's output device name if it differs from the
+    /// default render device. Returns null if same device or can't be determined.
+    /// </summary>
+    private Border? BuildDeviceBadge(AudioSessionControl session)
+    {
+        try
+        {
+            // Try to get the session's audio device via its AudioSessionManager parent
+            // We compare against the default render device friendly name
+            string? defaultName = null;
+            string? sessionDeviceName = null;
+            try
+            {
+                using var def = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                defaultName = def.FriendlyName;
+            }
+            catch { }
+
+            // Sessions on non-default devices are rare but possible; NAudio doesn't expose
+            // per-session device directly. We enumerate render devices and check if the session
+            // appears on a non-default one.
+            try
+            {
+                var endpoints = _enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+                foreach (var ep in endpoints)
+                {
+                    if (ep.FriendlyName == defaultName) { ep.Dispose(); continue; }
+                    var mgr = ep.AudioSessionManager;
+                    var sessions = mgr.Sessions;
+                    for (int i = 0; i < sessions.Count; i++)
+                    {
+                        var s = sessions[i];
+                        if (s.GetProcessID == session.GetProcessID)
+                        {
+                            sessionDeviceName = ep.FriendlyName;
+                            break;
+                        }
+                    }
+                    ep.Dispose();
+                    if (sessionDeviceName != null) break;
+                }
+            }
+            catch { }
+
+            if (string.IsNullOrEmpty(sessionDeviceName)) return null;
+
+            // Truncate to ~10 chars
+            var display = sessionDeviceName.Length > 10 ? sessionDeviceName[..10] + "…" : sessionDeviceName;
+
+            return new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+                CornerRadius = new CornerRadius(3),
+                Padding = new Thickness(4, 1, 4, 1),
+                Margin = new Thickness(5, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = new TextBlock
+                {
+                    Text = display,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                    FontSize = 8,
+                    VerticalAlignment = VerticalAlignment.Center,
+                }
+            };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private static Border BuildLetterIcon(string letter, Color bg)
     {
         return new Border
         {
-            Width = 28,
-            Height = 28,
+            Width = 32,
+            Height = 32,
             CornerRadius = new CornerRadius(6),
-            Background = new SolidColorBrush(Color.FromArgb(60, bg.R, bg.G, bg.B)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(100, bg.R, bg.G, bg.B)),
+            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(80, bg.R, bg.G, bg.B)),
             BorderThickness = new Thickness(1),
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 0, 0),
             Child = new TextBlock
             {
                 Text = letter,
                 Foreground = new SolidColorBrush(bg),
-                FontSize = 12,
+                FontSize = 13,
                 FontWeight = FontWeights.Bold,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center

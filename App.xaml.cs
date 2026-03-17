@@ -422,11 +422,16 @@ public partial class App : Application
         _mainWindow?.Hide();
     }
 
+    // Track current master volume/mute for tray icon label
+    private float _trayVolume = 1f;
+    private bool _trayMuted = false;
+
     /// <summary>
     /// Creates a 32x32 tray icon from the embedded logo PNG.
     /// Connected = full color, disconnected = grayscale.
+    /// Draws current master volume % (or "M" if muted) as small white text in the bottom-right.
     /// </summary>
-    private static Icon CreateTrayIcon(bool connected)
+    private Icon CreateTrayIcon(bool connected)
     {
         // Load logo from embedded WPF resource
         var uri = new Uri("pack://application:,,,/Assets/icon/ampup-32.png", UriKind.Absolute);
@@ -469,12 +474,53 @@ public partial class App : Application
             }
         }
 
+        // Draw volume % or "M" (muted) in bottom-right corner
+        try
+        {
+            string volText = _trayMuted ? "M" : $"{(int)Math.Round(_trayVolume * 100)}";
+            using var g = Graphics.FromImage(bmp);
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.SingleBitPerPixelGridFit;
+            using var font = new Font("Arial Narrow", 7f, System.Drawing.FontStyle.Bold, GraphicsUnit.Point);
+            var sz = g.MeasureString(volText, font);
+            float tx = 32 - sz.Width - 1;
+            float ty = 32 - sz.Height;
+            // Small dark backing for readability
+            using var bgBrush = new SolidBrush(Color.FromArgb(160, 0, 0, 0));
+            g.FillRectangle(bgBrush, tx - 1, ty, sz.Width + 2, sz.Height);
+            // White text
+            using var textBrush = new SolidBrush(Color.White);
+            g.DrawString(volText, font, textBrush, tx, ty);
+        }
+        catch { }
+
         var hIcon = bmp.GetHicon();
         var icon = Icon.FromHandle(hIcon);
         var result = (Icon)icon.Clone();
         NativeMethods.DestroyIcon(hIcon);
         bmp.Dispose();
         return result;
+    }
+
+    /// <summary>
+    /// Updates tray icon with current volume/mute state. Called from volume notifications.
+    /// </summary>
+    private void UpdateTrayIconVolume(float volume, bool muted)
+    {
+        _trayVolume = volume;
+        _trayMuted = muted;
+        if (_trayIcon == null) return;
+        Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                var oldIcon = _trayIcon?.Icon;
+                if (_trayIcon != null)
+                    _trayIcon.Icon = CreateTrayIcon(_isConnected);
+                oldIcon?.Dispose();
+            }
+            catch { }
+        });
     }
 
     private void OnConfigChanged(AppConfig config)
@@ -918,6 +964,9 @@ public partial class App : Application
                 _notifyMaster.AudioEndpointVolume.OnVolumeNotification += OnMasterVolumeNotification;
                 // Seed current state immediately
                 _rgb.SetMasterMuted(_notifyMaster.AudioEndpointVolume.Mute);
+                // Seed tray icon volume
+                _trayVolume = _notifyMaster.AudioEndpointVolume.MasterVolumeLevelScalar;
+                _trayMuted = _notifyMaster.AudioEndpointVolume.Mute;
             }
             catch { }
 
@@ -943,6 +992,8 @@ public partial class App : Application
     private void OnMasterVolumeNotification(NAudio.CoreAudioApi.AudioVolumeNotificationData data)
     {
         _rgb.SetMasterMuted(data.Muted);
+        // Update tray icon with current volume/mute state
+        UpdateTrayIconVolume(data.MasterVolume, data.Muted);
     }
 
     private void OnMicVolumeNotification(NAudio.CoreAudioApi.AudioVolumeNotificationData data)
