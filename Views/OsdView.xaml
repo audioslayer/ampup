@@ -145,10 +145,10 @@
 
                     <!-- Fullscreen suppression -->
                     <CheckBox x:Name="ChkHideInFullscreen"
-                              Content="Hide OSD in fullscreen apps and games"
+                              Content="Hide OSD over fullscreen apps and games"
                               Foreground="{StaticResource TextPrimaryBrush}"
                               Margin="0,12,0,0"
-                              ToolTip="Suppress OSD when a fullscreen application is in the foreground" />
+                              ToolTip="When checked, OSD won't appear over fullscreen games or apps" />
                 </StackPanel>
             </Border>
 

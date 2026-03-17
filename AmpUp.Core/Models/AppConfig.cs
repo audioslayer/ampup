@@ -171,7 +171,7 @@ public class OsdConfig
     [JsonConverter(typeof(StringEnumConverter))]
     public OsdPosition Position { get; set; } = OsdPosition.BottomRight;
     public int MonitorIndex { get; set; } = 0;
-    public bool HideInFullscreen { get; set; } = true;
+    public bool HideInFullscreen { get; set; } = false;
     public QuickWheelConfig QuickWheel { get; set; } = new();
 }
 
