@@ -38,7 +38,7 @@ All frames are wrapped with `0xFE` (start) and `0xFF` (end).
 - **Frame:** 48 bytes — `FE 05 [45 bytes RGB data] FF`
 - **Layout:** 5 knobs × 3 LEDs × 3 bytes (R,G,B) = 45 data bytes
 - **Byte offset for knob K, LED L:** `K*9 + L*3 + 2` (R), `+3` (G), `+4` (B)
-- **Gamma correction:** Standard gamma 2.0 curve (computed at startup, not firmware table)
+- **Gamma correction:** Default 1.0 (linear, no correction — matches official Turn Up app which defines but never applies gamma). Per-channel R/G/B gamma configurable via Settings → LED Calibration (0.5–4.0).
 - **Refresh:** 50ms (20 FPS) for animated effects. Device turns LEDs off without periodic frames.
 - **Brightness:** Global 0-100% multiplier applied before gamma
 - **Per-LED control:** `SetColor(knobIdx, ledIdx, r, g, b)` — each of the 3 LEDs per knob is independently addressable
@@ -84,12 +84,15 @@ Controls/
   TrayMixerPopup.cs        Unified tray popup — volume mixer + device switcher + app assignment + controls
                            Both left and right tray click open this popup. Includes connection status,
                            output/input device cycling, per-app sliders (live updating), Assign Running Apps,
-                           Open/Exit, and update-available banner.
+                           Open/Exit, update-available banner, and per-app audio activity peak bars.
+                           DPI-aware positioning (pixel→DIP conversion). Detects taskbar position
+                           (left/right/top/bottom) for vertical taskbar support.
   TrayContextMenu.cs       Legacy right-click menu (still exists but both clicks now use TrayMixerPopup)
   ChannelGlowControl.cs    Audio-reactive ambient glow behind mixer channel cards (DrawingVisual)
   SegmentedControl.cs      Pill-style segmented buttons
   RangeSlider.cs           Dual-thumb range slider
-  StyledSlider.cs          Single-thumb slider matching RangeSlider style (accent-aware, ShowLabel toggle)
+  StyledSlider.cs          Single-thumb slider matching RangeSlider style (accent-aware, ShowLabel toggle,
+                           Step for decimal snap granularity, LabelFormat for display format)
   GoveeSetupGuide.cs       4-step wizard window for Govee API key setup
 
 AmbienceSync.cs            Govee LAN UDP sync engine — discovery, color mirroring, rate limiting
@@ -100,15 +103,21 @@ SerialReader.cs            Reads COM port, parses fe/ff frames, fires OnKnob / O
 AudioMixer.cs              WASAPI per-app volume + GetPeakLevel, response curves, volume range
                            Persistent _renderDevice for session COM objects; dedicated _masterPeakDevice for metering
                            Skips AmpUp's own PID for active_window target
+                           Sessions indexed by both process name AND WASAPI DisplayName (for UWP/MS Store apps)
+                           FuzzyContains: strips spaces before matching ("Apple Music" → "AppleMusic")
 ButtonHandler.cs           Gesture state machine (press/double/hold) → 26 action types (incl. mute_device)
 RgbController.cs           RGB effects engine — 30+ effects (per-knob + global spanning), 20 FPS animation
+                           Per-channel gamma (SetGamma) — default 1.0 linear. Preview color override for calibration.
 DuckingEngine.cs           Auto-ducking: monitors trigger app audio, fades target app volumes with smooth interpolation
 AutoProfileSwitcher.cs     Auto-profile switching: monitors foreground window, fires profile switch events with debounce
 MonitorBrightness.cs       DDC/CI physical monitor brightness via dxva2.dll. Cached handles + throttled
                            SetThrottled() at 60ms intervals (last-value-wins). 5s startup guard.
 RadialWheelOverlay.xaml/.cs  Radial pie-menu OSD overlay for Quick Wheel — glass dark theme, accent glow
-                           segments, center label, fade in/out animations. Mouse hover/click + Escape support.
-                           Public: Show(), Highlight(), GetSelectedIndex(), Dismiss(), OnSegmentClicked event.
+                           Always 8 pie segments (profiles/devices + blank slots). Profile segments show
+                           icon + color from ProfileIcons. Follows ThemeManager.Accent (not hardcoded green).
+                           Mouse hover/click + keyboard + Escape. Shows on OSD-configured monitor.
+                           SetProfiles() for profile mode, SetDevices() for output device mode.
+                           Public: Show(), Highlight(), GetSelectedIndex(), GetTotalSlots(), Dismiss().
 DreamSyncController.cs     Screen sync engine — captures screen zones, sends colors to Govee via LAN UDP
                            Per-segment support via Govee "razer" protocol for capable devices (H6056=6 segments)
                            Falls back to single-color colorwc for devices without segment support
@@ -160,7 +169,7 @@ installer/ampup-setup.iss  Inno Setup script (reads version from auto-generated 
     "goveeEnabled": false,
     "goveeApiKey": "",
     "goveeDevices": [
-      { "ip": "192.168.1.50", "name": "Living Room Strip", "sku": "H6056", "syncMode": "global", "useSegmentProtocol": true }
+      { "ip": "192.168.1.50", "name": "Living Room Strip", "sku": "H6056", "syncMode": "global", "useSegmentProtocol": true, "poweredOn": true }
     ],
     "brightnessScale": 75,
     "warmToneShift": false,
@@ -174,13 +183,16 @@ installer/ampup-setup.iss  Inno Setup script (reads version from auto-generated 
     "showVolume": true, "showProfileSwitch": true, "showDeviceSwitch": true,
     "volumeDuration": 2.0, "profileDuration": 3.5, "deviceDuration": 2.5,
     "position": "BottomRight", "monitorIndex": 0,
-    "quickWheel": {
-      "enabled": false, "triggerButton": 0, "triggerGesture": "hold", "navigationKnob": 0
-    }
+    "hideInFullscreen": false,
+    "quickWheels": [
+      { "enabled": true, "triggerButton": 0, "mode": "Profile" },
+      { "enabled": true, "triggerButton": 1, "mode": "OutputDevice" }
+    ]
   },
   "profileTransition": "Cascade",
   "startWithWindows": true,
   "ledBrightness": 100,
+  "gammaR": 1.0, "gammaG": 1.0, "gammaB": 1.0,
   "activeProfile": "Default",
   "profiles": ["Default"]
 }
@@ -366,13 +378,13 @@ All transitions run 3 seconds (60 ticks at 20 FPS) then auto-clear.
 
 - **LightsView:** Global Lighting card at top (checkbox + EffectPickerControl + colors + speed + brightness slider on right). 5 per-knob panels below (hidden when global is on). EffectPickerControl replaces dropdown.
 
-- **SettingsView:** Section headers with accent left-border indicators. HA and Govee integrations displayed side-by-side. Profile section has Overview button. (OSD settings moved to OsdView in v0.8.1.)
+- **SettingsView:** Section headers with accent left-border indicators. HA and Govee integrations displayed side-by-side. Profile section has Overview button. LED Calibration section: per-channel R/G/B gamma sliders (StyledSlider, Step=0.1, accent-tinted), 6 test color swatches with live hardware preview, auto-clear on tab switch. (OSD settings moved to OsdView in v0.8.1.)
 
-- **OsdView:** OSD overlay toggles (volume/profile/device) with per-type duration sliders, position grid picker. Quick Wheel section: enable toggle, trigger button picker (1-5), navigation knob picker (1-5). Auto-syncs button HoldAction.
+- **OsdView:** OSD overlay toggles (volume/profile/device) with per-type duration sliders (StyledSlider, Step=0.5, separate value labels), position grid picker, monitor selector, hide-in-fullscreen checkbox. Quick Wheels section: dynamic add/remove rows, each with Mode (Profiles/Output Device) + Trigger Button. Any knob navigates. Auto-syncs button HoldActions.
 
 - **BindingsView (sidebar: "Overview"):** Profile Overview page showing all knob/button assignments across profiles. Knob cards tinted with LED color. Button cards show all gestures with colored TAP/DBL/HOLD badges. Preview OSD button per profile. Click any card to switch to that profile and navigate to the correct tab.
 
-- **AmbienceView:** Govee device cards with on/off, brightness, color scenes, music mode. DreamView screen sync card with monitor picker (friendly names via DisplayConfig API), FPS/zone selectors, saturation/sensitivity sliders (ShowLabel=false), live zone preview. Device cards dim when DreamView is active.
+- **AmbienceView:** Govee device cards with on/off, brightness, color scenes, music mode. On/off persists PoweredOn to config (prevents color sync from implicitly turning on devices). Brightness slider + on/off checkbox update live from Govee knob turns. DreamView screen sync card with monitor picker (friendly names via DisplayConfig API), FPS/zone selectors, saturation/sensitivity sliders (ShowLabel=false), live zone preview. Device cards dim when DreamView is active.
 
 ### Theme (Theme.xaml)
 
@@ -504,6 +516,14 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - **Active window reads AmpUp's own PID** — `GetActiveWindowVolume` must skip `Environment.ProcessId` to avoid showing wrong volume when mixer window is focused.
 - **Govee device SKU can be empty** — Devices added before LAN scan SKU detection have empty `Sku` field. `GetSegmentCount` falls back to name matching (e.g. "Light Bar" → 6 segments).
 - **Govee LAN control port is 4003** — Not 4001 as some docs suggest. Discovery uses multicast 4001, listen on 4002, but all control commands go to unicast device:4003.
+- **Govee colorwc implicitly turns on device** — Sending any color command turns on a powered-off Govee device. AmbienceSync checks `device.PoweredOn` before sending. 5-second startup guard on Govee brightness (same as HA/monitor).
+- **Turn Up gamma table unused** — Official Turn Up source (JaredWF/TurnUpCustomizer) defines a gamma8 table but never applies it in SetLightColors. Raw RGB is sent. Our default gamma is 1.0 (linear) to match.
+- **MS Store apps use helper processes** — Apple Music audio runs through AMPLibraryAgent, not AppleMusic process. AudioMixer indexes sessions by WASAPI DisplayName to catch these. FuzzyContains strips spaces for matching.
+- **Tray popup DPI on multi-monitor** — Screen.WorkingArea returns physical pixels but WPF Left/Top expect DIPs. Must convert via TransformFromDevice. Show window off-screen first so PresentationSource is available for DPI calc.
+- **Vertical taskbar positioning** — Detect taskbar side by comparing WorkingArea to screen Bounds. If WorkingArea.Right < Bounds.Right → taskbar on right, etc.
+- **OSD phantom popups on reconnect** — Device reconnect sends knob batch, each fires HandleKnob → OSD. Suppressed by: 5s startup guard, 2s reconnect guard (`_connectedAt`), and value-change guard (±8 ADC from last OSD display).
+- **StyledSlider ShowLabel clips at small heights** — Label draws below thumb at cy+ThumbRadius+4. Use ShowLabel=false with separate TextBlock for sliders under ~35px height.
+- **build-installer.bat working directory** — Must use `%~dp0` to locate AmpUp.csproj relative to script, not current working directory. Otherwise version extraction fails silently.
 
 ---
 
@@ -527,6 +547,10 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - **v0.7.7-alpha (Mar 15)** — **DPI fix.** Fixed flyout popup positioning on multi-monitor setups with mixed DPI scaling (#6). All 7 PointToScreen sites corrected for PerMonitorV2.
 - **v0.8.0-alpha (Mar 15)** — **Interactive hardware widget + macOS port foundation.** Hardware device visualization on Overview page (live knob positions, LED colors, button states, tooltips). Profile editor (rename, icon, color — real-time save). Duplicate profile + reorder. AmpUp.Core shared library extracted (10-step refactor for cross-platform). OSD startup suppression. Unknown action color fix.
 - **v0.8.1-alpha (Mar 16)** — **Quick Wheel OSD + Monitor Brightness fix.** New OSD tab (moved OSD settings from Settings, added Quick Wheel config). RadialWheelOverlay: glass radial pie-menu for profile switching — hold button to open, spin knob or mouse hover to navigate, release/click to select, Escape to dismiss. Three input modes: hardware knob (30 ADC delta threshold), mouse (hover+click), keyboard (Escape). `quick_wheel` button action auto-syncs between OSD tab and Buttons tab. Monitor brightness throttle fix (#7): cached DDC/CI handles + 60ms throttled `SetThrottled()` with last-value-wins pattern. 5-second startup guard on monitor brightness (prevents flicker on boot, same pattern as HA). Quick Wheel added to button action picker under System category.
+- **v0.8.2-alpha (Mar 16)** — **Quick Wheel mode selector + tray audio activity.** Quick Wheel supports two modes (Profile / Output Device) selectable in OSD settings. Any knob navigates (removed single-knob restriction). 8-slot flower layout with profile icons/colors. Tray popup shows per-app audio peak level bars. Fuzzy process name matching for MS Store apps (#8). Phantom OSD suppression (reconnect + value-change guards). Buttons tab syncs when Quick Wheel toggled.
+- **v0.8.3-alpha (Mar 16)** — **Purple LED fix + LED Calibration.** Confirmed official Turn Up app sends raw RGB (no gamma). Default gamma now 1.0. LED Calibration in Settings: per-channel R/G/B gamma sliders with live hardware preview (test color swatches). WASAPI DisplayName session indexing fixes Apple Music (#8). Installer version extraction fix.
+- **v0.8.4-alpha (Mar 16)** — **Multi-monitor tray fix + fullscreen OSD.** DPI-aware tray popup positioning (pixel→DIP conversion). Vertical taskbar detection. Hide OSD in fullscreen option. Quick Wheel follows theme accent color.
+- **v0.8.5-alpha (Mar 16)** — **Multiple Quick Wheels + Govee fixes.** Config changed from single QuickWheel to list of QuickWheels — each button can trigger a different wheel mode. OSD layout redesign (vertical flow, separate value labels). Govee PoweredOn state: on/off checkbox persists to config, color sync respects it, 5s startup guard. Govee knob turns update Ambience UI live (on/off checkbox + brightness slider). StyledSlider Step/LabelFormat properties for decimal sliders.
 - **v0.1.0-alpha-mac (Mar 15)** — **First macOS release.** Per-app volume control via Core Audio Process Taps (first hardware mixer to do this on Mac). Avalonia UI with dark theme. All views: Mixer, Buttons, Lights, Settings. Serial + LEDs + buttons all working on Apple Silicon.
 
 ---
