@@ -41,7 +41,7 @@
                 <SolidColorBrush Color="#CC141414" />
             </Ellipse.Fill>
             <Ellipse.Effect>
-                <DropShadowEffect Color="#00E676" BlurRadius="30" Opacity="0.25" ShadowDepth="0" />
+                <DropShadowEffect x:Name="OuterGlow" BlurRadius="30" Opacity="0.25" ShadowDepth="0" />
             </Ellipse.Effect>
         </Ellipse>
 
@@ -69,10 +69,5 @@
                    Foreground="#E8E8E8"
                    MaxWidth="110" TextWrapping="Wrap" />
 
-        <!-- Hint text at very bottom of circle -->
-        <TextBlock Text="Click or release to select  •  Esc to cancel"
-                   HorizontalAlignment="Center" VerticalAlignment="Bottom"
-                   Margin="0,0,0,18"
-                   FontSize="9" Foreground="#555555" />
     </Grid>
 </Window>

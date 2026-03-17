@@ -38,7 +38,7 @@ public partial class RadialWheelOverlay : Window
     // Colors
     private static readonly Color SegmentBase = Color.FromArgb(0xCC, 0x1C, 0x1C, 0x1C);
     private static readonly Color SegmentHover = Color.FromArgb(0xEE, 0x22, 0x22, 0x22);
-    private static readonly Color AccentColor = Color.FromRgb(0x00, 0xE6, 0x76);
+    private static Color AccentColor => ThemeManager.Accent;
 
     private readonly List<Path> _segPaths = new();
     private readonly List<TextBlock> _segLabels = new();
@@ -48,6 +48,7 @@ public partial class RadialWheelOverlay : Window
         InitializeComponent();
         Loaded += (_, _) =>
         {
+            OuterGlow.Color = AccentColor;
             Focus();
             Keyboard.Focus(RootGrid);
             PlayFadeIn();
