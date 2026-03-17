@@ -19,9 +19,16 @@ if errorlevel 1 (
 echo      Published to .\publish\
 echo.
 
-:: Extract version from .csproj
-for /f "tokens=2 delims=<>" %%v in ('findstr "<Version>" AmpUp.csproj') do set APP_VERSION=%%v
-echo #define MyAppVersion "%APP_VERSION%" > installer\version.iss
+:: Extract version from .csproj (search relative to script location)
+set APP_VERSION=
+for /f "tokens=2 delims=<>" %%v in ('findstr /c:"<Version>" "%~dp0AmpUp.csproj"') do set APP_VERSION=%%v
+if "%APP_VERSION%"=="" (
+    echo ERROR: Could not extract version from AmpUp.csproj!
+    echo        Make sure AmpUp.csproj has a ^<Version^> tag.
+    pause
+    exit /b 1
+)
+echo #define MyAppVersion "%APP_VERSION%" > "%~dp0installer\version.iss"
 echo      Version: %APP_VERSION%
 echo.
 
