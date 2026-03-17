@@ -28,8 +28,9 @@ public static class UpdateChecker
 
     /// <summary>
     /// Checks GitHub for a newer release. Returns (tagName, downloadUrl) or null if up to date.
+    /// Pass preferredExtension (e.g. ".dmg" on Mac, ".exe" on Windows) to find the right asset.
     /// </summary>
-    public static async Task<(string Tag, string DownloadUrl)?> CheckForUpdateAsync()
+    public static async Task<(string Tag, string DownloadUrl)?> CheckForUpdateAsync(string preferredExtension = ".exe")
     {
         try
         {
@@ -44,14 +45,14 @@ public static class UpdateChecker
             if (!IsNewer(remoteVersion, CurrentVersion))
                 return null;
 
-            // Find the .exe asset
+            // Find the asset matching the preferred extension
             var assets = release["assets"] as JArray;
             if (assets == null) return null;
 
             foreach (var asset in assets)
             {
                 var name = asset["name"]?.ToString() ?? "";
-                if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                if (name.EndsWith(preferredExtension, StringComparison.OrdinalIgnoreCase))
                 {
                     var url = asset["browser_download_url"]?.ToString() ?? "";
                     if (!string.IsNullOrEmpty(url))
@@ -96,6 +97,38 @@ public static class UpdateChecker
         if (!remoteIsPreRelease && localIsPreRelease) return true;
 
         return false;
+    }
+
+    /// <summary>
+    /// Downloads the update asset to a temp file and returns the local path.
+    /// Platform-neutral — caller decides what to do with the file.
+    /// </summary>
+    public static async Task<string> DownloadUpdateAsync(string downloadUrl, string fileName, Action<int>? onProgress = null)
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), fileName);
+
+        using var response = await _http.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+
+        var totalBytes = response.Content.Headers.ContentLength ?? -1;
+        long downloaded = 0;
+
+        using (var stream = await response.Content.ReadAsStreamAsync())
+        using (var file = File.Create(tempPath))
+        {
+            var buffer = new byte[81920];
+            int read;
+            while ((read = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+            {
+                await file.WriteAsync(buffer, 0, read);
+                downloaded += read;
+                if (totalBytes > 0)
+                    onProgress?.Invoke((int)(downloaded * 100 / totalBytes));
+            }
+        }
+
+        Logger.Log($"Update downloaded to {tempPath}");
+        return tempPath;
     }
 
     /// <summary>

@@ -1,7 +1,9 @@
+using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Threading;
 using AmpUp.Core.Models;
 using AmpUp.Core.Services;
 
@@ -12,12 +14,16 @@ public partial class SettingsView : UserControl
     private AppConfig? _config;
     private Action<AppConfig>? _onSave;
     private bool _loading;
+    private bool _downloading;
 
     public Action? OnNavigateToOverview { get; set; }
 
     public SettingsView()
     {
         InitializeComponent();
+
+        // Version display
+        TxtVersion.Text = $"AmpUp {UpdateChecker.CurrentVersion}";
 
         // Advanced toggle
         AdvancedToggle.PointerPressed += AdvancedToggle_Click;
@@ -39,8 +45,18 @@ public partial class SettingsView : UserControl
         // Govee
         ChkGoveeEnabled.IsCheckedChanged += OnGoveeEnabledChanged;
 
-        // About
+        // Updates
         BtnCheckUpdate.Click += (_, _) => OnCheckUpdate();
+        BtnDownloadUpdate.Click += (_, _) => OnDownloadUpdate();
+        ChkAutoUpdate.IsCheckedChanged += OnAutoUpdateChanged;
+
+        // Subscribe to background update checks (from App.axaml.cs periodic timer)
+        MacUpdateService.UpdateAvailable += tag =>
+            Dispatcher.UIThread.Post(() => ShowUpdateBanner(tag));
+
+        // If an update was already found before this view was opened, show it immediately
+        if (MacUpdateService.HasPendingUpdate && MacUpdateService.PendingTag != null)
+            ShowUpdateBanner(MacUpdateService.PendingTag);
     }
 
     public void LoadConfig(AppConfig config, Action<AppConfig> onSave)
@@ -74,6 +90,10 @@ public partial class SettingsView : UserControl
         TxtGoveeApiKey.Text = config.Ambience.GoveeApiKey;
         GoveeSection.IsVisible = config.Ambience.GoveeCloudEnabled;
         UpdateGoveeStatus();
+
+        // Auto-update (default on)
+        ChkAutoUpdate.IsChecked = config.AutoCheckUpdates;
+        MacUpdateService.AutoCheckEnabled = config.AutoCheckUpdates;
 
         _loading = false;
     }
@@ -254,27 +274,36 @@ public partial class SettingsView : UserControl
         }
     }
 
-    // ── About ─────────────────────────────────────────────────────
+    // ── Updates ───────────────────────────────────────────────────
+
+    private void ShowUpdateBanner(string tag)
+    {
+        TxtUpdateTag.Text = tag;
+        UpdateBanner.IsVisible = true;
+        TxtUpdateStatus.IsVisible = false;
+    }
 
     private async void OnCheckUpdate()
     {
         BtnCheckUpdate.IsEnabled = false;
         TxtUpdateStatus.IsVisible = true;
+        TxtUpdateStatus.Foreground = new SolidColorBrush(Color.Parse("#9A9A9A"));
         TxtUpdateStatus.Text = "Checking for updates...";
+        UpdateBanner.IsVisible = false;
 
         try
         {
-            var update = await UpdateChecker.CheckForUpdateAsync();
-            if (update == null)
+            await MacUpdateService.CheckAsync();
+
+            if (MacUpdateService.HasPendingUpdate && MacUpdateService.PendingTag != null)
             {
-                TxtUpdateStatus.Text = "You're on the latest version.";
-                TxtUpdateStatus.Foreground = new SolidColorBrush(Color.Parse("#00DD77"));
+                TxtUpdateStatus.IsVisible = false;
+                ShowUpdateBanner(MacUpdateService.PendingTag);
             }
             else
             {
-                var (tag, _) = update.Value;
-                TxtUpdateStatus.Text = $"New version available: {tag}";
-                TxtUpdateStatus.Foreground = new SolidColorBrush(Color.Parse("#00E676"));
+                TxtUpdateStatus.Text = "You're on the latest version.";
+                TxtUpdateStatus.Foreground = new SolidColorBrush(Color.Parse("#00DD77"));
             }
         }
         catch
@@ -286,6 +315,46 @@ public partial class SettingsView : UserControl
         {
             BtnCheckUpdate.IsEnabled = true;
         }
+    }
+
+    private async void OnDownloadUpdate()
+    {
+        if (_downloading) return;
+        _downloading = true;
+        BtnDownloadUpdate.IsEnabled = false;
+        DownloadProgress.IsVisible = true;
+        TxtDownloadStatus.IsVisible = true;
+        TxtDownloadStatus.Text = "Downloading...";
+        TxtDownloadStatus.Foreground = new SolidColorBrush(Color.Parse("#9A9A9A"));
+
+        try
+        {
+            await MacUpdateService.DownloadAndOpenAsync(progress =>
+                Dispatcher.UIThread.Post(() => DownloadProgress.Value = progress));
+
+            TxtDownloadStatus.Text = "Done! Drag AmpUp.app to Applications to update.";
+            TxtDownloadStatus.Foreground = new SolidColorBrush(Color.Parse("#00DD77"));
+        }
+        catch (Exception ex)
+        {
+            TxtDownloadStatus.Text = $"Download failed: {ex.Message}";
+            TxtDownloadStatus.Foreground = new SolidColorBrush(Color.Parse("#FF4444"));
+            BtnDownloadUpdate.IsEnabled = true;
+        }
+        finally
+        {
+            _downloading = false;
+            DownloadProgress.IsVisible = false;
+        }
+    }
+
+    private void OnAutoUpdateChanged(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_loading || _config == null) return;
+        var enabled = ChkAutoUpdate.IsChecked == true;
+        _config.AutoCheckUpdates = enabled;
+        MacUpdateService.AutoCheckEnabled = enabled;
+        CollectAndSave();
     }
 
     // ── Collect & Save ────────────────────────────────────────────
@@ -308,6 +377,9 @@ public partial class SettingsView : UserControl
         // Govee
         _config.Ambience.GoveeCloudEnabled = ChkGoveeEnabled.IsChecked == true;
         _config.Ambience.GoveeApiKey = TxtGoveeApiKey.Text ?? "";
+
+        // Updates
+        _config.AutoCheckUpdates = ChkAutoUpdate.IsChecked == true;
 
         _onSave(_config);
     }
