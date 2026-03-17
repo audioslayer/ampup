@@ -16,59 +16,63 @@
                         <TextBlock Text="OSD OVERLAY" Style="{StaticResource HeaderText}" Margin="0" />
                     </StackPanel>
                     <TextBlock Text="Show overlay notifications when the app is minimized to tray."
-                               Style="{StaticResource SecondaryText}" Margin="0,0,0,12" />
+                               Style="{StaticResource SecondaryText}" Margin="0,0,0,14" />
 
-                    <!-- Toggles + Duration -->
-                    <Grid Margin="0,0,0,12">
+                    <!-- Notification type rows — checkbox + duration slider each -->
+                    <Grid Margin="0,0,0,4">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="160" />
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <CheckBox x:Name="ChkOsdVolume" Grid.Row="0" Grid.Column="0"
+                                  Content="Volume Changes" Margin="0,4,0,4"
+                                  Foreground="{StaticResource TextPrimaryBrush}"
+                                  ToolTip="Show overlay when you adjust a knob" />
+                        <controls:StyledSlider x:Name="SldOsdVolumeDur" Grid.Row="0" Grid.Column="1"
+                                Minimum="1" Maximum="8" Value="2" Suffix="s"
+                                Height="24" Margin="0,4,0,4"
+                                ToolTip="How long the volume overlay stays visible" />
+
+                        <CheckBox x:Name="ChkOsdProfile" Grid.Row="1" Grid.Column="0"
+                                  Content="Profile Changes" Margin="0,4,0,4"
+                                  Foreground="{StaticResource TextPrimaryBrush}"
+                                  ToolTip="Show overlay when switching profiles" />
+                        <controls:StyledSlider x:Name="SldOsdProfileDur" Grid.Row="1" Grid.Column="1"
+                                Minimum="1" Maximum="8" Value="3.5" Suffix="s"
+                                Height="24" Margin="0,4,0,4"
+                                ToolTip="How long the profile overlay stays visible" />
+
+                        <CheckBox x:Name="ChkOsdDevice" Grid.Row="2" Grid.Column="0"
+                                  Content="Device Changes" Margin="0,4,0,4"
+                                  Foreground="{StaticResource TextPrimaryBrush}"
+                                  ToolTip="Show overlay when cycling audio devices" />
+                        <controls:StyledSlider x:Name="SldOsdDeviceDur" Grid.Row="2" Grid.Column="1"
+                                Minimum="1" Maximum="8" Value="2.5" Suffix="s"
+                                Height="24" Margin="0,4,0,4"
+                                ToolTip="How long the device overlay stays visible" />
+                    </Grid>
+
+                    <!-- Divider -->
+                    <Border Height="1" Background="{StaticResource CardBorderBrush}" Margin="0,10,0,12" />
+
+                    <!-- Position + Monitor row -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="24" />
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <!-- Volume -->
-                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
-                            <CheckBox x:Name="ChkOsdVolume"
-                                      Content="Volume Changes"
-                                      Foreground="{StaticResource TextPrimaryBrush}"
-                                      ToolTip="Show overlay when you adjust a knob" />
-                            <controls:StyledSlider x:Name="SldOsdVolumeDur"
-                                    Minimum="1" Maximum="8" Value="2" Suffix="s"
-                                    Width="200" Margin="8,0,0,0"
-                                    ToolTip="How long the volume overlay stays visible" />
-                        </StackPanel>
-
-                        <!-- Profile -->
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
-                            <CheckBox x:Name="ChkOsdProfile"
-                                      Content="Profile Changes"
-                                      Foreground="{StaticResource TextPrimaryBrush}"
-                                      ToolTip="Show overlay when switching profiles" />
-                            <controls:StyledSlider x:Name="SldOsdProfileDur"
-                                    Minimum="1" Maximum="8" Value="3.5" Suffix="s"
-                                    Width="200" Margin="8,0,0,0"
-                                    ToolTip="How long the profile overlay stays visible" />
-                        </StackPanel>
-
-                        <!-- Device -->
-                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                            <CheckBox x:Name="ChkOsdDevice"
-                                      Content="Device Changes"
-                                      Foreground="{StaticResource TextPrimaryBrush}"
-                                      ToolTip="Show overlay when cycling audio devices" />
-                            <controls:StyledSlider x:Name="SldOsdDeviceDur"
-                                    Minimum="1" Maximum="8" Value="2.5" Suffix="s"
-                                    Width="200" Margin="8,0,0,0"
-                                    ToolTip="How long the device overlay stays visible" />
-                        </StackPanel>
-                    </Grid>
-
-                    <!-- Position picker -->
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <StackPanel Margin="0,0,16,0">
+                        <!-- Position picker -->
+                        <StackPanel Grid.Column="0">
                             <TextBlock Text="Position" Style="{StaticResource SecondaryText}" Margin="0,0,0,6" />
-
-                            <!-- Fraps-style screen position picker -->
                             <Border Background="{StaticResource InputBgBrush}"
                                     BorderBrush="{StaticResource InputBorderBrush}"
                                     BorderThickness="1" CornerRadius="6"
@@ -130,8 +134,8 @@
                             </Border>
                         </StackPanel>
 
-                        <!-- Monitor selector + Preview -->
-                        <StackPanel Margin="16,0,0,0" VerticalAlignment="Center">
+                        <!-- Monitor + Preview + Fullscreen -->
+                        <StackPanel Grid.Column="2" VerticalAlignment="Top">
                             <TextBlock Text="Monitor" Style="{StaticResource SecondaryText}" Margin="0,0,0,6" />
                             <StackPanel Orientation="Horizontal">
                                 <ComboBox x:Name="CmbOsdMonitor" Width="280"
@@ -140,15 +144,14 @@
                                 <ui:Button x:Name="BtnOsdPreview" Content="Preview"
                                            Appearance="Secondary" Margin="12,0,0,0" />
                             </StackPanel>
-                        </StackPanel>
-                    </StackPanel>
 
-                    <!-- Fullscreen suppression -->
-                    <CheckBox x:Name="ChkHideInFullscreen"
-                              Content="Hide OSD over fullscreen apps and games"
-                              Foreground="{StaticResource TextPrimaryBrush}"
-                              Margin="0,12,0,0"
-                              ToolTip="When checked, OSD won't appear over fullscreen games or apps" />
+                            <CheckBox x:Name="ChkHideInFullscreen"
+                                      Content="Hide OSD over fullscreen apps and games"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      Margin="0,14,0,0"
+                                      ToolTip="When checked, OSD won't appear over fullscreen games or apps" />
+                        </StackPanel>
+                    </Grid>
                 </StackPanel>
             </Border>
 
