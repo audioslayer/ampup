@@ -459,37 +459,142 @@ public partial class MixerView : UserControl
         {
             panel.Children.Add(new TextBlock
             {
-                Text = "No apps configured",
+                Text = "No apps added yet",
                 FontSize = 10,
                 Foreground = FindBrush("TextDimBrush"),
                 Margin = new Thickness(0, 2, 0, 4),
             });
-            return;
         }
-
-        foreach (var app in knob.Apps)
+        else
         {
-            var chipText = new TextBlock
+            foreach (var app in knob.Apps.ToList())
             {
-                Text = app,
-                FontSize = 10.5,
-                Foreground = new SolidColorBrush(Color.Parse("#E8E8E8")),
-                VerticalAlignment = VerticalAlignment.Center,
-            };
+                var appName = app; // capture for closure
+                var chipText = new TextBlock
+                {
+                    Text = app,
+                    FontSize = 10.5,
+                    Foreground = new SolidColorBrush(Color.Parse("#E8E8E8")),
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
 
-            var chip = new Border
-            {
-                Background = new SolidColorBrush(Color.FromArgb(0x28, accent.R, accent.G, accent.B)),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, accent.R, accent.G, accent.B)),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(12),
-                Padding = new Thickness(10, 4, 10, 4),
-                Margin = new Thickness(0, 0, 4, 4),
-                Child = chipText,
-            };
+                var removeBtn = new TextBlock
+                {
+                    Text = "×",
+                    FontSize = 12,
+                    FontWeight = FontWeight.Bold,
+                    Foreground = new SolidColorBrush(Color.FromArgb(0x99, 0xFF, 0xFF, 0xFF)),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(6, 0, 0, 0),
+                    Cursor = new Cursor(StandardCursorType.Hand),
+                };
 
-            panel.Children.Add(chip);
+                var chipContent = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                chipContent.Children.Add(chipText);
+                chipContent.Children.Add(removeBtn);
+
+                var chip = new Border
+                {
+                    Background = new SolidColorBrush(Color.FromArgb(0x28, accent.R, accent.G, accent.B)),
+                    BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, accent.R, accent.G, accent.B)),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(12),
+                    Padding = new Thickness(10, 4, 8, 4),
+                    Margin = new Thickness(0, 0, 4, 4),
+                    Child = chipContent,
+                };
+
+                removeBtn.PointerPressed += (_, e) =>
+                {
+                    e.Handled = true;
+                    if (_config == null) return;
+                    var k = _config.Knobs.FirstOrDefault(kk => kk.Idx == idx);
+                    if (k != null)
+                    {
+                        k.Apps.Remove(appName);
+                        RebuildAppToggles(idx);
+                        QueueSave();
+                    }
+                };
+
+                panel.Children.Add(chip);
+            }
         }
+
+        // Add-app row: text input + button
+        var addRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            Margin = new Thickness(0, 4, 0, 0),
+        };
+
+        var appInput = new TextBox
+        {
+            FontSize = 10,
+            Watermark = "process name…",
+            Height = 26,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Padding = new Thickness(6, 2),
+            MinWidth = 90,
+        };
+
+        var addBtn = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(0x22, accent.R, accent.G, accent.B)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, accent.R, accent.G, accent.B)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 4),
+            Cursor = new Cursor(StandardCursorType.Hand),
+            Child = new TextBlock
+            {
+                Text = "+ Add",
+                FontSize = 10,
+                FontWeight = FontWeight.SemiBold,
+                Foreground = new SolidColorBrush(accent),
+            },
+        };
+
+        addBtn.PointerPressed += (_, _) =>
+        {
+            var name = appInput.Text?.Trim().ToLowerInvariant();
+            if (string.IsNullOrEmpty(name) || _config == null) return;
+            var k = _config.Knobs.FirstOrDefault(kk => kk.Idx == idx);
+            if (k != null && !k.Apps.Contains(name))
+            {
+                k.Apps.Add(name);
+                appInput.Text = "";
+                RebuildAppToggles(idx);
+                QueueSave();
+            }
+        };
+
+        // Also add on Enter key
+        appInput.KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Return || e.Key == Key.Enter)
+            {
+                var name = appInput.Text?.Trim().ToLowerInvariant();
+                if (string.IsNullOrEmpty(name) || _config == null) return;
+                var k = _config.Knobs.FirstOrDefault(kk => kk.Idx == idx);
+                if (k != null && !k.Apps.Contains(name))
+                {
+                    k.Apps.Add(name);
+                    appInput.Text = "";
+                    RebuildAppToggles(idx);
+                    QueueSave();
+                }
+            }
+        };
+
+        addRow.Children.Add(appInput);
+        addRow.Children.Add(addBtn);
+        panel.Children.Add(addRow);
     }
 
     private void QueueSave()
