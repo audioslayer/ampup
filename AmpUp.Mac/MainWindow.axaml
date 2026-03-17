@@ -130,6 +130,22 @@
                                 </Grid>
                             </Button>
 
+                            <Button x:Name="NavAudioDash" Classes="NavButton" Click="NavAudioDash_Click"
+                                    ToolTip.Tip="Audio Activity — real-time session overview">
+                                <Grid ColumnDefinitions="3,*">
+                                    <Border x:Name="NavAudioDashBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
+                                            Background="{DynamicResource AccentBrush}"
+                                            VerticalAlignment="Center" IsVisible="False" Margin="-4,0,0,0" />
+                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                                        <TextBlock x:Name="NavAudioDashIcon" Text="📊" FontSize="20"
+                                                   HorizontalAlignment="Center" />
+                                        <TextBlock x:Name="NavAudioDashLabel" Text="Activity" FontSize="9"
+                                                   Foreground="{DynamicResource TextSecBrush}"
+                                                   HorizontalAlignment="Center" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+
                             <Button x:Name="NavAmbience" Classes="NavButton" Click="NavAmbience_Click">
                                 <Grid ColumnDefinitions="3,*">
                                     <Border x:Name="NavAmbienceBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"

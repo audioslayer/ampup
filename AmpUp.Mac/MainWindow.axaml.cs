@@ -18,6 +18,7 @@ public partial class MainWindow : Window
     private readonly AmbienceView _ambienceView = new();
     private readonly BindingsView _bindingsView = new();
     private readonly OsdView _osdView = new();
+    private readonly AudioDashboardView _audioDashView = new();
 
     private Button? _activeNavButton;
     private Border? _activeNavBar;
@@ -48,6 +49,7 @@ public partial class MainWindow : Window
         _bindingsView.LoadConfig(config);
         _osdView.LoadConfig(config, onSave);
         _ambienceView.LoadConfig(config, onSave, ambienceSync, dreamSync);
+        _audioDashView.LoadConfig(config, onSave);
 
         // Wire cross-view navigation
         _settingsView.OnNavigateToOverview = () => NavigateTo(_bindingsView, NavBindings);
@@ -77,6 +79,7 @@ public partial class MainWindow : Window
     private void NavMixer_Click(object? sender, RoutedEventArgs e) => NavigateTo(_mixerView, NavMixer);
     private void NavButtons_Click(object? sender, RoutedEventArgs e) => NavigateTo(_buttonsView, NavButtons);
     private void NavLights_Click(object? sender, RoutedEventArgs e) => NavigateTo(_lightsView, NavLights);
+    private void NavAudioDash_Click(object? sender, RoutedEventArgs e) => NavigateTo(_audioDashView, NavAudioDash);
     private void NavAmbience_Click(object? sender, RoutedEventArgs e) => NavigateTo(_ambienceView, NavAmbience);
     private void NavOsd_Click(object? sender, RoutedEventArgs e) => NavigateTo(_osdView, NavOsd);
     private void NavSettings_Click(object? sender, RoutedEventArgs e) => NavigateTo(_settingsView, NavSettings);
@@ -84,13 +87,14 @@ public partial class MainWindow : Window
 
     private Dictionary<Button, NavInfo> GetNavMap() => new()
     {
-        { NavMixer,    new(NavMixerBar, NavMixerIcon, NavMixerLabel) },
-        { NavButtons,  new(NavButtonsBar, NavButtonsIcon, NavButtonsLabel) },
-        { NavLights,   new(NavLightsBar, NavLightsIcon, NavLightsLabel) },
-        { NavAmbience, new(NavAmbienceBar, NavAmbienceIcon, NavAmbienceLabel) },
-        { NavOsd,      new(NavOsdBar, NavOsdIcon, NavOsdLabel) },
-        { NavSettings, new(NavSettingsBar, NavSettingsIcon, NavSettingsLabel) },
-        { NavBindings, new(NavBindingsBar, NavBindingsIcon, NavBindingsLabel) },
+        { NavMixer,     new(NavMixerBar,     NavMixerIcon,     NavMixerLabel)     },
+        { NavButtons,   new(NavButtonsBar,   NavButtonsIcon,   NavButtonsLabel)   },
+        { NavLights,    new(NavLightsBar,    NavLightsIcon,    NavLightsLabel)    },
+        { NavAudioDash, new(NavAudioDashBar, NavAudioDashIcon, NavAudioDashLabel) },
+        { NavAmbience,  new(NavAmbienceBar,  NavAmbienceIcon,  NavAmbienceLabel)  },
+        { NavOsd,       new(NavOsdBar,       NavOsdIcon,       NavOsdLabel)       },
+        { NavSettings,  new(NavSettingsBar,  NavSettingsIcon,  NavSettingsLabel)  },
+        { NavBindings,  new(NavBindingsBar,  NavBindingsIcon,  NavBindingsLabel)  },
     };
 
     private void NavigateTo(UserControl view, Button navButton)
