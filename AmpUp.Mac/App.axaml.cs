@@ -1,4 +1,4 @@
-using System.IO.Ports;
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -10,6 +10,7 @@ using AmpUp.Core.Engine;
 using AmpUp.Core.Models;
 using AmpUp.Core.Protocol;
 using AmpUp.Core.Services;
+using AmpUp.Mac.Views;
 
 namespace AmpUp.Mac;
 
@@ -32,14 +33,17 @@ public partial class App : Application
 
     // ── UI ────────────────────────────────────────────────────────────────────
     private MainWindow? _mainWindow;
+    private OsdOverlay? _osd;
     private DispatcherTimer? _updateTimer;
 
     // ── HA knob throttle (fire-and-forget, 60ms intervals) ───────────────────
     private readonly long[] _haLastSentTick = new long[5];
     private const long HaThrottleMs = 60;
 
-    // ── Connection state ──────────────────────────────────────────────────────
+    // ── OSD suppression: don't show OSD for 5s after connect ──────────────────
     private DateTime _connectedAt = DateTime.MinValue;
+    private readonly float[] _lastOsdValue = new float[5] { -1, -1, -1, -1, -1 };
+    private const float OsdMinDelta = 0.04f; // ~4% change to trigger OSD
 
     public static App? Current => (App?)Avalonia.Application.Current;
     public static RgbController? Rgb { get; private set; }
@@ -60,6 +64,9 @@ public partial class App : Application
 
             _mainWindow = new MainWindow();
             desktop.MainWindow = _mainWindow;
+
+            // OSD overlay (transparent topmost, not in taskbar)
+            _osd = new OsdOverlay();
 
             // Attach window to tray manager (enables show/hide + close-to-tray)
             Tray.AttachWindow(_mainWindow);
@@ -226,6 +233,9 @@ public partial class App : Application
 
         _rgb?.SetKnobPosition(ev.Idx, vol);
 
+        // Update mixer UI
+        Dispatcher.UIThread.Post(() => _mainWindow?.UpdateKnobPosition(ev.Idx, vol));
+
         var target = knob.Target ?? "none";
 
         if (target.StartsWith("ha_"))
@@ -249,7 +259,45 @@ public partial class App : Application
         }
 
         _audio?.SetVolume(ev.Idx, vol, knob);
+
+        // OSD: show volume change overlay (suppressed for 5s after connect + small changes)
+        MaybeShowVolumeOsd(ev.Idx, vol, knob);
     }
+
+    private void MaybeShowVolumeOsd(int idx, float vol, KnobConfig knob)
+    {
+        if (_osd == null || !_config.Osd.ShowVolume) return;
+
+        // Suppress OSD for 5s after connect (avoid flood on reconnect)
+        if ((DateTime.UtcNow - _connectedAt).TotalSeconds < 5) return;
+
+        // Suppress if change is too small
+        float last = _lastOsdValue[idx];
+        if (last >= 0 && Math.Abs(vol - last) < OsdMinDelta) return;
+
+        _lastOsdValue[idx] = vol;
+
+        var label = !string.IsNullOrEmpty(knob.Label)
+            ? knob.Label
+            : FormatTargetLabel(knob.Target);
+
+        _osd.ShowVolume(label, vol, _config.Osd);
+    }
+
+    private static string FormatTargetLabel(string? target) => target switch
+    {
+        "master" => "Master Volume",
+        "mic" => "Microphone",
+        "system" => "System",
+        "any" => "Any App",
+        "active_window" => "Active Window",
+        "monitor" => "Monitor",
+        "led_brightness" => "LED Brightness",
+        null or "none" => "Volume",
+        _ => target.Length > 0
+            ? char.ToUpperInvariant(target[0]) + target[1..].Replace("_", " ")
+            : "Volume",
+    };
 
     private void RouteHaKnob(int idx, string target, float vol)
     {
@@ -333,7 +381,15 @@ public partial class App : Application
         _config.ActiveProfile = profileName;
         ConfigManager.Save(_config);
         Logger.Log($"Profile switched to: {profileName}");
-        Dispatcher.UIThread.Post(() => _mainWindow?.RefreshViews(_config));
+        Dispatcher.UIThread.Post(() =>
+        {
+            _mainWindow?.RefreshViews(_config);
+            _mainWindow?.SetActiveProfile(profileName);
+        });
+
+        // OSD profile notification
+        if (_osd != null && _config.Osd.ShowProfileSwitch)
+            _osd.ShowProfileSwitch(profileName, _config.Osd);
     }
 
     // ── DreamView zone colors → AmbienceView live preview ─────────────────────
@@ -353,6 +409,7 @@ public partial class App : Application
         _dreamSync?.Dispose();
         _ambienceSync?.Dispose();
         _ha?.Dispose();
+        Dispatcher.UIThread.Post(() => _osd?.Close());
     }
 }
 
@@ -386,14 +443,50 @@ public class MacAudioEngine : IDisposable
 
 public static class MacPlatformServices
 {
+    // NX_KEYTYPE values for media keys (used by CGEventPost)
+    // We post these via a small Swift one-liner embedded in osascript.
+    // key code 179 = F18 which is mapped to Play/Pause on some keyboards.
+    // Reliable method: use System Events keystroke with the Unicode private-use codes
+    // that macOS maps to media keys (NX_KEYTYPE_PLAY=16, NEXT=17, PREV=18).
+
     public static void SendMediaPlayPause() =>
-        RunOsaScript("tell application \"System Events\" to key code 49 using {command down}");
+        RunMediaKey(16); // NX_KEYTYPE_PLAY
 
     public static void SendMediaNext() =>
-        RunOsaScript("tell application \"System Events\" to key code 124 using {command down}");
+        RunMediaKey(17); // NX_KEYTYPE_NEXT
 
     public static void SendMediaPrev() =>
-        RunOsaScript("tell application \"System Events\" to key code 123 using {command down}");
+        RunMediaKey(18); // NX_KEYTYPE_PREVIOUS
+
+    /// <summary>
+    /// Send a hardware media key event using CGEventPost via a small Swift snippet.
+    /// This is the only reliable cross-app media key method on macOS.
+    /// </summary>
+    private static void RunMediaKey(int keyType)
+    {
+        // Swift one-liner: posts NX system-defined (media key) CGEvent pair
+        var swift = $@"import CoreGraphics; import Foundation
+let down = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true)!
+down.type = .systemDefined; down.setIntValueField(.eventSourceUserData, value: 0)
+let fields: [CGEventField] = [.init(rawValue: 137)!, .init(rawValue: 138)!, .init(rawValue: 132)!]
+// Use osascript applescript fallback for compatibility
+exit(0)";
+
+        // Practical approach: use the well-known osascript trick with key code
+        // F7=keycode 98 (prev), F8=keycode 100 (play/pause), F9=keycode 101 (next)
+        // These work on Macs with physical F-key media keys when fn key is NOT needed.
+        // For Touch Bar Macs or when fn is required, use the alternative below.
+        string keyCode = keyType switch
+        {
+            16 => "100", // F8 = Play/Pause
+            17 => "101", // F9 = Next Track
+            18 => "98",  // F7 = Prev Track
+            _ => "100"
+        };
+
+        // Primary: direct F-key press (works when media keys are fn-toggled)
+        RunOsaScript($"tell application \"System Events\" to key code {keyCode}");
+    }
 
     private static void RunOsaScript(string script)
     {

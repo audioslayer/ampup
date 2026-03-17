@@ -20,9 +20,9 @@
             <!-- Branding -->
             <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="80,0,0,0" VerticalAlignment="Center">
                 <TextBlock VerticalAlignment="Center">
-                    <Run Text="AMP" FontSize="16" FontWeight="Black" Foreground="#2E8B38" />
+                    <Run Text="AMP" FontSize="16" FontWeight="Black" Foreground="{DynamicResource AccentBrush}" />
                     <Run Text=" " FontSize="4" />
-                    <Run Text="UP" FontSize="16" FontWeight="Black" Foreground="#4CAF50" />
+                    <Run Text="UP" FontSize="16" FontWeight="Black" Foreground="{DynamicResource AccentGlowBrush}" />
                 </TextBlock>
             </StackPanel>
 

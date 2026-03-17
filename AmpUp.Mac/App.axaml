@@ -2,6 +2,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="AmpUp.Mac.App"
              RequestedThemeVariant="Dark">
+    <Application.Resources>
+        <!-- InterFont static resource key required by Theme.axaml -->
+        <FontFamily x:Key="InterFont">avares://Avalonia.Fonts.Inter/Assets#Inter</FontFamily>
+    </Application.Resources>
     <Application.Styles>
         <FluentTheme />
         <StyleInclude Source="avares://AmpUp.Mac/Theme.axaml" />
