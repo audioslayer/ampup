@@ -31,6 +31,7 @@ public class AppConfig
     public DuckingConfig Ducking { get; set; } = new();
     public AutoSwitchConfig AutoSwitch { get; set; } = new();
     public ObsConfig Obs { get; set; } = new();
+    public VoiceMeeterConfig VoiceMeeter { get; set; } = new();
     public bool HasCompletedSetup { get; set; } = false;
     public bool AutoSuggestLayout { get; set; } = false;
     public string LastWelcomeVersion { get; set; } = "";
@@ -308,4 +309,9 @@ public class ObsConfig
     public string Host { get; set; } = "localhost";
     public int Port { get; set; } = 4455;
     public string Password { get; set; } = "";
+}
+
+public class VoiceMeeterConfig
+{
+    public bool Enabled { get; set; } = false;
 }

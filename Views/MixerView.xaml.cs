@@ -909,7 +909,8 @@ public partial class MixerView : UserControl
             picker.RegisterSubMenu("output_device", () => GetDeviceSubItems(isOutput: true));
             picker.RegisterSubMenu("input_device", () => GetDeviceSubItems(isOutput: false));
 
-            bool hasIntegrations = haEnabled || goveeEnabled;
+            bool vmEnabled = config.VoiceMeeter.Enabled;
+            bool hasIntegrations = haEnabled || goveeEnabled || vmEnabled;
             if (hasIntegrations)
             {
                 picker.AddCategory("Integrations");
@@ -933,6 +934,15 @@ public partial class MixerView : UserControl
                 {
                     picker.AddItem("Govee", "govee", "◈", clrGovee, "Room Lighting");
                     picker.RegisterSubMenu("govee", () => GetGoveeSubItems(config));
+                }
+
+                if (vmEnabled)
+                {
+                    var clrVM = Color.FromRgb(0xFF, 0x8F, 0x00); // VoiceMeeter orange
+                    for (int s = 0; s <= 4; s++)
+                        picker.AddItem("VoiceMeeter", $"vm_strip:{s}", "♪", clrVM, $"Strip {s + 1}");
+                    for (int b = 0; b <= 2; b++)
+                        picker.AddItem("VoiceMeeter", $"vm_bus:{b}", "▶", clrVM, $"Bus {b + 1}");
                 }
             }
 

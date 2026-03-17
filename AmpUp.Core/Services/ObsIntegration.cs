@@ -60,6 +60,8 @@ public class ObsIntegration : IDisposable
             _receiveTask = ReceiveLoopAsync(_cts.Token);
 
             // Wait for Hello message and authenticate
+            // The receive loop handles Hello → auth handshake
+            // Give it a moment to complete
             await Task.Delay(2000, _cts.Token);
 
             return IsAvailable;

@@ -43,6 +43,7 @@ public class ButtonHandler : IDisposable
 
     private HAIntegration? _ha;
     private ObsIntegration? _obs;
+    private VoiceMeeterIntegration? _vm;
     private readonly MMDeviceEnumerator _enumerator = new();
     private readonly ButtonGestureEngine _gestureEngine = new();
 
@@ -56,6 +57,7 @@ public class ButtonHandler : IDisposable
 
     public void SetHAIntegration(HAIntegration? ha) => _ha = ha;
     public void SetObsIntegration(ObsIntegration? obs) => _obs = obs;
+    public void SetVoiceMeeterIntegration(VoiceMeeterIntegration? vm) => _vm = vm;
 
     /// <summary>Fires with button index when quick_wheel is triggered.</summary>
     public event Action<int>? OnQuickWheelOpen;
@@ -274,6 +276,14 @@ public class ButtonHandler : IDisposable
                 case "obs_mute":
                     if (_obs != null && _obs.IsAvailable && !string.IsNullOrEmpty(path))
                         _ = _obs.ToggleMuteAsync(path);
+                    break;
+                case "vm_mute_strip":
+                    if (_vm != null && _vm.IsAvailable && int.TryParse(path, out int vmStripIdx))
+                        _vm.ToggleStripMute(vmStripIdx);
+                    break;
+                case "vm_mute_bus":
+                    if (_vm != null && _vm.IsAvailable && int.TryParse(path, out int vmBusIdx))
+                        _vm.ToggleBusMute(vmBusIdx);
                     break;
                 case "govee_color":
                     // path = "ip|hexcolor" e.g. "192.168.1.50|FF0080"

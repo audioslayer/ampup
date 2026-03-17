@@ -36,6 +36,7 @@ public partial class ButtonsView : UserControl
         ("Govee: Toggle", "govee_toggle"), ("Govee: Color", "govee_color"),
         ("OBS: Record", "obs_record"), ("OBS: Stream", "obs_stream"),
         ("OBS: Scene", "obs_scene"), ("OBS: Mute", "obs_mute"),
+        ("VM: Mute Strip", "vm_mute_strip"), ("VM: Mute Bus", "vm_mute_bus"),
     };
 
     private static readonly string[] PathActions = { "mute_program", "launch_exe", "close_program" };
@@ -61,6 +62,7 @@ public partial class ButtonsView : UserControl
         { "govee_toggle", "◈" }, { "govee_color", "◉" },
         { "obs_record", "●" }, { "obs_stream", "◉" },
         { "obs_scene", "🎬" }, { "obs_mute", "🔇" },
+        { "vm_mute_strip", "🔇" }, { "vm_mute_bus", "🔇" },
     };
 
     private static readonly Dictionary<string, Color> ActionColors = new()
@@ -100,6 +102,8 @@ public partial class ButtonsView : UserControl
         { "obs_stream",         Color.FromRgb(0xAB, 0x47, 0xBC) },
         { "obs_scene",          Color.FromRgb(0x29, 0xB6, 0xF6) },
         { "obs_mute",           Color.FromRgb(0xEF, 0x53, 0x50) },
+        { "vm_mute_strip",      Color.FromRgb(0xFF, 0x8F, 0x00) },
+        { "vm_mute_bus",        Color.FromRgb(0xFF, 0x8F, 0x00) },
     };
 
     // Clipboard for button copy/paste
@@ -939,7 +943,8 @@ public partial class ButtonsView : UserControl
         bool isHaServiceAction = action == "ha_service";
         bool isGoveeAction = action is "govee_toggle" or "govee_color";
         bool isObsPathAction = action is "obs_scene" or "obs_mute";
-        _tapPathPanels[idx].Visibility = PathActions.Contains(action) || isHaServiceAction || action == "govee_color" || isObsPathAction ? Visibility.Visible : Visibility.Collapsed;
+        bool isVmPathAction = action is "vm_mute_strip" or "vm_mute_bus";
+        _tapPathPanels[idx].Visibility = PathActions.Contains(action) || isHaServiceAction || action == "govee_color" || isObsPathAction || isVmPathAction ? Visibility.Visible : Visibility.Collapsed;
         ApplyPathLabelAndButtons(_tapPathLabels[idx], _tapPathBoxes[idx], _tapBrowseButtons[idx], _tapPickButtons[idx], action);
         _tapMacroPanels[idx].Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
         _tapDevicePanels[idx].Visibility = Visibility.Collapsed; // select/mute now use sub-flyout
@@ -961,7 +966,8 @@ public partial class ButtonsView : UserControl
         bool isHaServiceAction = action == "ha_service";
         bool isGoveeAction = action is "govee_toggle" or "govee_color";
         bool isObsPathAction = action is "obs_scene" or "obs_mute";
-        pathPanel.Visibility = PathActions.Contains(action) || isHaServiceAction || action == "govee_color" || isObsPathAction ? Visibility.Visible : Visibility.Collapsed;
+        bool isVmPathAction = action is "vm_mute_strip" or "vm_mute_bus";
+        pathPanel.Visibility = PathActions.Contains(action) || isHaServiceAction || action == "govee_color" || isObsPathAction || isVmPathAction ? Visibility.Visible : Visibility.Collapsed;
         ApplyPathLabelAndButtons(pathLabel, null, browseBtn, pickBtn, action);
         macroPanel.Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
         devicePanel.Visibility = Visibility.Collapsed; // select/mute now use sub-flyout
@@ -1018,6 +1024,18 @@ public partial class ButtonsView : UserControl
             case "obs_mute":
                 label.Text = "SOURCE NAME";
                 if (box != null) box.ToolTip = "OBS audio source name to toggle mute (e.g. Mic/Aux, Desktop Audio)";
+                browseBtn.Visibility = Visibility.Collapsed;
+                pickBtn.Visibility = Visibility.Collapsed;
+                break;
+            case "vm_mute_strip":
+                label.Text = "STRIP INDEX";
+                if (box != null) box.ToolTip = "VoiceMeeter strip index (0-4)";
+                browseBtn.Visibility = Visibility.Collapsed;
+                pickBtn.Visibility = Visibility.Collapsed;
+                break;
+            case "vm_mute_bus":
+                label.Text = "BUS INDEX";
+                if (box != null) box.ToolTip = "VoiceMeeter bus index (0-2)";
                 browseBtn.Visibility = Visibility.Collapsed;
                 pickBtn.Visibility = Visibility.Collapsed;
                 break;
@@ -1206,6 +1224,8 @@ public partial class ButtonsView : UserControl
         { "obs_stream",         "Toggle OBS Studio streaming on/off" },
         { "obs_scene",          "Switch to an OBS scene (enter scene name in path)" },
         { "obs_mute",           "Toggle mute on an OBS audio source (enter source name in path)" },
+        { "vm_mute_strip",      "Toggle mute on a VoiceMeeter strip (enter strip index 0-4 in path)" },
+        { "vm_mute_bus",        "Toggle mute on a VoiceMeeter bus (enter bus index 0-2 in path)" },
     };
 
     private void RebuildActionPickers(AppConfig config)
@@ -1225,11 +1245,15 @@ public partial class ButtonsView : UserControl
         bool anyObsConfigured = config.Buttons.Any(b =>
             IsObsAction(b.Action) || IsObsAction(b.DoublePressAction) || IsObsAction(b.HoldAction));
 
+        bool vmEnabled = config.VoiceMeeter.Enabled;
+        bool anyVmConfigured = config.Buttons.Any(b =>
+            IsVmAction(b.Action) || IsVmAction(b.DoublePressAction) || IsVmAction(b.HoldAction));
+
         for (int i = 0; i < 5; i++)
         {
-            PopulateActionPicker(_tapCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured, obsEnabled, anyObsConfigured);
-            PopulateActionPicker(_dblCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured, obsEnabled, anyObsConfigured);
-            PopulateActionPicker(_holdCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured, obsEnabled, anyObsConfigured);
+            PopulateActionPicker(_tapCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured, obsEnabled, anyObsConfigured, vmEnabled, anyVmConfigured);
+            PopulateActionPicker(_dblCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured, obsEnabled, anyObsConfigured, vmEnabled, anyVmConfigured);
+            PopulateActionPicker(_holdCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured, obsEnabled, anyObsConfigured, vmEnabled, anyVmConfigured);
         }
 
         // Register sub-flyout providers
@@ -1261,6 +1285,9 @@ public partial class ButtonsView : UserControl
     private static bool IsObsAction(string? action)
         => action is "obs_record" or "obs_stream" or "obs_scene" or "obs_mute";
 
+    private static bool IsVmAction(string? action)
+        => action is "vm_mute_strip" or "vm_mute_bus";
+
     // Category groupings for the action picker
     private static readonly (string Category, string[] Values)[] ActionCategories =
     {
@@ -1270,13 +1297,13 @@ public partial class ButtonsView : UserControl
         ("Device",          new[] { "cycle_output", "cycle_input", "select_output", "select_input" }),
         ("System",          new[] { "macro", "switch_profile", "cycle_brightness", "quick_wheel" }),
         ("Power",           new[] { "power_sleep", "power_lock", "power_off", "power_restart", "power_logoff", "power_hibernate" }),
-        ("Integrations",    new[] { "ha_toggle", "ha_scene", "ha_service", "govee_toggle", "govee_color", "obs_record", "obs_stream", "obs_scene", "obs_mute" }),
+        ("Integrations",    new[] { "ha_toggle", "ha_scene", "ha_service", "govee_toggle", "govee_color", "obs_record", "obs_stream", "obs_scene", "obs_mute", "vm_mute_strip", "vm_mute_bus" }),
     };
 
     private static readonly Dictionary<string, (string Display, string Value)> ActionLookup =
         Actions.ToDictionary(a => a.Value, a => a);
 
-    private void PopulateActionPicker(ActionPicker picker, bool haEnabled, bool anyHaConfigured, bool goveeEnabled, bool anyGoveeConfigured, bool obsEnabled = false, bool anyObsConfigured = false)
+    private void PopulateActionPicker(ActionPicker picker, bool haEnabled, bool anyHaConfigured, bool goveeEnabled, bool anyGoveeConfigured, bool obsEnabled = false, bool anyObsConfigured = false, bool vmEnabled = false, bool anyVmConfigured = false)
     {
         picker.ClearItems();
 
@@ -1292,10 +1319,12 @@ public partial class ButtonsView : UserControl
                 bool isHa = IsHaAction(value);
                 bool isGovee = IsGoveeAction(value);
                 bool isObs = IsObsAction(value);
+                bool isVm = IsVmAction(value);
 
                 if (isHa && !haEnabled && !anyHaConfigured) continue;
                 if (isGovee && !goveeEnabled && !anyGoveeConfigured) continue;
                 if (isObs && !obsEnabled && !anyObsConfigured) continue;
+                if (isVm && !vmEnabled && !anyVmConfigured) continue;
 
                 if (!anyAdded) { picker.AddCategory(category); anyAdded = true; }
 
@@ -1303,9 +1332,10 @@ public partial class ButtonsView : UserControl
                 if (isHa && !haEnabled) displayName = $"{action.Display} (HA disabled)";
                 if (isGovee && !goveeEnabled) displayName = $"{action.Display} (Govee disabled)";
                 if (isObs && !obsEnabled) displayName = $"{action.Display} (OBS disabled)";
+                if (isVm && !vmEnabled) displayName = $"{action.Display} (VM disabled)";
 
                 var icon = ActionIcons.GetValueOrDefault(value, "—");
-                var color = (isHa && !haEnabled) || (isGovee && !goveeEnabled) || (isObs && !obsEnabled)
+                var color = (isHa && !haEnabled) || (isGovee && !goveeEnabled) || (isObs && !obsEnabled) || (isVm && !vmEnabled)
                     ? Color.FromRgb(0x55, 0x55, 0x55)
                     : ActionColors.GetValueOrDefault(value, Color.FromRgb(0x88, 0x88, 0x88));
                 var tooltip = ActionTooltips.GetValueOrDefault(value, action.Display);

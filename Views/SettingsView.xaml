@@ -427,6 +427,27 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- VoiceMeeter -->
+                    <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0"
+                            Margin="0,0,0,0" Padding="0,16,0,0">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="VoiceMeeter" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
+                                <Ellipse x:Name="VmStatusDotHeader" Width="8" Height="8"
+                                         Fill="#555555" VerticalAlignment="Center" Margin="12,0,6,0" />
+                                <TextBlock x:Name="TxtVmStatusHeader" Text="Disabled"
+                                           Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <CheckBox x:Name="ChkVmEnabled"
+                                      Content="Enabled"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      Margin="0,0,0,4" />
+                            <TextBlock Text="Auto-connects to running VoiceMeeter instance via DLL"
+                                       Style="{StaticResource SecondaryText}" FontSize="11"
+                                       Margin="0,0,0,0" />
+                        </StackPanel>
+                    </Border>
+
                 </StackPanel>
             </Border>
 

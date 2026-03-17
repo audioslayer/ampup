@@ -28,6 +28,7 @@ public class BindingsView : UserControl
         { "power_sleep", "😴" }, { "power_lock", "🔒" }, { "power_off", "⏻" },
         { "power_restart", "🔄" }, { "power_logoff", "🚪" }, { "power_hibernate", "❄" },
         { "ha_toggle", "⚡" }, { "ha_scene", "🎬" }, { "ha_service", "⚙" },
+        { "vm_mute_strip", "🔇" }, { "vm_mute_bus", "🔇" },
     };
 
     private static readonly Dictionary<string, Color> ActionColors = new()
@@ -60,6 +61,8 @@ public class BindingsView : UserControl
         { "ha_toggle",          Color.FromRgb(0x26, 0xC6, 0xDA) },
         { "ha_scene",           Color.FromRgb(0xFF, 0xA7, 0x26) },
         { "ha_service",         Color.FromRgb(0xAB, 0x47, 0xBC) },
+        { "vm_mute_strip",      Color.FromRgb(0xFF, 0x8F, 0x00) },
+        { "vm_mute_bus",        Color.FromRgb(0xFF, 0x8F, 0x00) },
     };
 
     private static readonly Dictionary<string, string> ActionDisplayNames = new()
@@ -76,6 +79,7 @@ public class BindingsView : UserControl
         { "power_sleep", "Sleep" }, { "power_lock", "Lock" }, { "power_off", "Off" },
         { "power_restart", "Restart" }, { "power_logoff", "Logoff" }, { "power_hibernate", "Hibernate" },
         { "ha_toggle", "HA Toggle" }, { "ha_scene", "HA Scene" }, { "ha_service", "HA Service" },
+        { "vm_mute_strip", "VM Mute Strip" }, { "vm_mute_bus", "VM Mute Bus" },
     };
 
     private readonly ScrollViewer _scroll;
@@ -722,6 +726,8 @@ public class BindingsView : UserControl
                 when !string.IsNullOrEmpty(path) => System.IO.Path.GetFileName(path),
             "ha_toggle" or "ha_scene" or "ha_service"
                 when !string.IsNullOrEmpty(path) => path.Length > 20 ? path[..20] + "…" : path,
+            "vm_mute_strip" when !string.IsNullOrEmpty(path) => $"Strip {path}",
+            "vm_mute_bus" when !string.IsNullOrEmpty(path) => $"Bus {path}",
             _ => ""
         };
     }
@@ -747,6 +753,8 @@ public class BindingsView : UserControl
             _ when t.StartsWith("ha_") => FormatHATarget(t),
             _ when t.StartsWith("govee:") => "Govee",
             _ when t == "govee" => "Govee",
+            _ when t.StartsWith("vm_strip:") => $"VM Strip {t.Split(':')[1]}",
+            _ when t.StartsWith("vm_bus:") => $"VM Bus {t.Split(':')[1]}",
             _ => CamelToTitle(t)
         };
     }

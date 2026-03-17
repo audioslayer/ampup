@@ -27,6 +27,7 @@ public partial class App : Application
     private OsdOverlay? _osdOverlay;
     private HAIntegration? _ha;
     private ObsIntegration? _obs;
+    private VoiceMeeterIntegration? _vm;
     private readonly (string target, float value)[] _haLastValues = new (string, float)[5];
     private readonly bool[] _haThrottleActive = new bool[5];
     private DuckingEngine? _duckingEngine;
@@ -127,6 +128,12 @@ public partial class App : Application
         _buttons.SetObsIntegration(_obs);
         if (_config.Obs.Enabled)
             _ = _obs.ConnectAsync();
+
+        // Start VoiceMeeter integration
+        _vm = new VoiceMeeterIntegration();
+        _buttons.SetVoiceMeeterIntegration(_vm);
+        if (_config.VoiceMeeter.Enabled && _vm.IsAvailable)
+            _vm.Connect();
 
         // Start audio mixer
         _mixer.Start();
@@ -397,6 +404,14 @@ public partial class App : Application
                 _ = _ha.TestConnectionAsync();
         }
         _obs?.UpdateConfig(_config.Obs);
+        // VoiceMeeter: connect/disconnect based on enabled state
+        if (_vm != null)
+        {
+            if (_config.VoiceMeeter.Enabled && _vm.IsAvailable && !_vm.IsConnected)
+                _vm.Connect();
+            else if (!_config.VoiceMeeter.Enabled && _vm.IsConnected)
+                _vm.Disconnect();
+        }
         _autoSwitcher?.UpdateConfig(_config.AutoSwitch);
         _ambienceSync?.UpdateConfig(_config.Ambience);
         _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
@@ -487,6 +502,25 @@ public partial class App : Application
                     Dispatcher.BeginInvoke(() => _mainWindow?.UpdateGoveeDeviceBrightness(ip, norm, true));
                 }
             }
+            else if (knob.Target.StartsWith("vm_strip:", StringComparison.OrdinalIgnoreCase)
+                  || knob.Target.StartsWith("vm_bus:", StringComparison.OrdinalIgnoreCase))
+            {
+                // VoiceMeeter strip/bus gain control
+                if (_vm != null && _vm.IsAvailable && _config.VoiceMeeter.Enabled
+                    && Environment.TickCount64 - _startupTick >= 5000)
+                {
+                    float norm = e.Value / 1023f;
+                    float db = VoiceMeeterIntegration.NormalizedToGain(norm);
+                    var parts = knob.Target.Split(':', 2);
+                    if (parts.Length == 2 && int.TryParse(parts[1], out int vmIdx))
+                    {
+                        if (parts[0] == "vm_strip")
+                            _vm.SetStripGain(vmIdx, db);
+                        else
+                            _vm.SetBusGain(vmIdx, db);
+                    }
+                }
+            }
             else
             {
                 _mixer.SetVolume(knob, e.Value);
@@ -521,6 +555,8 @@ public partial class App : Application
                     "led_brightness" => "LED Brightness",
                     "output_device" => "Output Device",
                     "input_device" => "Input Device",
+                    _ when knob.Target.StartsWith("vm_strip:") => $"VM Strip {knob.Target.Split(':')[1]}",
+                    _ when knob.Target.StartsWith("vm_bus:") => $"VM Bus {knob.Target.Split(':')[1]}",
                     _ => knob.Target
                 };
                 string symbol = knob.Target switch
@@ -534,6 +570,7 @@ public partial class App : Application
                     "spotify" => "MusicNote",
                     "discord" => "Headphones",
                     _ when knob.Target.StartsWith("ha_") => "Home",
+                    _ when knob.Target.StartsWith("vm_") => "VolumeHigh",
                     _ => "VolumeHigh"
                 };
                 Dispatcher.BeginInvoke(() =>
@@ -1182,6 +1219,7 @@ public partial class App : Application
         _rgb?.Dispose();
         _ha?.Dispose();
         _obs?.Dispose();
+        _vm?.Dispose();
         _ambienceSync?.Dispose();
         _dreamSync?.Dispose();
         _cachedMic?.Dispose();

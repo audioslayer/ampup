@@ -122,6 +122,18 @@ public partial class SettingsView : UserControl
         CalibTestWhite.MouseLeftButtonDown += (_, _) => SetCalibPreview(255, 255, 255, CalibTestWhite);
         CalibTestOff.MouseLeftButtonDown += (_, _) => ClearCalibPreview();
 
+        // OBS Studio
+        ChkObsEnabled.Checked += OnValueChanged;
+        ChkObsEnabled.Unchecked += OnValueChanged;
+        TxtObsHost.TextChanged += OnValueChanged;
+        TxtObsPort.TextChanged += OnValueChanged;
+        TxtObsPassword.PasswordChanged += OnPasswordChanged;
+        BtnObsTest.Click += OnObsTest;
+
+        // VoiceMeeter
+        ChkVmEnabled.Checked += OnValueChanged;
+        ChkVmEnabled.Unchecked += OnValueChanged;
+
         // About
         TxtVersion.Text = $"Amp Up v{UpdateChecker.CurrentVersion}";
         BtnCheckUpdate.Click += OnCheckUpdate;
@@ -164,6 +176,10 @@ public partial class SettingsView : UserControl
         TxtObsPort.Text = config.Obs.Port.ToString();
         TxtObsPassword.Password = config.Obs.Password;
         RefreshObsHeaderStatus();
+
+        // Integrations — VoiceMeeter
+        ChkVmEnabled.IsChecked = config.VoiceMeeter.Enabled;
+        RefreshVmHeaderStatus();
 
         // Integrations — Govee
         ChkGoveeEnabled.IsChecked = config.Ambience.GoveeEnabled;
@@ -251,6 +267,7 @@ public partial class SettingsView : UserControl
         loaded.Ducking = _config.Ducking;
         loaded.AutoSwitch = _config.AutoSwitch;
         loaded.Ambience = _config.Ambience;
+        loaded.VoiceMeeter = _config.VoiceMeeter;
     }
 
     private void OnProfileSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -475,6 +492,9 @@ public partial class SettingsView : UserControl
         _config.Ambience.GoveeEnabled = ChkGoveeEnabled.IsChecked == true;
         _config.Ambience.GoveeCloudEnabled = ChkGoveeCloudEnabled.IsChecked == true;
         _config.Ambience.GoveeApiKey = TxtGoveeApiKey.Password;
+
+        // VoiceMeeter
+        _config.VoiceMeeter.Enabled = ChkVmEnabled.IsChecked == true;
 
         // LED Calibration
         _config.GammaR = Math.Round(_sldGammaR?.Value ?? 2.0, 1);
@@ -784,6 +804,7 @@ public partial class SettingsView : UserControl
         TxtObsStatus.Text = "Testing...";
         ObsStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFB800"));
 
+        // Build config from current UI state
         var testConfig = new ObsConfig
         {
             Enabled = true,
@@ -832,6 +853,43 @@ public partial class SettingsView : UserControl
         {
             ObsStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FF4444"));
             TxtObsStatusHeader.Text = "Disconnected";
+        }
+    }
+
+    // ── VoiceMeeter settings ──────────────────────────────────────────
+
+    private void RefreshVmHeaderStatus()
+    {
+        if (_config == null) return;
+        bool enabled = ChkVmEnabled.IsChecked == true;
+        if (!enabled)
+        {
+            VmStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#555555"));
+            TxtVmStatusHeader.Text = "Disabled";
+        }
+        else
+        {
+            VmStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFB800"));
+            TxtVmStatusHeader.Text = "Enabled";
+        }
+    }
+
+    public void UpdateVmStatus(bool? connected)
+    {
+        if (connected == null)
+        {
+            VmStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFB800"));
+            TxtVmStatusHeader.Text = "Connecting...";
+        }
+        else if (connected == true)
+        {
+            VmStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#00E676"));
+            TxtVmStatusHeader.Text = "Connected";
+        }
+        else
+        {
+            VmStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FF4444"));
+            TxtVmStatusHeader.Text = "Not Found";
         }
     }
 
