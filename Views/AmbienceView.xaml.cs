@@ -296,7 +296,18 @@ public partial class AmbienceView : UserControl
         {
             // Cloud API mode — full control with scenes, segments, music
             foreach (var device in _cloudDevices)
-                DevicePanel.Children.Add(BuildDeviceCard(device));
+            {
+                // Pass LAN IP directly so knob updates work even when FindLanIp fails
+                string? ip = FindLanIp(device);
+                if (ip == null)
+                {
+                    // Fallback: match by device name
+                    var lan = _config.Ambience.GoveeDevices.FirstOrDefault(d =>
+                        d.Name == device.DeviceName || d.DeviceId == device.Device);
+                    ip = lan?.Ip;
+                }
+                DevicePanel.Children.Add(BuildDeviceCard(device, ip));
+            }
         }
         else if (_config.Ambience.GoveeDevices.Count > 0)
         {
