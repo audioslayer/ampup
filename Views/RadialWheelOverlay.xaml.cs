@@ -4,6 +4,8 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
+using Material.Icons;
+using Material.Icons.WPF;
 
 namespace AmpUp.Views;
 
@@ -21,6 +23,8 @@ public partial class RadialWheelOverlay : Window
     private const int TotalSlots = 8; // always 8 petals
     private List<string> _profiles = new();
     private readonly string[] _slotLabels = new string[TotalSlots]; // padded to 8
+    private readonly Color[] _slotColors = new Color[TotalSlots];
+    private readonly string[] _slotSymbols = new string[TotalSlots];
     private int _highlighted = -1;
     private bool _dismissing;
 
@@ -53,12 +57,27 @@ public partial class RadialWheelOverlay : Window
     /// Populate the wheel with profiles and show it centered on screen.
     /// Call before Show().
     /// </summary>
-    public void SetProfiles(List<string> profiles, int currentIndex)
+    public void SetProfiles(List<string> profiles, int currentIndex,
+                            Dictionary<string, ProfileIconConfig>? icons = null)
     {
         _profiles = profiles;
         // Pad to 8 slots: profiles first, then blanks
         for (int i = 0; i < TotalSlots; i++)
+        {
             _slotLabels[i] = i < profiles.Count ? profiles[i] : "";
+            if (i < profiles.Count && icons != null
+                && icons.TryGetValue(profiles[i], out var cfg))
+            {
+                try { _slotColors[i] = (Color)ColorConverter.ConvertFromString(cfg.Color); }
+                catch { _slotColors[i] = AccentColor; }
+                _slotSymbols[i] = cfg.Symbol;
+            }
+            else
+            {
+                _slotColors[i] = AccentColor;
+                _slotSymbols[i] = "";
+            }
+        }
         _highlighted = currentIndex >= 0 ? currentIndex : 0;
         BuildSegments();
         CenterOnScreen();
@@ -105,7 +124,7 @@ public partial class RadialWheelOverlay : Window
         {
             bool isEmpty = string.IsNullOrEmpty(_slotLabels[i]);
             double startAngle = -90.0 + i * sweep;
-            var path = BuildSegmentPath(startAngle, sweep, i == _highlighted, isEmpty);
+            var path = BuildSegmentPath(startAngle, sweep, i == _highlighted, isEmpty, _slotColors[i]);
             int cap = i;
             if (!isEmpty)
             {
@@ -116,11 +135,31 @@ public partial class RadialWheelOverlay : Window
             SegmentCanvas.Children.Add(path);
             _segPaths.Add(path);
 
-            // Label
+            // Label (icon + name stacked vertically)
             double midAngle = startAngle + sweep / 2.0;
             double labelR = (OuterR + InnerR) / 2.0;
             double lx = CenterX + labelR * Math.Cos(midAngle * Math.PI / 180.0);
             double ly = CenterY + labelR * Math.Sin(midAngle * Math.PI / 180.0);
+
+            var stack = new StackPanel
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                IsHitTestVisible = false,
+            };
+
+            // Icon (Material Icon if available)
+            if (!isEmpty && !string.IsNullOrEmpty(_slotSymbols[i])
+                && Enum.TryParse<MaterialIconKind>(_slotSymbols[i], out var iconKind))
+            {
+                var icon = new MaterialIcon
+                {
+                    Kind = iconKind,
+                    Width = 18, Height = 18,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Foreground = new SolidColorBrush(_slotColors[i]),
+                };
+                stack.Children.Add(icon);
+            }
 
             var tb = new TextBlock
             {
@@ -131,14 +170,15 @@ public partial class RadialWheelOverlay : Window
                     ? Color.FromRgb(0x33, 0x33, 0x33)
                     : Colors.White),
                 TextAlignment = TextAlignment.Center,
-                MaxWidth = 80,
-                TextWrapping = TextWrapping.Wrap,
+                MaxWidth = 75,
+                TextTrimming = TextTrimming.CharacterEllipsis,
             };
-            tb.Measure(new Size(80, 60));
-            Canvas.SetLeft(tb, lx - tb.DesiredSize.Width / 2);
-            Canvas.SetTop(tb, ly - tb.DesiredSize.Height / 2);
-            tb.IsHitTestVisible = false;
-            SegmentCanvas.Children.Add(tb);
+            stack.Children.Add(tb);
+
+            stack.Measure(new Size(80, 60));
+            Canvas.SetLeft(stack, lx - stack.DesiredSize.Width / 2);
+            Canvas.SetTop(stack, ly - stack.DesiredSize.Height / 2);
+            SegmentCanvas.Children.Add(stack);
             _segLabels.Add(tb);
         }
 
@@ -150,9 +190,11 @@ public partial class RadialWheelOverlay : Window
 
     private static readonly Color EmptyBase = Color.FromArgb(0x88, 0x12, 0x12, 0x12);
 
-    private static Path BuildSegmentPath(double startAngleDeg, double sweepDeg, bool highlighted, bool isEmpty = false)
+    private static Path BuildSegmentPath(double startAngleDeg, double sweepDeg, bool highlighted,
+                                         bool isEmpty = false, Color? slotColor = null)
     {
         var geo = BuildPieSlice(startAngleDeg, sweepDeg);
+        var sc = slotColor ?? AccentColor;
         Color fill, stroke;
         double strokeW;
 
@@ -166,14 +208,14 @@ public partial class RadialWheelOverlay : Window
         }
         else if (highlighted)
         {
-            fill = SegmentHover;
-            stroke = Color.FromArgb(0xCC, AccentColor.R, AccentColor.G, AccentColor.B);
+            fill = Color.FromArgb(0x35, sc.R, sc.G, sc.B);
+            stroke = Color.FromArgb(0xCC, sc.R, sc.G, sc.B);
             strokeW = 2;
         }
         else
         {
-            fill = SegmentBase;
-            stroke = Color.FromRgb(0x2A, 0x2A, 0x2A);
+            fill = Color.FromArgb(0x18, sc.R, sc.G, sc.B);
+            stroke = Color.FromArgb(0x40, sc.R, sc.G, sc.B);
             strokeW = 1;
         }
 
@@ -188,7 +230,7 @@ public partial class RadialWheelOverlay : Window
         {
             path.Effect = new System.Windows.Media.Effects.DropShadowEffect
             {
-                Color = AccentColor, BlurRadius = 14, Opacity = 0.55, ShadowDepth = 0
+                Color = sc, BlurRadius = 14, Opacity = 0.55, ShadowDepth = 0
             };
         }
         return path;
@@ -223,6 +265,7 @@ public partial class RadialWheelOverlay : Window
         {
             bool hl = i == _highlighted;
             bool empty = string.IsNullOrEmpty(_slotLabels[i]);
+            var sc = _slotColors[i];
 
             if (empty)
             {
@@ -234,19 +277,22 @@ public partial class RadialWheelOverlay : Window
                 _segPaths[i].StrokeThickness = 1;
                 _segPaths[i].Effect = null;
             }
+            else if (hl)
+            {
+                _segPaths[i].Fill = new SolidColorBrush(Color.FromArgb(0x35, sc.R, sc.G, sc.B));
+                _segPaths[i].Stroke = new SolidColorBrush(Color.FromArgb(0xCC, sc.R, sc.G, sc.B));
+                _segPaths[i].StrokeThickness = 2;
+                _segPaths[i].Effect = new System.Windows.Media.Effects.DropShadowEffect
+                {
+                    Color = sc, BlurRadius = 14, Opacity = 0.55, ShadowDepth = 0
+                };
+            }
             else
             {
-                _segPaths[i].Fill = new SolidColorBrush(hl ? SegmentHover : SegmentBase);
-                _segPaths[i].Stroke = new SolidColorBrush(hl
-                    ? Color.FromArgb(0xCC, AccentColor.R, AccentColor.G, AccentColor.B)
-                    : Color.FromRgb(0x2A, 0x2A, 0x2A));
-                _segPaths[i].StrokeThickness = hl ? 2 : 1;
-                _segPaths[i].Effect = hl
-                    ? new System.Windows.Media.Effects.DropShadowEffect
-                    {
-                        Color = AccentColor, BlurRadius = 14, Opacity = 0.55, ShadowDepth = 0
-                    }
-                    : null;
+                _segPaths[i].Fill = new SolidColorBrush(Color.FromArgb(0x18, sc.R, sc.G, sc.B));
+                _segPaths[i].Stroke = new SolidColorBrush(Color.FromArgb(0x40, sc.R, sc.G, sc.B));
+                _segPaths[i].StrokeThickness = 1;
+                _segPaths[i].Effect = null;
             }
         }
         CenterLabel.Text = _highlighted >= 0 && _highlighted < TotalSlots

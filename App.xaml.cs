@@ -1015,7 +1015,7 @@ public partial class App : Application
             if (currentIdx < 0) currentIdx = 0;
 
             _radialWheel = new RadialWheelOverlay();
-            _radialWheel.SetProfiles(new List<string>(_config.Profiles), currentIdx);
+            _radialWheel.SetProfiles(new List<string>(_config.Profiles), currentIdx, _config.ProfileIcons);
             _radialWheel.OnSegmentClicked = idx =>
             {
                 _wheelVisible = false;
