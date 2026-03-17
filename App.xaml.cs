@@ -26,6 +26,7 @@ public partial class App : Application
     private static bool _isShuttingDown;
     private OsdOverlay? _osdOverlay;
     private HAIntegration? _ha;
+    private ObsIntegration? _obs;
     private readonly (string target, float value)[] _haLastValues = new (string, float)[5];
     private readonly bool[] _haThrottleActive = new bool[5];
     private DuckingEngine? _duckingEngine;
@@ -120,6 +121,12 @@ public partial class App : Application
         _buttons.SetHAIntegration(_ha);
         if (_config.HomeAssistant.Enabled)
             _ = _ha.TestConnectionAsync(); // sets IsAvailable for knob routing
+
+        // Start OBS Studio integration
+        _obs = new ObsIntegration(_config.Obs);
+        _buttons.SetObsIntegration(_obs);
+        if (_config.Obs.Enabled)
+            _ = _obs.ConnectAsync();
 
         // Start audio mixer
         _mixer.Start();
@@ -389,6 +396,7 @@ public partial class App : Application
             if (_config.HomeAssistant.Enabled)
                 _ = _ha.TestConnectionAsync();
         }
+        _obs?.UpdateConfig(_config.Obs);
         _autoSwitcher?.UpdateConfig(_config.AutoSwitch);
         _ambienceSync?.UpdateConfig(_config.Ambience);
         _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
@@ -639,6 +647,7 @@ public partial class App : Application
         var serial = _config.Serial;
         var startWithWindows = _config.StartWithWindows;
         var ha = _config.HomeAssistant;
+        var obs = _config.Obs;
         var ambience = _config.Ambience;
         var profiles = _config.Profiles;
         var profileIcons = _config.ProfileIcons;
@@ -651,6 +660,7 @@ public partial class App : Application
         _config.Serial = serial;
         _config.StartWithWindows = startWithWindows;
         _config.HomeAssistant = ha;
+        _config.Obs = obs;
         _config.Ambience = ambience;
         _config.Profiles = profiles;
         _config.ProfileIcons = profileIcons;
@@ -1171,6 +1181,7 @@ public partial class App : Application
         _audioAnalyzer?.Dispose();
         _rgb?.Dispose();
         _ha?.Dispose();
+        _obs?.Dispose();
         _ambienceSync?.Dispose();
         _dreamSync?.Dispose();
         _cachedMic?.Dispose();

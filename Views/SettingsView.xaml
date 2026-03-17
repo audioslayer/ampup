@@ -291,6 +291,57 @@
                         </StackPanel>
                     </StackPanel>
 
+                    <!-- OBS Studio -->
+                    <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0"
+                            Margin="0,0,0,0" Padding="0,16,0,0">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="OBS Studio" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
+                                <Ellipse x:Name="ObsStatusDotHeader" Width="8" Height="8"
+                                         Fill="#555555" VerticalAlignment="Center" Margin="12,0,6,0" />
+                                <TextBlock x:Name="TxtObsStatusHeader" Text="Disabled"
+                                           Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <CheckBox x:Name="ChkObsEnabled"
+                                      Content="Enabled"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      Margin="0,0,0,8" />
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <StackPanel Margin="0,0,16,0">
+                                    <TextBlock Text="Host" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
+                                    <ui:TextBox x:Name="TxtObsHost" Width="220"
+                                                PlaceholderText="localhost"
+                                                Background="{StaticResource InputBgBrush}"
+                                                BorderBrush="{StaticResource InputBorderBrush}"
+                                                Foreground="{StaticResource TextPrimaryBrush}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,16,0">
+                                    <TextBlock Text="Port" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
+                                    <ui:TextBox x:Name="TxtObsPort" Width="100"
+                                                PlaceholderText="4455"
+                                                Background="{StaticResource InputBgBrush}"
+                                                BorderBrush="{StaticResource InputBorderBrush}"
+                                                Foreground="{StaticResource TextPrimaryBrush}" />
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Text="Password" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
+                                    <PasswordBox x:Name="TxtObsPassword" Width="220"
+                                                 Background="{StaticResource InputBgBrush}"
+                                                 BorderBrush="{StaticResource InputBorderBrush}"
+                                                 Foreground="{StaticResource TextPrimaryBrush}" />
+                                </StackPanel>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                <ui:Button x:Name="BtnObsTest" Content="Test Connection"
+                                           Appearance="Secondary" Height="32" />
+                                <Ellipse x:Name="ObsStatusDot" Width="8" Height="8"
+                                         Fill="#555555" VerticalAlignment="Center" Margin="12,0,6,0" />
+                                <TextBlock x:Name="TxtObsStatus" Text=""
+                                           Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Govee -->
                     <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0"
                             Margin="0,0,0,0" Padding="0,16,0,0">

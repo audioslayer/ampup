@@ -105,6 +105,14 @@ public partial class SettingsView : UserControl
         TxtGoveeApiKey.PasswordChanged += OnPasswordChanged;
         BtnGoveeSetupGuide.Click += OnGoveeSetupGuide;
 
+        // OBS Studio
+        ChkObsEnabled.Checked += OnValueChanged;
+        ChkObsEnabled.Unchecked += OnValueChanged;
+        TxtObsHost.TextChanged += OnValueChanged;
+        TxtObsPort.TextChanged += OnValueChanged;
+        TxtObsPassword.PasswordChanged += OnPasswordChanged;
+        BtnObsTest.Click += OnObsTest;
+
         // LED Calibration (sliders built in code-behind via BuildGammaSliders)
         BtnGammaReset.Click += OnGammaReset;
         CalibTestRed.MouseLeftButtonDown += (_, _) => SetCalibPreview(255, 0, 0, CalibTestRed);
@@ -149,6 +157,13 @@ public partial class SettingsView : UserControl
         // Auto-test HA connection if enabled
         if (config.HomeAssistant.Enabled && !string.IsNullOrWhiteSpace(config.HomeAssistant.Token))
             _ = AutoTestHaAsync();
+
+        // Integrations — OBS Studio
+        ChkObsEnabled.IsChecked = config.Obs.Enabled;
+        TxtObsHost.Text = config.Obs.Host;
+        TxtObsPort.Text = config.Obs.Port.ToString();
+        TxtObsPassword.Password = config.Obs.Password;
+        RefreshObsHeaderStatus();
 
         // Integrations — Govee
         ChkGoveeEnabled.IsChecked = config.Ambience.GoveeEnabled;
@@ -230,6 +245,7 @@ public partial class SettingsView : UserControl
         loaded.Serial = _config.Serial;
         loaded.StartWithWindows = _config.StartWithWindows;
         loaded.HomeAssistant = _config.HomeAssistant;
+        loaded.Obs = _config.Obs;
         loaded.Profiles = _config.Profiles;
         loaded.ProfileIcons = _config.ProfileIcons;
         loaded.Ducking = _config.Ducking;
@@ -447,6 +463,13 @@ public partial class SettingsView : UserControl
         _config.HomeAssistant.Enabled = ChkHaEnabled.IsChecked == true;
         _config.HomeAssistant.Url = TxtHaUrl.Text.Trim();
         _config.HomeAssistant.Token = TxtHaToken.Password;
+
+        // OBS Studio
+        _config.Obs.Enabled = ChkObsEnabled.IsChecked == true;
+        _config.Obs.Host = TxtObsHost.Text.Trim();
+        if (int.TryParse(TxtObsPort.Text.Trim(), out var obsPort))
+            _config.Obs.Port = obsPort;
+        _config.Obs.Password = TxtObsPassword.Password;
 
         // Govee
         _config.Ambience.GoveeEnabled = ChkGoveeEnabled.IsChecked == true;
@@ -749,6 +772,66 @@ public partial class SettingsView : UserControl
         {
             HaStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FF4444"));
             TxtHaStatusHeader.Text = "Disconnected";
+        }
+    }
+
+    // ── OBS Studio settings ────────────────────────────────────────
+
+    private async void OnObsTest(object sender, RoutedEventArgs e)
+    {
+        if (_config == null) return;
+        BtnObsTest.IsEnabled = false;
+        TxtObsStatus.Text = "Testing...";
+        ObsStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFB800"));
+
+        var testConfig = new ObsConfig
+        {
+            Enabled = true,
+            Host = TxtObsHost.Text.Trim(),
+            Port = int.TryParse(TxtObsPort.Text.Trim(), out var p) ? p : 4455,
+            Password = TxtObsPassword.Password,
+        };
+
+        using var obs = new ObsIntegration(testConfig);
+        var ok = await obs.TestConnectionAsync();
+        ObsStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(ok ? "#00E676" : "#FF4444"));
+        TxtObsStatus.Text = ok ? "Connected" : "Connection failed";
+        BtnObsTest.IsEnabled = true;
+        UpdateObsHeaderStatus(ok);
+    }
+
+    private void RefreshObsHeaderStatus()
+    {
+        if (_config == null) return;
+        bool enabled = ChkObsEnabled.IsChecked == true;
+        if (!enabled)
+        {
+            ObsStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#555555"));
+            TxtObsStatusHeader.Text = "Disabled";
+        }
+        else
+        {
+            ObsStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFB800"));
+            TxtObsStatusHeader.Text = "Enabled";
+        }
+    }
+
+    private void UpdateObsHeaderStatus(bool? connected)
+    {
+        if (connected == null)
+        {
+            ObsStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFB800"));
+            TxtObsStatusHeader.Text = "Testing...";
+        }
+        else if (connected == true)
+        {
+            ObsStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#00E676"));
+            TxtObsStatusHeader.Text = "Connected";
+        }
+        else
+        {
+            ObsStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FF4444"));
+            TxtObsStatusHeader.Text = "Disconnected";
         }
     }
 

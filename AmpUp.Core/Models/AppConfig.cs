@@ -30,6 +30,7 @@ public class AppConfig
     public AmbienceConfig Ambience { get; set; } = new();
     public DuckingConfig Ducking { get; set; } = new();
     public AutoSwitchConfig AutoSwitch { get; set; } = new();
+    public ObsConfig Obs { get; set; } = new();
     public bool HasCompletedSetup { get; set; } = false;
     public bool AutoSuggestLayout { get; set; } = false;
     public string LastWelcomeVersion { get; set; } = "";
@@ -299,4 +300,12 @@ public class AutoSwitchRule
 {
     public string ProcessName { get; set; } = "";
     public string ProfileName { get; set; } = "";
+}
+
+public class ObsConfig
+{
+    public bool Enabled { get; set; } = false;
+    public string Host { get; set; } = "localhost";
+    public int Port { get; set; } = 4455;
+    public string Password { get; set; } = "";
 }
