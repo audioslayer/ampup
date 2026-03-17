@@ -98,8 +98,8 @@ public class AmbienceSync : IDisposable
         {
             if (string.IsNullOrWhiteSpace(device.Ip)) continue;
 
-            // Skip devices under manual control from Ambience UI, or with sync disabled
-            if (device.SyncMode == "off" || IsSyncPaused(device.Ip)) continue;
+            // Skip devices that are off, under manual control, or with sync disabled
+            if (!device.PoweredOn || device.SyncMode == "off" || IsSyncPaused(device.Ip)) continue;
 
             // Mirror the global average color across all LEDs
             var (r, g, b) = DeriveColor(linear45);

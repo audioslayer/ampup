@@ -418,12 +418,18 @@ public partial class AmbienceView : UserControl
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 20, 0),
         };
+        // Find our config entry for this device to track on/off state
+        var devConfig = lanIp != null
+            ? _config?.Ambience.GoveeDevices.FirstOrDefault(d => d.Ip == lanIp)
+            : null;
+
         onOffCheck.Checked += async (_, _) =>
         {
             if (_loading) return;
+            if (devConfig != null) { devConfig.PoweredOn = true; _onSave?.Invoke(_config!); }
             if (lanIp != null)
             {
-                AmbienceSync.PauseSync(lanIp, 30);
+                AmbienceSync.PauseSync(lanIp, 5);
                 await AmbienceSync.SendTurnAsync(lanIp, true);
             }
             else if (_cloudApi != null)
@@ -432,9 +438,9 @@ public partial class AmbienceView : UserControl
         onOffCheck.Unchecked += async (_, _) =>
         {
             if (_loading) return;
+            if (devConfig != null) { devConfig.PoweredOn = false; _onSave?.Invoke(_config!); }
             if (lanIp != null)
             {
-                AmbienceSync.PauseSync(lanIp, 30);
                 await AmbienceSync.SendTurnAsync(lanIp, false);
             }
             else if (_cloudApi != null)
@@ -965,6 +971,10 @@ public partial class AmbienceView : UserControl
         {
             var status = await AmbienceSync.GetDeviceStatusAsync(ip);
             if (status == null) return;
+
+            // Sync PoweredOn state from real device
+            var dev = _config?.Ambience.GoveeDevices.FirstOrDefault(d => d.Ip == ip);
+            if (dev != null) dev.PoweredOn = status.Value.On;
 
             Dispatcher.Invoke(() =>
             {

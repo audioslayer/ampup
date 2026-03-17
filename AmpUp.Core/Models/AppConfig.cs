@@ -232,6 +232,8 @@ public class GoveeDeviceConfig
     public string DeviceId { get; set; } = "";
     public string SyncMode { get; set; } = "off";
     public bool UseSegmentProtocol { get; set; } = true;
+    /// <summary>Tracks user's on/off intent. When false, color sync won't send frames (which would turn device on).</summary>
+    public bool PoweredOn { get; set; } = true;
 }
 
 public enum ZoneSide { Full, Left, Right, Top, Bottom }
