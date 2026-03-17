@@ -196,8 +196,12 @@ public class TrayMixerPopup : Window
         try
         {
             RefreshSessions();
-            PositionNearTray();
+            // Show first (off-screen) so PresentationSource is available for DPI conversion,
+            // then position correctly and activate
+            Left = -10000;
+            Top = -10000;
             Show();
+            PositionNearTray();
             Activate();
             _pollTimer.Start();
         }
@@ -1180,19 +1184,35 @@ public class TrayMixerPopup : Window
         // Find which monitor the cursor is on (taskbar/tray lives there)
         var cursorPos = System.Windows.Forms.Cursor.Position;
         var screen = System.Windows.Forms.Screen.FromPoint(cursorPos);
-        var wa = screen.WorkingArea; // pixel coords for this monitor
+        var wa = screen.WorkingArea; // physical pixel coords
+
+        // Convert pixel coords to WPF DIPs (required for mixed-DPI multi-monitor setups)
+        // PresentationSource may be null before first Show(), so fall back to primary DPI
+        double dpiScale;
+        var source = PresentationSource.FromVisual(this);
+        if (source?.CompositionTarget != null)
+            dpiScale = source.CompositionTarget.TransformFromDevice.M11;
+        else
+        {
+            using var g = System.Drawing.Graphics.FromHwnd(IntPtr.Zero);
+            dpiScale = 96.0 / g.DpiX;
+        }
+        double waLeft = wa.Left * dpiScale;
+        double waTop = wa.Top * dpiScale;
+        double waRight = wa.Right * dpiScale;
+        double waBottom = wa.Bottom * dpiScale;
 
         // Measure popup height
         Measure(new Size(Width, double.PositiveInfinity));
         double height = DesiredSize.Height > 0 ? DesiredSize.Height : 400;
 
         // Snap to bottom-right corner of the tray's monitor, just above taskbar
-        double x = wa.Right - Width - 12;
-        double y = wa.Bottom - height - 12;
+        double x = waRight - Width - 12;
+        double y = waBottom - height - 12;
 
         // Clamp to work area
-        x = Math.Max(wa.Left + 4, x);
-        y = Math.Max(wa.Top + 4, y);
+        x = Math.Max(waLeft + 4, x);
+        y = Math.Max(waTop + 4, y);
 
         Left = x;
         Top = y;
