@@ -727,53 +727,25 @@ public class RgbController : IDisposable
     }
 
     /// <summary>
-    /// Mic status with animated states:
-    /// Unmuted = gentle breathing/pulse on color1 (subtle live-mic indicator).
-    /// Muted = color2 with slow blink (clear muted indicator).
+    /// Mic status: unmuted = solid color1, muted = slow blink on color2.
     /// </summary>
     private void EffectMicStatus(int k, LightConfig light)
     {
         if (_micMuted)
             ApplyMutedBlink(k, light.R2, light.G2, light.B2);
         else
-            ApplyUnmutedBreathing(k, light.R, light.G, light.B);
+            SetColor(k, light.R, light.G, light.B);
     }
 
     /// <summary>
-    /// Master device mute with animated states:
-    /// Unmuted = gentle breathing/pulse on color1 (subtle active indicator).
-    /// Muted = color2 with slow blink (clear muted indicator).
+    /// Master device mute: unmuted = solid color1, muted = slow blink on color2.
     /// </summary>
     private void EffectDeviceMute(int k, LightConfig light)
     {
         if (_masterMuted)
             ApplyMutedBlink(k, light.R2, light.G2, light.B2);
         else
-            ApplyUnmutedBreathing(k, light.R, light.G, light.B);
-    }
-
-    /// <summary>
-    /// Gentle breathing animation for unmuted/active state.
-    /// Brightness oscillates between 70%-100% with a 3-second period — subtle and non-distracting.
-    /// Slight phase offset per LED creates a gentle ripple effect.
-    /// </summary>
-    private void ApplyUnmutedBreathing(int k, int r, int g, int b)
-    {
-        // 3-second breathing cycle (60 ticks at 20fps)
-        const float periodTicks = 60f;
-        float angle = (_animTick % (int)periodTicks) / periodTicks * MathF.PI * 2f;
-
-        for (int led = 0; led < 3; led++)
-        {
-            // Slight phase offset per LED for a gentle ripple
-            float ledAngle = angle + led * 0.3f;
-            // Oscillate brightness between 0.70 and 1.0
-            float ledBrightness = 0.85f + 0.15f * MathF.Sin(ledAngle);
-            SetColor(k, led,
-                Math.Clamp((int)(r * ledBrightness), 0, 255),
-                Math.Clamp((int)(g * ledBrightness), 0, 255),
-                Math.Clamp((int)(b * ledBrightness), 0, 255));
-        }
+            SetColor(k, light.R, light.G, light.B);
     }
 
     /// <summary>
