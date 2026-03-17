@@ -282,15 +282,28 @@ public class TrayMixerPopup : Window
                     var proc = Process.GetProcessById(pid);
                     var name = proc.ProcessName;
 
-                    // Skip hidden apps
-                    if (hiddenApps.Any(h => h.Equals(name, StringComparison.OrdinalIgnoreCase)))
+                    // Prefer WASAPI DisplayName for UWP/packaged apps where audio runs
+                    // in a helper process (e.g. AMPLibraryAgent → "Apple Music")
+                    string displayName = name;
+                    try
+                    {
+                        var dn = s.DisplayName;
+                        if (!string.IsNullOrWhiteSpace(dn) &&
+                            !dn.Equals(name, StringComparison.OrdinalIgnoreCase))
+                            displayName = dn;
+                    }
+                    catch { }
+
+                    // Skip hidden apps (check both process name and display name)
+                    if (hiddenApps.Any(h => h.Equals(name, StringComparison.OrdinalIgnoreCase) ||
+                                            h.Equals(displayName, StringComparison.OrdinalIgnoreCase)))
                         continue;
 
-                    // Skip duplicate sessions for the same app
-                    if (!seenApps.Add(name))
+                    // Deduplicate by display name (not process name) — catches helper processes
+                    if (!seenApps.Add(displayName))
                         continue;
 
-                    var row = BuildSessionRow(name, s);
+                    var row = BuildSessionRow(displayName, s);
                     if (row != null)
                     {
                         // Subtle separator between app rows (not before the first)
