@@ -1177,14 +1177,16 @@ public class TrayMixerPopup : Window
 
     private void PositionNearTray()
     {
-        // Use SystemParameters.WorkArea — already in WPF DIPs, avoids DPI conversion bugs
-        var wa = SystemParameters.WorkArea;
+        // Find which monitor the cursor is on (taskbar/tray lives there)
+        var cursorPos = System.Windows.Forms.Cursor.Position;
+        var screen = System.Windows.Forms.Screen.FromPoint(cursorPos);
+        var wa = screen.WorkingArea; // pixel coords for this monitor
 
         // Measure popup height
         Measure(new Size(Width, double.PositiveInfinity));
         double height = DesiredSize.Height > 0 ? DesiredSize.Height : 400;
 
-        // Snap to bottom-right corner, just above the taskbar (like native Win11 popups)
+        // Snap to bottom-right corner of the tray's monitor, just above taskbar
         double x = wa.Right - Width - 12;
         double y = wa.Bottom - height - 12;
 
