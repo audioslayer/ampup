@@ -87,6 +87,33 @@ public partial class RadialWheelOverlay : Window
     public int GetTotalSlots() => TotalSlots;
 
     /// <summary>
+    /// Populate the wheel with audio output devices. Pads to 8 slots.
+    /// </summary>
+    public void SetDevices(List<(string id, string name)> devices, int currentIndex)
+    {
+        _profiles = devices.Select(d => d.id).ToList(); // store IDs for selection
+        for (int i = 0; i < TotalSlots; i++)
+        {
+            _slotLabels[i] = i < devices.Count ? devices[i].name : "";
+            _slotColors[i] = i < devices.Count
+                ? Color.FromRgb(0xAB, 0x47, 0xBC) // purple for devices
+                : AccentColor;
+            _slotSymbols[i] = i < devices.Count ? "VolumeHigh" : "";
+        }
+        _highlighted = currentIndex >= 0 ? currentIndex : 0;
+        BuildSegments();
+        CenterOnScreen();
+    }
+
+    /// <summary>Returns the ID string at the highlighted index, or null if empty.</summary>
+    public string? GetSelectedId()
+    {
+        if (_highlighted >= 0 && _highlighted < _profiles.Count)
+            return _profiles[_highlighted];
+        return null;
+    }
+
+    /// <summary>
     /// Move the highlight to the given segment index (0-based).
     /// </summary>
     public void Highlight(int index)

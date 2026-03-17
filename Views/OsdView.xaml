@@ -152,7 +152,7 @@
                         <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
                         <TextBlock Text="QUICK WHEEL" Style="{StaticResource HeaderText}" Margin="0" />
                     </StackPanel>
-                    <TextBlock Text="Hold a button to open a radial profile-switcher overlay. Turn a knob to navigate segments."
+                    <TextBlock Text="Hold a button to open a radial overlay. Turn any knob to navigate. Release to confirm."
                                Style="{StaticResource SecondaryText}" Margin="0,0,0,12" TextWrapping="Wrap" />
 
                     <CheckBox x:Name="ChkWheelEnabled"
@@ -162,24 +162,34 @@
                               ToolTip="Hold the trigger button to open the radial profile switcher" />
 
                     <StackPanel x:Name="WheelOptions" Visibility="Collapsed">
-                        <Grid>
+                        <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="32" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="32" />
+                                <ColumnDefinition Width="20" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <!-- Trigger Button -->
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Trigger Button" Style="{StaticResource SecondaryText}" Margin="0,0,0,6"
-                                           ToolTip="Which physical button opens the wheel" />
-                                <ComboBox x:Name="CmbWheelButton" Width="140"
+                                <TextBlock Text="Mode" Style="{StaticResource SecondaryText}" Margin="0,0,0,6"
+                                           ToolTip="What the wheel shows when opened" />
+                                <ComboBox x:Name="CmbWheelMode" Width="160"
                                           Background="{StaticResource InputBgBrush}"
                                           BorderBrush="{StaticResource InputBorderBrush}"
                                           Foreground="{StaticResource TextPrimaryBrush}"
-                                          ToolTip="Button 1–5 to hold for the wheel">
+                                          ToolTip="Profile = switch profiles, Output Device = switch audio output">
+                                    <ComboBoxItem Content="Profiles" />
+                                    <ComboBoxItem Content="Output Device" />
+                                </ComboBox>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Trigger Button" Style="{StaticResource SecondaryText}" Margin="0,0,0,6"
+                                           ToolTip="Which physical button opens the wheel" />
+                                <ComboBox x:Name="CmbWheelButton2" Width="140"
+                                          Background="{StaticResource InputBgBrush}"
+                                          BorderBrush="{StaticResource InputBorderBrush}"
+                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                          ToolTip="Button 1–5 to hold for opening the wheel">
                                     <ComboBoxItem Content="Button 1" />
                                     <ComboBoxItem Content="Button 2" />
                                     <ComboBoxItem Content="Button 3" />
@@ -187,40 +197,10 @@
                                     <ComboBoxItem Content="Button 5" />
                                 </ComboBox>
                             </StackPanel>
-
-                            <!-- Trigger Gesture -->
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Text="Gesture" Style="{StaticResource SecondaryText}" Margin="0,0,0,6"
-                                           ToolTip="How to trigger the wheel" />
-                                <ComboBox x:Name="CmbWheelGesture" Width="120"
-                                          Background="{StaticResource InputBgBrush}"
-                                          BorderBrush="{StaticResource InputBorderBrush}"
-                                          Foreground="{StaticResource TextPrimaryBrush}"
-                                          ToolTip="Hold (500ms+) is the only supported gesture">
-                                    <ComboBoxItem Content="Hold" Tag="hold" IsSelected="True" />
-                                </ComboBox>
-                            </StackPanel>
-
-                            <!-- Navigation Knob -->
-                            <StackPanel Grid.Column="4">
-                                <TextBlock Text="Navigation Knob" Style="{StaticResource SecondaryText}" Margin="0,0,0,6"
-                                           ToolTip="Turn this knob to move between wheel segments" />
-                                <ComboBox x:Name="CmbWheelKnob" Width="140"
-                                          Background="{StaticResource InputBgBrush}"
-                                          BorderBrush="{StaticResource InputBorderBrush}"
-                                          Foreground="{StaticResource TextPrimaryBrush}"
-                                          ToolTip="Knob 1–5 to turn for navigation">
-                                    <ComboBoxItem Content="Knob 1" />
-                                    <ComboBoxItem Content="Knob 2" />
-                                    <ComboBoxItem Content="Knob 3" />
-                                    <ComboBoxItem Content="Knob 4" />
-                                    <ComboBoxItem Content="Knob 5" />
-                                </ComboBox>
-                            </StackPanel>
                         </Grid>
 
-                        <TextBlock Text="Hold the trigger button. Turn the navigation knob to spin through profiles. Release to confirm."
-                                   Style="{StaticResource SecondaryText}" Margin="0,10,0,0" TextWrapping="Wrap" FontSize="11" />
+                        <TextBlock Text="Hold the trigger button. Turn any knob to spin through options. Release to confirm."
+                                   Style="{StaticResource SecondaryText}" Margin="0,0,0,0" TextWrapping="Wrap" FontSize="11" />
                     </StackPanel>
                 </StackPanel>
             </Border>

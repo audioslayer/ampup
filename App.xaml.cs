@@ -995,12 +995,11 @@ public partial class App : Application
         }
     }
 
-    // ── Quick Wheel (radial profile switcher) ────────────────────────
+    // ── Quick Wheel (radial switcher — profiles or output devices) ───
 
     private void HandleQuickWheelOpen(int buttonIdx)
     {
         if (!_config.Osd.QuickWheel.Enabled) return;
-        if (_config.Profiles.Count < 2) return;
 
         Dispatcher.Invoke(() =>
         {
@@ -1011,27 +1010,92 @@ public partial class App : Application
             for (int i = 0; i < 5; i++)
                 _lastKnobRaw[i] = (int)(KnobPositions[i] * 1023f);
 
-            int currentIdx = _config.Profiles.IndexOf(_config.ActiveProfile);
-            if (currentIdx < 0) currentIdx = 0;
-
             _radialWheel = new RadialWheelOverlay();
             _radialWheel.SetMonitor(_config.Osd.MonitorIndex);
-            _radialWheel.SetProfiles(new List<string>(_config.Profiles), currentIdx, _config.ProfileIcons);
-            _radialWheel.OnSegmentClicked = idx =>
-            {
-                _wheelVisible = false;
-                _radialWheel = null;
-                // idx maps to profile list (slots beyond count are empty)
-                if (idx >= 0 && idx < _config.Profiles.Count)
-                {
-                    var profileName = _config.Profiles[idx];
-                    if (profileName != _config.ActiveProfile)
-                        HandleProfileSwitch(profileName);
-                }
-            };
+
+            var mode = _config.Osd.QuickWheel.Mode;
+            if (mode == QuickWheelMode.OutputDevice)
+                PopulateWheelDevices();
+            else
+                PopulateWheelProfiles();
+
+            _radialWheel.OnSegmentClicked = idx => ConfirmWheelSelection(idx);
             _radialWheel.Closed += (_, _) => { _wheelVisible = false; _radialWheel = null; };
             _radialWheel.Show();
         });
+    }
+
+    private void PopulateWheelProfiles()
+    {
+        if (_config.Profiles.Count < 2) { _wheelVisible = false; return; }
+        int currentIdx = _config.Profiles.IndexOf(_config.ActiveProfile);
+        if (currentIdx < 0) currentIdx = 0;
+        _radialWheel!.SetProfiles(new List<string>(_config.Profiles), currentIdx, _config.ProfileIcons);
+    }
+
+    private void PopulateWheelDevices()
+    {
+        try
+        {
+            using var enumerator = new NAudio.CoreAudioApi.MMDeviceEnumerator();
+            var devices = enumerator.EnumerateAudioEndPoints(
+                NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.DeviceState.Active);
+            using var current = enumerator.GetDefaultAudioEndpoint(
+                NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
+            var currentId = current.ID;
+
+            var list = new List<(string id, string name)>();
+            int currentIdx = 0;
+            for (int i = 0; i < devices.Count; i++)
+            {
+                using var d = devices[i];
+                if (d.ID == currentId) currentIdx = list.Count;
+                list.Add((d.ID, d.FriendlyName));
+            }
+
+            if (list.Count < 2) { _wheelVisible = false; return; }
+            _radialWheel!.SetDevices(list, currentIdx);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Quick Wheel device enum error: {ex.Message}");
+            _wheelVisible = false;
+        }
+    }
+
+    private void ConfirmWheelSelection(int idx)
+    {
+        _wheelVisible = false;
+        _radialWheel = null;
+
+        var mode = _config.Osd.QuickWheel.Mode;
+        if (mode == QuickWheelMode.OutputDevice)
+        {
+            // idx → device ID via GetSelectedId was already set
+            // We need the device list — just re-enumerate and pick by index
+            try
+            {
+                using var enumerator = new NAudio.CoreAudioApi.MMDeviceEnumerator();
+                var devices = enumerator.EnumerateAudioEndPoints(
+                    NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.DeviceState.Active);
+                if (idx >= 0 && idx < devices.Count)
+                {
+                    using var d = devices[idx];
+                    _buttons.ExecuteAction("select_output", "",
+                        new ButtonConfig { DeviceId = d.ID });
+                }
+            }
+            catch (Exception ex) { Logger.Log($"Quick Wheel device select error: {ex.Message}"); }
+        }
+        else
+        {
+            if (idx >= 0 && idx < _config.Profiles.Count)
+            {
+                var profileName = _config.Profiles[idx];
+                if (profileName != _config.ActiveProfile)
+                    HandleProfileSwitch(profileName);
+            }
+        }
     }
 
     private void HandleQuickWheelClose(int buttonIdx)
@@ -1042,17 +1106,11 @@ public partial class App : Application
             if (_radialWheel == null || !_wheelVisible) return;
             int idx = _radialWheel.GetSelectedIndex();
             var wheel = _radialWheel;
-            // Detach callback so Dismiss doesn't double-fire
             wheel.OnSegmentClicked = null;
             _wheelVisible = false;
             _radialWheel = null;
             wheel.Dismiss();
-            if (idx >= 0 && idx < _config.Profiles.Count)
-            {
-                var profileName = _config.Profiles[idx];
-                if (profileName != _config.ActiveProfile)
-                    HandleProfileSwitch(profileName);
-            }
+            ConfirmWheelSelection(idx);
         });
     }
 

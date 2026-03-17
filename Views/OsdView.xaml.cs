@@ -35,9 +35,8 @@ public partial class OsdView : UserControl
         // Quick wheel events
         ChkWheelEnabled.Checked += OnWheelEnabledChanged;
         ChkWheelEnabled.Unchecked += OnWheelEnabledChanged;
-        CmbWheelButton.SelectionChanged += OnValueChangedCombo;
-        CmbWheelGesture.SelectionChanged += OnValueChangedCombo;
-        CmbWheelKnob.SelectionChanged += OnValueChangedCombo;
+        CmbWheelMode.SelectionChanged += OnValueChangedCombo;
+        CmbWheelButton2.SelectionChanged += OnValueChangedCombo;
     }
 
     public void LoadConfig(AppConfig config, Action<AppConfig> onSave)
@@ -58,10 +57,8 @@ public partial class OsdView : UserControl
 
         // Quick wheel
         ChkWheelEnabled.IsChecked = config.Osd.QuickWheel.Enabled;
-        CmbWheelButton.SelectedIndex = Math.Clamp(config.Osd.QuickWheel.TriggerButton, 0, 4);
-        CmbWheelKnob.SelectedIndex = Math.Clamp(config.Osd.QuickWheel.NavigationKnob, 0, 4);
-        // Gesture is always "hold" for now
-        CmbWheelGesture.SelectedIndex = 0;
+        CmbWheelMode.SelectedIndex = (int)config.Osd.QuickWheel.Mode;
+        CmbWheelButton2.SelectedIndex = Math.Clamp(config.Osd.QuickWheel.TriggerButton, 0, 4);
         WheelOptions.Visibility = config.Osd.QuickWheel.Enabled ? Visibility.Visible : Visibility.Collapsed;
 
         _loading = false;
@@ -104,8 +101,8 @@ public partial class OsdView : UserControl
         int oldButton = _config.Osd.QuickWheel.TriggerButton;
 
         _config.Osd.QuickWheel.Enabled = ChkWheelEnabled.IsChecked == true;
-        _config.Osd.QuickWheel.TriggerButton = CmbWheelButton.SelectedIndex;
-        _config.Osd.QuickWheel.NavigationKnob = CmbWheelKnob.SelectedIndex;
+        _config.Osd.QuickWheel.Mode = (QuickWheelMode)Math.Clamp(CmbWheelMode.SelectedIndex, 0, 1);
+        _config.Osd.QuickWheel.TriggerButton = CmbWheelButton2.SelectedIndex;
         _config.Osd.QuickWheel.TriggerGesture = "hold";
 
         // Sync: keep button HoldAction in sync with Quick Wheel config

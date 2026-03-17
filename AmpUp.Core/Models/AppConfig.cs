@@ -177,6 +177,15 @@ public class QuickWheelConfig
     public int TriggerButton { get; set; } = 0;
     public string TriggerGesture { get; set; } = "hold";
     public int NavigationKnob { get; set; } = 0;
+
+    [JsonConverter(typeof(StringEnumConverter))]
+    public QuickWheelMode Mode { get; set; } = QuickWheelMode.Profile;
+}
+
+public enum QuickWheelMode
+{
+    Profile,
+    OutputDevice,
 }
 
 public enum OsdPosition
