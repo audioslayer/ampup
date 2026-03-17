@@ -36,7 +36,7 @@
                                   ToolTip="Show overlay when you adjust a knob" />
                         <controls:StyledSlider x:Name="SldOsdVolumeDur" Grid.Row="0" Grid.Column="1"
                                 Minimum="1" Maximum="8" Value="2" Suffix="s"
-                                Height="24" Margin="0,4,0,4"
+                                Height="30" ShowLabel="True" Margin="0,4,0,4"
                                 ToolTip="How long the volume overlay stays visible" />
 
                         <CheckBox x:Name="ChkOsdProfile" Grid.Row="1" Grid.Column="0"
@@ -45,7 +45,7 @@
                                   ToolTip="Show overlay when switching profiles" />
                         <controls:StyledSlider x:Name="SldOsdProfileDur" Grid.Row="1" Grid.Column="1"
                                 Minimum="1" Maximum="8" Value="3.5" Suffix="s"
-                                Height="24" Margin="0,4,0,4"
+                                Height="30" ShowLabel="True" Margin="0,4,0,4"
                                 ToolTip="How long the profile overlay stays visible" />
 
                         <CheckBox x:Name="ChkOsdDevice" Grid.Row="2" Grid.Column="0"
@@ -54,7 +54,7 @@
                                   ToolTip="Show overlay when cycling audio devices" />
                         <controls:StyledSlider x:Name="SldOsdDeviceDur" Grid.Row="2" Grid.Column="1"
                                 Minimum="1" Maximum="8" Value="2.5" Suffix="s"
-                                Height="24" Margin="0,4,0,4"
+                                Height="30" ShowLabel="True" Margin="0,4,0,4"
                                 ToolTip="How long the device overlay stays visible" />
                     </Grid>
 

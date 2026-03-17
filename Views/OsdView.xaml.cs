@@ -30,9 +30,13 @@ public partial class OsdView : UserControl
         ChkOsdProfile.Unchecked += OnValueChanged;
         ChkOsdDevice.Checked += OnValueChanged;
         ChkOsdDevice.Unchecked += OnValueChanged;
-        SldOsdVolumeDur.ValueChanged += (s, _) => OnValueChanged(s!, EventArgs.Empty);
-        SldOsdProfileDur.ValueChanged += (s, _) => OnValueChanged(s!, EventArgs.Empty);
-        SldOsdDeviceDur.ValueChanged += (s, _) => OnValueChanged(s!, EventArgs.Empty);
+        // Duration sliders: half-second steps with visible label
+        foreach (var sld in new[] { SldOsdVolumeDur, SldOsdProfileDur, SldOsdDeviceDur })
+        {
+            sld.Step = 0.5;
+            sld.LabelFormat = "F1";
+            sld.ValueChanged += (s, _) => OnValueChanged(s!, EventArgs.Empty);
+        }
         BtnOsdPreview.Click += OnOsdPreview;
         ChkHideInFullscreen.Checked += OnValueChanged;
         ChkHideInFullscreen.Unchecked += OnValueChanged;
