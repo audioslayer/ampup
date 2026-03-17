@@ -37,11 +37,8 @@ public partial class OsdView : UserControl
         ChkHideInFullscreen.Checked += OnValueChanged;
         ChkHideInFullscreen.Unchecked += OnValueChanged;
 
-        // Quick wheel events
-        ChkWheelEnabled.Checked += OnWheelEnabledChanged;
-        ChkWheelEnabled.Unchecked += OnWheelEnabledChanged;
-        CmbWheelMode.SelectionChanged += OnValueChangedCombo;
-        CmbWheelButton2.SelectionChanged += OnValueChangedCombo;
+        // Quick wheels
+        BtnAddWheel.Click += (_, _) => AddWheelRow(new QuickWheelConfig { Enabled = true });
     }
 
     public void LoadConfig(AppConfig config, Action<AppConfig> onSave)
@@ -61,11 +58,10 @@ public partial class OsdView : UserControl
         PopulateOsdMonitorPicker(config.Osd.MonitorIndex);
         ChkHideInFullscreen.IsChecked = config.Osd.HideInFullscreen;
 
-        // Quick wheel
-        ChkWheelEnabled.IsChecked = config.Osd.QuickWheel.Enabled;
-        CmbWheelMode.SelectedIndex = (int)config.Osd.QuickWheel.Mode;
-        CmbWheelButton2.SelectedIndex = Math.Clamp(config.Osd.QuickWheel.TriggerButton, 0, 4);
-        WheelOptions.Visibility = config.Osd.QuickWheel.Enabled ? Visibility.Visible : Visibility.Collapsed;
+        // Quick wheels
+        WheelRowsPanel.Children.Clear();
+        foreach (var qw in config.Osd.QuickWheels)
+            AddWheelRow(qw);
 
         _loading = false;
     }
@@ -84,13 +80,7 @@ public partial class OsdView : UserControl
         _debounceTimer.Start();
     }
 
-    private void OnWheelEnabledChanged(object sender, RoutedEventArgs e)
-    {
-        if (_loading) return;
-        WheelOptions.Visibility = ChkWheelEnabled.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
-        _debounceTimer.Stop();
-        _debounceTimer.Start();
-    }
+
 
     private void CollectAndSave()
     {
@@ -104,50 +94,128 @@ public partial class OsdView : UserControl
         _config.Osd.DeviceDuration = Math.Round(SldOsdDeviceDur.Value * 2) / 2;
         _config.Osd.HideInFullscreen = ChkHideInFullscreen.IsChecked == true;
 
-        bool wasEnabled = _config.Osd.QuickWheel.Enabled;
-        int oldButton = _config.Osd.QuickWheel.TriggerButton;
+        // Collect quick wheels from dynamic rows
+        var oldButtons = new HashSet<int>(_config.Osd.QuickWheels.Where(w => w.Enabled).Select(w => w.TriggerButton));
+        _config.Osd.QuickWheels = CollectWheelConfigs();
+        var newButtons = new HashSet<int>(_config.Osd.QuickWheels.Where(w => w.Enabled).Select(w => w.TriggerButton));
 
-        _config.Osd.QuickWheel.Enabled = ChkWheelEnabled.IsChecked == true;
-        _config.Osd.QuickWheel.Mode = (QuickWheelMode)Math.Clamp(CmbWheelMode.SelectedIndex, 0, 1);
-        _config.Osd.QuickWheel.TriggerButton = CmbWheelButton2.SelectedIndex;
-        _config.Osd.QuickWheel.TriggerGesture = "hold";
-
-        // Sync: keep button HoldAction in sync with Quick Wheel config
-        bool wheelChanged = wasEnabled != _config.Osd.QuickWheel.Enabled
-                         || oldButton != _config.Osd.QuickWheel.TriggerButton;
-        SyncButtonHoldAction(wasEnabled, oldButton);
+        // Sync button hold actions
+        SyncWheelButtonActions(oldButtons, newButtons);
 
         _onSave(_config);
 
-        // Refresh other views (Buttons tab) when wheel config changes button hold actions
-        if (wheelChanged) OnRequestRefresh?.Invoke();
+        // Refresh Buttons tab if wheel bindings changed
+        if (!oldButtons.SetEquals(newButtons)) OnRequestRefresh?.Invoke();
+    }
+
+    // ── Quick Wheel dynamic rows ──────────────────────────────────────
+
+    private void AddWheelRow(QuickWheelConfig qw)
+    {
+        var row = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var modeCombo = new ComboBox
+        {
+            Width = 155,
+            Background = (System.Windows.Media.Brush)FindResource("InputBgBrush"),
+            BorderBrush = (System.Windows.Media.Brush)FindResource("InputBorderBrush"),
+            Foreground = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"),
+            ToolTip = "What this wheel shows",
+        };
+        modeCombo.Items.Add(new ComboBoxItem { Content = "Profiles" });
+        modeCombo.Items.Add(new ComboBoxItem { Content = "Output Device" });
+        modeCombo.SelectedIndex = (int)qw.Mode;
+        modeCombo.SelectionChanged += (_, _) => { if (!_loading) { _debounceTimer.Stop(); _debounceTimer.Start(); } };
+        Grid.SetColumn(modeCombo, 0);
+        row.Children.Add(modeCombo);
+
+        var btnCombo = new ComboBox
+        {
+            Width = 135,
+            Background = (System.Windows.Media.Brush)FindResource("InputBgBrush"),
+            BorderBrush = (System.Windows.Media.Brush)FindResource("InputBorderBrush"),
+            Foreground = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"),
+            ToolTip = "Which button to hold",
+        };
+        for (int i = 1; i <= 5; i++) btnCombo.Items.Add(new ComboBoxItem { Content = $"Button {i}" });
+        btnCombo.SelectedIndex = Math.Clamp(qw.TriggerButton, 0, 4);
+        btnCombo.SelectionChanged += (_, _) => { if (!_loading) { _debounceTimer.Stop(); _debounceTimer.Start(); } };
+        Grid.SetColumn(btnCombo, 2);
+        row.Children.Add(btnCombo);
+
+        var removeBtn = new Wpf.Ui.Controls.Button
+        {
+            Content = "✕",
+            Appearance = Wpf.Ui.Controls.ControlAppearance.Secondary,
+            Width = 30, Height = 30,
+            Padding = new Thickness(0),
+            ToolTip = "Remove this Quick Wheel",
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        removeBtn.Click += (_, _) =>
+        {
+            WheelRowsPanel.Children.Remove(row);
+            _debounceTimer.Stop();
+            _debounceTimer.Start();
+        };
+        Grid.SetColumn(removeBtn, 4);
+        row.Children.Add(removeBtn);
+
+        // Store config ref on the row for collection
+        row.Tag = qw;
+
+        WheelRowsPanel.Children.Add(row);
+    }
+
+    private List<QuickWheelConfig> CollectWheelConfigs()
+    {
+        var list = new List<QuickWheelConfig>();
+        foreach (var child in WheelRowsPanel.Children)
+        {
+            if (child is Grid row && row.Children.Count >= 3)
+            {
+                var modeCombo = row.Children[0] as ComboBox;
+                var btnCombo = row.Children[1] as ComboBox;
+                // Children order: modeCombo(col0), btnCombo(col2), removeBtn(col4)
+                // But Grid.Children order is add-order, so [0]=mode, [1]=btn, [2]=remove
+                list.Add(new QuickWheelConfig
+                {
+                    Enabled = true,
+                    Mode = (QuickWheelMode)Math.Clamp(modeCombo?.SelectedIndex ?? 0, 0, 1),
+                    TriggerButton = btnCombo?.SelectedIndex ?? 0,
+                    TriggerGesture = "hold",
+                });
+            }
+        }
+        return list;
     }
 
     /// <summary>
-    /// Keep button HoldAction in sync with Quick Wheel config.
-    /// When enabled, set the trigger button's hold to quick_wheel.
-    /// When disabled or trigger changes, clear the old button's hold if it was quick_wheel.
+    /// Sync button HoldActions with wheel configs. Clear old, set new.
     /// </summary>
-    private void SyncButtonHoldAction(bool wasEnabled, int oldButton)
+    private void SyncWheelButtonActions(HashSet<int> oldButtons, HashSet<int> newButtons)
     {
         if (_config == null) return;
         var buttons = _config.Buttons;
         if (buttons == null) return;
 
-        // Clear old button if it was set to quick_wheel
-        if (wasEnabled && oldButton >= 0 && oldButton < buttons.Count)
+        // Clear buttons that are no longer wheel triggers
+        foreach (var idx in oldButtons.Except(newButtons))
         {
-            var oldBtn = buttons[oldButton];
-            if (oldBtn.HoldAction == "quick_wheel")
-                oldBtn.HoldAction = "none";
+            if (idx >= 0 && idx < buttons.Count && buttons[idx].HoldAction == "quick_wheel")
+                buttons[idx].HoldAction = "none";
         }
 
-        // Set new trigger button's hold to quick_wheel
-        if (_config.Osd.QuickWheel.Enabled)
+        // Set new wheel trigger buttons
+        foreach (var idx in newButtons)
         {
-            int newButton = _config.Osd.QuickWheel.TriggerButton;
-            if (newButton >= 0 && newButton < buttons.Count)
-                buttons[newButton].HoldAction = "quick_wheel";
+            if (idx >= 0 && idx < buttons.Count)
+                buttons[idx].HoldAction = "quick_wheel";
         }
     }
 

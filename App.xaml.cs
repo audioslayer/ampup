@@ -1013,14 +1013,19 @@ public partial class App : Application
 
     // ── Quick Wheel (radial switcher — profiles or output devices) ───
 
+    private QuickWheelMode _activeWheelMode;
+
     private void HandleQuickWheelOpen(int buttonIdx)
     {
-        if (!_config.Osd.QuickWheel.Enabled) return;
+        // Find which wheel config matches this button
+        var wheelCfg = _config.Osd.QuickWheels.FirstOrDefault(w => w.Enabled && w.TriggerButton == buttonIdx);
+        if (wheelCfg == null) return;
 
         Dispatcher.Invoke(() =>
         {
             if (_wheelVisible) return;
             _wheelVisible = true;
+            _activeWheelMode = wheelCfg.Mode;
 
             // Initialize last raw values so first delta is correct
             for (int i = 0; i < 5; i++)
@@ -1029,8 +1034,7 @@ public partial class App : Application
             _radialWheel = new RadialWheelOverlay();
             _radialWheel.SetMonitor(_config.Osd.MonitorIndex);
 
-            var mode = _config.Osd.QuickWheel.Mode;
-            if (mode == QuickWheelMode.OutputDevice)
+            if (_activeWheelMode == QuickWheelMode.OutputDevice)
                 PopulateWheelDevices();
             else
                 PopulateWheelProfiles();
@@ -1084,8 +1088,7 @@ public partial class App : Application
         _wheelVisible = false;
         _radialWheel = null;
 
-        var mode = _config.Osd.QuickWheel.Mode;
-        if (mode == QuickWheelMode.OutputDevice)
+        if (_activeWheelMode == QuickWheelMode.OutputDevice)
         {
             // idx → device ID via GetSelectedId was already set
             // We need the device list — just re-enumerate and pick by index

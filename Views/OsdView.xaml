@@ -152,63 +152,22 @@
                 </StackPanel>
             </Border>
 
-            <!-- ── QUICK WHEEL ────────────────────────────────────── -->
+            <!-- ── QUICK WHEELS ───────────────────────────────────── -->
             <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                         <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
-                        <TextBlock Text="QUICK WHEEL" Style="{StaticResource HeaderText}" Margin="0" />
+                        <TextBlock Text="QUICK WHEELS" Style="{StaticResource HeaderText}" Margin="0" />
                     </StackPanel>
-                    <TextBlock Text="Hold a button to open a radial overlay. Turn any knob to navigate. Release to confirm."
+                    <TextBlock Text="Hold a button to open a radial overlay. Turn any knob to navigate. Release to confirm. Add multiple wheels for different buttons."
                                Style="{StaticResource SecondaryText}" Margin="0,0,0,12" TextWrapping="Wrap" />
 
-                    <CheckBox x:Name="ChkWheelEnabled"
-                              Content="Enable Quick Wheel"
-                              Foreground="{StaticResource TextPrimaryBrush}"
-                              Margin="0,0,0,12"
-                              ToolTip="Hold the trigger button to open the radial profile switcher" />
+                    <!-- Dynamic wheel rows built in code-behind -->
+                    <StackPanel x:Name="WheelRowsPanel" />
 
-                    <StackPanel x:Name="WheelOptions" Visibility="Collapsed">
-                        <Grid Margin="0,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="20" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="Mode" Style="{StaticResource SecondaryText}" Margin="0,0,0,6"
-                                           ToolTip="What the wheel shows when opened" />
-                                <ComboBox x:Name="CmbWheelMode" Width="160"
-                                          Background="{StaticResource InputBgBrush}"
-                                          BorderBrush="{StaticResource InputBorderBrush}"
-                                          Foreground="{StaticResource TextPrimaryBrush}"
-                                          ToolTip="Profile = switch profiles, Output Device = switch audio output">
-                                    <ComboBoxItem Content="Profiles" />
-                                    <ComboBoxItem Content="Output Device" />
-                                </ComboBox>
-                            </StackPanel>
-
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Text="Trigger Button" Style="{StaticResource SecondaryText}" Margin="0,0,0,6"
-                                           ToolTip="Which physical button opens the wheel" />
-                                <ComboBox x:Name="CmbWheelButton2" Width="140"
-                                          Background="{StaticResource InputBgBrush}"
-                                          BorderBrush="{StaticResource InputBorderBrush}"
-                                          Foreground="{StaticResource TextPrimaryBrush}"
-                                          ToolTip="Button 1–5 to hold for opening the wheel">
-                                    <ComboBoxItem Content="Button 1" />
-                                    <ComboBoxItem Content="Button 2" />
-                                    <ComboBoxItem Content="Button 3" />
-                                    <ComboBoxItem Content="Button 4" />
-                                    <ComboBoxItem Content="Button 5" />
-                                </ComboBox>
-                            </StackPanel>
-                        </Grid>
-
-                        <TextBlock Text="Hold the trigger button. Turn any knob to spin through options. Release to confirm."
-                                   Style="{StaticResource SecondaryText}" Margin="0,0,0,0" TextWrapping="Wrap" FontSize="11" />
-                    </StackPanel>
+                    <ui:Button x:Name="BtnAddWheel" Content="+ Add Quick Wheel"
+                               Appearance="Secondary" Margin="0,8,0,0"
+                               ToolTip="Add another Quick Wheel binding" />
                 </StackPanel>
             </Border>
 

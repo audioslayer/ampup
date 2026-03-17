@@ -172,7 +172,9 @@ public class OsdConfig
     public OsdPosition Position { get; set; } = OsdPosition.BottomRight;
     public int MonitorIndex { get; set; } = 0;
     public bool HideInFullscreen { get; set; } = false;
-    public QuickWheelConfig QuickWheel { get; set; } = new();
+    // Legacy single wheel — kept for backwards compat on config load
+    public QuickWheelConfig? QuickWheel { get; set; }
+    public List<QuickWheelConfig> QuickWheels { get; set; } = new();
 }
 
 public class QuickWheelConfig

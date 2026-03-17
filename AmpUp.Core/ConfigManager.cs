@@ -89,6 +89,14 @@ public static class ConfigManager
             if (!config.ProfileIcons.ContainsKey(p))
                 config.ProfileIcons[p] = new ProfileIconConfig();
         }
+
+        // Migrate legacy single QuickWheel → QuickWheels list
+        if (config.Osd.QuickWheel != null && config.Osd.QuickWheels.Count == 0)
+        {
+            if (config.Osd.QuickWheel.Enabled)
+                config.Osd.QuickWheels.Add(config.Osd.QuickWheel);
+            config.Osd.QuickWheel = null;
+        }
     }
 
     public static void Save(AppConfig config)
