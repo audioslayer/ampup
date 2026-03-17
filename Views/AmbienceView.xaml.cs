@@ -311,7 +311,7 @@ public partial class AmbienceView : UserControl
                     DeviceName = lan.Name,
                     Capabilities = new List<string>(),
                 };
-                DevicePanel.Children.Add(BuildDeviceCard(deviceInfo));
+                DevicePanel.Children.Add(BuildDeviceCard(deviceInfo, lan.Ip));
             }
 
             if (_config.Ambience.GoveeCloudEnabled && hasKey)
@@ -385,7 +385,7 @@ public partial class AmbienceView : UserControl
 
     // ── Device Card ──────────────────────────────────────────────────
 
-    private Border BuildDeviceCard(GoveeDeviceInfo device)
+    private Border BuildDeviceCard(GoveeDeviceInfo device, string? overrideIp = null)
     {
         var card = new Border
         {
@@ -410,8 +410,8 @@ public partial class AmbienceView : UserControl
         // ── Controls row: Power + Brightness + Color ──
         var controlsRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
 
-        // Find LAN IP for this device (match by MAC/DeviceId or SKU)
-        string? lanIp = FindLanIp(device);
+        // Find LAN IP for this device (match by MAC/DeviceId or SKU, or use override)
+        string? lanIp = overrideIp ?? FindLanIp(device);
 
         // Power toggle — use LAN if available, fallback to Cloud API
         var onOffCheck = new CheckBox
