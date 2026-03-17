@@ -23,6 +23,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="160" />
                             <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="40" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -31,31 +32,40 @@
                         </Grid.RowDefinitions>
 
                         <CheckBox x:Name="ChkOsdVolume" Grid.Row="0" Grid.Column="0"
-                                  Content="Volume Changes" Margin="0,4,0,4"
+                                  Content="Volume Changes" Margin="0,6,0,6"
                                   Foreground="{StaticResource TextPrimaryBrush}"
                                   ToolTip="Show overlay when you adjust a knob" />
                         <controls:StyledSlider x:Name="SldOsdVolumeDur" Grid.Row="0" Grid.Column="1"
-                                Minimum="1" Maximum="8" Value="2" Suffix="s"
-                                Height="30" ShowLabel="True" Margin="0,4,0,4"
+                                Minimum="1" Maximum="8" Value="2" ShowLabel="False"
+                                Height="24" Margin="0,6,8,6"
                                 ToolTip="How long the volume overlay stays visible" />
+                        <TextBlock x:Name="LblOsdVolumeDur" Grid.Row="0" Grid.Column="2"
+                                   Text="2.0s" Foreground="{StaticResource TextSecBrush}"
+                                   FontSize="12" VerticalAlignment="Center" />
 
                         <CheckBox x:Name="ChkOsdProfile" Grid.Row="1" Grid.Column="0"
-                                  Content="Profile Changes" Margin="0,4,0,4"
+                                  Content="Profile Changes" Margin="0,6,0,6"
                                   Foreground="{StaticResource TextPrimaryBrush}"
                                   ToolTip="Show overlay when switching profiles" />
                         <controls:StyledSlider x:Name="SldOsdProfileDur" Grid.Row="1" Grid.Column="1"
-                                Minimum="1" Maximum="8" Value="3.5" Suffix="s"
-                                Height="30" ShowLabel="True" Margin="0,4,0,4"
+                                Minimum="1" Maximum="8" Value="3.5" ShowLabel="False"
+                                Height="24" Margin="0,6,8,6"
                                 ToolTip="How long the profile overlay stays visible" />
+                        <TextBlock x:Name="LblOsdProfileDur" Grid.Row="1" Grid.Column="2"
+                                   Text="3.5s" Foreground="{StaticResource TextSecBrush}"
+                                   FontSize="12" VerticalAlignment="Center" />
 
                         <CheckBox x:Name="ChkOsdDevice" Grid.Row="2" Grid.Column="0"
-                                  Content="Device Changes" Margin="0,4,0,4"
+                                  Content="Device Changes" Margin="0,6,0,6"
                                   Foreground="{StaticResource TextPrimaryBrush}"
                                   ToolTip="Show overlay when cycling audio devices" />
                         <controls:StyledSlider x:Name="SldOsdDeviceDur" Grid.Row="2" Grid.Column="1"
-                                Minimum="1" Maximum="8" Value="2.5" Suffix="s"
-                                Height="30" ShowLabel="True" Margin="0,4,0,4"
+                                Minimum="1" Maximum="8" Value="2.5" ShowLabel="False"
+                                Height="24" Margin="0,6,8,6"
                                 ToolTip="How long the device overlay stays visible" />
+                        <TextBlock x:Name="LblOsdDeviceDur" Grid.Row="2" Grid.Column="2"
+                                   Text="2.5s" Foreground="{StaticResource TextSecBrush}"
+                                   FontSize="12" VerticalAlignment="Center" />
                     </Grid>
 
                     <!-- Divider -->

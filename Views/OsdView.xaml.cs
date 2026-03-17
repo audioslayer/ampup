@@ -30,12 +30,20 @@ public partial class OsdView : UserControl
         ChkOsdProfile.Unchecked += OnValueChanged;
         ChkOsdDevice.Checked += OnValueChanged;
         ChkOsdDevice.Unchecked += OnValueChanged;
-        // Duration sliders: half-second steps with visible label
-        foreach (var sld in new[] { SldOsdVolumeDur, SldOsdProfileDur, SldOsdDeviceDur })
+        // Duration sliders: half-second steps, value shown in separate label
+        var sliderLabels = new[] {
+            (SldOsdVolumeDur, LblOsdVolumeDur),
+            (SldOsdProfileDur, LblOsdProfileDur),
+            (SldOsdDeviceDur, LblOsdDeviceDur),
+        };
+        foreach (var (sld, lbl) in sliderLabels)
         {
             sld.Step = 0.5;
-            sld.LabelFormat = "F1";
-            sld.ValueChanged += (s, _) => OnValueChanged(s!, EventArgs.Empty);
+            sld.ValueChanged += (s, _) =>
+            {
+                lbl.Text = $"{sld.Value:F1}s";
+                OnValueChanged(s!, EventArgs.Empty);
+            };
         }
         BtnOsdPreview.Click += OnOsdPreview;
         ChkHideInFullscreen.Checked += OnValueChanged;
@@ -56,8 +64,11 @@ public partial class OsdView : UserControl
         ChkOsdProfile.IsChecked = config.Osd.ShowProfileSwitch;
         ChkOsdDevice.IsChecked = config.Osd.ShowDeviceSwitch;
         SldOsdVolumeDur.Value = config.Osd.VolumeDuration;
+        LblOsdVolumeDur.Text = $"{config.Osd.VolumeDuration:F1}s";
         SldOsdProfileDur.Value = config.Osd.ProfileDuration;
+        LblOsdProfileDur.Text = $"{config.Osd.ProfileDuration:F1}s";
         SldOsdDeviceDur.Value = config.Osd.DeviceDuration;
+        LblOsdDeviceDur.Text = $"{config.Osd.DeviceDuration:F1}s";
         HighlightOsdPosition(config.Osd.Position);
         PopulateOsdMonitorPicker(config.Osd.MonitorIndex);
         ChkHideInFullscreen.IsChecked = config.Osd.HideInFullscreen;
