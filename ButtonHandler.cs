@@ -143,6 +143,15 @@ public class ButtonHandler : IDisposable
 
     private void HandleGestureAction(int idx, string gesture, string action, ButtonConfig btn)
     {
+        // Auto-trigger Quick Wheel on hold if this is the configured trigger button
+        if (gesture == "hold" && _lastConfig?.Osd?.QuickWheel is { Enabled: true } qw
+            && idx == qw.TriggerButton)
+        {
+            _quickWheelActiveButton = idx;
+            OnQuickWheelOpen?.Invoke(idx);
+            return; // override the button's normal hold action
+        }
+
         ExecuteAction(action, btn.Path ?? "", btn);
     }
 
