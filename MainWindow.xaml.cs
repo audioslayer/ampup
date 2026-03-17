@@ -30,6 +30,8 @@ public partial class MainWindow : FluentWindow
     private AudioMixer? _mixer;
     private Action<AppConfig>? _onConfigChanged;
 
+    private System.Windows.Threading.DispatcherTimer? _hwPreviewTimer;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -127,6 +129,53 @@ public partial class MainWindow : FluentWindow
         _mixer = mixer;
         _onConfigChanged = onConfigChanged;
         RefreshViews();
+        StartHwPreviewTimer();
+    }
+
+    private void StartHwPreviewTimer()
+    {
+        // Subscribe to LED frame data from RgbController
+        if (App.Rgb != null)
+            App.Rgb.OnFrameReady += OnRgbFrameReady;
+
+        // Wire click to navigate to Mixer tab
+        HwPreview.OnKnobClicked = _ => NavigateTo(_mixerView, NavMixer);
+
+        // 50ms timer for VU smoothing + position updates
+        _hwPreviewTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(50)
+        };
+        _hwPreviewTimer.Tick += HwPreviewTimer_Tick;
+        _hwPreviewTimer.Start();
+    }
+
+    private void OnRgbFrameReady(byte[] frame)
+    {
+        // Called from RgbController thread — marshal to UI thread
+        Dispatcher.BeginInvoke(() => HwPreview.SetLedFrame(frame));
+    }
+
+    private void HwPreviewTimer_Tick(object? sender, EventArgs e)
+    {
+        // Push current knob positions
+        HwPreview.SetPositions(App.KnobPositions);
+
+        // Push VU levels from mixer
+        if (_mixer != null)
+        {
+            for (int i = 0; i < 5; i++)
+            {
+                var knob = _config.Knobs.FirstOrDefault(k => k.Idx == i);
+                if (knob != null)
+                {
+                    float peak = Math.Min(_mixer.GetPeakLevel(knob) * 2.3f, 1f);
+                    HwPreview.SetVuLevel(i, peak);
+                }
+            }
+        }
+
+        HwPreview.Tick();
     }
 
     public void RefreshViews(AppConfig? newConfig = null)
@@ -153,6 +202,16 @@ public partial class MainWindow : FluentWindow
         // Show/hide Ambience nav based on Govee enabled state
         bool goveeEnabled = _config.Ambience.GoveeEnabled || _config.Ambience.GoveeCloudEnabled;
         NavAmbience.Visibility = goveeEnabled ? Visibility.Visible : Visibility.Collapsed;
+
+        // Sync knob labels into the hardware preview strip
+        for (int i = 0; i < 5; i++)
+        {
+            var knob = _config.Knobs.FirstOrDefault(k => k.Idx == i);
+            string label = knob != null && !string.IsNullOrWhiteSpace(knob.Label)
+                ? knob.Label
+                : (knob?.Target ?? (i + 1).ToString());
+            HwPreview.SetLabel(i, label);
+        }
     }
 
     private void NavMixer_Click(object sender, RoutedEventArgs e) => NavigateTo(_mixerView, NavMixer);
@@ -1353,6 +1412,7 @@ public partial class MainWindow : FluentWindow
                 : (SolidColorBrush)FindResource("TextDimBrush");
             ConnectionLabel.Text = connected ? "Connected" : "Disconnected";
             _settingsView.UpdateConnectionStatus(connected, portName);
+            HwPreview.SetConnected(connected);
 
             // Glow the dot when connected
             ConnectionDotGlow.BlurRadius = connected ? 8 : 0;
