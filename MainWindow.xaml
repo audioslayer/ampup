@@ -282,6 +282,25 @@
                                     </StackPanel>
                                 </Grid>
                             </Button>
+                            <Button x:Name="NavAudioDash" Style="{StaticResource NavButton}" Click="NavAudioDash_Click"
+                                    ToolTip="Real-time view of all active audio sessions">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="3" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border x:Name="NavAudioDashBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
+                                            Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
+                                            Visibility="Collapsed" Margin="-4,0,0,0" />
+                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                                        <TextBlock Text="&#xE1B0;" FontFamily="{StaticResource MaterialSymbols}"
+                                                   FontSize="22" Foreground="{StaticResource TextSecBrush}"
+                                                   HorizontalAlignment="Center" TextAlignment="Center" />
+                                        <TextBlock x:Name="NavAudioDashLabel" Text="Activity" FontSize="9" Foreground="{StaticResource TextSecBrush}"
+                                                   HorizontalAlignment="Center" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
                             <Button x:Name="NavSettings" Style="{StaticResource NavButton}" Click="NavSettings_Click">
                                 <Grid>
                                     <Grid.ColumnDefinitions>

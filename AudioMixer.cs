@@ -672,6 +672,22 @@ public class AudioMixer : IDisposable
     }
 
     /// <summary>
+    /// Returns the raw AudioSessionControl for a given process name (case-insensitive).
+    /// Used by AudioDashView to hold session references for live peak polling.
+    /// </summary>
+    public AudioSessionControl? GetSessionForProcess(string processName)
+    {
+        lock (_lock)
+        {
+            var key = processName.ToLowerInvariant();
+            if (_sessions.TryGetValue(key, out var s)) return s;
+            // Fuzzy fallback
+            var match = _sessions.FirstOrDefault(kv => FuzzyContains(kv.Key, key));
+            return match.Value;
+        }
+    }
+
+    /// <summary>
     /// Returns a list of process names that currently have active audio sessions.
     /// </summary>
     public List<string> GetRunningAudioApps()
@@ -680,6 +696,102 @@ public class AudioMixer : IDisposable
         {
             return _sessions.Keys.OrderBy(k => k).ToList();
         }
+    }
+
+    public record SessionInfo(
+        string ProcessName,
+        int Pid,
+        float Volume,
+        float Peak,
+        bool Muted,
+        string DisplayName
+    );
+
+    /// <summary>
+    /// Returns live info for all active audio sessions — used by the Audio Dashboard.
+    /// Deduplicated by process name (first session wins).
+    /// </summary>
+    public List<SessionInfo> GetAllSessionsInfo()
+    {
+        var result = new List<SessionInfo>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        lock (_lock)
+        {
+            foreach (var kv in _sessions)
+            {
+                var s = kv.Value;
+                try
+                {
+                    int pid = (int)s.GetProcessID;
+                    if (pid == 0) continue;
+
+                    // Use process name for dedup — skip display name entries (dupes)
+                    string procName;
+                    try { procName = System.Diagnostics.Process.GetProcessById(pid).ProcessName; }
+                    catch { continue; }
+
+                    if (!seen.Add(procName.ToLowerInvariant())) continue;
+
+                    float vol = s.SimpleAudioVolume.Volume;
+                    float peak = 0f;
+                    try { peak = s.AudioMeterInformation.MasterPeakValue; } catch { }
+                    bool muted = false;
+                    try { muted = s.SimpleAudioVolume.Mute; } catch { }
+                    string displayName = "";
+                    try { displayName = s.DisplayName; } catch { }
+                    if (string.IsNullOrWhiteSpace(displayName)) displayName = procName;
+
+                    result.Add(new SessionInfo(procName, pid, vol, peak, muted, displayName));
+                }
+                catch { }
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Returns (outputName, inputName) friendly names of current default audio endpoints.
+    /// </summary>
+    public (string Output, string Input) GetDefaultDeviceNames()
+    {
+        string output = "Unknown", input = "Unknown";
+        try
+        {
+            MMDevice? dev;
+            lock (_enumLock) dev = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            output = dev?.FriendlyName ?? "Unknown";
+            dev?.Dispose();
+        }
+        catch { }
+        try
+        {
+            MMDevice? mic;
+            lock (_enumLock) mic = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
+            input = mic?.FriendlyName ?? "Unknown";
+            mic?.Dispose();
+        }
+        catch { }
+        return (output, input);
+    }
+
+    /// <summary>
+    /// Returns (masterVolume 0-1, isMuted) for the default render endpoint.
+    /// </summary>
+    public (float Volume, bool Muted) GetMasterInfo()
+    {
+        try
+        {
+            MMDevice? dev;
+            lock (_enumLock) dev = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            if (dev == null) return (0f, false);
+            float vol = dev.AudioEndpointVolume.MasterVolumeLevelScalar;
+            bool muted = dev.AudioEndpointVolume.Mute;
+            dev.Dispose();
+            return (vol, muted);
+        }
+        catch { return (0f, false); }
     }
 
     public void Dispose()

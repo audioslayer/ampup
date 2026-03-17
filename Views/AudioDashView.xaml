@@ -1,0 +1,154 @@
+<UserControl x:Class="AmpUp.Views.AudioDashView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                  Background="Transparent">
+        <StackPanel Margin="24,16,24,24">
+
+            <!-- ── SUMMARY STATS ──────────────────────────────────── -->
+            <Grid Margin="0,0,0,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Active Streams -->
+                <Border Grid.Column="0" Style="{StaticResource CardPanel}" Padding="16,14">
+                    <StackPanel>
+                        <TextBlock x:Name="StreamCountLabel" Text="0"
+                                   FontSize="28" FontWeight="Black"
+                                   Foreground="{DynamicResource AccentBrush}"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="ACTIVE STREAMS" FontSize="9" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   HorizontalAlignment="Center" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Master Volume -->
+                <Border Grid.Column="2" Style="{StaticResource CardPanel}" Padding="16,14">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <TextBlock x:Name="MasterVolLabel" Text="—"
+                                       FontSize="28" FontWeight="Black"
+                                       Foreground="{DynamicResource AccentBrush}" />
+                            <TextBlock x:Name="MasterMuteLabel" Text=""
+                                       FontSize="11" VerticalAlignment="Bottom"
+                                       Foreground="{StaticResource DangerRedBrush}"
+                                       Margin="4,0,0,4" />
+                        </StackPanel>
+                        <TextBlock Text="MASTER VOLUME" FontSize="9" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   HorizontalAlignment="Center" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Output Device -->
+                <Border Grid.Column="4" Style="{StaticResource CardPanel}" Padding="16,14">
+                    <StackPanel>
+                        <TextBlock Text="&#xE1B0;" FontFamily="pack://application:,,,/Fonts/#Material Symbols Outlined"
+                                   FontSize="18" Foreground="{DynamicResource AccentBrush}"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock x:Name="OutputDevLabel" Text="—"
+                                   FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   HorizontalAlignment="Center" Margin="0,4,0,0"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="160"
+                                   TextAlignment="Center" />
+                        <TextBlock Text="OUTPUT" FontSize="9" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   HorizontalAlignment="Center" Margin="0,2,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Input Device -->
+                <Border Grid.Column="6" Style="{StaticResource CardPanel}" Padding="16,14">
+                    <StackPanel>
+                        <TextBlock Text="&#xE029;" FontFamily="pack://application:,,,/Fonts/#Material Symbols Outlined"
+                                   FontSize="18" Foreground="{DynamicResource AccentBrush}"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock x:Name="InputDevLabel" Text="—"
+                                   FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   HorizontalAlignment="Center" Margin="0,4,0,0"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="160"
+                                   TextAlignment="Center" />
+                        <TextBlock Text="INPUT" FontSize="9" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   HorizontalAlignment="Center" Margin="0,2,0,0" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- ── SESSION LIST ───────────────────────────────────── -->
+            <Border Style="{StaticResource CardPanel}">
+                <StackPanel>
+                    <!-- Header row -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="AUDIO SESSIONS" Style="{StaticResource HeaderText}" Margin="0" />
+                    </StackPanel>
+
+                    <!-- Column headers -->
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="36" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="50" />
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="90" />
+                            <ColumnDefinition Width="60" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="1" Text="APPLICATION"
+                                   FontSize="9" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextDimBrush}" />
+                        <TextBlock Grid.Column="2" Text="VOL"
+                                   FontSize="9" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   HorizontalAlignment="Right" />
+                        <TextBlock Grid.Column="3" Text="LEVEL"
+                                   FontSize="9" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   Margin="8,0,0,0" />
+                        <TextBlock Grid.Column="4" Text="KNOB"
+                                   FontSize="9" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   Margin="4,0,0,0" />
+                        <TextBlock Grid.Column="5" Text="STATUS"
+                                   FontSize="9" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   HorizontalAlignment="Center" />
+                    </Grid>
+
+                    <!-- Divider -->
+                    <Border Height="1" Background="{StaticResource CardBorderBrush}" Margin="0,0,0,6" />
+
+                    <!-- Session rows injected here by code-behind -->
+                    <StackPanel x:Name="SessionListPanel" />
+
+                    <!-- Empty state -->
+                    <Border x:Name="EmptyState" Visibility="Collapsed" Padding="0,24,0,8">
+                        <StackPanel HorizontalAlignment="Center">
+                            <TextBlock Text="&#xE1B0;" FontFamily="pack://application:,,,/Fonts/#Material Symbols Outlined"
+                                       FontSize="36" Foreground="{StaticResource TextDimBrush}"
+                                       HorizontalAlignment="Center" />
+                            <TextBlock Text="No active audio sessions"
+                                       FontSize="13" Foreground="{StaticResource TextSecBrush}"
+                                       HorizontalAlignment="Center" Margin="0,8,0,0" />
+                            <TextBlock Text="Play something to see it here"
+                                       FontSize="11" Foreground="{StaticResource TextDimBrush}"
+                                       HorizontalAlignment="Center" Margin="0,4,0,0" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
