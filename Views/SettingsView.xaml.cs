@@ -1014,9 +1014,10 @@ public partial class SettingsView : UserControl
         for (int i = 0; i < 3; i++)
         {
             var (label, color) = channels[i];
-            var row = new System.Windows.Controls.Grid { Margin = new Thickness(0, 2, 0, 2) };
+            var row = new System.Windows.Controls.Grid { Margin = new Thickness(0, 4, 0, 4) };
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
 
             var lbl = new TextBlock
             {
@@ -1027,18 +1028,31 @@ public partial class SettingsView : UserControl
             System.Windows.Controls.Grid.SetColumn(lbl, 0);
             row.Children.Add(lbl);
 
+            var valLabel = new TextBlock
+            {
+                Text = "1.0", Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+                FontSize = 12, VerticalAlignment = VerticalAlignment.Center,
+            };
+            System.Windows.Controls.Grid.SetColumn(valLabel, 2);
+            row.Children.Add(valLabel);
+
             var slider = new Controls.StyledSlider
             {
                 Minimum = 0.5, Maximum = 4.0, Value = 1.0,
-                AccentColor = color, Height = 28,
-                ShowLabel = true, Suffix = "", Step = 0.1, LabelFormat = "F1",
-                Margin = new Thickness(8, 0, 0, 0),
+                AccentColor = color, Height = 24,
+                ShowLabel = false, Step = 0.1,
+                Margin = new Thickness(8, 0, 8, 0),
+            };
+            var capturedLabel = valLabel;
+            slider.ValueChanged += (s, _) =>
+            {
+                capturedLabel.Text = slider.Value.ToString("F1");
+                OnGammaSliderChanged(s, EventArgs.Empty);
             };
             System.Windows.Controls.Grid.SetColumn(slider, 1);
             row.Children.Add(slider);
             refs[i] = slider;
 
-            slider.ValueChanged += OnGammaSliderChanged;
             GammaSlidersPanel.Children.Add(row);
         }
 
