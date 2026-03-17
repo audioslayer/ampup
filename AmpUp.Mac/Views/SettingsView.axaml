@@ -180,20 +180,69 @@
                 </StackPanel>
             </Border>
 
-            <!-- ── ABOUT ─────────────────────────────────────────── -->
-            <Border Classes="CardPanel" Margin="0,0,0,0">
+            <!-- ── UPDATES ────────────────────────────────────────── -->
+            <Border Classes="CardPanel" Margin="0,0,0,12">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                         <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="UPDATES" Classes="HeaderText" />
+                    </StackPanel>
+
+                    <!-- Version row + controls -->
+                    <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,0,0,8" VerticalAlignment="Center">
+                        <TextBlock x:Name="TxtVersion" Classes="BodyText" VerticalAlignment="Center" />
+                        <Button x:Name="BtnCheckUpdate" Content="Check for Updates" MinHeight="32" />
+                        <CheckBox x:Name="ChkAutoUpdate" Content="Auto-check"
+                                  ToolTip.Tip="Automatically check for updates every 4 hours" />
+                    </StackPanel>
+
+                    <!-- Status / update-available message -->
+                    <TextBlock x:Name="TxtUpdateStatus" Classes="SecondaryText" Margin="0,0,0,0"
+                               IsVisible="False" />
+
+                    <!-- Update available banner -->
+                    <Border x:Name="UpdateBanner" IsVisible="False"
+                            Background="#1A00E676" BorderBrush="{DynamicResource AccentBrush}"
+                            BorderThickness="1" CornerRadius="6" Padding="12,10" Margin="0,8,0,0">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,8">
+                                <TextBlock x:Name="TxtUpdateTag"
+                                           Foreground="{DynamicResource AccentBrush}"
+                                           FontWeight="SemiBold" FontSize="13"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Text="is available!"
+                                           Classes="SecondaryText" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Text="Download the .dmg and drag AmpUp.app to Applications to update."
+                                       Classes="SecondaryText" FontSize="11" Margin="0,0,0,10" TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="BtnDownloadUpdate" Content="Download Update"
+                                        Background="{DynamicResource AccentDimBrush}"
+                                        Foreground="{DynamicResource TextPrimaryBrush}"
+                                        MinHeight="34" />
+                                <TextBlock x:Name="TxtDownloadStatus" Classes="SecondaryText"
+                                           VerticalAlignment="Center" IsVisible="False" />
+                            </StackPanel>
+                            <!-- Download progress bar -->
+                            <ProgressBar x:Name="DownloadProgress"
+                                         Minimum="0" Maximum="100" Value="0"
+                                         Height="6" Margin="0,8,0,0"
+                                         IsVisible="False"
+                                         Foreground="{DynamicResource AccentBrush}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- ── ABOUT ─────────────────────────────────────────── -->
+            <Border Classes="CardPanel" Margin="0,0,0,0">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
                         <TextBlock Text="ABOUT" Classes="HeaderText" />
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="16">
-                        <TextBlock x:Name="TxtVersion" Classes="BodyText" VerticalAlignment="Center"
-                                   Text="Amp Up v0.1.0-alpha-mac" />
-                        <Button x:Name="BtnCheckUpdate" Content="Check for Updates" />
-                    </StackPanel>
-                    <TextBlock x:Name="TxtUpdateStatus" Classes="SecondaryText" Margin="0,8,0,0"
-                               IsVisible="False" />
+                    <TextBlock Classes="SecondaryText" FontSize="11" TextWrapping="Wrap"
+                               Text="AmpUp — USB volume mixer for the Turn Up hardware. Per-app audio control on macOS via Core Audio Process Taps." />
                 </StackPanel>
             </Border>
 
