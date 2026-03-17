@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:AmpUp.Mac.Controls"
         x:Class="AmpUp.Mac.MainWindow"
         Title="Amp Up"
         Width="1600" Height="1000"
@@ -180,10 +181,13 @@
                 </Grid>
             </Border>
 
-            <!-- Content Area -->
-            <Border Grid.Column="1" Padding="24,16">
-                <ContentControl x:Name="ContentArea" />
-            </Border>
+            <!-- Content Area + Hardware Preview Strip -->
+            <Grid Grid.Column="1" RowDefinitions="*,Auto">
+                <Border Grid.Row="0" Padding="24,16">
+                    <ContentControl x:Name="ContentArea" />
+                </Border>
+                <controls:HardwarePreviewStrip x:Name="HwPreview" Grid.Row="1" />
+            </Grid>
         </Grid>
     </Grid>
 </Window>

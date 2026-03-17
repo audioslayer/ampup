@@ -44,6 +44,9 @@ public partial class App : Application
     public static App? Current => (App?)Avalonia.Application.Current;
     public static RgbController? Rgb { get; private set; }
 
+    /// <summary>Live knob positions 0–1, indexed by knob idx. Updated on every serial knob event.</summary>
+    public static readonly float[] KnobPositions = { 0f, 0f, 0f, 0f, 0f };
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -219,6 +222,7 @@ public partial class App : Application
 
         float vol = VolumePipeline.ComputeVolume(ev.Value, knob);
         knob.LastRawValue = ev.Value;
+        KnobPositions[ev.Idx] = vol;
 
         _rgb?.SetKnobPosition(ev.Idx, vol);
 

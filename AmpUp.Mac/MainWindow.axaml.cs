@@ -48,6 +48,7 @@ public partial class MainWindow : Window
         _bindingsView.LoadConfig(config);
         _osdView.LoadConfig(config, onSave);
         _ambienceView.LoadConfig(config, onSave, ambienceSync, dreamSync);
+        HwPreview.LoadConfig(config);
 
         // Wire cross-view navigation
         _settingsView.OnNavigateToOverview = () => NavigateTo(_bindingsView, NavBindings);
@@ -65,6 +66,7 @@ public partial class MainWindow : Window
     {
         _mixerView.LoadConfig(config);
         _bindingsView.LoadConfig(config);
+        HwPreview.LoadConfig(config);
     }
 
     /// <summary>Update the connection status shown in SettingsView.</summary>
