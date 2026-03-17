@@ -15,6 +15,7 @@ public class AudioMixer : IDisposable
 
     // Map of processName (lowercase) -> AudioSessionControl
     private Dictionary<string, AudioSessionControl> _sessions = new();
+    private int _logMissThrottle; // throttle AppGroup miss logging
 
     /// <summary>
     /// Fuzzy process name match: strips spaces so "Apple Music" matches "AppleMusic".
@@ -147,10 +148,20 @@ public class AudioMixer : IDisposable
                     foreach (var appName in knob.Apps)
                     {
                         var app = appName.ToLowerInvariant();
+                        bool matched = false;
                         foreach (var kv in _sessions)
                         {
                             if (FuzzyContains(kv.Key, app))
+                            {
+                                matched = true;
                                 try { kv.Value.SimpleAudioVolume.Volume = vol; } catch { }
+                            }
+                        }
+                        if (!matched && _logMissThrottle++ % 100 == 0)
+                        {
+                            // Log periodically on miss to help debug matching issues (#8)
+                            var keys = string.Join(", ", _sessions.Keys);
+                            Logger.Log($"AppGroup: no match for '{app}' in sessions: [{keys}]");
                         }
                     }
                 }
