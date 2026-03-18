@@ -215,11 +215,82 @@ public partial class App : Application
             _serial.Start();
 
             Logger.Log("AmpUp.Mac backend ready");
+
+            // ── Audio permission guide ───────────────────────────────
+            CheckAndShowAudioGuide();
         }
         catch (Exception ex)
         {
             Logger.Log($"InitBackend error: {ex}");
         }
+    }
+
+    /// <summary>
+    /// Checks if any knob targets a specific app (not master/none) and if the
+    /// Screen & System Audio Recording permission is likely needed.
+    /// Shows the AudioPermissionGuide once if the permission check fails.
+    /// </summary>
+    private void CheckAndShowAudioGuide()
+    {
+        if (_config.HasShownAudioGuide) return;
+
+        // Only show if at least one knob targets a per-app audio source
+        var appTargets = new HashSet<string> { "none", "master", "mic", "system", "monitor",
+            "output_device", "input_device", "led_brightness", "govee" };
+        bool needsPerApp = _config.Knobs.Any(k =>
+        {
+            var t = k.Target ?? "none";
+            return !appTargets.Contains(t) && !t.StartsWith("ha_") && !t.StartsWith("govee:");
+        });
+
+        if (!needsPerApp) return;
+
+        // Test the permission
+        bool granted = AudioPermissionGuide.CheckAudioPermission();
+        if (granted) return;
+
+        // Mark as shown so we don't nag again
+        _config.HasShownAudioGuide = true;
+        ConfigManager.Save(_config);
+
+        // Show the guide on the UI thread
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                var guide = new AudioPermissionGuide();
+                if (_mainWindow != null)
+                    guide.ShowDialog(_mainWindow);
+                else
+                    guide.Show();
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"AudioPermissionGuide show error: {ex.Message}");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Opens the audio permission guide from the Settings view.
+    /// </summary>
+    public void ShowAudioPermissionGuide()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                var guide = new AudioPermissionGuide();
+                if (_mainWindow != null)
+                    guide.ShowDialog(_mainWindow);
+                else
+                    guide.Show();
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"AudioPermissionGuide show error: {ex.Message}");
+            }
+        });
     }
 
     // ── View wiring ───────────────────────────────────────────────────────────

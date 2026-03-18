@@ -59,6 +59,9 @@ public partial class SettingsView : UserControl
         // Govee
         ChkGoveeEnabled.IsCheckedChanged += OnGoveeEnabledChanged;
 
+        // Audio permission guide
+        BtnAudioPermission.Click += (_, _) => App.Current?.ShowAudioPermissionGuide();
+
         // Updates
         BtnCheckUpdate.Click += (_, _) => OnCheckUpdate();
         BtnDownloadUpdate.Click += (_, _) => OnDownloadUpdate();

@@ -40,6 +40,7 @@ public class AppConfig
     public List<string> PinnedTrayApps { get; set; } = new();
     public Dictionary<string, List<string>> CycleDeviceSubset { get; set; } = new();
     public bool AutoCheckUpdates { get; set; } = true;
+    public bool HasShownAudioGuide { get; set; } = false;
 }
 
 public class SerialConfig

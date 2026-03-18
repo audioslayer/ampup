@@ -115,6 +115,22 @@
                     <!-- Device status -->
                     <TextBlock x:Name="TxtDeviceStatus" Classes="SecondaryText" FontSize="11"
                                Margin="0,8,0,0" IsVisible="False" />
+
+                    <!-- Audio permission setup (macOS per-app audio) -->
+                    <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0"
+                            Margin="0,12,0,0" Padding="0,12,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Per-App Audio Permission" Classes="SecondaryText"
+                                       FontWeight="SemiBold" Margin="0,0,0,6" />
+                            <TextBlock Text="Required for controlling individual app volumes (Chrome, Spotify, etc.)"
+                                       Classes="DimText" Margin="0,0,0,8" TextWrapping="Wrap" />
+                            <Button x:Name="BtnAudioPermission" Content="Setup Audio Permissions"
+                                    MinHeight="34"
+                                    Background="{DynamicResource AccentDimBrush}"
+                                    Foreground="{DynamicResource TextPrimaryBrush}"
+                                    ToolTip.Tip="Open the permission setup guide for per-app audio control" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
 
