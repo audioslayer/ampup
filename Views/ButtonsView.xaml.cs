@@ -5,6 +5,8 @@ using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using Material.Icons;
+using Material.Icons.WPF;
 using AmpUp.Controls;
 
 namespace AmpUp.Views;
@@ -1404,56 +1406,93 @@ public partial class ButtonsView : UserControl
 
         var row = new DockPanel { LastChildFill = true };
 
+        // Browse button with folder icon
+        var browseBg = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+        var browseHoverBg = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
+        browseBg.Freeze(); browseHoverBg.Freeze();
         var browseBtn = new Button
         {
-            Content = "...",
-            Width = 28,
-            FontSize = 11,
-            FontWeight = FontWeights.Bold,
-            Padding = new Thickness(0, 3, 0, 3),
-            Margin = new Thickness(4, 0, 0, 0),
-            Background = FindBrush("InputBgBrush"),
-            Foreground = FindBrush("TextPrimaryBrush"),
-            BorderBrush = FindBrush("InputBorderBrush"),
-            BorderThickness = new Thickness(1),
+            Content = new MaterialIcon { Kind = MaterialIconKind.FolderOpen, Width = 16, Height = 16, Foreground = FindBrush("TextPrimaryBrush") },
+            Width = 34,
+            Height = 34,
+            Padding = new Thickness(0),
+            Margin = new Thickness(0),
+            Background = browseBg,
+            BorderBrush = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
             Cursor = Cursors.Hand,
             Visibility = Visibility.Collapsed,
             ToolTip = "Browse for file",
         };
-        DockPanel.SetDock(browseBtn, Dock.Right);
-        row.Children.Add(browseBtn);
+        browseBtn.Resources[SystemParameters.FocusVisualStyleKey] = null;
+        var browseBorder = new System.Windows.Controls.Border
+        {
+            CornerRadius = new CornerRadius(6),
+            Background = browseBg,
+            Margin = new Thickness(4, 0, 0, 0),
+            Child = browseBtn,
+        };
+        browseBorder.SetBinding(VisibilityProperty, new System.Windows.Data.Binding("Visibility") { Source = browseBtn });
+        browseBtn.MouseEnter += (_, _) => browseBorder.Background = browseHoverBg;
+        browseBtn.MouseLeave += (_, _) => browseBorder.Background = browseBg;
+        DockPanel.SetDock(browseBorder, Dock.Right);
+        row.Children.Add(browseBorder);
 
+        // Pick (process list) button with list icon
+        var pickBg = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+        var pickHoverBg = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
+        pickBg.Freeze(); pickHoverBg.Freeze();
         var pickBtn = new Button
         {
-            Content = "▾",
-            Width = 28,
-            FontSize = 12,
-            Padding = new Thickness(0, 3, 0, 3),
-            Margin = new Thickness(4, 0, 0, 0),
-            Background = FindBrush("InputBgBrush"),
-            Foreground = FindBrush("TextSecBrush"),
-            BorderBrush = FindBrush("InputBorderBrush"),
-            BorderThickness = new Thickness(1),
+            Content = new MaterialIcon { Kind = MaterialIconKind.FormatListBulleted, Width = 16, Height = 16, Foreground = FindBrush("TextSecBrush") },
+            Width = 34,
+            Height = 34,
+            Padding = new Thickness(0),
+            Margin = new Thickness(0),
+            Background = pickBg,
+            BorderBrush = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
             Cursor = Cursors.Hand,
             Visibility = Visibility.Collapsed,
             ToolTip = "Pick from running processes",
         };
-        DockPanel.SetDock(pickBtn, Dock.Right);
-        row.Children.Add(pickBtn);
+        pickBtn.Resources[SystemParameters.FocusVisualStyleKey] = null;
+        var pickBorder = new System.Windows.Controls.Border
+        {
+            CornerRadius = new CornerRadius(6),
+            Background = pickBg,
+            Margin = new Thickness(4, 0, 0, 0),
+            Child = pickBtn,
+        };
+        pickBorder.SetBinding(VisibilityProperty, new System.Windows.Data.Binding("Visibility") { Source = pickBtn });
+        pickBtn.MouseEnter += (_, _) => pickBorder.Background = pickHoverBg;
+        pickBtn.MouseLeave += (_, _) => pickBorder.Background = pickBg;
+        DockPanel.SetDock(pickBorder, Dock.Right);
+        row.Children.Add(pickBorder);
 
+        // Text input with rounded border wrapper
+        var inputBorder = new System.Windows.Controls.Border
+        {
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(0),
+        };
         var box = new TextBox
         {
-            Background = FindBrush("InputBgBrush"),
+            Background = Brushes.Transparent,
             Foreground = FindBrush("TextPrimaryBrush"),
-            BorderBrush = FindBrush("InputBorderBrush"),
-            Padding = new Thickness(6, 4, 6, 4),
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(8, 6, 8, 6),
             FontSize = 11,
             ToolTip = "Enter part of the process name (e.g. discord, spotify). No full path needed.",
         };
         box.Tag = placeholder;
         box.Text = "";
         SetPlaceholder(box);
-        row.Children.Add(box);
+        inputBorder.Child = box;
+        row.Children.Add(inputBorder);
 
         container.Children.Add(row);
         return (container, labelBlock, box, browseBtn, pickBtn);

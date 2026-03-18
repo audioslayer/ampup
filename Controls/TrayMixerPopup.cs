@@ -1453,8 +1453,24 @@ public class TrayMixerPopup : Window
 
         var panel = new DockPanel { LastChildFill = true };
 
-        // Icon letter — 32px, use accent color
-        var icon = BuildLetterIcon("M", accent);
+        // Icon — MaterialIcon VolumeHigh with accent-tinted background
+        var icon = new Border
+        {
+            Width = 28,
+            Height = 28,
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(Color.FromArgb(30, accent.R, accent.G, accent.B)),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new MaterialIcon
+            {
+                Kind = MaterialIconKind.VolumeHigh,
+                Foreground = new SolidColorBrush(accent),
+                Width = 16,
+                Height = 16,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            }
+        };
         DockPanel.SetDock(icon, Dock.Left);
         panel.Children.Add(icon);
 

@@ -300,7 +300,7 @@ public class BindingsView : UserControl
         int profileIdx = _config?.Profiles.IndexOf(profileName) ?? -1;
         int profileCount = _config?.Profiles.Count ?? 0;
 
-        var moveUpBtn = MakeHeaderButton("\u25B2", "Move up"); // ▲
+        var moveUpBtn = MakeArrowButton("\u25B2", "Move up", accentColor); // ▲
         moveUpBtn.Opacity = profileIdx > 0 ? 1.0 : 0.3;
         if (profileIdx > 0)
         {
@@ -312,7 +312,7 @@ public class BindingsView : UserControl
         }
         actionRow.Children.Add(moveUpBtn);
 
-        var moveDownBtn = MakeHeaderButton("\u25BC", "Move down"); // ▼
+        var moveDownBtn = MakeArrowButton("\u25BC", "Move down", accentColor); // ▼
         moveDownBtn.Opacity = profileIdx < profileCount - 1 ? 1.0 : 0.3;
         if (profileIdx < profileCount - 1)
         {
@@ -325,7 +325,7 @@ public class BindingsView : UserControl
         actionRow.Children.Add(moveDownBtn);
 
         // Duplicate button
-        var dupeBtn = MakeHeaderButton("Duplicate", "Duplicate this profile");
+        var dupeBtn = MakeAccentButton("Duplicate", "Duplicate this profile", accentColor);
         dupeBtn.Margin = new Thickness(6, 0, 0, 0);
         dupeBtn.MouseLeftButtonDown += (_, e) =>
         {
@@ -335,7 +335,7 @@ public class BindingsView : UserControl
         actionRow.Children.Add(dupeBtn);
 
         // Preview OSD button
-        var previewBtn = MakeHeaderButton("Preview OSD", "Show OSD for this profile");
+        var previewBtn = MakeAccentButton("Preview OSD", "Show OSD for this profile", accentColor);
         previewBtn.Margin = new Thickness(6, 0, 0, 0);
         previewBtn.MouseLeftButtonDown += (_, e) =>
         {
@@ -393,12 +393,55 @@ public class BindingsView : UserControl
         return section;
     }
 
-    private static Border MakeHeaderButton(string text, string tooltip)
+    private static Border MakeAccentButton(string text, string tooltip, Color accent)
     {
+        var bgNormal = new SolidColorBrush(Color.FromArgb(0x20, accent.R, accent.G, accent.B));
+        bgNormal.Freeze();
+        var bgHover = new SolidColorBrush(Color.FromArgb(0x38, accent.R, accent.G, accent.B));
+        bgHover.Freeze();
+        var borderBrush = new SolidColorBrush(Color.FromArgb(0x50, accent.R, accent.G, accent.B));
+        borderBrush.Freeze();
+        var fgBrush = new SolidColorBrush(accent);
+        fgBrush.Freeze();
+
         var btn = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+            Background = bgNormal,
+            BorderBrush = borderBrush,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(10, 3, 10, 3),
+            Cursor = Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = tooltip,
+            Child = new TextBlock
+            {
+                Text = text,
+                FontSize = 10,
+                FontWeight = FontWeights.Medium,
+                Foreground = fgBrush,
+            }
+        };
+        btn.MouseEnter += (_, _) => btn.Background = bgHover;
+        btn.MouseLeave += (_, _) => btn.Background = bgNormal;
+        return btn;
+    }
+
+    private static Border MakeArrowButton(string text, string tooltip, Color accent)
+    {
+        var bgNormal = new SolidColorBrush(Color.FromArgb(0x10, accent.R, accent.G, accent.B));
+        bgNormal.Freeze();
+        var bgHover = new SolidColorBrush(Color.FromArgb(0x28, accent.R, accent.G, accent.B));
+        bgHover.Freeze();
+        var borderBrush = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B));
+        borderBrush.Freeze();
+        var fgBrush = new SolidColorBrush(Color.FromArgb(0xAA, accent.R, accent.G, accent.B));
+        fgBrush.Freeze();
+
+        var btn = new Border
+        {
+            Background = bgNormal,
+            BorderBrush = borderBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(4),
             Padding = new Thickness(8, 3, 8, 3),
@@ -409,11 +452,11 @@ public class BindingsView : UserControl
             {
                 Text = text,
                 FontSize = 10,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x99, 0x99, 0x99)),
+                Foreground = fgBrush,
             }
         };
-        btn.MouseEnter += (_, _) => btn.Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
-        btn.MouseLeave += (_, _) => btn.Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
+        btn.MouseEnter += (_, _) => btn.Background = bgHover;
+        btn.MouseLeave += (_, _) => btn.Background = bgNormal;
         return btn;
     }
 
