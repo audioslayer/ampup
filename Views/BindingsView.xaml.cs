@@ -86,9 +86,17 @@ public class BindingsView : UserControl
     private readonly StackPanel _root;
     private readonly Border?[] _knobCards = new Border?[5]; // for live LED color sync
     private readonly System.Windows.Threading.DispatcherTimer _colorTimer;
+    private readonly HardwareWidget _hardwareWidget;
+
     public BindingsView()
     {
         _root = new StackPanel { Margin = new Thickness(0, 0, 0, 24) };
+
+        _hardwareWidget = new HardwareWidget();
+        _hardwareWidget.SetCallbacks(
+            knobIdx => _onNavigateToMixer?.Invoke(_config?.ActiveProfile ?? "Default"),
+            buttonIdx => _onNavigateToButtons?.Invoke(_config?.ActiveProfile ?? "Default")
+        );
 
         _scroll = new ScrollViewer
         {
@@ -170,6 +178,10 @@ public class BindingsView : UserControl
             Margin = new Thickness(0, 4, 0, 0)
         });
         _root.Children.Add(headerPanel);
+
+        // Interactive hardware device visualization
+        _hardwareWidget.LoadConfig(_config);
+        _root.Children.Add(_hardwareWidget);
 
         // Render current profile first, then other profiles
         var profiles = new List<string> { _config.ActiveProfile };

@@ -86,9 +86,6 @@
                 </Border>
             </Grid>
 
-            <!-- ── HARDWARE WIDGET ───────────────────────────────── -->
-            <StackPanel x:Name="HardwareWidgetHost" />
-
             <!-- ── SESSION LIST ───────────────────────────────────── -->
             <Border Style="{StaticResource CardPanel}">
                 <StackPanel>
