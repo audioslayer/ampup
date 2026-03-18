@@ -75,7 +75,12 @@ public func ampup_create_tap(_ pid: pid_t) -> Bool {
     tapDesc.name = "AmpUp-\(pid)"
 
     var tapID: AUAudioObjectID = 0
-    guard AudioHardwareCreateProcessTap(tapDesc, &tapID) == noErr else { return false }
+    let tapErr = AudioHardwareCreateProcessTap(tapDesc, &tapID)
+    if tapErr != noErr {
+        NSLog("AmpUp: AudioHardwareCreateProcessTap failed for pid \(pid) with error \(tapErr)")
+        return false
+    }
+    NSLog("AmpUp: Tap created for pid \(pid), tapID=\(tapID)")
 
     // Build aggregate device with the tap as sub-device
     let aggDesc: [String: Any] = [
@@ -92,11 +97,13 @@ public func ampup_create_tap(_ pid: pid_t) -> Bool {
     ]
 
     var aggDeviceID: AudioDeviceID = 0
-    guard AudioHardwareCreateAggregateDevice(aggDesc as CFDictionary, &aggDeviceID) == noErr else {
-        // Clean up tap on failure
+    let aggErr = AudioHardwareCreateAggregateDevice(aggDesc as CFDictionary, &aggDeviceID)
+    if aggErr != noErr {
+        NSLog("AmpUp: AudioHardwareCreateAggregateDevice failed for pid \(pid) with error \(aggErr)")
         AudioHardwareDestroyProcessTap(tapID)
         return false
     }
+    NSLog("AmpUp: Aggregate device created for pid \(pid), aggDeviceID=\(aggDeviceID)")
 
     taps[pid] = TapState(
         tapObjectID: tapID,
