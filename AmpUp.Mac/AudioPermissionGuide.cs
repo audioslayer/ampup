@@ -40,7 +40,7 @@ public class AudioPermissionGuide : Window
 
     // ── P/Invoke for permission test ─────────────────────────────────
     [DllImport("libAmpUpAudio")]
-    private static extern bool ampup_create_tap(int pid);
+    private static extern int ampup_create_tap(int pid);
 
     private TextBlock? _statusText;
     private Border? _statusDot;
@@ -339,7 +339,7 @@ public class AudioPermissionGuide : Window
         try
         {
             int pid = Environment.ProcessId;
-            return ampup_create_tap(pid);
+            return ampup_create_tap(pid) != 0;
         }
         catch (DllNotFoundException)
         {

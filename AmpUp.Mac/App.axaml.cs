@@ -714,7 +714,7 @@ public class MacAudioEngine : IDisposable
     [System.Runtime.InteropServices.DllImport("libAmpUpAudio")]
     private static extern void ampup_set_master_volume(float volume);
     [System.Runtime.InteropServices.DllImport("libAmpUpAudio")]
-    private static extern bool ampup_create_tap(int pid);
+    private static extern int ampup_create_tap(int pid);
     [System.Runtime.InteropServices.DllImport("libAmpUpAudio")]
     private static extern void ampup_set_process_volume(int pid, float volume);
     [System.Runtime.InteropServices.DllImport("libAmpUpAudio")]
@@ -798,7 +798,7 @@ public class MacAudioEngine : IDisposable
                 try
                 {
                     Logger.Log($"Trying audio tap for '{proc.ProcessName}' (pid {pid})");
-                    if (ampup_create_tap(pid))
+                    if (ampup_create_tap(pid) != 0)
                     {
                         _tappedProcesses[processName] = true;
                         _tappedPids[processName] = pid;
