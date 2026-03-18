@@ -153,7 +153,7 @@ public func ampup_get_process_peak(_ pid: pid_t) -> Float32 {
 
     var peak = Float32(0.0)
     var peakAddr = AudioObjectPropertyAddress(
-        mSelector: kAudioDevicePropertyDeviceMasterVolume, // placeholder — replace with actual peak meter property
+        mSelector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
         mScope: kAudioDevicePropertyScopeOutput,
         mElement: kAudioObjectPropertyElementMain
     )
