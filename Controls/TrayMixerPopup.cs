@@ -822,7 +822,7 @@ public class TrayMixerPopup : Window
             var btn = new Border
             {
                 Width = 22, Height = 22,
-                CornerRadius = new CornerRadius(11),
+                CornerRadius = new CornerRadius(4),
                 Margin = new Thickness(0, 0, 3, 0),
                 Cursor = Cursors.Hand,
                 ToolTip = isCurrent ? $"Unassign {knobLbl}" : $"Assign to {knobLbl}",
