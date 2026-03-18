@@ -117,8 +117,42 @@ public class AudioPermissionGuide : Window
         // Step 2
         stepsPanel.Children.Add(BuildStep(2, "Find 'Screen & System Audio Recording'", "Look in the sidebar under Privacy & Security."));
 
-        // Step 3
-        stepsPanel.Children.Add(BuildStep(3, "Click + and add AmpUp", "Or toggle it ON if AmpUp is already listed."));
+        // Step 3 — with Reveal in Finder button
+        stepsPanel.Children.Add(BuildStep(3, "Click + and add AmpUp",
+            "If AmpUp isn't listed, click + then navigate to the app. Use the button below to reveal it in Finder first."));
+
+        var revealBtn = new Button
+        {
+            Content = "Reveal AmpUp in Finder",
+            Background = new SolidColorBrush(Color.FromArgb(0x20, Accent.R, Accent.G, Accent.B)),
+            Foreground = AccentBrush,
+            Padding = new Thickness(14, 6),
+            Margin = new Thickness(44, 0, 0, 12),
+            CornerRadius = new CornerRadius(6),
+            Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
+        };
+        revealBtn.Click += (_, _) =>
+        {
+            try
+            {
+                // Get the running app's bundle path
+                var appPath = System.IO.Path.GetDirectoryName(
+                    System.IO.Path.GetDirectoryName(
+                        System.IO.Path.GetDirectoryName(
+                            Environment.ProcessPath)));
+                if (appPath != null && appPath.EndsWith(".app"))
+                {
+                    Process.Start("open", $"-R \"{appPath}\"");
+                }
+                else
+                {
+                    // Fallback: reveal the dist folder
+                    Process.Start("open", "-R \"/Users/audio/Projects/ampup-core/AmpUp.Mac/dist/AmpUp.app\"");
+                }
+            }
+            catch { }
+        };
+        stepsPanel.Children.Add(revealBtn);
 
         // Step 4
         stepsPanel.Children.Add(BuildStep(4, "Restart AmpUp", "The permission takes effect after restarting the app."));
