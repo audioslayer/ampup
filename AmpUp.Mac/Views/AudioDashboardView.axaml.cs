@@ -9,6 +9,8 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Material.Icons;
+using Material.Icons.Avalonia;
 using AmpUp.Core;
 using AmpUp.Core.Engine;
 using AmpUp.Core.Models;
@@ -396,10 +398,11 @@ public partial class AudioDashboardView : UserControl
                 Spacing = 8,
                 Children =
                 {
-                    new TextBlock
+                    new MaterialIcon
                     {
-                        Text                = "🔇",
-                        FontSize            = 36,
+                        Kind                = MaterialIconKind.VolumeOff,
+                        Width               = 36,
+                        Height              = 36,
                         HorizontalAlignment = HorizontalAlignment.Center,
                     },
                     new TextBlock

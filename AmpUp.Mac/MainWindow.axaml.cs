@@ -23,11 +23,10 @@ public partial class MainWindow : Window
 
     private Button? _activeNavButton;
     private Border? _activeNavBar;
-    private TextBlock? _activeNavIcon;
     private TextBlock? _activeNavLabel;
 
-    // Map nav buttons to (bar, icon, label) by name
-    private readonly record struct NavInfo(Border Bar, TextBlock Icon, TextBlock Label);
+    // Map nav buttons to (bar, label) by name
+    private readonly record struct NavInfo(Border Bar, TextBlock Label);
 
     public MainWindow()
     {
@@ -137,14 +136,14 @@ public partial class MainWindow : Window
 
     private Dictionary<Button, NavInfo> GetNavMap() => new()
     {
-        { NavMixer,     new(NavMixerBar,     NavMixerIcon,     NavMixerLabel)     },
-        { NavButtons,   new(NavButtonsBar,   NavButtonsIcon,   NavButtonsLabel)   },
-        { NavLights,    new(NavLightsBar,    NavLightsIcon,    NavLightsLabel)    },
-        { NavAudioDash, new(NavAudioDashBar, NavAudioDashIcon, NavAudioDashLabel) },
-        { NavAmbience,  new(NavAmbienceBar,  NavAmbienceIcon,  NavAmbienceLabel)  },
-        { NavOsd,       new(NavOsdBar,       NavOsdIcon,       NavOsdLabel)       },
-        { NavSettings,  new(NavSettingsBar,  NavSettingsIcon,  NavSettingsLabel)  },
-        { NavBindings,  new(NavBindingsBar,  NavBindingsIcon,  NavBindingsLabel)  },
+        { NavMixer,     new(NavMixerBar,     NavMixerLabel)     },
+        { NavButtons,   new(NavButtonsBar,   NavButtonsLabel)   },
+        { NavLights,    new(NavLightsBar,    NavLightsLabel)    },
+        { NavAudioDash, new(NavAudioDashBar, NavAudioDashLabel) },
+        { NavAmbience,  new(NavAmbienceBar,  NavAmbienceLabel)  },
+        { NavOsd,       new(NavOsdBar,       NavOsdLabel)       },
+        { NavSettings,  new(NavSettingsBar,  NavSettingsLabel)  },
+        { NavBindings,  new(NavBindingsBar,  NavBindingsLabel)  },
     };
 
     private void NavigateTo(UserControl view, Button navButton)
@@ -173,6 +172,9 @@ public partial class MainWindow : Window
         _activeNavButton = navButton;
     }
 
+    /// <summary>Navigate to the Settings tab. Called from the macOS application menu.</summary>
+    public void NavigateToSettings() => NavigateTo(_settingsView, NavSettings);
+
     // ── Connection status (called externally) ────────────────────
     public void SetConnectionStatus(bool connected)
     {
@@ -192,6 +194,7 @@ public partial class MainWindow : Window
     public void SetActiveProfile(string profileName)
     {
         ProfileLabel.Text = profileName;
+        ProfileIconText.Text = string.IsNullOrEmpty(profileName) ? "?" : profileName[..1].ToUpperInvariant();
         App.Tray?.SetActiveProfile(profileName);
     }
 

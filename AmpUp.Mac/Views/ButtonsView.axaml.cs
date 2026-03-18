@@ -6,6 +6,8 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Material.Icons;
+using Material.Icons.Avalonia;
 using AmpUp.Core.Models;
 
 namespace AmpUp.Mac.Views;
@@ -17,34 +19,34 @@ public partial class ButtonsView : UserControl
     private bool _loading;
 
     // Action definitions — full 26-action set
-    private static readonly (string Display, string Value, string Icon, string Category, Color Color)[] AllActions =
+    private static readonly (string Display, string Value, MaterialIconKind Icon, string Category, Color Color)[] AllActions =
     {
-        ("None",              "none",              "—",  "Media",        Color.Parse("#444444")),
-        ("Play / Pause",      "media_play_pause",  "⏯", "Media",        Color.Parse("#66BB6A")),
-        ("Next Track",        "media_next",        "⏭", "Media",        Color.Parse("#66BB6A")),
-        ("Prev Track",        "media_prev",        "⏮", "Media",        Color.Parse("#66BB6A")),
-        ("Mute Volume",       "mute_master",       "🔇", "Mute",        Color.Parse("#EF5350")),
-        ("Mute Mic",          "mute_mic",          "🎤", "Mute",        Color.Parse("#EF5350")),
-        ("Mute App",          "mute_program",      "🔇", "Mute",        Color.Parse("#EF5350")),
-        ("Mute Active Win",   "mute_active_window","🔇", "Mute",        Color.Parse("#EF5350")),
-        ("Mute App Group",    "mute_app_group",    "🔇", "Mute",        Color.Parse("#EF5350")),
-        ("Mute Device",       "mute_device",       "🔇", "Mute",        Color.Parse("#EF5350")),
-        ("Launch App",        "launch_exe",        "🚀", "App",         Color.Parse("#42A5F5")),
-        ("Close App",         "close_program",     "✕",  "App",         Color.Parse("#FF7C43")),
-        ("Cycle Output",      "cycle_output",      "🔊", "Device",      Color.Parse("#AB47BC")),
-        ("Cycle Input",       "cycle_input",       "🎙", "Device",      Color.Parse("#AB47BC")),
-        ("Select Output",     "select_output",     "🔊", "Device",      Color.Parse("#CE93D8")),
-        ("Select Input",      "select_input",      "🎙", "Device",      Color.Parse("#CE93D8")),
-        ("Keyboard Macro",    "macro",             "⌨",  "System",      Color.Parse("#FFD54F")),
-        ("Switch Profile",    "switch_profile",    "📋", "System",      Color.Parse("#29B6F6")),
-        ("Cycle Brightness",  "cycle_brightness",  "💡", "System",      Color.Parse("#FFF176")),
-        ("Quick Wheel",       "quick_wheel",       "🎡", "System",      Color.Parse("#80DEEA")),
-        ("Sleep",             "power_sleep",       "💤", "Power",       Color.Parse("#78909C")),
-        ("Lock Screen",       "power_lock",        "🔒", "Power",       Color.Parse("#90A4AE")),
-        ("Shut Down",         "power_off",         "⏻",  "Power",       Color.Parse("#FF7043")),
-        ("Restart",           "power_restart",     "🔄", "Power",       Color.Parse("#FF8A65")),
-        ("Log Off",           "power_logoff",      "🚪", "Power",       Color.Parse("#BCAAA4")),
-        ("Hibernate",         "power_hibernate",   "🌙", "Power",       Color.Parse("#7986CB")),
+        ("None",              "none",              MaterialIconKind.MinusCircleOutline,    "Media",   Color.Parse("#444444")),
+        ("Play / Pause",      "media_play_pause",  MaterialIconKind.PlayPause,             "Media",   Color.Parse("#66BB6A")),
+        ("Next Track",        "media_next",        MaterialIconKind.SkipNext,              "Media",   Color.Parse("#66BB6A")),
+        ("Prev Track",        "media_prev",        MaterialIconKind.SkipPrevious,          "Media",   Color.Parse("#66BB6A")),
+        ("Mute Volume",       "mute_master",       MaterialIconKind.VolumeOff,             "Mute",    Color.Parse("#EF5350")),
+        ("Mute Mic",          "mute_mic",          MaterialIconKind.MicrophoneOff,         "Mute",    Color.Parse("#EF5350")),
+        ("Mute App",          "mute_program",      MaterialIconKind.VolumeOff,             "Mute",    Color.Parse("#EF5350")),
+        ("Mute Active Win",   "mute_active_window",MaterialIconKind.VolumeOff,             "Mute",    Color.Parse("#EF5350")),
+        ("Mute App Group",    "mute_app_group",    MaterialIconKind.VolumeOff,             "Mute",    Color.Parse("#EF5350")),
+        ("Mute Device",       "mute_device",       MaterialIconKind.VolumeOff,             "Mute",    Color.Parse("#EF5350")),
+        ("Launch App",        "launch_exe",        MaterialIconKind.RocketLaunch,          "App",     Color.Parse("#42A5F5")),
+        ("Close App",         "close_program",     MaterialIconKind.CloseCircle,           "App",     Color.Parse("#FF7C43")),
+        ("Cycle Output",      "cycle_output",      MaterialIconKind.VolumeHigh,            "Device",  Color.Parse("#AB47BC")),
+        ("Cycle Input",       "cycle_input",       MaterialIconKind.Microphone,            "Device",  Color.Parse("#AB47BC")),
+        ("Select Output",     "select_output",     MaterialIconKind.VolumeHigh,            "Device",  Color.Parse("#CE93D8")),
+        ("Select Input",      "select_input",      MaterialIconKind.Microphone,            "Device",  Color.Parse("#CE93D8")),
+        ("Keyboard Macro",    "macro",             MaterialIconKind.Keyboard,              "System",  Color.Parse("#FFD54F")),
+        ("Switch Profile",    "switch_profile",    MaterialIconKind.SwapHorizontal,        "System",  Color.Parse("#29B6F6")),
+        ("Cycle Brightness",  "cycle_brightness",  MaterialIconKind.Lightbulb,             "System",  Color.Parse("#FFF176")),
+        ("Quick Wheel",       "quick_wheel",       MaterialIconKind.FerrisWheel,           "System",  Color.Parse("#80DEEA")),
+        ("Sleep",             "power_sleep",       MaterialIconKind.Sleep,                 "Power",   Color.Parse("#78909C")),
+        ("Lock Screen",       "power_lock",        MaterialIconKind.Lock,                  "Power",   Color.Parse("#90A4AE")),
+        ("Shut Down",         "power_off",         MaterialIconKind.Power,                 "Power",   Color.Parse("#FF7043")),
+        ("Restart",           "power_restart",     MaterialIconKind.Restart,               "Power",   Color.Parse("#FF8A65")),
+        ("Log Off",           "power_logoff",      MaterialIconKind.Logout,                "Power",   Color.Parse("#BCAAA4")),
+        ("Hibernate",         "power_hibernate",   MaterialIconKind.WeatherNight,          "Power",   Color.Parse("#7986CB")),
     };
 
     private static readonly string[] PathActions = { "mute_program", "launch_exe", "close_program" };
@@ -55,7 +57,7 @@ public partial class ButtonsView : UserControl
 
     // Per-column controls
     private readonly TextBlock[] _headers = new TextBlock[5];
-    private readonly TextBlock[] _headerIcons = new TextBlock[5];
+    private readonly MaterialIcon[] _headerIcons = new MaterialIcon[5];
     private readonly TextBlock[] _headerActions = new TextBlock[5];
 
     // Gesture controls: [gesture][button]
@@ -184,10 +186,11 @@ public partial class ButtonsView : UserControl
             };
             headerStack.Children.Add(_headers[i]);
 
-            _headerIcons[i] = new TextBlock
+            _headerIcons[i] = new MaterialIcon
             {
-                Text = "—",
-                FontSize = 28,
+                Kind = MaterialIconKind.MinusCircleOutline,
+                Width = 28,
+                Height = 28,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Foreground = FindBrush("TextDimBrush"),
             };
@@ -303,7 +306,7 @@ public partial class ButtonsView : UserControl
     {
         var action = GetComboValue(_combos[0][idx]);
         var def = AllActions.FirstOrDefault(a => a.Value == action);
-        _headerIcons[idx].Text = def.Icon ?? "—";
+        _headerIcons[idx].Kind = def.Icon;
         _headerActions[idx].Text = def.Display ?? "None";
 
         if (action == "none")
@@ -445,10 +448,11 @@ public partial class ButtonsView : UserControl
             }
 
             var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-            row.Children.Add(new TextBlock
+            row.Children.Add(new MaterialIcon
             {
-                Text = icon,
-                FontSize = 14,
+                Kind = icon,
+                Width = 16,
+                Height = 16,
                 VerticalAlignment = VerticalAlignment.Center,
                 Foreground = new SolidColorBrush(color),
             });

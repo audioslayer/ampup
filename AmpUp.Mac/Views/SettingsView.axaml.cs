@@ -1,12 +1,16 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
+using AmpUp.Core;
 using AmpUp.Core.Models;
 using AmpUp.Core.Services;
+using AmpUp.Mac.Native;
 
 namespace AmpUp.Mac.Views;
 
@@ -16,6 +20,10 @@ public partial class SettingsView : UserControl
     private Action<AppConfig>? _onSave;
     private bool _loading;
     private bool _downloading;
+
+    // Audio device lists (cached between refreshes)
+    private List<MacAudioDeviceBridge.AudioDeviceInfo> _outputDevices = new();
+    private List<MacAudioDeviceBridge.AudioDeviceInfo> _inputDevices = new();
 
     public Action? OnNavigateToOverview { get; set; }
 
@@ -32,6 +40,11 @@ public partial class SettingsView : UserControl
         // Port controls
         BtnRefreshPorts.Click += (_, _) => RefreshPortList();
         BtnAutoDetect.Click += (_, _) => OnAutoDetect();
+
+        // Audio devices
+        BtnRefreshDevices.Click += (_, _) => RefreshAudioDevices();
+        CmbOutputDevice.SelectionChanged += OnOutputDeviceChanged;
+        CmbInputDevice.SelectionChanged += OnInputDeviceChanged;
 
         // Profile buttons
         BtnAddProfile.Click += (_, _) => OnAddProfile();
@@ -72,6 +85,9 @@ public partial class SettingsView : UserControl
 
         ChkStartWithSystem.IsChecked = config.StartWithWindows;
         ChkStartMinimized.IsChecked = config.StartMinimized;
+
+        // Audio devices
+        RefreshAudioDevices();
 
         // Profiles
         CmbProfiles.Items.Clear();
@@ -467,6 +483,94 @@ public partial class SettingsView : UserControl
         _config.AutoCheckUpdates = enabled;
         MacUpdateService.AutoCheckEnabled = enabled;
         CollectAndSave();
+    }
+
+    // ── Audio Devices ─────────────────────────────────────────────
+
+    private void RefreshAudioDevices()
+    {
+        _loading = true;
+
+        try
+        {
+            var allDevices = MacAudioDeviceBridge.GetAllDevices();
+            _outputDevices = allDevices.Where(d => d.IsOutput).ToList();
+            _inputDevices = allDevices.Where(d => d.IsInput).ToList();
+
+            var defaultOutputId = MacAudioDeviceBridge.GetDefaultOutputDeviceId();
+            var defaultInputId = MacAudioDeviceBridge.GetDefaultInputDeviceId();
+
+            // Populate output device combo
+            CmbOutputDevice.Items.Clear();
+            int outputSelectedIdx = -1;
+            for (int i = 0; i < _outputDevices.Count; i++)
+            {
+                CmbOutputDevice.Items.Add(_outputDevices[i].Name);
+                if (_outputDevices[i].DeviceId == defaultOutputId)
+                    outputSelectedIdx = i;
+            }
+            if (outputSelectedIdx >= 0)
+                CmbOutputDevice.SelectedIndex = outputSelectedIdx;
+            else if (CmbOutputDevice.Items.Count > 0)
+                CmbOutputDevice.SelectedIndex = 0;
+
+            // Populate input device combo
+            CmbInputDevice.Items.Clear();
+            int inputSelectedIdx = -1;
+            for (int i = 0; i < _inputDevices.Count; i++)
+            {
+                CmbInputDevice.Items.Add(_inputDevices[i].Name);
+                if (_inputDevices[i].DeviceId == defaultInputId)
+                    inputSelectedIdx = i;
+            }
+            if (inputSelectedIdx >= 0)
+                CmbInputDevice.SelectedIndex = inputSelectedIdx;
+            else if (CmbInputDevice.Items.Count > 0)
+                CmbInputDevice.SelectedIndex = 0;
+
+            // Status
+            int total = _outputDevices.Count + _inputDevices.Count;
+            if (total > 0)
+            {
+                TxtDeviceStatus.Text = $"{_outputDevices.Count} output, {_inputDevices.Count} input device{(_inputDevices.Count == 1 ? "" : "s")}";
+                TxtDeviceStatus.IsVisible = true;
+            }
+            else
+            {
+                TxtDeviceStatus.Text = "No audio devices found (native library may not be loaded)";
+                TxtDeviceStatus.IsVisible = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"SettingsView: RefreshAudioDevices error: {ex.Message}");
+            TxtDeviceStatus.Text = "Could not enumerate audio devices";
+            TxtDeviceStatus.IsVisible = true;
+        }
+
+        _loading = false;
+    }
+
+    private void OnOutputDeviceChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_loading) return;
+        int idx = CmbOutputDevice.SelectedIndex;
+        if (idx < 0 || idx >= _outputDevices.Count) return;
+
+        var device = _outputDevices[idx];
+        bool ok = MacAudioDeviceBridge.SetDefaultOutputDevice(device.DeviceId);
+        Logger.Log($"Set default output device: {device.Name} (id={device.DeviceId}) — {(ok ? "OK" : "FAILED")}");
+    }
+
+    private void OnInputDeviceChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_loading) return;
+        int idx = CmbInputDevice.SelectedIndex;
+        if (idx < 0 || idx >= _inputDevices.Count) return;
+
+        var device = _inputDevices[idx];
+        bool ok = MacAudioDeviceBridge.SetDefaultInputDevice(device.DeviceId);
+        Logger.Log($"Set default input device: {device.Name} (id={device.DeviceId}) — {(ok ? "OK" : "FAILED")}");
     }
 
     // ── Collect & Save ────────────────────────────────────────────

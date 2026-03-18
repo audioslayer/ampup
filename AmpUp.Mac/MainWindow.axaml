@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:AmpUp.Mac.Controls"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
         x:Class="AmpUp.Mac.MainWindow"
         Title="Amp Up"
         Width="1600" Height="1000"
@@ -56,7 +57,8 @@
                                 BorderThickness="2" Cursor="Hand"
                                 HorizontalAlignment="Center"
                                 BoxShadow="0 0 12 0 #4000E676">
-                            <TextBlock Text="👤" FontSize="20"
+                            <TextBlock x:Name="ProfileIconText" Text="D" FontSize="20" FontWeight="Bold"
+                                       Foreground="{DynamicResource AccentBrush}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <TextBlock x:Name="ProfileLabel" Text="Default" FontSize="8" FontWeight="Medium"
@@ -77,7 +79,7 @@
                                 <Border x:Name="NavBindingsBar" Width="3" Height="20" CornerRadius="2"
                                         Background="{DynamicResource AccentBrush}"
                                         IsVisible="False" HorizontalAlignment="Left" Margin="-4,0,0,0" />
-                                <TextBlock x:Name="NavBindingsIcon" Text="📋" FontSize="20"
+                                <mi:MaterialIcon Kind="ViewDashboard" Width="22" Height="22"
                                            HorizontalAlignment="Center" />
                                 <TextBlock x:Name="NavBindingsLabel" Text="Overview" FontSize="9"
                                            Foreground="{DynamicResource TextSecBrush}"
@@ -93,7 +95,7 @@
                                             Background="{DynamicResource AccentBrush}"
                                             VerticalAlignment="Center" IsVisible="False" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <TextBlock x:Name="NavMixerIcon" Text="🎛" FontSize="20"
+                                        <mi:MaterialIcon Kind="TuneVariant" Width="22" Height="22"
                                                    HorizontalAlignment="Center" />
                                         <TextBlock x:Name="NavMixerLabel" Text="Knobs" FontSize="9"
                                                    Foreground="{DynamicResource TextSecBrush}"
@@ -108,7 +110,7 @@
                                             Background="{DynamicResource AccentBrush}"
                                             VerticalAlignment="Center" IsVisible="False" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <TextBlock x:Name="NavButtonsIcon" Text="🔘" FontSize="20"
+                                        <mi:MaterialIcon Kind="GamepadVariant" Width="22" Height="22"
                                                    HorizontalAlignment="Center" />
                                         <TextBlock x:Name="NavButtonsLabel" Text="Buttons" FontSize="9"
                                                    Foreground="{DynamicResource TextSecBrush}"
@@ -123,7 +125,7 @@
                                             Background="{DynamicResource AccentBrush}"
                                             VerticalAlignment="Center" IsVisible="False" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <TextBlock x:Name="NavLightsIcon" Text="💡" FontSize="20"
+                                        <mi:MaterialIcon Kind="Lightbulb" Width="22" Height="22"
                                                    HorizontalAlignment="Center" />
                                         <TextBlock x:Name="NavLightsLabel" Text="Lights" FontSize="9"
                                                    Foreground="{DynamicResource TextSecBrush}"
@@ -139,7 +141,7 @@
                                             Background="{DynamicResource AccentBrush}"
                                             VerticalAlignment="Center" IsVisible="False" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <TextBlock x:Name="NavAudioDashIcon" Text="📊" FontSize="20"
+                                        <mi:MaterialIcon Kind="ChartBar" Width="22" Height="22"
                                                    HorizontalAlignment="Center" />
                                         <TextBlock x:Name="NavAudioDashLabel" Text="Activity" FontSize="9"
                                                    Foreground="{DynamicResource TextSecBrush}"
@@ -154,7 +156,7 @@
                                             Background="{DynamicResource AccentBrush}"
                                             VerticalAlignment="Center" IsVisible="False" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <TextBlock x:Name="NavAmbienceIcon" Text="🌊" FontSize="20"
+                                        <mi:MaterialIcon Kind="MapMarker" Width="22" Height="22"
                                                    HorizontalAlignment="Center" />
                                         <TextBlock x:Name="NavAmbienceLabel" Text="Ambience" FontSize="9"
                                                    Foreground="{DynamicResource TextSecBrush}"
@@ -170,7 +172,7 @@
                                             Background="{DynamicResource AccentBrush}"
                                             VerticalAlignment="Center" IsVisible="False" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <TextBlock x:Name="NavOsdIcon" Text="📺" FontSize="20"
+                                        <mi:MaterialIcon Kind="Monitor" Width="22" Height="22"
                                                    HorizontalAlignment="Center" />
                                         <TextBlock x:Name="NavOsdLabel" Text="OSD" FontSize="9"
                                                    Foreground="{DynamicResource TextSecBrush}"
@@ -185,7 +187,7 @@
                                             Background="{DynamicResource AccentBrush}"
                                             VerticalAlignment="Center" IsVisible="False" Margin="-4,0,0,0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <TextBlock x:Name="NavSettingsIcon" Text="⚙" FontSize="20"
+                                        <mi:MaterialIcon Kind="Cog" Width="22" Height="22"
                                                    HorizontalAlignment="Center" />
                                         <TextBlock x:Name="NavSettingsLabel" Text="Settings" FontSize="9"
                                                    Foreground="{DynamicResource TextSecBrush}"

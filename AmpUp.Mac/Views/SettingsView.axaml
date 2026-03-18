@@ -84,6 +84,40 @@
                 </StackPanel>
             </Border>
 
+            <!-- ── AUDIO DEVICES ──────────────────────────────────────── -->
+            <Border Classes="CardPanel" Margin="0,0,0,12">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="AUDIO DEVICES" Classes="HeaderText" />
+                    </StackPanel>
+
+                    <!-- Output device -->
+                    <StackPanel Margin="0,0,0,12">
+                        <TextBlock Text="Output Device" Classes="SecondaryText" Margin="0,0,0,6"
+                                   ToolTip.Tip="Select the default audio output device" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <ComboBox x:Name="CmbOutputDevice" Width="320" MinHeight="38"
+                                      ToolTip.Tip="Available output devices" />
+                            <Button x:Name="BtnRefreshDevices" Content="Refresh" MinHeight="38"
+                                    ToolTip.Tip="Rescan audio devices" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Input device -->
+                    <StackPanel Margin="0,0,0,4">
+                        <TextBlock Text="Input Device" Classes="SecondaryText" Margin="0,0,0,6"
+                                   ToolTip.Tip="Select the default audio input device" />
+                        <ComboBox x:Name="CmbInputDevice" Width="320" MinHeight="38"
+                                  ToolTip.Tip="Available input devices" />
+                    </StackPanel>
+
+                    <!-- Device status -->
+                    <TextBlock x:Name="TxtDeviceStatus" Classes="SecondaryText" FontSize="11"
+                               Margin="0,8,0,0" IsVisible="False" />
+                </StackPanel>
+            </Border>
+
             <!-- ── PROFILES ────────────────────────────────────────── -->
             <Border Classes="CardPanel" Margin="0,0,0,12">
                 <StackPanel>

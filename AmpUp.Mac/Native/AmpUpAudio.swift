@@ -224,3 +224,125 @@ public func ampup_set_master_volume(_ volume: Float32) {
     )
     AudioObjectSetPropertyData(defaultDevice, &volAddr, 0, nil, volSize, &vol)
 }
+
+// MARK: - Audio device enumeration
+
+/// Callback for each audio device: (deviceID, name C-string, isOutput, isInput)
+public typealias DeviceEnumCallback = @convention(c) (UInt32, UnsafePointer<CChar>?, Bool, Bool) -> Void
+
+/// Enumerate all audio devices (output and input). Calls callback for each device.
+@_cdecl("ampup_enumerate_audio_devices")
+public func ampup_enumerate_audio_devices(_ callback: DeviceEnumCallback) {
+    var propertyAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyDevices,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+    )
+
+    var dataSize: UInt32 = 0
+    guard AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject),
+                                         &propertyAddress, 0, nil, &dataSize) == noErr else { return }
+
+    let count = Int(dataSize) / MemoryLayout<AudioDeviceID>.size
+    var deviceIDs = [AudioDeviceID](repeating: 0, count: count)
+    guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject),
+                                     &propertyAddress, 0, nil, &dataSize, &deviceIDs) == noErr else { return }
+
+    for deviceID in deviceIDs {
+        // Get device name
+        var nameAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioObjectPropertyName,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var name: CFString = "" as CFString
+        var nameSize = UInt32(MemoryLayout<CFString>.size)
+        AudioObjectGetPropertyData(deviceID, &nameAddr, 0, nil, &nameSize, &name)
+        let nameStr = name as String
+
+        // Check if device has output streams
+        var outputAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyStreams,
+            mScope: kAudioDevicePropertyScopeOutput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var outputSize: UInt32 = 0
+        AudioObjectGetPropertyDataSize(deviceID, &outputAddr, 0, nil, &outputSize)
+        let hasOutput = outputSize > 0
+
+        // Check if device has input streams
+        var inputAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyStreams,
+            mScope: kAudioDevicePropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var inputSize: UInt32 = 0
+        AudioObjectGetPropertyDataSize(deviceID, &inputAddr, 0, nil, &inputSize)
+        let hasInput = inputSize > 0
+
+        // Skip devices with no streams (virtual/aggregate noise)
+        guard hasOutput || hasInput else { continue }
+
+        nameStr.withCString { ptr in
+            callback(deviceID, ptr, hasOutput, hasInput)
+        }
+    }
+}
+
+/// Get the default output device ID.
+@_cdecl("ampup_get_default_output_device")
+public func ampup_get_default_output_device() -> UInt32 {
+    var deviceID = AudioDeviceID(0)
+    var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+    var addr = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+    )
+    AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject),
+                               &addr, 0, nil, &size, &deviceID)
+    return deviceID
+}
+
+/// Get the default input device ID.
+@_cdecl("ampup_get_default_input_device")
+public func ampup_get_default_input_device() -> UInt32 {
+    var deviceID = AudioDeviceID(0)
+    var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+    var addr = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyDefaultInputDevice,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+    )
+    AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject),
+                               &addr, 0, nil, &size, &deviceID)
+    return deviceID
+}
+
+/// Set the default output device by device ID.
+@_cdecl("ampup_set_default_output_device")
+public func ampup_set_default_output_device(_ deviceID: UInt32) -> Bool {
+    var id = deviceID
+    var addr = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+    )
+    let size = UInt32(MemoryLayout<AudioDeviceID>.size)
+    return AudioObjectSetPropertyData(AudioObjectID(kAudioObjectSystemObject),
+                                      &addr, 0, nil, size, &id) == noErr
+}
+
+/// Set the default input device by device ID.
+@_cdecl("ampup_set_default_input_device")
+public func ampup_set_default_input_device(_ deviceID: UInt32) -> Bool {
+    var id = deviceID
+    var addr = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyDefaultInputDevice,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+    )
+    let size = UInt32(MemoryLayout<AudioDeviceID>.size)
+    return AudioObjectSetPropertyData(AudioObjectID(kAudioObjectSystemObject),
+                                      &addr, 0, nil, size, &id) == noErr
+}

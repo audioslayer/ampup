@@ -1,6 +1,8 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="AmpUp.Mac.App"
+             Name="Amp Up"
              RequestedThemeVariant="Dark">
     <Application.Resources>
         <!-- InterFont static resource key required by Theme.axaml -->
@@ -8,6 +10,7 @@
     </Application.Resources>
     <Application.Styles>
         <FluentTheme />
+        <materialIcons:MaterialIconStyles />
         <StyleInclude Source="avares://AmpUp.Mac/Theme.axaml" />
     </Application.Styles>
 </Application>

@@ -4,6 +4,8 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Material.Icons;
+using Material.Icons.Avalonia;
 using AmpUp.Core.Models;
 using AmpUp.Core.Services;
 
@@ -472,7 +474,7 @@ public partial class AmbienceView : UserControl
         catch { }
     }
 
-    private Border MakeSceneTile(string name, string icon, Color tileColor)
+    private Border MakeSceneTile(string name, MaterialIconKind icon, Color tileColor)
     {
         var tile = new Border
         {
@@ -490,9 +492,9 @@ public partial class AmbienceView : UserControl
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        content.Children.Add(new TextBlock
+        content.Children.Add(new MaterialIcon
         {
-            Text = icon, FontSize = 20,
+            Kind = icon, Width = 22, Height = 22,
             HorizontalAlignment = HorizontalAlignment.Center,
             Foreground = new SolidColorBrush(Color.FromRgb(
                 (byte)(tileColor.R * 0.7), (byte)(tileColor.G * 0.7), (byte)(tileColor.B * 0.7))),
@@ -523,12 +525,12 @@ public partial class AmbienceView : UserControl
 
     // ── Music Mode ────────────────────────────────────────────────
 
-    private static readonly (int id, string name, string icon, Color color)[] MusicModes =
+    private static readonly (int id, string name, MaterialIconKind icon, Color color)[] MusicModes =
     {
-        (3, "Rhythm", "🎵", Color.FromRgb(0x69, 0xF0, 0xAE)),
-        (4, "Rolling", "🌊", Color.FromRgb(0x64, 0xB5, 0xF6)),
-        (5, "Energic", "⚡", Color.FromRgb(0xFF, 0xD7, 0x40)),
-        (6, "Spectrum", "🌈", Color.FromRgb(0xBA, 0x68, 0xC8)),
+        (3, "Rhythm", MaterialIconKind.MusicNote, Color.FromRgb(0x69, 0xF0, 0xAE)),
+        (4, "Rolling", MaterialIconKind.Waves, Color.FromRgb(0x64, 0xB5, 0xF6)),
+        (5, "Energic", MaterialIconKind.Flash, Color.FromRgb(0xFF, 0xD7, 0x40)),
+        (6, "Spectrum", MaterialIconKind.Rainbow, Color.FromRgb(0xBA, 0x68, 0xC8)),
     };
 
     private void BuildMusicSection(GoveeDeviceInfo device, StackPanel parent)
@@ -860,22 +862,22 @@ public partial class AmbienceView : UserControl
         return ScenePalette[Math.Abs(hash) % ScenePalette.Length];
     }
 
-    private static string GetSceneIcon(string name)
+    private static MaterialIconKind GetSceneIcon(string name)
     {
         var n = name.ToLowerInvariant();
-        if (n.Contains("fire") || n.Contains("flame")) return "🔥";
-        if (n.Contains("snow")) return "❄";
-        if (n.Contains("rain")) return "🌧";
-        if (n.Contains("aurora")) return "🌌";
-        if (n.Contains("ocean")) return "🌊";
-        if (n.Contains("rainbow")) return "🌈";
-        if (n.Contains("party")) return "🎉";
-        if (n.Contains("romantic")) return "💕";
-        if (n.Contains("candle")) return "🕯";
-        if (n.Contains("breathe")) return "🫧";
-        if (n.Contains("sleep")) return "😴";
-        if (n.Contains("energic")) return "⚡";
-        return "◆";
+        if (n.Contains("fire") || n.Contains("flame")) return MaterialIconKind.Fire;
+        if (n.Contains("snow")) return MaterialIconKind.Snowflake;
+        if (n.Contains("rain")) return MaterialIconKind.WeatherRainy;
+        if (n.Contains("aurora")) return MaterialIconKind.WeatherNight;
+        if (n.Contains("ocean")) return MaterialIconKind.Waves;
+        if (n.Contains("rainbow")) return MaterialIconKind.Rainbow;
+        if (n.Contains("party")) return MaterialIconKind.PartyPopper;
+        if (n.Contains("romantic")) return MaterialIconKind.HeartMultiple;
+        if (n.Contains("candle")) return MaterialIconKind.Candle;
+        if (n.Contains("breathe")) return MaterialIconKind.AirFilter;
+        if (n.Contains("sleep")) return MaterialIconKind.Sleep;
+        if (n.Contains("energic")) return MaterialIconKind.Flash;
+        return MaterialIconKind.Diamond;
     }
 
     /// <summary>Update device brightness from knob events.</summary>

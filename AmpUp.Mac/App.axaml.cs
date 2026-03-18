@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
@@ -5,6 +6,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using System;
+using Avalonia.Input;
 using AmpUp.Core;
 using AmpUp.Core.Engine;
 using AmpUp.Core.Models;
@@ -35,6 +37,13 @@ public partial class App : Application
     private MainWindow? _mainWindow;
     private OsdOverlay? _osd;
     private DispatcherTimer? _updateTimer;
+
+    // ── Quick Wheel state ──────────────────────────────────────────────────────
+    private RadialWheelOverlay? _radialWheel;
+    private bool _wheelVisible;
+    private readonly int[] _lastKnobRaw = new int[5];
+    private int _quickWheelActiveButton = -1;
+    private QuickWheelMode _activeWheelMode;
 
     // ── HA knob throttle (fire-and-forget, 60ms intervals) ───────────────────
     private readonly long[] _haLastSentTick = new long[5];
@@ -71,6 +80,9 @@ public partial class App : Application
             // Attach window to tray manager (enables show/hide + close-to-tray)
             Tray.AttachWindow(_mainWindow);
 
+            // ── macOS application menu (About, Preferences, Quit) ────────
+            SetupNativeMenu();
+
             // On shutdown, dispose tray + backend cleanly
             desktop.ShutdownRequested += (_, _) => Cleanup();
             desktop.Exit += (_, _) => Tray?.Dispose();
@@ -98,6 +110,54 @@ public partial class App : Application
                 _ = MacUpdateService.CheckAsync();
         };
         _updateTimer.Start();
+    }
+
+    // ── macOS native application menu ─────────────────────────────────────────
+
+    private void SetupNativeMenu()
+    {
+        var appMenu = new NativeMenu();
+
+        var aboutItem = new NativeMenuItem("About Amp Up");
+        aboutItem.Click += (_, _) =>
+        {
+            if (_mainWindow != null)
+            {
+                _mainWindow.Show();
+                _mainWindow.Activate();
+            }
+        };
+        appMenu.Add(aboutItem);
+        appMenu.Add(new NativeMenuItemSeparator());
+
+        var prefsItem = new NativeMenuItem("Settings...")
+        {
+            Gesture = new KeyGesture(Key.OemComma, KeyModifiers.Meta)
+        };
+        prefsItem.Click += (_, _) =>
+        {
+            if (_mainWindow != null)
+            {
+                _mainWindow.Show();
+                _mainWindow.Activate();
+                _mainWindow.NavigateToSettings();
+            }
+        };
+        appMenu.Add(prefsItem);
+        appMenu.Add(new NativeMenuItemSeparator());
+
+        var quitItem = new NativeMenuItem("Quit Amp Up")
+        {
+            Gesture = new KeyGesture(Key.Q, KeyModifiers.Meta)
+        };
+        quitItem.Click += (_, _) =>
+        {
+            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
+                lifetime.Shutdown();
+        };
+        appMenu.Add(quitItem);
+
+        NativeMenu.SetMenu(this, appMenu);
     }
 
     // ── Backend initialisation ────────────────────────────────────────────────
@@ -207,10 +267,20 @@ public partial class App : Application
             // Wire RGB output to serial port write
             if (_serial?.Port != null && _rgb != null)
             {
+                // Initialize RGB knob positions — default to 1.0 (full brightness LEDs)
+                // The batch frame from the device will update these to actual hardware positions.
+                for (int i = 0; i < 5; i++)
+                    _rgb.SetKnobPosition(i, 1f);
+
+                _rgb.SetBrightness(_config.LedBrightness);
+
                 var port = _serial.Port;
                 _rgb.SetOutput(
                     (bytes, offset, count) => { try { port.Write(bytes, offset, count); } catch { } },
                     () => port.IsOpen);
+
+                // Immediate one-shot render so LEDs light up right away
+                _rgb.ApplyColors(_config.Lights);
             }
 
             Dispatcher.UIThread.Post(() =>
@@ -242,6 +312,22 @@ public partial class App : Application
         KnobPositions[ev.Idx] = vol;
 
         _rgb?.SetKnobPosition(ev.Idx, vol);
+
+        // Route ANY knob to radial wheel when wheel is open
+        if (_wheelVisible && _radialWheel != null)
+        {
+            int delta = ev.Value - _lastKnobRaw[ev.Idx];
+            if (Math.Abs(delta) >= 50)
+            {
+                _lastKnobRaw[ev.Idx] = ev.Value;
+                int totalSlots = _radialWheel.GetTotalSlots();
+                int step = delta > 0 ? 1 : -1;
+                int next = ((_radialWheel.GetSelectedIndex() + step) % totalSlots + totalSlots) % totalSlots;
+                Dispatcher.UIThread.Post(() => _radialWheel?.Highlight(next));
+            }
+            return; // don't also adjust audio volume while wheel is open
+        }
+        _lastKnobRaw[ev.Idx] = ev.Value;
 
         // Update mixer UI
         Dispatcher.UIThread.Post(() => _mainWindow?.UpdateKnobPosition(ev.Idx, vol));
@@ -325,15 +411,40 @@ public partial class App : Application
         if (_gestureEngine == null) return;
 
         if (ev.IsDown)
+        {
             _gestureEngine.HandleDown(ev.Idx, _config);
+        }
         else
+        {
             _gestureEngine.HandleUp(ev.Idx, _config);
+
+            // If this button was holding the wheel open, close it on release
+            if (_quickWheelActiveButton == ev.Idx)
+            {
+                _quickWheelActiveButton = -1;
+                HandleQuickWheelClose(ev.Idx);
+            }
+        }
     }
 
     // ── Gesture actions ───────────────────────────────────────────────────────
 
     private void OnGestureAction(int buttonIdx, string gesture, string action, ButtonConfig btn)
     {
+        // Auto-trigger Quick Wheel on hold if this is a configured trigger button
+        if (gesture == "hold" && _config.Osd?.QuickWheels != null)
+        {
+            foreach (var qw in _config.Osd.QuickWheels)
+            {
+                if (qw.Enabled && buttonIdx == qw.TriggerButton)
+                {
+                    _quickWheelActiveButton = buttonIdx;
+                    HandleQuickWheelOpen(buttonIdx);
+                    return; // override the button's normal hold action
+                }
+            }
+        }
+
         switch (action)
         {
             case "media_play_pause":
@@ -379,6 +490,12 @@ public partial class App : Application
                 }
                 break;
 
+            case "quick_wheel":
+                // Fired by gesture engine — open the radial wheel
+                _quickWheelActiveButton = btn.Idx;
+                HandleQuickWheelOpen(btn.Idx);
+                break;
+
             default:
                 Logger.Log($"Unhandled button action: {action}");
                 break;
@@ -402,6 +519,75 @@ public partial class App : Application
             _osd.ShowProfileSwitch(profileName, _config.Osd);
     }
 
+    // ── Quick Wheel ──────────────────────────────────────────────────────────
+
+    private void HandleQuickWheelOpen(int buttonIdx)
+    {
+        // Find which wheel config matches this button
+        var wheelCfg = _config.Osd.QuickWheels.FirstOrDefault(w => w.Enabled && w.TriggerButton == buttonIdx);
+        if (wheelCfg == null) return;
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_wheelVisible) return;
+            _wheelVisible = true;
+            _activeWheelMode = wheelCfg.Mode;
+
+            // Initialize last raw values so first delta is correct
+            for (int i = 0; i < 5; i++)
+                _lastKnobRaw[i] = (int)(KnobPositions[i] * 1023f);
+
+            _radialWheel = new RadialWheelOverlay();
+
+            if (_activeWheelMode == QuickWheelMode.OutputDevice)
+                PopulateWheelProfiles(); // Mac doesn't have device enumeration — fall back to profiles
+            else
+                PopulateWheelProfiles();
+
+            _radialWheel.OnSegmentClicked = idx => ConfirmWheelSelection(idx);
+            _radialWheel.Closed += (_, _) => { _wheelVisible = false; _radialWheel = null; };
+            _radialWheel.Show();
+        });
+    }
+
+    private void PopulateWheelProfiles()
+    {
+        if (_config.Profiles.Count < 2) { _wheelVisible = false; return; }
+        int currentIdx = _config.Profiles.IndexOf(_config.ActiveProfile);
+        if (currentIdx < 0) currentIdx = 0;
+        _radialWheel!.SetProfiles(new List<string>(_config.Profiles), currentIdx, _config.ProfileIcons);
+    }
+
+    private void ConfirmWheelSelection(int idx)
+    {
+        _wheelVisible = false;
+        _radialWheel = null;
+
+        // On Mac, only profile mode is supported (no WASAPI device enumeration)
+        if (idx >= 0 && idx < _config.Profiles.Count)
+        {
+            var profileName = _config.Profiles[idx];
+            if (profileName != _config.ActiveProfile)
+                HandleProfileSwitch(profileName);
+        }
+    }
+
+    private void HandleQuickWheelClose(int buttonIdx)
+    {
+        if (!_wheelVisible || _radialWheel == null) return;
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_radialWheel == null || !_wheelVisible) return;
+            int idx = _radialWheel.GetSelectedIndex();
+            var wheel = _radialWheel;
+            wheel.OnSegmentClicked = null;
+            _wheelVisible = false;
+            _radialWheel = null;
+            wheel.Dismiss();
+            ConfirmWheelSelection(idx);
+        });
+    }
+
     // ── DreamView zone colors → AmbienceView live preview ─────────────────────
 
     private void OnDreamZoneColors((byte R, byte G, byte B)[] zones)
@@ -419,7 +605,11 @@ public partial class App : Application
         _dreamSync?.Dispose();
         _ambienceSync?.Dispose();
         _ha?.Dispose();
-        Dispatcher.UIThread.Post(() => _osd?.Close());
+        Dispatcher.UIThread.Post(() =>
+        {
+            _radialWheel?.Close();
+            _osd?.Close();
+        });
     }
 }
 
