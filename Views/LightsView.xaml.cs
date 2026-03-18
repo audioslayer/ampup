@@ -60,6 +60,10 @@ public partial class LightsView : UserControl
     private readonly Color[] _colors1 = new Color[5];
     private readonly Color[] _colors2 = new Color[5];
 
+    // Mode tabs
+    private Border? _perKnobTab;
+    private Border? _globalTab;
+
     // Global lighting controls
     private CheckBox? _globalEnableCheck;
     private EffectPickerControl? _globalEffectPicker;
@@ -596,28 +600,50 @@ public partial class LightsView : UserControl
     private void BuildGlobalCard()
     {
         var panel = GlobalLightCardPanel;
+        var accent = ((SolidColorBrush)FindResource("AccentBrush")).Color;
 
-        // Header row: checkbox + title
-        var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
-
-        var enableCheck = new CheckBox
+        // Mode toggle: segmented "Per Knob | Global" tab bar
+        var toggleBar = new Border
         {
-            VerticalContentAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 8, 0),
-            ToolTip = "Apply one effect to all 5 knobs simultaneously",
+            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(3),
+            Margin = new Thickness(0, 0, 0, 12),
+            HorizontalAlignment = HorizontalAlignment.Center,
         };
-        var headerLabel = new TextBlock
-        {
-            Text = "GLOBAL LIGHTING",
-            FontSize = 13,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = FindBrush("AccentBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        headerRow.Children.Add(enableCheck);
-        headerRow.Children.Add(headerLabel);
-        panel.Children.Add(headerRow);
 
+        var toggleRow = new StackPanel { Orientation = Orientation.Horizontal };
+
+        var perKnobTab = BuildModeTab("PER KNOB", true, accent);
+        var globalTab = BuildModeTab("GLOBAL", false, accent);
+        _perKnobTab = perKnobTab;
+        _globalTab = globalTab;
+
+        perKnobTab.MouseLeftButtonDown += (_, _) =>
+        {
+            if (_globalEnableCheck != null) _globalEnableCheck.IsChecked = false;
+            SetModeTabActive(perKnobTab, true, accent);
+            SetModeTabActive(globalTab, false, accent);
+            UpdateGlobalVisibility();
+            if (!_loading) QueueSave();
+        };
+        globalTab.MouseLeftButtonDown += (_, _) =>
+        {
+            if (_globalEnableCheck != null) _globalEnableCheck.IsChecked = true;
+            SetModeTabActive(globalTab, true, accent);
+            SetModeTabActive(perKnobTab, false, accent);
+            UpdateGlobalVisibility();
+            if (!_loading) QueueSave();
+        };
+
+        toggleRow.Children.Add(perKnobTab);
+        toggleRow.Children.Add(globalTab);
+        toggleBar.Child = toggleRow;
+        panel.Children.Add(toggleBar);
+
+        // Hidden checkbox to keep save/load working
+        var enableCheck = new CheckBox { Visibility = Visibility.Collapsed };
+        panel.Children.Add(enableCheck);
         _globalEnableCheck = enableCheck;
         enableCheck.Checked += (_, _) =>
         {
@@ -1001,6 +1027,14 @@ public partial class LightsView : UserControl
     private void UpdateGlobalVisibility()
     {
         bool enabled = _globalEnableCheck?.IsChecked ?? false;
+        var accent = ((SolidColorBrush)FindResource("AccentBrush")).Color;
+
+        // Sync tab visuals
+        if (_perKnobTab != null && _globalTab != null)
+        {
+            SetModeTabActive(_perKnobTab, !enabled, accent);
+            SetModeTabActive(_globalTab, enabled, accent);
+        }
 
         if (_globalSettingsPanel != null)
             _globalSettingsPanel.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
@@ -1014,6 +1048,47 @@ public partial class LightsView : UserControl
         // Update sub-controls based on current effect
         if (enabled && _globalEffectPicker != null)
             UpdateGlobalEffectVisibility(_globalEffectPicker.SelectedEffect);
+    }
+
+    private static Border BuildModeTab(string text, bool active, Color accent)
+    {
+        var tab = new Border
+        {
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(20, 7, 20, 7),
+            Cursor = Cursors.Hand,
+            MinWidth = 100,
+        };
+        tab.Child = new TextBlock
+        {
+            Text = text,
+            FontSize = 10,
+            FontWeight = FontWeights.Bold,
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        SetModeTabActive(tab, active, accent);
+        return tab;
+    }
+
+    private static void SetModeTabActive(Border tab, bool active, Color accent)
+    {
+        var label = tab.Child as TextBlock;
+        if (active)
+        {
+            tab.Background = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B));
+            tab.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, accent.R, accent.G, accent.B));
+            tab.BorderThickness = new Thickness(1);
+            if (label != null)
+                label.Foreground = new SolidColorBrush(accent);
+        }
+        else
+        {
+            tab.Background = Brushes.Transparent;
+            tab.BorderBrush = Brushes.Transparent;
+            tab.BorderThickness = new Thickness(1);
+            if (label != null)
+                label.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+        }
     }
 
     private void UpdateGlobalEffectVisibility(LightEffect effect)
