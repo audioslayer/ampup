@@ -76,11 +76,23 @@ public func ampup_create_tap(_ pid: pid_t) -> Bool {
 
     var tapID: AUAudioObjectID = 0
     let tapErr = AudioHardwareCreateProcessTap(tapDesc, &tapID)
-    if tapErr != noErr {
-        NSLog("AmpUp: AudioHardwareCreateProcessTap failed for pid \(pid) with error \(tapErr)")
-        return false
+
+    // Write debug to a file we can read
+    let debugPath = NSHomeDirectory() + "/Library/Application Support/AmpUp/swift-debug.log"
+    let msg = "[\(Date())] create_tap pid=\(pid) err=\(tapErr) (noErr=\(noErr))\n"
+    if let data = msg.data(using: .utf8) {
+        if FileManager.default.fileExists(atPath: debugPath) {
+            if let fh = FileHandle(forWritingAtPath: debugPath) {
+                fh.seekToEndOfFile()
+                fh.write(data)
+                fh.closeFile()
+            }
+        } else {
+            FileManager.default.createFile(atPath: debugPath, contents: data)
+        }
     }
-    NSLog("AmpUp: Tap created for pid \(pid), tapID=\(tapID)")
+
+    if tapErr != noErr { return false }
 
     // Build aggregate device with the tap as sub-device
     let aggDesc: [String: Any] = [
