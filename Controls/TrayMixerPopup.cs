@@ -139,6 +139,33 @@ public class TrayMixerPopup : Window
         // Divider
         root.Children.Add(MakeDivider());
 
+        // Update banner (shown when update available)
+        _updateBanner = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(30, 0xFF, 0xB8, 0x00)),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(8, 5, 8, 5),
+            Margin = new Thickness(6, 4, 6, 4),
+            Cursor = Cursors.Hand,
+            Visibility = Visibility.Collapsed,
+        };
+        _updateBanner.Child = new TextBlock
+        {
+            Text = "Update available — click to download",
+            Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xB8, 0x00)),
+            FontSize = 9.5, FontFamily = new FontFamily("Segoe UI"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        _updateBanner.MouseLeftButtonDown += (_, _) =>
+        {
+            Hide();
+            try { Process.Start(new ProcessStartInfo("https://github.com/audioslayer/ampup/releases/latest") { UseShellExecute = true }); } catch { }
+        };
+        _updateBanner.MouseEnter += (_, _) => _updateBanner.Background = new SolidColorBrush(Color.FromArgb(50, 0xFF, 0xB8, 0x00));
+        _updateBanner.MouseLeave += (_, _) => _updateBanner.Background = new SolidColorBrush(Color.FromArgb(30, 0xFF, 0xB8, 0x00));
+        DockPanel.SetDock(_updateBanner, Dock.Top);
+        root.Children.Add(_updateBanner);
+
         // Search / filter bar
         var searchBar = BuildSearchBar();
         DockPanel.SetDock(searchBar, Dock.Top);
@@ -166,16 +193,11 @@ public class TrayMixerPopup : Window
         DockPanel.SetDock(wrapper, Dock.Top);
         root.Children.Add(wrapper);
 
-        // Quick Assign panel (hidden by default, slides in above footer)
+        // Quick Assign panel (hidden by default)
         _quickAssignPanel = BuildQuickAssignPanel();
         _quickAssignPanel.Visibility = Visibility.Collapsed;
         DockPanel.SetDock(_quickAssignPanel, Dock.Top);
         root.Children.Add(_quickAssignPanel);
-
-        // Footer — Quick Assign button, Open, Exit
-        var footer = BuildFooter();
-        DockPanel.SetDock(footer, Dock.Top);
-        root.Children.Add(footer);
 
         return outer;
     }
@@ -1254,29 +1276,96 @@ public class TrayMixerPopup : Window
         {
             Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
             CornerRadius = new CornerRadius(10, 10, 0, 0),
-            Padding = new Thickness(12, 8, 12, 8),
+            Padding = new Thickness(12, 7, 8, 7),
             BorderBrush = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
             BorderThickness = new Thickness(0, 0, 0, 1),
         };
 
         var dock = new DockPanel { LastChildFill = false };
 
-        // Right: connection dot + port text
+        // ── Right side: Quick Assign + Close ──
+        // Close (X) button
+        var closeBtn = new Border
+        {
+            Width = 24, Height = 24, CornerRadius = new CornerRadius(4),
+            Background = Brushes.Transparent, Cursor = Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(4, 0, 0, 0),
+            Child = new MaterialIcon
+            {
+                Kind = MaterialIconKind.Close, Width = 14, Height = 14,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            }
+        };
+        closeBtn.MouseEnter += (_, _) =>
+        {
+            closeBtn.Background = new SolidColorBrush(Color.FromArgb(0x30, 0xFF, 0x44, 0x44));
+            ((MaterialIcon)closeBtn.Child).Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x44, 0x44));
+        };
+        closeBtn.MouseLeave += (_, _) =>
+        {
+            closeBtn.Background = Brushes.Transparent;
+            ((MaterialIcon)closeBtn.Child).Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+        };
+        closeBtn.MouseLeftButtonDown += (_, _) => { Hide(); _onExit?.Invoke(); };
+        DockPanel.SetDock(closeBtn, Dock.Right);
+        dock.Children.Add(closeBtn);
+
+        // Quick Assign button
+        var qaBtn = new Border
+        {
+            CornerRadius = new CornerRadius(4),
+            Background = new SolidColorBrush(Color.FromArgb(0x18, accent.R, accent.G, accent.B)),
+            Padding = new Thickness(6, 3, 6, 3),
+            Cursor = Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(4, 0, 0, 0),
+        };
+        var qaRow = new StackPanel { Orientation = Orientation.Horizontal };
+        qaRow.Children.Add(new MaterialIcon
+        {
+            Kind = MaterialIconKind.LightningBolt, Width = 12, Height = 12,
+            Foreground = new SolidColorBrush(accent),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 4, 0),
+        });
+        qaRow.Children.Add(new TextBlock
+        {
+            Text = "Assign", FontSize = 9, FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(accent),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        qaBtn.Child = qaRow;
+        qaBtn.MouseEnter += (_, _) => qaBtn.Background = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B));
+        qaBtn.MouseLeave += (_, _) =>
+        {
+            bool active = _quickAssignVisible;
+            qaBtn.Background = new SolidColorBrush(Color.FromArgb(active ? (byte)0x30 : (byte)0x18, accent.R, accent.G, accent.B));
+        };
+        qaBtn.MouseLeftButtonDown += (_, _) => ToggleQuickAssignPanel();
+        DockPanel.SetDock(qaBtn, Dock.Right);
+        dock.Children.Add(qaBtn);
+
+        // Connection status
         var statusRow = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(4, 0, 0, 0),
         };
         statusRow.Children.Add(_statusDot);
         statusRow.Children.Add(_statusText);
         DockPanel.SetDock(statusRow, Dock.Right);
         dock.Children.Add(statusRow);
 
-        // Left: icon + "AMP UP" label
+        // ── Left side: icon + "AMP UP" (clickable → open app) ──
         var brandRow = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             VerticalAlignment = VerticalAlignment.Center,
+            Cursor = Cursors.Hand,
         };
         try
         {
@@ -1298,6 +1387,7 @@ public class TrayMixerPopup : Window
             VerticalAlignment = VerticalAlignment.Center,
             FontFamily = new FontFamily("Segoe UI"),
         });
+        brandRow.MouseLeftButtonDown += (_, _) => { Hide(); _onOpen?.Invoke(); };
         DockPanel.SetDock(brandRow, Dock.Left);
         dock.Children.Add(brandRow);
 
