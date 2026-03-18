@@ -641,22 +641,14 @@ public class RgbController : IDisposable
         bool led1On = pos >= 0.5f;
         bool led2On = pos >= (5f / 6f);
 
-        // Gradient fill: color1 at bottom → color2 at top
+        // Simple fill: lit LEDs use color1, unlit LEDs are off
         bool[] leds = { led0On, led1On, led2On };
         for (int led = 0; led < 3; led++)
         {
             if (leds[led])
-            {
-                float t = led / 2f;
-                int r = Math.Clamp((int)(light.R + (light.R2 - light.R) * t), 0, 255);
-                int g = Math.Clamp((int)(light.G + (light.G2 - light.G) * t), 0, 255);
-                int b = Math.Clamp((int)(light.B + (light.B2 - light.B) * t), 0, 255);
-                SetColor(k, led, r, g, b);
-            }
+                SetColor(k, led, light.R, light.G, light.B);
             else
-            {
                 SetColor(k, led, 0, 0, 0);
-            }
         }
     }
 
