@@ -57,11 +57,15 @@ public partial class MainWindow : Window
         var accent = this.FindResource("AccentBrush") as ISolidColorBrush
                      ?? new SolidColorBrush(Color.Parse("#00E676"));
 
+        // Position near the profile button
+        var screenPos = ProfileButton.PointToScreen(new Point(ProfileButton.Bounds.Width + 8, 0));
+
         var popup = new Window
         {
             Width = 220,
             SizeToContent = SizeToContent.Height,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            WindowStartupLocation = WindowStartupLocation.Manual,
+            Position = new PixelPoint((int)screenPos.X, (int)screenPos.Y),
             SystemDecorations = SystemDecorations.None,
             Background = new SolidColorBrush(Color.Parse("#151515")),
             CanResize = false,
