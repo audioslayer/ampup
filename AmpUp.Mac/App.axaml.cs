@@ -113,6 +113,10 @@ public partial class App : Application
             // ── RGB controller ─────────────────────────────────────────────
             _rgb = new RgbController();
             Rgb = _rgb;
+            _rgb.SetGamma(_config.GammaR, _config.GammaG, _config.GammaB);
+            _rgb.SetBrightness(_config.LedBrightness);
+            _rgb.UpdateConfig(_config.Lights);
+            _rgb.UpdateGlobalConfig(_config.GlobalLight);
 
             // ── Govee LAN ambience sync ────────────────────────────────────
             _ambienceSync = new AmbienceSync(_config.Ambience);
@@ -183,6 +187,12 @@ public partial class App : Application
         if (cfg.HomeAssistant.Enabled)
             _ = _ha?.TestConnectionAsync();
         _audio?.UpdateConfig(cfg);
+
+        // Re-apply RGB config when lights/brightness/gamma change
+        _rgb?.SetGamma(cfg.GammaR, cfg.GammaG, cfg.GammaB);
+        _rgb?.SetBrightness(cfg.LedBrightness);
+        _rgb?.UpdateConfig(cfg.Lights);
+        _rgb?.UpdateGlobalConfig(cfg.GlobalLight);
     }
 
     // ── Serial events ─────────────────────────────────────────────────────────
