@@ -1324,19 +1324,46 @@ public class TrayMixerPopup : Window
 
     private UIElement BuildDeviceRow(string label, DataFlow flow)
     {
-        var accent2 = GetAccentColor();
+        var accent = GetAccentColor();
+
+        // Build device list + find current default
+        var devices = new List<MMDevice>();
+        string currentId = "";
+        string currentName = "No device";
+        int currentIdx = 0;
+        try
+        {
+            var role = flow == DataFlow.Capture ? Role.Communications : Role.Multimedia;
+            var enumerated = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
+            foreach (var d in enumerated) devices.Add(d);
+            using var def = _enumerator.GetDefaultAudioEndpoint(flow, role);
+            currentId = def.ID;
+            for (int i = 0; i < devices.Count; i++)
+            {
+                if (devices[i].ID == currentId)
+                {
+                    currentIdx = i;
+                    currentName = devices[i].FriendlyName;
+                    break;
+                }
+            }
+        }
+        catch { }
+
+        // Trim long names
+        if (currentName.Length > 40) currentName = currentName[..38] + "...";
+
         var row = new Border
         {
             Background = Brushes.Transparent,
-            Padding = new Thickness(10, 5, 10, 5),
+            Padding = new Thickness(10, 6, 10, 6),
             CornerRadius = new CornerRadius(4),
+            Cursor = Cursors.Hand,
         };
-        row.MouseEnter += (_, _) => row.Background = new SolidColorBrush(Color.FromArgb(12, accent2.R, accent2.G, accent2.B));
-        row.MouseLeave += (_, _) => row.Background = Brushes.Transparent;
 
         var dock = new DockPanel { LastChildFill = true };
 
-        // Label (OUTPUT / INPUT)
+        // Label (OUTPUT / INPUT) on left
         var typeLabel = new TextBlock
         {
             Text = label,
@@ -1350,54 +1377,56 @@ public class TrayMixerPopup : Window
         DockPanel.SetDock(typeLabel, Dock.Left);
         dock.Children.Add(typeLabel);
 
-        // Build device list + find current default
-        var devices = new List<MMDevice>();
-        string currentId = "";
-        try
+        // Cycle icon on right
+        var icon = flow == DataFlow.Render ? MaterialIconKind.Speaker : MaterialIconKind.Microphone;
+        var cycleIcon = new MaterialIcon
         {
-            var role = flow == DataFlow.Capture ? Role.Communications : Role.Multimedia;
-            var enumerated = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
-            foreach (var d in enumerated) devices.Add(d);
-            using var def = _enumerator.GetDefaultAudioEndpoint(flow, role);
-            currentId = def.ID;
-        }
-        catch { }
+            Kind = icon,
+            Width = 16, Height = 16,
+            Foreground = new SolidColorBrush(Color.FromArgb(0x88, accent.R, accent.G, accent.B)),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+        DockPanel.SetDock(cycleIcon, Dock.Right);
+        dock.Children.Add(cycleIcon);
 
-        // ComboBox styled to match the dark theme
-        var accent = GetAccentColor();
-        var combo = new ComboBox
+        // Device name in center
+        var nameText = new TextBlock
         {
+            Text = currentName,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
             FontSize = 11,
-            Height = 28,
-            VerticalContentAlignment = VerticalAlignment.Center,
-            Style = Application.Current.TryFindResource("HoverComboBox") as Style,
+            FontFamily = new FontFamily("Segoe UI"),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        dock.Children.Add(nameText);
+
+        row.Child = dock;
+
+        // Hover effects
+        row.MouseEnter += (_, _) =>
+        {
+            row.Background = new SolidColorBrush(Color.FromArgb(20, accent.R, accent.G, accent.B));
+            cycleIcon.Foreground = new SolidColorBrush(accent);
+        };
+        row.MouseLeave += (_, _) =>
+        {
+            row.Background = Brushes.Transparent;
+            cycleIcon.Foreground = new SolidColorBrush(Color.FromArgb(0x88, accent.R, accent.G, accent.B));
         };
 
-        int selectedIdx = 0;
-        for (int i = 0; i < devices.Count; i++)
+        // Click to cycle to next device
+        row.MouseLeftButtonDown += (_, _) =>
         {
-            var d = devices[i];
-            var name = d.FriendlyName.Length > 36 ? d.FriendlyName[..34] + "…" : d.FriendlyName;
-            combo.Items.Add(name);
-            if (d.ID == currentId) selectedIdx = i;
-        }
-
-        if (combo.Items.Count == 0)
-        {
-            combo.Items.Add("No devices found");
-            combo.IsEnabled = false;
-        }
-
-        combo.SelectedIndex = selectedIdx;
-
-        // Switch device on selection change
-        combo.SelectionChanged += (_, _) =>
-        {
-            int idx = combo.SelectedIndex;
-            if (idx < 0 || idx >= devices.Count) return;
+            if (devices.Count < 2) return;
+            int nextIdx = (currentIdx + 1) % devices.Count;
             try
             {
-                ButtonHandler.SetDefaultAudioDevice(devices[idx].ID);
+                ButtonHandler.SetDefaultAudioDevice(devices[nextIdx].ID);
+                nameText.Text = devices[nextIdx].FriendlyName;
+                if (nameText.Text.Length > 40) nameText.Text = nameText.Text[..38] + "...";
+                currentIdx = nextIdx;
             }
             catch (Exception ex)
             {
@@ -1405,8 +1434,6 @@ public class TrayMixerPopup : Window
             }
         };
 
-        dock.Children.Add(combo);
-        row.Child = dock;
         return row;
     }
 
