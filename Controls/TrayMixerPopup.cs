@@ -433,8 +433,6 @@ public class TrayMixerPopup : Window
             });
         }
 
-        // Re-apply current search filter
-        ApplySearchFilter();
     }
 
     private void PollVolumes(object? sender, EventArgs e)
