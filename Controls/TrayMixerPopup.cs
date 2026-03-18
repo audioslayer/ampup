@@ -2511,15 +2511,7 @@ public class TrayMixerPopup : Window
 
     private static Color GetAccentColor()
     {
-        try
-        {
-            var accent = ApplicationAccentColorManager.SystemAccent;
-            return Color.FromRgb(accent.R, accent.G, accent.B);
-        }
-        catch
-        {
-            return Color.FromRgb(0x00, 0xE6, 0x76); // fallback green
-        }
+        return ThemeManager.Accent;
     }
 
     private static Style BuildSliderStyle(Color accent)
