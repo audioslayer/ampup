@@ -681,29 +681,46 @@ public class MacAudioEngine : IDisposable
     {
         try
         {
+            // Strip spaces for fuzzy matching (e.g. "chrome" matches "Google Chrome")
+            var search = processName.Replace(" ", "");
             var procs = System.Diagnostics.Process.GetProcesses()
-                .Where(p => p.ProcessName.Contains(processName, StringComparison.OrdinalIgnoreCase))
+                .Where(p => p.ProcessName.Replace(" ", "").Contains(search, StringComparison.OrdinalIgnoreCase))
                 .ToList();
+
+            if (procs.Count == 0)
+            {
+                Logger.Log($"SetAppVolume: no process found matching '{processName}'");
+                return;
+            }
 
             foreach (var proc in procs)
             {
                 int pid = proc.Id;
-                // Create tap if we haven't yet
-                if (!_tappedProcesses.ContainsKey(processName))
+                string key = $"{processName}:{pid}";
+                // Create tap if we haven't yet for this pid
+                if (!_tappedProcesses.ContainsKey(key))
                 {
                     try
                     {
+                        Logger.Log($"Creating audio tap for '{proc.ProcessName}' (pid {pid})");
                         if (ampup_create_tap(pid))
-                            _tappedProcesses[processName] = true;
+                        {
+                            _tappedProcesses[key] = true;
+                            Logger.Log($"Tap created successfully for pid {pid}");
+                        }
                         else
+                        {
+                            Logger.Log($"Tap creation failed for pid {pid}");
                             continue;
+                        }
                     }
-                    catch (DllNotFoundException) { return; }
+                    catch (DllNotFoundException) { Logger.Log("libAmpUpAudio.dylib not found"); return; }
+                    catch (Exception ex) { Logger.Log($"Tap error: {ex.Message}"); continue; }
                 }
                 try { ampup_set_process_volume(pid, vol); } catch (DllNotFoundException) { return; }
             }
         }
-        catch { }
+        catch (Exception ex) { Logger.Log($"SetAppVolume error: {ex.Message}"); }
     }
 
     public virtual void ToggleMasterMute() { }
