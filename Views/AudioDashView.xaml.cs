@@ -7,6 +7,7 @@ using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using NAudio.CoreAudioApi;
+using AmpUp.Controls;
 
 namespace AmpUp.Views;
 
@@ -27,6 +28,9 @@ public partial class AudioDashView : UserControl
     private StackPanel? _expandedPanel;
     private string? _expandedProcess;
 
+    // Hardware widget
+    private readonly HardwareWidget _hardwareWidget;
+
     private record SessionRowControls(
         string ProcessName,
         AudioSessionControl Session,
@@ -38,6 +42,12 @@ public partial class AudioDashView : UserControl
     public AudioDashView()
     {
         InitializeComponent();
+
+        _hardwareWidget = new HardwareWidget
+        {
+            Margin = new Thickness(0, 8, 0, 16),
+        };
+        HardwareWidgetHost.Children.Add(_hardwareWidget);
 
         _peakTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
         _peakTimer.Tick += OnPeakTick;
@@ -66,6 +76,7 @@ public partial class AudioDashView : UserControl
         _config = config;
         _mixer = mixer;
         _onSave = onSave;
+        _hardwareWidget.LoadConfig(config);
 
         if (IsVisible)
             RefreshAll();
