@@ -652,7 +652,7 @@ public class MacAudioEngine : IDisposable
         {
             if (target == "master")
             {
-                ampup_set_master_volume(vol);
+                try { ampup_set_master_volume(vol); } catch (DllNotFoundException) { }
                 return;
             }
 
@@ -691,12 +691,16 @@ public class MacAudioEngine : IDisposable
                 // Create tap if we haven't yet
                 if (!_tappedProcesses.ContainsKey(processName))
                 {
-                    if (ampup_create_tap(pid))
-                        _tappedProcesses[processName] = true;
-                    else
-                        continue;
+                    try
+                    {
+                        if (ampup_create_tap(pid))
+                            _tappedProcesses[processName] = true;
+                        else
+                            continue;
+                    }
+                    catch (DllNotFoundException) { return; }
                 }
-                ampup_set_process_volume(pid, vol);
+                try { ampup_set_process_volume(pid, vol); } catch (DllNotFoundException) { return; }
             }
         }
         catch { }
