@@ -1440,9 +1440,11 @@ public class TrayMixerPopup : Window
         }
         catch { }
 
-        // Trim long names
         if (currentName.Length > 40) currentName = currentName[..38] + "...";
 
+        var wrapper = new StackPanel();
+
+        // ── Main row (click to cycle through checked devices) ──
         var row = new Border
         {
             Background = Brushes.Transparent,
@@ -1453,78 +1455,191 @@ public class TrayMixerPopup : Window
 
         var dock = new DockPanel { LastChildFill = true };
 
-        // Label (OUTPUT / INPUT) on left
         var typeLabel = new TextBlock
         {
             Text = label,
             Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            FontSize = 9,
-            FontWeight = FontWeights.Bold,
+            FontSize = 9, FontWeight = FontWeights.Bold,
             FontFamily = new FontFamily("Segoe UI"),
-            Width = 48,
-            VerticalAlignment = VerticalAlignment.Center,
+            Width = 48, VerticalAlignment = VerticalAlignment.Center,
         };
         DockPanel.SetDock(typeLabel, Dock.Left);
         dock.Children.Add(typeLabel);
 
-        // Cycle icon on right
-        var icon = flow == DataFlow.Render ? MaterialIconKind.Speaker : MaterialIconKind.Microphone;
-        var cycleIcon = new MaterialIcon
+        // Dropdown arrow on right
+        var arrow = new MaterialIcon
         {
-            Kind = icon,
-            Width = 16, Height = 16,
-            Foreground = new SolidColorBrush(Color.FromArgb(0x88, accent.R, accent.G, accent.B)),
+            Kind = MaterialIconKind.ChevronDown,
+            Width = 14, Height = 14,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0),
+            Margin = new Thickness(4, 0, 0, 0),
         };
-        DockPanel.SetDock(cycleIcon, Dock.Right);
-        dock.Children.Add(cycleIcon);
+        DockPanel.SetDock(arrow, Dock.Right);
+        dock.Children.Add(arrow);
 
-        // Device name in center
+        // Device icon
+        var devIcon = new MaterialIcon
+        {
+            Kind = flow == DataFlow.Render ? MaterialIconKind.Speaker : MaterialIconKind.Microphone,
+            Width = 16, Height = 16,
+            Foreground = new SolidColorBrush(accent),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 6, 0),
+        };
+        DockPanel.SetDock(devIcon, Dock.Right);
+        dock.Children.Add(devIcon);
+
         var nameText = new TextBlock
         {
             Text = currentName,
             Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
-            FontSize = 11,
-            FontFamily = new FontFamily("Segoe UI"),
+            FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
         dock.Children.Add(nameText);
-
         row.Child = dock;
 
-        // Hover effects
+        // ── Dropdown panel (hidden by default) ──
+        var dropdown = new StackPanel
+        {
+            Visibility = Visibility.Collapsed,
+            Margin = new Thickness(48, 0, 0, 4),
+        };
+
+        // Get quick-swap set from config
+        var configKey = flow == DataFlow.Render ? "output" : "input";
+        var quickSwapIds = new HashSet<string>();
+        if (_config?.CycleDeviceSubset != null && _config.CycleDeviceSubset.TryGetValue(configKey, out var subset))
+            foreach (var id in subset) quickSwapIds.Add(id);
+
+        // If no subset configured, default all checked
+        if (quickSwapIds.Count == 0)
+            foreach (var d in devices) quickSwapIds.Add(d.ID);
+
+        for (int i = 0; i < devices.Count; i++)
+        {
+            int idx = i;
+            var dev = devices[i];
+            bool isDefault = dev.ID == currentId;
+            bool inSubset = quickSwapIds.Contains(dev.ID);
+
+            var devRow = new Border
+            {
+                Background = isDefault
+                    ? new SolidColorBrush(Color.FromArgb(0x15, accent.R, accent.G, accent.B))
+                    : Brushes.Transparent,
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(6, 4, 6, 4),
+                Cursor = Cursors.Hand,
+            };
+
+            var devDock = new DockPanel { LastChildFill = true };
+
+            // Checkbox for quick-swap inclusion
+            var cb = new CheckBox
+            {
+                IsChecked = inSubset,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 6, 0),
+                ToolTip = "Include in quick-swap cycle",
+            };
+            cb.Checked += (_, _) =>
+            {
+                quickSwapIds.Add(dev.ID);
+                SaveQuickSwapSubset(configKey, quickSwapIds);
+            };
+            cb.Unchecked += (_, _) =>
+            {
+                quickSwapIds.Remove(dev.ID);
+                if (quickSwapIds.Count == 0) { cb.IsChecked = true; return; } // must have at least 1
+                SaveQuickSwapSubset(configKey, quickSwapIds);
+            };
+            DockPanel.SetDock(cb, Dock.Left);
+            devDock.Children.Add(cb);
+
+            // Active indicator
+            if (isDefault)
+            {
+                var activeDot = new Border
+                {
+                    Width = 6, Height = 6, CornerRadius = new CornerRadius(3),
+                    Background = new SolidColorBrush(accent),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 6, 0),
+                };
+                DockPanel.SetDock(activeDot, Dock.Right);
+                devDock.Children.Add(activeDot);
+            }
+
+            var devName = new TextBlock
+            {
+                Text = dev.FriendlyName,
+                FontSize = 10.5,
+                Foreground = isDefault
+                    ? new SolidColorBrush(accent)
+                    : new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA)),
+                FontWeight = isDefault ? FontWeights.SemiBold : FontWeights.Normal,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            };
+            devDock.Children.Add(devName);
+            devRow.Child = devDock;
+
+            devRow.MouseEnter += (_, _) => devRow.Background = new SolidColorBrush(Color.FromArgb(0x20, accent.R, accent.G, accent.B));
+            devRow.MouseLeave += (_, _) => devRow.Background = isDefault
+                ? new SolidColorBrush(Color.FromArgb(0x15, accent.R, accent.G, accent.B))
+                : Brushes.Transparent;
+
+            // Click to switch to this device
+            devRow.MouseLeftButtonDown += (_, e) =>
+            {
+                e.Handled = true;
+                try
+                {
+                    ButtonHandler.SetDefaultAudioDevice(dev.ID);
+                    nameText.Text = dev.FriendlyName;
+                    if (nameText.Text.Length > 40) nameText.Text = nameText.Text[..38] + "...";
+                    currentIdx = idx;
+                    dropdown.Visibility = Visibility.Collapsed;
+                    arrow.Kind = MaterialIconKind.ChevronDown;
+                }
+                catch (Exception ex) { Logger.Log($"Device switch error: {ex.Message}"); }
+            };
+
+            dropdown.Children.Add(devRow);
+        }
+
+        wrapper.Children.Add(row);
+        wrapper.Children.Add(dropdown);
+
+        // Hover on main row
         row.MouseEnter += (_, _) =>
         {
             row.Background = new SolidColorBrush(Color.FromArgb(20, accent.R, accent.G, accent.B));
-            cycleIcon.Foreground = new SolidColorBrush(accent);
+            arrow.Foreground = new SolidColorBrush(accent);
         };
         row.MouseLeave += (_, _) =>
         {
             row.Background = Brushes.Transparent;
-            cycleIcon.Foreground = new SolidColorBrush(Color.FromArgb(0x88, accent.R, accent.G, accent.B));
+            arrow.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
         };
 
-        // Click to cycle to next device
+        // Click main row: if only quick-swap devices, cycle; otherwise toggle dropdown
         row.MouseLeftButtonDown += (_, _) =>
         {
-            if (devices.Count < 2) return;
-            int nextIdx = (currentIdx + 1) % devices.Count;
-            try
+            if (dropdown.Visibility == Visibility.Visible)
             {
-                ButtonHandler.SetDefaultAudioDevice(devices[nextIdx].ID);
-                nameText.Text = devices[nextIdx].FriendlyName;
-                if (nameText.Text.Length > 40) nameText.Text = nameText.Text[..38] + "...";
-                currentIdx = nextIdx;
+                dropdown.Visibility = Visibility.Collapsed;
+                arrow.Kind = MaterialIconKind.ChevronDown;
+                return;
             }
-            catch (Exception ex)
-            {
-                Logger.Log($"TrayMixerPopup device switch error: {ex.Message}");
-            }
+            dropdown.Visibility = Visibility.Visible;
+            arrow.Kind = MaterialIconKind.ChevronUp;
         };
 
-        return row;
+        return wrapper;
     }
 
     private UIElement BuildMasterRow(MMDevice device, float vol, bool muted)
@@ -2379,6 +2494,13 @@ public class TrayMixerPopup : Window
             Style = BuildSliderStyle(accentColor)
         };
         return slider;
+    }
+
+    private void SaveQuickSwapSubset(string key, HashSet<string> ids)
+    {
+        if (_config == null) return;
+        _config.CycleDeviceSubset[key] = new List<string>(ids);
+        _onSave?.Invoke(_config);
     }
 
     private static Color GetAccentColor()

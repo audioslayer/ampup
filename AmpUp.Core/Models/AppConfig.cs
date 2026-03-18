@@ -38,6 +38,7 @@ public class AppConfig
     public string LastWelcomeVersion { get; set; } = "";
     public List<string> HiddenTrayApps { get; set; } = new();
     public List<string> PinnedTrayApps { get; set; } = new();
+    public Dictionary<string, List<string>> CycleDeviceSubset { get; set; } = new();
     public bool AutoCheckUpdates { get; set; } = true;
 }
 
