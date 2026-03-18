@@ -88,12 +88,12 @@ public partial class HardwarePreviewStrip : UserControl
         {
             var canvas = _canvases[ci];
             var col = _cols[ci];
-            canvas.GetObservable(BoundsProperty).Subscribe(b =>
+            canvas.SizeChanged += (_, e) =>
             {
-                col.Width = b.Width;
-                col.Height = b.Height;
+                col.Width = e.NewSize.Width;
+                col.Height = e.NewSize.Height;
                 col.InvalidateVisual();
-            });
+            };
         }
 
         ApplyLabels();
@@ -267,7 +267,7 @@ public partial class HardwarePreviewStrip : UserControl
                     new SolidColorBrush(Color.Parse("#777777")));
                 ft.MaxTextWidth = w - 4;
                 ft.MaxTextHeight = labelH + 2;
-                double tx = cx - ft.Bounds.Width / 2.0;
+                double tx = cx - ft.Width / 2.0;
                 dc.DrawText(ft, new Point(Math.Max(2, tx), yLabel));
             }
         }
