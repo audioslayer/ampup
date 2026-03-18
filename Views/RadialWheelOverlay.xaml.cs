@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
+using Path = System.Windows.Shapes.Path;
 using Material.Icons;
 using Material.Icons.WPF;
 

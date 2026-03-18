@@ -1078,6 +1078,7 @@ public class TrayMixerPopup : Window
 
     private UIElement BuildFooter()
     {
+        var accent = GetAccentColor();
         var footer = new StackPanel
         {
             Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
@@ -1204,8 +1205,8 @@ public class TrayMixerPopup : Window
         btn.MouseLeave += (_, _) =>
         {
             bool active = _quickAssignVisible;
-            btn.Background = new SolidColorBrush(Color.FromArgb(active ? 0x35 : 0x20, accent.R, accent.G, accent.B));
-            btn.BorderBrush = new SolidColorBrush(Color.FromArgb(active ? 0xFF : 0x50, accent.R, accent.G, accent.B));
+            btn.Background = new SolidColorBrush(Color.FromArgb(active ? (byte)0x35 : (byte)0x20, accent.R, accent.G, accent.B));
+            btn.BorderBrush = new SolidColorBrush(Color.FromArgb(active ? (byte)0xFF : (byte)0x50, accent.R, accent.G, accent.B));
         };
 
         btn.MouseLeftButtonDown += (_, _) => ToggleQuickAssignPanel();
