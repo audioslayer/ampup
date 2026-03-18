@@ -136,7 +136,7 @@ public func ampup_set_process_volume(_ pid: pid_t, _ volume: Float32) {
     // Apply volume to aggregate device output
     var vol = state.muted ? Float32(0.0) : state.volume
     var volAddr = AudioObjectPropertyAddress(
-        mSelector: kAudioHardwareServiceDeviceProperty_VirtualMasterVolume,
+        mSelector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
         mScope: kAudioDevicePropertyScopeOutput,
         mElement: kAudioObjectPropertyElementMain
     )
@@ -173,7 +173,7 @@ public func ampup_set_process_mute(_ pid: pid_t, _ muted: Bool) {
 
     var vol = muted ? Float32(0.0) : state.volume
     var volAddr = AudioObjectPropertyAddress(
-        mSelector: kAudioHardwareServiceDeviceProperty_VirtualMasterVolume,
+        mSelector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
         mScope: kAudioDevicePropertyScopeOutput,
         mElement: kAudioObjectPropertyElementMain
     )
@@ -198,7 +198,7 @@ public func ampup_get_master_volume() -> Float32 {
     var vol = Float32(0.0)
     var volSize = UInt32(MemoryLayout<Float32>.size)
     var volAddr = AudioObjectPropertyAddress(
-        mSelector: kAudioHardwareServiceDeviceProperty_VirtualMasterVolume,
+        mSelector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
         mScope: kAudioDevicePropertyScopeOutput,
         mElement: kAudioObjectPropertyElementMain
     )
@@ -221,7 +221,7 @@ public func ampup_set_master_volume(_ volume: Float32) {
     var vol = max(0.0, min(1.0, volume))
     var volSize = UInt32(MemoryLayout<Float32>.size)
     var volAddr = AudioObjectPropertyAddress(
-        mSelector: kAudioHardwareServiceDeviceProperty_VirtualMasterVolume,
+        mSelector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
         mScope: kAudioDevicePropertyScopeOutput,
         mElement: kAudioObjectPropertyElementMain
     )
