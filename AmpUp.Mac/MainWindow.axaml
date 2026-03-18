@@ -7,15 +7,16 @@
         MinWidth="900" MinHeight="600"
         WindowStartupLocation="CenterScreen"
         ExtendClientAreaToDecorationsHint="True"
-        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaChromeHints="PreferSystemChrome"
         ExtendClientAreaTitleBarHeightHint="48"
         Background="{DynamicResource BgBaseBrush}">
 
     <Grid RowDefinitions="48,*">
 
-        <!-- ══ Header Bar ══ -->
+        <!-- ══ Header Bar (draggable) ══ -->
         <Grid Grid.Row="0" Background="{DynamicResource BgBaseBrush}"
-              ColumnDefinitions="Auto,*,Auto">
+              ColumnDefinitions="Auto,*,Auto"
+              x:Name="HeaderBar">
 
             <!-- Branding -->
             <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="80,0,0,0" VerticalAlignment="Center">

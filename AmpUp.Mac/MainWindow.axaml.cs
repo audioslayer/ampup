@@ -34,6 +34,13 @@ public partial class MainWindow : Window
         InitializeComponent();
         NavigateTo(_mixerView, NavMixer);
 
+        // Make header bar draggable
+        HeaderBar.PointerPressed += (_, e) =>
+        {
+            if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+                BeginMoveDrag(e);
+        };
+
         // Keyboard shortcuts: Cmd+1..7 for tabs
         KeyDown += OnWindowKeyDown;
     }
