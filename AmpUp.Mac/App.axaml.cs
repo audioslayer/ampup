@@ -767,49 +767,45 @@ public class MacAudioEngine : IDisposable
                 }
             }
 
-            // Find the main process (not helper processes)
+            // If already tapped, just set volume
+            if (_tappedProcesses.ContainsKey(processName) && _tappedPids.TryGetValue(processName, out var cachedPid))
+            {
+                try { ampup_set_process_volume(cachedPid, vol); } catch (DllNotFoundException) { }
+                return;
+            }
+
+            // Find ALL matching processes — try each until one taps successfully
+            // On macOS, audio often comes from helper processes, not the main app
             var search = processName.Replace(" ", "");
             var procs = System.Diagnostics.Process.GetProcesses()
                 .Where(p => p.ProcessName.Replace(" ", "").Contains(search, StringComparison.OrdinalIgnoreCase)
-                    && !p.ProcessName.Contains("Helper", StringComparison.OrdinalIgnoreCase)
                     && !p.ProcessName.Contains("crashpad", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(p => p.ProcessName.Contains("Helper", StringComparison.OrdinalIgnoreCase) ? 0 : 1) // try main first, then helpers
                 .ToList();
-
-            if (procs.Count == 0)
-            {
-                // Fallback: try any matching process
-                procs = System.Diagnostics.Process.GetProcesses()
-                    .Where(p => p.ProcessName.Replace(" ", "").Contains(search, StringComparison.OrdinalIgnoreCase))
-                    .Take(1).ToList();
-            }
 
             if (procs.Count == 0) return;
 
-            // Only try the main process
-            var proc = procs[0];
-            int pid = proc.Id;
-
-            if (!_tappedProcesses.ContainsKey(processName))
+            foreach (var proc in procs)
             {
+                int pid = proc.Id;
                 try
                 {
-                    Logger.Log($"Creating audio tap for '{proc.ProcessName}' (pid {pid})");
+                    Logger.Log($"Trying audio tap for '{proc.ProcessName}' (pid {pid})");
                     if (ampup_create_tap(pid))
                     {
                         _tappedProcesses[processName] = true;
                         _tappedPids[processName] = pid;
-                        Logger.Log($"Tap created successfully for pid {pid}");
-                    }
-                    else
-                    {
-                        Logger.Log($"Tap creation failed for pid {pid}");
-                        return;
+                        Logger.Log($"Tap created successfully for '{proc.ProcessName}' pid {pid}");
+                        ampup_set_process_volume(pid, vol);
+                        return; // success — stop trying other processes
                     }
                 }
                 catch (DllNotFoundException) { return; }
-                catch (Exception ex) { Logger.Log($"Tap error: {ex.Message}"); return; }
+                catch { }
             }
-            try { ampup_set_process_volume(pid, vol); } catch (DllNotFoundException) { }
+            // All failed — mark as attempted so we don't spam on every knob turn
+            _tappedProcesses[processName] = false;
+            Logger.Log($"All tap attempts failed for '{processName}'");
         }
         catch (Exception ex) { Logger.Log($"SetAppVolume error: {ex.Message}"); }
     }
