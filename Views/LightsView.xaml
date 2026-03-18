@@ -3,15 +3,18 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel>
-            <!-- Presets Section (built in code-behind via BuildPresetsSection) -->
-            <Border x:Name="PresetsCard" Style="{StaticResource CardPanel}" Margin="0,0,0,12">
-                <StackPanel x:Name="PresetsPanel" />
+            <!-- Global Lighting Card (includes presets) -->
+            <Border x:Name="GlobalLightCard" Style="{StaticResource CardPanel}" Margin="0,0,0,12">
+                <StackPanel>
+                    <!-- Presets built in code-behind -->
+                    <StackPanel x:Name="PresetsPanel" />
+                    <!-- Global lighting controls built in code-behind -->
+                    <StackPanel x:Name="GlobalLightCardPanel" />
+                </StackPanel>
             </Border>
 
-            <!-- Global Lighting Card (built in code-behind via BuildGlobalCard) -->
-            <Border x:Name="GlobalLightCard" Style="{StaticResource CardPanel}" Margin="0,0,0,12">
-                <StackPanel x:Name="GlobalLightCardPanel" />
-            </Border>
+            <!-- Hidden — kept for code-behind references -->
+            <Border x:Name="PresetsCard" Visibility="Collapsed" />
 
             <!-- 5 LED Channel Cards -->
             <Grid x:Name="PerKnobGrid">
