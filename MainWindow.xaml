@@ -165,9 +165,9 @@
                                     <ColumnDefinition Width="3" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Border x:Name="NavSettingsBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
+                                <Border x:Name="NavSettingsBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
                                         Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
-                                        Visibility="Collapsed" Margin="-4,0,0,0" />
+                                        Visibility="Collapsed" Margin="0" />
                                 <StackPanel Grid.Column="1" HorizontalAlignment="Center">
                                     <TextBlock Text="&#xE8B8;" FontFamily="{StaticResource MaterialSymbols}"
                                                FontSize="22" Foreground="{StaticResource TextSecBrush}"
@@ -184,9 +184,9 @@
                                     <ColumnDefinition Width="3" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Border x:Name="NavBindingsBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
+                                <Border x:Name="NavBindingsBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
                                         Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
-                                        Visibility="Collapsed" Margin="-4,0,0,0" />
+                                        Visibility="Collapsed" Margin="0" />
                                 <StackPanel Grid.Column="1" HorizontalAlignment="Center">
                                     <TextBlock Text="&#xEF3E;" FontFamily="{StaticResource MaterialSymbols}"
                                                FontSize="22" Foreground="{StaticResource TextSecBrush}"
@@ -205,9 +205,9 @@
                                         <ColumnDefinition Width="3" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <Border x:Name="NavMixerBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
+                                    <Border x:Name="NavMixerBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
-                                            Visibility="Collapsed" Margin="-4,0,0,0" />
+                                            Visibility="Collapsed" Margin="0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
                                         <TextBlock Text="&#xE405;" FontFamily="{StaticResource MaterialSymbols}"
                                                    FontSize="22" Foreground="{DynamicResource AccentBrush}"
@@ -223,9 +223,9 @@
                                         <ColumnDefinition Width="3" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <Border x:Name="NavButtonsBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
+                                    <Border x:Name="NavButtonsBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
-                                            Visibility="Collapsed" Margin="-4,0,0,0" />
+                                            Visibility="Collapsed" Margin="0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
                                         <TextBlock Text="&#xF1C1;" FontFamily="{StaticResource MaterialSymbols}"
                                                    FontSize="22" Foreground="{StaticResource TextSecBrush}"
@@ -241,9 +241,9 @@
                                         <ColumnDefinition Width="3" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <Border x:Name="NavLightsBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
+                                    <Border x:Name="NavLightsBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
-                                            Visibility="Collapsed" Margin="-4,0,0,0" />
+                                            Visibility="Collapsed" Margin="0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
                                         <TextBlock Text="&#xE40A;" FontFamily="{StaticResource MaterialSymbols}"
                                                    FontSize="22" Foreground="{StaticResource TextSecBrush}"
@@ -259,9 +259,9 @@
                                         <ColumnDefinition Width="3" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <Border x:Name="NavAmbienceBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
+                                    <Border x:Name="NavAmbienceBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
-                                            Visibility="Collapsed" Margin="-4,0,0,0" />
+                                            Visibility="Collapsed" Margin="0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
                                         <TextBlock Text="&#xE0F0;" FontFamily="{StaticResource MaterialSymbols}"
                                                    FontSize="22" Foreground="{StaticResource TextSecBrush}"
@@ -278,9 +278,9 @@
                                         <ColumnDefinition Width="3" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <Border x:Name="NavOsdBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
+                                    <Border x:Name="NavOsdBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
-                                            Visibility="Collapsed" Margin="-4,0,0,0" />
+                                            Visibility="Collapsed" Margin="0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
                                         <TextBlock Text="&#xE9C9;" FontFamily="{StaticResource MaterialSymbols}"
                                                    FontSize="22" Foreground="{StaticResource TextSecBrush}"

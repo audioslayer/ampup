@@ -64,11 +64,13 @@ public partial class MixerView : UserControl
 
     // Audio Sessions section
     private bool _audioSessionsExpanded;
+    private bool _showHiddenSessions;
     private readonly DispatcherTimer _peakTimer;
     private readonly DispatcherTimer _sessionRefreshTimer;
     private readonly List<SessionRowCtrl> _sessionRows = new();
     private StackPanel? _sessionListPanel;
     private StackPanel? _expandedAssignPanel;
+    private TextBlock? _showHiddenLabel;
     private record SessionRowCtrl(string ProcessName, NAudio.CoreAudioApi.AudioSessionControl Session,
         Border PeakFill, TextBlock VolumeLabel, Border PeakTrack);
 
@@ -2223,17 +2225,34 @@ public partial class MixerView : UserControl
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
 
         AddColumnHeader(headerGrid, 1, "APPLICATION");
         AddColumnHeader(headerGrid, 2, "VOL", HorizontalAlignment.Right);
         AddColumnHeader(headerGrid, 3, "LEVEL", HorizontalAlignment.Left, new Thickness(8, 0, 0, 0));
         AddColumnHeader(headerGrid, 4, "KNOB", HorizontalAlignment.Left, new Thickness(4, 0, 0, 0));
-        AddColumnHeader(headerGrid, 5, "STATUS", HorizontalAlignment.Center);
 
         wrapper.Children.Add(headerGrid);
         wrapper.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)), Margin = new Thickness(0, 0, 0, 6) });
         wrapper.Children.Add(_sessionListPanel);
+
+        // Show Hidden toggle
+        var accent = ((SolidColorBrush)FindResource("AccentBrush")).Color;
+        _showHiddenLabel = new TextBlock
+        {
+            Text = "Show Hidden (0)", FontSize = 10,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Cursor = System.Windows.Input.Cursors.Hand,
+            Margin = new Thickness(0, 8, 0, 0),
+        };
+        _showHiddenLabel.MouseLeftButtonDown += (_, _) =>
+        {
+            _showHiddenSessions = !_showHiddenSessions;
+            _expandedAssignPanel = null; // allow refresh
+            RefreshSessionList();
+        };
+        _showHiddenLabel.MouseEnter += (_, _) => _showHiddenLabel.Foreground = new SolidColorBrush(accent);
+        _showHiddenLabel.MouseLeave += (_, _) => _showHiddenLabel.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+        wrapper.Children.Add(_showHiddenLabel);
 
         card.Child = wrapper;
         AudioSessionsContent.Children.Add(card);
@@ -2257,7 +2276,12 @@ public partial class MixerView : UserControl
     {
         if (_mixer == null || _sessionListPanel == null) return;
 
+        // Don't rebuild while user has assign panel open
+        if (_expandedAssignPanel != null) return;
+
+        var hidden = _config?.HiddenTrayApps ?? new();
         var sessions = _mixer.GetAllSessionsInfo()
+            .Where(s => _showHiddenSessions || !hidden.Any(h => h.Equals(s.ProcessName, StringComparison.OrdinalIgnoreCase)))
             .OrderByDescending(s => s.Peak > 0.01f ? 1 : 0)
             .ThenByDescending(s => s.Peak)
             .ThenBy(s => s.ProcessName)
@@ -2265,10 +2289,14 @@ public partial class MixerView : UserControl
 
         _sessionListPanel.Children.Clear();
         _sessionRows.Clear();
-        _expandedAssignPanel = null;
 
         foreach (var info in sessions)
             _sessionListPanel.Children.Add(BuildSessionRow(info));
+
+        // Update show hidden label
+        int hiddenCount = hidden.Count;
+        if (_showHiddenLabel != null)
+            _showHiddenLabel.Text = _showHiddenSessions ? "Hide Hidden" : $"Show Hidden ({hiddenCount})";
     }
 
     private void UpdateSessionPeaks()
@@ -2315,7 +2343,6 @@ public partial class MixerView : UserControl
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
 
         // Icon
         var iconEl = BuildSessionIcon(info.ProcessName, info.Pid, accent);
@@ -2368,19 +2395,6 @@ public partial class MixerView : UserControl
         var knobBadge = BuildSessionKnobBadge(info.ProcessName, accent);
         Grid.SetColumn(knobBadge, 4);
         grid.Children.Add(knobBadge);
-
-        // Status
-        string statusText = info.Muted ? "MUTED" : active ? "ACTIVE" : "SILENT";
-        Color statusColor = info.Muted ? Color.FromRgb(0xFF, 0x44, 0x44)
-            : active ? Color.FromRgb(0x00, 0xDD, 0x77) : Color.FromRgb(0x55, 0x55, 0x55);
-        var statusLabel = new TextBlock
-        {
-            Text = statusText, FontSize = 8, FontWeight = FontWeights.Bold,
-            Foreground = new SolidColorBrush(statusColor),
-            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-        };
-        Grid.SetColumn(statusLabel, 5);
-        grid.Children.Add(statusLabel);
 
         row.Child = grid;
 
@@ -2559,6 +2573,37 @@ public partial class MixerView : UserControl
             };
             pillRow.Children.Add(pill);
         }
+
+        // Hide pill
+        bool isHidden = _config.HiddenTrayApps.Any(h => h.Equals(processName, StringComparison.OrdinalIgnoreCase));
+        var hidePill = new Border
+        {
+            Background = Brushes.Transparent,
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44)),
+            BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(8, 0, 0, 0),
+            Cursor = System.Windows.Input.Cursors.Hand,
+            Child = new TextBlock
+            {
+                Text = isHidden ? "Unhide" : "Hide",
+                FontSize = 10,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
+            }
+        };
+        hidePill.MouseEnter += (_, _) => hidePill.Background = new SolidColorBrush(Color.FromArgb(0x15, 0xFF, 0xFF, 0xFF));
+        hidePill.MouseLeave += (_, _) => hidePill.Background = Brushes.Transparent;
+        hidePill.MouseLeftButtonDown += (_, ev) =>
+        {
+            ev.Handled = true;
+            if (isHidden)
+                _config.HiddenTrayApps.RemoveAll(h => h.Equals(processName, StringComparison.OrdinalIgnoreCase));
+            else if (!_config.HiddenTrayApps.Contains(processName))
+                _config.HiddenTrayApps.Add(processName);
+            _onSave?.Invoke(_config);
+            _expandedAssignPanel = null;
+            RefreshSessionList();
+        };
+        pillRow.Children.Add(hidePill);
 
         panel.Children.Add(pillRow);
     }
