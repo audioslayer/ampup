@@ -23,7 +23,7 @@ timeout /t 1 /nobreak >nul
 
 echo.
 echo [3/4] Building...
-dotnet build -c Debug
+dotnet build AmpUp.sln -c Debug --no-incremental
 if errorlevel 1 (
     echo ERROR: Build failed. Check errors above.
     pause
