@@ -1604,6 +1604,8 @@ public class TrayMixerPopup : Window
                     currentIdx = idx;
                     dropdown.Visibility = Visibility.Collapsed;
                     arrow.Kind = MaterialIconKind.ChevronDown;
+                    Dispatcher.BeginInvoke(new Action(RepositionOnScreen),
+                        System.Windows.Threading.DispatcherPriority.Loaded);
                 }
                 catch (Exception ex) { Logger.Log($"Device switch error: {ex.Message}"); }
             };
@@ -1626,17 +1628,21 @@ public class TrayMixerPopup : Window
             arrow.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
         };
 
-        // Click main row: if only quick-swap devices, cycle; otherwise toggle dropdown
+        // Click main row: toggle dropdown
         row.MouseLeftButtonDown += (_, _) =>
         {
             if (dropdown.Visibility == Visibility.Visible)
             {
                 dropdown.Visibility = Visibility.Collapsed;
                 arrow.Kind = MaterialIconKind.ChevronDown;
-                return;
             }
-            dropdown.Visibility = Visibility.Visible;
-            arrow.Kind = MaterialIconKind.ChevronUp;
+            else
+            {
+                dropdown.Visibility = Visibility.Visible;
+                arrow.Kind = MaterialIconKind.ChevronUp;
+            }
+            Dispatcher.BeginInvoke(new Action(RepositionOnScreen),
+                System.Windows.Threading.DispatcherPriority.Loaded);
         };
 
         return wrapper;
