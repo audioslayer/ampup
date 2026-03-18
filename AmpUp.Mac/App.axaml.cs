@@ -624,6 +624,19 @@ public partial class App : Application
 public class MacAudioEngine : IDisposable
 {
     private AppConfig _config;
+    private readonly Dictionary<string, bool> _tappedProcesses = new();
+
+    // P/Invoke declarations for the Swift dylib
+    [System.Runtime.InteropServices.DllImport("libAmpUpAudio")]
+    private static extern float ampup_get_master_volume();
+    [System.Runtime.InteropServices.DllImport("libAmpUpAudio")]
+    private static extern void ampup_set_master_volume(float volume);
+    [System.Runtime.InteropServices.DllImport("libAmpUpAudio")]
+    private static extern bool ampup_create_tap(int pid);
+    [System.Runtime.InteropServices.DllImport("libAmpUpAudio")]
+    private static extern void ampup_set_process_volume(int pid, float volume);
+    [System.Runtime.InteropServices.DllImport("libAmpUpAudio")]
+    private static extern void ampup_set_process_mute(int pid, bool muted);
 
     public MacAudioEngine(AppConfig config)
     {
@@ -632,11 +645,70 @@ public class MacAudioEngine : IDisposable
 
     public void UpdateConfig(AppConfig config) => _config = config;
 
-    public virtual void SetVolume(int knobIdx, float vol, KnobConfig knob) { }
+    public virtual void SetVolume(int knobIdx, float vol, KnobConfig knob)
+    {
+        var target = knob.Target ?? "none";
+        try
+        {
+            if (target == "master")
+            {
+                ampup_set_master_volume(vol);
+                return;
+            }
+
+            // Per-app targets: find matching process and set volume via tap
+            if (target == "apps")
+            {
+                foreach (var app in knob.Apps)
+                    SetAppVolume(app, vol);
+                return;
+            }
+
+            if (target is "none" or "mic" or "system" or "any" or "active_window" or "monitor"
+                or "output_device" or "input_device")
+                return; // not supported on Mac yet
+
+            // Direct process name target (e.g. "spotify", "discord")
+            SetAppVolume(target, vol);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"MacAudioEngine.SetVolume error: {ex.Message}");
+        }
+    }
+
+    private void SetAppVolume(string processName, float vol)
+    {
+        try
+        {
+            var procs = System.Diagnostics.Process.GetProcesses()
+                .Where(p => p.ProcessName.Contains(processName, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            foreach (var proc in procs)
+            {
+                int pid = proc.Id;
+                // Create tap if we haven't yet
+                if (!_tappedProcesses.ContainsKey(processName))
+                {
+                    if (ampup_create_tap(pid))
+                        _tappedProcesses[processName] = true;
+                    else
+                        continue;
+                }
+                ampup_set_process_volume(pid, vol);
+            }
+        }
+        catch { }
+    }
+
     public virtual void ToggleMasterMute() { }
     public virtual void ToggleMicMute() { }
 
-    public void Dispose() { }
+    public void Dispose()
+    {
+        _tappedProcesses.Clear();
+    }
 }
 
 // ── MacPlatformServices — media keys via osascript ───────────────────────────
