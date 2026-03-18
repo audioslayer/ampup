@@ -628,6 +628,7 @@ public class MacAudioEngine : IDisposable
 {
     private AppConfig _config;
     private readonly Dictionary<string, bool> _tappedProcesses = new();
+    private readonly Dictionary<string, int> _tappedPids = new();
 
     // P/Invoke declarations for the Swift dylib
     [System.Runtime.InteropServices.DllImport("libAmpUpAudio")]
@@ -684,44 +685,60 @@ public class MacAudioEngine : IDisposable
     {
         try
         {
-            // Strip spaces for fuzzy matching (e.g. "chrome" matches "Google Chrome")
+            // If we already have a successful tap for this process name, just set volume
+            if (_tappedProcesses.TryGetValue(processName, out var tapped) && tapped)
+            {
+                var existingPid = _tappedPids.GetValueOrDefault(processName, -1);
+                if (existingPid > 0)
+                {
+                    try { ampup_set_process_volume(existingPid, vol); } catch (DllNotFoundException) { }
+                    return;
+                }
+            }
+
+            // Find the main process (not helper processes)
             var search = processName.Replace(" ", "");
             var procs = System.Diagnostics.Process.GetProcesses()
-                .Where(p => p.ProcessName.Replace(" ", "").Contains(search, StringComparison.OrdinalIgnoreCase))
+                .Where(p => p.ProcessName.Replace(" ", "").Contains(search, StringComparison.OrdinalIgnoreCase)
+                    && !p.ProcessName.Contains("Helper", StringComparison.OrdinalIgnoreCase)
+                    && !p.ProcessName.Contains("crashpad", StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
             if (procs.Count == 0)
             {
-                Logger.Log($"SetAppVolume: no process found matching '{processName}'");
-                return;
+                // Fallback: try any matching process
+                procs = System.Diagnostics.Process.GetProcesses()
+                    .Where(p => p.ProcessName.Replace(" ", "").Contains(search, StringComparison.OrdinalIgnoreCase))
+                    .Take(1).ToList();
             }
 
-            foreach (var proc in procs)
+            if (procs.Count == 0) return;
+
+            // Only try the main process
+            var proc = procs[0];
+            int pid = proc.Id;
+
+            if (!_tappedProcesses.ContainsKey(processName))
             {
-                int pid = proc.Id;
-                string key = $"{processName}:{pid}";
-                // Create tap if we haven't yet for this pid
-                if (!_tappedProcesses.ContainsKey(key))
+                try
                 {
-                    try
+                    Logger.Log($"Creating audio tap for '{proc.ProcessName}' (pid {pid})");
+                    if (ampup_create_tap(pid))
                     {
-                        Logger.Log($"Creating audio tap for '{proc.ProcessName}' (pid {pid})");
-                        if (ampup_create_tap(pid))
-                        {
-                            _tappedProcesses[key] = true;
-                            Logger.Log($"Tap created successfully for pid {pid}");
-                        }
-                        else
-                        {
-                            Logger.Log($"Tap creation failed for pid {pid}");
-                            continue;
-                        }
+                        _tappedProcesses[processName] = true;
+                        _tappedPids[processName] = pid;
+                        Logger.Log($"Tap created successfully for pid {pid}");
                     }
-                    catch (DllNotFoundException) { Logger.Log("libAmpUpAudio.dylib not found"); return; }
-                    catch (Exception ex) { Logger.Log($"Tap error: {ex.Message}"); continue; }
+                    else
+                    {
+                        Logger.Log($"Tap creation failed for pid {pid}");
+                        return;
+                    }
                 }
-                try { ampup_set_process_volume(pid, vol); } catch (DllNotFoundException) { return; }
+                catch (DllNotFoundException) { return; }
+                catch (Exception ex) { Logger.Log($"Tap error: {ex.Message}"); return; }
             }
+            try { ampup_set_process_volume(pid, vol); } catch (DllNotFoundException) { }
         }
         catch (Exception ex) { Logger.Log($"SetAppVolume error: {ex.Message}"); }
     }
