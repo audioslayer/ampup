@@ -25,6 +25,10 @@ public partial class MainWindow : Window
     private Border? _activeNavBar;
     private TextBlock? _activeNavLabel;
 
+    private AppConfig? _config;
+    private Action<AppConfig>? _onSave;
+    public Action<string>? OnProfileSwitch;
+
     // Map nav buttons to (bar, label) by name
     private readonly record struct NavInfo(Border Bar, TextBlock Label);
 
@@ -40,8 +44,105 @@ public partial class MainWindow : Window
                 BeginMoveDrag(e);
         };
 
+        // Profile button click → show profile picker
+        ProfileButton.PointerPressed += (_, _) => ShowProfilePopup();
+
         // Keyboard shortcuts: Cmd+1..7 for tabs
         KeyDown += OnWindowKeyDown;
+    }
+
+    private void ShowProfilePopup()
+    {
+        if (_config == null) return;
+        var accent = this.FindResource("AccentBrush") as ISolidColorBrush
+                     ?? new SolidColorBrush(Color.Parse("#00E676"));
+
+        var popup = new Window
+        {
+            Width = 220,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            SystemDecorations = SystemDecorations.None,
+            Background = new SolidColorBrush(Color.Parse("#151515")),
+            CanResize = false,
+            ShowInTaskbar = false,
+        };
+
+        var panel = new StackPanel { Margin = new Thickness(8) };
+
+        // Header
+        panel.Children.Add(new TextBlock
+        {
+            Text = "SWITCH PROFILE",
+            FontSize = 9, FontWeight = FontWeight.Bold,
+            Foreground = new SolidColorBrush(Color.Parse("#555555")),
+            Margin = new Thickness(8, 4, 0, 8),
+        });
+
+        foreach (var profileName in _config.Profiles)
+        {
+            var name = profileName;
+            bool isActive = name == _config.ActiveProfile;
+
+            var row = new Border
+            {
+                Background = isActive
+                    ? new SolidColorBrush(Color.FromArgb(30, accent.Color.R, accent.Color.G, accent.Color.B))
+                    : Brushes.Transparent,
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(12, 8, 12, 8),
+                Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
+            };
+
+            var rowContent = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal };
+            if (isActive)
+            {
+                rowContent.Children.Add(new TextBlock
+                {
+                    Text = "●",
+                    FontSize = 8,
+                    Foreground = accent,
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 8, 0),
+                });
+            }
+            rowContent.Children.Add(new TextBlock
+            {
+                Text = name,
+                FontSize = 12,
+                FontWeight = isActive ? FontWeight.SemiBold : FontWeight.Normal,
+                Foreground = isActive ? accent : new SolidColorBrush(Color.Parse("#CCCCCC")),
+            });
+
+            row.Child = rowContent;
+
+            row.PointerEntered += (_, _) => row.Background = new SolidColorBrush(Color.FromArgb(25, accent.Color.R, accent.Color.G, accent.Color.B));
+            row.PointerExited += (_, _) => row.Background = isActive
+                ? new SolidColorBrush(Color.FromArgb(30, accent.Color.R, accent.Color.G, accent.Color.B))
+                : Brushes.Transparent;
+
+            row.PointerPressed += (_, _) =>
+            {
+                popup.Close();
+                if (name != _config.ActiveProfile)
+                    OnProfileSwitch?.Invoke(name);
+            };
+
+            panel.Children.Add(row);
+        }
+
+        var border = new Border
+        {
+            Background = new SolidColorBrush(Color.Parse("#151515")),
+            BorderBrush = new SolidColorBrush(Color.Parse("#2A2A2A")),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Child = panel,
+        };
+        popup.Content = border;
+
+        popup.Deactivated += (_, _) => popup.Close();
+        popup.ShowDialog(this);
     }
 
     // ── Called by App after backend is ready ─────────────────────
@@ -52,6 +153,8 @@ public partial class MainWindow : Window
         AmbienceSync? ambienceSync,
         DreamSyncController? dreamSync)
     {
+        _config = config;
+        _onSave = onSave;
         _mixerView.LoadConfig(config, onSave);
         _buttonsView.LoadConfig(config, onSave);
         _lightsView.LoadConfig(config, onSave);

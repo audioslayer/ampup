@@ -236,7 +236,10 @@ public partial class App : Application
         };
 
         Dispatcher.UIThread.Post(() =>
-            _mainWindow.SetViewDependencies(_config, save, _ambienceSync, _dreamSync));
+        {
+            _mainWindow.SetViewDependencies(_config, save, _ambienceSync, _dreamSync);
+            _mainWindow.OnProfileSwitch = HandleProfileSwitch;
+        });
     }
 
     private void OnConfigSaved(AppConfig cfg)
