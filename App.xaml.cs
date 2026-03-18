@@ -855,8 +855,10 @@ public partial class App : Application
 
     private void HandleButton(ButtonEvent e)
     {
-        // Ignore button events in the first second after connection
-        if ((DateTime.UtcNow - _connectedAt).TotalMilliseconds < 1000)
+        // Ignore button events during startup (5s) and reconnection (2s) to prevent phantom actions
+        if (Environment.TickCount64 - _startupTick < 5000)
+            return;
+        if ((DateTime.UtcNow - _connectedAt).TotalMilliseconds < 2000)
             return;
 
         if (e.IsDown)
