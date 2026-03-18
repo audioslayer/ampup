@@ -821,9 +821,9 @@ public class TrayMixerPopup : Window
 
             var btn = new Border
             {
-                Width = 26, Height = 26,
-                CornerRadius = new CornerRadius(13),
-                Margin = new Thickness(0, 0, 4, 0),
+                Width = 22, Height = 22,
+                CornerRadius = new CornerRadius(11),
+                Margin = new Thickness(0, 0, 3, 0),
                 Cursor = Cursors.Hand,
                 ToolTip = isCurrent ? $"Unassign {knobLbl}" : $"Assign to {knobLbl}",
             };
@@ -847,7 +847,7 @@ public class TrayMixerPopup : Window
                 Foreground = isCurrent
                     ? new SolidColorBrush(accent)
                     : new SolidColorBrush(Color.FromRgb(0x99, 0x99, 0x99)),
-                FontSize = 11,
+                FontSize = 10,
                 FontWeight = isCurrent ? FontWeights.Bold : FontWeights.Medium,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
