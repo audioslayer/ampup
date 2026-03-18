@@ -82,6 +82,26 @@
                 </StackPanel>
             </Border>
 
+            <!-- ── AUDIO SESSIONS (collapsible) ──────────────────── -->
+            <Border x:Name="AudioSessionsSection" Margin="0,12,0,0">
+                <StackPanel>
+                    <Border x:Name="AudioSessionsHeader" Cursor="Hand"
+                            Background="Transparent" Padding="0,0,0,0"
+                            MouseLeftButtonDown="AudioSessionsHeader_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
+                            <TextBlock Text="AUDIO SESSIONS" Style="{StaticResource HeaderText}" Margin="0"
+                                       VerticalAlignment="Center" />
+                            <TextBlock x:Name="AudioSessionsArrow" Text="▶" FontSize="9"
+                                       Foreground="{DynamicResource AccentBrush}"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel x:Name="AudioSessionsContent" Visibility="Collapsed" Margin="0,12,0,0" />
+                </StackPanel>
+            </Border>
+
         </StackPanel>
     </ScrollViewer>
 </UserControl>

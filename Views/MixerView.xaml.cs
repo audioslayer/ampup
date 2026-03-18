@@ -62,6 +62,16 @@ public partial class MixerView : UserControl
     // Suggestion banner
     private Border? _suggestionBanner;
 
+    // Audio Sessions section
+    private bool _audioSessionsExpanded;
+    private readonly DispatcherTimer _peakTimer;
+    private readonly DispatcherTimer _sessionRefreshTimer;
+    private readonly List<SessionRowCtrl> _sessionRows = new();
+    private StackPanel? _sessionListPanel;
+    private StackPanel? _expandedAssignPanel;
+    private record SessionRowCtrl(string ProcessName, NAudio.CoreAudioApi.AudioSessionControl Session,
+        Border PeakFill, TextBlock VolumeLabel, Border PeakTrack);
+
     // Smart Mix (ducking + auto-profile) controls — built in code-behind
     private bool _smartMixExpanded = false;
     private CheckBox? _chkDuckingEnabled;
@@ -111,8 +121,14 @@ public partial class MixerView : UserControl
         _liveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
         _liveTimer.Tick += LiveTimer_Tick;
 
+        _peakTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+        _peakTimer.Tick += (_, _) => UpdateSessionPeaks();
+
+        _sessionRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _sessionRefreshTimer.Tick += (_, _) => RefreshSessionList();
+
         Loaded += (_, _) => _liveTimer.Start();
-        Unloaded += (_, _) => _liveTimer.Stop();
+        Unloaded += (_, _) => { _liveTimer.Stop(); _peakTimer.Stop(); _sessionRefreshTimer.Stop(); };
 
         ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshAccentColors);
 
@@ -2160,6 +2176,391 @@ public partial class MixerView : UserControl
         _smartMixExpanded = !_smartMixExpanded;
         SmartMixContent.Visibility = _smartMixExpanded ? Visibility.Visible : Visibility.Collapsed;
         SmartMixArrow.Text = _smartMixExpanded ? "▼" : "▶";
+    }
+
+    // ── Audio Sessions Section ──────────────────────────────────────
+
+    private void AudioSessionsHeader_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        _audioSessionsExpanded = !_audioSessionsExpanded;
+        AudioSessionsContent.Visibility = _audioSessionsExpanded ? Visibility.Visible : Visibility.Collapsed;
+        AudioSessionsArrow.Text = _audioSessionsExpanded ? "▼" : "▶";
+
+        if (_audioSessionsExpanded)
+        {
+            if (_sessionListPanel == null)
+                BuildSessionListPanel();
+            RefreshSessionList();
+            _peakTimer.Start();
+            _sessionRefreshTimer.Start();
+        }
+        else
+        {
+            _peakTimer.Stop();
+            _sessionRefreshTimer.Stop();
+        }
+    }
+
+    private void BuildSessionListPanel()
+    {
+        _sessionListPanel = new StackPanel();
+
+        var card = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(16, 12, 16, 12),
+        };
+
+        var wrapper = new StackPanel();
+
+        // Column headers
+        var headerGrid = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
+
+        AddColumnHeader(headerGrid, 1, "APPLICATION");
+        AddColumnHeader(headerGrid, 2, "VOL", HorizontalAlignment.Right);
+        AddColumnHeader(headerGrid, 3, "LEVEL", HorizontalAlignment.Left, new Thickness(8, 0, 0, 0));
+        AddColumnHeader(headerGrid, 4, "KNOB", HorizontalAlignment.Left, new Thickness(4, 0, 0, 0));
+        AddColumnHeader(headerGrid, 5, "STATUS", HorizontalAlignment.Center);
+
+        wrapper.Children.Add(headerGrid);
+        wrapper.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)), Margin = new Thickness(0, 0, 0, 6) });
+        wrapper.Children.Add(_sessionListPanel);
+
+        card.Child = wrapper;
+        AudioSessionsContent.Children.Add(card);
+    }
+
+    private static void AddColumnHeader(Grid grid, int col, string text,
+        HorizontalAlignment align = HorizontalAlignment.Left, Thickness? margin = null)
+    {
+        var tb = new TextBlock
+        {
+            Text = text, FontSize = 9, FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            HorizontalAlignment = align,
+        };
+        if (margin.HasValue) tb.Margin = margin.Value;
+        Grid.SetColumn(tb, col);
+        grid.Children.Add(tb);
+    }
+
+    private void RefreshSessionList()
+    {
+        if (_mixer == null || _sessionListPanel == null) return;
+
+        var sessions = _mixer.GetAllSessionsInfo()
+            .OrderByDescending(s => s.Peak > 0.01f ? 1 : 0)
+            .ThenByDescending(s => s.Peak)
+            .ThenBy(s => s.ProcessName)
+            .ToList();
+
+        _sessionListPanel.Children.Clear();
+        _sessionRows.Clear();
+        _expandedAssignPanel = null;
+
+        foreach (var info in sessions)
+            _sessionListPanel.Children.Add(BuildSessionRow(info));
+    }
+
+    private void UpdateSessionPeaks()
+    {
+        foreach (var row in _sessionRows)
+        {
+            try
+            {
+                float peak = row.Session.AudioMeterInformation.MasterPeakValue;
+                float vol = row.Session.SimpleAudioVolume.Volume;
+                row.VolumeLabel.Text = $"{(int)Math.Round(vol * 100)}%";
+
+                double trackWidth = row.PeakTrack.ActualWidth;
+                if (trackWidth <= 0) trackWidth = 120;
+                row.PeakFill.Width = Math.Clamp(peak * trackWidth, 0, trackWidth);
+
+                var accent = ((SolidColorBrush)FindResource("AccentBrush")).Color;
+                row.PeakFill.Background = peak > 0.02f
+                    ? new SolidColorBrush(accent)
+                    : new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
+            }
+            catch { }
+        }
+    }
+
+    private UIElement BuildSessionRow(AudioMixer.SessionInfo info)
+    {
+        var accent = ((SolidColorBrush)FindResource("AccentBrush")).Color;
+        bool active = info.Peak > 0.01f;
+
+        var row = new Border
+        {
+            Background = Brushes.Transparent,
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(4, 6, 4, 6),
+            Cursor = System.Windows.Input.Cursors.Hand,
+        };
+        row.MouseEnter += (_, _) => row.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+        row.MouseLeave += (_, _) => row.Background = Brushes.Transparent;
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
+
+        // Icon
+        var iconEl = BuildSessionIcon(info.ProcessName, info.Pid, accent);
+        Grid.SetColumn(iconEl, 0);
+        grid.Children.Add(iconEl);
+
+        // Name
+        var nameLabel = new TextBlock
+        {
+            Text = char.ToUpperInvariant(info.DisplayName[0]) + info.DisplayName[1..],
+            FontSize = 12,
+            FontWeight = active ? FontWeights.SemiBold : FontWeights.Normal,
+            Foreground = active ? (SolidColorBrush)FindResource("TextPrimaryBrush") : (SolidColorBrush)FindResource("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(4, 0, 8, 0),
+        };
+        Grid.SetColumn(nameLabel, 1);
+        grid.Children.Add(nameLabel);
+
+        // Volume %
+        var volLabel = new TextBlock
+        {
+            Text = $"{(int)Math.Round(info.Volume * 100)}%",
+            FontSize = 11, Foreground = (SolidColorBrush)FindResource("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        Grid.SetColumn(volLabel, 2);
+        grid.Children.Add(volLabel);
+
+        // Peak bar
+        var peakTrack = new Border
+        {
+            Height = 4, CornerRadius = new CornerRadius(2),
+            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0),
+        };
+        var peakFill = new Border
+        {
+            Height = 4, CornerRadius = new CornerRadius(2),
+            Background = active ? new SolidColorBrush(accent) : new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
+            Width = Math.Clamp(info.Peak * 104, 0, 104),
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        peakTrack.Child = peakFill;
+        Grid.SetColumn(peakTrack, 3);
+        grid.Children.Add(peakTrack);
+
+        // Knob badge
+        var knobBadge = BuildSessionKnobBadge(info.ProcessName, accent);
+        Grid.SetColumn(knobBadge, 4);
+        grid.Children.Add(knobBadge);
+
+        // Status
+        string statusText = info.Muted ? "MUTED" : active ? "ACTIVE" : "SILENT";
+        Color statusColor = info.Muted ? Color.FromRgb(0xFF, 0x44, 0x44)
+            : active ? Color.FromRgb(0x00, 0xDD, 0x77) : Color.FromRgb(0x55, 0x55, 0x55);
+        var statusLabel = new TextBlock
+        {
+            Text = statusText, FontSize = 8, FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(statusColor),
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(statusLabel, 5);
+        grid.Children.Add(statusLabel);
+
+        row.Child = grid;
+
+        // Inline assign pills
+        var assignPanel = new StackPanel { Visibility = Visibility.Collapsed };
+        BuildAssignPills(assignPanel, info.ProcessName);
+
+        var wrapper = new StackPanel();
+        wrapper.Children.Add(row);
+        wrapper.Children.Add(assignPanel);
+
+        row.MouseLeftButtonDown += (_, e) =>
+        {
+            e.Handled = true;
+            if (_expandedAssignPanel != null && _expandedAssignPanel != assignPanel)
+                _expandedAssignPanel.Visibility = Visibility.Collapsed;
+
+            if (assignPanel.Visibility == Visibility.Visible)
+            {
+                assignPanel.Visibility = Visibility.Collapsed;
+                _expandedAssignPanel = null;
+            }
+            else
+            {
+                assignPanel.Children.Clear();
+                BuildAssignPills(assignPanel, info.ProcessName);
+                assignPanel.Visibility = Visibility.Visible;
+                _expandedAssignPanel = assignPanel;
+            }
+        };
+
+        // Track for peak updates
+        var session = _mixer?.GetSessionForProcess(info.ProcessName);
+        if (session != null)
+            _sessionRows.Add(new SessionRowCtrl(info.ProcessName, session, peakFill, volLabel, peakTrack));
+
+        return wrapper;
+    }
+
+    private UIElement BuildSessionIcon(string processName, int pid, Color accent)
+    {
+        try
+        {
+            var proc = Process.GetProcessById(pid);
+            var exePath = proc.MainModule?.FileName;
+            if (!string.IsNullOrEmpty(exePath))
+            {
+                var sysIcon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
+                if (sysIcon != null)
+                {
+                    var bmpSrc = System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(
+                        sysIcon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                    bmpSrc.Freeze();
+                    sysIcon.Dispose();
+                    return new Border
+                    {
+                        Width = 28, Height = 28, CornerRadius = new CornerRadius(6),
+                        Background = new SolidColorBrush(Color.FromArgb(30, accent.R, accent.G, accent.B)),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Child = new Image { Source = bmpSrc, Width = 18, Height = 18,
+                            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
+                    };
+                }
+            }
+        }
+        catch { }
+
+        return new Border
+        {
+            Width = 28, Height = 28, CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(Color.FromArgb(50, accent.R, accent.G, accent.B)),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new TextBlock
+            {
+                Text = processName.Length > 0 ? char.ToUpperInvariant(processName[0]).ToString() : "?",
+                FontSize = 13, FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(accent),
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+            }
+        };
+    }
+
+    private UIElement BuildSessionKnobBadge(string processName, Color accent)
+    {
+        var knob = _config?.Knobs.FirstOrDefault(k =>
+            k.Target?.Equals(processName, StringComparison.OrdinalIgnoreCase) == true
+            || (k.Target == "apps" && k.Apps.Any(a => a.Equals(processName, StringComparison.OrdinalIgnoreCase))));
+
+        if (knob != null)
+        {
+            string label = !string.IsNullOrWhiteSpace(knob.Label) ? knob.Label : $"Knob {knob.Idx + 1}";
+            return new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(40, accent.R, accent.G, accent.B)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(100, accent.R, accent.G, accent.B)),
+                BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(6, 2, 6, 2), HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0),
+                Child = new TextBlock { Text = label, FontSize = 9, FontWeight = FontWeights.SemiBold,
+                    Foreground = new SolidColorBrush(accent) }
+            };
+        }
+
+        return new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
+            BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(6, 2, 6, 2), HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0),
+            Child = new TextBlock { Text = "Unassigned", FontSize = 9,
+                Foreground = (SolidColorBrush)FindResource("TextDimBrush") }
+        };
+    }
+
+    private void BuildAssignPills(StackPanel panel, string processName)
+    {
+        if (_config == null) return;
+        var accent = ((SolidColorBrush)FindResource("AccentBrush")).Color;
+
+        var pillRow = new WrapPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(40, 2, 8, 8),
+        };
+
+        pillRow.Children.Add(new TextBlock
+        {
+            Text = "ASSIGN TO", FontSize = 8, FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0),
+        });
+
+        for (int i = 0; i < 5; i++)
+        {
+            int knobIdx = i;
+            var knob = _config.Knobs.FirstOrDefault(k => k.Idx == knobIdx);
+            string knobLabel = knob != null && !string.IsNullOrWhiteSpace(knob.Label) ? knob.Label : $"Knob {knobIdx + 1}";
+
+            bool isCurrent = knob?.Target?.Equals(processName, StringComparison.OrdinalIgnoreCase) == true
+                || (knob?.Target == "apps" && knob.Apps.Any(a => a.Equals(processName, StringComparison.OrdinalIgnoreCase)));
+
+            var pill = new Border
+            {
+                Background = isCurrent ? new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B))
+                    : new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
+                BorderBrush = isCurrent ? new SolidColorBrush(Color.FromArgb(0x80, accent.R, accent.G, accent.B))
+                    : new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
+                BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 4, 0),
+                Cursor = System.Windows.Input.Cursors.Hand,
+                Child = new TextBlock
+                {
+                    Text = knobLabel, FontSize = 10,
+                    FontWeight = isCurrent ? FontWeights.SemiBold : FontWeights.Normal,
+                    Foreground = isCurrent ? new SolidColorBrush(accent) : new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA)),
+                }
+            };
+
+            bool captured = isCurrent;
+            pill.MouseEnter += (_, _) => { pill.Background = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B)); pill.BorderBrush = new SolidColorBrush(accent); };
+            pill.MouseLeave += (_, _) =>
+            {
+                pill.Background = captured ? new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B)) : new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
+                pill.BorderBrush = captured ? new SolidColorBrush(Color.FromArgb(0x80, accent.R, accent.G, accent.B)) : new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33));
+            };
+            pill.MouseLeftButtonDown += (_, ev) =>
+            {
+                ev.Handled = true;
+                var k = _config.Knobs.FirstOrDefault(x => x.Idx == knobIdx);
+                if (k == null) return;
+                if (captured) { k.Target = "none"; k.Apps.Clear(); }
+                else { k.Target = processName.ToLowerInvariant(); k.Apps.Clear(); }
+                _onSave?.Invoke(_config);
+                RefreshSessionList();
+            };
+            pillRow.Children.Add(pill);
+        }
+
+        panel.Children.Add(pillRow);
     }
 
     private sealed class SuggestedLayout

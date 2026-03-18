@@ -19,7 +19,6 @@ public partial class MainWindow : FluentWindow
     private readonly AmbienceView _ambienceView = new();
     private readonly BindingsView _bindingsView = new();
     private readonly OsdView _osdView = new();
-    private readonly AudioDashView _audioDashView = new();
 
     private System.Windows.Controls.Button? _activeNavButton;
     private System.Windows.Controls.Border? _activeNavBar;
@@ -199,8 +198,6 @@ public partial class MainWindow : FluentWindow
         _bindingsView.LoadConfig(_config);
         _osdView.OnRequestRefresh = () => RefreshViews();
         _osdView.LoadConfig(_config, saveHandler);
-        if (_mixer != null)
-            _audioDashView.LoadConfig(_config, _mixer, saveHandler);
 
         // Show/hide Ambience nav based on Govee enabled state
         bool goveeEnabled = _config.Ambience.GoveeEnabled || _config.Ambience.GoveeCloudEnabled;
@@ -239,7 +236,6 @@ public partial class MainWindow : FluentWindow
         NavigateTo(_ambienceView, NavAmbience);
     }
 
-    private void NavAudioDash_Click(object sender, RoutedEventArgs e) => NavigateTo(_audioDashView, NavAudioDash);
     private void NavSettings_Click(object sender, RoutedEventArgs e) => NavigateTo(_settingsView, NavSettings);
     private void NavBindings_Click(object sender, RoutedEventArgs e) => NavigateTo(_bindingsView, NavBindings);
     private void NavOsd_Click(object sender, RoutedEventArgs e) => NavigateTo(_osdView, NavOsd);
@@ -279,7 +275,6 @@ public partial class MainWindow : FluentWindow
         { NavLights,    NavLightsBar },
         { NavAmbience,  NavAmbienceBar },
         { NavOsd,       NavOsdBar },
-        { NavAudioDash, NavAudioDashBar },
         { NavSettings,  NavSettingsBar },
         { NavBindings,  NavBindingsBar },
     };
