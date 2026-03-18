@@ -1194,57 +1194,58 @@ public partial class App : Application
             if (lightsToCheck.Count == 0) return;
 
             if (_pollEnumerator == null) return;
-            // Reuse the cached master device if available; otherwise get a fresh one
-            NAudio.CoreAudioApi.MMDevice? device = null;
-            bool ownDevice = false;
-            if (_cachedMaster != null)
+
+            // Scan ALL active render devices — not just the default — so apps on
+            // secondary audio outputs (common with multi-monitor setups) are found.
+            var devices = new List<NAudio.CoreAudioApi.MMDevice>();
+            try
             {
-                device = _cachedMaster;
+                var allDevices = _pollEnumerator.EnumerateAudioEndPoints(
+                    NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.DeviceState.Active);
+                for (int d = 0; d < allDevices.Count; d++)
+                    devices.Add(allDevices[d]);
             }
-            else
-            {
-                try
-                {
-                    device = _pollEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
-                    ownDevice = true;
-                }
-                catch { return; }
-            }
+            catch { return; }
 
             try
             {
-                var sessions = device.AudioSessionManager.Sessions;
-
                 foreach (var light in lightsToCheck)
                 {
                     if (string.IsNullOrWhiteSpace(light.ProgramName)) continue;
                     bool muted = true; // default: muted/not-found
-                    try
+                    bool found = false;
+                    foreach (var device in devices)
                     {
-                        for (int s = 0; s < sessions.Count; s++)
+                        if (found) break;
+                        try
                         {
-                            var session = sessions[s];
-                            try
+                            var sessions = device.AudioSessionManager.Sessions;
+                            for (int s = 0; s < sessions.Count; s++)
                             {
-                                uint pid = session.GetProcessID;
-                                if (pid == 0) continue;
-                                var proc = System.Diagnostics.Process.GetProcessById((int)pid);
-                                if (proc.ProcessName.Contains(light.ProgramName, StringComparison.OrdinalIgnoreCase))
+                                var session = sessions[s];
+                                try
                                 {
-                                    muted = session.SimpleAudioVolume.Mute;
-                                    break;
+                                    uint pid = session.GetProcessID;
+                                    if (pid == 0) continue;
+                                    var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                                    if (proc.ProcessName.Contains(light.ProgramName, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        muted = session.SimpleAudioVolume.Mute;
+                                        found = true;
+                                        break;
+                                    }
                                 }
+                                catch { }
                             }
-                            catch { }
                         }
+                        catch { }
                     }
-                    catch { }
                     _rgb.SetProgramMuted(light.Idx, muted);
                 }
             }
             finally
             {
-                if (ownDevice) device?.Dispose();
+                foreach (var d in devices) d.Dispose();
             }
         }
         catch { }
@@ -1277,53 +1278,50 @@ public partial class App : Application
             if (knobsToCheck.Count == 0) return;
             if (_pollEnumerator == null) return;
 
-            NAudio.CoreAudioApi.MMDevice? device = null;
-            bool ownDevice = false;
-            if (_cachedMaster != null)
+            // Scan ALL active render devices (multi-output setups)
+            var devices = new List<NAudio.CoreAudioApi.MMDevice>();
+            try
             {
-                device = _cachedMaster;
+                var allDevices = _pollEnumerator.EnumerateAudioEndPoints(
+                    NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.DeviceState.Active);
+                for (int d = 0; d < allDevices.Count; d++)
+                    devices.Add(allDevices[d]);
             }
-            else
-            {
-                try
-                {
-                    device = _pollEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
-                    ownDevice = true;
-                }
-                catch { return; }
-            }
+            catch { return; }
 
             try
             {
-                var sessions = device.AudioSessionManager.Sessions;
-
                 foreach (var knob in knobsToCheck)
                 {
                     bool anyUnmuted = false;
                     bool anyFound = false;
-                    try
+                    foreach (var device in devices)
                     {
-                        for (int s = 0; s < sessions.Count; s++)
+                        try
                         {
-                            var session = sessions[s];
-                            try
+                            var sessions = device.AudioSessionManager.Sessions;
+                            for (int s = 0; s < sessions.Count; s++)
                             {
-                                uint pid = session.GetProcessID;
-                                if (pid == 0) continue;
-                                var proc = System.Diagnostics.Process.GetProcessById((int)pid);
-                                bool matchesGroup = knob.Apps!.Any(app =>
-                                    proc.ProcessName.Contains(app, StringComparison.OrdinalIgnoreCase));
-                                if (matchesGroup)
+                                var session = sessions[s];
+                                try
                                 {
-                                    anyFound = true;
-                                    if (!session.SimpleAudioVolume.Mute)
-                                        anyUnmuted = true;
+                                    uint pid = session.GetProcessID;
+                                    if (pid == 0) continue;
+                                    var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                                    bool matchesGroup = knob.Apps!.Any(app =>
+                                        proc.ProcessName.Contains(app, StringComparison.OrdinalIgnoreCase));
+                                    if (matchesGroup)
+                                    {
+                                        anyFound = true;
+                                        if (!session.SimpleAudioVolume.Mute)
+                                            anyUnmuted = true;
+                                    }
                                 }
+                                catch { }
                             }
-                            catch { }
                         }
+                        catch { }
                     }
-                    catch { }
                     // allMuted = true only when apps were found and none are unmuted
                     // if no apps found, default to false (show color1 / live appearance)
                     bool allMuted = anyFound && !anyUnmuted;
@@ -1332,7 +1330,7 @@ public partial class App : Application
             }
             finally
             {
-                if (ownDevice) device?.Dispose();
+                foreach (var d in devices) d.Dispose();
             }
         }
         catch { }
