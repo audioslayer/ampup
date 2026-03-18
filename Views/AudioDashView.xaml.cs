@@ -23,8 +23,9 @@ public partial class AudioDashView : UserControl
     // Live row controls — rebuilt on session list refresh
     private readonly List<SessionRowControls> _rowControls = new();
 
-    // Assign picker flyout
-    private Window? _assignFlyout;
+    // Inline assign panel — only one expanded at a time
+    private StackPanel? _expandedPanel;
+    private string? _expandedProcess;
 
     private record SessionRowControls(
         string ProcessName,
@@ -261,14 +262,22 @@ public partial class AudioDashView : UserControl
             ));
         }
 
-        // Click to open assign flyout
+        // Inline assign panel (hidden by default)
+        var assignPanel = BuildInlineAssignPanel(info.ProcessName);
+        assignPanel.Visibility = Visibility.Collapsed;
+
+        var wrapper = new StackPanel();
+        wrapper.Children.Add(row);
+        wrapper.Children.Add(assignPanel);
+
+        // Click to toggle inline assign panel
         row.MouseLeftButtonDown += (_, e) =>
         {
             e.Handled = true;
-            ShowAssignFlyout(info.ProcessName, row);
+            ToggleInlineAssign(info.ProcessName, assignPanel);
         };
 
-        return row;
+        return wrapper;
     }
 
     private UIElement BuildAppIcon(string processName, int pid, Color accent)
@@ -414,28 +423,65 @@ public partial class AudioDashView : UserControl
         };
     }
 
-    // ── Quick-assign flyout ──────────────────────────────────────────
+    // ── Inline assign panel ──────────────────────────────────────────
 
-    private void ShowAssignFlyout(string processName, UIElement anchor)
+    private void ToggleInlineAssign(string processName, StackPanel assignPanel)
     {
-        _assignFlyout?.Close();
-        _assignFlyout = null;
+        // Collapse previously expanded panel
+        if (_expandedPanel != null && _expandedPanel != assignPanel)
+        {
+            _expandedPanel.Visibility = Visibility.Collapsed;
+        }
+
+        if (assignPanel.Visibility == Visibility.Visible)
+        {
+            assignPanel.Visibility = Visibility.Collapsed;
+            _expandedPanel = null;
+            _expandedProcess = null;
+        }
+        else
+        {
+            // Refresh pill states before showing
+            RebuildAssignPanelContent(assignPanel, processName);
+            assignPanel.Visibility = Visibility.Visible;
+            _expandedPanel = assignPanel;
+            _expandedProcess = processName;
+        }
+    }
+
+    private StackPanel BuildInlineAssignPanel(string processName)
+    {
+        var panel = new StackPanel();
+        RebuildAssignPanelContent(panel, processName);
+        return panel;
+    }
+
+    private void RebuildAssignPanelContent(StackPanel panel, string processName)
+    {
+        panel.Children.Clear();
         if (_config == null) return;
 
         var accent = GetAccentColor();
-        var panel = new StackPanel { Margin = new Thickness(8) };
+        var assignedKnob = FindAssignedKnob(processName);
 
-        // Header
-        panel.Children.Add(new TextBlock
+        // Horizontal row of knob pills
+        var pillRow = new WrapPanel
         {
-            Text = $"ASSIGN  {TitleCase(processName).ToUpperInvariant()}  TO KNOB",
-            FontSize = 9,
-            FontWeight = FontWeights.SemiBold,
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(40, 2, 8, 8),
+        };
+
+        // Label
+        pillRow.Children.Add(new TextBlock
+        {
+            Text = "ASSIGN TO",
+            FontSize = 8,
+            FontWeight = FontWeights.Bold,
             Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            Margin = new Thickness(0, 0, 0, 6),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0),
         });
 
-        // Knob rows
         for (int i = 0; i < 5; i++)
         {
             int knobIdx = i;
@@ -443,122 +489,97 @@ public partial class AudioDashView : UserControl
             string knobLabel = knob != null && !string.IsNullOrWhiteSpace(knob.Label)
                 ? knob.Label : $"Knob {knobIdx + 1}";
 
-            bool isCurrent = knob?.Target?.Equals(processName, StringComparison.OrdinalIgnoreCase) == true;
-            var row = new Border
+            bool isCurrent = knob?.Target?.Equals(processName, StringComparison.OrdinalIgnoreCase) == true
+                || (knob?.Target == "apps" && knob.Apps.Any(a => a.Equals(processName, StringComparison.OrdinalIgnoreCase)));
+
+            var pill = new Border
             {
                 Background = isCurrent
-                    ? new SolidColorBrush(Color.FromArgb(30, accent.R, accent.G, accent.B))
-                    : Brushes.Transparent,
+                    ? new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B))
+                    : new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
+                BorderBrush = isCurrent
+                    ? new SolidColorBrush(Color.FromArgb(0x80, accent.R, accent.G, accent.B))
+                    : new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
+                BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(4),
-                Padding = new Thickness(8, 6, 8, 6),
+                Padding = new Thickness(10, 4, 10, 4),
+                Margin = new Thickness(0, 0, 4, 0),
                 Cursor = Cursors.Hand,
             };
-            var rowDock = new DockPanel { LastChildFill = true };
-            rowDock.Children.Add(new TextBlock
+            pill.Child = new TextBlock
             {
-                Text = isCurrent ? $"✓  {knobLabel}" : $"     {knobLabel}",
-                FontSize = 11,
+                Text = knobLabel,
+                FontSize = 10,
+                FontWeight = isCurrent ? FontWeights.SemiBold : FontWeights.Normal,
                 Foreground = isCurrent
                     ? new SolidColorBrush(accent)
-                    : new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
-                FontWeight = isCurrent ? FontWeights.SemiBold : FontWeights.Normal,
-                VerticalAlignment = VerticalAlignment.Center,
-            });
-            row.Child = rowDock;
+                    : new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA)),
+            };
 
-            row.MouseEnter += (_, _) => row.Background = new SolidColorBrush(Color.FromArgb(26, accent.R, accent.G, accent.B));
-            row.MouseLeave += (_, _) => row.Background = isCurrent
-                ? new SolidColorBrush(Color.FromArgb(30, accent.R, accent.G, accent.B))
-                : Brushes.Transparent;
-
-            row.MouseLeftButtonDown += (_, _) =>
+            bool captured = isCurrent;
+            pill.MouseEnter += (_, _) =>
             {
-                AssignToKnob(processName, knobIdx);
-                _assignFlyout?.Close();
-                _assignFlyout = null;
+                pill.Background = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B));
+                pill.BorderBrush = new SolidColorBrush(accent);
+            };
+            pill.MouseLeave += (_, _) =>
+            {
+                pill.Background = captured
+                    ? new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B))
+                    : new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
+                pill.BorderBrush = captured
+                    ? new SolidColorBrush(Color.FromArgb(0x80, accent.R, accent.G, accent.B))
+                    : new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33));
+            };
+
+            pill.MouseLeftButtonDown += (_, e) =>
+            {
+                e.Handled = true;
+                if (captured)
+                {
+                    RemoveKnobAssignment(knobIdx);
+                }
+                else
+                {
+                    AssignToKnob(processName, knobIdx);
+                }
                 RefreshSessionList();
             };
 
-            panel.Children.Add(row);
+            pillRow.Children.Add(pill);
         }
 
-        // Unassign option if currently assigned
-        var assignedKnob = FindAssignedKnob(processName);
+        // Unassign button if currently assigned
         if (assignedKnob != null)
         {
-            panel.Children.Add(new Border
-            {
-                Height = 1,
-                Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-                Margin = new Thickness(0, 4, 0, 4),
-            });
-
-            var unassignRow = new Border
+            var removePill = new Border
             {
                 Background = Brushes.Transparent,
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0x44, 0x44)),
+                BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(4),
-                Padding = new Thickness(8, 6, 8, 6),
+                Padding = new Thickness(10, 4, 10, 4),
+                Margin = new Thickness(4, 0, 0, 0),
                 Cursor = Cursors.Hand,
             };
-            unassignRow.Child = new TextBlock
+            removePill.Child = new TextBlock
             {
-                Text = "  Remove assignment",
-                FontSize = 11,
+                Text = "Remove",
+                FontSize = 10,
                 Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x44, 0x44)),
             };
-            unassignRow.MouseEnter += (_, _) => unassignRow.Background = new SolidColorBrush(Color.FromArgb(20, 0xFF, 0x44, 0x44));
-            unassignRow.MouseLeave += (_, _) => unassignRow.Background = Brushes.Transparent;
-            unassignRow.MouseLeftButtonDown += (_, _) =>
+            removePill.MouseEnter += (_, _) => removePill.Background = new SolidColorBrush(Color.FromArgb(0x20, 0xFF, 0x44, 0x44));
+            removePill.MouseLeave += (_, _) => removePill.Background = Brushes.Transparent;
+            removePill.MouseLeftButtonDown += (_, e) =>
             {
+                e.Handled = true;
                 RemoveKnobAssignment(assignedKnob.Idx);
-                _assignFlyout?.Close();
-                _assignFlyout = null;
                 RefreshSessionList();
             };
-            panel.Children.Add(unassignRow);
+            pillRow.Children.Add(removePill);
         }
 
-        var popupBorder = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(4),
-            Child = panel,
-            Effect = new DropShadowEffect
-            {
-                Color = Colors.Black, BlurRadius = 24, Opacity = 0.7, ShadowDepth = 4,
-            }
-        };
-
-        // Position near anchor
-        var screenPos = anchor.PointToScreen(new Point(0, 0));
-        var dpiSrc = PresentationSource.FromVisual(anchor);
-        if (dpiSrc?.CompositionTarget != null)
-        {
-            screenPos = new Point(
-                screenPos.X / dpiSrc.CompositionTarget.TransformToDevice.M11,
-                screenPos.Y / dpiSrc.CompositionTarget.TransformToDevice.M22);
-        }
-
-        _assignFlyout = new Window
-        {
-            WindowStyle = WindowStyle.None,
-            ResizeMode = ResizeMode.NoResize,
-            SizeToContent = SizeToContent.WidthAndHeight,
-            ShowInTaskbar = false,
-            Topmost = true,
-            AllowsTransparency = false,
-            Background = new SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
-            Content = popupBorder,
-            Left = screenPos.X + 40,
-            Top = screenPos.Y - 8,
-            MinWidth = 200,
-        };
-        _assignFlyout.Deactivated += (_, _) => { _assignFlyout?.Close(); _assignFlyout = null; };
-        _assignFlyout.KeyDown += (_, e) => { if (e.Key == Key.Escape) { _assignFlyout?.Close(); _assignFlyout = null; } };
-        _assignFlyout.Show();
+        panel.Children.Add(pillRow);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────
