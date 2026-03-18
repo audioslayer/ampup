@@ -240,11 +240,17 @@ public partial class App : Application
 
         if ((isFirstRun || isUpdate) && !args.Contains("--minimized"))
         {
-            var welcome = new WelcomeDialog(() =>
-            {
-                ShowMainWindow();
-                _mainWindow?.NavigateToSettings();
-            });
+            var welcome = new WelcomeDialog(
+                onOpenSettings: () =>
+                {
+                    ShowMainWindow();
+                    _mainWindow?.NavigateToSettings();
+                },
+                onImport: () =>
+                {
+                    ShowMainWindow();
+                    _mainWindow?.LaunchImportWizard();
+                });
             welcome.Closed += (_, _) =>
             {
                 _config.HasCompletedSetup = true;

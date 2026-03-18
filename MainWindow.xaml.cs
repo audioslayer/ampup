@@ -242,7 +242,7 @@ public partial class MainWindow : FluentWindow
 
     public void NavigateToSettings() => NavigateTo(_settingsView, NavSettings);
 
-    private void NavImport_Click(object sender, RoutedEventArgs e)
+    public void LaunchImportWizard()
     {
         var wizard = new ImportWizardWindow { Owner = this };
         wizard.ShowDialog();

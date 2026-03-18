@@ -157,22 +157,22 @@
                     <StackPanel x:Name="ProfilePopupPanel" Visibility="Collapsed" />
 
                     <DockPanel Grid.Row="1" Margin="0,12,0,0" LastChildFill="True">
-                        <!-- Import at very bottom, Bindings directly above it -->
-                        <Button x:Name="NavImport" Style="{StaticResource NavButton}" Click="NavImport_Click"
-                                DockPanel.Dock="Bottom" ToolTip="Import from Turn Up">
+                        <!-- Settings at very bottom -->
+                        <Button x:Name="NavSettings" Style="{StaticResource NavButton}" Click="NavSettings_Click"
+                                DockPanel.Dock="Bottom">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="3" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Border x:Name="NavImportBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
+                                <Border x:Name="NavSettingsBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
                                         Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                         Visibility="Collapsed" Margin="-4,0,0,0" />
                                 <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                    <TextBlock Text="&#xF09B;" FontFamily="{StaticResource MaterialSymbols}"
-                                               FontSize="20" Foreground="{DynamicResource AccentBrush}"
+                                    <TextBlock Text="&#xE8B8;" FontFamily="{StaticResource MaterialSymbols}"
+                                               FontSize="22" Foreground="{StaticResource TextSecBrush}"
                                                HorizontalAlignment="Center" TextAlignment="Center" />
-                                    <TextBlock Text="Import" FontSize="9" Foreground="{StaticResource TextDimBrush}"
+                                    <TextBlock x:Name="NavSettingsLabel" Text="Settings" FontSize="9" Foreground="{StaticResource TextSecBrush}"
                                                HorizontalAlignment="Center" Margin="0,3,0,0" />
                                 </StackPanel>
                             </Grid>
@@ -286,24 +286,6 @@
                                                    FontSize="22" Foreground="{StaticResource TextSecBrush}"
                                                    HorizontalAlignment="Center" TextAlignment="Center" />
                                         <TextBlock x:Name="NavOsdLabel" Text="OSD" FontSize="9" Foreground="{StaticResource TextSecBrush}"
-                                                   HorizontalAlignment="Center" Margin="0,3,0,0" />
-                                    </StackPanel>
-                                </Grid>
-                            </Button>
-                            <Button x:Name="NavSettings" Style="{StaticResource NavButton}" Click="NavSettings_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="3" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border x:Name="NavSettingsBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
-                                            Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
-                                            Visibility="Collapsed" Margin="-4,0,0,0" />
-                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <TextBlock Text="&#xE8B8;" FontFamily="{StaticResource MaterialSymbols}"
-                                                   FontSize="22" Foreground="{StaticResource TextSecBrush}"
-                                                   HorizontalAlignment="Center" TextAlignment="Center" />
-                                        <TextBlock x:Name="NavSettingsLabel" Text="Settings" FontSize="9" Foreground="{StaticResource TextSecBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
                                 </Grid>

@@ -13,10 +13,12 @@ namespace AmpUp;
 public class WelcomeDialog : Window
 {
     private readonly Action _onOpenSettings;
+    private readonly Action? _onImport;
 
-    public WelcomeDialog(Action onOpenSettings)
+    public WelcomeDialog(Action onOpenSettings, Action? onImport = null)
     {
         _onOpenSettings = onOpenSettings;
+        _onImport = onImport;
 
         AllowsTransparency = true;
         WindowStyle = WindowStyle.None;
@@ -111,15 +113,23 @@ public class WelcomeDialog : Window
                 Close();
             }, Color.FromRgb(0x00, 0xB0, 0xFF))); // blue
 
-        root.Children.Add(BuildStep("3", "Assign your knobs",
-            "In the Mixer tab, pick what each knob controls — master volume, Spotify, Discord, anything.",
-            Color.FromRgb(0xFF, 0xB8, 0x00))); // amber
+        root.Children.Add(BuildStepWithButton("3", "Import from Turn Up",
+            "Already have a Turn Up config? Import your knob assignments, button bindings, and light settings.",
+            "Import Config", accent, () =>
+            {
+                _onImport?.Invoke();
+                Close();
+            }, Color.FromRgb(0xFF, 0xB8, 0x00))); // amber
 
-        root.Children.Add(BuildStep("4", "Set up your lights",
-            "Head to Lights to pick effects and colors for each knob's RGB.",
+        root.Children.Add(BuildStep("4", "Assign your knobs",
+            "In the Mixer tab, pick what each knob controls — master volume, Spotify, Discord, anything.",
             Color.FromRgb(0xE0, 0x40, 0xFF))); // purple
 
-        root.Children.Add(BuildStep("5", "Configure your buttons",
+        root.Children.Add(BuildStep("5", "Set up your lights",
+            "Head to Lights to pick effects and colors for each knob's RGB.",
+            Color.FromRgb(0x00, 0xB0, 0xFF))); // blue
+
+        root.Children.Add(BuildStep("6", "Configure your buttons",
             "Assign actions to each button — macros, mute toggles, profile switches, and more.",
             Color.FromRgb(0xFF, 0x44, 0x44))); // red
 
