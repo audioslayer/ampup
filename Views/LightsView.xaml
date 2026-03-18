@@ -1,60 +1,53 @@
 <UserControl x:Class="AmpUp.Views.LightsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Grid>
-        <Grid.RowDefinitions>
-            <!-- Presets section -->
-            <RowDefinition Height="Auto" />
-            <!-- Global Lighting card (includes brightness) -->
-            <RowDefinition Height="Auto" />
-            <!-- LED cards -->
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-
-        <!-- Presets Section (built in code-behind via BuildPresetsSection) -->
-        <Border x:Name="PresetsCard" Grid.Row="0" Style="{StaticResource CardPanel}" Margin="0,0,0,12">
-            <StackPanel x:Name="PresetsPanel" />
-        </Border>
-
-        <!-- Global Lighting Card (built in code-behind via BuildGlobalCard) -->
-        <Border x:Name="GlobalLightCard" Grid.Row="1" Style="{StaticResource CardPanel}" Margin="0,0,0,12">
-            <StackPanel x:Name="GlobalLightCardPanel" />
-        </Border>
-
-        <!-- 5 LED Channel Cards -->
-        <Grid x:Name="PerKnobGrid" Grid.Row="2">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-
-            <!-- LED 1 -->
-            <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,4,0">
-                <StackPanel x:Name="Led0Panel" />
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+            <!-- Presets Section (built in code-behind via BuildPresetsSection) -->
+            <Border x:Name="PresetsCard" Style="{StaticResource CardPanel}" Margin="0,0,0,12">
+                <StackPanel x:Name="PresetsPanel" />
             </Border>
 
-            <!-- LED 2 -->
-            <Border Grid.Column="1" Style="{StaticResource CardPanel}" Margin="4,0">
-                <StackPanel x:Name="Led1Panel" />
+            <!-- Global Lighting Card (built in code-behind via BuildGlobalCard) -->
+            <Border x:Name="GlobalLightCard" Style="{StaticResource CardPanel}" Margin="0,0,0,12">
+                <StackPanel x:Name="GlobalLightCardPanel" />
             </Border>
 
-            <!-- LED 3 -->
-            <Border Grid.Column="2" Style="{StaticResource CardPanel}" Margin="4,0">
-                <StackPanel x:Name="Led2Panel" />
-            </Border>
+            <!-- 5 LED Channel Cards -->
+            <Grid x:Name="PerKnobGrid">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
 
-            <!-- LED 4 -->
-            <Border Grid.Column="3" Style="{StaticResource CardPanel}" Margin="4,0">
-                <StackPanel x:Name="Led3Panel" />
-            </Border>
+                <!-- LED 1 -->
+                <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,4,0">
+                    <StackPanel x:Name="Led0Panel" />
+                </Border>
 
-            <!-- LED 5 -->
-            <Border Grid.Column="4" Style="{StaticResource CardPanel}" Margin="4,0,0,0">
-                <StackPanel x:Name="Led4Panel" />
-            </Border>
-        </Grid>
-    </Grid>
+                <!-- LED 2 -->
+                <Border Grid.Column="1" Style="{StaticResource CardPanel}" Margin="4,0">
+                    <StackPanel x:Name="Led1Panel" />
+                </Border>
+
+                <!-- LED 3 -->
+                <Border Grid.Column="2" Style="{StaticResource CardPanel}" Margin="4,0">
+                    <StackPanel x:Name="Led2Panel" />
+                </Border>
+
+                <!-- LED 4 -->
+                <Border Grid.Column="3" Style="{StaticResource CardPanel}" Margin="4,0">
+                    <StackPanel x:Name="Led3Panel" />
+                </Border>
+
+                <!-- LED 5 -->
+                <Border Grid.Column="4" Style="{StaticResource CardPanel}" Margin="4,0,0,0">
+                    <StackPanel x:Name="Led4Panel" />
+                </Border>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>

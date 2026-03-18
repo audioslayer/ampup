@@ -28,8 +28,8 @@
             <RowDefinition Height="48" />
             <!-- Content -->
             <RowDefinition Height="*" />
-            <!-- Hardware preview strip -->
-            <RowDefinition Height="52" />
+            <!-- Hardware preview strip (hidden) -->
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Header Bar (draggable) -->
