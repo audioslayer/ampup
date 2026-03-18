@@ -28,7 +28,8 @@ APP_NAME="AmpUp"
 EXECUTABLE_NAME="AmpUp.Mac"
 
 # Read version from csproj
-VERSION=$(grep -oP '(?<=<Version>)[^<]+' "$SCRIPT_DIR/AmpUp.Mac.csproj" 2>/dev/null || echo "0.1.0-alpha")
+VERSION=$(sed -n 's/.*<Version>\(.*\)<\/Version>.*/\1/p' "$SCRIPT_DIR/AmpUp.Mac.csproj" 2>/dev/null | head -1)
+VERSION="${VERSION:-0.1.0-alpha}"
 VERSION_SHORT="${VERSION%%-*}"  # strip pre-release suffix for CFBundleVersion
 
 DOTNET="${DOTNET:-/opt/homebrew/opt/dotnet@8/bin/dotnet}"
