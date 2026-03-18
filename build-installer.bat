@@ -8,10 +8,9 @@ echo.
 if exist publish rmdir /s /q publish
 if exist installer\output rmdir /s /q installer\output
 
-:: Publish framework-dependent (requires .NET 8 Desktop Runtime on user machine)
-:: This reduces the installer from ~55MB to ~5-8MB per update
-echo [1/2] Publishing Amp Up (framework-dependent)...
-dotnet publish -c Release -r win-x64 --no-self-contained -o publish -p:PublishSingleFile=false -p:DebugType=None -p:DebugSymbols=false
+:: Publish self-contained (includes .NET runtime — no install required for user)
+echo [1/2] Publishing Amp Up (self-contained)...
+dotnet publish -c Release -r win-x64 --self-contained -o publish -p:PublishSingleFile=false -p:DebugType=None -p:DebugSymbols=false
 if errorlevel 1 (
     echo ERROR: dotnet publish failed!
     pause
