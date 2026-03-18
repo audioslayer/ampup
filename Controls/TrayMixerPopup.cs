@@ -24,6 +24,9 @@ public class TrayMixerPopup : Window
     private readonly System.Windows.Threading.DispatcherTimer _pollTimer;
     private bool _updatingFromPoll; // prevent slider.ValueChanged feedback loop
 
+    // Icon cache — avoids re-extracting icons from exe on every popup open
+    private static readonly Dictionary<string, System.Windows.Media.Imaging.BitmapSource?> _iconCache = new(StringComparer.OrdinalIgnoreCase);
+
     // Context menu callbacks
     private Action? _onOpen;
     private Action? _onExit;
@@ -1692,50 +1695,27 @@ public class TrayMixerPopup : Window
 
             var panel = new DockPanel { LastChildFill = true };
 
-            // Try to get app icon from process executable, fall back to letter icon
+            // Try to get app icon (cached) from process executable, fall back to letter icon
             var iconColor = GetAppColor(processName);
             UIElement icon;
-            try
+            var cachedBmp = GetCachedIcon(session);
+            if (cachedBmp != null)
             {
-                var pid = (int)session.GetProcessID;
-                var proc = Process.GetProcessById(pid);
-                var exePath = proc.MainModule?.FileName;
-                if (!string.IsNullOrEmpty(exePath))
+                icon = new Border
                 {
-                    var sysIcon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
-                    if (sysIcon != null)
+                    Width = 32, Height = 32,
+                    CornerRadius = new CornerRadius(6),
+                    Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Child = new System.Windows.Controls.Image
                     {
-                        var bmpSource = System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(
-                            sysIcon.Handle, Int32Rect.Empty,
-                            System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
-                        bmpSource.Freeze();
-                        // 32px icon with dark #1A1A1A background so transparent icons look clean
-                        icon = new Border
-                        {
-                            Width = 32, Height = 32,
-                            CornerRadius = new CornerRadius(6),
-                            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-                            VerticalAlignment = VerticalAlignment.Center,
-                            Child = new System.Windows.Controls.Image
-                            {
-                                Source = bmpSource, Width = 20, Height = 20,
-                                HorizontalAlignment = HorizontalAlignment.Center,
-                                VerticalAlignment = VerticalAlignment.Center,
-                            }
-                        };
-                        sysIcon.Dispose();
+                        Source = cachedBmp, Width = 20, Height = 20,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center,
                     }
-                    else
-                    {
-                        icon = BuildLetterIcon(processName.Length > 0 ? char.ToUpperInvariant(processName[0]).ToString() : "?", iconColor);
-                    }
-                }
-                else
-                {
-                    icon = BuildLetterIcon(processName.Length > 0 ? char.ToUpperInvariant(processName[0]).ToString() : "?", iconColor);
-                }
+                };
             }
-            catch
+            else
             {
                 var firstChar = processName.Length > 0 ? char.ToUpperInvariant(processName[0]).ToString() : "?";
                 icon = BuildLetterIcon(firstChar, iconColor);
@@ -2306,6 +2286,51 @@ public class TrayMixerPopup : Window
     }
 
     // ── Shared helpers ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns a cached frozen BitmapSource for the app icon, or null if unavailable.
+    /// First call per process name extracts the icon; subsequent calls return the cached copy.
+    /// </summary>
+    private static System.Windows.Media.Imaging.BitmapSource? GetCachedIcon(AudioSessionControl session)
+    {
+        try
+        {
+            var pid = (int)session.GetProcessID;
+            if (pid == 0) return null;
+
+            var proc = Process.GetProcessById(pid);
+            var name = proc.ProcessName;
+
+            if (_iconCache.TryGetValue(name, out var cached))
+                return cached; // may be null (= already tried, failed)
+
+            System.Windows.Media.Imaging.BitmapSource? result = null;
+            try
+            {
+                var exePath = proc.MainModule?.FileName;
+                if (!string.IsNullOrEmpty(exePath))
+                {
+                    var sysIcon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
+                    if (sysIcon != null)
+                    {
+                        result = System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(
+                            sysIcon.Handle, Int32Rect.Empty,
+                            System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
+                        result.Freeze();
+                        sysIcon.Dispose();
+                    }
+                }
+            }
+            catch { /* MainModule can throw for elevated/UWP procs */ }
+
+            _iconCache[name] = result;
+            return result;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
     private static Border BuildLetterIcon(string letter, Color bg, int size = 28)
     {

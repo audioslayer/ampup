@@ -894,15 +894,16 @@ public partial class LightsView : UserControl
         color2Panel.Children.Add(swatch2);
         _globalColor2Panel = color2Panel;
 
-        var globalColorRow = new StackPanel
+        var globalColorRow = new WrapPanel
         {
             Orientation = Orientation.Horizontal,
             Margin = new Thickness(0, 0, 0, 12),
-            VerticalAlignment = VerticalAlignment.Center,
         };
-        globalColorRow.Children.Add(MakeSubLabel("PRIMARY"));
-        globalColorRow.Children.Add(swatch1);
-        globalColorRow.Children.Add(new Border { Width = 16 });
+
+        var globalColor1Container = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 16, 2) };
+        globalColor1Container.Children.Add(MakeSubLabel("PRIMARY"));
+        globalColor1Container.Children.Add(swatch1);
+        globalColorRow.Children.Add(globalColor1Container);
         globalColorRow.Children.Add(color2Panel);
         manualSection.Children.Add(globalColorRow);
         settings.Children.Add(manualSection);
@@ -1233,16 +1234,19 @@ public partial class LightsView : UserControl
             var swatch2 = MakeColorSwatch(idx, isColor2: true);
             _color2Swatches[i] = swatch2;
 
-            var colorRow = new StackPanel
+            // WrapPanel so PRIMARY/SECONDARY wrap on narrow columns (e.g. 4K portrait)
+            var colorRow = new WrapPanel
             {
                 Orientation = Orientation.Horizontal,
                 Margin = new Thickness(0, 0, 0, 8),
-                VerticalAlignment = VerticalAlignment.Center,
             };
-            colorRow.Children.Add(MakeSubLabel("PRIMARY"));
-            colorRow.Children.Add(swatch1);
 
-            var color2Container = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12, 0, 0, 0) };
+            var color1Container = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 12, 2) };
+            color1Container.Children.Add(MakeSubLabel("PRIMARY"));
+            color1Container.Children.Add(swatch1);
+            colorRow.Children.Add(color1Container);
+
+            var color2Container = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
             color2Container.Children.Add(MakeSubLabel("SECONDARY"));
             color2Container.Children.Add(swatch2);
 
