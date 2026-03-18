@@ -537,7 +537,7 @@ public partial class App : Application
                 break;
 
             case "mute_master":
-                _audio?.ToggleMasterMute();
+                // TODO: master mute not yet supported on Mac
                 break;
 
             case "mute_mic":
