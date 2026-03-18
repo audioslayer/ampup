@@ -2451,13 +2451,13 @@ public partial class MixerView : UserControl
         return new Border
         {
             Width = 28, Height = 28, CornerRadius = new CornerRadius(6),
-            Background = new SolidColorBrush(Color.FromArgb(50, accent.R, accent.G, accent.B)),
+            Background = new SolidColorBrush(Color.FromArgb(30, accent.R, accent.G, accent.B)),
             VerticalAlignment = VerticalAlignment.Center,
-            Child = new TextBlock
+            Child = new Material.Icons.WPF.MaterialIcon
             {
-                Text = processName.Length > 0 ? char.ToUpperInvariant(processName[0]).ToString() : "?",
-                FontSize = 13, FontWeight = FontWeights.Bold,
-                Foreground = new SolidColorBrush(accent),
+                Kind = Material.Icons.MaterialIconKind.Application,
+                Width = 16, Height = 16,
+                Foreground = new SolidColorBrush(Color.FromArgb(0xAA, accent.R, accent.G, accent.B)),
                 HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
             }
         };

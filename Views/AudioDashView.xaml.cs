@@ -323,14 +323,13 @@ public partial class AudioDashView : UserControl
         {
             Width = 28, Height = 28,
             CornerRadius = new CornerRadius(6),
-            Background = new SolidColorBrush(Color.FromArgb(50, color.R, color.G, color.B)),
+            Background = new SolidColorBrush(Color.FromArgb(30, color.R, color.G, color.B)),
             VerticalAlignment = VerticalAlignment.Center,
-            Child = new TextBlock
+            Child = new Material.Icons.WPF.MaterialIcon
             {
-                Text = letter,
-                FontSize = 13,
-                FontWeight = FontWeights.Bold,
-                Foreground = new SolidColorBrush(color),
+                Kind = Material.Icons.MaterialIconKind.Application,
+                Width = 16, Height = 16,
+                Foreground = new SolidColorBrush(Color.FromArgb(0xAA, color.R, color.G, color.B)),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
             }

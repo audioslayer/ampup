@@ -2188,16 +2188,16 @@ public class TrayMixerPopup : Window
             Width = size,
             Height = size,
             CornerRadius = new CornerRadius(size / 4.0),
-            Background = new SolidColorBrush(Color.FromArgb(60, bg.R, bg.G, bg.B)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(100, bg.R, bg.G, bg.B)),
+            Background = new SolidColorBrush(Color.FromArgb(40, bg.R, bg.G, bg.B)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(80, bg.R, bg.G, bg.B)),
             BorderThickness = new Thickness(1),
             VerticalAlignment = VerticalAlignment.Center,
-            Child = new TextBlock
+            Child = new MaterialIcon
             {
-                Text = letter,
-                Foreground = new SolidColorBrush(bg),
-                FontSize = size * 0.43,
-                FontWeight = FontWeights.Bold,
+                Kind = MaterialIconKind.Application,
+                Foreground = new SolidColorBrush(Color.FromArgb(0xAA, bg.R, bg.G, bg.B)),
+                Width = size * 0.55,
+                Height = size * 0.55,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             }
