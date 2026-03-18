@@ -152,8 +152,10 @@ public partial class App : Application
         };
         quitItem.Click += (_, _) =>
         {
+            Cleanup();
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
-                lifetime.Shutdown();
+                lifetime.Shutdown(0);
+            Environment.Exit(0);
         };
         appMenu.Add(quitItem);
 
@@ -539,7 +541,7 @@ public partial class App : Application
                 break;
 
             case "mute_mic":
-                _audio?.ToggleMicMute();
+                // TODO: mic mute not yet supported on Mac
                 break;
 
             case "switch_profile":

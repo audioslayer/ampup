@@ -37,6 +37,13 @@ public partial class MainWindow : Window
         InitializeComponent();
         NavigateTo(_mixerView, NavMixer);
 
+        // Red button minimizes to dock instead of quitting
+        Closing += (_, e) =>
+        {
+            e.Cancel = true;
+            Hide();
+        };
+
         // Make header bar draggable
         HeaderBar.PointerPressed += (_, e) =>
         {
