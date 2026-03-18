@@ -6,10 +6,10 @@
             <!-- Global Lighting Card (includes presets) -->
             <Border x:Name="GlobalLightCard" Style="{StaticResource CardPanel}" Margin="0,0,0,12">
                 <StackPanel>
-                    <!-- Presets built in code-behind -->
-                    <StackPanel x:Name="PresetsPanel" />
                     <!-- Global lighting controls built in code-behind -->
                     <StackPanel x:Name="GlobalLightCardPanel" />
+                    <!-- Presets built in code-behind (shown when global enabled) -->
+                    <StackPanel x:Name="PresetsPanel" Visibility="Collapsed" />
                 </StackPanel>
             </Border>
 

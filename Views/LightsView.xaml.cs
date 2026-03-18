@@ -1005,6 +1005,9 @@ public partial class LightsView : UserControl
         if (_globalSettingsPanel != null)
             _globalSettingsPanel.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
 
+        // Show/hide presets (only when global is enabled)
+        PresetsPanel.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+
         // Show/hide per-knob panels
         PerKnobGrid.Visibility = enabled ? Visibility.Collapsed : Visibility.Visible;
 
