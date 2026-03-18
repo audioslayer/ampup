@@ -157,7 +157,7 @@ public func ampup_get_process_peak(_ pid: pid_t) -> Float32 {
         mScope: kAudioDevicePropertyScopeOutput,
         mElement: kAudioObjectPropertyElementMain
     )
-    let peakSize = UInt32(MemoryLayout<Float32>.size)
+    var peakSize = UInt32(MemoryLayout<Float32>.size)
     AudioObjectGetPropertyData(state.aggregateDeviceID, &peakAddr, 0, nil, &peakSize, &peak)
     return peak
 }
