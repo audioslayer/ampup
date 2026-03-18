@@ -768,7 +768,7 @@ public partial class App : Application
             long osdNow = Environment.TickCount64;
             bool osdSuppressed = osdNow - _startupTick < 5000
                 || (DateTime.UtcNow - _connectedAt).TotalMilliseconds < 2000
-                || (_lastOsdValue[e.Idx] >= 0 && Math.Abs(e.Value - _lastOsdValue[e.Idx]) < 8);
+                || (_lastOsdValue[e.Idx] >= 0 && Math.Abs(e.Value - _lastOsdValue[e.Idx]) < 15);
             if (_config.Osd.ShowVolume && !knob.Target.Equals("none", StringComparison.OrdinalIgnoreCase)
                 && osdNow - _lastOsdTick[e.Idx] >= 100
                 && !osdSuppressed)
