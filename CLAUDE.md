@@ -560,6 +560,33 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
   - **Build:** Framework-dependent builds (installer ~55MB → ~5-8MB), .NET 8 Desktop Runtime auto-detection in installer.
   - **Repo:** Mac code merged into master (single branch), versions synced (both 0.8.5-alpha).
 
+- **v0.9.0-alpha (Mar 17)** — **Major UI overhaul + cross-platform polish.**
+  - **Lights redesign:** Segmented "Per Knob / Global" tab toggle replaces checkbox. Presets hidden until Global enabled, shown inside Global card.
+  - **Audio Sessions in Mixer:** Collapsible section replaces Activity tab. Inline knob assignment pills, hide/show apps, no STATUS column. Session list doesn't rebuild while assign panel is expanded.
+  - **Tray popup redesign:** Footer removed. Header has AMP UP (click to open app), Quick Assign button, X close. Device dropdown with chevron arrow — click name to quick-cycle checked devices, click chevron for full list. Checkboxes for quick-swap device subset (persisted to config). Tray follows app theme accent color (ThemeManager.Accent, not Windows system blue). Update banner moved above sessions.
+  - **Per-knob LED preview:** Color picker only lights up the knob being edited. Global picker still previews all 5.
+  - **PositionFill fix:** Uses single primary color (was incorrectly blending color1→color2 like PositionBlend).
+  - **Material icon fallbacks:** Apps without extractable icons show MaterialIconKind.Application instead of plain letter.
+  - **Modernized button path inputs:** Rounded borders (CornerRadius=6), Material FolderOpen/FormatListBulleted icons, vertically centered text.
+  - **Accent-colored Overview buttons:** Duplicate, Preview OSD, and arrow buttons use accent-tinted styling.
+  - **Nav indicators removed:** Dot/bar indicators removed — accent-colored text/icon is sufficient.
+  - **Blue window border removed:** BorderThickness=0 on FluentWindow.
+  - **OSD ghost suppression:** Threshold bumped from ±8 to ±15 ADC counts.
+  - **Button startup guard:** 5s startup + 2s reconnect guard on button events prevents phantom sleep/actions on app open.
+  - **Hardware preview footer hidden:** HardwarePreview strip collapsed, row height set to Auto.
+  - **Lights view scrollable:** Wrapped in ScrollViewer (was clipped at bottom).
+  - **Import removed from nav:** Settings moved to bottom of sidebar. Import button added to Welcome dialog instead.
+  - **Deploy.bat fix:** Uses `git fetch origin && git reset --hard origin/master` instead of `git reset --hard HEAD` (fixes conflicts from Mac .sh files).
+  - **Build fixes:** AmpUp.Mac excluded from WPF glob in .csproj, all warnings suppressed (VoiceMeeter SupportedOSPlatform, nullable dereference).
+  - **CycleDeviceSubset config:** New `Dictionary<string, List<string>>` field for persisting quick-swap device subsets.
+  - **Mac: Material Icons throughout** — Added Material.Icons.Avalonia package. All nav icons, button actions, ambience scenes, audio dashboard use MaterialIcon controls matching Windows.
+  - **Mac: RGB lights fix** — Knob positions initialized to 1.0 on connect + ApplyColors() immediate render. Config (lights, gamma, brightness) applied on startup and save.
+  - **Mac: Quick Wheel working** — Hold-button opens RadialWheelOverlay, knob navigates segments, release confirms selection. Profile switching via wheel.
+  - **Mac: Audio device selection** — Native Swift bridge for Core Audio device enumeration. Settings view shows output/input device dropdowns with all available devices.
+  - **Mac: App identity** — CFBundleName/CFBundleDisplayName set to "Amp Up". Proper macOS app menu (About, Preferences, Quit). Tray icon shows app logo.
+  - **Mac: Native window controls** — Traffic light buttons (close/minimize/zoom) visible. Header bar draggable.
+  - **Mac: Swift 6.2 fixes** — CATapDescription API, AudioHardwareCreateProcessTap, VirtualMasterVolume→VirtualMainVolume rename, peakSize let→var.
+
 ---
 
 ## Release Workflow
