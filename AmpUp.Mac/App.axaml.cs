@@ -671,19 +671,26 @@ public partial class App : Application
 
     // ── Cleanup ────────────────────────────────────────────────────────────────
 
+    private bool _cleanedUp;
     private void Cleanup()
     {
+        if (_cleanedUp) return;
+        _cleanedUp = true;
         Logger.Log("AmpUp.Mac shutting down");
-        _serial?.Dispose();
-        _rgb?.Dispose();
-        _dreamSync?.Dispose();
-        _ambienceSync?.Dispose();
-        _ha?.Dispose();
-        Dispatcher.UIThread.Post(() =>
+        try { _serial?.Dispose(); } catch { }
+        try { _rgb?.Dispose(); } catch { }
+        try { _dreamSync?.Dispose(); } catch { }
+        try { _ambienceSync?.Dispose(); } catch { }
+        try { _ha?.Dispose(); } catch { }
+        try
         {
-            _radialWheel?.Close();
-            _osd?.Close();
-        });
+            Dispatcher.UIThread.Post(() =>
+            {
+                _radialWheel?.Close();
+                _osd?.Close();
+            });
+        }
+        catch { }
     }
 }
 
