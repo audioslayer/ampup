@@ -4,6 +4,7 @@ using AmpUp.Core.Models;
 
 namespace AmpUp.Core.Services;
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public class VoiceMeeterIntegration : IDisposable
 {
     private bool _loggedIn;

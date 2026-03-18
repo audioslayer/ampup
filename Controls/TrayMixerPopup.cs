@@ -788,7 +788,7 @@ public class TrayMixerPopup : Window
                 {
                     e.Handled = true;
                     var hidden = _config.HiddenTrayApps;
-                    hidden.RemoveAll(h => h.Equals(appCapture, StringComparison.OrdinalIgnoreCase));
+                    hidden?.RemoveAll(h => h.Equals(appCapture, StringComparison.OrdinalIgnoreCase));
                     _onSave?.Invoke(_config);
                     RefreshSessions();
                     RefreshQuickAssignPanel();
