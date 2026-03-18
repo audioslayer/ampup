@@ -31,7 +31,7 @@ public partial class App : Application
     private AmbienceSync? _ambienceSync;
     private DreamSyncController? _dreamSync;
     private HAIntegration? _ha;
-    private MacAudioEngine? _audio;
+    private MacAudioMixer? _audio;
 
     // ── UI ────────────────────────────────────────────────────────────────────
     private MainWindow? _mainWindow;
@@ -202,7 +202,8 @@ public partial class App : Application
             _gestureEngine.OnProfileSwitch += HandleProfileSwitch;
 
             // ── Audio engine ───────────────────────────────────────────────
-            _audio = new MacAudioEngine(_config);
+            _audio = new MacAudioMixer();
+            _audio.Start();
 
             // ── Wire views ─────────────────────────────────────────────────
             WireViews();
@@ -320,7 +321,7 @@ public partial class App : Application
         _ha?.UpdateConfig(cfg.HomeAssistant);
         if (cfg.HomeAssistant.Enabled)
             _ = _ha?.TestConnectionAsync();
-        _audio?.UpdateConfig(cfg);
+        // MacAudioMixer auto-refreshes apps on timer
 
         // Re-apply RGB config when lights/brightness/gamma change
         _rgb?.SetGamma(cfg.GammaR, cfg.GammaG, cfg.GammaB);
@@ -428,7 +429,7 @@ public partial class App : Application
             return;
         }
 
-        _audio?.SetVolume(ev.Idx, vol, knob);
+        _audio?.SetVolume(knob, ev.Value);
 
         // OSD: show volume change overlay (suppressed for 5s after connect + small changes)
         MaybeShowVolumeOsd(ev.Idx, vol, knob);
@@ -763,23 +764,16 @@ public class MacAudioEngine : IDisposable
     {
         try
         {
-            // If we already have a successful tap for this process name, just set volume
-            if (_tappedProcesses.TryGetValue(processName, out var tapped) && tapped)
-            {
-                var existingPid = _tappedPids.GetValueOrDefault(processName, -1);
-                if (existingPid > 0)
-                {
-                    try { ampup_set_process_volume(existingPid, vol); } catch (DllNotFoundException) { }
-                    return;
-                }
-            }
-
-            // If already tapped, just set volume
-            if (_tappedProcesses.ContainsKey(processName) && _tappedPids.TryGetValue(processName, out var cachedPid))
+            // If we already have a successful tap, just set volume
+            if (_tappedProcesses.TryGetValue(processName, out var tapped) && tapped
+                && _tappedPids.TryGetValue(processName, out var cachedPid) && cachedPid > 0)
             {
                 try { ampup_set_process_volume(cachedPid, vol); } catch (DllNotFoundException) { }
                 return;
             }
+            // Already attempted and failed — don't retry
+            if (_tappedProcesses.ContainsKey(processName) && !(_tappedProcesses[processName]))
+                return;
 
             // Find ALL matching processes — try each until one taps successfully
             // On macOS, audio often comes from helper processes, not the main app
