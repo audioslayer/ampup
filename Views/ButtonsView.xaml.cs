@@ -1484,8 +1484,10 @@ public partial class ButtonsView : UserControl
             Background = Brushes.Transparent,
             Foreground = FindBrush("TextPrimaryBrush"),
             BorderThickness = new Thickness(0),
-            Padding = new Thickness(8, 6, 8, 6),
+            Padding = new Thickness(8, 0, 8, 0),
             FontSize = 11,
+            Height = 34,
+            VerticalContentAlignment = VerticalAlignment.Center,
             ToolTip = "Enter part of the process name (e.g. discord, spotify). No full path needed.",
         };
         box.Tag = placeholder;
