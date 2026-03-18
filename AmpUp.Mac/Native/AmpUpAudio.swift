@@ -70,12 +70,12 @@ public func ampup_create_tap(_ pid: pid_t) -> Bool {
     // CATapDescription requires macOS 14.2+
     guard #available(macOS 14.2, *) else { return false }
 
-    let tapDesc = CATapDescription(stereoMixdownOfProcesses: [pid])
-    tapDesc.mutedWhenTapped = false
+    let tapDesc = CATapDescription(stereoMixdownOfProcesses: [UInt32(pid)])
+    tapDesc.muteBehavior = .unmuted
     tapDesc.name = "AmpUp-\(pid)"
 
     var tapID: AUAudioObjectID = 0
-    guard CATapDescription.createProcessTap(tapDesc, tapID: &tapID) == noErr else { return false }
+    guard AudioHardwareCreateProcessTap(tapDesc, &tapID) == noErr else { return false }
 
     // Build aggregate device with the tap as sub-device
     let aggDesc: [String: Any] = [
@@ -94,11 +94,7 @@ public func ampup_create_tap(_ pid: pid_t) -> Bool {
     var aggDeviceID: AudioDeviceID = 0
     guard AudioHardwareCreateAggregateDevice(aggDesc as CFDictionary, &aggDeviceID) == noErr else {
         // Clean up tap on failure
-        AudioObjectPropertyAddress(
-            mSelector: kAudioObjectPropertyBaseClass,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
+        AudioHardwareDestroyProcessTap(tapID)
         return false
     }
 
@@ -119,6 +115,7 @@ public func ampup_destroy_tap(_ pid: pid_t) {
 
     guard let state = taps[pid] else { return }
     AudioHardwareDestroyAggregateDevice(state.aggregateDeviceID)
+    AudioHardwareDestroyProcessTap(state.tapObjectID)
     taps.removeValue(forKey: pid)
 }
 
@@ -140,7 +137,7 @@ public func ampup_set_process_volume(_ pid: pid_t, _ volume: Float32) {
         mScope: kAudioDevicePropertyScopeOutput,
         mElement: kAudioObjectPropertyElementMain
     )
-    let volSize = UInt32(MemoryLayout<Float32>.size)
+    var volSize = UInt32(MemoryLayout<Float32>.size)
     AudioObjectSetPropertyData(state.aggregateDeviceID, &volAddr, 0, nil, volSize, &vol)
 }
 
@@ -177,7 +174,7 @@ public func ampup_set_process_mute(_ pid: pid_t, _ muted: Bool) {
         mScope: kAudioDevicePropertyScopeOutput,
         mElement: kAudioObjectPropertyElementMain
     )
-    let volSize = UInt32(MemoryLayout<Float32>.size)
+    var volSize = UInt32(MemoryLayout<Float32>.size)
     AudioObjectSetPropertyData(state.aggregateDeviceID, &volAddr, 0, nil, volSize, &vol)
 }
 
