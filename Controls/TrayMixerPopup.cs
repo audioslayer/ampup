@@ -1466,17 +1466,28 @@ public class TrayMixerPopup : Window
         DockPanel.SetDock(typeLabel, Dock.Left);
         dock.Children.Add(typeLabel);
 
-        // Dropdown arrow on right
+        // Dropdown arrow on right (clickable to expand/collapse)
         var arrow = new MaterialIcon
         {
             Kind = MaterialIconKind.ChevronDown,
             Width = 14, Height = 14,
             Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(4, 0, 0, 0),
         };
-        DockPanel.SetDock(arrow, Dock.Right);
-        dock.Children.Add(arrow);
+        var arrowBtn = new Border
+        {
+            Width = 24, Height = 24, CornerRadius = new CornerRadius(4),
+            Background = Brushes.Transparent,
+            Cursor = Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(2, 0, 0, 0),
+            Child = arrow,
+        };
+        arrowBtn.MouseEnter += (_, _) => { arrowBtn.Background = new SolidColorBrush(Color.FromArgb(0x20, accent.R, accent.G, accent.B)); arrow.Foreground = new SolidColorBrush(accent); };
+        arrowBtn.MouseLeave += (_, _) => { arrowBtn.Background = Brushes.Transparent; arrow.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)); };
+        DockPanel.SetDock(arrowBtn, Dock.Right);
+        dock.Children.Add(arrowBtn);
 
         // Device icon
         var devIcon = new MaterialIcon
@@ -1620,17 +1631,16 @@ public class TrayMixerPopup : Window
         row.MouseEnter += (_, _) =>
         {
             row.Background = new SolidColorBrush(Color.FromArgb(20, accent.R, accent.G, accent.B));
-            arrow.Foreground = new SolidColorBrush(accent);
         };
         row.MouseLeave += (_, _) =>
         {
             row.Background = Brushes.Transparent;
-            arrow.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
         };
 
-        // Click main row: toggle dropdown
-        row.MouseLeftButtonDown += (_, _) =>
+        // Arrow click: toggle dropdown
+        arrowBtn.MouseLeftButtonDown += (_, e) =>
         {
+            e.Handled = true;
             if (dropdown.Visibility == Visibility.Visible)
             {
                 dropdown.Visibility = Visibility.Collapsed;
@@ -1643,6 +1653,31 @@ public class TrayMixerPopup : Window
             }
             Dispatcher.BeginInvoke(new Action(RepositionOnScreen),
                 System.Windows.Threading.DispatcherPriority.Loaded);
+        };
+
+        // Click row text: quick-cycle through checked devices
+        row.MouseLeftButtonDown += (_, _) =>
+        {
+            // Build cycle list from quick-swap subset
+            var cycleDevices = new List<int>();
+            for (int i = 0; i < devices.Count; i++)
+                if (quickSwapIds.Contains(devices[i].ID)) cycleDevices.Add(i);
+
+            if (cycleDevices.Count < 2) return;
+
+            // Find current position in cycle list and advance
+            int cyclePos = cycleDevices.IndexOf(currentIdx);
+            int nextCyclePos = (cyclePos + 1) % cycleDevices.Count;
+            int nextIdx = cycleDevices[nextCyclePos];
+
+            try
+            {
+                ButtonHandler.SetDefaultAudioDevice(devices[nextIdx].ID);
+                nameText.Text = devices[nextIdx].FriendlyName;
+                if (nameText.Text.Length > 40) nameText.Text = nameText.Text[..38] + "...";
+                currentIdx = nextIdx;
+            }
+            catch (Exception ex) { Logger.Log($"Device quick-swap error: {ex.Message}"); }
         };
 
         return wrapper;
