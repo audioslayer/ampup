@@ -44,10 +44,6 @@ public class TrayMixerPopup : Window
     // Update indicator
     private Border? _updateBanner;
 
-    // Search / filter bar
-    private TextBox? _searchBox;
-    private Border? _searchClearBtn;
-    private string _searchText = "";
 
     private record SessionRow(
         string ProcessName,
@@ -172,10 +168,6 @@ public class TrayMixerPopup : Window
         DockPanel.SetDock(_quickAssignPanel, Dock.Top);
         root.Children.Add(_quickAssignPanel);
 
-        // Search / filter bar
-        var searchBar = BuildSearchBar();
-        DockPanel.SetDock(searchBar, Dock.Top);
-        root.Children.Add(searchBar);
 
         // Scrollable session list (master + apps)
         var scroll = new ScrollViewer
@@ -243,10 +235,6 @@ public class TrayMixerPopup : Window
         try
         {
             // Clear search filter on each open so the full list is visible
-            if (_searchBox != null && !string.IsNullOrEmpty(_searchBox.Text))
-                _searchBox.Text = "";
-            _searchText = "";
-
             RefreshSessions();
             // Show first (off-screen) so PresentationSource is available for DPI conversion,
             // then position correctly and activate
@@ -519,128 +507,6 @@ public class TrayMixerPopup : Window
         };
         DockPanel.SetDock(d, Dock.Top);
         return d;
-    }
-
-    // ── Search Bar ───────────────────────────────────────────────────
-
-    private UIElement BuildSearchBar()
-    {
-        var accent = GetAccentColor();
-
-        var container = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x0F, 0x0F, 0x0F)),
-            Padding = new Thickness(8, 5, 8, 5),
-        };
-
-        var dock = new DockPanel { LastChildFill = true };
-
-        // Clear (×) button — shown only when text is present
-        _searchClearBtn = new Border
-        {
-            Width = 18, Height = 18,
-            CornerRadius = new CornerRadius(9),
-            Background = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
-            Cursor = Cursors.Hand,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(4, 0, 0, 0),
-            Visibility = Visibility.Collapsed,
-            Child = new TextBlock
-            {
-                Text = "×",
-                Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
-                FontSize = 11,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-            }
-        };
-        _searchClearBtn.MouseLeftButtonDown += (_, _) =>
-        {
-            _searchBox!.Text = "";
-            _searchBox.Focus();
-        };
-        DockPanel.SetDock(_searchClearBtn, Dock.Right);
-        dock.Children.Add(_searchClearBtn);
-
-        // Search textbox
-        _searchBox = new TextBox
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
-            CaretBrush = new SolidColorBrush(Color.FromRgb(accent.R, accent.G, accent.B)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-            BorderThickness = new Thickness(1),
-            FontSize = 10,
-            Height = 28,
-            Padding = new Thickness(8, 0, 8, 0),
-            VerticalContentAlignment = VerticalAlignment.Center,
-            FontFamily = new FontFamily("Segoe UI"),
-        };
-
-        // Rounded corners via ControlTemplate
-        var sbFactory = new FrameworkElementFactory(typeof(Border));
-        sbFactory.Name = "bd";
-        sbFactory.SetBinding(Border.BackgroundProperty, new System.Windows.Data.Binding("Background") { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) });
-        sbFactory.SetBinding(Border.BorderBrushProperty, new System.Windows.Data.Binding("BorderBrush") { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) });
-        sbFactory.SetBinding(Border.BorderThicknessProperty, new System.Windows.Data.Binding("BorderThickness") { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) });
-        sbFactory.SetValue(Border.CornerRadiusProperty, new CornerRadius(5));
-        var scrollViewerFactory = new FrameworkElementFactory(typeof(ScrollViewer));
-        scrollViewerFactory.Name = "PART_ContentHost";
-        scrollViewerFactory.SetValue(ScrollViewer.MarginProperty, new Thickness(2, 0, 2, 0));
-        sbFactory.AppendChild(scrollViewerFactory);
-        var sbTemplate = new ControlTemplate(typeof(TextBox)) { VisualTree = sbFactory };
-        // Focus trigger — accent border
-        var focusTrigger = new Trigger { Property = TextBox.IsFocusedProperty, Value = true };
-        focusTrigger.Setters.Add(new Setter(Border.BorderBrushProperty,
-            new SolidColorBrush(Color.FromArgb(0xAA, accent.R, accent.G, accent.B)), "bd"));
-        sbTemplate.Triggers.Add(focusTrigger);
-        _searchBox.Template = sbTemplate;
-
-        // Placeholder text via TextChanged
-        _searchBox.TextChanged += (_, _) =>
-        {
-            _searchText = _searchBox.Text;
-            if (_searchClearBtn != null)
-                _searchClearBtn.Visibility = string.IsNullOrEmpty(_searchText) ? Visibility.Collapsed : Visibility.Visible;
-            ApplySearchFilter();
-        };
-
-        dock.Children.Add(_searchBox);
-        container.Child = dock;
-
-        // Overlay placeholder hint
-        var grid = new Grid();
-        grid.Children.Add(container);
-
-        var placeholder = new TextBlock
-        {
-            Text = "Search apps...",
-            Foreground = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44)),
-            FontSize = 10,
-            FontFamily = new FontFamily("Segoe UI"),
-            IsHitTestVisible = false,
-            Margin = new Thickness(17, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Left,
-        };
-        // Hide placeholder when textbox has text
-        _searchBox.TextChanged += (_, _) =>
-            placeholder.Visibility = string.IsNullOrEmpty(_searchBox.Text) ? Visibility.Visible : Visibility.Collapsed;
-        grid.Children.Add(placeholder);
-
-        return grid;
-    }
-
-    private void ApplySearchFilter()
-    {
-        string q = _searchText.Trim();
-        foreach (var row in _rows)
-        {
-            if (row.RowBorder == null) continue;
-            bool visible = string.IsNullOrEmpty(q)
-                || row.ProcessName.Contains(q, StringComparison.OrdinalIgnoreCase);
-            row.RowBorder.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        }
     }
 
     // ── Quick Assign Panel ────────────────────────────────────────────
@@ -952,71 +818,71 @@ public class TrayMixerPopup : Window
             int knobIdx = k;
             var knobCfg = _config.Knobs.FirstOrDefault(kn => kn.Idx == knobIdx);
             bool isCurrent = knobCfg?.Target?.Equals(appCapture, StringComparison.OrdinalIgnoreCase) == true;
-            string knobLbl = !string.IsNullOrWhiteSpace(knobCfg?.Label) ? knobCfg!.Label : $"K{knobIdx + 1}";
-            // Truncate label to 3 chars for pill
-            string pill = knobLbl.Length > 3 ? knobLbl[..3] : knobLbl;
+            string knobLbl = !string.IsNullOrWhiteSpace(knobCfg?.Label) ? knobCfg!.Label : $"Knob {knobIdx + 1}";
+            string number = (knobIdx + 1).ToString();
 
-            var pillBorder = new Border
+            var btn = new Border
             {
-                CornerRadius = new CornerRadius(10),
-                Padding = new Thickness(5, 2, 5, 2),
-                Margin = new Thickness(0, 0, 3, 0),
+                Width = 26, Height = 26,
+                CornerRadius = new CornerRadius(13),
+                Margin = new Thickness(0, 0, 4, 0),
                 Cursor = Cursors.Hand,
                 ToolTip = isCurrent ? $"Unassign {knobLbl}" : $"Assign to {knobLbl}",
             };
 
             if (isCurrent)
             {
-                pillBorder.Background = new SolidColorBrush(Color.FromArgb(0x50, accent.R, accent.G, accent.B));
-                pillBorder.BorderBrush = new SolidColorBrush(accent);
-                pillBorder.BorderThickness = new Thickness(1);
+                btn.Background = new SolidColorBrush(Color.FromArgb(0x50, accent.R, accent.G, accent.B));
+                btn.BorderBrush = new SolidColorBrush(accent);
+                btn.BorderThickness = new Thickness(1.5);
             }
             else
             {
-                pillBorder.Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
-                pillBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0x40, 0x40, 0x40));
-                pillBorder.BorderThickness = new Thickness(1);
+                btn.Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
+                btn.BorderBrush = new SolidColorBrush(Color.FromRgb(0x40, 0x40, 0x40));
+                btn.BorderThickness = new Thickness(1);
             }
 
-            pillBorder.Child = new TextBlock
+            btn.Child = new TextBlock
             {
-                Text = pill,
+                Text = number,
                 Foreground = isCurrent
                     ? new SolidColorBrush(accent)
-                    : new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
-                FontSize = 8,
-                FontWeight = isCurrent ? FontWeights.Bold : FontWeights.Normal,
+                    : new SolidColorBrush(Color.FromRgb(0x99, 0x99, 0x99)),
+                FontSize = 11,
+                FontWeight = isCurrent ? FontWeights.Bold : FontWeights.Medium,
                 HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
             };
 
-            pillBorder.MouseEnter += (_, _) =>
+            btn.MouseEnter += (_, _) =>
             {
                 if (!isCurrent)
                 {
-                    pillBorder.Background = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B));
-                    pillBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(0xA0, accent.R, accent.G, accent.B));
-                    if (pillBorder.Child is TextBlock pt)
+                    btn.Background = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B));
+                    btn.BorderBrush = new SolidColorBrush(Color.FromArgb(0xA0, accent.R, accent.G, accent.B));
+                    if (btn.Child is TextBlock pt)
                         pt.Foreground = new SolidColorBrush(Color.FromArgb(0xCC, accent.R, accent.G, accent.B));
                 }
             };
-            pillBorder.MouseLeave += (_, _) =>
+            btn.MouseLeave += (_, _) =>
             {
                 if (!isCurrent)
                 {
-                    pillBorder.Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
-                    pillBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0x40, 0x40, 0x40));
-                    if (pillBorder.Child is TextBlock pt)
-                        pt.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+                    btn.Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
+                    btn.BorderBrush = new SolidColorBrush(Color.FromRgb(0x40, 0x40, 0x40));
+                    if (btn.Child is TextBlock pt)
+                        pt.Foreground = new SolidColorBrush(Color.FromRgb(0x99, 0x99, 0x99));
                 }
             };
 
-            pillBorder.MouseLeftButtonDown += (_, e) =>
+            btn.MouseLeftButtonDown += (_, e) =>
             {
                 e.Handled = true;
                 AssignAppToKnob(appCapture, knobIdx, isCurrent);
             };
 
-            knobPicker.Children.Add(pillBorder);
+            knobPicker.Children.Add(btn);
         }
         cellContent.Children.Add(knobPicker);
         card.Child = cellContent;
