@@ -18,7 +18,7 @@ namespace AmpUp.Controls
     {
         // ── Layout constants ────────────────────────────────────────────
         private const double WidgetWidth = 620;
-        private const double WidgetHeight = 220;
+        private const double WidgetHeight = 250;
         private const double KnobSize = 80;
         private const double ButtonSize = 28;
         private const double KnobSpacing = 114;
@@ -73,7 +73,6 @@ namespace AmpUp.Controls
             CornerRadius = new CornerRadius(12);
             BorderThickness = new Thickness(1.5);
             Margin = new Thickness(0, 0, 0, 20);
-            ClipToBounds = true;
 
             // Enclosure gradient (dark brushed metal feel)
             var bgBrush = new LinearGradientBrush(
