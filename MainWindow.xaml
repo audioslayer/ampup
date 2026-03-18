@@ -162,7 +162,7 @@
                                 DockPanel.Dock="Bottom">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="3" />
+                                    <ColumnDefinition Width="10" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <Border x:Name="NavSettingsBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
@@ -181,7 +181,7 @@
                                 DockPanel.Dock="Bottom" ToolTip="Overview of all knob and button bindings across profiles">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="3" />
+                                    <ColumnDefinition Width="10" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <Border x:Name="NavBindingsBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
@@ -202,7 +202,7 @@
                             <Button x:Name="NavMixer" Style="{StaticResource NavButton}" Click="NavMixer_Click">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="3" />
+                                        <ColumnDefinition Width="10" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <Border x:Name="NavMixerBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
@@ -220,7 +220,7 @@
                             <Button x:Name="NavButtons" Style="{StaticResource NavButton}" Click="NavButtons_Click">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="3" />
+                                        <ColumnDefinition Width="10" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <Border x:Name="NavButtonsBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
@@ -238,7 +238,7 @@
                             <Button x:Name="NavLights" Style="{StaticResource NavButton}" Click="NavLights_Click">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="3" />
+                                        <ColumnDefinition Width="10" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <Border x:Name="NavLightsBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
@@ -256,7 +256,7 @@
                             <Button x:Name="NavAmbience" Style="{StaticResource NavButton}" Click="NavAmbience_Click">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="3" />
+                                        <ColumnDefinition Width="10" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <Border x:Name="NavAmbienceBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
@@ -275,7 +275,7 @@
                                     ToolTip="OSD Overlay &amp; Quick Wheel settings">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="3" />
+                                        <ColumnDefinition Width="10" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <Border x:Name="NavOsdBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
