@@ -1115,9 +1115,9 @@ public partial class LightsView : UserControl
             Owner = Window.GetWindow(this)
         };
 
-        // Live LED preview: show picked color on hardware while dialog is open
-        App.Rgb?.SetPreviewColor(current.R, current.G, current.B);
-        dialog.ColorChanged += c => App.Rgb?.SetPreviewColor(c.R, c.G, c.B);
+        // Live LED preview: global picks preview all knobs
+        App.Rgb?.SetPreviewColor(current.R, current.G, current.B, -1);
+        dialog.ColorChanged += c => App.Rgb?.SetPreviewColor(c.R, c.G, c.B, -1);
         dialog.Closed += (_, _) => App.Rgb?.ClearPreviewColor();
 
         if (dialog.ShowDialog() == true)
@@ -1428,17 +1428,18 @@ public partial class LightsView : UserControl
         return swatch;
     }
 
-    private void OnPickColor(int idx, bool isColor2)
+    private void OnPickColor(int knobIdx, bool isColor2)
     {
+        int idx = knobIdx;
         var current = isColor2 ? _colors2[idx] : _colors1[idx];
         var dialog = new ColorPickerDialog(current)
         {
             Owner = Window.GetWindow(this)
         };
 
-        // Live LED preview: show picked color on hardware while dialog is open
-        App.Rgb?.SetPreviewColor(current.R, current.G, current.B);
-        dialog.ColorChanged += c => App.Rgb?.SetPreviewColor(c.R, c.G, c.B);
+        // Live LED preview: only this knob
+        App.Rgb?.SetPreviewColor(current.R, current.G, current.B, idx);
+        dialog.ColorChanged += c => App.Rgb?.SetPreviewColor(c.R, c.G, c.B, idx);
         dialog.Closed += (_, _) => App.Rgb?.ClearPreviewColor();
 
         if (dialog.ShowDialog() == true)
@@ -1503,9 +1504,9 @@ public partial class LightsView : UserControl
         var current = _dsColors[idx][row];
         var dialog = new ColorPickerDialog(current) { Owner = Window.GetWindow(this) };
 
-        // Live LED preview: show picked color on hardware while dialog is open
-        App.Rgb?.SetPreviewColor(current.R, current.G, current.B);
-        dialog.ColorChanged += c => App.Rgb?.SetPreviewColor(c.R, c.G, c.B);
+        // Live LED preview: only this knob
+        App.Rgb?.SetPreviewColor(current.R, current.G, current.B, idx);
+        dialog.ColorChanged += c => App.Rgb?.SetPreviewColor(c.R, c.G, c.B, idx);
         dialog.Closed += (_, _) => App.Rgb?.ClearPreviewColor();
 
         if (dialog.ShowDialog() == true)

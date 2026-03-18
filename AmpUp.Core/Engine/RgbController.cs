@@ -95,6 +95,8 @@ public class RgbController : IDisposable
 
     // Preview color override — when set, all 15 LEDs show this color (for color picker live preview)
     private volatile byte[]? _previewColor; // null = normal, byte[3] = {R,G,B}
+    // Per-knob preview: only one knob shows preview color, others render normally
+    private volatile int _previewKnobIdx = -1; // -1 = all knobs (legacy), 0-4 = specific knob
 
     // Random number generator for stochastic effects
     private static readonly Random _rng = new();
@@ -209,8 +211,9 @@ public class RgbController : IDisposable
     /// Used by the color picker dialog for live hardware preview.
     /// Pass null to resume normal effect rendering.
     /// </summary>
-    public void SetPreviewColor(byte r, byte g, byte b)
+    public void SetPreviewColor(byte r, byte g, byte b, int knobIdx = -1)
     {
+        _previewKnobIdx = knobIdx;
         _previewColor = new byte[] { r, g, b };
     }
 
@@ -220,6 +223,7 @@ public class RgbController : IDisposable
     public void ClearPreviewColor()
     {
         _previewColor = null;
+        _previewKnobIdx = -1;
     }
 
     /// <summary>
@@ -356,13 +360,15 @@ public class RgbController : IDisposable
 
         // Preview color override — used by color picker for live hardware preview
         var preview = _previewColor;
-        if (preview != null)
+        int previewIdx = _previewKnobIdx;
+        if (preview != null && previewIdx == -1)
         {
+            // Global preview: all knobs show preview color
             for (int knob = 0; knob < 5; knob++)
                 SetColor(knob, preview[0], preview[1], preview[2]);
             Send();
             OnFrameReady?.Invoke(_linearColors);
-            return; // skip normal effects during preview
+            return;
         }
 
         if (_transitionTick >= 0)
@@ -378,6 +384,11 @@ public class RgbController : IDisposable
 
         UpdateEffects();
         ApplyDisabledKnobs();
+
+        // Per-knob preview: override only the target knob, others render normally
+        if (preview != null && previewIdx >= 0 && previewIdx < 5)
+            SetColor(previewIdx, preview[0], preview[1], preview[2]);
+
         Send();
         OnFrameReady?.Invoke(_linearColors);
     }
