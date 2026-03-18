@@ -1163,8 +1163,6 @@ public class TrayMixerPopup : Window
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 6, 0),
         });
-        brandRow.Children.Add(_statusDot);
-        brandRow.Children.Add(_statusText);
         bottomRow.Children.Add(brandRow);
 
 
