@@ -166,6 +166,12 @@ public class TrayMixerPopup : Window
         DockPanel.SetDock(_updateBanner, Dock.Top);
         root.Children.Add(_updateBanner);
 
+        // Quick Assign panel (hidden by default, right below header)
+        _quickAssignPanel = BuildQuickAssignPanel();
+        _quickAssignPanel.Visibility = Visibility.Collapsed;
+        DockPanel.SetDock(_quickAssignPanel, Dock.Top);
+        root.Children.Add(_quickAssignPanel);
+
         // Search / filter bar
         var searchBar = BuildSearchBar();
         DockPanel.SetDock(searchBar, Dock.Top);
@@ -192,12 +198,6 @@ public class TrayMixerPopup : Window
         };
         DockPanel.SetDock(wrapper, Dock.Top);
         root.Children.Add(wrapper);
-
-        // Quick Assign panel (hidden by default)
-        _quickAssignPanel = BuildQuickAssignPanel();
-        _quickAssignPanel.Visibility = Visibility.Collapsed;
-        DockPanel.SetDock(_quickAssignPanel, Dock.Top);
-        root.Children.Add(_quickAssignPanel);
 
         return outer;
     }
