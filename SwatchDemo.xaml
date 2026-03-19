@@ -1,9 +1,0 @@
-<Window x:Class="AmpUp.SwatchDemo"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Color Display Concepts" Width="1100" Height="520"
-        Background="#0F0F0F" WindowStartupLocation="CenterScreen">
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
-        <Grid x:Name="Root" Margin="24"/>
-    </ScrollViewer>
-</Window>

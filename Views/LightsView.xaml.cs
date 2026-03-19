@@ -47,7 +47,7 @@ public partial class LightsView : UserControl
     private readonly EffectPickerControl[] _effectPickers = new EffectPickerControl[5];
     private readonly Border[] _color1Swatches = new Border[5];
     private readonly Border[] _color2Swatches = new Border[5];
-    private readonly StackPanel[] _color2Panels = new StackPanel[5];
+    private readonly Border[] _color2Panels = new Border[5];
     private readonly StyledSlider[] _speedSliders = new StyledSlider[5];
     private readonly StackPanel[] _speedPanels = new StackPanel[5];
     private readonly ActionPicker[] _reactiveModeComboBoxes = new ActionPicker[5];
@@ -69,7 +69,7 @@ public partial class LightsView : UserControl
     private EffectPickerControl? _globalEffectPicker;
     private Border? _globalColor1Swatch;
     private Border? _globalColor2Swatch;
-    private StackPanel? _globalColor2Panel;
+    private Border? _globalColor2Panel;
     private StyledSlider? _globalSpeedSlider;
     private StackPanel? _globalSpeedPanel;
     private ActionPicker? _globalReactiveModeCombo;
@@ -238,8 +238,8 @@ public partial class LightsView : UserControl
 
             _colors1[i] = Color.FromRgb((byte)light.R, (byte)light.G, (byte)light.B);
             _colors2[i] = Color.FromRgb((byte)light.R2, (byte)light.G2, (byte)light.B2);
-            _color1Swatches[i].Background = new SolidColorBrush(_colors1[i]);
-            _color2Swatches[i].Background = new SolidColorBrush(_colors2[i]);
+            SetSwatchColor(_color1Swatches[i], _colors1[i]);
+            SetSwatchColor(_color2Swatches[i], _colors2[i]);
 
             _speedSliders[i].Value = Math.Clamp(light.EffectSpeed, 1, 100);
 
@@ -889,22 +889,17 @@ public partial class LightsView : UserControl
         };
         manualSection.Children.Add(customColorLabel);
 
-        var color2Panel = new StackPanel { Orientation = Orientation.Horizontal, Visibility = Visibility.Collapsed };
-        color2Panel.Children.Add(MakeSubLabel("SECONDARY"));
-        color2Panel.Children.Add(swatch2);
-        _globalColor2Panel = color2Panel;
+        swatch2.Visibility = Visibility.Collapsed;
+        _globalColor2Panel = swatch2;
 
         var globalColorRow = new WrapPanel
         {
             Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 12),
+            Margin = new Thickness(0, 4, 0, 8),
         };
 
-        var globalColor1Container = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 16, 2) };
-        globalColor1Container.Children.Add(MakeSubLabel("PRIMARY"));
-        globalColor1Container.Children.Add(swatch1);
-        globalColorRow.Children.Add(globalColor1Container);
-        globalColorRow.Children.Add(color2Panel);
+        globalColorRow.Children.Add(swatch1);
+        globalColorRow.Children.Add(swatch2);
         manualSection.Children.Add(globalColorRow);
         settings.Children.Add(manualSection);
 
@@ -1228,30 +1223,21 @@ public partial class LightsView : UserControl
             // ── COLOR section ──
             panel.Children.Add(MakeSectionHeader("COLOR"));
 
-            // Horizontal row: PRIMARY [circle] SECONDARY [circle]
+            // Color pills
             var swatch1 = MakeColorSwatch(idx, isColor2: false);
             _color1Swatches[i] = swatch1;
             var swatch2 = MakeColorSwatch(idx, isColor2: true);
             _color2Swatches[i] = swatch2;
 
-            // WrapPanel so PRIMARY/SECONDARY wrap on narrow columns (e.g. 4K portrait)
             var colorRow = new WrapPanel
             {
                 Orientation = Orientation.Horizontal,
-                Margin = new Thickness(0, 0, 0, 8),
+                Margin = new Thickness(0, 4, 0, 4),
             };
 
-            var color1Container = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 12, 2) };
-            color1Container.Children.Add(MakeSubLabel("PRIMARY"));
-            color1Container.Children.Add(swatch1);
-            colorRow.Children.Add(color1Container);
-
-            var color2Container = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
-            color2Container.Children.Add(MakeSubLabel("SECONDARY"));
-            color2Container.Children.Add(swatch2);
-
-            colorRow.Children.Add(color2Container);
-            _color2Panels[i] = color2Container;
+            colorRow.Children.Add(swatch1);
+            colorRow.Children.Add(swatch2);
+            _color2Panels[i] = swatch2;
             panel.Children.Add(colorRow);
 
             // ── SPEED section (conditionally visible — separator included) ──
@@ -1396,40 +1382,71 @@ public partial class LightsView : UserControl
 
     private Border MakeColorSwatch(int idx, bool isColor2)
     {
-        var normalBorder = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
-        var swatch = new Border
+        var label = isColor2 ? "SECONDARY" : "PRIMARY";
+        return MakeColorPill(label, Colors.Black, isColor2 ? "Secondary color (accent/contrast for animated effects)" : "Primary LED color",
+            () => OnPickColor(idx, isColor2));
+    }
+
+    private Border MakeColorPill(string label, Color initial, string tooltip, Action onClick)
+    {
+        var c = initial;
+        var darkBg = Color.FromArgb(0x33, c.R, c.G, c.B);
+        var borderColor = Color.FromArgb(0x66, c.R, c.G, c.B);
+
+        var pill = new Border
         {
-            Width = 36,
-            Height = 36,
-            CornerRadius = new CornerRadius(18),
-            Background = new SolidColorBrush(Colors.Black),
-            BorderBrush = normalBorder,
+            CornerRadius = new CornerRadius(14),
+            Background = new SolidColorBrush(darkBg),
+            BorderBrush = new SolidColorBrush(borderColor),
             BorderThickness = new Thickness(1),
-            Margin = new Thickness(4, 0, 0, 0),
+            Padding = new Thickness(6, 4, 12, 4),
+            Margin = new Thickness(0, 0, 8, 4),
             Cursor = Cursors.Hand,
-            ToolTip = isColor2 ? "Secondary color (accent/contrast for animated effects)" : "Primary LED color",
+            ToolTip = tooltip,
         };
 
-        // Hover glow effect
-        swatch.MouseEnter += (_, _) =>
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+
+        // Color dot inside pill
+        var dot = new Border
         {
-            swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0x88, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
-            swatch.Effect = new System.Windows.Media.Effects.DropShadowEffect
-            {
-                Color = ((SolidColorBrush)swatch.Background).Color,
-                BlurRadius = 10,
-                Opacity = 0.4,
-                ShadowDepth = 0,
-            };
+            Width = 16, Height = 16,
+            CornerRadius = new CornerRadius(8),
+            Background = new SolidColorBrush(c),
+            Margin = new Thickness(0, 0, 6, 0),
+            VerticalAlignment = VerticalAlignment.Center,
         };
-        swatch.MouseLeave += (_, _) =>
+        row.Children.Add(dot);
+
+        var labelBlock = new TextBlock
         {
-            swatch.BorderBrush = normalBorder;
-            swatch.Effect = null;
+            Text = label,
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromArgb(0xCC, c.R, c.G, c.B)),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        pill.Tag = dot; // SetSwatchColor uses Tag to find inner dot
+        row.Children.Add(labelBlock);
+
+        pill.Child = row;
+
+        // Hover effect
+        pill.MouseEnter += (_, _) =>
+        {
+            var dotColor = ((SolidColorBrush)dot.Background).Color;
+            pill.BorderBrush = new SolidColorBrush(Color.FromArgb(0xAA, dotColor.R, dotColor.G, dotColor.B));
+            pill.Background = new SolidColorBrush(Color.FromArgb(0x44, dotColor.R, dotColor.G, dotColor.B));
+        };
+        pill.MouseLeave += (_, _) =>
+        {
+            var dotColor = ((SolidColorBrush)dot.Background).Color;
+            pill.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, dotColor.R, dotColor.G, dotColor.B));
+            pill.Background = new SolidColorBrush(Color.FromArgb(0x33, dotColor.R, dotColor.G, dotColor.B));
         };
 
-        swatch.MouseLeftButtonDown += (_, _) => OnPickColor(idx, isColor2);
-        return swatch;
+        pill.MouseLeftButtonDown += (_, _) => onClick();
+        return pill;
     }
 
     private void OnPickColor(int knobIdx, bool isColor2)
@@ -1452,12 +1469,12 @@ public partial class LightsView : UserControl
             if (isColor2)
             {
                 _colors2[idx] = chosen;
-                _color2Swatches[idx].Background = new SolidColorBrush(chosen);
+                SetSwatchColor(_color2Swatches[idx], chosen);
             }
             else
             {
                 _colors1[idx] = chosen;
-                _color1Swatches[idx].Background = new SolidColorBrush(chosen);
+                SetSwatchColor(_color1Swatches[idx], chosen);
             }
             QueueSave();
         }
@@ -1613,8 +1630,8 @@ public partial class LightsView : UserControl
                 UpdateHeaderEffect(idx);
                 _colors1[idx] = Color.FromRgb((byte)light.R, (byte)light.G, (byte)light.B);
                 _colors2[idx] = Color.FromRgb((byte)light.R2, (byte)light.G2, (byte)light.B2);
-                _color1Swatches[idx].Background = new SolidColorBrush(_colors1[idx]);
-                _color2Swatches[idx].Background = new SolidColorBrush(_colors2[idx]);
+                SetSwatchColor(_color1Swatches[idx], _colors1[idx]);
+                SetSwatchColor(_color2Swatches[idx], _colors2[idx]);
                 _speedSliders[idx].Value = Math.Clamp(light.EffectSpeed, 1, 100);
                 if (_reactiveModeComboBoxes[idx] != null)
                     _reactiveModeComboBoxes[idx].Select(light.ReactiveMode.ToString());
@@ -1646,8 +1663,8 @@ public partial class LightsView : UserControl
                 UpdateHeaderEffect(idx);
                 _colors1[idx] = Color.FromRgb(0, 230, 118);
                 _colors2[idx] = Color.FromRgb(0, 0, 0);
-                _color1Swatches[idx].Background = new SolidColorBrush(_colors1[idx]);
-                _color2Swatches[idx].Background = new SolidColorBrush(_colors2[idx]);
+                SetSwatchColor(_color1Swatches[idx], _colors1[idx]);
+                SetSwatchColor(_color2Swatches[idx], _colors2[idx]);
                 _speedSliders[idx].Value = 50;
                 if (_programNameBoxes[idx] != null)
                     _programNameBoxes[idx].Text = "";
@@ -1861,48 +1878,9 @@ public partial class LightsView : UserControl
 
     private Border MakeGlobalColorSwatch(Color initial, bool isColor2)
     {
-        // Outer ring — gives the swatch a clear boundary on dark bg
-        var outerRing = new Border
-        {
-            Width = 40,
-            Height = 40,
-            CornerRadius = new CornerRadius(20),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44)),
-            BorderThickness = new Thickness(2),
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-            Margin = new Thickness(6, 0, 0, 0),
-            Cursor = Cursors.Hand,
-            ToolTip = isColor2 ? "Secondary color — click to change" : "Primary color — click to change",
-        };
-
-        // Inner color circle
-        var innerColor = new Border
-        {
-            Width = 30,
-            Height = 30,
-            CornerRadius = new CornerRadius(15),
-            Background = new SolidColorBrush(initial),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        outerRing.Child = innerColor;
-
-        outerRing.MouseEnter += (_, _) =>
-        {
-            var swatchColor = ((SolidColorBrush)innerColor.Background).Color;
-            outerRing.BorderBrush = new SolidColorBrush(Color.FromArgb(0xCC, swatchColor.R, swatchColor.G, swatchColor.B));
-            outerRing.Background = new SolidColorBrush(Color.FromArgb(0x20, swatchColor.R, swatchColor.G, swatchColor.B));
-        };
-        outerRing.MouseLeave += (_, _) =>
-        {
-            outerRing.BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
-            outerRing.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
-        };
-        outerRing.MouseLeftButtonDown += (_, _) => OnPickGlobalColor(isColor2);
-
-        // Store inner border ref so we can update the color
-        outerRing.Tag = innerColor;
-        return outerRing;
+        var label = isColor2 ? "SECONDARY" : "PRIMARY";
+        return MakeColorPill(label, initial, isColor2 ? "Secondary color — click to change" : "Primary color — click to change",
+            () => OnPickGlobalColor(isColor2));
     }
 
     private Brush FindBrush(string key)
@@ -1922,7 +1900,15 @@ public partial class LightsView : UserControl
     {
         if (swatch == null) return;
         if (swatch.Tag is Border inner)
+        {
             inner.Background = new SolidColorBrush(color);
+            // Update pill tint to match new color
+            swatch.Background = new SolidColorBrush(Color.FromArgb(0x33, color.R, color.G, color.B));
+            swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, color.R, color.G, color.B));
+            // Update label color if present
+            if (swatch.Child is StackPanel row && row.Children.Count > 1 && row.Children[1] is TextBlock label)
+                label.Foreground = new SolidColorBrush(Color.FromArgb(0xCC, color.R, color.G, color.B));
+        }
         else
             swatch.Background = new SolidColorBrush(color);
     }
