@@ -48,6 +48,9 @@ public class TrayMixerPopup : Window
     // Update indicator
     private Border? _updateBanner;
 
+    // Cached PID→device name map (built once per RefreshSessions, avoids per-row device enumeration)
+    private Dictionary<uint, string> _pidDeviceMap = new();
+
 
     private record SessionRow(
         string ProcessName,
@@ -311,6 +314,35 @@ public class TrayMixerPopup : Window
 
         try
         {
+            // Build PID→device name map for ALL non-default render devices (once per refresh).
+            // This replaces the per-session device enumeration in BuildDeviceBadge.
+            _pidDeviceMap.Clear();
+            try
+            {
+                using var defDevice = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                var defaultId = defDevice.ID;
+                var endpoints = _enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+                foreach (var ep in endpoints)
+                {
+                    try
+                    {
+                        if (ep.ID == defaultId) continue;
+                        var friendlyName = ep.FriendlyName;
+                        var mgr = ep.AudioSessionManager;
+                        var sessions = mgr.Sessions;
+                        for (int i = 0; i < sessions.Count; i++)
+                        {
+                            var pid = sessions[i].GetProcessID;
+                            if (pid != 0)
+                                _pidDeviceMap.TryAdd(pid, friendlyName);
+                        }
+                    }
+                    catch { }
+                    finally { ep.Dispose(); }
+                }
+            }
+            catch { }
+
             // Master volume row (always first)
             // Store in field so it lives as long as the popup; disposed in OnClosed
             _masterDevice?.Dispose();
@@ -2008,44 +2040,11 @@ public class TrayMixerPopup : Window
     {
         try
         {
-            // Try to get the session's audio device via its AudioSessionManager parent
-            // We compare against the default render device friendly name
-            string? defaultName = null;
-            string? sessionDeviceName = null;
-            try
-            {
-                using var def = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                defaultName = def.FriendlyName;
-            }
-            catch { }
-
-            // Sessions on non-default devices are rare but possible; NAudio doesn't expose
-            // per-session device directly. We enumerate render devices and check if the session
-            // appears on a non-default one.
-            try
-            {
-                var endpoints = _enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
-                foreach (var ep in endpoints)
-                {
-                    if (ep.FriendlyName == defaultName) { ep.Dispose(); continue; }
-                    var mgr = ep.AudioSessionManager;
-                    var sessions = mgr.Sessions;
-                    for (int i = 0; i < sessions.Count; i++)
-                    {
-                        var s = sessions[i];
-                        if (s.GetProcessID == session.GetProcessID)
-                        {
-                            sessionDeviceName = ep.FriendlyName;
-                            break;
-                        }
-                    }
-                    ep.Dispose();
-                    if (sessionDeviceName != null) break;
-                }
-            }
-            catch { }
-
-            if (string.IsNullOrEmpty(sessionDeviceName)) return null;
+            // Use the pre-built PID→device map (built once per RefreshSessions)
+            // instead of enumerating all devices for every session row.
+            var pid = session.GetProcessID;
+            if (!_pidDeviceMap.TryGetValue(pid, out var sessionDeviceName))
+                return null;
 
             // Truncate to ~10 chars
             var display = sessionDeviceName.Length > 10 ? sessionDeviceName[..10] + "…" : sessionDeviceName;
