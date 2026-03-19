@@ -201,6 +201,9 @@ public partial class App : Application
         _wmTaskbarCreated = NativeMethods.RegisterWindowMessage("TaskbarCreated");
 
         // Create main window
+        // TEMP: show swatch demo
+        new SwatchDemo().Show();
+
         _mainWindow = new MainWindow();
         _mainWindow.Closing += MainWindow_Closing;
         _mainWindow.Initialize(_config, _mixer, OnConfigChanged);
