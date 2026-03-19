@@ -123,6 +123,38 @@ public class RgbController : IDisposable
         return table;
     }
 
+    private static void RgbToHsv(int r, int g, int b, out float h, out float s, out float v)
+    {
+        float rf = r / 255f, gf = g / 255f, bf = b / 255f;
+        float max = MathF.Max(rf, MathF.Max(gf, bf));
+        float min = MathF.Min(rf, MathF.Min(gf, bf));
+        float delta = max - min;
+        v = max;
+        s = max == 0 ? 0 : delta / max;
+        if (delta == 0) { h = 0; return; }
+        if (max == rf) h = 60f * (((gf - bf) / delta) % 6f);
+        else if (max == gf) h = 60f * (((bf - rf) / delta) + 2f);
+        else h = 60f * (((rf - gf) / delta) + 4f);
+        if (h < 0) h += 360f;
+    }
+
+    private static void HsvToRgb(float h, float s, float v, out int r, out int g, out int b)
+    {
+        float c = v * s;
+        float x = c * (1f - MathF.Abs((h / 60f) % 2f - 1f));
+        float m = v - c;
+        float rf, gf, bf;
+        if (h < 60) { rf = c; gf = x; bf = 0; }
+        else if (h < 120) { rf = x; gf = c; bf = 0; }
+        else if (h < 180) { rf = 0; gf = c; bf = x; }
+        else if (h < 240) { rf = 0; gf = x; bf = c; }
+        else if (h < 300) { rf = x; gf = 0; bf = c; }
+        else { rf = c; gf = 0; bf = x; }
+        r = Math.Clamp((int)((rf + m) * 255f + 0.5f), 0, 255);
+        g = Math.Clamp((int)((gf + m) * 255f + 0.5f), 0, 255);
+        b = Math.Clamp((int)((bf + m) * 255f + 0.5f), 0, 255);
+    }
+
     /// <summary>Update per-channel gamma curves. Called on config load/change.</summary>
     public void SetGamma(double gammaR, double gammaG, double gammaB)
     {
@@ -625,9 +657,12 @@ public class RgbController : IDisposable
     /// </summary>
     private void EffectSingleColor(int k, LightConfig light, float pos)
     {
-        int r = (int)(light.R * pos);
-        int g = (int)(light.G * pos);
-        int b = (int)(light.B * pos);
+        // Dim in HSV space (scale Value only) to preserve hue at low brightness.
+        // Linear RGB scaling causes color shift on hardware LEDs — red LEDs are
+        // more efficient at low currents, so whites/grays shift red when dimmed.
+        RgbToHsv(light.R, light.G, light.B, out float h, out float s, out float v);
+        v *= pos;
+        HsvToRgb(h, s, v, out int r, out int g, out int b);
         SetColor(k, r, g, b);
     }
 

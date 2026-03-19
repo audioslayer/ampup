@@ -25,7 +25,8 @@ public class TrayMixerPopup : Window
     private bool _updatingFromPoll; // prevent slider.ValueChanged feedback loop
 
     // Icon cache — avoids re-extracting icons from exe on every popup open
-    private static readonly Dictionary<string, System.Windows.Media.Imaging.BitmapSource?> _iconCache = new(StringComparer.OrdinalIgnoreCase);
+    // ConcurrentDictionary because PreWarmIconCache writes from a background thread.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Windows.Media.Imaging.BitmapSource?> _iconCache = new(StringComparer.OrdinalIgnoreCase);
 
     // Context menu callbacks
     private Action? _onOpen;
@@ -231,6 +232,42 @@ public class TrayMixerPopup : Window
     {
         if (_updateBanner != null)
             _updateBanner.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>
+    /// Pre-warm the icon cache on a background thread so the first tray popup open is fast.
+    /// Call once from App startup after a short delay.
+    /// </summary>
+    public static void PreWarmIconCache()
+    {
+        System.Threading.Tasks.Task.Run(() =>
+        {
+            try
+            {
+                foreach (var proc in Process.GetProcesses())
+                {
+                    try
+                    {
+                        if (_iconCache.ContainsKey(proc.ProcessName)) continue;
+                        var exePath = proc.MainModule?.FileName;
+                        if (string.IsNullOrEmpty(exePath)) continue;
+                        var sysIcon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
+                        if (sysIcon != null)
+                        {
+                            var bmp = System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(
+                                sysIcon.Handle, Int32Rect.Empty,
+                                System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
+                            bmp.Freeze();
+                            sysIcon.Dispose();
+                            _iconCache[proc.ProcessName] = bmp;
+                        }
+                    }
+                    catch { /* MainModule throws for elevated/UWP procs — skip */ }
+                    finally { proc.Dispose(); }
+                }
+            }
+            catch { }
+        });
     }
 
     public void ShowPopup()

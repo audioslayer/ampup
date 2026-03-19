@@ -193,6 +193,9 @@ public partial class App : Application
         // Create tray icon
         SetupTrayIcon();
 
+        // Pre-warm app icon cache on background thread so first tray popup open is instant
+        TrayMixerPopup.PreWarmIconCache();
+
         // Listen for display configuration changes (e.g. monitor on/off) — tray icon
         // handle can become invalid when Explorer restarts or display settings change.
         SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
