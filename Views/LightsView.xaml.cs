@@ -1423,7 +1423,7 @@ public partial class LightsView : UserControl
             Text = label,
             FontSize = 9,
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromArgb(0xCC, c.R, c.G, c.B)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
             VerticalAlignment = VerticalAlignment.Center,
         };
         pill.Tag = dot; // SetSwatchColor uses Tag to find inner dot
@@ -1905,9 +1905,6 @@ public partial class LightsView : UserControl
             // Update pill tint to match new color
             swatch.Background = new SolidColorBrush(Color.FromArgb(0x33, color.R, color.G, color.B));
             swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, color.R, color.G, color.B));
-            // Update label color if present
-            if (swatch.Child is StackPanel row && row.Children.Count > 1 && row.Children[1] is TextBlock label)
-                label.Foreground = new SolidColorBrush(Color.FromArgb(0xCC, color.R, color.G, color.B));
         }
         else
             swatch.Background = new SolidColorBrush(color);
