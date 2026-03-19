@@ -1374,10 +1374,10 @@ public partial class LightsView : UserControl
         _headerIcons[idx].Text = icon;
         _headerEffects[idx].Text = display;
 
-        // Color icon + label to match the effect's tile color
-        var effectColor = EffectPickerControl.EffectColors.GetValueOrDefault(effect, ThemeManager.Accent);
-        _headerIcons[idx].Foreground = new SolidColorBrush(effectColor);
-        _headerEffects[idx].Foreground = new SolidColorBrush(effectColor);
+        // Color icon + label to match the knob's primary LED color
+        var knobColor = _colors1[idx];
+        _headerIcons[idx].Foreground = new SolidColorBrush(knobColor);
+        _headerEffects[idx].Foreground = new SolidColorBrush(knobColor);
     }
 
     private Border MakeColorSwatch(int idx, bool isColor2)
@@ -1475,6 +1475,7 @@ public partial class LightsView : UserControl
             {
                 _colors1[idx] = chosen;
                 SetSwatchColor(_color1Swatches[idx], chosen);
+                UpdateHeaderEffect(idx);
             }
             QueueSave();
         }
@@ -1627,11 +1628,11 @@ public partial class LightsView : UserControl
 
                 _loading = true;
                 _effectPickers[idx].SelectedEffect = light.Effect;
-                UpdateHeaderEffect(idx);
                 _colors1[idx] = Color.FromRgb((byte)light.R, (byte)light.G, (byte)light.B);
                 _colors2[idx] = Color.FromRgb((byte)light.R2, (byte)light.G2, (byte)light.B2);
                 SetSwatchColor(_color1Swatches[idx], _colors1[idx]);
                 SetSwatchColor(_color2Swatches[idx], _colors2[idx]);
+                UpdateHeaderEffect(idx);
                 _speedSliders[idx].Value = Math.Clamp(light.EffectSpeed, 1, 100);
                 if (_reactiveModeComboBoxes[idx] != null)
                     _reactiveModeComboBoxes[idx].Select(light.ReactiveMode.ToString());
@@ -1660,11 +1661,11 @@ public partial class LightsView : UserControl
 
                 _loading = true;
                 _effectPickers[idx].SelectedEffect = LightEffect.SingleColor;
-                UpdateHeaderEffect(idx);
                 _colors1[idx] = Color.FromRgb(0, 230, 118);
                 _colors2[idx] = Color.FromRgb(0, 0, 0);
                 SetSwatchColor(_color1Swatches[idx], _colors1[idx]);
                 SetSwatchColor(_color2Swatches[idx], _colors2[idx]);
+                UpdateHeaderEffect(idx);
                 _speedSliders[idx].Value = 50;
                 if (_programNameBoxes[idx] != null)
                     _programNameBoxes[idx].Text = "";
