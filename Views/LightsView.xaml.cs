@@ -1852,6 +1852,7 @@ public partial class LightsView : UserControl
             FontSize = 9,
             FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(Color.FromArgb(0x99, 0xCC, 0xCC, 0xCC)),
+            Width = 72,
             Margin = new Thickness(0, 0, 4, 0),
             VerticalAlignment = VerticalAlignment.Center,
         };

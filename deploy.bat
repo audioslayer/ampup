@@ -19,7 +19,7 @@ if errorlevel 1 (
 echo.
 echo [2/4] Killing old Amp Up if running...
 taskkill /f /im AmpUp.exe 2>nul
-timeout /t 1 /nobreak >nul
+timeout /t 3 /nobreak >nul
 
 echo.
 echo [3/4] Building...
