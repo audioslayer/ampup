@@ -730,23 +730,23 @@ public class RgbController : IDisposable
     }
 
     /// <summary>
-    /// Mic status: unmuted = solid color1, muted = slow blink on color2.
+    /// Mic status: unmuted = solid color1, muted = solid color2.
     /// </summary>
     private void EffectMicStatus(int k, LightConfig light)
     {
         if (_micMuted)
-            ApplyMutedBlink(k, light.R2, light.G2, light.B2);
+            SetColor(k, light.R2, light.G2, light.B2);
         else
             SetColor(k, light.R, light.G, light.B);
     }
 
     /// <summary>
-    /// Master device mute: unmuted = solid color1, muted = slow blink on color2.
+    /// Master device mute: unmuted = solid color1, muted = solid color2.
     /// </summary>
     private void EffectDeviceMute(int k, LightConfig light)
     {
         if (_masterMuted)
-            ApplyMutedBlink(k, light.R2, light.G2, light.B2);
+            SetColor(k, light.R2, light.G2, light.B2);
         else
             SetColor(k, light.R, light.G, light.B);
     }
