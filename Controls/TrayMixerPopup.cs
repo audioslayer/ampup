@@ -329,10 +329,10 @@ public class TrayMixerPopup : Window
                         if (ep.ID == defaultId) continue;
                         var friendlyName = ep.FriendlyName;
                         var mgr = ep.AudioSessionManager;
-                        var sessions = mgr.Sessions;
-                        for (int i = 0; i < sessions.Count; i++)
+                        var epSessions = mgr.Sessions;
+                        for (int i = 0; i < epSessions.Count; i++)
                         {
-                            var pid = sessions[i].GetProcessID;
+                            var pid = epSessions[i].GetProcessID;
                             if (pid != 0)
                                 _pidDeviceMap.TryAdd(pid, friendlyName);
                         }
