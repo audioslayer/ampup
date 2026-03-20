@@ -37,9 +37,10 @@ public partial class MainWindow : Window
         InitializeComponent();
         NavigateTo(_mixerView, NavMixer);
 
-        // Red button minimizes to dock instead of quitting
+        // Red button hides to tray instead of quitting (handled by TrayIconManager)
         Closing += (_, e) =>
         {
+            if (App.Tray?.IsQuitting == true) return;
             e.Cancel = true;
             Hide();
         };

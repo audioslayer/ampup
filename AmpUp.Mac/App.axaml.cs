@@ -152,10 +152,10 @@ public partial class App : Application
         };
         quitItem.Click += (_, _) =>
         {
+            if (Tray != null) Tray.IsQuitting = true;
             Cleanup();
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
                 lifetime.Shutdown(0);
-            Environment.Exit(0);
         };
         appMenu.Add(quitItem);
 

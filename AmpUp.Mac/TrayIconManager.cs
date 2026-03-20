@@ -21,6 +21,7 @@ public class TrayIconManager : IDisposable
 
     private MainWindow? _mainWindow;
     private bool _isMuted;
+    public bool IsQuitting { get; set; }
     private bool _isConnected;
     private string _activeProfile = "Default";
 
@@ -133,19 +134,21 @@ public class TrayIconManager : IDisposable
 
     private void OnQuitClicked(object? sender, EventArgs e)
     {
-        // Clean up backend resources (serial, audio taps, etc.)
+        IsQuitting = true;
+
         if (Application.Current is App app)
             app.Cleanup();
 
-        // Hide tray icon immediately
         _trayIcon.IsVisible = false;
 
-        // Force exit — Avalonia Shutdown can hang if window Closing cancels
-        Environment.Exit(0);
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
+            lifetime.Shutdown(0);
     }
 
     private void OnWindowClosing(object? sender, WindowClosingEventArgs e)
     {
+        if (IsQuitting) return; // Let it close — app is terminating
+
         // Hide to tray instead of closing
         e.Cancel = true;
         _mainWindow?.Hide();
