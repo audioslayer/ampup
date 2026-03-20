@@ -137,18 +137,23 @@ public class TrayIconManager : IDisposable
 
     private void OnQuitClicked(object? sender, EventArgs e)
     {
+        IsQuitting = true;
+
+        // Clean up backend (serial, audio taps, LEDs off)
         try
         {
-            IsQuitting = true;
             if (Application.Current is App app)
                 app.Cleanup();
-            _trayIcon.IsVisible = false;
         }
         catch { }
 
-        // Native POSIX exit — bypasses .NET runtime and Avalonia entirely
+        // Hide everything immediately so it looks quit
+        try { _trayIcon.IsVisible = false; } catch { }
+        try { _mainWindow?.Hide(); } catch { }
+
+        // Call native NSApplication.terminate + fallback _exit
+        // This runs async on the Cocoa main thread
         try { ampup_force_exit(); } catch { }
-        try { Environment.Exit(0); } catch { }
     }
 
     private void OnWindowClosing(object? sender, WindowClosingEventArgs e)

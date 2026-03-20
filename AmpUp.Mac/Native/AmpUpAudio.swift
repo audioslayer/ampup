@@ -419,12 +419,20 @@ public func ampup_enumerate_processes(_ callback: ProcessCallback) {
     }
 }
 
-// MARK: - Force Exit
+// MARK: - App Termination
 
 @_cdecl("ampup_force_exit")
 public func ampup_force_exit() {
-    // POSIX _exit bypasses all cleanup, atexit handlers, and managed runtime
-    Darwin.exit(0)
+    // Use NSApplication.terminate — the proper macOS app quit path.
+    // This sends applicationShouldTerminate, posts willTerminate notification,
+    // and tears down the Cocoa run loop correctly.
+    DispatchQueue.main.async {
+        NSApplication.shared.terminate(nil)
+    }
+    // If terminate doesn't fire (e.g. not on main thread), fallback after delay
+    DispatchQueue.global().asyncAfter(deadline: .now() + 1.0) {
+        _exit(0)  // POSIX immediate exit, no cleanup
+    }
 }
 
 // MARK: - Media Key Simulation
