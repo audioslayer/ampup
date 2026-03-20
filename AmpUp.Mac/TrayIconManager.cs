@@ -22,6 +22,7 @@ public class TrayIconManager : IDisposable
     private MainWindow? _mainWindow;
     private bool _isMuted;
     public bool IsQuitting { get; set; }
+    private volatile bool _wantQuit;
     private bool _isConnected;
     private string _activeProfile = "Default";
 
@@ -64,6 +65,19 @@ public class TrayIconManager : IDisposable
 
         // Left-click: toggle window on macOS (Clicked fires on left-click)
         _trayIcon.Clicked += OnTrayClicked;
+
+        // Background quit watcher — polls for _wantQuit flag and kills process
+        // This runs on a thread that's NOT the NativeMenu handler thread,
+        // so exit calls actually work
+        new System.Threading.Thread(() =>
+        {
+            while (!_wantQuit)
+                System.Threading.Thread.Sleep(200);
+
+            // We're on a background thread now — _exit will work
+            System.Threading.Thread.Sleep(300); // let cleanup finish
+            Environment.Exit(0);
+        }) { IsBackground = true, Name = "QuitWatcher" }.Start();
     }
 
     /// <summary>
@@ -149,22 +163,8 @@ public class TrayIconManager : IDisposable
         try { _trayIcon.IsVisible = false; } catch { }
         try { _mainWindow?.Hide(); } catch { }
 
-        // Spawn a detached shell that kills us — the only reliable method
-        // because _exit, Environment.Exit, and Process.Kill all fail
-        // inside Avalonia's NativeMenu handler on macOS
-        var pid = Environment.ProcessId;
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "/bin/bash",
-                Arguments = $"-c \"sleep 0.2; kill -9 {pid}\"",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-            });
-        }
-        catch { }
+        // Signal the background quit watcher thread to exit the process
+        _wantQuit = true;
     }
 
     private void OnWindowClosing(object? sender, WindowClosingEventArgs e)
