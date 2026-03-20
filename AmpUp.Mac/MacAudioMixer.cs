@@ -13,7 +13,6 @@ public class MacAudioMixer : IDisposable
     private readonly HashSet<int> _tappedPids = new();
     private readonly int[] _lastRaw = new int[5];
     private bool _disposed;
-    private bool _loggedApps;
 
     public void Start()
     {
@@ -47,13 +46,6 @@ public class MacAudioMixer : IDisposable
                 dict[fullLower].Add(app.Pid);
             }
             lock (_lock) { _appsByName = dict; }
-
-            if (!_loggedApps && apps.Count > 0)
-            {
-                _loggedApps = true;
-                foreach (var app in apps)
-                    Logger.Log($"Audio app: pid={app.Pid} name=\"{app.Name}\"");
-            }
         }
         catch (Exception ex)
         {
@@ -72,8 +64,6 @@ public class MacAudioMixer : IDisposable
 
         float volume = VolumePipeline.ComputeVolume(rawValue, knob);
         var target = knob.Target?.ToLowerInvariant() ?? "none";
-
-        Logger.Log($"SetVolume: knob={knob.Idx} target={target} raw={rawValue} vol={volume:F3}");
 
         switch (target)
         {
@@ -107,30 +97,19 @@ public class MacAudioMixer : IDisposable
             _appsByName.TryGetValue(name.ToLowerInvariant(), out pids);
         }
 
-        if (pids == null || pids.Count == 0)
-        {
-            Logger.Log($"SetAppVolumeByName: no PIDs found for \"{name}\"");
-            return;
-        }
+        if (pids == null || pids.Count == 0) return;
 
         foreach (var pid in pids)
         {
             // Lazily create tap
             if (!_tappedPids.Contains(pid))
             {
-                Logger.Log($"Creating tap for \"{name}\" pid={pid}");
                 if (_bridge.CreateTap(pid))
                     _tappedPids.Add(pid);
                 else
-                {
-                    Logger.Log($"Tap creation FAILED for pid={pid}");
                     continue;
-                }
             }
             _bridge.SetAppVolume(pid, volume);
-            var peak = _bridge.GetAppPeak(pid);
-            if (peak > 0.001f)
-                Logger.Log($"App \"{name}\" pid={pid} vol={volume:F3} peak={peak:F4}");
         }
     }
 

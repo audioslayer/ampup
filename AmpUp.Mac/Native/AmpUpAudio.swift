@@ -20,7 +20,6 @@ class AppTap {
     nonisolated(unsafe) var currentVolume: Float = 1.0  // smoothed
     nonisolated(unsafe) var peakLevel: Float = 0.0
     nonisolated(unsafe) var isMuted: Bool = false
-    nonisolated(unsafe) var ioCallbackCount: UInt64 = 0
 
     init(pid: pid_t, objectID: AudioObjectID) {
         self.pid = pid
@@ -216,8 +215,6 @@ func createTap(for pid: pid_t) -> Bool {
 
         let targetVol = t.isMuted ? Float(0) : t.volume
         var peak: Float = 0
-        var totalSamples: Int = 0
-
         for i in 0..<min(inputList.count, outputList.count) {
             guard let inData = inputList[i].mData,
                   let outData = outputList[i].mData else {
@@ -230,8 +227,6 @@ func createTap(for pid: pid_t) -> Bool {
             let inSamples = inData.assumingMemoryBound(to: Float.self)
             let outSamples = outData.assumingMemoryBound(to: Float.self)
             let sampleCount = Int(inputList[i].mDataByteSize) / MemoryLayout<Float>.size
-            totalSamples += sampleCount
-
             for s in 0..<sampleCount {
                 // Smooth volume ramp to prevent clicks
                 t.currentVolume += (targetVol - t.currentVolume) * rampCoeff
@@ -253,21 +248,6 @@ func createTap(for pid: pid_t) -> Bool {
         }
 
         t.peakLevel = peak
-        t.ioCallbackCount += 1
-        if t.ioCallbackCount <= 3 {
-            // Log to file since NSLog may not show via SSH
-            let msg = "IO cb #\(t.ioCallbackCount): pid=\(t.pid) peak=\(peak) vol=\(t.currentVolume) inBufs=\(inputList.count) outBufs=\(outputList.count) samples=\(totalSamples)\n"
-            if let data = msg.data(using: .utf8) {
-                let logPath = NSHomeDirectory() + "/Library/Application Support/AmpUp/io_debug.log"
-                if let fh = FileHandle(forWritingAtPath: logPath) {
-                    fh.seekToEndOfFile()
-                    fh.write(data)
-                    fh.closeFile()
-                } else {
-                    FileManager.default.createFile(atPath: logPath, contents: data)
-                }
-            }
-        }
         return noErr
     }, tapPtr, &ioProcID)
 
@@ -291,8 +271,7 @@ func createTap(for pid: pid_t) -> Bool {
     }
 
     activeTaps[pid] = tap
-    NSLog("AmpUpAudio: Created volume-control tap for PID %d, aggregate=%d, tapID=%d", pid, aggregateID, tapID)
-    NSLog("AmpUpAudio: Output device UID: %@", outputUID)
+    NSLog("AmpUpAudio: Created volume-control tap for PID %d", pid)
     return true
 }
 
