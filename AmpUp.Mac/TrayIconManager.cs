@@ -134,23 +134,28 @@ public class TrayIconManager : IDisposable
 
     private void OnQuitClicked(object? sender, EventArgs e)
     {
-        IsQuitting = true;
+        // Kill first, cleanup second — ensure we actually exit
+        var pid = System.Diagnostics.Process.GetCurrentProcess().Id;
 
-        if (Application.Current is App app)
-            app.Cleanup();
+        // Schedule kill on background thread in case main thread blocks
+        new System.Threading.Thread(() =>
+        {
+            System.Threading.Thread.Sleep(500);
+            System.Diagnostics.Process.Start("kill", $"-9 {pid}");
+        }) { IsBackground = true }.Start();
 
-        _trayIcon.IsVisible = false;
-
-        // Multiple exit strategies — macOS Avalonia is stubborn
-        try { System.Diagnostics.Process.GetCurrentProcess().Kill(); } catch { }
-        try { Environment.Exit(0); } catch { }
-        // Last resort: native POSIX kill
+        // Try cleanup (may fail, that's OK — kill timer is already ticking)
         try
         {
-            var pid = System.Diagnostics.Process.GetCurrentProcess().Id;
-            System.Diagnostics.Process.Start("kill", $"-9 {pid}");
+            IsQuitting = true;
+            if (Application.Current is App app)
+                app.Cleanup();
+            _trayIcon.IsVisible = false;
         }
         catch { }
+
+        // Try immediate exit
+        Environment.Exit(0);
     }
 
     private void OnWindowClosing(object? sender, WindowClosingEventArgs e)
