@@ -141,9 +141,16 @@ public class TrayIconManager : IDisposable
 
         _trayIcon.IsVisible = false;
 
-        // Kill the process directly — Avalonia's Shutdown doesn't reliably
-        // terminate on macOS when native NSApplication run loop is active
-        System.Diagnostics.Process.GetCurrentProcess().Kill();
+        // Multiple exit strategies — macOS Avalonia is stubborn
+        try { System.Diagnostics.Process.GetCurrentProcess().Kill(); } catch { }
+        try { Environment.Exit(0); } catch { }
+        // Last resort: native POSIX kill
+        try
+        {
+            var pid = System.Diagnostics.Process.GetCurrentProcess().Id;
+            System.Diagnostics.Process.Start("kill", $"-9 {pid}");
+        }
+        catch { }
     }
 
     private void OnWindowClosing(object? sender, WindowClosingEventArgs e)
