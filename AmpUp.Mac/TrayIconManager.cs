@@ -133,17 +133,14 @@ public class TrayIconManager : IDisposable
 
     private void OnQuitClicked(object? sender, EventArgs e)
     {
-        // Allow window to actually close, then quit
-        if (_mainWindow != null)
-            _mainWindow.Closing -= OnWindowClosing;
-
         // Clean up backend resources (serial, audio taps, etc.)
         if (Application.Current is App app)
             app.Cleanup();
 
-        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
-            lifetime.Shutdown(0);
+        // Hide tray icon immediately
+        _trayIcon.IsVisible = false;
 
+        // Force exit — Avalonia Shutdown can hang if window Closing cancels
         Environment.Exit(0);
     }
 
