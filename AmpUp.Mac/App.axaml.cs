@@ -679,13 +679,22 @@ public partial class App : Application
         if (_cleanedUp) return;
         _cleanedUp = true;
         Logger.Log("AmpUp.Mac shutting down");
-        try { _serial?.Dispose(); } catch { }
-        try { _rgb?.Dispose(); } catch { }
-        try { _dreamSync?.Dispose(); } catch { }
-        try { _ambienceSync?.Dispose(); } catch { }
-        try { _ha?.Dispose(); } catch { }
-        try { _radialWheel?.Close(); } catch { }
-        try { _osd?.Close(); } catch { }
+
+        // Run cleanup on background thread with timeout so it can't hang the quit
+        var cleanupDone = new System.Threading.ManualResetEventSlim(false);
+        new System.Threading.Thread(() =>
+        {
+            try { _serial?.Dispose(); } catch { }
+            try { _rgb?.Dispose(); } catch { }
+            try { _dreamSync?.Dispose(); } catch { }
+            try { _ambienceSync?.Dispose(); } catch { }
+            try { _ha?.Dispose(); } catch { }
+            cleanupDone.Set();
+        }) { IsBackground = true }.Start();
+
+        // Wait max 2 seconds for cleanup
+        cleanupDone.Wait(2000);
+        Logger.Log("Cleanup complete");
     }
 }
 
