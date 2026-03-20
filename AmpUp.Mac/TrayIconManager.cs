@@ -149,28 +149,10 @@ public class TrayIconManager : IDisposable
         try { _trayIcon.IsVisible = false; } catch { }
         try { _mainWindow?.Hide(); } catch { }
 
-        AmpUp.Core.Logger.Log("Quit: calling force exit...");
-
-        // Try native _exit(0), fall back to kill
-        try
-        {
-            ampup_force_exit();
-        }
-        catch (Exception ex)
-        {
-            AmpUp.Core.Logger.Log($"ampup_force_exit failed: {ex.Message}");
-        }
-
-        AmpUp.Core.Logger.Log("Quit: force exit returned, trying kill...");
-
-        // If we're still here, force kill ourselves
-        try
-        {
-            var pid = System.Diagnostics.Process.GetCurrentProcess().Id;
-            AmpUp.Core.Logger.Log($"Trying kill -9 {pid}");
-            System.Diagnostics.Process.Start("/bin/kill", $"-9 {pid}");
-        }
-        catch { }
+        // Try every exit method
+        try { ampup_force_exit(); } catch { }
+        try { Environment.Exit(0); } catch { }
+        try { System.Diagnostics.Process.GetCurrentProcess().Kill(); } catch { }
     }
 
     private void OnWindowClosing(object? sender, WindowClosingEventArgs e)
