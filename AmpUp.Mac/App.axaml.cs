@@ -841,18 +841,28 @@ public static class MacPlatformServices
     public static void SendMediaPrev() =>
         RunMediaKey(18); // NX_KEYTYPE_PREVIOUS
 
-    /// <summary>
-    /// Send a media key event via the native Swift bridge (libAmpUpAudio).
-    /// Posts NX system-defined CGEvents for Play/Pause, Next, Previous.
-    /// </summary>
-    [System.Runtime.InteropServices.DllImport("libAmpUpAudio")]
-    private static extern void ampup_send_media_key(int keyType);
-
     private static void RunMediaKey(int keyType)
     {
+        // Use AppleScript to control media playback — no Accessibility permission needed
+        string script = keyType switch
+        {
+            16 => "tell application \"System Events\" to key code 100", // F8 = Play/Pause
+            17 => "tell application \"System Events\" to key code 101", // F9 = Next
+            18 => "tell application \"System Events\" to key code 98",  // F7 = Previous
+            _ => ""
+        };
+        if (string.IsNullOrEmpty(script)) return;
+
         try
         {
-            ampup_send_media_key(keyType);
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "osascript",
+                ArgumentList = { "-e", script },
+                CreateNoWindow = true,
+                UseShellExecute = false,
+            };
+            System.Diagnostics.Process.Start(psi);
         }
         catch (Exception ex)
         {
