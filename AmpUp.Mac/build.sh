@@ -38,6 +38,7 @@ if [[ "$SKIP_SWIFT" == "false" ]]; then
         -framework CoreAudio \
         -framework AudioToolbox \
         -framework Foundation \
+        -framework Cocoa \
         -Onone
     echo "    → $DYLIB_OUT"
 else

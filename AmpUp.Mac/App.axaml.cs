@@ -842,49 +842,21 @@ public static class MacPlatformServices
         RunMediaKey(18); // NX_KEYTYPE_PREVIOUS
 
     /// <summary>
-    /// Send a hardware media key event using CGEventPost via a small Swift snippet.
-    /// This is the only reliable cross-app media key method on macOS.
+    /// Send a media key event via the native Swift bridge (libAmpUpAudio).
+    /// Posts NX system-defined CGEvents for Play/Pause, Next, Previous.
     /// </summary>
+    [System.Runtime.InteropServices.DllImport("libAmpUpAudio")]
+    private static extern void ampup_send_media_key(int keyType);
+
     private static void RunMediaKey(int keyType)
-    {
-        // Swift one-liner: posts NX system-defined (media key) CGEvent pair
-        var swift = $@"import CoreGraphics; import Foundation
-let down = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true)!
-down.type = .systemDefined; down.setIntValueField(.eventSourceUserData, value: 0)
-let fields: [CGEventField] = [.init(rawValue: 137)!, .init(rawValue: 138)!, .init(rawValue: 132)!]
-// Use osascript applescript fallback for compatibility
-exit(0)";
-
-        // Practical approach: use the well-known osascript trick with key code
-        // F7=keycode 98 (prev), F8=keycode 100 (play/pause), F9=keycode 101 (next)
-        // These work on Macs with physical F-key media keys when fn key is NOT needed.
-        // For Touch Bar Macs or when fn is required, use the alternative below.
-        string keyCode = keyType switch
-        {
-            16 => "100", // F8 = Play/Pause
-            17 => "101", // F9 = Next Track
-            18 => "98",  // F7 = Prev Track
-            _ => "100"
-        };
-
-        // Primary: direct F-key press (works when media keys are fn-toggled)
-        RunOsaScript($"tell application \"System Events\" to key code {keyCode}");
-    }
-
-    private static void RunOsaScript(string script)
     {
         try
         {
-            var psi = new System.Diagnostics.ProcessStartInfo("osascript", $"-e \"{script}\"")
-            {
-                CreateNoWindow = true,
-                UseShellExecute = false,
-            };
-            System.Diagnostics.Process.Start(psi);
+            ampup_send_media_key(keyType);
         }
         catch (Exception ex)
         {
-            Logger.Log($"osascript failed: {ex.Message}");
+            Logger.Log($"Media key failed: {ex.Message}");
         }
     }
 }

@@ -1,6 +1,7 @@
 import Foundation
 import CoreAudio
 import AudioToolbox
+import Cocoa
 
 // ============================================================================
 // AmpUp Native Audio Bridge v2 — Per-App Volume via Core Audio Process Taps
@@ -416,6 +417,26 @@ public func ampup_enumerate_processes(_ callback: ProcessCallback) {
             callback(proc.pid, namePtr, 1)
         }
     }
+}
+
+// MARK: - Media Key Simulation
+
+@_cdecl("ampup_send_media_key")
+public func ampup_send_media_key(_ keyType: Int32) {
+    // NX_KEYTYPE_PLAY=16, NX_KEYTYPE_NEXT=17, NX_KEYTYPE_PREVIOUS=18
+    func postKey(_ down: Bool) {
+        let flags: Int32 = down ? 0xa00 : 0xb00
+        let data1 = Int((keyType << 16) | flags)
+        guard let event = NSEvent.otherEvent(
+            with: .systemDefined, location: .zero,
+            modifierFlags: NSEvent.ModifierFlags(rawValue: UInt(down ? 0xa0000 : 0xb0000)),
+            timestamp: 0, windowNumber: 0, context: nil,
+            subtype: 8, data1: data1, data2: -1
+        ) else { return }
+        event.cgEvent?.post(tap: .cghidEventTap)
+    }
+    postKey(true)
+    postKey(false)
 }
 
 // MARK: - Audio Device Enumeration
