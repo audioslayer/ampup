@@ -128,6 +128,9 @@ public class MacAudioMixer : IDisposable
                 }
             }
             _bridge.SetAppVolume(pid, volume);
+            var peak = _bridge.GetAppPeak(pid);
+            if (peak > 0.001f)
+                Logger.Log($"App \"{name}\" pid={pid} vol={volume:F3} peak={peak:F4}");
         }
     }
 
