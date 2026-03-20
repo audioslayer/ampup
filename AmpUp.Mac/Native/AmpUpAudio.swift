@@ -419,6 +419,14 @@ public func ampup_enumerate_processes(_ callback: ProcessCallback) {
     }
 }
 
+// MARK: - Force Exit
+
+@_cdecl("ampup_force_exit")
+public func ampup_force_exit() {
+    // POSIX _exit bypasses all cleanup, atexit handlers, and managed runtime
+    Darwin.exit(0)
+}
+
 // MARK: - Media Key Simulation
 
 @_cdecl("ampup_send_media_key")

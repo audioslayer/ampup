@@ -132,6 +132,9 @@ public class TrayIconManager : IDisposable
         MuteToggled?.Invoke(_isMuted);
     }
 
+    [System.Runtime.InteropServices.DllImport("libAmpUpAudio")]
+    private static extern void ampup_force_exit();
+
     private void OnQuitClicked(object? sender, EventArgs e)
     {
         try
@@ -143,17 +146,8 @@ public class TrayIconManager : IDisposable
         }
         catch { }
 
-        // Write quit signal file — the launch script monitors this and kills us
-        try
-        {
-            var signalPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "AmpUp", "quit.signal");
-            File.WriteAllText(signalPath, "quit");
-        }
-        catch { }
-
-        // Also try direct exit methods
+        // Native POSIX exit — bypasses .NET runtime and Avalonia entirely
+        try { ampup_force_exit(); } catch { }
         try { Environment.Exit(0); } catch { }
     }
 
