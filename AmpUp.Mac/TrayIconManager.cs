@@ -137,8 +137,14 @@ public class TrayIconManager : IDisposable
         if (_mainWindow != null)
             _mainWindow.Closing -= OnWindowClosing;
 
+        // Clean up backend resources (serial, audio taps, etc.)
+        if (Application.Current is App app)
+            app.Cleanup();
+
         if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
-            lifetime.Shutdown();
+            lifetime.Shutdown(0);
+
+        Environment.Exit(0);
     }
 
     private void OnWindowClosing(object? sender, WindowClosingEventArgs e)

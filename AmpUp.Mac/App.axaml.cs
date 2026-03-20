@@ -675,7 +675,7 @@ public partial class App : Application
     // ── Cleanup ────────────────────────────────────────────────────────────────
 
     private bool _cleanedUp;
-    private void Cleanup()
+    public void Cleanup()
     {
         if (_cleanedUp) return;
         _cleanedUp = true;
