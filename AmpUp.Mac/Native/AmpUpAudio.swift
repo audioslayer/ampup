@@ -20,6 +20,7 @@ class AppTap {
     nonisolated(unsafe) var currentVolume: Float = 1.0  // smoothed
     nonisolated(unsafe) var peakLevel: Float = 0.0
     nonisolated(unsafe) var isMuted: Bool = false
+    nonisolated(unsafe) var ioCallbackCount: UInt64 = 0
 
     init(pid: pid_t, objectID: AudioObjectID) {
         self.pid = pid
@@ -250,6 +251,11 @@ func createTap(for pid: pid_t) -> Bool {
         }
 
         t.peakLevel = peak
+        t.ioCallbackCount += 1
+        if t.ioCallbackCount == 1 || t.ioCallbackCount % 5000 == 0 {
+            NSLog("AmpUpAudio: IO callback #%llu for PID %d, peak=%.4f, vol=%.3f, inBufs=%d, outBufs=%d",
+                  t.ioCallbackCount, t.pid, peak, t.currentVolume, inputList.count, outputList.count)
+        }
         return noErr
     }, tapPtr, &ioProcID)
 
@@ -273,7 +279,8 @@ func createTap(for pid: pid_t) -> Bool {
     }
 
     activeTaps[pid] = tap
-    NSLog("AmpUpAudio: Created volume-control tap for PID %d", pid)
+    NSLog("AmpUpAudio: Created volume-control tap for PID %d, aggregate=%d, tapID=%d", pid, aggregateID, tapID)
+    NSLog("AmpUpAudio: Output device UID: %@", outputUID)
     return true
 }
 
