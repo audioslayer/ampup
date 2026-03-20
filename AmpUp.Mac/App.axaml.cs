@@ -154,8 +154,7 @@ public partial class App : Application
         {
             if (Tray != null) Tray.IsQuitting = true;
             Cleanup();
-            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
-                lifetime.Shutdown(0);
+            System.Diagnostics.Process.GetCurrentProcess().Kill();
         };
         appMenu.Add(quitItem);
 

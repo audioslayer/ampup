@@ -141,8 +141,9 @@ public class TrayIconManager : IDisposable
 
         _trayIcon.IsVisible = false;
 
-        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
-            lifetime.Shutdown(0);
+        // Kill the process directly — Avalonia's Shutdown doesn't reliably
+        // terminate on macOS when native NSApplication run loop is active
+        System.Diagnostics.Process.GetCurrentProcess().Kill();
     }
 
     private void OnWindowClosing(object? sender, WindowClosingEventArgs e)
