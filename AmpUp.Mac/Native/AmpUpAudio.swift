@@ -421,18 +421,13 @@ public func ampup_enumerate_processes(_ callback: ProcessCallback) {
 
 // MARK: - App Termination
 
+private var quitRequested = false
+
 @_cdecl("ampup_force_exit")
 public func ampup_force_exit() {
-    // Use NSApplication.terminate — the proper macOS app quit path.
-    // This sends applicationShouldTerminate, posts willTerminate notification,
-    // and tears down the Cocoa run loop correctly.
-    DispatchQueue.main.async {
-        NSApplication.shared.terminate(nil)
-    }
-    // If terminate doesn't fire (e.g. not on main thread), fallback after delay
-    DispatchQueue.global().asyncAfter(deadline: .now() + 1.0) {
-        _exit(0)  // POSIX immediate exit, no cleanup
-    }
+    quitRequested = true
+    // _exit is the only reliable way to kill the process from inside Avalonia on macOS
+    _exit(0)
 }
 
 // MARK: - Media Key Simulation
