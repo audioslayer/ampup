@@ -139,7 +139,6 @@ public class TrayIconManager : IDisposable
     {
         IsQuitting = true;
 
-        // Clean up backend (serial, audio taps, LEDs off)
         try
         {
             if (Application.Current is App app)
@@ -147,13 +146,11 @@ public class TrayIconManager : IDisposable
         }
         catch { }
 
-        // Hide everything immediately so it looks quit
         try { _trayIcon.IsVisible = false; } catch { }
         try { _mainWindow?.Hide(); } catch { }
 
-        // Call native NSApplication.terminate + fallback _exit
-        // This runs async on the Cocoa main thread
-        try { ampup_force_exit(); } catch { }
+        // Native _exit(0) — bypasses .NET and Avalonia completely
+        ampup_force_exit();
     }
 
     private void OnWindowClosing(object? sender, WindowClosingEventArgs e)
