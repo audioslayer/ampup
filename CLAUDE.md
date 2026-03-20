@@ -524,6 +524,16 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - **OSD phantom popups on reconnect** — Device reconnect sends knob batch, each fires HandleKnob → OSD. Suppressed by: 5s startup guard, 2s reconnect guard (`_connectedAt`), and value-change guard (±8 ADC from last OSD display).
 - **StyledSlider ShowLabel clips at small heights** — Label draws below thumb at cy+ThumbRadius+4. Use ShowLabel=false with separate TextBlock for sliders under ~35px height.
 - **build-installer.bat working directory** — Must use `%~dp0` to locate AmpUp.csproj relative to script, not current working directory. Otherwise version extraction fails silently.
+- **Mac: TCC audio permission per binary** — macOS grants Microphone/audio recording permission per executable path. Each new build location needs its own permission grant. Must launch from Terminal (not SSH) the first time for the permission dialog to appear. SSH sessions cannot show TCC prompts.
+- **Mac: Avalonia NativeMenu blocks all exit calls** — `Environment.Exit()`, `Process.Kill()`, `_exit()`, and even `kill -9` via `Process.Start` all fail when called from an Avalonia NativeMenu click handler on macOS. The handler runs in a Cocoa context that swallows exit attempts. **Solution:** Use a background polling thread started at app init that watches a `_wantQuit` volatile bool flag. The menu handler sets the flag; the background thread calls `Environment.Exit(0)` from its own thread context. This was a multi-hour debugging session — do NOT try to exit from NativeMenu handlers directly.
+- **Mac: Cleanup() can hang on quit** — `_serial?.Dispose()` and other resource disposal can block the main thread during quit, preventing exit code from running. **Solution:** Run all Cleanup dispose calls on a background thread with a 2-second `ManualResetEventSlim` timeout so quit always proceeds.
+- **Mac: MainWindow.Closing cancels Shutdown** — Both `MainWindow` and `TrayIconManager` had Closing handlers that unconditionally cancelled close (hide-to-tray). This prevents `lifetime.Shutdown()` from working. **Solution:** `IsQuitting` flag checked by all Closing handlers — when true, don't cancel.
+- **Mac: deploy.sh must use dotnet exec** — `dotnet run --project` launches from the project directory where `libAmpUpAudio.dylib` doesn't exist. Must use `dotnet exec` from `bin/Debug/net8.0/osx-arm64/` where the dylib is copied by `build.sh`.
+- **Mac: DOTNET_ROOT required for native host** — The `AmpUp.Mac` native executable needs `DOTNET_ROOT=/opt/homebrew/opt/dotnet@8/libexec` set in the environment to find the .NET runtime. Only needed for dev builds; release .app bundles are self-contained.
+- **Mac: media keys via AppleScript app control** — CGEvent posting requires Accessibility permission. osascript+System Events also requires Accessibility. **Solution:** Use direct AppleScript app control (`tell application "Spotify" to playpause`) which needs no permissions. Falls back to Music app if Spotify isn't running.
+- **Windows: tray context menu dismissed by popup Deactivated** — Right-clicking a session row opened the context menu window, which stole focus from the tray popup, triggering Deactivated→Hide(). **Solution:** `_contextMenuOpen` flag suppresses Hide() during Deactivated while context menu is open.
+- **Windows: OSD monitor picker stale on display change** — Monitor combo only populated on load. **Solution:** Refresh on `IsVisibleChanged` (tab switch) and `SystemEvents.DisplaySettingsChanged`.
+- **Windows: tray device enumeration blocks UI** — `EnumerateAudioEndPoints` + `AudioSessionManager.Sessions` for non-default devices can take 3-5s with USB/Bluetooth devices. **Solution:** Move PID→device name map building to `Task.Run` with a separate `MMDeviceEnumerator`. Popup opens instantly, device badges fill in async.
 
 ---
 
@@ -587,6 +597,13 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
   - **Mac: Native window controls** — Traffic light buttons (close/minimize/zoom) visible. Header bar draggable.
   - **Mac: Swift 6.2 fixes** — CATapDescription API, AudioHardwareCreateProcessTap, VirtualMasterVolume→VirtualMainVolume rename, peakSize let→var.
 
+- **v0.9.2-alpha (Mar 19)** — **Bug fix release + Mac audio/quit fixes.**
+  - **Windows bug fixes:** Tray right-click context menu no longer instantly dismissed (_contextMenuOpen flag). OSD monitor picker refreshes on display change (DisplaySettingsChanged + IsVisibleChanged). Tray popup crash fix (IsVisible guard on Hide). Tray popup instant open (device enumeration moved to background thread).
+  - **Mac: per-app volume fixed** — libAmpUpAudio.dylib wasn't loading because deploy.sh used `dotnet run` (wrong working dir). Fixed to `dotnet exec` from build output. Also fixed dylib not copied to osx-arm64 RID folder.
+  - **Mac: media keys working** — Play/Pause/Next/Prev buttons use direct AppleScript app control (`tell application "Spotify" to playpause`). No Accessibility permission needed.
+  - **Mac: quit fully working** — Extensive fix for Avalonia on macOS refusing to exit. NativeMenu handlers block all exit calls (Environment.Exit, Process.Kill, _exit, kill -9). Solution: background "quit watcher" thread polls a volatile bool flag, calls Environment.Exit from its own context. Cleanup runs on background thread with 2s timeout to prevent hanging. All quit paths (tray, Dock, Cmd+Q) route through same mechanism.
+  - **Mac: dev workflow** — Desktop shortcuts: "AmpUp Test" (AppleScript app, launches dev build silently), "AmpUp Build" (pulls + builds). Production install at /Applications/AmpUp.app with auto-updater.
+
 ---
 
 ## Release Workflow
@@ -599,9 +616,14 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 
 ### macOS
 1. SSH to Mac: `ssh audio@192.168.189.234`
-2. `cd ~/Projects/AmpUp.Mac && ./deploy.sh` — pull + build + launch (for testing)
-3. `./deploy.sh --release` — pull + full .app bundle + DMG
-4. Tell Howl → uploads `.dmg` to same GitHub release
+2. `cd ~/Projects/AmpUp.Mac/AmpUp.Mac && chmod +x *.sh && ./deploy.sh` — pull + build (for testing)
+3. Double-click **AmpUp Test** on Mac desktop to launch dev build (AppleScript app, no Terminal)
+4. Double-click **AmpUp Build** on Mac desktop to pull + rebuild (alternative to SSH)
+5. `./bundle.sh` — full .app bundle + DMG for release
+6. Tell Howl → uploads `.dmg` to same GitHub release
+7. Production install: `/Applications/AmpUp.app` (auto-updater manages this)
+
+**First-time setup on new Mac binary:** Must launch from Terminal once (not SSH) to grant TCC audio permission. Each build path needs its own permission grant.
 
 ### Version bumping
 - Both platforms share the same version number
