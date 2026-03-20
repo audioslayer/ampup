@@ -315,34 +315,40 @@ public class TrayMixerPopup : Window
 
         try
         {
-            // Build PID→device name map for ALL non-default render devices (once per refresh).
-            // This replaces the per-session device enumeration in BuildDeviceBadge.
+            // Build PID→device name map in background — avoids blocking popup open
+            // with slow COM device enumeration (3-5s with USB/Bluetooth devices)
             _pidDeviceMap.Clear();
-            try
+            Task.Run(() =>
             {
-                using var defDevice = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                var defaultId = defDevice.ID;
-                var endpoints = _enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
-                foreach (var ep in endpoints)
+                try
                 {
-                    try
+                    using var bgEnum = new MMDeviceEnumerator();
+                    using var defDevice = bgEnum.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                    var defaultId = defDevice.ID;
+                    var endpoints = bgEnum.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+                    var map = new Dictionary<uint, string>();
+                    foreach (var ep in endpoints)
                     {
-                        if (ep.ID == defaultId) continue;
-                        var friendlyName = ep.FriendlyName;
-                        var mgr = ep.AudioSessionManager;
-                        var epSessions = mgr.Sessions;
-                        for (int i = 0; i < epSessions.Count; i++)
+                        try
                         {
-                            var pid = epSessions[i].GetProcessID;
-                            if (pid != 0)
-                                _pidDeviceMap.TryAdd(pid, friendlyName);
+                            if (ep.ID == defaultId) continue;
+                            var friendlyName = ep.FriendlyName;
+                            var mgr = ep.AudioSessionManager;
+                            var epSessions = mgr.Sessions;
+                            for (int i = 0; i < epSessions.Count; i++)
+                            {
+                                var pid = epSessions[i].GetProcessID;
+                                if (pid != 0)
+                                    map.TryAdd(pid, friendlyName);
+                            }
                         }
+                        catch { }
+                        finally { ep.Dispose(); }
                     }
-                    catch { }
-                    finally { ep.Dispose(); }
+                    _pidDeviceMap = map;
                 }
-            }
-            catch { }
+                catch { }
+            });
 
             // Master volume row (always first)
             // Store in field so it lives as long as the popup; disposed in OnClosed
