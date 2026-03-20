@@ -55,10 +55,11 @@ else
 
     echo ""
     echo "[4] Launching AmpUp..."
-    cd "$SCRIPT_DIR"
     DOTNET="${DOTNET:-/opt/homebrew/opt/dotnet@8/bin/dotnet}"
     [[ ! -x "$DOTNET" ]] && DOTNET="$(which dotnet 2>/dev/null || echo dotnet)"
-    "$DOTNET" run --project AmpUp.Mac.csproj &
+    # Run from build output dir so native dylib is found next to the assembly
+    cd "$SCRIPT_DIR/bin/Debug/net8.0/osx-arm64"
+    "$DOTNET" exec AmpUp.Mac.dll &
 
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
