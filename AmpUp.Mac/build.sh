@@ -55,8 +55,11 @@ BUILD_OUTPUT="$SCRIPT_DIR/bin/Debug/net8.0"
 echo "    → $BUILD_OUTPUT/AmpUp.Mac"
 
 # Copy dylib next to the executable so it's found at runtime during dev
-if [[ -f "$DYLIB_OUT" ]] && [[ -d "$BUILD_OUTPUT" ]]; then
-    cp "$DYLIB_OUT" "$BUILD_OUTPUT/"
+if [[ -f "$DYLIB_OUT" ]]; then
+    [[ -d "$BUILD_OUTPUT" ]] && cp "$DYLIB_OUT" "$BUILD_OUTPUT/"
+    # Also copy to RID-specific folder (dotnet run may output there)
+    RID_OUTPUT="$BUILD_OUTPUT/osx-arm64"
+    [[ -d "$RID_OUTPUT" ]] && cp "$DYLIB_OUT" "$RID_OUTPUT/"
     echo "    → Copied libAmpUpAudio.dylib to build output"
 fi
 
