@@ -18,9 +18,9 @@
 
     <!-- Version — keep in sync with AmpUp.Mac.csproj <Version> -->
     <key>CFBundleVersion</key>
-    <string>0.9.1</string>
+    <string>0.9.2</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.9.1-alpha</string>
+    <string>0.9.2-alpha</string>
 
     <!-- Icon -->
     <key>CFBundleIconFile</key>
