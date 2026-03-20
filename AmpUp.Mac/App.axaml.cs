@@ -83,8 +83,12 @@ public partial class App : Application
             // ── macOS application menu (About, Preferences, Quit) ────────
             SetupNativeMenu();
 
-            // On shutdown, dispose tray + backend cleanly
-            desktop.ShutdownRequested += (_, _) => Cleanup();
+            // On shutdown (Dock quit, Cmd+Q), set IsQuitting so Closing handlers don't cancel
+            desktop.ShutdownRequested += (_, _) =>
+            {
+                if (Tray != null) Tray.IsQuitting = true;
+                Cleanup();
+            };
             desktop.Exit += (_, _) => Tray?.Dispose();
 
             // Defer backend init so the window renders first
@@ -152,9 +156,11 @@ public partial class App : Application
         };
         quitItem.Click += (_, _) =>
         {
-            if (Tray != null) Tray.IsQuitting = true;
-            Cleanup();
-            System.Diagnostics.Process.GetCurrentProcess().Kill();
+            if (Tray != null)
+            {
+                Tray.IsQuitting = true;
+                Tray.RequestQuit();
+            }
         };
         appMenu.Add(quitItem);
 

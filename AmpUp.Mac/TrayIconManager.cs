@@ -149,7 +149,8 @@ public class TrayIconManager : IDisposable
     [System.Runtime.InteropServices.DllImport("libAmpUpAudio")]
     private static extern void ampup_force_exit();
 
-    private void OnQuitClicked(object? sender, EventArgs e)
+    /// <summary>Trigger quit from outside (app menu, Dock).</summary>
+    public void RequestQuit()
     {
         IsQuitting = true;
 
@@ -163,8 +164,12 @@ public class TrayIconManager : IDisposable
         try { _trayIcon.IsVisible = false; } catch { }
         try { _mainWindow?.Hide(); } catch { }
 
-        // Signal the background quit watcher thread to exit the process
         _wantQuit = true;
+    }
+
+    private void OnQuitClicked(object? sender, EventArgs e)
+    {
+        RequestQuit();
     }
 
     private void OnWindowClosing(object? sender, WindowClosingEventArgs e)
