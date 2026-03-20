@@ -2306,7 +2306,7 @@ public class TrayMixerPopup : Window
         {
             _contextMenuOpen = false;
             // Re-hide tray popup if it lost focus while context menu was open
-            if (!IsActive) Hide();
+            if (IsVisible && !IsActive) Hide();
         };
         menuWin.Deactivated += (_, _) => menuWin.Close();
 
