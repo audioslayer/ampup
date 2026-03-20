@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using AmpUp.Core.Services;
 
 namespace AmpUp.Views;
@@ -51,6 +52,32 @@ public partial class OsdView : UserControl
 
         // Quick wheels
         BtnAddWheel.Click += (_, _) => AddWheelRow(new QuickWheelConfig { Enabled = true });
+
+        // Refresh monitor list when display config changes (monitors added/removed)
+        SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+        IsVisibleChanged += OnVisibilityChanged;
+        Unloaded += (_, _) => SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+    }
+
+    private void OnDisplaySettingsChanged(object? sender, EventArgs e)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_config == null) return;
+            _loading = true;
+            PopulateOsdMonitorPicker(_config.Osd.MonitorIndex);
+            _loading = false;
+        });
+    }
+
+    private void OnVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is true && _config != null)
+        {
+            _loading = true;
+            PopulateOsdMonitorPicker(_config.Osd.MonitorIndex);
+            _loading = false;
+        }
     }
 
     public void LoadConfig(AppConfig config, Action<AppConfig> onSave)

@@ -43,6 +43,7 @@ public class TrayMixerPopup : Window
     // Quick Assign panel
     private Border _quickAssignPanel = null!;
     private bool _quickAssignVisible;
+    private bool _contextMenuOpen;
     private string? _expandedAppName; // which app cell is expanded for knob selection
 
     // Update indicator
@@ -74,7 +75,7 @@ public class TrayMixerPopup : Window
         Width = 340;
         SizeToContent = SizeToContent.Height;
 
-        Deactivated += (_, _) => Hide();
+        Deactivated += (_, _) => { if (!_contextMenuOpen) Hide(); };
 
         _pollTimer = new System.Windows.Threading.DispatcherTimer
         {
@@ -2300,6 +2301,13 @@ public class TrayMixerPopup : Window
                 catch { }
             }));
 
+        _contextMenuOpen = true;
+        menuWin.Closed += (_, _) =>
+        {
+            _contextMenuOpen = false;
+            // Re-hide tray popup if it lost focus while context menu was open
+            if (!IsActive) Hide();
+        };
         menuWin.Deactivated += (_, _) => menuWin.Close();
 
         // Position near cursor
