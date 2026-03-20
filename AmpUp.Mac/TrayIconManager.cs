@@ -149,8 +149,24 @@ public class TrayIconManager : IDisposable
         try { _trayIcon.IsVisible = false; } catch { }
         try { _mainWindow?.Hide(); } catch { }
 
-        // Native _exit(0) — bypasses .NET and Avalonia completely
-        ampup_force_exit();
+        // Try native _exit(0), fall back to kill
+        try
+        {
+            ampup_force_exit();
+        }
+        catch (Exception ex)
+        {
+            AmpUp.Core.Services.Logger.Log($"ampup_force_exit failed: {ex.Message}");
+        }
+
+        // If we're still here, force kill ourselves
+        try
+        {
+            var pid = System.Diagnostics.Process.GetCurrentProcess().Id;
+            AmpUp.Core.Services.Logger.Log($"Trying kill -9 {pid}");
+            System.Diagnostics.Process.Start("/bin/kill", $"-9 {pid}");
+        }
+        catch { }
     }
 
     private void OnWindowClosing(object? sender, WindowClosingEventArgs e)
