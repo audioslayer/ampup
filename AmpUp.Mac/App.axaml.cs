@@ -684,15 +684,8 @@ public partial class App : Application
         try { _dreamSync?.Dispose(); } catch { }
         try { _ambienceSync?.Dispose(); } catch { }
         try { _ha?.Dispose(); } catch { }
-        try
-        {
-            Dispatcher.UIThread.Post(() =>
-            {
-                _radialWheel?.Close();
-                _osd?.Close();
-            });
-        }
-        catch { }
+        try { _radialWheel?.Close(); } catch { }
+        try { _osd?.Close(); } catch { }
     }
 }
 
