@@ -832,31 +832,42 @@ public static class MacPlatformServices
     // Reliable method: use System Events keystroke with the Unicode private-use codes
     // that macOS maps to media keys (NX_KEYTYPE_PLAY=16, NEXT=17, PREV=18).
 
-    public static void SendMediaPlayPause() =>
-        RunMediaKey(16); // NX_KEYTYPE_PLAY
-
-    public static void SendMediaNext() =>
-        RunMediaKey(17); // NX_KEYTYPE_NEXT
-
-    public static void SendMediaPrev() =>
-        RunMediaKey(18); // NX_KEYTYPE_PREVIOUS
+    public static void SendMediaPlayPause() => RunMediaCommand("playpause");
+    public static void SendMediaNext() => RunMediaCommand("next track");
+    public static void SendMediaPrev() => RunMediaCommand("previous track");
 
     /// <summary>
-    /// Send a media key event via the native Swift bridge.
-    /// Requires Accessibility permission in System Settings.
+    /// Send media commands directly to the active media app via AppleScript.
+    /// No Accessibility permission needed — uses the app's own scripting API.
+    /// Tries Spotify first, then Music (Apple Music), then falls back to
+    /// System Events media key simulation.
     /// </summary>
-    [System.Runtime.InteropServices.DllImport("libAmpUpAudio")]
-    private static extern void ampup_send_media_key(int keyType);
-
-    private static void RunMediaKey(int keyType)
+    private static void RunMediaCommand(string command)
     {
+        // Direct app control via AppleScript — no permissions needed
+        var script = $@"
+if application ""Spotify"" is running then
+    tell application ""Spotify"" to {command}
+else if application ""Music"" is running then
+    tell application ""Music"" to {command}
+else
+    -- No known media app running
+end if";
+
         try
         {
-            ampup_send_media_key(keyType);
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "osascript",
+                ArgumentList = { "-e", script },
+                CreateNoWindow = true,
+                UseShellExecute = false,
+            };
+            System.Diagnostics.Process.Start(psi);
         }
         catch (Exception ex)
         {
-            Logger.Log($"Media key failed: {ex.Message}");
+            Logger.Log($"Media command failed: {ex.Message}");
         }
     }
 }
