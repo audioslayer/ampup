@@ -216,6 +216,7 @@ func createTap(for pid: pid_t) -> Bool {
 
         let targetVol = t.isMuted ? Float(0) : t.volume
         var peak: Float = 0
+        var totalSamples: Int = 0
 
         for i in 0..<min(inputList.count, outputList.count) {
             guard let inData = inputList[i].mData,
@@ -229,6 +230,7 @@ func createTap(for pid: pid_t) -> Bool {
             let inSamples = inData.assumingMemoryBound(to: Float.self)
             let outSamples = outData.assumingMemoryBound(to: Float.self)
             let sampleCount = Int(inputList[i].mDataByteSize) / MemoryLayout<Float>.size
+            totalSamples += sampleCount
 
             for s in 0..<sampleCount {
                 // Smooth volume ramp to prevent clicks
@@ -252,9 +254,19 @@ func createTap(for pid: pid_t) -> Bool {
 
         t.peakLevel = peak
         t.ioCallbackCount += 1
-        if t.ioCallbackCount == 1 || t.ioCallbackCount % 5000 == 0 {
-            NSLog("AmpUpAudio: IO callback #%llu for PID %d, peak=%.4f, vol=%.3f, inBufs=%d, outBufs=%d",
-                  t.ioCallbackCount, t.pid, peak, t.currentVolume, inputList.count, outputList.count)
+        if t.ioCallbackCount <= 3 {
+            // Log to file since NSLog may not show via SSH
+            let msg = "IO cb #\(t.ioCallbackCount): pid=\(t.pid) peak=\(peak) vol=\(t.currentVolume) inBufs=\(inputList.count) outBufs=\(outputList.count) samples=\(totalSamples)\n"
+            if let data = msg.data(using: .utf8) {
+                let logPath = NSHomeDirectory() + "/Library/Application Support/AmpUp/io_debug.log"
+                if let fh = FileHandle(forWritingAtPath: logPath) {
+                    fh.seekToEndOfFile()
+                    fh.write(data)
+                    fh.closeFile()
+                } else {
+                    FileManager.default.createFile(atPath: logPath, contents: data)
+                }
+            }
         }
         return noErr
     }, tapPtr, &ioProcID)
