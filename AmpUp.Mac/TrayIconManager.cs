@@ -134,17 +134,6 @@ public class TrayIconManager : IDisposable
 
     private void OnQuitClicked(object? sender, EventArgs e)
     {
-        // Kill first, cleanup second — ensure we actually exit
-        var pid = System.Diagnostics.Process.GetCurrentProcess().Id;
-
-        // Schedule kill on background thread in case main thread blocks
-        new System.Threading.Thread(() =>
-        {
-            System.Threading.Thread.Sleep(500);
-            System.Diagnostics.Process.Start("kill", $"-9 {pid}");
-        }) { IsBackground = true }.Start();
-
-        // Try cleanup (may fail, that's OK — kill timer is already ticking)
         try
         {
             IsQuitting = true;
@@ -154,8 +143,18 @@ public class TrayIconManager : IDisposable
         }
         catch { }
 
-        // Try immediate exit
-        Environment.Exit(0);
+        // Write quit signal file — the launch script monitors this and kills us
+        try
+        {
+            var signalPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "AmpUp", "quit.signal");
+            File.WriteAllText(signalPath, "quit");
+        }
+        catch { }
+
+        // Also try direct exit methods
+        try { Environment.Exit(0); } catch { }
     }
 
     private void OnWindowClosing(object? sender, WindowClosingEventArgs e)
