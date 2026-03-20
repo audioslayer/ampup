@@ -156,14 +156,14 @@ public class TrayIconManager : IDisposable
         }
         catch (Exception ex)
         {
-            AmpUp.Core.Services.Logger.Log($"ampup_force_exit failed: {ex.Message}");
+            AmpUp.Core.Logger.Log($"ampup_force_exit failed: {ex.Message}");
         }
 
         // If we're still here, force kill ourselves
         try
         {
             var pid = System.Diagnostics.Process.GetCurrentProcess().Id;
-            AmpUp.Core.Services.Logger.Log($"Trying kill -9 {pid}");
+            AmpUp.Core.Logger.Log($"Trying kill -9 {pid}");
             System.Diagnostics.Process.Start("/bin/kill", $"-9 {pid}");
         }
         catch { }
