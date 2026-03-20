@@ -149,10 +149,22 @@ public class TrayIconManager : IDisposable
         try { _trayIcon.IsVisible = false; } catch { }
         try { _mainWindow?.Hide(); } catch { }
 
-        // Try every exit method
-        try { ampup_force_exit(); } catch { }
-        try { Environment.Exit(0); } catch { }
-        try { System.Diagnostics.Process.GetCurrentProcess().Kill(); } catch { }
+        // Spawn a detached shell that kills us — the only reliable method
+        // because _exit, Environment.Exit, and Process.Kill all fail
+        // inside Avalonia's NativeMenu handler on macOS
+        var pid = Environment.ProcessId;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "/bin/bash",
+                Arguments = $"-c \"sleep 0.2; kill -9 {pid}\"",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            });
+        }
+        catch { }
     }
 
     private void OnWindowClosing(object? sender, WindowClosingEventArgs e)
