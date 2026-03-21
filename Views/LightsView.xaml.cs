@@ -1170,6 +1170,13 @@ public partial class LightsView : UserControl
                 _colors2[idx] = presetC2;
                 SetSwatchColor(_color1Swatches[idx], presetC1);
                 SetSwatchColor(_color2Swatches[idx], presetC2);
+                // Apply immediately to config so RgbController picks up on next tick
+                var light = _config?.Lights.FirstOrDefault(l => l.Idx == idx);
+                if (light != null)
+                {
+                    light.R = presetC1.R; light.G = presetC1.G; light.B = presetC1.B;
+                    light.R2 = presetC2.R; light.G2 = presetC2.G; light.B2 = presetC2.B;
+                }
                 if (!_loading) QueueSave();
             };
 
