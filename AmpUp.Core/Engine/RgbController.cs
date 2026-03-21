@@ -532,7 +532,7 @@ public class RgbController : IDisposable
                 break;
 
             case LightEffect.PositionFill:
-                EffectPositionFill(k, light, pos);
+                EffectPositionFill(k, light, rawPos); // Use raw position (no dead zone) like Turn Up source
                 break;
 
             case LightEffect.Blink:
@@ -584,10 +584,10 @@ public class RgbController : IDisposable
                 break;
 
             case LightEffect.PositionBlend:
-                EffectPositionBlend(k, light, pos);
+                EffectPositionBlend(k, light, rawPos);
                 break;
             case LightEffect.PositionBlendMute:
-                EffectPositionBlendMute(k, light, pos);
+                EffectPositionBlendMute(k, light, rawPos);
                 break;
 
             case LightEffect.PingPong:
@@ -678,24 +678,23 @@ public class RgbController : IDisposable
     }
 
     /// <summary>
-    /// LEDs fill left-to-right as knob increases.
-    /// LED 0 ON if pos >= 1/6, LED 1 ON if pos >= 1/2, LED 2 ON if pos >= 5/6.
+    /// Smooth progressive fill — each LED fades in across its third of the range.
+    /// Matches Turn Up source: LED 0 fades 0-33%, LED 1 fades 33-66%, LED 2 fades 66-100%.
     /// </summary>
     private void EffectPositionFill(int k, LightConfig light, float pos)
     {
-        bool led0On = pos >= (1f / 6f);
-        bool led1On = pos >= 0.5f;
-        bool led2On = pos >= (5f / 6f);
+        float pct = pos * 100f;
 
-        // Simple fill: lit LEDs use color1, unlit LEDs are off
-        bool[] leds = { led0On, led1On, led2On };
-        for (int led = 0; led < 3; led++)
-        {
-            if (leds[led])
-                SetColor(k, led, light.R, light.G, light.B);
-            else
-                SetColor(k, led, 0, 0, 0);
-        }
+        // LED 0: fades in from 0-33%, full above 33%
+        float led0 = pct < 33f ? pct / 33f : 1f;
+        // LED 1: off until 33%, fades in 33-66%, full above 66%
+        float led1 = pct < 33f ? 0f : pct < 66f ? (pct - 33f) / 33f : 1f;
+        // LED 2: off until 66%, fades in 66-100%
+        float led2 = pct > 66f ? (pct - 66f) / 34f : 0f;
+
+        SetColor(k, 0, (int)(light.R * led0), (int)(light.G * led0), (int)(light.B * led0));
+        SetColor(k, 1, (int)(light.R * led1), (int)(light.G * led1), (int)(light.B * led1));
+        SetColor(k, 2, (int)(light.R * led2), (int)(light.G * led2), (int)(light.B * led2));
     }
 
     /// <summary>
@@ -1000,30 +999,25 @@ public class RgbController : IDisposable
     }
 
     /// <summary>
-    /// Like PositionFill but lit LEDs blend from color1 (bottom) to color2 (top).
-    /// LED 0 = color1, LED 1 = midpoint, LED 2 = color2. Unlit LEDs are off.
+    /// Smooth progressive fill with color gradient — each LED fades in across its third.
+    /// LED colors blend from color1 (LED 0) to color2 (LED 2).
     /// </summary>
     private void EffectPositionBlend(int k, LightConfig light, float pos)
     {
-        bool led0On = pos >= (1f / 6f);
-        bool led1On = pos >= 0.5f;
-        bool led2On = pos >= (5f / 6f);
+        float pct = pos * 100f;
 
-        bool[] leds = { led0On, led1On, led2On };
+        float led0 = pct < 33f ? pct / 33f : 1f;
+        float led1 = pct < 33f ? 0f : pct < 66f ? (pct - 33f) / 33f : 1f;
+        float led2 = pct > 66f ? (pct - 66f) / 34f : 0f;
+
+        float[] brightness = { led0, led1, led2 };
         for (int led = 0; led < 3; led++)
         {
-            if (leds[led])
-            {
-                float t = led / 2f; // 0, 0.5, 1.0
-                int r = Math.Clamp((int)(light.R + (light.R2 - light.R) * t), 0, 255);
-                int g = Math.Clamp((int)(light.G + (light.G2 - light.G) * t), 0, 255);
-                int b = Math.Clamp((int)(light.B + (light.B2 - light.B) * t), 0, 255);
-                SetColor(k, led, r, g, b);
-            }
-            else
-            {
-                SetColor(k, led, 0, 0, 0);
-            }
+            float t = led / 2f; // 0, 0.5, 1.0 — gradient position
+            int r = Math.Clamp((int)((light.R + (light.R2 - light.R) * t) * brightness[led]), 0, 255);
+            int g = Math.Clamp((int)((light.G + (light.G2 - light.G) * t) * brightness[led]), 0, 255);
+            int b = Math.Clamp((int)((light.B + (light.B2 - light.B) * t) * brightness[led]), 0, 255);
+            SetColor(k, led, r, g, b);
         }
     }
 
