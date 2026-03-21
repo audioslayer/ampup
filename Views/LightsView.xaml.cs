@@ -49,6 +49,10 @@ public partial class LightsView : UserControl
     private readonly Border[] _color2Swatches = new Border[5];
     private readonly Border[] _color2Panels = new Border[5];
     private readonly StackPanel[] _colorSections = new StackPanel[5]; // entire COLOR section (header + swatches)
+    private readonly WrapPanel[] _customColorRows = new WrapPanel[5]; // custom color pills
+    private readonly WrapPanel[] _presetColorRows = new WrapPanel[5]; // preset palette swatches
+    private readonly Border[] _customColorTabs = new Border[5];
+    private readonly Border[] _presetColorTabs = new Border[5];
     private readonly StyledSlider[] _speedSliders = new StyledSlider[5];
     private readonly StackPanel[] _speedPanels = new StackPanel[5];
     private readonly ActionPicker[] _reactiveModeComboBoxes = new ActionPicker[5];
@@ -609,7 +613,7 @@ public partial class LightsView : UserControl
             Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(3),
-            Margin = new Thickness(0, 0, 0, 12),
+            Margin = new Thickness(0, 0, 0, 4),
             HorizontalAlignment = HorizontalAlignment.Center,
         };
 
@@ -1053,9 +1057,9 @@ public partial class LightsView : UserControl
         var tab = new Border
         {
             CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(20, 7, 20, 7),
+            Padding = new Thickness(18, 5, 18, 5),
             Cursor = Cursors.Hand,
-            MinWidth = 100,
+            MinWidth = 90,
         };
         tab.Child = new TextBlock
         {
@@ -1086,6 +1090,100 @@ public partial class LightsView : UserControl
             tab.BorderThickness = new Thickness(1);
             if (label != null)
                 label.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+        }
+    }
+
+    private static Border BuildColorTab(string text, bool active)
+    {
+        var accent = ThemeManager.Accent;
+        var tab = new Border
+        {
+            CornerRadius = new CornerRadius(5),
+            Padding = new Thickness(10, 4, 10, 4),
+            Cursor = Cursors.Hand,
+        };
+        tab.Child = new TextBlock
+        {
+            Text = text,
+            FontSize = 8,
+            FontWeight = FontWeights.Bold,
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        SetColorTabActive(tab, active);
+        return tab;
+    }
+
+    private static void SetColorTabActive(Border tab, bool active)
+    {
+        var accent = ThemeManager.Accent;
+        var label = tab.Child as TextBlock;
+        if (active)
+        {
+            tab.Background = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B));
+            if (label != null) label.Foreground = new SolidColorBrush(accent);
+        }
+        else
+        {
+            tab.Background = Brushes.Transparent;
+            if (label != null) label.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+        }
+    }
+
+    // Color palette presets — each is a (name, color1, color2) tuple
+    private static readonly (string Name, Color C1, Color C2)[] ColorPresets =
+    {
+        ("Fire",    Color.FromRgb(0xFF, 0x6A, 0x00), Color.FromRgb(0xFF, 0x20, 0x00)),
+        ("Ocean",   Color.FromRgb(0x00, 0x6E, 0xCC), Color.FromRgb(0x00, 0xCC, 0xBB)),
+        ("Sunset",  Color.FromRgb(0xFF, 0x6B, 0x35), Color.FromRgb(0xAA, 0x00, 0xFF)),
+        ("Neon",    Color.FromRgb(0xFF, 0x00, 0x88), Color.FromRgb(0x00, 0xFF, 0xDD)),
+        ("Ice",     Color.FromRgb(0xCC, 0xEE, 0xFF), Color.FromRgb(0x33, 0x88, 0xFF)),
+        ("Forest",  Color.FromRgb(0x00, 0xCC, 0x44), Color.FromRgb(0x00, 0x66, 0x22)),
+        ("Lava",    Color.FromRgb(0xFF, 0x00, 0x00), Color.FromRgb(0xFF, 0xCC, 0x00)),
+        ("Galaxy",  Color.FromRgb(0x88, 0x00, 0xFF), Color.FromRgb(0xFF, 0x44, 0x88)),
+        ("Mint",    Color.FromRgb(0x00, 0xE6, 0x76), Color.FromRgb(0x00, 0x88, 0xFF)),
+        ("Storm",   Color.FromRgb(0x66, 0x66, 0x88), Color.FromRgb(0xFF, 0xFF, 0xDD)),
+    };
+
+    private void BuildColorPresets(WrapPanel container, int knobIdx)
+    {
+        foreach (var (name, c1, c2) in ColorPresets)
+        {
+            // Small gradient swatch
+            var swatch = new Border
+            {
+                Width = 28, Height = 22,
+                CornerRadius = new CornerRadius(4),
+                Margin = new Thickness(1),
+                Cursor = Cursors.Hand,
+                ToolTip = name,
+                Background = new LinearGradientBrush(c1, c2, 0),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
+                BorderThickness = new Thickness(1),
+            };
+
+            var presetC1 = c1;
+            var presetC2 = c2;
+            int idx = knobIdx;
+            swatch.MouseLeftButtonDown += (_, _) =>
+            {
+                _colors1[idx] = presetC1;
+                _colors2[idx] = presetC2;
+                SetSwatchColor(_color1Swatches[idx], presetC1);
+                SetSwatchColor(_color2Swatches[idx], presetC2);
+                if (!_loading) QueueSave();
+            };
+
+            // Hover glow
+            swatch.MouseEnter += (_, _) =>
+            {
+                swatch.BorderBrush = new SolidColorBrush(ThemeManager.Accent);
+            };
+            swatch.MouseLeave += (_, _) =>
+            {
+                swatch.BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
+            };
+
+            container.Children.Add(swatch);
         }
     }
 
@@ -1223,26 +1321,74 @@ public partial class LightsView : UserControl
             _effectPickers[i] = effectPicker;
             panel.Children.Add(effectPicker);
 
-            // ── COLOR section (hideable for rainbow effects) ──
+            // ── COLOR section with Custom/Presets tabs ──
             var colorSection = new StackPanel();
             colorSection.Children.Add(MakeSeparator(10));
-            colorSection.Children.Add(MakeSectionHeader("COLOR"));
 
+            // Tab bar: Custom | Presets
+            var colorTabBar = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(2),
+                Margin = new Thickness(0, 0, 0, 6),
+                HorizontalAlignment = HorizontalAlignment.Left,
+            };
+            var colorTabRow = new StackPanel { Orientation = Orientation.Horizontal };
+            var customTab = BuildColorTab("CUSTOM", true);
+            var presetsTab = BuildColorTab("PRESETS", false);
+            _customColorTabs[i] = customTab;
+            _presetColorTabs[i] = presetsTab;
+
+            // Custom color row (PRIMARY + SECONDARY pills)
             var swatch1 = MakeColorSwatch(idx, isColor2: false);
             _color1Swatches[i] = swatch1;
             var swatch2 = MakeColorSwatch(idx, isColor2: true);
             _color2Swatches[i] = swatch2;
 
-            var colorRow = new WrapPanel
+            var customRow = new WrapPanel
             {
                 Orientation = Orientation.Horizontal,
-                Margin = new Thickness(0, 4, 0, 4),
+                Margin = new Thickness(0, 4, 0, 0),
+            };
+            customRow.Children.Add(swatch1);
+            customRow.Children.Add(swatch2);
+            _color2Panels[i] = swatch2;
+            _customColorRows[i] = customRow;
+
+            // Preset palette row
+            var presetRow = new WrapPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 4, 0, 0),
+                Visibility = Visibility.Collapsed,
+            };
+            BuildColorPresets(presetRow, idx);
+            _presetColorRows[i] = presetRow;
+
+            // Tab click handlers
+            int capturedIdx = idx;
+            customTab.MouseLeftButtonDown += (_, _) =>
+            {
+                SetColorTabActive(_customColorTabs[capturedIdx], true);
+                SetColorTabActive(_presetColorTabs[capturedIdx], false);
+                _customColorRows[capturedIdx].Visibility = Visibility.Visible;
+                _presetColorRows[capturedIdx].Visibility = Visibility.Collapsed;
+            };
+            presetsTab.MouseLeftButtonDown += (_, _) =>
+            {
+                SetColorTabActive(_presetColorTabs[capturedIdx], true);
+                SetColorTabActive(_customColorTabs[capturedIdx], false);
+                _customColorRows[capturedIdx].Visibility = Visibility.Collapsed;
+                _presetColorRows[capturedIdx].Visibility = Visibility.Visible;
             };
 
-            colorRow.Children.Add(swatch1);
-            colorRow.Children.Add(swatch2);
-            _color2Panels[i] = swatch2;
-            colorSection.Children.Add(colorRow);
+            colorTabRow.Children.Add(customTab);
+            colorTabRow.Children.Add(presetsTab);
+            colorTabBar.Child = colorTabRow;
+            colorSection.Children.Add(colorTabBar);
+            colorSection.Children.Add(customRow);
+            colorSection.Children.Add(presetRow);
             _colorSections[i] = colorSection;
             panel.Children.Add(colorSection);
 
