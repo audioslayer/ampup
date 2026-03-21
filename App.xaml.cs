@@ -788,7 +788,7 @@ public partial class App : Application
                 {
                     _lastOsdTick[e.Idx] = osdNow;
                     _lastOsdValue[e.Idx] = e.Value;
-                    ShowKnobOsd(knob, e.Value);
+                    Dispatcher.BeginInvoke(() => ShowKnobOsd(knob, e.Value));
                     // Cancel any pending final update since we just showed OSD
                     _osdFinalTimers[e.Idx]?.Change(Timeout.Infinite, Timeout.Infinite);
                 }
