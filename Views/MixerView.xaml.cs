@@ -469,7 +469,7 @@ public partial class MixerView : UserControl
 
                 _knobs[i].SetTarget(vol);
                 _knobs[i].Tick();
-                int pct = (int)(vol * 100);
+                int pct = (int)Math.Round(vol * 100);
                 _knobs[i].PercentText = $"{pct}%";
                 _volLabels[i].Text = $"{pct}%";
 

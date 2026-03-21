@@ -270,7 +270,9 @@ public class SerialReader : IDisposable
                 {
                     int idx = frame[2];
                     int val = (frame[3] << 8) | frame[4];
-                    if (val > 1000) val = 1023;
+                    // Snap endpoints — pots may not reach full ADC range mechanically
+                    if (val > 990) val = 1023;
+                    if (val < 25) val = 0;
                     if (idx >= 0 && idx < 5)
                     {
                         // Deadzone: suppress jitter of ±1-2 ADC counts from potentiometer noise
@@ -289,7 +291,8 @@ public class SerialReader : IDisposable
                 for (int i = 0; i < 5; i++)
                 {
                     int val = (frame[2 + i * 2] << 8) | frame[3 + i * 2];
-                    if (val > 1000) val = 1023;
+                    if (val > 990) val = 1023;
+                    if (val < 25) val = 0;
                     _lastFiredValues[i] = val;
                     OnKnob?.Invoke(new KnobEvent { Idx = i, Value = val });
                 }

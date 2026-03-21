@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Interop;
 using Microsoft.Win32;
 using AmpUp.Controls;
+using AmpUp.Core.Engine;
 using AmpUp.Core.Services;
 using AmpUp.Views;
 using Forms = System.Windows.Forms;
@@ -50,6 +51,8 @@ public partial class App : Application
     private readonly long[] _lastKnobUiTick = new long[5]; // throttle UI updates
     private readonly long[] _lastOsdTick = new long[5]; // throttle OSD updates
     private readonly int[] _lastOsdValue = { -1, -1, -1, -1, -1 }; // suppress OSD if value unchanged
+    private readonly int[] _pendingOsdValue = { -1, -1, -1, -1, -1 }; // pending final OSD update
+    private readonly System.Threading.Timer[] _osdFinalTimers = new System.Threading.Timer[5]; // delayed final OSD update
     private readonly long _startupTick = Environment.TickCount64; // suppress OSD on launch
     private uint _wmTaskbarCreated; // registered window message ID for WM_TASKBARCREATED
 
@@ -775,53 +778,44 @@ public partial class App : Application
             // Suppress during startup (5s) and reconnection (2s) to avoid phantom popups
             // Suppress if value hasn't meaningfully changed (e.g. batch re-report on reconnect)
             long osdNow = Environment.TickCount64;
-            bool osdSuppressed = osdNow - _startupTick < 5000
-                || (DateTime.UtcNow - _connectedAt).TotalMilliseconds < 2000
-                || (_lastOsdValue[e.Idx] >= 0 && Math.Abs(e.Value - _lastOsdValue[e.Idx]) < 15);
+            bool osdTimeSuppressed = osdNow - _startupTick < 5000
+                || (DateTime.UtcNow - _connectedAt).TotalMilliseconds < 2000;
+            bool osdValueSuppressed = _lastOsdValue[e.Idx] >= 0 && Math.Abs(e.Value - _lastOsdValue[e.Idx]) < 15;
             if (_config.Osd.ShowVolume && !knob.Target.Equals("none", StringComparison.OrdinalIgnoreCase)
-                && osdNow - _lastOsdTick[e.Idx] >= 100
-                && !osdSuppressed)
+                && !osdTimeSuppressed)
             {
-                _lastOsdTick[e.Idx] = osdNow;
-                _lastOsdValue[e.Idx] = e.Value;
-                float pct = e.Value / 1023f;
-                // Apply min/max range
-                int displayPct = (int)Math.Round(knob.MinVolume + pct * (knob.MaxVolume - knob.MinVolume));
-                string label = !string.IsNullOrEmpty(knob.Label) ? knob.Label : knob.Target switch
+                if (osdNow - _lastOsdTick[e.Idx] >= 100 && !osdValueSuppressed)
                 {
-                    "master" => "Master",
-                    "mic" => "Microphone",
-                    "active_window" => "Active Window",
-                    "system" => "System Sounds",
-                    "any" => "Auto",
-                    "apps" => "App Group",
-                    "monitor" => "Monitor",
-                    "led_brightness" => "LED Brightness",
-                    "output_device" => "Output Device",
-                    "input_device" => "Input Device",
-                    _ when knob.Target.StartsWith("vm_strip:") => $"VM Strip {knob.Target.Split(':')[1]}",
-                    _ when knob.Target.StartsWith("vm_bus:") => $"VM Bus {knob.Target.Split(':')[1]}",
-                    _ => knob.Target
-                };
-                string symbol = knob.Target switch
+                    _lastOsdTick[e.Idx] = osdNow;
+                    _lastOsdValue[e.Idx] = e.Value;
+                    ShowKnobOsd(knob, e.Value);
+                    // Cancel any pending final update since we just showed OSD
+                    _osdFinalTimers[e.Idx]?.Change(Timeout.Infinite, Timeout.Infinite);
+                }
+
+                // Always schedule a delayed final update so the OSD shows the true
+                // final value after the knob stops moving (prevents stale % on fast turns)
+                _pendingOsdValue[e.Idx] = e.Value;
+                if (_osdFinalTimers[e.Idx] == null)
                 {
-                    "master" => "VolumeHigh",
-                    "mic" => "Microphone",
-                    "monitor" => "Monitor",
-                    "led_brightness" => "Palette",
-                    "govee" => "Palette",
-                    _ when knob.Target.StartsWith("govee:") => "Palette",
-                    "spotify" => "MusicNote",
-                    "discord" => "Headphones",
-                    _ when knob.Target.StartsWith("ha_") => "Home",
-                    _ when knob.Target.StartsWith("vm_") => "VolumeHigh",
-                    _ => "VolumeHigh"
-                };
-                Dispatcher.BeginInvoke(() =>
+                    int idx = e.Idx; // capture for closure
+                    _osdFinalTimers[idx] = new System.Threading.Timer(_ =>
+                    {
+                        int val = _pendingOsdValue[idx];
+                        if (val >= 0 && val != _lastOsdValue[idx])
+                        {
+                            _lastOsdValue[idx] = val;
+                            _lastOsdTick[idx] = Environment.TickCount64;
+                            var k = _config.Knobs.FirstOrDefault(k => k.Idx == idx);
+                            if (k != null)
+                                Dispatcher.BeginInvoke(() => ShowKnobOsd(k, val));
+                        }
+                    }, null, 200, Timeout.Infinite);
+                }
+                else
                 {
-                    if (!EnsureOsd()) return;
-                    _osdOverlay!.ShowVolume(label, displayPct, symbol);
-                });
+                    _osdFinalTimers[e.Idx].Change(200, Timeout.Infinite);
+                }
             }
         }
         _rgb.SetKnobPosition(e.Idx, e.Value / 1023f);
@@ -854,6 +848,45 @@ public partial class App : Application
                 return;
             }
         }
+    }
+
+    private void ShowKnobOsd(KnobConfig knob, int rawValue)
+    {
+        // Use the full volume pipeline (curve + range) so OSD matches actual volume
+        float vol = VolumePipeline.ComputeVolume(rawValue, knob);
+        int displayPct = (int)Math.Round(vol * 100);
+        string label = !string.IsNullOrEmpty(knob.Label) ? knob.Label : knob.Target switch
+        {
+            "master" => "Master",
+            "mic" => "Microphone",
+            "active_window" => "Active Window",
+            "system" => "System Sounds",
+            "any" => "Auto",
+            "apps" => "App Group",
+            "monitor" => "Monitor",
+            "led_brightness" => "LED Brightness",
+            "output_device" => "Output Device",
+            "input_device" => "Input Device",
+            _ when knob.Target.StartsWith("vm_strip:") => $"VM Strip {knob.Target.Split(':')[1]}",
+            _ when knob.Target.StartsWith("vm_bus:") => $"VM Bus {knob.Target.Split(':')[1]}",
+            _ => knob.Target
+        };
+        string symbol = knob.Target switch
+        {
+            "master" => "VolumeHigh",
+            "mic" => "Microphone",
+            "monitor" => "Monitor",
+            "led_brightness" => "Palette",
+            "govee" => "Palette",
+            _ when knob.Target.StartsWith("govee:") => "Palette",
+            "spotify" => "MusicNote",
+            "discord" => "Headphones",
+            _ when knob.Target.StartsWith("ha_") => "Home",
+            _ when knob.Target.StartsWith("vm_") => "VolumeHigh",
+            _ => "VolumeHigh"
+        };
+        if (!EnsureOsd()) return;
+        _osdOverlay!.ShowVolume(label, displayPct, symbol);
     }
 
     private void HandleButton(ButtonEvent e)
