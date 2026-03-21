@@ -11,6 +11,8 @@ namespace AmpUp.Controls
     {
         // ── Events ───────────────────────────────────────────────────────
         public event EventHandler? SelectionChanged;
+        public event EventHandler<LightEffect>? EffectHovered;
+        public event EventHandler? EffectHoverEnd;
 
         // ── Public properties ────────────────────────────────────────────
         private Color _accentColor = ThemeManager.Accent;
@@ -320,6 +322,7 @@ namespace AmpUp.Controls
                 int idx = _tiles.IndexOf(info);
                 if (idx != _selectedIndex)
                     ApplyHoverVisual(info);
+                EffectHovered?.Invoke(this, info.Effect);
             };
 
             container.MouseLeave += (_, _) =>
@@ -328,6 +331,7 @@ namespace AmpUp.Controls
                 int idx = _tiles.IndexOf(info);
                 if (idx != _selectedIndex)
                     ApplyNormalVisual(info);
+                EffectHoverEnd?.Invoke(this, EventArgs.Empty);
             };
 
             ApplyNormalVisual(info);

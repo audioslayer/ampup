@@ -751,6 +751,7 @@ public partial class LightsView : UserControl
         effectPicker.SelectionChanged += (_, _) =>
         {
             if (_loading) return;
+            ApplyGlobalEffectPresetColors(effectPicker.SelectedEffect);
             UpdateGlobalEffectVisibility(effectPicker.SelectedEffect);
             QueueSave();
         };
@@ -1210,10 +1211,13 @@ public partial class LightsView : UserControl
             effectPicker.SelectionChanged += (_, _) =>
             {
                 if (_loading) return;
+                ApplyEffectPresetColors(idx, effectPicker.SelectedEffect);
                 UpdateVisibility(idx, effectPicker.SelectedEffect);
                 UpdateHeaderEffect(idx);
                 QueueSave();
             };
+            effectPicker.EffectHovered += (_, effect) => PreviewEffectOnHardware(idx, effect);
+            effectPicker.EffectHoverEnd += (_, _) => EndEffectPreview(idx);
             _effectPickers[i] = effectPicker;
             panel.Children.Add(effectPicker);
 
@@ -1537,6 +1541,86 @@ public partial class LightsView : UserControl
             if (_dsColorBtns[idx][row] != null)
                 _dsColorBtns[idx][row].Background = new SolidColorBrush(dialog.SelectedColor);
             QueueSave();
+        }
+    }
+
+    // Effect preview on hover — temporarily shows effect on hardware LEDs
+    private LightEffect? _previewOriginalEffect;
+    private int _previewOriginalIdx = -1;
+
+    private void PreviewEffectOnHardware(int knobIdx, LightEffect effect)
+    {
+        if (_config == null) return;
+        var light = _config.Lights.FirstOrDefault(l => l.Idx == knobIdx);
+        if (light == null) return;
+
+        // Save original and apply preview
+        if (_previewOriginalIdx < 0)
+        {
+            _previewOriginalIdx = knobIdx;
+            _previewOriginalEffect = light.Effect;
+        }
+        // Apply preset colors for preview if available
+        if (EffectPresetColors.TryGetValue(effect, out var preset))
+        {
+            light.R = preset.c1.R; light.G = preset.c1.G; light.B = preset.c1.B;
+            light.R2 = preset.c2.R; light.G2 = preset.c2.G; light.B2 = preset.c2.B;
+        }
+        light.Effect = effect;
+    }
+
+    private void EndEffectPreview(int knobIdx)
+    {
+        if (_config == null || _previewOriginalIdx < 0) return;
+        var light = _config.Lights.FirstOrDefault(l => l.Idx == _previewOriginalIdx);
+        if (light != null && _previewOriginalEffect.HasValue)
+        {
+            light.Effect = _previewOriginalEffect.Value;
+            // Restore colors from UI state
+            light.R = _colors1[_previewOriginalIdx].R;
+            light.G = _colors1[_previewOriginalIdx].G;
+            light.B = _colors1[_previewOriginalIdx].B;
+            light.R2 = _colors2[_previewOriginalIdx].R;
+            light.G2 = _colors2[_previewOriginalIdx].G;
+            light.B2 = _colors2[_previewOriginalIdx].B;
+        }
+        _previewOriginalIdx = -1;
+        _previewOriginalEffect = null;
+    }
+
+    // Preset colors for effects that look best with specific colors
+    private static readonly Dictionary<LightEffect, (Color c1, Color c2)> EffectPresetColors = new()
+    {
+        { LightEffect.Fire,         (Color.FromRgb(0xFF, 0x6A, 0x00), Color.FromRgb(0xFF, 0x20, 0x00)) }, // orange + deep red
+        { LightEffect.Candle,       (Color.FromRgb(0xFF, 0xB3, 0x00), Color.FromRgb(0xFF, 0x57, 0x00)) }, // warm yellow + orange
+        { LightEffect.Ocean,        (Color.FromRgb(0x00, 0x6E, 0xCC), Color.FromRgb(0x00, 0xCC, 0xBB)) }, // deep blue + teal
+        { LightEffect.Heartbeat,    (Color.FromRgb(0xFF, 0x10, 0x30), Color.FromRgb(0x80, 0x00, 0x10)) }, // bright red + dark red
+        { LightEffect.Plasma,       (Color.FromRgb(0xBB, 0x00, 0xFF), Color.FromRgb(0x00, 0xFF, 0xBB)) }, // purple + cyan
+        { LightEffect.Drip,         (Color.FromRgb(0x00, 0x99, 0xFF), Color.FromRgb(0x66, 0xDD, 0xFF)) }, // blue + light blue
+        { LightEffect.PoliceLights, (Color.FromRgb(0xFF, 0x00, 0x00), Color.FromRgb(0x00, 0x00, 0xFF)) }, // red + blue
+        { LightEffect.DNA,          (Color.FromRgb(0x00, 0xFF, 0x88), Color.FromRgb(0x88, 0x00, 0xFF)) }, // green + purple
+        { LightEffect.Lightning,    (Color.FromRgb(0xFF, 0xFF, 0xDD), Color.FromRgb(0xAA, 0x88, 0xFF)) }, // white-yellow + purple
+    };
+
+    private void ApplyEffectPresetColors(int idx, LightEffect effect)
+    {
+        if (EffectPresetColors.TryGetValue(effect, out var preset))
+        {
+            _colors1[idx] = preset.c1;
+            _colors2[idx] = preset.c2;
+            SetSwatchColor(_color1Swatches[idx], preset.c1);
+            SetSwatchColor(_color2Swatches[idx], preset.c2);
+        }
+    }
+
+    private void ApplyGlobalEffectPresetColors(LightEffect effect)
+    {
+        if (EffectPresetColors.TryGetValue(effect, out var preset))
+        {
+            _globalColor1 = preset.c1;
+            _globalColor2 = preset.c2;
+            if (_globalColor1Swatch != null) SetSwatchColor(_globalColor1Swatch, preset.c1);
+            if (_globalColor2Swatch != null) SetSwatchColor(_globalColor2Swatch, preset.c2);
         }
     }
 
