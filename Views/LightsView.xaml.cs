@@ -48,6 +48,7 @@ public partial class LightsView : UserControl
     private readonly Border[] _color1Swatches = new Border[5];
     private readonly Border[] _color2Swatches = new Border[5];
     private readonly Border[] _color2Panels = new Border[5];
+    private readonly StackPanel[] _colorSections = new StackPanel[5]; // entire COLOR section (header + swatches)
     private readonly StyledSlider[] _speedSliders = new StyledSlider[5];
     private readonly StackPanel[] _speedPanels = new StackPanel[5];
     private readonly ActionPicker[] _reactiveModeComboBoxes = new ActionPicker[5];
@@ -1090,14 +1091,15 @@ public partial class LightsView : UserControl
 
     private void UpdateGlobalEffectVisibility(LightEffect effect)
     {
+        bool noColors = EffectsNoColors.Contains(effect);
         bool needsColor2 = EffectsNeedingColor2.Contains(effect);
         bool needsSpeed = EffectsNeedingSpeed.Contains(effect);
         bool isReactive = effect == LightEffect.AudioReactive;
 
         if (_globalColor2Panel != null)
-            _globalColor2Panel.Visibility = needsColor2 ? Visibility.Visible : Visibility.Collapsed;
+            _globalColor2Panel.Visibility = (!noColors && needsColor2) ? Visibility.Visible : Visibility.Collapsed;
         if (_globalPalettePanel != null)
-            _globalPalettePanel.Visibility = Visibility.Visible; // always show palettes
+            _globalPalettePanel.Visibility = noColors ? Visibility.Collapsed : Visibility.Visible;
         if (_globalSpeedPanel != null)
             _globalSpeedPanel.Visibility = needsSpeed ? Visibility.Visible : Visibility.Collapsed;
         if (_globalReactiveModePanel != null)
@@ -1221,13 +1223,11 @@ public partial class LightsView : UserControl
             _effectPickers[i] = effectPicker;
             panel.Children.Add(effectPicker);
 
-            // ── Separator ──
-            panel.Children.Add(MakeSeparator(10));
+            // ── COLOR section (hideable for rainbow effects) ──
+            var colorSection = new StackPanel();
+            colorSection.Children.Add(MakeSeparator(10));
+            colorSection.Children.Add(MakeSectionHeader("COLOR"));
 
-            // ── COLOR section ──
-            panel.Children.Add(MakeSectionHeader("COLOR"));
-
-            // Color pills
             var swatch1 = MakeColorSwatch(idx, isColor2: false);
             _color1Swatches[i] = swatch1;
             var swatch2 = MakeColorSwatch(idx, isColor2: true);
@@ -1242,7 +1242,9 @@ public partial class LightsView : UserControl
             colorRow.Children.Add(swatch1);
             colorRow.Children.Add(swatch2);
             _color2Panels[i] = swatch2;
-            panel.Children.Add(colorRow);
+            colorSection.Children.Add(colorRow);
+            _colorSections[i] = colorSection;
+            panel.Children.Add(colorSection);
 
             // ── SPEED section (conditionally visible — separator included) ──
             var speedContainer = new StackPanel();
@@ -1600,6 +1602,14 @@ public partial class LightsView : UserControl
         { LightEffect.PoliceLights, (Color.FromRgb(0xFF, 0x00, 0x00), Color.FromRgb(0x00, 0x00, 0xFF)) }, // red + blue
         { LightEffect.DNA,          (Color.FromRgb(0x00, 0xFF, 0x88), Color.FromRgb(0x88, 0x00, 0xFF)) }, // green + purple
         { LightEffect.Lightning,    (Color.FromRgb(0xFF, 0xFF, 0xDD), Color.FromRgb(0xAA, 0x88, 0xFF)) }, // white-yellow + purple
+        { LightEffect.CycleFill,    (Color.FromRgb(0x00, 0xE6, 0x76), Color.FromRgb(0x00, 0x88, 0xFF)) }, // green + blue
+    };
+
+    // Effects that don't use any user colors (pure rainbow/HSV)
+    private static readonly HashSet<LightEffect> EffectsNoColors = new()
+    {
+        LightEffect.RainbowFill, LightEffect.RainbowWave, LightEffect.RainbowCycle,
+        LightEffect.RainbowWheel, LightEffect.RainbowScanner, LightEffect.Plasma,
     };
 
     private void ApplyEffectPresetColors(int idx, LightEffect effect)
@@ -1626,13 +1636,17 @@ public partial class LightsView : UserControl
 
     private void UpdateVisibility(int idx, LightEffect effect)
     {
+        bool noColors = EffectsNoColors.Contains(effect);
         bool needsColor2 = EffectsNeedingColor2.Contains(effect);
         bool needsSpeed = EffectsNeedingSpeed.Contains(effect);
         bool isReactive = effect == LightEffect.AudioReactive;
         bool needsProgramName = EffectsNeedingProgramName.Contains(effect);
         bool needsDeviceSelect = effect == LightEffect.DeviceSelect;
 
-        _color2Panels[idx].Visibility = needsColor2 ? Visibility.Visible : Visibility.Collapsed;
+        // Hide entire color section for pure rainbow/HSV effects
+        if (_colorSections[idx] != null)
+            _colorSections[idx].Visibility = noColors ? Visibility.Collapsed : Visibility.Visible;
+        _color2Panels[idx].Visibility = (!noColors && needsColor2) ? Visibility.Visible : Visibility.Collapsed;
         _speedPanels[idx].Visibility = needsSpeed ? Visibility.Visible : Visibility.Collapsed;
         _reactiveModePanels[idx].Visibility = isReactive ? Visibility.Visible : Visibility.Collapsed;
         _programNamePanels[idx].Visibility = needsProgramName ? Visibility.Visible : Visibility.Collapsed;
