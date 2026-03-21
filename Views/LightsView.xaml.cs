@@ -126,9 +126,9 @@ public partial class LightsView : UserControl
     private List<(string Id, string Name, bool IsOutput)> _audioDevices = new();
 
     private static readonly LightEffect[] EffectsNeedingColor2 =
-        { LightEffect.ColorBlend, LightEffect.Blink, LightEffect.Pulse, LightEffect.MicStatus, LightEffect.DeviceMute, LightEffect.AudioReactive, LightEffect.GradientFill, LightEffect.Fire, LightEffect.PingPong, LightEffect.Candle, LightEffect.Scanner, LightEffect.ColorWave, LightEffect.Segments, LightEffect.PositionBlend, LightEffect.ProgramMute, LightEffect.AppGroupMute };
+        { LightEffect.ColorBlend, LightEffect.Blink, LightEffect.Pulse, LightEffect.MicStatus, LightEffect.DeviceMute, LightEffect.AudioReactive, LightEffect.GradientFill, LightEffect.Fire, LightEffect.PingPong, LightEffect.Candle, LightEffect.Scanner, LightEffect.ColorWave, LightEffect.Segments, LightEffect.PositionBlend, LightEffect.ProgramMute, LightEffect.AppGroupMute, LightEffect.CycleFill };
     private static readonly LightEffect[] EffectsNeedingSpeed =
-        { LightEffect.Blink, LightEffect.Pulse, LightEffect.RainbowWave, LightEffect.RainbowCycle, LightEffect.AudioReactive, LightEffect.Breathing, LightEffect.Comet, LightEffect.Sparkle, LightEffect.PingPong, LightEffect.Stack, LightEffect.Wave, LightEffect.Candle, LightEffect.Scanner, LightEffect.MeteorRain, LightEffect.ColorWave, LightEffect.Segments, LightEffect.Wheel, LightEffect.RainbowWheel };
+        { LightEffect.Blink, LightEffect.Pulse, LightEffect.RainbowWave, LightEffect.RainbowCycle, LightEffect.AudioReactive, LightEffect.Breathing, LightEffect.Comet, LightEffect.Sparkle, LightEffect.PingPong, LightEffect.Stack, LightEffect.Wave, LightEffect.Candle, LightEffect.Scanner, LightEffect.MeteorRain, LightEffect.ColorWave, LightEffect.Segments, LightEffect.Wheel, LightEffect.RainbowWheel, LightEffect.CycleFill, LightEffect.RainbowFill };
     private static readonly LightEffect[] EffectsNeedingProgramName =
         { LightEffect.ProgramMute };
     private static readonly LightEffect[] EffectsNeedingDeviceSelect =
