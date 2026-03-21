@@ -59,7 +59,9 @@ Views/
   MixerView.xaml / .cs     5 channel strips — knob, VU meter, volume %, target/curve/range controls (sidebar label: "Knobs")
                            App group uses chip/pill tags. Smart Mix (Voice Ducking + App Profiles) built in code-behind.
   ButtonsView.xaml / .cs   5 button columns — 3 gesture rows (tap/double/hold), categorized action picker with sub-flyouts
-  LightsView.xaml / .cs    Global lighting card + 5 LED columns — visual effect picker, colors, speed
+  LightsView.xaml / .cs    Global lighting card + 5 LED columns — effect picker (hover preview on hardware),
+                           Custom/Presets color tabs (10 gradient palettes), speed slider.
+                           Effect presets auto-set ideal colors (Fire=orange/red, Ocean=blue/teal, etc.).
   SettingsView.xaml / .cs  Connection, startup, profiles, OSD duration sliders, integrations (HA + Govee side-by-side)
   AmbienceView.xaml / .cs  Govee room lighting — LAN sync + Cloud dashboard (scenes, segments, music mode)
                            DreamView screen sync card with zone preview. Hidden in sidebar when Govee not enabled.
@@ -74,7 +76,9 @@ Controls/
   AnimatedKnobControl.cs   WPF FrameworkElement — arc sweep knob, glow, frozen resources
   VuMeterControl.cs        WPF FrameworkElement — 16-segment VU meter, DrawingVisual, peak hold
   CurvePickerControl.cs    3 clickable mini graphs showing Linear/Log/Exp response curves
-  EffectPickerControl.cs   Categorized grid of colorful icon tiles for LED effects (30+ effects)
+  EffectPickerControl.cs   Categorized grid of colorful icon tiles for LED effects (43 effects)
+                           4 categories: STATIC (8), ANIMATED (17), REACTIVE (6), GLOBAL SPAN (20)
+                           Hover preview: fires EffectHovered event to preview on hardware LEDs
   ActionPicker.cs          Categorized action dropdown with inline sub-panel for button actions
   GridPicker.cs            Categorized target dropdown with inline sub-panel for knob targets
                            Both use borderless Window flyout + inline sub-panel (single HWND, no cross-window issues).
@@ -98,16 +102,23 @@ Controls/
 AmbienceSync.cs            Govee LAN UDP sync engine — discovery, color mirroring, rate limiting
 GoveeCloudApi.cs           Govee Platform REST client — devices, scenes, segments, music mode
 AudioAnalyzer.cs           WASAPI loopback capture + FFT — 5 frequency bands for audio-reactive LEDs
-SerialReader.cs            Reads COM port, parses fe/ff frames, fires OnKnob / OnButton events, ±3 jitter deadzone
+AmpUp.Core/
+  Protocol/SerialReader.cs Reads COM port, parses fe/ff frames, fires OnKnob / OnButton events, ±5 jitter deadzone
+                           Endpoint snap: raw >1000 → 1023. Deadzone on raw value before snap.
                            Sends FE 01 FF on connect to request knob positions from hardware
+  Engine/VolumePipeline.cs Pure math: raw ADC (0-1023) → normalize → response curve → volume range → 0-1
+  Engine/RgbController.cs  RGB effects engine — 43 effects (per-knob + global spanning), 20 FPS animation
+                           Per-channel gamma (SetGamma) — default 1.0 linear. Preview color override for calibration.
+                           Smooth fire (Candle-style smoothing), per-LED phase offset on Pulse.
+                           Effect hover preview via temporary config override.
+  Services/PresetManager.cs LED preset save/load (JSON files next to exe)
 AudioMixer.cs              WASAPI per-app volume + GetPeakLevel, response curves, volume range
                            Persistent _renderDevice for session COM objects; dedicated _masterPeakDevice for metering
                            Skips AmpUp's own PID for active_window target
                            Sessions indexed by both process name AND WASAPI DisplayName (for UWP/MS Store apps)
                            FuzzyContains: strips spaces before matching ("Apple Music" → "AppleMusic")
 ButtonHandler.cs           Gesture state machine (press/double/hold) → 26 action types (incl. mute_device)
-RgbController.cs           RGB effects engine — 30+ effects (per-knob + global spanning), 20 FPS animation
-                           Per-channel gamma (SetGamma) — default 1.0 linear. Preview color override for calibration.
+AudioMixer.cs              (see also AmpUp.Core/Engine/ for VolumePipeline, RgbController)
 DuckingEngine.cs           Auto-ducking: monitors trigger app audio, fades target app volumes with smooth interpolation
 AutoProfileSwitcher.cs     Auto-profile switching: monitors foreground window, fires profile switch events with debounce
 MonitorBrightness.cs       DDC/CI physical monitor brightness via dxva2.dll. Cached handles + throttled
@@ -276,45 +287,80 @@ Each button supports 3 gestures (15 total bindings):
 | **Double press** | `doublePressAction` + `doublePressPath` | 2nd press within 300ms of first release |
 | **Hold** | `holdAction` + `holdPath` | Held 500ms+ (fires while holding) |
 
-### LED effects (15 types)
+### LED effects (43 types)
 
-**Static:**
+**Static (8):**
 | Effect | Colors | Description |
 |-|-|-|
 | `SingleColor` | 1 | Color scaled by knob position (default) |
 | `ColorBlend` | 2 | Lerp between color1→color2 based on knob position |
-| `PositionFill` | 1 | LEDs light up left→right as knob increases |
+| `PositionFill` | 1 | Smooth progressive fill — each LED fades in across its third (matches Turn Up source) |
+| `PositionBlend` | 2 | Smooth fill with color gradient (color1→color2 across LEDs) |
+| `PositionBlendMute` | 2 | PositionBlend + dims to Color2 when linked knob's group is muted |
+| `CycleFill` | 2 | Progressive fill + color cycles between color1/color2 over time |
+| `RainbowFill` | — | Progressive fill + rainbow hues cycling, each LED offset 120° |
 | `GradientFill` | 2 | Static gradient color1→color2 across 3 LEDs |
 
-**Animated:**
+**Animated (17):**
 | Effect | Colors | Description |
 |-|-|-|
 | `Blink` | 2 | Alternate between color1/color2 at configurable speed |
-| `Pulse` | 2 | Smooth sine-wave oscillation between color1/color2 |
-| `Breathing` | 1 | Smooth brightness fade in/out with squared easing |
-| `Fire` | 2 | Random warm flicker — color1=base flame, color2=ember tip. Per-LED. |
-| `Comet` | 1 | Bright pixel chases across 3 LEDs with fading tail |
-| `Sparkle` | 1 | Random LED flashes white, decays back to dim base |
-| `RainbowWave` | — | HSV rainbow across all 5 knobs, animated |
-| `RainbowCycle` | — | 3 LEDs per knob each get different hue, animated |
+| `Pulse` | 2 | Sine-wave oscillation with per-LED phase offset (ripple effect) |
+| `Breathing` | 2 | Smooth brightness fade with squared easing + LED phase offset |
+| `Fire` | 2 | Smooth candle-style flicker — LED 0=embers, LED 2=flame tips. Speed-adjustable. |
+| `Comet` | 2 | Bright pixel chases across 3 LEDs with fading tail |
+| `Sparkle` | 2 | Random LED flashes white, decays back to dim base |
+| `PingPong` | 2 | Bright dot bounces back and forth with smooth sub-pixel interpolation |
+| `Stack` | 2 | LEDs build up one by one, pause, reset |
+| `Wave` | 2 | Sine brightness wave travels across 3 LEDs with 120° phase offset |
+| `Candle` | 2 | Smooth organic candle flicker with independent per-LED smoothing |
+| `RainbowWave` | — | HSV rainbow across all 15 LEDs, speed-adjustable |
+| `RainbowCycle` | — | 3 LEDs per knob each get different hue (120° apart), speed-adjustable |
+| `Wheel` | 2 | Single bright dot rotates with dim trailing fade |
+| `RainbowWheel` | — | Tightly-spaced rainbow hues (40° apart), rotating |
+| `Heartbeat` | 1 | Realistic lub-dub double pulse with pause, speed controls BPM |
+| `Plasma` | — | Psychedelic overlapping sine waves, organic flowing color |
+| `Drip` | 1 | Liquid droplet forms at LED 0, falls to LED 2, splashes |
 
-**Reactive/Status:**
+**Reactive/Status (6):**
 | Effect | Colors | Description |
 |-|-|-|
 | `MicStatus` | 2 | Color1=unmuted, Color2=muted (mic state) |
 | `DeviceMute` | 2 | Color1=unmuted, Color2=muted (master state) |
-| `AudioReactive` | 2 | FFT-driven. Color1=idle, Color2=peak. Modes: BeatPulse, SpectrumBands, ColorShift |
+| `AudioReactive` | 2 | FFT-driven. SpectrumBands uses 3-LED VU fill per band. Modes: BeatPulse, SpectrumBands, ColorShift |
 | `ProgramMute` | 2 | Color1=unmuted, Color2=muted (watches single program by name) |
 | `AppGroupMute` | 2 | Color1=any unmuted, Color2=all muted (watches linked knob's app group) |
 | `DeviceSelect` | per-device | Shows mapped color based on current default audio output device |
-| `PositionBlend` | 2 | Blend between color1→color2 based on knob position |
-| `PositionBlendMute` | 2 | PositionBlend + dims to Color2 when linked knob's group is muted |
+
+**Global Spanning (20):** *(only active in Global Lighting mode, per-knob fallback = solid color1)*
+| Effect | Description |
+|-|-|
+| `Scanner` | KITT/Cylon dot sweeps back and forth with fading tail |
+| `MeteorRain` | Bright meteor with fading tail, wraps |
+| `ColorWave` | Scrolling sine-wave gradient of color1→color2 |
+| `Segments` | Rotating barber-pole bands |
+| `TheaterChase` | Every 3rd LED lit, pattern shifts |
+| `RainbowScanner` | Scanner with rainbow hue |
+| `SparkleRain` | Multiple simultaneous sparkles across 15 LEDs |
+| `BreathingSync` | Sine-wave brightness ripple across all 15 LEDs |
+| `FireWall` | Candle-style fire across all 15 LEDs with neighbor correlation |
+| `DualRacer` | Two dots racing opposite directions, additive blend on overlap |
+| `Lightning` | Random dramatic strikes cascading from center |
+| `Fillup` | LEDs fill left→right, pause, drain right→left |
+| `Ocean` | Rolling waves via 3 overlapping sine functions |
+| `Collision` | Two pulses race toward center, collide with white flash |
+| `DNA` | Double helix — two sine waves in opposite directions |
+| `Rainfall` | Drops fall with splash effects on impact |
+| `PoliceLights` | Double-flash police pattern, left=color1, right=color2 |
+| `Aurora` | Northern lights — slow-drifting green/blue/purple bands |
+| `Matrix` | Digital rain with bright heads and fading green trails |
+| `Starfield` | Gentle twinkling stars with warm/cool color variation |
 
 ### Audio-Reactive Modes (ReactiveMode)
 | Mode | Behavior |
 |-|-|
 | `BeatPulse` | Bass (band 1) drives ALL knob brightness simultaneously |
-| `SpectrumBands` | Each knob = its own frequency band (sub-bass → treble) |
+| `SpectrumBands` | Each knob = its own frequency band. 3 LEDs show VU-meter fill per band. |
 | `ColorShift` | Hue shifts based on overall audio energy |
 
 ### Global Lighting
@@ -327,8 +373,11 @@ When `globalLight.enabled = true`, one effect config applies to all 5 knobs. Per
 | `Flash` | All 5 knobs flash 3 times in accent color |
 | `Cascade` | Knobs light up 1→5 in sequence, then fade |
 | `RainbowSweep` | Accelerating rainbow wave that fades out |
+| `Ripple` | Outward ripple from center |
+| `ColorBurst` | Burst of color expanding outward |
+| `Wipe` | Color wipe across all 15 LEDs |
 
-All transitions run 3 seconds (60 ticks at 20 FPS) then auto-clear.
+All transitions run 1 second (20 ticks at 20 FPS) then auto-clear.
 
 ---
 
@@ -521,7 +570,9 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - **MS Store apps use helper processes** — Apple Music audio runs through AMPLibraryAgent, not AppleMusic process. AudioMixer indexes sessions by WASAPI DisplayName to catch these. FuzzyContains strips spaces for matching.
 - **Tray popup DPI on multi-monitor** — Screen.WorkingArea returns physical pixels but WPF Left/Top expect DIPs. Must convert via TransformFromDevice. Show window off-screen first so PresentationSource is available for DPI calc.
 - **Vertical taskbar positioning** — Detect taskbar side by comparing WorkingArea to screen Bounds. If WorkingArea.Right < Bounds.Right → taskbar on right, etc.
-- **OSD phantom popups on reconnect** — Device reconnect sends knob batch, each fires HandleKnob → OSD. Suppressed by: 5s startup guard, 2s reconnect guard (`_connectedAt`), and value-change guard (±8 ADC from last OSD display).
+- **OSD phantom popups on reconnect** — Device reconnect sends knob batch, each fires HandleKnob → OSD. Suppressed by: 5s startup guard, 2s reconnect guard (`_connectedAt`), and value-change guard (±15 ADC from last OSD display).
+- **OSD shows curve-applied volume** — OSD uses `VolumePipeline.ComputeVolume()` to show actual volume (with response curve + min/max range), not raw knob position. Per-knob final-value timer (200ms) ensures the last position is always shown even during fast turns.
+- **OSD ShowKnobOsd must use Dispatcher** — HandleKnob runs on the serial reader thread. ShowKnobOsd touches WPF controls and MUST be wrapped in `Dispatcher.BeginInvoke`. Calling directly causes cross-thread exception that prevents `_rgb.SetKnobPosition` from running, killing LEDs.
 - **StyledSlider ShowLabel clips at small heights** — Label draws below thumb at cy+ThumbRadius+4. Use ShowLabel=false with separate TextBlock for sliders under ~35px height.
 - **build-installer.bat working directory** — Must use `%~dp0` to locate AmpUp.csproj relative to script, not current working directory. Otherwise version extraction fails silently.
 - **Mac: TCC audio permission per binary** — macOS grants Microphone/audio recording permission per executable path. Each new build location needs its own permission grant. Must launch from Terminal (not SSH) the first time for the permission dialog to appear. SSH sessions cannot show TCC prompts.
@@ -603,6 +654,21 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
   - **Mac: media keys working** — Play/Pause/Next/Prev buttons use direct AppleScript app control (`tell application "Spotify" to playpause`). No Accessibility permission needed.
   - **Mac: quit fully working** — Extensive fix for Avalonia on macOS refusing to exit. NativeMenu handlers block all exit calls (Environment.Exit, Process.Kill, _exit, kill -9). Solution: background "quit watcher" thread polls a volatile bool flag, calls Environment.Exit from its own context. Cleanup runs on background thread with 2s timeout to prevent hanging. All quit paths (tray, Dock, Cmd+Q) route through same mechanism.
   - **Mac: dev workflow** — Desktop shortcuts: "AmpUp Test" (AppleScript app, launches dev build silently), "AmpUp Build" (pulls + builds). Production install at /Applications/AmpUp.app with auto-updater.
+
+- **v0.9.3-alpha (Mar 21)** — **Major LED effects overhaul + OSD accuracy fix.**
+  - **OSD curve-applied volume:** OSD now shows actual volume (with response curve applied via VolumePipeline) instead of raw knob position. Fixes "88% shown when volume is 100%" with non-linear curves. Per-knob final-value timer ensures last position always displays after fast turns.
+  - **MixerView rounding:** `Math.Round` instead of truncation for volume percentages.
+  - **SerialReader:** Jitter deadzone increased to ±5. Endpoint snap uses raw value before snap to prevent oscillation at snap boundary.
+  - **LED effects overhaul (6 new, 5 improved):**
+    - **New per-knob:** Heartbeat (lub-dub pulse), Plasma (psychedelic sine waves), Drip (liquid drop + splash)
+    - **New global:** Aurora (northern lights), Matrix (digital rain), Starfield (gentle twinkling)
+    - **Improved:** Fire (smooth candle-style, no more strobing), Pulse (per-LED phase offset ripple), AudioReactive SpectrumBands (3-LED VU fill), RainbowWave/RainbowCycle (speed slider now works)
+    - **Fixed:** Collision timing bug at high speeds, PositionFill/PositionBlend smooth fade matching Turn Up source
+    - **New fill variants:** CycleFill (fill + color cycling), RainbowFill (fill + rainbow hues)
+  - **Color presets:** Per-knob CUSTOM/PRESETS tab toggle. 10 gradient palettes (Fire, Ocean, Sunset, Neon, Ice, Forest, Lava, Galaxy, Mint, Storm). Click to set both colors instantly.
+  - **Effect preset colors:** Effects like Fire auto-set ideal colors on selection. Rainbow effects hide color pickers entirely.
+  - **Hardware hover preview:** Hovering over effect tiles temporarily shows that effect on Turn Up LEDs.
+  - **Slimmer header:** Per Knob/Global toggle card reduced padding.
 
 ---
 
