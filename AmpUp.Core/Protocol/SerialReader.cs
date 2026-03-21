@@ -269,16 +269,17 @@ public class SerialReader : IDisposable
                 // Knob: fe 03 [idx] [hi] [lo] ff
                 {
                     int idx = frame[2];
-                    int val = (frame[3] << 8) | frame[4];
-                    // Snap endpoints — pots may not reach full ADC range mechanically
-                    if (val > 990) val = 1023;
-                    if (val < 25) val = 0;
+                    int raw = (frame[3] << 8) | frame[4];
                     if (idx >= 0 && idx < 5)
                     {
-                        // Deadzone: suppress jitter of ±1-2 ADC counts from potentiometer noise
-                        if (_lastFiredValues[idx] == -1 || Math.Abs(val - _lastFiredValues[idx]) >= JitterDeadzone)
+                        // Deadzone on RAW value first — prevents snap discontinuity from defeating jitter filter
+                        if (_lastFiredValues[idx] == -1 || Math.Abs(raw - _lastFiredValues[idx]) >= JitterDeadzone)
                         {
-                            _lastFiredValues[idx] = val;
+                            _lastFiredValues[idx] = raw;
+                            // Snap endpoints after deadzone — pots may not reach full ADC range
+                            int val = raw;
+                            if (val > 1000) val = 1023;
+                            if (val < 20) val = 0;
                             OnKnob?.Invoke(new KnobEvent { Idx = idx, Value = val });
                         }
                     }
@@ -291,8 +292,8 @@ public class SerialReader : IDisposable
                 for (int i = 0; i < 5; i++)
                 {
                     int val = (frame[2 + i * 2] << 8) | frame[3 + i * 2];
-                    if (val > 990) val = 1023;
-                    if (val < 25) val = 0;
+                    if (val > 1000) val = 1023;
+                    if (val < 20) val = 0;
                     _lastFiredValues[i] = val;
                     OnKnob?.Invoke(new KnobEvent { Idx = i, Value = val });
                 }
