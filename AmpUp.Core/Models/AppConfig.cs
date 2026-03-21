@@ -169,6 +169,7 @@ public enum LightEffect
     Scanner, MeteorRain, ColorWave, Segments, TheaterChase,
     RainbowScanner, SparkleRain, BreathingSync, FireWall,
     DualRacer, Lightning, Fillup, Ocean, Collision, DNA, Rainfall, PoliceLights,
+    CycleFill, RainbowFill,
 }
 
 public enum ReactiveMode

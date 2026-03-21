@@ -535,6 +535,14 @@ public class RgbController : IDisposable
                 EffectPositionFill(k, light, rawPos); // Use raw position (no dead zone) like Turn Up source
                 break;
 
+            case LightEffect.CycleFill:
+                EffectCycleFill(k, light, rawPos);
+                break;
+
+            case LightEffect.RainbowFill:
+                EffectRainbowFill(k, light, rawPos);
+                break;
+
             case LightEffect.Blink:
                 EffectBlink(k, light);
                 break;
@@ -695,6 +703,61 @@ public class RgbController : IDisposable
         SetColor(k, 0, (int)(light.R * led0), (int)(light.G * led0), (int)(light.B * led0));
         SetColor(k, 1, (int)(light.R * led1), (int)(light.G * led1), (int)(light.B * led1));
         SetColor(k, 2, (int)(light.R * led2), (int)(light.G * led2), (int)(light.B * led2));
+    }
+
+    /// <summary>
+    /// Smooth progressive fill with animated color cycling between color1 and color2.
+    /// Fill level follows knob position, color oscillates over time.
+    /// </summary>
+    private void EffectCycleFill(int k, LightConfig light, float pos)
+    {
+        float pct = pos * 100f;
+
+        float led0 = pct < 33f ? pct / 33f : 1f;
+        float led1 = pct < 33f ? 0f : pct < 66f ? (pct - 33f) / 33f : 1f;
+        float led2 = pct > 66f ? (pct - 66f) / 34f : 0f;
+
+        // Cycle color between color1 and color2 over time
+        int speed = Math.Clamp(light.EffectSpeed, 1, 100);
+        float periodSec = 4.0f - (speed / 100f * 3.5f); // 4s to 0.5s
+        float periodTicks = periodSec / 0.05f;
+        float t = (_animTick % (int)Math.Max(periodTicks, 1)) / Math.Max(periodTicks, 1);
+        float blend = (float)(Math.Sin(t * Math.PI * 2) * 0.5 + 0.5); // smooth 0→1→0
+
+        int r = (int)(light.R + (light.R2 - light.R) * blend);
+        int g = (int)(light.G + (light.G2 - light.G) * blend);
+        int b = (int)(light.B + (light.B2 - light.B) * blend);
+
+        SetColor(k, 0, (int)(r * led0), (int)(g * led0), (int)(b * led0));
+        SetColor(k, 1, (int)(r * led1), (int)(g * led1), (int)(b * led1));
+        SetColor(k, 2, (int)(r * led2), (int)(g * led2), (int)(b * led2));
+    }
+
+    /// <summary>
+    /// Smooth progressive fill with rainbow colors cycling through the filled LEDs.
+    /// Fill level follows knob position, hue shifts over time.
+    /// </summary>
+    private void EffectRainbowFill(int k, LightConfig light, float pos)
+    {
+        float pct = pos * 100f;
+
+        float led0 = pct < 33f ? pct / 33f : 1f;
+        float led1 = pct < 33f ? 0f : pct < 66f ? (pct - 33f) / 33f : 1f;
+        float led2 = pct > 66f ? (pct - 66f) / 34f : 0f;
+
+        // Rainbow hue shifts over time, each LED offset by 120°
+        int speed = Math.Clamp(light.EffectSpeed, 1, 100);
+        float periodSec = 5.0f - (speed / 100f * 4.5f); // 5s to 0.5s
+        float periodTicks = periodSec / 0.05f;
+        float baseHue = (_animTick % (int)Math.Max(periodTicks, 1)) / Math.Max(periodTicks, 1) * 360f;
+
+        float[] brightness = { led0, led1, led2 };
+        for (int led = 0; led < 3; led++)
+        {
+            float hue = (baseHue + led * 120f) % 360f;
+            HsvToRgb(hue, 1f, brightness[led], out int r, out int g, out int b);
+            SetColor(k, led, r, g, b);
+        }
     }
 
     /// <summary>

@@ -97,6 +97,8 @@ namespace AmpUp.Controls
             // New static effects
             { LightEffect.PositionBlend,    Color.FromRgb(0x80, 0xDE, 0xEA) }, // light cyan
             { LightEffect.PositionBlendMute,Color.FromRgb(0xFF, 0x70, 0x43) }, // orange-red (blend + mute)
+            { LightEffect.CycleFill,        Color.FromRgb(0xE0, 0x6C, 0x9F) }, // pink
+            { LightEffect.RainbowFill,      Color.FromRgb(0xFF, 0xD5, 0x4F) }, // gold
 
             // New per-knob 3-LED effects
             { LightEffect.PingPong,     Color.FromRgb(0x29, 0xB6, 0xF6) }, // light blue
@@ -151,6 +153,8 @@ namespace AmpUp.Controls
                 (LightEffect.PositionFill, "▂▅█", "Fill",     false),
                 (LightEffect.PositionBlend,    "▂▄▇", "PosBlend",  false),
                 (LightEffect.PositionBlendMute,"▂▄⊘", "Blend+Mute",false),
+                (LightEffect.CycleFill,    "▂▅⟳", "CycleFill", false),
+                (LightEffect.RainbowFill,  "▂▅🌈","RbwFill",   false),
                 (LightEffect.GradientFill, "◐",   "Gradient", false),
             });
 

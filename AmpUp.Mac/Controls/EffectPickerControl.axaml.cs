@@ -46,6 +46,8 @@ public partial class EffectPickerControl : UserControl
         { LightEffect.GradientFill,      Color.Parse("#AED581") },
         { LightEffect.PositionBlend,     Color.Parse("#80DEEA") },
         { LightEffect.PositionBlendMute, Color.Parse("#FF7043") },
+        { LightEffect.CycleFill,        Color.Parse("#E06C9F") },
+        { LightEffect.RainbowFill,      Color.Parse("#FFD54F") },
         { LightEffect.Blink,             Color.Parse("#FFD54F") },
         { LightEffect.Pulse,             Color.Parse("#E06C9F") },
         { LightEffect.Breathing,         Color.Parse("#80CBC4") },
@@ -90,6 +92,7 @@ public partial class EffectPickerControl : UserControl
         { LightEffect.SingleColor, "Solid" }, { LightEffect.ColorBlend, "Blend" },
         { LightEffect.PositionFill, "Fill" }, { LightEffect.GradientFill, "Gradient" },
         { LightEffect.PositionBlend, "PosBlend" }, { LightEffect.PositionBlendMute, "Blend+Mute" },
+        { LightEffect.CycleFill, "CycleFill" }, { LightEffect.RainbowFill, "RbwFill" },
         { LightEffect.Blink, "Blink" }, { LightEffect.Pulse, "Pulse" },
         { LightEffect.Breathing, "Breathe" }, { LightEffect.Fire, "Fire" },
         { LightEffect.Comet, "Comet" }, { LightEffect.Sparkle, "Sparkle" },
@@ -127,7 +130,8 @@ public partial class EffectPickerControl : UserControl
         AddCategory(root, "STATIC", new[]
         {
             LightEffect.SingleColor, LightEffect.ColorBlend, LightEffect.PositionFill,
-            LightEffect.PositionBlend, LightEffect.PositionBlendMute, LightEffect.GradientFill,
+            LightEffect.PositionBlend, LightEffect.PositionBlendMute,
+            LightEffect.CycleFill, LightEffect.RainbowFill, LightEffect.GradientFill,
         });
 
         AddCategory(root, "ANIMATED", new[]
