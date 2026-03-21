@@ -114,11 +114,6 @@ public partial class LightsView : UserControl
     // Clipboard for light copy/paste
     private static LightConfig? _lightClipboard;
 
-    // Knob selector
-    private int _selectedKnobIdx = 0;
-    private readonly Border[] _knobSelectorBorders = new Border[5];
-    private readonly Ellipse[] _knobSelectorCircles = new Ellipse[5];
-
     // Per-channel border references (for context menu attachment)
     private readonly Border[] _ledBorders = new Border[5];
 
@@ -170,8 +165,7 @@ public partial class LightsView : UserControl
 
         BuildPresetsSection();
         BuildGlobalCard();
-        BuildKnobSelector();
-        RebuildSelectedKnobPanel();
+        BuildChannelControls();
         SetupStripContextMenus();
     }
 
@@ -227,18 +221,41 @@ public partial class LightsView : UserControl
 
         UpdateGlobalVisibility();
 
-        // Load per-knob color data into memory arrays (needed for knob selector circles)
         for (int i = 0; i < 5; i++)
         {
+            // Update header from knob label
+            var knob = config.Knobs.FirstOrDefault(k => k.Idx == i);
+            if (knob != null)
+            {
+                var name = !string.IsNullOrWhiteSpace(knob.Label) ? knob.Label : FormatTargetName(knob.Target);
+                _headers[i].Text = name;
+            }
+
             var light = config.Lights.FirstOrDefault(l => l.Idx == i);
             if (light == null) continue;
+
+            _effectPickers[i].SelectedEffect = light.Effect;
+            UpdateHeaderEffect(i);
+
             _colors1[i] = Color.FromRgb((byte)light.R, (byte)light.G, (byte)light.B);
             _colors2[i] = Color.FromRgb((byte)light.R2, (byte)light.G2, (byte)light.B2);
-        }
+            SetSwatchColor(_color1Swatches[i], _colors1[i]);
+            SetSwatchColor(_color2Swatches[i], _colors2[i]);
 
-        // Rebuild knob selector labels and colors, then rebuild selected knob panel
-        BuildKnobSelector();
-        RebuildSelectedKnobPanel();
+            _speedSliders[i].Value = Math.Clamp(light.EffectSpeed, 1, 100);
+
+            if (_reactiveModeComboBoxes[i] != null)
+                _reactiveModeComboBoxes[i].Select(light.ReactiveMode.ToString());
+
+            if (_programNameBoxes[i] != null)
+                _programNameBoxes[i].Text = light.ProgramName ?? "";
+
+            // Populate DeviceSelect device pickers
+            PopulateDeviceSelectPickers(i);
+            LoadDeviceSelectColors(i, light);
+
+            UpdateVisibility(i, light.Effect);
+        }
 
         if (_brightnessSlider != null)
             _brightnessSlider.Value = Math.Clamp(config.LedBrightness, 0, 100);
@@ -1024,8 +1041,7 @@ public partial class LightsView : UserControl
         PresetsPanel.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
 
         // Show/hide per-knob panels
-        KnobSelectorCard.Visibility = enabled ? Visibility.Collapsed : Visibility.Visible;
-        PerKnobCard.Visibility = enabled ? Visibility.Collapsed : Visibility.Visible;
+        PerKnobGrid.Visibility = enabled ? Visibility.Collapsed : Visibility.Visible;
 
         // Update sub-controls based on current effect
         if (enabled && _globalEffectPicker != null)
@@ -1132,401 +1148,225 @@ public partial class LightsView : UserControl
         }
     }
 
-    private void BuildKnobSelector()
+    private void BuildChannelControls()
     {
-        KnobSelectorPanel.Children.Clear();
+        var panels = new[] { Led0Panel, Led1Panel, Led2Panel, Led3Panel, Led4Panel };
 
         for (int i = 0; i < 5; i++)
         {
             int idx = i;
+            var panel = panels[i];
 
-            // Get knob label from config
-            var knob = _config?.Knobs.FirstOrDefault(k => k.Idx == i);
-            var label = (knob != null && !string.IsNullOrWhiteSpace(knob.Label))
-                ? knob.Label : $"LED {i + 1}";
-
-            var column = new StackPanel
+            // ── Header: label + icon + effect name ──
+            var headerStack = new StackPanel
             {
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(12, 0, 12, 0),
-                Cursor = Cursors.Hand,
+                Margin = new Thickness(0, 0, 0, 4),
             };
 
-            // Colored circle
-            var knobColor = _colors1[i];
-            var circle = new Ellipse
+            var header = new TextBlock
             {
-                Width = 36,
-                Height = 36,
-                Fill = new SolidColorBrush(knobColor),
-                HorizontalAlignment = HorizontalAlignment.Center,
-            };
-            _knobSelectorCircles[i] = circle;
-
-            // Wrapper border for selection glow
-            var border = new Border
-            {
-                Width = 44,
-                Height = 44,
-                CornerRadius = new CornerRadius(22),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Child = circle,
-                Padding = new Thickness(0),
-            };
-            _knobSelectorBorders[i] = border;
-
-            column.Children.Add(border);
-
-            // Label
-            var nameLabel = new TextBlock
-            {
-                Text = label,
+                Text = $"LED {i + 1}",
                 FontSize = 10,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+                FontWeight = FontWeights.Bold,
+                Foreground = FindBrush("TextDimBrush"),
                 HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 6),
+            };
+            _headers[i] = header;
+            headerStack.Children.Add(header);
+
+            var headerIcon = new TextBlock
+            {
+                Text = "\U0001F7E2",
+                FontSize = 28,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Foreground = FindBrush("AccentBrush"),
+            };
+            _headerIcons[i] = headerIcon;
+            headerStack.Children.Add(headerIcon);
+
+            var headerEffect = new TextBlock
+            {
+                Text = "Single Color",
+                FontSize = 11,
+                FontWeight = FontWeights.SemiBold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Foreground = FindBrush("AccentBrush"),
                 Margin = new Thickness(0, 4, 0, 0),
             };
-            column.Children.Add(nameLabel);
+            _headerEffects[i] = headerEffect;
+            headerStack.Children.Add(headerEffect);
 
-            column.MouseLeftButtonDown += (_, _) => SelectKnob(idx);
+            panel.Children.Add(headerStack);
 
-            KnobSelectorPanel.Children.Add(column);
-        }
+            // ── Separator ──
+            panel.Children.Add(MakeSeparator(12));
 
-        UpdateKnobSelectorVisuals();
-    }
-
-    private void UpdateKnobSelectorVisuals()
-    {
-        var accent = ThemeManager.Accent;
-        for (int i = 0; i < 5; i++)
-        {
-            var border = _knobSelectorBorders[i];
-            if (border == null) continue;
-
-            if (i == _selectedKnobIdx)
+            // ── EFFECT section ──
+            panel.Children.Add(MakeSectionHeader("EFFECT"));
+            var effectPicker = new EffectPickerControl
             {
-                border.BorderBrush = new SolidColorBrush(accent);
-                border.BorderThickness = new Thickness(2);
-                border.Background = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B));
-            }
-            else
+                Margin = new Thickness(0, 0, 0, 10),
+                ToolTip = "Choose the LED lighting effect for this knob",
+            };
+            effectPicker.SelectionChanged += (_, _) =>
             {
-                border.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-                border.BorderThickness = new Thickness(1);
-                border.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
-            }
-        }
-    }
+                if (_loading) return;
+                ApplyEffectPresetColors(idx, effectPicker.SelectedEffect);
+                UpdateVisibility(idx, effectPicker.SelectedEffect);
+                UpdateHeaderEffect(idx);
+                QueueSave();
+            };
+            effectPicker.EffectHovered += (_, effect) => PreviewEffectOnHardware(idx, effect);
+            effectPicker.EffectHoverEnd += (_, _) => EndEffectPreview(idx);
+            _effectPickers[i] = effectPicker;
+            panel.Children.Add(effectPicker);
 
-    private void SelectKnob(int idx)
-    {
-        if (idx == _selectedKnobIdx) return;
-        SaveCurrentKnobToConfig();
-        _selectedKnobIdx = idx;
-        UpdateKnobSelectorVisuals();
-        RebuildSelectedKnobPanel();
-    }
+            // ── COLOR section (hideable for rainbow effects) ──
+            var colorSection = new StackPanel();
+            colorSection.Children.Add(MakeSeparator(10));
+            colorSection.Children.Add(MakeSectionHeader("COLOR"));
 
-    private void SaveCurrentKnobToConfig()
-    {
-        if (_config == null) return;
-        int idx = _selectedKnobIdx;
-        var light = _config.Lights.FirstOrDefault(l => l.Idx == idx);
-        if (light == null) return;
+            var swatch1 = MakeColorSwatch(idx, isColor2: false);
+            _color1Swatches[i] = swatch1;
+            var swatch2 = MakeColorSwatch(idx, isColor2: true);
+            _color2Swatches[i] = swatch2;
 
-        // Only save if controls have been built for this knob
-        if (_effectPickers[idx] == null) return;
+            var colorRow = new WrapPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 4, 0, 4),
+            };
 
-        light.Effect = _effectPickers[idx].SelectedEffect;
-        light.R = _colors1[idx].R;
-        light.G = _colors1[idx].G;
-        light.B = _colors1[idx].B;
-        light.R2 = _colors2[idx].R;
-        light.G2 = _colors2[idx].G;
-        light.B2 = _colors2[idx].B;
+            colorRow.Children.Add(swatch1);
+            colorRow.Children.Add(swatch2);
+            _color2Panels[i] = swatch2;
+            colorSection.Children.Add(colorRow);
+            _colorSections[i] = colorSection;
+            panel.Children.Add(colorSection);
 
-        if (_speedSliders[idx] != null)
-            light.EffectSpeed = (int)_speedSliders[idx].Value;
+            // ── SPEED section (conditionally visible — separator included) ──
+            var speedContainer = new StackPanel();
+            speedContainer.Children.Add(MakeSeparator(10));
+            speedContainer.Children.Add(MakeSectionHeader("SPEED"));
 
-        if (_reactiveModeComboBoxes[idx] != null && Enum.TryParse<ReactiveMode>(_reactiveModeComboBoxes[idx].SelectedValue, out var mode))
-            light.ReactiveMode = mode;
+            var speedSlider = new StyledSlider
+            {
+                Minimum = 1,
+                Maximum = 100,
+                Value = 50,
+                Suffix = "",
+                AccentColor = ThemeManager.Accent,
+                ToolTip = "Animation speed — higher = faster",
+            };
+            speedSlider.ValueChanged += (_, _) =>
+            {
+                if (!_loading) QueueSave();
+            };
+            _speedSliders[i] = speedSlider;
 
-        if (_programNameBoxes[idx] != null)
-            light.ProgramName = _programNameBoxes[idx].Text.Trim();
+            speedContainer.Children.Add(speedSlider);
+            speedContainer.Margin = new Thickness(0, 0, 0, 0);
+            _speedPanels[i] = speedContainer;
+            panel.Children.Add(speedContainer);
 
-        if (light.Effect == LightEffect.DeviceSelect && _dsDevicePickers[idx] != null)
-        {
-            light.DeviceColors = new List<DeviceColorEntry>();
+            // Reactive mode picker (only visible for AudioReactive)
+            var reactiveContainer = new StackPanel();
+            reactiveContainer.Children.Add(MakeLabel("REACTIVE MODE"));
+            var modeCombo = new ActionPicker
+            {
+                Margin = new Thickness(0, 0, 0, 10),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+            };
+            modeCombo.AddItem("Beat Pulse", "BeatPulse", "♫", Color.FromRgb(0xFF, 0x80, 0xAB), "Bass drives all knob brightness simultaneously");
+            modeCombo.AddItem("Spectrum Bands", "SpectrumBands", "≡", Color.FromRgb(0x64, 0xB5, 0xF6), "Each knob = its own frequency band");
+            modeCombo.AddItem("Color Shift", "ColorShift", "◑", Color.FromRgb(0xBA, 0x68, 0xC8), "Hue shifts across spectrum based on audio energy");
+            modeCombo.Select("SpectrumBands");
+            modeCombo.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _reactiveModeComboBoxes[idx] = modeCombo;
+            reactiveContainer.Children.Add(modeCombo);
+            reactiveContainer.Visibility = Visibility.Collapsed;
+            _reactiveModePanels[idx] = reactiveContainer;
+            panel.Children.Add(reactiveContainer);
+
+            // Program name box (only visible for ProgramMute)
+            var programNameContainer = new StackPanel();
+            programNameContainer.Children.Add(MakeLabel("PROGRAM NAME"));
+            var programNameBox = new TextBox
+            {
+                Background = FindBrush("InputBgBrush"),
+                Foreground = FindBrush("TextPrimaryBrush"),
+                BorderBrush = FindBrush("InputBorderBrush"),
+                Margin = new Thickness(0, 0, 0, 10),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                FontSize = 12,
+                Padding = new Thickness(6, 4, 6, 4),
+                ToolTip = "Process name to monitor for mute state (e.g. spotify)",
+            };
+            programNameBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _programNameBoxes[idx] = programNameBox;
+            programNameContainer.Children.Add(programNameBox);
+            programNameContainer.Visibility = Visibility.Collapsed;
+            _programNamePanels[idx] = programNameContainer;
+            panel.Children.Add(programNameContainer);
+
+            // DeviceSelect rows (hidden unless DeviceSelect effect)
+            var deviceSelectContainer = new StackPanel { Visibility = Visibility.Collapsed };
+            deviceSelectContainer.Children.Add(MakeLabel("DEVICE COLORS"));
+            deviceSelectContainer.ToolTip = "Set LED color for each audio output device";
+
+            _dsDevicePickers[idx] = new ListPicker[3];
+            _dsColorBtns[idx] = new Border[3];
+            _dsColors[idx] = new Color[3];
             for (int row = 0; row < 3; row++)
             {
-                var deviceId = _dsDevicePickers[idx][row].SelectedTag as string ?? "";
-                if (!string.IsNullOrEmpty(deviceId))
-                {
-                    light.DeviceColors.Add(new DeviceColorEntry
-                    {
-                        DeviceId = deviceId,
-                        R = _dsColors[idx][row].R,
-                        G = _dsColors[idx][row].G,
-                        B = _dsColors[idx][row].B,
-                    });
-                }
-            }
-        }
-    }
+                int rowCapture = row;
 
-    private void RebuildSelectedKnobPanel()
-    {
-        PerKnobSettingsPanel.Children.Clear();
-        int idx = _selectedKnobIdx;
-        var panel = PerKnobSettingsPanel;
-
-        // ── Header: label + icon + effect name ──
-        var headerStack = new StackPanel
-        {
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 0, 0, 4),
-        };
-
-        var knob = _config?.Knobs.FirstOrDefault(k => k.Idx == idx);
-        var headerText = (knob != null && !string.IsNullOrWhiteSpace(knob.Label))
-            ? knob.Label : $"LED {idx + 1}";
-
-        var header = new TextBlock
-        {
-            Text = headerText,
-            FontSize = 10,
-            FontWeight = FontWeights.Bold,
-            Foreground = FindBrush("TextDimBrush"),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 0, 0, 6),
-        };
-        _headers[idx] = header;
-        headerStack.Children.Add(header);
-
-        var headerIcon = new TextBlock
-        {
-            Text = "\U0001F7E2",
-            FontSize = 28,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Foreground = FindBrush("AccentBrush"),
-        };
-        _headerIcons[idx] = headerIcon;
-        headerStack.Children.Add(headerIcon);
-
-        var headerEffect = new TextBlock
-        {
-            Text = "Single Color",
-            FontSize = 11,
-            FontWeight = FontWeights.SemiBold,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Foreground = FindBrush("AccentBrush"),
-            Margin = new Thickness(0, 4, 0, 0),
-        };
-        _headerEffects[idx] = headerEffect;
-        headerStack.Children.Add(headerEffect);
-
-        panel.Children.Add(headerStack);
-
-        // ── Separator ──
-        panel.Children.Add(MakeSeparator(12));
-
-        // ── EFFECT section ──
-        panel.Children.Add(MakeSectionHeader("EFFECT"));
-        var effectPicker = new EffectPickerControl
-        {
-            Margin = new Thickness(0, 0, 0, 10),
-            ToolTip = "Choose the LED lighting effect for this knob",
-        };
-        effectPicker.SelectionChanged += (_, _) =>
-        {
-            if (_loading) return;
-            ApplyEffectPresetColors(idx, effectPicker.SelectedEffect);
-            UpdateVisibility(idx, effectPicker.SelectedEffect);
-            UpdateHeaderEffect(idx);
-            QueueSave();
-        };
-        effectPicker.EffectHovered += (_, effect) => PreviewEffectOnHardware(idx, effect);
-        effectPicker.EffectHoverEnd += (_, _) => EndEffectPreview(idx);
-        _effectPickers[idx] = effectPicker;
-        panel.Children.Add(effectPicker);
-
-        // ── COLOR section (hideable for rainbow effects) ──
-        var colorSection = new StackPanel();
-        colorSection.Children.Add(MakeSeparator(10));
-        colorSection.Children.Add(MakeSectionHeader("COLOR"));
-
-        var swatch1 = MakeColorSwatch(idx, isColor2: false);
-        _color1Swatches[idx] = swatch1;
-        var swatch2 = MakeColorSwatch(idx, isColor2: true);
-        _color2Swatches[idx] = swatch2;
-
-        var colorRow = new WrapPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 4, 0, 4),
-        };
-
-        colorRow.Children.Add(swatch1);
-        colorRow.Children.Add(swatch2);
-        _color2Panels[idx] = swatch2;
-        colorSection.Children.Add(colorRow);
-        _colorSections[idx] = colorSection;
-        panel.Children.Add(colorSection);
-
-        // ── SPEED section (conditionally visible — separator included) ──
-        var speedContainer = new StackPanel();
-        speedContainer.Children.Add(MakeSeparator(10));
-        speedContainer.Children.Add(MakeSectionHeader("SPEED"));
-
-        var speedSlider = new StyledSlider
-        {
-            Minimum = 1,
-            Maximum = 100,
-            Value = 50,
-            Suffix = "",
-            AccentColor = ThemeManager.Accent,
-            ToolTip = "Animation speed — higher = faster",
-        };
-        speedSlider.ValueChanged += (_, _) =>
-        {
-            if (!_loading) QueueSave();
-        };
-        _speedSliders[idx] = speedSlider;
-
-        speedContainer.Children.Add(speedSlider);
-        speedContainer.Margin = new Thickness(0, 0, 0, 0);
-        _speedPanels[idx] = speedContainer;
-        panel.Children.Add(speedContainer);
-
-        // Reactive mode picker (only visible for AudioReactive)
-        var reactiveContainer = new StackPanel();
-        reactiveContainer.Children.Add(MakeLabel("REACTIVE MODE"));
-        var modeCombo = new ActionPicker
-        {
-            Margin = new Thickness(0, 0, 0, 10),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        modeCombo.AddItem("Beat Pulse", "BeatPulse", "\u266B", Color.FromRgb(0xFF, 0x80, 0xAB), "Bass drives all knob brightness simultaneously");
-        modeCombo.AddItem("Spectrum Bands", "SpectrumBands", "\u2261", Color.FromRgb(0x64, 0xB5, 0xF6), "Each knob = its own frequency band");
-        modeCombo.AddItem("Color Shift", "ColorShift", "\u25D1", Color.FromRgb(0xBA, 0x68, 0xC8), "Hue shifts across spectrum based on audio energy");
-        modeCombo.Select("SpectrumBands");
-        modeCombo.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
-        _reactiveModeComboBoxes[idx] = modeCombo;
-        reactiveContainer.Children.Add(modeCombo);
-        reactiveContainer.Visibility = Visibility.Collapsed;
-        _reactiveModePanels[idx] = reactiveContainer;
-        panel.Children.Add(reactiveContainer);
-
-        // Program name box (only visible for ProgramMute)
-        var programNameContainer = new StackPanel();
-        programNameContainer.Children.Add(MakeLabel("PROGRAM NAME"));
-        var programNameBox = new TextBox
-        {
-            Background = FindBrush("InputBgBrush"),
-            Foreground = FindBrush("TextPrimaryBrush"),
-            BorderBrush = FindBrush("InputBorderBrush"),
-            Margin = new Thickness(0, 0, 0, 10),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            FontSize = 12,
-            Padding = new Thickness(6, 4, 6, 4),
-            ToolTip = "Process name to monitor for mute state (e.g. spotify)",
-        };
-        programNameBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
-        _programNameBoxes[idx] = programNameBox;
-        programNameContainer.Children.Add(programNameBox);
-        programNameContainer.Visibility = Visibility.Collapsed;
-        _programNamePanels[idx] = programNameContainer;
-        panel.Children.Add(programNameContainer);
-
-        // DeviceSelect rows (hidden unless DeviceSelect effect)
-        var deviceSelectContainer = new StackPanel { Visibility = Visibility.Collapsed };
-        deviceSelectContainer.Children.Add(MakeLabel("DEVICE COLORS"));
-        deviceSelectContainer.ToolTip = "Set LED color for each audio output device";
-
-        _dsDevicePickers[idx] = new ListPicker[3];
-        _dsColorBtns[idx] = new Border[3];
-        if (_dsColors[idx] == null) _dsColors[idx] = new Color[3];
-        for (int row = 0; row < 3; row++)
-        {
-            int rowCapture = row;
-
-            // Initialize default colors per row (blue, green, orange) only if not already set
-            if (_dsColors[idx][row] == default)
-            {
+                // Initialize default colors per row (blue, green, orange)
                 _dsColors[idx][row] = row switch
                 {
                     0 => Color.FromRgb(0x00, 0x96, 0xFF),
                     1 => Color.FromRgb(0x00, 0xE6, 0x76),
                     _ => Color.FromRgb(0xFF, 0x87, 0x22),
                 };
+
+                var rowPanel = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+                rowPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                rowPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var devicePicker = new ListPicker
+                {
+                    Margin = new Thickness(0, 0, 4, 0),
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                };
+                devicePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+                _dsDevicePickers[idx][row] = devicePicker;
+                Grid.SetColumn(devicePicker, 0);
+                rowPanel.Children.Add(devicePicker);
+
+                var colorBtn = new Border
+                {
+                    Width = 28,
+                    Height = 28,
+                    CornerRadius = new CornerRadius(5),
+                    Background = new SolidColorBrush(_dsColors[idx][row]),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+                    BorderThickness = new Thickness(1),
+                    Cursor = Cursors.Hand,
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                colorBtn.MouseLeftButtonDown += (_, _) => OnPickDeviceSelectColor(idx, rowCapture);
+                _dsColorBtns[idx][row] = colorBtn;
+                Grid.SetColumn(colorBtn, 1);
+                rowPanel.Children.Add(colorBtn);
+
+                deviceSelectContainer.Children.Add(rowPanel);
             }
 
-            var rowPanel = new Grid { Margin = new Thickness(0, 0, 0, 4) };
-            rowPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            rowPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var devicePicker = new ListPicker
-            {
-                Margin = new Thickness(0, 0, 4, 0),
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-            };
-            devicePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
-            _dsDevicePickers[idx][row] = devicePicker;
-            Grid.SetColumn(devicePicker, 0);
-            rowPanel.Children.Add(devicePicker);
-
-            var colorBtn = new Border
-            {
-                Width = 28,
-                Height = 28,
-                CornerRadius = new CornerRadius(5),
-                Background = new SolidColorBrush(_dsColors[idx][row]),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
-                BorderThickness = new Thickness(1),
-                Cursor = Cursors.Hand,
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            colorBtn.MouseLeftButtonDown += (_, _) => OnPickDeviceSelectColor(idx, rowCapture);
-            _dsColorBtns[idx][row] = colorBtn;
-            Grid.SetColumn(colorBtn, 1);
-            rowPanel.Children.Add(colorBtn);
-
-            deviceSelectContainer.Children.Add(rowPanel);
+            _deviceSelectPanels[idx] = deviceSelectContainer;
+            panel.Children.Add(deviceSelectContainer);
         }
-
-        _deviceSelectPanels[idx] = deviceSelectContainer;
-        panel.Children.Add(deviceSelectContainer);
-
-        // Now load config data into the newly built controls
-        _loading = true;
-        var light = _config?.Lights.FirstOrDefault(l => l.Idx == idx);
-        if (light != null)
-        {
-            effectPicker.SelectedEffect = light.Effect;
-            UpdateHeaderEffect(idx);
-
-            SetSwatchColor(_color1Swatches[idx], _colors1[idx]);
-            SetSwatchColor(_color2Swatches[idx], _colors2[idx]);
-
-            speedSlider.Value = Math.Clamp(light.EffectSpeed, 1, 100);
-
-            if (_reactiveModeComboBoxes[idx] != null)
-                _reactiveModeComboBoxes[idx].Select(light.ReactiveMode.ToString());
-
-            if (_programNameBoxes[idx] != null)
-                _programNameBoxes[idx].Text = light.ProgramName ?? "";
-
-            PopulateDeviceSelectPickers(idx);
-            LoadDeviceSelectColors(idx, light);
-
-            UpdateVisibility(idx, light.Effect);
-        }
-        _loading = false;
-
-        // Setup context menu for this knob's card
-        SetupStripContextMenuForKnob(idx);
     }
 
     private void UpdateHeaderEffect(int idx)
@@ -1642,7 +1482,6 @@ public partial class LightsView : UserControl
                 _colors1[idx] = chosen;
                 SetSwatchColor(_color1Swatches[idx], chosen);
                 UpdateHeaderEffect(idx);
-                UpdateKnobSelectorCircleColor(idx);
             }
             QueueSave();
         }
@@ -1781,7 +1620,6 @@ public partial class LightsView : UserControl
             _colors2[idx] = preset.c2;
             SetSwatchColor(_color1Swatches[idx], preset.c1);
             SetSwatchColor(_color2Swatches[idx], preset.c2);
-            UpdateKnobSelectorCircleColor(idx);
         }
     }
 
@@ -1823,134 +1661,145 @@ public partial class LightsView : UserControl
 
     private void SetupStripContextMenus()
     {
-        // Initial setup — attach context menu for the default selected knob
-        SetupStripContextMenuForKnob(_selectedKnobIdx);
-    }
+        // Get the border parents of each LED panel
+        var panels = new StackPanel[] { Led0Panel, Led1Panel, Led2Panel, Led3Panel, Led4Panel };
+        for (int i = 0; i < 5; i++)
+            _ledBorders[i] = panels[i].Parent as Border ?? new Border();
 
-    private void SetupStripContextMenuForKnob(int idx)
-    {
         var menuBg = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
         var menuFg = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
         var menuBorder = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
 
-        var copyItem = new MenuItem
+        for (int i = 0; i < 5; i++)
         {
-            Header = "Copy Channel",
-            Foreground = menuFg,
-            Background = menuBg,
-        };
-        var pasteItem = new MenuItem
-        {
-            Header = "Paste Channel",
-            Foreground = menuFg,
-            Background = menuBg,
-        };
-        var resetItem = new MenuItem
-        {
-            Header = "Reset to Default",
-            Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x88, 0x88)),
-            Background = menuBg,
-        };
+            int idx = i;
+            var border = _ledBorders[i];
 
-        copyItem.Click += (_, _) =>
-        {
-            if (_config == null) return;
-            var light = _config.Lights.FirstOrDefault(l => l.Idx == idx);
-            if (light == null) return;
-            // Save current UI state first
-            SaveCurrentKnobToConfig();
-            var json = Newtonsoft.Json.JsonConvert.SerializeObject(light);
-            _lightClipboard = Newtonsoft.Json.JsonConvert.DeserializeObject<LightConfig>(json);
-        };
+            var copyItem = new MenuItem
+            {
+                Header = "Copy Channel",
+                Foreground = menuFg,
+                Background = menuBg,
+            };
+            var pasteItem = new MenuItem
+            {
+                Header = "Paste Channel",
+                Foreground = menuFg,
+                Background = menuBg,
+            };
+            var resetItem = new MenuItem
+            {
+                Header = "Reset to Default",
+                Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x88, 0x88)),
+                Background = menuBg,
+            };
 
-        pasteItem.Click += (_, _) =>
-        {
-            if (_lightClipboard == null || _config == null || _onSave == null) return;
-            var light = _config.Lights.FirstOrDefault(l => l.Idx == idx);
-            if (light == null) return;
+            copyItem.Click += (_, _) =>
+            {
+                if (_config == null) return;
+                var light = _config.Lights.FirstOrDefault(l => l.Idx == idx);
+                if (light == null) return;
+                var json = Newtonsoft.Json.JsonConvert.SerializeObject(light);
+                _lightClipboard = Newtonsoft.Json.JsonConvert.DeserializeObject<LightConfig>(json);
+            };
 
-            var json = Newtonsoft.Json.JsonConvert.SerializeObject(_lightClipboard);
-            var copy = Newtonsoft.Json.JsonConvert.DeserializeObject<LightConfig>(json)!;
-            copy.Idx = idx;
+            pasteItem.Click += (_, _) =>
+            {
+                if (_lightClipboard == null || _config == null || _onSave == null) return;
+                var light = _config.Lights.FirstOrDefault(l => l.Idx == idx);
+                if (light == null) return;
 
-            // Apply all fields from copy
-            light.Effect = copy.Effect;
-            light.R = copy.R; light.G = copy.G; light.B = copy.B;
-            light.R2 = copy.R2; light.G2 = copy.G2; light.B2 = copy.B2;
-            light.EffectSpeed = copy.EffectSpeed;
-            light.ReactiveMode = copy.ReactiveMode;
-            light.ProgramName = copy.ProgramName;
-            light.DeviceColors = copy.DeviceColors != null
-                ? new List<DeviceColorEntry>(copy.DeviceColors.Select(dc => new DeviceColorEntry { DeviceId = dc.DeviceId, R = dc.R, G = dc.G, B = dc.B }))
-                : new List<DeviceColorEntry>();
+                var json = Newtonsoft.Json.JsonConvert.SerializeObject(_lightClipboard);
+                var copy = Newtonsoft.Json.JsonConvert.DeserializeObject<LightConfig>(json)!;
+                copy.Idx = idx;
 
-            _colors1[idx] = Color.FromRgb((byte)light.R, (byte)light.G, (byte)light.B);
-            _colors2[idx] = Color.FromRgb((byte)light.R2, (byte)light.G2, (byte)light.B2);
+                // Apply all fields from copy
+                light.Effect = copy.Effect;
+                light.R = copy.R; light.G = copy.G; light.B = copy.B;
+                light.R2 = copy.R2; light.G2 = copy.G2; light.B2 = copy.B2;
+                light.EffectSpeed = copy.EffectSpeed;
+                light.ReactiveMode = copy.ReactiveMode;
+                light.ProgramName = copy.ProgramName;
+                light.DeviceColors = copy.DeviceColors != null
+                    ? new List<DeviceColorEntry>(copy.DeviceColors.Select(dc => new DeviceColorEntry { DeviceId = dc.DeviceId, R = dc.R, G = dc.G, B = dc.B }))
+                    : new List<DeviceColorEntry>();
 
-            // Rebuild the panel to reflect pasted data
-            RebuildSelectedKnobPanel();
-            // Update knob selector circle color
-            UpdateKnobSelectorCircleColor(idx);
+                _loading = true;
+                _effectPickers[idx].SelectedEffect = light.Effect;
+                _colors1[idx] = Color.FromRgb((byte)light.R, (byte)light.G, (byte)light.B);
+                _colors2[idx] = Color.FromRgb((byte)light.R2, (byte)light.G2, (byte)light.B2);
+                SetSwatchColor(_color1Swatches[idx], _colors1[idx]);
+                SetSwatchColor(_color2Swatches[idx], _colors2[idx]);
+                UpdateHeaderEffect(idx);
+                _speedSliders[idx].Value = Math.Clamp(light.EffectSpeed, 1, 100);
+                if (_reactiveModeComboBoxes[idx] != null)
+                    _reactiveModeComboBoxes[idx].Select(light.ReactiveMode.ToString());
+                if (_programNameBoxes[idx] != null)
+                    _programNameBoxes[idx].Text = light.ProgramName ?? "";
+                PopulateDeviceSelectPickers(idx);
+                LoadDeviceSelectColors(idx, light);
+                UpdateVisibility(idx, light.Effect);
+                _loading = false;
 
-            QueueSave();
-        };
+                QueueSave();
+            };
 
-        resetItem.Click += (_, _) =>
-        {
-            if (_config == null || _onSave == null) return;
-            var light = _config.Lights.FirstOrDefault(l => l.Idx == idx);
-            if (light == null) return;
+            resetItem.Click += (_, _) =>
+            {
+                if (_config == null || _onSave == null) return;
+                var light = _config.Lights.FirstOrDefault(l => l.Idx == idx);
+                if (light == null) return;
 
-            light.Effect = LightEffect.SingleColor;
-            light.R = 0; light.G = 230; light.B = 118;
-            light.R2 = 0; light.G2 = 0; light.B2 = 0;
-            light.EffectSpeed = 50;
-            light.ProgramName = "";
-            light.DeviceColors = new List<DeviceColorEntry>();
+                light.Effect = LightEffect.SingleColor;
+                light.R = 0; light.G = 230; light.B = 118;
+                light.R2 = 0; light.G2 = 0; light.B2 = 0;
+                light.EffectSpeed = 50;
+                light.ProgramName = "";
+                light.DeviceColors = new List<DeviceColorEntry>();
 
-            _colors1[idx] = Color.FromRgb(0, 230, 118);
-            _colors2[idx] = Color.FromRgb(0, 0, 0);
+                _loading = true;
+                _effectPickers[idx].SelectedEffect = LightEffect.SingleColor;
+                _colors1[idx] = Color.FromRgb(0, 230, 118);
+                _colors2[idx] = Color.FromRgb(0, 0, 0);
+                SetSwatchColor(_color1Swatches[idx], _colors1[idx]);
+                SetSwatchColor(_color2Swatches[idx], _colors2[idx]);
+                UpdateHeaderEffect(idx);
+                _speedSliders[idx].Value = 50;
+                if (_programNameBoxes[idx] != null)
+                    _programNameBoxes[idx].Text = "";
+                UpdateVisibility(idx, LightEffect.SingleColor);
+                _loading = false;
 
-            // Rebuild the panel to reflect reset data
-            RebuildSelectedKnobPanel();
-            // Update knob selector circle color
-            UpdateKnobSelectorCircleColor(idx);
+                QueueSave();
+            };
 
-            QueueSave();
-        };
+            var separator = new Separator
+            {
+                Background = menuBorder,
+                Foreground = menuBorder,
+                Margin = new Thickness(4, 2, 4, 2),
+            };
 
-        var separator = new Separator
-        {
-            Background = menuBorder,
-            Foreground = menuBorder,
-            Margin = new Thickness(4, 2, 4, 2),
-        };
+            var contextMenu = new ContextMenu
+            {
+                Background = menuBg,
+                BorderBrush = menuBorder,
+                BorderThickness = new Thickness(1),
+            };
 
-        var contextMenu = new ContextMenu
-        {
-            Background = menuBg,
-            BorderBrush = menuBorder,
-            BorderThickness = new Thickness(1),
-        };
+            contextMenu.ContextMenuOpening += (_, _) =>
+            {
+                pasteItem.IsEnabled = _lightClipboard != null;
+                pasteItem.Opacity = _lightClipboard != null ? 1.0 : 0.4;
+            };
 
-        contextMenu.ContextMenuOpening += (_, _) =>
-        {
-            pasteItem.IsEnabled = _lightClipboard != null;
-            pasteItem.Opacity = _lightClipboard != null ? 1.0 : 0.4;
-        };
+            contextMenu.Items.Add(copyItem);
+            contextMenu.Items.Add(pasteItem);
+            contextMenu.Items.Add(separator);
+            contextMenu.Items.Add(resetItem);
 
-        contextMenu.Items.Add(copyItem);
-        contextMenu.Items.Add(pasteItem);
-        contextMenu.Items.Add(separator);
-        contextMenu.Items.Add(resetItem);
-
-        PerKnobCard.ContextMenu = contextMenu;
-    }
-
-    private void UpdateKnobSelectorCircleColor(int idx)
-    {
-        if (_knobSelectorCircles[idx] != null)
-            _knobSelectorCircles[idx].Fill = new SolidColorBrush(_colors1[idx]);
+            border.ContextMenu = contextMenu;
+        }
     }
 
     private void QueueSave()
@@ -1988,8 +1837,50 @@ public partial class LightsView : UserControl
         // Link to Room Ambience
         _config.Ambience.LinkToLights = _linkToAmbienceCheck?.IsChecked ?? false;
 
-        // Save the currently visible knob's UI state to config
-        SaveCurrentKnobToConfig();
+        for (int i = 0; i < 5; i++)
+        {
+            var light = _config.Lights.FirstOrDefault(l => l.Idx == i);
+            if (light == null) continue;
+
+            light.Effect = _effectPickers[i].SelectedEffect;
+
+            light.R = _colors1[i].R;
+            light.G = _colors1[i].G;
+            light.B = _colors1[i].B;
+
+            light.R2 = _colors2[i].R;
+            light.G2 = _colors2[i].G;
+            light.B2 = _colors2[i].B;
+
+            light.EffectSpeed = (int)_speedSliders[i].Value;
+
+            if (_reactiveModeComboBoxes[i] != null && Enum.TryParse<ReactiveMode>(_reactiveModeComboBoxes[i].SelectedValue, out var mode))
+                light.ReactiveMode = mode;
+
+            if (_programNameBoxes[i] != null)
+                light.ProgramName = _programNameBoxes[i].Text.Trim();
+
+            // Save DeviceSelect mappings — only overwrite when the effect is DeviceSelect
+            // and the pickers are initialized, otherwise preserve existing config
+            if (light.Effect == LightEffect.DeviceSelect && _dsDevicePickers[i] != null)
+            {
+                light.DeviceColors = new List<DeviceColorEntry>();
+                for (int row = 0; row < 3; row++)
+                {
+                    var deviceId = _dsDevicePickers[i][row].SelectedTag as string ?? "";
+                    if (!string.IsNullOrEmpty(deviceId))
+                    {
+                        light.DeviceColors.Add(new DeviceColorEntry
+                        {
+                            DeviceId = deviceId,
+                            R = _dsColors[i][row].R,
+                            G = _dsColors[i][row].G,
+                            B = _dsColors[i][row].B,
+                        });
+                    }
+                }
+            }
+        }
 
         if (_brightnessSlider != null)
             _config.LedBrightness = (int)_brightnessSlider.Value;
@@ -2045,16 +1936,16 @@ public partial class LightsView : UserControl
             bar.Background = new SolidColorBrush(accent);
             label.Foreground = new SolidColorBrush(accent);
         }
-        // Only the selected knob has active controls
-        if (_effectPickers[_selectedKnobIdx] != null)
-            _effectPickers[_selectedKnobIdx].AccentColor = accent;
+        for (int i = 0; i < 5; i++)
+        {
+            _effectPickers[i].AccentColor = accent;
+        }
         if (_globalEffectPicker != null)
             _globalEffectPicker.AccentColor = accent;
         if (_brightnessSlider != null)
             _brightnessSlider.AccentColor = accent;
-        if (_speedSliders[_selectedKnobIdx] != null)
-            _speedSliders[_selectedKnobIdx].AccentColor = accent;
-        UpdateKnobSelectorVisuals();
+        foreach (var s in _speedSliders)
+            if (s != null) s.AccentColor = accent;
     }
 
     private TextBlock MakeLabel(string text)
