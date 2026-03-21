@@ -62,6 +62,9 @@ public partial class EffectPickerControl : UserControl
         { LightEffect.Candle,            Color.Parse("#FFCA28") },
         { LightEffect.Wheel,             Color.Parse("#B39DDB") },
         { LightEffect.RainbowWheel,      Color.Parse("#EF5350") },
+        { LightEffect.Heartbeat,        Color.Parse("#E53935") },
+        { LightEffect.Plasma,           Color.Parse("#CE93D8") },
+        { LightEffect.Drip,             Color.Parse("#42A5F5") },
         { LightEffect.MicStatus,         Color.Parse("#42A5F5") },
         { LightEffect.DeviceMute,        Color.Parse("#EF5350") },
         { LightEffect.AudioReactive,     Color.Parse("#00E676") },
@@ -85,6 +88,9 @@ public partial class EffectPickerControl : UserControl
         { LightEffect.DNA,               Color.Parse("#BA68C8") },
         { LightEffect.Rainfall,          Color.Parse("#4DD0E1") },
         { LightEffect.PoliceLights,      Color.Parse("#EF5350") },
+        { LightEffect.Aurora,            Color.Parse("#69F0AE") },
+        { LightEffect.Matrix,            Color.Parse("#00E676") },
+        { LightEffect.Starfield,         Color.Parse("#B39DDB") },
     };
 
     private static readonly Dictionary<LightEffect, string> EffectLabels = new()
@@ -112,6 +118,10 @@ public partial class EffectPickerControl : UserControl
         { LightEffect.Ocean, "Ocean" }, { LightEffect.Collision, "Crash" },
         { LightEffect.DNA, "DNA" }, { LightEffect.Rainfall, "Rain" },
         { LightEffect.PoliceLights, "Police" },
+        { LightEffect.Heartbeat, "Heart" }, { LightEffect.Plasma, "Plasma" },
+        { LightEffect.Drip, "Drip" },
+        { LightEffect.Aurora, "Aurora" }, { LightEffect.Matrix, "Matrix" },
+        { LightEffect.Starfield, "Stars" },
     };
 
     public EffectPickerControl() : this(false) { }
@@ -140,6 +150,7 @@ public partial class EffectPickerControl : UserControl
             LightEffect.Comet, LightEffect.Sparkle, LightEffect.PingPong, LightEffect.Stack,
             LightEffect.Wave, LightEffect.Candle, LightEffect.RainbowWave, LightEffect.RainbowCycle,
             LightEffect.Wheel, LightEffect.RainbowWheel,
+            LightEffect.Heartbeat, LightEffect.Plasma, LightEffect.Drip,
         });
 
         AddCategory(root, "REACTIVE", new[]
@@ -158,6 +169,7 @@ public partial class EffectPickerControl : UserControl
                 LightEffect.DualRacer, LightEffect.Lightning, LightEffect.Fillup,
                 LightEffect.Ocean, LightEffect.Collision, LightEffect.DNA,
                 LightEffect.Rainfall, LightEffect.PoliceLights,
+                LightEffect.Aurora, LightEffect.Matrix, LightEffect.Starfield,
             });
         }
 

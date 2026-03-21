@@ -107,6 +107,9 @@ namespace AmpUp.Controls
             { LightEffect.Candle,       Color.FromRgb(0xFF, 0xCA, 0x28) }, // amber
             { LightEffect.Wheel,        Color.FromRgb(0xB3, 0x9D, 0xDB) }, // lavender
             { LightEffect.RainbowWheel, Color.FromRgb(0xEF, 0x53, 0x50) }, // red
+            { LightEffect.Heartbeat,    Color.FromRgb(0xE5, 0x39, 0x35) }, // deep red
+            { LightEffect.Plasma,       Color.FromRgb(0xCE, 0x93, 0xD8) }, // light purple
+            { LightEffect.Drip,         Color.FromRgb(0x42, 0xA5, 0xF5) }, // blue
 
             // Reactive/Status effects
             { LightEffect.ProgramMute,   Color.FromRgb(0xFF, 0x8A, 0x65) }, // deep orange
@@ -133,6 +136,9 @@ namespace AmpUp.Controls
             { LightEffect.DNA,           Color.FromRgb(0xBA, 0x68, 0xC8) }, // purple
             { LightEffect.Rainfall,      Color.FromRgb(0x4D, 0xD0, 0xE1) }, // cyan
             { LightEffect.PoliceLights,  Color.FromRgb(0xEF, 0x53, 0x50) }, // red
+            { LightEffect.Aurora,        Color.FromRgb(0x69, 0xF0, 0xAE) }, // aurora green
+            { LightEffect.Matrix,        Color.FromRgb(0x00, 0xE6, 0x76) }, // matrix green
+            { LightEffect.Starfield,     Color.FromRgb(0xB3, 0x9D, 0xDB) }, // lavender
         };
 
         // ── Constructor ──────────────────────────────────────────────────
@@ -174,6 +180,9 @@ namespace AmpUp.Controls
                 (LightEffect.RainbowCycle, "⟳",   "Cycle",   false),
                 (LightEffect.Wheel,        "⟲",   "Wheel",   false),
                 (LightEffect.RainbowWheel, "⊚",   "R.Wheel", false),
+                (LightEffect.Heartbeat,    "♥",   "Heart",   false),
+                (LightEffect.Plasma,       "◈",   "Plasma",  false),
+                (LightEffect.Drip,         "◊",   "Drip",    false),
             });
 
             AddCategory(mainPanel, "REACTIVE", new[]
@@ -207,6 +216,9 @@ namespace AmpUp.Controls
                     (LightEffect.DNA,            "⧖",   "Helix",    false),
                     (LightEffect.Rainfall,       "⋮",   "Rain",     false),
                     (LightEffect.PoliceLights,   "⊘",   "Police",   false),
+                    (LightEffect.Aurora,         "≈",   "Aurora",   false),
+                    (LightEffect.Matrix,         "⋮",   "Matrix",   false),
+                    (LightEffect.Starfield,      "✦",   "Stars",    false),
                 });
             }
         }

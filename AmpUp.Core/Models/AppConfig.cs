@@ -170,6 +170,8 @@ public enum LightEffect
     RainbowScanner, SparkleRain, BreathingSync, FireWall,
     DualRacer, Lightning, Fillup, Ocean, Collision, DNA, Rainfall, PoliceLights,
     CycleFill, RainbowFill,
+    Heartbeat, Plasma, Drip,
+    Aurora, Matrix, Starfield,
 }
 
 public enum ReactiveMode

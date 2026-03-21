@@ -46,6 +46,15 @@ public class RgbController : IDisposable
     private readonly int[] _stackLit = new int[5]; // how many LEDs are lit (0-3)
     private readonly int[] _stackTick = new int[5];
 
+    // Drip state per knob
+    private readonly float[] _dripPos = new float[5]; // drop position 0-2
+    private readonly int[] _dripPhase = new int[5]; // 0=forming, 1=falling, 2=splash, 3=pause
+    private readonly int[] _dripTick = new int[5];
+
+    // Starfield state (global)
+    private readonly float[] _starBright = new float[15];
+    private readonly float[] _starTarget = new float[15];
+
     // ProgramMute state per knob — written from polling timer, read from animation timer
     private readonly object _stateLock = new();
     private readonly Dictionary<int, bool> _programMuteStates = new();
@@ -552,11 +561,11 @@ public class RgbController : IDisposable
                 break;
 
             case LightEffect.RainbowWave:
-                EffectRainbowWave(k);
+                EffectRainbowWave(k, light.EffectSpeed);
                 break;
 
             case LightEffect.RainbowCycle:
-                EffectRainbowCycle(k);
+                EffectRainbowCycle(k, light.EffectSpeed);
                 break;
 
             case LightEffect.MicStatus:
@@ -634,7 +643,22 @@ public class RgbController : IDisposable
                 EffectDeviceSelect(k, light);
                 break;
 
+            case LightEffect.Heartbeat:
+                EffectHeartbeat(k, light);
+                break;
+
+            case LightEffect.Plasma:
+                EffectPlasma(k, light);
+                break;
+
+            case LightEffect.Drip:
+                EffectDrip(k, light);
+                break;
+
             // Global-spanning effects: when used per-knob, fall back to simple behavior
+            case LightEffect.Aurora:
+            case LightEffect.Matrix:
+            case LightEffect.Starfield:
             case LightEffect.Scanner:
             case LightEffect.MeteorRain:
             case LightEffect.ColorWave:
@@ -785,27 +809,32 @@ public class RgbController : IDisposable
         int speed = Math.Clamp(light.EffectSpeed, 1, 100);
         float periodSec = 2.0f - (speed / 100f * 1.9f);
         float periodTicks = periodSec / 0.05f;
-        float angle = (float)(_animTick % (int)Math.Max(periodTicks, 1)) / Math.Max(periodTicks, 1) * MathF.PI * 2f;
-        float t = (MathF.Sin(angle) + 1f) / 2f; // 0.0 to 1.0
+        float baseAngle = (float)(_animTick % (int)Math.Max(periodTicks, 1)) / Math.Max(periodTicks, 1) * MathF.PI * 2f;
 
-        int r = (int)(light.R + (light.R2 - light.R) * t);
-        int g = (int)(light.G + (light.G2 - light.G) * t);
-        int b = (int)(light.B + (light.B2 - light.B) * t);
-        SetColor(k, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
+        for (int led = 0; led < 3; led++)
+        {
+            // Phase offset per LED creates a ripple wave across the 3 LEDs
+            float angle = baseAngle - led * 0.5f;
+            float t = (MathF.Sin(angle) + 1f) / 2f;
+
+            int r = Math.Clamp((int)(light.R + (light.R2 - light.R) * t), 0, 255);
+            int g = Math.Clamp((int)(light.G + (light.G2 - light.G) * t), 0, 255);
+            int b = Math.Clamp((int)(light.B + (light.B2 - light.B) * t), 0, 255);
+            SetColor(k, led, r, g, b);
+        }
     }
 
     /// <summary>
     /// HSV rainbow across all knobs. Each knob offset by 72 degrees (360/5).
     /// Hue animates over time. All 3 LEDs on a knob share the same color.
     /// </summary>
-    private void EffectRainbowWave(int k)
+    private void EffectRainbowWave(int k, int speed = 50)
     {
-        // Spread rainbow across all 15 LEDs individually (5 knobs × 3 LEDs)
-        // Each LED gets its own hue for a smooth gradient across the whole device
+        float rate = 0.5f + (speed / 100f) * 3.5f; // 0.5 to 4.0 degrees per tick
         for (int led = 0; led < 3; led++)
         {
-            int globalIdx = k * 3 + led;              // 0-14 across all knobs
-            float hue = ((_animTick * 2f) + globalIdx * 24f) % 360f;  // 24° per LED = full rainbow across 15 LEDs
+            int globalIdx = k * 3 + led;
+            float hue = ((_animTick * rate) + globalIdx * 24f) % 360f;
             var (r, g, b) = HsvToRgb(hue, 1f, 1f);
             SetColor(k, led, r, g, b);
         }
@@ -813,11 +842,12 @@ public class RgbController : IDisposable
 
     /// <summary>
     /// Each of the 3 LEDs on a knob gets a different hue offset (0, 120, 240).
-    /// Hue animates over time.
+    /// Hue animates over time. Speed controls rotation rate.
     /// </summary>
-    private void EffectRainbowCycle(int k)
+    private void EffectRainbowCycle(int k, int speed = 50)
     {
-        float baseHue = (_animTick * 2f) % 360f;
+        float rate = 0.5f + (speed / 100f) * 3.5f;
+        float baseHue = (_animTick * rate) % 360f;
         for (int led = 0; led < 3; led++)
         {
             float hue = (baseHue + led * 120f) % 360f;
@@ -915,11 +945,32 @@ public class RgbController : IDisposable
                 break;
         }
 
-        // BeatPulse / SpectrumBands: lerp between base and peak color
-        int r = (int)(light.R + (light.R2 - light.R) * level);
-        int g = (int)(light.G + (light.G2 - light.G) * level);
-        int b2 = (int)(light.B + (light.B2 - light.B) * level);
-        SetColor(k, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b2, 0, 255));
+        // BeatPulse: all 3 LEDs pulse together
+        // SpectrumBands: 3 LEDs show progressive fill (VU-meter style)
+        if (light.ReactiveMode == ReactiveMode.SpectrumBands)
+        {
+            // VU-meter fill: LED 0 lights first, LED 1 at 33%, LED 2 at 66%
+            float[] ledBright = {
+                Math.Clamp(level * 3f, 0f, 1f),
+                Math.Clamp((level - 0.33f) * 3f, 0f, 1f),
+                Math.Clamp((level - 0.66f) * 3f, 0f, 1f),
+            };
+            for (int led = 0; led < 3; led++)
+            {
+                float lb = ledBright[led];
+                int r = Math.Clamp((int)(light.R + (light.R2 - light.R) * lb), 0, 255);
+                int g = Math.Clamp((int)(light.G + (light.G2 - light.G) * lb), 0, 255);
+                int b2 = Math.Clamp((int)(light.B + (light.B2 - light.B) * lb), 0, 255);
+                SetColor(k, led, (int)(r * lb), (int)(g * lb), (int)(b2 * lb));
+            }
+        }
+        else
+        {
+            int r = (int)(light.R + (light.R2 - light.R) * level);
+            int g = (int)(light.G + (light.G2 - light.G) * level);
+            int b2 = (int)(light.B + (light.B2 - light.B) * level);
+            SetColor(k, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b2, 0, 255));
+        }
     }
 
     // --- New effects ---
@@ -955,15 +1006,23 @@ public class RgbController : IDisposable
     /// </summary>
     private void EffectFire(int k, LightConfig light)
     {
+        int speed = Math.Clamp(light.EffectSpeed, 1, 100);
+        float smoothing = 0.05f + (speed / 100f) * 0.2f; // smooth like Candle
+
         for (int led = 0; led < 3; led++)
         {
-            float flicker = 0.3f + (float)_rng.NextDouble() * 0.7f;
-            // Warm flicker: blend toward color2 at high brightness for ember glow
-            // Color1 = base flame, Color2 = bright ember/tip color
-            float emberBlend = flicker * flicker; // more ember at higher flicker
-            int r = Math.Clamp((int)(light.R * flicker + (light.R2 - light.R) * emberBlend * 0.4f), 0, 255);
-            int g = Math.Clamp((int)(light.G * flicker + (light.G2 - light.G) * emberBlend * 0.4f), 0, 255);
-            int b = Math.Clamp((int)(light.B * flicker + (light.B2 - light.B) * emberBlend * 0.4f), 0, 255);
+            // Smooth interpolation toward random target (no strobing)
+            _candleCurrent[k, led] += (_candleTarget[k, led] - _candleCurrent[k, led]) * smoothing;
+            if (Math.Abs(_candleCurrent[k, led] - _candleTarget[k, led]) < 0.05f)
+                _candleTarget[k, led] = 0.15f + (float)_rng.NextDouble() * 0.85f;
+
+            float bright = _candleCurrent[k, led];
+            // LED 0 = deep ember (more color2), LED 2 = bright tip (more color1)
+            float emberT = 1f - led / 2f; // 1.0, 0.5, 0.0 — bottom=embers, top=flame
+            float emberBlend = emberT * 0.6f;
+            int r = Math.Clamp((int)(light.R * bright * (1f - emberBlend) + light.R2 * bright * emberBlend), 0, 255);
+            int g = Math.Clamp((int)(light.G * bright * (1f - emberBlend) + light.G2 * bright * emberBlend), 0, 255);
+            int b = Math.Clamp((int)(light.B * bright * (1f - emberBlend) + light.B2 * bright * emberBlend), 0, 255);
             SetColor(k, led, r, g, b);
         }
     }
@@ -1277,6 +1336,117 @@ public class RgbController : IDisposable
     }
 
     /// <summary>
+    /// Realistic heartbeat: two quick pulses (lub-dub) then pause.
+    /// Color1 = pulse color. Speed controls BPM.
+    /// </summary>
+    private void EffectHeartbeat(int k, LightConfig light)
+    {
+        int speed = Math.Clamp(light.EffectSpeed, 1, 100);
+        // BPM: speed 1 = 40 BPM, speed 50 = 70 BPM, speed 100 = 120 BPM
+        float bpm = 40f + (speed / 100f) * 80f;
+        float periodTicks = 60f / bpm / 0.05f; // ticks per beat
+        float t = (_animTick % (int)Math.Max(periodTicks, 1)) / Math.Max(periodTicks, 1);
+
+        // Heartbeat shape: two peaks at t=0.0 and t=0.2, rest is silence
+        float pulse = 0f;
+        if (t < 0.08f) pulse = MathF.Sin(t / 0.08f * MathF.PI); // first beat (lub)
+        else if (t > 0.15f && t < 0.25f) pulse = MathF.Sin((t - 0.15f) / 0.10f * MathF.PI) * 0.7f; // second beat (dub, softer)
+
+        pulse *= pulse; // sharpen the peaks
+
+        for (int led = 0; led < 3; led++)
+        {
+            // Slight outward ripple: center LED leads, outer LEDs follow
+            float ledDelay = Math.Abs(led - 1) * 0.03f;
+            float ledPulse = Math.Max(0f, pulse - ledDelay * 5f);
+            int r = Math.Clamp((int)(light.R * ledPulse + light.R * 0.05f), 0, 255);
+            int g = Math.Clamp((int)(light.G * ledPulse + light.G * 0.05f), 0, 255);
+            int b = Math.Clamp((int)(light.B * ledPulse + light.B * 0.05f), 0, 255);
+            SetColor(k, led, r, g, b);
+        }
+    }
+
+    /// <summary>
+    /// Psychedelic color morphing via overlapping sine waves at different frequencies.
+    /// Each LED gets a different phase for organic flowing color.
+    /// </summary>
+    private void EffectPlasma(int k, LightConfig light)
+    {
+        int speed = Math.Clamp(light.EffectSpeed, 1, 100);
+        float rate = 0.02f + (speed / 100f) * 0.1f;
+        float t = _animTick * rate;
+
+        for (int led = 0; led < 3; led++)
+        {
+            float offset = k * 1.7f + led * 2.3f; // unique offset per knob+LED
+            float v1 = MathF.Sin(t * 1.1f + offset);
+            float v2 = MathF.Sin(t * 1.7f + offset * 0.7f);
+            float v3 = MathF.Sin(t * 0.6f + offset * 1.3f);
+            float blend = (v1 + v2 + v3 + 3f) / 6f; // normalize 0-1
+
+            // Cycle through hue space for psychedelic effect
+            float hue = (t * 30f + blend * 120f + k * 72f) % 360f;
+            HsvToRgb(hue, 0.9f, 0.3f + blend * 0.7f, out int r, out int g, out int b);
+            SetColor(k, led, r, g, b);
+        }
+    }
+
+    /// <summary>
+    /// Liquid drip: droplet forms at LED 0, falls to LED 2, splashes.
+    /// Color1 = drop color. Speed controls drip rate.
+    /// </summary>
+    private void EffectDrip(int k, LightConfig light)
+    {
+        int speed = Math.Clamp(light.EffectSpeed, 1, 100);
+        _dripTick[k]++;
+
+        switch (_dripPhase[k])
+        {
+            case 0: // Forming: LED 0 brightens
+                float formProgress = Math.Min(_dripTick[k] / 15f, 1f);
+                SetColor(k, 0, (int)(light.R * formProgress), (int)(light.G * formProgress), (int)(light.B * formProgress));
+                SetColor(k, 1, 0, 0, 0);
+                SetColor(k, 2, 0, 0, 0);
+                if (_dripTick[k] >= 15) { _dripPhase[k] = 1; _dripTick[k] = 0; _dripPos[k] = 0f; }
+                break;
+
+            case 1: // Falling: bright pixel drops from LED 0 to LED 2
+                float fallSpeed = 0.1f + (speed / 100f) * 0.2f;
+                _dripPos[k] += fallSpeed;
+                for (int led = 0; led < 3; led++)
+                {
+                    float dist = Math.Abs(led - _dripPos[k]);
+                    float bright = Math.Max(0f, 1f - dist * 1.5f);
+                    SetColor(k, led, (int)(light.R * bright), (int)(light.G * bright), (int)(light.B * bright));
+                }
+                if (_dripPos[k] >= 2f) { _dripPhase[k] = 2; _dripTick[k] = 0; }
+                break;
+
+            case 2: // Splash: LED 2 flashes bright, spreads to LED 1
+                float splashT = _dripTick[k] / 8f;
+                float led2 = Math.Max(0f, 1f - splashT);
+                float led1 = splashT < 0.5f ? splashT * 1.5f : Math.Max(0f, 1f - (splashT - 0.5f) * 2f);
+                // White-blended splash
+                SetColor(k, 0, 0, 0, 0);
+                SetColor(k, 1, (int)(light.R * led1 * 0.5f), (int)(light.G * led1 * 0.5f), (int)(light.B * led1 * 0.5f));
+                int wr = Math.Clamp((int)(light.R * 0.6f + 255 * 0.4f), 0, 255);
+                int wg = Math.Clamp((int)(light.G * 0.6f + 255 * 0.4f), 0, 255);
+                int wb = Math.Clamp((int)(light.B * 0.6f + 255 * 0.4f), 0, 255);
+                SetColor(k, 2, (int)(wr * led2), (int)(wg * led2), (int)(wb * led2));
+                if (_dripTick[k] >= 8) { _dripPhase[k] = 3; _dripTick[k] = 0; }
+                break;
+
+            case 3: // Pause
+                SetColor(k, 0, 0, 0, 0);
+                SetColor(k, 1, 0, 0, 0);
+                SetColor(k, 2, 0, 0, 0);
+                int pauseLen = Math.Max(5, 30 - speed / 4);
+                if (_dripTick[k] >= pauseLen) { _dripPhase[k] = 0; _dripTick[k] = 0; }
+                break;
+        }
+    }
+
+    /// <summary>
     /// Show color1 when the tracked program is NOT muted, color2 when muted or not found.
     /// </summary>
     private void EffectProgramMute(int k, LightConfig light)
@@ -1357,6 +1527,9 @@ public class RgbController : IDisposable
             case LightEffect.DNA:           GlobalDNA(gl); break;
             case LightEffect.Rainfall:      GlobalRainfall(gl); break;
             case LightEffect.PoliceLights:  GlobalPoliceLights(gl); break;
+            case LightEffect.Aurora:        GlobalAurora(gl); break;
+            case LightEffect.Matrix:        GlobalMatrix(gl); break;
+            case LightEffect.Starfield:     GlobalStarfield(gl); break;
         }
     }
 
@@ -1822,10 +1995,10 @@ public class RgbController : IDisposable
     {
         int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
         // Cycle: approach (40 ticks) + collision (8 ticks) + fade (12 ticks) = 60 ticks, scaled by speed
-        int cycleTicks = Math.Max(20, 80 - (speed * 60 / 100));
-        int approachTicks = cycleTicks * 2 / 3;
+        int cycleTicks = Math.Max(30, 80 - (speed * 60 / 100));
         int collisionTicks = 8;
-        int fadeTicks = cycleTicks - approachTicks - collisionTicks;
+        int fadeTicks = Math.Max(4, cycleTicks / 5);
+        int approachTicks = cycleTicks - collisionTicks - fadeTicks;
 
         int phase = _animTick % (approachTicks + collisionTicks + fadeTicks);
 
@@ -2066,6 +2239,120 @@ public class RgbController : IDisposable
         {
             bool on = secondHalf ? rightOn : false;
             SetGlobalLed(i, on ? gl.R2 : 0, on ? gl.G2 : 0, on ? gl.B2 : 0);
+        }
+    }
+
+    /// <summary>
+    /// Northern lights: slow-drifting bands of green, blue, purple across 15 LEDs.
+    /// Uses overlapping sine waves for organic movement.
+    /// </summary>
+    private void GlobalAurora(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.01f + speed / 100f * 0.05f);
+
+        for (int i = 0; i < 15; i++)
+        {
+            float pos = i / 14f;
+            // Multiple sine layers for organic aurora movement
+            float wave1 = MathF.Sin(t * 0.7f + pos * 4f) * 0.5f + 0.5f;
+            float wave2 = MathF.Sin(t * 1.1f + pos * 6f + 1.5f) * 0.5f + 0.5f;
+            float wave3 = MathF.Sin(t * 0.4f + pos * 2f + 3f) * 0.5f + 0.5f;
+            float combined = (wave1 + wave2 * 0.6f + wave3 * 0.3f) / 1.9f;
+
+            // Aurora colors: shift through green, teal, blue, purple
+            float hue = 120f + combined * 180f + MathF.Sin(t * 0.3f + pos * 3f) * 40f;
+            hue = ((hue % 360f) + 360f) % 360f;
+            float brightness = 0.15f + combined * 0.85f;
+            brightness *= brightness; // sharpen the bands
+
+            HsvToRgb(hue, 0.8f, brightness, out int r, out int g, out int b);
+            SetGlobalLed(i, r, g, b);
+        }
+    }
+
+    /// <summary>
+    /// Digital rain: bright green droplets cascade across 15 LEDs with fading trails.
+    /// </summary>
+    private void GlobalMatrix(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float fallSpeed = 0.15f + (speed / 100f) * 0.4f;
+
+        // Decay all LEDs
+        for (int i = 0; i < 15; i++)
+        {
+            _starBright[i] *= 0.85f; // trail fade
+            if (_starBright[i] < 0.02f) _starBright[i] = 0f;
+        }
+
+        // Move existing drops down (higher LED index = lower on device)
+        // Spawn new drops at random positions
+        if (_rng.NextDouble() < 0.1 + speed / 200.0)
+        {
+            int spawnLed = _rng.Next(3); // spawn at top of a random knob (LED 0 of knob 0-4)
+            int spawnKnob = _rng.Next(5);
+            int idx = spawnKnob * 3 + spawnLed;
+            _starBright[idx] = 1f;
+        }
+
+        // Drip: each tick, bright pixels flow downward within each knob
+        for (int knob = 0; knob < 5; knob++)
+        {
+            for (int led = 2; led >= 1; led--)
+            {
+                int idx = knob * 3 + led;
+                int above = knob * 3 + led - 1;
+                if (_starBright[above] > 0.7f)
+                {
+                    _starBright[idx] = Math.Max(_starBright[idx], _starBright[above] * 0.9f);
+                    _starBright[above] *= 0.6f;
+                }
+            }
+        }
+
+        for (int i = 0; i < 15; i++)
+        {
+            float b = _starBright[i];
+            // Matrix green with white-hot leading edge
+            bool isHead = b > 0.8f;
+            int r = isHead ? (int)(180 * b) : (int)(gl.R * b * 0.3f);
+            int g = (int)(255 * b);
+            int blue = isHead ? (int)(180 * b) : (int)(gl.B * b * 0.3f);
+            SetGlobalLed(i, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(blue, 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Gentle twinkling stars against dark background.
+    /// Random LEDs slowly fade in and out at different rates.
+    /// </summary>
+    private void GlobalStarfield(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float smoothing = 0.02f + (speed / 100f) * 0.08f;
+
+        for (int i = 0; i < 15; i++)
+        {
+            // Smooth toward target brightness
+            _starBright[i] += (_starTarget[i] - _starBright[i]) * smoothing;
+
+            // Pick new target when close
+            if (Math.Abs(_starBright[i] - _starTarget[i]) < 0.03f)
+            {
+                // Most stars are dim, occasional bright ones
+                _starTarget[i] = _rng.NextDouble() < 0.3 ? 0.5f + (float)_rng.NextDouble() * 0.5f : (float)_rng.NextDouble() * 0.15f;
+            }
+
+            float b = _starBright[i];
+            // Slight color variation per star — warm to cool
+            float hueShift = (i * 37f) % 60f - 30f; // ±30° variation
+            HsvFromRgb(gl.R, gl.G, gl.B, out float h, out float s, out _);
+            float hue = ((h + hueShift) % 360f + 360f) % 360f;
+            // Bright stars get a white-hot tint
+            float sat = b > 0.7f ? s * 0.5f : s;
+            HsvToRgb(hue, sat, b, out int r, out int g, out int blue);
+            SetGlobalLed(i, r, g, blue);
         }
     }
 
