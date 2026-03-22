@@ -700,7 +700,7 @@ public partial class App : Application
                 // Route to Home Assistant (throttled — HA can't handle rapid-fire HTTP calls)
                 // Skip during startup restore to avoid changing HA entity state on app launch
                 if (_ha != null && _ha.IsAvailable
-                    && Environment.TickCount64 - _startupTick >= 5000)
+                    && Environment.TickCount64 - _startupTick >= 8000)
                 {
                     float vol = e.Value / 1023f;
                     _haLastValues[e.Idx] = (knob.Target, vol);
@@ -714,7 +714,7 @@ public partial class App : Application
             else if (knob.Target.Equals("monitor", StringComparison.OrdinalIgnoreCase))
             {
                 // Skip during startup restore to avoid flickering monitor brightness on app launch
-                if (Environment.TickCount64 - _startupTick >= 5000)
+                if (Environment.TickCount64 - _startupTick >= 8000)
                 {
                     float vol = e.Value / 1023f;
                     MonitorBrightness.SetThrottled(vol);
@@ -729,7 +729,7 @@ public partial class App : Application
             else if (knob.Target.Equals("govee", StringComparison.OrdinalIgnoreCase))
             {
                 // Skip during startup restore to avoid turning on Govee devices on app launch
-                if (Environment.TickCount64 - _startupTick >= 5000)
+                if (Environment.TickCount64 - _startupTick >= 8000)
                 {
                     float norm = e.Value / 1023f;
                     _ambienceSync?.EnsureDevicesPoweredOn();
@@ -740,7 +740,7 @@ public partial class App : Application
             else if (knob.Target.StartsWith("govee:", StringComparison.OrdinalIgnoreCase))
             {
                 // Skip during startup restore to avoid turning on Govee devices on app launch
-                if (Environment.TickCount64 - _startupTick >= 5000)
+                if (Environment.TickCount64 - _startupTick >= 8000)
                 {
                     var ip = knob.Target.Substring(6);
                     float norm = e.Value / 1023f;
@@ -754,7 +754,7 @@ public partial class App : Application
             {
                 // VoiceMeeter strip/bus gain control
                 if (_vm != null && _vm.IsAvailable && _config.VoiceMeeter.Enabled
-                    && Environment.TickCount64 - _startupTick >= 5000)
+                    && Environment.TickCount64 - _startupTick >= 8000)
                 {
                     float norm = e.Value / 1023f;
                     float db = VoiceMeeterIntegration.NormalizedToGain(norm);
@@ -778,7 +778,7 @@ public partial class App : Application
             // Suppress during startup (5s) and reconnection (2s) to avoid phantom popups
             // Suppress if value hasn't meaningfully changed (e.g. batch re-report on reconnect)
             long osdNow = Environment.TickCount64;
-            bool osdTimeSuppressed = osdNow - _startupTick < 5000
+            bool osdTimeSuppressed = osdNow - _startupTick < 8000
                 || (DateTime.UtcNow - _connectedAt).TotalMilliseconds < 2000;
             bool osdValueSuppressed = _lastOsdValue[e.Idx] >= 0 && Math.Abs(e.Value - _lastOsdValue[e.Idx]) < 15;
             if (_config.Osd.ShowVolume && !knob.Target.Equals("none", StringComparison.OrdinalIgnoreCase)
