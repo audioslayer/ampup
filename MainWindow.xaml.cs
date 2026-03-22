@@ -91,6 +91,13 @@ public partial class MainWindow : FluentWindow
 
         ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(UpdateAccentDependentUI);
 
+        // Remove Win11 DWM border (the white/gray 1px border around the window)
+        SourceInitialized += (_, _) =>
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            NativeMethods.RemoveDwmBorder(hwnd);
+        };
+
         // Silent startup update check
         Loaded += async (_, _) => await CheckForUpdateOnStartup();
     }

@@ -4,6 +4,20 @@ namespace AmpUp;
 
 internal static class NativeMethods
 {
+    // dwmapi.dll — DWM window attributes (border color, corner preference)
+    [DllImport("dwmapi.dll", PreserveSig = true)]
+    internal static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+
+    internal const int DWMWA_BORDER_COLOR = 34;
+    internal const int DWMWA_COLOR_NONE = unchecked((int)0xFFFFFFFE);
+
+    /// <summary>Remove the DWM border on Win11 windows.</summary>
+    internal static void RemoveDwmBorder(IntPtr hwnd)
+    {
+        int color = DWMWA_COLOR_NONE;
+        DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref color, sizeof(int));
+    }
+
     // user32.dll — shared across AudioMixer, ButtonHandler, TrayApp
     [DllImport("user32.dll")]
     internal static extern IntPtr GetForegroundWindow();

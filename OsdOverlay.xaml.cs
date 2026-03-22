@@ -38,6 +38,13 @@ public partial class OsdOverlay : Window
         };
 
         ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(ApplyAccentColors);
+
+        // Remove Win11 DWM border
+        SourceInitialized += (_, _) =>
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            NativeMethods.RemoveDwmBorder(hwnd);
+        };
     }
 
     private void ApplyAccentColors()
