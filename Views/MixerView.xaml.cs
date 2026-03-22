@@ -481,9 +481,35 @@ public partial class MixerView : UserControl
                 _glowControls[i].Tick();
 
                 // Sync UI colors with current LED color (smooth lerp for animated effects)
+                // For rainbow/cycling effects, use config color instead of rapidly changing LED color
                 if (App.Rgb != null)
                 {
-                    var (cr, cg, cb) = App.Rgb.GetCurrentColor(i);
+                    var light = _config?.Lights?.FirstOrDefault(l => l.Idx == i);
+                    bool isRainbow = light != null && light.Effect is
+                        LightEffect.RainbowWave or LightEffect.RainbowCycle or
+                        LightEffect.RainbowFill or LightEffect.RainbowWheel or
+                        LightEffect.CycleFill or LightEffect.Plasma;
+
+                    byte cr, cg, cb;
+                    if (isRainbow)
+                    {
+                        // Use config primary color for stable arc tint
+                        cr = (byte)Math.Clamp(light!.R, 0, 255);
+                        cg = (byte)Math.Clamp(light.G, 0, 255);
+                        cb = (byte)Math.Clamp(light.B, 0, 255);
+                        // If color is black (rainbow has no user color), use accent
+                        if (cr == 0 && cg == 0 && cb == 0)
+                        {
+                            cr = ThemeManager.Accent.R;
+                            cg = ThemeManager.Accent.G;
+                            cb = ThemeManager.Accent.B;
+                        }
+                    }
+                    else
+                    {
+                        (cr, cg, cb) = App.Rgb.GetCurrentColor(i);
+                    }
+
                     if (cr > 0 || cg > 0 || cb > 0)
                     {
                         var targetColor = EnsureMinBrightness(Color.FromRgb(cr, cg, cb));
