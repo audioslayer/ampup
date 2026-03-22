@@ -40,6 +40,7 @@ public partial class App : Application
     private DreamSyncController? _dreamSync;
     private RadialWheelOverlay? _radialWheel;
     private bool _wheelVisible;
+    private System.Windows.Threading.DispatcherTimer? _wheelDismissTimer;
     private readonly int[] _lastKnobRaw = new int[5];
 
     /// <summary>
@@ -1626,13 +1627,28 @@ public partial class App : Application
         Dispatcher.Invoke(() =>
         {
             if (_radialWheel == null || !_wheelVisible) return;
-            int idx = _radialWheel.GetSelectedIndex();
-            var wheel = _radialWheel;
-            wheel.OnSegmentClicked = null;
-            _wheelVisible = false;
-            _radialWheel = null;
-            wheel.Dismiss();
-            ConfirmWheelSelection(idx);
+
+            // Start auto-dismiss timer — wheel stays visible for WheelDuration after release
+            double duration = _config.Osd.WheelDuration;
+            _wheelDismissTimer?.Stop();
+            _wheelDismissTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(duration)
+            };
+            _wheelDismissTimer.Tick += (_, _) =>
+            {
+                _wheelDismissTimer?.Stop();
+                if (_radialWheel == null || !_wheelVisible) return;
+                int idx = _radialWheel.GetSelectedIndex();
+                var wheel = _radialWheel;
+                wheel.OnSegmentClicked = null;
+                _wheelVisible = false;
+                _radialWheel = null;
+                _activeWheelCfg = null;
+                wheel.Dismiss();
+                ConfirmWheelSelection(idx);
+            };
+            _wheelDismissTimer.Start();
         });
     }
 

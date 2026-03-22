@@ -36,10 +36,11 @@ public partial class OsdView : UserControl
             (SldOsdVolumeDur, LblOsdVolumeDur),
             (SldOsdProfileDur, LblOsdProfileDur),
             (SldOsdDeviceDur, LblOsdDeviceDur),
+            (SldOsdWheelDur, LblOsdWheelDur),
         };
         foreach (var (sld, lbl) in sliderLabels)
         {
-            sld.Step = 0.5;
+            sld.Step = 0.1;
             sld.ValueChanged += (s, _) =>
             {
                 lbl.Text = $"{sld.Value:F1}s";
@@ -96,6 +97,8 @@ public partial class OsdView : UserControl
         LblOsdProfileDur.Text = $"{config.Osd.ProfileDuration:F1}s";
         SldOsdDeviceDur.Value = config.Osd.DeviceDuration;
         LblOsdDeviceDur.Text = $"{config.Osd.DeviceDuration:F1}s";
+        SldOsdWheelDur.Value = config.Osd.WheelDuration;
+        LblOsdWheelDur.Text = $"{config.Osd.WheelDuration:F1}s";
         HighlightOsdPosition(config.Osd.Position);
         PopulateOsdMonitorPicker(config.Osd.MonitorIndex);
         ChkHideInFullscreen.IsChecked = config.Osd.HideInFullscreen;
@@ -131,9 +134,10 @@ public partial class OsdView : UserControl
         _config.Osd.ShowVolume = ChkOsdVolume.IsChecked == true;
         _config.Osd.ShowProfileSwitch = ChkOsdProfile.IsChecked == true;
         _config.Osd.ShowDeviceSwitch = ChkOsdDevice.IsChecked == true;
-        _config.Osd.VolumeDuration = Math.Round(SldOsdVolumeDur.Value * 2) / 2;
-        _config.Osd.ProfileDuration = Math.Round(SldOsdProfileDur.Value * 2) / 2;
-        _config.Osd.DeviceDuration = Math.Round(SldOsdDeviceDur.Value * 2) / 2;
+        _config.Osd.VolumeDuration = Math.Round(SldOsdVolumeDur.Value, 1);
+        _config.Osd.ProfileDuration = Math.Round(SldOsdProfileDur.Value, 1);
+        _config.Osd.DeviceDuration = Math.Round(SldOsdDeviceDur.Value, 1);
+        _config.Osd.WheelDuration = Math.Round(SldOsdWheelDur.Value, 1);
         _config.Osd.HideInFullscreen = ChkHideInFullscreen.IsChecked == true;
 
         // Collect quick wheels from dynamic rows

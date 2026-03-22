@@ -29,6 +29,7 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
                         <CheckBox x:Name="ChkOsdVolume" Grid.Row="0" Grid.Column="0"
@@ -36,7 +37,7 @@
                                   Foreground="{StaticResource TextPrimaryBrush}"
                                   ToolTip="Show overlay when you adjust a knob" />
                         <controls:StyledSlider x:Name="SldOsdVolumeDur" Grid.Row="0" Grid.Column="1"
-                                Minimum="1" Maximum="8" Value="2" ShowLabel="False"
+                                Minimum="0.3" Maximum="8" Value="2" ShowLabel="False"
                                 Height="24" Margin="0,6,8,6"
                                 ToolTip="How long the volume overlay stays visible" />
                         <TextBlock x:Name="LblOsdVolumeDur" Grid.Row="0" Grid.Column="2"
@@ -48,7 +49,7 @@
                                   Foreground="{StaticResource TextPrimaryBrush}"
                                   ToolTip="Show overlay when switching profiles" />
                         <controls:StyledSlider x:Name="SldOsdProfileDur" Grid.Row="1" Grid.Column="1"
-                                Minimum="1" Maximum="8" Value="3.5" ShowLabel="False"
+                                Minimum="0.3" Maximum="8" Value="3.5" ShowLabel="False"
                                 Height="24" Margin="0,6,8,6"
                                 ToolTip="How long the profile overlay stays visible" />
                         <TextBlock x:Name="LblOsdProfileDur" Grid.Row="1" Grid.Column="2"
@@ -60,11 +61,23 @@
                                   Foreground="{StaticResource TextPrimaryBrush}"
                                   ToolTip="Show overlay when cycling audio devices" />
                         <controls:StyledSlider x:Name="SldOsdDeviceDur" Grid.Row="2" Grid.Column="1"
-                                Minimum="1" Maximum="8" Value="2.5" ShowLabel="False"
+                                Minimum="0.3" Maximum="8" Value="2.5" ShowLabel="False"
                                 Height="24" Margin="0,6,8,6"
                                 ToolTip="How long the device overlay stays visible" />
                         <TextBlock x:Name="LblOsdDeviceDur" Grid.Row="2" Grid.Column="2"
                                    Text="2.5s" Foreground="{StaticResource TextSecBrush}"
+                                   FontSize="12" VerticalAlignment="Center" />
+
+                        <TextBlock Grid.Row="3" Grid.Column="0"
+                                   Text="Quick Wheel" Margin="4,6,0,6"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   FontSize="13" VerticalAlignment="Center" />
+                        <controls:StyledSlider x:Name="SldOsdWheelDur" Grid.Row="3" Grid.Column="1"
+                                Minimum="1" Maximum="15" Value="5" ShowLabel="False"
+                                Height="24" Margin="0,6,8,6"
+                                ToolTip="How long the Quick Wheel stays visible after releasing the button" />
+                        <TextBlock x:Name="LblOsdWheelDur" Grid.Row="3" Grid.Column="2"
+                                   Text="5.0s" Foreground="{StaticResource TextSecBrush}"
                                    FontSize="12" VerticalAlignment="Center" />
                     </Grid>
 
