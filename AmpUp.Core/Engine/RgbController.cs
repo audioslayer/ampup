@@ -685,17 +685,14 @@ public class RgbController : IDisposable
     // --- Effect implementations ---
 
     /// <summary>
-    /// All 3 LEDs = color1 scaled by knob position.
+    /// All 3 LEDs = color1 (static, not affected by knob position).
+    /// Matches original Turn Up behavior: SingleColor is always full-strength
+    /// regardless of knob position. This avoids color shift on low-intensity
+    /// colors like grey/white where hardware red LEDs overpower at low currents.
     /// </summary>
     private void EffectSingleColor(int k, LightConfig light, float pos)
     {
-        // Dim in HSV space (scale Value only) to preserve hue at low brightness.
-        // Linear RGB scaling causes color shift on hardware LEDs — red LEDs are
-        // more efficient at low currents, so whites/grays shift red when dimmed.
-        RgbToHsv(light.R, light.G, light.B, out float h, out float s, out float v);
-        v *= pos;
-        HsvToRgb(h, s, v, out int r, out int g, out int b);
-        SetColor(k, r, g, b);
+        SetColor(k, light.R, light.G, light.B);
     }
 
     /// <summary>
