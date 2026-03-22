@@ -79,8 +79,8 @@
         <Border x:Name="GlassPanel" CornerRadius="14" Padding="20,16">
             <Border.Background>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                    <GradientStop Color="#EE111111" Offset="0" />
-                    <GradientStop Color="#DD0A0A0A" Offset="1" />
+                    <GradientStop Color="#FF141414" Offset="0" />
+                    <GradientStop Color="#FF0F0F0F" Offset="1" />
                 </LinearGradientBrush>
             </Border.Background>
             <Border.BorderBrush>
