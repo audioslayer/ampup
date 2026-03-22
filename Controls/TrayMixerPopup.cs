@@ -40,6 +40,9 @@ public class TrayMixerPopup : Window
     private TextBlock _statusDot = null!;
     private TextBlock _statusText = null!;
 
+    // Device switcher — rebuilt when audio devices change
+    private Border _deviceBorder = null!;
+
     // Quick Assign panel
     private Border _quickAssignPanel = null!;
     private bool _quickAssignVisible;
@@ -130,13 +133,17 @@ public class TrayMixerPopup : Window
         DockPanel.SetDock(headerBar, Dock.Top);
         root.Children.Add(headerBar);
 
-        // Device switcher below header
+        // Device switcher below header (rebuilt when devices change)
         var deviceSection = BuildDeviceSwitcher();
-        var deviceBorder = new Border
+        _deviceBorder = new Border
         {
             Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
             Child = deviceSection,
         };
+        var deviceBorder = _deviceBorder;
+
+        // Listen for device add/remove to refresh the switcher
+        _enumerator.RegisterEndpointNotificationCallback(new DeviceNotificationClient(this));
         DockPanel.SetDock(deviceBorder, Dock.Top);
         root.Children.Add(deviceBorder);
 
@@ -2647,5 +2654,25 @@ public class TrayMixerPopup : Window
         base.OnClosed(e);
         try { _masterDevice?.Dispose(); } catch { }
         try { _enumerator.Dispose(); } catch { }
+    }
+
+    /// <summary>Rebuild the device switcher section (called when devices are added/removed).</summary>
+    public void RefreshDeviceSwitcher()
+    {
+        if (!Dispatcher.CheckAccess()) { Dispatcher.BeginInvoke(RefreshDeviceSwitcher); return; }
+        if (_deviceBorder == null) return;
+        _deviceBorder.Child = BuildDeviceSwitcher();
+    }
+
+    /// <summary>NAudio IMMNotificationClient — fires when audio devices change.</summary>
+    private class DeviceNotificationClient : NAudio.CoreAudioApi.Interfaces.IMMNotificationClient
+    {
+        private readonly TrayMixerPopup _popup;
+        public DeviceNotificationClient(TrayMixerPopup popup) => _popup = popup;
+        public void OnDeviceStateChanged(string deviceId, DeviceState newState) => _popup.RefreshDeviceSwitcher();
+        public void OnDeviceAdded(string pwstrDeviceId) => _popup.RefreshDeviceSwitcher();
+        public void OnDeviceRemoved(string deviceId) => _popup.RefreshDeviceSwitcher();
+        public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId) => _popup.RefreshDeviceSwitcher();
+        public void OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key) { } // ignore property changes
     }
 }
