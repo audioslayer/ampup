@@ -56,6 +56,7 @@ public partial class LightsView : UserControl
     private readonly Border[] _presetColorTabs = new Border[5];
     private readonly StyledSlider[] _speedSliders = new StyledSlider[5];
     private readonly StackPanel[] _speedPanels = new StackPanel[5];
+    private readonly StyledSlider[] _brightnessSliders = new StyledSlider[5];
     private readonly ActionPicker[] _reactiveModeComboBoxes = new ActionPicker[5];
     private readonly StackPanel[] _reactiveModePanels = new StackPanel[5];
     private readonly TextBox[] _programNameBoxes = new TextBox[5];
@@ -248,6 +249,7 @@ public partial class LightsView : UserControl
             SetSwatchColor(_color2Swatches[i], _colors2[i]);
 
             _speedSliders[i].Value = Math.Clamp(light.EffectSpeed, 1, 100);
+            _brightnessSliders[i].Value = Math.Clamp(light.Brightness, 0, 100);
 
             if (_reactiveModeComboBoxes[i] != null)
                 _reactiveModeComboBoxes[i].Select(light.ReactiveMode.ToString());
@@ -1426,6 +1428,28 @@ public partial class LightsView : UserControl
             _speedPanels[i] = speedContainer;
             panel.Children.Add(speedContainer);
 
+            // ── BRIGHTNESS section (always visible) ──
+            var brightContainer = new StackPanel();
+            brightContainer.Children.Add(MakeSeparator(10));
+            brightContainer.Children.Add(MakeSectionHeader("BRIGHTNESS"));
+
+            var brightSlider = new StyledSlider
+            {
+                Minimum = 0,
+                Maximum = 100,
+                Value = 100,
+                Suffix = "%",
+                AccentColor = ThemeManager.Accent,
+                ToolTip = "Per-knob LED brightness (on top of global brightness)",
+            };
+            brightSlider.ValueChanged += (_, _) =>
+            {
+                if (!_loading) QueueSave();
+            };
+            _brightnessSliders[i] = brightSlider;
+            brightContainer.Children.Add(brightSlider);
+            panel.Children.Add(brightContainer);
+
             // Reactive mode picker (only visible for AudioReactive)
             var reactiveContainer = new StackPanel();
             reactiveContainer.Children.Add(MakeLabel("REACTIVE MODE"));
@@ -2008,6 +2032,7 @@ public partial class LightsView : UserControl
             light.B2 = _colors2[i].B;
 
             light.EffectSpeed = (int)_speedSliders[i].Value;
+            light.Brightness = (int)_brightnessSliders[i].Value;
 
             if (_reactiveModeComboBoxes[i] != null && Enum.TryParse<ReactiveMode>(_reactiveModeComboBoxes[i].SelectedValue, out var mode))
                 light.ReactiveMode = mode;
@@ -2100,6 +2125,8 @@ public partial class LightsView : UserControl
         if (_brightnessSlider != null)
             _brightnessSlider.AccentColor = accent;
         foreach (var s in _speedSliders)
+            if (s != null) s.AccentColor = accent;
+        foreach (var s in _brightnessSliders)
             if (s != null) s.AccentColor = accent;
     }
 

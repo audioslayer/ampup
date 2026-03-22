@@ -28,6 +28,7 @@ public class RgbController : IDisposable
     private bool _micMuted;
     private bool _masterMuted;
     private int _brightness = 100; // 0-100 global brightness
+    private readonly int[] _knobBrightness = { 100, 100, 100, 100, 100 }; // per-knob 0-100
     private volatile List<LightConfig> _lights = new();
     private int _animTick; // incremented every timer tick (50ms)
     private Func<float[]>? _getAudioBands;
@@ -316,10 +317,11 @@ public class RgbController : IDisposable
     {
         if (knobIdx < 0 || knobIdx > 4) return;
 
-        // Apply brightness
-        r = r * _brightness / 100;
-        g = g * _brightness / 100;
-        b = b * _brightness / 100;
+        // Apply global + per-knob brightness
+        int kb = _knobBrightness[knobIdx];
+        r = r * _brightness * kb / 10000;
+        g = g * _brightness * kb / 10000;
+        b = b * _brightness * kb / 10000;
 
         byte gr = _gammaR[Math.Clamp(r, 0, 255)];
         byte gg = _gammaG[Math.Clamp(g, 0, 255)];
@@ -346,10 +348,11 @@ public class RgbController : IDisposable
         if (knobIdx < 0 || knobIdx > 4) return;
         if (ledIdx < 0 || ledIdx > 2) return;
 
-        // Apply brightness
-        r = r * _brightness / 100;
-        g = g * _brightness / 100;
-        b = b * _brightness / 100;
+        // Apply global + per-knob brightness
+        int kb = _knobBrightness[knobIdx];
+        r = r * _brightness * kb / 10000;
+        g = g * _brightness * kb / 10000;
+        b = b * _brightness * kb / 10000;
 
         _colorMsg[knobIdx * 9 + ledIdx * 3 + 2] = _gammaR[Math.Clamp(r, 0, 255)];
         _colorMsg[knobIdx * 9 + ledIdx * 3 + 3] = _gammaG[Math.Clamp(g, 0, 255)];
@@ -367,6 +370,10 @@ public class RgbController : IDisposable
     public void ApplyColors(List<LightConfig> lights)
     {
         _lights = lights;
+        // Cache per-knob brightness for fast lookup in SetColor
+        foreach (var l in lights)
+            if (l.Idx >= 0 && l.Idx < 5)
+                _knobBrightness[l.Idx] = Math.Clamp(l.Brightness, 0, 100);
         UpdateEffects();
         Send();
     }

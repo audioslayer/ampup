@@ -137,6 +137,7 @@ public class LightConfig
     public int G2 { get; set; }
     public int B2 { get; set; }
     public int EffectSpeed { get; set; } = 50;
+    public int Brightness { get; set; } = 100; // per-knob brightness 0-100
     [JsonConverter(typeof(StringEnumConverter))]
     public ReactiveMode ReactiveMode { get; set; } = ReactiveMode.SpectrumBands;
     public string ProgramName { get; set; } = "";
