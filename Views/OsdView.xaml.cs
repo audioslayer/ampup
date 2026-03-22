@@ -13,6 +13,7 @@ public partial class OsdView : UserControl
     private Action<AppConfig>? _onSave;
     private readonly DispatcherTimer _debounceTimer;
     private bool _loading;
+    private bool _configLoaded;
 
     /// <summary>Set by MainWindow — called when Quick Wheel changes require a full view refresh.</summary>
     public Action? OnRequestRefresh;
@@ -109,6 +110,7 @@ public partial class OsdView : UserControl
             AddWheelRow(qw);
 
         _loading = false;
+        _configLoaded = true;
     }
 
     private void OnValueChanged(object sender, EventArgs e)
@@ -129,7 +131,7 @@ public partial class OsdView : UserControl
 
     private void CollectAndSave()
     {
-        if (_config == null || _onSave == null) return;
+        if (_config == null || _onSave == null || !_configLoaded) return;
 
         _config.Osd.ShowVolume = ChkOsdVolume.IsChecked == true;
         _config.Osd.ShowProfileSwitch = ChkOsdProfile.IsChecked == true;

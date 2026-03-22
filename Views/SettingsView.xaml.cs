@@ -32,6 +32,7 @@ public partial class SettingsView : UserControl
     public Action<string>? OnEditProfile { get; set; }
     private readonly DispatcherTimer _debounceTimer;
     private bool _loading;
+    private bool _configLoaded;
 
     public SettingsView()
     {
@@ -201,6 +202,7 @@ public partial class SettingsView : UserControl
         if (_sldGammaB != null) _sldGammaB.Value = config.GammaB;
 
         _loading = false;
+        _configLoaded = true;
     }
 
     public void SetAmbienceSync(AmbienceSync sync) => _ambienceSync = sync;
@@ -467,7 +469,7 @@ public partial class SettingsView : UserControl
 
     private void CollectAndSave()
     {
-        if (_config == null || _onSave == null) return;
+        if (_config == null || _onSave == null || !_configLoaded) return;
 
         _config.Serial.Port = TxtSerialPort.Text.Trim();
         if (int.TryParse(TxtBaudRate.Text.Trim(), out var baud))

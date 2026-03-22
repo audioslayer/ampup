@@ -15,6 +15,7 @@ public partial class LightsView : UserControl
     private AppConfig? _config;
     private Action<AppConfig>? _onSave;
     private bool _loading;
+    private bool _configLoaded;
     private readonly DispatcherTimer _debounce;
 
     // Section header elements (refreshed on accent change)
@@ -265,6 +266,7 @@ public partial class LightsView : UserControl
             _brightnessSlider.Value = Math.Clamp(config.LedBrightness, 0, 100);
 
         _loading = false;
+        _configLoaded = true;
     }
 
     private void BuildPresetsSection()
@@ -1963,7 +1965,7 @@ public partial class LightsView : UserControl
 
     private void CollectAndSave()
     {
-        if (_config == null || _onSave == null) return;
+        if (_config == null || _onSave == null || !_configLoaded) return;
 
         // Save global lighting config
         var gl = _config.GlobalLight;

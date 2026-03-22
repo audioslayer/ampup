@@ -14,6 +14,7 @@ public partial class MixerView : UserControl
     private AudioMixer? _mixer;
     private Action<AppConfig>? _onSave;
     private bool _loading;
+    private bool _configLoaded; // true after first LoadConfig completes
 
     private readonly DispatcherTimer _debounce;
     private readonly DispatcherTimer _liveTimer;
@@ -394,6 +395,7 @@ public partial class MixerView : UserControl
         RebuildAutoSwitchRules();
 
         _loading = false;
+        _configLoaded = true;
 
         if (_ha != null)
             _ = FetchHAEntitiesAsync();
@@ -1202,7 +1204,7 @@ public partial class MixerView : UserControl
 
     private void CollectAndSave()
     {
-        if (_config == null || _onSave == null) return;
+        if (_config == null || _onSave == null || !_configLoaded) return;
 
         for (int i = 0; i < 5; i++)
         {

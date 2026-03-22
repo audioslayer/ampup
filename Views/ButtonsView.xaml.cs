@@ -17,6 +17,7 @@ public partial class ButtonsView : UserControl
     private AudioMixer? _mixer;
     private Action<AppConfig>? _onSave;
     private bool _loading;
+    private bool _configLoaded;
     private readonly DispatcherTimer _debounce;
 
     // Action definitions: (DisplayName, ConfigValue)
@@ -536,6 +537,7 @@ public partial class ButtonsView : UserControl
         }
 
         _loading = false;
+        _configLoaded = true;
 
         // Fetch HA entities in background for sub-flyout menus
         if (_ha != null)
@@ -1062,7 +1064,7 @@ public partial class ButtonsView : UserControl
 
     private void CollectAndSave()
     {
-        if (_config == null || _onSave == null) return;
+        if (_config == null || _onSave == null || !_configLoaded) return;
 
         for (int i = 0; i < 5; i++)
         {
