@@ -31,6 +31,7 @@ public partial class ButtonsView : UserControl
         ("Cycle Output", "cycle_output"), ("Cycle Input", "cycle_input"),
         ("Set Output", "select_output"), ("Set Input", "select_input"),
         ("Keyboard Macro", "macro"), ("Switch Profile", "switch_profile"),
+        ("Cycle Profiles", "cycle_profile"),
         ("Cycle Brightness", "cycle_brightness"), ("Quick Wheel", "quick_wheel"),
         ("Sleep", "power_sleep"), ("Lock", "power_lock"), ("Off", "power_off"),
         ("Restart", "power_restart"), ("Logoff", "power_logoff"), ("Hibernate", "power_hibernate"),
@@ -56,7 +57,7 @@ public partial class ButtonsView : UserControl
         { "mute_program", "🔇" }, { "mute_active_window", "🔇" }, { "launch_exe", "🚀" },
         { "close_program", "✕" }, { "cycle_output", "🔊" }, { "cycle_input", "🎙" },
         { "select_output", "🔊" }, { "select_input", "🎙" }, { "macro", "⌨" },
-        { "switch_profile", "📋" }, { "cycle_brightness", "💡" }, { "quick_wheel", "🎡" }, { "mute_app_group", "🔇" },
+        { "switch_profile", "📋" }, { "cycle_profile", "🔄" }, { "cycle_brightness", "💡" }, { "quick_wheel", "🎡" }, { "mute_app_group", "🔇" },
         { "mute_device", "🔇" },
         { "power_sleep", "😴" }, { "power_lock", "🔒" }, { "power_off", "⏻" },
         { "power_restart", "🔄" }, { "power_logoff", "🚪" }, { "power_hibernate", "❄" },
@@ -87,6 +88,7 @@ public partial class ButtonsView : UserControl
         { "select_input",       Color.FromRgb(0xAB, 0x47, 0xBC) },
         { "macro",              Color.FromRgb(0xFF, 0xD5, 0x4F) },
         { "switch_profile",     Color.FromRgb(0x29, 0xB6, 0xF6) },
+        { "cycle_profile",     Color.FromRgb(0x29, 0xB6, 0xF6) },
         { "cycle_brightness",   Color.FromRgb(0xFF, 0xF1, 0x76) },
         { "quick_wheel",        Color.FromRgb(0x00, 0xE6, 0x76) },
         { "power_sleep",        Color.FromRgb(0x7C, 0x8C, 0xF8) },
@@ -954,7 +956,7 @@ public partial class ButtonsView : UserControl
         _tapCycleTypePanels[idx].Visibility = action is "cycle_output" or "cycle_input" ? Visibility.Visible : Visibility.Collapsed;
         if (action is "cycle_output" or "cycle_input")
             PopulateCycleDevicePicker(_tapCycleDevicePickers[idx], action == "cycle_output");
-        _tapProfilePanels[idx].Visibility = action == "switch_profile" ? Visibility.Visible : Visibility.Collapsed;
+        _tapProfilePanels[idx].Visibility = action is "switch_profile" or "cycle_profile" ? Visibility.Visible : Visibility.Collapsed;
         _tapPowerPanels[idx].Visibility = action == "system_power" ? Visibility.Visible : Visibility.Collapsed;
         _tapKnobPanels[idx].Visibility = action == "mute_app_group" ? Visibility.Visible : Visibility.Collapsed;
         _tapGoveeDevicePanels[idx].Visibility = isGoveeAction ? Visibility.Visible : Visibility.Collapsed;
@@ -977,7 +979,7 @@ public partial class ButtonsView : UserControl
         cycleTypePanel.Visibility = action is "cycle_output" or "cycle_input" ? Visibility.Visible : Visibility.Collapsed;
         if (action is "cycle_output" or "cycle_input")
             PopulateCycleDevicePicker(cycleDevicePicker, action == "cycle_output");
-        profilePanel.Visibility = action == "switch_profile" ? Visibility.Visible : Visibility.Collapsed;
+        profilePanel.Visibility = action is "switch_profile" or "cycle_profile" ? Visibility.Visible : Visibility.Collapsed;
         powerPanel.Visibility = action == "system_power" ? Visibility.Visible : Visibility.Collapsed;
         knobPanel.Visibility = action == "mute_app_group" ? Visibility.Visible : Visibility.Collapsed;
         goveeDevicePanel.Visibility = isGoveeAction ? Visibility.Visible : Visibility.Collapsed;
@@ -1209,6 +1211,7 @@ public partial class ButtonsView : UserControl
         { "select_input",       "Switch to a specific input device" },
         { "macro",              "Send a keyboard shortcut (e.g. ctrl+shift+m)" },
         { "switch_profile",     "Load a different AmpUp profile" },
+        { "cycle_profile",      "Cycle through selected profiles" },
         { "cycle_brightness",   "Step through LED brightness levels" },
         { "quick_wheel",        "Hold to open radial profile picker" },
         { "power_sleep",        "Put the PC to sleep" },
@@ -1297,7 +1300,7 @@ public partial class ButtonsView : UserControl
         ("Mute",            new[] { "mute_master", "mute_mic", "mute_program", "mute_active_window", "mute_app_group", "mute_device" }),
         ("App Control",     new[] { "launch_exe", "close_program" }),
         ("Device",          new[] { "cycle_output", "cycle_input", "select_output", "select_input" }),
-        ("System",          new[] { "macro", "switch_profile", "cycle_brightness", "quick_wheel" }),
+        ("System",          new[] { "macro", "switch_profile", "cycle_profile", "cycle_brightness", "quick_wheel" }),
         ("Power",           new[] { "power_sleep", "power_lock", "power_off", "power_restart", "power_logoff", "power_hibernate" }),
         ("Integrations",    new[] { "ha_toggle", "ha_scene", "ha_service", "govee_toggle", "govee_color", "obs_record", "obs_stream", "obs_scene", "obs_mute", "vm_mute_strip", "vm_mute_bus" }),
     };

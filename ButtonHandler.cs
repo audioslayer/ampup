@@ -207,6 +207,8 @@ public class ButtonHandler : IDisposable
                     ExecuteMacro(btn?.MacroKeys ?? ""); break;
                 case "switch_profile":
                     SwitchProfile(btn?.ProfileName ?? ""); break;
+                case "cycle_profile":
+                    CycleProfile(btn); break;
                 case "system_power":
                     ExecuteSystemPower(btn?.PowerAction ?? ""); break;
                 // Individual power actions (no sub-picker needed)
@@ -933,6 +935,43 @@ public class ButtonHandler : IDisposable
         }
         Logger.Log($"switch_profile: requesting switch to '{profileName}'");
         _gestureEngine.RaiseProfileSwitch(profileName);
+    }
+
+    // ── Cycle profiles ──────────────────────────────────────────────
+
+    private readonly Dictionary<int, int> _profileCycleIndex = new();
+
+    private void CycleProfile(ButtonConfig? btn)
+    {
+        if (btn == null || _lastConfig == null) return;
+
+        // Get the profile subset (or all profiles if none specified)
+        var profileNames = btn.ProfileNames?.Count > 0
+            ? btn.ProfileNames
+            : _lastConfig.Profiles;
+
+        if (profileNames == null || profileNames.Count < 2)
+        {
+            Logger.Log("cycle_profile: need at least 2 profiles to cycle");
+            return;
+        }
+
+        // Find current index
+        int currentIdx = _profileCycleIndex.GetValueOrDefault(btn.Idx, -1);
+        // If current profile is in the list, start from there
+        var activeProfile = _lastConfig.ActiveProfile;
+        if (currentIdx < 0 || currentIdx >= profileNames.Count
+            || !string.Equals(profileNames[currentIdx], activeProfile, StringComparison.OrdinalIgnoreCase))
+        {
+            currentIdx = profileNames.FindIndex(p => string.Equals(p, activeProfile, StringComparison.OrdinalIgnoreCase));
+        }
+
+        int nextIdx = (currentIdx + 1) % profileNames.Count;
+        _profileCycleIndex[btn.Idx] = nextIdx;
+
+        var nextProfile = profileNames[nextIdx];
+        Logger.Log($"cycle_profile: {activeProfile} → {nextProfile} ({nextIdx + 1}/{profileNames.Count})");
+        _gestureEngine.RaiseProfileSwitch(nextProfile);
     }
 
     // ── LED brightness cycle ──────────────────────────────────────────

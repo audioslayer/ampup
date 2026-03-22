@@ -120,6 +120,7 @@ public class ButtonGestureEngine : IDisposable
                 DeviceIds = btn.HoldDeviceIds,
                 MacroKeys = btn.HoldMacroKeys,
                 ProfileName = btn.HoldProfileName,
+                ProfileNames = btn.HoldProfileNames,
                 PowerAction = btn.HoldPowerAction,
                 LinkedKnobIdx = btn.HoldLinkedKnobIdx,
                 CycleDeviceType = btn.HoldCycleDeviceType
@@ -155,6 +156,7 @@ public class ButtonGestureEngine : IDisposable
                     DeviceIds = btn.DoublePressDeviceIds,
                     MacroKeys = btn.DoublePressMacroKeys,
                     ProfileName = btn.DoublePressProfileName,
+                    ProfileNames = btn.DoublePressProfileNames,
                     PowerAction = btn.DoublePressPowerAction,
                     LinkedKnobIdx = btn.DoublePressLinkedKnobIdx,
                     CycleDeviceType = btn.DoublePressCycleDeviceType

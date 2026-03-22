@@ -92,6 +92,7 @@ public class ButtonConfig
     public List<string> DeviceIds { get; set; } = new();
     public string MacroKeys { get; set; } = "";
     public string ProfileName { get; set; } = "";
+    public List<string> ProfileNames { get; set; } = new(); // for cycle_profile subset
     public string PowerAction { get; set; } = "";
     public int LinkedKnobIdx { get; set; } = -1;
     [JsonConverter(typeof(StringEnumConverter))]
@@ -100,6 +101,7 @@ public class ButtonConfig
     public List<string> HoldDeviceIds { get; set; } = new();
     public string HoldMacroKeys { get; set; } = "";
     public string HoldProfileName { get; set; } = "";
+    public List<string> HoldProfileNames { get; set; } = new();
     public string HoldPowerAction { get; set; } = "";
     public int HoldLinkedKnobIdx { get; set; } = -1;
     [JsonConverter(typeof(StringEnumConverter))]
@@ -108,6 +110,7 @@ public class ButtonConfig
     public List<string> DoublePressDeviceIds { get; set; } = new();
     public string DoublePressMacroKeys { get; set; } = "";
     public string DoublePressProfileName { get; set; } = "";
+    public List<string> DoublePressProfileNames { get; set; } = new();
     public string DoublePressPowerAction { get; set; } = "";
     public int DoublePressLinkedKnobIdx { get; set; } = -1;
     [JsonConverter(typeof(StringEnumConverter))]

@@ -430,7 +430,7 @@ namespace AmpUp.Controls
             { "cycle_output", "Cycle Output" }, { "cycle_input", "Cycle Input" },
             { "select_output", "Set Output" }, { "select_input", "Set Input" },
             { "macro", "Macro" }, { "switch_profile", "Switch Profile" },
-            { "cycle_brightness", "Cycle Brightness" },
+            { "cycle_profile", "Cycle Profiles" }, { "cycle_brightness", "Cycle Brightness" },
             { "power_sleep", "Sleep" }, { "power_lock", "Lock" }, { "power_off", "Shut Down" },
             { "power_restart", "Restart" }, { "power_logoff", "Log Off" }, { "power_hibernate", "Hibernate" },
             { "ha_toggle", "HA Toggle" }, { "ha_scene", "HA Scene" }, { "ha_service", "HA Service" },
