@@ -213,12 +213,22 @@ public class QuickWheelConfig
 
     [JsonConverter(typeof(StringEnumConverter))]
     public QuickWheelMode Mode { get; set; } = QuickWheelMode.Profile;
+
+    public List<CustomWheelSlot> CustomSlots { get; set; } = new();
 }
 
 public enum QuickWheelMode
 {
     Profile,
     OutputDevice,
+    MediaControls,
+    Custom,
+}
+
+public class CustomWheelSlot
+{
+    public string ActionId { get; set; } = "";
+    public string Label { get; set; } = "";
 }
 
 public enum OsdPosition

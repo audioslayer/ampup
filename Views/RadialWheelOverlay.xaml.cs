@@ -107,6 +107,33 @@ public partial class RadialWheelOverlay : Window
         CenterOnScreen();
     }
 
+    /// <summary>
+    /// Populate the wheel with arbitrary actions (for MediaControls and Custom modes).
+    /// Each tuple: (id, label, materialIconName, color).
+    /// </summary>
+    public void SetActions(List<(string id, string label, string symbol, Color color)> actions, int currentIndex)
+    {
+        _profiles = actions.Select(a => a.id).ToList();
+        for (int i = 0; i < TotalSlots; i++)
+        {
+            if (i < actions.Count)
+            {
+                _slotLabels[i] = actions[i].label;
+                _slotColors[i] = actions[i].color;
+                _slotSymbols[i] = actions[i].symbol;
+            }
+            else
+            {
+                _slotLabels[i] = "";
+                _slotColors[i] = AccentColor;
+                _slotSymbols[i] = "";
+            }
+        }
+        _highlighted = currentIndex >= 0 ? currentIndex : 0;
+        BuildSegments();
+        CenterOnScreen();
+    }
+
     /// <summary>Returns the ID string at the highlighted index, or null if empty.</summary>
     public string? GetSelectedId()
     {

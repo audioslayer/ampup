@@ -1421,6 +1421,7 @@ public partial class App : Application
     // ── Quick Wheel (radial switcher — profiles or output devices) ───
 
     private QuickWheelMode _activeWheelMode;
+    private QuickWheelConfig? _activeWheelCfg;
 
     private void HandleQuickWheelOpen(int buttonIdx)
     {
@@ -1433,6 +1434,7 @@ public partial class App : Application
             if (_wheelVisible) return;
             _wheelVisible = true;
             _activeWheelMode = wheelCfg.Mode;
+            _activeWheelCfg = wheelCfg;
 
             // Initialize last raw values so first delta is correct
             for (int i = 0; i < 5; i++)
@@ -1441,13 +1443,24 @@ public partial class App : Application
             _radialWheel = new RadialWheelOverlay();
             _radialWheel.SetMonitor(_config.Osd.MonitorIndex);
 
-            if (_activeWheelMode == QuickWheelMode.OutputDevice)
-                PopulateWheelDevices();
-            else
-                PopulateWheelProfiles();
+            switch (_activeWheelMode)
+            {
+                case QuickWheelMode.OutputDevice:
+                    PopulateWheelDevices();
+                    break;
+                case QuickWheelMode.MediaControls:
+                    PopulateWheelMediaControls();
+                    break;
+                case QuickWheelMode.Custom:
+                    PopulateWheelCustom(wheelCfg);
+                    break;
+                default:
+                    PopulateWheelProfiles();
+                    break;
+            }
 
             _radialWheel.OnSegmentClicked = idx => ConfirmWheelSelection(idx);
-            _radialWheel.Closed += (_, _) => { _wheelVisible = false; _radialWheel = null; };
+            _radialWheel.Closed += (_, _) => { _wheelVisible = false; _radialWheel = null; _activeWheelCfg = null; };
             _radialWheel.Show();
         });
     }
@@ -1490,12 +1503,95 @@ public partial class App : Application
         }
     }
 
+    private static readonly List<(string id, string label, string symbol, System.Windows.Media.Color color)> MediaControlActions = new()
+    {
+        ("media_play_pause", "Play / Pause", "PlayPause", System.Windows.Media.Color.FromRgb(0x00, 0xE6, 0x76)),
+        ("media_prev", "Previous", "SkipPrevious", System.Windows.Media.Color.FromRgb(0x00, 0xBC, 0xD4)),
+        ("media_next", "Next", "SkipNext", System.Windows.Media.Color.FromRgb(0x00, 0xBC, 0xD4)),
+        ("mute_master", "Mute Master", "VolumeOff", System.Windows.Media.Color.FromRgb(0xFF, 0x44, 0x44)),
+        ("mute_mic", "Mute Mic", "MicrophoneOff", System.Windows.Media.Color.FromRgb(0xFF, 0xB8, 0x00)),
+        ("volume_up", "Volume Up", "VolumeHigh", System.Windows.Media.Color.FromRgb(0x42, 0xA5, 0xF5)),
+        ("volume_down", "Volume Down", "VolumeLow", System.Windows.Media.Color.FromRgb(0x42, 0xA5, 0xF5)),
+        ("media_stop", "Stop", "Stop", System.Windows.Media.Color.FromRgb(0x9E, 0x9E, 0x9E)),
+    };
+
+    private void PopulateWheelMediaControls()
+    {
+        _radialWheel!.SetActions(MediaControlActions, 0);
+    }
+
+    private void PopulateWheelCustom(QuickWheelConfig cfg)
+    {
+        var actions = new List<(string id, string label, string symbol, System.Windows.Media.Color color)>();
+        foreach (var slot in cfg.CustomSlots)
+        {
+            if (string.IsNullOrEmpty(slot.ActionId)) continue;
+            var (symbol, color) = GetActionVisuals(slot.ActionId);
+            actions.Add((slot.ActionId, string.IsNullOrEmpty(slot.Label) ? slot.ActionId : slot.Label, symbol, color));
+        }
+        if (actions.Count == 0) { _wheelVisible = false; return; }
+        _radialWheel!.SetActions(actions, 0);
+    }
+
+    private static (string symbol, System.Windows.Media.Color color) GetActionVisuals(string actionId)
+    {
+        return actionId switch
+        {
+            "media_play_pause" => ("PlayPause", System.Windows.Media.Color.FromRgb(0x00, 0xE6, 0x76)),
+            "media_next" => ("SkipNext", System.Windows.Media.Color.FromRgb(0x00, 0xBC, 0xD4)),
+            "media_prev" => ("SkipPrevious", System.Windows.Media.Color.FromRgb(0x00, 0xBC, 0xD4)),
+            "media_stop" => ("Stop", System.Windows.Media.Color.FromRgb(0x9E, 0x9E, 0x9E)),
+            "mute_master" => ("VolumeOff", System.Windows.Media.Color.FromRgb(0xFF, 0x44, 0x44)),
+            "mute_mic" => ("MicrophoneOff", System.Windows.Media.Color.FromRgb(0xFF, 0xB8, 0x00)),
+            "volume_up" => ("VolumeHigh", System.Windows.Media.Color.FromRgb(0x42, 0xA5, 0xF5)),
+            "volume_down" => ("VolumeLow", System.Windows.Media.Color.FromRgb(0x42, 0xA5, 0xF5)),
+            "mute_program" => ("VolumeOff", System.Windows.Media.Color.FromRgb(0xFF, 0x44, 0x44)),
+            "mute_active_window" => ("VolumeOff", System.Windows.Media.Color.FromRgb(0xFF, 0x44, 0x44)),
+            "switch_profile" => ("AccountCircleOutline", System.Windows.Media.Color.FromRgb(0xAB, 0x47, 0xBC)),
+            "cycle_brightness" => ("Brightness6", System.Windows.Media.Color.FromRgb(0xFF, 0xB8, 0x00)),
+            "launch_exe" => ("Launch", System.Windows.Media.Color.FromRgb(0x42, 0xA5, 0xF5)),
+            "macro" => ("Keyboard", System.Windows.Media.Color.FromRgb(0xFF, 0xB8, 0x00)),
+            "power_sleep" => ("Sleep", System.Windows.Media.Color.FromRgb(0x9E, 0x9E, 0x9E)),
+            "power_lock" => ("Lock", System.Windows.Media.Color.FromRgb(0x9E, 0x9E, 0x9E)),
+            _ => ("CircleOutline", System.Windows.Media.Color.FromRgb(0x9E, 0x9E, 0x9E)),
+        };
+    }
+
     private void ConfirmWheelSelection(int idx)
     {
         _wheelVisible = false;
+        var wheelCfg = _activeWheelCfg;
         _radialWheel = null;
+        _activeWheelCfg = null;
 
-        if (_activeWheelMode == QuickWheelMode.OutputDevice)
+        if (_activeWheelMode == QuickWheelMode.MediaControls)
+        {
+            // Execute the media control action directly
+            if (idx >= 0 && idx < MediaControlActions.Count)
+            {
+                var actionId = MediaControlActions[idx].id;
+                // volume_up / volume_down are key presses not in ButtonHandler — handle inline
+                if (actionId == "volume_up")
+                    NativeMethods.keybd_event(0xAF, 0, 0, UIntPtr.Zero); // VK_VOLUME_UP
+                else if (actionId == "volume_down")
+                    NativeMethods.keybd_event(0xAE, 0, 0, UIntPtr.Zero); // VK_VOLUME_DOWN
+                else if (actionId == "media_stop")
+                    NativeMethods.keybd_event(0xB2, 0, 0, UIntPtr.Zero); // VK_MEDIA_STOP
+                else
+                    _buttons.ExecuteActionByName(actionId);
+            }
+        }
+        else if (_activeWheelMode == QuickWheelMode.Custom)
+        {
+            // Execute the custom action
+            if (wheelCfg != null && idx >= 0 && idx < wheelCfg.CustomSlots.Count)
+            {
+                var slot = wheelCfg.CustomSlots[idx];
+                if (!string.IsNullOrEmpty(slot.ActionId))
+                    _buttons.ExecuteActionByName(slot.ActionId);
+            }
+        }
+        else if (_activeWheelMode == QuickWheelMode.OutputDevice)
         {
             // idx → device ID via GetSelectedId was already set
             // We need the device list — just re-enumerate and pick by index

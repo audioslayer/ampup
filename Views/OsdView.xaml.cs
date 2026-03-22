@@ -152,9 +152,30 @@ public partial class OsdView : UserControl
 
     // ── Quick Wheel dynamic rows ──────────────────────────────────────
 
+    // Available actions for custom wheel slots
+    private static readonly (string id, string label)[] CustomSlotActions =
+    {
+        ("media_play_pause", "Play / Pause"),
+        ("media_next", "Next Track"),
+        ("media_prev", "Previous Track"),
+        ("mute_master", "Mute Master"),
+        ("mute_mic", "Mute Mic"),
+        ("mute_active_window", "Mute Active Window"),
+        ("cycle_brightness", "Cycle LED Brightness"),
+        ("power_sleep", "Sleep"),
+        ("power_lock", "Lock"),
+        ("power_off", "Shutdown"),
+        ("power_restart", "Restart"),
+        ("launch_exe", "Launch App"),
+        ("macro", "Macro"),
+    };
+
     private void AddWheelRow(QuickWheelConfig qw)
     {
-        var row = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+        // Wrapper StackPanel holds the header row + custom slots panel
+        var wrapper = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
+
+        var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
@@ -171,8 +192,9 @@ public partial class OsdView : UserControl
         };
         modeCombo.Items.Add(new ComboBoxItem { Content = "Profiles" });
         modeCombo.Items.Add(new ComboBoxItem { Content = "Output Device" });
+        modeCombo.Items.Add(new ComboBoxItem { Content = "Media Controls" });
+        modeCombo.Items.Add(new ComboBoxItem { Content = "Custom" });
         modeCombo.SelectedIndex = (int)qw.Mode;
-        modeCombo.SelectionChanged += (_, _) => { if (!_loading) { _debounceTimer.Stop(); _debounceTimer.Start(); } };
         Grid.SetColumn(modeCombo, 0);
         row.Children.Add(modeCombo);
 
@@ -201,17 +223,152 @@ public partial class OsdView : UserControl
         };
         removeBtn.Click += (_, _) =>
         {
-            WheelRowsPanel.Children.Remove(row);
+            WheelRowsPanel.Children.Remove(wrapper);
             _debounceTimer.Stop();
             _debounceTimer.Start();
         };
         Grid.SetColumn(removeBtn, 4);
         row.Children.Add(removeBtn);
 
-        // Store config ref on the row for collection
-        row.Tag = qw;
+        wrapper.Children.Add(row);
 
-        WheelRowsPanel.Children.Add(row);
+        // Custom slots panel (shown only when mode = Custom)
+        var customPanel = new StackPanel
+        {
+            Margin = new Thickness(8, 8, 0, 0),
+            Visibility = qw.Mode == QuickWheelMode.Custom ? Visibility.Visible : Visibility.Collapsed,
+        };
+        customPanel.Tag = "customPanel";
+
+        // Populate existing custom slots
+        foreach (var slot in qw.CustomSlots)
+            AddCustomSlotRow(customPanel, slot);
+
+        // Add slot button
+        var addSlotBtn = new Wpf.Ui.Controls.Button
+        {
+            Content = "+ Add Slot",
+            Appearance = Wpf.Ui.Controls.ControlAppearance.Secondary,
+            Margin = new Thickness(0, 4, 0, 0),
+            Padding = new Thickness(8, 4, 8, 4),
+            ToolTip = "Add a custom action slot (max 8)",
+        };
+        addSlotBtn.Tag = "addSlotBtn";
+        addSlotBtn.Click += (_, _) =>
+        {
+            // Count existing slot rows (excludes the add button itself)
+            int slotCount = 0;
+            foreach (var c in customPanel.Children)
+                if (c is Grid g && g.Tag is string s && s == "slotRow") slotCount++;
+            if (slotCount >= 8) return;
+            AddCustomSlotRow(customPanel, new CustomWheelSlot());
+            _debounceTimer.Stop();
+            _debounceTimer.Start();
+        };
+        customPanel.Children.Add(addSlotBtn);
+
+        wrapper.Children.Add(customPanel);
+
+        // Toggle custom panel visibility when mode changes
+        modeCombo.SelectionChanged += (_, _) =>
+        {
+            customPanel.Visibility = modeCombo.SelectedIndex == (int)QuickWheelMode.Custom
+                ? Visibility.Visible : Visibility.Collapsed;
+            if (!_loading) { _debounceTimer.Stop(); _debounceTimer.Start(); }
+        };
+
+        // Store config ref on the wrapper for collection
+        wrapper.Tag = qw;
+
+        WheelRowsPanel.Children.Add(wrapper);
+    }
+
+    private void AddCustomSlotRow(StackPanel customPanel, CustomWheelSlot slot)
+    {
+        var slotRow = new Grid { Margin = new Thickness(0, 0, 0, 4), Tag = "slotRow" };
+        slotRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
+        slotRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+        slotRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+        slotRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        slotRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var actionCombo = new ComboBox
+        {
+            Width = 175,
+            Background = (System.Windows.Media.Brush)FindResource("InputBgBrush"),
+            BorderBrush = (System.Windows.Media.Brush)FindResource("InputBorderBrush"),
+            Foreground = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"),
+            ToolTip = "Action to execute when this slot is selected",
+        };
+        int selectedIdx = -1;
+        for (int i = 0; i < CustomSlotActions.Length; i++)
+        {
+            actionCombo.Items.Add(new ComboBoxItem { Content = CustomSlotActions[i].label, Tag = CustomSlotActions[i].id });
+            if (CustomSlotActions[i].id == slot.ActionId) selectedIdx = i;
+        }
+        actionCombo.SelectedIndex = selectedIdx >= 0 ? selectedIdx : 0;
+        actionCombo.SelectionChanged += (_, _) =>
+        {
+            // Auto-fill label if it was empty or matched the previous action label
+            if (actionCombo.SelectedItem is ComboBoxItem ci && slotRow.Children[1] is TextBox labelBox)
+            {
+                if (string.IsNullOrEmpty(labelBox.Text) || CustomSlotActions.Any(a => a.label == labelBox.Text))
+                    labelBox.Text = ci.Content?.ToString() ?? "";
+            }
+            if (!_loading) { _debounceTimer.Stop(); _debounceTimer.Start(); }
+        };
+        Grid.SetColumn(actionCombo, 0);
+        slotRow.Children.Add(actionCombo);
+
+        var labelBox = new TextBox
+        {
+            Text = string.IsNullOrEmpty(slot.Label) && selectedIdx >= 0 ? CustomSlotActions[selectedIdx].label : slot.Label,
+            Width = 145,
+            Background = (System.Windows.Media.Brush)FindResource("InputBgBrush"),
+            BorderBrush = (System.Windows.Media.Brush)FindResource("InputBorderBrush"),
+            Foreground = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"),
+            ToolTip = "Display label on the wheel segment",
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Height = 28,
+        };
+        labelBox.TextChanged += (_, _) => { if (!_loading) { _debounceTimer.Stop(); _debounceTimer.Start(); } };
+        Grid.SetColumn(labelBox, 2);
+        slotRow.Children.Add(labelBox);
+
+        var removeSlotBtn = new Wpf.Ui.Controls.Button
+        {
+            Content = "✕",
+            Appearance = Wpf.Ui.Controls.ControlAppearance.Secondary,
+            Width = 24, Height = 24,
+            Padding = new Thickness(0),
+            FontSize = 10,
+            ToolTip = "Remove this slot",
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        removeSlotBtn.Click += (_, _) =>
+        {
+            customPanel.Children.Remove(slotRow);
+            _debounceTimer.Stop();
+            _debounceTimer.Start();
+        };
+        Grid.SetColumn(removeSlotBtn, 4);
+        slotRow.Children.Add(removeSlotBtn);
+
+        // Insert before the "Add Slot" button (last child)
+        int insertIdx = customPanel.Children.Count - 1;
+        if (insertIdx < 0) insertIdx = 0;
+        // Find the add button — it's the last child with Tag "addSlotBtn"
+        bool inserted = false;
+        for (int i = customPanel.Children.Count - 1; i >= 0; i--)
+        {
+            if (customPanel.Children[i] is FrameworkElement fe && fe.Tag is string t && t == "addSlotBtn")
+            {
+                customPanel.Children.Insert(i, slotRow);
+                inserted = true;
+                break;
+            }
+        }
+        if (!inserted) customPanel.Children.Add(slotRow);
     }
 
     private List<QuickWheelConfig> CollectWheelConfigs()
@@ -219,19 +376,43 @@ public partial class OsdView : UserControl
         var list = new List<QuickWheelConfig>();
         foreach (var child in WheelRowsPanel.Children)
         {
-            if (child is Grid row && row.Children.Count >= 3)
+            if (child is StackPanel wrapper && wrapper.Children.Count >= 1 && wrapper.Children[0] is Grid row && row.Children.Count >= 3)
             {
                 var modeCombo = row.Children[0] as ComboBox;
                 var btnCombo = row.Children[1] as ComboBox;
-                // Children order: modeCombo(col0), btnCombo(col2), removeBtn(col4)
-                // But Grid.Children order is add-order, so [0]=mode, [1]=btn, [2]=remove
-                list.Add(new QuickWheelConfig
+                int modeIdx = modeCombo?.SelectedIndex ?? 0;
+                var cfg = new QuickWheelConfig
                 {
                     Enabled = true,
-                    Mode = (QuickWheelMode)Math.Clamp(modeCombo?.SelectedIndex ?? 0, 0, 1),
+                    Mode = (QuickWheelMode)Math.Clamp(modeIdx, 0, 3),
                     TriggerButton = btnCombo?.SelectedIndex ?? 0,
                     TriggerGesture = "hold",
-                });
+                };
+
+                // Collect custom slots if mode is Custom
+                if (cfg.Mode == QuickWheelMode.Custom && wrapper.Children.Count >= 2
+                    && wrapper.Children[1] is StackPanel customPanel)
+                {
+                    foreach (var slotChild in customPanel.Children)
+                    {
+                        if (slotChild is Grid slotRow && slotRow.Tag is string s && s == "slotRow"
+                            && slotRow.Children.Count >= 2)
+                        {
+                            var actionCombo = slotRow.Children[0] as ComboBox;
+                            var labelBox = slotRow.Children[1] as TextBox;
+                            string actionId = "";
+                            if (actionCombo?.SelectedItem is ComboBoxItem ci && ci.Tag is string aid)
+                                actionId = aid;
+                            cfg.CustomSlots.Add(new CustomWheelSlot
+                            {
+                                ActionId = actionId,
+                                Label = labelBox?.Text ?? "",
+                            });
+                        }
+                    }
+                }
+
+                list.Add(cfg);
             }
         }
         return list;

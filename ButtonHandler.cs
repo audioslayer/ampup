@@ -165,6 +165,12 @@ public class ButtonHandler : IDisposable
         ExecuteAction(action, btn.Path ?? "", btn);
     }
 
+    /// <summary>Execute an action by name string, without needing a full ButtonConfig.</summary>
+    public void ExecuteActionByName(string action, string path = "")
+    {
+        ExecuteAction(action, path, null);
+    }
+
     // ── Action dispatcher ─────────────────────────────────────────────
 
     public void ExecuteAction(string action, string path, ButtonConfig? btn = null)
