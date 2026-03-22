@@ -32,7 +32,7 @@ public partial class OsdView : UserControl
         ChkOsdProfile.Unchecked += OnValueChanged;
         ChkOsdDevice.Checked += OnValueChanged;
         ChkOsdDevice.Unchecked += OnValueChanged;
-        // Duration sliders: half-second steps, value shown in separate label
+        // Duration sliders: 0.1s steps, accent-colored, value in separate label
         var sliderLabels = new[] {
             (SldOsdVolumeDur, LblOsdVolumeDur),
             (SldOsdProfileDur, LblOsdProfileDur),
@@ -42,12 +42,19 @@ public partial class OsdView : UserControl
         foreach (var (sld, lbl) in sliderLabels)
         {
             sld.Step = 0.1;
+            sld.AccentColor = ThemeManager.Accent;
             sld.ValueChanged += (s, _) =>
             {
-                lbl.Text = $"{sld.Value:F1}s";
+                lbl.Text = sld.Value < 0.05 ? "Off" : $"{sld.Value:F1}s";
                 OnValueChanged(s!, EventArgs.Empty);
             };
         }
+        // Update slider accent when theme changes
+        ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(() =>
+        {
+            foreach (var (sld, _) in sliderLabels)
+                sld.AccentColor = ThemeManager.Accent;
+        });
         BtnOsdPreview.Click += OnOsdPreview;
         ChkHideInFullscreen.Checked += OnValueChanged;
         ChkHideInFullscreen.Unchecked += OnValueChanged;
@@ -99,7 +106,7 @@ public partial class OsdView : UserControl
         SldOsdDeviceDur.Value = config.Osd.DeviceDuration;
         LblOsdDeviceDur.Text = $"{config.Osd.DeviceDuration:F1}s";
         SldOsdWheelDur.Value = config.Osd.WheelDuration;
-        LblOsdWheelDur.Text = $"{config.Osd.WheelDuration:F1}s";
+        LblOsdWheelDur.Text = config.Osd.WheelDuration < 0.05 ? "Off" : $"{config.Osd.WheelDuration:F1}s";
         HighlightOsdPosition(config.Osd.Position);
         PopulateOsdMonitorPicker(config.Osd.MonitorIndex);
         ChkHideInFullscreen.IsChecked = config.Osd.HideInFullscreen;

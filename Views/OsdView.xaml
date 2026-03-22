@@ -73,9 +73,9 @@
                                    Foreground="{StaticResource TextPrimaryBrush}"
                                    FontSize="13" VerticalAlignment="Center" />
                         <controls:StyledSlider x:Name="SldOsdWheelDur" Grid.Row="3" Grid.Column="1"
-                                Minimum="1" Maximum="15" Value="5" ShowLabel="False"
+                                Minimum="0" Maximum="15" Value="0" ShowLabel="False"
                                 Height="24" Margin="0,6,8,6"
-                                ToolTip="How long the Quick Wheel stays visible after releasing the button" />
+                                ToolTip="Auto-dismiss delay after releasing button (0 = confirm immediately on release)" />
                         <TextBlock x:Name="LblOsdWheelDur" Grid.Row="3" Grid.Column="2"
                                    Text="5.0s" Foreground="{StaticResource TextSecBrush}"
                                    FontSize="12" VerticalAlignment="Center" />

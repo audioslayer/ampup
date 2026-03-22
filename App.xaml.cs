@@ -1628,8 +1628,23 @@ public partial class App : Application
         {
             if (_radialWheel == null || !_wheelVisible) return;
 
-            // Start auto-dismiss timer — wheel stays visible for WheelDuration after release
             double duration = _config.Osd.WheelDuration;
+
+            // WheelDuration=0: confirm immediately on release (original behavior)
+            if (duration < 0.05)
+            {
+                int idx = _radialWheel.GetSelectedIndex();
+                var wheel = _radialWheel;
+                wheel.OnSegmentClicked = null;
+                _wheelVisible = false;
+                _radialWheel = null;
+                _activeWheelCfg = null;
+                wheel.Dismiss();
+                ConfirmWheelSelection(idx);
+                return;
+            }
+
+            // Auto-dismiss timer — wheel stays visible for WheelDuration after release
             _wheelDismissTimer?.Stop();
             _wheelDismissTimer = new System.Windows.Threading.DispatcherTimer
             {

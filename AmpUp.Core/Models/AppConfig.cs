@@ -195,7 +195,7 @@ public class OsdConfig
     public double VolumeDuration { get; set; } = 2.0;
     public double ProfileDuration { get; set; } = 3.5;
     public double DeviceDuration { get; set; } = 2.5;
-    public double WheelDuration { get; set; } = 5.0;
+    public double WheelDuration { get; set; } = 0.0;
     [JsonConverter(typeof(StringEnumConverter))]
     public OsdPosition Position { get; set; } = OsdPosition.BottomRight;
     public int MonitorIndex { get; set; } = 0;
