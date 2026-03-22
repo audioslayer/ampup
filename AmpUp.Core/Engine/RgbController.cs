@@ -524,6 +524,7 @@ public class RgbController : IDisposable
         {
             int k = light.Idx;
             if (k < 0 || k > 4) continue;
+            _knobBrightness[k] = Math.Clamp(light.Brightness, 0, 100);
             ApplyEffect(k, light);
         }
     }
