@@ -440,10 +440,11 @@ public partial class MixerView : UserControl
     {
         if (!IsVisible) return;
         if (_mixer == null || _config == null) return;
+        var config = _config; // local copy suppresses CS8602
 
         for (int i = 0; i < 5; i++)
         {
-            var knob = _config.Knobs.FirstOrDefault(k => k.Idx == i);
+            var knob = config.Knobs.FirstOrDefault(k => k.Idx == i);
             if (knob == null) continue;
 
             try
