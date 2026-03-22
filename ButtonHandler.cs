@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using NAudio.CoreAudioApi;
 using AmpUp.Core.Engine;
@@ -339,12 +340,37 @@ public class ButtonHandler : IDisposable
         }
         try
         {
+            // Support "path args" format (e.g. "C:\Update.exe --processStart Discord.exe")
+            string fileName = path;
+            string arguments = "";
+            if (!File.Exists(path) && path.Contains(' '))
+            {
+                // Try splitting at first space to separate exe from args
+                var parts = path.Split(' ', 2);
+                if (File.Exists(parts[0]))
+                {
+                    fileName = parts[0];
+                    arguments = parts[1];
+                }
+                // Also try quoted path: "path with spaces" args
+                else if (path.StartsWith('"'))
+                {
+                    int closeQuote = path.IndexOf('"', 1);
+                    if (closeQuote > 0)
+                    {
+                        fileName = path.Substring(1, closeQuote - 1);
+                        arguments = path.Length > closeQuote + 1 ? path.Substring(closeQuote + 2) : "";
+                    }
+                }
+            }
+
             Process.Start(new ProcessStartInfo
             {
-                FileName = path,
+                FileName = fileName,
+                Arguments = arguments,
                 UseShellExecute = true
             });
-            Logger.Log($"Launched: {path}");
+            Logger.Log($"Launched: {fileName} {arguments}".Trim());
         }
         catch (Exception ex)
         {

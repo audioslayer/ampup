@@ -1001,9 +1001,9 @@ public partial class ButtonsView : UserControl
                 break;
             case "launch_exe":
                 label.Text = "PROGRAM PATH";
-                if (box != null) box.ToolTip = "Full path to the executable to launch";
+                if (box != null) box.ToolTip = "Full path to the executable to launch, or use the app picker";
                 browseBtn.Visibility = Visibility.Visible;
-                pickBtn.Visibility = Visibility.Collapsed;
+                pickBtn.Visibility = Visibility.Visible;
                 break;
             case "ha_service":
                 label.Text = "SERVICE CALL";
@@ -1526,6 +1526,19 @@ public partial class ButtonsView : UserControl
 
     private void ShowProcessPicker(Button anchor, TextBox targetBox, string action)
     {
+        // launch_exe: show the app picker dialog instead
+        if (action == "launch_exe")
+        {
+            var picker = new AppPickerDialog { Owner = Window.GetWindow(this) };
+            if (picker.ShowDialog() == true && !string.IsNullOrEmpty(picker.SelectedPath))
+            {
+                targetBox.Text = picker.SelectedPath;
+                targetBox.Foreground = FindBrush("TextPrimaryBrush");
+                QueueSave();
+            }
+            return;
+        }
+
         if (_mixer == null) return;
 
         List<string> processes;
