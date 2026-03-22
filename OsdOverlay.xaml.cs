@@ -533,8 +533,35 @@ public partial class OsdOverlay : Window
         var screen = (_monitorIndex >= 0 && _monitorIndex < screens.Length)
             ? screens[_monitorIndex]
             : System.Windows.Forms.Screen.PrimaryScreen ?? screens[0];
-        var wa = screen.WorkingArea;
-        var workArea = new Rect(wa.X, wa.Y, wa.Width, wa.Height);
+        var wa = screen.WorkingArea; // physical pixel coords
+
+        // Convert physical pixel coords to WPF DIPs (required for multi-monitor with mixed DPI)
+        // PresentationSource may be null before first Show(), so show off-screen first
+        bool wasOffScreen = false;
+        double dpiScale;
+        var source = PresentationSource.FromVisual(this);
+        if (source?.CompositionTarget != null)
+        {
+            dpiScale = source.CompositionTarget.TransformFromDevice.M11;
+        }
+        else
+        {
+            // Window not yet shown — position off-screen, show briefly to get PresentationSource
+            wasOffScreen = true;
+            Left = -10000;
+            Top = -10000;
+            Show();
+            source = PresentationSource.FromVisual(this);
+            if (source?.CompositionTarget != null)
+                dpiScale = source.CompositionTarget.TransformFromDevice.M11;
+            else
+            {
+                using var g = System.Drawing.Graphics.FromHwnd(IntPtr.Zero);
+                dpiScale = 96.0 / g.DpiX;
+            }
+        }
+
+        var workArea = new Rect(wa.X * dpiScale, wa.Y * dpiScale, wa.Width * dpiScale, wa.Height * dpiScale);
         const double margin = 20;
         double w = Width;
         // Estimate height: profile bindings are taller than volume/device OSD
@@ -569,7 +596,7 @@ public partial class OsdOverlay : Window
                 break;
         }
 
-        bool alreadyVisible = IsVisible && !_closing;
+        bool alreadyVisible = IsVisible && !_closing && !wasOffScreen;
 
         // Stop any in-progress fade-out
         if (_closing)
