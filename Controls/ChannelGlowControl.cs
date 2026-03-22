@@ -11,7 +11,7 @@ namespace AmpUp.Controls
     /// </summary>
     public class ChannelGlowControl : FrameworkElement
     {
-        private const float BaseOpacity = 0.06f;   // idle glow
+        private const float BaseOpacity = 0f;        // no glow when silent
         private const float PeakOpacity = 0.22f;   // max audio glow
         private const float AttackRate = 0.4f;      // fast rise
         private const float DecayRate = 0.92f;      // slow fade
