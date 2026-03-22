@@ -10,9 +10,10 @@
         MinWidth="900" MinHeight="600"
         WindowStartupLocation="CenterScreen"
         ExtendsContentIntoTitleBar="True"
-        WindowBackdropType="Mica"
+        WindowBackdropType="None"
         BorderThickness="0"
-        BorderBrush="Transparent">
+        BorderBrush="Transparent"
+        Background="#FF0F0F0F">
 
     <ui:FluentWindow.Resources>
         <FontFamily x:Key="MaterialSymbols">pack://application:,,,/Fonts/#Material Symbols Outlined</FontFamily>

@@ -9,13 +9,18 @@ internal static class NativeMethods
     internal static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
 
     internal const int DWMWA_BORDER_COLOR = 34;
+    internal const int DWMWA_CAPTION_COLOR = 35;
     internal const int DWMWA_COLOR_NONE = unchecked((int)0xFFFFFFFE);
 
-    /// <summary>Remove the DWM border on Win11 windows.</summary>
+    /// <summary>Remove the DWM border on Win11 windows by setting it to match the dark background.</summary>
     internal static void RemoveDwmBorder(IntPtr hwnd)
     {
-        int color = DWMWA_COLOR_NONE;
-        DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref color, sizeof(int));
+        // Set border color to our dark background (#0F0F0F) so it's invisible
+        // COLORREF format: 0x00BBGGRR
+        int darkBg = 0x000F0F0F;
+        DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref darkBg, sizeof(int));
+        // Also set caption/title bar color to match
+        DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, ref darkBg, sizeof(int));
     }
 
     // user32.dll — shared across AudioMixer, ButtonHandler, TrayApp
