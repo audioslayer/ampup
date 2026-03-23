@@ -1769,14 +1769,16 @@ public partial class LightsView : UserControl
         _previewOriginalEffect = null;
     }
 
-    // Preset colors for effects that look best with specific colors
+    // Preset colors for effects that look best with specific colors.
+    // NOTE: Do NOT add effects that are in EffectsNoColors — their color pickers are
+    // hidden so users can't override a preset applied here. (Issue #11)
     private static readonly Dictionary<LightEffect, (Color c1, Color c2)> EffectPresetColors = new()
     {
         { LightEffect.Fire,         (Color.FromRgb(0xFF, 0x6A, 0x00), Color.FromRgb(0xFF, 0x20, 0x00)) }, // orange + deep red
         { LightEffect.Candle,       (Color.FromRgb(0xFF, 0xB3, 0x00), Color.FromRgb(0xFF, 0x57, 0x00)) }, // warm yellow + orange
         { LightEffect.Ocean,        (Color.FromRgb(0x00, 0x6E, 0xCC), Color.FromRgb(0x00, 0xCC, 0xBB)) }, // deep blue + teal
         { LightEffect.Heartbeat,    (Color.FromRgb(0xFF, 0x10, 0x30), Color.FromRgb(0x80, 0x00, 0x10)) }, // bright red + dark red
-        { LightEffect.Plasma,       (Color.FromRgb(0xBB, 0x00, 0xFF), Color.FromRgb(0x00, 0xFF, 0xBB)) }, // purple + cyan
+        // Plasma removed — it's in EffectsNoColors so users can't change the preset color (Issue #11)
         { LightEffect.Drip,         (Color.FromRgb(0x00, 0x99, 0xFF), Color.FromRgb(0x66, 0xDD, 0xFF)) }, // blue + light blue
         { LightEffect.PoliceLights, (Color.FromRgb(0xFF, 0x00, 0x00), Color.FromRgb(0x00, 0x00, 0xFF)) }, // red + blue
         { LightEffect.DNA,          (Color.FromRgb(0x00, 0xFF, 0x88), Color.FromRgb(0x88, 0x00, 0xFF)) }, // green + purple
