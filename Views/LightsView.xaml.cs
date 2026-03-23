@@ -257,11 +257,11 @@ public partial class LightsView : UserControl
             if (_programNameBoxes[i] != null)
                 _programNameBoxes[i].Text = light.ProgramName ?? "";
 
-            // Populate DeviceSelect device pickers
+            // Populate DeviceSelect device pickers, then update visibility (which may re-populate),
+            // then restore colors/selections after the final populate.
             PopulateDeviceSelectPickers(i);
-            LoadDeviceSelectColors(i, light);
-
             UpdateVisibility(i, light.Effect);
+            LoadDeviceSelectColors(i, light);
         }
 
         if (_brightnessSlider != null)

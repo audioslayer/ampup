@@ -370,7 +370,6 @@ public partial class ButtonsView : UserControl
         SetTextBoxValue(_tapPathBoxes[idx], ExtractPathBoxValue(btn.Action, btn.Path));
         SetTextBoxValue(_tapMacroBoxes[idx], btn.MacroKeys);
         SelectDevicePicker(_tapDevicePickers[idx], btn.DeviceId);
-        _tapCycleDevicePickers[idx].SetCheckedIds(btn.DeviceIds);
         SelectCycleType(_tapCycleTypePickers[idx], btn.CycleDeviceType);
         SelectProfilePicker(_tapProfilePickers[idx], btn.ProfileName);
         SelectPowerSegment(_tapPowerSegments[idx], btn.PowerAction);
@@ -379,6 +378,8 @@ public partial class ButtonsView : UserControl
         SelectDeviceSubTag(_tapCombos[idx], btn.Action, btn.DeviceId);
         SelectGoveeDevicePicker(_tapGoveeDevicePickers[idx], btn.Action, btn.Path);
         UpdateTapVisibility(idx, btn.Action);
+        // Restore checked IDs after UpdateTapVisibility (which may re-populate and clear)
+        _tapCycleDevicePickers[idx].SetCheckedIds(btn.DeviceIds);
         UpdateHeaderDisplay(idx);
 
         // DOUBLE
@@ -386,7 +387,6 @@ public partial class ButtonsView : UserControl
         SetTextBoxValue(_dblPathBoxes[idx], ExtractPathBoxValue(btn.DoublePressAction, btn.DoublePressPath));
         SetTextBoxValue(_dblMacroBoxes[idx], btn.DoublePressMacroKeys);
         SelectDevicePicker(_dblDevicePickers[idx], btn.DoublePressDeviceId);
-        _dblCycleDevicePickers[idx].SetCheckedIds(btn.DoublePressDeviceIds);
         SelectCycleType(_dblCycleTypePickers[idx], btn.DoublePressCycleDeviceType);
         SelectProfilePicker(_dblProfilePickers[idx], btn.DoublePressProfileName);
         SelectPowerSegment(_dblPowerSegments[idx], btn.DoublePressPowerAction);
@@ -397,13 +397,14 @@ public partial class ButtonsView : UserControl
         UpdateGestureVisibility(_dblPathPanels[idx], _dblPathLabels[idx], _dblBrowseButtons[idx], _dblPickButtons[idx], _dblMacroPanels[idx],
             _dblDevicePanels[idx], _dblCycleDevicePanels[idx], _dblCycleDevicePickers[idx], _dblCycleTypePanels[idx], _dblProfilePanels[idx],
             _dblPowerPanels[idx], _dblKnobPanels[idx], _dblGoveeDevicePanels[idx], btn.DoublePressAction);
+        // Restore checked IDs after UpdateGestureVisibility (which may re-populate and clear)
+        _dblCycleDevicePickers[idx].SetCheckedIds(btn.DoublePressDeviceIds);
 
         // HOLD
         SelectCombo(_holdCombos[idx], btn.HoldAction);
         SetTextBoxValue(_holdPathBoxes[idx], ExtractPathBoxValue(btn.HoldAction, btn.HoldPath));
         SetTextBoxValue(_holdMacroBoxes[idx], btn.HoldMacroKeys);
         SelectDevicePicker(_holdDevicePickers[idx], btn.HoldDeviceId);
-        _holdCycleDevicePickers[idx].SetCheckedIds(btn.HoldDeviceIds);
         SelectCycleType(_holdCycleTypePickers[idx], btn.HoldCycleDeviceType);
         SelectProfilePicker(_holdProfilePickers[idx], btn.HoldProfileName);
         SelectPowerSegment(_holdPowerSegments[idx], btn.HoldPowerAction);
@@ -414,6 +415,8 @@ public partial class ButtonsView : UserControl
         UpdateGestureVisibility(_holdPathPanels[idx], _holdPathLabels[idx], _holdBrowseButtons[idx], _holdPickButtons[idx], _holdMacroPanels[idx],
             _holdDevicePanels[idx], _holdCycleDevicePanels[idx], _holdCycleDevicePickers[idx], _holdCycleTypePanels[idx], _holdProfilePanels[idx],
             _holdPowerPanels[idx], _holdKnobPanels[idx], _holdGoveeDevicePanels[idx], btn.HoldAction);
+        // Restore checked IDs after UpdateGestureVisibility (which may re-populate and clear)
+        _holdCycleDevicePickers[idx].SetCheckedIds(btn.HoldDeviceIds);
 
         _loading = false;
     }
@@ -490,7 +493,6 @@ public partial class ButtonsView : UserControl
             SetTextBoxValue(_tapPathBoxes[i], ExtractPathBoxValue(btn.Action, btn.Path));
             SetTextBoxValue(_tapMacroBoxes[i], btn.MacroKeys);
             SelectDevicePicker(_tapDevicePickers[i], btn.DeviceId);
-            _tapCycleDevicePickers[i].SetCheckedIds(btn.DeviceIds);
             SelectCycleType(_tapCycleTypePickers[i], btn.CycleDeviceType);
             SelectProfilePicker(_tapProfilePickers[i], btn.ProfileName);
             SelectPowerSegment(_tapPowerSegments[i], btn.PowerAction);
@@ -499,6 +501,8 @@ public partial class ButtonsView : UserControl
             SelectDeviceSubTag(_tapCombos[i], btn.Action, btn.DeviceId);
             SelectGoveeDevicePicker(_tapGoveeDevicePickers[i], btn.Action, btn.Path);
             UpdateTapVisibility(i, btn.Action);
+            // Restore checked IDs after UpdateTapVisibility (which may re-populate and clear)
+            _tapCycleDevicePickers[i].SetCheckedIds(btn.DeviceIds);
             UpdateHeaderDisplay(i);
 
             // DOUBLE
@@ -506,7 +510,6 @@ public partial class ButtonsView : UserControl
             SetTextBoxValue(_dblPathBoxes[i], ExtractPathBoxValue(btn.DoublePressAction, btn.DoublePressPath));
             SetTextBoxValue(_dblMacroBoxes[i], btn.DoublePressMacroKeys);
             SelectDevicePicker(_dblDevicePickers[i], btn.DoublePressDeviceId);
-            _dblCycleDevicePickers[i].SetCheckedIds(btn.DoublePressDeviceIds);
             SelectCycleType(_dblCycleTypePickers[i], btn.DoublePressCycleDeviceType);
             SelectProfilePicker(_dblProfilePickers[i], btn.DoublePressProfileName);
             SelectPowerSegment(_dblPowerSegments[i], btn.DoublePressPowerAction);
@@ -517,13 +520,14 @@ public partial class ButtonsView : UserControl
             UpdateGestureVisibility(_dblPathPanels[i], _dblPathLabels[i], _dblBrowseButtons[i], _dblPickButtons[i], _dblMacroPanels[i],
                 _dblDevicePanels[i], _dblCycleDevicePanels[i], _dblCycleDevicePickers[i], _dblCycleTypePanels[i], _dblProfilePanels[i],
                 _dblPowerPanels[i], _dblKnobPanels[i], _dblGoveeDevicePanels[i], btn.DoublePressAction);
+            // Restore checked IDs after UpdateGestureVisibility (which may re-populate and clear)
+            _dblCycleDevicePickers[i].SetCheckedIds(btn.DoublePressDeviceIds);
 
             // HOLD
             SelectCombo(_holdCombos[i], btn.HoldAction);
             SetTextBoxValue(_holdPathBoxes[i], ExtractPathBoxValue(btn.HoldAction, btn.HoldPath));
             SetTextBoxValue(_holdMacroBoxes[i], btn.HoldMacroKeys);
             SelectDevicePicker(_holdDevicePickers[i], btn.HoldDeviceId);
-            _holdCycleDevicePickers[i].SetCheckedIds(btn.HoldDeviceIds);
             SelectCycleType(_holdCycleTypePickers[i], btn.HoldCycleDeviceType);
             SelectProfilePicker(_holdProfilePickers[i], btn.HoldProfileName);
             SelectPowerSegment(_holdPowerSegments[i], btn.HoldPowerAction);
@@ -534,6 +538,8 @@ public partial class ButtonsView : UserControl
             UpdateGestureVisibility(_holdPathPanels[i], _holdPathLabels[i], _holdBrowseButtons[i], _holdPickButtons[i], _holdMacroPanels[i],
                 _holdDevicePanels[i], _holdCycleDevicePanels[i], _holdCycleDevicePickers[i], _holdCycleTypePanels[i], _holdProfilePanels[i],
                 _holdPowerPanels[i], _holdKnobPanels[i], _holdGoveeDevicePanels[i], btn.HoldAction);
+            // Restore checked IDs after UpdateGestureVisibility (which may re-populate and clear)
+            _holdCycleDevicePickers[i].SetCheckedIds(btn.HoldDeviceIds);
         }
 
         _loading = false;
