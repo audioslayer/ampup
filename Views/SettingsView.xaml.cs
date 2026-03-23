@@ -115,6 +115,11 @@ public partial class SettingsView : UserControl
         BtnObsTest.Click += OnObsTest;
 
         // LED Calibration (sliders built in code-behind via BuildGammaSliders)
+        SldMuteBrightness.ValueChanged += (_, _) =>
+        {
+            TxtMuteBrightness.Text = $"{(int)SldMuteBrightness.Value}%";
+            if (!_loading) OnValueChanged(null, EventArgs.Empty);
+        };
         BtnGammaReset.Click += OnGammaReset;
         CalibTestRed.MouseLeftButtonDown += (_, _) => SetCalibPreview(255, 0, 0, CalibTestRed);
         CalibTestGreen.MouseLeftButtonDown += (_, _) => SetCalibPreview(0, 255, 0, CalibTestGreen);
@@ -196,6 +201,8 @@ public partial class SettingsView : UserControl
         BuildAccentSwatches();
 
         // LED Calibration
+        SldMuteBrightness.Value = Math.Clamp(config.MuteBrightness, 0, 100);
+        TxtMuteBrightness.Text = $"{config.MuteBrightness}%";
         BuildGammaSliders();
         if (_sldGammaR != null) _sldGammaR.Value = config.GammaR;
         if (_sldGammaG != null) _sldGammaG.Value = config.GammaG;
@@ -499,6 +506,7 @@ public partial class SettingsView : UserControl
         _config.VoiceMeeter.Enabled = ChkVmEnabled.IsChecked == true;
 
         // LED Calibration
+        _config.MuteBrightness = (int)SldMuteBrightness.Value;
         _config.GammaR = Math.Round(_sldGammaR?.Value ?? 2.0, 1);
         _config.GammaG = Math.Round(_sldGammaG?.Value ?? 2.0, 1);
         _config.GammaB = Math.Round(_sldGammaB?.Value ?? 2.0, 1);

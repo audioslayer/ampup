@@ -12,6 +12,7 @@ public class AppConfig
     public bool StartWithWindows { get; set; } = true;
     public bool StartMinimized { get; set; } = false;
     public int LedBrightness { get; set; } = 100;
+    public int MuteBrightness { get; set; } = 15; // 0-100, dim level for muted LEDs (Issue #9)
     public double GammaR { get; set; } = 1.0;
     public double GammaG { get; set; } = 1.0;
     public double GammaB { get; set; } = 1.0;

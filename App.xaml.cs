@@ -1393,6 +1393,7 @@ public partial class App : Application
     {
         _rgb.SetGamma(_config.GammaR, _config.GammaG, _config.GammaB);
         _rgb.SetBrightness(_config.LedBrightness);
+        _rgb.SetMuteBrightness(_config.MuteBrightness);
         _rgb.UpdateConfig(_config.Lights);
         _rgb.UpdateGlobalConfig(_config.GlobalLight);
     }

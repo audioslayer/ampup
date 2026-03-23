@@ -232,6 +232,19 @@
                         </Border>
                     </StackPanel>
 
+                    <!-- Mute brightness slider -->
+                    <StackPanel Margin="0,0,0,12">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <TextBlock Text="MUTE DIM LEVEL" Style="{StaticResource HeaderText}" Margin="0,0,8,0" FontSize="11" />
+                            <TextBlock x:Name="TxtMuteBrightness" Text="15%" Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Text="How bright LEDs are when the app is muted (ProgramMute / AppGroupMute effects)."
+                                   Style="{StaticResource SecondaryText}" Margin="0,0,0,6" TextWrapping="Wrap" />
+                        <Slider x:Name="SldMuteBrightness" Minimum="0" Maximum="100" Value="15"
+                                TickFrequency="5" IsSnapToTickEnabled="True"
+                                ToolTip="0% = fully off when muted, 15% = dim (default), 100% = same brightness as unmuted" />
+                    </StackPanel>
+
                     <!-- Gamma sliders (built in code-behind as StyledSliders) -->
                     <StackPanel x:Name="GammaSlidersPanel" Margin="0,0,0,4" />
 
