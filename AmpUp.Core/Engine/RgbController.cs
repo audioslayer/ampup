@@ -29,6 +29,7 @@ public class RgbController : IDisposable
     private bool _masterMuted;
     private int _brightness = 100; // 0-100 global brightness
     private readonly int[] _knobBrightness = { 100, 100, 100, 100, 100 }; // per-knob 0-100
+    private int _muteBrightnessPct = 15; // 0-100, dim level when muted (Issue #9)
     private volatile List<LightConfig> _lights = new();
     private int _animTick; // incremented every timer tick (50ms)
     private Func<float[]>? _getAudioBands;
@@ -292,6 +293,16 @@ public class RgbController : IDisposable
     }
 
     /// <summary>
+    /// Set the dim brightness level for muted LEDs (0-100%).
+    /// When a knob is muted (ProgramMute/AppGroupMute), LEDs show the primary color
+    /// at this brightness instead of turning off. (Issue #9)
+    /// </summary>
+    public void SetMuteBrightness(int pct)
+    {
+        _muteBrightnessPct = Math.Clamp(pct, 0, 100);
+    }
+
+    /// <summary>
     /// Store reference to current light configs (called when config changes).
     /// </summary>
     public void UpdateConfig(List<LightConfig> lights) => _lights = lights;
@@ -310,18 +321,31 @@ public class RgbController : IDisposable
     // --- Color setting ---
 
     /// <summary>
+    /// Scale RGB by a brightness factor while preserving hue and saturation. (Issue #10)
+    /// Works in HSV space: keeps H+S constant, scales V by brightnessScale.
+    /// Pure black (0,0,0) stays black.
+    /// </summary>
+    private static (int r, int g, int b) ScaleColorHsv(int r, int g, int b, float brightnessScale)
+    {
+        if (r == 0 && g == 0 && b == 0) return (0, 0, 0);
+        RgbToHsv(r, g, b, out float h, out float s, out float v);
+        v = Math.Clamp(v * brightnessScale, 0f, 1f);
+        HsvToRgb(h, s, v, out int ro, out int go, out int bo);
+        return (ro, go, bo);
+    }
+
+    /// <summary>
     /// Set one knob's color. All 3 LEDs on that knob get the same color.
-    /// Applies brightness and gamma. Does NOT send.
+    /// Applies brightness (HSV-based to preserve hue) and gamma. Does NOT send.
     /// </summary>
     public void SetColor(int knobIdx, int r, int g, int b)
     {
         if (knobIdx < 0 || knobIdx > 4) return;
 
-        // Apply global + per-knob brightness
+        // Apply global + per-knob brightness in HSV space to preserve hue (Issue #10)
         int kb = _knobBrightness[knobIdx];
-        r = r * _brightness * kb / 10000;
-        g = g * _brightness * kb / 10000;
-        b = b * _brightness * kb / 10000;
+        float scale = _brightness * kb / 10000f;
+        (r, g, b) = ScaleColorHsv(r, g, b, scale);
 
         byte gr = _gammaR[Math.Clamp(r, 0, 255)];
         byte gg = _gammaG[Math.Clamp(g, 0, 255)];
@@ -334,34 +358,33 @@ public class RgbController : IDisposable
             _colorMsg[knobIdx * 9 + led * 3 + 4] = gb;
 
             // Store pre-gamma linear values for external sync (Ambience)
-            _linearColors[knobIdx * 9 + led * 3 + 0] = (byte)Math.Clamp(r, 0, 255);
-            _linearColors[knobIdx * 9 + led * 3 + 1] = (byte)Math.Clamp(g, 0, 255);
-            _linearColors[knobIdx * 9 + led * 3 + 2] = (byte)Math.Clamp(b, 0, 255);
+            _linearColors[knobIdx * 9 + led * 3 + 0] = (byte)r;
+            _linearColors[knobIdx * 9 + led * 3 + 1] = (byte)g;
+            _linearColors[knobIdx * 9 + led * 3 + 2] = (byte)b;
         }
     }
 
     /// <summary>
-    /// Set a single LED on a knob. Applies brightness and gamma. Does NOT send.
+    /// Set a single LED on a knob. Applies brightness (HSV-based to preserve hue) and gamma. Does NOT send.
     /// </summary>
     public void SetColor(int knobIdx, int ledIdx, int r, int g, int b)
     {
         if (knobIdx < 0 || knobIdx > 4) return;
         if (ledIdx < 0 || ledIdx > 2) return;
 
-        // Apply global + per-knob brightness
+        // Apply global + per-knob brightness in HSV space to preserve hue (Issue #10)
         int kb = _knobBrightness[knobIdx];
-        r = r * _brightness * kb / 10000;
-        g = g * _brightness * kb / 10000;
-        b = b * _brightness * kb / 10000;
+        float scale = _brightness * kb / 10000f;
+        (r, g, b) = ScaleColorHsv(r, g, b, scale);
 
         _colorMsg[knobIdx * 9 + ledIdx * 3 + 2] = _gammaR[Math.Clamp(r, 0, 255)];
         _colorMsg[knobIdx * 9 + ledIdx * 3 + 3] = _gammaG[Math.Clamp(g, 0, 255)];
         _colorMsg[knobIdx * 9 + ledIdx * 3 + 4] = _gammaB[Math.Clamp(b, 0, 255)];
 
         // Store pre-gamma linear values for external sync (Ambience)
-        _linearColors[knobIdx * 9 + ledIdx * 3 + 0] = (byte)Math.Clamp(r, 0, 255);
-        _linearColors[knobIdx * 9 + ledIdx * 3 + 1] = (byte)Math.Clamp(g, 0, 255);
-        _linearColors[knobIdx * 9 + ledIdx * 3 + 2] = (byte)Math.Clamp(b, 0, 255);
+        _linearColors[knobIdx * 9 + ledIdx * 3 + 0] = (byte)r;
+        _linearColors[knobIdx * 9 + ledIdx * 3 + 1] = (byte)g;
+        _linearColors[knobIdx * 9 + ledIdx * 3 + 2] = (byte)b;
     }
 
     /// <summary>
@@ -1452,27 +1475,33 @@ public class RgbController : IDisposable
     }
 
     /// <summary>
-    /// Show color1 when the tracked program is NOT muted, color2 when muted or not found.
+    /// Show color1 at full brightness when unmuted, dim color1 at MuteBrightness% when muted. (Issue #9)
     /// </summary>
     private void EffectProgramMute(int k, LightConfig light)
     {
         bool muted;
-        lock (_stateLock) muted = _programMuteStates.GetValueOrDefault(k, true); // default to muted color if unknown
+        lock (_stateLock) muted = _programMuteStates.GetValueOrDefault(k, true); // default to muted if unknown
         if (muted)
-            SetColor(k, light.R2, light.G2, light.B2);
+        {
+            float scale = _muteBrightnessPct / 100f;
+            SetColor(k, (int)(light.R * scale), (int)(light.G * scale), (int)(light.B * scale));
+        }
         else
             SetColor(k, light.R, light.G, light.B);
     }
 
     /// <summary>
-    /// Show color1 when any app in the knob's app group is unmuted, color2 when all are muted or none found.
+    /// Show color1 at full brightness when any app unmuted, dim color1 at MuteBrightness% when all muted. (Issue #9)
     /// </summary>
     private void EffectAppGroupMute(int k, LightConfig light)
     {
         bool allMuted;
-        lock (_stateLock) allMuted = _appGroupMuteStates.GetValueOrDefault(k, false); // default to unmuted/live appearance
+        lock (_stateLock) allMuted = _appGroupMuteStates.GetValueOrDefault(k, false); // default to unmuted
         if (allMuted)
-            SetColor(k, light.R2, light.G2, light.B2);
+        {
+            float scale = _muteBrightnessPct / 100f;
+            SetColor(k, (int)(light.R * scale), (int)(light.G * scale), (int)(light.B * scale));
+        }
         else
             SetColor(k, light.R, light.G, light.B);
     }
