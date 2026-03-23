@@ -925,18 +925,34 @@ public partial class App : Application
         }
 
         _isConnected = connected;
-        if (_trayIcon != null)
+
+        // Tray icon, tray popup, and main window are WPF/WinForms UI — must be updated
+        // on the UI thread. HandleConnection fires on the SerialReader background thread;
+        // touching UI objects from there causes silent native crashes (access violations
+        // in GDI/WPF internals that bypass managed exception handlers).
+        var portName = connected ? _serial.Port?.PortName : null;
+        Dispatcher.BeginInvoke(() =>
         {
-            var oldIcon = _trayIcon.Icon;
-            _trayIcon.Icon = CreateTrayIcon(connected);
-            _trayIcon.Text = connected ? "Amp Up — Connected" : "Amp Up — Disconnected";
-            oldIcon?.Dispose();
-        }
+            try
+            {
+                if (_trayIcon != null)
+                {
+                    var oldIcon = _trayIcon.Icon;
+                    _trayIcon.Icon = CreateTrayIcon(connected);
+                    _trayIcon.Text = connected ? "Amp Up — Connected" : "Amp Up — Disconnected";
+                    oldIcon?.Dispose();
+                }
 
-        _trayContextMenu?.UpdateStatus(connected, connected ? _serial.Port?.PortName : null);
-        _trayMixerPopup?.UpdateStatus(connected, connected ? _serial.Port?.PortName : null);
+                _trayContextMenu?.UpdateStatus(connected, portName);
+                _trayMixerPopup?.UpdateStatus(connected, portName);
 
-        _mainWindow?.SetConnectionStatus(connected, connected ? _serial.Port?.PortName : null);
+                _mainWindow?.SetConnectionStatus(connected, portName);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"HandleConnection UI update error: {ex.Message}");
+            }
+        });
     }
 
     /// <summary>
