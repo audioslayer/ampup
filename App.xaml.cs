@@ -204,6 +204,10 @@ public partial class App : Application
         // handle can become invalid when Explorer restarts or display settings change.
         SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
 
+        // Listen for session lock/unlock — screen lock invalidates WASAPI COM objects;
+        // we tear down and rebuild notification subscriptions and the peak device on unlock.
+        SystemEvents.SessionSwitch += OnSessionSwitch;
+
         // Register WM_TASKBARCREATED so we can recreate the tray icon if Explorer crashes/restarts
         _wmTaskbarCreated = NativeMethods.RegisterWindowMessage("TaskbarCreated");
 
@@ -428,6 +432,55 @@ public partial class App : Application
     }
 
     /// <summary>
+    /// Fired when the Windows session is locked or unlocked.
+    /// Screen lock invalidates WASAPI COM objects (AudioEndpointVolume, AudioMeterInformation,
+    /// AudioSessionManager) held by background threads. We proactively tear them down on lock
+    /// and rebuild on unlock to avoid COMExceptions crashing the timer/notification threads.
+    /// </summary>
+    private void OnSessionSwitch(object sender, SessionSwitchEventArgs e)
+    {
+        Logger.Log($"Session switch: {e.Reason}");
+        if (e.Reason == SessionSwitchReason.SessionLock)
+        {
+            // Tear down WASAPI subscriptions before the COM objects go invalid.
+            // The notification callbacks could fire one last time during this window — guard flag stops them.
+            _sessionLocked = true;
+            try
+            {
+                if (_notifyMaster != null)
+                {
+                    try { _notifyMaster.AudioEndpointVolume.OnVolumeNotification -= OnMasterVolumeNotification; } catch { }
+                    try { _notifyMaster.Dispose(); } catch { }
+                    _notifyMaster = null;
+                }
+            }
+            catch { }
+            try
+            {
+                if (_notifyMic != null)
+                {
+                    try { _notifyMic.AudioEndpointVolume.OnVolumeNotification -= OnMicVolumeNotification; } catch { }
+                    try { _notifyMic.Dispose(); } catch { }
+                    _notifyMic = null;
+                }
+            }
+            catch { }
+            // Tell AudioMixer to drop its persistent peak device — it's invalid under lock
+            _mixer?.InvalidatePeakDevice();
+        }
+        else if (e.Reason == SessionSwitchReason.SessionUnlock)
+        {
+            // Session is restored — rebuild subscriptions and reseed state
+            _sessionLocked = false;
+            Logger.Log("Session unlocked — re-subscribing mute notifications");
+            try { SubscribeMuteNotifications(); } catch { }
+        }
+    }
+
+    // True while the Windows session is locked — guards against stale WASAPI callbacks
+    private volatile bool _sessionLocked;
+
+    /// <summary>
     /// WndProc hook on the main window. Catches WM_TASKBARCREATED, which Windows sends to
     /// all top-level windows when Explorer restarts the shell/taskbar (crash recovery, logoff,
     /// or display changes). On receipt we recreate the tray icon so it reappears automatically.
@@ -513,6 +566,7 @@ public partial class App : Application
         ConfigManager.Save(_config);
 
         SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+        SystemEvents.SessionSwitch -= OnSessionSwitch;
 
         _trayIconHwndSource?.Dispose();
         _trayIconHwndSource = null;
@@ -1153,14 +1207,20 @@ public partial class App : Application
 
     private void OnMasterVolumeNotification(NAudio.CoreAudioApi.AudioVolumeNotificationData data)
     {
-        _rgb.SetMasterMuted(data.Muted);
-        // Update tray icon with current volume/mute state
-        UpdateTrayIconVolume(data.MasterVolume, data.Muted);
+        // Guard: session lock tears down COM objects — stale callbacks must be ignored
+        if (_isShuttingDown || _sessionLocked) return;
+        try
+        {
+            _rgb.SetMasterMuted(data.Muted);
+            UpdateTrayIconVolume(data.MasterVolume, data.Muted);
+        }
+        catch { }
     }
 
     private void OnMicVolumeNotification(NAudio.CoreAudioApi.AudioVolumeNotificationData data)
     {
-        _rgb.SetMicMuted(data.Muted);
+        if (_isShuttingDown || _sessionLocked) return;
+        try { _rgb.SetMicMuted(data.Muted); } catch { }
     }
 
     private void PollMuteStates()
@@ -1693,6 +1753,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+        SystemEvents.SessionSwitch -= OnSessionSwitch;
 
         _trayIconHwndSource?.Dispose();
         if (_trayIcon != null)

@@ -794,6 +794,20 @@ public class AudioMixer : IDisposable
         catch { return (0f, false); }
     }
 
+    /// <summary>
+    /// Drops the persistent master peak device so it is re-acquired on the next poll.
+    /// Call this when the Windows session is locked — WASAPI invalidates device COM objects
+    /// during lock, and holding stale handles causes COMExceptions on the poll thread.
+    /// </summary>
+    public void InvalidatePeakDevice()
+    {
+        lock (_enumLock)
+        {
+            try { _masterPeakDevice?.Dispose(); } catch { }
+            _masterPeakDevice = null;
+        }
+    }
+
     public void Dispose()
     {
         _pollTimer?.Dispose();
