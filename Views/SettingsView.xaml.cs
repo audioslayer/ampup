@@ -245,7 +245,7 @@ public partial class SettingsView : UserControl
         }
     }
 
-    private void OnValueChanged(object sender, EventArgs e)
+    private void OnValueChanged(object? sender, EventArgs e)
     {
         if (_loading) return;
         _debounceTimer.Stop();
