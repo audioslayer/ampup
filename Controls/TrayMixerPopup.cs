@@ -42,6 +42,9 @@ public class TrayMixerPopup : Window
 
     // Device switcher — rebuilt when audio devices change
     private Border _deviceBorder = null!;
+    private bool _isClosed;
+    private DeviceNotificationClient? _deviceNotificationClient;
+    private System.Threading.Timer? _deviceRefreshDebounce;
 
     // Quick Assign panel
     private Border _quickAssignPanel = null!;
@@ -143,7 +146,8 @@ public class TrayMixerPopup : Window
         var deviceBorder = _deviceBorder;
 
         // Listen for device add/remove to refresh the switcher
-        _enumerator.RegisterEndpointNotificationCallback(new DeviceNotificationClient(this));
+        _deviceNotificationClient = new DeviceNotificationClient(this);
+        _enumerator.RegisterEndpointNotificationCallback(_deviceNotificationClient);
         DockPanel.SetDock(deviceBorder, Dock.Top);
         root.Children.Add(deviceBorder);
 
@@ -2651,17 +2655,47 @@ public class TrayMixerPopup : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _isClosed = true;
         base.OnClosed(e);
+        // Stop debounce timer first so no refresh fires after dispose
+        try { _deviceRefreshDebounce?.Dispose(); } catch { }
+        _deviceRefreshDebounce = null;
+        // Unregister notification client before disposing the enumerator
+        try
+        {
+            if (_deviceNotificationClient != null)
+                _enumerator.UnRegisterEndpointNotificationCallback(_deviceNotificationClient);
+        }
+        catch { }
         try { _masterDevice?.Dispose(); } catch { }
         try { _enumerator.Dispose(); } catch { }
     }
 
-    /// <summary>Rebuild the device switcher section (called when devices are added/removed).</summary>
+    /// <summary>
+    /// Rebuild the device switcher section (called when devices are added/removed).
+    /// Debounced to 300ms — Windows fires multiple events per plug/unplug.
+    /// </summary>
     public void RefreshDeviceSwitcher()
     {
-        if (!Dispatcher.CheckAccess()) { Dispatcher.BeginInvoke(RefreshDeviceSwitcher); return; }
-        if (_deviceBorder == null) return;
-        _deviceBorder.Child = BuildDeviceSwitcher();
+        if (_isClosed) return;
+        // Reset the debounce timer so rapid-fire events collapse into one rebuild
+        _deviceRefreshDebounce?.Dispose();
+        _deviceRefreshDebounce = new System.Threading.Timer(_ =>
+        {
+            _deviceRefreshDebounce?.Dispose();
+            _deviceRefreshDebounce = null;
+            if (_isClosed) return;
+            try
+            {
+                Dispatcher.BeginInvoke(() =>
+                {
+                    if (_isClosed || _deviceBorder == null) return;
+                    try { _deviceBorder.Child = BuildDeviceSwitcher(); }
+                    catch { }
+                });
+            }
+            catch { }
+        }, null, 300, System.Threading.Timeout.Infinite);
     }
 
     /// <summary>NAudio IMMNotificationClient — fires when audio devices change.</summary>
