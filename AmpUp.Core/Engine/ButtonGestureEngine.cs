@@ -16,6 +16,7 @@ public class ButtonGestureEngine : IDisposable
 
     // ── Per-button gesture state ─────────────────────────────────────
 
+    private readonly object _stateLock = new();
     private readonly DateTime[] _downAt = new DateTime[5];
     private readonly int[] _clickCount = new int[5];
     private readonly bool[] _held = new bool[5];
@@ -60,12 +61,15 @@ public class ButtonGestureEngine : IDisposable
     {
         if (idx < 0 || idx > 4) return;
         _lastConfig = config;
-        _downAt[idx] = DateTime.UtcNow;
-        _held[idx] = false;
+        lock (_stateLock)
+        {
+            _downAt[idx] = DateTime.UtcNow;
+            _held[idx] = false;
 
-        // Start hold timer — fires if button stays down for 500ms
-        _holdTimers[idx]?.Dispose();
-        _holdTimers[idx] = new System.Threading.Timer(_ => OnHoldFired(idx), null, HoldThresholdMs, Timeout.Infinite);
+            // Start hold timer — fires if button stays down for 500ms
+            _holdTimers[idx]?.Dispose();
+            _holdTimers[idx] = new System.Threading.Timer(_ => OnHoldFired(idx), null, HoldThresholdMs, Timeout.Infinite);
+        }
     }
 
     public void HandleUp(int idx, AppConfig config)
@@ -73,105 +77,137 @@ public class ButtonGestureEngine : IDisposable
         if (idx < 0 || idx > 4) return;
         _lastConfig = config;
 
-        // Cancel hold timer
-        _holdTimers[idx]?.Dispose();
-        _holdTimers[idx] = null;
-
-        // If hold already fired, consume the release
-        if (_held[idx])
+        bool wasHeld;
+        lock (_stateLock)
         {
-            _held[idx] = false;
-            return;
+            // Cancel hold timer
+            _holdTimers[idx]?.Dispose();
+            _holdTimers[idx] = null;
+
+            wasHeld = _held[idx];
+            if (wasHeld)
+            {
+                _held[idx] = false;
+            }
+            else
+            {
+                // Short press — count it for single/double detection
+                _clickCount[idx]++;
+
+                // Restart the double-click window timer
+                _clickTimers[idx]?.Dispose();
+                _clickTimers[idx] = new System.Threading.Timer(_ => OnClickWindowExpired(idx), null, DoubleClickWindowMs, Timeout.Infinite);
+            }
         }
-
-        // Short press — count it for single/double detection
-        _clickCount[idx]++;
-
-        // Restart the double-click window timer
-        _clickTimers[idx]?.Dispose();
-        _clickTimers[idx] = new System.Threading.Timer(_ => OnClickWindowExpired(idx), null, DoubleClickWindowMs, Timeout.Infinite);
     }
 
     private void OnHoldFired(int idx)
     {
-        _holdTimers[idx]?.Dispose();
-        _holdTimers[idx] = null;
-        _held[idx] = true;
+        ButtonConfig? holdBtn = null;
+        string action = "none";
 
-        // Cancel any pending click detection (hold wins)
-        _clickTimers[idx]?.Dispose();
-        _clickTimers[idx] = null;
-        _clickCount[idx] = 0;
+        lock (_stateLock)
+        {
+            _holdTimers[idx]?.Dispose();
+            _holdTimers[idx] = null;
+            _held[idx] = true;
 
-        var btn = _lastConfig?.Buttons.FirstOrDefault(b => b.Idx == idx);
-        if (btn == null) return;
+            // Cancel any pending click detection (hold wins)
+            _clickTimers[idx]?.Dispose();
+            _clickTimers[idx] = null;
+            _clickCount[idx] = 0;
 
-        var action = btn.HoldAction ?? "none";
-        var path = btn.HoldPath ?? "";
-        if (!string.Equals(action, "none", StringComparison.OrdinalIgnoreCase))
+            var btn = _lastConfig?.Buttons.FirstOrDefault(b => b.Idx == idx);
+            if (btn != null)
+            {
+                action = btn.HoldAction ?? "none";
+                if (!string.Equals(action, "none", StringComparison.OrdinalIgnoreCase))
+                {
+                    holdBtn = new ButtonConfig
+                    {
+                        Idx = btn.Idx,
+                        Action = action,
+                        Path = btn.HoldPath ?? "",
+                        DeviceId = btn.HoldDeviceId,
+                        DeviceIds = btn.HoldDeviceIds,
+                        MacroKeys = btn.HoldMacroKeys,
+                        ProfileName = btn.HoldProfileName,
+                        ProfileNames = btn.HoldProfileNames,
+                        PowerAction = btn.HoldPowerAction,
+                        LinkedKnobIdx = btn.HoldLinkedKnobIdx,
+                        CycleDeviceType = btn.HoldCycleDeviceType
+                    };
+                }
+            }
+        }
+
+        // Invoke outside lock to avoid holding it during downstream work
+        if (holdBtn != null)
         {
             Logger.Log($"Button {idx} hold → action: {action}");
-            var holdBtn = new ButtonConfig
-            {
-                Idx = btn.Idx,
-                Action = action,
-                Path = path,
-                DeviceId = btn.HoldDeviceId,
-                DeviceIds = btn.HoldDeviceIds,
-                MacroKeys = btn.HoldMacroKeys,
-                ProfileName = btn.HoldProfileName,
-                ProfileNames = btn.HoldProfileNames,
-                PowerAction = btn.HoldPowerAction,
-                LinkedKnobIdx = btn.HoldLinkedKnobIdx,
-                CycleDeviceType = btn.HoldCycleDeviceType
-            };
             OnGestureAction?.Invoke(idx, "hold", action, holdBtn);
         }
     }
 
     private void OnClickWindowExpired(int idx)
     {
-        _clickTimers[idx]?.Dispose();
-        _clickTimers[idx] = null;
+        int clicks;
+        ButtonConfig? tapBtn = null;
+        ButtonConfig? dblBtn = null;
+        string tapAction = "none";
+        string dblAction = "none";
 
-        int clicks = _clickCount[idx];
-        _clickCount[idx] = 0;
-
-        var btn = _lastConfig?.Buttons.FirstOrDefault(b => b.Idx == idx);
-        if (btn == null) return;
-
-        if (clicks >= 2)
+        lock (_stateLock)
         {
-            var action = btn.DoublePressAction ?? "none";
-            var path = btn.DoublePressPath ?? "";
-            if (!string.Equals(action, "none", StringComparison.OrdinalIgnoreCase))
+            _clickTimers[idx]?.Dispose();
+            _clickTimers[idx] = null;
+
+            clicks = _clickCount[idx];
+            _clickCount[idx] = 0;
+
+            var btn = _lastConfig?.Buttons.FirstOrDefault(b => b.Idx == idx);
+            if (btn != null)
             {
-                Logger.Log($"Button {idx} double-press → action: {action}");
-                var dblBtn = new ButtonConfig
+                if (clicks >= 2)
                 {
-                    Idx = btn.Idx,
-                    Action = action,
-                    Path = path,
-                    DeviceId = btn.DoublePressDeviceId,
-                    DeviceIds = btn.DoublePressDeviceIds,
-                    MacroKeys = btn.DoublePressMacroKeys,
-                    ProfileName = btn.DoublePressProfileName,
-                    ProfileNames = btn.DoublePressProfileNames,
-                    PowerAction = btn.DoublePressPowerAction,
-                    LinkedKnobIdx = btn.DoublePressLinkedKnobIdx,
-                    CycleDeviceType = btn.DoublePressCycleDeviceType
-                };
-                OnGestureAction?.Invoke(idx, "double", action, dblBtn);
+                    dblAction = btn.DoublePressAction ?? "none";
+                    if (!string.Equals(dblAction, "none", StringComparison.OrdinalIgnoreCase))
+                    {
+                        dblBtn = new ButtonConfig
+                        {
+                            Idx = btn.Idx,
+                            Action = dblAction,
+                            Path = btn.DoublePressPath ?? "",
+                            DeviceId = btn.DoublePressDeviceId,
+                            DeviceIds = btn.DoublePressDeviceIds,
+                            MacroKeys = btn.DoublePressMacroKeys,
+                            ProfileName = btn.DoublePressProfileName,
+                            ProfileNames = btn.DoublePressProfileNames,
+                            PowerAction = btn.DoublePressPowerAction,
+                            LinkedKnobIdx = btn.DoublePressLinkedKnobIdx,
+                            CycleDeviceType = btn.DoublePressCycleDeviceType
+                        };
+                    }
+                }
+                else
+                {
+                    tapAction = btn.Action ?? "none";
+                    if (!string.Equals(tapAction, "none", StringComparison.OrdinalIgnoreCase))
+                        tapBtn = btn;
+                }
             }
         }
-        else
+
+        // Invoke outside lock
+        if (dblBtn != null)
         {
-            // Single press
-            if (!string.Equals(btn.Action, "none", StringComparison.OrdinalIgnoreCase))
-            {
-                Logger.Log($"Button {idx} press → action: {btn.Action}");
-                OnGestureAction?.Invoke(idx, "tap", btn.Action, btn);
-            }
+            Logger.Log($"Button {idx} double-press → action: {dblAction}");
+            OnGestureAction?.Invoke(idx, "double", dblAction, dblBtn);
+        }
+        else if (tapBtn != null)
+        {
+            Logger.Log($"Button {idx} press → action: {tapAction}");
+            OnGestureAction?.Invoke(idx, "tap", tapAction, tapBtn);
         }
     }
 
@@ -179,12 +215,15 @@ public class ButtonGestureEngine : IDisposable
 
     public void Dispose()
     {
-        for (int i = 0; i < 5; i++)
+        lock (_stateLock)
         {
-            _holdTimers[i]?.Dispose();
-            _holdTimers[i] = null;
-            _clickTimers[i]?.Dispose();
-            _clickTimers[i] = null;
+            for (int i = 0; i < 5; i++)
+            {
+                _holdTimers[i]?.Dispose();
+                _holdTimers[i] = null;
+                _clickTimers[i]?.Dispose();
+                _clickTimers[i] = null;
+            }
         }
     }
 }
