@@ -445,26 +445,29 @@ public partial class App : Application
             // Tear down WASAPI subscriptions before the COM objects go invalid.
             // The notification callbacks could fire one last time during this window — guard flag stops them.
             _sessionLocked = true;
-            try
+            lock (_notifyLock)
             {
-                if (_notifyMaster != null)
+                try
                 {
-                    try { _notifyMaster.AudioEndpointVolume.OnVolumeNotification -= OnMasterVolumeNotification; } catch { }
-                    try { _notifyMaster.Dispose(); } catch { }
-                    _notifyMaster = null;
+                    if (_notifyMaster != null)
+                    {
+                        try { _notifyMaster.AudioEndpointVolume.OnVolumeNotification -= OnMasterVolumeNotification; } catch { }
+                        try { _notifyMaster.Dispose(); } catch { }
+                        _notifyMaster = null;
+                    }
                 }
-            }
-            catch { }
-            try
-            {
-                if (_notifyMic != null)
+                catch { }
+                try
                 {
-                    try { _notifyMic.AudioEndpointVolume.OnVolumeNotification -= OnMicVolumeNotification; } catch { }
-                    try { _notifyMic.Dispose(); } catch { }
-                    _notifyMic = null;
+                    if (_notifyMic != null)
+                    {
+                        try { _notifyMic.AudioEndpointVolume.OnVolumeNotification -= OnMicVolumeNotification; } catch { }
+                        try { _notifyMic.Dispose(); } catch { }
+                        _notifyMic = null;
+                    }
                 }
+                catch { }
             }
-            catch { }
             // Tell AudioMixer to drop its persistent peak device — it's invalid under lock
             _mixer?.InvalidatePeakDevice();
         }
@@ -1150,6 +1153,10 @@ public partial class App : Application
     // Reentrancy guard: skip poll if the previous one hasn't finished yet
     private int _pollMuteRunning;
 
+    // Guards _notifyMaster and _notifyMic — SubscribeMuteNotifications is called from both
+    // the background poll timer and the system session-switch message thread.
+    private readonly object _notifyLock = new();
+
     // Devices held open specifically for OnVolumeNotification subscriptions (instant mute feedback)
     private NAudio.CoreAudioApi.MMDevice? _notifyMaster;
     private NAudio.CoreAudioApi.MMDevice? _notifyMic;
@@ -1162,47 +1169,52 @@ public partial class App : Application
     /// </summary>
     private void SubscribeMuteNotifications()
     {
-        try
+        // Called from two threads: background poll timer (device change) and session-unlock
+        // (system message thread). Lock ensures only one runs at a time.
+        lock (_notifyLock)
         {
-            _pollEnumerator ??= new NAudio.CoreAudioApi.MMDeviceEnumerator();
-
-            // --- Master output ---
             try
             {
-                // Unsubscribe from old device before replacing it
-                if (_notifyMaster != null)
-                {
-                    try { _notifyMaster.AudioEndpointVolume.OnVolumeNotification -= OnMasterVolumeNotification; } catch { }
-                    _notifyMaster.Dispose();
-                    _notifyMaster = null;
-                }
-                _notifyMaster = _pollEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
-                _notifyMaster.AudioEndpointVolume.OnVolumeNotification += OnMasterVolumeNotification;
-                // Seed current state immediately
-                _rgb.SetMasterMuted(_notifyMaster.AudioEndpointVolume.Mute);
-                // Seed tray icon volume
-                _trayVolume = _notifyMaster.AudioEndpointVolume.MasterVolumeLevelScalar;
-                _trayMuted = _notifyMaster.AudioEndpointVolume.Mute;
-            }
-            catch { }
+                _pollEnumerator ??= new NAudio.CoreAudioApi.MMDeviceEnumerator();
 
-            // --- Mic capture ---
-            try
-            {
-                if (_notifyMic != null)
+                // --- Master output ---
+                try
                 {
-                    try { _notifyMic.AudioEndpointVolume.OnVolumeNotification -= OnMicVolumeNotification; } catch { }
-                    _notifyMic.Dispose();
-                    _notifyMic = null;
+                    // Unsubscribe from old device before replacing it
+                    if (_notifyMaster != null)
+                    {
+                        try { _notifyMaster.AudioEndpointVolume.OnVolumeNotification -= OnMasterVolumeNotification; } catch { }
+                        _notifyMaster.Dispose();
+                        _notifyMaster = null;
+                    }
+                    _notifyMaster = _pollEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
+                    _notifyMaster.AudioEndpointVolume.OnVolumeNotification += OnMasterVolumeNotification;
+                    // Seed current state immediately
+                    _rgb.SetMasterMuted(_notifyMaster.AudioEndpointVolume.Mute);
+                    // Seed tray icon volume
+                    _trayVolume = _notifyMaster.AudioEndpointVolume.MasterVolumeLevelScalar;
+                    _trayMuted = _notifyMaster.AudioEndpointVolume.Mute;
                 }
-                _notifyMic = _pollEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Capture, NAudio.CoreAudioApi.Role.Communications);
-                _notifyMic.AudioEndpointVolume.OnVolumeNotification += OnMicVolumeNotification;
-                // Seed current state immediately
-                _rgb.SetMicMuted(_notifyMic.AudioEndpointVolume.Mute);
+                catch { }
+
+                // --- Mic capture ---
+                try
+                {
+                    if (_notifyMic != null)
+                    {
+                        try { _notifyMic.AudioEndpointVolume.OnVolumeNotification -= OnMicVolumeNotification; } catch { }
+                        _notifyMic.Dispose();
+                        _notifyMic = null;
+                    }
+                    _notifyMic = _pollEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Capture, NAudio.CoreAudioApi.Role.Communications);
+                    _notifyMic.AudioEndpointVolume.OnVolumeNotification += OnMicVolumeNotification;
+                    // Seed current state immediately
+                    _rgb.SetMicMuted(_notifyMic.AudioEndpointVolume.Mute);
+                }
+                catch { }
             }
             catch { }
         }
-        catch { }
     }
 
     private void OnMasterVolumeNotification(NAudio.CoreAudioApi.AudioVolumeNotificationData data)
@@ -1781,6 +1793,8 @@ public partial class App : Application
         _dreamSync?.Dispose();
         _cachedMic?.Dispose();
         _cachedMaster?.Dispose();
+        lock (_notifyLock)
+        {
         if (_notifyMaster != null)
         {
             try { _notifyMaster.AudioEndpointVolume.OnVolumeNotification -= OnMasterVolumeNotification; } catch { }
@@ -1791,6 +1805,7 @@ public partial class App : Application
             try { _notifyMic.AudioEndpointVolume.OnVolumeNotification -= OnMicVolumeNotification; } catch { }
             _notifyMic.Dispose();
         }
+        } // end lock (_notifyLock)
         _pollEnumerator?.Dispose();
         MonitorBrightness.Dispose();
         _mutex?.Dispose();
