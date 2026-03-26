@@ -38,6 +38,7 @@ public partial class App : Application
     private TrayContextMenu? _trayContextMenu;
     private AmbienceSync? _ambienceSync;
     private DreamSyncController? _dreamSync;
+    private CorsairSync? _corsairSync;
     private RadialWheelOverlay? _radialWheel;
     private bool _wheelVisible;
     private System.Windows.Threading.DispatcherTimer? _wheelDismissTimer;
@@ -111,6 +112,12 @@ public partial class App : Application
         // Ambience sync (Govee LAN)
         _ambienceSync = new AmbienceSync(_config.Ambience);
         _rgb.OnFrameReady += _ambienceSync.OnFrame;
+
+        // Corsair iCUE sync
+        _corsairSync = new CorsairSync();
+        _rgb.OnFrameReady += frame => { if (_corsairSync?.IsAvailable == true) _corsairSync.SyncColors(frame); };
+        if (_config.Corsair.Enabled)
+            _corsairSync.Start();
 
         // DreamView / Screen Sync
         _dreamSync = new DreamSyncController(_config.Ambience.ScreenSync, _config.Ambience, new WindowsScreenCapture());
@@ -554,9 +561,54 @@ public partial class App : Application
         {
             Dispatcher.Invoke(() =>
             {
-                GlassDialog.ShowWarning(
-                    $"Amp Up encountered an error and needs to close.\n\nA crash log has been saved to:\n{Logger.LogPath}\n\nPlease include it when reporting the issue on GitHub.\n\n{ex.Message}",
-                    title: "Amp Up Crashed");
+                var version = UpdateChecker.CurrentVersion;
+                var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                var fullText = $"Amp Up v{version} — {timestamp}\n\n{ex}";
+
+                var msgBlock = new System.Windows.Controls.TextBlock
+                {
+                    Text = $"Amp Up encountered an error and needs to close.\n\nA crash log has been saved to:\n{Logger.LogPath}\n\nPlease include it when reporting the issue on GitHub.\n\n{ex.Message}",
+                    TextWrapping = System.Windows.TextWrapping.Wrap,
+                    Foreground = (System.Windows.Media.Brush)System.Windows.Application.Current.Resources["TextPrimaryBrush"],
+                    Margin = new System.Windows.Thickness(0, 0, 0, 16),
+                };
+
+                var btnOpenLog = new System.Windows.Controls.Button
+                {
+                    Content = "Open Log File",
+                    Padding = new System.Windows.Thickness(16, 8, 16, 8),
+                    Margin = new System.Windows.Thickness(0, 0, 8, 0),
+                };
+                btnOpenLog.Click += (_, _) =>
+                {
+                    try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Logger.LogPath) { UseShellExecute = true }); }
+                    catch { }
+                };
+
+                var btnCopy = new System.Windows.Controls.Button
+                {
+                    Content = "Copy to Clipboard",
+                    Padding = new System.Windows.Thickness(16, 8, 16, 8),
+                    Margin = new System.Windows.Thickness(0, 0, 8, 0),
+                };
+                btnCopy.Click += (_, _) =>
+                {
+                    try { System.Windows.Clipboard.SetText(fullText); }
+                    catch { }
+                };
+
+                var btnRow = new System.Windows.Controls.StackPanel
+                {
+                    Orientation = System.Windows.Controls.Orientation.Horizontal,
+                };
+                btnRow.Children.Add(btnOpenLog);
+                btnRow.Children.Add(btnCopy);
+
+                var panel = new System.Windows.Controls.StackPanel();
+                panel.Children.Add(msgBlock);
+                panel.Children.Add(btnRow);
+
+                GlassDialog.ShowInfo("Amp Up Crashed", panel);
                 ExitApp();
             });
         }
@@ -720,6 +772,13 @@ public partial class App : Application
         _autoSwitcher?.UpdateConfig(_config.AutoSwitch);
         _ambienceSync?.UpdateConfig(_config.Ambience);
         _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+        if (_corsairSync != null)
+        {
+            if (_config.Corsair.Enabled)
+                _corsairSync.Start();
+            else
+                _corsairSync.Stop();
+        }
     }
 
     private void HandleKnob(KnobEvent e)
@@ -1791,6 +1850,7 @@ public partial class App : Application
         _vm?.Dispose();
         _ambienceSync?.Dispose();
         _dreamSync?.Dispose();
+        _corsairSync?.Dispose();
         _cachedMic?.Dispose();
         _cachedMaster?.Dispose();
         lock (_notifyLock)
