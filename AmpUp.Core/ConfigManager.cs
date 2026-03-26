@@ -35,23 +35,37 @@ public static class ConfigManager
 
     public static AppConfig Load()
     {
-        try
-        {
-            if (File.Exists(ConfigPath))
-            {
-                var json = File.ReadAllText(ConfigPath);
-                var config = JsonConvert.DeserializeObject<AppConfig>(json) ?? new AppConfig();
-                EnsureDefaults(config);
-                return config;
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"Failed to load config: {ex.Message}");
-        }
+        var config = LoadJsonFile<AppConfig>(ConfigPath, "config", cfg => { if (cfg != null) EnsureDefaults(cfg); });
+        if (config != null) return config;
         var defaults = new AppConfig();
         EnsureDefaults(defaults);
         return defaults;
+    }
+
+    /// <summary>
+    /// Deserialize a JSON file, falling back to the .bak file if the primary is missing or corrupt.
+    /// Returns null if both fail.
+    /// </summary>
+    private static T? LoadJsonFile<T>(string path, string label, Action<T?> postLoad) where T : class
+    {
+        foreach (var candidate in new[] { path, path + ".bak" })
+        {
+            if (!File.Exists(candidate)) continue;
+            try
+            {
+                var json = File.ReadAllText(candidate);
+                var result = JsonConvert.DeserializeObject<T>(json);
+                postLoad(result);
+                if (candidate != path)
+                    Logger.Log($"Loaded {label} from backup: {candidate}");
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Failed to load {label} from {candidate}: {ex.Message}");
+            }
+        }
+        return null;
     }
 
     private static readonly string[] DefaultKnobLabels = { "", "", "", "", "" };
@@ -99,6 +113,28 @@ public static class ConfigManager
         }
     }
 
+    /// <summary>
+    /// Atomic write: write to .tmp, then File.Replace to swap in the new file while keeping a .bak.
+    /// Falls back to File.Move if File.Replace fails (e.g. cross-volume).
+    /// </summary>
+    private static void AtomicWrite(string destPath, string json)
+    {
+        var tmpPath = destPath + ".tmp";
+        var bakPath = destPath + ".bak";
+        File.WriteAllText(tmpPath, json);
+        try
+        {
+            File.Replace(tmpPath, destPath, bakPath);
+        }
+        catch
+        {
+            // Cross-volume or other edge case — fall back to overwrite move
+            if (File.Exists(destPath))
+                File.Delete(destPath);
+            File.Move(tmpPath, destPath);
+        }
+    }
+
     public static void Save(AppConfig config)
     {
         try
@@ -106,7 +142,7 @@ public static class ConfigManager
             lock (_saveLock)
             {
                 string json = JsonConvert.SerializeObject(config, Formatting.Indented);
-                File.WriteAllText(ConfigPath, json);
+                AtomicWrite(ConfigPath, json);
             }
         }
         catch (Exception ex)
@@ -122,7 +158,7 @@ public static class ConfigManager
             lock (_saveLock)
             {
                 string json = JsonConvert.SerializeObject(config, Formatting.Indented);
-                File.WriteAllText(ProfilePath(profileName), json);
+                AtomicWrite(ProfilePath(profileName), json);
             }
             Logger.Log($"Profile saved: {profileName}");
         }
@@ -134,21 +170,7 @@ public static class ConfigManager
 
     public static AppConfig? LoadProfile(string profileName)
     {
-        try
-        {
-            var path = ProfilePath(profileName);
-            if (File.Exists(path))
-            {
-                var json = File.ReadAllText(path);
-                var config = JsonConvert.DeserializeObject<AppConfig>(json);
-                if (config != null) EnsureDefaults(config);
-                return config;
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"Failed to load profile {profileName}: {ex.Message}");
-        }
-        return null;
+        var path = ProfilePath(profileName);
+        return LoadJsonFile<AppConfig>(path, $"profile {profileName}", cfg => { if (cfg != null) EnsureDefaults(cfg); });
     }
 }
