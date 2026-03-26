@@ -140,6 +140,10 @@ public partial class SettingsView : UserControl
         ChkVmEnabled.Checked += OnValueChanged;
         ChkVmEnabled.Unchecked += OnValueChanged;
 
+        // Corsair iCUE
+        ChkCorsairEnabled.Checked += OnCorsairEnabledChanged;
+        ChkCorsairEnabled.Unchecked += OnCorsairEnabledChanged;
+
         // About
         TxtVersion.Text = $"Amp Up v{UpdateChecker.CurrentVersion}";
         BtnCheckUpdate.Click += OnCheckUpdate;
@@ -186,6 +190,10 @@ public partial class SettingsView : UserControl
         // Integrations — VoiceMeeter
         ChkVmEnabled.IsChecked = config.VoiceMeeter.Enabled;
         RefreshVmHeaderStatus();
+
+        // Integrations — Corsair iCUE
+        ChkCorsairEnabled.IsChecked = config.Corsair.Enabled;
+        RefreshCorsairStatus();
 
         // Integrations — Govee
         ChkGoveeEnabled.IsChecked = config.Ambience.GoveeEnabled;
@@ -504,6 +512,9 @@ public partial class SettingsView : UserControl
 
         // VoiceMeeter
         _config.VoiceMeeter.Enabled = ChkVmEnabled.IsChecked == true;
+
+        // Corsair iCUE
+        _config.Corsair.Enabled = ChkCorsairEnabled.IsChecked == true;
 
         // LED Calibration
         _config.MuteBrightness = (int)SldMuteBrightness.Value;
@@ -900,6 +911,30 @@ public partial class SettingsView : UserControl
         {
             VmStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FF4444"));
             TxtVmStatusHeader.Text = "Not Found";
+        }
+    }
+
+    // ── Corsair iCUE settings ──────────────────────────────────────────
+
+    private void OnCorsairEnabledChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        RefreshCorsairStatus();
+        CollectAndSave();
+    }
+
+    private void RefreshCorsairStatus()
+    {
+        bool enabled = ChkCorsairEnabled.IsChecked == true;
+        if (!enabled)
+        {
+            CorsairStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#555555"));
+            TxtCorsairStatus.Text = "Disabled";
+        }
+        else
+        {
+            CorsairStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#00E676"));
+            TxtCorsairStatus.Text = "Enabled";
         }
     }
 

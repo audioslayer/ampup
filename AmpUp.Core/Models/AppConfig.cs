@@ -42,6 +42,12 @@ public class AppConfig
     public Dictionary<string, List<string>> CycleDeviceSubset { get; set; } = new();
     public bool AutoCheckUpdates { get; set; } = true;
     public bool HasShownAudioGuide { get; set; } = false;
+    public CorsairConfig Corsair { get; set; } = new();
+}
+
+public class CorsairConfig
+{
+    public bool Enabled { get; set; } = false;
 }
 
 public class SerialConfig

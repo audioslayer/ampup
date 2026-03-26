@@ -461,6 +461,27 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Corsair iCUE -->
+                    <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0"
+                            Margin="0,0,0,0" Padding="0,16,0,0">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="Corsair iCUE" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
+                                <Ellipse x:Name="CorsairStatusDot" Width="8" Height="8"
+                                         Fill="#555555" VerticalAlignment="Center" Margin="12,0,6,0" />
+                                <TextBlock x:Name="TxtCorsairStatus" Text="Disabled"
+                                           Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <CheckBox x:Name="ChkCorsairEnabled"
+                                      Content="Enabled"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      Margin="0,0,0,4" />
+                            <TextBlock Text="Mirrors Turn Up LED colors to iCUE devices via iCUE 5+ REST API (port 60222)"
+                                       Style="{StaticResource SecondaryText}" FontSize="11"
+                                       Margin="0,0,0,0" />
+                        </StackPanel>
+                    </Border>
+
                 </StackPanel>
             </Border>
 
