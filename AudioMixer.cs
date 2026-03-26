@@ -234,7 +234,7 @@ public class AudioMixer : IDisposable
             {
                 for (int i = 0; i < devices.Count; i++)
                 {
-                    var dev = devices[i];
+                    using var dev = devices[i];
                     if (dev.ID == deviceId)
                     {
                         dev.AudioEndpointVolume.MasterVolumeLevelScalar = vol;
@@ -397,7 +397,7 @@ public class AudioMixer : IDisposable
             {
                 for (int i = 0; i < devices.Count; i++)
                 {
-                    var dev = devices[i];
+                    using var dev = devices[i];
                     if (dev.ID == deviceId)
                         return dev.AudioEndpointVolume.MasterVolumeLevelScalar;
                 }
@@ -453,22 +453,25 @@ public class AudioMixer : IDisposable
             if (target == "master")
             {
                 // Use a dedicated persistent device for peak metering
-                // (separate from _renderDevice which gets swapped during RefreshSessions)
-                if (_masterPeakDevice == null)
+                // (separate from _renderDevice which gets swapped during RefreshSessions).
+                // All reads and writes to _masterPeakDevice go through _enumLock to avoid a
+                // TOCTOU race between GetPeakLevel (UI timer) and InvalidatePeakDevice
+                // (session-lock handler on a different thread).
+                lock (_enumLock)
                 {
-                    lock (_enumLock)
+                    if (_masterPeakDevice == null)
                         _masterPeakDevice = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                }
-                try
-                {
-                    return _masterPeakDevice.AudioMeterInformation.MasterPeakValue;
-                }
-                catch
-                {
-                    // Device may have changed — recreate on next call
-                    try { _masterPeakDevice?.Dispose(); } catch { }
-                    _masterPeakDevice = null;
-                    return 0f;
+                    try
+                    {
+                        return _masterPeakDevice.AudioMeterInformation.MasterPeakValue;
+                    }
+                    catch
+                    {
+                        // Device may have changed — recreate on next call
+                        try { _masterPeakDevice?.Dispose(); } catch { }
+                        _masterPeakDevice = null;
+                        return 0f;
+                    }
                 }
             }
 
@@ -566,7 +569,7 @@ public class AudioMixer : IDisposable
             {
                 for (int i = 0; i < devices.Count; i++)
                 {
-                    var dev = devices[i];
+                    using var dev = devices[i];
                     if (dev.ID == deviceId)
                         return dev.AudioMeterInformation.MasterPeakValue;
                 }

@@ -104,7 +104,13 @@ public class AudioAnalyzer : IDisposable
     {
         if (!_running || e.BytesRecorded == 0) return;
 
-        var format = _capture!.WaveFormat;
+        // Capture a local reference under lock — Stop() can null _capture between the
+        // _running check above and the dereference below (TOCTOU race).
+        WasapiLoopbackCapture? capture;
+        lock (_lock) { capture = _capture; }
+        if (capture == null) return;
+
+        var format = capture.WaveFormat;
         int channels = format.Channels;
         int bytesPerSample = format.BitsPerSample / 8;
 

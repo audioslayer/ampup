@@ -1225,6 +1225,9 @@ public partial class App : Application
 
     private void PollMuteStates()
     {
+        // Skip during session lock — WASAPI COM objects are invalidated while locked,
+        // and we've already torn down our cached devices in OnSessionSwitch.
+        if (_isShuttingDown || _sessionLocked) return;
         // Skip if a previous poll is still running (protects _cachedMaster from concurrent access)
         if (System.Threading.Interlocked.CompareExchange(ref _pollMuteRunning, 1, 0) != 0)
             return;
