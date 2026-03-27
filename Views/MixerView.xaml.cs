@@ -957,7 +957,8 @@ public partial class MixerView : UserControl
             picker.RegisterSubMenu("input_device", () => GetDeviceSubItems(isOutput: false));
 
             bool vmEnabled = config.VoiceMeeter.Enabled;
-            bool hasIntegrations = haEnabled || goveeEnabled || vmEnabled;
+            bool corsairEnabled = config.Corsair.Enabled && config.Corsair.FanEnabled;
+            bool hasIntegrations = haEnabled || goveeEnabled || vmEnabled || corsairEnabled;
             if (hasIntegrations)
             {
                 picker.AddCategory("Integrations");
@@ -990,6 +991,13 @@ public partial class MixerView : UserControl
                         picker.AddItem("VoiceMeeter", $"vm_strip:{s}", "♪", clrVM, $"Strip {s + 1}");
                     for (int b = 0; b <= 2; b++)
                         picker.AddItem("VoiceMeeter", $"vm_bus:{b}", "▶", clrVM, $"Bus {b + 1}");
+                }
+
+                if (corsairEnabled)
+                {
+                    var clrCorsair = Color.FromRgb(0xFF, 0xD3, 0x00); // Corsair yellow
+                    picker.AddItem("Corsair", "corsair_pump_fan", "◎", clrCorsair, "Pump Fan");
+                    picker.AddItem("Corsair", "corsair_case_fan", "◉", clrCorsair, "Case Fans");
                 }
             }
 

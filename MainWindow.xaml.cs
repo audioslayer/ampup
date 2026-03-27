@@ -1312,6 +1312,11 @@ public partial class MainWindow : FluentWindow
             _ambienceView.SetDreamSync(dreamSync);
     }
 
+    public void SetCorsairSync(CorsairSync corsairSync)
+    {
+        _ambienceView.SetCorsairSync(corsairSync);
+    }
+
     public void UpdateGoveeDeviceBrightness(string? ip, float normalized, bool poweredOn)
     {
         if (ip != null)

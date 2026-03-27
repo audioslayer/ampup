@@ -48,6 +48,15 @@ public class AppConfig
 public class CorsairConfig
 {
     public bool Enabled { get; set; } = false;
+    public bool FanEnabled { get; set; } = false;
+    public string FanSyncMode { get; set; } = "manual"; // "manual" | "audio_reactive"
+    public int PumpFanSpeed { get; set; } = 50;    // 0-100%
+    public int CaseFanSpeed { get; set; } = 50;    // 0-100%
+    public int FanMinPercent { get; set; } = 20;   // audio-reactive floor
+    public int FanMaxPercent { get; set; } = 100;  // audio-reactive ceiling
+    public string LightSyncMode { get; set; } = "off"; // "off" | "static" | "dreamview" | "vu_reactive"
+    public string StaticColor { get; set; } = "#00E676";
+    public string SelectedMural { get; set; } = "";
 }
 
 public class SerialConfig

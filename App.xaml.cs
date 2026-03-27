@@ -224,6 +224,8 @@ public partial class App : Application
         _mainWindow.Initialize(_config, _mixer, OnConfigChanged);
         _mainWindow.SetAmbienceSync(_ambienceSync);
         _mainWindow.SetDreamSync(_dreamSync);
+        if (_corsairSync != null)
+            _mainWindow.SetCorsairSync(_corsairSync);
 
         // Start minimized to tray if launched with --minimized (Windows startup)
         var args = Environment.GetCommandLineArgs();
@@ -885,6 +887,31 @@ public partial class App : Application
                     }
                 }
             }
+            else if (knob.Target.Equals("corsair_pump_fan", StringComparison.OrdinalIgnoreCase)
+                  || knob.Target.Equals("corsair_case_fan", StringComparison.OrdinalIgnoreCase))
+            {
+                // Corsair fan speed control — knob position maps directly to 0-100%
+                if (_corsairSync != null && _corsairSync.IsAvailable && _config.Corsair.Enabled
+                    && _config.Corsair.FanEnabled
+                    && Environment.TickCount64 - _startupTick >= 8000)
+                {
+                    int percent = (int)Math.Round(e.Value / 1023.0 * 100);
+                    bool isPump = knob.Target.Equals("corsair_pump_fan", StringComparison.OrdinalIgnoreCase);
+                    if (isPump)
+                        _config.Corsair.PumpFanSpeed = percent;
+                    else
+                        _config.Corsair.CaseFanSpeed = percent;
+
+                    string typeFilter = isPump ? "pump" : "fan";
+                    foreach (var device in _corsairSync.Devices)
+                    {
+                        bool matches = device.Type.Contains(typeFilter, StringComparison.OrdinalIgnoreCase)
+                            || (isPump && device.Type.Contains("cooler", StringComparison.OrdinalIgnoreCase));
+                        if (matches)
+                            _ = _corsairSync.SetFanSpeedAsync(device.Id, percent);
+                    }
+                }
+            }
             else
             {
                 _mixer.SetVolume(knob, e.Value);
@@ -986,6 +1013,8 @@ public partial class App : Application
             "input_device" => "Input Device",
             _ when knob.Target.StartsWith("vm_strip:") => $"VM Strip {knob.Target.Split(':')[1]}",
             _ when knob.Target.StartsWith("vm_bus:") => $"VM Bus {knob.Target.Split(':')[1]}",
+            "corsair_pump_fan" => "Pump Fan",
+            "corsair_case_fan" => "Case Fans",
             _ => knob.Target
         };
         string symbol = knob.Target switch
@@ -1000,6 +1029,7 @@ public partial class App : Application
             "discord" => "Headphones",
             _ when knob.Target.StartsWith("ha_") => "Home",
             _ when knob.Target.StartsWith("vm_") => "VolumeHigh",
+            _ when knob.Target.StartsWith("corsair_") => "Fan",
             _ => "VolumeHigh"
         };
         if (!EnsureOsd()) return;

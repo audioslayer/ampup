@@ -797,6 +797,8 @@ public class BindingsView : UserControl
             _ when t == "govee" => "Govee",
             _ when t.StartsWith("vm_strip:") => $"VM Strip {t.Split(':')[1]}",
             _ when t.StartsWith("vm_bus:") => $"VM Bus {t.Split(':')[1]}",
+            "corsair_pump_fan" => "Corsair Pump Fan",
+            "corsair_case_fan" => "Corsair Case Fans",
             _ => CamelToTitle(t)
         };
     }

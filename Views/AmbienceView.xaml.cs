@@ -33,6 +33,13 @@ public partial class AmbienceView : UserControl
     private Border? _dreamActiveBanner;
     private Border? _dreamViewCard;
 
+    // Corsair iCUE
+    private CorsairSync? _corsairSync;
+    private Border? _corsairCard;
+    private TextBlock? _corsairStatusLabel;
+    private ListBox? _corsairDeviceList;
+    private ComboBox? _corsairEffectsCombo;
+
     // Navigation callback (set by MainWindow to navigate to Settings)
     public Action? NavigateToSettings { get; set; }
 
@@ -60,6 +67,11 @@ public partial class AmbienceView : UserControl
         // Wire zone color preview updates
         _dreamSync.OnZoneColors += colors =>
             Dispatcher.BeginInvoke(() => UpdateDreamZonePreview(colors));
+    }
+
+    public void SetCorsairSync(CorsairSync corsairSync)
+    {
+        _corsairSync = corsairSync;
     }
 
     public void LoadConfig(AppConfig config, Action<AppConfig> onSave)
@@ -352,6 +364,9 @@ public partial class AmbienceView : UserControl
 
         // Always show DreamView card at the bottom
         AppendDreamViewCard();
+
+        // Corsair iCUE card (always shown — self-contained enable toggle)
+        AppendCorsairCard();
 
         // If DreamView was already enabled, dim device cards
         if (_config.Ambience.ScreenSync.Enabled)
@@ -1420,6 +1435,437 @@ public partial class AmbienceView : UserControl
             _dreamZoneSwatches[i].Background = new SolidColorBrush(
                 Color.FromRgb(zones[i].R, zones[i].G, zones[i].B));
         }
+    }
+
+    // ── Corsair iCUE card ─────────────────────────────────────────────
+
+    private void AppendCorsairCard()
+    {
+        if (_config == null) return;
+
+        var cfg = _config.Corsair;
+        var accent = ThemeManager.Accent;
+        var clrCorsair = Color.FromRgb(0xFF, 0xD3, 0x00); // Corsair yellow
+
+        var card = new Border
+        {
+            Style = FindStyle("CardPanel") as Style,
+            Margin = new Thickness(0, 0, 0, 12),
+        };
+        _corsairCard = card;
+        var stack = new StackPanel();
+        card.Child = stack;
+
+        // ── Header row ───────────────────────────────────────────────
+        var (hBar, hLabel) = MakeSectionHeader("Corsair iCUE");
+        hBar.Background = new SolidColorBrush(clrCorsair);
+        hLabel.Foreground = new SolidColorBrush(clrCorsair);
+        // Don't add to _sectionHeaders — custom color, not accent-dependent
+
+        var enableToggle = new System.Windows.Controls.CheckBox
+        {
+            IsChecked = cfg.Enabled,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(12, 0, 0, 0),
+            ToolTip = "Enable Corsair iCUE integration (requires iCUE 5+ running)",
+        };
+
+        _corsairStatusLabel = new TextBlock
+        {
+            FontSize = 11,
+            Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(10, 0, 0, 0),
+            Text = cfg.Enabled ? "Checking..." : "Disabled",
+        };
+
+        var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
+        headerRow.Children.Add(hBar);
+        headerRow.Children.Add(hLabel);
+        headerRow.Children.Add(enableToggle);
+        headerRow.Children.Add(_corsairStatusLabel);
+        stack.Children.Add(headerRow);
+
+        // ── Content (hidden when disabled) ───────────────────────────
+        var content = new StackPanel { Visibility = cfg.Enabled ? Visibility.Visible : Visibility.Collapsed };
+        stack.Children.Add(content);
+
+        // ── Lighting section ──────────────────────────────────────────
+        var (lBar, lLabel) = MakeSectionHeader("Lighting");
+        content.Children.Add(WrapHeader(lBar, lLabel));
+
+        // Light sync mode ComboBox
+        var lightModeRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+        lightModeRow.Children.Add(MakeSubLabel("MODE"));
+        var lightModeCombo = new ComboBox
+        {
+            Width = 160, Height = 28,
+            SelectedIndex = cfg.LightSyncMode switch
+            {
+                "static" => 1, "dreamview" => 2, "vu_reactive" => 3, _ => 0
+            },
+        };
+        lightModeCombo.Items.Add("Off");
+        lightModeCombo.Items.Add("Static Color");
+        lightModeCombo.Items.Add("DreamView Sync");
+        lightModeCombo.Items.Add("VU Reactive");
+        lightModeRow.Children.Add(lightModeCombo);
+        content.Children.Add(lightModeRow);
+
+        // Static color row (only visible in Static mode)
+        var staticColorRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 0, 0, 8),
+            Visibility = cfg.LightSyncMode == "static" ? Visibility.Visible : Visibility.Collapsed,
+        };
+        staticColorRow.Children.Add(MakeSubLabel("COLOR"));
+
+        // Color swatch button
+        var colorSwatch = new Border
+        {
+            Width = 28, Height = 28,
+            CornerRadius = new CornerRadius(4),
+            Cursor = Cursors.Hand,
+            ToolTip = "Click to pick static color",
+            Margin = new Thickness(0, 0, 8, 0),
+        };
+        try
+        {
+            colorSwatch.Background = new SolidColorBrush(
+                (Color)ColorConverter.ConvertFromString(cfg.StaticColor));
+        }
+        catch { colorSwatch.Background = new SolidColorBrush(accent); }
+
+        colorSwatch.MouseLeftButtonUp += (_, _) =>
+        {
+            if (_config == null) return;
+            Color initial;
+            try { initial = (Color)ColorConverter.ConvertFromString(_config.Corsair.StaticColor); }
+            catch { initial = Colors.LimeGreen; }
+            var dlg = new ColorPickerDialog(initial) { Owner = Window.GetWindow(this) };
+            if (dlg.ShowDialog() == true)
+            {
+                var chosen = dlg.SelectedColor;
+                _config.Corsair.StaticColor = $"#{chosen.R:X2}{chosen.G:X2}{chosen.B:X2}";
+                colorSwatch.Background = new SolidColorBrush(chosen);
+                if (_corsairSync?.IsAvailable == true)
+                    _ = _corsairSync.SetStaticColorAllAsync(chosen.R, chosen.G, chosen.B);
+                QueueSave();
+            }
+        };
+        staticColorRow.Children.Add(colorSwatch);
+        content.Children.Add(staticColorRow);
+
+        // Effects / Murals ComboBox
+        var effectRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+        effectRow.Children.Add(MakeSubLabel("MURAL"));
+        _corsairEffectsCombo = new ComboBox
+        {
+            Width = 200, Height = 28,
+            ToolTip = "iCUE effects / murals (populated after enabling)",
+        };
+        if (!string.IsNullOrEmpty(cfg.SelectedMural))
+            _corsairEffectsCombo.Items.Add(cfg.SelectedMural);
+
+        _corsairEffectsCombo.SelectionChanged += (_, _) =>
+        {
+            if (_config == null || _corsairEffectsCombo.SelectedItem == null) return;
+            _config.Corsair.SelectedMural = _corsairEffectsCombo.SelectedItem.ToString() ?? "";
+            QueueSave();
+        };
+        effectRow.Children.Add(_corsairEffectsCombo);
+
+        var applyEffectBtn = new Button
+        {
+            Content = "Apply",
+            Padding = new Thickness(10, 4, 10, 4),
+            Margin = new Thickness(8, 0, 0, 0),
+            FontSize = 12,
+            ToolTip = "Apply selected mural/effect to all iCUE devices",
+        };
+        applyEffectBtn.Click += async (_, _) =>
+        {
+            if (_corsairSync == null || _corsairEffectsCombo.SelectedItem == null) return;
+            await _corsairSync.ApplyEffectAsync(_corsairEffectsCombo.SelectedItem.ToString() ?? "");
+        };
+        effectRow.Children.Add(applyEffectBtn);
+        content.Children.Add(effectRow);
+
+        content.Children.Add(MakeSeparator());
+
+        // ── Fan section ───────────────────────────────────────────────
+        var (fBar, fLabel) = MakeSectionHeader("Fan Control");
+        content.Children.Add(WrapHeader(fBar, fLabel));
+
+        var fanEnableRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+        var fanEnableToggle = new System.Windows.Controls.CheckBox
+        {
+            IsChecked = cfg.FanEnabled,
+            Content = new TextBlock { Text = "Enable Fan Speed Control", FontSize = 12, Foreground = FindBrush("TextPrimaryBrush"), Margin = new Thickness(6, 0, 0, 0) },
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
+        fanEnableRow.Children.Add(fanEnableToggle);
+        content.Children.Add(fanEnableRow);
+
+        var fanContent = new StackPanel
+        {
+            Visibility = cfg.FanEnabled ? Visibility.Visible : Visibility.Collapsed,
+            Margin = new Thickness(0, 4, 0, 0),
+        };
+        content.Children.Add(fanContent);
+
+        // Fan mode ComboBox
+        var fanModeRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+        fanModeRow.Children.Add(MakeSubLabel("MODE"));
+        var fanModeCombo = new ComboBox { Width = 160, Height = 28, SelectedIndex = cfg.FanSyncMode == "audio_reactive" ? 1 : 0 };
+        fanModeCombo.Items.Add("Manual");
+        fanModeCombo.Items.Add("Audio Reactive");
+        fanModeRow.Children.Add(fanModeCombo);
+        fanContent.Children.Add(fanModeRow);
+
+        // Manual sliders panel
+        var manualPanel = new StackPanel
+        {
+            Visibility = cfg.FanSyncMode != "audio_reactive" ? Visibility.Visible : Visibility.Collapsed,
+        };
+
+        var pumpRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+        pumpRow.Children.Add(MakeSubLabel("PUMP"));
+        var pumpSlider = new StyledSlider
+        {
+            Minimum = 0, Maximum = 100, Value = cfg.PumpFanSpeed,
+            Width = 180, Height = 36, Suffix = "%", ShowLabel = true,
+            AccentColor = clrCorsair,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var pumpDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+        pumpDebounce.Tick += async (_, _) =>
+        {
+            pumpDebounce.Stop();
+            if (_config == null) return;
+            int pct = (int)pumpSlider.Value;
+            _config.Corsair.PumpFanSpeed = pct;
+            QueueSave();
+            if (_corsairSync?.IsAvailable == true)
+            {
+                foreach (var dev in _corsairSync.Devices)
+                    if (dev.Type.Contains("pump") || dev.Type.Contains("cooler"))
+                        await _corsairSync.SetFanSpeedAsync(dev.Id, pct);
+            }
+        };
+        pumpSlider.ValueChanged += (_, _) => { pumpDebounce.Stop(); pumpDebounce.Start(); };
+        pumpRow.Children.Add(pumpSlider);
+        manualPanel.Children.Add(pumpRow);
+
+        var caseRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+        caseRow.Children.Add(MakeSubLabel("CASE"));
+        var caseSlider = new StyledSlider
+        {
+            Minimum = 0, Maximum = 100, Value = cfg.CaseFanSpeed,
+            Width = 180, Height = 36, Suffix = "%", ShowLabel = true,
+            AccentColor = clrCorsair,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var caseDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+        caseDebounce.Tick += async (_, _) =>
+        {
+            caseDebounce.Stop();
+            if (_config == null) return;
+            int pct = (int)caseSlider.Value;
+            _config.Corsair.CaseFanSpeed = pct;
+            QueueSave();
+            if (_corsairSync?.IsAvailable == true)
+            {
+                foreach (var dev in _corsairSync.Devices)
+                    if (dev.Type.Contains("fan") && !dev.Type.Contains("pump") && !dev.Type.Contains("cooler"))
+                        await _corsairSync.SetFanSpeedAsync(dev.Id, pct);
+            }
+        };
+        caseSlider.ValueChanged += (_, _) => { caseDebounce.Stop(); caseDebounce.Start(); };
+        caseRow.Children.Add(caseSlider);
+        manualPanel.Children.Add(caseRow);
+
+        fanContent.Children.Add(manualPanel);
+
+        // Audio-reactive panel
+        var reactivePanel = new StackPanel
+        {
+            Visibility = cfg.FanSyncMode == "audio_reactive" ? Visibility.Visible : Visibility.Collapsed,
+        };
+
+        var minRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+        minRow.Children.Add(MakeSubLabel("MIN %"));
+        var minSlider = new StyledSlider
+        {
+            Minimum = 0, Maximum = 100, Value = cfg.FanMinPercent,
+            Width = 160, Height = 36, Suffix = "%", ShowLabel = true,
+            AccentColor = clrCorsair,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        minSlider.ValueChanged += (_, _) =>
+        {
+            if (_config == null) return;
+            _config.Corsair.FanMinPercent = (int)minSlider.Value;
+            QueueSave();
+        };
+        minRow.Children.Add(minSlider);
+        reactivePanel.Children.Add(minRow);
+
+        var maxRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+        maxRow.Children.Add(MakeSubLabel("MAX %"));
+        var maxSlider = new StyledSlider
+        {
+            Minimum = 0, Maximum = 100, Value = cfg.FanMaxPercent,
+            Width = 160, Height = 36, Suffix = "%", ShowLabel = true,
+            AccentColor = clrCorsair,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        maxSlider.ValueChanged += (_, _) =>
+        {
+            if (_config == null) return;
+            _config.Corsair.FanMaxPercent = (int)maxSlider.Value;
+            QueueSave();
+        };
+        maxRow.Children.Add(maxSlider);
+        reactivePanel.Children.Add(maxRow);
+
+        fanContent.Children.Add(reactivePanel);
+
+        content.Children.Add(MakeSeparator());
+
+        // ── Detected devices ──────────────────────────────────────────
+        var (dBar, dLabel) = MakeSectionHeader("Detected Devices");
+        content.Children.Add(WrapHeader(dBar, dLabel));
+
+        _corsairDeviceList = new ListBox
+        {
+            Height = 100,
+            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
+            BorderBrush = FindBrush("CardBorderBrush"),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(0, 0, 0, 0),
+            Foreground = FindBrush("TextPrimaryBrush"),
+            FontSize = 12,
+        };
+        content.Children.Add(_corsairDeviceList);
+
+        // ── Wire events ───────────────────────────────────────────────
+
+        lightModeCombo.SelectionChanged += (_, _) =>
+        {
+            if (_config == null) return;
+            _config.Corsair.LightSyncMode = lightModeCombo.SelectedIndex switch
+            {
+                1 => "static", 2 => "dreamview", 3 => "vu_reactive", _ => "off"
+            };
+            staticColorRow.Visibility = _config.Corsair.LightSyncMode == "static"
+                ? Visibility.Visible : Visibility.Collapsed;
+            QueueSave();
+        };
+
+        fanModeCombo.SelectionChanged += (_, _) =>
+        {
+            if (_config == null) return;
+            _config.Corsair.FanSyncMode = fanModeCombo.SelectedIndex == 1 ? "audio_reactive" : "manual";
+            manualPanel.Visibility = _config.Corsair.FanSyncMode != "audio_reactive"
+                ? Visibility.Visible : Visibility.Collapsed;
+            reactivePanel.Visibility = _config.Corsair.FanSyncMode == "audio_reactive"
+                ? Visibility.Visible : Visibility.Collapsed;
+            QueueSave();
+        };
+
+        fanEnableToggle.Checked += (_, _) =>
+        {
+            if (_config == null) return;
+            _config.Corsair.FanEnabled = true;
+            fanContent.Visibility = Visibility.Visible;
+            QueueSave();
+        };
+        fanEnableToggle.Unchecked += (_, _) =>
+        {
+            if (_config == null) return;
+            _config.Corsair.FanEnabled = false;
+            fanContent.Visibility = Visibility.Collapsed;
+            QueueSave();
+        };
+
+        enableToggle.Checked += (_, _) =>
+        {
+            if (_config == null) return;
+            _config.Corsair.Enabled = true;
+            content.Visibility = Visibility.Visible;
+            QueueSave();
+            if (_corsairSync != null)
+            {
+                _corsairSync.Start();
+                _ = LoadCorsairDevicesAndEffects();
+            }
+        };
+        enableToggle.Unchecked += (_, _) =>
+        {
+            if (_config == null) return;
+            _config.Corsair.Enabled = false;
+            content.Visibility = Visibility.Collapsed;
+            _corsairSync?.Stop();
+            if (_corsairStatusLabel != null) _corsairStatusLabel.Text = "Disabled";
+            QueueSave();
+        };
+
+        DevicePanel.Children.Add(card);
+
+        // If already enabled, kick off device discovery
+        if (cfg.Enabled && _corsairSync != null)
+            _ = LoadCorsairDevicesAndEffects();
+    }
+
+    private async Task LoadCorsairDevicesAndEffects()
+    {
+        if (_corsairSync == null || _corsairDeviceList == null) return;
+
+        await Task.Delay(800); // give Start() a moment to finish
+        var devices = await _corsairSync.GetDevicesAsync();
+        var effects  = await _corsairSync.GetEffectsAsync();
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            // Update status
+            if (_corsairStatusLabel != null)
+                _corsairStatusLabel.Text = _corsairSync.IsAvailable
+                    ? $"Connected — {devices.Count} device(s)"
+                    : "iCUE not detected";
+
+            // Populate device list
+            _corsairDeviceList.Items.Clear();
+            foreach (var dev in devices)
+            {
+                _corsairDeviceList.Items.Add(new TextBlock
+                {
+                    Text = $"{dev.Name}  ·  {dev.Type}  ·  {dev.Id}",
+                    FontSize = 11,
+                    Foreground = FindBrush("TextPrimaryBrush"),
+                    Padding = new Thickness(4, 2, 4, 2),
+                });
+            }
+            if (devices.Count == 0)
+                _corsairDeviceList.Items.Add(new TextBlock
+                {
+                    Text = "No devices found — make sure iCUE 5+ is running",
+                    FontSize = 11,
+                    Foreground = FindBrush("TextSecBrush"),
+                    Padding = new Thickness(4, 2, 4, 2),
+                });
+
+            // Populate effects ComboBox
+            if (_corsairEffectsCombo != null && effects.Count > 0)
+            {
+                var current = _corsairEffectsCombo.Text;
+                _corsairEffectsCombo.Items.Clear();
+                foreach (var e in effects) _corsairEffectsCombo.Items.Add(e);
+                if (!string.IsNullOrEmpty(current))
+                    _corsairEffectsCombo.SelectedItem = current;
+            }
+        });
     }
 
     private void SetDevicePanelDimmed(bool dreamActive)
