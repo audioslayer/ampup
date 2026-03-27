@@ -2018,10 +2018,17 @@ public partial class LightsView : UserControl
         // Link to Room Ambience
         _config.Ambience.LinkToLights = _linkToAmbienceCheck?.IsChecked ?? false;
 
+        // Only overwrite per-knob light configs when Per-Knob mode is active.
+        // When Global mode is on, the per-knob UI is hidden — writing back stale/default
+        // values would trash the saved colors and turn knobs black on Global disable.
+        bool globalActive = _globalEnableCheck?.IsChecked ?? false;
+
         for (int i = 0; i < 5; i++)
         {
             var light = _config.Lights.FirstOrDefault(l => l.Idx == i);
             if (light == null) continue;
+
+            if (globalActive) continue; // preserve per-knob config while Global is active
 
             light.Effect = _effectPickers[i].SelectedEffect;
 
