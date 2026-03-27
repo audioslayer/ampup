@@ -37,7 +37,7 @@ public partial class ButtonsView : UserControl
         ("Sleep", "power_sleep"), ("Lock", "power_lock"), ("Off", "power_off"),
         ("Restart", "power_restart"), ("Logoff", "power_logoff"), ("Hibernate", "power_hibernate"),
         ("Home Assistant: Toggle", "ha_toggle"), ("Home Assistant: Scene", "ha_scene"), ("Home Assistant: Service", "ha_service"),
-        ("Govee: Toggle", "govee_toggle"), ("Govee: Color", "govee_color"),
+        ("Govee: Toggle", "govee_toggle"), ("Govee: Color", "govee_color"), ("Govee: White Toggle", "govee_white_toggle"),
         ("OBS: Record", "obs_record"), ("OBS: Stream", "obs_stream"),
         ("OBS: Scene", "obs_scene"), ("OBS: Mute", "obs_mute"),
         ("VM: Mute Strip", "vm_mute_strip"), ("VM: Mute Bus", "vm_mute_bus"),
@@ -63,7 +63,7 @@ public partial class ButtonsView : UserControl
         { "power_sleep", "😴" }, { "power_lock", "🔒" }, { "power_off", "⏻" },
         { "power_restart", "🔄" }, { "power_logoff", "🚪" }, { "power_hibernate", "❄" },
         { "ha_toggle", "⚡" }, { "ha_scene", "🎬" }, { "ha_service", "⚙" },
-        { "govee_toggle", "◈" }, { "govee_color", "◉" },
+        { "govee_toggle", "◈" }, { "govee_color", "◉" }, { "govee_white_toggle", "◇" },
         { "obs_record", "●" }, { "obs_stream", "◉" },
         { "obs_scene", "🎬" }, { "obs_mute", "🔇" },
         { "vm_mute_strip", "🔇" }, { "vm_mute_bus", "🔇" },
@@ -103,6 +103,7 @@ public partial class ButtonsView : UserControl
         { "ha_service",         Color.FromRgb(0xAB, 0x47, 0xBC) },
         { "govee_toggle",       Color.FromRgb(0x66, 0xBB, 0x6A) },
         { "govee_color",        Color.FromRgb(0xAB, 0x47, 0xBC) },
+        { "govee_white_toggle", Color.FromRgb(0xEE, 0xEE, 0xEE) },
         { "obs_record",         Color.FromRgb(0xFF, 0x44, 0x44) },
         { "obs_stream",         Color.FromRgb(0xAB, 0x47, 0xBC) },
         { "obs_scene",          Color.FromRgb(0x29, 0xB6, 0xF6) },
@@ -355,8 +356,8 @@ public partial class ButtonsView : UserControl
         // For govee_color, path is "ip|hexcolor" — only show hex in path box
         if (action == "govee_color" && path.Contains('|'))
             return path.Split('|', 2)[1];
-        // For govee_toggle, path is just ip — no path box needed
-        if (action is "govee_toggle")
+        // For govee_toggle / govee_white_toggle, path is just ip — no path box needed
+        if (action is "govee_toggle" or "govee_white_toggle")
             return "";
         return path;
     }
@@ -953,7 +954,7 @@ public partial class ButtonsView : UserControl
     private void UpdateTapVisibility(int idx, string action)
     {
         bool isHaServiceAction = action == "ha_service";
-        bool isGoveeAction = action is "govee_toggle" or "govee_color";
+        bool isGoveeAction = action is "govee_toggle" or "govee_color" or "govee_white_toggle";
         bool isObsPathAction = action is "obs_scene" or "obs_mute";
         bool isVmPathAction = action is "vm_mute_strip" or "vm_mute_bus";
         _tapPathPanels[idx].Visibility = PathActions.Contains(action) || isHaServiceAction || action == "govee_color" || isObsPathAction || isVmPathAction ? Visibility.Visible : Visibility.Collapsed;
@@ -976,7 +977,7 @@ public partial class ButtonsView : UserControl
         StackPanel profilePanel, StackPanel powerPanel, StackPanel knobPanel, StackPanel goveeDevicePanel, string action)
     {
         bool isHaServiceAction = action == "ha_service";
-        bool isGoveeAction = action is "govee_toggle" or "govee_color";
+        bool isGoveeAction = action is "govee_toggle" or "govee_color" or "govee_white_toggle";
         bool isObsPathAction = action is "obs_scene" or "obs_mute";
         bool isVmPathAction = action is "vm_mute_strip" or "vm_mute_bus";
         pathPanel.Visibility = PathActions.Contains(action) || isHaServiceAction || action == "govee_color" || isObsPathAction || isVmPathAction ? Visibility.Visible : Visibility.Collapsed;
@@ -1233,6 +1234,7 @@ public partial class ButtonsView : UserControl
         { "ha_service",         "Call any Home Assistant service (format: domain.service:entity_id)" },
         { "govee_toggle",       "Toggle a Govee device on/off via LAN" },
         { "govee_color",        "Set a Govee device to a specific color (enter hex in path, e.g. FF0080)" },
+        { "govee_white_toggle", "Toggle white on/off — saves current color first, restores it on second press" },
         { "obs_record",         "Toggle OBS Studio recording on/off" },
         { "obs_stream",         "Toggle OBS Studio streaming on/off" },
         { "obs_scene",          "Switch to an OBS scene (enter scene name in path)" },
@@ -1293,7 +1295,7 @@ public partial class ButtonsView : UserControl
         => action is "ha_toggle" or "ha_scene" or "ha_service";
 
     private static bool IsGoveeAction(string? action)
-        => action is "govee_toggle" or "govee_color";
+        => action is "govee_toggle" or "govee_color" or "govee_white_toggle";
 
     private static bool IsObsAction(string? action)
         => action is "obs_record" or "obs_stream" or "obs_scene" or "obs_mute";
@@ -1310,7 +1312,7 @@ public partial class ButtonsView : UserControl
         ("Device",          new[] { "cycle_output", "cycle_input", "select_output", "select_input" }),
         ("System",          new[] { "macro", "switch_profile", "cycle_profile", "cycle_brightness", "quick_wheel" }),
         ("Power",           new[] { "power_sleep", "power_lock", "power_off", "power_restart", "power_logoff", "power_hibernate" }),
-        ("Integrations",    new[] { "ha_toggle", "ha_scene", "ha_service", "govee_toggle", "govee_color", "obs_record", "obs_stream", "obs_scene", "obs_mute", "vm_mute_strip", "vm_mute_bus" }),
+        ("Integrations",    new[] { "ha_toggle", "ha_scene", "ha_service", "govee_toggle", "govee_color", "govee_white_toggle", "obs_record", "obs_stream", "obs_scene", "obs_mute", "vm_mute_strip", "vm_mute_bus" }),
     };
 
     private static readonly Dictionary<string, (string Display, string Value)> ActionLookup =
@@ -1895,7 +1897,7 @@ public partial class ButtonsView : UserControl
 
     private static void SelectGoveeDevicePicker(ListPicker picker, string action, string path)
     {
-        if (action is not ("govee_toggle" or "govee_color") || string.IsNullOrEmpty(path))
+        if (action is not ("govee_toggle" or "govee_color" or "govee_white_toggle") || string.IsNullOrEmpty(path))
         {
             picker.SelectedIndex = -1;
             return;
@@ -1932,7 +1934,7 @@ public partial class ButtonsView : UserControl
         var action = GetComboActionValue(combo);
         if (action is "ha_toggle" or "ha_scene" or "select_output" or "select_input" or "mute_device")
             return combo.SelectedSubTag ?? "";
-        if (action is "govee_toggle")
+        if (action is "govee_toggle" or "govee_white_toggle")
             return goveePicker.SelectedTag as string ?? "";
         if (action is "govee_color")
         {

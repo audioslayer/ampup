@@ -54,6 +54,9 @@ public class ButtonHandler : IDisposable
     // Cycle state: tracks current index per button for cycle_output / cycle_input
     private readonly Dictionary<int, int> _cycleIndex = new();
 
+    // Govee white toggle: stores previous color per device IP so we can restore it
+    private static readonly Dictionary<string, (byte R, byte G, byte B)> _goveeWhiteSavedColors = new();
+
     // ── Events (forwarded from gesture engine) ──────────────────────
 
     public void SetHAIntegration(HAIntegration? ha) => _ha = ha;
@@ -321,11 +324,58 @@ public class ButtonHandler : IDisposable
                         }
                     }
                     break;
+                case "govee_white_toggle":
+                    // path = device IP — toggles between white and previous color
+                    if (!string.IsNullOrEmpty(path))
+                        _ = GoveeWhiteToggleAsync(path);
+                    break;
             }
         }
         catch (Exception ex)
         {
             Logger.Log($"ExecuteAction error ({action}): {ex.Message}");
+        }
+    }
+
+    // ── Govee white toggle ─────────────────────────────────────────────
+
+    private static async Task GoveeWhiteToggleAsync(string ip)
+    {
+        try
+        {
+            var status = await AmbienceSync.GetDeviceStatusAsync(ip);
+            if (status == null)
+            {
+                // Can't query state — just send white
+                Logger.Log($"govee_white_toggle: can't query {ip}, sending white");
+                await AmbienceSync.SendColorAsync(ip, 255, 255, 255);
+                return;
+            }
+
+            var (on, brightness, r, g, b, colorTempK) = status.Value;
+
+            // Check if currently white (or very close)
+            bool isWhite = r >= 250 && g >= 250 && b >= 250;
+
+            if (isWhite && _goveeWhiteSavedColors.TryGetValue(ip, out var saved))
+            {
+                // Restore saved color
+                await AmbienceSync.SendColorAsync(ip, saved.R, saved.G, saved.B);
+                _goveeWhiteSavedColors.Remove(ip);
+                Logger.Log($"govee_white_toggle: restored {ip} to #{saved.R:X2}{saved.G:X2}{saved.B:X2}");
+            }
+            else
+            {
+                // Save current color and set white
+                if (!isWhite)
+                    _goveeWhiteSavedColors[ip] = ((byte)r, (byte)g, (byte)b);
+                await AmbienceSync.SendColorAsync(ip, 255, 255, 255);
+                Logger.Log($"govee_white_toggle: set {ip} to white (saved #{r:X2}{g:X2}{b:X2})");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"govee_white_toggle error: {ex.Message}");
         }
     }
 

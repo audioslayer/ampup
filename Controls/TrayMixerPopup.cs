@@ -2660,13 +2660,7 @@ public class TrayMixerPopup : Window
         // Stop debounce timer first so no refresh fires after dispose
         try { _deviceRefreshDebounce?.Dispose(); } catch { }
         _deviceRefreshDebounce = null;
-        // Unregister notification client before disposing the enumerator
-        try
-        {
-            if (_deviceNotificationClient != null)
-                _enumerator.UnRegisterEndpointNotificationCallback(_deviceNotificationClient);
-        }
-        catch { }
+        // Notification client is cleaned up when enumerator is disposed
         try { _masterDevice?.Dispose(); } catch { }
         try { _enumerator.Dispose(); } catch { }
     }
