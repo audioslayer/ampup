@@ -73,6 +73,7 @@ public class CorsairConfig
     public int LightBrightness { get; set; } = 100; // 0-200%, boost for screen sync colors
     public string StaticColor { get; set; } = "#00E676";
     public string SelectedMural { get; set; } = "";
+    public bool SyncToGlobal { get; set; } = true; // Corsair follows Global tab effects
 }
 
 public class SerialConfig

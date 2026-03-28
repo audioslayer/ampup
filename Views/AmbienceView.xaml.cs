@@ -38,6 +38,7 @@ public partial class AmbienceView : UserControl
     // Corsair iCUE
     private CorsairSync? _corsairSync;
     private StackPanel? _corsairDeviceRows;
+    private DispatcherTimer? _corsairMusicTimer;
 
     // Room pattern engine — headless RgbController for rendering effects
     private RgbController? _roomRgb;
@@ -470,9 +471,52 @@ public partial class AmbienceView : UserControl
             return;
         }
 
+        // ── Sync to Global toggle ──
+        var goveeSyncMsg = new TextBlock
+        {
+            Text = "Following Global tab effects. Uncheck to control independently.",
+            FontSize = 11, FontStyle = FontStyles.Italic,
+            Foreground = FindBrush("TextSecBrush"),
+            Margin = new Thickness(0, 0, 0, 8),
+            Visibility = _config.Ambience.GoveeSyncToGlobal ? Visibility.Visible : Visibility.Collapsed,
+        };
+        var goveeDeviceContent = new StackPanel
+        {
+            Visibility = _config.Ambience.GoveeSyncToGlobal ? Visibility.Collapsed : Visibility.Visible,
+        };
+
+        var goveeSyncToggle = new CheckBox
+        {
+            Content = "Sync to Global",
+            IsChecked = _config.Ambience.GoveeSyncToGlobal,
+            FontSize = 12,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            Margin = new Thickness(0, 0, 0, 12),
+            ToolTip = "When enabled, this device follows the Global tab effects. Disable to control independently.",
+        };
+        goveeSyncToggle.Checked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.GoveeSyncToGlobal = true;
+            goveeSyncMsg.Visibility = Visibility.Visible;
+            goveeDeviceContent.Visibility = Visibility.Collapsed;
+            QueueSave();
+        };
+        goveeSyncToggle.Unchecked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.GoveeSyncToGlobal = false;
+            goveeSyncMsg.Visibility = Visibility.Collapsed;
+            goveeDeviceContent.Visibility = Visibility.Visible;
+            QueueSave();
+        };
+        stack.Children.Add(goveeSyncToggle);
+        stack.Children.Add(goveeSyncMsg);
+        stack.Children.Add(goveeDeviceContent);
+
         // ── Per-device controls ──
         var (devBar, devLabel) = MakeSectionHeader("DEVICES");
-        stack.Children.Add(WrapHeader(devBar, devLabel));
+        goveeDeviceContent.Children.Add(WrapHeader(devBar, devLabel));
 
         foreach (var govDev in _config.Ambience.GoveeDevices)
         {
@@ -546,7 +590,7 @@ public partial class AmbienceView : UserControl
             brightSlider.ValueChanged += (_, _) => { brightDebounce.Stop(); brightDebounce.Start(); };
             devRow.Children.Add(brightSlider);
 
-            stack.Children.Add(devRow);
+            goveeDeviceContent.Children.Add(devRow);
             _deviceControls[devConfig.Ip] = (onOff, brightSlider);
             _ = QueryDeviceStateAsync(devConfig.Ip, onOff, brightSlider);
         }
@@ -554,9 +598,9 @@ public partial class AmbienceView : UserControl
         // ── Scenes (Cloud API) ──
         if (_cloudApi != null && _cloudDevices.Count > 0)
         {
-            stack.Children.Add(MakeSeparator());
-            var (scBar, scLabel) = MakeSectionHeader("SCENES");
-            stack.Children.Add(WrapHeader(scBar, scLabel));
+            goveeDeviceContent.Children.Add(MakeSeparator());
+            var (scBar, scLabel) = MakeSectionHeader("LIGHT EFFECTS");
+            goveeDeviceContent.Children.Add(WrapHeader(scBar, scLabel));
 
             var pickerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
             pickerRow.Children.Add(MakeSubLabel("DEVICE"));
@@ -574,8 +618,8 @@ public partial class AmbienceView : UserControl
                     BuildGoveeSceneContent(_cloudDevices[idx]);
             };
             pickerRow.Children.Add(_sceneDevicePicker);
-            stack.Children.Add(pickerRow);
-            stack.Children.Add(_sceneContent);
+            goveeDeviceContent.Children.Add(pickerRow);
+            goveeDeviceContent.Children.Add(_sceneContent);
 
             if (_cloudDevices.Count > 0)
                 BuildGoveeSceneContent(_cloudDevices[0]);
@@ -599,11 +643,54 @@ public partial class AmbienceView : UserControl
 
         var corsairYellow = Color.FromRgb(0xFF, 0xD3, 0x00);
 
+        // ── Sync to Global toggle ──
+        var corsairSyncMsg = new TextBlock
+        {
+            Text = "Following Global tab effects. Uncheck to control independently.",
+            FontSize = 11, FontStyle = FontStyles.Italic,
+            Foreground = FindBrush("TextSecBrush"),
+            Margin = new Thickness(0, 0, 0, 8),
+            Visibility = _config.Corsair.SyncToGlobal ? Visibility.Visible : Visibility.Collapsed,
+        };
+        var corsairDeviceContent = new StackPanel
+        {
+            Visibility = _config.Corsair.SyncToGlobal ? Visibility.Collapsed : Visibility.Visible,
+        };
+
+        var corsairSyncToggle = new CheckBox
+        {
+            Content = "Sync to Global",
+            IsChecked = _config.Corsair.SyncToGlobal,
+            FontSize = 12,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            Margin = new Thickness(0, 0, 0, 12),
+            ToolTip = "When enabled, this device follows the Global tab effects. Disable to control independently.",
+        };
+        corsairSyncToggle.Checked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Corsair.SyncToGlobal = true;
+            corsairSyncMsg.Visibility = Visibility.Visible;
+            corsairDeviceContent.Visibility = Visibility.Collapsed;
+            QueueSave();
+        };
+        corsairSyncToggle.Unchecked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Corsair.SyncToGlobal = false;
+            corsairSyncMsg.Visibility = Visibility.Collapsed;
+            corsairDeviceContent.Visibility = Visibility.Visible;
+            QueueSave();
+        };
+        stack.Children.Add(corsairSyncToggle);
+        stack.Children.Add(corsairSyncMsg);
+        stack.Children.Add(corsairDeviceContent);
+
         // Brightness
         var (brBar, brLabel) = MakeSectionHeader("BRIGHTNESS");
         brBar.Background = new SolidColorBrush(corsairYellow);
         brLabel.Foreground = new SolidColorBrush(corsairYellow);
-        stack.Children.Add(WrapHeader(brBar, brLabel));
+        corsairDeviceContent.Children.Add(WrapHeader(brBar, brLabel));
 
         var corBrightRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
         var corBrightSlider = new StyledSlider
@@ -638,14 +725,41 @@ public partial class AmbienceView : UserControl
         };
         corBrightRow.Children.Add(corBrightSlider);
         corBrightRow.Children.Add(corBrightLabel);
-        stack.Children.Add(corBrightRow);
+        corsairDeviceContent.Children.Add(corBrightRow);
+
+        // Music Reactive
+        corsairDeviceContent.Children.Add(MakeSeparator());
+        var (musBar, musLabel) = MakeSectionHeader("MUSIC REACTIVE");
+        musBar.Background = new SolidColorBrush(corsairYellow);
+        musLabel.Foreground = new SolidColorBrush(corsairYellow);
+        corsairDeviceContent.Children.Add(WrapHeader(musBar, musLabel));
+
+        var musicCheck = new CheckBox
+        {
+            Content = "Enable Music Sync",
+            IsChecked = false,
+            FontSize = 12,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            Margin = new Thickness(0, 0, 0, 8),
+            ToolTip = "Drive Corsair LED colors from system audio frequency bands",
+        };
+        musicCheck.Checked += (_, _) =>
+        {
+            if (_loading || _corsairSync == null) return;
+            StartCorsairMusicSync();
+        };
+        musicCheck.Unchecked += (_, _) =>
+        {
+            StopCorsairMusicSync();
+        };
+        corsairDeviceContent.Children.Add(musicCheck);
 
         // Detected devices
-        stack.Children.Add(MakeSeparator());
+        corsairDeviceContent.Children.Add(MakeSeparator());
         var (devBar, devLabel) = MakeSectionHeader("DETECTED DEVICES");
         devBar.Background = new SolidColorBrush(corsairYellow);
         devLabel.Foreground = new SolidColorBrush(corsairYellow);
-        stack.Children.Add(WrapHeader(devBar, devLabel));
+        corsairDeviceContent.Children.Add(WrapHeader(devBar, devLabel));
 
         _corsairDeviceRows = new StackPanel();
         if (_corsairSync.IsAvailable && _corsairSync.Devices.Count > 0)
@@ -663,7 +777,7 @@ public partial class AmbienceView : UserControl
                 Margin = new Thickness(0, 4, 0, 4),
             });
         }
-        stack.Children.Add(_corsairDeviceRows);
+        corsairDeviceContent.Children.Add(_corsairDeviceRows);
     }
 
     private void BuildGoveeSceneContent(GoveeDeviceInfo device)
@@ -679,7 +793,7 @@ public partial class AmbienceView : UserControl
         if (hasMusic)
         {
             _sceneContent.Children.Add(MakeSeparator());
-            var (musBar, musLabel) = MakeSectionHeader("MUSIC MODE");
+            var (musBar, musLabel) = MakeSectionHeader("MUSIC REACTIVE");
             _sceneContent.Children.Add(WrapHeader(musBar, musLabel));
             BuildMusicSection(device, _sceneContent);
         }
@@ -1367,6 +1481,53 @@ public partial class AmbienceView : UserControl
         });
     }
 
+    // ── Corsair Music Reactive ─────────────────────────────────────
+
+    private void StartCorsairMusicSync()
+    {
+        if (_corsairMusicTimer != null) return;
+
+        // Ensure AudioAnalyzer is running
+        App.AudioAnalyzer?.Start();
+
+        _corsairMusicTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+        _corsairMusicTimer.Tick += (_, _) =>
+        {
+            var bands = App.AudioAnalyzer?.SmoothedBands;
+            if (bands == null || _corsairSync == null) return;
+
+            // Map 5 frequency bands to RGB color
+            float bass = bands[0] + bands[1];     // sub-bass + bass → warm/red
+            float mid = bands[2];                  // low-mid → green
+            float treble = bands[3] + bands[4];    // high-mid + treble → cool/blue
+
+            byte r = (byte)Math.Min(bass * 400, 255);
+            byte g = (byte)Math.Min(mid * 400, 255);
+            byte b = (byte)Math.Min(treble * 400, 255);
+
+            // Apply Corsair brightness scale
+            if (_config != null)
+            {
+                float boost = _config.Corsair.LightBrightness / 100f;
+                r = (byte)Math.Min(r * boost, 255);
+                g = (byte)Math.Min(g * boost, 255);
+                b = (byte)Math.Min(b * boost, 255);
+            }
+
+            _ = _corsairSync.SetStaticColorAllAsync(r, g, b);
+        };
+        _corsairMusicTimer.Start();
+        Logger.Log("Corsair music sync started");
+    }
+
+    private void StopCorsairMusicSync()
+    {
+        if (_corsairMusicTimer == null) return;
+        _corsairMusicTimer.Stop();
+        _corsairMusicTimer = null;
+        Logger.Log("Corsair music sync stopped");
+    }
+
     // ══════════════════════════════════════════════════════════════════
     // ██  CARD 3: SCENES & COLORS (Govee Cloud only)
     // ══════════════════════════════════════════════════════════════════
@@ -1481,7 +1642,7 @@ public partial class AmbienceView : UserControl
         if (hasMusic)
         {
             _sceneContent.Children.Add(MakeSeparator());
-            var (musBar, musLabel) = MakeSectionHeader("MUSIC MODE");
+            var (musBar, musLabel) = MakeSectionHeader("MUSIC REACTIVE");
             _sceneContent.Children.Add(WrapHeader(musBar, musLabel));
             BuildMusicSection(device, _sceneContent);
         }

@@ -54,6 +54,7 @@ public partial class App : Application
     /// </summary>
     public static readonly float[] KnobPositions = { 1f, 1f, 1f, 1f, 1f };
     public static RgbController? Rgb { get; private set; }
+    public static AudioAnalyzer? AudioAnalyzer { get; private set; }
     private readonly long[] _lastKnobUiTick = new long[5]; // throttle UI updates
     private readonly long[] _lastOsdTick = new long[5]; // throttle OSD updates
     private readonly int[] _lastOsdValue = { -1, -1, -1, -1, -1 }; // suppress OSD if value unchanged
@@ -111,6 +112,7 @@ public partial class App : Application
         _rgb = new RgbController();
         Rgb = _rgb;
         _audioAnalyzer = new AudioAnalyzer();
+        AudioAnalyzer = _audioAnalyzer;
         _rgb.SetAudioBandsProvider(() => _audioAnalyzer.SmoothedBands);
 
         // Ambience sync (Govee LAN)
