@@ -471,47 +471,20 @@ public partial class AmbienceView : UserControl
             return;
         }
 
-        // ── Sync to Global toggle ──
-        var goveeSyncMsg = new TextBlock
-        {
-            Text = "Following Global tab effects. Uncheck to control independently.",
-            FontSize = 11, FontStyle = FontStyles.Italic,
-            Foreground = FindBrush("TextSecBrush"),
-            Margin = new Thickness(0, 0, 0, 8),
-            Visibility = _config.Ambience.GoveeSyncToGlobal ? Visibility.Visible : Visibility.Collapsed,
-        };
+        // ── Sync to Global tile ──
         var goveeDeviceContent = new StackPanel
         {
             Visibility = _config.Ambience.GoveeSyncToGlobal ? Visibility.Collapsed : Visibility.Visible,
         };
-
-        var goveeSyncToggle = new CheckBox
-        {
-            Content = "Sync to Global",
-            IsChecked = _config.Ambience.GoveeSyncToGlobal,
-            FontSize = 12,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            Margin = new Thickness(0, 0, 0, 12),
-            ToolTip = "When enabled, this device follows the Global tab effects. Disable to control independently.",
-        };
-        goveeSyncToggle.Checked += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Ambience.GoveeSyncToGlobal = true;
-            goveeSyncMsg.Visibility = Visibility.Visible;
-            goveeDeviceContent.Visibility = Visibility.Collapsed;
-            QueueSave();
-        };
-        goveeSyncToggle.Unchecked += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Ambience.GoveeSyncToGlobal = false;
-            goveeSyncMsg.Visibility = Visibility.Collapsed;
-            goveeDeviceContent.Visibility = Visibility.Visible;
-            QueueSave();
-        };
-        stack.Children.Add(goveeSyncToggle);
-        stack.Children.Add(goveeSyncMsg);
+        stack.Children.Add(BuildSyncToGlobalTile(
+            _config.Ambience.GoveeSyncToGlobal,
+            isOn =>
+            {
+                if (_config == null) return;
+                _config.Ambience.GoveeSyncToGlobal = isOn;
+                goveeDeviceContent.Visibility = isOn ? Visibility.Collapsed : Visibility.Visible;
+                QueueSave();
+            }));
         stack.Children.Add(goveeDeviceContent);
 
         // ── Per-device controls ──
@@ -644,46 +617,19 @@ public partial class AmbienceView : UserControl
         var corsairYellow = Color.FromRgb(0xFF, 0xD3, 0x00);
 
         // ── Sync to Global toggle ──
-        var corsairSyncMsg = new TextBlock
-        {
-            Text = "Following Global tab effects. Uncheck to control independently.",
-            FontSize = 11, FontStyle = FontStyles.Italic,
-            Foreground = FindBrush("TextSecBrush"),
-            Margin = new Thickness(0, 0, 0, 8),
-            Visibility = _config.Corsair.SyncToGlobal ? Visibility.Visible : Visibility.Collapsed,
-        };
         var corsairDeviceContent = new StackPanel
         {
             Visibility = _config.Corsair.SyncToGlobal ? Visibility.Collapsed : Visibility.Visible,
         };
-
-        var corsairSyncToggle = new CheckBox
-        {
-            Content = "Sync to Global",
-            IsChecked = _config.Corsair.SyncToGlobal,
-            FontSize = 12,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            Margin = new Thickness(0, 0, 0, 12),
-            ToolTip = "When enabled, this device follows the Global tab effects. Disable to control independently.",
-        };
-        corsairSyncToggle.Checked += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Corsair.SyncToGlobal = true;
-            corsairSyncMsg.Visibility = Visibility.Visible;
-            corsairDeviceContent.Visibility = Visibility.Collapsed;
-            QueueSave();
-        };
-        corsairSyncToggle.Unchecked += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Corsair.SyncToGlobal = false;
-            corsairSyncMsg.Visibility = Visibility.Collapsed;
-            corsairDeviceContent.Visibility = Visibility.Visible;
-            QueueSave();
-        };
-        stack.Children.Add(corsairSyncToggle);
-        stack.Children.Add(corsairSyncMsg);
+        stack.Children.Add(BuildSyncToGlobalTile(
+            _config.Corsair.SyncToGlobal,
+            isOn =>
+            {
+                if (_config == null) return;
+                _config.Corsair.SyncToGlobal = isOn;
+                corsairDeviceContent.Visibility = isOn ? Visibility.Collapsed : Visibility.Visible;
+                QueueSave();
+            }));
         stack.Children.Add(corsairDeviceContent);
 
         // Brightness
@@ -1951,6 +1897,72 @@ public partial class AmbienceView : UserControl
     }
 
     // ── Room preset/color helpers ──────────────────────────────────
+
+    private Border BuildSyncToGlobalTile(bool isActive, Action<bool> onToggle)
+    {
+        var accent = Color.FromRgb(0x69, 0xF0, 0xAE);
+        var tile = new Border
+        {
+            Width = 82, Height = 58,
+            CornerRadius = new CornerRadius(6),
+            Background = isActive
+                ? new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B))
+                : new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+            BorderBrush = isActive
+                ? new SolidColorBrush(accent)
+                : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(0, 0, 0, 12),
+            Cursor = Cursors.Hand,
+            ToolTip = isActive
+                ? "Following Global effects — click to control independently"
+                : "Click to sync with Global tab effects",
+        };
+        var content = new StackPanel
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        content.Children.Add(new TextBlock
+        {
+            Text = "🔗", FontSize = 20,
+            HorizontalAlignment = HorizontalAlignment.Center,
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = "Global", FontSize = 9,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Foreground = isActive
+                ? new SolidColorBrush(accent)
+                : new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
+            Margin = new Thickness(0, 2, 0, 0),
+        });
+        tile.Child = content;
+
+        tile.MouseEnter += (_, _) =>
+        {
+            if (!isActive)
+            {
+                tile.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+                tile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, accent.R, accent.G, accent.B));
+            }
+        };
+        tile.MouseLeave += (_, _) =>
+        {
+            if (!isActive)
+            {
+                tile.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+                tile.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+            }
+        };
+        tile.MouseLeftButtonUp += (_, _) =>
+        {
+            onToggle(!isActive);
+            RebuildRoomTabContent(); // rebuild to update tile state
+        };
+
+        return tile;
+    }
 
     private Border MakePresetTile(string name, Brush tileBg, Color[] colors, WrapPanel wrap)
     {
