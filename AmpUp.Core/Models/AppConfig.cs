@@ -277,6 +277,7 @@ public class AmbienceConfig
     public bool WarmToneShift { get; set; } = false;
     public string GoveeApiKey { get; set; } = "";
     public ScreenSyncConfig ScreenSync { get; set; } = new();
+    public bool GameModeEnabled { get; set; } = false;
 }
 
 public class GoveeDeviceConfig

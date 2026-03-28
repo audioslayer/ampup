@@ -22,6 +22,10 @@ public partial class App : Application
     private MainWindow _mainWindow = null!;
     private System.Threading.Timer? _mutePollingTimer;
     private System.Threading.Timer? _autoSwitchTimer;
+    private System.Threading.Timer? _gameModeTimer;
+    private bool _gameModeActive;
+    private bool _gameModePreDreamView;        // was DreamView enabled before game mode?
+    private string _gameModePrevCorsairMode = "off"; // Corsair LightSyncMode before game mode
     private DateTime _connectedAt = DateTime.MinValue;
     private Forms.NotifyIcon? _trayIcon;
     private bool _isConnected;
@@ -209,6 +213,9 @@ public partial class App : Application
         _autoSwitcher.OnProfileSwitchRequested += profileName =>
             Dispatcher.Invoke(() => SwitchToProfile(profileName));
         _autoSwitchTimer = new System.Threading.Timer(_ => _autoSwitcher?.Poll(), null, 2000, 1500);
+
+        // Game Mode — auto-enable screen sync when fullscreen game detected
+        _gameModeTimer = new System.Threading.Timer(_ => PollGameMode(), null, 3000, 2000);
 
         // Start serial reader
         _serial = new SerialReader(_config.Serial.Port, _config.Serial.Baud);
@@ -664,6 +671,7 @@ public partial class App : Application
         // Stop timers first to prevent further COM/serial calls during shutdown
         _mutePollingTimer?.Dispose();
         _autoSwitchTimer?.Dispose();
+        _gameModeTimer?.Dispose();
         _duckingEngine?.Dispose();
         Dispatcher.Invoke(() => Shutdown());
     }
@@ -1135,6 +1143,54 @@ public partial class App : Application
     public void SwitchToProfile(string profileName)
     {
         HandleProfileSwitch(profileName);
+    }
+
+    // ── Game Mode ─────────────────────────────────────────────────────
+
+    private void PollGameMode()
+    {
+        if (!_config.Ambience.GameModeEnabled) return;
+
+        bool isFullscreen = NativeMethods.IsForegroundFullscreen();
+
+        if (isFullscreen && !_gameModeActive)
+        {
+            // Entering game mode — save current settings and enable screen sync
+            _gameModeActive = true;
+            _gameModePreDreamView = _config.Ambience.ScreenSync.Enabled;
+            _gameModePrevCorsairMode = _config.Corsair.LightSyncMode;
+
+            Logger.Log("GameMode: fullscreen detected — enabling screen sync");
+
+            // Enable DreamView for Govee
+            if (!_config.Ambience.ScreenSync.Enabled)
+            {
+                _config.Ambience.ScreenSync.Enabled = true;
+                _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            }
+
+            // Set Corsair to Screen Sync mode
+            if (_config.Corsair.Enabled)
+                _config.Corsair.LightSyncMode = "dreamview";
+        }
+        else if (!isFullscreen && _gameModeActive)
+        {
+            // Leaving game mode — restore previous settings
+            _gameModeActive = false;
+
+            Logger.Log("GameMode: fullscreen exited — restoring previous settings");
+
+            // Restore DreamView state
+            if (!_gameModePreDreamView)
+            {
+                _config.Ambience.ScreenSync.Enabled = false;
+                _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            }
+
+            // Restore Corsair mode
+            if (_config.Corsair.Enabled)
+                _config.Corsair.LightSyncMode = _gameModePrevCorsairMode;
+        }
     }
 
     private void HandleProfileSwitch(string profileName)
@@ -1895,6 +1951,7 @@ public partial class App : Application
         }
         _mutePollingTimer?.Dispose();
         _autoSwitchTimer?.Dispose();
+        _gameModeTimer?.Dispose();
         _duckingEngine?.Dispose();
         _osdOverlay?.Close();
         _radialWheel?.Close();

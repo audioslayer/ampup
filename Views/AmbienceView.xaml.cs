@@ -1145,6 +1145,31 @@ public partial class AmbienceView : UserControl
             Margin = new Thickness(0, 0, 0, 12),
         });
 
+        // ── Game Mode toggle ──
+        var gameModeRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+        var gameModeToggle = new CheckBox
+        {
+            Content = "Game Mode — auto-enable when fullscreen app detected",
+            IsChecked = _config?.Ambience.GameModeEnabled ?? false,
+            FontSize = 12,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            ToolTip = "Automatically turns on Screen Sync for Govee and Corsair when a fullscreen game is running, and restores your previous settings when you exit",
+        };
+        gameModeToggle.Checked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.GameModeEnabled = true;
+            QueueSave();
+        };
+        gameModeToggle.Unchecked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.GameModeEnabled = false;
+            QueueSave();
+        };
+        gameModeRow.Children.Add(gameModeToggle);
+        stack.Children.Add(gameModeRow);
+
         stack.Children.Add(MakeSeparator());
 
         // ── Settings row 1: Monitor + FPS + Zones ──
