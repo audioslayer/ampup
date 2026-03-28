@@ -92,7 +92,9 @@ public class AmbienceSync : IDisposable
         lock (_lock) cfg = _config;
 
         // Only mirror LEDs when "Link to Room Ambience" is enabled
+        // Skip if DreamView screen sync is active — it takes priority over LED mirroring
         if (!cfg.GoveeEnabled || !cfg.LinkToLights || cfg.GoveeDevices.Count == 0) return;
+        if (cfg.ScreenSync.Enabled) return;
 
         foreach (var device in cfg.GoveeDevices)
         {
