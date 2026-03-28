@@ -284,16 +284,16 @@ public partial class AmbienceView : UserControl
         headerRow.Children.Add(headerBar);
         headerRow.Children.Add(headerLabel);
 
-        // Sync to Turn Up toggle
+        // Sync to Amp Up toggle
         var syncCheck = new CheckBox
         {
-            Content = "Sync to Turn Up",
+            Content = "Sync to Amp Up",
             IsChecked = _config!.Ambience.LinkToLights,
             FontSize = 12,
             Foreground = FindBrush("TextPrimaryBrush"),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(16, 0, 0, 0),
-            ToolTip = "Mirror Turn Up LED effects to all room lights (Govee + Corsair)",
+            ToolTip = "Mirror Amp Up LED effects to all room lights (Govee + Corsair)",
         };
         syncCheck.Checked += (_, _) =>
         {
@@ -315,7 +315,7 @@ public partial class AmbienceView : UserControl
         // ── Description ──
         stack.Children.Add(new TextBlock
         {
-            Text = "Set a color for all your room lights, or sync them to your Turn Up knob effects.",
+            Text = "Set a color for all your room lights, or sync them to your Amp Up knob effects.",
             Style = FindStyle("SecondaryText"),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 12),
@@ -547,7 +547,7 @@ public partial class AmbienceView : UserControl
             Foreground = FindBrush("TextPrimaryBrush"),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(16, 0, 0, 0),
-            ToolTip = "When a fullscreen game is detected, screen colors sync to Govee and Corsair. Returns to Turn Up LED sync when you exit the game.",
+            ToolTip = "When a fullscreen game is detected, screen colors sync to Govee and Corsair. Returns to Amp Up LED sync when you exit the game.",
         };
         gameModeToggle.Checked += (_, _) =>
         {
@@ -587,7 +587,7 @@ public partial class AmbienceView : UserControl
         // ── Description ──
         stack.Children.Add(new TextBlock
         {
-            Text = "Automatically syncs screen colors to Govee and Corsair when a fullscreen game is detected. Returns to Turn Up LED sync when you exit.",
+            Text = "Automatically syncs screen colors to Govee and Corsair when a fullscreen game is detected. Returns to Amp Up LED sync when you exit.",
             Style = FindStyle("SecondaryText"),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 12),
