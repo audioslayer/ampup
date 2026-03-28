@@ -259,9 +259,6 @@ public partial class AmbienceView : UserControl
             DevicePanel.Children.Add(_scenesCard);
         }
 
-        // Dim Devices + Scenes cards when Screen Sync is active
-        if (_config.Ambience.ScreenSync.Enabled)
-            SetDevicePanelDimmed(true);
     }
 
     // ══════════════════════════════════════════════════════════════════
@@ -281,56 +278,21 @@ public partial class AmbienceView : UserControl
         card.Child = stack;
 
         // ── Header row ──
-        var (headerBar, headerLabel) = MakeSectionHeader("SCREEN SYNC");
+        var (headerBar, headerLabel) = MakeSectionHeader("SCREEN SYNC — Game Mode");
         var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
         headerRow.Children.Add(headerBar);
         headerRow.Children.Add(headerLabel);
 
-        var enableToggle = new CheckBox
-        {
-            Content = "Enable",
-            IsChecked = cfg.Enabled,
-            FontSize = 12,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(16, 0, 0, 0),
-            ToolTip = "Capture screen colors and sync to all ambient devices (Govee + Corsair)",
-        };
-        enableToggle.Checked += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Ambience.ScreenSync.Enabled = true;
-            // Auto-set Corsair to screen sync mode
-            if (_config.Corsair.Enabled)
-                _config.Corsair.LightSyncMode = "dreamview";
-            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-            SetDevicePanelDimmed(true);
-            QueueSave();
-        };
-        enableToggle.Unchecked += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Ambience.ScreenSync.Enabled = false;
-            // Revert Corsair to Turn Up LED sync
-            if (_config.Corsair.Enabled)
-                _config.Corsair.LightSyncMode = "vu_reactive";
-            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-            if (_dreamStatusLabel != null) _dreamStatusLabel.Text = "Stopped";
-            SetDevicePanelDimmed(false);
-            QueueSave();
-        };
-        headerRow.Children.Add(enableToggle);
-
-        // Game Mode toggle
+        // Game Mode toggle — only way to activate screen sync
         var gameModeToggle = new CheckBox
         {
-            Content = "Game Mode",
+            Content = "Enable",
             IsChecked = _config!.Ambience.GameModeEnabled,
             FontSize = 12,
             Foreground = FindBrush("TextPrimaryBrush"),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(16, 0, 0, 0),
-            ToolTip = "Auto-enable Screen Sync when a fullscreen game is detected",
+            ToolTip = "When a fullscreen game is detected, screen colors sync to Govee and Corsair. Returns to Turn Up LED sync when you exit the game.",
         };
         gameModeToggle.Checked += (_, _) =>
         {
@@ -342,15 +304,35 @@ public partial class AmbienceView : UserControl
         {
             if (_loading || _config == null) return;
             _config.Ambience.GameModeEnabled = false;
+            // If screen sync was on from game mode, turn it off
+            if (_config.Ambience.ScreenSync.Enabled)
+            {
+                _config.Ambience.ScreenSync.Enabled = false;
+                if (_config.Corsair.Enabled)
+                    _config.Corsair.LightSyncMode = "vu_reactive";
+                _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            }
             QueueSave();
         };
         headerRow.Children.Add(gameModeToggle);
+
+        // Status indicator
+        var statusBadge = new TextBlock
+        {
+            Text = cfg.Enabled ? "ACTIVE" : "Standby",
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = cfg.Enabled ? Brush("#00E676") : FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(16, 0, 0, 0),
+        };
+        headerRow.Children.Add(statusBadge);
         stack.Children.Add(headerRow);
 
         // ── Description ──
         stack.Children.Add(new TextBlock
         {
-            Text = "Captures your screen in real time and syncs colors to Govee lights and Corsair iCUE devices.",
+            Text = "Automatically syncs screen colors to Govee and Corsair when a fullscreen game is detected. Returns to Turn Up LED sync when you exit.",
             Style = FindStyle("SecondaryText"),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 12),
