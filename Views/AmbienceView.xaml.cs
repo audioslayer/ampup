@@ -1582,8 +1582,34 @@ public partial class AmbienceView : UserControl
         staticColorRow.Children.Add(colorSwatch);
         content.Children.Add(staticColorRow);
 
-        // Note: iCUE SDK v4 does not expose murals/effects API — lighting is controlled
-        // directly via LED colors based on the selected mode above.
+        // Brightness slider
+        var brightnessRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+        brightnessRow.Children.Add(MakeSubLabel("BRIGHTNESS"));
+        var brightnessSlider = new Slider
+        {
+            Width = 140, Minimum = 50, Maximum = 200,
+            Value = cfg.LightBrightness,
+            TickFrequency = 10, IsSnapToTickEnabled = true,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var brightnessLabel = new TextBlock
+        {
+            Text = $"{cfg.LightBrightness}%",
+            FontSize = 12, Width = 40,
+            Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+        brightnessSlider.ValueChanged += (_, e) =>
+        {
+            if (_config == null) return;
+            _config.Corsair.LightBrightness = (int)e.NewValue;
+            brightnessLabel.Text = $"{(int)e.NewValue}%";
+            QueueSave();
+        };
+        brightnessRow.Children.Add(brightnessSlider);
+        brightnessRow.Children.Add(brightnessLabel);
+        content.Children.Add(brightnessRow);
 
         content.Children.Add(MakeSeparator());
 

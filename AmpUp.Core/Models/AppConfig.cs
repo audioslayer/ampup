@@ -55,6 +55,7 @@ public class CorsairConfig
     public int FanMinPercent { get; set; } = 20;   // audio-reactive floor
     public int FanMaxPercent { get; set; } = 100;  // audio-reactive ceiling
     public string LightSyncMode { get; set; } = "off"; // "off" | "static" | "dreamview" | "vu_reactive"
+    public int LightBrightness { get; set; } = 100; // 0-200%, boost for screen sync colors
     public string StaticColor { get; set; } = "#00E676";
     public string SelectedMural { get; set; } = "";
 }

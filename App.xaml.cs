@@ -143,12 +143,13 @@ public partial class App : Application
             {
                 // Build a 45-byte RGB array from zone colors (map zones to 15 LEDs)
                 var frame = new byte[45];
+                float boost = _config.Corsair.LightBrightness / 100f;
                 for (int i = 0; i < 15; i++)
                 {
                     var zone = zones[i * zones.Length / 15];
-                    frame[i * 3]     = zone.R;
-                    frame[i * 3 + 1] = zone.G;
-                    frame[i * 3 + 2] = zone.B;
+                    frame[i * 3]     = (byte)Math.Min(zone.R * boost, 255);
+                    frame[i * 3 + 1] = (byte)Math.Min(zone.G * boost, 255);
+                    frame[i * 3 + 2] = (byte)Math.Min(zone.B * boost, 255);
                 }
                 _corsairSync.SyncColors(frame);
             }
