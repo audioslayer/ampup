@@ -43,6 +43,21 @@ public class AppConfig
     public bool AutoCheckUpdates { get; set; } = true;
     public bool HasShownAudioGuide { get; set; } = false;
     public CorsairConfig Corsair { get; set; } = new();
+    public List<DeviceGroup> Groups { get; set; } = new();
+}
+
+public class DeviceGroup
+{
+    public string Name { get; set; } = "";
+    public string Color { get; set; } = "#69F0AE"; // accent color for the group
+    public List<GroupDevice> Devices { get; set; } = new();
+}
+
+public class GroupDevice
+{
+    public string Type { get; set; } = ""; // "govee" | "corsair" | "ha"
+    public string DeviceId { get; set; } = ""; // IP for govee, device ID for corsair, entity_id for HA
+    public string Name { get; set; } = ""; // friendly name
 }
 
 public class CorsairConfig

@@ -163,6 +163,7 @@ public partial class App : Application
         _buttons.OnQuickWheelOpen += HandleQuickWheelOpen;
         _buttons.OnQuickWheelClose += HandleQuickWheelClose;
         _buttons.OnRoomToggle += HandleRoomToggle;
+        _buttons.OnGroupToggle += HandleGroupToggle;
 
         // Start Home Assistant integration
         _ha = new HAIntegration(_config.HomeAssistant);
@@ -922,6 +923,64 @@ public partial class App : Application
                     Dispatcher.BeginInvoke(() => _mainWindow?.UpdateGoveeDeviceBrightness(null, norm, pctRoom > 0));
                 }
             }
+            else if (knob.Target.StartsWith("group:", StringComparison.OrdinalIgnoreCase))
+            {
+                // Device Group — unified brightness control for grouped devices
+                if (Environment.TickCount64 - _startupTick >= 8000
+                    && (DateTime.UtcNow - _connectedAt).TotalMilliseconds >= 2000)
+                {
+                    var groupName = knob.Target.Substring(6);
+                    var group = _config.Groups.FirstOrDefault(g => g.Name == groupName);
+                    if (group != null)
+                    {
+                        float norm = e.Value / 1023f;
+                        int pct = (int)Math.Round(norm * 100);
+                        foreach (var dev in group.Devices)
+                        {
+                            switch (dev.Type)
+                            {
+                                case "govee":
+                                    if (pct == 0)
+                                    {
+                                        var gc = _config.Ambience.GoveeDevices.FirstOrDefault(d => d.Ip == dev.DeviceId);
+                                        if (gc != null) gc.PoweredOn = false;
+                                        _ = AmbienceSync.SendTurnAsync(dev.DeviceId, false);
+                                    }
+                                    else
+                                    {
+                                        var gc = _config.Ambience.GoveeDevices.FirstOrDefault(d => d.Ip == dev.DeviceId);
+                                        if (gc != null && !gc.PoweredOn)
+                                        {
+                                            gc.PoweredOn = true;
+                                            _ = AmbienceSync.SendTurnAsync(dev.DeviceId, true);
+                                        }
+                                        AmbienceSync.PauseSync(dev.DeviceId, 5);
+                                        _ = AmbienceSync.SendBrightnessAsync(dev.DeviceId, pct);
+                                    }
+                                    break;
+                                case "corsair":
+                                    if (_corsairSync?.IsAvailable == true)
+                                    {
+                                        _config.Corsair.LightBrightness = (int)(pct * 2.0);
+                                    }
+                                    break;
+                                case "ha":
+                                    if (_ha != null && _ha.IsAvailable)
+                                    {
+                                        float haVal = norm;
+                                        _haLastValues[e.Idx] = ($"ha_light:{dev.DeviceId}", haVal);
+                                        if (!_haThrottleActive[e.Idx])
+                                        {
+                                            _haThrottleActive[e.Idx] = true;
+                                            _ = SendHaThrottledAsync(e.Idx);
+                                        }
+                                    }
+                                    break;
+                            }
+                        }
+                    }
+                }
+            }
             else if (knob.Target.Equals("govee", StringComparison.OrdinalIgnoreCase))
             {
                 // Skip during startup restore to avoid turning on Govee devices on app launch
@@ -1089,6 +1148,7 @@ public partial class App : Application
             "room_lights" => "Room Lights",
             "output_device" => "Output Device",
             "input_device" => "Input Device",
+            _ when knob.Target.StartsWith("group:") => knob.Target.Substring(6),
             _ when knob.Target.StartsWith("vm_strip:") => $"VM Strip {knob.Target.Split(':')[1]}",
             _ when knob.Target.StartsWith("vm_bus:") => $"VM Bus {knob.Target.Split(':')[1]}",
             "corsair_pump_fan" => "Pump Fan",
@@ -1104,6 +1164,7 @@ public partial class App : Application
             "room_lights" => "LightbulbGroup",
             "govee" => "Palette",
             _ when knob.Target.StartsWith("govee:") => "Palette",
+            _ when knob.Target.StartsWith("group:") => "LightbulbGroup",
             "spotify" => "MusicNote",
             "discord" => "Headphones",
             _ when knob.Target.StartsWith("ha_") => "Home",
@@ -1366,6 +1427,47 @@ public partial class App : Application
         }
 
         Logger.Log($"RoomToggle: lights {(_roomLightsOn ? "ON" : "OFF")}");
+    }
+
+    private readonly Dictionary<string, bool> _groupStates = new();
+
+    private void HandleGroupToggle(string groupName)
+    {
+        var group = _config.Groups.FirstOrDefault(g => g.Name == groupName);
+        if (group == null) return;
+
+        bool currentlyOn = _groupStates.GetValueOrDefault(groupName, true);
+        bool newState = !currentlyOn;
+        _groupStates[groupName] = newState;
+
+        foreach (var dev in group.Devices)
+        {
+            switch (dev.Type)
+            {
+                case "govee":
+                    var gc = _config.Ambience.GoveeDevices.FirstOrDefault(d => d.Ip == dev.DeviceId);
+                    if (gc != null) gc.PoweredOn = newState;
+                    _ = AmbienceSync.SendTurnAsync(dev.DeviceId, newState);
+                    break;
+                case "corsair":
+                    if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
+                    {
+                        if (newState)
+                            _config.Corsair.LightSyncMode = "vu_reactive";
+                        else
+                        {
+                            _config.Corsair.LightSyncMode = "static";
+                            _ = _corsairSync.SetStaticColorAllAsync(0, 0, 0);
+                        }
+                    }
+                    break;
+                case "ha":
+                    if (_ha != null && _ha.IsAvailable)
+                        _ = _ha.ToggleEntityAsync(dev.DeviceId);
+                    break;
+            }
+        }
+        Logger.Log($"GroupToggle: '{groupName}' → {(newState ? "ON" : "OFF")}");
     }
 
     private void HandleBrightnessCycle(int pct)

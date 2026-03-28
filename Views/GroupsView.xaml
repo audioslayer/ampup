@@ -1,0 +1,21 @@
+<UserControl x:Class="AmpUp.Views.GroupsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Top bar -->
+        <Border Grid.Row="0" Style="{StaticResource CardPanel}" Margin="0,0,0,12">
+            <StackPanel x:Name="TopBar" />
+        </Border>
+
+        <!-- Main content area -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel x:Name="GroupPanel" Margin="0,0,0,24" />
+        </ScrollViewer>
+    </Grid>
+</UserControl>

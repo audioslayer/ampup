@@ -65,6 +65,8 @@ public class ButtonHandler : IDisposable
 
     /// <summary>Fires when room_toggle action is triggered — toggle all room lights.</summary>
     public event Action? OnRoomToggle;
+    /// <summary>Fires with group name when group_toggle action is triggered — toggle a device group.</summary>
+    public event Action<string>? OnGroupToggle;
     /// <summary>Fires with button index when quick_wheel is triggered.</summary>
     public event Action<int>? OnQuickWheelOpen;
     /// <summary>Fires with button index when the quick_wheel button is released.</summary>
@@ -265,6 +267,11 @@ public class ButtonHandler : IDisposable
                 case "room_toggle":
                     // Toggle ALL room lights (Govee + Corsair) on/off
                     OnRoomToggle?.Invoke();
+                    break;
+                case "group_toggle":
+                    // path = group name
+                    if (!string.IsNullOrEmpty(path))
+                        OnGroupToggle?.Invoke(path);
                     break;
                 case "govee_toggle":
                     // path = device IP

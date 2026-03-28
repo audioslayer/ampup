@@ -19,6 +19,7 @@ public partial class MainWindow : FluentWindow
     private readonly AmbienceView _ambienceView = new();
     private readonly BindingsView _bindingsView = new();
     private readonly OsdView _osdView = new();
+    private readonly GroupsView _groupsView = new();
 
     private System.Windows.Controls.Button? _activeNavButton;
     private System.Windows.Controls.Border? _activeNavBar;
@@ -209,6 +210,7 @@ public partial class MainWindow : FluentWindow
         _bindingsView.LoadConfig(_config);
         _osdView.OnRequestRefresh = () => RefreshViews();
         _osdView.LoadConfig(_config, saveHandler);
+        _groupsView.LoadConfig(_config, saveHandler);
 
         // Show/hide Ambience nav based on Govee or Corsair enabled state
         bool ambienceEnabled = _config.Ambience.GoveeEnabled || _config.Ambience.GoveeCloudEnabled || _config.Corsair.Enabled;
@@ -250,6 +252,15 @@ public partial class MainWindow : FluentWindow
     private void NavSettings_Click(object sender, RoutedEventArgs e) => NavigateTo(_settingsView, NavSettings);
     private void NavBindings_Click(object sender, RoutedEventArgs e) => NavigateTo(_bindingsView, NavBindings);
     private void NavOsd_Click(object sender, RoutedEventArgs e) => NavigateTo(_osdView, NavOsd);
+    private void NavGroups_Click(object sender, RoutedEventArgs e)
+    {
+        _groupsView.LoadConfig(_config, cfg =>
+        {
+            _config = cfg;
+            _onConfigChanged?.Invoke(cfg);
+        });
+        NavigateTo(_groupsView, NavGroups);
+    }
 
     public void NavigateToSettings() => NavigateTo(_settingsView, NavSettings);
 
@@ -286,6 +297,7 @@ public partial class MainWindow : FluentWindow
         { NavLights,    NavLightsBar },
         { NavAmbience,  NavAmbienceBar },
         { NavOsd,       NavOsdBar },
+        { NavGroups,    NavGroupsBar },
         { NavSettings,  NavSettingsBar },
         { NavBindings,  NavBindingsBar },
     };
@@ -1319,6 +1331,7 @@ public partial class MainWindow : FluentWindow
     public void SetCorsairSync(CorsairSync corsairSync)
     {
         _ambienceView.SetCorsairSync(corsairSync);
+        _groupsView.SetCorsairSync(corsairSync);
     }
 
     public void UpdateGoveeDeviceBrightness(string? ip, float normalized, bool poweredOn)

@@ -293,6 +293,25 @@
                                     </StackPanel>
                                 </Grid>
                             </Button>
+                            <Button x:Name="NavGroups" Style="{StaticResource NavButton}" Click="NavGroups_Click"
+                                    ToolTip="Device Groups — organize Govee, Corsair, and HA devices">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="0" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border x:Name="NavGroupsBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
+                                            Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
+                                            Visibility="Collapsed" Margin="0" />
+                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                                        <TextBlock Text="&#xE335;" FontFamily="{StaticResource MaterialSymbols}"
+                                                   FontSize="22" Foreground="{StaticResource TextSecBrush}"
+                                                   HorizontalAlignment="Center" TextAlignment="Center" />
+                                        <TextBlock x:Name="NavGroupsLabel" Text="Groups" FontSize="9" Foreground="{StaticResource TextSecBrush}"
+                                                   HorizontalAlignment="Center" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
                         </StackPanel>
                     </DockPanel>
                 </Grid>

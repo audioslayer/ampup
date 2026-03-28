@@ -979,6 +979,17 @@ public partial class MixerView : UserControl
                     }
                 }
 
+                // Device Groups
+                if (config.Groups.Count > 0)
+                {
+                    foreach (var group in config.Groups)
+                    {
+                        var groupColor = Color.FromRgb(0x69, 0xF0, 0xAE);
+                        try { groupColor = (Color)ColorConverter.ConvertFromString(group.Color); } catch { }
+                        picker.AddItem(group.Name, $"group:{group.Name}", "▣", groupColor, "Groups");
+                    }
+                }
+
                 // Room Lights (all Govee + Corsair together)
                 if (goveeEnabled || corsairEnabled)
                 {

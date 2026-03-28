@@ -38,6 +38,7 @@ public partial class ButtonsView : UserControl
         ("Restart", "power_restart"), ("Logoff", "power_logoff"), ("Hibernate", "power_hibernate"),
         ("Home Assistant: Toggle", "ha_toggle"), ("Home Assistant: Scene", "ha_scene"), ("Home Assistant: Service", "ha_service"),
         ("Room: Toggle All", "room_toggle"),
+        ("Group: Toggle", "group_toggle"),
         ("Govee: Toggle", "govee_toggle"), ("Govee: Color", "govee_color"), ("Govee: White Toggle", "govee_white_toggle"),
         ("OBS: Record", "obs_record"), ("OBS: Stream", "obs_stream"),
         ("OBS: Scene", "obs_scene"), ("OBS: Mute", "obs_mute"),
@@ -65,6 +66,7 @@ public partial class ButtonsView : UserControl
         { "power_restart", "🔄" }, { "power_logoff", "🚪" }, { "power_hibernate", "❄" },
         { "ha_toggle", "⚡" }, { "ha_scene", "🎬" }, { "ha_service", "⚙" },
         { "room_toggle", "💡" },
+        { "group_toggle", "▣" },
         { "govee_toggle", "◈" }, { "govee_color", "◉" }, { "govee_white_toggle", "◇" },
         { "obs_record", "●" }, { "obs_stream", "◉" },
         { "obs_scene", "🎬" }, { "obs_mute", "🔇" },
@@ -104,6 +106,7 @@ public partial class ButtonsView : UserControl
         { "ha_scene",           Color.FromRgb(0xFF, 0xA7, 0x26) },
         { "ha_service",         Color.FromRgb(0xAB, 0x47, 0xBC) },
         { "room_toggle",        Color.FromRgb(0x69, 0xF0, 0xAE) },
+        { "group_toggle",      Color.FromRgb(0x69, 0xF0, 0xAE) },
         { "govee_toggle",       Color.FromRgb(0x66, 0xBB, 0x6A) },
         { "govee_color",        Color.FromRgb(0xAB, 0x47, 0xBC) },
         { "govee_white_toggle", Color.FromRgb(0xEE, 0xEE, 0xEE) },
@@ -202,6 +205,14 @@ public partial class ButtonsView : UserControl
     private readonly StackPanel[] _dblGoveeDevicePanels = new StackPanel[5];
     private readonly ListPicker[] _holdGoveeDevicePickers = new ListPicker[5];
     private readonly StackPanel[] _holdGoveeDevicePanels = new StackPanel[5];
+
+    // Device group pickers (tap/double/hold)
+    private readonly ListPicker[] _tapGroupPickers = new ListPicker[5];
+    private readonly StackPanel[] _tapGroupPanels = new StackPanel[5];
+    private readonly ListPicker[] _dblGroupPickers = new ListPicker[5];
+    private readonly StackPanel[] _dblGroupPanels = new StackPanel[5];
+    private readonly ListPicker[] _holdGroupPickers = new ListPicker[5];
+    private readonly StackPanel[] _holdGroupPanels = new StackPanel[5];
 
     private List<(string Id, string Name, bool IsOutput)> _audioDevices = new();
     private HAIntegration? _ha;
@@ -746,6 +757,12 @@ public partial class ButtonsView : UserControl
             _tapGoveeDevicePickers[i] = tapGoveePicker;
             tapSection.Children.Add(tapGoveePanel);
 
+            var (tapGroupPanel, tapGroupPicker) = MakeListPickerRow("DEVICE GROUP");
+            tapGroupPicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+            _tapGroupPanels[i] = tapGroupPanel;
+            _tapGroupPickers[i] = tapGroupPicker;
+            tapSection.Children.Add(tapGroupPanel);
+
             Grid.SetRow(tapSection, 2);
             grid.Children.Add(tapSection);
 
@@ -1236,6 +1253,7 @@ public partial class ButtonsView : UserControl
         { "ha_scene",           "Activate a Home Assistant scene" },
         { "ha_service",         "Call any Home Assistant service (format: domain.service:entity_id)" },
         { "room_toggle",        "Toggle all room lights on/off (Govee + Corsair)" },
+        { "group_toggle",      "Toggle a device group on/off" },
         { "govee_toggle",       "Toggle a Govee device on/off via LAN" },
         { "govee_color",        "Set a Govee device to a specific color (enter hex in path, e.g. FF0080)" },
         { "govee_white_toggle", "Toggle white on/off — saves current color first, restores it on second press" },
@@ -1316,7 +1334,7 @@ public partial class ButtonsView : UserControl
         ("Device",          new[] { "cycle_output", "cycle_input", "select_output", "select_input" }),
         ("System",          new[] { "macro", "switch_profile", "cycle_profile", "cycle_brightness", "quick_wheel" }),
         ("Power",           new[] { "power_sleep", "power_lock", "power_off", "power_restart", "power_logoff", "power_hibernate" }),
-        ("Integrations",    new[] { "room_toggle", "ha_toggle", "ha_scene", "ha_service", "govee_toggle", "govee_color", "govee_white_toggle", "obs_record", "obs_stream", "obs_scene", "obs_mute", "vm_mute_strip", "vm_mute_bus" }),
+        ("Integrations",    new[] { "group_toggle", "room_toggle", "ha_toggle", "ha_scene", "ha_service", "govee_toggle", "govee_color", "govee_white_toggle", "obs_record", "obs_stream", "obs_scene", "obs_mute", "vm_mute_strip", "vm_mute_bus" }),
     };
 
     private static readonly Dictionary<string, (string Display, string Value)> ActionLookup =
