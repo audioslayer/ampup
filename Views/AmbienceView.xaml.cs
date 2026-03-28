@@ -1822,9 +1822,24 @@ public partial class AmbienceView : UserControl
             _roomColor2 = capturedColors[capturedColors.Length > 1 ? capturedColors.Length - 1 : 0];
             _roomActivePreset = name;
 
-            // Send primary color to all room devices
-            SendRoomColor(_roomColor1.R, _roomColor1.G, _roomColor1.B);
-            RefreshSceneContent();
+            // If an effect is running, update its colors instead of stopping it
+            if (_roomRgb != null && _activePattern != null && _activePattern != "__sync__"
+                && Enum.TryParse<LightEffect>(_activePattern, true, out var eff))
+            {
+                _roomRgb.UpdateGlobalConfig(new GlobalLightConfig
+                {
+                    Enabled = true, Effect = eff,
+                    R = _roomColor1.R, G = _roomColor1.G, B = _roomColor1.B,
+                    R2 = _roomColor2.R, G2 = _roomColor2.G, B2 = _roomColor2.B,
+                    EffectSpeed = 50,
+                });
+            }
+            else
+            {
+                // No effect running — send static color
+                SendRoomColor(_roomColor1.R, _roomColor1.G, _roomColor1.B);
+            }
+            RebuildRoomTabContent();
         };
 
         return tile;
@@ -1875,7 +1890,22 @@ public partial class AmbienceView : UserControl
                 pill.Background = new SolidColorBrush(Color.FromArgb(0x33, c.R, c.G, c.B));
                 pill.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, c.R, c.G, c.B));
                 _roomActivePreset = null;
-                if (!isSecondary) SendRoomColor(c.R, c.G, c.B);
+                // Update running effect colors or send static
+                if (_roomRgb != null && _activePattern != null && _activePattern != "__sync__"
+                    && Enum.TryParse<LightEffect>(_activePattern, true, out var eff2))
+                {
+                    _roomRgb.UpdateGlobalConfig(new GlobalLightConfig
+                    {
+                        Enabled = true, Effect = eff2,
+                        R = _roomColor1.R, G = _roomColor1.G, B = _roomColor1.B,
+                        R2 = _roomColor2.R, G2 = _roomColor2.G, B2 = _roomColor2.B,
+                        EffectSpeed = 50,
+                    });
+                }
+                else if (!isSecondary)
+                {
+                    SendRoomColor(c.R, c.G, c.B);
+                }
             }
         };
 
