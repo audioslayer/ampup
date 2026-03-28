@@ -1895,7 +1895,7 @@ public partial class AmbienceView : UserControl
             }
             foreach (UIElement child in DevicePanel.Children)
             {
-                if (child == _dreamActiveBanner || child == _dreamViewCard)
+                if (child == _dreamActiveBanner || child == _dreamViewCard || child == _corsairCard)
                     continue;
                 child.Opacity = 0.3;
                 child.IsEnabled = false;
