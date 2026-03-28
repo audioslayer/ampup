@@ -294,6 +294,7 @@ public class AmbienceConfig
     public string GoveeApiKey { get; set; } = "";
     public ScreenSyncConfig ScreenSync { get; set; } = new();
     public bool GameModeEnabled { get; set; } = false;
+    public bool GoveeSyncToGlobal { get; set; } = true; // Govee follows Global tab effects
 }
 
 public class GoveeDeviceConfig

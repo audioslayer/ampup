@@ -689,6 +689,8 @@ public partial class AmbienceView : UserControl
     // ██  CARD 2: SCREEN SYNC
     // ══════════════════════════════════════════════════════════════════
 
+    private bool _screenSyncExpanded;
+
     private Border BuildScreenSyncCard()
     {
         var cfg = _config!.Ambience.ScreenSync;
@@ -701,13 +703,27 @@ public partial class AmbienceView : UserControl
         var stack = new StackPanel();
         card.Child = stack;
 
-        // ── Header row ──
+        // ── Collapsible content panel ──
+        var contentPanel = new StackPanel { Visibility = _screenSyncExpanded ? Visibility.Visible : Visibility.Collapsed };
+
+        // ── Header row (always visible, clickable to expand/collapse) ──
         var (headerBar, headerLabel) = MakeSectionHeader("SCREEN SYNC — Game Mode");
-        var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+        var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 0), Cursor = Cursors.Hand };
         headerRow.Children.Add(headerBar);
         headerRow.Children.Add(headerLabel);
 
-        // Game Mode toggle — only way to activate screen sync
+        // Expand/collapse chevron
+        var chevron = new TextBlock
+        {
+            Text = _screenSyncExpanded ? "▾" : "▸",
+            FontSize = 12,
+            Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+        headerRow.Children.Add(chevron);
+
+        // Game Mode toggle
         var gameModeToggle = new CheckBox
         {
             Content = "Enable",
@@ -715,8 +731,8 @@ public partial class AmbienceView : UserControl
             FontSize = 12,
             Foreground = FindBrush("TextPrimaryBrush"),
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(16, 0, 0, 0),
-            ToolTip = "When a fullscreen game is detected, screen colors sync to Govee and Corsair. Returns to Amp Up LED sync when you exit the game.",
+            Margin = new Thickness(12, 0, 0, 0),
+            ToolTip = "Auto-enable screen sync when a fullscreen game is detected",
         };
         gameModeToggle.Checked += (_, _) =>
         {
@@ -728,7 +744,6 @@ public partial class AmbienceView : UserControl
         {
             if (_loading || _config == null) return;
             _config.Ambience.GameModeEnabled = false;
-            // If screen sync was on from game mode, turn it off
             if (_config.Ambience.ScreenSync.Enabled)
             {
                 _config.Ambience.ScreenSync.Enabled = false;
@@ -740,7 +755,7 @@ public partial class AmbienceView : UserControl
         };
         headerRow.Children.Add(gameModeToggle);
 
-        // Status indicator
+        // Status badge
         var statusBadge = new TextBlock
         {
             Text = cfg.Enabled ? "ACTIVE" : "Standby",
@@ -748,12 +763,27 @@ public partial class AmbienceView : UserControl
             FontWeight = FontWeights.SemiBold,
             Foreground = cfg.Enabled ? Brush("#00E676") : FindBrush("TextSecBrush"),
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(16, 0, 0, 0),
+            Margin = new Thickness(12, 0, 0, 0),
         };
         headerRow.Children.Add(statusBadge);
+
+        // Click header to expand/collapse
+        headerRow.MouseLeftButtonUp += (_, _) =>
+        {
+            _screenSyncExpanded = !_screenSyncExpanded;
+            contentPanel.Visibility = _screenSyncExpanded ? Visibility.Visible : Visibility.Collapsed;
+            chevron.Text = _screenSyncExpanded ? "▾" : "▸";
+        };
         stack.Children.Add(headerRow);
 
-        // ── Description ──
+        // ── Content (collapsed by default) ──
+        contentPanel.Margin = new Thickness(0, 10, 0, 0);
+
+        // All remaining content goes into the collapsible panel
+        // We redirect 'stack' to point at contentPanel from here on
+        stack.Children.Add(contentPanel);
+        stack = contentPanel;
+
         stack.Children.Add(new TextBlock
         {
             Text = "Automatically syncs screen colors to Govee and Corsair when a fullscreen game is detected. Returns to Amp Up LED sync when you exit.",
