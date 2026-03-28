@@ -408,7 +408,7 @@ public partial class AmbienceView : UserControl
         brightRow.Children.Add(MakeSubLabel("ROOM BRIGHTNESS"));
         var brightSlider = new StyledSlider
         {
-            Minimum = 1, Maximum = 100, Value = _config.Ambience.BrightnessScale,
+            Minimum = 0, Maximum = 100, Value = _config.Ambience.BrightnessScale,
             Width = 180, Height = 35,
             Suffix = "%",
             AccentColor = ThemeManager.Accent,
@@ -419,14 +419,37 @@ public partial class AmbienceView : UserControl
             brightDebounce.Stop();
             if (_config == null) return;
             int pct = (int)brightSlider.Value;
-            _config.Ambience.BrightnessScale = pct;
+            _config.Ambience.BrightnessScale = Math.Max(pct, 1); // store at least 1 for sync math
 
-            // Send brightness to all Govee devices
+            // 0% = turn off all room lights
+            if (pct == 0)
+            {
+                if (_config.Ambience.GoveeEnabled)
+                {
+                    foreach (var dev in _config.Ambience.GoveeDevices)
+                    {
+                        if (string.IsNullOrWhiteSpace(dev.Ip)) continue;
+                        dev.PoweredOn = false;
+                        _ = AmbienceSync.SendTurnAsync(dev.Ip, false);
+                    }
+                }
+                if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
+                    _ = _corsairSync.SetStaticColorAllAsync(0, 0, 0);
+                QueueSave();
+                return;
+            }
+
+            // Send brightness to all Govee devices (turn on if needed)
             if (_config.Ambience.GoveeEnabled)
             {
                 foreach (var dev in _config.Ambience.GoveeDevices)
                 {
-                    if (string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn) continue;
+                    if (string.IsNullOrWhiteSpace(dev.Ip)) continue;
+                    if (!dev.PoweredOn)
+                    {
+                        dev.PoweredOn = true;
+                        _ = AmbienceSync.SendTurnAsync(dev.Ip, true);
+                    }
                     AmbienceSync.PauseSync(dev.Ip, 5);
                     await AmbienceSync.SendBrightnessAsync(dev.Ip, pct);
                 }
