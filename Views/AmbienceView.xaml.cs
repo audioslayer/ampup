@@ -279,7 +279,7 @@ public partial class AmbienceView : UserControl
         card.Child = stack;
 
         // ── Toggle row: [AMP UP] [MUSIC REACTIVE] [SCREEN SYNC] [STATUS] ──
-        var toggleRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+        var toggleRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8), HorizontalAlignment = HorizontalAlignment.Center };
 
         // Amp Up sync tile
         bool syncActive = _activePattern == "__sync__";
@@ -342,8 +342,6 @@ public partial class AmbienceView : UserControl
         };
         toggleRow.Children.Add(expandChevron);
 
-        stack.Children.Add(toggleRow);
-
         // ── Pill-style tab bar (Global / Govee / Corsair) ──
         var accent = ThemeManager.Accent;
         var tabNames = new[] { "GLOBAL", "GOVEE", "CORSAIR" };
@@ -387,6 +385,7 @@ public partial class AmbienceView : UserControl
             SetRoomTabActive(tabBorders[i], i == _roomTabIndex, accent);
         toggleBar.Child = tabRow;
         stack.Children.Add(toggleBar);
+        stack.Children.Add(toggleRow);
 
         _roomTabContent = new StackPanel();
         stack.Children.Add(_roomTabContent);
