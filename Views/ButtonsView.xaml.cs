@@ -37,6 +37,7 @@ public partial class ButtonsView : UserControl
         ("Sleep", "power_sleep"), ("Lock", "power_lock"), ("Off", "power_off"),
         ("Restart", "power_restart"), ("Logoff", "power_logoff"), ("Hibernate", "power_hibernate"),
         ("Home Assistant: Toggle", "ha_toggle"), ("Home Assistant: Scene", "ha_scene"), ("Home Assistant: Service", "ha_service"),
+        ("Room: Toggle All", "room_toggle"),
         ("Govee: Toggle", "govee_toggle"), ("Govee: Color", "govee_color"), ("Govee: White Toggle", "govee_white_toggle"),
         ("OBS: Record", "obs_record"), ("OBS: Stream", "obs_stream"),
         ("OBS: Scene", "obs_scene"), ("OBS: Mute", "obs_mute"),
@@ -63,6 +64,7 @@ public partial class ButtonsView : UserControl
         { "power_sleep", "😴" }, { "power_lock", "🔒" }, { "power_off", "⏻" },
         { "power_restart", "🔄" }, { "power_logoff", "🚪" }, { "power_hibernate", "❄" },
         { "ha_toggle", "⚡" }, { "ha_scene", "🎬" }, { "ha_service", "⚙" },
+        { "room_toggle", "💡" },
         { "govee_toggle", "◈" }, { "govee_color", "◉" }, { "govee_white_toggle", "◇" },
         { "obs_record", "●" }, { "obs_stream", "◉" },
         { "obs_scene", "🎬" }, { "obs_mute", "🔇" },
@@ -101,6 +103,7 @@ public partial class ButtonsView : UserControl
         { "ha_toggle",          Color.FromRgb(0x26, 0xC6, 0xDA) },
         { "ha_scene",           Color.FromRgb(0xFF, 0xA7, 0x26) },
         { "ha_service",         Color.FromRgb(0xAB, 0x47, 0xBC) },
+        { "room_toggle",        Color.FromRgb(0x69, 0xF0, 0xAE) },
         { "govee_toggle",       Color.FromRgb(0x66, 0xBB, 0x6A) },
         { "govee_color",        Color.FromRgb(0xAB, 0x47, 0xBC) },
         { "govee_white_toggle", Color.FromRgb(0xEE, 0xEE, 0xEE) },
@@ -1232,6 +1235,7 @@ public partial class ButtonsView : UserControl
         { "ha_toggle",          "Toggle a Home Assistant entity on/off" },
         { "ha_scene",           "Activate a Home Assistant scene" },
         { "ha_service",         "Call any Home Assistant service (format: domain.service:entity_id)" },
+        { "room_toggle",        "Toggle all room lights on/off (Govee + Corsair)" },
         { "govee_toggle",       "Toggle a Govee device on/off via LAN" },
         { "govee_color",        "Set a Govee device to a specific color (enter hex in path, e.g. FF0080)" },
         { "govee_white_toggle", "Toggle white on/off — saves current color first, restores it on second press" },
@@ -1312,7 +1316,7 @@ public partial class ButtonsView : UserControl
         ("Device",          new[] { "cycle_output", "cycle_input", "select_output", "select_input" }),
         ("System",          new[] { "macro", "switch_profile", "cycle_profile", "cycle_brightness", "quick_wheel" }),
         ("Power",           new[] { "power_sleep", "power_lock", "power_off", "power_restart", "power_logoff", "power_hibernate" }),
-        ("Integrations",    new[] { "ha_toggle", "ha_scene", "ha_service", "govee_toggle", "govee_color", "govee_white_toggle", "obs_record", "obs_stream", "obs_scene", "obs_mute", "vm_mute_strip", "vm_mute_bus" }),
+        ("Integrations",    new[] { "room_toggle", "ha_toggle", "ha_scene", "ha_service", "govee_toggle", "govee_color", "govee_white_toggle", "obs_record", "obs_stream", "obs_scene", "obs_mute", "vm_mute_strip", "vm_mute_bus" }),
     };
 
     private static readonly Dictionary<string, (string Display, string Value)> ActionLookup =

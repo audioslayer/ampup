@@ -37,7 +37,8 @@ public partial class MixerView : UserControl
         { "ha_cover", "Home Assistant: Cover" },
         { "apps", "App Group" },
         { "led_brightness", "LED Brightness" },
-        { "govee", "Govee" }
+        { "govee", "Govee" },
+        { "room_lights", "Room Lights" }
     };
 
     // Per-channel control arrays
@@ -976,6 +977,13 @@ public partial class MixerView : UserControl
                         var key = haKey; // capture for closure
                         picker.RegisterSubMenu(key, () => GetHASubItems(key));
                     }
+                }
+
+                // Room Lights (all Govee + Corsair together)
+                if (goveeEnabled || corsairEnabled)
+                {
+                    var clrRoom = Color.FromRgb(0x69, 0xF0, 0xAE);
+                    picker.AddItem("Room Lights", "room_lights", "💡", clrRoom, "Room Lighting");
                 }
 
                 if (goveeEnabled)

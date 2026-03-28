@@ -63,6 +63,8 @@ public class ButtonHandler : IDisposable
     public void SetObsIntegration(ObsIntegration? obs) => _obs = obs;
     public void SetVoiceMeeterIntegration(VoiceMeeterIntegration? vm) => _vm = vm;
 
+    /// <summary>Fires when room_toggle action is triggered — toggle all room lights.</summary>
+    public event Action? OnRoomToggle;
     /// <summary>Fires with button index when quick_wheel is triggered.</summary>
     public event Action<int>? OnQuickWheelOpen;
     /// <summary>Fires with button index when the quick_wheel button is released.</summary>
@@ -259,6 +261,10 @@ public class ButtonHandler : IDisposable
                             _ = _ha.ToggleEntityAsync(path);
                         }
                     }
+                    break;
+                case "room_toggle":
+                    // Toggle ALL room lights (Govee + Corsair) on/off
+                    OnRoomToggle?.Invoke();
                     break;
                 case "govee_toggle":
                     // path = device IP

@@ -162,6 +162,7 @@ public partial class App : Application
         _buttons.OnBrightnessCycle += HandleBrightnessCycle;
         _buttons.OnQuickWheelOpen += HandleQuickWheelOpen;
         _buttons.OnQuickWheelClose += HandleQuickWheelClose;
+        _buttons.OnRoomToggle += HandleRoomToggle;
 
         // Start Home Assistant integration
         _ha = new HAIntegration(_config.HomeAssistant);
@@ -884,6 +885,43 @@ public partial class App : Application
                 _config.LedBrightness = pct;
                 _rgb.SetBrightness(pct);
             }
+            else if (knob.Target.Equals("room_lights", StringComparison.OrdinalIgnoreCase))
+            {
+                // Room Lights — unified brightness for Govee + Corsair
+                if (Environment.TickCount64 - _startupTick >= 8000
+                    && (DateTime.UtcNow - _connectedAt).TotalMilliseconds >= 2000)
+                {
+                    float norm = e.Value / 1023f;
+                    int pctRoom = (int)Math.Round(norm * 100);
+
+                    if (pctRoom == 0)
+                    {
+                        // Turn off all room lights
+                        foreach (var dev in _config.Ambience.GoveeDevices)
+                        {
+                            if (string.IsNullOrWhiteSpace(dev.Ip)) continue;
+                            dev.PoweredOn = false;
+                            _ = AmbienceSync.SendTurnAsync(dev.Ip, false);
+                        }
+                        if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
+                            _ = _corsairSync.SetStaticColorAllAsync(0, 0, 0);
+                    }
+                    else
+                    {
+                        // Set brightness on all Govee devices (turn on if needed)
+                        _ambienceSync?.EnsureDevicesPoweredOn();
+                        _ambienceSync?.SetBrightness(norm);
+
+                        // Scale Corsair brightness
+                        if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
+                        {
+                            _config.Corsair.LightBrightness = (int)(pctRoom * 2.0);
+                        }
+                    }
+                    _config.Ambience.BrightnessScale = Math.Max(pctRoom, 1);
+                    Dispatcher.BeginInvoke(() => _mainWindow?.UpdateGoveeDeviceBrightness(null, norm, pctRoom > 0));
+                }
+            }
             else if (knob.Target.Equals("govee", StringComparison.OrdinalIgnoreCase))
             {
                 // Skip during startup restore to avoid turning on Govee devices on app launch
@@ -1048,6 +1086,7 @@ public partial class App : Application
             "apps" => "App Group",
             "monitor" => "Monitor",
             "led_brightness" => "LED Brightness",
+            "room_lights" => "Room Lights",
             "output_device" => "Output Device",
             "input_device" => "Input Device",
             _ when knob.Target.StartsWith("vm_strip:") => $"VM Strip {knob.Target.Split(':')[1]}",
@@ -1062,6 +1101,7 @@ public partial class App : Application
             "mic" => "Microphone",
             "monitor" => "Monitor",
             "led_brightness" => "Palette",
+            "room_lights" => "LightbulbGroup",
             "govee" => "Palette",
             _ when knob.Target.StartsWith("govee:") => "Palette",
             "spotify" => "MusicNote",
@@ -1295,6 +1335,37 @@ public partial class App : Application
                 _osdOverlay!.ShowProfileSwitch(profileName, iconCfg, _config);
             });
         }
+    }
+
+    private bool _roomLightsOn = true;
+
+    private void HandleRoomToggle()
+    {
+        _roomLightsOn = !_roomLightsOn;
+
+        // Toggle all Govee devices
+        foreach (var dev in _config.Ambience.GoveeDevices)
+        {
+            if (string.IsNullOrWhiteSpace(dev.Ip)) continue;
+            dev.PoweredOn = _roomLightsOn;
+            _ = AmbienceSync.SendTurnAsync(dev.Ip, _roomLightsOn);
+        }
+
+        // Toggle Corsair (black = off, restore last color = on)
+        if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
+        {
+            if (_roomLightsOn)
+            {
+                // Re-send Turn Up frames or static color will resume naturally
+            }
+            else
+            {
+                _ = _corsairSync.SetStaticColorAllAsync(0, 0, 0);
+                _config.Corsair.LightSyncMode = "static"; // prevent frames overwriting black
+            }
+        }
+
+        Logger.Log($"RoomToggle: lights {(_roomLightsOn ? "ON" : "OFF")}");
     }
 
     private void HandleBrightnessCycle(int pct)
