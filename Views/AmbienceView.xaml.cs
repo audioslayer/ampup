@@ -38,7 +38,7 @@ public partial class AmbienceView : UserControl
     private Border? _corsairCard;
     private TextBlock? _corsairStatusLabel;
     private ListBox? _corsairDeviceList;
-    private ComboBox? _corsairEffectsCombo;
+    // _corsairEffectsCombo removed — iCUE SDK v4 has no effects/murals API
 
     // Navigation callback (set by MainWindow to navigate to Settings)
     public Action? NavigateToSettings { get; set; }
@@ -1507,8 +1507,8 @@ public partial class AmbienceView : UserControl
         };
         lightModeCombo.Items.Add("Off");
         lightModeCombo.Items.Add("Static Color");
-        lightModeCombo.Items.Add("DreamView Sync");
-        lightModeCombo.Items.Add("VU Reactive");
+        lightModeCombo.Items.Add("Screen Sync");
+        lightModeCombo.Items.Add("Turn Up Sync");
         lightModeRow.Children.Add(lightModeCombo);
         content.Children.Add(lightModeRow);
 
@@ -1557,40 +1557,8 @@ public partial class AmbienceView : UserControl
         staticColorRow.Children.Add(colorSwatch);
         content.Children.Add(staticColorRow);
 
-        // Effects / Murals ComboBox
-        var effectRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-        effectRow.Children.Add(MakeSubLabel("MURAL"));
-        _corsairEffectsCombo = new ComboBox
-        {
-            Width = 200, Height = 28,
-            ToolTip = "iCUE effects / murals (populated after enabling)",
-        };
-        if (!string.IsNullOrEmpty(cfg.SelectedMural))
-            _corsairEffectsCombo.Items.Add(cfg.SelectedMural);
-
-        _corsairEffectsCombo.SelectionChanged += (_, _) =>
-        {
-            if (_config == null || _corsairEffectsCombo.SelectedItem == null) return;
-            _config.Corsair.SelectedMural = _corsairEffectsCombo.SelectedItem.ToString() ?? "";
-            QueueSave();
-        };
-        effectRow.Children.Add(_corsairEffectsCombo);
-
-        var applyEffectBtn = new Button
-        {
-            Content = "Apply",
-            Padding = new Thickness(10, 4, 10, 4),
-            Margin = new Thickness(8, 0, 0, 0),
-            FontSize = 12,
-            ToolTip = "Apply selected mural/effect to all iCUE devices",
-        };
-        applyEffectBtn.Click += async (_, _) =>
-        {
-            if (_corsairSync == null || _corsairEffectsCombo.SelectedItem == null) return;
-            await _corsairSync.ApplyEffectAsync(_corsairEffectsCombo.SelectedItem.ToString() ?? "");
-        };
-        effectRow.Children.Add(applyEffectBtn);
-        content.Children.Add(effectRow);
+        // Note: iCUE SDK v4 does not expose murals/effects API — lighting is controlled
+        // directly via LED colors based on the selected mode above.
 
         content.Children.Add(MakeSeparator());
 
@@ -1825,7 +1793,6 @@ public partial class AmbienceView : UserControl
 
         await Task.Delay(800); // give Start() a moment to finish
         var devices = await _corsairSync.GetDevicesAsync();
-        var effects  = await _corsairSync.GetEffectsAsync();
 
         _ = Dispatcher.BeginInvoke(() =>
         {
@@ -1856,15 +1823,7 @@ public partial class AmbienceView : UserControl
                     Padding = new Thickness(4, 2, 4, 2),
                 });
 
-            // Populate effects ComboBox
-            if (_corsairEffectsCombo != null && effects.Count > 0)
-            {
-                var current = _corsairEffectsCombo.Text;
-                _corsairEffectsCombo.Items.Clear();
-                foreach (var e in effects) _corsairEffectsCombo.Items.Add(e);
-                if (!string.IsNullOrEmpty(current))
-                    _corsairEffectsCombo.SelectedItem = current;
-            }
+            // Effects API not available in iCUE SDK v4 — murals removed
         });
     }
 

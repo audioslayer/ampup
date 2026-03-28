@@ -115,12 +115,40 @@ public partial class App : Application
 
         // Corsair iCUE sync
         _corsairSync = new CorsairSync();
-        _rgb.OnFrameReady += frame => { if (_corsairSync?.IsAvailable == true) _corsairSync.SyncColors(frame); };
+        _rgb.OnFrameReady += frame =>
+        {
+            if (_corsairSync?.IsAvailable != true || !_config.Corsair.Enabled) return;
+            var mode = _config.Corsair.LightSyncMode;
+            if (mode == "off") return;
+            // In "static" mode, colors are set once via UI — don't overwrite with Turn Up frames
+            // In "dreamview" mode, colors come from DreamSyncController — don't overwrite
+            // Only sync Turn Up LED frames in default (Turn Up sync) or "vu_reactive" modes
+            if (mode != "static" && mode != "dreamview")
+                _corsairSync.SyncColors(frame);
+        };
         if (_config.Corsair.Enabled)
             _corsairSync.Start();
 
         // DreamView / Screen Sync
         _dreamSync = new DreamSyncController(_config.Ambience.ScreenSync, _config.Ambience, new WindowsScreenCapture());
+        _dreamSync.OnZoneColors += zones =>
+        {
+            // Forward DreamView screen colors to Corsair when in dreamview mode
+            if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled
+                && _config.Corsair.LightSyncMode == "dreamview")
+            {
+                // Build a 45-byte RGB array from zone colors (map zones to 15 LEDs)
+                var frame = new byte[45];
+                for (int i = 0; i < 15; i++)
+                {
+                    var zone = zones[i * zones.Length / 15];
+                    frame[i * 3]     = zone.R;
+                    frame[i * 3 + 1] = zone.G;
+                    frame[i * 3 + 2] = zone.B;
+                }
+                _corsairSync.SyncColors(frame);
+            }
+        };
         if (_config.Ambience.ScreenSync.Enabled)
             _dreamSync.Start();
 
