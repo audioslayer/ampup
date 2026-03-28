@@ -621,8 +621,19 @@ public partial class AmbienceView : UserControl
         corBrightSlider.ValueChanged += (_, _) =>
         {
             if (_config == null) return;
-            _config.Corsair.LightBrightness = (int)corBrightSlider.Value;
-            corBrightLabel.Text = $"{(int)corBrightSlider.Value}%";
+            int pct = (int)corBrightSlider.Value;
+            _config.Corsair.LightBrightness = pct;
+            corBrightLabel.Text = $"{pct}%";
+
+            // Immediately update Corsair LEDs at new brightness
+            if (_corsairSync?.IsAvailable == true)
+            {
+                float boost = pct / 100f;
+                byte r = (byte)Math.Min(_roomColor1.R * boost, 255);
+                byte g = (byte)Math.Min(_roomColor1.G * boost, 255);
+                byte b = (byte)Math.Min(_roomColor1.B * boost, 255);
+                _ = _corsairSync.SetStaticColorAllAsync(r, g, b);
+            }
             QueueSave();
         };
         corBrightRow.Children.Add(corBrightSlider);
