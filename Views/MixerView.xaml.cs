@@ -1513,6 +1513,10 @@ public partial class MixerView : UserControl
         if (HATargetDisplayNames.TryGetValue(baseTarget, out var displayName))
             return displayName;
 
+        // Device group — show group name
+        if (target.StartsWith("group:", StringComparison.OrdinalIgnoreCase))
+            return target.Substring(6);
+
         var words = target.Replace('_', ' ').Split(' ');
         for (int i = 0; i < words.Length; i++)
         {

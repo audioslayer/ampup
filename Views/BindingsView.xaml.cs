@@ -28,6 +28,7 @@ public class BindingsView : UserControl
         { "power_sleep", "😴" }, { "power_lock", "🔒" }, { "power_off", "⏻" },
         { "power_restart", "🔄" }, { "power_logoff", "🚪" }, { "power_hibernate", "❄" },
         { "ha_toggle", "⚡" }, { "ha_scene", "🎬" }, { "ha_service", "⚙" },
+        { "group_toggle", "▣" },
         { "vm_mute_strip", "🔇" }, { "vm_mute_bus", "🔇" },
     };
 
@@ -61,6 +62,7 @@ public class BindingsView : UserControl
         { "ha_toggle",          Color.FromRgb(0x26, 0xC6, 0xDA) },
         { "ha_scene",           Color.FromRgb(0xFF, 0xA7, 0x26) },
         { "ha_service",         Color.FromRgb(0xAB, 0x47, 0xBC) },
+        { "group_toggle",      Color.FromRgb(0x69, 0xF0, 0xAE) },
         { "vm_mute_strip",      Color.FromRgb(0xFF, 0x8F, 0x00) },
         { "vm_mute_bus",        Color.FromRgb(0xFF, 0x8F, 0x00) },
     };
