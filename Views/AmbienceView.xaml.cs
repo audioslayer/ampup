@@ -1101,6 +1101,10 @@ public partial class AmbienceView : UserControl
                 else if (_cloudApi != null)
                     _ = SafeCloudCall(() => _cloudApi.ControlDeviceAsync(
                         device.Device, device.Sku, GoveeCloudApi.SetColor(c.R, c.G, c.B)));
+
+                // Sync to Corsair iCUE
+                if (_corsairSync?.IsAvailable == true && _config?.Corsair.Enabled == true)
+                    _ = _corsairSync.SetStaticColorAllAsync(c.R, c.G, c.B);
             }
         };
 
@@ -1209,6 +1213,10 @@ public partial class AmbienceView : UserControl
                 var sceneValue = sc?.RawValue ?? (object)new { id = sceneId };
                 await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
                     device.Device, device.Sku, GoveeCloudApi.SetScene(sceneValue)));
+
+                // Sync scene color to Corsair iCUE
+                if (_corsairSync?.IsAvailable == true && _config?.Corsair.Enabled == true)
+                    _ = _corsairSync.SetStaticColorAllAsync(tileColor.R, tileColor.G, tileColor.B);
 
                 if (powerCheck != null && powerCheck.IsChecked != true)
                 {
