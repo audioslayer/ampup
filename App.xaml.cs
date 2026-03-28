@@ -951,13 +951,25 @@ public partial class App : Application
                                     else
                                     {
                                         var gc = _config.Ambience.GoveeDevices.FirstOrDefault(d => d.Ip == dev.DeviceId);
-                                        if (gc != null && !gc.PoweredOn)
-                                        {
-                                            gc.PoweredOn = true;
-                                            _ = AmbienceSync.SendTurnAsync(dev.DeviceId, true);
-                                        }
+                                        bool wasOff = gc != null ? !gc.PoweredOn : false;
+                                        if (gc != null) gc.PoweredOn = true;
                                         AmbienceSync.PauseSync(dev.DeviceId, 5);
-                                        _ = AmbienceSync.SendBrightnessAsync(dev.DeviceId, pct);
+                                        if (wasOff)
+                                        {
+                                            // Turn on first, delay 150ms for device to power up, then brightness
+                                            var ip = dev.DeviceId;
+                                            var bright = pct;
+                                            _ = Task.Run(async () =>
+                                            {
+                                                await AmbienceSync.SendTurnAsync(ip, true);
+                                                await Task.Delay(150);
+                                                await AmbienceSync.SendBrightnessAsync(ip, bright);
+                                            });
+                                        }
+                                        else
+                                        {
+                                            _ = AmbienceSync.SendBrightnessAsync(dev.DeviceId, pct);
+                                        }
                                     }
                                     break;
                                 case "corsair":
