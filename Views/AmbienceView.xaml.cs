@@ -1524,7 +1524,7 @@ public partial class AmbienceView : UserControl
         lightModeRow.Children.Add(MakeSubLabel("MODE"));
         var lightModeCombo = new ComboBox
         {
-            Width = 200, Height = 28,
+            Width = 240, Height = 28,
             SelectedIndex = cfg.LightSyncMode switch
             {
                 "static" => 1, "dreamview" => 2, "vu_reactive" => 3, _ => 0
@@ -1611,7 +1611,7 @@ public partial class AmbienceView : UserControl
         // Fan mode ComboBox
         var fanModeRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
         fanModeRow.Children.Add(MakeSubLabel("MODE"));
-        var fanModeCombo = new ComboBox { Width = 160, Height = 28, SelectedIndex = cfg.FanSyncMode == "audio_reactive" ? 1 : 0 };
+        var fanModeCombo = new ComboBox { Width = 240, Height = 28, SelectedIndex = cfg.FanSyncMode == "audio_reactive" ? 1 : 0 };
         fanModeCombo.Items.Add("Manual");
         fanModeCombo.Items.Add("Audio Reactive");
         fanModeRow.Children.Add(fanModeCombo);
