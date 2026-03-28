@@ -86,7 +86,7 @@ public partial class LightsView : UserControl
     private List<string> _globalGradientColors = new();
     private StackPanel? _globalSettingsPanel;
     private StackPanel? _globalPalettePanel;
-    private CheckBox? _linkToAmbienceCheck;
+    // _linkToAmbienceCheck removed — Link to Ambience moved to Room Lighting tab
     private StyledSlider? _brightnessSlider;
     private readonly Border[] _ledToggleBorders = new Border[5];
     private readonly bool[] _ledEnabled = { true, true, true, true, true };
@@ -221,9 +221,7 @@ public partial class LightsView : UserControl
         _activePresetName = null; // force re-detection
         UpdatePaletteHighlight();
 
-        // Link to Room Ambience
-        if (_linkToAmbienceCheck != null)
-            _linkToAmbienceCheck.IsChecked = config.Ambience.LinkToLights;
+        // Link to Ambience removed — now in Room Lighting tab
 
         UpdateGlobalVisibility();
 
@@ -668,33 +666,6 @@ public partial class LightsView : UserControl
         // Settings panel (collapsed when disabled)
         var settings = new StackPanel { Visibility = Visibility.Collapsed };
         _globalSettingsPanel = settings;
-
-        // Link to Room Ambience checkbox — inside settings so it only shows when global is on
-        var linkCheck = new CheckBox
-        {
-            VerticalContentAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 0, 10),
-        };
-        var linkLabel = new StackPanel { Orientation = Orientation.Horizontal };
-        linkLabel.Children.Add(new TextBlock
-        {
-            Text = "Link to Ambience",
-            FontSize = 12,
-            Foreground = FindBrush("TextSecBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-        linkLabel.Children.Add(new TextBlock
-        {
-            Text = "  Mirrors LED colors to Room lights",
-            FontSize = 10,
-            Foreground = FindBrush("TextDimBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-        linkCheck.Content = linkLabel;
-        linkCheck.Checked += (_, _) => { if (!_loading) QueueSave(); };
-        linkCheck.Unchecked += (_, _) => { if (!_loading) QueueSave(); };
-        _linkToAmbienceCheck = linkCheck;
-        settings.Children.Add(linkCheck);
 
         // LED enable/disable toggles — 5 clickable indicators
         var ledToggleRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
@@ -2015,8 +1986,7 @@ public partial class LightsView : UserControl
             if (!_ledEnabled[i]) gl.DisabledKnobs.Add(i);
         }
 
-        // Link to Room Ambience
-        _config.Ambience.LinkToLights = _linkToAmbienceCheck?.IsChecked ?? false;
+        // Link to Room Ambience (now managed in Room Lighting tab)
 
         // Only overwrite per-knob light configs when Per-Knob mode is active.
         // When Global mode is on, the per-knob UI is hidden — writing back stale/default

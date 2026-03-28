@@ -244,15 +244,18 @@ public partial class AmbienceView : UserControl
             return;
         }
 
-        // ── Card 1: Screen Sync ──
+        // ── Card 1: Room Lights (sync mode + color) ──
+        DevicePanel.Children.Add(BuildRoomLightsCard());
+
+        // ── Card 2: Screen Sync — Game Mode ──
         _screenSyncCard = BuildScreenSyncCard();
         DevicePanel.Children.Add(_screenSyncCard);
 
-        // ── Card 2: Devices ──
+        // ── Card 3: Devices ──
         _devicesCard = BuildDevicesCard();
         DevicePanel.Children.Add(_devicesCard);
 
-        // ── Card 3: Scenes & Colors (Govee Cloud only) ──
+        // ── Card 4: Scenes & Colors (Govee Cloud only) ──
         if (_config.Ambience.GoveeCloudEnabled && _cloudApi != null && _cloudDevices.Count > 0)
         {
             _scenesCard = BuildScenesCard();
@@ -262,7 +265,210 @@ public partial class AmbienceView : UserControl
     }
 
     // ══════════════════════════════════════════════════════════════════
-    // ██  CARD 1: SCREEN SYNC
+    // ██  CARD 1: ROOM LIGHTS
+    // ══════════════════════════════════════════════════════════════════
+
+    private Border BuildRoomLightsCard()
+    {
+        var card = new Border
+        {
+            Style = FindStyle("CardPanel") as Style,
+            Margin = new Thickness(0, 0, 0, 12),
+        };
+        var stack = new StackPanel();
+        card.Child = stack;
+
+        // ── Header ──
+        var (headerBar, headerLabel) = MakeSectionHeader("ROOM LIGHTS");
+        var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+        headerRow.Children.Add(headerBar);
+        headerRow.Children.Add(headerLabel);
+
+        // Sync to Turn Up toggle
+        var syncCheck = new CheckBox
+        {
+            Content = "Sync to Turn Up",
+            IsChecked = _config!.Ambience.LinkToLights,
+            FontSize = 12,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(16, 0, 0, 0),
+            ToolTip = "Mirror Turn Up LED effects to all room lights (Govee + Corsair)",
+        };
+        syncCheck.Checked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.LinkToLights = true;
+            if (_config.Corsair.Enabled)
+                _config.Corsair.LightSyncMode = "vu_reactive";
+            QueueSave();
+        };
+        syncCheck.Unchecked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.LinkToLights = false;
+            QueueSave();
+        };
+        headerRow.Children.Add(syncCheck);
+        stack.Children.Add(headerRow);
+
+        // ── Description ──
+        stack.Children.Add(new TextBlock
+        {
+            Text = "Set a color for all your room lights, or sync them to your Turn Up knob effects.",
+            Style = FindStyle("SecondaryText"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 12),
+        });
+
+        stack.Children.Add(MakeSeparator());
+
+        // ── Color swatches — quick pick ──
+        stack.Children.Add(MakeSubLabel("QUICK COLORS"));
+        var swatchWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 12) };
+
+        var quickColors = new (string name, byte r, byte g, byte b)[]
+        {
+            ("Warm White", 255, 200, 130),
+            ("Cool White", 200, 220, 255),
+            ("Red", 255, 30, 30),
+            ("Orange", 255, 120, 0),
+            ("Gold", 255, 200, 0),
+            ("Green", 0, 230, 118),
+            ("Cyan", 0, 220, 240),
+            ("Blue", 40, 80, 255),
+            ("Purple", 140, 60, 255),
+            ("Pink", 255, 50, 150),
+            ("Magenta", 230, 0, 200),
+            ("Teal", 0, 180, 160),
+        };
+
+        foreach (var (name, r, g, b) in quickColors)
+        {
+            var color = Color.FromRgb(r, g, b);
+            var swatch = new Border
+            {
+                Width = 36, Height = 36,
+                CornerRadius = new CornerRadius(8),
+                Background = new SolidColorBrush(color),
+                Margin = new Thickness(0, 0, 6, 6),
+                Cursor = Cursors.Hand,
+                ToolTip = name,
+                BorderThickness = new Thickness(2),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0x00, 0, 0, 0)),
+            };
+            swatch.MouseEnter += (_, _) =>
+                swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, 255, 255, 255));
+            swatch.MouseLeave += (_, _) =>
+                swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0x00, 0, 0, 0));
+            swatch.MouseLeftButtonUp += (_, _) => SetRoomColor(r, g, b, swatchWrap, swatch);
+            swatchWrap.Children.Add(swatch);
+        }
+
+        // Custom color picker tile
+        var customTile = new Border
+        {
+            Width = 36, Height = 36,
+            CornerRadius = new CornerRadius(8),
+            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            Margin = new Thickness(0, 0, 6, 6),
+            Cursor = Cursors.Hand,
+            ToolTip = "Custom color",
+            BorderThickness = new Thickness(2),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x00, 0, 0, 0)),
+        };
+        customTile.Child = new TextBlock
+        {
+            Text = "+",
+            FontSize = 18, FontWeight = FontWeights.Light,
+            Foreground = FindBrush("TextSecBrush"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextAlignment = TextAlignment.Center,
+        };
+        customTile.MouseEnter += (_, _) =>
+            customTile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, 255, 255, 255));
+        customTile.MouseLeave += (_, _) =>
+            customTile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x00, 0, 0, 0));
+        customTile.MouseLeftButtonUp += (_, _) =>
+        {
+            var dialog = new ColorPickerDialog(Colors.White) { Owner = Window.GetWindow(this) };
+            if (dialog.ShowDialog() == true)
+            {
+                var c = dialog.SelectedColor;
+                customTile.Background = new SolidColorBrush(c);
+                SetRoomColor(c.R, c.G, c.B, swatchWrap, customTile);
+            }
+        };
+        swatchWrap.Children.Add(customTile);
+        stack.Children.Add(swatchWrap);
+
+        // ── Brightness slider ──
+        var brightRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+        brightRow.Children.Add(MakeSubLabel("GOVEE BRIGHTNESS"));
+        var brightSlider = new StyledSlider
+        {
+            Minimum = 1, Maximum = 100, Value = _config.Ambience.BrightnessScale,
+            Width = 180, Height = 35,
+            Suffix = "%",
+            AccentColor = ThemeManager.Accent,
+        };
+        var brightDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        brightDebounce.Tick += (_, _) =>
+        {
+            brightDebounce.Stop();
+            if (_config != null)
+            {
+                _config.Ambience.BrightnessScale = (int)brightSlider.Value;
+                QueueSave();
+            }
+        };
+        brightSlider.ValueChanged += (_, _) => { brightDebounce.Stop(); brightDebounce.Start(); };
+        brightRow.Children.Add(brightSlider);
+        stack.Children.Add(brightRow);
+
+        return card;
+    }
+
+    private Border? _activeRoomSwatch;
+
+    private void SetRoomColor(byte r, byte g, byte b, WrapPanel swatchWrap, Border activeSwatch)
+    {
+        // Highlight active swatch
+        foreach (var child in swatchWrap.Children)
+        {
+            if (child is Border brd)
+                brd.BorderBrush = new SolidColorBrush(Color.FromArgb(0x00, 0, 0, 0));
+        }
+        activeSwatch.BorderBrush = new SolidColorBrush(Colors.White);
+        _activeRoomSwatch = activeSwatch;
+
+        // Send to all Govee devices
+        if (_config?.Ambience.GoveeEnabled == true)
+        {
+            foreach (var dev in _config.Ambience.GoveeDevices)
+            {
+                if (string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn) continue;
+                AmbienceSync.PauseSync(dev.Ip, 30);
+                _ = AmbienceSync.SendColorAsync(dev.Ip, r, g, b);
+            }
+        }
+
+        // Send to all Corsair devices
+        if (_corsairSync?.IsAvailable == true && _config?.Corsair.Enabled == true)
+        {
+            // Set Corsair to static mode so Turn Up frames don't overwrite
+            _config!.Corsair.LightSyncMode = "static";
+            _ = _corsairSync.SetStaticColorAllAsync(r, g, b);
+        }
+
+        // Uncheck sync toggle since user is manually setting a color
+        _config!.Ambience.LinkToLights = false;
+        QueueSave();
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // ██  CARD 2: SCREEN SYNC
     // ══════════════════════════════════════════════════════════════════
 
     private Border BuildScreenSyncCard()
