@@ -30,15 +30,15 @@ public partial class AmbienceView : UserControl
     // DreamView live preview swatches
     private readonly List<Border> _dreamZoneSwatches = new();
     private TextBlock? _dreamStatusLabel;
-    private Border? _dreamActiveBanner;
-    private Border? _dreamViewCard;
+
+    // Card references for dimming
+    private Border? _screenSyncCard;
+    private Border? _devicesCard;
+    private Border? _scenesCard;
 
     // Corsair iCUE
     private CorsairSync? _corsairSync;
-    private Border? _corsairCard;
-    private TextBlock? _corsairStatusLabel;
-    private ListBox? _corsairDeviceList;
-    // _corsairEffectsCombo removed — iCUE SDK v4 has no effects/murals API
+    private StackPanel? _corsairDeviceRows;
 
     // Navigation callback (set by MainWindow to navigate to Settings)
     public Action? NavigateToSettings { get; set; }
@@ -99,6 +99,9 @@ public partial class AmbienceView : UserControl
 
     // ── Top Bar ──────────────────────────────────────────────────────
 
+    private Border? _topStatusDot;
+    private TextBlock? _topStatusLabel;
+
     private void BuildTopBar()
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal };
@@ -111,90 +114,71 @@ public partial class AmbienceView : UserControl
             Cursor = Cursors.Hand,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 16, 0),
-            ToolTip = "Go to Settings to configure Govee connection",
+            ToolTip = "Go to Settings to configure integrations",
         };
         settingsBtn.MouseLeftButtonUp += (_, _) => NavigateToSettings?.Invoke();
         row.Children.Add(settingsBtn);
 
-        var helpBtn = new TextBlock
-        {
-            Text = "? Help",
-            FontSize = 12,
-            Foreground = FindBrush("AccentBrush"),
-            Cursor = Cursors.Hand,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 16, 0),
-        };
-        helpBtn.MouseLeftButtonUp += (_, _) => GlassDialog.ShowInfo(
-            "Govee Ambience controls your Govee lights via Cloud API.\n\n" +
-            "1. Enable Govee LAN sync in Settings\n" +
-            "2. Add your Cloud API key for scenes, segments, and music mode\n" +
-            "3. Get your API key at developer.govee.com",
-            owner: Window.GetWindow(this));
-        row.Children.Add(helpBtn);
-
         // Status indicator
-        var statusDot = new Border
+        _topStatusDot = new Border
         {
             Width = 8, Height = 8,
             CornerRadius = new CornerRadius(4),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(8, 0, 6, 0),
         };
-        var statusLabel = new TextBlock
+        _topStatusLabel = new TextBlock
         {
             FontSize = 11,
             Style = FindStyle("SecondaryText"),
             VerticalAlignment = VerticalAlignment.Center,
         };
 
-        row.Children.Add(statusDot);
-        row.Children.Add(statusLabel);
+        row.Children.Add(_topStatusDot);
+        row.Children.Add(_topStatusLabel);
 
-        // Update status on load
-        Loaded += (_, _) => UpdateTopBarStatus(statusDot, statusLabel);
+        Loaded += (_, _) => UpdateTopBarStatus();
 
         TopBar.Children.Add(row);
     }
 
-    private void UpdateTopBarStatus(Border dot, TextBlock label)
+    private void UpdateTopBarStatus()
     {
-        if (_config == null) return;
+        if (_config == null || _topStatusDot == null || _topStatusLabel == null) return;
+
+        var parts = new List<string>();
+
+        // Govee status
         bool lanEnabled = _config.Ambience.GoveeEnabled;
         bool cloudEnabled = _config.Ambience.GoveeCloudEnabled;
-        bool hasKey = !string.IsNullOrEmpty(_config.Ambience.GoveeApiKey);
         int lanDevices = _config.Ambience.GoveeDevices.Count;
         int cloudDevices = _cloudDevices.Count;
 
-        if (!lanEnabled && !cloudEnabled)
-        {
-            dot.Background = Brush("#555555");
-            label.Text = "Govee disabled — enable in Settings";
-        }
-        else if (cloudEnabled && hasKey && cloudDevices > 0)
-        {
-            dot.Background = Brush("#00E676");
-            label.Text = $"Connected — {cloudDevices} device(s)";
-        }
+        if (cloudEnabled && cloudDevices > 0)
+            parts.Add($"{cloudDevices} Govee");
         else if (lanEnabled && lanDevices > 0)
+            parts.Add($"{lanDevices} Govee (LAN)");
+
+        // Corsair status
+        if (_config.Corsair.Enabled && _corsairSync?.IsAvailable == true)
+            parts.Add($"{_corsairSync.Devices.Count} iCUE");
+        else if (_config.Corsair.Enabled)
+            parts.Add("iCUE connecting...");
+
+        if (parts.Count > 0)
         {
-            dot.Background = Brush("#00E676");
-            label.Text = $"LAN — {lanDevices} device(s)";
+            _topStatusDot.Background = Brush("#00E676");
+            _topStatusLabel.Text = string.Join(" + ", parts) + " device(s)";
         }
-        else if (cloudEnabled && hasKey)
+        else if (lanEnabled || cloudEnabled || _config.Corsair.Enabled)
         {
-            dot.Background = Brush("#FFB800");
-            label.Text = "Cloud API — loading devices...";
-        }
-        else if (cloudEnabled && !hasKey)
-        {
-            dot.Background = Brush("#FFB800");
-            label.Text = "Cloud API enabled — add API key in Settings";
+            _topStatusDot.Background = Brush("#FFB800");
+            _topStatusLabel.Text = "No devices — configure in Settings";
         }
         else
         {
-            dot.Background = Brush("#FFB800");
-            label.Text = "No devices — scan in Settings";
+            _topStatusDot.Background = Brush("#555555");
+            _topStatusLabel.Text = "No integrations enabled";
         }
     }
 
@@ -231,100 +215,473 @@ public partial class AmbienceView : UserControl
         }
     }
 
-    // ── Device Panel ──────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════
+    // ██  MAIN PANEL — 3-CARD LAYOUT
+    // ══════════════════════════════════════════════════════════════════
 
     private void RebuildDevicePanel()
     {
         DevicePanel.Children.Clear();
         _deviceControls.Clear();
+        _sectionHeaders.Clear();
+        _dreamZoneSwatches.Clear();
 
-        // Update top bar status
-        var topBarRow = TopBar.Children.Count > 0 ? TopBar.Children[0] as StackPanel : null;
-        if (topBarRow != null && topBarRow.Children.Count >= 4)
-        {
-            UpdateTopBarStatus(
-                topBarRow.Children[2] as Border ?? new Border(),
-                topBarRow.Children[3] as TextBlock ?? new TextBlock());
-        }
+        UpdateTopBarStatus();
 
         if (_config == null) return;
 
-        bool hasKey = !string.IsNullOrEmpty(_config.Ambience.GoveeApiKey);
+        bool hasGovee = _config.Ambience.GoveeEnabled || _config.Ambience.GoveeCloudEnabled;
+        bool hasCorsair = _config.Corsair.Enabled;
+        bool hasAnyDevices = _config.Ambience.GoveeDevices.Count > 0 || _cloudDevices.Count > 0
+            || (_corsairSync?.Devices.Count > 0);
 
-        if (!_config.Ambience.GoveeEnabled && !_config.Ambience.GoveeCloudEnabled)
+        if (!hasGovee && !hasCorsair)
         {
             DevicePanel.Children.Add(MakeSetupCard(
-                "Govee is disabled",
-                "Enable Govee LAN or Cloud API in Settings to get started.",
+                "No integrations enabled",
+                "Enable Govee or Corsair iCUE in Settings to get started.",
                 "Open Settings", () => NavigateToSettings?.Invoke()));
-            AppendDreamViewCard();
             return;
         }
 
-        if (_cloudDevices.Count == 0 && _config.Ambience.GoveeDevices.Count == 0)
+        // ── Card 1: Screen Sync ──
+        _screenSyncCard = BuildScreenSyncCard();
+        DevicePanel.Children.Add(_screenSyncCard);
+
+        // ── Card 2: Devices ──
+        _devicesCard = BuildDevicesCard();
+        DevicePanel.Children.Add(_devicesCard);
+
+        // ── Card 3: Scenes & Colors (Govee Cloud only) ──
+        if (_config.Ambience.GoveeCloudEnabled && _cloudApi != null && _cloudDevices.Count > 0)
         {
-            DevicePanel.Children.Add(MakeSetupCard(
-                "No devices found",
-                "Scan for LAN devices or enable the Cloud API in Settings.",
-                "Open Settings", () => NavigateToSettings?.Invoke()));
-            AppendDreamViewCard();
-            return;
+            _scenesCard = BuildScenesCard();
+            DevicePanel.Children.Add(_scenesCard);
         }
 
-        // Show banner when LED sync is active
-        if (_config.Ambience.LinkToLights)
+        // Dim Devices + Scenes cards when Screen Sync is active
+        if (_config.Ambience.ScreenSync.Enabled)
+            SetDevicePanelDimmed(true);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // ██  CARD 1: SCREEN SYNC
+    // ══════════════════════════════════════════════════════════════════
+
+    private Border BuildScreenSyncCard()
+    {
+        var cfg = _config!.Ambience.ScreenSync;
+
+        var card = new Border
         {
-            var banner = new Border
+            Style = FindStyle("CardPanel") as Style,
+            Margin = new Thickness(0, 0, 0, 12),
+        };
+        var stack = new StackPanel();
+        card.Child = stack;
+
+        // ── Header row ──
+        var (headerBar, headerLabel) = MakeSectionHeader("SCREEN SYNC");
+        var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+        headerRow.Children.Add(headerBar);
+        headerRow.Children.Add(headerLabel);
+
+        var enableToggle = new CheckBox
+        {
+            Content = "Enable",
+            IsChecked = cfg.Enabled,
+            FontSize = 12,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(16, 0, 0, 0),
+            ToolTip = "Capture screen colors and sync to all ambient devices (Govee + Corsair)",
+        };
+        enableToggle.Checked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.Enabled = true;
+            // Auto-set Corsair to screen sync mode
+            if (_config.Corsair.Enabled)
+                _config.Corsair.LightSyncMode = "dreamview";
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            SetDevicePanelDimmed(true);
+            QueueSave();
+        };
+        enableToggle.Unchecked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.Enabled = false;
+            // Revert Corsair to Turn Up LED sync
+            if (_config.Corsair.Enabled)
+                _config.Corsair.LightSyncMode = "vu_reactive";
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            if (_dreamStatusLabel != null) _dreamStatusLabel.Text = "Stopped";
+            SetDevicePanelDimmed(false);
+            QueueSave();
+        };
+        headerRow.Children.Add(enableToggle);
+
+        // Game Mode toggle
+        var gameModeToggle = new CheckBox
+        {
+            Content = "Game Mode",
+            IsChecked = _config!.Ambience.GameModeEnabled,
+            FontSize = 12,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(16, 0, 0, 0),
+            ToolTip = "Auto-enable Screen Sync when a fullscreen game is detected",
+        };
+        gameModeToggle.Checked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.GameModeEnabled = true;
+            QueueSave();
+        };
+        gameModeToggle.Unchecked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.GameModeEnabled = false;
+            QueueSave();
+        };
+        headerRow.Children.Add(gameModeToggle);
+        stack.Children.Add(headerRow);
+
+        // ── Description ──
+        stack.Children.Add(new TextBlock
+        {
+            Text = "Captures your screen in real time and syncs colors to Govee lights and Corsair iCUE devices.",
+            Style = FindStyle("SecondaryText"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 12),
+        });
+
+        stack.Children.Add(MakeSeparator());
+
+        // ── Row 1: Monitor + FPS + Zones ──
+        var row1 = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+
+        var screens = System.Windows.Forms.Screen.AllScreens;
+        var friendlyNames = NativeMethods.GetMonitorFriendlyNames();
+        row1.Children.Add(MakeSubLabel("MONITOR"));
+        var monitorCombo = new ComboBox { MinWidth = 200, MaxWidth = 350, Margin = new Thickness(0, 0, 20, 0) };
+        for (int i = 0; i < screens.Length; i++)
+        {
+            var screen = screens[i];
+            var gdiName = screen.DeviceName.TrimEnd('\0');
+            var friendly = friendlyNames.GetValueOrDefault(gdiName, "");
+            string label = !string.IsNullOrEmpty(friendly) ? friendly : $"Display {i + 1}";
+            if (screen.Primary) label += " (Primary)";
+            monitorCombo.Items.Add(label);
+        }
+        monitorCombo.SelectedIndex = Math.Min(cfg.MonitorIndex, screens.Length - 1);
+        monitorCombo.SelectionChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.MonitorIndex = monitorCombo.SelectedIndex;
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            QueueSave();
+        };
+        row1.Children.Add(monitorCombo);
+
+        row1.Children.Add(MakeSubLabel("FPS"));
+        var fpsCombo = new ComboBox { Width = 90, Margin = new Thickness(0, 0, 20, 0) };
+        fpsCombo.Items.Add("15fps"); fpsCombo.Items.Add("30fps"); fpsCombo.Items.Add("60fps");
+        fpsCombo.SelectedIndex = cfg.TargetFps switch { 15 => 0, 60 => 2, _ => 1 };
+        fpsCombo.SelectionChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.TargetFps = fpsCombo.SelectedIndex switch { 0 => 15, 2 => 60, _ => 30 };
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            QueueSave();
+        };
+        row1.Children.Add(fpsCombo);
+
+        row1.Children.Add(MakeSubLabel("ZONES"));
+        var zoneCombo = new ComboBox { Width = 120, Margin = new Thickness(0, 0, 0, 0) };
+        zoneCombo.Items.Add("4 zones"); zoneCombo.Items.Add("8 zones"); zoneCombo.Items.Add("16 zones");
+        zoneCombo.SelectedIndex = cfg.ZoneCount switch { 4 => 0, 16 => 2, _ => 1 };
+        zoneCombo.SelectionChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.ZoneCount = zoneCombo.SelectedIndex switch { 0 => 4, 2 => 16, _ => 8 };
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            RebuildZonePreview(stack);
+            QueueSave();
+        };
+        row1.Children.Add(zoneCombo);
+        stack.Children.Add(row1);
+
+        // ── Row 2: Saturation + Sensitivity ──
+        var row2 = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+
+        row2.Children.Add(MakeSubLabel("SATURATION"));
+        var satSlider = new StyledSlider
+        {
+            Minimum = 50, Maximum = 200, Value = (int)(cfg.Saturation * 100),
+            Width = 120, Height = 35,
+            AccentColor = ThemeManager.Accent,
+            ShowLabel = false,
+        };
+        var satLabel = new TextBlock
+        {
+            Text = $"{cfg.Saturation:F1}×",
+            FontSize = 12,
+            Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(6, 0, 20, 0),
+        };
+        satSlider.ValueChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.Saturation = satSlider.Value / 100.0;
+            satLabel.Text = $"{satSlider.Value / 100.0:F1}×";
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            QueueSave();
+        };
+        row2.Children.Add(satSlider);
+        row2.Children.Add(satLabel);
+
+        row2.Children.Add(MakeSubLabel("SENSITIVITY"));
+        var sensSlider = new StyledSlider
+        {
+            Minimum = 1, Maximum = 20, Value = cfg.Sensitivity,
+            Width = 120, Height = 35,
+            AccentColor = ThemeManager.Accent,
+            ShowLabel = false,
+        };
+        var sensLabel = new TextBlock
+        {
+            Text = $"{cfg.Sensitivity}",
+            FontSize = 12,
+            Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(6, 0, 0, 0),
+        };
+        sensSlider.ValueChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.Sensitivity = (int)sensSlider.Value;
+            sensLabel.Text = $"{(int)sensSlider.Value}";
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            QueueSave();
+        };
+        row2.Children.Add(sensSlider);
+        row2.Children.Add(sensLabel);
+
+        // Corsair brightness (only when Corsair is enabled)
+        if (_config!.Corsair.Enabled)
+        {
+            row2.Children.Add(new Border { Width = 20 }); // spacer
+            row2.Children.Add(MakeSubLabel("iCUE BRIGHTNESS"));
+            var corsairBrightSlider = new StyledSlider
             {
-                Background = new SolidColorBrush(Color.FromArgb(0x20, 0x00, 0xE6, 0x76)),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 0x00, 0xE6, 0x76)),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(14, 10, 14, 10),
-                Margin = new Thickness(0, 0, 0, 12),
+                Minimum = 50, Maximum = 200, Value = _config.Corsair.LightBrightness,
+                Width = 120, Height = 35,
+                AccentColor = Color.FromRgb(0xFF, 0xD3, 0x00), // Corsair yellow
+                ShowLabel = false,
             };
-            var bannerRow = new StackPanel { Orientation = Orientation.Horizontal };
-            bannerRow.Children.Add(new TextBlock
+            var corsairBrightLabel = new TextBlock
             {
-                Text = "Linked to Ambience",
-                FontSize = 12, FontWeight = FontWeights.SemiBold,
-                Foreground = FindBrush("AccentBrush"),
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 8, 0),
-            });
-            bannerRow.Children.Add(new TextBlock
-            {
-                Text = "LED colors are being mirrored to your Govee devices. Unlink in the Lights tab to control independently.",
-                FontSize = 11,
+                Text = $"{_config.Corsair.LightBrightness}%",
+                FontSize = 12,
                 Foreground = FindBrush("TextSecBrush"),
-                TextWrapping = TextWrapping.Wrap,
                 VerticalAlignment = VerticalAlignment.Center,
-            });
-            banner.Child = bannerRow;
-            DevicePanel.Children.Add(banner);
+                Margin = new Thickness(6, 0, 0, 0),
+            };
+            corsairBrightSlider.ValueChanged += (_, _) =>
+            {
+                if (_config == null) return;
+                _config.Corsair.LightBrightness = (int)corsairBrightSlider.Value;
+                corsairBrightLabel.Text = $"{(int)corsairBrightSlider.Value}%";
+                QueueSave();
+            };
+            row2.Children.Add(corsairBrightSlider);
+            row2.Children.Add(corsairBrightLabel);
         }
 
-        if (_cloudDevices.Count > 0)
+        stack.Children.Add(row2);
+
+        stack.Children.Add(MakeSeparator());
+
+        // ── Zone Preview ──
+        stack.Children.Add(MakeSubLabel("ZONE PREVIEW"));
+        var previewWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 6) };
+        previewWrap.Tag = "zonePreview";
+        int zoneCount = cfg.ZoneCount;
+        for (int i = 0; i < zoneCount; i++)
         {
-            // Cloud API mode — full control with scenes, segments, music
-            foreach (var device in _cloudDevices)
+            var swatch = new Border
             {
-                // Pass LAN IP directly so knob updates work even when FindLanIp fails
+                Width = 28, Height = 28,
+                CornerRadius = new CornerRadius(4),
+                Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                Margin = new Thickness(0, 0, 4, 4),
+                ToolTip = $"Zone {i + 1}",
+            };
+            _dreamZoneSwatches.Add(swatch);
+            previewWrap.Children.Add(swatch);
+        }
+        stack.Children.Add(previewWrap);
+
+        _dreamStatusLabel = new TextBlock
+        {
+            Text = _dreamSync?.Status ?? "Stopped",
+            Style = FindStyle("SecondaryText"),
+            Margin = new Thickness(0, 0, 0, 8),
+        };
+        stack.Children.Add(_dreamStatusLabel);
+
+        // Status update timer
+        var statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        statusTimer.Tick += (_, _) =>
+        {
+            if (_dreamStatusLabel != null && _dreamSync != null)
+                _dreamStatusLabel.Text = _dreamSync.Status;
+        };
+        statusTimer.Start();
+
+        // ── Device Zone Mapping ──
+        if (_config!.Ambience.GoveeDevices.Count > 0)
+        {
+            stack.Children.Add(MakeSeparator());
+            stack.Children.Add(MakeSubLabel("DEVICE ZONE MAPPING"));
+
+            foreach (var goveeDevice in _config.Ambience.GoveeDevices)
+            {
+                if (string.IsNullOrWhiteSpace(goveeDevice.Ip)) continue;
+
+                var mapRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
+
+                var devName = new TextBlock
+                {
+                    Text = !string.IsNullOrWhiteSpace(goveeDevice.Name) ? goveeDevice.Name : goveeDevice.Ip,
+                    FontSize = 12, FontWeight = FontWeights.SemiBold,
+                    Foreground = FindBrush("TextPrimaryBrush"),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Width = 160,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                };
+                mapRow.Children.Add(devName);
+
+                int segCount = AmbienceSync.GetSegmentCount(goveeDevice);
+                if (segCount > 0 && goveeDevice.UseSegmentProtocol)
+                {
+                    mapRow.Children.Add(new TextBlock
+                    {
+                        Text = $"Per-segment ({segCount} zones)",
+                        FontSize = 12,
+                        Foreground = FindBrush("AccentBrush"),
+                        VerticalAlignment = VerticalAlignment.Center,
+                    });
+                }
+                else
+                {
+                    // Zone side picker
+                    var mapping = cfg.DeviceMappings.FirstOrDefault(m => m.DeviceIp == goveeDevice.Ip);
+                    if (mapping == null)
+                    {
+                        mapping = new ZoneDeviceMapping { DeviceIp = goveeDevice.Ip, Side = "Full" };
+                        cfg.DeviceMappings.Add(mapping);
+                    }
+                    var sideCombo = new ComboBox { Width = 120 };
+                    sideCombo.Items.Add("Full"); sideCombo.Items.Add("Top"); sideCombo.Items.Add("Bottom");
+                    sideCombo.Items.Add("Left"); sideCombo.Items.Add("Right");
+                    sideCombo.SelectedItem = mapping.Side;
+                    var capturedMapping = mapping;
+                    sideCombo.SelectionChanged += (_, _) =>
+                    {
+                        if (_loading || _config == null) return;
+                        capturedMapping.Side = sideCombo.SelectedItem?.ToString() ?? "Full";
+                        QueueSave();
+                    };
+                    mapRow.Children.Add(sideCombo);
+                }
+
+                stack.Children.Add(mapRow);
+            }
+        }
+
+        return card;
+    }
+
+    private void RebuildZonePreview(StackPanel stack)
+    {
+        _dreamZoneSwatches.Clear();
+        // Find and replace the zone preview wrap
+        for (int i = 0; i < stack.Children.Count; i++)
+        {
+            if (stack.Children[i] is WrapPanel wp && wp.Tag as string == "zonePreview")
+            {
+                wp.Children.Clear();
+                int zoneCount = _config?.Ambience.ScreenSync.ZoneCount ?? 8;
+                for (int z = 0; z < zoneCount; z++)
+                {
+                    var swatch = new Border
+                    {
+                        Width = 28, Height = 28,
+                        CornerRadius = new CornerRadius(4),
+                        Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                        Margin = new Thickness(0, 0, 4, 4),
+                        ToolTip = $"Zone {z + 1}",
+                    };
+                    _dreamZoneSwatches.Add(swatch);
+                    wp.Children.Add(swatch);
+                }
+                break;
+            }
+        }
+    }
+
+    private void UpdateDreamZonePreview((byte R, byte G, byte B)[] colors)
+    {
+        for (int i = 0; i < _dreamZoneSwatches.Count && i < colors.Length; i++)
+            _dreamZoneSwatches[i].Background = new SolidColorBrush(
+                Color.FromRgb(colors[i].R, colors[i].G, colors[i].B));
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // ██  CARD 2: DEVICES
+    // ══════════════════════════════════════════════════════════════════
+
+    private Border BuildDevicesCard()
+    {
+        var card = new Border
+        {
+            Style = FindStyle("CardPanel") as Style,
+            Margin = new Thickness(0, 0, 0, 12),
+        };
+        var stack = new StackPanel();
+        card.Child = stack;
+
+        // ── Header ──
+        var (headerBar, headerLabel) = MakeSectionHeader("DEVICES");
+        stack.Children.Add(WrapHeader(headerBar, headerLabel));
+
+        bool hasAnyDevice = false;
+
+        // ── Govee devices ──
+        var goveeDevices = _cloudDevices.Count > 0 ? _cloudDevices : null;
+        var lanDevices = _config!.Ambience.GoveeDevices;
+
+        if (goveeDevices != null)
+        {
+            foreach (var device in goveeDevices)
+            {
                 string? ip = FindLanIp(device);
                 if (ip == null)
                 {
-                    // Fallback: match by device name
-                    var lan = _config.Ambience.GoveeDevices.FirstOrDefault(d =>
+                    var lan = lanDevices.FirstOrDefault(d =>
                         d.Name == device.DeviceName || d.DeviceId == device.Device);
                     ip = lan?.Ip;
                 }
-                DevicePanel.Children.Add(BuildDeviceCard(device, ip));
+                stack.Children.Add(BuildGoveeDeviceRow(device, ip));
+                hasAnyDevice = true;
             }
         }
-        else if (_config.Ambience.GoveeDevices.Count > 0)
+        else if (lanDevices.Count > 0)
         {
-            // LAN-only mode — create device info from LAN config for basic controls
-            foreach (var lan in _config.Ambience.GoveeDevices)
+            foreach (var lan in lanDevices)
             {
                 if (string.IsNullOrWhiteSpace(lan.Ip)) continue;
                 var deviceInfo = new GoveeDeviceInfo
@@ -334,125 +691,97 @@ public partial class AmbienceView : UserControl
                     DeviceName = lan.Name,
                     Capabilities = new List<string>(),
                 };
-                DevicePanel.Children.Add(BuildDeviceCard(deviceInfo, lan.Ip));
-            }
-
-            if (_config.Ambience.GoveeCloudEnabled && hasKey)
-            {
-                // Cloud enabled but fetch returned empty — offer refresh
-                DevicePanel.Children.Add(MakeSetupCard(
-                    "Cloud devices not loaded",
-                    "Couldn't fetch device list from Govee Cloud. LAN controls are available above.",
-                    "Retry", () => _ = FetchCloudDevicesAndRebuild()));
-            }
-            else if (!_config.Ambience.GoveeCloudEnabled)
-            {
-                // LAN-only hint
-                DevicePanel.Children.Add(MakeSetupCard(
-                    "Want scenes and more?",
-                    "Enable the Cloud API in Settings for scenes and music mode.",
-                    "Open Settings", () => NavigateToSettings?.Invoke()));
+                stack.Children.Add(BuildGoveeDeviceRow(deviceInfo, lan.Ip));
+                hasAnyDevice = true;
             }
         }
-        else
+
+        // ── Corsair devices ──
+        if (_config.Corsair.Enabled && _corsairSync != null)
         {
-            DevicePanel.Children.Add(MakeSetupCard(
-                "No devices found",
-                "Make sure your Govee devices are online, then scan in Settings.",
-                "Open Settings", () => NavigateToSettings?.Invoke()));
+            if (hasAnyDevice)
+                stack.Children.Add(MakeSeparator());
+
+            _corsairDeviceRows = new StackPanel();
+
+            if (_corsairSync.IsAvailable && _corsairSync.Devices.Count > 0)
+            {
+                foreach (var dev in _corsairSync.Devices)
+                    _corsairDeviceRows.Children.Add(BuildCorsairDeviceRow(dev));
+                hasAnyDevice = true;
+            }
+            else
+            {
+                // Trigger async device discovery
+                _ = RefreshCorsairDevices();
+
+                _corsairDeviceRows.Children.Add(new TextBlock
+                {
+                    Text = _corsairSync.IsAvailable ? "Discovering devices..." : "Connecting to iCUE...",
+                    FontSize = 11,
+                    Foreground = FindBrush("TextSecBrush"),
+                    Margin = new Thickness(0, 4, 0, 4),
+                });
+            }
+
+            stack.Children.Add(_corsairDeviceRows);
         }
 
-        // Always show DreamView card at the bottom
-        AppendDreamViewCard();
-
-        // Corsair iCUE card (always shown — self-contained enable toggle)
-        AppendCorsairCard();
-
-        // If DreamView was already enabled, dim device cards
-        if (_config.Ambience.ScreenSync.Enabled)
-            SetDevicePanelDimmed(true);
-    }
-
-    private Border MakeSetupCard(string title, string description, string buttonText, Action onClick)
-    {
-        var card = new Border
+        if (!hasAnyDevice && !_config.Corsair.Enabled)
         {
-            Style = FindStyle("CardPanel") as Style,
-            Margin = new Thickness(0, 0, 0, 12),
-        };
-        var stack = new StackPanel();
-        card.Child = stack;
-
-        stack.Children.Add(new TextBlock
-        {
-            Text = title,
-            FontSize = 16, FontWeight = FontWeights.SemiBold,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            Margin = new Thickness(0, 0, 0, 8),
-        });
-        stack.Children.Add(new TextBlock
-        {
-            Text = description,
-            Style = FindStyle("SecondaryText"),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 14),
-        });
-        var btn = new Button
-        {
-            Content = buttonText,
-            Padding = new Thickness(16, 6, 16, 6),
-            FontSize = 12,
-        };
-        btn.Click += (_, _) => onClick();
-        stack.Children.Add(btn);
+            stack.Children.Add(new TextBlock
+            {
+                Text = "No devices found — configure Govee or Corsair in Settings.",
+                FontSize = 11,
+                Foreground = FindBrush("TextSecBrush"),
+                Margin = new Thickness(0, 4, 0, 8),
+            });
+        }
 
         return card;
     }
 
-    // ── Device Card ──────────────────────────────────────────────────
-
-    private Border BuildDeviceCard(GoveeDeviceInfo device, string? overrideIp = null)
+    private Border BuildGoveeDeviceRow(GoveeDeviceInfo device, string? overrideIp)
     {
-        var card = new Border
+        var row = new Border
         {
-            Style = FindStyle("CardPanel") as Style,
-            Margin = new Thickness(0, 0, 0, 12),
-            BorderThickness = new Thickness(2, 0, 0, 0),
-            BorderBrush = FindBrush("AccentBrush"),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            BorderBrush = FindBrush("CardBorderBrush"),
+            Padding = new Thickness(0, 8, 0, 8),
         };
 
-        var stack = new StackPanel();
-        card.Child = stack;
+        var content = new StackPanel { Orientation = Orientation.Horizontal };
 
-        // ── Header ──
+        // Device name
         var deviceLabel = !string.IsNullOrWhiteSpace(device.DeviceName) ? device.DeviceName
             : !string.IsNullOrEmpty(device.Sku) ? AmbienceSync.GetProductName(device.Sku)
             : "Govee Device";
-        var headerText = deviceLabel != device.Sku && !string.IsNullOrEmpty(device.Sku)
-            ? $"{deviceLabel}  ({device.Sku})" : deviceLabel;
-        var (headerBar, headerLabel) = MakeSectionHeader(headerText);
-        stack.Children.Add(WrapHeader(headerBar, headerLabel));
 
-        // ── Controls row: Power + Brightness + Color ──
-        var controlsRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
-
-        // Find LAN IP for this device (match by MAC/DeviceId or SKU, or use override)
-        string? lanIp = overrideIp ?? FindLanIp(device);
-
-        // Power toggle — use LAN if available, fallback to Cloud API
-        var onOffCheck = new CheckBox
+        content.Children.Add(new TextBlock
         {
-            Content = "On",
+            Text = deviceLabel,
+            FontSize = 12, FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextPrimaryBrush"),
-            FontSize = 13,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 20, 0),
-        };
-        // Find our config entry for this device to track on/off state
+            Width = 160,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(0, 0, 12, 0),
+        });
+
+        string? lanIp = overrideIp ?? FindLanIp(device);
         var devConfig = lanIp != null
             ? _config?.Ambience.GoveeDevices.FirstOrDefault(d => d.Ip == lanIp)
             : null;
 
+        // Power toggle
+        var onOffCheck = new CheckBox
+        {
+            Content = "On",
+            Foreground = FindBrush("TextPrimaryBrush"),
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 12, 0),
+        };
         onOffCheck.Checked += async (_, _) =>
         {
             if (_loading) return;
@@ -470,24 +799,20 @@ public partial class AmbienceView : UserControl
             if (_loading) return;
             if (devConfig != null) { devConfig.PoweredOn = false; _onSave?.Invoke(_config!); }
             if (lanIp != null)
-            {
                 await AmbienceSync.SendTurnAsync(lanIp, false);
-            }
             else if (_cloudApi != null)
                 await SafeCloudCall(() => _cloudApi.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.TurnOnOff(false)));
         };
-        controlsRow.Children.Add(onOffCheck);
+        content.Children.Add(onOffCheck);
 
-        // Brightness — use LAN if available
-        controlsRow.Children.Add(MakeSubLabel("BRIGHTNESS"));
+        // Brightness slider
         var brightnessSlider = new StyledSlider
         {
             Minimum = 1, Maximum = 100, Value = 100,
-            Width = 180, Height = 40,
+            Width = 140, Height = 35,
             Suffix = "%",
             AccentColor = ThemeManager.Accent,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 20, 0),
         };
         var brightnessDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
         brightnessDebounce.Tick += async (_, _) =>
@@ -507,48 +832,177 @@ public partial class AmbienceView : UserControl
             brightnessDebounce.Stop();
             brightnessDebounce.Start();
         };
-        controlsRow.Children.Add(brightnessSlider);
+        content.Children.Add(brightnessSlider);
 
-        stack.Children.Add(controlsRow);
-
-        // Store references for live knob updates — index by all known IPs
+        // Store references for live knob updates
         if (lanIp != null)
             _deviceControls[lanIp] = (onOffCheck, brightnessSlider);
-        // Also index by device config IP directly (for LAN-only mode)
         if (devConfig != null && !string.IsNullOrWhiteSpace(devConfig.Ip))
             _deviceControls[devConfig.Ip] = (onOffCheck, brightnessSlider);
 
-        // ── Query actual device state via LAN ──
+        // Query actual device state
         if (lanIp != null)
-        {
             _ = QueryDeviceStateAsync(lanIp, onOffCheck, brightnessSlider);
-        }
 
-        // ── Colors section (Solid tile + Cloud scenes if available) ──
-        stack.Children.Add(MakeSeparator());
-        var (scBar, scLabel) = MakeSectionHeader("COLORS");
-        stack.Children.Add(WrapHeader(scBar, scLabel));
-        var colorsContainer = new StackPanel();
-        stack.Children.Add(colorsContainer);
-        BuildColorsSection(device, colorsContainer, lanIp, onOffCheck);
+        row.Child = content;
+        return row;
+    }
 
-
-        // ── Music mode section ──
-        bool hasMusic = device.Capabilities?.Contains("devices.capabilities.music_setting") == true;
-        if (hasMusic)
+    private Border BuildCorsairDeviceRow(CorsairDevice dev)
+    {
+        var row = new Border
         {
-            stack.Children.Add(MakeSeparator());
-            var (musBar, musLabel) = MakeSectionHeader("MUSIC MODE");
-            stack.Children.Add(WrapHeader(musBar, musLabel));
-            BuildMusicSection(device, stack);
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            BorderBrush = FindBrush("CardBorderBrush"),
+            Padding = new Thickness(0, 8, 0, 8),
+        };
+
+        var content = new StackPanel { Orientation = Orientation.Horizontal };
+
+        // Device name
+        content.Children.Add(new TextBlock
+        {
+            Text = dev.Name,
+            FontSize = 12, FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xD3, 0x00)), // Corsair yellow
+            VerticalAlignment = VerticalAlignment.Center,
+            Width = 160,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(0, 0, 12, 0),
+        });
+
+        // Type badge
+        content.Children.Add(new TextBlock
+        {
+            Text = dev.Type.Replace("_", " "),
+            FontSize = 10,
+            Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 12, 0),
+        });
+
+        // LED count
+        content.Children.Add(new TextBlock
+        {
+            Text = $"{dev.LedCount} LEDs",
+            FontSize = 10,
+            Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+
+        row.Child = content;
+        return row;
+    }
+
+    private async Task RefreshCorsairDevices()
+    {
+        if (_corsairSync == null || _corsairDeviceRows == null) return;
+
+        await Task.Delay(800); // give Start() a moment to finish
+        var devices = await _corsairSync.GetDevicesAsync();
+
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            _corsairDeviceRows.Children.Clear();
+
+            if (devices.Count > 0)
+            {
+                foreach (var dev in devices)
+                    _corsairDeviceRows.Children.Add(BuildCorsairDeviceRow(dev));
+            }
+            else
+            {
+                _corsairDeviceRows.Children.Add(new TextBlock
+                {
+                    Text = _corsairSync.IsAvailable
+                        ? "No devices found — check iCUE"
+                        : "iCUE not detected — make sure it's running with SDK enabled",
+                    FontSize = 11,
+                    Foreground = FindBrush("TextSecBrush"),
+                    Margin = new Thickness(0, 4, 0, 4),
+                });
+            }
+
+            UpdateTopBarStatus();
+        });
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // ██  CARD 3: SCENES & COLORS (Govee Cloud only)
+    // ══════════════════════════════════════════════════════════════════
+
+    private ComboBox? _sceneDevicePicker;
+    private StackPanel? _sceneContent;
+
+    private Border BuildScenesCard()
+    {
+        var card = new Border
+        {
+            Style = FindStyle("CardPanel") as Style,
+            Margin = new Thickness(0, 0, 0, 12),
+        };
+        var stack = new StackPanel();
+        card.Child = stack;
+
+        // ── Header ──
+        var (headerBar, headerLabel) = MakeSectionHeader("SCENES & COLORS");
+        stack.Children.Add(WrapHeader(headerBar, headerLabel));
+
+        // ── Device picker ──
+        var pickerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+        pickerRow.Children.Add(MakeSubLabel("DEVICE"));
+        _sceneDevicePicker = new ComboBox { Width = 240 };
+        foreach (var dev in _cloudDevices)
+        {
+            var name = !string.IsNullOrWhiteSpace(dev.DeviceName) ? dev.DeviceName : dev.Sku;
+            _sceneDevicePicker.Items.Add(name);
         }
+        if (_cloudDevices.Count > 0) _sceneDevicePicker.SelectedIndex = 0;
+        _sceneDevicePicker.SelectionChanged += (_, _) => RefreshSceneContent();
+        pickerRow.Children.Add(_sceneDevicePicker);
+        stack.Children.Add(pickerRow);
+
+        // ── Scene content (rebuilt when device changes) ──
+        _sceneContent = new StackPanel();
+        stack.Children.Add(_sceneContent);
+
+        RefreshSceneContent();
 
         return card;
     }
 
-    // ── Colors (Solid + Scenes) ─────────────────────────────────────
+    private void RefreshSceneContent()
+    {
+        if (_sceneContent == null || _sceneDevicePicker == null || _cloudApi == null) return;
+        _sceneContent.Children.Clear();
 
-    private void BuildColorsSection(GoveeDeviceInfo device, StackPanel container, string? lanIp, CheckBox? powerCheck = null)
+        int idx = _sceneDevicePicker.SelectedIndex;
+        if (idx < 0 || idx >= _cloudDevices.Count) return;
+
+        var device = _cloudDevices[idx];
+        string? lanIp = FindLanIp(device);
+
+        // Colors section
+        var colorsContainer = new StackPanel();
+        _sceneContent.Children.Add(colorsContainer);
+        BuildColorsSection(device, colorsContainer, lanIp, null);
+
+        // Music mode section
+        bool hasMusic = device.Capabilities?.Contains("devices.capabilities.music_setting") == true;
+        if (hasMusic)
+        {
+            _sceneContent.Children.Add(MakeSeparator());
+            var (musBar, musLabel) = MakeSectionHeader("MUSIC MODE");
+            _sceneContent.Children.Add(WrapHeader(musBar, musLabel));
+            BuildMusicSection(device, _sceneContent);
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // ██  COLORS (Solid + Scenes)
+    // ══════════════════════════════════════════════════════════════════
+
+    private void BuildColorsSection(GoveeDeviceInfo device, StackPanel container, string? lanIp, CheckBox? powerCheck)
     {
         var wrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
         container.Children.Add(wrap);
@@ -566,30 +1020,13 @@ public partial class AmbienceView : UserControl
         }
         else
         {
-            // Try fetching via API as fallback
             _ = FetchScenesIntoWrapAsync(device, wrap, powerCheck);
-        }
-
-        // When power is turned off, deselect all scene tiles
-        if (powerCheck != null)
-        {
-            powerCheck.Unchecked += (_, _) =>
-            {
-                foreach (var child in wrap.Children)
-                {
-                    if (child is Border b)
-                    {
-                        b.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
-                        b.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-                    }
-                }
-            };
         }
     }
 
     private void BuildSolidTile(WrapPanel wrap, GoveeDeviceInfo device, string? lanIp)
     {
-        var solidColor = Color.FromRgb(0x00, 0xE6, 0x76); // accent green
+        var solidColor = Color.FromRgb(0x00, 0xE6, 0x76);
         var tile = new Border
         {
             Width = 82, Height = 58,
@@ -640,7 +1077,6 @@ public partial class AmbienceView : UserControl
 
         tile.MouseLeftButtonUp += (_, _) =>
         {
-            // Deselect all tiles in the wrap
             foreach (var child in wrap.Children)
                 if (child is Border b)
                 {
@@ -648,11 +1084,9 @@ public partial class AmbienceView : UserControl
                     b.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
                 }
 
-            // Select solid
             tile.Background = new SolidColorBrush(Color.FromArgb(0x30, solidColor.R, solidColor.G, solidColor.B));
             tile.BorderBrush = new SolidColorBrush(solidColor);
 
-            // Open color picker
             var current = Colors.White;
             var dialog = new ColorPickerDialog(current) { Owner = Window.GetWindow(this) };
             if (dialog.ShowDialog() == true)
@@ -717,8 +1151,6 @@ public partial class AmbienceView : UserControl
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
             };
-
-            // Icon
             tileContent.Children.Add(new TextBlock
             {
                 Text = icon,
@@ -728,8 +1160,6 @@ public partial class AmbienceView : UserControl
                 Foreground = new SolidColorBrush(Color.FromRgb(
                     (byte)(tileColor.R * 0.7), (byte)(tileColor.G * 0.7), (byte)(tileColor.B * 0.7))),
             });
-
-            // Label
             tileContent.Children.Add(new TextBlock
             {
                 Text = scene.Name,
@@ -743,7 +1173,6 @@ public partial class AmbienceView : UserControl
             });
             tile.Child = tileContent;
 
-            // Hover effects
             tile.MouseEnter += (_, _) =>
             {
                 if (tile.Tag as string != activeSceneId)
@@ -762,7 +1191,6 @@ public partial class AmbienceView : UserControl
             };
             tile.MouseLeftButtonUp += async (_, _) =>
             {
-                // Deselect previous
                 foreach (var child in wrap.Children)
                 {
                     if (child is Border b && b.Tag as string != sceneId)
@@ -772,7 +1200,6 @@ public partial class AmbienceView : UserControl
                     }
                 }
 
-                // Select this tile
                 tile.Background = new SolidColorBrush(Color.FromArgb(0x30, tileColor.R, tileColor.G, tileColor.B));
                 tile.BorderBrush = new SolidColorBrush(tileColor);
                 activeSceneId = sceneId;
@@ -782,7 +1209,6 @@ public partial class AmbienceView : UserControl
                 await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
                     device.Device, device.Sku, GoveeCloudApi.SetScene(sceneValue)));
 
-                // Selecting a scene turns the light on
                 if (powerCheck != null && powerCheck.IsChecked != true)
                 {
                     _loading = true;
@@ -794,8 +1220,6 @@ public partial class AmbienceView : UserControl
             wrap.Children.Add(tile);
         }
     }
-
-    // ── Segments ──────────────────────────────────────────────────────
 
     // ── Music Mode ────────────────────────────────────────────────────
 
@@ -811,7 +1235,6 @@ public partial class AmbienceView : UserControl
     {
         int? activeModeId = null;
 
-        // Sensitivity slider (placed after tiles)
         var sensSlider = new StyledSlider
         {
             Minimum = 1, Maximum = 100, Value = 50,
@@ -821,7 +1244,6 @@ public partial class AmbienceView : UserControl
             Margin = new Thickness(0, 4, 0, 8),
         };
 
-        // Mode tiles
         var wrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
 
         foreach (var (modeId, modeName, icon, tileColor) in MusicModes)
@@ -882,7 +1304,6 @@ public partial class AmbienceView : UserControl
             };
             tile.MouseLeftButtonUp += async (_, _) =>
             {
-                // Deselect all
                 foreach (var child in wrap.Children)
                     if (child is Border b)
                     {
@@ -890,7 +1311,6 @@ public partial class AmbienceView : UserControl
                         b.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
                     }
 
-                // Select this
                 tile.Background = new SolidColorBrush(Color.FromArgb(0x30, tileColor.R, tileColor.G, tileColor.B));
                 tile.BorderBrush = new SolidColorBrush(tileColor);
                 activeModeId = modeId;
@@ -904,7 +1324,6 @@ public partial class AmbienceView : UserControl
 
         parent.Children.Add(wrap);
 
-        // Sensitivity
         var sensRow = new StackPanel { Orientation = Orientation.Horizontal };
         sensRow.Children.Add(MakeSubLabel("SENSITIVITY"));
         var sensDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
@@ -928,16 +1347,16 @@ public partial class AmbienceView : UserControl
 
     private static readonly Color[] ScenePalette =
     {
-        Color.FromRgb(0xFF, 0x6B, 0x35), // orange
-        Color.FromRgb(0x64, 0xB5, 0xF6), // blue
-        Color.FromRgb(0xFF, 0x80, 0xAB), // pink
-        Color.FromRgb(0x69, 0xF0, 0xAE), // green
-        Color.FromRgb(0xBA, 0x68, 0xC8), // purple
-        Color.FromRgb(0xFF, 0xD7, 0x40), // gold
-        Color.FromRgb(0x4D, 0xD0, 0xE1), // cyan
-        Color.FromRgb(0xFF, 0x52, 0x52), // red
-        Color.FromRgb(0xAE, 0xD5, 0x81), // lime
-        Color.FromRgb(0xE0, 0x40, 0xFF), // magenta
+        Color.FromRgb(0xFF, 0x6B, 0x35),
+        Color.FromRgb(0x64, 0xB5, 0xF6),
+        Color.FromRgb(0xFF, 0x80, 0xAB),
+        Color.FromRgb(0x69, 0xF0, 0xAE),
+        Color.FromRgb(0xBA, 0x68, 0xC8),
+        Color.FromRgb(0xFF, 0xD7, 0x40),
+        Color.FromRgb(0x4D, 0xD0, 0xE1),
+        Color.FromRgb(0xFF, 0x52, 0x52),
+        Color.FromRgb(0xAE, 0xD5, 0x81),
+        Color.FromRgb(0xE0, 0x40, 0xFF),
     };
 
     private static Color GetSceneTileColor(string name)
@@ -950,7 +1369,6 @@ public partial class AmbienceView : UserControl
     private static string GetSceneIcon(string name)
     {
         var n = name.ToLowerInvariant();
-        // Nature / Weather
         if (n.Contains("snow") || n.Contains("flake")) return "❄";
         if (n.Contains("fire") || n.Contains("flame")) return "🔥";
         if (n.Contains("rain")) return "🌧";
@@ -964,14 +1382,12 @@ public partial class AmbienceView : UserControl
         if (n.Contains("forest")) return "🌲";
         if (n.Contains("sunrise")) return "🌅";
         if (n.Contains("sunset")) return "🌇";
-        // Light / Color
         if (n.Contains("rainbow")) return "🌈";
         if (n.Contains("candle")) return "🕯";
         if (n.Contains("white light") || n.Contains("reading")) return "💡";
         if (n.Contains("glitter") || n.Contains("sparkle")) return "✨";
         if (n.Contains("colorful")) return "🎨";
         if (n.Contains("neon")) return "💜";
-        // Mood / Activity
         if (n.Contains("romantic") || n.Contains("romance")) return "💕";
         if (n.Contains("party")) return "🎉";
         if (n.Contains("energetic") || n.Contains("energic")) return "⚡";
@@ -979,7 +1395,6 @@ public partial class AmbienceView : UserControl
         if (n.Contains("asleep") || n.Contains("sleep")) return "😴";
         if (n.Contains("fright") || n.Contains("horror")) return "👻";
         if (n.Contains("siren")) return "🚨";
-        // Music / Entertainment
         if (n.Contains("drum") || n.Contains("beat")) return "🥁";
         if (n.Contains("movie") || n.Contains("film")) return "🎬";
         if (n.Contains("comedy") || n.Contains("comedies")) return "😂";
@@ -988,22 +1403,17 @@ public partial class AmbienceView : UserControl
         if (n.Contains("documentary") || n.Contains("documentaries")) return "📽";
         if (n.Contains("war")) return "⚔";
         if (n.Contains("science fiction") || n.Contains("sci-fi")) return "🚀";
-        // Seasonal
         if (n.Contains("season")) return "🍂";
         if (n.Contains("christmas") || n.Contains("xmas")) return "🎄";
         if (n.Contains("halloween")) return "🎃";
-        // Other
         if (n.Contains("crossing")) return "🚦";
         if (n.Contains("literary")) return "📖";
         if (n.Contains("pulse")) return "💓";
-        // Fallback — use the first character as a styled icon
         return "◆";
     }
 
-    /// <summary>
-    /// Update the on/off checkbox and brightness slider for a device from a knob event.
-    /// Called from App.xaml.cs when a Govee knob is turned.
-    /// </summary>
+    // ── Device state & knob updates ──────────────────────────────────
+
     public void UpdateDeviceBrightness(string ip, float normalized, bool poweredOn)
     {
         if (!_deviceControls.TryGetValue(ip, out var controls)) return;
@@ -1013,7 +1423,6 @@ public partial class AmbienceView : UserControl
         _loading = false;
     }
 
-    /// <summary>Update all Govee device checkboxes/brightness from knob events.</summary>
     public void UpdateAllDeviceBrightness(float normalized, bool poweredOn)
     {
         _loading = true;
@@ -1025,8 +1434,6 @@ public partial class AmbienceView : UserControl
         _loading = false;
     }
 
-    // ── Device state query ────────────────────────────────────────────
-
     private async Task QueryDeviceStateAsync(string ip, CheckBox onOffCheck, StyledSlider brightnessSlider)
     {
         try
@@ -1034,7 +1441,6 @@ public partial class AmbienceView : UserControl
             var status = await AmbienceSync.GetDeviceStatusAsync(ip);
             if (status == null) return;
 
-            // Sync PoweredOn state from real device
             var dev = _config?.Ambience.GoveeDevices.FirstOrDefault(d => d.Ip == ip);
             if (dev != null) dev.PoweredOn = status.Value.On;
 
@@ -1054,9 +1460,6 @@ public partial class AmbienceView : UserControl
 
     // ── LAN/Cloud routing ──────────────────────────────────────────────
 
-    /// <summary>
-    /// Find the LAN IP for a cloud device by matching DeviceId (MAC) or SKU against config.
-    /// </summary>
     private string? FindLanIp(GoveeDeviceInfo device)
     {
         if (_config == null || !_config.Ambience.GoveeEnabled) return null;
@@ -1070,860 +1473,65 @@ public partial class AmbienceView : UserControl
         return null;
     }
 
-    // ── Safe API call ─────────────────────────────────────────────────
-
     private static async Task SafeCloudCall(Func<Task> action)
     {
         try { await action(); }
         catch (Exception ex) { Logger.Log($"[Ambience] Cloud API error: {ex.Message}"); }
     }
 
-    // ── DreamView Card ────────────────────────────────────────────────
+    // ── Panel dimming (Screen Sync active) ─────────────────────────────
 
-    /// <summary>
-    /// Build and append the DreamView / Screen Sync card to the device panel.
-    /// Call from RebuildDevicePanel after the Govee device cards.
-    /// </summary>
-    private void AppendDreamViewCard()
+    private void SetDevicePanelDimmed(bool syncActive)
     {
-        if (_config == null) return;
+        if (_devicesCard != null)
+        {
+            _devicesCard.Opacity = syncActive ? 0.4 : 1.0;
+            _devicesCard.IsEnabled = !syncActive;
+        }
+        if (_scenesCard != null)
+        {
+            _scenesCard.Opacity = syncActive ? 0.4 : 1.0;
+            _scenesCard.IsEnabled = !syncActive;
+        }
+        // Screen Sync card always stays interactive
+    }
 
-        var cfg = _config.Ambience.ScreenSync;
+    // ── Setup card ──────────────────────────────────────────────────────
 
+    private Border MakeSetupCard(string title, string description, string buttonText, Action onClick)
+    {
         var card = new Border
         {
             Style = FindStyle("CardPanel") as Style,
-            Margin = new Thickness(0, 12, 0, 12),
+            Margin = new Thickness(0, 0, 0, 12),
         };
-        _dreamViewCard = card;
         var stack = new StackPanel();
         card.Child = stack;
 
-        // ── Section header ──
-        var (headerBar, headerLabel) = MakeSectionHeader("DREAMVIEW — Screen Sync");
-        var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-        headerRow.Children.Add(headerBar);
-        headerRow.Children.Add(headerLabel);
-
-        // Toggle ON/OFF button in header row
-        var enableToggle = new CheckBox
-        {
-            Content = "Enable",
-            IsChecked = cfg.Enabled,
-            FontSize = 12,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(16, 0, 0, 0),
-            ToolTip = "Start/stop real-time screen color sync to Govee lights",
-        };
-        enableToggle.Checked += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Ambience.ScreenSync.Enabled = true;
-            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-            SetDevicePanelDimmed(true);
-            QueueSave();
-        };
-        enableToggle.Unchecked += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Ambience.ScreenSync.Enabled = false;
-            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-            if (_dreamStatusLabel != null) _dreamStatusLabel.Text = "Stopped";
-            SetDevicePanelDimmed(false);
-            QueueSave();
-        };
-        headerRow.Children.Add(enableToggle);
-        stack.Children.Add(headerRow);
-
-        // ── Description ──
         stack.Children.Add(new TextBlock
         {
-            Text = "Captures your screen in real time and maps zone colors to Govee lights. Assign each device to a screen region below.",
+            Text = title,
+            FontSize = 16, FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            Margin = new Thickness(0, 0, 0, 8),
+        });
+        stack.Children.Add(new TextBlock
+        {
+            Text = description,
             Style = FindStyle("SecondaryText"),
             TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 12),
+            Margin = new Thickness(0, 0, 0, 14),
         });
-
-        // ── Game Mode toggle ──
-        var gameModeRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
-        var gameModeToggle = new CheckBox
+        var btn = new Button
         {
-            Content = "Game Mode — auto-enable when fullscreen app detected",
-            IsChecked = _config?.Ambience.GameModeEnabled ?? false,
-            FontSize = 12,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            ToolTip = "Automatically turns on Screen Sync for Govee and Corsair when a fullscreen game is running, and restores your previous settings when you exit",
-        };
-        gameModeToggle.Checked += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Ambience.GameModeEnabled = true;
-            QueueSave();
-        };
-        gameModeToggle.Unchecked += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Ambience.GameModeEnabled = false;
-            QueueSave();
-        };
-        gameModeRow.Children.Add(gameModeToggle);
-        stack.Children.Add(gameModeRow);
-
-        stack.Children.Add(MakeSeparator());
-
-        // ── Settings row 1: Monitor + FPS + Zones ──
-        var row1 = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
-
-        // Monitor selector — show friendly display name (e.g. "DELL U2723QE")
-        var screens = System.Windows.Forms.Screen.AllScreens;
-        var monitorCount = screens.Length;
-        var friendlyNames = NativeMethods.GetMonitorFriendlyNames();
-        row1.Children.Add(MakeSubLabel("MONITOR"));
-        var monitorCombo = new ComboBox { MinWidth = 200, MaxWidth = 350, Margin = new Thickness(0, 0, 20, 0), ToolTip = "Which monitor to capture" };
-        for (int i = 0; i < monitorCount; i++)
-        {
-            var screen = screens[i];
-            var gdiName = screen.DeviceName.TrimEnd('\0');
-            var friendly = friendlyNames.GetValueOrDefault(gdiName, "");
-            var label = !string.IsNullOrEmpty(friendly)
-                ? (screen.Primary ? $"{friendly} (Primary)" : friendly)
-                : (screen.Primary ? $"Display {i + 1} (Primary)" : $"Display {i + 1}");
-            monitorCombo.Items.Add(label);
-        }
-        monitorCombo.SelectedIndex = Math.Clamp(cfg.MonitorIndex, 0, Math.Max(0, monitorCount - 1));
-        monitorCombo.SelectionChanged += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Ambience.ScreenSync.MonitorIndex = monitorCombo.SelectedIndex;
-            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-            QueueSave();
-        };
-        row1.Children.Add(monitorCombo);
-
-        // FPS selector
-        row1.Children.Add(MakeSubLabel("FPS"));
-        var fpsCombo = new ComboBox { Width = 90, Margin = new Thickness(0, 0, 20, 0), ToolTip = "Capture rate — 30fps is smooth; 15fps uses less CPU" };
-        foreach (var fps in new[] { 15, 30, 60 })
-            fpsCombo.Items.Add($"{fps}fps");
-        fpsCombo.SelectedIndex = cfg.TargetFps switch { 60 => 2, 15 => 0, _ => 1 };
-        fpsCombo.SelectionChanged += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            int selected = fpsCombo.SelectedIndex switch { 0 => 15, 2 => 60, _ => 30 };
-            _config.Ambience.ScreenSync.TargetFps = selected;
-            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-            QueueSave();
-        };
-        row1.Children.Add(fpsCombo);
-
-        // Zone count
-        row1.Children.Add(MakeSubLabel("ZONES"));
-        var zoneCombo = new ComboBox { Width = 120, Margin = new Thickness(0, 0, 20, 0), ToolTip = "Number of screen zones sampled per frame" };
-        foreach (var z in new[] { 4, 8, 16 })
-            zoneCombo.Items.Add($"{z} zones");
-        zoneCombo.SelectedIndex = cfg.ZoneCount switch { 4 => 0, 16 => 2, _ => 1 };
-        zoneCombo.SelectionChanged += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            int selected = zoneCombo.SelectedIndex switch { 0 => 4, 2 => 16, _ => 8 };
-            _config.Ambience.ScreenSync.ZoneCount = selected;
-            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-            QueueSave();
-        };
-        row1.Children.Add(zoneCombo);
-
-        stack.Children.Add(row1);
-
-        // ── Settings row 2: Saturation + Sensitivity ──
-        var row2 = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
-
-        row2.Children.Add(MakeSubLabel("SATURATION"));
-        var satLabel = new TextBlock
-        {
-            Text = $"{cfg.Saturation:F1}×",
-            FontSize = 11,
-            Foreground = FindBrush("TextSecBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Width = 32,
-            Margin = new Thickness(4, 0, 8, 0),
-        };
-        var satSlider = new AmpUp.Controls.StyledSlider
-        {
-            Minimum = 0.5, Maximum = 2.0, Value = cfg.Saturation,
-            Width = 120, Margin = new Thickness(0, 0, 20, 0),
-            ShowLabel = false,
-            ToolTip = "Boost color saturation — higher = more vivid room colors",
-        };
-        satSlider.ValueChanged += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            float v = (float)Math.Round(satSlider.Value, 1);
-            satLabel.Text = $"{v:F1}×";
-            _config.Ambience.ScreenSync.Saturation = v;
-            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-            QueueSave();
-        };
-        row2.Children.Add(satSlider);
-        row2.Children.Add(satLabel);
-
-        row2.Children.Add(MakeSubLabel("SENSITIVITY"));
-        var sensLabel = new TextBlock
-        {
-            Text = cfg.Sensitivity.ToString(),
-            FontSize = 11,
-            Foreground = FindBrush("TextSecBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Width = 24,
-            Margin = new Thickness(4, 0, 0, 0),
-        };
-        var sensSlider = new AmpUp.Controls.StyledSlider
-        {
-            Minimum = 1, Maximum = 20, Value = cfg.Sensitivity,
-            Width = 120, Margin = new Thickness(0, 0, 8, 0),
-            ShowLabel = false,
-            ToolTip = "Minimum color change to trigger a send — lower = more reactive; higher = less flicker",
-        };
-        sensSlider.ValueChanged += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            int v = (int)sensSlider.Value;
-            sensLabel.Text = v.ToString();
-            _config.Ambience.ScreenSync.Sensitivity = v;
-            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-            QueueSave();
-        };
-        row2.Children.Add(sensSlider);
-        row2.Children.Add(sensLabel);
-
-        stack.Children.Add(row2);
-
-        stack.Children.Add(MakeSeparator());
-
-        // ── Live zone preview ──
-        stack.Children.Add(new TextBlock
-        {
-            Text = "ZONE PREVIEW",
-            FontSize = 9, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            Margin = new Thickness(0, 0, 0, 6),
-        });
-
-        var previewPanel = new WrapPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 6),
-            ClipToBounds = false,
-        };
-        _dreamZoneSwatches.Clear();
-        for (int i = 0; i < cfg.ZoneCount; i++)
-        {
-            var swatch = new Border
-            {
-                Width = 28, Height = 28,
-                CornerRadius = new CornerRadius(6),
-                Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-                BorderThickness = new Thickness(1),
-                Margin = new Thickness(0, 0, 6, 6),
-                ToolTip = $"Zone {i + 1}",
-            };
-            _dreamZoneSwatches.Add(swatch);
-            previewPanel.Children.Add(swatch);
-        }
-        stack.Children.Add(previewPanel);
-
-        // Status label
-        _dreamStatusLabel = new TextBlock
-        {
-            Text = _dreamSync?.Status ?? "Stopped",
-            FontSize = 11,
-            Style = FindStyle("SecondaryText"),
-            Margin = new Thickness(0, 0, 0, 12),
-        };
-        stack.Children.Add(_dreamStatusLabel);
-
-        // Start a timer to refresh the status label every second
-        var statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        statusTimer.Tick += (_, _) =>
-        {
-            if (!IsVisible) return;
-            if (_dreamStatusLabel != null && _dreamSync != null)
-                _dreamStatusLabel.Text = _dreamSync.Status;
-        };
-        card.Unloaded += (_, _) => statusTimer.Stop();
-        statusTimer.Start();
-
-        stack.Children.Add(MakeSeparator());
-
-        // ── Device zone assignment ──
-        stack.Children.Add(new TextBlock
-        {
-            Text = "DEVICE ZONE MAPPING",
-            FontSize = 9, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            Margin = new Thickness(0, 0, 0, 8),
-        });
-
-        if (_config?.Ambience.GoveeDevices.Count == 0)
-        {
-            stack.Children.Add(new TextBlock
-            {
-                Text = "No Govee LAN devices configured. Add devices in Settings → Ambience.",
-                Style = FindStyle("SecondaryText"),
-                TextWrapping = TextWrapping.Wrap,
-            });
-        }
-        else
-        {
-            foreach (var dev in _config.Ambience.GoveeDevices)
-            {
-                if (string.IsNullOrWhiteSpace(dev.Ip)) continue;
-
-                var devRow = new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    Margin = new Thickness(0, 0, 0, 8),
-                };
-
-                var devName = new TextBlock
-                {
-                    Text = !string.IsNullOrWhiteSpace(dev.Name) ? dev.Name : dev.Ip,
-                    FontSize = 12,
-                    Foreground = FindBrush("TextPrimaryBrush"),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Width = 160,
-                    TextTrimming = TextTrimming.CharacterEllipsis,
-                };
-                devRow.Children.Add(devName);
-
-                // Find or create mapping for this device
-                string devIp = dev.Ip;
-                var existing = cfg.DeviceMappings.FirstOrDefault(m => m.DeviceIp == devIp);
-                if (existing == null)
-                {
-                    existing = new ZoneDeviceMapping { DeviceIp = devIp, Side = ZoneSide.Full };
-                    cfg.DeviceMappings.Add(existing);
-                    _dreamSync?.UpdateConfig(cfg, _config?.Ambience ?? new AmbienceConfig());
-                    QueueSave();
-                }
-
-                int segCount = AmbienceSync.GetSegmentCount(dev);
-                if (segCount > 0)
-                {
-                    // Segment-capable device — show segment info label
-                    devRow.Children.Add(new TextBlock
-                    {
-                        Text = $"Per-segment ({segCount} zones)",
-                        FontSize = 11,
-                        Foreground = FindBrush("AccentBrush"),
-                        VerticalAlignment = VerticalAlignment.Center,
-                        Margin = new Thickness(8, 0, 0, 0),
-                    });
-                }
-                else
-                {
-                    // Fallback — show zone side picker
-                    var zoneComboDevice = new ComboBox { Width = 100, Margin = new Thickness(8, 0, 0, 0) };
-                    foreach (ZoneSide side in Enum.GetValues<ZoneSide>())
-                        zoneComboDevice.Items.Add(side.ToString());
-                    zoneComboDevice.SelectedIndex = (int)existing.Side;
-
-                    zoneComboDevice.SelectionChanged += (_, _) =>
-                    {
-                        if (_loading || _config == null) return;
-                        var mappings = _config.Ambience.ScreenSync.DeviceMappings;
-                        var m = mappings.FirstOrDefault(x => x.DeviceIp == devIp);
-                        if (m == null)
-                        {
-                            m = new ZoneDeviceMapping { DeviceIp = devIp };
-                            mappings.Add(m);
-                        }
-                        m.Side = (ZoneSide)zoneComboDevice.SelectedIndex;
-                        _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-                        QueueSave();
-                    };
-                    devRow.Children.Add(zoneComboDevice);
-                }
-
-                stack.Children.Add(devRow);
-            }
-        }
-
-        DevicePanel.Children.Add(card);
-    }
-
-    private void UpdateDreamZonePreview((byte R, byte G, byte B)[] zones)
-    {
-        for (int i = 0; i < _dreamZoneSwatches.Count && i < zones.Length; i++)
-        {
-            _dreamZoneSwatches[i].Background = new SolidColorBrush(
-                Color.FromRgb(zones[i].R, zones[i].G, zones[i].B));
-        }
-    }
-
-    // ── Corsair iCUE card ─────────────────────────────────────────────
-
-    private void AppendCorsairCard()
-    {
-        if (_config == null) return;
-
-        var cfg = _config.Corsair;
-        var accent = ThemeManager.Accent;
-        var clrCorsair = Color.FromRgb(0xFF, 0xD3, 0x00); // Corsair yellow
-
-        var card = new Border
-        {
-            Style = FindStyle("CardPanel") as Style,
-            Margin = new Thickness(0, 0, 0, 12),
-        };
-        _corsairCard = card;
-        var stack = new StackPanel();
-        card.Child = stack;
-
-        // ── Header row ───────────────────────────────────────────────
-        var (hBar, hLabel) = MakeSectionHeader("Corsair iCUE");
-        hBar.Background = new SolidColorBrush(clrCorsair);
-        hLabel.Foreground = new SolidColorBrush(clrCorsair);
-        // Don't add to _sectionHeaders — custom color, not accent-dependent
-
-        var enableToggle = new System.Windows.Controls.CheckBox
-        {
-            IsChecked = cfg.Enabled,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(12, 0, 0, 0),
-            ToolTip = "Enable Corsair iCUE integration (requires iCUE 5+ running)",
-        };
-
-        _corsairStatusLabel = new TextBlock
-        {
-            FontSize = 11,
-            Foreground = FindBrush("TextSecBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(10, 0, 0, 0),
-            Text = cfg.Enabled ? "Checking..." : "Disabled",
-        };
-
-        var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
-        headerRow.Children.Add(hBar);
-        headerRow.Children.Add(hLabel);
-        headerRow.Children.Add(enableToggle);
-        headerRow.Children.Add(_corsairStatusLabel);
-        stack.Children.Add(headerRow);
-
-        // ── Content (hidden when disabled) ───────────────────────────
-        var content = new StackPanel { Visibility = cfg.Enabled ? Visibility.Visible : Visibility.Collapsed };
-        stack.Children.Add(content);
-
-        // ── Lighting section ──────────────────────────────────────────
-        var (lBar, lLabel) = MakeSectionHeader("Lighting");
-        content.Children.Add(WrapHeader(lBar, lLabel));
-
-        // Light sync mode ComboBox
-        var lightModeRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-        lightModeRow.Children.Add(MakeSubLabel("MODE"));
-        var lightModeCombo = new ComboBox
-        {
-            Width = 240, Height = 28,
-            SelectedIndex = cfg.LightSyncMode switch
-            {
-                "static" => 1, "dreamview" => 2, "vu_reactive" => 3, _ => 0
-            },
-        };
-        lightModeCombo.Items.Add("Off");
-        lightModeCombo.Items.Add("Static Color");
-        lightModeCombo.Items.Add("Screen Sync");
-        lightModeCombo.Items.Add("Turn Up Sync");
-        lightModeRow.Children.Add(lightModeCombo);
-        content.Children.Add(lightModeRow);
-
-        // Static color row (only visible in Static mode)
-        var staticColorRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 8),
-            Visibility = cfg.LightSyncMode == "static" ? Visibility.Visible : Visibility.Collapsed,
-        };
-        staticColorRow.Children.Add(MakeSubLabel("COLOR"));
-
-        // Color swatch button
-        var colorSwatch = new Border
-        {
-            Width = 28, Height = 28,
-            CornerRadius = new CornerRadius(4),
-            Cursor = Cursors.Hand,
-            ToolTip = "Click to pick static color",
-            Margin = new Thickness(0, 0, 8, 0),
-        };
-        try
-        {
-            colorSwatch.Background = new SolidColorBrush(
-                (Color)ColorConverter.ConvertFromString(cfg.StaticColor));
-        }
-        catch { colorSwatch.Background = new SolidColorBrush(accent); }
-
-        colorSwatch.MouseLeftButtonUp += (_, _) =>
-        {
-            if (_config == null) return;
-            Color initial;
-            try { initial = (Color)ColorConverter.ConvertFromString(_config.Corsair.StaticColor); }
-            catch { initial = Colors.LimeGreen; }
-            var dlg = new ColorPickerDialog(initial) { Owner = Window.GetWindow(this) };
-            if (dlg.ShowDialog() == true)
-            {
-                var chosen = dlg.SelectedColor;
-                _config.Corsair.StaticColor = $"#{chosen.R:X2}{chosen.G:X2}{chosen.B:X2}";
-                colorSwatch.Background = new SolidColorBrush(chosen);
-                if (_corsairSync?.IsAvailable == true)
-                    _ = _corsairSync.SetStaticColorAllAsync(chosen.R, chosen.G, chosen.B);
-                QueueSave();
-            }
-        };
-        staticColorRow.Children.Add(colorSwatch);
-        content.Children.Add(staticColorRow);
-
-        // Brightness slider
-        var brightnessRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-        brightnessRow.Children.Add(MakeSubLabel("BRIGHTNESS"));
-        var brightnessSlider = new Slider
-        {
-            Width = 140, Minimum = 50, Maximum = 200,
-            Value = cfg.LightBrightness,
-            TickFrequency = 10, IsSnapToTickEnabled = true,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        var brightnessLabel = new TextBlock
-        {
-            Text = $"{cfg.LightBrightness}%",
-            FontSize = 12, Width = 40,
-            Foreground = FindBrush("TextSecBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0),
-        };
-        brightnessSlider.ValueChanged += (_, e) =>
-        {
-            if (_config == null) return;
-            _config.Corsair.LightBrightness = (int)e.NewValue;
-            brightnessLabel.Text = $"{(int)e.NewValue}%";
-            QueueSave();
-        };
-        brightnessRow.Children.Add(brightnessSlider);
-        brightnessRow.Children.Add(brightnessLabel);
-        content.Children.Add(brightnessRow);
-
-        content.Children.Add(MakeSeparator());
-
-        // ── Fan section ───────────────────────────────────────────────
-        var (fBar, fLabel) = MakeSectionHeader("Fan Control");
-        content.Children.Add(WrapHeader(fBar, fLabel));
-
-        var fanEnableRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-        var fanEnableToggle = new System.Windows.Controls.CheckBox
-        {
-            IsChecked = cfg.FanEnabled,
-            Content = new TextBlock { Text = "Enable Fan Speed Control", FontSize = 12, Foreground = FindBrush("TextPrimaryBrush"), Margin = new Thickness(6, 0, 0, 0) },
-            VerticalContentAlignment = VerticalAlignment.Center,
-        };
-        fanEnableRow.Children.Add(fanEnableToggle);
-        content.Children.Add(fanEnableRow);
-
-        var fanContent = new StackPanel
-        {
-            Visibility = cfg.FanEnabled ? Visibility.Visible : Visibility.Collapsed,
-            Margin = new Thickness(0, 4, 0, 0),
-        };
-        content.Children.Add(fanContent);
-
-        // Fan mode ComboBox
-        var fanModeRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
-        fanModeRow.Children.Add(MakeSubLabel("MODE"));
-        var fanModeCombo = new ComboBox { Width = 240, Height = 28, SelectedIndex = cfg.FanSyncMode == "audio_reactive" ? 1 : 0 };
-        fanModeCombo.Items.Add("Manual");
-        fanModeCombo.Items.Add("Audio Reactive");
-        fanModeRow.Children.Add(fanModeCombo);
-        fanContent.Children.Add(fanModeRow);
-
-        // Manual sliders panel
-        var manualPanel = new StackPanel
-        {
-            Visibility = cfg.FanSyncMode != "audio_reactive" ? Visibility.Visible : Visibility.Collapsed,
-        };
-
-        var pumpRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-        pumpRow.Children.Add(MakeSubLabel("PUMP"));
-        var pumpSlider = new StyledSlider
-        {
-            Minimum = 0, Maximum = 100, Value = cfg.PumpFanSpeed,
-            Width = 180, Height = 36, Suffix = "%", ShowLabel = true,
-            AccentColor = clrCorsair,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        var pumpDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
-        pumpDebounce.Tick += async (_, _) =>
-        {
-            pumpDebounce.Stop();
-            if (_config == null) return;
-            int pct = (int)pumpSlider.Value;
-            _config.Corsair.PumpFanSpeed = pct;
-            QueueSave();
-            if (_corsairSync?.IsAvailable == true)
-            {
-                foreach (var dev in _corsairSync.Devices)
-                    if (dev.Type.Contains("pump") || dev.Type.Contains("cooler"))
-                        await _corsairSync.SetFanSpeedAsync(dev.Id, pct);
-            }
-        };
-        pumpSlider.ValueChanged += (_, _) => { pumpDebounce.Stop(); pumpDebounce.Start(); };
-        pumpRow.Children.Add(pumpSlider);
-        manualPanel.Children.Add(pumpRow);
-
-        var caseRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-        caseRow.Children.Add(MakeSubLabel("CASE"));
-        var caseSlider = new StyledSlider
-        {
-            Minimum = 0, Maximum = 100, Value = cfg.CaseFanSpeed,
-            Width = 180, Height = 36, Suffix = "%", ShowLabel = true,
-            AccentColor = clrCorsair,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        var caseDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
-        caseDebounce.Tick += async (_, _) =>
-        {
-            caseDebounce.Stop();
-            if (_config == null) return;
-            int pct = (int)caseSlider.Value;
-            _config.Corsair.CaseFanSpeed = pct;
-            QueueSave();
-            if (_corsairSync?.IsAvailable == true)
-            {
-                foreach (var dev in _corsairSync.Devices)
-                    if (dev.Type.Contains("fan") && !dev.Type.Contains("pump") && !dev.Type.Contains("cooler"))
-                        await _corsairSync.SetFanSpeedAsync(dev.Id, pct);
-            }
-        };
-        caseSlider.ValueChanged += (_, _) => { caseDebounce.Stop(); caseDebounce.Start(); };
-        caseRow.Children.Add(caseSlider);
-        manualPanel.Children.Add(caseRow);
-
-        fanContent.Children.Add(manualPanel);
-
-        // Audio-reactive panel
-        var reactivePanel = new StackPanel
-        {
-            Visibility = cfg.FanSyncMode == "audio_reactive" ? Visibility.Visible : Visibility.Collapsed,
-        };
-
-        var minRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-        minRow.Children.Add(MakeSubLabel("MIN %"));
-        var minSlider = new StyledSlider
-        {
-            Minimum = 0, Maximum = 100, Value = cfg.FanMinPercent,
-            Width = 160, Height = 36, Suffix = "%", ShowLabel = true,
-            AccentColor = clrCorsair,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        minSlider.ValueChanged += (_, _) =>
-        {
-            if (_config == null) return;
-            _config.Corsair.FanMinPercent = (int)minSlider.Value;
-            QueueSave();
-        };
-        minRow.Children.Add(minSlider);
-        reactivePanel.Children.Add(minRow);
-
-        var maxRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-        maxRow.Children.Add(MakeSubLabel("MAX %"));
-        var maxSlider = new StyledSlider
-        {
-            Minimum = 0, Maximum = 100, Value = cfg.FanMaxPercent,
-            Width = 160, Height = 36, Suffix = "%", ShowLabel = true,
-            AccentColor = clrCorsair,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        maxSlider.ValueChanged += (_, _) =>
-        {
-            if (_config == null) return;
-            _config.Corsair.FanMaxPercent = (int)maxSlider.Value;
-            QueueSave();
-        };
-        maxRow.Children.Add(maxSlider);
-        reactivePanel.Children.Add(maxRow);
-
-        fanContent.Children.Add(reactivePanel);
-
-        content.Children.Add(MakeSeparator());
-
-        // ── Detected devices ──────────────────────────────────────────
-        var (dBar, dLabel) = MakeSectionHeader("Detected Devices");
-        content.Children.Add(WrapHeader(dBar, dLabel));
-
-        _corsairDeviceList = new ListBox
-        {
-            Height = 100,
-            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
-            BorderBrush = FindBrush("CardBorderBrush"),
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(0, 0, 0, 0),
-            Foreground = FindBrush("TextPrimaryBrush"),
+            Content = buttonText,
+            Padding = new Thickness(16, 6, 16, 6),
             FontSize = 12,
         };
-        content.Children.Add(_corsairDeviceList);
+        btn.Click += (_, _) => onClick();
+        stack.Children.Add(btn);
 
-        // ── Wire events ───────────────────────────────────────────────
-
-        lightModeCombo.SelectionChanged += (_, _) =>
-        {
-            if (_config == null) return;
-            _config.Corsair.LightSyncMode = lightModeCombo.SelectedIndex switch
-            {
-                1 => "static", 2 => "dreamview", 3 => "vu_reactive", _ => "off"
-            };
-            staticColorRow.Visibility = _config.Corsair.LightSyncMode == "static"
-                ? Visibility.Visible : Visibility.Collapsed;
-            QueueSave();
-        };
-
-        fanModeCombo.SelectionChanged += (_, _) =>
-        {
-            if (_config == null) return;
-            _config.Corsair.FanSyncMode = fanModeCombo.SelectedIndex == 1 ? "audio_reactive" : "manual";
-            manualPanel.Visibility = _config.Corsair.FanSyncMode != "audio_reactive"
-                ? Visibility.Visible : Visibility.Collapsed;
-            reactivePanel.Visibility = _config.Corsair.FanSyncMode == "audio_reactive"
-                ? Visibility.Visible : Visibility.Collapsed;
-            QueueSave();
-        };
-
-        fanEnableToggle.Checked += (_, _) =>
-        {
-            if (_config == null) return;
-            _config.Corsair.FanEnabled = true;
-            fanContent.Visibility = Visibility.Visible;
-            QueueSave();
-        };
-        fanEnableToggle.Unchecked += (_, _) =>
-        {
-            if (_config == null) return;
-            _config.Corsair.FanEnabled = false;
-            fanContent.Visibility = Visibility.Collapsed;
-            QueueSave();
-        };
-
-        enableToggle.Checked += (_, _) =>
-        {
-            if (_config == null) return;
-            _config.Corsair.Enabled = true;
-            content.Visibility = Visibility.Visible;
-            QueueSave();
-            if (_corsairSync != null)
-            {
-                _corsairSync.Start();
-                _ = LoadCorsairDevicesAndEffects();
-            }
-        };
-        enableToggle.Unchecked += (_, _) =>
-        {
-            if (_config == null) return;
-            _config.Corsair.Enabled = false;
-            content.Visibility = Visibility.Collapsed;
-            _corsairSync?.Stop();
-            if (_corsairStatusLabel != null) _corsairStatusLabel.Text = "Disabled";
-            QueueSave();
-        };
-
-        DevicePanel.Children.Add(card);
-
-        // If already enabled, kick off device discovery
-        if (cfg.Enabled && _corsairSync != null)
-            _ = LoadCorsairDevicesAndEffects();
-    }
-
-    private async Task LoadCorsairDevicesAndEffects()
-    {
-        if (_corsairSync == null || _corsairDeviceList == null) return;
-
-        await Task.Delay(800); // give Start() a moment to finish
-        var devices = await _corsairSync.GetDevicesAsync();
-
-        _ = Dispatcher.BeginInvoke(() =>
-        {
-            // Update status
-            if (_corsairStatusLabel != null)
-                _corsairStatusLabel.Text = _corsairSync.IsAvailable
-                    ? $"Connected — {devices.Count} device(s)"
-                    : "iCUE not detected";
-
-            // Populate device list
-            _corsairDeviceList.Items.Clear();
-            foreach (var dev in devices)
-            {
-                _corsairDeviceList.Items.Add(new TextBlock
-                {
-                    Text = $"{dev.Name}  ·  {dev.Type}  ·  {dev.Id}",
-                    FontSize = 11,
-                    Foreground = FindBrush("TextPrimaryBrush"),
-                    Padding = new Thickness(4, 2, 4, 2),
-                });
-            }
-            if (devices.Count == 0)
-                _corsairDeviceList.Items.Add(new TextBlock
-                {
-                    Text = "No devices found — make sure iCUE 5+ is running",
-                    FontSize = 11,
-                    Foreground = FindBrush("TextSecBrush"),
-                    Padding = new Thickness(4, 2, 4, 2),
-                });
-
-            // Effects API not available in iCUE SDK v4 — murals removed
-        });
-    }
-
-    private void SetDevicePanelDimmed(bool dreamActive)
-    {
-        if (dreamActive)
-        {
-            if (_dreamActiveBanner == null)
-            {
-                var accent = ThemeManager.Accent;
-                _dreamActiveBanner = new Border
-                {
-                    Background = new SolidColorBrush(Color.FromArgb(0x15, accent.R, accent.G, accent.B)),
-                    BorderBrush = new SolidColorBrush(Color.FromArgb(0x33, accent.R, accent.G, accent.B)),
-                    BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(8),
-                    Padding = new Thickness(12, 8, 12, 8),
-                    Margin = new Thickness(0, 0, 0, 12),
-                    Child = new TextBlock
-                    {
-                        Text = "Screen Sync is active — disable DreamView to use scenes and colors.",
-                        FontSize = 11,
-                        Foreground = new SolidColorBrush(Color.FromArgb(0xAA, accent.R, accent.G, accent.B)),
-                        TextWrapping = TextWrapping.Wrap,
-                    }
-                };
-                DevicePanel.Children.Insert(0, _dreamActiveBanner);
-            }
-            foreach (UIElement child in DevicePanel.Children)
-            {
-                if (child == _dreamActiveBanner || child == _dreamViewCard || child == _corsairCard)
-                    continue;
-                child.Opacity = 0.3;
-                child.IsEnabled = false;
-            }
-        }
-        else
-        {
-            if (_dreamActiveBanner != null)
-            {
-                DevicePanel.Children.Remove(_dreamActiveBanner);
-                _dreamActiveBanner = null;
-            }
-            foreach (UIElement child in DevicePanel.Children)
-            {
-                child.Opacity = 1.0;
-                child.IsEnabled = true;
-            }
-        }
+        return card;
     }
 
     // ── Save ──────────────────────────────────────────────────────────
