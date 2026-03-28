@@ -514,12 +514,15 @@ public partial class AmbienceView : UserControl
         };
         stack.Children.Add(_dreamStatusLabel);
 
-        // Status update timer
+        // Status update timer — updates status label and Game Mode badge
         var statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         statusTimer.Tick += (_, _) =>
         {
             if (_dreamStatusLabel != null && _dreamSync != null)
                 _dreamStatusLabel.Text = _dreamSync.Status;
+            bool active = _config?.Ambience.ScreenSync.Enabled == true;
+            statusBadge.Text = active ? "ACTIVE" : "Standby";
+            statusBadge.Foreground = active ? Brush("#00E676") : FindBrush("TextSecBrush");
         };
         statusTimer.Start();
 
