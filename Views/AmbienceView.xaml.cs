@@ -40,6 +40,11 @@ public partial class AmbienceView : UserControl
     private StackPanel? _corsairDeviceRows;
     private DispatcherTimer? _corsairMusicTimer;
 
+    // Music reactive shared state
+    private volatile float[]? _globalMusicBands;
+    private DispatcherTimer? _goveeLanMusicTimer;
+    private string? _goveeLanMusicIp;
+
     // Room pattern engine — headless RgbController for rendering effects
     private RgbController? _roomRgb;
     private string? _activePattern;
@@ -490,57 +495,16 @@ public partial class AmbienceView : UserControl
     private void StartGlobalMusicSync()
     {
         StopCorsairMusicSync(); // stop any existing
-        StopRoomPattern(); // stop effect pattern — music takes over
+        // Keep room pattern running — music modulates its brightness in OnRoomFrame
 
-        // Start audio analyzer
         App.AudioAnalyzer?.Start();
 
-        _corsairMusicTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+        _corsairMusicTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
         _corsairMusicTimer.Tick += (_, _) =>
         {
-            var bands = App.AudioAnalyzer?.SmoothedBands;
-            if (bands == null || bands.Length < 5 || _config == null) return;
-
-            float bass = bands[0] + bands[1];
-            float mid = bands[2];
-            float treble = bands[3] + bands[4];
-            byte r = (byte)Math.Min(bass * 400, 255);
-            byte g = (byte)Math.Min(mid * 400, 255);
-            byte b = (byte)Math.Min(treble * 400, 255);
-
-            // Send to Govee
-            if (_config.Ambience.GoveeEnabled && _config.Ambience.GoveeSyncToGlobal)
-            {
-                foreach (var dev in _config.Ambience.GoveeDevices)
-                {
-                    if (string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn) continue;
-                    _ = AmbienceSync.SendColorAsync(dev.Ip, r, g, b);
-                }
-            }
-
-            // Send to Corsair
-            if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
-            {
-                float boost = _config.Corsair.LightBrightness / 100f;
-                _ = _corsairSync.SetStaticColorAllAsync(
-                    (byte)Math.Min(r * boost, 255),
-                    (byte)Math.Min(g * boost, 255),
-                    (byte)Math.Min(b * boost, 255));
-            }
+            _globalMusicBands = App.AudioAnalyzer?.SmoothedBands;
         };
         _corsairMusicTimer.Start();
-
-        // Prevent other sync modes from overwriting
-        if (_config != null)
-        {
-            _config.Ambience.LinkToLights = false;
-            _config.Corsair.LightSyncMode = "static";
-        }
-        // Pause Govee ambient sync
-        if (_config?.Ambience.GoveeEnabled == true)
-            foreach (var dev in _config.Ambience.GoveeDevices)
-                if (!string.IsNullOrWhiteSpace(dev.Ip))
-                    AmbienceSync.PauseSync(dev.Ip, 99999);
     }
 
     // ── GOVEE TAB ───────────────────────────────────────────────────
@@ -2346,6 +2310,17 @@ public partial class AmbienceView : UserControl
         byte g = (byte)(totalG / 15);
         byte b = (byte)(totalB / 15);
 
+        // Music reactive: modulate brightness from audio energy
+        var musicBands = _globalMusicBands;
+        if (_corsairMusicTimer?.IsEnabled == true && musicBands != null && musicBands.Length >= 5)
+        {
+            float energy = Math.Min((musicBands[0] + musicBands[1] + musicBands[2] + musicBands[3] + musicBands[4]) * 2.5f, 1f);
+            float brightness = 0.15f + energy * 0.85f; // keep min 15% so effect remains visible
+            r = (byte)(r * brightness);
+            g = (byte)(g * brightness);
+            b = (byte)(b * brightness);
+        }
+
         // Send to Govee (rate limited by AmbienceSync)
         if (_config.Ambience.GoveeEnabled)
         {
@@ -2360,6 +2335,12 @@ public partial class AmbienceView : UserControl
         if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
         {
             float boost = _config.Corsair.LightBrightness / 100f;
+            // Apply music brightness if active
+            if (musicBands != null && _corsairMusicTimer?.IsEnabled == true)
+            {
+                float energy = Math.Min((musicBands[0] + musicBands[1] + musicBands[2] + musicBands[3] + musicBands[4]) * 2.5f, 1f);
+                boost *= 0.15f + energy * 0.85f;
+            }
             var boosted = new byte[45];
             for (int i = 0; i < 45; i++)
                 boosted[i] = (byte)Math.Min(linearColors[i] * boost, 255);
@@ -2600,124 +2581,62 @@ public partial class AmbienceView : UserControl
 
     // ── Music Mode ────────────────────────────────────────────────────
 
-    private static readonly (int id, string name, string icon, Color color)[] MusicModes =
-    {
-        (3, "Rhythm", "🎵", Color.FromRgb(0x69, 0xF0, 0xAE)),
-        (4, "Rolling", "🌊", Color.FromRgb(0x64, 0xB5, 0xF6)),
-        (5, "Energic", "⚡", Color.FromRgb(0xFF, 0xD7, 0x40)),
-        (6, "Spectrum", "🌈", Color.FromRgb(0xBA, 0x68, 0xC8)),
-    };
-
     private void BuildMusicSection(GoveeDeviceInfo device, StackPanel parent)
     {
-        int? activeModeId = null;
+        string? lanIp = FindLanIp(device);
 
-        var sensSlider = new StyledSlider
+        var musicCheck = new CheckBox
         {
-            Minimum = 1, Maximum = 100, Value = 50,
-            Width = 200, Height = 40,
-            Suffix = "",
-            AccentColor = ThemeManager.Accent,
-            Margin = new Thickness(0, 4, 0, 8),
+            Content = "Enable Music Sync",
+            IsChecked = _goveeLanMusicTimer?.IsEnabled == true && _goveeLanMusicIp == lanIp,
+            FontSize = 12,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            Margin = new Thickness(0, 0, 0, 8),
+            ToolTip = "Drive this device's colors from system audio — bass=red, mids=green, treble=blue",
         };
-
-        var wrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-
-        foreach (var (modeId, modeName, icon, tileColor) in MusicModes)
+        musicCheck.Checked += (_, _) =>
         {
-            var tile = new Border
-            {
-                Width = 82, Height = 58,
-                CornerRadius = new CornerRadius(6),
-                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-                BorderThickness = new Thickness(1),
-                Margin = new Thickness(0, 0, 6, 6),
-                Cursor = Cursors.Hand,
-                ToolTip = modeName,
-                Tag = modeId,
-            };
-
-            var tileContent = new StackPanel
-            {
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            tileContent.Children.Add(new TextBlock
-            {
-                Text = icon,
-                FontSize = 20,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                TextAlignment = TextAlignment.Center,
-                Foreground = new SolidColorBrush(Color.FromRgb(
-                    (byte)(tileColor.R * 0.7), (byte)(tileColor.G * 0.7), (byte)(tileColor.B * 0.7))),
-            });
-            tileContent.Children.Add(new TextBlock
-            {
-                Text = modeName,
-                FontSize = 9,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                TextAlignment = TextAlignment.Center,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
-                Margin = new Thickness(0, 2, 0, 0),
-            });
-            tile.Child = tileContent;
-
-            tile.MouseEnter += (_, _) =>
-            {
-                if (tile.Tag is int id && id != activeModeId)
-                {
-                    tile.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
-                    tile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, tileColor.R, tileColor.G, tileColor.B));
-                }
-            };
-            tile.MouseLeave += (_, _) =>
-            {
-                if (tile.Tag is int id && id != activeModeId)
-                {
-                    tile.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
-                    tile.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-                }
-            };
-            tile.MouseLeftButtonUp += async (_, _) =>
-            {
-                foreach (var child in wrap.Children)
-                    if (child is Border b)
-                    {
-                        b.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
-                        b.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-                    }
-
-                tile.Background = new SolidColorBrush(Color.FromArgb(0x30, tileColor.R, tileColor.G, tileColor.B));
-                tile.BorderBrush = new SolidColorBrush(tileColor);
-                activeModeId = modeId;
-
-                await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
-                    device.Device, device.Sku, GoveeCloudApi.SetMusicMode(modeId, (int)sensSlider.Value)));
-            };
-
-            wrap.Children.Add(tile);
-        }
-
-        parent.Children.Add(wrap);
-
-        var sensRow = new StackPanel { Orientation = Orientation.Horizontal };
-        sensRow.Children.Add(MakeSubLabel("SENSITIVITY"));
-        var sensDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-        sensDebounce.Tick += async (_, _) =>
-        {
-            sensDebounce.Stop();
-            if (activeModeId.HasValue)
-                await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
-                    device.Device, device.Sku, GoveeCloudApi.SetMusicMode(activeModeId.Value, (int)sensSlider.Value)));
+            if (string.IsNullOrEmpty(lanIp)) return;
+            StartGoveeLanMusicSync(lanIp);
         };
-        sensSlider.ValueChanged += (_, _) =>
+        musicCheck.Unchecked += (_, _) =>
         {
-            sensDebounce.Stop();
-            sensDebounce.Start();
+            StopGoveeLanMusicSync();
         };
-        sensRow.Children.Add(sensSlider);
-        parent.Children.Add(sensRow);
+        parent.Children.Add(musicCheck);
+    }
+
+    private void StartGoveeLanMusicSync(string ip)
+    {
+        StopGoveeLanMusicSync();
+        _goveeLanMusicIp = ip;
+
+        App.AudioAnalyzer?.Start();
+
+        _goveeLanMusicTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+        _goveeLanMusicTimer.Tick += (_, _) =>
+        {
+            var bands = App.AudioAnalyzer?.SmoothedBands;
+            if (bands == null || bands.Length < 5) return;
+
+            float bass = bands[0] + bands[1];
+            float mid = bands[2];
+            float treble = bands[3] + bands[4];
+            byte r = (byte)Math.Min(bass * 400, 255);
+            byte g = (byte)Math.Min(mid * 400, 255);
+            byte b = (byte)Math.Min(treble * 400, 255);
+
+            _ = AmbienceSync.SendColorAsync(ip, r, g, b);
+        };
+        _goveeLanMusicTimer.Start();
+    }
+
+    private void StopGoveeLanMusicSync()
+    {
+        if (_goveeLanMusicTimer == null) return;
+        _goveeLanMusicTimer.Stop();
+        _goveeLanMusicTimer = null;
+        _goveeLanMusicIp = null;
     }
 
     // ── Scene tile colors ─────────────────────────────────────────────
