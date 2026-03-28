@@ -943,12 +943,14 @@ public partial class SettingsView : UserControl
     public void SetCorsairSync(CorsairSync corsairSync)
     {
         _corsairSyncRef = corsairSync;
-        PopulateCorsairDeviceList();
+        if (IsLoaded)
+            PopulateCorsairDeviceList();
+        else
+            Loaded += (_, _) => PopulateCorsairDeviceList();
     }
 
     private void PopulateCorsairDeviceList()
     {
-        if (!IsLoaded) return;
         CorsairDeviceList.Children.Clear();
         if (ChkCorsairEnabled.IsChecked != true || _corsairSyncRef == null) return;
 
