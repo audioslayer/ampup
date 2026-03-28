@@ -304,7 +304,7 @@
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <TextBlock Text="&#xE335;" FontFamily="{StaticResource MaterialSymbols}"
+                                        <TextBlock Text="&#xEA3B;" FontFamily="{StaticResource MaterialSymbols}"
                                                    FontSize="22" Foreground="{StaticResource TextSecBrush}"
                                                    HorizontalAlignment="Center" TextAlignment="Center" />
                                         <TextBlock x:Name="NavGroupsLabel" Text="Groups" FontSize="9" Foreground="{StaticResource TextSecBrush}"

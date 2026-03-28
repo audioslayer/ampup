@@ -1063,8 +1063,8 @@ public partial class App : Application
             // Suppress during startup (5s) and reconnection (2s) to avoid phantom popups
             // Suppress if value hasn't meaningfully changed (e.g. batch re-report on reconnect)
             long osdNow = Environment.TickCount64;
-            bool osdTimeSuppressed = osdNow - _startupTick < 8000
-                || (DateTime.UtcNow - _connectedAt).TotalMilliseconds < 2000;
+            bool osdTimeSuppressed = osdNow - _startupTick < 10000
+                || (DateTime.UtcNow - _connectedAt).TotalMilliseconds < 3000;
             bool osdValueSuppressed = _lastOsdValue[e.Idx] >= 0 && Math.Abs(e.Value - _lastOsdValue[e.Idx]) < 15;
             if (_config.Osd.ShowVolume && !knob.Target.Equals("none", StringComparison.OrdinalIgnoreCase)
                 && !osdTimeSuppressed)
