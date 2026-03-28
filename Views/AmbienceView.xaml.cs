@@ -670,8 +670,6 @@ public partial class AmbienceView : UserControl
             return;
         }
 
-        var corsairYellow = Color.FromRgb(0xFF, 0xD3, 0x00);
-
         // ── Sync to Global toggle ──
         var corsairDeviceContent = new StackPanel
         {
@@ -688,17 +686,17 @@ public partial class AmbienceView : UserControl
             }));
         stack.Children.Add(corsairDeviceContent);
 
-        // Brightness
+        // ── Brightness ──
         var (brBar, brLabel) = MakeSectionHeader("BRIGHTNESS");
-        brBar.Background = new SolidColorBrush(corsairYellow);
-        brLabel.Foreground = new SolidColorBrush(corsairYellow);
+        brBar.Background = new SolidColorBrush(ThemeManager.Accent);
+        brLabel.Foreground = new SolidColorBrush(ThemeManager.Accent);
         corsairDeviceContent.Children.Add(WrapHeader(brBar, brLabel));
 
         var corBrightRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
         var corBrightSlider = new StyledSlider
         {
             Minimum = 1, Maximum = 100, Value = Math.Min(_config.Corsair.LightBrightness, 100),
-            Width = 200, Height = 35, AccentColor = corsairYellow, ShowLabel = false,
+            Width = 200, Height = 35, AccentColor = ThemeManager.Accent, ShowLabel = false,
         };
         var corBrightLabel = new TextBlock
         {
@@ -713,15 +711,13 @@ public partial class AmbienceView : UserControl
             int pct = (int)corBrightSlider.Value;
             _config.Corsair.LightBrightness = pct;
             corBrightLabel.Text = $"{pct}%";
-
-            // Immediately update Corsair LEDs at new brightness
             if (_corsairSync?.IsAvailable == true)
             {
                 float boost = pct / 100f;
-                byte r = (byte)Math.Min(_roomColor1.R * boost, 255);
-                byte g = (byte)Math.Min(_roomColor1.G * boost, 255);
-                byte b = (byte)Math.Min(_roomColor1.B * boost, 255);
-                _ = _corsairSync.SetStaticColorAllAsync(r, g, b);
+                _ = _corsairSync.SetStaticColorAllAsync(
+                    (byte)Math.Min(_corsairColor1.R * boost, 255),
+                    (byte)Math.Min(_corsairColor1.G * boost, 255),
+                    (byte)Math.Min(_corsairColor1.B * boost, 255));
             }
             QueueSave();
         };
@@ -729,11 +725,11 @@ public partial class AmbienceView : UserControl
         corBrightRow.Children.Add(corBrightLabel);
         corsairDeviceContent.Children.Add(corBrightRow);
 
-        // Effect picker (Corsair-independent control)
+        // ── Effect picker ──
         corsairDeviceContent.Children.Add(MakeSeparator());
         var (effBar2, effLabel2) = MakeSectionHeader("EFFECT");
-        effBar2.Background = new SolidColorBrush(corsairYellow);
-        effLabel2.Foreground = new SolidColorBrush(corsairYellow);
+        effBar2.Background = new SolidColorBrush(ThemeManager.Accent);
+        effLabel2.Foreground = new SolidColorBrush(ThemeManager.Accent);
         corsairDeviceContent.Children.Add(WrapHeader(effBar2, effLabel2));
 
         var corsairEffectPicker = new Controls.EffectPickerControl(showGlobal: true)
@@ -758,22 +754,82 @@ public partial class AmbienceView : UserControl
             }
             else
             {
-                // Start effect for Corsair only — no Govee
                 StartRoomPattern(eff.ToString(), _corsairColor1, _corsairColor2, corsairOnly: true);
             }
         };
         corsairDeviceContent.Children.Add(corsairEffectPicker);
 
-        // ── Colors ──
+        // ── Color ──
         corsairDeviceContent.Children.Add(MakeSeparator());
         var (colBar2, colLabel2) = MakeSectionHeader("COLOR");
-        colBar2.Background = new SolidColorBrush(corsairYellow);
-        colLabel2.Foreground = new SolidColorBrush(corsairYellow);
+        colBar2.Background = new SolidColorBrush(ThemeManager.Accent);
+        colLabel2.Foreground = new SolidColorBrush(ThemeManager.Accent);
         corsairDeviceContent.Children.Add(WrapHeader(colBar2, colLabel2));
 
-        var corsairColorRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
+        // Shared dot/pill refs so presets can update manual pickers live
+        Border? corsairPriDot = null, corsairSecDot = null;
+        Border? corsairPriPill = null, corsairSecPill = null;
 
-        // Helper to build a color pill for Corsair colors
+        // Apply colors to fields + live-update pills + running effect
+        void ApplyCorsairColors(Color c1, Color c2)
+        {
+            _corsairColor1 = c1; _corsairColor2 = c2;
+            if (corsairPriDot != null) corsairPriDot.Background = new SolidColorBrush(c1);
+            if (corsairPriPill != null)
+            {
+                corsairPriPill.Background = new SolidColorBrush(Color.FromArgb(0x33, c1.R, c1.G, c1.B));
+                corsairPriPill.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, c1.R, c1.G, c1.B));
+            }
+            if (corsairSecDot != null) corsairSecDot.Background = new SolidColorBrush(c2);
+            if (corsairSecPill != null)
+            {
+                corsairSecPill.Background = new SolidColorBrush(Color.FromArgb(0x33, c2.R, c2.G, c2.B));
+                corsairSecPill.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, c2.R, c2.G, c2.B));
+            }
+            if (_roomPatternCorsairOnly && _roomRgb != null && _activePattern != null
+                && Enum.TryParse<LightEffect>(_activePattern, true, out var runEff))
+            {
+                _roomRgb.UpdateGlobalConfig(new GlobalLightConfig
+                {
+                    Enabled = true, Effect = runEff,
+                    R = c1.R, G = c1.G, B = c1.B, R2 = c2.R, G2 = c2.G, B2 = c2.B, EffectSpeed = 50,
+                });
+            }
+        }
+
+        // PRESETS
+        corsairDeviceContent.Children.Add(MakeSubLabel("PRESETS"));
+        var corsairPresetWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 8) };
+        foreach (var (pname, pcolors) in ColorPalettes)
+        {
+            var gb = new LinearGradientBrush { StartPoint = new Point(0, 0.5), EndPoint = new Point(1, 0.5) };
+            for (int ci = 0; ci < pcolors.Length; ci++)
+                gb.GradientStops.Add(new GradientStop(pcolors[ci], ci / (double)(pcolors.Length - 1)));
+            var captured = pcolors;
+            var tileContent = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+            tileContent.Children.Add(new Border { Width = 46, Height = 24, CornerRadius = new CornerRadius(4), ClipToBounds = true, Background = gb });
+            tileContent.Children.Add(new TextBlock { Text = pname, FontSize = 8, Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 3, 0, 0) });
+            var tile = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+                CornerRadius = new CornerRadius(6),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(4, 4, 4, 3),
+                Margin = new Thickness(0, 0, 6, 6),
+                Cursor = Cursors.Hand, ToolTip = pname, Child = tileContent,
+            };
+            tile.MouseEnter += (_, _) => { tile.BorderBrush = new SolidColorBrush(Colors.White); tile.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)); };
+            tile.MouseLeave += (_, _) => { tile.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)); tile.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)); };
+            tile.MouseLeftButtonDown += (_, _) => ApplyCorsairColors(captured[0], captured[captured.Length > 1 ? captured.Length - 1 : 0]);
+            corsairPresetWrap.Children.Add(tile);
+        }
+        corsairDeviceContent.Children.Add(corsairPresetWrap);
+
+        // MANUAL pickers
+        corsairDeviceContent.Children.Add(MakeSubLabel("MANUAL"));
+        var corsairColorRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 8) };
+
         Border MakeCorsairPill(string lbl, bool isSecondary)
         {
             var c = isSecondary ? _corsairColor2 : _corsairColor1;
@@ -785,12 +841,7 @@ public partial class AmbienceView : UserControl
             };
             var inner = new StackPanel { Orientation = Orientation.Horizontal };
             inner.Children.Add(dot);
-            inner.Children.Add(new TextBlock
-            {
-                Text = lbl, FontSize = 9, FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
-                VerticalAlignment = VerticalAlignment.Center,
-            });
+            inner.Children.Add(new TextBlock { Text = lbl, FontSize = 9, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)), VerticalAlignment = VerticalAlignment.Center });
             var pill = new Border
             {
                 CornerRadius = new CornerRadius(14),
@@ -799,40 +850,24 @@ public partial class AmbienceView : UserControl
                 BorderThickness = new Thickness(1),
                 Padding = new Thickness(6, 4, 12, 4),
                 Margin = new Thickness(0, 0, 8, 4),
-                Cursor = Cursors.Hand,
-                ToolTip = $"{lbl} color — click to change",
-                Child = inner,
+                Cursor = Cursors.Hand, ToolTip = $"{lbl} color — click to change", Child = inner,
             };
+            if (isSecondary) { corsairSecDot = dot; corsairSecPill = pill; }
+            else { corsairPriDot = dot; corsairPriPill = pill; }
             pill.MouseLeftButtonDown += (_, _) =>
             {
                 var current = isSecondary ? _corsairColor2 : _corsairColor1;
                 var dlg = new ColorPickerDialog(current) { Owner = Window.GetWindow(this) };
                 if (dlg.ShowDialog() != true) return;
-                var picked = dlg.SelectedColor;
-                if (isSecondary) _corsairColor2 = picked; else _corsairColor1 = picked;
-                dot.Background = new SolidColorBrush(picked);
-                pill.Background = new SolidColorBrush(Color.FromArgb(0x33, picked.R, picked.G, picked.B));
-                pill.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, picked.R, picked.G, picked.B));
-                // Update running Corsair pattern live
-                if (_roomPatternCorsairOnly && _roomRgb != null && _activePattern != null
-                    && Enum.TryParse<LightEffect>(_activePattern, true, out var runEff))
+                ApplyCorsairColors(isSecondary ? _corsairColor1 : dlg.SelectedColor, isSecondary ? dlg.SelectedColor : _corsairColor2);
+                // Also send static color if no pattern running
+                if (!_roomPatternCorsairOnly && !isSecondary && _corsairSync?.IsAvailable == true && _config!.Corsair.Enabled)
                 {
-                    _roomRgb.UpdateGlobalConfig(new GlobalLightConfig
-                    {
-                        Enabled = true, Effect = runEff,
-                        R = _corsairColor1.R, G = _corsairColor1.G, B = _corsairColor1.B,
-                        R2 = _corsairColor2.R, G2 = _corsairColor2.G, B2 = _corsairColor2.B,
-                        EffectSpeed = 50,
-                    });
-                }
-                else if (!isSecondary && _corsairSync?.IsAvailable == true && _config!.Corsair.Enabled)
-                {
-                    // Static — update Corsair solid color
                     float boost = _config!.Corsair.LightBrightness / 100f;
                     _ = _corsairSync.SetStaticColorAllAsync(
-                        (byte)Math.Min(picked.R * boost, 255),
-                        (byte)Math.Min(picked.G * boost, 255),
-                        (byte)Math.Min(picked.B * boost, 255));
+                        (byte)Math.Min(_corsairColor1.R * boost, 255),
+                        (byte)Math.Min(_corsairColor1.G * boost, 255),
+                        (byte)Math.Min(_corsairColor1.B * boost, 255));
                 }
             };
             return pill;
@@ -842,13 +877,12 @@ public partial class AmbienceView : UserControl
         corsairColorRow.Children.Add(MakeCorsairPill("SECONDARY", true));
         corsairDeviceContent.Children.Add(corsairColorRow);
 
-        // Speed slider for animated effects
+        // Speed slider
         corsairDeviceContent.Children.Add(MakeSubLabel("SPEED"));
         var corsairSpeedSlider = new StyledSlider
         {
             Minimum = 1, Maximum = 100, Value = 50,
-            Width = 200, Height = 35,
-            AccentColor = corsairYellow, ShowLabel = false,
+            Width = 200, Height = 35, AccentColor = ThemeManager.Accent, ShowLabel = false,
             Margin = new Thickness(0, 0, 0, 8),
         };
         corsairSpeedSlider.ValueChanged += (_, _) =>
@@ -867,11 +901,11 @@ public partial class AmbienceView : UserControl
         };
         corsairDeviceContent.Children.Add(corsairSpeedSlider);
 
-        // Music Reactive
+        // ── Music Reactive ──
         corsairDeviceContent.Children.Add(MakeSeparator());
         var (musBar, musLabel) = MakeSectionHeader("MUSIC REACTIVE");
-        musBar.Background = new SolidColorBrush(corsairYellow);
-        musLabel.Foreground = new SolidColorBrush(corsairYellow);
+        musBar.Background = new SolidColorBrush(ThemeManager.Accent);
+        musLabel.Foreground = new SolidColorBrush(ThemeManager.Accent);
         corsairDeviceContent.Children.Add(WrapHeader(musBar, musLabel));
 
         var musicCheck = new CheckBox
@@ -888,10 +922,7 @@ public partial class AmbienceView : UserControl
             if (_loading || _corsairSync == null) return;
             StartCorsairMusicSync();
         };
-        musicCheck.Unchecked += (_, _) =>
-        {
-            StopCorsairMusicSync();
-        };
+        musicCheck.Unchecked += (_, _) => StopCorsairMusicSync();
         corsairDeviceContent.Children.Add(musicCheck);
     }
 
