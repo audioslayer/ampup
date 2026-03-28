@@ -59,7 +59,7 @@ public partial class App : Application
     private readonly int[] _lastOsdValue = { -1, -1, -1, -1, -1 }; // suppress OSD if value unchanged
     private readonly int[] _pendingOsdValue = { -1, -1, -1, -1, -1 }; // pending final OSD update
     private readonly System.Threading.Timer[] _osdFinalTimers = new System.Threading.Timer[5]; // delayed final OSD update
-    private readonly long _startupTick = Environment.TickCount64; // suppress OSD on launch
+    private long _startupTick = Environment.TickCount64; // suppress OSD on launch
     private uint _wmTaskbarCreated; // registered window message ID for WM_TASKBARCREATED
 
     protected override void OnStartup(StartupEventArgs e)
@@ -223,6 +223,7 @@ public partial class App : Application
         _serial.OnKnob += HandleKnob;
         _serial.OnButton += HandleButton;
         _serial.OnConnectionChanged += HandleConnection;
+        _startupTick = Environment.TickCount64; // reset just before serial starts
         _serial.Start();
 
         // Apply RGB config
