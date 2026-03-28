@@ -1147,9 +1147,15 @@ public partial class App : Application
 
     // ── Game Mode ─────────────────────────────────────────────────────
 
+    private long _gameModeLastChangeMs;
+
     private void PollGameMode()
     {
         if (!_config.Ambience.GameModeEnabled) return;
+
+        // Debounce: don't toggle more than once every 10 seconds
+        long nowMs = Environment.TickCount64;
+        if (nowMs - _gameModeLastChangeMs < 10_000) return;
 
         bool isFullscreen = false;
         try
@@ -1158,23 +1164,36 @@ public partial class App : Application
             if (hwnd != IntPtr.Zero)
             {
                 NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
-                // Skip AmpUp's own window
+                // Skip AmpUp's own window and desktop/shell
                 if (pid != 0 && pid != (uint)Environment.ProcessId)
-                    isFullscreen = NativeMethods.IsForegroundFullscreen();
+                {
+                    try
+                    {
+                        var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                        var name = proc.ProcessName.ToLowerInvariant();
+                        // Skip explorer (desktop), shell, and common non-game fullscreen apps
+                        if (name != "explorer" && name != "shellexperiencehost"
+                            && name != "searchhost" && name != "startmenuexperiencehost")
+                        {
+                            isFullscreen = NativeMethods.IsForegroundFullscreen();
+                        }
+                    }
+                    catch { }
+                }
             }
         }
         catch { }
 
         if (isFullscreen && !_gameModeActive)
         {
-            // Entering game mode — save current settings and enable screen sync
             _gameModeActive = true;
+            _gameModeLastChangeMs = nowMs;
             _gameModePreDreamView = _config.Ambience.ScreenSync.Enabled;
             _gameModePrevCorsairMode = _config.Corsair.LightSyncMode;
 
             Logger.Log("GameMode: fullscreen detected — enabling screen sync");
 
-            // Enable DreamView for Govee
+            // Enable DreamView for Govee (only if not already on)
             if (!_config.Ambience.ScreenSync.Enabled)
             {
                 _config.Ambience.ScreenSync.Enabled = true;
@@ -1182,25 +1201,25 @@ public partial class App : Application
             }
 
             // Set Corsair to Screen Sync mode
-            if (_config.Corsair.Enabled)
+            if (_config.Corsair.Enabled && _config.Corsair.LightSyncMode != "dreamview")
                 _config.Corsair.LightSyncMode = "dreamview";
         }
         else if (!isFullscreen && _gameModeActive)
         {
-            // Leaving game mode — restore previous settings
             _gameModeActive = false;
+            _gameModeLastChangeMs = nowMs;
 
             Logger.Log("GameMode: fullscreen exited — restoring previous settings");
 
-            // Restore DreamView state
+            // Only restore DreamView if we were the ones who turned it on
             if (!_gameModePreDreamView)
             {
                 _config.Ambience.ScreenSync.Enabled = false;
                 _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
             }
 
-            // Restore Corsair mode
-            if (_config.Corsair.Enabled)
+            // Only restore Corsair if we changed it
+            if (_config.Corsair.Enabled && _gameModePrevCorsairMode != "dreamview")
                 _config.Corsair.LightSyncMode = _gameModePrevCorsairMode;
         }
     }
