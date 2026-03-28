@@ -260,6 +260,9 @@ public partial class AmbienceView : UserControl
     // ██  CARD 1: ROOM LIGHTING (unified)
     // ══════════════════════════════════════════════════════════════════
 
+    private int _roomTabIndex = 0; // 0=Global, 1=Govee, 2=Corsair
+    private StackPanel? _roomTabContent;
+
     private Border BuildRoomCard()
     {
         var card = new Border
@@ -270,7 +273,52 @@ public partial class AmbienceView : UserControl
         var stack = new StackPanel();
         card.Child = stack;
 
-        // ── Section 1: EFFECT ──
+        // ── Header with tabs ──
+        var (headerBar, headerLabel) = MakeSectionHeader("ROOM LIGHTING");
+        stack.Children.Add(WrapHeader(headerBar, headerLabel));
+
+        var segmented = new Controls.SegmentedControl
+        {
+            Margin = new Thickness(0, 0, 0, 12),
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        segmented.AddSegment("Global", "global");
+        segmented.AddSegment("Govee", "govee");
+        segmented.AddSegment("Corsair", "corsair");
+        segmented.SelectedIndex = _roomTabIndex;
+        stack.Children.Add(segmented);
+
+        _roomTabContent = new StackPanel();
+        stack.Children.Add(_roomTabContent);
+
+        segmented.SelectionChanged += (_, _) =>
+        {
+            _roomTabIndex = segmented.SelectedIndex;
+            RebuildRoomTabContent();
+        };
+
+        RebuildRoomTabContent();
+        return card;
+    }
+
+    private void RebuildRoomTabContent()
+    {
+        if (_roomTabContent == null || _config == null) return;
+        _roomTabContent.Children.Clear();
+
+        switch (_roomTabIndex)
+        {
+            case 0: BuildGlobalRoomTab(_roomTabContent); break;
+            case 1: BuildGoveeRoomTab(_roomTabContent); break;
+            case 2: BuildCorsairRoomTab(_roomTabContent); break;
+        }
+    }
+
+    // ── GLOBAL TAB ──────────────────────────────────────────────────
+
+    private void BuildGlobalRoomTab(StackPanel stack)
+    {
+        // ── Effect ──
         var (effBar, effLabel) = MakeSectionHeader("EFFECT");
         stack.Children.Add(WrapHeader(effBar, effLabel));
 
@@ -403,103 +451,113 @@ public partial class AmbienceView : UserControl
         };
         stack.Children.Add(speedSlider);
 
-        // ── Section 3: GOVEE DEVICES ──
-        if (_config!.Ambience.GoveeEnabled && _config.Ambience.GoveeDevices.Count > 0)
+    }
+
+    // ── GOVEE TAB ───────────────────────────────────────────────────
+
+    private void BuildGoveeRoomTab(StackPanel stack)
+    {
+        if (_config == null) return;
+
+        if (!_config.Ambience.GoveeEnabled || _config.Ambience.GoveeDevices.Count == 0)
         {
-            stack.Children.Add(MakeSeparator());
-            var (govBar, govLabel) = MakeSectionHeader("GOVEE DEVICES");
-            stack.Children.Add(WrapHeader(govBar, govLabel));
-
-            foreach (var govDev in _config.Ambience.GoveeDevices)
+            stack.Children.Add(new TextBlock
             {
-                if (string.IsNullOrWhiteSpace(govDev.Ip)) continue;
-                var devConfig = govDev;
-
-                var devRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
-
-                devRow.Children.Add(new TextBlock
-                {
-                    Text = !string.IsNullOrWhiteSpace(govDev.Name) ? govDev.Name : govDev.Ip,
-                    FontSize = 12, FontWeight = FontWeights.SemiBold,
-                    Foreground = FindBrush("TextPrimaryBrush"),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Width = 140, TextTrimming = TextTrimming.CharacterEllipsis,
-                    Margin = new Thickness(0, 0, 12, 0),
-                });
-
-                var onOff = new CheckBox
-                {
-                    Content = "On", FontSize = 12,
-                    Foreground = FindBrush("TextPrimaryBrush"),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(0, 0, 12, 0),
-                };
-                onOff.Checked += async (_, _) =>
-                {
-                    if (_loading) return;
-                    devConfig.PoweredOn = true;
-                    AmbienceSync.PauseSync(devConfig.Ip, 5);
-                    await AmbienceSync.SendTurnAsync(devConfig.Ip, true);
-                    _onSave?.Invoke(_config!);
-                };
-                onOff.Unchecked += async (_, _) =>
-                {
-                    if (_loading) return;
-                    devConfig.PoweredOn = false;
-                    await AmbienceSync.SendTurnAsync(devConfig.Ip, false);
-                    _onSave?.Invoke(_config!);
-                };
-                devRow.Children.Add(onOff);
-
-                var brightSlider = new StyledSlider
-                {
-                    Minimum = 0, Maximum = 100, Value = 100,
-                    Width = 140, Height = 35, Suffix = "%",
-                    AccentColor = ThemeManager.Accent,
-                    VerticalAlignment = VerticalAlignment.Center,
-                };
-                var brightDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
-                brightDebounce.Tick += async (_, _) =>
-                {
-                    brightDebounce.Stop();
-                    int pct = (int)brightSlider.Value;
-                    if (pct == 0)
-                    {
-                        devConfig.PoweredOn = false;
-                        await AmbienceSync.SendTurnAsync(devConfig.Ip, false);
-                    }
-                    else
-                    {
-                        if (!devConfig.PoweredOn)
-                        {
-                            devConfig.PoweredOn = true;
-                            await AmbienceSync.SendTurnAsync(devConfig.Ip, true);
-                        }
-                        AmbienceSync.PauseSync(devConfig.Ip, 5);
-                        await AmbienceSync.SendBrightnessAsync(devConfig.Ip, pct);
-                    }
-                };
-                brightSlider.ValueChanged += (_, _) => { brightDebounce.Stop(); brightDebounce.Start(); };
-                devRow.Children.Add(brightSlider);
-
-                stack.Children.Add(devRow);
-
-                // Store for knob updates
-                _deviceControls[devConfig.Ip] = (onOff, brightSlider);
-
-                // Query actual state
-                _ = QueryDeviceStateAsync(devConfig.Ip, onOff, brightSlider);
-            }
+                Text = "No Govee devices — enable Govee LAN in Settings and scan for devices.",
+                FontSize = 11, Foreground = FindBrush("TextSecBrush"),
+                Margin = new Thickness(0, 8, 0, 0),
+            });
+            return;
         }
 
-        // ── Section 4: GOVEE SCENES (Cloud API) ──
+        // ── Per-device controls ──
+        var (devBar, devLabel) = MakeSectionHeader("DEVICES");
+        stack.Children.Add(WrapHeader(devBar, devLabel));
+
+        foreach (var govDev in _config.Ambience.GoveeDevices)
+        {
+            if (string.IsNullOrWhiteSpace(govDev.Ip)) continue;
+            var devConfig = govDev;
+
+            var devRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
+
+            devRow.Children.Add(new TextBlock
+            {
+                Text = !string.IsNullOrWhiteSpace(govDev.Name) ? govDev.Name : govDev.Ip,
+                FontSize = 12, FontWeight = FontWeights.SemiBold,
+                Foreground = FindBrush("TextPrimaryBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Width = 140, TextTrimming = TextTrimming.CharacterEllipsis,
+                Margin = new Thickness(0, 0, 12, 0),
+            });
+
+            var onOff = new CheckBox
+            {
+                Content = "On", FontSize = 12,
+                Foreground = FindBrush("TextPrimaryBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 12, 0),
+            };
+            onOff.Checked += async (_, _) =>
+            {
+                if (_loading) return;
+                devConfig.PoweredOn = true;
+                AmbienceSync.PauseSync(devConfig.Ip, 5);
+                await AmbienceSync.SendTurnAsync(devConfig.Ip, true);
+                _onSave?.Invoke(_config!);
+            };
+            onOff.Unchecked += async (_, _) =>
+            {
+                if (_loading) return;
+                devConfig.PoweredOn = false;
+                await AmbienceSync.SendTurnAsync(devConfig.Ip, false);
+                _onSave?.Invoke(_config!);
+            };
+            devRow.Children.Add(onOff);
+
+            var brightSlider = new StyledSlider
+            {
+                Minimum = 0, Maximum = 100, Value = 100,
+                Width = 140, Height = 35, Suffix = "%",
+                AccentColor = ThemeManager.Accent,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            var brightDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+            brightDebounce.Tick += async (_, _) =>
+            {
+                brightDebounce.Stop();
+                int pct = (int)brightSlider.Value;
+                if (pct == 0)
+                {
+                    devConfig.PoweredOn = false;
+                    await AmbienceSync.SendTurnAsync(devConfig.Ip, false);
+                }
+                else
+                {
+                    if (!devConfig.PoweredOn)
+                    {
+                        devConfig.PoweredOn = true;
+                        await AmbienceSync.SendTurnAsync(devConfig.Ip, true);
+                    }
+                    AmbienceSync.PauseSync(devConfig.Ip, 5);
+                    await AmbienceSync.SendBrightnessAsync(devConfig.Ip, pct);
+                }
+            };
+            brightSlider.ValueChanged += (_, _) => { brightDebounce.Stop(); brightDebounce.Start(); };
+            devRow.Children.Add(brightSlider);
+
+            stack.Children.Add(devRow);
+            _deviceControls[devConfig.Ip] = (onOff, brightSlider);
+            _ = QueryDeviceStateAsync(devConfig.Ip, onOff, brightSlider);
+        }
+
+        // ── Scenes (Cloud API) ──
         if (_cloudApi != null && _cloudDevices.Count > 0)
         {
             stack.Children.Add(MakeSeparator());
-            var (scBar, scLabel) = MakeSectionHeader("GOVEE SCENES");
+            var (scBar, scLabel) = MakeSectionHeader("SCENES");
             stack.Children.Add(WrapHeader(scBar, scLabel));
 
-            // Device picker for scenes
             var pickerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
             pickerRow.Children.Add(MakeSubLabel("DEVICE"));
             _sceneDevicePicker = new ComboBox { Width = 240 };
@@ -508,7 +566,6 @@ public partial class AmbienceView : UserControl
             if (_cloudDevices.Count > 0) _sceneDevicePicker.SelectedIndex = 0;
 
             _sceneContent = new StackPanel();
-
             _sceneDevicePicker.SelectionChanged += (_, _) =>
             {
                 _sceneContent.Children.Clear();
@@ -523,64 +580,79 @@ public partial class AmbienceView : UserControl
             if (_cloudDevices.Count > 0)
                 BuildGoveeSceneContent(_cloudDevices[0]);
         }
+    }
 
-        // ── Section 5: CORSAIR iCUE ──
-        if (_config.Corsair.Enabled && _corsairSync != null)
+    // ── CORSAIR TAB ─────────────────────────────────────────────────
+
+    private void BuildCorsairRoomTab(StackPanel stack)
+    {
+        if (_config == null || !_config.Corsair.Enabled || _corsairSync == null)
         {
-            stack.Children.Add(MakeSeparator());
-            var corsairYellow = Color.FromRgb(0xFF, 0xD3, 0x00);
-            var (corBar, corLabel) = MakeSectionHeader("CORSAIR iCUE");
-            corBar.Background = new SolidColorBrush(corsairYellow);
-            corLabel.Foreground = new SolidColorBrush(corsairYellow);
-            stack.Children.Add(WrapHeader(corBar, corLabel));
-
-            // Brightness
-            var corBrightRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-            corBrightRow.Children.Add(MakeSubLabel("BRIGHTNESS"));
-            var corBrightSlider = new StyledSlider
+            stack.Children.Add(new TextBlock
             {
-                Minimum = 50, Maximum = 200, Value = _config.Corsair.LightBrightness,
-                Width = 140, Height = 35, AccentColor = corsairYellow, ShowLabel = false,
-            };
-            var corBrightLabel = new TextBlock
-            {
-                Text = $"{_config.Corsair.LightBrightness}%", FontSize = 12,
-                Foreground = FindBrush("TextSecBrush"),
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(6, 0, 0, 0),
-            };
-            corBrightSlider.ValueChanged += (_, _) =>
-            {
-                if (_config == null) return;
-                _config.Corsair.LightBrightness = (int)corBrightSlider.Value;
-                corBrightLabel.Text = $"{(int)corBrightSlider.Value}%";
-                QueueSave();
-            };
-            corBrightRow.Children.Add(corBrightSlider);
-            corBrightRow.Children.Add(corBrightLabel);
-            stack.Children.Add(corBrightRow);
-
-            // Detected devices
-            _corsairDeviceRows = new StackPanel();
-            if (_corsairSync.IsAvailable && _corsairSync.Devices.Count > 0)
-            {
-                foreach (var dev in _corsairSync.Devices)
-                    _corsairDeviceRows.Children.Add(BuildCorsairDeviceRow(dev));
-            }
-            else
-            {
-                _ = RefreshCorsairDevices();
-                _corsairDeviceRows.Children.Add(new TextBlock
-                {
-                    Text = "Connecting to iCUE...", FontSize = 11,
-                    Foreground = FindBrush("TextSecBrush"),
-                    Margin = new Thickness(0, 4, 0, 4),
-                });
-            }
-            stack.Children.Add(_corsairDeviceRows);
+                Text = "Corsair iCUE is not enabled — enable it in Settings.",
+                FontSize = 11, Foreground = FindBrush("TextSecBrush"),
+                Margin = new Thickness(0, 8, 0, 0),
+            });
+            return;
         }
 
-        return card;
+        var corsairYellow = Color.FromRgb(0xFF, 0xD3, 0x00);
+
+        // Brightness
+        var (brBar, brLabel) = MakeSectionHeader("BRIGHTNESS");
+        brBar.Background = new SolidColorBrush(corsairYellow);
+        brLabel.Foreground = new SolidColorBrush(corsairYellow);
+        stack.Children.Add(WrapHeader(brBar, brLabel));
+
+        var corBrightRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+        var corBrightSlider = new StyledSlider
+        {
+            Minimum = 50, Maximum = 200, Value = _config.Corsair.LightBrightness,
+            Width = 200, Height = 35, AccentColor = corsairYellow, ShowLabel = false,
+        };
+        var corBrightLabel = new TextBlock
+        {
+            Text = $"{_config.Corsair.LightBrightness}%", FontSize = 12,
+            Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(6, 0, 0, 0),
+        };
+        corBrightSlider.ValueChanged += (_, _) =>
+        {
+            if (_config == null) return;
+            _config.Corsair.LightBrightness = (int)corBrightSlider.Value;
+            corBrightLabel.Text = $"{(int)corBrightSlider.Value}%";
+            QueueSave();
+        };
+        corBrightRow.Children.Add(corBrightSlider);
+        corBrightRow.Children.Add(corBrightLabel);
+        stack.Children.Add(corBrightRow);
+
+        // Detected devices
+        stack.Children.Add(MakeSeparator());
+        var (devBar, devLabel) = MakeSectionHeader("DETECTED DEVICES");
+        devBar.Background = new SolidColorBrush(corsairYellow);
+        devLabel.Foreground = new SolidColorBrush(corsairYellow);
+        stack.Children.Add(WrapHeader(devBar, devLabel));
+
+        _corsairDeviceRows = new StackPanel();
+        if (_corsairSync.IsAvailable && _corsairSync.Devices.Count > 0)
+        {
+            foreach (var dev in _corsairSync.Devices)
+                _corsairDeviceRows.Children.Add(BuildCorsairDeviceRow(dev));
+        }
+        else
+        {
+            _ = RefreshCorsairDevices();
+            _corsairDeviceRows.Children.Add(new TextBlock
+            {
+                Text = "Connecting to iCUE...", FontSize = 11,
+                Foreground = FindBrush("TextSecBrush"),
+                Margin = new Thickness(0, 4, 0, 4),
+            });
+        }
+        stack.Children.Add(_corsairDeviceRows);
     }
 
     private void BuildGoveeSceneContent(GoveeDeviceInfo device)

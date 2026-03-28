@@ -476,9 +476,10 @@
                                       Content="Enabled"
                                       Foreground="{StaticResource TextPrimaryBrush}"
                                       Margin="0,0,0,4" />
-                            <TextBlock Text="Mirrors Turn Up LED colors to iCUE devices via iCUE 5+ REST API (port 60222)"
+                            <TextBlock Text="Syncs LED colors to iCUE devices via the official iCUE SDK"
                                        Style="{StaticResource SecondaryText}" FontSize="11"
-                                       Margin="0,0,0,0" />
+                                       Margin="0,0,0,4" />
+                            <StackPanel x:Name="CorsairDeviceList" Margin="0,4,0,0" />
                         </StackPanel>
                     </Border>
 
