@@ -309,6 +309,11 @@ public class CorsairSync : IDisposable
     public void SyncColors(byte[] rgbColors)
     {
         if (!IsAvailable || rgbColors == null || rgbColors.Length < 45) return;
+        if (Devices.Count == 0)
+        {
+            try { DiscoverDevices(); } catch { }
+            if (Devices.Count == 0) return;
+        }
 
         foreach (var device in Devices)
         {
@@ -353,7 +358,14 @@ public class CorsairSync : IDisposable
     /// <summary>Send a single static color to all device LEDs.</summary>
     public async Task SetStaticColorAllAsync(byte r, byte g, byte b)
     {
-        if (_disposed || !IsAvailable) return;
+        if (_disposed || !_connected || !_dllLoaded) return;
+        // Auto-discover if device list is empty
+        if (Devices.Count == 0)
+        {
+            try { DiscoverDevices(); }
+            catch { }
+        }
+        if (Devices.Count == 0) return;
         await Task.Run(() =>
         {
             foreach (var device in Devices)
