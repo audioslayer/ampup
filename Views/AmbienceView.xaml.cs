@@ -1444,6 +1444,27 @@ public partial class AmbienceView : UserControl
         _sceneContent.Children.Add(brightRow);
     }
 
+    // Color palettes (same as Lights tab)
+    private static readonly (string Name, Color[] Colors)[] ColorPalettes = new[]
+    {
+        ("Sunset",    new[] { Color.FromRgb(0xFF, 0x17, 0x44), Color.FromRgb(0xFF, 0x6B, 0x35), Color.FromRgb(0xFF, 0xD7, 0x00), Color.FromRgb(0xFF, 0x8C, 0x00), Color.FromRgb(0xFF, 0x45, 0x00) }),
+        ("Ocean",     new[] { Color.FromRgb(0x00, 0x33, 0x66), Color.FromRgb(0x00, 0x77, 0xB6), Color.FromRgb(0x00, 0xE5, 0xFF), Color.FromRgb(0x00, 0xB4, 0xD8), Color.FromRgb(0x48, 0xCA, 0xE4) }),
+        ("Neon",      new[] { Color.FromRgb(0xFF, 0x00, 0xFF), Color.FromRgb(0x00, 0xFF, 0xFF), Color.FromRgb(0xFF, 0x00, 0x80), Color.FromRgb(0x80, 0x00, 0xFF), Color.FromRgb(0x00, 0xFF, 0x80) }),
+        ("Forest",    new[] { Color.FromRgb(0x00, 0x44, 0x00), Color.FromRgb(0x00, 0x88, 0x33), Color.FromRgb(0x00, 0xC8, 0x53), Color.FromRgb(0xAE, 0xD5, 0x81), Color.FromRgb(0x76, 0xFF, 0x03) }),
+        ("Lava",      new[] { Color.FromRgb(0x8B, 0x00, 0x00), Color.FromRgb(0xFF, 0x17, 0x44), Color.FromRgb(0xFF, 0x45, 0x00), Color.FromRgb(0xFF, 0x8A, 0x00), Color.FromRgb(0xFF, 0xD6, 0x00) }),
+        ("Arctic",    new[] { Color.FromRgb(0xE0, 0xF7, 0xFA), Color.FromRgb(0x80, 0xDE, 0xEA), Color.FromRgb(0x00, 0xBD, 0xD0), Color.FromRgb(0x00, 0x97, 0xA7), Color.FromRgb(0xB2, 0xEB, 0xF2) }),
+        ("Galaxy",    new[] { Color.FromRgb(0x1A, 0x00, 0x5C), Color.FromRgb(0x7C, 0x4D, 0xFF), Color.FromRgb(0xFF, 0x80, 0xAB), Color.FromRgb(0xBA, 0x68, 0xC8), Color.FromRgb(0xE0, 0x40, 0xFF) }),
+        ("Toxic",     new[] { Color.FromRgb(0x00, 0x33, 0x00), Color.FromRgb(0x00, 0xE6, 0x76), Color.FromRgb(0x76, 0xFF, 0x03), Color.FromRgb(0x00, 0xFF, 0x00), Color.FromRgb(0xCC, 0xFF, 0x00) }),
+        ("Inferno",   new[] { Color.FromRgb(0xFF, 0x00, 0x00), Color.FromRgb(0xFF, 0x45, 0x00), Color.FromRgb(0xFF, 0x8C, 0x00), Color.FromRgb(0xFF, 0xD6, 0x00), Color.FromRgb(0xFF, 0xFF, 0x00) }),
+        ("Vaporwave", new[] { Color.FromRgb(0xFF, 0x71, 0xCE), Color.FromRgb(0x01, 0xCD, 0xFE), Color.FromRgb(0xB9, 0x67, 0xFF), Color.FromRgb(0x05, 0xFC, 0xC1), Color.FromRgb(0xFF, 0x00, 0xA0) }),
+        ("Ember",     new[] { Color.FromRgb(0x8B, 0x00, 0x00), Color.FromRgb(0xFF, 0x45, 0x00), Color.FromRgb(0xFF, 0x22, 0x00), Color.FromRgb(0xCC, 0x33, 0x00), Color.FromRgb(0x66, 0x00, 0x00) }),
+        ("Aurora",    new[] { Color.FromRgb(0x00, 0xFF, 0x87), Color.FromRgb(0x7B, 0x2F, 0xFF), Color.FromRgb(0x00, 0xE5, 0xFF), Color.FromRgb(0xFF, 0x00, 0xFF), Color.FromRgb(0x00, 0xFF, 0x00) }),
+    };
+
+    private Color _roomColor1 = ThemeManager.Accent;
+    private Color _roomColor2 = Color.FromRgb(0xFF, 0xFF, 0xFF);
+    private string? _roomActivePreset;
+
     private void BuildGlobalTab()
     {
         if (_sceneContent == null) return;
@@ -1456,234 +1477,90 @@ public partial class AmbienceView : UserControl
             Margin = new Thickness(0, 0, 0, 12),
         });
 
-        // Quick color swatches
-        _sceneContent.Children.Add(MakeSubLabel("COLORS"));
-        var colorWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 12) };
-
-        var quickColors = new (string name, byte r, byte g, byte b)[]
+        // ── Effect Picker ──
+        _sceneContent.Children.Add(MakeSubLabel("EFFECT"));
+        var effectPicker = new Controls.EffectPickerControl(showGlobal: true)
         {
-            ("Warm White", 255, 200, 130), ("Cool White", 200, 220, 255),
-            ("Red", 255, 30, 30), ("Orange", 255, 120, 0), ("Gold", 255, 200, 0),
-            ("Green", 0, 230, 118), ("Cyan", 0, 220, 240), ("Blue", 40, 80, 255),
-            ("Purple", 140, 60, 255), ("Pink", 255, 50, 150), ("Magenta", 230, 0, 200),
+            Margin = new Thickness(0, 0, 0, 10),
+            ToolTip = "Choose the room lighting effect — synced to Govee + Corsair",
         };
-
-        foreach (var (name, r, g, b) in quickColors)
-        {
-            var color = Color.FromRgb(r, g, b);
-            var swatch = new Border
-            {
-                Width = 36, Height = 36,
-                CornerRadius = new CornerRadius(8),
-                Background = new SolidColorBrush(color),
-                Margin = new Thickness(0, 0, 6, 6),
-                Cursor = Cursors.Hand,
-                ToolTip = name,
-                BorderThickness = new Thickness(2),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(0x00, 0, 0, 0)),
-            };
-            swatch.MouseEnter += (_, _) =>
-                swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, 255, 255, 255));
-            swatch.MouseLeave += (_, _) =>
-                swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0x00, 0, 0, 0));
-            swatch.MouseLeftButtonUp += (_, _) =>
-            {
-                // Send to ALL Govee devices
-                if (_config?.Ambience.GoveeEnabled == true)
-                {
-                    foreach (var dev in _config.Ambience.GoveeDevices)
-                    {
-                        if (string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn) continue;
-                        AmbienceSync.PauseSync(dev.Ip, 30);
-                        _ = AmbienceSync.SendColorAsync(dev.Ip, r, g, b);
-                    }
-                }
-                // Send to Corsair
-                if (_corsairSync?.IsAvailable == true && _config?.Corsair.Enabled == true)
-                {
-                    _config!.Corsair.LightSyncMode = "static";
-                    _ = _corsairSync.SetStaticColorAllAsync(r, g, b);
-                }
-                // Also send to Cloud API if available
-                if (_cloudApi != null && _cloudDevices.Count > 0)
-                {
-                    foreach (var dev in _cloudDevices)
-                        _ = SafeCloudCall(() => _cloudApi.ControlDeviceAsync(
-                            dev.Device, dev.Sku, GoveeCloudApi.SetColor(r, g, b)));
-                }
-            };
-            colorWrap.Children.Add(swatch);
-        }
-
-        // Custom color
-        var customTile = new Border
-        {
-            Width = 36, Height = 36,
-            CornerRadius = new CornerRadius(8),
-            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-            Margin = new Thickness(0, 0, 6, 6),
-            Cursor = Cursors.Hand,
-            ToolTip = "Custom color",
-            BorderThickness = new Thickness(2),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x00, 0, 0, 0)),
-        };
-        customTile.Child = new TextBlock
-        {
-            Text = "+", FontSize = 18, FontWeight = FontWeights.Light,
-            Foreground = FindBrush("TextSecBrush"),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        customTile.MouseLeftButtonUp += (_, _) =>
-        {
-            var dialog = new ColorPickerDialog(Colors.White) { Owner = Window.GetWindow(this) };
-            if (dialog.ShowDialog() == true)
-            {
-                var c = dialog.SelectedColor;
-                customTile.Background = new SolidColorBrush(c);
-                // Send to all
-                if (_config?.Ambience.GoveeEnabled == true)
-                    foreach (var dev in _config.Ambience.GoveeDevices)
-                    {
-                        if (string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn) continue;
-                        AmbienceSync.PauseSync(dev.Ip, 30);
-                        _ = AmbienceSync.SendColorAsync(dev.Ip, c.R, c.G, c.B);
-                    }
-                if (_corsairSync?.IsAvailable == true && _config?.Corsair.Enabled == true)
-                {
-                    _config!.Corsair.LightSyncMode = "static";
-                    _ = _corsairSync.SetStaticColorAllAsync(c.R, c.G, c.B);
-                }
-                if (_cloudApi != null)
-                    foreach (var dev in _cloudDevices)
-                        _ = SafeCloudCall(() => _cloudApi.ControlDeviceAsync(
-                            dev.Device, dev.Sku, GoveeCloudApi.SetColor(c.R, c.G, c.B)));
-            }
-        };
-        colorWrap.Children.Add(customTile);
-        _sceneContent.Children.Add(colorWrap);
-
-        // ── Animated Patterns ──
-        _sceneContent.Children.Add(MakeSeparator());
-        _sceneContent.Children.Add(MakeSubLabel("PATTERNS"));
-        var patternWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 12) };
-
-        var patterns = new (string name, string id, Color color, string icon)[]
-        {
-            ("Rainbow", "rainbow", Color.FromRgb(0xFF, 0x00, 0x80), "🌈"),
-            ("Breathing", "breathing", Color.FromRgb(0x69, 0xF0, 0xAE), "🫧"),
-            ("Color Cycle", "color_cycle", Color.FromRgb(0x64, 0xB5, 0xF6), "🔄"),
-            ("Fire", "fire", Color.FromRgb(0xFF, 0x6B, 0x35), "🔥"),
-            ("Ocean", "ocean", Color.FromRgb(0x00, 0x96, 0xC7), "🌊"),
-            ("Aurora", "aurora", Color.FromRgb(0x00, 0xE6, 0x76), "🌌"),
-            ("Sunset", "sunset", Color.FromRgb(0xFF, 0x80, 0x00), "🌅"),
-            ("Candle", "candle", Color.FromRgb(0xFF, 0xC1, 0x07), "🕯"),
-        };
-
-        foreach (var (name, id, tileColor, icon) in patterns)
-        {
-            bool isActive = _activePattern == id;
-            var tile = new Border
-            {
-                Width = 82, Height = 58,
-                CornerRadius = new CornerRadius(6),
-                Background = isActive
-                    ? new SolidColorBrush(Color.FromArgb(0x30, tileColor.R, tileColor.G, tileColor.B))
-                    : new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-                BorderBrush = isActive
-                    ? new SolidColorBrush(tileColor)
-                    : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-                BorderThickness = new Thickness(1),
-                Margin = new Thickness(0, 0, 6, 6),
-                Cursor = Cursors.Hand,
-                ToolTip = name,
-            };
-            var tileContent = new StackPanel
-            {
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            tileContent.Children.Add(new TextBlock
-            {
-                Text = icon, FontSize = 20,
-                HorizontalAlignment = HorizontalAlignment.Center,
-            });
-            tileContent.Children.Add(new TextBlock
-            {
-                Text = name, FontSize = 9,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
-                Margin = new Thickness(0, 2, 0, 0),
-            });
-            tile.Child = tileContent;
-
-            tile.MouseEnter += (_, _) =>
-            {
-                if (_activePattern != id)
-                {
-                    tile.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
-                    tile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, tileColor.R, tileColor.G, tileColor.B));
-                }
-            };
-            tile.MouseLeave += (_, _) =>
-            {
-                if (_activePattern != id)
-                {
-                    tile.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
-                    tile.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-                }
-            };
-
-            var capturedId = id;
-            tile.MouseLeftButtonUp += (_, _) =>
-            {
-                if (_activePattern == capturedId)
-                {
-                    // Deselect — stop pattern
-                    StopRoomPattern();
-                    RefreshSceneContent();
-                    return;
-                }
-                StartRoomPattern(capturedId);
-                RefreshSceneContent();
-            };
-
-            patternWrap.Children.Add(tile);
-        }
-
-        // Stop button
         if (_activePattern != null)
         {
-            var stopTile = new Border
-            {
-                Width = 82, Height = 58,
-                CornerRadius = new CornerRadius(6),
-                Background = new SolidColorBrush(Color.FromArgb(0x30, 0xFF, 0x44, 0x44)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0x44, 0x44)),
-                BorderThickness = new Thickness(1),
-                Margin = new Thickness(0, 0, 6, 6),
-                Cursor = Cursors.Hand,
-                ToolTip = "Stop pattern",
-            };
-            var stopContent = new StackPanel
-            {
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            stopContent.Children.Add(new TextBlock { Text = "⏹", FontSize = 20, HorizontalAlignment = HorizontalAlignment.Center });
-            stopContent.Children.Add(new TextBlock
-            {
-                Text = "Stop", FontSize = 9,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x44, 0x44)),
-                Margin = new Thickness(0, 2, 0, 0),
-            });
-            stopTile.Child = stopContent;
-            stopTile.MouseLeftButtonUp += (_, _) => { StopRoomPattern(); RefreshSceneContent(); };
-            patternWrap.Children.Add(stopTile);
+            // Try to select the matching effect
+            effectPicker.SelectedEffect = Enum.TryParse<LightEffect>(_activePattern, true, out var eff) ? eff : LightEffect.SingleColor;
         }
+        effectPicker.SelectionChanged += (_, _) =>
+        {
+            if (_loading) return;
+            var effect = effectPicker.SelectedEffect;
+            string effectName = effect.ToString();
 
-        _sceneContent.Children.Add(patternWrap);
+            if (effect == LightEffect.SingleColor)
+            {
+                // Static color — stop patterns, send current room color
+                StopRoomPattern();
+                SendRoomColor(_roomColor1.R, _roomColor1.G, _roomColor1.B);
+            }
+            else
+            {
+                // Start the pattern based on selected effect
+                StartRoomPattern(effectName);
+            }
+        };
+        _sceneContent.Children.Add(effectPicker);
+
+        // ── Color Presets ──
+        _sceneContent.Children.Add(MakeSubLabel("PRESETS"));
+        var presetWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 8) };
+
+        // Solid preset
+        var solidBrush = new SolidColorBrush(_roomColor1);
+        var solidTile = MakePresetTile("Solid", solidBrush, new[] { _roomColor1 }, presetWrap);
+        presetWrap.Children.Add(solidTile);
+
+        // Gradient presets
+        foreach (var (name, colors) in ColorPalettes)
+        {
+            var gradientBrush = new LinearGradientBrush { StartPoint = new Point(0, 0.5), EndPoint = new Point(1, 0.5) };
+            for (int ci = 0; ci < colors.Length; ci++)
+                gradientBrush.GradientStops.Add(new GradientStop(colors[ci], ci / (double)(colors.Length - 1)));
+            presetWrap.Children.Add(MakePresetTile(name, gradientBrush, colors, presetWrap));
+        }
+        _sceneContent.Children.Add(presetWrap);
+
+        // ── Manual Color Pickers ──
+        _sceneContent.Children.Add(MakeSubLabel("COLOR"));
+        var colorRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 8) };
+
+        // Primary color picker
+        var primary = MakeRoomColorPill("PRIMARY", _roomColor1, false);
+        colorRow.Children.Add(primary);
+
+        // Secondary color picker
+        var secondary = MakeRoomColorPill("SECONDARY", _roomColor2, true);
+        colorRow.Children.Add(secondary);
+        _sceneContent.Children.Add(colorRow);
+
+        // ── Speed slider ──
+        _sceneContent.Children.Add(MakeSubLabel("SPEED"));
+        var speedSlider = new StyledSlider
+        {
+            Minimum = 1, Maximum = 100, Value = 50,
+            Width = 200, Height = 35,
+            AccentColor = ThemeManager.Accent,
+            ShowLabel = false,
+            Margin = new Thickness(0, 0, 0, 12),
+        };
+        speedSlider.ValueChanged += (_, _) =>
+        {
+            // Speed affects pattern tick interval
+            if (_patternTimer != null && speedSlider.Value > 0)
+            {
+                double ms = 200 - (speedSlider.Value / 100.0 * 180); // 200ms (slow) to 20ms (fast)
+                _patternTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(ms, 20));
+            }
+        };
+        _sceneContent.Children.Add(speedSlider);
 
         // Sync to Amp Up toggle
         _sceneContent.Children.Add(MakeSeparator());
@@ -1710,6 +1587,153 @@ public partial class AmbienceView : UserControl
             QueueSave();
         };
         _sceneContent.Children.Add(syncCheck);
+    }
+
+    // ── Room preset/color helpers ──────────────────────────────────
+
+    private Border MakePresetTile(string name, Brush tileBg, Color[] colors, WrapPanel wrap)
+    {
+        var tileContent = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+        var gradientBorder = new Border
+        {
+            Width = 46, Height = 24,
+            CornerRadius = new CornerRadius(4),
+            ClipToBounds = true,
+            Background = tileBg,
+        };
+        tileContent.Children.Add(gradientBorder);
+        tileContent.Children.Add(new TextBlock
+        {
+            Text = name, FontSize = 8,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 3, 0, 0),
+        });
+
+        bool isActive = _roomActivePreset == name;
+        var tile = new Border
+        {
+            Background = isActive
+                ? new SolidColorBrush(Color.FromArgb(0x30, colors[0].R, colors[0].G, colors[0].B))
+                : new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+            CornerRadius = new CornerRadius(6),
+            BorderBrush = isActive
+                ? new SolidColorBrush(Colors.White)
+                : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(4, 4, 4, 3),
+            Margin = new Thickness(0, 0, 6, 6),
+            Cursor = Cursors.Hand,
+            Child = tileContent,
+            ToolTip = name,
+        };
+
+        tile.MouseEnter += (_, _) =>
+        {
+            if (_roomActivePreset != name)
+            {
+                tile.BorderBrush = new SolidColorBrush(Colors.White);
+                tile.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+            }
+        };
+        tile.MouseLeave += (_, _) =>
+        {
+            if (_roomActivePreset != name)
+            {
+                tile.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+                tile.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+            }
+        };
+
+        var capturedColors = colors;
+        tile.MouseLeftButtonDown += (_, _) =>
+        {
+            _roomColor1 = capturedColors[0];
+            _roomColor2 = capturedColors[capturedColors.Length > 1 ? capturedColors.Length - 1 : 0];
+            _roomActivePreset = name;
+
+            // Send primary color to all room devices
+            SendRoomColor(_roomColor1.R, _roomColor1.G, _roomColor1.B);
+            RefreshSceneContent();
+        };
+
+        return tile;
+    }
+
+    private Border MakeRoomColorPill(string label, Color initial, bool isSecondary)
+    {
+        var dot = new Border
+        {
+            Width = 16, Height = 16,
+            CornerRadius = new CornerRadius(8),
+            Background = new SolidColorBrush(initial),
+            Margin = new Thickness(0, 0, 6, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var labelBlock = new TextBlock
+        {
+            Text = label, FontSize = 9, FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(dot);
+        row.Children.Add(labelBlock);
+
+        var pill = new Border
+        {
+            CornerRadius = new CornerRadius(14),
+            Background = new SolidColorBrush(Color.FromArgb(0x33, initial.R, initial.G, initial.B)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, initial.R, initial.G, initial.B)),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(6, 4, 12, 4),
+            Margin = new Thickness(0, 0, 8, 4),
+            Cursor = Cursors.Hand,
+            ToolTip = $"{label} color — click to change",
+            Child = row,
+        };
+
+        pill.MouseLeftButtonDown += (_, _) =>
+        {
+            var current = isSecondary ? _roomColor2 : _roomColor1;
+            var dialog = new ColorPickerDialog(current) { Owner = Window.GetWindow(this) };
+            if (dialog.ShowDialog() == true)
+            {
+                var c = dialog.SelectedColor;
+                if (isSecondary) _roomColor2 = c; else _roomColor1 = c;
+                dot.Background = new SolidColorBrush(c);
+                pill.Background = new SolidColorBrush(Color.FromArgb(0x33, c.R, c.G, c.B));
+                pill.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, c.R, c.G, c.B));
+                _roomActivePreset = null;
+                if (!isSecondary) SendRoomColor(c.R, c.G, c.B);
+            }
+        };
+
+        return pill;
+    }
+
+    private void SendRoomColor(byte r, byte g, byte b)
+    {
+        StopRoomPattern();
+        // Govee LAN
+        if (_config?.Ambience.GoveeEnabled == true)
+            foreach (var dev in _config.Ambience.GoveeDevices)
+            {
+                if (string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn) continue;
+                AmbienceSync.PauseSync(dev.Ip, 30);
+                _ = AmbienceSync.SendColorAsync(dev.Ip, r, g, b);
+            }
+        // Corsair
+        if (_corsairSync?.IsAvailable == true && _config?.Corsair.Enabled == true)
+        {
+            _config!.Corsair.LightSyncMode = "static";
+            _ = _corsairSync.SetStaticColorAllAsync(r, g, b);
+        }
+        // Govee Cloud
+        if (_cloudApi != null)
+            foreach (var dev in _cloudDevices)
+                _ = SafeCloudCall(() => _cloudApi.ControlDeviceAsync(
+                    dev.Device, dev.Sku, GoveeCloudApi.SetColor(r, g, b)));
     }
 
     // ── Room Pattern Engine ─────────────────────────────────────────
