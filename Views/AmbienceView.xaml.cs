@@ -40,6 +40,11 @@ public partial class AmbienceView : UserControl
     private CorsairSync? _corsairSync;
     private StackPanel? _corsairDeviceRows;
 
+    // Room pattern engine
+    private DispatcherTimer? _patternTimer;
+    private string? _activePattern;
+    private long _patternStartMs;
+
     // Navigation callback (set by MainWindow to navigate to Settings)
     public Action? NavigateToSettings { get; set; }
 
@@ -1558,6 +1563,128 @@ public partial class AmbienceView : UserControl
         colorWrap.Children.Add(customTile);
         _sceneContent.Children.Add(colorWrap);
 
+        // ── Animated Patterns ──
+        _sceneContent.Children.Add(MakeSeparator());
+        _sceneContent.Children.Add(MakeSubLabel("PATTERNS"));
+        var patternWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 12) };
+
+        var patterns = new (string name, string id, Color color, string icon)[]
+        {
+            ("Rainbow", "rainbow", Color.FromRgb(0xFF, 0x00, 0x80), "🌈"),
+            ("Breathing", "breathing", Color.FromRgb(0x69, 0xF0, 0xAE), "🫧"),
+            ("Color Cycle", "color_cycle", Color.FromRgb(0x64, 0xB5, 0xF6), "🔄"),
+            ("Fire", "fire", Color.FromRgb(0xFF, 0x6B, 0x35), "🔥"),
+            ("Ocean", "ocean", Color.FromRgb(0x00, 0x96, 0xC7), "🌊"),
+            ("Aurora", "aurora", Color.FromRgb(0x00, 0xE6, 0x76), "🌌"),
+            ("Sunset", "sunset", Color.FromRgb(0xFF, 0x80, 0x00), "🌅"),
+            ("Candle", "candle", Color.FromRgb(0xFF, 0xC1, 0x07), "🕯"),
+        };
+
+        foreach (var (name, id, tileColor, icon) in patterns)
+        {
+            bool isActive = _activePattern == id;
+            var tile = new Border
+            {
+                Width = 82, Height = 58,
+                CornerRadius = new CornerRadius(6),
+                Background = isActive
+                    ? new SolidColorBrush(Color.FromArgb(0x30, tileColor.R, tileColor.G, tileColor.B))
+                    : new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+                BorderBrush = isActive
+                    ? new SolidColorBrush(tileColor)
+                    : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                BorderThickness = new Thickness(1),
+                Margin = new Thickness(0, 0, 6, 6),
+                Cursor = Cursors.Hand,
+                ToolTip = name,
+            };
+            var tileContent = new StackPanel
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            tileContent.Children.Add(new TextBlock
+            {
+                Text = icon, FontSize = 20,
+                HorizontalAlignment = HorizontalAlignment.Center,
+            });
+            tileContent.Children.Add(new TextBlock
+            {
+                Text = name, FontSize = 9,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
+                Margin = new Thickness(0, 2, 0, 0),
+            });
+            tile.Child = tileContent;
+
+            tile.MouseEnter += (_, _) =>
+            {
+                if (_activePattern != id)
+                {
+                    tile.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+                    tile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, tileColor.R, tileColor.G, tileColor.B));
+                }
+            };
+            tile.MouseLeave += (_, _) =>
+            {
+                if (_activePattern != id)
+                {
+                    tile.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+                    tile.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+                }
+            };
+
+            var capturedId = id;
+            tile.MouseLeftButtonUp += (_, _) =>
+            {
+                if (_activePattern == capturedId)
+                {
+                    // Deselect — stop pattern
+                    StopRoomPattern();
+                    RefreshSceneContent();
+                    return;
+                }
+                StartRoomPattern(capturedId);
+                RefreshSceneContent();
+            };
+
+            patternWrap.Children.Add(tile);
+        }
+
+        // Stop button
+        if (_activePattern != null)
+        {
+            var stopTile = new Border
+            {
+                Width = 82, Height = 58,
+                CornerRadius = new CornerRadius(6),
+                Background = new SolidColorBrush(Color.FromArgb(0x30, 0xFF, 0x44, 0x44)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0x44, 0x44)),
+                BorderThickness = new Thickness(1),
+                Margin = new Thickness(0, 0, 6, 6),
+                Cursor = Cursors.Hand,
+                ToolTip = "Stop pattern",
+            };
+            var stopContent = new StackPanel
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            stopContent.Children.Add(new TextBlock { Text = "⏹", FontSize = 20, HorizontalAlignment = HorizontalAlignment.Center });
+            stopContent.Children.Add(new TextBlock
+            {
+                Text = "Stop", FontSize = 9,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x44, 0x44)),
+                Margin = new Thickness(0, 2, 0, 0),
+            });
+            stopTile.Child = stopContent;
+            stopTile.MouseLeftButtonUp += (_, _) => { StopRoomPattern(); RefreshSceneContent(); };
+            patternWrap.Children.Add(stopTile);
+        }
+
+        _sceneContent.Children.Add(patternWrap);
+
         // Sync to Amp Up toggle
         _sceneContent.Children.Add(MakeSeparator());
         var syncCheck = new CheckBox
@@ -1571,6 +1698,7 @@ public partial class AmbienceView : UserControl
         syncCheck.Checked += (_, _) =>
         {
             if (_loading || _config == null) return;
+            StopRoomPattern();
             _config.Ambience.LinkToLights = true;
             _config.Corsair.LightSyncMode = "vu_reactive";
             QueueSave();
@@ -1582,6 +1710,130 @@ public partial class AmbienceView : UserControl
             QueueSave();
         };
         _sceneContent.Children.Add(syncCheck);
+    }
+
+    // ── Room Pattern Engine ─────────────────────────────────────────
+
+    private void StartRoomPattern(string patternId)
+    {
+        StopRoomPattern();
+        _activePattern = patternId;
+        _patternStartMs = Environment.TickCount64;
+
+        // Disable other sync modes so pattern isn't overwritten
+        if (_config != null)
+        {
+            _config.Ambience.LinkToLights = false;
+            _config.Corsair.LightSyncMode = "static"; // prevent Turn Up frames overwriting
+        }
+
+        // Pause Govee sync so our pattern colors aren't overwritten
+        if (_config?.Ambience.GoveeEnabled == true)
+            foreach (var dev in _config.Ambience.GoveeDevices)
+                if (!string.IsNullOrWhiteSpace(dev.Ip))
+                    AmbienceSync.PauseSync(dev.Ip, 999);
+
+        _patternTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) }; // 10 FPS
+        _patternTimer.Tick += PatternTick;
+        _patternTimer.Start();
+    }
+
+    private void StopRoomPattern()
+    {
+        _patternTimer?.Stop();
+        _patternTimer = null;
+        _activePattern = null;
+
+        // Resume Govee sync
+        if (_config?.Ambience.GoveeEnabled == true)
+            foreach (var dev in _config.Ambience.GoveeDevices)
+                if (!string.IsNullOrWhiteSpace(dev.Ip))
+                    AmbienceSync.PauseSync(dev.Ip, 0);
+    }
+
+    private void PatternTick(object? sender, EventArgs e)
+    {
+        if (_activePattern == null || _config == null) return;
+        double t = (Environment.TickCount64 - _patternStartMs) / 1000.0; // seconds elapsed
+
+        var (r, g, b) = _activePattern switch
+        {
+            "rainbow" => HsvToRgb((t * 30) % 360, 1.0, 1.0),
+            "breathing" => ScaleColor(0x69, 0xF0, 0xAE, (Math.Sin(t * 2) + 1) / 2),
+            "color_cycle" => HsvToRgb((t * 15) % 360, 0.8, 1.0),
+            "fire" => FireColor(t),
+            "ocean" => OceanColor(t),
+            "aurora" => HsvToRgb(120 + Math.Sin(t * 0.5) * 60, 0.7, 0.6 + Math.Sin(t * 1.5) * 0.4),
+            "sunset" => SunsetColor(t),
+            "candle" => CandleColor(t),
+            _ => ((byte)255, (byte)255, (byte)255),
+        };
+
+        // Send to Govee
+        if (_config.Ambience.GoveeEnabled)
+        {
+            foreach (var dev in _config.Ambience.GoveeDevices)
+            {
+                if (string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn) continue;
+                _ = AmbienceSync.SendColorAsync(dev.Ip, r, g, b);
+            }
+        }
+
+        // Send to Corsair
+        if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
+        {
+            float boost = _config.Corsair.LightBrightness / 100f;
+            byte cr = (byte)Math.Min(r * boost, 255);
+            byte cg = (byte)Math.Min(g * boost, 255);
+            byte cb = (byte)Math.Min(b * boost, 255);
+            _ = _corsairSync.SetStaticColorAllAsync(cr, cg, cb);
+        }
+    }
+
+    // ── Pattern color generators ────────────────────────────────────
+
+    private static (byte r, byte g, byte b) HsvToRgb(double h, double s, double v)
+    {
+        h = ((h % 360) + 360) % 360;
+        double c = v * s, x = c * (1 - Math.Abs((h / 60) % 2 - 1)), m = v - c;
+        double r1, g1, b1;
+        if (h < 60)       { r1 = c; g1 = x; b1 = 0; }
+        else if (h < 120) { r1 = x; g1 = c; b1 = 0; }
+        else if (h < 180) { r1 = 0; g1 = c; b1 = x; }
+        else if (h < 240) { r1 = 0; g1 = x; b1 = c; }
+        else if (h < 300) { r1 = x; g1 = 0; b1 = c; }
+        else              { r1 = c; g1 = 0; b1 = x; }
+        return ((byte)((r1 + m) * 255), (byte)((g1 + m) * 255), (byte)((b1 + m) * 255));
+    }
+
+    private static (byte r, byte g, byte b) ScaleColor(byte r, byte g, byte b, double scale)
+    {
+        return ((byte)(r * scale), (byte)(g * scale), (byte)(b * scale));
+    }
+
+    private static (byte r, byte g, byte b) FireColor(double t)
+    {
+        double flicker = 0.7 + 0.3 * Math.Sin(t * 7) * Math.Sin(t * 11);
+        return ((byte)(255 * flicker), (byte)(100 * flicker), (byte)(20 * flicker * 0.3));
+    }
+
+    private static (byte r, byte g, byte b) OceanColor(double t)
+    {
+        double wave = (Math.Sin(t * 1.5) + 1) / 2;
+        return ((byte)(10 + 30 * wave), (byte)(100 + 50 * wave), (byte)(180 + 75 * wave));
+    }
+
+    private static (byte r, byte g, byte b) SunsetColor(double t)
+    {
+        double phase = (Math.Sin(t * 0.8) + 1) / 2;
+        return ((byte)(255 - 40 * phase), (byte)(80 + 60 * phase), (byte)(20 + 80 * phase));
+    }
+
+    private static (byte r, byte g, byte b) CandleColor(double t)
+    {
+        var rnd = Math.Sin(t * 5.3) * Math.Sin(t * 7.7);
+        double brightness = 0.6 + 0.4 * (0.5 + 0.5 * rnd);
+        return ((byte)(255 * brightness), (byte)(147 * brightness), (byte)(41 * brightness * 0.4));
     }
 
     // ══════════════════════════════════════════════════════════════════
