@@ -432,9 +432,20 @@ public partial class AmbienceView : UserControl
                 }
             }
 
-            // Update Corsair brightness (scales colors sent to iCUE)
-            if (_config.Corsair.Enabled)
+            // Update Corsair brightness — re-send current color scaled by new brightness
+            if (_config.Corsair.Enabled && _corsairSync?.IsAvailable == true)
+            {
                 _config.Corsair.LightBrightness = (int)(pct * 2.0); // map 0-100% to 0-200% range
+                // If in static mode, re-send the color at new brightness
+                if (_config.Corsair.LightSyncMode == "static" && _activeRoomSwatch?.Background is SolidColorBrush brush)
+                {
+                    float boost = _config.Corsair.LightBrightness / 100f;
+                    byte r2 = (byte)Math.Min(brush.Color.R * boost, 255);
+                    byte g2 = (byte)Math.Min(brush.Color.G * boost, 255);
+                    byte b2 = (byte)Math.Min(brush.Color.B * boost, 255);
+                    _ = _corsairSync.SetStaticColorAllAsync(r2, g2, b2);
+                }
+            }
 
             QueueSave();
         };
