@@ -1499,7 +1499,7 @@ public partial class AmbienceView : UserControl
         lightModeRow.Children.Add(MakeSubLabel("MODE"));
         var lightModeCombo = new ComboBox
         {
-            Width = 160, Height = 28,
+            Width = 200, Height = 28,
             SelectedIndex = cfg.LightSyncMode switch
             {
                 "static" => 1, "dreamview" => 2, "vu_reactive" => 3, _ => 0
