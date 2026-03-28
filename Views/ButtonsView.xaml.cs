@@ -524,6 +524,7 @@ public partial class ButtonsView : UserControl
             SelectHaSubTag(_tapCombos[i], btn.Action, btn.Path);
             SelectDeviceSubTag(_tapCombos[i], btn.Action, btn.DeviceId);
             SelectGoveeDevicePicker(_tapGoveeDevicePickers[i], btn.Action, btn.Path);
+            SelectGroupPicker(_tapGroupPickers[i], btn.Action, btn.Path);
             UpdateTapVisibility(i, btn.Action);
             // Restore checked IDs after UpdateTapVisibility (which may re-populate and clear)
             _tapCycleDevicePickers[i].SetCheckedIds(btn.DeviceIds);
