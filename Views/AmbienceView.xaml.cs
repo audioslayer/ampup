@@ -405,7 +405,7 @@ public partial class AmbienceView : UserControl
 
         // ── Brightness slider ──
         var brightRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-        brightRow.Children.Add(MakeSubLabel("GOVEE BRIGHTNESS"));
+        brightRow.Children.Add(MakeSubLabel("ROOM BRIGHTNESS"));
         var brightSlider = new StyledSlider
         {
             Minimum = 1, Maximum = 100, Value = _config.Ambience.BrightnessScale,
@@ -414,14 +414,29 @@ public partial class AmbienceView : UserControl
             AccentColor = ThemeManager.Accent,
         };
         var brightDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
-        brightDebounce.Tick += (_, _) =>
+        brightDebounce.Tick += async (_, _) =>
         {
             brightDebounce.Stop();
-            if (_config != null)
+            if (_config == null) return;
+            int pct = (int)brightSlider.Value;
+            _config.Ambience.BrightnessScale = pct;
+
+            // Send brightness to all Govee devices
+            if (_config.Ambience.GoveeEnabled)
             {
-                _config.Ambience.BrightnessScale = (int)brightSlider.Value;
-                QueueSave();
+                foreach (var dev in _config.Ambience.GoveeDevices)
+                {
+                    if (string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn) continue;
+                    AmbienceSync.PauseSync(dev.Ip, 5);
+                    await AmbienceSync.SendBrightnessAsync(dev.Ip, pct);
+                }
             }
+
+            // Update Corsair brightness (scales colors sent to iCUE)
+            if (_config.Corsair.Enabled)
+                _config.Corsair.LightBrightness = (int)(pct * 2.0); // map 0-100% to 0-200% range
+
+            QueueSave();
         };
         brightSlider.ValueChanged += (_, _) => { brightDebounce.Stop(); brightDebounce.Start(); };
         brightRow.Children.Add(brightSlider);
