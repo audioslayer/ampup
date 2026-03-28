@@ -282,32 +282,76 @@ public partial class AmbienceView : UserControl
         var stack = new StackPanel();
         card.Child = stack;
 
-        // ── Header with tabs ──
-        var (headerBar, headerLabel) = MakeSectionHeader("ROOM LIGHTING");
-        stack.Children.Add(WrapHeader(headerBar, headerLabel));
+        // ── Pill-style tab bar (Global / Govee / Corsair) — same style as Lights tab ──
+        var accent = ThemeManager.Accent;
+        var tabNames = new[] { "GLOBAL", "GOVEE", "CORSAIR" };
+        var tabBorders = new Border[3];
 
-        var segmented = new Controls.SegmentedControl
+        var toggleBar = new Border
         {
+            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(3),
             Margin = new Thickness(0, 0, 0, 12),
             HorizontalAlignment = HorizontalAlignment.Left,
         };
-        segmented.AddSegment("Global", "global");
-        segmented.AddSegment("Govee", "govee");
-        segmented.AddSegment("Corsair", "corsair");
-        segmented.SelectedIndex = _roomTabIndex;
-        stack.Children.Add(segmented);
+        var tabRow = new StackPanel { Orientation = Orientation.Horizontal };
+        for (int i = 0; i < 3; i++)
+        {
+            var idx = i;
+            var tab = new Border
+            {
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(18, 5, 18, 5),
+                Cursor = Cursors.Hand,
+                MinWidth = 80,
+            };
+            tab.Child = new TextBlock
+            {
+                Text = tabNames[i], FontSize = 10, FontWeight = FontWeights.Bold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+            };
+            tabBorders[i] = tab;
+            tab.MouseLeftButtonDown += (_, _) =>
+            {
+                _roomTabIndex = idx;
+                for (int j = 0; j < 3; j++)
+                    SetRoomTabActive(tabBorders[j], j == idx, ThemeManager.Accent);
+                RebuildRoomTabContent();
+            };
+            tabRow.Children.Add(tab);
+        }
+        for (int i = 0; i < 3; i++)
+            SetRoomTabActive(tabBorders[i], i == _roomTabIndex, accent);
+        toggleBar.Child = tabRow;
+        stack.Children.Add(toggleBar);
 
         _roomTabContent = new StackPanel();
         stack.Children.Add(_roomTabContent);
 
-        segmented.SelectionChanged += (_, _) =>
-        {
-            _roomTabIndex = segmented.SelectedIndex;
-            RebuildRoomTabContent();
-        };
-
         RebuildRoomTabContent();
         return card;
+    }
+
+    private static void SetRoomTabActive(Border tab, bool active, Color accent)
+    {
+        var label = tab.Child as TextBlock;
+        if (active)
+        {
+            tab.Background = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B));
+            tab.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, accent.R, accent.G, accent.B));
+            tab.BorderThickness = new Thickness(1);
+            tab.Opacity = 1.0;
+            if (label != null) label.Foreground = new SolidColorBrush(accent);
+        }
+        else
+        {
+            tab.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+            tab.BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
+            tab.BorderThickness = new Thickness(1);
+            tab.Opacity = 0.4;
+            if (label != null) label.Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
+        }
     }
 
     private void RebuildRoomTabContent()
