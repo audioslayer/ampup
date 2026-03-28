@@ -52,6 +52,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="x64\iCUESDK.x64_2019.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>x64\iCUESDK.x64_2019.dll</Link>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
     <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
     <PackageReference Include="WPF-UI" Version="4.*" />
     <PackageReference Include="Material.Icons.WPF" Version="3.*" />
