@@ -434,7 +434,7 @@ public partial class AmbienceView : UserControl
         satSlider.ValueChanged += (_, _) =>
         {
             if (_loading || _config == null) return;
-            _config.Ambience.ScreenSync.Saturation = satSlider.Value / 100.0;
+            _config.Ambience.ScreenSync.Saturation = (float)(satSlider.Value / 100.0);
             satLabel.Text = $"{satSlider.Value / 100.0:F1}×";
             _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
             QueueSave();
@@ -581,18 +581,19 @@ public partial class AmbienceView : UserControl
                     var mapping = cfg.DeviceMappings.FirstOrDefault(m => m.DeviceIp == goveeDevice.Ip);
                     if (mapping == null)
                     {
-                        mapping = new ZoneDeviceMapping { DeviceIp = goveeDevice.Ip, Side = "Full" };
+                        mapping = new ZoneDeviceMapping { DeviceIp = goveeDevice.Ip, Side = ZoneSide.Full };
                         cfg.DeviceMappings.Add(mapping);
                     }
                     var sideCombo = new ComboBox { Width = 120 };
                     sideCombo.Items.Add("Full"); sideCombo.Items.Add("Top"); sideCombo.Items.Add("Bottom");
                     sideCombo.Items.Add("Left"); sideCombo.Items.Add("Right");
-                    sideCombo.SelectedItem = mapping.Side;
+                    sideCombo.SelectedItem = mapping.Side.ToString();
                     var capturedMapping = mapping;
                     sideCombo.SelectionChanged += (_, _) =>
                     {
                         if (_loading || _config == null) return;
-                        capturedMapping.Side = sideCombo.SelectedItem?.ToString() ?? "Full";
+                        if (Enum.TryParse<ZoneSide>(sideCombo.SelectedItem?.ToString(), out var side))
+                            capturedMapping.Side = side;
                         QueueSave();
                     };
                     mapRow.Children.Add(sideCombo);
