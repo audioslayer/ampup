@@ -250,6 +250,51 @@ public class AudioMixer : IDisposable
         }
     }
 
+    /// <summary>
+    /// Sets volume on a specific audio output device by its device ID.
+    /// Used by Device Groups to control audio device volume alongside lights.
+    /// </summary>
+    public void SetOutputDeviceVolume(string deviceId, float volume)
+    {
+        SetDeviceVolume(deviceId, DataFlow.Render, Math.Clamp(volume, 0f, 1f));
+    }
+
+    /// <summary>
+    /// Toggles mute on a specific audio output device by its device ID.
+    /// Used by Device Groups to toggle audio device mute alongside lights.
+    /// </summary>
+    public void ToggleOutputDeviceMute(string deviceId)
+    {
+        if (string.IsNullOrEmpty(deviceId))
+        {
+            Logger.Log("ToggleOutputDeviceMute: no deviceId configured");
+            return;
+        }
+
+        try
+        {
+            MMDeviceCollection? devices;
+            lock (_enumLock) devices = _enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+            if (devices != null)
+            {
+                for (int i = 0; i < devices.Count; i++)
+                {
+                    using var dev = devices[i];
+                    if (dev.ID == deviceId)
+                    {
+                        dev.AudioEndpointVolume.Mute = !dev.AudioEndpointVolume.Mute;
+                        return;
+                    }
+                }
+            }
+            Logger.Log($"ToggleOutputDeviceMute: device not found: {deviceId}");
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ToggleOutputDeviceMute error: {ex.Message}");
+        }
+    }
+
     private void SetActiveWindowVolume(float vol)
     {
         try

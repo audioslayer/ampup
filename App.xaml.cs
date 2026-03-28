@@ -978,6 +978,9 @@ public partial class App : Application
                                         }
                                     }
                                     break;
+                                case "audio_output":
+                                    _mixer?.SetOutputDeviceVolume(dev.DeviceId, norm);
+                                    break;
                             }
                         }
                     }
@@ -1466,6 +1469,9 @@ public partial class App : Application
                 case "ha":
                     if (_ha != null && _ha.IsAvailable)
                         _ = _ha.ToggleEntityAsync(dev.DeviceId);
+                    break;
+                case "audio_output":
+                    _mixer?.ToggleOutputDeviceMute(dev.DeviceId);
                     break;
             }
         }

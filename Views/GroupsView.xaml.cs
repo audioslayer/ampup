@@ -147,7 +147,7 @@ public partial class GroupsView : UserControl
         });
         stack.Children.Add(new TextBlock
         {
-            Text = "Create a group to organize your Govee, Corsair, and Home Assistant devices together.",
+            Text = "Create a group to organize your Govee, Corsair, Home Assistant, and audio devices together.",
             Style = FindStyle("SecondaryText"),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 4),
@@ -495,6 +495,57 @@ public partial class GroupsView : UserControl
             menu.Items.Add(new Separator());
         }
 
+        // Audio output devices
+        {
+            var audioHeader = new MenuItem
+            {
+                Header = "AUDIO DEVICES",
+                IsEnabled = false,
+                FontSize = 9,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = Brush("#26C6DA"),
+            };
+            menu.Items.Add(audioHeader);
+
+            try
+            {
+                using var audioEnum = new NAudio.CoreAudioApi.MMDeviceEnumerator();
+                var audioDevices = audioEnum.EnumerateAudioEndPoints(
+                    NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.DeviceState.Active);
+                for (int i = 0; i < audioDevices.Count; i++)
+                {
+                    var audioDev = audioDevices[i];
+                    var group = _config.Groups[groupIndex];
+                    if (group.Devices.Any(d => d.Type == "audio_output" && d.DeviceId == audioDev.ID))
+                        continue;
+
+                    var item = new MenuItem
+                    {
+                        Header = audioDev.FriendlyName,
+                        Foreground = FindBrush("TextPrimaryBrush"),
+                    };
+                    string audioId = audioDev.ID;
+                    string audioName = audioDev.FriendlyName;
+                    item.Click += (_, _) =>
+                    {
+                        _config.Groups[groupIndex].Devices.Add(new GroupDevice
+                        {
+                            Type = "audio_output",
+                            DeviceId = audioId,
+                            Name = audioName,
+                        });
+                        Save();
+                        RebuildGroupPanel();
+                    };
+                    menu.Items.Add(item);
+                    hasItems = true;
+                }
+            }
+            catch { }
+
+            menu.Items.Add(new Separator());
+        }
+
         // Home Assistant — manual entity_id entry
         if (_config.HomeAssistant.Enabled)
         {
@@ -773,6 +824,7 @@ public partial class GroupsView : UserControl
         "govee" => Brush("#00E676"),
         "corsair" => Brush("#FFB800"),
         "ha" => Brush("#03A9F4"),
+        "audio_output" => Brush("#26C6DA"),
         _ => Brush("#555555"),
     };
 
@@ -781,6 +833,7 @@ public partial class GroupsView : UserControl
         "govee" => "GOVEE",
         "corsair" => "iCUE",
         "ha" => "HA",
+        "audio_output" => "AUDIO",
         _ => type.ToUpperInvariant(),
     };
 
