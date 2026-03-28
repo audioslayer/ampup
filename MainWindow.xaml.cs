@@ -193,6 +193,10 @@ public partial class MainWindow : FluentWindow
         {
             _config = cfg;
             _onConfigChanged?.Invoke(cfg);
+
+            // Update Ambience tab visibility when integrations are toggled
+            bool showAmbience = cfg.Ambience.GoveeEnabled || cfg.Ambience.GoveeCloudEnabled || cfg.Corsair.Enabled;
+            NavAmbience.Visibility = showAmbience ? Visibility.Visible : Visibility.Collapsed;
         };
 
         _settingsView.OnNavigateToOverview = () => NavigateTo(_bindingsView, NavBindings);
@@ -206,9 +210,9 @@ public partial class MainWindow : FluentWindow
         _osdView.OnRequestRefresh = () => RefreshViews();
         _osdView.LoadConfig(_config, saveHandler);
 
-        // Show/hide Ambience nav based on Govee enabled state
-        bool goveeEnabled = _config.Ambience.GoveeEnabled || _config.Ambience.GoveeCloudEnabled;
-        NavAmbience.Visibility = goveeEnabled ? Visibility.Visible : Visibility.Collapsed;
+        // Show/hide Ambience nav based on Govee or Corsair enabled state
+        bool ambienceEnabled = _config.Ambience.GoveeEnabled || _config.Ambience.GoveeCloudEnabled || _config.Corsair.Enabled;
+        NavAmbience.Visibility = ambienceEnabled ? Visibility.Visible : Visibility.Collapsed;
 
         // Sync knob labels into the hardware preview strip
         for (int i = 0; i < 5; i++)
