@@ -452,6 +452,95 @@ public partial class AmbienceView : UserControl
         };
         stack.Children.Add(speedSlider);
 
+        // ── Music Reactive (Global) ──
+        stack.Children.Add(MakeSeparator());
+        var (musBar, musLabel) = MakeSectionHeader("MUSIC REACTIVE");
+        stack.Children.Add(WrapHeader(musBar, musLabel));
+
+        stack.Children.Add(new TextBlock
+        {
+            Text = "Reacts to system audio — applies on top of the current effect for all room devices.",
+            Style = FindStyle("SecondaryText"),
+            Margin = new Thickness(0, 0, 0, 8),
+        });
+
+        var musicSyncCheck = new CheckBox
+        {
+            Content = "Enable Music Sync",
+            IsChecked = _corsairMusicTimer?.IsEnabled == true,
+            FontSize = 12,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            Margin = new Thickness(0, 0, 0, 8),
+            ToolTip = "Uses system audio FFT to drive room light colors — bass=red, mids=green, treble=blue",
+        };
+        musicSyncCheck.Checked += (_, _) =>
+        {
+            if (_loading) return;
+            StartGlobalMusicSync();
+        };
+        musicSyncCheck.Unchecked += (_, _) =>
+        {
+            if (_loading) return;
+            StopCorsairMusicSync();
+        };
+        stack.Children.Add(musicSyncCheck);
+
+    }
+
+    private void StartGlobalMusicSync()
+    {
+        StopCorsairMusicSync(); // stop any existing
+        StopRoomPattern(); // stop effect pattern — music takes over
+
+        // Start audio analyzer
+        App.AudioAnalyzer?.Start();
+
+        _corsairMusicTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+        _corsairMusicTimer.Tick += (_, _) =>
+        {
+            var bands = App.AudioAnalyzer?.SmoothedBands;
+            if (bands == null || bands.Length < 5 || _config == null) return;
+
+            float bass = bands[0] + bands[1];
+            float mid = bands[2];
+            float treble = bands[3] + bands[4];
+            byte r = (byte)Math.Min(bass * 400, 255);
+            byte g = (byte)Math.Min(mid * 400, 255);
+            byte b = (byte)Math.Min(treble * 400, 255);
+
+            // Send to Govee
+            if (_config.Ambience.GoveeEnabled && _config.Ambience.GoveeSyncToGlobal)
+            {
+                foreach (var dev in _config.Ambience.GoveeDevices)
+                {
+                    if (string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn) continue;
+                    _ = AmbienceSync.SendColorAsync(dev.Ip, r, g, b);
+                }
+            }
+
+            // Send to Corsair
+            if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
+            {
+                float boost = _config.Corsair.LightBrightness / 100f;
+                _ = _corsairSync.SetStaticColorAllAsync(
+                    (byte)Math.Min(r * boost, 255),
+                    (byte)Math.Min(g * boost, 255),
+                    (byte)Math.Min(b * boost, 255));
+            }
+        };
+        _corsairMusicTimer.Start();
+
+        // Prevent other sync modes from overwriting
+        if (_config != null)
+        {
+            _config.Ambience.LinkToLights = false;
+            _config.Corsair.LightSyncMode = "static";
+        }
+        // Pause Govee ambient sync
+        if (_config?.Ambience.GoveeEnabled == true)
+            foreach (var dev in _config.Ambience.GoveeDevices)
+                if (!string.IsNullOrWhiteSpace(dev.Ip))
+                    AmbienceSync.PauseSync(dev.Ip, 99999);
     }
 
     // ── GOVEE TAB ───────────────────────────────────────────────────
@@ -641,7 +730,7 @@ public partial class AmbienceView : UserControl
         var corBrightRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
         var corBrightSlider = new StyledSlider
         {
-            Minimum = 50, Maximum = 200, Value = _config.Corsair.LightBrightness,
+            Minimum = 1, Maximum = 100, Value = Math.Min(_config.Corsair.LightBrightness, 100),
             Width = 200, Height = 35, AccentColor = corsairYellow, ShowLabel = false,
         };
         var corBrightLabel = new TextBlock
@@ -672,6 +761,41 @@ public partial class AmbienceView : UserControl
         corBrightRow.Children.Add(corBrightSlider);
         corBrightRow.Children.Add(corBrightLabel);
         corsairDeviceContent.Children.Add(corBrightRow);
+
+        // Effect picker (Corsair-independent control)
+        corsairDeviceContent.Children.Add(MakeSeparator());
+        var (effBar2, effLabel2) = MakeSectionHeader("EFFECT");
+        effBar2.Background = new SolidColorBrush(corsairYellow);
+        effLabel2.Foreground = new SolidColorBrush(corsairYellow);
+        corsairDeviceContent.Children.Add(WrapHeader(effBar2, effLabel2));
+
+        var corsairEffectPicker = new Controls.EffectPickerControl(showGlobal: true)
+        {
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+        corsairEffectPicker.SelectionChanged += (_, _) =>
+        {
+            if (_loading || _corsairSync == null) return;
+            var eff = corsairEffectPicker.SelectedEffect;
+            if (eff == LightEffect.SingleColor)
+            {
+                StopRoomPattern();
+                if (_corsairSync.IsAvailable)
+                {
+                    float boost = _config!.Corsair.LightBrightness / 100f;
+                    _ = _corsairSync.SetStaticColorAllAsync(
+                        (byte)Math.Min(_roomColor1.R * boost, 255),
+                        (byte)Math.Min(_roomColor1.G * boost, 255),
+                        (byte)Math.Min(_roomColor1.B * boost, 255));
+                }
+            }
+            else
+            {
+                // Start effect just for Corsair using the headless RgbController
+                StartRoomPattern(eff.ToString());
+            }
+        };
+        corsairDeviceContent.Children.Add(corsairEffectPicker);
 
         // Music Reactive
         corsairDeviceContent.Children.Add(MakeSeparator());
@@ -972,7 +1096,7 @@ public partial class AmbienceView : UserControl
             row2.Children.Add(MakeSubLabel("iCUE BRIGHTNESS"));
             var corsairBrightSlider = new StyledSlider
             {
-                Minimum = 50, Maximum = 200, Value = _config.Corsair.LightBrightness,
+                Minimum = 1, Maximum = 100, Value = Math.Min(_config.Corsair.LightBrightness, 100),
                 Width = 120, Height = 35,
                 AccentColor = Color.FromRgb(0xFF, 0xD3, 0x00), // Corsair yellow
                 ShowLabel = false,
@@ -1720,7 +1844,7 @@ public partial class AmbienceView : UserControl
         brightRow.Children.Add(MakeSubLabel("BRIGHTNESS"));
         var brightSlider = new StyledSlider
         {
-            Minimum = 50, Maximum = 200, Value = _config.Corsair.LightBrightness,
+            Minimum = 1, Maximum = 100, Value = Math.Min(_config.Corsair.LightBrightness, 100),
             Width = 140, Height = 35,
             AccentColor = corsairYellow,
             ShowLabel = false,
