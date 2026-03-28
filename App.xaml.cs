@@ -1151,7 +1151,19 @@ public partial class App : Application
     {
         if (!_config.Ambience.GameModeEnabled) return;
 
-        bool isFullscreen = NativeMethods.IsForegroundFullscreen();
+        bool isFullscreen = false;
+        try
+        {
+            var hwnd = NativeMethods.GetForegroundWindow();
+            if (hwnd != IntPtr.Zero)
+            {
+                NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
+                // Skip AmpUp's own window
+                if (pid != 0 && pid != (uint)Environment.ProcessId)
+                    isFullscreen = NativeMethods.IsForegroundFullscreen();
+            }
+        }
+        catch { }
 
         if (isFullscreen && !_gameModeActive)
         {
