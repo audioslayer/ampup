@@ -19,10 +19,10 @@ public class AmbienceSync : IDisposable
     // Per-device last-sent color for delta throttling
     private readonly Dictionary<string, (byte R, byte G, byte B)> _lastSent = new();
 
-    // Rate limiter: max 10 sends/sec per device = 1 send per 100ms
-    // Our frame rate is 20 FPS (50ms tick), so skip every other frame per device
+    // Rate limiter: Govee LAN max ~10 sends/sec, but we can push closer to that limit
+    // Our frame rate is 20 FPS (50ms tick) — send every frame when color changes
     private readonly Dictionary<string, long> _lastSendTick = new();
-    private const long MinTicksBetweenSends = TimeSpan.TicksPerMillisecond * 100;
+    private const long MinTicksBetweenSends = TimeSpan.TicksPerMillisecond * 55; // ~18 FPS cap (just above hardware limit)
 
     public AmbienceSync(AmbienceConfig config)
     {
@@ -117,9 +117,9 @@ public class AmbienceSync : IDisposable
                 int dr = Math.Abs(r - prev.R);
                 int dg = Math.Abs(g - prev.G);
                 int db = Math.Abs(b - prev.B);
-                // Send if any channel changed by more than 5, or as keepalive every 500ms
-                bool significantChange = dr > 5 || dg > 5 || db > 5;
-                bool keepalive = now - lastTick > TimeSpan.TicksPerMillisecond * 500;
+                // Send if any channel changed by more than 2, or as keepalive every 200ms
+                bool significantChange = dr > 2 || dg > 2 || db > 2;
+                bool keepalive = now - lastTick > TimeSpan.TicksPerMillisecond * 200;
                 if (!significantChange && !keepalive) continue;
             }
 
