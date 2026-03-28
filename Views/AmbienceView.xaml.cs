@@ -1492,17 +1492,7 @@ public partial class AmbienceView : UserControl
 
     private void SetDevicePanelDimmed(bool syncActive)
     {
-        if (_devicesCard != null)
-        {
-            _devicesCard.Opacity = syncActive ? 0.4 : 1.0;
-            _devicesCard.IsEnabled = !syncActive;
-        }
-        if (_scenesCard != null)
-        {
-            _scenesCard.Opacity = syncActive ? 0.4 : 1.0;
-            _scenesCard.IsEnabled = !syncActive;
-        }
-        // Screen Sync card always stays interactive
+        // All cards stay interactive — scenes/devices work independently of Screen Sync
     }
 
     // ── Setup card ──────────────────────────────────────────────────────
