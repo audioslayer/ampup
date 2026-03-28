@@ -1312,6 +1312,7 @@ public partial class MainWindow : FluentWindow
         loaded.Ambience = _config.Ambience;
         loaded.Profiles = _config.Profiles;
         loaded.ProfileIcons = _config.ProfileIcons;
+        loaded.Groups = _config.Groups;
     }
 
     public void SetAmbienceSync(AmbienceSync sync)

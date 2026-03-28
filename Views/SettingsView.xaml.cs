@@ -286,6 +286,7 @@ public partial class SettingsView : UserControl
         loaded.AutoSwitch = _config.AutoSwitch;
         loaded.Ambience = _config.Ambience;
         loaded.VoiceMeeter = _config.VoiceMeeter;
+        loaded.Groups = _config.Groups;
     }
 
     private void OnProfileSelectionChanged(object sender, SelectionChangedEventArgs e)
