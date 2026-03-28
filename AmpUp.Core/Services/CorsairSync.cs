@@ -41,7 +41,7 @@ public class CorsairSync : IDisposable
     private bool _dllLoaded;
     private int _sessionState; // CorsairSessionState
 
-    public bool IsAvailable => _connected && !_disposed && _dllLoaded;
+    public bool IsAvailable => _connected && !_disposed && _dllLoaded && !_paused;
     public List<CorsairDevice> Devices { get; private set; } = new();
 
     // ── Native SDK P/Invoke ─────────────────────────────────────────
@@ -188,9 +188,13 @@ public class CorsairSync : IDisposable
         }
     }
 
+    private bool _started;
+
     public void Start()
     {
         if (_disposed || !_dllLoaded) return;
+        _paused = false;
+        if (_started) return; // CorsairConnect can only be called once per session
         try
         {
             _sessionCallback = OnSessionStateChanged;
@@ -200,6 +204,7 @@ public class CorsairSync : IDisposable
                 Logger.Log($"CorsairSync: CorsairConnect returned error {err}");
                 return;
             }
+            _started = true;
             Logger.Log("CorsairSync: connecting to iCUE...");
         }
         catch (Exception ex)
@@ -404,22 +409,17 @@ public class CorsairSync : IDisposable
         // Fan speed not available — no-op
     }
 
+    private bool _paused;
+
     public void Stop()
     {
-        _connected = false;
-        if (_dllLoaded)
-        {
-            try
-            {
-                // Release control on all devices
-                foreach (var device in Devices)
-                {
-                    if (!string.IsNullOrEmpty(device.Id))
-                        CorsairReleaseControl(device.Id);
-                }
-            }
-            catch { }
-        }
+        // Pause syncing without disconnecting from iCUE
+        _paused = true;
+    }
+
+    public void Resume()
+    {
+        _paused = false;
     }
 
     public void Dispose()
