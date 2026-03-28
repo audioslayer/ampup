@@ -48,6 +48,9 @@ public partial class AmbienceView : UserControl
     // Room pattern engine — headless RgbController for rendering effects
     private RgbController? _roomRgb;
     private string? _activePattern;
+    private bool _roomPatternCorsairOnly;
+    private Color _corsairColor1 = Color.FromRgb(0xFF, 0xD3, 0x00);
+    private Color _corsairColor2 = Color.FromRgb(0xFF, 0x70, 0x00);
 
     // Navigation callback (set by MainWindow to navigate to Settings)
     public Action? NavigateToSettings { get; set; }
@@ -748,18 +751,121 @@ public partial class AmbienceView : UserControl
                 {
                     float boost = _config!.Corsair.LightBrightness / 100f;
                     _ = _corsairSync.SetStaticColorAllAsync(
-                        (byte)Math.Min(_roomColor1.R * boost, 255),
-                        (byte)Math.Min(_roomColor1.G * boost, 255),
-                        (byte)Math.Min(_roomColor1.B * boost, 255));
+                        (byte)Math.Min(_corsairColor1.R * boost, 255),
+                        (byte)Math.Min(_corsairColor1.G * boost, 255),
+                        (byte)Math.Min(_corsairColor1.B * boost, 255));
                 }
             }
             else
             {
-                // Start effect just for Corsair using the headless RgbController
-                StartRoomPattern(eff.ToString());
+                // Start effect for Corsair only — no Govee
+                StartRoomPattern(eff.ToString(), _corsairColor1, _corsairColor2, corsairOnly: true);
             }
         };
         corsairDeviceContent.Children.Add(corsairEffectPicker);
+
+        // ── Colors ──
+        corsairDeviceContent.Children.Add(MakeSeparator());
+        var (colBar2, colLabel2) = MakeSectionHeader("COLOR");
+        colBar2.Background = new SolidColorBrush(corsairYellow);
+        colLabel2.Foreground = new SolidColorBrush(corsairYellow);
+        corsairDeviceContent.Children.Add(WrapHeader(colBar2, colLabel2));
+
+        var corsairColorRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
+
+        // Helper to build a color pill for Corsair colors
+        Border MakeCorsairPill(string lbl, bool isSecondary)
+        {
+            var c = isSecondary ? _corsairColor2 : _corsairColor1;
+            var dot = new Border
+            {
+                Width = 16, Height = 16, CornerRadius = new CornerRadius(8),
+                Background = new SolidColorBrush(c),
+                Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center,
+            };
+            var inner = new StackPanel { Orientation = Orientation.Horizontal };
+            inner.Children.Add(dot);
+            inner.Children.Add(new TextBlock
+            {
+                Text = lbl, FontSize = 9, FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            var pill = new Border
+            {
+                CornerRadius = new CornerRadius(14),
+                Background = new SolidColorBrush(Color.FromArgb(0x33, c.R, c.G, c.B)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, c.R, c.G, c.B)),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(6, 4, 12, 4),
+                Margin = new Thickness(0, 0, 8, 4),
+                Cursor = Cursors.Hand,
+                ToolTip = $"{lbl} color — click to change",
+                Child = inner,
+            };
+            pill.MouseLeftButtonDown += (_, _) =>
+            {
+                var current = isSecondary ? _corsairColor2 : _corsairColor1;
+                var dlg = new ColorPickerDialog(current) { Owner = Window.GetWindow(this) };
+                if (dlg.ShowDialog() != true) return;
+                var picked = dlg.SelectedColor;
+                if (isSecondary) _corsairColor2 = picked; else _corsairColor1 = picked;
+                dot.Background = new SolidColorBrush(picked);
+                pill.Background = new SolidColorBrush(Color.FromArgb(0x33, picked.R, picked.G, picked.B));
+                pill.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, picked.R, picked.G, picked.B));
+                // Update running Corsair pattern live
+                if (_roomPatternCorsairOnly && _roomRgb != null && _activePattern != null
+                    && Enum.TryParse<LightEffect>(_activePattern, true, out var runEff))
+                {
+                    _roomRgb.UpdateGlobalConfig(new GlobalLightConfig
+                    {
+                        Enabled = true, Effect = runEff,
+                        R = _corsairColor1.R, G = _corsairColor1.G, B = _corsairColor1.B,
+                        R2 = _corsairColor2.R, G2 = _corsairColor2.G, B2 = _corsairColor2.B,
+                        EffectSpeed = 50,
+                    });
+                }
+                else if (!isSecondary && _corsairSync?.IsAvailable == true && _config!.Corsair.Enabled)
+                {
+                    // Static — update Corsair solid color
+                    float boost = _config!.Corsair.LightBrightness / 100f;
+                    _ = _corsairSync.SetStaticColorAllAsync(
+                        (byte)Math.Min(picked.R * boost, 255),
+                        (byte)Math.Min(picked.G * boost, 255),
+                        (byte)Math.Min(picked.B * boost, 255));
+                }
+            };
+            return pill;
+        }
+
+        corsairColorRow.Children.Add(MakeCorsairPill("PRIMARY", false));
+        corsairColorRow.Children.Add(MakeCorsairPill("SECONDARY", true));
+        corsairDeviceContent.Children.Add(corsairColorRow);
+
+        // Speed slider for animated effects
+        corsairDeviceContent.Children.Add(MakeSubLabel("SPEED"));
+        var corsairSpeedSlider = new StyledSlider
+        {
+            Minimum = 1, Maximum = 100, Value = 50,
+            Width = 200, Height = 35,
+            AccentColor = corsairYellow, ShowLabel = false,
+            Margin = new Thickness(0, 0, 0, 8),
+        };
+        corsairSpeedSlider.ValueChanged += (_, _) =>
+        {
+            if (_roomPatternCorsairOnly && _roomRgb != null && _activePattern != null
+                && Enum.TryParse<LightEffect>(_activePattern, true, out var eff))
+            {
+                _roomRgb.UpdateGlobalConfig(new GlobalLightConfig
+                {
+                    Enabled = true, Effect = eff,
+                    R = _corsairColor1.R, G = _corsairColor1.G, B = _corsairColor1.B,
+                    R2 = _corsairColor2.R, G2 = _corsairColor2.G, B2 = _corsairColor2.B,
+                    EffectSpeed = (int)corsairSpeedSlider.Value,
+                });
+            }
+        };
+        corsairDeviceContent.Children.Add(corsairSpeedSlider);
 
         // Music Reactive
         corsairDeviceContent.Children.Add(MakeSeparator());
@@ -787,31 +893,6 @@ public partial class AmbienceView : UserControl
             StopCorsairMusicSync();
         };
         corsairDeviceContent.Children.Add(musicCheck);
-
-        // Detected devices
-        corsairDeviceContent.Children.Add(MakeSeparator());
-        var (devBar, devLabel) = MakeSectionHeader("DETECTED DEVICES");
-        devBar.Background = new SolidColorBrush(corsairYellow);
-        devLabel.Foreground = new SolidColorBrush(corsairYellow);
-        corsairDeviceContent.Children.Add(WrapHeader(devBar, devLabel));
-
-        _corsairDeviceRows = new StackPanel();
-        if (_corsairSync.IsAvailable && _corsairSync.Devices.Count > 0)
-        {
-            foreach (var dev in _corsairSync.Devices)
-                _corsairDeviceRows.Children.Add(BuildCorsairDeviceRow(dev));
-        }
-        else
-        {
-            _ = RefreshCorsairDevices();
-            _corsairDeviceRows.Children.Add(new TextBlock
-            {
-                Text = "Connecting to iCUE...", FontSize = 11,
-                Foreground = FindBrush("TextSecBrush"),
-                Margin = new Thickness(0, 4, 0, 4),
-            });
-        }
-        corsairDeviceContent.Children.Add(_corsairDeviceRows);
     }
 
     private void BuildGoveeSceneContent(GoveeDeviceInfo device)
@@ -2229,10 +2310,14 @@ public partial class AmbienceView : UserControl
 
     // ── Room Pattern Engine (headless RgbController) ──────────────
 
-    private void StartRoomPattern(string patternId)
+    private void StartRoomPattern(string patternId, Color? c1 = null, Color? c2 = null, bool corsairOnly = false)
     {
         StopRoomPattern();
         _activePattern = patternId;
+        _roomPatternCorsairOnly = corsairOnly;
+
+        var color1 = c1 ?? _roomColor1;
+        var color2 = c2 ?? _roomColor2;
 
         // Disable other sync modes so pattern isn't overwritten
         if (_config != null)
@@ -2241,8 +2326,8 @@ public partial class AmbienceView : UserControl
             _config.Corsair.LightSyncMode = "static";
         }
 
-        // Pause Govee ambient sync
-        if (_config?.Ambience.GoveeEnabled == true)
+        // Pause Govee ambient sync (only when not corsair-only — Govee isn't being driven anyway)
+        if (!corsairOnly && _config?.Ambience.GoveeEnabled == true)
             foreach (var dev in _config.Ambience.GoveeDevices)
                 if (!string.IsNullOrWhiteSpace(dev.Ip))
                     AmbienceSync.PauseSync(dev.Ip, 99999);
@@ -2262,8 +2347,8 @@ public partial class AmbienceView : UserControl
             {
                 Enabled = true,
                 Effect = effect,
-                R = _roomColor1.R, G = _roomColor1.G, B = _roomColor1.B,
-                R2 = _roomColor2.R, G2 = _roomColor2.G, B2 = _roomColor2.B,
+                R = color1.R, G = color1.G, B = color1.B,
+                R2 = color2.R, G2 = color2.G, B2 = color2.B,
                 EffectSpeed = 50,
             };
             _roomRgb.UpdateGlobalConfig(gl);
@@ -2286,6 +2371,7 @@ public partial class AmbienceView : UserControl
             _roomRgb = null;
         }
         _activePattern = null;
+        _roomPatternCorsairOnly = false;
 
         // Resume Govee sync
         if (_config?.Ambience.GoveeEnabled == true)
@@ -2321,8 +2407,8 @@ public partial class AmbienceView : UserControl
             b = (byte)(b * brightness);
         }
 
-        // Send to Govee (rate limited by AmbienceSync)
-        if (_config.Ambience.GoveeEnabled)
+        // Send to Govee (rate limited by AmbienceSync) — skipped for Corsair-only patterns
+        if (!_roomPatternCorsairOnly && _config.Ambience.GoveeEnabled)
         {
             foreach (var dev in _config.Ambience.GoveeDevices)
             {

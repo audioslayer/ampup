@@ -28,6 +28,7 @@ public partial class SettingsView : UserControl
 
     private AppConfig? _config;
     private Action<AppConfig>? _onSave;
+    private CorsairSync? _corsairSyncRef;
     public Action? OnNavigateToOverview { get; set; }
     public Action<string>? OnEditProfile { get; set; }
     private readonly DispatcherTimer _debounceTimer;
@@ -936,6 +937,101 @@ public partial class SettingsView : UserControl
             CorsairStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#00E676"));
             TxtCorsairStatus.Text = "Enabled";
         }
+        PopulateCorsairDeviceList();
+    }
+
+    public void SetCorsairSync(CorsairSync corsairSync)
+    {
+        _corsairSyncRef = corsairSync;
+        PopulateCorsairDeviceList();
+    }
+
+    private void PopulateCorsairDeviceList()
+    {
+        if (!IsLoaded) return;
+        CorsairDeviceList.Children.Clear();
+        if (ChkCorsairEnabled.IsChecked != true || _corsairSyncRef == null) return;
+
+        if (_corsairSyncRef.IsAvailable && _corsairSyncRef.Devices.Count > 0)
+        {
+            foreach (var dev in _corsairSyncRef.Devices)
+                CorsairDeviceList.Children.Add(BuildSettingsCorsairDeviceRow(dev));
+        }
+        else
+        {
+            CorsairDeviceList.Children.Add(new TextBlock
+            {
+                Text = _corsairSyncRef.IsAvailable ? "Discovering devices..." : "Connecting to iCUE...",
+                Style = FindResource("SecondaryText") as Style,
+                FontSize = 11, Margin = new Thickness(0, 4, 0, 4),
+            });
+            _ = RefreshSettingsCorsairDevicesAsync();
+        }
+    }
+
+    private async Task RefreshSettingsCorsairDevicesAsync()
+    {
+        if (_corsairSyncRef == null) return;
+        await Task.Delay(800);
+        var devices = await _corsairSyncRef.GetDevicesAsync();
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            CorsairDeviceList.Children.Clear();
+            if (devices.Count > 0)
+            {
+                foreach (var dev in devices)
+                    CorsairDeviceList.Children.Add(BuildSettingsCorsairDeviceRow(dev));
+            }
+            else
+            {
+                CorsairDeviceList.Children.Add(new TextBlock
+                {
+                    Text = _corsairSyncRef.IsAvailable
+                        ? "No devices found — check iCUE"
+                        : "iCUE not detected — make sure it's running with SDK enabled",
+                    Style = FindResource("SecondaryText") as Style,
+                    FontSize = 11, Margin = new Thickness(0, 4, 0, 4),
+                });
+            }
+        });
+    }
+
+    private Border BuildSettingsCorsairDeviceRow(CorsairDevice dev)
+    {
+        var row = new Border
+        {
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            BorderBrush = (Brush)FindResource("CardBorderBrush"),
+            Padding = new Thickness(0, 6, 0, 6),
+        };
+        var content = new StackPanel { Orientation = Orientation.Horizontal };
+        content.Children.Add(new TextBlock
+        {
+            Text = dev.Name,
+            FontSize = 12, FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xD3, 0x00)),
+            VerticalAlignment = VerticalAlignment.Center,
+            Width = 160,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(0, 0, 12, 0),
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = dev.Type.Replace("_", " "),
+            FontSize = 10,
+            Foreground = (Brush)FindResource("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 12, 0),
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = $"{dev.LedCount} LEDs",
+            FontSize = 10,
+            Foreground = (Brush)FindResource("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        row.Child = content;
+        return row;
     }
 
     // ── Govee settings ──────────────────────────────────────────────

@@ -1332,6 +1332,7 @@ public partial class MainWindow : FluentWindow
     {
         _ambienceView.SetCorsairSync(corsairSync);
         _groupsView.SetCorsairSync(corsairSync);
+        _settingsView.SetCorsairSync(corsairSync);
     }
 
     public void UpdateGoveeDeviceBrightness(string? ip, float normalized, bool poweredOn)
