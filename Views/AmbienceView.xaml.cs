@@ -293,7 +293,7 @@ public partial class AmbienceView : UserControl
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(3),
             Margin = new Thickness(0, 0, 0, 12),
-            HorizontalAlignment = HorizontalAlignment.Left,
+            HorizontalAlignment = HorizontalAlignment.Center,
         };
         var tabRow = new StackPanel { Orientation = Orientation.Horizontal };
         for (int i = 0; i < 3; i++)
