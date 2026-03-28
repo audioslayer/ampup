@@ -31,8 +31,6 @@ public partial class AmbienceView : UserControl
     private readonly List<Border> _dreamZoneSwatches = new();
     private TextBlock? _dreamStatusLabel;
 
-    // Card references for dimming
-    private Border? _screenSyncCard;
     // _devicesCard and _scenesCard removed — unified into single room card
 
     // Corsair iCUE
@@ -256,12 +254,8 @@ public partial class AmbienceView : UserControl
             return;
         }
 
-        // ── Card 1: Room Lighting (unified — effects, colors, devices) ──
+        // ── Room Lighting (unified — effects, colors, devices, screen sync) ──
         DevicePanel.Children.Add(BuildRoomCard());
-
-        // ── Card 2: Screen Sync — Game Mode ──
-        _screenSyncCard = BuildScreenSyncCard();
-        DevicePanel.Children.Add(_screenSyncCard);
 
     }
 
@@ -271,6 +265,8 @@ public partial class AmbienceView : UserControl
 
     private int _roomTabIndex = 0; // 0=Global, 1=Govee, 2=Corsair
     private StackPanel? _roomTabContent;
+
+    private StackPanel? _screenSyncSettingsPanel;
 
     private Border BuildRoomCard()
     {
@@ -282,7 +278,73 @@ public partial class AmbienceView : UserControl
         var stack = new StackPanel();
         card.Child = stack;
 
-        // ── Pill-style tab bar (Global / Govee / Corsair) — same style as Lights tab ──
+        // ── Toggle row: [AMP UP] [MUSIC REACTIVE] [SCREEN SYNC] [STATUS] ──
+        var toggleRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+
+        // Amp Up sync tile
+        bool syncActive = _activePattern == "__sync__";
+        toggleRow.Children.Add(BuildToggleTile("🔗", "AMP UP", "Mirror knob LEDs to room",
+            syncActive, on =>
+            {
+                if (_config == null) return;
+                if (on) { StopRoomPattern(); _activePattern = "__sync__"; _config.Ambience.LinkToLights = true; _config.Corsair.LightSyncMode = "vu_reactive"; }
+                else { _activePattern = null; _config.Ambience.LinkToLights = false; _config.Corsair.LightSyncMode = "static"; }
+                QueueSave(); RebuildRoomTabContent();
+            }));
+
+        // Music Reactive tile
+        bool musicActive = _corsairMusicTimer?.IsEnabled == true;
+        toggleRow.Children.Add(BuildToggleTile("♪", "MUSIC REACTIVE", "Audio-driven brightness",
+            musicActive, on =>
+            {
+                if (_loading) return;
+                if (on) StartGlobalMusicSync(); else StopCorsairMusicSync();
+            }));
+
+        // Screen Sync tile
+        bool gameModeOn = _config!.Ambience.GameModeEnabled;
+        var screenSyncPanel = new StackPanel { Visibility = _screenSyncExpanded ? Visibility.Visible : Visibility.Collapsed };
+        toggleRow.Children.Add(BuildToggleTile("⬛", "SCREEN SYNC", "Fullscreen game detection",
+            gameModeOn, on =>
+            {
+                if (_loading || _config == null) return;
+                _config.Ambience.GameModeEnabled = on;
+                if (!on && _config.Ambience.ScreenSync.Enabled)
+                {
+                    _config.Ambience.ScreenSync.Enabled = false;
+                    if (_config.Corsair.Enabled) _config.Corsair.LightSyncMode = "vu_reactive";
+                    _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+                }
+                QueueSave();
+            }));
+
+        // Status tile
+        bool syncRunning = _config.Ambience.ScreenSync.Enabled;
+        var statusTile = BuildStatusTile(syncRunning ? "ACTIVE" : "STANDBY", syncRunning, out var statusTileUpdater);
+        toggleRow.Children.Add(statusTile);
+
+        // Expand chevron for screen sync settings
+        var expandChevron = new TextBlock
+        {
+            Text = _screenSyncExpanded ? "▾" : "▸",
+            FontSize = 13, FontWeight = FontWeights.Bold,
+            Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(2, 4, 0, 0),
+            Cursor = Cursors.Hand,
+            ToolTip = "Show/hide Screen Sync settings",
+        };
+        expandChevron.MouseLeftButtonUp += (_, _) =>
+        {
+            _screenSyncExpanded = !_screenSyncExpanded;
+            screenSyncPanel.Visibility = _screenSyncExpanded ? Visibility.Visible : Visibility.Collapsed;
+            expandChevron.Text = _screenSyncExpanded ? "▾" : "▸";
+        };
+        toggleRow.Children.Add(expandChevron);
+
+        stack.Children.Add(toggleRow);
+
+        // ── Pill-style tab bar (Global / Govee / Corsair) ──
         var accent = ThemeManager.Accent;
         var tabNames = new[] { "GLOBAL", "GOVEE", "CORSAIR" };
         var tabBorders = new Border[3];
@@ -329,6 +391,12 @@ public partial class AmbienceView : UserControl
         _roomTabContent = new StackPanel();
         stack.Children.Add(_roomTabContent);
 
+        // ── Screen Sync settings (collapsible, below tab content) ──
+        screenSyncPanel.Margin = new Thickness(0, 8, 0, 0);
+        BuildScreenSyncSettings(screenSyncPanel, statusTileUpdater);
+        _screenSyncSettingsPanel = screenSyncPanel;
+        stack.Children.Add(screenSyncPanel);
+
         RebuildRoomTabContent();
         return card;
     }
@@ -374,57 +442,6 @@ public partial class AmbienceView : UserControl
         // ── Effect ──
         var (effBar, effLabel) = MakeSectionHeader("EFFECT");
         stack.Children.Add(WrapHeader(effBar, effLabel));
-
-        // "Sync to Amp Up" tile before the effect picker
-        var syncActive = _activePattern == "__sync__";
-        var syncTile = new Border
-        {
-            Width = 82, Height = 58,
-            CornerRadius = new CornerRadius(6),
-            Background = syncActive
-                ? new SolidColorBrush(Color.FromArgb(0x30, 0x69, 0xF0, 0xAE))
-                : new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-            BorderBrush = syncActive
-                ? new SolidColorBrush(Color.FromRgb(0x69, 0xF0, 0xAE))
-                : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(0, 0, 0, 6),
-            Cursor = Cursors.Hand,
-            ToolTip = "Mirror your Turn Up knob LED effects to all room devices",
-        };
-        var syncContent = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        syncContent.Children.Add(new TextBlock { Text = "🔗", FontSize = 20, HorizontalAlignment = HorizontalAlignment.Center });
-        syncContent.Children.Add(new TextBlock
-        {
-            Text = "Amp Up", FontSize = 9,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Foreground = syncActive ? new SolidColorBrush(Color.FromRgb(0x69, 0xF0, 0xAE))
-                : new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
-            Margin = new Thickness(0, 2, 0, 0),
-        });
-        syncTile.Child = syncContent;
-        syncTile.MouseLeftButtonUp += (_, _) =>
-        {
-            if (_config == null) return;
-            if (_activePattern == "__sync__")
-            {
-                // Deactivate sync
-                _activePattern = null;
-                _config.Ambience.LinkToLights = false;
-                _config.Corsair.LightSyncMode = "static";
-            }
-            else
-            {
-                // Activate sync
-                StopRoomPattern();
-                _activePattern = "__sync__";
-                _config.Ambience.LinkToLights = true;
-                _config.Corsair.LightSyncMode = "vu_reactive";
-            }
-            QueueSave();
-            RebuildDevicePanel();
-        };
-        stack.Children.Add(syncTile);
 
         // Effect picker (all 43 effects)
         var effectPicker = new Controls.EffectPickerControl(showGlobal: true)
@@ -503,18 +520,6 @@ public partial class AmbienceView : UserControl
             }
         };
         stack.Children.Add(speedSlider);
-
-        // ── Music Reactive (Global) ──
-        stack.Children.Add(MakeSeparator());
-        bool globalMusicActive = _corsairMusicTimer?.IsEnabled == true;
-        stack.Children.Add(BuildToggleTile("♪", "MUSIC REACTIVE", "Modulates effect brightness with system audio",
-            globalMusicActive,
-            on =>
-            {
-                if (_loading) return;
-                if (on) StartGlobalMusicSync(); else StopCorsairMusicSync();
-            }));
-
     }
 
     private void StartGlobalMusicSync()
@@ -922,16 +927,6 @@ public partial class AmbienceView : UserControl
             }
         };
         corsairDeviceContent.Children.Add(corsairSpeedSlider);
-
-        // ── Music Reactive ──
-        corsairDeviceContent.Children.Add(MakeSeparator());
-        corsairDeviceContent.Children.Add(BuildToggleTile("♪", "MUSIC REACTIVE", "Drive Corsair colors from system audio frequency bands",
-            false,
-            on =>
-            {
-                if (_loading || _corsairSync == null) return;
-                if (on) StartCorsairMusicSync(); else StopCorsairMusicSync();
-            }));
     }
 
     private void BuildGoveeSceneContent(GoveeDeviceInfo device)
@@ -959,73 +954,11 @@ public partial class AmbienceView : UserControl
 
     private bool _screenSyncExpanded;
 
-    private Border BuildScreenSyncCard()
+    private void BuildScreenSyncSettings(StackPanel stack, Action<string, bool> statusTileUpdater)
     {
         var cfg = _config!.Ambience.ScreenSync;
 
-        var card = new Border
-        {
-            Style = FindStyle("CardPanel") as Style,
-            Margin = new Thickness(0, 0, 0, 12),
-        };
-        var stack = new StackPanel();
-        card.Child = stack;
-
-        // ── Collapsible content panel ──
-        var contentPanel = new StackPanel { Visibility = _screenSyncExpanded ? Visibility.Visible : Visibility.Collapsed };
-
-        // ── Header: mini card tiles for Game Mode + Status + expand toggle ──
-        var headerTileRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 0) };
-
-        // Game Mode tile
-        headerTileRow.Children.Add(BuildToggleTile("⬛", "SCREEN SYNC", "Auto-activates when fullscreen game detected",
-            _config!.Ambience.GameModeEnabled,
-            on =>
-            {
-                if (_loading || _config == null) return;
-                _config.Ambience.GameModeEnabled = on;
-                if (!on && _config.Ambience.ScreenSync.Enabled)
-                {
-                    _config.Ambience.ScreenSync.Enabled = false;
-                    if (_config.Corsair.Enabled) _config.Corsair.LightSyncMode = "vu_reactive";
-                    _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-                }
-                QueueSave();
-            }));
-
-        // Status card (read-only, shows Active/Standby)
-        var statusCard = BuildStatusTile(cfg.Enabled ? "ACTIVE" : "STANDBY", cfg.Enabled, out var statusTileUpdater);
-        headerTileRow.Children.Add(statusCard);
-
-        // Expand/collapse settings button
-        var expandChevron = new TextBlock
-        {
-            Text = _screenSyncExpanded ? "▾" : "▸",
-            FontSize = 13, FontWeight = FontWeights.Bold,
-            Foreground = FindBrush("TextSecBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(6, 4, 0, 0),
-            Cursor = Cursors.Hand,
-            ToolTip = "Show/hide settings",
-        };
-        expandChevron.MouseLeftButtonUp += (_, _) =>
-        {
-            _screenSyncExpanded = !_screenSyncExpanded;
-            contentPanel.Visibility = _screenSyncExpanded ? Visibility.Visible : Visibility.Collapsed;
-            expandChevron.Text = _screenSyncExpanded ? "▾" : "▸";
-        };
-        headerTileRow.Children.Add(expandChevron);
-
-        stack.Children.Add(headerTileRow);
-
-        // ── Content (collapsed by default) ──
-        contentPanel.Margin = new Thickness(0, 10, 0, 0);
-
-        // All remaining content goes into the collapsible panel
-        // We redirect 'stack' to point at contentPanel from here on
-        stack.Children.Add(contentPanel);
-        stack = contentPanel;
-
+        stack.Children.Add(MakeSeparator());
         stack.Children.Add(new TextBlock
         {
             Text = "Automatically syncs screen colors to Govee and Corsair when a fullscreen game is detected. Returns to Amp Up LED sync when you exit.",
@@ -1283,7 +1216,6 @@ public partial class AmbienceView : UserControl
             }
         }
 
-        return card;
     }
 
     private void RebuildZonePreview(StackPanel stack)
