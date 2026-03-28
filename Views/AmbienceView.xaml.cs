@@ -506,36 +506,14 @@ public partial class AmbienceView : UserControl
 
         // ── Music Reactive (Global) ──
         stack.Children.Add(MakeSeparator());
-        var (musBar, musLabel) = MakeSectionHeader("MUSIC REACTIVE");
-        stack.Children.Add(WrapHeader(musBar, musLabel));
-
-        stack.Children.Add(new TextBlock
-        {
-            Text = "Reacts to system audio — applies on top of the current effect for all room devices.",
-            Style = FindStyle("SecondaryText"),
-            Margin = new Thickness(0, 0, 0, 8),
-        });
-
-        var musicSyncCheck = new CheckBox
-        {
-            Content = "Enable Music Sync",
-            IsChecked = _corsairMusicTimer?.IsEnabled == true,
-            FontSize = 12,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            Margin = new Thickness(0, 0, 0, 8),
-            ToolTip = "Uses system audio FFT to drive room light colors — bass=red, mids=green, treble=blue",
-        };
-        musicSyncCheck.Checked += (_, _) =>
-        {
-            if (_loading) return;
-            StartGlobalMusicSync();
-        };
-        musicSyncCheck.Unchecked += (_, _) =>
-        {
-            if (_loading) return;
-            StopCorsairMusicSync();
-        };
-        stack.Children.Add(musicSyncCheck);
+        bool globalMusicActive = _corsairMusicTimer?.IsEnabled == true;
+        stack.Children.Add(BuildToggleTile("♪", "MUSIC REACTIVE", "Modulates effect brightness with system audio",
+            globalMusicActive,
+            on =>
+            {
+                if (_loading) return;
+                if (on) StartGlobalMusicSync(); else StopCorsairMusicSync();
+            }));
 
     }
 
@@ -947,27 +925,13 @@ public partial class AmbienceView : UserControl
 
         // ── Music Reactive ──
         corsairDeviceContent.Children.Add(MakeSeparator());
-        var (musBar, musLabel) = MakeSectionHeader("MUSIC REACTIVE");
-        musBar.Background = new SolidColorBrush(ThemeManager.Accent);
-        musLabel.Foreground = new SolidColorBrush(ThemeManager.Accent);
-        corsairDeviceContent.Children.Add(WrapHeader(musBar, musLabel));
-
-        var musicCheck = new CheckBox
-        {
-            Content = "Enable Music Sync",
-            IsChecked = false,
-            FontSize = 12,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            Margin = new Thickness(0, 0, 0, 8),
-            ToolTip = "Drive Corsair LED colors from system audio frequency bands",
-        };
-        musicCheck.Checked += (_, _) =>
-        {
-            if (_loading || _corsairSync == null) return;
-            StartCorsairMusicSync();
-        };
-        musicCheck.Unchecked += (_, _) => StopCorsairMusicSync();
-        corsairDeviceContent.Children.Add(musicCheck);
+        corsairDeviceContent.Children.Add(BuildToggleTile("♪", "MUSIC REACTIVE", "Drive Corsair colors from system audio frequency bands",
+            false,
+            on =>
+            {
+                if (_loading || _corsairSync == null) return;
+                if (on) StartCorsairMusicSync(); else StopCorsairMusicSync();
+            }));
     }
 
     private void BuildGoveeSceneContent(GoveeDeviceInfo device)
@@ -1010,75 +974,49 @@ public partial class AmbienceView : UserControl
         // ── Collapsible content panel ──
         var contentPanel = new StackPanel { Visibility = _screenSyncExpanded ? Visibility.Visible : Visibility.Collapsed };
 
-        // ── Header row (always visible, clickable to expand/collapse) ──
-        var (headerBar, headerLabel) = MakeSectionHeader("SCREEN SYNC — Game Mode");
-        var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 0), Cursor = Cursors.Hand };
-        headerRow.Children.Add(headerBar);
-        headerRow.Children.Add(headerLabel);
+        // ── Header: mini card tiles for Game Mode + Status + expand toggle ──
+        var headerTileRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 0) };
 
-        // Expand/collapse chevron
-        var chevron = new TextBlock
+        // Game Mode tile
+        headerTileRow.Children.Add(BuildToggleTile("⬛", "SCREEN SYNC", "Auto-activates when fullscreen game detected",
+            _config!.Ambience.GameModeEnabled,
+            on =>
+            {
+                if (_loading || _config == null) return;
+                _config.Ambience.GameModeEnabled = on;
+                if (!on && _config.Ambience.ScreenSync.Enabled)
+                {
+                    _config.Ambience.ScreenSync.Enabled = false;
+                    if (_config.Corsair.Enabled) _config.Corsair.LightSyncMode = "vu_reactive";
+                    _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+                }
+                QueueSave();
+            }));
+
+        // Status card (read-only, shows Active/Standby)
+        var statusCard = BuildStatusTile(cfg.Enabled ? "ACTIVE" : "STANDBY", cfg.Enabled, out var statusTileUpdater);
+        headerTileRow.Children.Add(statusCard);
+
+        // Expand/collapse settings button
+        var expandChevron = new TextBlock
         {
             Text = _screenSyncExpanded ? "▾" : "▸",
-            FontSize = 12,
+            FontSize = 13, FontWeight = FontWeights.Bold,
             Foreground = FindBrush("TextSecBrush"),
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0),
+            Margin = new Thickness(6, 4, 0, 0),
+            Cursor = Cursors.Hand,
+            ToolTip = "Show/hide settings",
         };
-        headerRow.Children.Add(chevron);
-
-        // Game Mode toggle
-        var gameModeToggle = new CheckBox
-        {
-            Content = "Enable",
-            IsChecked = _config!.Ambience.GameModeEnabled,
-            FontSize = 12,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(12, 0, 0, 0),
-            ToolTip = "Auto-enable screen sync when a fullscreen game is detected",
-        };
-        gameModeToggle.Checked += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Ambience.GameModeEnabled = true;
-            QueueSave();
-        };
-        gameModeToggle.Unchecked += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Ambience.GameModeEnabled = false;
-            if (_config.Ambience.ScreenSync.Enabled)
-            {
-                _config.Ambience.ScreenSync.Enabled = false;
-                if (_config.Corsair.Enabled)
-                    _config.Corsair.LightSyncMode = "vu_reactive";
-                _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-            }
-            QueueSave();
-        };
-        headerRow.Children.Add(gameModeToggle);
-
-        // Status badge
-        var statusBadge = new TextBlock
-        {
-            Text = cfg.Enabled ? "ACTIVE" : "Standby",
-            FontSize = 10,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = cfg.Enabled ? Brush("#00E676") : FindBrush("TextSecBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(12, 0, 0, 0),
-        };
-        headerRow.Children.Add(statusBadge);
-
-        // Click header to expand/collapse
-        headerRow.MouseLeftButtonUp += (_, _) =>
+        expandChevron.MouseLeftButtonUp += (_, _) =>
         {
             _screenSyncExpanded = !_screenSyncExpanded;
             contentPanel.Visibility = _screenSyncExpanded ? Visibility.Visible : Visibility.Collapsed;
-            chevron.Text = _screenSyncExpanded ? "▾" : "▸";
+            expandChevron.Text = _screenSyncExpanded ? "▾" : "▸";
         };
-        stack.Children.Add(headerRow);
+        headerTileRow.Children.Add(expandChevron);
+
+        stack.Children.Add(headerTileRow);
 
         // ── Content (collapsed by default) ──
         contentPanel.Margin = new Thickness(0, 10, 0, 0);
@@ -1279,8 +1217,7 @@ public partial class AmbienceView : UserControl
             if (_dreamStatusLabel != null && _dreamSync != null)
                 _dreamStatusLabel.Text = _dreamSync.Status;
             bool active = _config?.Ambience.ScreenSync.Enabled == true;
-            statusBadge.Text = active ? "ACTIVE" : "Standby";
-            statusBadge.Foreground = active ? Brush("#00E676") : FindBrush("TextSecBrush");
+            statusTileUpdater(active ? "ACTIVE" : "STANDBY", active);
         };
         statusTimer.Start();
 
@@ -2141,6 +2078,131 @@ public partial class AmbienceView : UserControl
     }
 
     // ── Room preset/color helpers ──────────────────────────────────
+
+    private Border BuildToggleTile(string icon, string title, string subtitle, bool initialActive, Action<bool> onToggle)
+    {
+        bool isActive = initialActive;
+        var accent = ThemeManager.Accent;
+
+        var tile = new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(12, 8, 12, 8),
+            Margin = new Thickness(0, 0, 8, 8),
+            Cursor = Cursors.Hand,
+            MinWidth = 180,
+        };
+
+        var iconText = new TextBlock { Text = icon, FontSize = 16, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
+        var titleText = new TextBlock { Text = title, FontSize = 11, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
+        var subtitleText = new TextBlock { Text = subtitle, FontSize = 9, Margin = new Thickness(0, 2, 0, 0) };
+
+        var leftStack = new StackPanel();
+        var titleRow = new StackPanel { Orientation = Orientation.Horizontal };
+        titleRow.Children.Add(iconText);
+        titleRow.Children.Add(titleText);
+        leftStack.Children.Add(titleRow);
+        leftStack.Children.Add(subtitleText);
+
+        var statusText = new TextBlock { FontSize = 9, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
+        var statusPill = new Border
+        {
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(8, 3, 8, 3),
+            Margin = new Thickness(10, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = statusText,
+        };
+
+        var content = new Grid();
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(leftStack, 0);
+        Grid.SetColumn(statusPill, 1);
+        content.Children.Add(leftStack);
+        content.Children.Add(statusPill);
+        tile.Child = content;
+
+        void UpdateVisuals()
+        {
+            var a = ThemeManager.Accent;
+            tile.Background = new SolidColorBrush(isActive
+                ? Color.FromArgb(0x22, a.R, a.G, a.B)
+                : Color.FromRgb(0x1C, 0x1C, 0x1C));
+            tile.BorderBrush = new SolidColorBrush(isActive
+                ? Color.FromArgb(0xA0, a.R, a.G, a.B)
+                : Color.FromRgb(0x2E, 0x2E, 0x2E));
+            titleText.Foreground = new SolidColorBrush(isActive ? a : Color.FromRgb(0xE8, 0xE8, 0xE8));
+            subtitleText.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+            statusText.Text = isActive ? "ON" : "OFF";
+            statusText.Foreground = new SolidColorBrush(isActive ? a : Color.FromRgb(0x55, 0x55, 0x55));
+            statusPill.Background = new SolidColorBrush(isActive
+                ? Color.FromArgb(0x28, a.R, a.G, a.B)
+                : Color.FromRgb(0x24, 0x24, 0x24));
+        }
+        UpdateVisuals();
+
+        tile.MouseLeftButtonDown += (_, _) =>
+        {
+            isActive = !isActive;
+            UpdateVisuals();
+            onToggle(isActive);
+        };
+        tile.MouseEnter += (_, _) =>
+        {
+            if (!isActive) tile.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+        };
+        tile.MouseLeave += (_, _) =>
+        {
+            if (!isActive) tile.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+        };
+
+        return tile;
+    }
+
+    private Border BuildStatusTile(string status, bool isActive, out Action<string, bool> updater)
+    {
+        var tile = new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(1),
+            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E)),
+            Padding = new Thickness(12, 8, 12, 8),
+            Margin = new Thickness(0, 0, 8, 8),
+            MinWidth = 110,
+        };
+        var titleText = new TextBlock
+        {
+            Text = "STATUS", FontSize = 9, FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
+            Margin = new Thickness(0, 0, 0, 3),
+        };
+        var dot = new Border
+        {
+            Width = 7, Height = 7, CornerRadius = new CornerRadius(4),
+            Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center,
+        };
+        var statusText = new TextBlock { FontSize = 11, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        var statusRow = new StackPanel { Orientation = Orientation.Horizontal };
+        statusRow.Children.Add(dot);
+        statusRow.Children.Add(statusText);
+        var inner = new StackPanel();
+        inner.Children.Add(titleText);
+        inner.Children.Add(statusRow);
+        tile.Child = inner;
+
+        updater = (s, active) =>
+        {
+            var c = active ? Color.FromRgb(0x00, 0xE6, 0x76) : Color.FromRgb(0x66, 0x66, 0x66);
+            dot.Background = new SolidColorBrush(c);
+            statusText.Text = s;
+            statusText.Foreground = new SolidColorBrush(active ? Color.FromRgb(0x00, 0xE6, 0x76) : Color.FromRgb(0x88, 0x88, 0x88));
+        };
+        updater(status, isActive);
+        return tile;
+    }
 
     private Border BuildSyncToGlobalTile(bool isActive, Action<bool> onToggle)
     {
