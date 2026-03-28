@@ -33,17 +33,15 @@ public partial class AmbienceView : UserControl
 
     // Card references for dimming
     private Border? _screenSyncCard;
-    private Border? _devicesCard;
-    private Border? _scenesCard;
+    // _devicesCard and _scenesCard removed — unified into single room card
 
     // Corsair iCUE
     private CorsairSync? _corsairSync;
     private StackPanel? _corsairDeviceRows;
 
-    // Room pattern engine
-    private DispatcherTimer? _patternTimer;
+    // Room pattern engine — headless RgbController for rendering effects
+    private RgbController? _roomRgb;
     private string? _activePattern;
-    private long _patternStartMs;
 
     // Navigation callback (set by MainWindow to navigate to Settings)
     public Action? NavigateToSettings { get; set; }
@@ -249,32 +247,20 @@ public partial class AmbienceView : UserControl
             return;
         }
 
-        // ── Card 1: Room Lights (sync mode + color) ──
-        DevicePanel.Children.Add(BuildRoomLightsCard());
+        // ── Card 1: Room Lighting (unified — effects, colors, devices) ──
+        DevicePanel.Children.Add(BuildRoomCard());
 
         // ── Card 2: Screen Sync — Game Mode ──
         _screenSyncCard = BuildScreenSyncCard();
         DevicePanel.Children.Add(_screenSyncCard);
 
-        // ── Card 3: Devices ──
-        _devicesCard = BuildDevicesCard();
-        DevicePanel.Children.Add(_devicesCard);
-
-        // ── Card 4: Scenes & Colors (Govee Cloud or Corsair) ──
-        bool hasGoveeCloud = _config.Ambience.GoveeCloudEnabled && _cloudApi != null && _cloudDevices.Count > 0;
-        if (hasGoveeCloud || hasCorsair)
-        {
-            _scenesCard = BuildScenesCard();
-            DevicePanel.Children.Add(_scenesCard);
-        }
-
     }
 
     // ══════════════════════════════════════════════════════════════════
-    // ██  CARD 1: ROOM LIGHTS
+    // ██  CARD 1: ROOM LIGHTING (unified)
     // ══════════════════════════════════════════════════════════════════
 
-    private Border BuildRoomLightsCard()
+    private Border BuildRoomCard()
     {
         var card = new Border
         {
@@ -284,242 +270,336 @@ public partial class AmbienceView : UserControl
         var stack = new StackPanel();
         card.Child = stack;
 
-        // ── Header ──
-        var (headerBar, headerLabel) = MakeSectionHeader("ROOM LIGHTS");
-        var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-        headerRow.Children.Add(headerBar);
-        headerRow.Children.Add(headerLabel);
+        // ── Section 1: EFFECT ──
+        var (effBar, effLabel) = MakeSectionHeader("EFFECT");
+        stack.Children.Add(WrapHeader(effBar, effLabel));
 
-        // Sync to Amp Up toggle
-        var syncCheck = new CheckBox
+        // "Sync to Amp Up" tile before the effect picker
+        var syncActive = _activePattern == "__sync__";
+        var syncTile = new Border
         {
-            Content = "Sync to Amp Up",
-            IsChecked = _config!.Ambience.LinkToLights,
-            FontSize = 12,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(16, 0, 0, 0),
-            ToolTip = "Mirror Amp Up LED effects to all room lights (Govee + Corsair)",
+            Width = 82, Height = 58,
+            CornerRadius = new CornerRadius(6),
+            Background = syncActive
+                ? new SolidColorBrush(Color.FromArgb(0x30, 0x69, 0xF0, 0xAE))
+                : new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+            BorderBrush = syncActive
+                ? new SolidColorBrush(Color.FromRgb(0x69, 0xF0, 0xAE))
+                : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(0, 0, 0, 6),
+            Cursor = Cursors.Hand,
+            ToolTip = "Mirror your Turn Up knob LED effects to all room devices",
         };
-        syncCheck.Checked += (_, _) =>
+        var syncContent = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        syncContent.Children.Add(new TextBlock { Text = "🔗", FontSize = 20, HorizontalAlignment = HorizontalAlignment.Center });
+        syncContent.Children.Add(new TextBlock
         {
-            if (_loading || _config == null) return;
-            _config.Ambience.LinkToLights = true;
-            if (_config.Corsair.Enabled)
-                _config.Corsair.LightSyncMode = "vu_reactive";
-            QueueSave();
-        };
-        syncCheck.Unchecked += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Ambience.LinkToLights = false;
-            QueueSave();
-        };
-        headerRow.Children.Add(syncCheck);
-        stack.Children.Add(headerRow);
-
-        // ── Description ──
-        stack.Children.Add(new TextBlock
-        {
-            Text = "Set a color for all your room lights, or sync them to your Amp Up knob effects.",
-            Style = FindStyle("SecondaryText"),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 12),
+            Text = "Amp Up", FontSize = 9,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Foreground = syncActive ? new SolidColorBrush(Color.FromRgb(0x69, 0xF0, 0xAE))
+                : new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
+            Margin = new Thickness(0, 2, 0, 0),
         });
-
-        stack.Children.Add(MakeSeparator());
-
-        // ── Color swatches — quick pick ──
-        stack.Children.Add(MakeSubLabel("QUICK COLORS"));
-        var swatchWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 12) };
-
-        var quickColors = new (string name, byte r, byte g, byte b)[]
+        syncTile.Child = syncContent;
+        syncTile.MouseLeftButtonUp += (_, _) =>
         {
-            ("Warm White", 255, 200, 130),
-            ("Cool White", 200, 220, 255),
-            ("Red", 255, 30, 30),
-            ("Orange", 255, 120, 0),
-            ("Gold", 255, 200, 0),
-            ("Green", 0, 230, 118),
-            ("Cyan", 0, 220, 240),
-            ("Blue", 40, 80, 255),
-            ("Purple", 140, 60, 255),
-            ("Pink", 255, 50, 150),
-            ("Magenta", 230, 0, 200),
-            ("Teal", 0, 180, 160),
-        };
-
-        foreach (var (name, r, g, b) in quickColors)
-        {
-            var color = Color.FromRgb(r, g, b);
-            var swatch = new Border
+            if (_config == null) return;
+            if (_activePattern == "__sync__")
             {
-                Width = 36, Height = 36,
-                CornerRadius = new CornerRadius(8),
-                Background = new SolidColorBrush(color),
-                Margin = new Thickness(0, 0, 6, 6),
-                Cursor = Cursors.Hand,
-                ToolTip = name,
-                BorderThickness = new Thickness(2),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(0x00, 0, 0, 0)),
-            };
-            swatch.MouseEnter += (_, _) =>
-                swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, 255, 255, 255));
-            swatch.MouseLeave += (_, _) =>
-                swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0x00, 0, 0, 0));
-            swatch.MouseLeftButtonUp += (_, _) => SetRoomColor(r, g, b, swatchWrap, swatch);
-            swatchWrap.Children.Add(swatch);
+                // Deactivate sync
+                _activePattern = null;
+                _config.Ambience.LinkToLights = false;
+                _config.Corsair.LightSyncMode = "static";
+            }
+            else
+            {
+                // Activate sync
+                StopRoomPattern();
+                _activePattern = "__sync__";
+                _config.Ambience.LinkToLights = true;
+                _config.Corsair.LightSyncMode = "vu_reactive";
+            }
+            QueueSave();
+            RebuildDevicePanel();
+        };
+        stack.Children.Add(syncTile);
+
+        // Effect picker (all 43 effects)
+        var effectPicker = new Controls.EffectPickerControl(showGlobal: true)
+        {
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+        if (_activePattern != null && _activePattern != "__sync__")
+            effectPicker.SelectedEffect = Enum.TryParse<LightEffect>(_activePattern, true, out var eff) ? eff : LightEffect.SingleColor;
+        effectPicker.SelectionChanged += (_, _) =>
+        {
+            if (_loading) return;
+            var effect = effectPicker.SelectedEffect;
+            if (effect == LightEffect.SingleColor)
+            {
+                StopRoomPattern();
+                SendRoomColor(_roomColor1.R, _roomColor1.G, _roomColor1.B);
+            }
+            else
+            {
+                StartRoomPattern(effect.ToString());
+            }
+            // Deactivate sync mode if user picks an effect
+            if (_config != null)
+            {
+                _config.Ambience.LinkToLights = false;
+                _activePattern = effect == LightEffect.SingleColor ? null : effect.ToString();
+            }
+        };
+        stack.Children.Add(effectPicker);
+
+        // ── Section 2: PRESETS ──
+        stack.Children.Add(MakeSeparator());
+        var (preBar, preLabel) = MakeSectionHeader("COLOR");
+        stack.Children.Add(WrapHeader(preBar, preLabel));
+
+        stack.Children.Add(MakeSubLabel("PRESETS"));
+        var presetWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 8) };
+        presetWrap.Children.Add(MakePresetTile("Solid", new SolidColorBrush(_roomColor1), new[] { _roomColor1 }, presetWrap));
+        foreach (var (name, colors) in ColorPalettes)
+        {
+            var gb = new LinearGradientBrush { StartPoint = new Point(0, 0.5), EndPoint = new Point(1, 0.5) };
+            for (int ci = 0; ci < colors.Length; ci++)
+                gb.GradientStops.Add(new GradientStop(colors[ci], ci / (double)(colors.Length - 1)));
+            presetWrap.Children.Add(MakePresetTile(name, gb, colors, presetWrap));
+        }
+        stack.Children.Add(presetWrap);
+
+        // Manual color pickers
+        stack.Children.Add(MakeSubLabel("MANUAL"));
+        var colorRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 8) };
+        colorRow.Children.Add(MakeRoomColorPill("PRIMARY", _roomColor1, false));
+        colorRow.Children.Add(MakeRoomColorPill("SECONDARY", _roomColor2, true));
+        stack.Children.Add(colorRow);
+
+        // Speed slider
+        stack.Children.Add(MakeSubLabel("SPEED"));
+        var speedSlider = new StyledSlider
+        {
+            Minimum = 1, Maximum = 100, Value = 50,
+            Width = 200, Height = 35,
+            AccentColor = ThemeManager.Accent,
+            ShowLabel = false,
+            Margin = new Thickness(0, 0, 0, 8),
+        };
+        speedSlider.ValueChanged += (_, _) =>
+        {
+            if (_roomRgb != null && Enum.TryParse<LightEffect>(_activePattern, true, out var eff))
+            {
+                _roomRgb.UpdateGlobalConfig(new GlobalLightConfig
+                {
+                    Enabled = true, Effect = eff,
+                    R = _roomColor1.R, G = _roomColor1.G, B = _roomColor1.B,
+                    R2 = _roomColor2.R, G2 = _roomColor2.G, B2 = _roomColor2.B,
+                    EffectSpeed = (int)speedSlider.Value,
+                });
+            }
+        };
+        stack.Children.Add(speedSlider);
+
+        // ── Section 3: GOVEE DEVICES ──
+        if (_config!.Ambience.GoveeEnabled && _config.Ambience.GoveeDevices.Count > 0)
+        {
+            stack.Children.Add(MakeSeparator());
+            var (govBar, govLabel) = MakeSectionHeader("GOVEE DEVICES");
+            stack.Children.Add(WrapHeader(govBar, govLabel));
+
+            foreach (var govDev in _config.Ambience.GoveeDevices)
+            {
+                if (string.IsNullOrWhiteSpace(govDev.Ip)) continue;
+                var devConfig = govDev;
+
+                var devRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
+
+                devRow.Children.Add(new TextBlock
+                {
+                    Text = !string.IsNullOrWhiteSpace(govDev.Name) ? govDev.Name : govDev.Ip,
+                    FontSize = 12, FontWeight = FontWeights.SemiBold,
+                    Foreground = FindBrush("TextPrimaryBrush"),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Width = 140, TextTrimming = TextTrimming.CharacterEllipsis,
+                    Margin = new Thickness(0, 0, 12, 0),
+                });
+
+                var onOff = new CheckBox
+                {
+                    Content = "On", FontSize = 12,
+                    Foreground = FindBrush("TextPrimaryBrush"),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 12, 0),
+                };
+                onOff.Checked += async (_, _) =>
+                {
+                    if (_loading) return;
+                    devConfig.PoweredOn = true;
+                    AmbienceSync.PauseSync(devConfig.Ip, 5);
+                    await AmbienceSync.SendTurnAsync(devConfig.Ip, true);
+                    _onSave?.Invoke(_config!);
+                };
+                onOff.Unchecked += async (_, _) =>
+                {
+                    if (_loading) return;
+                    devConfig.PoweredOn = false;
+                    await AmbienceSync.SendTurnAsync(devConfig.Ip, false);
+                    _onSave?.Invoke(_config!);
+                };
+                devRow.Children.Add(onOff);
+
+                var brightSlider = new StyledSlider
+                {
+                    Minimum = 0, Maximum = 100, Value = 100,
+                    Width = 140, Height = 35, Suffix = "%",
+                    AccentColor = ThemeManager.Accent,
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                var brightDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+                brightDebounce.Tick += async (_, _) =>
+                {
+                    brightDebounce.Stop();
+                    int pct = (int)brightSlider.Value;
+                    if (pct == 0)
+                    {
+                        devConfig.PoweredOn = false;
+                        await AmbienceSync.SendTurnAsync(devConfig.Ip, false);
+                    }
+                    else
+                    {
+                        if (!devConfig.PoweredOn)
+                        {
+                            devConfig.PoweredOn = true;
+                            await AmbienceSync.SendTurnAsync(devConfig.Ip, true);
+                        }
+                        AmbienceSync.PauseSync(devConfig.Ip, 5);
+                        await AmbienceSync.SendBrightnessAsync(devConfig.Ip, pct);
+                    }
+                };
+                brightSlider.ValueChanged += (_, _) => { brightDebounce.Stop(); brightDebounce.Start(); };
+                devRow.Children.Add(brightSlider);
+
+                stack.Children.Add(devRow);
+
+                // Store for knob updates
+                _deviceControls[devConfig.Ip] = (onOff, brightSlider);
+
+                // Query actual state
+                _ = QueryDeviceStateAsync(devConfig.Ip, onOff, brightSlider);
+            }
         }
 
-        // Custom color picker tile
-        var customTile = new Border
+        // ── Section 4: GOVEE SCENES (Cloud API) ──
+        if (_cloudApi != null && _cloudDevices.Count > 0)
         {
-            Width = 36, Height = 36,
-            CornerRadius = new CornerRadius(8),
-            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-            Margin = new Thickness(0, 0, 6, 6),
-            Cursor = Cursors.Hand,
-            ToolTip = "Custom color",
-            BorderThickness = new Thickness(2),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x00, 0, 0, 0)),
-        };
-        customTile.Child = new TextBlock
-        {
-            Text = "+",
-            FontSize = 18, FontWeight = FontWeights.Light,
-            Foreground = FindBrush("TextSecBrush"),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextAlignment = TextAlignment.Center,
-        };
-        customTile.MouseEnter += (_, _) =>
-            customTile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, 255, 255, 255));
-        customTile.MouseLeave += (_, _) =>
-            customTile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x00, 0, 0, 0));
-        customTile.MouseLeftButtonUp += (_, _) =>
-        {
-            var dialog = new ColorPickerDialog(Colors.White) { Owner = Window.GetWindow(this) };
-            if (dialog.ShowDialog() == true)
-            {
-                var c = dialog.SelectedColor;
-                customTile.Background = new SolidColorBrush(c);
-                SetRoomColor(c.R, c.G, c.B, swatchWrap, customTile);
-            }
-        };
-        swatchWrap.Children.Add(customTile);
-        stack.Children.Add(swatchWrap);
+            stack.Children.Add(MakeSeparator());
+            var (scBar, scLabel) = MakeSectionHeader("GOVEE SCENES");
+            stack.Children.Add(WrapHeader(scBar, scLabel));
 
-        // ── Brightness slider ──
-        var brightRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-        brightRow.Children.Add(MakeSubLabel("ROOM BRIGHTNESS"));
-        var brightSlider = new StyledSlider
-        {
-            Minimum = 0, Maximum = 100, Value = _config.Ambience.BrightnessScale,
-            Width = 180, Height = 35,
-            Suffix = "%",
-            AccentColor = ThemeManager.Accent,
-        };
-        var brightDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
-        brightDebounce.Tick += async (_, _) =>
-        {
-            brightDebounce.Stop();
-            if (_config == null) return;
-            int pct = (int)brightSlider.Value;
-            _config.Ambience.BrightnessScale = Math.Max(pct, 1); // store at least 1 for sync math
+            // Device picker for scenes
+            var pickerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+            pickerRow.Children.Add(MakeSubLabel("DEVICE"));
+            _sceneDevicePicker = new ComboBox { Width = 240 };
+            foreach (var dev in _cloudDevices)
+                _sceneDevicePicker.Items.Add(!string.IsNullOrWhiteSpace(dev.DeviceName) ? dev.DeviceName : dev.Sku);
+            if (_cloudDevices.Count > 0) _sceneDevicePicker.SelectedIndex = 0;
 
-            // 0% = turn off all room lights
-            if (pct == 0)
+            _sceneContent = new StackPanel();
+
+            _sceneDevicePicker.SelectionChanged += (_, _) =>
             {
-                if (_config.Ambience.GoveeEnabled)
-                {
-                    foreach (var dev in _config.Ambience.GoveeDevices)
-                    {
-                        if (string.IsNullOrWhiteSpace(dev.Ip)) continue;
-                        dev.PoweredOn = false;
-                        _ = AmbienceSync.SendTurnAsync(dev.Ip, false);
-                    }
-                }
-                if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
-                    _ = _corsairSync.SetStaticColorAllAsync(0, 0, 0);
+                _sceneContent.Children.Clear();
+                int idx = _sceneDevicePicker.SelectedIndex;
+                if (idx >= 0 && idx < _cloudDevices.Count)
+                    BuildGoveeSceneContent(_cloudDevices[idx]);
+            };
+            pickerRow.Children.Add(_sceneDevicePicker);
+            stack.Children.Add(pickerRow);
+            stack.Children.Add(_sceneContent);
+
+            if (_cloudDevices.Count > 0)
+                BuildGoveeSceneContent(_cloudDevices[0]);
+        }
+
+        // ── Section 5: CORSAIR iCUE ──
+        if (_config.Corsair.Enabled && _corsairSync != null)
+        {
+            stack.Children.Add(MakeSeparator());
+            var corsairYellow = Color.FromRgb(0xFF, 0xD3, 0x00);
+            var (corBar, corLabel) = MakeSectionHeader("CORSAIR iCUE");
+            corBar.Background = new SolidColorBrush(corsairYellow);
+            corLabel.Foreground = new SolidColorBrush(corsairYellow);
+            stack.Children.Add(WrapHeader(corBar, corLabel));
+
+            // Brightness
+            var corBrightRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+            corBrightRow.Children.Add(MakeSubLabel("BRIGHTNESS"));
+            var corBrightSlider = new StyledSlider
+            {
+                Minimum = 50, Maximum = 200, Value = _config.Corsair.LightBrightness,
+                Width = 140, Height = 35, AccentColor = corsairYellow, ShowLabel = false,
+            };
+            var corBrightLabel = new TextBlock
+            {
+                Text = $"{_config.Corsair.LightBrightness}%", FontSize = 12,
+                Foreground = FindBrush("TextSecBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(6, 0, 0, 0),
+            };
+            corBrightSlider.ValueChanged += (_, _) =>
+            {
+                if (_config == null) return;
+                _config.Corsair.LightBrightness = (int)corBrightSlider.Value;
+                corBrightLabel.Text = $"{(int)corBrightSlider.Value}%";
                 QueueSave();
-                return;
-            }
+            };
+            corBrightRow.Children.Add(corBrightSlider);
+            corBrightRow.Children.Add(corBrightLabel);
+            stack.Children.Add(corBrightRow);
 
-            // Send brightness to all Govee devices (turn on if needed)
-            if (_config.Ambience.GoveeEnabled)
+            // Detected devices
+            _corsairDeviceRows = new StackPanel();
+            if (_corsairSync.IsAvailable && _corsairSync.Devices.Count > 0)
             {
-                foreach (var dev in _config.Ambience.GoveeDevices)
-                {
-                    if (string.IsNullOrWhiteSpace(dev.Ip)) continue;
-                    if (!dev.PoweredOn)
-                    {
-                        dev.PoweredOn = true;
-                        _ = AmbienceSync.SendTurnAsync(dev.Ip, true);
-                    }
-                    AmbienceSync.PauseSync(dev.Ip, 5);
-                    await AmbienceSync.SendBrightnessAsync(dev.Ip, pct);
-                }
+                foreach (var dev in _corsairSync.Devices)
+                    _corsairDeviceRows.Children.Add(BuildCorsairDeviceRow(dev));
             }
-
-            // Update Corsair brightness — re-send current color scaled by new brightness
-            if (_config.Corsair.Enabled && _corsairSync?.IsAvailable == true)
+            else
             {
-                _config.Corsair.LightBrightness = (int)(pct * 2.0); // map 0-100% to 0-200% range
-                // If in static mode, re-send the color at new brightness
-                if (_config.Corsair.LightSyncMode == "static" && _activeRoomSwatch?.Background is SolidColorBrush brush)
+                _ = RefreshCorsairDevices();
+                _corsairDeviceRows.Children.Add(new TextBlock
                 {
-                    float boost = _config.Corsair.LightBrightness / 100f;
-                    byte r2 = (byte)Math.Min(brush.Color.R * boost, 255);
-                    byte g2 = (byte)Math.Min(brush.Color.G * boost, 255);
-                    byte b2 = (byte)Math.Min(brush.Color.B * boost, 255);
-                    _ = _corsairSync.SetStaticColorAllAsync(r2, g2, b2);
-                }
+                    Text = "Connecting to iCUE...", FontSize = 11,
+                    Foreground = FindBrush("TextSecBrush"),
+                    Margin = new Thickness(0, 4, 0, 4),
+                });
             }
-
-            QueueSave();
-        };
-        brightSlider.ValueChanged += (_, _) => { brightDebounce.Stop(); brightDebounce.Start(); };
-        brightRow.Children.Add(brightSlider);
-        stack.Children.Add(brightRow);
+            stack.Children.Add(_corsairDeviceRows);
+        }
 
         return card;
     }
 
-    private Border? _activeRoomSwatch;
-
-    private void SetRoomColor(byte r, byte g, byte b, WrapPanel swatchWrap, Border activeSwatch)
+    private void BuildGoveeSceneContent(GoveeDeviceInfo device)
     {
-        // Highlight active swatch
-        foreach (var child in swatchWrap.Children)
-        {
-            if (child is Border brd)
-                brd.BorderBrush = new SolidColorBrush(Color.FromArgb(0x00, 0, 0, 0));
-        }
-        activeSwatch.BorderBrush = new SolidColorBrush(Colors.White);
-        _activeRoomSwatch = activeSwatch;
+        if (_sceneContent == null) return;
+        string? lanIp = FindLanIp(device);
 
-        // Send to all Govee devices
-        if (_config?.Ambience.GoveeEnabled == true)
-        {
-            foreach (var dev in _config.Ambience.GoveeDevices)
-            {
-                if (string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn) continue;
-                AmbienceSync.PauseSync(dev.Ip, 30);
-                _ = AmbienceSync.SendColorAsync(dev.Ip, r, g, b);
-            }
-        }
+        var colorsContainer = new StackPanel();
+        _sceneContent.Children.Add(colorsContainer);
+        BuildColorsSection(device, colorsContainer, lanIp, null);
 
-        // Send to all Corsair devices
-        if (_corsairSync?.IsAvailable == true && _config?.Corsair.Enabled == true)
+        bool hasMusic = device.Capabilities?.Contains("devices.capabilities.music_setting") == true;
+        if (hasMusic)
         {
-            // Set Corsair to static mode so Turn Up frames don't overwrite
-            _config!.Corsair.LightSyncMode = "static";
-            _ = _corsairSync.SetStaticColorAllAsync(r, g, b);
+            _sceneContent.Children.Add(MakeSeparator());
+            var (musBar, musLabel) = MakeSectionHeader("MUSIC MODE");
+            _sceneContent.Children.Add(WrapHeader(musBar, musLabel));
+            BuildMusicSection(device, _sceneContent);
         }
-
-        // Uncheck sync toggle since user is manually setting a color
-        _config!.Ambience.LinkToLights = false;
-        QueueSave();
     }
 
     // ══════════════════════════════════════════════════════════════════
@@ -1180,7 +1260,7 @@ public partial class AmbienceView : UserControl
 
     private ComboBox? _sceneDevicePicker;
     private StackPanel? _sceneContent;
-    private int _sceneTabIndex; // 0=Govee, 1=Corsair, 2=Global
+    private int _sceneTabIndex = 2; // 0=Govee, 1=Corsair, 2=Global (default to Global)
 
     private Border BuildScenesCard()
     {
@@ -1553,11 +1633,18 @@ public partial class AmbienceView : UserControl
         };
         speedSlider.ValueChanged += (_, _) =>
         {
-            // Speed affects pattern tick interval
-            if (_patternTimer != null && speedSlider.Value > 0)
+            // Update the headless RgbController's effect speed
+            if (_roomRgb != null)
             {
-                double ms = 200 - (speedSlider.Value / 100.0 * 180); // 200ms (slow) to 20ms (fast)
-                _patternTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(ms, 20));
+                var gl = new GlobalLightConfig
+                {
+                    Enabled = true,
+                    Effect = Enum.TryParse<LightEffect>(_activePattern, true, out var eff) ? eff : LightEffect.RainbowWave,
+                    R = _roomColor1.R, G = _roomColor1.G, B = _roomColor1.B,
+                    R2 = _roomColor2.R, G2 = _roomColor2.G, B2 = _roomColor2.B,
+                    EffectSpeed = (int)speedSlider.Value,
+                };
+                _roomRgb.UpdateGlobalConfig(gl);
             }
         };
         _sceneContent.Children.Add(speedSlider);
@@ -1736,36 +1823,64 @@ public partial class AmbienceView : UserControl
                     dev.Device, dev.Sku, GoveeCloudApi.SetColor(r, g, b)));
     }
 
-    // ── Room Pattern Engine ─────────────────────────────────────────
+    // ── Room Pattern Engine (headless RgbController) ──────────────
 
     private void StartRoomPattern(string patternId)
     {
         StopRoomPattern();
         _activePattern = patternId;
-        _patternStartMs = Environment.TickCount64;
 
         // Disable other sync modes so pattern isn't overwritten
         if (_config != null)
         {
             _config.Ambience.LinkToLights = false;
-            _config.Corsair.LightSyncMode = "static"; // prevent Turn Up frames overwriting
+            _config.Corsair.LightSyncMode = "static";
         }
 
-        // Pause Govee sync so our pattern colors aren't overwritten
+        // Pause Govee ambient sync
         if (_config?.Ambience.GoveeEnabled == true)
             foreach (var dev in _config.Ambience.GoveeDevices)
                 if (!string.IsNullOrWhiteSpace(dev.Ip))
-                    AmbienceSync.PauseSync(dev.Ip, 999);
+                    AmbienceSync.PauseSync(dev.Ip, 99999);
 
-        _patternTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) }; // 10 FPS
-        _patternTimer.Tick += PatternTick;
-        _patternTimer.Start();
+        // Create a headless RgbController to render effects
+        _roomRgb = new RgbController();
+        _roomRgb.SetBrightness(100);
+
+        // Set knob positions to full so effects render at full brightness
+        for (int k = 0; k < 5; k++)
+            _roomRgb.SetKnobPosition(k, 1.0f);
+
+        // Configure as global lighting with the selected effect
+        if (Enum.TryParse<LightEffect>(patternId, true, out var effect))
+        {
+            var gl = new GlobalLightConfig
+            {
+                Enabled = true,
+                Effect = effect,
+                R = _roomColor1.R, G = _roomColor1.G, B = _roomColor1.B,
+                R2 = _roomColor2.R, G2 = _roomColor2.G, B2 = _roomColor2.B,
+                EffectSpeed = 50,
+            };
+            _roomRgb.UpdateGlobalConfig(gl);
+        }
+
+        // Subscribe to rendered frames
+        _roomRgb.OnFrameReady += OnRoomFrame;
+
+        // Start with a dummy output (no serial port — just runs the timer for rendering)
+        _roomRgb.SetOutput((_, _, _) => { }, () => true);
     }
 
     private void StopRoomPattern()
     {
-        _patternTimer?.Stop();
-        _patternTimer = null;
+        if (_roomRgb != null)
+        {
+            _roomRgb.OnFrameReady -= OnRoomFrame;
+            _roomRgb.SetOutput(null, null);
+            _roomRgb.Dispose();
+            _roomRgb = null;
+        }
         _activePattern = null;
 
         // Resume Govee sync
@@ -1775,25 +1890,23 @@ public partial class AmbienceView : UserControl
                     AmbienceSync.PauseSync(dev.Ip, 0);
     }
 
-    private void PatternTick(object? sender, EventArgs e)
+    private void OnRoomFrame(byte[] linearColors)
     {
-        if (_activePattern == null || _config == null) return;
-        double t = (Environment.TickCount64 - _patternStartMs) / 1000.0; // seconds elapsed
+        if (_config == null) return;
 
-        var (r, g, b) = _activePattern switch
+        // Average the 15 LED colors to get a single room color
+        int totalR = 0, totalG = 0, totalB = 0;
+        for (int i = 0; i < 15; i++)
         {
-            "rainbow" => HsvToRgb((t * 30) % 360, 1.0, 1.0),
-            "breathing" => ScaleColor(0x69, 0xF0, 0xAE, (Math.Sin(t * 2) + 1) / 2),
-            "color_cycle" => HsvToRgb((t * 15) % 360, 0.8, 1.0),
-            "fire" => FireColor(t),
-            "ocean" => OceanColor(t),
-            "aurora" => HsvToRgb(120 + Math.Sin(t * 0.5) * 60, 0.7, 0.6 + Math.Sin(t * 1.5) * 0.4),
-            "sunset" => SunsetColor(t),
-            "candle" => CandleColor(t),
-            _ => ((byte)255, (byte)255, (byte)255),
-        };
+            totalR += linearColors[i * 3];
+            totalG += linearColors[i * 3 + 1];
+            totalB += linearColors[i * 3 + 2];
+        }
+        byte r = (byte)(totalR / 15);
+        byte g = (byte)(totalG / 15);
+        byte b = (byte)(totalB / 15);
 
-        // Send to Govee
+        // Send to Govee (rate limited by AmbienceSync)
         if (_config.Ambience.GoveeEnabled)
         {
             foreach (var dev in _config.Ambience.GoveeDevices)
@@ -1803,61 +1916,15 @@ public partial class AmbienceView : UserControl
             }
         }
 
-        // Send to Corsair
+        // Send full 15-LED frame to Corsair (maps across all device LEDs)
         if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
         {
             float boost = _config.Corsair.LightBrightness / 100f;
-            byte cr = (byte)Math.Min(r * boost, 255);
-            byte cg = (byte)Math.Min(g * boost, 255);
-            byte cb = (byte)Math.Min(b * boost, 255);
-            _ = _corsairSync.SetStaticColorAllAsync(cr, cg, cb);
+            var boosted = new byte[45];
+            for (int i = 0; i < 45; i++)
+                boosted[i] = (byte)Math.Min(linearColors[i] * boost, 255);
+            _corsairSync.SyncColors(boosted);
         }
-    }
-
-    // ── Pattern color generators ────────────────────────────────────
-
-    private static (byte r, byte g, byte b) HsvToRgb(double h, double s, double v)
-    {
-        h = ((h % 360) + 360) % 360;
-        double c = v * s, x = c * (1 - Math.Abs((h / 60) % 2 - 1)), m = v - c;
-        double r1, g1, b1;
-        if (h < 60)       { r1 = c; g1 = x; b1 = 0; }
-        else if (h < 120) { r1 = x; g1 = c; b1 = 0; }
-        else if (h < 180) { r1 = 0; g1 = c; b1 = x; }
-        else if (h < 240) { r1 = 0; g1 = x; b1 = c; }
-        else if (h < 300) { r1 = x; g1 = 0; b1 = c; }
-        else              { r1 = c; g1 = 0; b1 = x; }
-        return ((byte)((r1 + m) * 255), (byte)((g1 + m) * 255), (byte)((b1 + m) * 255));
-    }
-
-    private static (byte r, byte g, byte b) ScaleColor(byte r, byte g, byte b, double scale)
-    {
-        return ((byte)(r * scale), (byte)(g * scale), (byte)(b * scale));
-    }
-
-    private static (byte r, byte g, byte b) FireColor(double t)
-    {
-        double flicker = 0.7 + 0.3 * Math.Sin(t * 7) * Math.Sin(t * 11);
-        return ((byte)(255 * flicker), (byte)(100 * flicker), (byte)(20 * flicker * 0.3));
-    }
-
-    private static (byte r, byte g, byte b) OceanColor(double t)
-    {
-        double wave = (Math.Sin(t * 1.5) + 1) / 2;
-        return ((byte)(10 + 30 * wave), (byte)(100 + 50 * wave), (byte)(180 + 75 * wave));
-    }
-
-    private static (byte r, byte g, byte b) SunsetColor(double t)
-    {
-        double phase = (Math.Sin(t * 0.8) + 1) / 2;
-        return ((byte)(255 - 40 * phase), (byte)(80 + 60 * phase), (byte)(20 + 80 * phase));
-    }
-
-    private static (byte r, byte g, byte b) CandleColor(double t)
-    {
-        var rnd = Math.Sin(t * 5.3) * Math.Sin(t * 7.7);
-        double brightness = 0.6 + 0.4 * (0.5 + 0.5 * rnd);
-        return ((byte)(255 * brightness), (byte)(147 * brightness), (byte)(41 * brightness * 0.4));
     }
 
     // ══════════════════════════════════════════════════════════════════
