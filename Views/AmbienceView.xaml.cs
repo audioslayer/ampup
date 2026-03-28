@@ -1365,7 +1365,7 @@ public partial class AmbienceView : UserControl
             Margin = new Thickness(0, 0, 0, 8),
         });
 
-        if (_config.Ambience.GoveeDevices.Count == 0)
+        if (_config?.Ambience.GoveeDevices.Count == 0)
         {
             stack.Children.Add(new TextBlock
             {
