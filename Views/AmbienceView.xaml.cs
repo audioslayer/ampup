@@ -1827,7 +1827,7 @@ public partial class AmbienceView : UserControl
         var devices = await _corsairSync.GetDevicesAsync();
         var effects  = await _corsairSync.GetEffectsAsync();
 
-        Dispatcher.BeginInvoke(() =>
+        _ = Dispatcher.BeginInvoke(() =>
         {
             // Update status
             if (_corsairStatusLabel != null)
