@@ -1193,7 +1193,14 @@ public partial class App : Application
             _gameModePreDreamView = _config.Ambience.ScreenSync.Enabled;
             _gameModePrevCorsairMode = _config.Corsair.LightSyncMode;
 
-            Logger.Log("GameMode: fullscreen detected — enabling screen sync");
+            try
+            {
+                var fgHwnd = NativeMethods.GetForegroundWindow();
+                NativeMethods.GetWindowThreadProcessId(fgHwnd, out uint fgPid);
+                var fgProc = System.Diagnostics.Process.GetProcessById((int)fgPid);
+                Logger.Log($"GameMode: fullscreen detected ({fgProc.ProcessName}) — enabling screen sync");
+            }
+            catch { Logger.Log("GameMode: fullscreen detected — enabling screen sync"); }
 
             // Enable DreamView for Govee (only if not already on)
             if (!_config.Ambience.ScreenSync.Enabled)

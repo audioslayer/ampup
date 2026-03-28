@@ -41,6 +41,8 @@ internal static class NativeMethods
 
     /// <summary>
     /// Returns true if the foreground window covers the entire screen (fullscreen game/app).
+    /// Checks both screen coverage AND window style — a maximized window with a title bar
+    /// (browser, editor) is NOT fullscreen. Only borderless/exclusive fullscreen counts.
     /// </summary>
     internal static bool IsForegroundFullscreen()
     {
@@ -48,11 +50,23 @@ internal static class NativeMethods
         if (hwnd == IntPtr.Zero) return false;
         if (!GetWindowRect(hwnd, out var rect)) return false;
         var screen = System.Windows.Forms.Screen.FromHandle(hwnd);
-        return rect.Left <= screen.Bounds.Left
+        bool coversScreen = rect.Left <= screen.Bounds.Left
             && rect.Top <= screen.Bounds.Top
             && rect.Right >= screen.Bounds.Right
             && rect.Bottom >= screen.Bounds.Bottom;
+        if (!coversScreen) return false;
+
+        // A real fullscreen app (game) has no title bar (WS_CAPTION).
+        // Maximized windows with taskbar auto-hide still have WS_CAPTION.
+        const int GWL_STYLE = -16;
+        const uint WS_CAPTION = 0x00C00000;
+        uint style = (uint)GetWindowLongPtr(hwnd, GWL_STYLE);
+        bool hasCaption = (style & WS_CAPTION) == WS_CAPTION;
+        return !hasCaption;
     }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
 
     [DllImport("user32.dll")]
     internal static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
