@@ -3,7 +3,13 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+    <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                   Background="Transparent">
         <StackPanel Margin="24,16,24,24">
 
@@ -503,20 +509,27 @@
                 </StackPanel>
             </Border>
 
-            <!-- ── SUPPORT ──────────────────────────────────────── -->
-            <Border Background="Transparent" Margin="0,16,0,0" Padding="0,8,0,4"
-                    HorizontalAlignment="Center">
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Opacity="0.55">
-                    <TextBlock Text="♥" Foreground="#FF6B8A" FontSize="12"
-                               VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <TextBlock x:Name="TxtCoffeeLink" Text="Buy me a coffee"
-                               FontSize="11" Foreground="{StaticResource TextSecBrush}"
-                               VerticalAlignment="Center" Cursor="Hand"
-                               TextDecorations="Underline"
-                               ToolTip="https://www.buymeacoffee.com/audioslayer" />
-                </StackPanel>
-            </Border>
-
         </StackPanel>
     </ScrollViewer>
+
+        <!-- ── STATIC FOOTER ─────────────────────────────────── -->
+        <Border Grid.Row="1" Style="{StaticResource CardPanel}" Margin="0,8,0,0" Padding="10,6,10,6">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Image Source="/Assets/icon/ampup-24.png" Width="18" Height="18"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       VerticalAlignment="Center" Margin="0,0,8,0" Opacity="0.7" />
+                <TextBlock Text="Amp Up" FontSize="11" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextSecBrush}"
+                           VerticalAlignment="Center" Margin="0,0,12,0" Opacity="0.7" />
+                <Border Width="1" Height="12" Background="{StaticResource CardBorderBrush}"
+                        VerticalAlignment="Center" Margin="0,0,12,0" />
+                <TextBlock Text="♥" Foreground="#FF6B8A" FontSize="11"
+                           VerticalAlignment="Center" Margin="0,0,5,0" />
+                <TextBlock x:Name="TxtCoffeeLink" Text="Support this project"
+                           FontSize="11" Foreground="{StaticResource TextSecBrush}"
+                           VerticalAlignment="Center" Cursor="Hand"
+                           ToolTip="buymeacoffee.com/audioslayer" Opacity="0.7" />
+            </StackPanel>
+        </Border>
+    </Grid>
 </UserControl>
