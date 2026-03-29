@@ -502,12 +502,18 @@
         </StackPanel>
     </ScrollViewer>
 
-        <!-- ── STATIC FOOTER ─────────────────────────────────── -->
-        <Border Grid.Row="1" Style="{StaticResource CardPanel}" Margin="0,8,0,0" Padding="8,8,8,8"
+        <!-- ── STATIC FOOTER — Buy Me a Coffee ────────────────── -->
+        <Border Grid.Row="1" CornerRadius="20" Margin="0,8,0,4" Padding="16,8,20,8"
                 Cursor="Hand" HorizontalAlignment="Center" x:Name="CoffeeFooter"
-                ToolTip="buymeacoffee.com/audioslayer">
-            <Image x:Name="CoffeeImage" Height="36" Stretch="Uniform"
-                   RenderOptions.BitmapScalingMode="HighQuality" Opacity="0.85" />
+                Background="#2A2A2A" BorderBrush="#3A3A3A" BorderThickness="1"
+                ToolTip="buymeacoffee.com/audioslayer" Opacity="0.85">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="☕" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock Text="♥" Foreground="#FF4466" FontSize="13" FontWeight="Bold"
+                           VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock Text="Buy me a coffee" FontSize="13" FontWeight="SemiBold"
+                           Foreground="#CCCCCC" VerticalAlignment="Center" />
+            </StackPanel>
         </Border>
     </Grid>
 </UserControl>

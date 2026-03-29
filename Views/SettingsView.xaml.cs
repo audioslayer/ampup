@@ -145,42 +145,14 @@ public partial class SettingsView : UserControl
         TxtVersion.Text = $"Amp Up v{UpdateChecker.CurrentVersion}";
         BtnCheckUpdate.Click += OnCheckUpdate;
 
-        // Buy Me a Coffee banner — load async from API
-        _ = Task.Run(() =>
-        {
-            try
-            {
-                var bmi = new System.Windows.Media.Imaging.BitmapImage();
-                bmi.BeginInit();
-                bmi.UriSource = new Uri("https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=❤️&slug=audioslayer&button_colour=5F7FFF&font_colour=ffffff&font_family=Cookie&outline_colour=000000&coffee_colour=FFDD00");
-                bmi.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                bmi.EndInit();
-                bmi.Freeze();
-                Dispatcher.BeginInvoke(() => CoffeeImage.Source = bmi);
-            }
-            catch
-            {
-                // Fallback: show text link if image fails
-                Dispatcher.BeginInvoke(() =>
-                {
-                    CoffeeImage.Visibility = Visibility.Collapsed;
-                    var txt = new TextBlock
-                    {
-                        Text = "♥ Buy me a coffee",
-                        FontSize = 12, Foreground = (Brush)FindResource("TextSecBrush"),
-                        Cursor = Cursors.Hand, Opacity = 0.7,
-                    };
-                    CoffeeFooter.Child = txt;
-                });
-            }
-        });
+        // Buy Me a Coffee link
         CoffeeFooter.MouseLeftButtonDown += (_, _) =>
         {
             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://www.buymeacoffee.com/audioslayer") { UseShellExecute = true }); }
             catch { }
         };
-        CoffeeFooter.MouseEnter += (_, _) => CoffeeImage.Opacity = 1.0;
-        CoffeeFooter.MouseLeave += (_, _) => CoffeeImage.Opacity = 0.85;
+        CoffeeFooter.MouseEnter += (_, _) => CoffeeFooter.Opacity = 1.0;
+        CoffeeFooter.MouseLeave += (_, _) => CoffeeFooter.Opacity = 0.85;
     }
 
     // Reference to AmbienceSync for LAN scanning (set from App.xaml.cs)
