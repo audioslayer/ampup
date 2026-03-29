@@ -303,7 +303,7 @@ public partial class AmbienceView : UserControl
 
         // Screen Sync tile
         bool gameModeOn = _config!.Ambience.GameModeEnabled;
-        var screenSyncPanel = new StackPanel { Visibility = _screenSyncExpanded ? Visibility.Visible : Visibility.Collapsed };
+        var screenSyncPanel = new StackPanel { Visibility = gameModeOn ? Visibility.Visible : Visibility.Collapsed };
         toggleRow.Children.Add(BuildToggleTile("⬛", "SCREEN SYNC", "Fullscreen game detection",
             gameModeOn, on =>
             {
@@ -315,32 +315,13 @@ public partial class AmbienceView : UserControl
                     if (_config.Corsair.Enabled) _config.Corsair.LightSyncMode = "vu_reactive";
                     _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
                 }
+                screenSyncPanel.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
                 QueueSave();
             }));
 
-        // Status tile
+        // DreamView status — built here, added to screen sync settings panel below
         bool syncRunning = _config.Ambience.ScreenSync.Enabled;
         var statusTile = BuildStatusTile(syncRunning ? "ACTIVE" : "STANDBY", syncRunning, out var statusTileUpdater);
-        toggleRow.Children.Add(statusTile);
-
-        // Expand chevron for screen sync settings
-        var expandChevron = new TextBlock
-        {
-            Text = _screenSyncExpanded ? "▾" : "▸",
-            FontSize = 13, FontWeight = FontWeights.Bold,
-            Foreground = FindBrush("TextSecBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(2, 4, 0, 0),
-            Cursor = Cursors.Hand,
-            ToolTip = "Show/hide Screen Sync settings",
-        };
-        expandChevron.MouseLeftButtonUp += (_, _) =>
-        {
-            _screenSyncExpanded = !_screenSyncExpanded;
-            screenSyncPanel.Visibility = _screenSyncExpanded ? Visibility.Visible : Visibility.Collapsed;
-            expandChevron.Text = _screenSyncExpanded ? "▾" : "▸";
-        };
-        toggleRow.Children.Add(expandChevron);
 
         // ── Pill-style tab bar (Global / Govee / Corsair) ──
         var accent = ThemeManager.Accent;
@@ -392,6 +373,7 @@ public partial class AmbienceView : UserControl
 
         // ── Screen Sync settings (collapsible, below tab content) ──
         screenSyncPanel.Margin = new Thickness(0, 8, 0, 0);
+        screenSyncPanel.Children.Add(statusTile);
         BuildScreenSyncSettings(screenSyncPanel, statusTileUpdater);
         _screenSyncSettingsPanel = screenSyncPanel;
         stack.Children.Add(screenSyncPanel);
@@ -951,7 +933,6 @@ public partial class AmbienceView : UserControl
     // ██  CARD 2: SCREEN SYNC
     // ══════════════════════════════════════════════════════════════════
 
-    private bool _screenSyncExpanded;
 
     private void BuildScreenSyncSettings(StackPanel stack, Action<string, bool> statusTileUpdater)
     {

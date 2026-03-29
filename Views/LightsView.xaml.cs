@@ -667,47 +667,45 @@ public partial class LightsView : UserControl
         var settings = new StackPanel { Visibility = Visibility.Collapsed };
         _globalSettingsPanel = settings;
 
-        // LED enable/disable toggles — 5 clickable indicators
-        var ledToggleRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
-        var ledToggleLabel = new TextBlock
-        {
-            Text = "ACTIVE LEDS",
-            FontSize = 9,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 12, 0),
-        };
-        ledToggleRow.Children.Add(ledToggleLabel);
+        // LED enable/disable toggles — 5 mini card indicators (centered)
+        var ledToggleRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14), HorizontalAlignment = HorizontalAlignment.Center };
         for (int i = 0; i < 5; i++)
         {
             int idx = i;
             var knobLabel = _config?.Knobs.FirstOrDefault(k => k.Idx == i);
             var label = (knobLabel != null && !string.IsNullOrWhiteSpace(knobLabel.Label))
-                ? knobLabel.Label : $"LED {i + 1}";
+                ? knobLabel.Label : $"Knob {i + 1}";
 
             var numText = new TextBlock
             {
                 Text = (i + 1).ToString(),
-                FontSize = 11,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Colors.White),
+                FontSize = 12,
+                FontWeight = FontWeights.Bold,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
             };
+            var nameText = new TextBlock
+            {
+                Text = label,
+                FontSize = 8,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = 52,
+                Margin = new Thickness(0, 1, 0, 0),
+            };
+            var inner = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            inner.Children.Add(numText);
+            inner.Children.Add(nameText);
 
             var toggleBorder = new Border
             {
-                Width = 32,
-                Height = 32,
-                CornerRadius = new CornerRadius(6),
-                Background = new SolidColorBrush(ThemeManager.Accent),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
-                BorderThickness = new Thickness(1.5),
+                Width = 58,
+                Height = 42,
+                CornerRadius = new CornerRadius(8),
+                BorderThickness = new Thickness(1),
                 Margin = new Thickness(0, 0, 6, 0),
                 Cursor = Cursors.Hand,
-                Child = numText,
-                ToolTip = $"Click to toggle {label} — currently ON",
+                Child = inner,
+                ToolTip = $"Click to toggle {label}",
             };
             toggleBorder.MouseLeftButtonDown += (_, _) =>
             {
@@ -984,20 +982,29 @@ public partial class LightsView : UserControl
 
         if (on)
         {
-            border.Background = new SolidColorBrush(accent);
-            border.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, accent.R, accent.G, accent.B));
+            border.Background = new SolidColorBrush(Color.FromArgb(0x22, accent.R, accent.G, accent.B));
+            border.BorderBrush = new SolidColorBrush(Color.FromArgb(0xA0, accent.R, accent.G, accent.B));
             border.Opacity = 1.0;
         }
         else
         {
-            border.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-            border.BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
+            border.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+            border.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E));
             border.Opacity = 0.4;
+        }
+
+        // Update text colors
+        if (border.Child is StackPanel inner && inner.Children.Count >= 2)
+        {
+            if (inner.Children[0] is TextBlock num)
+                num.Foreground = new SolidColorBrush(on ? accent : Color.FromRgb(0x88, 0x88, 0x88));
+            if (inner.Children[1] is TextBlock name)
+                name.Foreground = new SolidColorBrush(on ? Color.FromRgb(0xCC, 0xCC, 0xCC) : Color.FromRgb(0x55, 0x55, 0x55));
         }
 
         var knob = _config?.Knobs.FirstOrDefault(k => k.Idx == idx);
         var label = (knob != null && !string.IsNullOrWhiteSpace(knob.Label))
-            ? knob.Label : $"LED {idx + 1}";
+            ? knob.Label : $"Knob {idx + 1}";
         border.ToolTip = $"Click to toggle {label} — currently {(on ? "ON" : "OFF")}";
     }
 
