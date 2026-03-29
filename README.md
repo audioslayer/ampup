@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.8.5--alpha-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.9.6--alpha-blue" alt="Version" />
   <img src="https://img.shields.io/badge/Windows%2010%2F11-0078D6?logo=windows&logoColor=white" alt="Windows" />
   <img src="https://img.shields.io/badge/macOS%2014.2+-000000?logo=apple&logoColor=white" alt="macOS" />
   <img src="https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white" alt=".NET 8" />
@@ -31,12 +31,12 @@ Amp Up is a community-built, open-source replacement for the official Turn Up so
 ## 📥 Install
 
 ### 🪟 Windows
-1. Download **`AmpUp-Setup-0.8.5-alpha.exe`** from [Releases](https://github.com/audioslayer/ampup/releases)
+1. Download **`AmpUp-Setup-0.9.6-alpha.exe`** from [Releases](https://github.com/audioslayer/ampup/releases)
 2. Run the installer (auto-installs .NET 8 if needed — one-time)
 3. Amp Up appears in your system tray ✨
 
 ### 🍎 macOS
-1. Download **`AmpUp-0.8.5-alpha.dmg`** from [Releases](https://github.com/audioslayer/ampup/releases)
+1. Download **`AmpUp-0.9.6-alpha.dmg`** from [Releases](https://github.com/audioslayer/ampup/releases)
 2. Open the DMG → drag to Applications
 3. Launch and grant audio permission on first run 🎤
 
@@ -87,11 +87,16 @@ Amp Up is a community-built, open-source replacement for the official Turn Up so
 - **Auto-Profile Switching** — switch profiles when specific apps are focused
 - **Auto-Suggest Layout** — detects running apps and suggests knob assignments
 
-### 🏠 Smart Home Integration
+### 🏠 Smart Home & Room Lighting
 - **Home Assistant** — control lights, media players, fans, covers via button presses or knob turns
 - **Govee LAN sync** — mirror knob RGB colors to Govee room lights at 20 FPS
-- **Govee Cloud dashboard** — control on/off, brightness, color, scenes, music mode
-- **DreamView screen sync** — capture screen zones and map colors to Govee lights in real-time
+- **Govee Cloud dashboard** — control on/off, brightness, color, scenes
+- **Corsair iCUE sync** — drive all iCUE RGB devices with room effects, fan/pump speed control
+- **Room tab** — unified Global / Govee / Corsair tabs with pill-style navigation
+- **Mini card toggles** — Amp Up Sync, Music Reactive, Screen Sync as dynamic per-tab cards
+- **Music Reactive** — system audio modulates room effect brightness (Global) or drives bass/mid/treble colors (Govee LAN / Corsair)
+- **DreamView screen sync** — capture screen zones and map colors to Govee + Corsair in real-time
+- **Device Groups** — group Govee, Corsair, HA, and audio devices together for unified toggle/brightness control via knob or button
 
 ### 🎬 Streaming & Production
 - **OBS Studio** — WebSocket v5: scene switching, source gain/mute, streaming/recording toggle
@@ -196,6 +201,9 @@ cd AmpUp.Mac
 - [x] EarTrumpet-inspired tray mixer
 - [x] macOS Avalonia port (feature-complete)
 - [x] Framework-dependent builds (~5MB updates)
+- [x] Corsair iCUE RGB sync + fan/pump control
+- [x] Device Groups (Govee + Corsair + HA + Audio)
+- [x] Unified Room tab with per-device tabs
 - [ ] Multi-device support (multiple Turn Up units)
 - [ ] Mobile companion app
 - [ ] GitHub Actions CI (auto-build both platforms)
@@ -208,9 +216,10 @@ cd AmpUp.Mac
 
 | Version | Highlights |
 |-|-|
+| **v0.9.6** 🔥 | **Room tab redesign** — unified room card, pill tabs, dynamic per-tab toggle cards (Amp Up / Music / Screen Sync), Corsair color pickers + presets, Govee flyout sub-menus, music reactive keeps effect playing, Groups global across profiles, device Groups brightness control, Settings footer with Buy Me a Coffee, phantom OSD fix, LED toggle mini cards, AmbienceView → RoomView rename |
+| **v0.9.3** | LED effects overhaul (6 new, 5 improved), OSD curve-applied volume, color presets, hardware hover preview |
+| **v0.9.0** | Major UI overhaul, audio sessions in mixer, tray redesign, per-knob LED preview |
 | **v0.8.5** | Mac port complete, tray overhaul, user bug fixes, framework-dependent builds |
-| **v0.8.4** | Multi-monitor tray fix, fullscreen OSD |
-| **v0.8.3** | LED gamma calibration, Apple Music fix |
 | **v0.8.1** | Quick Wheel radial switcher, monitor brightness fix |
 | **v0.8.0** | Hardware widget, profile editor, AmpUp.Core extraction |
 | **v0.7.0** | Inline pickers, Smart Mix, DreamView, Profile Overview |
@@ -228,5 +237,6 @@ MIT — see [LICENSE](LICENSE) for details.
 ---
 
 <p align="center">
-  Built by <a href="https://github.com/audioslayer">Tyson Wolf</a> 🐺
+  Built by <a href="https://github.com/audioslayer">Tyson Wolf</a> 🐺<br/>
+  <a href="https://www.buymeacoffee.com/audioslayer">☕ Buy me a coffee</a>
 </p>
