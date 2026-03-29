@@ -481,10 +481,11 @@ public partial class RoomView : UserControl
         var speedSlider = new StyledSlider
         {
             Minimum = 1, Maximum = 100, Value = 50,
-            Width = 200, Height = 35,
+            Height = 35,
             AccentColor = ThemeManager.Accent,
             ShowLabel = false,
             Margin = new Thickness(0, 0, 0, 8),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         speedSlider.ValueChanged += (_, _) =>
         {
@@ -889,8 +890,9 @@ public partial class RoomView : UserControl
         var corsairSpeedSlider = new StyledSlider
         {
             Minimum = 1, Maximum = 100, Value = 50,
-            Width = 200, Height = 35, AccentColor = ThemeManager.Accent, ShowLabel = false,
+            Height = 35, AccentColor = ThemeManager.Accent, ShowLabel = false,
             Margin = new Thickness(0, 0, 0, 8),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         corsairSpeedSlider.ValueChanged += (_, _) =>
         {
@@ -936,15 +938,6 @@ public partial class RoomView : UserControl
     private void BuildScreenSyncSettings(StackPanel stack, Action<string, bool> statusTileUpdater)
     {
         var cfg = _config!.Ambience.ScreenSync;
-
-        stack.Children.Add(MakeSeparator());
-        stack.Children.Add(new TextBlock
-        {
-            Text = "Automatically syncs screen colors to Govee and Corsair when a fullscreen game is detected. Returns to Amp Up LED sync when you exit.",
-            Style = FindStyle("SecondaryText"),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 12),
-        });
 
         stack.Children.Add(MakeSeparator());
 
