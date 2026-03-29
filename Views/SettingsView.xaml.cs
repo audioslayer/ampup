@@ -148,6 +148,15 @@ public partial class SettingsView : UserControl
         // About
         TxtVersion.Text = $"Amp Up v{UpdateChecker.CurrentVersion}";
         BtnCheckUpdate.Click += OnCheckUpdate;
+
+        // Support link
+        TxtCoffeeLink.MouseLeftButtonDown += (_, _) =>
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://www.buymeacoffee.com/audioslayer") { UseShellExecute = true }); }
+            catch { }
+        };
+        TxtCoffeeLink.MouseEnter += (_, _) => TxtCoffeeLink.Opacity = 1.0;
+        TxtCoffeeLink.MouseLeave += (_, _) => TxtCoffeeLink.Opacity = 0.7;
     }
 
     // Reference to AmbienceSync for LAN scanning (set from App.xaml.cs)

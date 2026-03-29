@@ -503,6 +503,20 @@
                 </StackPanel>
             </Border>
 
+            <!-- ── SUPPORT ──────────────────────────────────────── -->
+            <Border Background="Transparent" Margin="0,16,0,0" Padding="0,8,0,4"
+                    HorizontalAlignment="Center">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Opacity="0.55">
+                    <TextBlock Text="♥" Foreground="#FF6B8A" FontSize="12"
+                               VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBlock x:Name="TxtCoffeeLink" Text="Buy me a coffee"
+                               FontSize="11" Foreground="{StaticResource TextSecBrush}"
+                               VerticalAlignment="Center" Cursor="Hand"
+                               TextDecorations="Underline"
+                               ToolTip="https://www.buymeacoffee.com/audioslayer" />
+                </StackPanel>
+            </Border>
+
         </StackPanel>
     </ScrollViewer>
 </UserControl>
