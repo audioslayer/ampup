@@ -20,9 +20,9 @@ public class AmbienceSync : IDisposable
     private readonly Dictionary<string, (byte R, byte G, byte B)> _lastSent = new();
 
     // Rate limiter: Govee LAN max ~10 sends/sec, but we can push closer to that limit
-    // Our frame rate is 20 FPS (50ms tick) — send every frame when color changes
+    // Send up to 30 FPS — matches DreamSync rate, safe for all known Govee LAN devices
     private readonly Dictionary<string, long> _lastSendTick = new();
-    private const long MinTicksBetweenSends = TimeSpan.TicksPerMillisecond * 55; // ~18 FPS cap (just above hardware limit)
+    private const long MinTicksBetweenSends = TimeSpan.TicksPerMillisecond * 33; // ~30 FPS cap
 
     public AmbienceSync(AmbienceConfig config)
     {
