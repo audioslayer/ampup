@@ -267,6 +267,7 @@ public partial class RoomView : UserControl
     private StackPanel? _roomTabContent;
 
     private StackPanel? _screenSyncSettingsPanel;
+    private StackPanel? _toggleRowContainer;
 
     private Border BuildRoomCard()
     {
@@ -277,51 +278,6 @@ public partial class RoomView : UserControl
         };
         var stack = new StackPanel();
         card.Child = stack;
-
-        // ── Toggle row: [AMP UP] [MUSIC REACTIVE] [SCREEN SYNC] [STATUS] ──
-        var toggleRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8), HorizontalAlignment = HorizontalAlignment.Center };
-
-        // Amp Up sync tile
-        bool syncActive = _activePattern == "__sync__";
-        toggleRow.Children.Add(BuildToggleTile("🔗", "AMP UP", "Mirror knob LEDs to room",
-            syncActive, on =>
-            {
-                if (_config == null) return;
-                if (on) { StopRoomPattern(); _activePattern = "__sync__"; _config.Ambience.LinkToLights = true; _config.Corsair.LightSyncMode = "vu_reactive"; }
-                else { _activePattern = null; _config.Ambience.LinkToLights = false; _config.Corsair.LightSyncMode = "static"; }
-                QueueSave(); RebuildRoomTabContent();
-            }, Color.FromRgb(0x69, 0xF0, 0xAE))); // green
-
-        // Music Reactive tile
-        bool musicActive = _corsairMusicTimer?.IsEnabled == true;
-        toggleRow.Children.Add(BuildToggleTile("♪", "MUSIC REACTIVE", "Audio-driven brightness",
-            musicActive, on =>
-            {
-                if (_loading) return;
-                if (on) StartGlobalMusicSync(); else StopCorsairMusicSync();
-            }, Color.FromRgb(0xFF, 0xB8, 0x00))); // amber
-
-        // Screen Sync tile
-        bool gameModeOn = _config!.Ambience.GameModeEnabled;
-        var screenSyncPanel = new StackPanel { Visibility = gameModeOn ? Visibility.Visible : Visibility.Collapsed };
-        bool syncRunning = _config.Ambience.ScreenSync.Enabled;
-        var screenSyncTile = BuildToggleTile("⬛", "SCREEN SYNC", "Fullscreen game detection",
-            gameModeOn, on =>
-            {
-                if (_loading || _config == null) return;
-                _config.Ambience.GameModeEnabled = on;
-                if (!on && _config.Ambience.ScreenSync.Enabled)
-                {
-                    _config.Ambience.ScreenSync.Enabled = false;
-                    if (_config.Corsair.Enabled) _config.Corsair.LightSyncMode = "vu_reactive";
-                    _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-                }
-                screenSyncPanel.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
-                QueueSave();
-            }, Color.FromRgb(0x44, 0x8A, 0xFF),
-            syncRunning ? "ACTIVE" : "STANDBY",
-            out var statusTileUpdater);
-        toggleRow.Children.Add(screenSyncTile);
 
         // ── Pill-style tab bar (Global / Govee / Corsair) ──
         var accent = ThemeManager.Accent;
@@ -366,16 +322,13 @@ public partial class RoomView : UserControl
             SetRoomTabActive(tabBorders[i], i == _roomTabIndex, accent);
         toggleBar.Child = tabRow;
         stack.Children.Add(toggleBar);
-        stack.Children.Add(toggleRow);
+
+        // Dynamic toggle row — rebuilt per tab in RebuildRoomTabContent
+        _toggleRowContainer = new StackPanel();
+        stack.Children.Add(_toggleRowContainer);
 
         _roomTabContent = new StackPanel();
         stack.Children.Add(_roomTabContent);
-
-        // ── Screen Sync settings (collapsible, below tab content) ──
-        screenSyncPanel.Margin = new Thickness(0, 8, 0, 0);
-        BuildScreenSyncSettings(screenSyncPanel, statusTileUpdater!);
-        _screenSyncSettingsPanel = screenSyncPanel;
-        stack.Children.Add(screenSyncPanel);
 
         RebuildRoomTabContent();
         return card;
@@ -406,12 +359,125 @@ public partial class RoomView : UserControl
     {
         if (_roomTabContent == null || _config == null) return;
         _roomTabContent.Children.Clear();
+        _toggleRowContainer?.Children.Clear();
+
+        // Build tab-specific toggle row
+        if (_toggleRowContainer != null)
+        {
+            var toggleRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8), HorizontalAlignment = HorizontalAlignment.Center };
+            BuildTabToggleRow(toggleRow, _roomTabIndex);
+            _toggleRowContainer.Children.Add(toggleRow);
+        }
 
         switch (_roomTabIndex)
         {
             case 0: BuildGlobalRoomTab(_roomTabContent); break;
             case 1: BuildGoveeRoomTab(_roomTabContent); break;
             case 2: BuildCorsairRoomTab(_roomTabContent); break;
+        }
+
+        // Append Screen Sync settings panel (Global tab only)
+        if (_roomTabIndex == 0 && _screenSyncSettingsPanel != null)
+            _roomTabContent.Children.Add(_screenSyncSettingsPanel);
+    }
+
+    private void BuildTabToggleRow(WrapPanel row, int tabIndex)
+    {
+        switch (tabIndex)
+        {
+            case 0: // Global
+                // Amp Up sync
+                bool syncActive = _activePattern == "__sync__";
+                row.Children.Add(BuildToggleTile("🔗", "AMP UP", "Mirror knob LEDs to room",
+                    syncActive, on =>
+                    {
+                        if (_config == null) return;
+                        if (on) { StopRoomPattern(); _activePattern = "__sync__"; _config.Ambience.LinkToLights = true; _config.Corsair.LightSyncMode = "vu_reactive"; }
+                        else { _activePattern = null; _config.Ambience.LinkToLights = false; _config.Corsair.LightSyncMode = "static"; }
+                        QueueSave(); RebuildRoomTabContent();
+                    }, Color.FromRgb(0x69, 0xF0, 0xAE)));
+
+                // Global Music Reactive (brightness modulation)
+                bool globalMusic = _corsairMusicTimer?.IsEnabled == true;
+                row.Children.Add(BuildToggleTile("♪", "MUSIC REACTIVE", "Audio-driven brightness",
+                    globalMusic, on =>
+                    {
+                        if (_loading) return;
+                        if (on) StartGlobalMusicSync(); else StopCorsairMusicSync();
+                    }, Color.FromRgb(0xFF, 0xB8, 0x00)));
+
+                // Screen Sync
+                bool gameModeOn = _config!.Ambience.GameModeEnabled;
+                bool syncRunning = _config.Ambience.ScreenSync.Enabled;
+                var screenSyncTile = BuildToggleTile("⬛", "SCREEN SYNC", "Fullscreen game detection",
+                    gameModeOn, on =>
+                    {
+                        if (_loading || _config == null) return;
+                        _config.Ambience.GameModeEnabled = on;
+                        if (!on && _config.Ambience.ScreenSync.Enabled)
+                        {
+                            _config.Ambience.ScreenSync.Enabled = false;
+                            if (_config.Corsair.Enabled) _config.Corsair.LightSyncMode = "vu_reactive";
+                            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+                        }
+                        if (_screenSyncSettingsPanel != null)
+                            _screenSyncSettingsPanel.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+                        QueueSave();
+                    }, Color.FromRgb(0x44, 0x8A, 0xFF),
+                    syncRunning ? "ACTIVE" : "STANDBY",
+                    out var statusUpdater);
+                row.Children.Add(screenSyncTile);
+
+                // Screen Sync settings panel (rebuilt each time for simplicity)
+                if (_screenSyncSettingsPanel != null)
+                    _roomTabContent?.Children.Remove(_screenSyncSettingsPanel);
+                var ssPanel = new StackPanel { Margin = new Thickness(0, 8, 0, 0), Visibility = gameModeOn ? Visibility.Visible : Visibility.Collapsed };
+                BuildScreenSyncSettings(ssPanel, statusUpdater!);
+                _screenSyncSettingsPanel = ssPanel;
+                break;
+
+            case 1: // Govee
+                // Sync to Global
+                row.Children.Add(BuildToggleTile("🔗", "SYNC TO GLOBAL", "Follow Global tab effects",
+                    _config!.Ambience.GoveeSyncToGlobal, on =>
+                    {
+                        if (_config == null) return;
+                        _config.Ambience.GoveeSyncToGlobal = on;
+                        QueueSave(); RebuildRoomTabContent();
+                    }, Color.FromRgb(0x69, 0xF0, 0xAE)));
+
+                // Govee LAN Music Sync
+                bool goveeMusicOn = _goveeLanMusicTimer?.IsEnabled == true;
+                row.Children.Add(BuildToggleTile("♪", "MUSIC SYNC", "Bass=R / Mids=G / Treble=B via LAN",
+                    goveeMusicOn, on =>
+                    {
+                        if (_loading) return;
+                        // Find first Govee device with IP for music sync
+                        var firstIp = _config?.Ambience.GoveeDevices.FirstOrDefault(d => !string.IsNullOrWhiteSpace(d.Ip))?.Ip;
+                        if (firstIp == null) return;
+                        if (on) StartGoveeLanMusicSync(firstIp); else StopGoveeLanMusicSync();
+                    }, Color.FromRgb(0xFF, 0xB8, 0x00)));
+                break;
+
+            case 2: // Corsair
+                // Sync to Global
+                row.Children.Add(BuildToggleTile("🔗", "SYNC TO GLOBAL", "Follow Global tab effects",
+                    _config!.Corsair.SyncToGlobal, on =>
+                    {
+                        if (_config == null) return;
+                        _config.Corsair.SyncToGlobal = on;
+                        QueueSave(); RebuildRoomTabContent();
+                    }, Color.FromRgb(0x69, 0xF0, 0xAE)));
+
+                // Corsair Music Sync
+                bool corsairMusicOn = _corsairMusicTimer?.IsEnabled == true;
+                row.Children.Add(BuildToggleTile("♪", "MUSIC SYNC", "Audio frequency → Corsair colors",
+                    corsairMusicOn, on =>
+                    {
+                        if (_loading || _corsairSync == null) return;
+                        if (on) StartCorsairMusicSync(); else StopCorsairMusicSync();
+                    }, Color.FromRgb(0xFF, 0xB8, 0x00)));
+                break;
         }
     }
 
@@ -535,20 +601,11 @@ public partial class RoomView : UserControl
             return;
         }
 
-        // ── Sync to Global tile ──
+        // Govee device content — hidden when synced to Global (controlled by header toggle)
         var goveeDeviceContent = new StackPanel
         {
             Visibility = _config.Ambience.GoveeSyncToGlobal ? Visibility.Collapsed : Visibility.Visible,
         };
-        stack.Children.Add(BuildSyncToGlobalTile(
-            _config.Ambience.GoveeSyncToGlobal,
-            isOn =>
-            {
-                if (_config == null) return;
-                _config.Ambience.GoveeSyncToGlobal = isOn;
-                goveeDeviceContent.Visibility = isOn ? Visibility.Collapsed : Visibility.Visible;
-                QueueSave();
-            }));
         stack.Children.Add(goveeDeviceContent);
 
         // ── Per-device controls ──
@@ -678,20 +735,11 @@ public partial class RoomView : UserControl
             return;
         }
 
-        // ── Sync to Global toggle ──
+        // Corsair device content — hidden when synced to Global (controlled by header toggle)
         var corsairDeviceContent = new StackPanel
         {
             Visibility = _config.Corsair.SyncToGlobal ? Visibility.Collapsed : Visibility.Visible,
         };
-        stack.Children.Add(BuildSyncToGlobalTile(
-            _config.Corsair.SyncToGlobal,
-            isOn =>
-            {
-                if (_config == null) return;
-                _config.Corsair.SyncToGlobal = isOn;
-                corsairDeviceContent.Visibility = isOn ? Visibility.Collapsed : Visibility.Visible;
-                QueueSave();
-            }));
         stack.Children.Add(corsairDeviceContent);
 
         // ── Brightness ──
@@ -919,15 +967,7 @@ public partial class RoomView : UserControl
         var colorsContainer = new StackPanel();
         _sceneContent.Children.Add(colorsContainer);
         BuildColorsSection(device, colorsContainer, lanIp, null);
-
-        bool hasMusic = device.Capabilities?.Contains("devices.capabilities.music_setting") == true;
-        if (hasMusic)
-        {
-            _sceneContent.Children.Add(MakeSeparator());
-            var (musBar, musLabel) = MakeSectionHeader("MUSIC REACTIVE");
-            _sceneContent.Children.Add(WrapHeader(musBar, musLabel));
-            BuildMusicSection(device, _sceneContent);
-        }
+        // Music Sync handled by toggle card in tab header
     }
 
     // ══════════════════════════════════════════════════════════════════
