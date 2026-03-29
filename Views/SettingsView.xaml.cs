@@ -1092,6 +1092,43 @@ public partial class SettingsView : UserControl
         {
             var found = await _ambienceSync.ScanDevicesAsync();
 
+            // If Cloud API is available, enrich names AND merge devices not found via LAN
+            if (!string.IsNullOrEmpty(_config.Ambience.GoveeApiKey))
+            {
+                try
+                {
+                    using var api = new GoveeCloudApi(_config.Ambience.GoveeApiKey);
+                    var cloudDevices = await api.GetDevicesAsync();
+                    GoveeCloudApi.EnrichLanDevicesWithCloudNames(found, cloudDevices);
+
+                    // Add cloud-only devices that didn't respond to LAN scan
+                    foreach (var cloud in cloudDevices)
+                    {
+                        if (string.IsNullOrEmpty(cloud.Device)) continue;
+                        bool alreadyFound = found.Any(f =>
+                            !string.IsNullOrEmpty(f.DeviceId) && f.DeviceId == cloud.Device);
+                        if (!alreadyFound)
+                        {
+                            var name = !string.IsNullOrWhiteSpace(cloud.DeviceName) ? cloud.DeviceName
+                                : AmbienceSync.GetProductName(cloud.Sku);
+                            found.Add(new GoveeDeviceConfig
+                            {
+                                Ip = "",  // No LAN IP — cloud-only device
+                                Name = name,
+                                Sku = cloud.Sku,
+                                DeviceId = cloud.Device,
+                                SyncMode = "global",
+                            });
+                            Logger.Log($"Govee scan: added cloud-only device: {name} ({cloud.Sku}, {cloud.Device})");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"Govee cloud enrichment failed: {ex.Message}");
+                }
+            }
+
             if (found.Count == 0)
             {
                 TxtGoveeScanStatus.Text = "No devices found";
@@ -1099,26 +1136,13 @@ public partial class SettingsView : UserControl
             }
             else
             {
-                // If Cloud API is available, enrich with friendly names
-                if (!string.IsNullOrEmpty(_config.Ambience.GoveeApiKey))
-                {
-                    try
-                    {
-                        using var api = new GoveeCloudApi(_config.Ambience.GoveeApiKey);
-                        var cloudDevices = await api.GetDevicesAsync();
-                        GoveeCloudApi.EnrichLanDevicesWithCloudNames(found, cloudDevices);
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.Log($"Govee cloud name enrichment failed: {ex.Message}");
-                    }
-                }
-
                 // Preserve sync modes from previously saved devices
                 var existing = _config.Ambience.GoveeDevices;
                 foreach (var dev in found)
                 {
-                    var prev = existing.FirstOrDefault(e => e.Ip == dev.Ip);
+                    var prev = existing.FirstOrDefault(e =>
+                        (!string.IsNullOrEmpty(e.Ip) && e.Ip == dev.Ip) ||
+                        (!string.IsNullOrEmpty(e.DeviceId) && e.DeviceId == dev.DeviceId));
                     if (prev != null && prev.SyncMode != "off")
                         dev.SyncMode = prev.SyncMode;
                 }
