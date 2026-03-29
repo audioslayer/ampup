@@ -158,13 +158,28 @@ public class AmbienceSync : IDisposable
                 System.Net.Sockets.SocketOptionName.ReuseAddress, true);
             udp.Client.Bind(new IPEndPoint(IPAddress.Any, 4002));
             udp.EnableBroadcast = true;
-            udp.Client.ReceiveTimeout = 3000;
+            udp.Client.ReceiveTimeout = 5000;
             Logger.Log("Govee scan: bound to port 4002");
 
-            // Send discovery to multicast address
+            // Join multicast group so we receive responses sent to the group address
+            try
+            {
+                udp.JoinMulticastGroup(IPAddress.Parse("239.255.255.250"));
+                Logger.Log("Govee scan: joined multicast group 239.255.255.250");
+            }
+            catch (Exception mex)
+            {
+                Logger.Log($"Govee scan: multicast join failed (non-fatal): {mex.Message}");
+            }
+
+            // Send discovery to multicast address (send twice — some devices need a nudge)
             var msg = Encoding.UTF8.GetBytes("{\"msg\":{\"cmd\":\"scan\",\"data\":{\"account_topic\":\"reserve\"}}}");
             await udp.SendAsync(msg, msg.Length, "239.255.255.250", 4001);
             Logger.Log("Govee scan: multicast sent to 239.255.255.250:4001");
+
+            await Task.Delay(500, ct);
+            await udp.SendAsync(msg, msg.Length, "239.255.255.250", 4001);
+            Logger.Log("Govee scan: multicast re-sent to 239.255.255.250:4001");
 
             // Also send directly to known device IPs as fallback (some networks block multicast)
             foreach (var known in _config.GoveeDevices)
@@ -180,8 +195,19 @@ public class AmbienceSync : IDisposable
                 }
             }
 
-            // Collect responses for 3 seconds
-            var deadline = DateTime.UtcNow.AddSeconds(3);
+            // Also broadcast on the local subnet (some bulbs only respond to broadcast)
+            try
+            {
+                await udp.SendAsync(msg, msg.Length, "255.255.255.255", 4001);
+                Logger.Log("Govee scan: broadcast sent to 255.255.255.255:4001");
+            }
+            catch (Exception bex)
+            {
+                Logger.Log($"Govee scan: broadcast failed (non-fatal): {bex.Message}");
+            }
+
+            // Collect responses for 5 seconds
+            var deadline = DateTime.UtcNow.AddSeconds(5);
             while (!ct.IsCancellationRequested && DateTime.UtcNow < deadline)
             {
                 try
