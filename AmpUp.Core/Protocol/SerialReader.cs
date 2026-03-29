@@ -3,7 +3,7 @@ using AmpUp.Core;
 
 namespace AmpUp.Core.Protocol;
 
-public class KnobEvent { public int Idx; public int Value; }
+public class KnobEvent { public int Idx; public int Value; public bool IsBatch; }
 public class ButtonEvent { public int Idx; public bool IsDown; }
 
 public class SerialReader : IDisposable
@@ -293,7 +293,7 @@ public class SerialReader : IDisposable
                     int val = (frame[2 + i * 2] << 8) | frame[3 + i * 2];
                     if (val > 1000) val = 1023;
                     _lastFiredValues[i] = val;
-                    OnKnob?.Invoke(new KnobEvent { Idx = i, Value = val });
+                    OnKnob?.Invoke(new KnobEvent { Idx = i, Value = val, IsBatch = true });
                 }
                 break;
 

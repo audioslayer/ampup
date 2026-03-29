@@ -1078,11 +1078,12 @@ public partial class App : Application
             bool osdTimeSuppressed = osdNow - _startupTick < 10000
                 || (DateTime.UtcNow - _connectedAt).TotalMilliseconds < 3000;
             bool osdValueSuppressed = _lastOsdValue[e.Idx] >= 0 && Math.Abs(e.Value - _lastOsdValue[e.Idx]) < 15;
-            // Track knob positions even during startup suppression so value-change guard works after
-            if (osdTimeSuppressed)
+            // Batch events = device reporting positions on connect, not user turning — never show OSD
+            if (e.IsBatch)
                 _lastOsdValue[e.Idx] = e.Value;
 
-            if (_config.Osd.ShowVolume && !knob.Target.Equals("none", StringComparison.OrdinalIgnoreCase)
+            if (_config.Osd.ShowVolume && !e.IsBatch
+                && !knob.Target.Equals("none", StringComparison.OrdinalIgnoreCase)
                 && !osdTimeSuppressed)
             {
                 if (osdNow - _lastOsdTick[e.Idx] >= 100 && !osdValueSuppressed)
