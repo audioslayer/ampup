@@ -149,14 +149,24 @@ public partial class SettingsView : UserControl
         TxtVersion.Text = $"Amp Up v{UpdateChecker.CurrentVersion}";
         BtnCheckUpdate.Click += OnCheckUpdate;
 
-        // Support link
-        TxtCoffeeLink.MouseLeftButtonDown += (_, _) =>
+        // Buy Me a Coffee banner
+        try
+        {
+            var bmi = new System.Windows.Media.Imaging.BitmapImage();
+            bmi.BeginInit();
+            bmi.UriSource = new Uri("https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=❤️&slug=audioslayer&button_colour=5F7FFF&font_colour=ffffff&font_family=Cookie&outline_colour=000000&coffee_colour=FFDD00");
+            bmi.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+            bmi.EndInit();
+            CoffeeImage.Source = bmi;
+        }
+        catch { }
+        CoffeeFooter.MouseLeftButtonDown += (_, _) =>
         {
             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://www.buymeacoffee.com/audioslayer") { UseShellExecute = true }); }
             catch { }
         };
-        TxtCoffeeLink.MouseEnter += (_, _) => TxtCoffeeLink.Opacity = 1.0;
-        TxtCoffeeLink.MouseLeave += (_, _) => TxtCoffeeLink.Opacity = 0.7;
+        CoffeeFooter.MouseEnter += (_, _) => CoffeeImage.Opacity = 1.0;
+        CoffeeFooter.MouseLeave += (_, _) => CoffeeImage.Opacity = 0.75;
     }
 
     // Reference to AmbienceSync for LAN scanning (set from App.xaml.cs)
