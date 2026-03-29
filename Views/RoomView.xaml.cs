@@ -304,7 +304,8 @@ public partial class RoomView : UserControl
         // Screen Sync tile
         bool gameModeOn = _config!.Ambience.GameModeEnabled;
         var screenSyncPanel = new StackPanel { Visibility = gameModeOn ? Visibility.Visible : Visibility.Collapsed };
-        toggleRow.Children.Add(BuildToggleTile("⬛", "SCREEN SYNC", "Fullscreen game detection",
+        bool syncRunning = _config.Ambience.ScreenSync.Enabled;
+        var screenSyncTile = BuildToggleTile("⬛", "SCREEN SYNC", "Fullscreen game detection",
             gameModeOn, on =>
             {
                 if (_loading || _config == null) return;
@@ -317,11 +318,10 @@ public partial class RoomView : UserControl
                 }
                 screenSyncPanel.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
                 QueueSave();
-            }, Color.FromRgb(0x44, 0x8A, 0xFF))); // blue
-
-        // DreamView status — built here, added to screen sync settings panel below
-        bool syncRunning = _config.Ambience.ScreenSync.Enabled;
-        var statusTile = BuildStatusTile(syncRunning ? "ACTIVE" : "STANDBY", syncRunning, out var statusTileUpdater);
+            }, Color.FromRgb(0x44, 0x8A, 0xFF),
+            syncRunning ? "ACTIVE" : "STANDBY",
+            out var statusTileUpdater);
+        toggleRow.Children.Add(screenSyncTile);
 
         // ── Pill-style tab bar (Global / Govee / Corsair) ──
         var accent = ThemeManager.Accent;
@@ -373,8 +373,7 @@ public partial class RoomView : UserControl
 
         // ── Screen Sync settings (collapsible, below tab content) ──
         screenSyncPanel.Margin = new Thickness(0, 8, 0, 0);
-        screenSyncPanel.Children.Add(statusTile);
-        BuildScreenSyncSettings(screenSyncPanel, statusTileUpdater);
+        BuildScreenSyncSettings(screenSyncPanel, statusTileUpdater!);
         _screenSyncSettingsPanel = screenSyncPanel;
         stack.Children.Add(screenSyncPanel);
 
@@ -1992,7 +1991,11 @@ public partial class RoomView : UserControl
     // ── Room preset/color helpers ──────────────────────────────────
 
     private Border BuildToggleTile(string icon, string title, string subtitle, bool initialActive, Action<bool> onToggle, Color? iconColor = null)
+        => BuildToggleTile(icon, title, subtitle, initialActive, onToggle, iconColor, null, out _);
+
+    private Border BuildToggleTile(string icon, string title, string subtitle, bool initialActive, Action<bool> onToggle, Color? iconColor, string? extraStatus, out Action<string, bool>? extraStatusUpdater)
     {
+        extraStatusUpdater = null;
         bool isActive = initialActive;
         var accent = ThemeManager.Accent;
         var icoColor = iconColor ?? accent;
@@ -2017,6 +2020,29 @@ public partial class RoomView : UserControl
         titleRow.Children.Add(titleText);
         leftStack.Children.Add(titleRow);
         leftStack.Children.Add(subtitleText);
+
+        // Optional extra status line (e.g. DreamView ACTIVE/STANDBY)
+        Border? extraDot = null;
+        TextBlock? extraLabel = null;
+        if (extraStatus != null)
+        {
+            var extraRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 3, 0, 0) };
+            extraDot = new Border { Width = 6, Height = 6, CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center };
+            extraLabel = new TextBlock { FontSize = 9, FontWeight = FontWeights.SemiBold };
+            extraRow.Children.Add(extraDot);
+            extraRow.Children.Add(extraLabel);
+            leftStack.Children.Add(extraRow);
+            // Set initial state
+            var eDot = extraDot; var eLbl = extraLabel;
+            extraStatusUpdater = (s, active) =>
+            {
+                var c = active ? Color.FromRgb(0x00, 0xE6, 0x76) : Color.FromRgb(0x55, 0x55, 0x55);
+                eDot.Background = new SolidColorBrush(c);
+                eLbl.Text = s;
+                eLbl.Foreground = new SolidColorBrush(active ? Color.FromRgb(0x00, 0xE6, 0x76) : Color.FromRgb(0x66, 0x66, 0x66));
+            };
+            extraStatusUpdater(extraStatus, false);
+        }
 
         var statusText = new TextBlock { FontSize = 9, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
         var statusPill = new Border
