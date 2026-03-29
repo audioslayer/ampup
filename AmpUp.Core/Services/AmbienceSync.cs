@@ -119,8 +119,8 @@ public class AmbienceSync : IDisposable
                 int dr = Math.Abs(r - prev.R);
                 int dg = Math.Abs(g - prev.G);
                 int db = Math.Abs(b - prev.B);
-                // Send if any channel changed by more than 2, or as keepalive every 200ms
-                bool significantChange = dr > 2 || dg > 2 || db > 2;
+                // Send if any channel changed by more than 1, or as keepalive every 200ms
+                bool significantChange = dr > 1 || dg > 1 || db > 1;
                 bool keepalive = now - lastTick > TimeSpan.TicksPerMillisecond * 200;
                 if (!significantChange && !keepalive) continue;
             }
@@ -496,7 +496,7 @@ public class AmbienceSync : IDisposable
         if (string.IsNullOrWhiteSpace(ip)) return;
         try
         {
-            string json = $"{{\"msg\":{{\"cmd\":\"colorwc\",\"data\":{{\"color\":{{\"r\":{r},\"g\":{g},\"b\":{b}}},\"colorTemInKelvin\":0}}}}}}";
+            string json = $"{{\"msg\":{{\"cmd\":\"colorwc\",\"data\":{{\"color\":{{\"r\":{r},\"g\":{g},\"b\":{b}}},\"colorTemInKelvin\":0,\"duration\":0}}}}}}";
             await SendLanCommand(ip, json);
         }
         catch (Exception ex)
