@@ -16,7 +16,7 @@ public partial class MainWindow : FluentWindow
     private readonly ButtonsView _buttonsView = new();
     private readonly LightsView _lightsView = new();
     private readonly SettingsView _settingsView = new();
-    private readonly AmbienceView _ambienceView = new();
+    private readonly RoomView _ambienceView = new();
     private readonly BindingsView _bindingsView = new();
     private readonly OsdView _osdView = new();
     private readonly GroupsView _groupsView = new();

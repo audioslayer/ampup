@@ -49,7 +49,7 @@ public class DreamSyncController : IDisposable
     private const int MaxSendFps = 30;
     private readonly System.Diagnostics.Stopwatch _sendThrottle = System.Diagnostics.Stopwatch.StartNew();
 
-    // Raised each frame with current zone colors — used by the live preview in AmbienceView
+    // Raised each frame with current zone colors — used by the live preview in RoomView
     public event Action<(byte R, byte G, byte B)[]>? OnZoneColors;
 
     // Status text for UI display (e.g. "Syncing at 30fps" / "Stopped")

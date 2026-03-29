@@ -8,7 +8,7 @@ using Newtonsoft.Json.Linq;
 
 namespace AmpUp.Views;
 
-public partial class AmbienceView : UserControl
+public partial class RoomView : UserControl
 {
     private AppConfig? _config;
     private Action<AppConfig>? _onSave;
@@ -53,7 +53,7 @@ public partial class AmbienceView : UserControl
     // Navigation callback (set by MainWindow to navigate to Settings)
     public Action? NavigateToSettings { get; set; }
 
-    public AmbienceView()
+    public RoomView()
     {
         InitializeComponent();
 
