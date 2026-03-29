@@ -63,8 +63,11 @@ Views/
                            Custom/Presets color tabs (10 gradient palettes), speed slider.
                            Effect presets auto-set ideal colors (Fire=orange/red, Ocean=blue/teal, etc.).
   SettingsView.xaml / .cs  Connection, startup, profiles, OSD duration sliders, integrations (HA + Govee side-by-side)
-  AmbienceView.xaml / .cs  Govee room lighting — LAN sync + Cloud dashboard (scenes, segments, music mode)
-                           DreamView screen sync card with zone preview. Hidden in sidebar when Govee not enabled.
+  RoomView.xaml / .cs      Room lighting — pill-style tab bar (Global / Govee / Corsair).
+                           Global: AMP UP + Music Reactive + Screen Sync toggles.
+                           Govee: Sync to Global + Music Sync toggles, LAN sync + Cloud dashboard.
+                           Corsair: Sync to Global + Music Sync toggles, effect picker + color pickers.
+                           Screen Sync settings collapsible inside room card. BuildToggleTile / BuildStatusTile helpers.
   OsdView.xaml / .cs       OSD settings (moved from Settings) + Quick Wheel config
                            Checkboxes for volume/profile/device OSD, position picker, duration sliders.
                            Quick Wheel: enable toggle, trigger button picker, navigation knob picker.
@@ -433,7 +436,7 @@ All transitions run 1 second (20 ticks at 20 FPS) then auto-clear.
 
 - **BindingsView (sidebar: "Overview"):** Profile Overview page showing all knob/button assignments across profiles. Knob cards tinted with LED color. Button cards show all gestures with colored TAP/DBL/HOLD badges. Preview OSD button per profile. Click any card to switch to that profile and navigate to the correct tab.
 
-- **AmbienceView:** Govee device cards with on/off, brightness, color scenes, music mode. On/off persists PoweredOn to config (prevents color sync from implicitly turning on devices). Brightness slider + on/off checkbox update live from Govee knob turns. DreamView screen sync card with monitor picker (friendly names via DisplayConfig API), FPS/zone selectors, saturation/sensitivity sliders (ShowLabel=false), live zone preview. Device cards dim when DreamView is active.
+- **RoomView (sidebar: "Room"):** Pill-style tab bar (Global / Govee / Corsair) matching Lights tab. Dynamic per-tab toggle row via BuildToggleTile helper: Global shows [AMP UP] [MUSIC REACTIVE] [SCREEN SYNC], Govee shows [SYNC TO GLOBAL] [MUSIC SYNC], Corsair shows [SYNC TO GLOBAL] [MUSIC SYNC]. Govee tab: device cards with on/off, brightness, color scenes, music mode. On/off persists PoweredOn to config. DreamView screen sync settings collapsible inside room card (no separate card). Corsair tab: effect picker + PRIMARY/SECONDARY color pickers with 10 gradient presets, speed slider, corsairOnly flag prevents Govee leak, section headers use ThemeManager.Accent. Music Reactive: Global modulates brightness via audio energy (keeps room effect playing), Govee LAN sends per-device bass=R/mid=G/treble=B. Corsair detected devices list moved to Settings tab (SetCorsairSync + PopulateCorsairDeviceList).
 
 ### Theme (Theme.xaml)
 
@@ -585,6 +588,8 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - **Windows: tray context menu dismissed by popup Deactivated** — Right-clicking a session row opened the context menu window, which stole focus from the tray popup, triggering Deactivated→Hide(). **Solution:** `_contextMenuOpen` flag suppresses Hide() during Deactivated while context menu is open.
 - **Windows: OSD monitor picker stale on display change** — Monitor combo only populated on load. **Solution:** Refresh on `IsVisibleChanged` (tab switch) and `SystemEvents.DisplaySettingsChanged`.
 - **Windows: tray device enumeration blocks UI** — `EnumerateAudioEndPoints` + `AudioSessionManager.Sessions` for non-default devices can take 3-5s with USB/Bluetooth devices. **Solution:** Move PID→device name map building to `Task.Run` with a separate `MMDeviceEnumerator`. Popup opens instantly, device badges fill in async.
+- **KnobEvent.IsBatch flag** — Batch frames (0x04) from device never trigger OSD, tracked via `IsBatch` flag on `KnobEvent`. HandleKnob skips OSD for batch events.
+- **Govee group brightness turn-on delay** — 150ms delay between `SendTurnAsync` and `SendBrightnessAsync` when device transitions from off to on. Without delay, brightness command is ignored.
 
 ---
 
@@ -670,6 +675,26 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
   - **Hardware hover preview:** Hovering over effect tiles temporarily shows that effect on Turn Up LEDs.
   - **Slimmer header:** Per Knob/Global toggle card reduced padding.
 
+- **v0.9.4-alpha (Mar 28)** — **Room tab redesign + Corsair enhancements.**
+  - **AmbienceView renamed to RoomView.** Pill-style tab bar (Global / Govee / Corsair) matching Lights tab.
+  - **Dynamic toggle rows:** BuildToggleTile helper for self-updating mini card toggles per tab. Global: [AMP UP] [MUSIC REACTIVE] [SCREEN SYNC]. Govee: [SYNC TO GLOBAL] [MUSIC SYNC]. Corsair: [SYNC TO GLOBAL] [MUSIC SYNC]. BuildStatusTile for read-only status cards.
+  - **Screen Sync settings** now collapsible inside room card (no separate card).
+  - **Corsair tab:** PRIMARY/SECONDARY color pickers with 10 gradient presets, speed slider, effect picker. corsairOnly flag prevents Govee leak. Section headers use ThemeManager.Accent.
+  - **Music Reactive:** Global keeps room effect playing, modulates brightness via audio energy. Govee LAN sends per-device bass=R/mid=G/treble=B.
+  - **StartRoomPattern** now accepts optional `Color c1, Color c2, bool corsairOnly` params.
+  - **LED toggles:** Centered mini cards (58x42) with knob names instead of old numbered squares.
+  - **KnobEvent.IsBatch:** New flag to identify batch frames (0x04). HandleKnob skips OSD for batch events.
+
+- **v0.9.5-alpha (Mar 28)** — **Groups global + Govee flyout sub-menus.**
+  - **Groups are global:** Added to `PreserveGlobalSettings()` in both MainWindow and SettingsView.
+  - **Govee flyout sub-menus:** govee_toggle/govee_color/govee_white_toggle now use ActionPicker sub-menus (same pattern as select_output).
+  - **Settings footer:** Static Buy Me a Coffee pill button at bottom of Settings page.
+  - **Corsair detected devices** moved from Corsair room tab to Settings tab (SetCorsairSync + PopulateCorsairDeviceList).
+
+- **v0.9.6-alpha (Mar 28)** — **Profile + Group pickers use flyout sub-menus.**
+  - **Profile picker:** switch_profile and cycle_profile use flyout sub-menus in GridPicker/ActionPicker instead of dropdowns.
+  - **Group picker:** Group targets use flyout sub-menus in GridPicker instead of dropdowns.
+
 ---
 
 ## Release Workflow
@@ -713,7 +738,7 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - [x] **Mac: editable views** — knob target picker, button action picker, light effect picker
 - [x] **Mac: proper .app bundle** — drag-to-Applications DMG install
 - [x] **Mac: menu bar tray icon** — NSStatusBarItem with quick mixer popup
-- [x] **Mac: Govee LAN/Cloud integration** — wired into App + AmbienceView
+- [x] **Mac: Govee LAN/Cloud integration** — wired into App + RoomView
 - [x] **Mac: Home Assistant integration** — wired into button actions
 - [x] **Mac: DreamView screen capture** — CGWindowList implementation
 - [x] **Mac: auto-update** — GitHub releases download + install flow
