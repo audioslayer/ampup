@@ -238,18 +238,8 @@
                         </Border>
                     </StackPanel>
 
-                    <!-- Mute brightness slider -->
-                    <StackPanel Margin="0,0,0,12">
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                            <TextBlock Text="MUTE DIM LEVEL" Style="{StaticResource HeaderText}" Margin="0,0,8,0" FontSize="11" />
-                            <TextBlock x:Name="TxtMuteBrightness" Text="15%" Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
-                        </StackPanel>
-                        <TextBlock Text="How bright LEDs are when the app is muted (ProgramMute / AppGroupMute effects)."
-                                   Style="{StaticResource SecondaryText}" Margin="0,0,0,6" TextWrapping="Wrap" />
-                        <Slider x:Name="SldMuteBrightness" Minimum="0" Maximum="100" Value="15"
-                                TickFrequency="5" IsSnapToTickEnabled="True"
-                                ToolTip="0% = fully off when muted, 15% = dim (default), 100% = same brightness as unmuted" />
-                    </StackPanel>
+                    <!-- Mute brightness slider (StyledSlider built in code-behind) -->
+                    <StackPanel x:Name="MuteBrightnessPanel" Margin="0,0,0,12" />
 
                     <!-- Gamma sliders (built in code-behind as StyledSliders) -->
                     <StackPanel x:Name="GammaSlidersPanel" Margin="0,0,0,4" />
@@ -513,11 +503,11 @@
     </ScrollViewer>
 
         <!-- ── STATIC FOOTER ─────────────────────────────────── -->
-        <Border Grid.Row="1" Background="Transparent" Margin="0,8,0,4" Cursor="Hand"
-                HorizontalAlignment="Center" x:Name="CoffeeFooter"
+        <Border Grid.Row="1" Style="{StaticResource CardPanel}" Margin="0,8,0,0" Padding="8,8,8,8"
+                Cursor="Hand" HorizontalAlignment="Center" x:Name="CoffeeFooter"
                 ToolTip="buymeacoffee.com/audioslayer">
-            <Image x:Name="CoffeeImage" Height="40" RenderOptions.BitmapScalingMode="HighQuality"
-                   Opacity="0.75" />
+            <Image x:Name="CoffeeImage" Height="36" Stretch="Uniform"
+                   RenderOptions.BitmapScalingMode="HighQuality" Opacity="0.85" />
         </Border>
     </Grid>
 </UserControl>

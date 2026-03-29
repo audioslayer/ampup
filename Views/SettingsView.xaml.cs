@@ -115,12 +115,8 @@ public partial class SettingsView : UserControl
         TxtObsPassword.PasswordChanged += OnPasswordChanged;
         BtnObsTest.Click += OnObsTest;
 
-        // LED Calibration (sliders built in code-behind via BuildGammaSliders)
-        SldMuteBrightness.ValueChanged += (_, _) =>
-        {
-            TxtMuteBrightness.Text = $"{(int)SldMuteBrightness.Value}%";
-            if (!_loading) OnValueChanged(null, EventArgs.Empty);
-        };
+        // LED Calibration — Mute Brightness (StyledSlider)
+        BuildMuteBrightnessSlider();
         BtnGammaReset.Click += OnGammaReset;
         CalibTestRed.MouseLeftButtonDown += (_, _) => SetCalibPreview(255, 0, 0, CalibTestRed);
         CalibTestGreen.MouseLeftButtonDown += (_, _) => SetCalibPreview(0, 255, 0, CalibTestGreen);
@@ -149,24 +145,42 @@ public partial class SettingsView : UserControl
         TxtVersion.Text = $"Amp Up v{UpdateChecker.CurrentVersion}";
         BtnCheckUpdate.Click += OnCheckUpdate;
 
-        // Buy Me a Coffee banner
-        try
+        // Buy Me a Coffee banner — load async from API
+        _ = Task.Run(() =>
         {
-            var bmi = new System.Windows.Media.Imaging.BitmapImage();
-            bmi.BeginInit();
-            bmi.UriSource = new Uri("https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=❤️&slug=audioslayer&button_colour=5F7FFF&font_colour=ffffff&font_family=Cookie&outline_colour=000000&coffee_colour=FFDD00");
-            bmi.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-            bmi.EndInit();
-            CoffeeImage.Source = bmi;
-        }
-        catch { }
+            try
+            {
+                var bmi = new System.Windows.Media.Imaging.BitmapImage();
+                bmi.BeginInit();
+                bmi.UriSource = new Uri("https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=❤️&slug=audioslayer&button_colour=5F7FFF&font_colour=ffffff&font_family=Cookie&outline_colour=000000&coffee_colour=FFDD00");
+                bmi.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                bmi.EndInit();
+                bmi.Freeze();
+                Dispatcher.BeginInvoke(() => CoffeeImage.Source = bmi);
+            }
+            catch
+            {
+                // Fallback: show text link if image fails
+                Dispatcher.BeginInvoke(() =>
+                {
+                    CoffeeImage.Visibility = Visibility.Collapsed;
+                    var txt = new TextBlock
+                    {
+                        Text = "♥ Buy me a coffee",
+                        FontSize = 12, Foreground = (Brush)FindResource("TextSecBrush"),
+                        Cursor = Cursors.Hand, Opacity = 0.7,
+                    };
+                    CoffeeFooter.Child = txt;
+                });
+            }
+        });
         CoffeeFooter.MouseLeftButtonDown += (_, _) =>
         {
             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://www.buymeacoffee.com/audioslayer") { UseShellExecute = true }); }
             catch { }
         };
         CoffeeFooter.MouseEnter += (_, _) => CoffeeImage.Opacity = 1.0;
-        CoffeeFooter.MouseLeave += (_, _) => CoffeeImage.Opacity = 0.75;
+        CoffeeFooter.MouseLeave += (_, _) => CoffeeImage.Opacity = 0.85;
     }
 
     // Reference to AmbienceSync for LAN scanning (set from App.xaml.cs)
@@ -229,8 +243,8 @@ public partial class SettingsView : UserControl
         BuildAccentSwatches();
 
         // LED Calibration
-        SldMuteBrightness.Value = Math.Clamp(config.MuteBrightness, 0, 100);
-        TxtMuteBrightness.Text = $"{config.MuteBrightness}%";
+        if (_sldMuteBrightness != null) _sldMuteBrightness.Value = Math.Clamp(config.MuteBrightness, 0, 100);
+        if (_txtMuteBrightness != null) _txtMuteBrightness.Text = $"{config.MuteBrightness}%";
         BuildGammaSliders();
         if (_sldGammaR != null) _sldGammaR.Value = config.GammaR;
         if (_sldGammaG != null) _sldGammaG.Value = config.GammaG;
@@ -538,7 +552,7 @@ public partial class SettingsView : UserControl
         _config.Corsair.Enabled = ChkCorsairEnabled.IsChecked == true;
 
         // LED Calibration
-        _config.MuteBrightness = (int)SldMuteBrightness.Value;
+        _config.MuteBrightness = (int)(_sldMuteBrightness?.Value ?? 15);
         _config.GammaR = Math.Round(_sldGammaR?.Value ?? 2.0, 1);
         _config.GammaG = Math.Round(_sldGammaG?.Value ?? 2.0, 1);
         _config.GammaB = Math.Round(_sldGammaB?.Value ?? 2.0, 1);
@@ -1301,7 +1315,46 @@ public partial class SettingsView : UserControl
 
     private Border? _activeCalibSwatch;
     private (byte R, byte G, byte B)? _calibPreviewColor;
+    private Controls.StyledSlider? _sldMuteBrightness;
+    private TextBlock? _txtMuteBrightness;
     private Controls.StyledSlider? _sldGammaR, _sldGammaG, _sldGammaB;
+
+    private void BuildMuteBrightnessSlider()
+    {
+        MuteBrightnessPanel.Children.Clear();
+        var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+        headerRow.Children.Add(new TextBlock
+        {
+            Text = "MUTE DIM LEVEL", FontSize = 11, FontWeight = FontWeights.SemiBold,
+            Style = FindResource("HeaderText") as Style, Margin = new Thickness(0, 0, 8, 0),
+        });
+        _txtMuteBrightness = new TextBlock
+        {
+            Text = "15%", Style = FindResource("SecondaryText") as Style, VerticalAlignment = VerticalAlignment.Center,
+        };
+        headerRow.Children.Add(_txtMuteBrightness);
+        MuteBrightnessPanel.Children.Add(headerRow);
+
+        MuteBrightnessPanel.Children.Add(new TextBlock
+        {
+            Text = "How bright LEDs are when the app is muted (ProgramMute / AppGroupMute effects).",
+            Style = FindResource("SecondaryText") as Style, Margin = new Thickness(0, 0, 0, 6), TextWrapping = TextWrapping.Wrap,
+        });
+
+        _sldMuteBrightness = new Controls.StyledSlider
+        {
+            Minimum = 0, Maximum = 100, Value = 15,
+            Height = 35, AccentColor = ThemeManager.Accent, ShowLabel = false,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            ToolTip = "0% = fully off when muted, 15% = dim (default), 100% = same brightness as unmuted",
+        };
+        _sldMuteBrightness.ValueChanged += (_, _) =>
+        {
+            if (_txtMuteBrightness != null) _txtMuteBrightness.Text = $"{(int)_sldMuteBrightness.Value}%";
+            if (!_loading) OnValueChanged(null, EventArgs.Empty);
+        };
+        MuteBrightnessPanel.Children.Add(_sldMuteBrightness);
+    }
 
     private void BuildGammaSliders()
     {
