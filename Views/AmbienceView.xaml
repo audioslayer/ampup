@@ -5,20 +5,20 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <!-- Top bar: settings link + status -->
-            <RowDefinition Height="Auto" />
-            <!-- Setup prompt OR device cards -->
+            <!-- Main content area -->
             <RowDefinition Height="*" />
+            <!-- Footer: settings link + status -->
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Top bar -->
-        <Border Grid.Row="0" Style="{StaticResource CardPanel}" Margin="0,0,0,12">
-            <StackPanel x:Name="TopBar" />
-        </Border>
-
         <!-- Main content area -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel x:Name="DevicePanel" Margin="0,0,0,24" />
         </ScrollViewer>
+
+        <!-- Footer bar -->
+        <Border Grid.Row="1" Style="{StaticResource CardPanel}" Margin="0,8,0,0">
+            <StackPanel x:Name="TopBar" />
+        </Border>
     </Grid>
 </UserControl>
