@@ -290,7 +290,7 @@ public partial class RoomView : UserControl
                 if (on) { StopRoomPattern(); _activePattern = "__sync__"; _config.Ambience.LinkToLights = true; _config.Corsair.LightSyncMode = "vu_reactive"; }
                 else { _activePattern = null; _config.Ambience.LinkToLights = false; _config.Corsair.LightSyncMode = "static"; }
                 QueueSave(); RebuildRoomTabContent();
-            }));
+            }, Color.FromRgb(0x69, 0xF0, 0xAE))); // green
 
         // Music Reactive tile
         bool musicActive = _corsairMusicTimer?.IsEnabled == true;
@@ -299,7 +299,7 @@ public partial class RoomView : UserControl
             {
                 if (_loading) return;
                 if (on) StartGlobalMusicSync(); else StopCorsairMusicSync();
-            }));
+            }, Color.FromRgb(0xFF, 0xB8, 0x00))); // amber
 
         // Screen Sync tile
         bool gameModeOn = _config!.Ambience.GameModeEnabled;
@@ -317,7 +317,7 @@ public partial class RoomView : UserControl
                 }
                 screenSyncPanel.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
                 QueueSave();
-            }));
+            }, Color.FromRgb(0x44, 0x8A, 0xFF))); // blue
 
         // DreamView status — built here, added to screen sync settings panel below
         bool syncRunning = _config.Ambience.ScreenSync.Enabled;
@@ -1991,10 +1991,11 @@ public partial class RoomView : UserControl
 
     // ── Room preset/color helpers ──────────────────────────────────
 
-    private Border BuildToggleTile(string icon, string title, string subtitle, bool initialActive, Action<bool> onToggle)
+    private Border BuildToggleTile(string icon, string title, string subtitle, bool initialActive, Action<bool> onToggle, Color? iconColor = null)
     {
         bool isActive = initialActive;
         var accent = ThemeManager.Accent;
+        var icoColor = iconColor ?? accent;
 
         var tile = new Border
         {
@@ -2006,7 +2007,7 @@ public partial class RoomView : UserControl
             MinWidth = 180,
         };
 
-        var iconText = new TextBlock { Text = icon, FontSize = 16, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
+        var iconText = new TextBlock { Text = icon, FontSize = 16, Foreground = new SolidColorBrush(icoColor), Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
         var titleText = new TextBlock { Text = title, FontSize = 11, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
         var subtitleText = new TextBlock { Text = subtitle, FontSize = 9, Margin = new Thickness(0, 2, 0, 0) };
 
