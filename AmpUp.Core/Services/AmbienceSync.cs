@@ -296,8 +296,7 @@ public class AmbienceSync : IDisposable
 
     private static (int R, int G, int B) DeriveColor(byte[] linear45)
     {
-        // Average all 15 LEDs so dimming/pulsing effects are visible on the bulb.
-        // Boost by 1.5x to compensate for averaging reducing brightness.
+        // Average all 15 LEDs — captures both bright and dim phases of effects
         int rSum = 0, gSum = 0, bSum = 0;
         for (int i = 0; i < 15; i++)
         {
@@ -305,10 +304,7 @@ public class AmbienceSync : IDisposable
             gSum += linear45[i * 3 + 1];
             bSum += linear45[i * 3 + 2];
         }
-        int r = Math.Min(rSum * 3 / 30, 255); // avg * 1.5, clamped
-        int g = Math.Min(gSum * 3 / 30, 255);
-        int b = Math.Min(bSum * 3 / 30, 255);
-        return (r, g, b);
+        return (rSum / 15, gSum / 15, bSum / 15);
     }
 
     private static (int R, int G, int B) ApplySettings(int r, int g, int b, AmbienceConfig cfg)
@@ -545,7 +541,7 @@ public class AmbienceSync : IDisposable
     /// <summary>
     /// Sets a Govee device to a specific color via LAN UDP.
     /// </summary>
-    public static async Task SendColorAsync(string ip, byte r, byte g, byte b, int durationMs = 0)
+    public static async Task SendColorAsync(string ip, byte r, byte g, byte b, int durationMs = 30)
     {
         if (string.IsNullOrWhiteSpace(ip)) return;
         try
