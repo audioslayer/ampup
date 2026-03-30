@@ -18,11 +18,13 @@ public class AmbienceSync : IDisposable
 
     // Per-device last-sent color for delta throttling
     private readonly Dictionary<string, (byte R, byte G, byte B)> _lastSent = new();
+    private readonly HashSet<string> _segmentEnabled = new();
 
-    // Rate limiter: Govee LAN max ~10 sends/sec, but we can push closer to that limit
-    // Send up to 30 FPS — matches DreamSync rate, safe for all known Govee LAN devices
+    // Rate limiter: Govee LAN max ~10 sends/sec
+    // 100ms between sends = 10 FPS — matches Govee's actual rate limit
+    // Faster than this causes devices to buffer/drop commands, killing animations
     private readonly Dictionary<string, long> _lastSendTick = new();
-    private const long MinTicksBetweenSends = TimeSpan.TicksPerMillisecond * 33; // ~30 FPS cap
+    private const long MinTicksBetweenSends = TimeSpan.TicksPerMillisecond * 100; // 10 FPS
 
     public AmbienceSync(AmbienceConfig config)
     {
@@ -99,13 +101,7 @@ public class AmbienceSync : IDisposable
         foreach (var device in cfg.GoveeDevices)
         {
             if (string.IsNullOrWhiteSpace(device.Ip)) continue;
-
-            // Skip devices that are off, under manual control, or with sync disabled
             if (!device.PoweredOn || device.SyncMode == "off" || IsSyncPaused(device.Ip)) continue;
-
-            // Mirror the global average color across all LEDs
-            var (r, g, b) = DeriveColor(linear45);
-            (r, g, b) = ApplySettings(r, g, b, cfg);
 
             // Rate limit: skip if sent too recently
             var now = DateTime.UtcNow.Ticks;
@@ -113,24 +109,53 @@ public class AmbienceSync : IDisposable
                 now - lastTick < MinTicksBetweenSends)
                 continue;
 
-            // Delta threshold: skip if color barely changed
-            if (_lastSent.TryGetValue(device.Ip, out var prev))
-            {
-                int dr = Math.Abs(r - prev.R);
-                int dg = Math.Abs(g - prev.G);
-                int db = Math.Abs(b - prev.B);
-                // Send if any channel changed by more than 3, or as keepalive every 200ms
-                // Higher threshold reduces jittery updates, letting duration-based transitions smooth out
-                bool significantChange = dr > 3 || dg > 3 || db > 3;
-                bool keepalive = now - lastTick > TimeSpan.TicksPerMillisecond * 200;
-                if (!significantChange && !keepalive) continue;
-            }
-
-            _lastSent[device.Ip] = ((byte)r, (byte)g, (byte)b);
-            _lastSendTick[device.Ip] = now;
-
+            int segCount = GetSegmentCount(device);
             string ip = device.Ip;
-            _ = Task.Run(() => SendGoveeColor(ip, r, g, b));
+
+            if (segCount > 0 && device.UseSegmentProtocol)
+            {
+                // Per-segment: map Turn Up's 15 LEDs to device segments
+                var segColors = new (byte R, byte G, byte B)[segCount];
+                for (int s = 0; s < segCount; s++)
+                {
+                    int srcIdx = s * 15 / segCount;
+                    int r = linear45[srcIdx * 3];
+                    int g = linear45[srcIdx * 3 + 1];
+                    int b = linear45[srcIdx * 3 + 2];
+                    (r, g, b) = ApplySettings(r, g, b, cfg);
+                    segColors[s] = ((byte)r, (byte)g, (byte)b);
+                }
+
+                // Enable segment mode on first send
+                if (!_segmentEnabled.Contains(ip))
+                {
+                    _segmentEnabled.Add(ip);
+                    _ = Task.Run(() => SendSegmentEnable(ip, true));
+                    Thread.Sleep(20);
+                }
+
+                _lastSendTick[ip] = now;
+                _ = Task.Run(() => SendSegmentColors(ip, segColors));
+            }
+            else
+            {
+                // Single color: use brightest LED
+                var (r, g, b) = DeriveColor(linear45);
+                (r, g, b) = ApplySettings(r, g, b, cfg);
+
+                // Delta threshold
+                if (_lastSent.TryGetValue(ip, out var prev))
+                {
+                    int dr = Math.Abs(r - prev.R), dg = Math.Abs(g - prev.G), db = Math.Abs(b - prev.B);
+                    bool significantChange = dr > 3 || dg > 3 || db > 3;
+                    bool keepalive = now - lastTick > TimeSpan.TicksPerMillisecond * 200;
+                    if (!significantChange && !keepalive) continue;
+                }
+
+                _lastSent[ip] = ((byte)r, (byte)g, (byte)b);
+                _lastSendTick[ip] = now;
+                _ = Task.Run(() => SendGoveeColor(ip, r, g, b));
+            }
         }
     }
 
@@ -522,7 +547,7 @@ public class AmbienceSync : IDisposable
     /// <summary>
     /// Sets a Govee device to a specific color via LAN UDP.
     /// </summary>
-    public static async Task SendColorAsync(string ip, byte r, byte g, byte b, int durationMs = 50)
+    public static async Task SendColorAsync(string ip, byte r, byte g, byte b, int durationMs = 100)
     {
         if (string.IsNullOrWhiteSpace(ip)) return;
         try
@@ -575,6 +600,48 @@ public class AmbienceSync : IDisposable
     private static async Task SendGoveeBrightness(string ip, int value)
     {
         await SendBrightnessAsync(ip, value);
+    }
+
+    // ── Per-segment protocol (Govee "razer" command) ──────────────
+
+    private static byte XorChecksum(byte[] data, int length)
+    {
+        byte xor = 0;
+        for (int i = 0; i < length; i++) xor ^= data[i];
+        return xor;
+    }
+
+    private static async Task SendSegmentEnable(string ip, bool enable)
+    {
+        var pkt = new byte[] { 0xBB, 0x00, 0x01, 0xB1, (byte)(enable ? 1 : 0), 0 };
+        pkt[5] = XorChecksum(pkt, 5);
+        string b64 = Convert.ToBase64String(pkt);
+        string json = $"{{\"msg\":{{\"cmd\":\"razer\",\"data\":{{\"pt\":\"{b64}\"}}}}}}";
+        await SendLanCommand(ip, json);
+    }
+
+    private static async Task SendSegmentColors(string ip, (byte R, byte G, byte B)[] colors)
+    {
+        int count = colors.Length;
+        int payloadLen = 2 + 1 + count * 3;
+        int totalLen = 3 + payloadLen + 1;
+        var pkt = new byte[totalLen];
+        pkt[0] = 0xBB;
+        pkt[1] = (byte)(payloadLen >> 8);
+        pkt[2] = (byte)(payloadLen & 0xFF);
+        pkt[3] = 0xB0;
+        pkt[4] = 0x00;
+        pkt[5] = (byte)count;
+        for (int i = 0; i < count; i++)
+        {
+            pkt[6 + i * 3] = colors[i].R;
+            pkt[7 + i * 3] = colors[i].G;
+            pkt[8 + i * 3] = colors[i].B;
+        }
+        pkt[totalLen - 1] = XorChecksum(pkt, totalLen - 1);
+        string b64 = Convert.ToBase64String(pkt);
+        string json = $"{{\"msg\":{{\"cmd\":\"razer\",\"data\":{{\"pt\":\"{b64}\"}}}}}}";
+        await SendLanCommand(ip, json);
     }
 
     private static async Task SendGoveeColor(string ip, int r, int g, int b)
