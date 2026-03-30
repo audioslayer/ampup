@@ -19,6 +19,8 @@ public class AmbienceSync : IDisposable
     // Per-device last-sent color for delta throttling
     private readonly Dictionary<string, (byte R, byte G, byte B)> _lastSent = new();
     private readonly HashSet<string> _segmentEnabled = new();
+    private readonly Dictionary<string, long> _segmentKeepAliveTick = new();
+    private const long SegmentKeepAliveInterval = TimeSpan.TicksPerSecond * 25; // re-enable every 25s
 
     // Rate limiter: Govee LAN max ~10 sends/sec
     // 100ms between sends = 10 FPS — matches Govee's actual rate limit
@@ -126,10 +128,15 @@ public class AmbienceSync : IDisposable
                     segColors[s] = ((byte)r, (byte)g, (byte)b);
                 }
 
-                // Enable segment mode on first send
-                if (!_segmentEnabled.Contains(ip))
+                // Enable segment mode + keepalive every 25s (auto-disables after ~60s)
+                bool needEnable = !_segmentEnabled.Contains(ip);
+                if (!needEnable && _segmentKeepAliveTick.TryGetValue(ip, out long lastKa))
+                    needEnable = now - lastKa > SegmentKeepAliveInterval;
+
+                if (needEnable)
                 {
                     _segmentEnabled.Add(ip);
+                    _segmentKeepAliveTick[ip] = now;
                     _ = Task.Run(() => SendSegmentEnable(ip, true));
                     Thread.Sleep(20);
                 }
