@@ -119,8 +119,9 @@ public class AmbienceSync : IDisposable
                 int dr = Math.Abs(r - prev.R);
                 int dg = Math.Abs(g - prev.G);
                 int db = Math.Abs(b - prev.B);
-                // Send if any channel changed by more than 1, or as keepalive every 200ms
-                bool significantChange = dr > 1 || dg > 1 || db > 1;
+                // Send if any channel changed by more than 3, or as keepalive every 200ms
+                // Higher threshold reduces jittery updates, letting duration-based transitions smooth out
+                bool significantChange = dr > 3 || dg > 3 || db > 3;
                 bool keepalive = now - lastTick > TimeSpan.TicksPerMillisecond * 200;
                 if (!significantChange && !keepalive) continue;
             }
@@ -270,15 +271,21 @@ public class AmbienceSync : IDisposable
 
     private static (int R, int G, int B) DeriveColor(byte[] linear45)
     {
-        // Average all 15 LEDs (5 knobs × 3 LEDs) for a global room color
-        int rSum = 0, gSum = 0, bSum = 0;
+        // Use the brightest LED color (max luminance) instead of averaging.
+        // Averaging dilutes bright colors with dim ones, making Govee look washed out.
+        int bestR = 0, bestG = 0, bestB = 0;
+        int bestLum = 0;
         for (int i = 0; i < 15; i++)
         {
-            rSum += linear45[i * 3 + 0];
-            gSum += linear45[i * 3 + 1];
-            bSum += linear45[i * 3 + 2];
+            int r = linear45[i * 3], g = linear45[i * 3 + 1], b = linear45[i * 3 + 2];
+            int lum = r + g + b;
+            if (lum > bestLum)
+            {
+                bestLum = lum;
+                bestR = r; bestG = g; bestB = b;
+            }
         }
-        return (rSum / 15, gSum / 15, bSum / 15);
+        return (bestR, bestG, bestB);
     }
 
     private static (int R, int G, int B) ApplySettings(int r, int g, int b, AmbienceConfig cfg)
@@ -380,12 +387,36 @@ public class AmbienceSync : IDisposable
 
     /// <summary>
     /// Send a raw LAN UDP command to a Govee device.
+    /// Reuses a single UdpClient for lower latency on rapid color updates.
     /// </summary>
+    private static UdpClient? _sharedUdp;
+    private static readonly object _udpLock = new();
+
     private static async Task SendLanCommand(string ip, string json)
     {
         byte[] data = Encoding.UTF8.GetBytes(json);
-        using var udp = new UdpClient();
-        await udp.SendAsync(data, data.Length, ip, LanControlPort);
+        UdpClient udp;
+        lock (_udpLock)
+        {
+            if (_sharedUdp == null)
+            {
+                _sharedUdp = new UdpClient();
+                _sharedUdp.Client.SetSocketOption(
+                    SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            }
+            udp = _sharedUdp;
+        }
+        try
+        {
+            await udp.SendAsync(data, data.Length, ip, LanControlPort);
+        }
+        catch
+        {
+            // Socket might be stale — recreate and retry
+            lock (_udpLock) { try { _sharedUdp?.Dispose(); } catch { } _sharedUdp = null; }
+            using var fresh = new UdpClient();
+            await fresh.SendAsync(data, data.Length, ip, LanControlPort);
+        }
     }
 
     /// <summary>
@@ -491,12 +522,12 @@ public class AmbienceSync : IDisposable
     /// <summary>
     /// Sets a Govee device to a specific color via LAN UDP.
     /// </summary>
-    public static async Task SendColorAsync(string ip, byte r, byte g, byte b)
+    public static async Task SendColorAsync(string ip, byte r, byte g, byte b, int durationMs = 50)
     {
         if (string.IsNullOrWhiteSpace(ip)) return;
         try
         {
-            string json = $"{{\"msg\":{{\"cmd\":\"colorwc\",\"data\":{{\"color\":{{\"r\":{r},\"g\":{g},\"b\":{b}}},\"colorTemInKelvin\":0,\"duration\":0}}}}}}";
+            string json = $"{{\"msg\":{{\"cmd\":\"colorwc\",\"data\":{{\"color\":{{\"r\":{r},\"g\":{g},\"b\":{b}}},\"colorTemInKelvin\":0,\"duration\":{durationMs}}}}}}}";
             await SendLanCommand(ip, json);
         }
         catch (Exception ex)
