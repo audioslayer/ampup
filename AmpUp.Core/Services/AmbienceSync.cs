@@ -299,6 +299,68 @@ public class AmbienceSync : IDisposable
         return results;
     }
 
+    /// <summary>
+    /// Called by RoomView.OnRoomFrame for room pattern effects.
+    /// Sends full 15-LED frame with rate limiting and segment support.
+    /// </summary>
+    public void OnRoomFrame(byte[] linear45, AmbienceConfig cfg)
+    {
+        if (_disposed || !cfg.GoveeEnabled || cfg.GoveeDevices.Count == 0) return;
+
+        foreach (var device in cfg.GoveeDevices)
+        {
+            if (string.IsNullOrWhiteSpace(device.Ip) || !device.PoweredOn) continue;
+            if (device.SyncMode == "off" || IsSyncPaused(device.Ip)) continue;
+
+            var now = DateTime.UtcNow.Ticks;
+            if (_lastSendTick.TryGetValue(device.Ip, out long lastTick) &&
+                now - lastTick < MinTicksBetweenSends)
+                continue;
+
+            int segCount = GetSegmentCount(device);
+            string ip = device.Ip;
+
+            if (segCount > 0 && device.UseSegmentProtocol)
+            {
+                var segColors = new (byte R, byte G, byte B)[segCount];
+                for (int s = 0; s < segCount; s++)
+                {
+                    int srcIdx = s * 15 / segCount;
+                    int r2 = linear45[srcIdx * 3], g2 = linear45[srcIdx * 3 + 1], b2 = linear45[srcIdx * 3 + 2];
+                    (r2, g2, b2) = ApplySettings(r2, g2, b2, cfg);
+                    segColors[s] = ((byte)r2, (byte)g2, (byte)b2);
+                }
+                bool needEnable = !_segmentEnabled.Contains(ip);
+                if (!needEnable && _segmentKeepAliveTick.TryGetValue(ip, out long lastKa))
+                    needEnable = now - lastKa > SegmentKeepAliveInterval;
+                if (needEnable)
+                {
+                    _segmentEnabled.Add(ip);
+                    _segmentKeepAliveTick[ip] = now;
+                    _ = Task.Run(() => SendSegmentEnable(ip, true));
+                    Thread.Sleep(20);
+                }
+                _lastSendTick[ip] = now;
+                _ = Task.Run(() => SendSegmentColors(ip, segColors));
+            }
+            else
+            {
+                var (r, g, b) = DeriveColor(linear45);
+                (r, g, b) = ApplySettings(r, g, b, cfg);
+
+                if (_lastSent.TryGetValue(ip, out var prev))
+                {
+                    int dr = Math.Abs(r - prev.R), dg = Math.Abs(g - prev.G), db = Math.Abs(b - prev.B);
+                    if (dr <= 3 && dg <= 3 && db <= 3 && now - lastTick <= TimeSpan.TicksPerMillisecond * 200)
+                        continue;
+                }
+                _lastSent[ip] = ((byte)r, (byte)g, (byte)b);
+                _lastSendTick[ip] = now;
+                _ = Task.Run(() => SendGoveeColor(ip, r, g, b));
+            }
+        }
+    }
+
     // ── Color derivation ────────────────────────────────────────────
 
     private static (int R, int G, int B) DeriveColor(byte[] linear45)

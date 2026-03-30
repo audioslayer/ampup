@@ -2516,14 +2516,10 @@ public partial class RoomView : UserControl
             b = (byte)(b * brightness);
         }
 
-        // Send to Govee (rate limited by AmbienceSync) — skipped for Corsair-only patterns
+        // Send full frame to Govee via AmbienceSync (rate limited, segment-aware)
         if (!_roomPatternCorsairOnly && _config.Ambience.GoveeEnabled)
         {
-            foreach (var dev in _config.Ambience.GoveeDevices)
-            {
-                if (string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn) continue;
-                _ = AmbienceSync.SendColorAsync(dev.Ip, r, g, b);
-            }
+            _sync?.OnRoomFrame(linearColors, _config.Ambience);
         }
 
         // Send full 15-LED frame to Corsair (maps across all device LEDs)
