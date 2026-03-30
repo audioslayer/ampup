@@ -22,11 +22,10 @@ public class AmbienceSync : IDisposable
     private readonly Dictionary<string, long> _segmentKeepAliveTick = new();
     private const long SegmentKeepAliveInterval = TimeSpan.TicksPerSecond * 25; // re-enable every 25s
 
-    // Rate limiter: Govee LAN max ~10 sends/sec
-    // 100ms between sends = 10 FPS — matches Govee's actual rate limit
-    // Faster than this causes devices to buffer/drop commands, killing animations
+    // Rate limiter: Govee LAN max ~10 commands/sec
+    // 200ms between updates = 5 FPS — leaves room for color+brightness (2 commands per update)
     private readonly Dictionary<string, long> _lastSendTick = new();
-    private const long MinTicksBetweenSends = TimeSpan.TicksPerMillisecond * 100; // 10 FPS
+    private const long MinTicksBetweenSends = TimeSpan.TicksPerMillisecond * 200; // 5 FPS (2 cmds each)
 
     public AmbienceSync(AmbienceConfig config)
     {
@@ -310,7 +309,7 @@ public class AmbienceSync : IDisposable
         foreach (var device in cfg.GoveeDevices)
         {
             if (string.IsNullOrWhiteSpace(device.Ip) || !device.PoweredOn) continue;
-            if (device.SyncMode == "off" || IsSyncPaused(device.Ip)) continue;
+            // Don't check IsSyncPaused here — room pattern IS the sender (it paused LED sync)
 
             var now = DateTime.UtcNow.Ticks;
             if (_lastSendTick.TryGetValue(device.Ip, out long lastTick) &&
@@ -356,7 +355,27 @@ public class AmbienceSync : IDisposable
                 }
                 _lastSent[ip] = ((byte)r, (byte)g, (byte)b);
                 _lastSendTick[ip] = now;
-                _ = Task.Run(() => SendGoveeColor(ip, r, g, b));
+
+                // Derive brightness from max RGB channel — send as separate brightness command
+                // This makes bulbs actually dim/brighten with effects (colorwc alone doesn't dim)
+                int brightness = Math.Max(r, Math.Max(g, b));
+                int brightPct = Math.Clamp(brightness * 100 / 255, 1, 100);
+
+                // Normalize color to full saturation (so dimming comes from brightness, not dark colors)
+                if (brightness > 0)
+                {
+                    r = r * 255 / brightness;
+                    g = g * 255 / brightness;
+                    b = b * 255 / brightness;
+                }
+
+                int captR = r, captG = g, captB = b;
+                int captBright = brightPct;
+                _ = Task.Run(async () =>
+                {
+                    await SendColorAsync(ip, (byte)captR, (byte)captG, (byte)captB);
+                    await SendBrightnessAsync(ip, captBright);
+                });
             }
         }
     }
