@@ -366,14 +366,32 @@ public class AmbienceSync : IDisposable
         }
         else
         {
-            // ── Mirror mode: all devices show same averaged color via colorwc ──
-            // Using single-color for all devices avoids segment enable/disable issues
-            var (ar, ag, ab) = DeriveColor(linear45);
-            (ar, ag, ab) = ApplySettings(ar, ag, ab, cfg);
-
-            foreach (var (device, _) in activeDevices)
+            // ── Mirror mode: every device shows the same effect ──
+            foreach (var (device, zones) in activeDevices)
             {
-                SendDeviceFrame(device, new[] { (ar, ag, ab) }, false);
+                bool isSeg = zones > 1 && device.UseSegmentProtocol;
+                if (isSeg)
+                {
+                    // Segment devices: map 15 LEDs to device segments directly
+                    var segColors = new (int R, int G, int B)[zones];
+                    for (int s = 0; s < zones; s++)
+                    {
+                        int srcIdx = s * 15 / zones;
+                        int r = linear45[srcIdx * 3];
+                        int g = linear45[srcIdx * 3 + 1];
+                        int b = linear45[srcIdx * 3 + 2];
+                        (r, g, b) = ApplySettings(r, g, b, cfg);
+                        segColors[s] = (r, g, b);
+                    }
+                    SendDeviceFrame(device, segColors, true);
+                }
+                else
+                {
+                    // Single-color: brightest LED
+                    var (r, g, b) = DeriveColor(linear45);
+                    (r, g, b) = ApplySettings(r, g, b, cfg);
+                    SendDeviceFrame(device, new[] { (r, g, b) }, false);
+                }
             }
         }
     }
