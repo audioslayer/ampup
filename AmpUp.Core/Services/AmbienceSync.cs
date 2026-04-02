@@ -367,11 +367,14 @@ public class AmbienceSync : IDisposable
         }
         else
         {
-            // ── Mirror mode: every device shows the same effect independently ──
-            foreach (var (device, zones) in activeDevices)
+            // ── Mirror mode: all devices show same averaged color via colorwc ──
+            // Using single-color for all devices avoids segment enable/disable issues
+            var (ar, ag, ab) = DeriveColor(linear45);
+            (ar, ag, ab) = ApplySettings(ar, ag, ab, cfg);
+
+            foreach (var (device, _) in activeDevices)
             {
-                var colors = SampleZoneColors(linear45, zones, cfg);
-                SendDeviceFrame(device, colors, zones > 1 && device.UseSegmentProtocol);
+                SendDeviceFrame(device, new[] { (ar, ag, ab) }, false);
             }
         }
     }
