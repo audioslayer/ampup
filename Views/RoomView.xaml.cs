@@ -3099,6 +3099,7 @@ public partial class RoomView : UserControl
                     if (brightness > 0)
                     {
                         int nr = hr * 255 / brightness, ng = hg * 255 / brightness, nb = hb * 255 / brightness;
+                        Logger.Log($"[Room] HA send: {dev.DeviceId} rgb=({nr},{ng},{nb}) bright={brightness}");
                         _ha.SetLightColorFireAndForget(dev.DeviceId,
                             (byte)nr, (byte)ng, (byte)nb, Math.Max(brightness, 1));
                     }

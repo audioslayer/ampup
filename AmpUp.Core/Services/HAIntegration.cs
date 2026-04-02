@@ -180,6 +180,7 @@ public class HAIntegration : IDisposable
     /// </summary>
     public void SetLightColorFireAndForget(string entityId, byte r, byte g, byte b, int brightness = 255)
     {
+        Logger.Log($"[HA] SetLightColor: {entityId} rgb=({r},{g},{b}) bright={brightness} http={_http != null}");
         CallServiceFireAndForget("light", "turn_on", new
         {
             entity_id = entityId,
