@@ -2913,8 +2913,8 @@ public partial class RoomView : UserControl
             foreach (var dev in _config.Ambience.GoveeDevices)
             {
                 if (string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn) continue;
-                AmbienceSync.PauseSync(dev.Ip, 30);
                 _ = AmbienceSync.SendColorAsync(dev.Ip, r, g, b);
+                _ = AmbienceSync.SendBrightnessAsync(dev.Ip, 100);
             }
         // Corsair
         if (_corsairSync?.IsAvailable == true && _config?.Corsair.Enabled == true)
@@ -2947,14 +2947,11 @@ public partial class RoomView : UserControl
             _config.Corsair.LightSyncMode = "static";
         }
 
-        // Pause Govee ambient sync and set all devices to max brightness
+        // Set all devices to max brightness (dimming is in RGB values)
         if (!corsairOnly && _config?.Ambience.GoveeEnabled == true)
             foreach (var dev in _config.Ambience.GoveeDevices)
                 if (!string.IsNullOrWhiteSpace(dev.Ip))
-                {
-                    AmbienceSync.PauseSync(dev.Ip, 99999);
                     _ = AmbienceSync.SendBrightnessAsync(dev.Ip, 100);
-                }
 
         // Create a headless RgbController to render effects
         _roomRgb = new RgbController();
