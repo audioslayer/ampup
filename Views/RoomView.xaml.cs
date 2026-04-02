@@ -429,6 +429,16 @@ public partial class RoomView : UserControl
                     out var statusUpdater);
                 row.Children.Add(screenSyncTile);
 
+                // Spatial sync toggle (Mirror vs Spatial)
+                bool spatial = _config.Ambience.SpatialSync;
+                row.Children.Add(BuildToggleTile("↔", "SPATIAL", spatial ? "Effect flows across devices" : "All devices show same effect",
+                    spatial, on =>
+                    {
+                        if (_loading || _config == null) return;
+                        _config.Ambience.SpatialSync = on;
+                        QueueSave(); RebuildRoomTabContent();
+                    }, Color.FromRgb(0xBB, 0x86, 0xFC)));
+
                 // Screen Sync settings panel (rebuilt each time for simplicity)
                 if (_screenSyncSettingsPanel != null)
                     _roomTabContent?.Children.Remove(_screenSyncSettingsPanel);
@@ -2530,11 +2540,16 @@ public partial class RoomView : UserControl
             _config.Corsair.LightSyncMode = "static";
         }
 
-        // Pause Govee ambient sync (only when not corsair-only — Govee isn't being driven anyway)
+        // Pause Govee ambient sync and set bulb brightness to 100% (brightness is pre-scaled into RGB)
         if (!corsairOnly && _config?.Ambience.GoveeEnabled == true)
             foreach (var dev in _config.Ambience.GoveeDevices)
                 if (!string.IsNullOrWhiteSpace(dev.Ip))
+                {
                     AmbienceSync.PauseSync(dev.Ip, 99999);
+                    // Set single-color devices to max brightness — dimming is baked into RGB values
+                    if (AmbienceSync.GetSegmentCount(dev) == 0)
+                        _ = AmbienceSync.SendBrightnessAsync(dev.Ip, 100);
+                }
 
         // Create a headless RgbController to render effects
         _roomRgb = new RgbController();

@@ -296,6 +296,7 @@ public class AmbienceConfig
     public ScreenSyncConfig ScreenSync { get; set; } = new();
     public bool GameModeEnabled { get; set; } = false;
     public bool GoveeSyncToGlobal { get; set; } = true; // Govee follows Global tab effects
+    public bool SpatialSync { get; set; } = false; // false=Mirror (all same), true=Spatial (flow across)
 }
 
 public class GoveeDeviceConfig

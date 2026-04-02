@@ -23,11 +23,11 @@ public class AmbienceSync : IDisposable
     private const long SegmentKeepAliveInterval = TimeSpan.TicksPerSecond * 25; // re-enable every 25s
 
     // Rate limiter: Govee LAN max ~10 commands/sec per device
-    // Segment devices: 1 packet per update → 100ms (10 FPS)
-    // Single-color devices: 2 packets (color+brightness) → 200ms (5 FPS)
+    // All devices now 1 packet per update → 100ms (10 FPS)
+    // Bulbs: brightness pre-scaled into RGB (no separate brightness command)
     private readonly Dictionary<string, long> _lastSendTick = new();
     private const long MinTicksSegment = TimeSpan.TicksPerMillisecond * 100;  // 10 FPS
-    private const long MinTicksSingle  = TimeSpan.TicksPerMillisecond * 200;  // 5 FPS
+    private const long MinTicksSingle  = TimeSpan.TicksPerMillisecond * 100;  // 10 FPS (was 200ms when sending 2 cmds)
 
     public AmbienceSync(AmbienceConfig config)
     {
@@ -309,112 +309,113 @@ public class AmbienceSync : IDisposable
     {
         if (_disposed || !cfg.GoveeEnabled || cfg.GoveeDevices.Count == 0) return;
 
-        // ── Spatial mapping: treat all devices as one continuous strip ──
-        // Calculate total zones across all active devices so effects flow between them
+        // Collect active devices with their zone counts
         var activeDevices = new List<(GoveeDeviceConfig Dev, int Zones)>();
-        int totalZones = 0;
         foreach (var device in cfg.GoveeDevices)
         {
             if (string.IsNullOrWhiteSpace(device.Ip) || !device.PoweredOn) continue;
             int segs = (GetSegmentCount(device) > 0 && device.UseSegmentProtocol)
-                ? GetSegmentCount(device) : 1; // bulbs/lamps = 1 zone
+                ? GetSegmentCount(device) : 1;
             activeDevices.Add((device, segs));
-            totalZones += segs;
         }
-        if (totalZones == 0) return;
+        if (activeDevices.Count == 0) return;
 
-        // Sample colors from 15 LEDs mapped across all zones with interpolation
-        var zoneColors = new (int R, int G, int B)[totalZones];
-        for (int z = 0; z < totalZones; z++)
+        if (cfg.SpatialSync)
         {
-            // Map zone position to a fractional LED index for smooth interpolation
-            float ledPos = z * 14f / Math.Max(totalZones - 1, 1);
+            // ── Spatial mode: effects flow across all devices as one strip ──
+            int totalZones = 0;
+            foreach (var (_, z) in activeDevices) totalZones += z;
+
+            var zoneColors = SampleZoneColors(linear45, totalZones, cfg);
+
+            int zoneOffset = 0;
+            foreach (var (device, zones) in activeDevices)
+            {
+                var colors = new (int R, int G, int B)[zones];
+                for (int i = 0; i < zones; i++)
+                    colors[i] = zoneColors[zoneOffset + i];
+                SendDeviceFrame(device, colors, zones > 1 && device.UseSegmentProtocol);
+                zoneOffset += zones;
+            }
+        }
+        else
+        {
+            // ── Mirror mode: every device shows the same effect independently ──
+            foreach (var (device, zones) in activeDevices)
+            {
+                var colors = SampleZoneColors(linear45, zones, cfg);
+                SendDeviceFrame(device, colors, zones > 1 && device.UseSegmentProtocol);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Sample N zone colors from 15 LEDs with smooth interpolation.
+    /// </summary>
+    private static (int R, int G, int B)[] SampleZoneColors(byte[] linear45, int zoneCount, AmbienceConfig cfg)
+    {
+        var colors = new (int R, int G, int B)[zoneCount];
+        for (int z = 0; z < zoneCount; z++)
+        {
+            float ledPos = z * 14f / Math.Max(zoneCount - 1, 1);
             int lo = Math.Min((int)ledPos, 13);
             int hi = Math.Min(lo + 1, 14);
             float frac = ledPos - lo;
 
-            // Lerp between adjacent LEDs for smooth color transitions
             int r = (int)(linear45[lo * 3] * (1 - frac) + linear45[hi * 3] * frac);
             int g = (int)(linear45[lo * 3 + 1] * (1 - frac) + linear45[hi * 3 + 1] * frac);
             int b = (int)(linear45[lo * 3 + 2] * (1 - frac) + linear45[hi * 3 + 2] * frac);
             (r, g, b) = ApplySettings(r, g, b, cfg);
-            zoneColors[z] = (r, g, b);
+            colors[z] = (r, g, b);
         }
+        return colors;
+    }
 
-        // ── Distribute zones to each device ──
-        int zoneOffset = 0;
-        foreach (var (device, zones) in activeDevices)
+    /// <summary>
+    /// Send a frame to a single device. Handles rate limiting, segments, and single-color.
+    /// Single-color devices pre-scale brightness into RGB (1 packet instead of 2 → 10 FPS).
+    /// </summary>
+    private void SendDeviceFrame(GoveeDeviceConfig device, (int R, int G, int B)[] colors, bool isSegment)
+    {
+        string ip = device.Ip;
+        var now = DateTime.UtcNow.Ticks;
+        long minTicks = isSegment ? MinTicksSegment : MinTicksSegment; // all 10 FPS now (single packet)
+        if (_lastSendTick.TryGetValue(ip, out long lastTick) && now - lastTick < minTicks)
+            return;
+
+        if (isSegment)
         {
-            var now = DateTime.UtcNow.Ticks;
-            string ip = device.Ip;
-            bool isSegment = zones > 1 && device.UseSegmentProtocol;
-            long minTicks = isSegment ? MinTicksSegment : MinTicksSingle;
-            if (_lastSendTick.TryGetValue(ip, out long lastTick) &&
-                now - lastTick < minTicks)
+            var segColors = new (byte R, byte G, byte B)[colors.Length];
+            for (int i = 0; i < colors.Length; i++)
+                segColors[i] = ((byte)colors[i].R, (byte)colors[i].G, (byte)colors[i].B);
+
+            bool needEnable = !_segmentEnabled.Contains(ip);
+            if (!needEnable && _segmentKeepAliveTick.TryGetValue(ip, out long lastKa))
+                needEnable = now - lastKa > SegmentKeepAliveInterval;
+            if (needEnable)
             {
-                zoneOffset += zones;
-                continue;
+                _segmentEnabled.Add(ip);
+                _segmentKeepAliveTick[ip] = now;
+                _ = Task.Run(() => SendSegmentEnable(ip, true));
+                Thread.Sleep(20);
             }
+            _lastSendTick[ip] = now;
+            _ = Task.Run(() => SendSegmentColors(ip, segColors));
+        }
+        else
+        {
+            // Pre-scale brightness into RGB — single colorwc packet, no separate brightness needed
+            var (r, g, b) = colors[0];
 
-            if (isSegment)
+            if (_lastSent.TryGetValue(ip, out var prev))
             {
-                // Segment device: send per-segment colors from its zone range
-                var segColors = new (byte R, byte G, byte B)[zones];
-                for (int s = 0; s < zones; s++)
-                    segColors[s] = ((byte)zoneColors[zoneOffset + s].R,
-                                    (byte)zoneColors[zoneOffset + s].G,
-                                    (byte)zoneColors[zoneOffset + s].B);
-
-                bool needEnable = !_segmentEnabled.Contains(ip);
-                if (!needEnable && _segmentKeepAliveTick.TryGetValue(ip, out long lastKa))
-                    needEnable = now - lastKa > SegmentKeepAliveInterval;
-                if (needEnable)
-                {
-                    _segmentEnabled.Add(ip);
-                    _segmentKeepAliveTick[ip] = now;
-                    _ = Task.Run(() => SendSegmentEnable(ip, true));
-                    Thread.Sleep(20);
-                }
-                _lastSendTick[ip] = now;
-                _ = Task.Run(() => SendSegmentColors(ip, segColors));
+                int dr = Math.Abs(r - prev.R), dg = Math.Abs(g - prev.G), db = Math.Abs(b - prev.B);
+                if (dr <= 3 && dg <= 3 && db <= 3 && now - lastTick <= TimeSpan.TicksPerMillisecond * 150)
+                    return;
             }
-            else
-            {
-                // Single-color device (bulb/lamp): use its assigned zone color
-                var (r, g, b) = zoneColors[zoneOffset];
-
-                if (_lastSent.TryGetValue(ip, out var prev))
-                {
-                    int dr = Math.Abs(r - prev.R), dg = Math.Abs(g - prev.G), db = Math.Abs(b - prev.B);
-                    if (dr <= 3 && dg <= 3 && db <= 3 && now - lastTick <= TimeSpan.TicksPerMillisecond * 200)
-                    {
-                        zoneOffset += zones;
-                        continue;
-                    }
-                }
-                _lastSent[ip] = ((byte)r, (byte)g, (byte)b);
-                _lastSendTick[ip] = now;
-
-                // Separate brightness from color so bulbs actually dim/brighten
-                int brightness = Math.Max(r, Math.Max(g, b));
-                int brightPct = Math.Clamp(brightness * 100 / 255, 1, 100);
-                if (brightness > 0)
-                {
-                    r = r * 255 / brightness;
-                    g = g * 255 / brightness;
-                    b = b * 255 / brightness;
-                }
-
-                int captR = r, captG = g, captB = b;
-                int captBright = brightPct;
-                _ = Task.Run(async () =>
-                {
-                    await SendColorAsync(ip, (byte)captR, (byte)captG, (byte)captB);
-                    await SendBrightnessAsync(ip, captBright);
-                });
-            }
-
-            zoneOffset += zones;
+            _lastSent[ip] = ((byte)r, (byte)g, (byte)b);
+            _lastSendTick[ip] = now;
+            _ = Task.Run(() => SendGoveeColor(ip, r, g, b));
         }
     }
 
