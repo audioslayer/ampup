@@ -175,6 +175,19 @@ public class HAIntegration : IDisposable
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Set a light's RGB color and brightness in one call (for room sync).
+    /// </summary>
+    public void SetLightColorFireAndForget(string entityId, byte r, byte g, byte b, int brightness = 255)
+    {
+        CallServiceFireAndForget("light", "turn_on", new
+        {
+            entity_id = entityId,
+            rgb_color = new[] { (int)r, (int)g, (int)b },
+            brightness,
+        });
+    }
+
     public Task SetMediaVolumeAsync(string entityId, float value)
     {
         CallServiceFireAndForget("media_player", "volume_set", new

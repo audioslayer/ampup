@@ -52,6 +52,12 @@ public partial class RoomView : UserControl
     // Room layout
     private AmpUp.Core.Engine.SpatialMapper? _spatialMapper;
     private Controls.RoomCanvasControl? _roomCanvas;
+
+    // Home Assistant integration (for HA light room sync)
+    private HAIntegration? _ha;
+    private readonly Dictionary<string, DateTime> _haLastSend = new();
+
+    public void SetHAIntegration(HAIntegration? ha) { _ha = ha; }
     private Color _corsairColor1 = Color.FromRgb(0xFF, 0xD3, 0x00);
     private Color _corsairColor2 = Color.FromRgb(0xFF, 0x70, 0x00);
 
@@ -785,6 +791,18 @@ public partial class RoomView : UserControl
             }
         }
 
+        // HA light add button (always shown when HA is enabled)
+        if (_config?.HomeAssistant.Enabled == true && _ha != null)
+        {
+            var haAddBtn = MakeDeviceTrayButton("+ HA Light", "ha", () =>
+            {
+                // Fetch HA light entities and show picker
+                _ = ShowHaLightPickerAsync(layout);
+            });
+            trayRow.Children.Add(haAddBtn);
+            anyUnplaced = true;
+        }
+
         if (!anyUnplaced)
         {
             trayRow.Children.Add(new TextBlock
@@ -824,6 +842,42 @@ public partial class RoomView : UserControl
         btn.Child = content;
         btn.MouseLeftButtonDown += (_, _) => onClick();
         return btn;
+    }
+
+    private async Task ShowHaLightPickerAsync(RoomLayout layout)
+    {
+        if (_ha == null) return;
+        try
+        {
+            var entities = await _ha.GetEntitiesAsync("light");
+            if (entities.Count == 0) return;
+
+            var placedIds = new HashSet<string>(layout.Devices.Select(d => d.DeviceId));
+            var available = entities.Where(e => !placedIds.Contains(e.EntityId)).ToList();
+            if (available.Count == 0) return;
+
+            // Add all available HA lights
+            foreach (var entity in available)
+            {
+                layout.Devices.Add(new RoomDevicePlacement
+                {
+                    DeviceType = "ha",
+                    DeviceId = entity.EntityId,
+                    Name = entity.FriendlyName,
+                    X = layout.WidthFt / 2,
+                    Y = layout.DepthFt / 2,
+                    Z = 4.0,
+                    SegmentCount = 1,
+                    LengthFt = 0.3,
+                });
+            }
+            OnLayoutChanged();
+            RebuildRoomTabContent();
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[Room] HA light fetch failed: {ex.Message}");
+        }
     }
 
     private void OnLayoutChanged()
@@ -3009,6 +3063,31 @@ public partial class RoomView : UserControl
             for (int i = 0; i < 45; i++)
                 boosted[i] = (byte)Math.Min(linearColors[i] * boost, 255);
             _corsairSync.SyncColors(boosted);
+        }
+
+        // ── HA lights in room layout (~2/sec — HA/BLE devices are slow) ──
+        if (_ha != null && _config.HomeAssistant.Enabled && _config.RoomLayout.Devices.Count > 0)
+        {
+            foreach (var dev in _config.RoomLayout.Devices)
+            {
+                if (dev.DeviceType != "ha") continue;
+                if (!_haLastSend.TryGetValue(dev.DeviceId, out var last) ||
+                    (DateTime.UtcNow - last).TotalMilliseconds >= 500)
+                {
+                    _haLastSend[dev.DeviceId] = DateTime.UtcNow;
+                    var sampled = _spatialMapper?.SampleForDevice(dev.DeviceId, linearColors, 1);
+                    if (sampled != null && sampled.Length > 0)
+                    {
+                        var c = sampled[0];
+                        int brightness = Math.Max(c.R, Math.Max(c.G, c.B));
+                        int br = brightness > 0 ? c.R * 255 / brightness : 0;
+                        int bg = brightness > 0 ? c.G * 255 / brightness : 0;
+                        int bb = brightness > 0 ? c.B * 255 / brightness : 0;
+                        _ha.SetLightColorFireAndForget(dev.DeviceId,
+                            (byte)br, (byte)bg, (byte)bb, Math.Max(brightness, 1));
+                    }
+                }
+            }
         }
 
         // ── Live preview on room canvas (throttled to ~10fps) ──

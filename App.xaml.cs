@@ -170,6 +170,7 @@ public partial class App : Application
         // Start Home Assistant integration
         _ha = new HAIntegration(_config.HomeAssistant);
         _buttons.SetHAIntegration(_ha);
+        _mainWindow.SetHAIntegration(_ha);
         if (_config.HomeAssistant.Enabled)
             _ = _ha.TestConnectionAsync(); // sets IsAvailable for knob routing
 

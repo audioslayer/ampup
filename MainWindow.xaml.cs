@@ -1336,6 +1336,11 @@ public partial class MainWindow : FluentWindow
         _settingsView.SetCorsairSync(corsairSync);
     }
 
+    public void SetHAIntegration(HAIntegration? ha)
+    {
+        _ambienceView.SetHAIntegration(ha);
+    }
+
     public void UpdateGoveeDeviceBrightness(string? ip, float normalized, bool poweredOn)
     {
         if (ip != null)
