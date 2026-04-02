@@ -47,6 +47,7 @@ public partial class RoomView : UserControl
     private RgbController? _roomRgb;
     private string? _activePattern;
     private bool _roomPatternCorsairOnly;
+    private DateTime _lastCloudRoomSend = DateTime.MinValue;
     private Color _corsairColor1 = Color.FromRgb(0xFF, 0xD3, 0x00);
     private Color _corsairColor2 = Color.FromRgb(0xFF, 0x70, 0x00);
 
@@ -590,7 +591,8 @@ public partial class RoomView : UserControl
     {
         if (_config == null) return;
 
-        if (!_config.Ambience.GoveeEnabled || _config.Ambience.GoveeDevices.Count == 0)
+        bool hasGoveeDevices = _config.Ambience.GoveeDevices.Count > 0 || _cloudDevices.Count > 0;
+        if ((!_config.Ambience.GoveeEnabled && !_config.Ambience.GoveeCloudEnabled) || !hasGoveeDevices)
         {
             stack.Children.Add(new TextBlock
             {
@@ -614,14 +616,23 @@ public partial class RoomView : UserControl
 
         foreach (var govDev in _config.Ambience.GoveeDevices)
         {
-            if (string.IsNullOrWhiteSpace(govDev.Ip)) continue;
+            bool hasLan = !string.IsNullOrWhiteSpace(govDev.Ip);
+            bool hasCloud = !string.IsNullOrWhiteSpace(govDev.DeviceId) && _cloudApi != null;
+            if (!hasLan && !hasCloud) continue;
             var devConfig = govDev;
+
+            // Find matching cloud device for cloud-only control
+            GoveeDeviceInfo? cloudDev = hasCloud
+                ? _cloudDevices.FirstOrDefault(c => c.Device == govDev.DeviceId)
+                : null;
 
             var devRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
 
+            var displayName = !string.IsNullOrWhiteSpace(govDev.Name) ? govDev.Name
+                : hasLan ? govDev.Ip : govDev.DeviceId;
             devRow.Children.Add(new TextBlock
             {
-                Text = !string.IsNullOrWhiteSpace(govDev.Name) ? govDev.Name : govDev.Ip,
+                Text = displayName,
                 FontSize = 12, FontWeight = FontWeights.SemiBold,
                 Foreground = FindBrush("TextPrimaryBrush"),
                 VerticalAlignment = VerticalAlignment.Center,
@@ -632,6 +643,7 @@ public partial class RoomView : UserControl
             var onOff = new CheckBox
             {
                 Content = "On", FontSize = 12,
+                IsChecked = devConfig.PoweredOn,
                 Foreground = FindBrush("TextPrimaryBrush"),
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 12, 0),
@@ -640,15 +652,25 @@ public partial class RoomView : UserControl
             {
                 if (_loading) return;
                 devConfig.PoweredOn = true;
-                AmbienceSync.PauseSync(devConfig.Ip, 5);
-                await AmbienceSync.SendTurnAsync(devConfig.Ip, true);
+                if (hasLan)
+                {
+                    AmbienceSync.PauseSync(devConfig.Ip, 5);
+                    await AmbienceSync.SendTurnAsync(devConfig.Ip, true);
+                }
+                else if (cloudDev != null)
+                    await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
+                        cloudDev.Device, cloudDev.Sku, GoveeCloudApi.TurnOnOff(true)));
                 _onSave?.Invoke(_config!);
             };
             onOff.Unchecked += async (_, _) =>
             {
                 if (_loading) return;
                 devConfig.PoweredOn = false;
-                await AmbienceSync.SendTurnAsync(devConfig.Ip, false);
+                if (hasLan)
+                    await AmbienceSync.SendTurnAsync(devConfig.Ip, false);
+                else if (cloudDev != null)
+                    await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
+                        cloudDev.Device, cloudDev.Sku, GoveeCloudApi.TurnOnOff(false)));
                 _onSave?.Invoke(_config!);
             };
             devRow.Children.Add(onOff);
@@ -668,25 +690,54 @@ public partial class RoomView : UserControl
                 if (pct == 0)
                 {
                     devConfig.PoweredOn = false;
-                    await AmbienceSync.SendTurnAsync(devConfig.Ip, false);
+                    if (hasLan)
+                        await AmbienceSync.SendTurnAsync(devConfig.Ip, false);
+                    else if (cloudDev != null)
+                        await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
+                            cloudDev.Device, cloudDev.Sku, GoveeCloudApi.TurnOnOff(false)));
                 }
                 else
                 {
                     if (!devConfig.PoweredOn)
                     {
                         devConfig.PoweredOn = true;
-                        await AmbienceSync.SendTurnAsync(devConfig.Ip, true);
+                        if (hasLan)
+                            await AmbienceSync.SendTurnAsync(devConfig.Ip, true);
+                        else if (cloudDev != null)
+                            await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
+                                cloudDev.Device, cloudDev.Sku, GoveeCloudApi.TurnOnOff(true)));
                     }
-                    AmbienceSync.PauseSync(devConfig.Ip, 5);
-                    await AmbienceSync.SendBrightnessAsync(devConfig.Ip, pct);
+                    if (hasLan)
+                    {
+                        AmbienceSync.PauseSync(devConfig.Ip, 5);
+                        await AmbienceSync.SendBrightnessAsync(devConfig.Ip, pct);
+                    }
+                    else if (cloudDev != null)
+                        await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
+                            cloudDev.Device, cloudDev.Sku, GoveeCloudApi.SetBrightness(pct)));
                 }
             };
             brightSlider.ValueChanged += (_, _) => { brightDebounce.Stop(); brightDebounce.Start(); };
             devRow.Children.Add(brightSlider);
 
+            // Cloud-only badge
+            if (!hasLan)
+            {
+                devRow.Children.Add(new TextBlock
+                {
+                    Text = "CLOUD",
+                    FontSize = 9, FontWeight = FontWeights.Bold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xB8, 0x00)),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(8, 0, 0, 0),
+                });
+            }
+
             goveeDeviceContent.Children.Add(devRow);
-            _deviceControls[devConfig.Ip] = (onOff, brightSlider);
-            _ = QueryDeviceStateAsync(devConfig.Ip, onOff, brightSlider);
+            string controlKey = hasLan ? devConfig.Ip : devConfig.DeviceId;
+            _deviceControls[controlKey] = (onOff, brightSlider);
+            if (hasLan)
+                _ = QueryDeviceStateAsync(devConfig.Ip, onOff, brightSlider);
         }
 
         // ── Scenes (Cloud API) ──
@@ -2565,6 +2616,21 @@ public partial class RoomView : UserControl
         if (!_roomPatternCorsairOnly && _config.Ambience.GoveeEnabled)
         {
             _sync?.OnRoomFrame(linearColors, _config.Ambience);
+
+            // Cloud-only devices (no LAN IP) — throttle to ~1/sec (Cloud API rate limit)
+            if (_cloudApi != null && (DateTime.UtcNow - _lastCloudRoomSend).TotalMilliseconds >= 1000)
+            {
+                _lastCloudRoomSend = DateTime.UtcNow;
+                foreach (var dev in _config.Ambience.GoveeDevices)
+                {
+                    if (!string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn) continue;
+                    if (string.IsNullOrWhiteSpace(dev.DeviceId)) continue;
+                    var cloud = _cloudDevices.FirstOrDefault(c => c.Device == dev.DeviceId);
+                    if (cloud == null) continue;
+                    _ = SafeCloudCall(() => _cloudApi.ControlDeviceAsync(
+                        cloud.Device, cloud.Sku, GoveeCloudApi.SetColor(r, g, b)));
+                }
+            }
         }
 
         // Send full 15-LED frame to Corsair (maps across all device LEDs)
