@@ -760,6 +760,11 @@ public class AmbienceSync : IDisposable
         return xor;
     }
 
+    public static async Task DisableSegmentMode(string ip)
+    {
+        await SendSegmentEnable(ip, false);
+    }
+
     private static async Task SendSegmentEnable(string ip, bool enable)
     {
         var pkt = new byte[] { 0xBB, 0x00, 0x01, 0xB1, (byte)(enable ? 1 : 0), 0 };
