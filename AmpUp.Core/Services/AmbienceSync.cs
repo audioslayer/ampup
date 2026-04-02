@@ -840,8 +840,9 @@ public class AmbienceSync : IDisposable
         "H6049" => 12,  // DreamView G1
         "H6043" => 15,  // DreamView TV Backlight
         "H6062" => 10,  // Glide Wall Light
-        "H610A" => 6,   // Glide Lively Wall Light (6 modular bars)
-        "H610B" => 6,   // Glide Lively Wall Light
+        // H610A/B Glide Lively: 24 LEDs but supportRazer=0, single-color only via LAN
+        "H610A" => 0,
+        "H610B" => 0,
         "H6601" => 10,  // Curtain Lights
         _ => 0
     };
@@ -860,8 +861,8 @@ public class AmbienceSync : IDisposable
         if (name.Contains("dreamview") && name.Contains("g1")) return 12;
         if (name.Contains("tv backlight")) return 20;
         if (name.Contains("tv light bar")) return 12;
-        if (name.Contains("glide")) return name.Contains("lively") ? 6 : 10;
-        if (name.Contains("wall light")) return 6;
+        if (name.Contains("glide") && !name.Contains("lively")) return 10; // H6062 original Glide
+        // H610A Glide Lively: no razer support, single-color only
         return 0;
     }
 
