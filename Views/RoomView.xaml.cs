@@ -791,16 +791,41 @@ public partial class RoomView : UserControl
             }
         }
 
-        // HA light add button (always shown when HA is enabled)
+        // HA lights — show "Scan HA" button if no cache, or individual buttons from cache
         if (_config?.HomeAssistant.Enabled == true && _ha != null)
         {
-            var haAddBtn = MakeDeviceTrayButton("+ HA Light", "ha", () =>
+            if (_haLightCache == null)
             {
-                // Fetch HA light entities and show picker
-                _ = ShowHaLightPickerAsync(layout);
-            });
-            trayRow.Children.Add(haAddBtn);
-            anyUnplaced = true;
+                var scanBtn = MakeDeviceTrayButton("Scan HA Lights", "ha", () =>
+                {
+                    _ = ShowHaLightPickerAsync(layout);
+                });
+                trayRow.Children.Add(scanBtn);
+                anyUnplaced = true;
+            }
+            else
+            {
+                foreach (var entity in _haLightCache)
+                {
+                    if (placedIds.Contains(entity.EntityId)) continue;
+                    if (entity.EntityId.Contains("segment_")) continue; // skip individual segments
+                    var eid = entity.EntityId;
+                    var ename = entity.FriendlyName;
+                    var addBtn = MakeDeviceTrayButton(ename, "ha", () =>
+                    {
+                        layout.Devices.Add(new RoomDevicePlacement
+                        {
+                            DeviceType = "ha", DeviceId = eid, Name = ename,
+                            X = layout.WidthFt / 2, Y = layout.DepthFt / 2, Z = 4.0,
+                            SegmentCount = 1, LengthFt = 0.3,
+                        });
+                        OnLayoutChanged();
+                        RebuildRoomTabContent();
+                    });
+                    trayRow.Children.Add(addBtn);
+                    anyUnplaced = true;
+                }
+            }
         }
 
         if (!anyUnplaced)
@@ -844,35 +869,16 @@ public partial class RoomView : UserControl
         return btn;
     }
 
+    private List<HAEntity>? _haLightCache;
+
     private async Task ShowHaLightPickerAsync(RoomLayout layout)
     {
         if (_ha == null) return;
         try
         {
-            var entities = await _ha.GetEntitiesAsync("light");
-            if (entities.Count == 0) return;
-
-            var placedIds = new HashSet<string>(layout.Devices.Select(d => d.DeviceId));
-            var available = entities.Where(e => !placedIds.Contains(e.EntityId)).ToList();
-            if (available.Count == 0) return;
-
-            // Add all available HA lights
-            foreach (var entity in available)
-            {
-                layout.Devices.Add(new RoomDevicePlacement
-                {
-                    DeviceType = "ha",
-                    DeviceId = entity.EntityId,
-                    Name = entity.FriendlyName,
-                    X = layout.WidthFt / 2,
-                    Y = layout.DepthFt / 2,
-                    Z = 4.0,
-                    SegmentCount = 1,
-                    LengthFt = 0.3,
-                });
-            }
-            OnLayoutChanged();
-            RebuildRoomTabContent();
+            // Fetch HA lights and rebuild tray to show individual add buttons
+            _haLightCache = await _ha.GetEntitiesAsync("light");
+            RebuildRoomTabContent(); // tray will now show individual HA light buttons
         }
         catch (Exception ex)
         {
