@@ -400,7 +400,7 @@ public class RoomCanvasControl : Canvas
                 {
                     var c = colors[segIdx];
                     child.Fill = new SolidColorBrush(Color.FromRgb(
-                        (byte)Math.Max(c.R, 20), (byte)Math.Max(c.G, 20), (byte)Math.Max(c.B, 20)));
+                        Math.Max(c.R, (byte)20), Math.Max(c.G, (byte)20), Math.Max(c.B, (byte)20)));
                     i++;
                 }
             }
@@ -412,7 +412,7 @@ public class RoomCanvasControl : Canvas
             foreach (var child in visual.Container.Children.OfType<Ellipse>())
             {
                 child.Fill = new SolidColorBrush(Color.FromRgb(
-                    (byte)Math.Max(c.R, 20), (byte)Math.Max(c.G, 20), (byte)Math.Max(c.B, 20)));
+                    Math.Max(c.R, (byte)20), Math.Max(c.G, (byte)20), Math.Max(c.B, (byte)20)));
             }
         }
     }
