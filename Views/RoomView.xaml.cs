@@ -2947,15 +2947,13 @@ public partial class RoomView : UserControl
             _config.Corsair.LightSyncMode = "static";
         }
 
-        // Pause Govee ambient sync and set bulb brightness to 100% (brightness is pre-scaled into RGB)
+        // Pause Govee ambient sync and set all devices to max brightness
         if (!corsairOnly && _config?.Ambience.GoveeEnabled == true)
             foreach (var dev in _config.Ambience.GoveeDevices)
                 if (!string.IsNullOrWhiteSpace(dev.Ip))
                 {
                     AmbienceSync.PauseSync(dev.Ip, 99999);
-                    // Set single-color devices to max brightness — dimming is baked into RGB values
-                    if (AmbienceSync.GetSegmentCount(dev) == 0)
-                        _ = AmbienceSync.SendBrightnessAsync(dev.Ip, 100);
+                    _ = AmbienceSync.SendBrightnessAsync(dev.Ip, 100);
                 }
 
         // Create a headless RgbController to render effects
