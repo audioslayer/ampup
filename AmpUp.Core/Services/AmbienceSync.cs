@@ -840,9 +840,8 @@ public class AmbienceSync : IDisposable
         "H6049" => 12,  // DreamView G1
         "H6043" => 15,  // DreamView TV Backlight
         "H6062" => 10,  // Glide Wall Light
-        // H610A/B Glide Lively: 24 LEDs but supportRazer=0, single-color only via LAN
-        "H610A" => 0,
-        "H610B" => 0,
+        "H610A" => 24,  // Glide Lively Wall Light (6 bars × 4 LEDs)
+        "H610B" => 24,
         "H6601" => 10,  // Curtain Lights
         _ => 0
     };

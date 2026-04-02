@@ -2933,6 +2933,7 @@ public partial class RoomView : UserControl
 
     private void StartRoomPattern(string patternId, Color? c1 = null, Color? c2 = null, bool corsairOnly = false)
     {
+        Logger.Log($"[Room] StartRoomPattern: {patternId} corsairOnly={corsairOnly}");
         StopRoomPattern();
         _activePattern = patternId;
         _roomPatternCorsairOnly = corsairOnly;
@@ -3007,9 +3008,12 @@ public partial class RoomView : UserControl
                     AmbienceSync.PauseSync(dev.Ip, 0);
     }
 
+    private int _roomFrameCount;
     private void OnRoomFrame(byte[] linearColors)
     {
         if (_config == null) return;
+        if (++_roomFrameCount % 100 == 1)
+            Logger.Log($"[Room] OnRoomFrame #{_roomFrameCount} corsairOnly={_roomPatternCorsairOnly} goveeEnabled={_config.Ambience.GoveeEnabled}");
 
         // Average the 15 LED colors to get a single room color
         int totalR = 0, totalG = 0, totalB = 0;
