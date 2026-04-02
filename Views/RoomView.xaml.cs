@@ -737,7 +737,7 @@ public partial class RoomView : UserControl
         // Remove button
         var removeBtn = new TextBlock
         {
-            Text = "✕ Remove", FontSize = 10, Foreground = FindBrush("DangerBrush"),
+            Text = "✕ Remove", FontSize = 10, Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x44, 0x44)),
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(16, 0, 0, 0),
             Cursor = Cursors.Hand,
         };
