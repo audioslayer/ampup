@@ -338,7 +338,10 @@ public class AmbienceSync : IDisposable
             foreach (var (device, zones) in activeDevices)
             {
                 bool isSeg = zones > 1 && device.UseSegmentProtocol;
-                var sampled = _spatialMapper.SampleForDevice(device.DeviceId, linear45, zones);
+                // Try IP first (room layout uses IP as DeviceId), then MAC DeviceId
+                var sampled = _spatialMapper.GetDevicePosition(device.Ip) != null
+                    ? _spatialMapper.SampleForDevice(device.Ip, linear45, zones)
+                    : _spatialMapper.SampleForDevice(device.DeviceId, linear45, zones);
                 // Apply brightness/warmth settings
                 var colors = new (int R, int G, int B)[sampled.Length];
                 for (int i = 0; i < sampled.Length; i++)
