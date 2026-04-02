@@ -306,29 +306,60 @@ public class AmbienceSync : IDisposable
     {
         if (_disposed || !cfg.GoveeEnabled || cfg.GoveeDevices.Count == 0) return;
 
+        // ── Spatial mapping: treat all devices as one continuous strip ──
+        // Calculate total zones across all active devices so effects flow between them
+        var activeDevices = new List<(GoveeDeviceConfig Dev, int Zones)>();
+        int totalZones = 0;
         foreach (var device in cfg.GoveeDevices)
         {
             if (string.IsNullOrWhiteSpace(device.Ip) || !device.PoweredOn) continue;
-            // Don't check IsSyncPaused here — room pattern IS the sender (it paused LED sync)
+            int segs = (GetSegmentCount(device) > 0 && device.UseSegmentProtocol)
+                ? GetSegmentCount(device) : 1; // bulbs/lamps = 1 zone
+            activeDevices.Add((device, segs));
+            totalZones += segs;
+        }
+        if (totalZones == 0) return;
 
+        // Sample colors from 15 LEDs mapped across all zones with interpolation
+        var zoneColors = new (int R, int G, int B)[totalZones];
+        for (int z = 0; z < totalZones; z++)
+        {
+            // Map zone position to a fractional LED index for smooth interpolation
+            float ledPos = z * 14f / Math.Max(totalZones - 1, 1);
+            int lo = Math.Min((int)ledPos, 13);
+            int hi = Math.Min(lo + 1, 14);
+            float frac = ledPos - lo;
+
+            // Lerp between adjacent LEDs for smooth color transitions
+            int r = (int)(linear45[lo * 3] * (1 - frac) + linear45[hi * 3] * frac);
+            int g = (int)(linear45[lo * 3 + 1] * (1 - frac) + linear45[hi * 3 + 1] * frac);
+            int b = (int)(linear45[lo * 3 + 2] * (1 - frac) + linear45[hi * 3 + 2] * frac);
+            (r, g, b) = ApplySettings(r, g, b, cfg);
+            zoneColors[z] = (r, g, b);
+        }
+
+        // ── Distribute zones to each device ──
+        int zoneOffset = 0;
+        foreach (var (device, zones) in activeDevices)
+        {
             var now = DateTime.UtcNow.Ticks;
-            if (_lastSendTick.TryGetValue(device.Ip, out long lastTick) &&
-                now - lastTick < MinTicksBetweenSends)
-                continue;
-
-            int segCount = GetSegmentCount(device);
             string ip = device.Ip;
-
-            if (segCount > 0 && device.UseSegmentProtocol)
+            if (_lastSendTick.TryGetValue(ip, out long lastTick) &&
+                now - lastTick < MinTicksBetweenSends)
             {
-                var segColors = new (byte R, byte G, byte B)[segCount];
-                for (int s = 0; s < segCount; s++)
-                {
-                    int srcIdx = s * 15 / segCount;
-                    int r2 = linear45[srcIdx * 3], g2 = linear45[srcIdx * 3 + 1], b2 = linear45[srcIdx * 3 + 2];
-                    (r2, g2, b2) = ApplySettings(r2, g2, b2, cfg);
-                    segColors[s] = ((byte)r2, (byte)g2, (byte)b2);
-                }
+                zoneOffset += zones;
+                continue;
+            }
+
+            if (zones > 1 && device.UseSegmentProtocol)
+            {
+                // Segment device: send per-segment colors from its zone range
+                var segColors = new (byte R, byte G, byte B)[zones];
+                for (int s = 0; s < zones; s++)
+                    segColors[s] = ((byte)zoneColors[zoneOffset + s].R,
+                                    (byte)zoneColors[zoneOffset + s].G,
+                                    (byte)zoneColors[zoneOffset + s].B);
+
                 bool needEnable = !_segmentEnabled.Contains(ip);
                 if (!needEnable && _segmentKeepAliveTick.TryGetValue(ip, out long lastKa))
                     needEnable = now - lastKa > SegmentKeepAliveInterval;
@@ -344,24 +375,24 @@ public class AmbienceSync : IDisposable
             }
             else
             {
-                var (r, g, b) = DeriveColor(linear45);
-                (r, g, b) = ApplySettings(r, g, b, cfg);
+                // Single-color device (bulb/lamp): use its assigned zone color
+                var (r, g, b) = zoneColors[zoneOffset];
 
                 if (_lastSent.TryGetValue(ip, out var prev))
                 {
                     int dr = Math.Abs(r - prev.R), dg = Math.Abs(g - prev.G), db = Math.Abs(b - prev.B);
                     if (dr <= 3 && dg <= 3 && db <= 3 && now - lastTick <= TimeSpan.TicksPerMillisecond * 200)
+                    {
+                        zoneOffset += zones;
                         continue;
+                    }
                 }
                 _lastSent[ip] = ((byte)r, (byte)g, (byte)b);
                 _lastSendTick[ip] = now;
 
-                // Derive brightness from max RGB channel — send as separate brightness command
-                // This makes bulbs actually dim/brighten with effects (colorwc alone doesn't dim)
+                // Separate brightness from color so bulbs actually dim/brighten
                 int brightness = Math.Max(r, Math.Max(g, b));
                 int brightPct = Math.Clamp(brightness * 100 / 255, 1, 100);
-
-                // Normalize color to full saturation (so dimming comes from brightness, not dark colors)
                 if (brightness > 0)
                 {
                     r = r * 255 / brightness;
@@ -377,6 +408,8 @@ public class AmbienceSync : IDisposable
                     await SendBrightnessAsync(ip, captBright);
                 });
             }
+
+            zoneOffset += zones;
         }
     }
 
