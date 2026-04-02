@@ -22,12 +22,12 @@ public class AmbienceSync : IDisposable
     private readonly Dictionary<string, long> _segmentKeepAliveTick = new();
     private const long SegmentKeepAliveInterval = TimeSpan.TicksPerSecond * 25; // re-enable every 25s
 
-    // Rate limiter: Govee LAN max ~10 commands/sec per device
-    // All devices now 1 packet per update → 100ms (10 FPS)
-    // Bulbs: brightness pre-scaled into RGB (no separate brightness command)
+    // Rate limiter: Govee LAN UDP per device
+    // Segment devices (razer protocol): lightweight binary packet, can handle 20 FPS
+    // Single-color devices (colorwc JSON): heavier, keep at 10 FPS
     private readonly Dictionary<string, long> _lastSendTick = new();
-    private const long MinTicksSegment = TimeSpan.TicksPerMillisecond * 100;  // 10 FPS
-    private const long MinTicksSingle  = TimeSpan.TicksPerMillisecond * 100;  // 10 FPS (was 200ms when sending 2 cmds)
+    private const long MinTicksSegment = TimeSpan.TicksPerMillisecond * 50;   // 20 FPS (matches Corsair/Turn Up)
+    private const long MinTicksSingle  = TimeSpan.TicksPerMillisecond * 100;  // 10 FPS (JSON is heavier)
 
     public AmbienceSync(AmbienceConfig config)
     {
