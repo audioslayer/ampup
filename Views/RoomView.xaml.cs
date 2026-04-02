@@ -2933,7 +2933,6 @@ public partial class RoomView : UserControl
 
     private void StartRoomPattern(string patternId, Color? c1 = null, Color? c2 = null, bool corsairOnly = false)
     {
-        Logger.Log($"[Room] StartRoomPattern: {patternId} corsairOnly={corsairOnly}");
         StopRoomPattern();
         _activePattern = patternId;
         _roomPatternCorsairOnly = corsairOnly;
@@ -3012,8 +3011,7 @@ public partial class RoomView : UserControl
     private void OnRoomFrame(byte[] linearColors)
     {
         if (_config == null) return;
-        if (++_roomFrameCount % 100 == 1)
-            Logger.Log($"[Room] OnRoomFrame #{_roomFrameCount} corsairOnly={_roomPatternCorsairOnly} goveeEnabled={_config.Ambience.GoveeEnabled}");
+        _roomFrameCount++;
 
         // Average the 15 LED colors to get a single room color
         int totalR = 0, totalG = 0, totalB = 0;
@@ -3076,8 +3074,6 @@ public partial class RoomView : UserControl
         }
 
         // ── HA lights in room layout (~2/sec — HA/BLE devices are slow) ──
-        if (_roomFrameCount % 200 == 2)
-            Logger.Log($"[Room] HA check: _ha={_ha != null} enabled={_config.HomeAssistant.Enabled} layoutDevs={_config.RoomLayout.Devices.Count} haDevs={_config.RoomLayout.Devices.Count(d => d.DeviceType == "ha")}");
         if (_ha != null && _config.HomeAssistant.Enabled && _config.RoomLayout.Devices.Count > 0)
         {
             foreach (var dev in _config.RoomLayout.Devices)
@@ -3099,7 +3095,6 @@ public partial class RoomView : UserControl
                     if (brightness > 0)
                     {
                         int nr = hr * 255 / brightness, ng = hg * 255 / brightness, nb = hb * 255 / brightness;
-                        Logger.Log($"[Room] HA send: {dev.DeviceId} rgb=({nr},{ng},{nb}) bright={brightness}");
                         _ha.SetLightColorFireAndForget(dev.DeviceId,
                             (byte)nr, (byte)ng, (byte)nb, Math.Max(brightness, 1));
                     }
@@ -3107,8 +3102,8 @@ public partial class RoomView : UserControl
             }
         }
 
-        // ── Live preview on room canvas (throttled to ~10fps) ──
-        if (_roomCanvas != null && _spatialMapper?.HasLayout == true)
+        // ── Live preview on room canvas (every 5th frame = ~4fps) ──
+        if (_roomCanvas != null && _spatialMapper?.HasLayout == true && _roomFrameCount % 5 == 0)
         {
             // Copy the frame for the dispatcher
             var frameCopy = new byte[45];
