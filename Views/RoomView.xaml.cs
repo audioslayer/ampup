@@ -3076,6 +3076,8 @@ public partial class RoomView : UserControl
         }
 
         // ── HA lights in room layout (~2/sec — HA/BLE devices are slow) ──
+        if (_roomFrameCount % 200 == 2)
+            Logger.Log($"[Room] HA check: _ha={_ha != null} enabled={_config.HomeAssistant.Enabled} layoutDevs={_config.RoomLayout.Devices.Count} haDevs={_config.RoomLayout.Devices.Count(d => d.DeviceType == "ha")}");
         if (_ha != null && _config.HomeAssistant.Enabled && _config.RoomLayout.Devices.Count > 0)
         {
             foreach (var dev in _config.RoomLayout.Devices)
