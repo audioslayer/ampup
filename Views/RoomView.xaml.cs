@@ -117,8 +117,8 @@ public partial class RoomView : UserControl
             RebuildDevicePanel();
         }
 
-        // Initialize spatial mapper if room layout exists
-        if (config.RoomLayout.Devices.Count > 0)
+        // Initialize spatial mapper only if spatial sync is enabled
+        if (config.RoomLayout.Devices.Count > 0 && config.Ambience.SpatialSync)
         {
             _spatialMapper = new AmpUp.Core.Engine.SpatialMapper();
             _spatialMapper.Recalculate(config.RoomLayout);
