@@ -2997,12 +2997,6 @@ public partial class RoomView : UserControl
         }
         _activePattern = null;
         _roomPatternCorsairOnly = false;
-
-        // Disable segment mode on all segment devices so colorwc works cleanly
-        if (_config?.Ambience.GoveeEnabled == true)
-            foreach (var dev in _config.Ambience.GoveeDevices)
-                if (!string.IsNullOrWhiteSpace(dev.Ip) && AmbienceSync.GetSegmentCount(dev) > 0)
-                    _ = AmbienceSync.DisableSegmentMode(dev.Ip);
     }
 
     private int _roomFrameCount;
