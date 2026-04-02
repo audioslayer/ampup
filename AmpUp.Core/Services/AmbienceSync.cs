@@ -22,10 +22,12 @@ public class AmbienceSync : IDisposable
     private readonly Dictionary<string, long> _segmentKeepAliveTick = new();
     private const long SegmentKeepAliveInterval = TimeSpan.TicksPerSecond * 25; // re-enable every 25s
 
-    // Rate limiter: Govee LAN max ~10 commands/sec
-    // 200ms between updates = 5 FPS — leaves room for color+brightness (2 commands per update)
+    // Rate limiter: Govee LAN max ~10 commands/sec per device
+    // Segment devices: 1 packet per update → 100ms (10 FPS)
+    // Single-color devices: 2 packets (color+brightness) → 200ms (5 FPS)
     private readonly Dictionary<string, long> _lastSendTick = new();
-    private const long MinTicksBetweenSends = TimeSpan.TicksPerMillisecond * 200; // 5 FPS (2 cmds each)
+    private const long MinTicksSegment = TimeSpan.TicksPerMillisecond * 100;  // 10 FPS
+    private const long MinTicksSingle  = TimeSpan.TicksPerMillisecond * 200;  // 5 FPS
 
     public AmbienceSync(AmbienceConfig config)
     {
@@ -105,12 +107,13 @@ public class AmbienceSync : IDisposable
             if (!device.PoweredOn || device.SyncMode == "off" || IsSyncPaused(device.Ip)) continue;
 
             // Rate limit: skip if sent too recently
+            int segCount = GetSegmentCount(device);
+            bool useSegments = segCount > 0 && device.UseSegmentProtocol;
+            long minTicks = useSegments ? MinTicksSegment : MinTicksSingle;
             var now = DateTime.UtcNow.Ticks;
             if (_lastSendTick.TryGetValue(device.Ip, out long lastTick) &&
-                now - lastTick < MinTicksBetweenSends)
+                now - lastTick < minTicks)
                 continue;
-
-            int segCount = GetSegmentCount(device);
             string ip = device.Ip;
 
             if (segCount > 0 && device.UseSegmentProtocol)
@@ -344,14 +347,16 @@ public class AmbienceSync : IDisposable
         {
             var now = DateTime.UtcNow.Ticks;
             string ip = device.Ip;
+            bool isSegment = zones > 1 && device.UseSegmentProtocol;
+            long minTicks = isSegment ? MinTicksSegment : MinTicksSingle;
             if (_lastSendTick.TryGetValue(ip, out long lastTick) &&
-                now - lastTick < MinTicksBetweenSends)
+                now - lastTick < minTicks)
             {
                 zoneOffset += zones;
                 continue;
             }
 
-            if (zones > 1 && device.UseSegmentProtocol)
+            if (isSegment)
             {
                 // Segment device: send per-segment colors from its zone range
                 var segColors = new (byte R, byte G, byte B)[zones];
