@@ -760,6 +760,16 @@ public class AmbienceSync : IDisposable
         return xor;
     }
 
+    /// <summary>
+    /// Disable segment mode. Called via instance method to clear tracking state.
+    /// </summary>
+    public void ClearSegmentMode(string ip)
+    {
+        _segmentEnabled.Remove(ip);
+        _segmentKeepAliveTick.Remove(ip);
+        _ = Task.Run(() => SendSegmentEnable(ip, false));
+    }
+
     public static async Task DisableSegmentMode(string ip)
     {
         await SendSegmentEnable(ip, false);

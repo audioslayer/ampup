@@ -2915,7 +2915,7 @@ public partial class RoomView : UserControl
                 if (string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn) continue;
                 // Disable segment mode first (device may still be in razer mode from previous effect)
                 if (AmbienceSync.GetSegmentCount(dev) > 0)
-                    _ = AmbienceSync.DisableSegmentMode(dev.Ip);
+                    _sync?.ClearSegmentMode(dev.Ip);
                 _ = AmbienceSync.SendColorAsync(dev.Ip, r, g, b);
                 _ = AmbienceSync.SendBrightnessAsync(dev.Ip, 100);
             }
