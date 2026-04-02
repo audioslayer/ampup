@@ -220,7 +220,7 @@ public class RoomCanvasControl : Canvas
             {
                 var segRect = new Rectangle
                 {
-                    Width = segW - 1, Height = devH - 2,
+                    Width = Math.Max(segW - 1, 2), Height = Math.Max(devH - 2, 2),
                     RadiusX = 2, RadiusY = 2,
                     Fill = DeviceBrush,
                     Tag = s, // segment index
