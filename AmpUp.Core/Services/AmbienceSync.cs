@@ -332,17 +332,16 @@ public class AmbienceSync : IDisposable
         }
         if (activeDevices.Count == 0) return;
 
-        if (_spatialMapper != null && _spatialMapper.HasLayout)
+        if (cfg.SpatialSync && _spatialMapper != null && _spatialMapper.HasLayout)
         {
-            // ── Room Layout mode: use 3D spatial positions for color mapping ──
+            // ── Room Layout spatial mode: use 3D positions for color mapping ──
             foreach (var (device, zones) in activeDevices)
             {
                 bool isSeg = zones > 1 && device.UseSegmentProtocol;
                 // Try IP first (room layout uses IP as DeviceId), then MAC DeviceId
-                var sampled = _spatialMapper.GetDevicePosition(device.Ip) != null
-                    ? _spatialMapper.SampleForDevice(device.Ip, linear45, zones)
-                    : _spatialMapper.SampleForDevice(device.DeviceId, linear45, zones);
-                // Apply brightness/warmth settings
+                string matchId = _spatialMapper.GetDevicePosition(device.Ip) != null
+                    ? device.Ip : device.DeviceId;
+                var sampled = _spatialMapper.SampleForDevice(matchId, linear45, zones);
                 var colors = new (int R, int G, int B)[sampled.Length];
                 for (int i = 0; i < sampled.Length; i++)
                     colors[i] = ApplySettings(sampled[i].R, sampled[i].G, sampled[i].B, cfg);
@@ -351,7 +350,7 @@ public class AmbienceSync : IDisposable
         }
         else if (cfg.SpatialSync)
         {
-            // ── Legacy spatial mode: effects flow across all devices as one strip ──
+            // ── Linear spatial mode (no room layout): spread across devices in order ──
             int totalZones = 0;
             foreach (var (_, z) in activeDevices) totalZones += z;
 

@@ -3075,16 +3075,20 @@ public partial class RoomView : UserControl
                     (DateTime.UtcNow - last).TotalMilliseconds >= 500)
                 {
                     _haLastSend[dev.DeviceId] = DateTime.UtcNow;
-                    var sampled = _spatialMapper?.SampleForDevice(dev.DeviceId, linearColors, 1);
-                    if (sampled != null && sampled.Length > 0)
+                    // Use spatial position if mapper has this device, otherwise averaged room color
+                    int hr = r, hg = g, hb = b;
+                    if (_spatialMapper?.GetDevicePosition(dev.DeviceId) != null)
                     {
-                        var c = sampled[0];
-                        int brightness = Math.Max(c.R, Math.Max(c.G, c.B));
-                        int br = brightness > 0 ? c.R * 255 / brightness : 0;
-                        int bg = brightness > 0 ? c.G * 255 / brightness : 0;
-                        int bb = brightness > 0 ? c.B * 255 / brightness : 0;
+                        var sampled = _spatialMapper.SampleForDevice(dev.DeviceId, linearColors, 1);
+                        if (sampled.Length > 0) { hr = sampled[0].R; hg = sampled[0].G; hb = sampled[0].B; }
+                    }
+                    // Separate brightness from color for proper dimming
+                    int brightness = Math.Max(hr, Math.Max(hg, hb));
+                    if (brightness > 0)
+                    {
+                        int nr = hr * 255 / brightness, ng = hg * 255 / brightness, nb = hb * 255 / brightness;
                         _ha.SetLightColorFireAndForget(dev.DeviceId,
-                            (byte)br, (byte)bg, (byte)bb, Math.Max(brightness, 1));
+                            (byte)nr, (byte)ng, (byte)nb, Math.Max(brightness, 1));
                     }
                 }
             }
