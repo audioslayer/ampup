@@ -44,6 +44,7 @@ public class AppConfig
     public bool HasShownAudioGuide { get; set; } = false;
     public CorsairConfig Corsair { get; set; } = new();
     public List<DeviceGroup> Groups { get; set; } = new();
+    public RoomLayout RoomLayout { get; set; } = new();
 }
 
 public class DeviceGroup
@@ -373,4 +374,38 @@ public class ObsConfig
 public class VoiceMeeterConfig
 {
     public bool Enabled { get; set; } = false;
+}
+
+// ── Room Layout (3D spatial mapping for room lighting) ──
+
+public class RoomLayout
+{
+    public double WidthFt { get; set; } = 12.0;
+    public double DepthFt { get; set; } = 10.0;
+    public double HeightFt { get; set; } = 8.0;
+    [JsonConverter(typeof(StringEnumConverter))]
+    public EffectDirection Direction { get; set; } = EffectDirection.LeftToRight;
+    public List<RoomDevicePlacement> Devices { get; set; } = new();
+}
+
+public class RoomDevicePlacement
+{
+    public string DeviceType { get; set; } = "govee"; // "govee" | "corsair"
+    public string DeviceId { get; set; } = "";         // IP for Govee LAN, device ID for Corsair
+    public string Name { get; set; } = "";
+    public double X { get; set; } = 0;                 // feet from left wall
+    public double Y { get; set; } = 0;                 // feet from front wall (depth)
+    public double Z { get; set; } = 4.0;               // feet from floor (height)
+    public double Rotation { get; set; } = 0;           // degrees, 0 = facing forward
+    public double LengthFt { get; set; } = 1.5;        // physical length of the device
+    public int SegmentCount { get; set; } = 1;          // cached segment count
+}
+
+public enum EffectDirection
+{
+    LeftToRight,
+    FrontToBack,
+    BottomToTop,
+    Radial,
+    Diagonal
 }

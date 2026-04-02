@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using AmpUp.Core.Engine;
 using AmpUp.Core.Models;
 
 namespace AmpUp.Core.Services;
@@ -29,9 +30,20 @@ public class AmbienceSync : IDisposable
     private const long MinTicksSegment = TimeSpan.TicksPerMillisecond * 50;   // 20 FPS (matches Corsair/Turn Up)
     private const long MinTicksSingle  = TimeSpan.TicksPerMillisecond * 100;  // 10 FPS (JSON is heavier)
 
+    // Spatial mapper for room layout mode
+    private SpatialMapper? _spatialMapper;
+
     public AmbienceSync(AmbienceConfig config)
     {
         _config = config;
+    }
+
+    /// <summary>
+    /// Set or update the spatial mapper when room layout changes.
+    /// </summary>
+    public void SetSpatialMapper(SpatialMapper? mapper)
+    {
+        _spatialMapper = mapper;
     }
 
     public void UpdateConfig(AmbienceConfig config)
@@ -320,9 +332,23 @@ public class AmbienceSync : IDisposable
         }
         if (activeDevices.Count == 0) return;
 
-        if (cfg.SpatialSync)
+        if (_spatialMapper != null && _spatialMapper.HasLayout)
         {
-            // ── Spatial mode: effects flow across all devices as one strip ──
+            // ── Room Layout mode: use 3D spatial positions for color mapping ──
+            foreach (var (device, zones) in activeDevices)
+            {
+                bool isSeg = zones > 1 && device.UseSegmentProtocol;
+                var sampled = _spatialMapper.SampleForDevice(device.DeviceId, linear45, zones);
+                // Apply brightness/warmth settings
+                var colors = new (int R, int G, int B)[sampled.Length];
+                for (int i = 0; i < sampled.Length; i++)
+                    colors[i] = ApplySettings(sampled[i].R, sampled[i].G, sampled[i].B, cfg);
+                SendDeviceFrame(device, colors, isSeg);
+            }
+        }
+        else if (cfg.SpatialSync)
+        {
+            // ── Legacy spatial mode: effects flow across all devices as one strip ──
             int totalZones = 0;
             foreach (var (_, z) in activeDevices) totalZones += z;
 
@@ -379,7 +405,7 @@ public class AmbienceSync : IDisposable
     {
         string ip = device.Ip;
         var now = DateTime.UtcNow.Ticks;
-        long minTicks = isSegment ? MinTicksSegment : MinTicksSegment; // all 10 FPS now (single packet)
+        long minTicks = isSegment ? MinTicksSegment : MinTicksSingle;
         if (_lastSendTick.TryGetValue(ip, out long lastTick) && now - lastTick < minTicks)
             return;
 

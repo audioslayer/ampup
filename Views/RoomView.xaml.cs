@@ -48,6 +48,10 @@ public partial class RoomView : UserControl
     private string? _activePattern;
     private bool _roomPatternCorsairOnly;
     private DateTime _lastCloudRoomSend = DateTime.MinValue;
+
+    // Room layout
+    private AmpUp.Core.Engine.SpatialMapper? _spatialMapper;
+    private Controls.RoomCanvasControl? _roomCanvas;
     private Color _corsairColor1 = Color.FromRgb(0xFF, 0xD3, 0x00);
     private Color _corsairColor2 = Color.FromRgb(0xFF, 0x70, 0x00);
 
@@ -105,6 +109,14 @@ public partial class RoomView : UserControl
             _cloudApi = null;
             _cloudDevices.Clear();
             RebuildDevicePanel();
+        }
+
+        // Initialize spatial mapper if room layout exists
+        if (config.RoomLayout.Devices.Count > 0)
+        {
+            _spatialMapper = new AmpUp.Core.Engine.SpatialMapper();
+            _spatialMapper.Recalculate(config.RoomLayout);
+            _sync?.SetSpatialMapper(_spatialMapper);
         }
     }
 
@@ -264,7 +276,7 @@ public partial class RoomView : UserControl
     // ██  CARD 1: ROOM LIGHTING (unified)
     // ══════════════════════════════════════════════════════════════════
 
-    private int _roomTabIndex = 0; // 0=Global, 1=Govee, 2=Corsair
+    private int _roomTabIndex = 1; // 0=Layout, 1=Global, 2=Govee, 3=Corsair
     private StackPanel? _roomTabContent;
 
     private StackPanel? _screenSyncSettingsPanel;
@@ -280,10 +292,11 @@ public partial class RoomView : UserControl
         var stack = new StackPanel();
         card.Child = stack;
 
-        // ── Pill-style tab bar (Global / Govee / Corsair) ──
+        // ── Pill-style tab bar (Layout / Global / Govee / Corsair) ──
         var accent = ThemeManager.Accent;
-        var tabNames = new[] { "GLOBAL", "GOVEE", "CORSAIR" };
-        var tabBorders = new Border[3];
+        var tabNames = new[] { "LAYOUT", "GLOBAL", "GOVEE", "CORSAIR" };
+        var tabCount = tabNames.Length;
+        var tabBorders = new Border[tabCount];
 
         var toggleBar = new Border
         {
@@ -294,7 +307,7 @@ public partial class RoomView : UserControl
             HorizontalAlignment = HorizontalAlignment.Center,
         };
         var tabRow = new StackPanel { Orientation = Orientation.Horizontal };
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < tabCount; i++)
         {
             var idx = i;
             var tab = new Border
@@ -313,13 +326,13 @@ public partial class RoomView : UserControl
             tab.MouseLeftButtonDown += (_, _) =>
             {
                 _roomTabIndex = idx;
-                for (int j = 0; j < 3; j++)
+                for (int j = 0; j < tabCount; j++)
                     SetRoomTabActive(tabBorders[j], j == idx, ThemeManager.Accent);
                 RebuildRoomTabContent();
             };
             tabRow.Children.Add(tab);
         }
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < tabCount; i++)
             SetRoomTabActive(tabBorders[i], i == _roomTabIndex, accent);
         toggleBar.Child = tabRow;
         stack.Children.Add(toggleBar);
@@ -372,21 +385,23 @@ public partial class RoomView : UserControl
 
         switch (_roomTabIndex)
         {
-            case 0: BuildGlobalRoomTab(_roomTabContent); break;
-            case 1: BuildGoveeRoomTab(_roomTabContent); break;
-            case 2: BuildCorsairRoomTab(_roomTabContent); break;
+            case 0: BuildLayoutTab(_roomTabContent); break;
+            case 1: BuildGlobalRoomTab(_roomTabContent); break;
+            case 2: BuildGoveeRoomTab(_roomTabContent); break;
+            case 3: BuildCorsairRoomTab(_roomTabContent); break;
         }
 
         // Append Screen Sync settings panel (Global tab only)
-        if (_roomTabIndex == 0 && _screenSyncSettingsPanel != null)
+        if (_roomTabIndex == 1 && _screenSyncSettingsPanel != null)
             _roomTabContent.Children.Add(_screenSyncSettingsPanel);
     }
 
     private void BuildTabToggleRow(WrapPanel row, int tabIndex)
     {
+        if (tabIndex == 0) return; // Layout tab has no toggle row
         switch (tabIndex)
         {
-            case 0: // Global
+            case 1: // Global
                 // Amp Up sync
                 bool syncActive = _activePattern == "__sync__";
                 row.Children.Add(BuildToggleTile("🔗", "AMP UP", "Mirror knob LEDs to room",
@@ -447,7 +462,7 @@ public partial class RoomView : UserControl
                 _screenSyncSettingsPanel = ssPanel;
                 break;
 
-            case 1: // Govee
+            case 2: // Govee
                 // Sync to Global
                 row.Children.Add(BuildToggleTile("🔗", "SYNC TO GLOBAL", "Follow Global tab effects",
                     _config!.Ambience.GoveeSyncToGlobal, on =>
@@ -470,7 +485,7 @@ public partial class RoomView : UserControl
                     }, Color.FromRgb(0xFF, 0xB8, 0x00)));
                 break;
 
-            case 2: // Corsair
+            case 3: // Corsair
                 // Sync to Global
                 row.Children.Add(BuildToggleTile("🔗", "SYNC TO GLOBAL", "Follow Global tab effects",
                     _config!.Corsair.SyncToGlobal, on =>
@@ -490,6 +505,338 @@ public partial class RoomView : UserControl
                     }, Color.FromRgb(0xFF, 0xB8, 0x00)));
                 break;
         }
+    }
+
+    // ── LAYOUT TAB ─────────────────────────────────────────────────
+
+    private void BuildLayoutTab(StackPanel stack)
+    {
+        if (_config == null) return;
+        var layout = _config.RoomLayout;
+
+        // ── Room Dimensions ──
+        var (dimBar, dimLabel) = MakeSectionHeader("ROOM DIMENSIONS");
+        stack.Children.Add(WrapHeader(dimBar, dimLabel));
+
+        var dimRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+
+        dimRow.Children.Add(MakeSubLabel("WIDTH"));
+        var widthBox = MakeDimensionInput(layout.WidthFt, v => { layout.WidthFt = v; OnLayoutChanged(); });
+        dimRow.Children.Add(widthBox);
+
+        dimRow.Children.Add(new TextBlock { Text = "×", FontSize = 14, Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) });
+
+        dimRow.Children.Add(MakeSubLabel("DEPTH"));
+        var depthBox = MakeDimensionInput(layout.DepthFt, v => { layout.DepthFt = v; OnLayoutChanged(); });
+        dimRow.Children.Add(depthBox);
+
+        dimRow.Children.Add(new TextBlock { Text = "×", FontSize = 14, Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) });
+
+        dimRow.Children.Add(MakeSubLabel("HEIGHT"));
+        var heightBox = MakeDimensionInput(layout.HeightFt, v => { layout.HeightFt = v; OnLayoutChanged(); });
+        dimRow.Children.Add(heightBox);
+
+        dimRow.Children.Add(new TextBlock { Text = "ft", FontSize = 11, Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) });
+        stack.Children.Add(dimRow);
+
+        // ── Effect Direction ──
+        var (dirBar, dirLabel) = MakeSectionHeader("EFFECT DIRECTION");
+        stack.Children.Add(WrapHeader(dirBar, dirLabel));
+
+        var dirNames = new[] { "L → R", "F → B", "↑", "RADIAL", "DIAGONAL" };
+        var dirValues = new[] { EffectDirection.LeftToRight, EffectDirection.FrontToBack,
+            EffectDirection.BottomToTop, EffectDirection.Radial, EffectDirection.Diagonal };
+        var dirRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+        for (int i = 0; i < dirNames.Length; i++)
+        {
+            var dirVal = dirValues[i];
+            bool active = layout.Direction == dirVal;
+            var pill = new Border
+            {
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(12, 4, 12, 4),
+                Margin = new Thickness(0, 0, 6, 0),
+                Cursor = Cursors.Hand,
+                Background = active
+                    ? new SolidColorBrush(Color.FromArgb(0x30, 0x00, 0xE6, 0x76))
+                    : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                BorderBrush = active
+                    ? new SolidColorBrush(Color.FromArgb(0x60, 0x00, 0xE6, 0x76))
+                    : new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
+                BorderThickness = new Thickness(1),
+            };
+            pill.Child = new TextBlock
+            {
+                Text = dirNames[i], FontSize = 10, FontWeight = FontWeights.Bold,
+                Foreground = active ? FindBrush("AccentBrush") : FindBrush("TextSecBrush"),
+            };
+            pill.MouseLeftButtonDown += (_, _) =>
+            {
+                layout.Direction = dirVal;
+                OnLayoutChanged();
+                RebuildRoomTabContent();
+            };
+            dirRow.Children.Add(pill);
+        }
+        stack.Children.Add(dirRow);
+
+        // ── Room Canvas ──
+        var (canvasBar, canvasLabel) = MakeSectionHeader("ROOM LAYOUT");
+        stack.Children.Add(WrapHeader(canvasBar, canvasLabel));
+
+        stack.Children.Add(new TextBlock
+        {
+            Text = "Drag devices to position them in your room. Effects will follow their spatial positions.",
+            Style = FindStyle("SecondaryText"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 8),
+        });
+
+        _roomCanvas = new Controls.RoomCanvasControl
+        {
+            Height = 350,
+            Margin = new Thickness(0, 0, 0, 12),
+        };
+
+        // Auto-populate devices from Govee + Corsair if layout is empty
+        if (layout.Devices.Count == 0)
+            AutoPopulateLayoutDevices(layout);
+
+        _roomCanvas.SetLayout(layout);
+
+        _roomCanvas.DeviceSelected += dev =>
+        {
+            // Rebuild to show selected device properties panel
+            // (deferred to avoid rebuild during mouse event)
+            Dispatcher.BeginInvoke(() => RebuildSelectedDevicePanel(dev));
+        };
+
+        _roomCanvas.LayoutChanged += () =>
+        {
+            OnLayoutChanged();
+        };
+
+        stack.Children.Add(_roomCanvas);
+
+        // ── Selected Device Properties (shown below canvas) ──
+        _selectedDevicePanel = new StackPanel();
+        stack.Children.Add(_selectedDevicePanel);
+
+        // ── Unplaced Devices Tray ──
+        var (trayBar, trayLabel) = MakeSectionHeader("DEVICES");
+        stack.Children.Add(WrapHeader(trayBar, trayLabel));
+        BuildDeviceTray(stack, layout);
+    }
+
+    private StackPanel? _selectedDevicePanel;
+
+    private TextBox MakeDimensionInput(double value, Action<double> onChange)
+    {
+        var box = new TextBox
+        {
+            Text = value.ToString("0.#"),
+            Width = 50, Height = 28,
+            FontSize = 12,
+            Background = FindBrush("InputBgBrush"),
+            Foreground = FindBrush("TextPrimaryBrush"),
+            BorderBrush = FindBrush("InputBorderBrush"),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(4, 2, 4, 2),
+            VerticalContentAlignment = VerticalAlignment.Center,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        box.LostFocus += (_, _) =>
+        {
+            if (double.TryParse(box.Text, out double v) && v > 0 && v <= 100)
+                onChange(Math.Round(v * 2) / 2); // snap to 0.5 ft
+        };
+        return box;
+    }
+
+    private void AutoPopulateLayoutDevices(RoomLayout layout)
+    {
+        if (_config == null) return;
+
+        // Add Govee devices
+        double xStep = layout.WidthFt / Math.Max(_config.Ambience.GoveeDevices.Count + 1, 2);
+        int gi = 1;
+        foreach (var dev in _config.Ambience.GoveeDevices)
+        {
+            if (string.IsNullOrWhiteSpace(dev.Ip) && string.IsNullOrWhiteSpace(dev.DeviceId)) continue;
+            int segs = AmpUp.Core.Services.AmbienceSync.GetSegmentCount(dev);
+            layout.Devices.Add(new RoomDevicePlacement
+            {
+                DeviceType = "govee",
+                DeviceId = !string.IsNullOrWhiteSpace(dev.Ip) ? dev.Ip : dev.DeviceId,
+                Name = dev.Name,
+                X = Math.Round(xStep * gi * 2) / 2,
+                Y = layout.DepthFt / 2,
+                Z = segs > 1 ? 5.0 : 3.5, // bars on wall, bulbs lower
+                SegmentCount = Math.Max(segs, 1),
+                LengthFt = segs > 1 ? 1.5 : 0.3,
+            });
+            gi++;
+        }
+
+        // Add Corsair devices
+        if (_corsairSync?.Devices.Count > 0)
+        {
+            foreach (var dev in _corsairSync.Devices)
+            {
+                layout.Devices.Add(new RoomDevicePlacement
+                {
+                    DeviceType = "corsair",
+                    DeviceId = dev.Id,
+                    Name = dev.Name,
+                    X = layout.WidthFt / 2,
+                    Y = 1.0, // near front (desk)
+                    Z = 2.5,
+                    SegmentCount = Math.Max(dev.LedCount / 3, 1),
+                    LengthFt = 0.5,
+                });
+            }
+        }
+    }
+
+    private void RebuildSelectedDevicePanel(RoomDevicePlacement dev)
+    {
+        if (_selectedDevicePanel == null || _config == null) return;
+        _selectedDevicePanel.Children.Clear();
+
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+
+        row.Children.Add(new TextBlock
+        {
+            Text = dev.Name, FontSize = 12, FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 16, 0),
+        });
+
+        // X input
+        row.Children.Add(MakeSubLabel("X"));
+        row.Children.Add(MakeDimensionInput(dev.X, v => { dev.X = v; OnLayoutChanged(); _roomCanvas?.Rebuild(); }));
+
+        row.Children.Add(MakeSubLabel("Y"));
+        row.Children.Add(MakeDimensionInput(dev.Y, v => { dev.Y = v; OnLayoutChanged(); _roomCanvas?.Rebuild(); }));
+
+        row.Children.Add(MakeSubLabel("Z"));
+        row.Children.Add(MakeDimensionInput(dev.Z, v => { dev.Z = v; OnLayoutChanged(); }));
+
+        // Rotation
+        row.Children.Add(MakeSubLabel("ROT"));
+        var rotBox = MakeDimensionInput(dev.Rotation, v => { dev.Rotation = v; OnLayoutChanged(); _roomCanvas?.Rebuild(); });
+        rotBox.Width = 40;
+        row.Children.Add(rotBox);
+        row.Children.Add(new TextBlock { Text = "°", FontSize = 11, Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 0, 0) });
+
+        // Remove button
+        var removeBtn = new TextBlock
+        {
+            Text = "✕ Remove", FontSize = 10, Foreground = FindBrush("DangerBrush"),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(16, 0, 0, 0),
+            Cursor = Cursors.Hand,
+        };
+        removeBtn.MouseLeftButtonDown += (_, _) =>
+        {
+            _config.RoomLayout.Devices.Remove(dev);
+            OnLayoutChanged();
+            _selectedDevicePanel?.Children.Clear();
+            _roomCanvas?.Rebuild();
+        };
+        row.Children.Add(removeBtn);
+
+        _selectedDevicePanel.Children.Add(row);
+    }
+
+    private void BuildDeviceTray(StackPanel stack, RoomLayout layout)
+    {
+        // Show devices that are discovered but not yet in the layout
+        var placedIds = new HashSet<string>(layout.Devices.Select(d => d.DeviceId));
+        bool anyUnplaced = false;
+
+        var trayRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+
+        if (_config != null)
+        {
+            foreach (var dev in _config.Ambience.GoveeDevices)
+            {
+                string id = !string.IsNullOrWhiteSpace(dev.Ip) ? dev.Ip : dev.DeviceId;
+                if (string.IsNullOrWhiteSpace(id) || placedIds.Contains(id)) continue;
+
+                int segs = AmpUp.Core.Services.AmbienceSync.GetSegmentCount(dev);
+                var addBtn = MakeDeviceTrayButton(dev.Name, "govee", () =>
+                {
+                    layout.Devices.Add(new RoomDevicePlacement
+                    {
+                        DeviceType = "govee", DeviceId = id, Name = dev.Name,
+                        X = layout.WidthFt / 2, Y = layout.DepthFt / 2, Z = 4.0,
+                        SegmentCount = Math.Max(segs, 1), LengthFt = segs > 1 ? 1.5 : 0.3,
+                    });
+                    OnLayoutChanged();
+                    RebuildRoomTabContent();
+                });
+                trayRow.Children.Add(addBtn);
+                anyUnplaced = true;
+            }
+        }
+
+        if (!anyUnplaced)
+        {
+            trayRow.Children.Add(new TextBlock
+            {
+                Text = "All discovered devices are placed in the layout.",
+                FontSize = 11, Foreground = FindBrush("TextSecBrush"),
+            });
+        }
+        stack.Children.Add(trayRow);
+    }
+
+    private Border MakeDeviceTrayButton(string name, string type, Action onClick)
+    {
+        var btn = new Border
+        {
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(10, 6, 10, 6),
+            Margin = new Thickness(0, 0, 6, 6),
+            Cursor = Cursors.Hand,
+        };
+        var content = new StackPanel { Orientation = Orientation.Horizontal };
+        content.Children.Add(new TextBlock
+        {
+            Text = "+ ", FontSize = 11, FontWeight = FontWeights.Bold,
+            Foreground = FindBrush("AccentBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = !string.IsNullOrWhiteSpace(name) ? name : type,
+            FontSize = 11, Foreground = FindBrush("TextPrimaryBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        btn.Child = content;
+        btn.MouseLeftButtonDown += (_, _) => onClick();
+        return btn;
+    }
+
+    private void OnLayoutChanged()
+    {
+        if (_config == null) return;
+
+        // Update spatial mapper
+        if (_spatialMapper == null)
+            _spatialMapper = new AmpUp.Core.Engine.SpatialMapper();
+        _spatialMapper.Recalculate(_config.RoomLayout);
+        _sync?.SetSpatialMapper(_config.RoomLayout.Devices.Count > 0 ? _spatialMapper : null);
+
+        QueueSave();
     }
 
     // ── GLOBAL TAB ──────────────────────────────────────────────────
@@ -2662,6 +3009,26 @@ public partial class RoomView : UserControl
             for (int i = 0; i < 45; i++)
                 boosted[i] = (byte)Math.Min(linearColors[i] * boost, 255);
             _corsairSync.SyncColors(boosted);
+        }
+
+        // ── Live preview on room canvas (throttled to ~10fps) ──
+        if (_roomCanvas != null && _spatialMapper?.HasLayout == true)
+        {
+            // Copy the frame for the dispatcher
+            var frameCopy = new byte[45];
+            Array.Copy(linearColors, frameCopy, 45);
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
+            {
+                if (_spatialMapper == null || _config == null) return;
+                foreach (var dev in _config.RoomLayout.Devices)
+                {
+                    var colors = _spatialMapper.SampleForDevice(dev.DeviceId, frameCopy, dev.SegmentCount);
+                    var byteColors = new (byte R, byte G, byte B)[colors.Length];
+                    for (int ci = 0; ci < colors.Length; ci++)
+                        byteColors[ci] = ((byte)colors[ci].R, (byte)colors[ci].G, (byte)colors[ci].B);
+                    _roomCanvas.SetDeviceColors(dev.DeviceId, byteColors);
+                }
+            });
         }
     }
 
