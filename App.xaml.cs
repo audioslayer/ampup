@@ -170,7 +170,6 @@ public partial class App : Application
         // Start Home Assistant integration
         _ha = new HAIntegration(_config.HomeAssistant);
         _buttons.SetHAIntegration(_ha);
-        _mainWindow.SetHAIntegration(_ha);
         if (_config.HomeAssistant.Enabled)
             _ = _ha.TestConnectionAsync(); // sets IsAvailable for knob routing
 
@@ -268,6 +267,7 @@ public partial class App : Application
         _mainWindow.SetDreamSync(_dreamSync);
         if (_corsairSync != null)
             _mainWindow.SetCorsairSync(_corsairSync);
+        _mainWindow.SetHAIntegration(_ha);
 
         // Start minimized to tray if launched with --minimized (Windows startup)
         var args = Environment.GetCommandLineArgs();
