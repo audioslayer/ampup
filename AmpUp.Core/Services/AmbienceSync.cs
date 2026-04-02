@@ -23,11 +23,10 @@ public class AmbienceSync : IDisposable
     private readonly Dictionary<string, long> _segmentKeepAliveTick = new();
     private const long SegmentKeepAliveInterval = TimeSpan.TicksPerSecond * 25; // re-enable every 25s
 
-    // Rate limiter: Govee LAN UDP per device
-    // Govee devices can't reliably handle more than ~10 cmd/sec
+    // Rate limiter: Govee LAN UDP per device (~10 cmd/sec max)
     private readonly Dictionary<string, long> _lastSendTick = new();
-    private const long MinTicksSegment = TimeSpan.TicksPerMillisecond * 100;  // 10 FPS
-    private const long MinTicksSingle  = TimeSpan.TicksPerMillisecond * 100;  // 10 FPS
+    private const long MinTicksSegment = TimeSpan.TicksPerMillisecond * 100;  // 10 FPS for segment protocol
+    private const long MinTicksSingle  = TimeSpan.TicksPerMillisecond * 150;  // ~7 FPS for colorwc (safe headroom)
 
     // Spatial mapper for room layout mode
     private SpatialMapper? _spatialMapper;
@@ -454,7 +453,18 @@ public class AmbienceSync : IDisposable
 
     private static (int R, int G, int B) DeriveColor(byte[] linear45)
     {
-        // Average all 15 LEDs — captures both bright and dim phases of effects
+        // Use the brightest LED (by total luminance) for vivid colors
+        // Averaging dims effects since many LEDs may be dark during animations
+        int bestIdx = 0, bestLum = 0;
+        for (int i = 0; i < 15; i++)
+        {
+            int lum = linear45[i * 3] + linear45[i * 3 + 1] + linear45[i * 3 + 2];
+            if (lum > bestLum) { bestLum = lum; bestIdx = i; }
+        }
+        if (bestLum > 0)
+            return (linear45[bestIdx * 3], linear45[bestIdx * 3 + 1], linear45[bestIdx * 3 + 2]);
+
+        // Fallback: average if all LEDs are dark
         int rSum = 0, gSum = 0, bSum = 0;
         for (int i = 0; i < 15; i++)
         {
