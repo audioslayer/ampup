@@ -773,6 +773,8 @@ public class AmbienceSync : IDisposable
         "H6049" => 12,  // DreamView G1
         "H6043" => 15,  // DreamView TV Backlight
         "H6062" => 10,  // Glide Wall Light
+        "H610A" => 6,   // Glide Lively Wall Light (6 modular bars)
+        "H610B" => 6,   // Glide Lively Wall Light
         "H6601" => 10,  // Curtain Lights
         _ => 0
     };
@@ -791,7 +793,8 @@ public class AmbienceSync : IDisposable
         if (name.Contains("dreamview") && name.Contains("g1")) return 12;
         if (name.Contains("tv backlight")) return 20;
         if (name.Contains("tv light bar")) return 12;
-        if (name.Contains("glide")) return 10;
+        if (name.Contains("glide")) return name.Contains("lively") ? 6 : 10;
+        if (name.Contains("wall light")) return 6;
         return 0;
     }
 
@@ -820,8 +823,8 @@ public class AmbienceSync : IDisposable
             "H6602" => "LED Strip Light",
             "H6604" => "RGBIC Strip Light",
             "H6609" => "RGBIC Strip Light",
-            "H610A" => "RGBIC Strip Light Pro",
-            "H610B" => "RGBIC Strip Light Pro",
+            "H610A" => "Glide Lively Wall Light",
+            "H610B" => "Glide Lively Wall Light",
             "H6110" => "RGBICWW Strip Light",
             "H6117" => "RGBICWW Strip Light",
             "H6046" => "RGBIC TV Light Bar",
