@@ -403,6 +403,8 @@ public class RoomDevicePlacement
     public double LengthFt { get; set; } = 1.5;        // physical length of the device
     public int SegmentCount { get; set; } = 1;          // cached segment count
     public bool Reversed { get; set; } = false;         // reverse segment order (right-to-left)
+    public bool SplitLR { get; set; } = false;          // render as two halves (left + right unit)
+    public double SplitGapFt { get; set; } = 2.0;      // gap between left and right halves in feet
 }
 
 public enum EffectDirection

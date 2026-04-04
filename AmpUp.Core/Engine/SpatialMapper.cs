@@ -14,6 +14,8 @@ public class SpatialMapper
     // For single-color devices, Start == End (point sample)
     private readonly Dictionary<string, (float Start, float End)> _deviceLedPositions = new();
     private readonly Dictionary<string, bool> _deviceReversed = new();
+    // Split devices: stores the segment count for the left half (right half = total - left)
+    private readonly Dictionary<string, int> _deviceSplitAt = new();
     private RoomLayout _layout = new();
 
     public bool HasLayout => _layout.Devices.Count > 0;
@@ -26,6 +28,7 @@ public class SpatialMapper
         _layout = layout;
         _deviceLedPositions.Clear();
         _deviceReversed.Clear();
+        _deviceSplitAt.Clear();
         if (layout.Devices.Count == 0) return;
 
         var direction = layout.Direction;
@@ -75,13 +78,41 @@ public class SpatialMapper
             }
 
             // Reversed = explicit flag XOR auto-detected from rotation
-            // (explicit flag lets user override auto-detection)
             _deviceReversed[dev.DeviceId] = dev.Reversed ^ autoReverse;
 
-            float start = Math.Clamp((center - halfExtent) * 14f, 0, 14);
-            float end = Math.Clamp((center + halfExtent) * 14f, 0, 14);
-            if (dev.SegmentCount <= 1) end = start; // point sample for bulbs
-            _deviceLedPositions[dev.DeviceId] = (start, end);
+            if (dev.SplitLR && dev.SegmentCount > 1)
+            {
+                // Split device: two separate positions (left half and right half)
+                // Left half is centered at (center - gap/2), right at (center + gap/2)
+                float roomExtentForGap = direction switch
+                {
+                    EffectDirection.LeftToRight => (float)layout.WidthFt,
+                    EffectDirection.FrontToBack => (float)layout.DepthFt,
+                    _ => (float)Math.Max(layout.WidthFt, layout.DepthFt)
+                };
+                float gapNorm = roomExtentForGap > 0 ? (float)(dev.SplitGapFt / roomExtentForGap / 2) : 0.1f;
+
+                float leftCenter = center - gapNorm;
+                float rightCenter = center + gapNorm;
+                float halfBarExtent = halfExtent * 0.4f; // each half is ~40% of total extent
+
+                float lStart = Math.Clamp((leftCenter - halfBarExtent) * 14f, 0, 14);
+                float lEnd = Math.Clamp((leftCenter + halfBarExtent) * 14f, 0, 14);
+                float rStart = Math.Clamp((rightCenter - halfBarExtent) * 14f, 0, 14);
+                float rEnd = Math.Clamp((rightCenter + halfBarExtent) * 14f, 0, 14);
+
+                _deviceLedPositions[dev.DeviceId] = (lStart, lEnd);         // left half
+                _deviceLedPositions[dev.DeviceId + ":R"] = (rStart, rEnd);  // right half
+                _deviceReversed[dev.DeviceId + ":R"] = dev.Reversed ^ autoReverse;
+                _deviceSplitAt[dev.DeviceId] = dev.SegmentCount / 2;
+            }
+            else
+            {
+                float start = Math.Clamp((center - halfExtent) * 14f, 0, 14);
+                float end = Math.Clamp((center + halfExtent) * 14f, 0, 14);
+                if (dev.SegmentCount <= 1) end = start;
+                _deviceLedPositions[dev.DeviceId] = (start, end);
+            }
         }
     }
 
@@ -136,21 +167,55 @@ public class SpatialMapper
             return SampleAtPosition(linear45, pos.Start, 1);
         }
 
-        // Segment device: spread segments across the device's LED range
-        bool reversed = _deviceReversed.TryGetValue(deviceId, out var rev) && rev;
-        var colors = new (int R, int G, int B)[segmentCount];
-        float range = pos.End - pos.Start;
-        for (int s = 0; s < segmentCount; s++)
+        // Check if this device is split into L/R halves
+        if (_deviceSplitAt.TryGetValue(deviceId, out int splitAt) &&
+            _deviceLedPositions.TryGetValue(deviceId + ":R", out var posR))
         {
-            // When reversed, sample from End→Start instead of Start→End
-            int sampleIdx = reversed ? (segmentCount - 1 - s) : s;
-            float ledPos = range > 0
-                ? pos.Start + sampleIdx * range / Math.Max(segmentCount - 1, 1)
-                : pos.Start;
-            var sampled = SampleAtPosition(linear45, ledPos, 1);
-            colors[s] = sampled[0];
+            bool reversed = _deviceReversed.TryGetValue(deviceId, out var rev) && rev;
+            var colors = new (int R, int G, int B)[segmentCount];
+            int rightStart = splitAt;
+
+            // Left half: segments 0..splitAt-1 from left position
+            float rangeL = pos.End - pos.Start;
+            for (int s = 0; s < splitAt; s++)
+            {
+                int si = reversed ? (splitAt - 1 - s) : s;
+                float ledPos = rangeL > 0
+                    ? pos.Start + si * rangeL / Math.Max(splitAt - 1, 1)
+                    : pos.Start;
+                colors[s] = SampleAtPosition(linear45, ledPos, 1)[0];
+            }
+
+            // Right half: segments splitAt..end from right position
+            bool revR = _deviceReversed.TryGetValue(deviceId + ":R", out var rr) && rr;
+            int rightCount = segmentCount - splitAt;
+            float rangeR = posR.End - posR.Start;
+            for (int s = 0; s < rightCount; s++)
+            {
+                int si = revR ? (rightCount - 1 - s) : s;
+                float ledPos = rangeR > 0
+                    ? posR.Start + si * rangeR / Math.Max(rightCount - 1, 1)
+                    : posR.Start;
+                colors[splitAt + s] = SampleAtPosition(linear45, ledPos, 1)[0];
+            }
+            return colors;
         }
-        return colors;
+
+        // Non-split segment device: spread segments across the device's LED range
+        {
+            bool reversed = _deviceReversed.TryGetValue(deviceId, out var rev) && rev;
+            var colors = new (int R, int G, int B)[segmentCount];
+            float range = pos.End - pos.Start;
+            for (int s = 0; s < segmentCount; s++)
+            {
+                int sampleIdx = reversed ? (segmentCount - 1 - s) : s;
+                float ledPos = range > 0
+                    ? pos.Start + sampleIdx * range / Math.Max(segmentCount - 1, 1)
+                    : pos.Start;
+                colors[s] = SampleAtPosition(linear45, ledPos, 1)[0];
+            }
+            return colors;
+        }
     }
 
     /// <summary>

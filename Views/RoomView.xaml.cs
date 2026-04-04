@@ -1165,6 +1165,21 @@ public partial class RoomView : UserControl
             revCheck.Checked += (_, _) => { dev.Reversed = true; OnLayoutChanged(); };
             revCheck.Unchecked += (_, _) => { dev.Reversed = false; OnLayoutChanged(); };
             row.Children.Add(revCheck);
+
+            // Split L/R toggle (for paired devices like light bars, wall lights)
+            var splitCheck = new CheckBox
+            {
+                Content = "Split L/R",
+                IsChecked = dev.SplitLR,
+                FontSize = 10,
+                Foreground = FindBrush("TextSecBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(12, 0, 0, 0),
+                ToolTip = "Treat as two separate units (left + right) for spatial effects",
+            };
+            splitCheck.Checked += (_, _) => { dev.SplitLR = true; OnLayoutChanged(); _roomCanvas?.Rebuild(); };
+            splitCheck.Unchecked += (_, _) => { dev.SplitLR = false; OnLayoutChanged(); _roomCanvas?.Rebuild(); };
+            row.Children.Add(splitCheck);
         }
 
         // Remove button

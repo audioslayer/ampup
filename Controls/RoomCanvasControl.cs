@@ -201,9 +201,46 @@ public class RoomCanvasControl : Canvas
         }
 
         // Background shape
-        if (isSegment)
+        if (isSegment && dev.SplitLR)
         {
-            // Segment bar: rounded rectangle with segment divisions
+            // Split L/R: two bars with a gap
+            double gapPx = Math.Max(dev.SplitGapFt * _scale, 8);
+            double halfW = (devW - gapPx) / 2;
+            int leftSegs = dev.SegmentCount / 2;
+            int rightSegs = dev.SegmentCount - leftSegs;
+
+            // Expand container to fit gap
+            container.Width = devW + gapPx;
+
+            // Left bar
+            var bgL = new Rectangle { Width = halfW, Height = devH, RadiusX = 4, RadiusY = 4, Fill = DeviceBrush, Stroke = DeviceBrush, StrokeThickness = 1 };
+            container.Children.Add(bgL);
+            double segWL = halfW / Math.Max(leftSegs, 1);
+            for (int s = 0; s < leftSegs; s++)
+            {
+                var segRect = new Rectangle { Width = Math.Max(segWL - 1, 2), Height = Math.Max(devH - 2, 2), RadiusX = 2, RadiusY = 2, Fill = DeviceBrush, Tag = s };
+                SetLeft(segRect, s * segWL + 0.5);
+                SetTop(segRect, 1);
+                container.Children.Add(segRect);
+            }
+
+            // Right bar
+            double rightX = halfW + gapPx;
+            var bgR = new Rectangle { Width = halfW, Height = devH, RadiusX = 4, RadiusY = 4, Fill = DeviceBrush, Stroke = DeviceBrush, StrokeThickness = 1 };
+            SetLeft(bgR, rightX);
+            container.Children.Add(bgR);
+            double segWR = halfW / Math.Max(rightSegs, 1);
+            for (int s = 0; s < rightSegs; s++)
+            {
+                var segRect = new Rectangle { Width = Math.Max(segWR - 1, 2), Height = Math.Max(devH - 2, 2), RadiusX = 2, RadiusY = 2, Fill = DeviceBrush, Tag = leftSegs + s };
+                SetLeft(segRect, rightX + s * segWR + 0.5);
+                SetTop(segRect, 1);
+                container.Children.Add(segRect);
+            }
+        }
+        else if (isSegment)
+        {
+            // Single segment bar: rounded rectangle with segment divisions
             var bg = new Rectangle
             {
                 Width = devW, Height = devH,
