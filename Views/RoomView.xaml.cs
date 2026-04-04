@@ -653,22 +653,31 @@ public partial class RoomView : UserControl
 
         stack.Children.Add(dirModeRow);
 
-        // ── ROOM LAYOUT CANVAS ──
+        // ── ROOM LAYOUT (collapsible) ──
         stack.Children.Add(MakeSeparator());
-        var (canvasBar, canvasLabel) = MakeSectionHeader("ROOM LAYOUT");
-        stack.Children.Add(WrapHeader(canvasBar, canvasLabel));
+        var layoutExpander = new Expander
+        {
+            Header = new TextBlock
+            {
+                Text = "ROOM LAYOUT", FontSize = 11, FontWeight = FontWeights.Bold,
+                Foreground = FindBrush("AccentBrush"),
+            },
+            IsExpanded = false,
+            Foreground = FindBrush("TextSecBrush"),
+            Margin = new Thickness(0, 4, 0, 0),
+        };
+        var layoutContent = new StackPanel();
 
         _roomCanvas = new Controls.RoomCanvasControl
         {
             Height = 350,
-            Margin = new Thickness(0, 0, 0, 12),
+            Margin = new Thickness(0, 8, 0, 12),
         };
 
         // Auto-populate devices if layout is empty
         if (layout.Devices.Count == 0)
         {
             AutoPopulateLayoutDevices(layout);
-            // Auto-enable spatial when devices are placed
             _config.Ambience.SpatialSync = true;
         }
 
@@ -683,34 +692,22 @@ public partial class RoomView : UserControl
             OnLayoutChanged();
         };
 
-        stack.Children.Add(_roomCanvas);
+        layoutContent.Children.Add(_roomCanvas);
 
         // Selected device properties panel
         _selectedDevicePanel = new StackPanel();
-        stack.Children.Add(_selectedDevicePanel);
+        layoutContent.Children.Add(_selectedDevicePanel);
 
         // Unplaced devices tray
-        BuildDeviceTray(stack, layout);
+        BuildDeviceTray(layoutContent, layout);
 
-        // ── ROOM DIMENSIONS (collapsed by default) ──
-        var dimExpander = new Expander
-        {
-            Header = new TextBlock
-            {
-                Text = "ROOM SIZE", FontSize = 10, FontWeight = FontWeights.SemiBold,
-                Foreground = FindBrush("TextSecBrush"),
-            },
-            IsExpanded = false,
-            Foreground = FindBrush("TextSecBrush"),
-            Margin = new Thickness(0, 8, 0, 0),
-        };
-        var dimRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
-
-        dimRow.Children.Add(MakeSubLabel("WIDTH"));
+        // Room dimensions
+        var dimRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 4) };
+        dimRow.Children.Add(MakeSubLabel("SIZE"));
         dimRow.Children.Add(MakeDimensionInput(layout.WidthFt, v => { layout.WidthFt = v; OnLayoutChanged(); _roomCanvas?.Rebuild(); }));
         dimRow.Children.Add(new TextBlock { Text = "×", FontSize = 14, Foreground = FindBrush("TextSecBrush"),
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) });
-        dimRow.Children.Add(MakeSubLabel("DEPTH"));
+        dimRow.Children.Add(MakeSubLabel(""));
         dimRow.Children.Add(MakeDimensionInput(layout.DepthFt, v => { layout.DepthFt = v; OnLayoutChanged(); _roomCanvas?.Rebuild(); }));
         dimRow.Children.Add(new TextBlock { Text = "×", FontSize = 14, Foreground = FindBrush("TextSecBrush"),
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) });
@@ -719,8 +716,10 @@ public partial class RoomView : UserControl
         dimRow.Children.Add(new TextBlock { Text = "ft", FontSize = 11, Foreground = FindBrush("TextSecBrush"),
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) });
 
-        dimExpander.Content = dimRow;
-        stack.Children.Add(dimExpander);
+        layoutContent.Children.Add(dimRow);
+
+        layoutExpander.Content = layoutContent;
+        stack.Children.Add(layoutExpander);
 
         // Screen Sync settings (if enabled)
         if (_screenSyncSettingsPanel != null)
