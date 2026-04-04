@@ -424,19 +424,17 @@ public partial class RoomView : UserControl
             }, Color.FromRgb(0xFF, 0xB8, 0x00)));
 
         // Screen Sync
-        bool gameModeOn = _config.Ambience.GameModeEnabled;
         bool syncRunning = _config.Ambience.ScreenSync.Enabled;
-        var screenSyncTile = BuildToggleTile("⬛", "SCREEN SYNC", "Fullscreen game detection",
-            gameModeOn, on =>
+        var screenSyncTile = BuildToggleTile("⬛", "SCREEN SYNC", "Capture screen colors to room lights",
+            syncRunning, on =>
             {
                 if (_loading || _config == null) return;
-                _config.Ambience.GameModeEnabled = on;
-                if (!on && _config.Ambience.ScreenSync.Enabled)
-                {
-                    _config.Ambience.ScreenSync.Enabled = false;
-                    if (_config.Corsair.Enabled) _config.Corsair.LightSyncMode = "vu_reactive";
-                    _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-                }
+                _config.Ambience.ScreenSync.Enabled = on;
+                _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+                if (!on && _config.Corsair.Enabled)
+                    _config.Corsair.LightSyncMode = "vu_reactive";
+                if (on && _config.Corsair.Enabled)
+                    _config.Corsair.LightSyncMode = "dreamview";
                 if (_screenSyncSettingsPanel != null)
                     _screenSyncSettingsPanel.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
                 QueueSave();
