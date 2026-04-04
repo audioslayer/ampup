@@ -385,12 +385,9 @@ public class AmbienceSync : IDisposable
                     for (int s = 0; s < zones; s++)
                     {
                         // Paired mirror: both panels show the same pattern.
-                        // Second panel reversed so top-left = top-right visually.
-                        int mapIdx;
-                        if (isPaired && s >= panelSegs)
-                            mapIdx = (panelSegs - 1) - (s - panelSegs);
-                        else
-                            mapIdx = isPaired ? s : s;
+                        // Hardware wiring runs opposite on each panel, so straight
+                        // modulo gives matching visual positions (no software reversal needed).
+                        int mapIdx = isPaired ? (s % panelSegs) : s;
                         int srcIdx = mapIdx * 15 / panelSegs;
                         srcIdx = Math.Clamp(srcIdx, 0, 14);
                         int r = linear45[srcIdx * 3];
@@ -912,8 +909,8 @@ public class AmbienceSync : IDisposable
         "H6049" => 12,  // DreamView G1
         "H6043" => 15,  // DreamView TV Backlight
         "H6062" => 10,  // Glide Wall Light
-        "H610A" => 24,  // Glide Lively Wall Light (6 bars × 4 LEDs = 24 addressable LEDs)
-        "H610B" => 24,
+        "H610A" => 12,  // Glide Lively Wall Light (6 bars × 2 addressable segments per bar)
+        "H610B" => 12,
         "H6601" => 10,  // Curtain Lights
         _ => 0
     };
