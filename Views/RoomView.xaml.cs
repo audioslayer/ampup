@@ -566,6 +566,42 @@ public partial class RoomView : UserControl
         };
         stack.Children.Add(speedSlider);
 
+        // ── BRIGHTNESS ──
+        var brightRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+        brightRow.Children.Add(MakeSubLabel("BRIGHTNESS"));
+        var roomBrightSlider = new StyledSlider
+        {
+            Minimum = 1, Maximum = 100,
+            Value = _config.Ambience.BrightnessScale,
+            Width = 200, Height = 35,
+            AccentColor = ThemeManager.Accent,
+            ShowLabel = false,
+        };
+        var roomBrightLabel = new TextBlock
+        {
+            Text = $"{_config.Ambience.BrightnessScale}%",
+            FontSize = 12, Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+        roomBrightSlider.ValueChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            int pct = (int)roomBrightSlider.Value;
+            _config.Ambience.BrightnessScale = pct;
+            roomBrightLabel.Text = $"{pct}%";
+            // Also send per-device brightness for immediate effect
+            foreach (var dev in _config.Ambience.GoveeDevices)
+            {
+                if (!string.IsNullOrWhiteSpace(dev.Ip) && dev.PoweredOn)
+                    _ = AmbienceSync.SendBrightnessAsync(dev.Ip, pct);
+            }
+            QueueSave();
+        };
+        brightRow.Children.Add(roomBrightSlider);
+        brightRow.Children.Add(roomBrightLabel);
+        stack.Children.Add(brightRow);
+
         // ── DIRECTION + MODE ──
         stack.Children.Add(MakeSeparator());
         var (dirBar, dirLabel) = MakeSectionHeader("DIRECTION");
