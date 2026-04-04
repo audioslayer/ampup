@@ -3436,6 +3436,34 @@ public partial class RoomView : UserControl
                     dev.Device, dev.Sku, GoveeCloudApi.SetColor(r, g, b)));
     }
 
+    /// <summary>
+    /// Stop room effect for screen sync (game mode or manual toggle).
+    /// Saves the active pattern so it can be restarted later.
+    /// </summary>
+    public void StopRoomPatternForScreenSync()
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_activePattern != null && _activePattern != "__sync__")
+            {
+                StopRoomPattern();
+                _config!.Ambience.LinkToLights = false;
+            }
+        });
+    }
+
+    /// <summary>
+    /// Restart room effect after screen sync ends (game mode exit).
+    /// </summary>
+    public void RestartRoomEffectAfterScreenSync()
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_activePattern != null && _activePattern != "__sync__")
+                StartRoomPattern(_activePattern);
+        });
+    }
+
     // ── Room Pattern Engine (headless RgbController) ──────────────
 
     private void StartRoomPattern(string patternId, Color? c1 = null, Color? c2 = null, bool corsairOnly = false)

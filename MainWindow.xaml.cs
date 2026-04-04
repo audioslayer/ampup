@@ -1341,6 +1341,8 @@ public partial class MainWindow : FluentWindow
         _ambienceView.SetLgMonitor(lgMonitor);
     }
 
+    public RoomView? GetRoomView() => _ambienceView;
+
     public void SetHAIntegration(HAIntegration? ha)
     {
         _ambienceView.SetHAIntegration(ha);

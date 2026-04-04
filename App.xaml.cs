@@ -1336,6 +1336,9 @@ public partial class App : Application
             }
             catch { Logger.Log("GameMode: fullscreen detected — enabling screen sync"); }
 
+            // Stop room effect so it doesn't fight with screen sync
+            _mainWindow?.GetRoomView()?.StopRoomPatternForScreenSync();
+
             // Enable DreamView for Govee (only if not already on)
             if (!_config.Ambience.ScreenSync.Enabled)
             {
@@ -1352,16 +1355,18 @@ public partial class App : Application
             _gameModeActive = false;
             _gameModeLastChangeMs = nowMs;
 
-            Logger.Log("GameMode: fullscreen exited — restoring previous settings");
+            Logger.Log("GameMode: fullscreen exited — restoring room effect");
 
             // Only restore DreamView if we were the ones who turned it on
             if (!_gameModePreDreamView)
             {
                 _config.Ambience.ScreenSync.Enabled = false;
                 _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-                // DreamSync.Stop() disables segments — clear tracking so room effects re-enable
                 _ambienceSync?.ClearAllSegmentTracking();
             }
+
+            // Restart the room effect
+            _mainWindow?.GetRoomView()?.RestartRoomEffectAfterScreenSync();
 
             // Only restore Corsair if we changed it
             if (_config.Corsair.Enabled && _gameModePrevCorsairMode != "dreamview")
