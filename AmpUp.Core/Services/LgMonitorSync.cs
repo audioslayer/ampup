@@ -46,19 +46,10 @@ public class LgMonitorSync : IDisposable
             var allDevices = DeviceList.Local.GetHidDevices();
             var lgDevices = allDevices.Where(d => d.VendorID == VendorId && d.ProductID == ProductId).ToList();
 
-            Logger.Log($"LG Monitor: found {lgDevices.Count} HID device(s) with VID={VendorId:X4} PID={ProductId:X4}");
-
-            foreach (var d in lgDevices)
+            if (lgDevices.Count == 0)
             {
-                try
-                {
-                    Logger.Log($"LG Monitor:   path={d.DevicePath}");
-                    Logger.Log($"LG Monitor:   maxIn={d.GetMaxInputReportLength()} maxOut={d.GetMaxOutputReportLength()} maxFeat={d.GetMaxFeatureReportLength()}");
-                }
-                catch (Exception ex)
-                {
-                    Logger.Log($"LG Monitor:   (error reading properties: {ex.Message})");
-                }
+                Logger.Log("LG Monitor: no compatible device found");
+                return false;
             }
 
             // Prefer device with 65-byte output reports (Interface 1 = LED control)

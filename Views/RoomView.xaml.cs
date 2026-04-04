@@ -825,7 +825,6 @@ public partial class RoomView : UserControl
                 onOff.Checked += async (_, _) =>
                 {
                     if (_loading || _config == null) return;
-                    Logger.Log($"Device toggle ON: {capturedDev.Name} ({capturedIp})");
                     capturedDev.PoweredOn = true;
                     AmbienceSync.PauseSync(capturedIp, 5);
                     await AmbienceSync.SendTurnAsync(capturedIp, true);
@@ -835,7 +834,6 @@ public partial class RoomView : UserControl
                 onOff.Unchecked += async (_, _) =>
                 {
                     if (_loading || _config == null) return;
-                    Logger.Log($"Device toggle OFF: {capturedDev.Name} ({capturedIp})");
                     capturedDev.PoweredOn = false;
                     AmbienceSync.PauseSync(capturedIp, 5);
                     await AmbienceSync.SendTurnAsync(capturedIp, false);
@@ -3469,7 +3467,6 @@ public partial class RoomView : UserControl
             var pattern = _savedPatternForGameMode;
             if (!string.IsNullOrEmpty(pattern))
             {
-                Logger.Log($"GameMode: restarting room effect '{pattern}'");
                 StartRoomPattern(pattern);
                 // Keep _savedPatternForGameMode so repeated fullscreen cycles work
             }
