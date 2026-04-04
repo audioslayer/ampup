@@ -402,6 +402,7 @@ public class RoomDevicePlacement
     public double Rotation { get; set; } = 0;           // degrees, 0 = facing forward
     public double LengthFt { get; set; } = 1.5;        // physical length of the device
     public int SegmentCount { get; set; } = 1;          // cached segment count
+    public bool Reversed { get; set; } = false;         // reverse segment order (right-to-left)
 }
 
 public enum EffectDirection

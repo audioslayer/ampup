@@ -13,6 +13,7 @@ public class SpatialMapper
     // For segment devices, Start..End spans the device's physical extent
     // For single-color devices, Start == End (point sample)
     private readonly Dictionary<string, (float Start, float End)> _deviceLedPositions = new();
+    private readonly Dictionary<string, bool> _deviceReversed = new();
     private RoomLayout _layout = new();
 
     public bool HasLayout => _layout.Devices.Count > 0;
@@ -24,12 +25,10 @@ public class SpatialMapper
     {
         _layout = layout;
         _deviceLedPositions.Clear();
+        _deviceReversed.Clear();
         if (layout.Devices.Count == 0) return;
 
         var direction = layout.Direction;
-
-        // Project each device onto the effect direction axis
-        var projections = new List<(string Id, float Center, float HalfExtent, int Segments)>();
 
         foreach (var dev in layout.Devices)
         {
@@ -38,10 +37,13 @@ public class SpatialMapper
 
             // Physical extent along the direction axis (for segment devices)
             float halfExtent = 0;
+            bool autoReverse = false;
             if (dev.SegmentCount > 1 && dev.LengthFt > 0)
             {
                 // Project the device's length onto the direction axis based on rotation
                 double rotRad = dev.Rotation * Math.PI / 180.0;
+
+                // Use signed cos/sin to detect direction — negative = device faces opposite
                 float dirComponent = direction switch
                 {
                     EffectDirection.LeftToRight => (float)Math.Abs(Math.Cos(rotRad)),
@@ -49,6 +51,17 @@ public class SpatialMapper
                     EffectDirection.Diagonal => (float)(Math.Abs(Math.Cos(rotRad - Math.PI / 4)) * 0.707),
                     _ => 0.5f // Radial/BottomToTop: spread evenly
                 };
+
+                // Auto-detect reversal from rotation: 90–270° means device points "backwards"
+                float signedDir = direction switch
+                {
+                    EffectDirection.LeftToRight => (float)Math.Cos(rotRad),
+                    EffectDirection.FrontToBack => (float)Math.Sin(rotRad),
+                    EffectDirection.Diagonal => (float)Math.Cos(rotRad - Math.PI / 4),
+                    _ => 1f
+                };
+                autoReverse = signedDir < 0;
+
                 float extentFt = (float)(dev.LengthFt * dirComponent);
                 float roomExtent = direction switch
                 {
@@ -61,16 +74,14 @@ public class SpatialMapper
                 halfExtent = roomExtent > 0 ? extentFt / roomExtent / 2f : 0;
             }
 
-            projections.Add((dev.DeviceId, center, halfExtent, dev.SegmentCount));
-        }
+            // Reversed = explicit flag XOR auto-detected from rotation
+            // (explicit flag lets user override auto-detection)
+            _deviceReversed[dev.DeviceId] = dev.Reversed ^ autoReverse;
 
-        // Map normalized positions (0–1) to LED strip positions (0–14)
-        foreach (var (id, center, halfExtent, segments) in projections)
-        {
             float start = Math.Clamp((center - halfExtent) * 14f, 0, 14);
             float end = Math.Clamp((center + halfExtent) * 14f, 0, 14);
-            if (segments <= 1) end = start; // point sample for bulbs
-            _deviceLedPositions[id] = (start, end);
+            if (dev.SegmentCount <= 1) end = start; // point sample for bulbs
+            _deviceLedPositions[dev.DeviceId] = (start, end);
         }
     }
 
@@ -126,12 +137,15 @@ public class SpatialMapper
         }
 
         // Segment device: spread segments across the device's LED range
+        bool reversed = _deviceReversed.TryGetValue(deviceId, out var rev) && rev;
         var colors = new (int R, int G, int B)[segmentCount];
         float range = pos.End - pos.Start;
         for (int s = 0; s < segmentCount; s++)
         {
+            // When reversed, sample from End→Start instead of Start→End
+            int sampleIdx = reversed ? (segmentCount - 1 - s) : s;
             float ledPos = range > 0
-                ? pos.Start + s * range / Math.Max(segmentCount - 1, 1)
+                ? pos.Start + sampleIdx * range / Math.Max(segmentCount - 1, 1)
                 : pos.Start;
             var sampled = SampleAtPosition(linear45, ledPos, 1);
             colors[s] = sampled[0];

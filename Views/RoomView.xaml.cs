@@ -740,6 +740,24 @@ public partial class RoomView : UserControl
         row.Children.Add(new TextBlock { Text = "°", FontSize = 11, Foreground = FindBrush("TextSecBrush"),
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 0, 0) });
 
+        // Reverse segments toggle (only for multi-segment devices)
+        if (dev.SegmentCount > 1)
+        {
+            var revCheck = new CheckBox
+            {
+                Content = "Reverse",
+                IsChecked = dev.Reversed,
+                FontSize = 10,
+                Foreground = FindBrush("TextSecBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(12, 0, 0, 0),
+                ToolTip = "Flip segment order — use when the device's left side faces right in the room",
+            };
+            revCheck.Checked += (_, _) => { dev.Reversed = true; OnLayoutChanged(); };
+            revCheck.Unchecked += (_, _) => { dev.Reversed = false; OnLayoutChanged(); };
+            row.Children.Add(revCheck);
+        }
+
         // Remove button
         var removeBtn = new TextBlock
         {
