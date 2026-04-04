@@ -711,27 +711,193 @@ public partial class RoomView : UserControl
             stack.Children.Add(_screenSyncSettingsPanel);
     }
 
-    // ── DEVICES TAB (per-device Govee + Corsair controls) ──
+    // ── DEVICES TAB (per-device power/brightness controls) ──
 
     private void BuildDevicesTab(StackPanel stack)
     {
         if (_config == null) return;
 
-        // Govee devices
-        if (_config.Ambience.GoveeEnabled && _config.Ambience.GoveeDevices.Count > 0)
+        // ── Govee devices ──
+        bool hasGovee = _config.Ambience.GoveeEnabled && _config.Ambience.GoveeDevices.Count > 0;
+        if (hasGovee)
         {
             var (govBar, govLabel) = MakeSectionHeader("GOVEE");
             stack.Children.Add(WrapHeader(govBar, govLabel));
-            BuildGoveeRoomTab(stack);
+
+            foreach (var govDev in _config.Ambience.GoveeDevices)
+            {
+                bool hasLan = !string.IsNullOrWhiteSpace(govDev.Ip);
+                if (!hasLan) continue;
+                var devConfig = govDev;
+
+                var devRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
+
+                // Device name
+                var displayName = !string.IsNullOrWhiteSpace(govDev.Name) ? govDev.Name : govDev.Ip;
+                devRow.Children.Add(new TextBlock
+                {
+                    Text = displayName,
+                    FontSize = 12, FontWeight = FontWeights.SemiBold,
+                    Foreground = FindBrush("TextPrimaryBrush"),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Width = 150, TextTrimming = TextTrimming.CharacterEllipsis,
+                    Margin = new Thickness(0, 0, 12, 0),
+                });
+
+                // On/Off
+                var onOff = new CheckBox
+                {
+                    Content = "On", FontSize = 11,
+                    IsChecked = devConfig.PoweredOn,
+                    Foreground = FindBrush("TextPrimaryBrush"),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 12, 0),
+                };
+                onOff.Checked += async (_, _) =>
+                {
+                    if (_loading) return;
+                    devConfig.PoweredOn = true;
+                    AmbienceSync.PauseSync(devConfig.Ip, 5);
+                    await AmbienceSync.SendTurnAsync(devConfig.Ip, true);
+                    _onSave?.Invoke(_config!);
+                };
+                onOff.Unchecked += async (_, _) =>
+                {
+                    if (_loading) return;
+                    devConfig.PoweredOn = false;
+                    AmbienceSync.PauseSync(devConfig.Ip, 5);
+                    await AmbienceSync.SendTurnAsync(devConfig.Ip, false);
+                    _onSave?.Invoke(_config!);
+                };
+                devRow.Children.Add(onOff);
+
+                // Brightness slider
+                var brightSlider = new StyledSlider
+                {
+                    Minimum = 1, Maximum = 100,
+                    Value = _config.Ambience.BrightnessScale,
+                    Width = 150, Height = 30,
+                    AccentColor = ThemeManager.Accent,
+                    ShowLabel = false,
+                };
+                var brightLabel = new TextBlock
+                {
+                    Text = $"{(int)brightSlider.Value}%", FontSize = 11,
+                    Foreground = FindBrush("TextSecBrush"),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(6, 0, 0, 0),
+                };
+                brightSlider.ValueChanged += (_, _) =>
+                {
+                    if (_loading) return;
+                    int pct = (int)brightSlider.Value;
+                    brightLabel.Text = $"{pct}%";
+                    AmbienceSync.PauseSync(devConfig.Ip, 5);
+                    _ = AmbienceSync.SendBrightnessAsync(devConfig.Ip, pct);
+                };
+                devRow.Children.Add(brightSlider);
+                devRow.Children.Add(brightLabel);
+
+                // Segment count badge
+                int segs = AmbienceSync.GetSegmentCount(govDev);
+                if (segs > 1)
+                {
+                    devRow.Children.Add(new TextBlock
+                    {
+                        Text = $"{segs} seg",
+                        FontSize = 9, Foreground = FindBrush("TextDimBrush"),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(8, 0, 0, 0),
+                    });
+                }
+
+                stack.Children.Add(devRow);
+            }
         }
 
-        // Corsair devices
-        if (_config.Corsair.Enabled && _corsairSync?.Devices.Count > 0)
+        // ── Corsair devices ──
+        bool hasCorsair = _config.Corsair.Enabled && _corsairSync?.IsAvailable == true;
+        if (hasCorsair)
         {
-            stack.Children.Add(MakeSeparator());
+            if (hasGovee) stack.Children.Add(MakeSeparator());
             var (corBar, corLabel) = MakeSectionHeader("CORSAIR");
             stack.Children.Add(WrapHeader(corBar, corLabel));
-            BuildCorsairRoomTab(stack);
+
+            if (_corsairSync?.Devices.Count > 0)
+            {
+                foreach (var dev in _corsairSync.Devices)
+                {
+                    var devRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
+
+                    devRow.Children.Add(new TextBlock
+                    {
+                        Text = dev.Name,
+                        FontSize = 12, FontWeight = FontWeights.SemiBold,
+                        Foreground = FindBrush("TextPrimaryBrush"),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Width = 200, TextTrimming = TextTrimming.CharacterEllipsis,
+                        Margin = new Thickness(0, 0, 12, 0),
+                    });
+
+                    devRow.Children.Add(new TextBlock
+                    {
+                        Text = $"{dev.LedCount} LEDs",
+                        FontSize = 10, Foreground = FindBrush("TextSecBrush"),
+                        VerticalAlignment = VerticalAlignment.Center,
+                    });
+
+                    stack.Children.Add(devRow);
+                }
+
+                // Brightness slider for all Corsair
+                var corBrightRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 4) };
+                corBrightRow.Children.Add(MakeSubLabel("BRIGHTNESS"));
+                var corBrightSlider = new StyledSlider
+                {
+                    Minimum = 1, Maximum = 100,
+                    Value = Math.Min(_config.Corsair.LightBrightness, 100),
+                    Width = 150, Height = 30,
+                    AccentColor = ThemeManager.Accent,
+                    ShowLabel = false,
+                };
+                var corBrightLabel = new TextBlock
+                {
+                    Text = $"{Math.Min(_config.Corsair.LightBrightness, 100)}%",
+                    FontSize = 11, Foreground = FindBrush("TextSecBrush"),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(6, 0, 0, 0),
+                };
+                corBrightSlider.ValueChanged += (_, _) =>
+                {
+                    if (_config == null) return;
+                    int pct = (int)corBrightSlider.Value;
+                    _config.Corsair.LightBrightness = pct;
+                    corBrightLabel.Text = $"{pct}%";
+                    QueueSave();
+                };
+                corBrightRow.Children.Add(corBrightSlider);
+                corBrightRow.Children.Add(corBrightLabel);
+                stack.Children.Add(corBrightRow);
+            }
+            else
+            {
+                stack.Children.Add(new TextBlock
+                {
+                    Text = "No Corsair devices detected — make sure iCUE is running.",
+                    FontSize = 11, Foreground = FindBrush("TextSecBrush"),
+                    Margin = new Thickness(0, 4, 0, 0),
+                });
+            }
+        }
+
+        if (!hasGovee && !hasCorsair)
+        {
+            stack.Children.Add(new TextBlock
+            {
+                Text = "No devices configured — enable Govee or Corsair in Settings.",
+                FontSize = 11, Foreground = FindBrush("TextSecBrush"),
+                Margin = new Thickness(0, 8, 0, 0),
+            });
         }
     }
 
