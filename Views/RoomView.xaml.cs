@@ -3448,9 +3448,11 @@ public partial class RoomView : UserControl
         Dispatcher.BeginInvoke(() =>
         {
             // Save the current pattern before stopping (StopRoomPattern clears _activePattern)
+            // Keep existing saved pattern if _activePattern is already null (repeated calls)
             if (_activePattern != null && _activePattern != "__sync__")
                 _savedPatternForGameMode = _activePattern;
-            StopRoomPattern();
+            if (_roomRgb != null)
+                StopRoomPattern();
             if (_config != null) _config.Ambience.LinkToLights = false;
         });
     }
@@ -3463,11 +3465,11 @@ public partial class RoomView : UserControl
         Dispatcher.BeginInvoke(() =>
         {
             var pattern = _savedPatternForGameMode;
-            _savedPatternForGameMode = null;
             if (!string.IsNullOrEmpty(pattern))
             {
                 Logger.Log($"GameMode: restarting room effect '{pattern}'");
                 StartRoomPattern(pattern);
+                // Keep _savedPatternForGameMode so repeated fullscreen cycles work
             }
         });
     }
