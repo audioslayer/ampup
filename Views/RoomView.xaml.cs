@@ -446,7 +446,7 @@ public partial class RoomView : UserControl
         // Screen Sync settings panel
         if (_screenSyncSettingsPanel != null)
             _roomTabContent?.Children.Remove(_screenSyncSettingsPanel);
-        var ssPanel = new StackPanel { Margin = new Thickness(0, 8, 0, 0), Visibility = gameModeOn ? Visibility.Visible : Visibility.Collapsed };
+        var ssPanel = new StackPanel { Margin = new Thickness(0, 8, 0, 0), Visibility = syncRunning ? Visibility.Visible : Visibility.Collapsed };
         BuildScreenSyncSettings(ssPanel, statusUpdater!);
         _screenSyncSettingsPanel = ssPanel;
     }
