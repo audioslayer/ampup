@@ -42,22 +42,38 @@ public class LgMonitorSync : IDisposable
     {
         try
         {
-            var devices = DeviceList.Local.GetHidDevices(VendorId, ProductId);
-            // Find Interface 1 (LED control) — usage page 0xFF01
-            _device = devices.FirstOrDefault(d =>
+            // Enumerate ALL HID devices to find LG monitor
+            var allDevices = DeviceList.Local.GetHidDevices();
+            var lgDevices = allDevices.Where(d => d.VendorID == VendorId && d.ProductID == ProductId).ToList();
+
+            Logger.Log($"LG Monitor: found {lgDevices.Count} HID device(s) with VID={VendorId:X4} PID={ProductId:X4}");
+
+            foreach (var d in lgDevices)
             {
                 try
                 {
-                    var reportDesc = d.GetRawReportDescriptor();
-                    // Interface 1 is the LED control HID
-                    return d.DevicePath.Contains("mi_01", StringComparison.OrdinalIgnoreCase)
-                        || d.DevicePath.Contains("MI_01");
+                    Logger.Log($"LG Monitor:   path={d.DevicePath}");
+                    Logger.Log($"LG Monitor:   maxIn={d.GetMaxInputReportLength()} maxOut={d.GetMaxOutputReportLength()} maxFeat={d.GetMaxFeatureReportLength()}");
                 }
+                catch (Exception ex)
+                {
+                    Logger.Log($"LG Monitor:   (error reading properties: {ex.Message})");
+                }
+            }
+
+            // Prefer device with 65-byte output reports (Interface 1 = LED control)
+            _device = lgDevices.FirstOrDefault(d =>
+            {
+                try { return d.GetMaxOutputReportLength() == 65; }
                 catch { return false; }
             });
 
-            // Fallback: try any device with matching VID/PID
-            _device ??= devices.FirstOrDefault();
+            // Fallback: try path matching for mi_01
+            _device ??= lgDevices.FirstOrDefault(d =>
+                d.DevicePath.Contains("mi_01", StringComparison.OrdinalIgnoreCase));
+
+            // Last resort: any LG device
+            _device ??= lgDevices.FirstOrDefault();
 
             if (_device == null)
             {
@@ -68,8 +84,9 @@ public class LgMonitorSync : IDisposable
             _stream = _device.Open();
             _stream.ReadTimeout = 500;
             _stream.WriteTimeout = 500;
-            DeviceName = _device.GetProductName() ?? "LG UltraGear";
-            Logger.Log($"LG Monitor: connected to {DeviceName} ({_device.DevicePath})");
+            DeviceName = "LG UltraGear";
+            try { DeviceName = _device.GetProductName() ?? DeviceName; } catch { }
+            Logger.Log($"LG Monitor: connected to {DeviceName} (outReport={_device.GetMaxOutputReportLength()})");
             return true;
         }
         catch (Exception ex)
