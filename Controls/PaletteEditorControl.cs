@@ -168,7 +168,6 @@ public class PaletteEditorControl : FrameworkElement
 
         // 3. "+" button at the right
         double addX = ActualWidth - AddButtonSize - 2;
-        double addY = ChipY - AddButtonSize / 2;
         dc.DrawEllipse(Brushes.Transparent, s_addPen, new Point(addX + AddButtonSize / 2, ChipY), AddButtonSize / 2, AddButtonSize / 2);
         // Plus sign
         double cx = addX + AddButtonSize / 2, cy = ChipY;

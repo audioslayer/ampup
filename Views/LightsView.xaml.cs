@@ -74,9 +74,6 @@ public partial class LightsView : UserControl
     // Global lighting controls
     private CheckBox? _globalEnableCheck;
     private EffectPickerControl? _globalEffectPicker;
-    private Border? _globalColor1Swatch;
-    private Border? _globalColor2Swatch;
-    private Border? _globalColor2Panel;
     private StyledSlider? _globalSpeedSlider;
     private StackPanel? _globalSpeedPanel;
     private ActionPicker? _globalReactiveModeCombo;
@@ -94,7 +91,6 @@ public partial class LightsView : UserControl
     private StackPanel? _ledTogglePanel;
     private readonly Dictionary<string, Border> _paletteTiles = new();
     private string? _activePresetName;
-    private StackPanel? _manualColorSection;
 
     private static readonly (string Name, Color[] Colors)[] ColorPalettes = new[]
     {
@@ -193,10 +189,6 @@ public partial class LightsView : UserControl
             _globalEffectPicker.SelectedEffect = gl.Effect;
         _globalColor1 = Color.FromRgb((byte)gl.R, (byte)gl.G, (byte)gl.B);
         _globalColor2 = Color.FromRgb((byte)gl.R2, (byte)gl.G2, (byte)gl.B2);
-        if (_globalColor1Swatch != null)
-            SetSwatchColor(_globalColor1Swatch, _globalColor1);
-        if (_globalColor2Swatch != null)
-            SetSwatchColor(_globalColor2Swatch, _globalColor2);
         if (_globalSpeedSlider != null)
             _globalSpeedSlider.Value = Math.Clamp(gl.EffectSpeed, 1, 100);
         if (_globalReactiveModeCombo != null)
@@ -878,8 +870,6 @@ public partial class LightsView : UserControl
         }
 
         // Show manual section only when "Solid" is active (custom color picking)
-        if (_manualColorSection != null)
-            _manualColorSection.Visibility = _activePresetName == "Solid" ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void UpdateLedToggleVisual(int idx)
@@ -1092,8 +1082,6 @@ public partial class LightsView : UserControl
         bool needsSpeed = EffectsNeedingSpeed.Contains(effect);
         bool isReactive = effect == LightEffect.AudioReactive;
 
-        if (_globalColor2Panel != null)
-            _globalColor2Panel.Visibility = (!noColors && needsColor2) ? Visibility.Visible : Visibility.Collapsed;
         if (_globalPalettePanel != null)
             _globalPalettePanel.Visibility = noColors ? Visibility.Collapsed : Visibility.Visible;
         if (_globalSpeedPanel != null)
@@ -1119,17 +1107,9 @@ public partial class LightsView : UserControl
         {
             var chosen = dialog.SelectedColor;
             if (isColor2)
-            {
                 _globalColor2 = chosen;
-                if (_globalColor2Swatch != null)
-                    SetSwatchColor(_globalColor2Swatch, chosen);
-            }
             else
-            {
                 _globalColor1 = chosen;
-                if (_globalColor1Swatch != null)
-                    SetSwatchColor(_globalColor1Swatch, chosen);
-            }
             // Custom pick switches to Solid preset
             _globalGradientColors = new();
             _activePresetName = "Solid";
@@ -1697,8 +1677,6 @@ public partial class LightsView : UserControl
         {
             _globalColor1 = preset.c1;
             _globalColor2 = preset.c2;
-            if (_globalColor1Swatch != null) SetSwatchColor(_globalColor1Swatch, preset.c1);
-            if (_globalColor2Swatch != null) SetSwatchColor(_globalColor2Swatch, preset.c2);
         }
     }
 
