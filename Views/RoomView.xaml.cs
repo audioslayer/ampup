@@ -755,19 +755,20 @@ public partial class RoomView : UserControl
                 };
                 onOff.Checked += async (_, _) =>
                 {
-                    if (_loading) return;
+                    if (_loading || _config == null) return;
                     devConfig.PoweredOn = true;
                     AmbienceSync.PauseSync(devConfig.Ip, 5);
                     await AmbienceSync.SendTurnAsync(devConfig.Ip, true);
-                    _onSave?.Invoke(_config!);
+                    await Task.Delay(150); // Govee needs delay after power-on before color commands
+                    QueueSave();
                 };
                 onOff.Unchecked += async (_, _) =>
                 {
-                    if (_loading) return;
+                    if (_loading || _config == null) return;
                     devConfig.PoweredOn = false;
                     AmbienceSync.PauseSync(devConfig.Ip, 5);
                     await AmbienceSync.SendTurnAsync(devConfig.Ip, false);
-                    _onSave?.Invoke(_config!);
+                    QueueSave();
                 };
                 devRow.Children.Add(onOff);
 
