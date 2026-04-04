@@ -205,12 +205,12 @@ public class RoomCanvasControl : Canvas
         {
             // Split L/R: two bars with a gap
             double gapPx = Math.Max(dev.SplitGapFt * _scale, 8);
-            double halfW = (devW - gapPx) / 2;
+            double halfW = Math.Max((devW - gapPx) / 2, DeviceMinSize);
             int leftSegs = dev.SegmentCount / 2;
             int rightSegs = dev.SegmentCount - leftSegs;
 
-            // Expand container to fit gap
-            container.Width = devW + gapPx;
+            // Expand container to fit both halves + gap
+            container.Width = halfW * 2 + gapPx;
 
             // Left bar
             var bgL = new Rectangle { Width = halfW, Height = devH, RadiusX = 4, RadiusY = 4, Fill = DeviceBrush, Stroke = DeviceBrush, StrokeThickness = 1 };
