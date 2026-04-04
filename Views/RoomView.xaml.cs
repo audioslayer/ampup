@@ -117,12 +117,15 @@ public partial class RoomView : UserControl
             RebuildDevicePanel();
         }
 
-        // Initialize spatial mapper only if spatial sync is enabled
-        if (config.RoomLayout.Devices.Count > 0 && config.Ambience.SpatialSync)
+        // Always initialize spatial mapper when devices exist (spatial mode is the default)
+        if (config.RoomLayout.Devices.Count > 0)
         {
             _spatialMapper = new AmpUp.Core.Engine.SpatialMapper();
             _spatialMapper.Recalculate(config.RoomLayout);
             _sync?.SetSpatialMapper(_spatialMapper);
+            // Auto-enable spatial mode when devices are placed
+            if (!config.Ambience.SpatialSync)
+                config.Ambience.SpatialSync = true;
         }
     }
 
@@ -282,7 +285,7 @@ public partial class RoomView : UserControl
     // ██  CARD 1: ROOM LIGHTING (unified)
     // ══════════════════════════════════════════════════════════════════
 
-    private int _roomTabIndex = 1; // 0=Layout, 1=Global, 2=Govee, 3=Corsair
+    private int _roomTabIndex = 0; // 0=Room Effect, 1=Devices
     private StackPanel? _roomTabContent;
 
     private StackPanel? _screenSyncSettingsPanel;
@@ -298,9 +301,9 @@ public partial class RoomView : UserControl
         var stack = new StackPanel();
         card.Child = stack;
 
-        // ── Pill-style tab bar (Layout / Global / Govee / Corsair) ──
+        // ── Pill-style tab bar (Room Effect / Devices) ──
         var accent = ThemeManager.Accent;
-        var tabNames = new[] { "LAYOUT", "GLOBAL", "GOVEE", "CORSAIR" };
+        var tabNames = new[] { "ROOM EFFECT", "DEVICES" };
         var tabCount = tabNames.Length;
         var tabBorders = new Border[tabCount];
 
@@ -391,129 +394,348 @@ public partial class RoomView : UserControl
 
         switch (_roomTabIndex)
         {
-            case 0: BuildLayoutTab(_roomTabContent); break;
-            case 1: BuildGlobalRoomTab(_roomTabContent); break;
-            case 2: BuildGoveeRoomTab(_roomTabContent); break;
-            case 3: BuildCorsairRoomTab(_roomTabContent); break;
+            case 0: BuildRoomEffectTab(_roomTabContent); break;
+            case 1: BuildDevicesTab(_roomTabContent); break;
         }
-
-        // Append Screen Sync settings panel (Global tab only)
-        if (_roomTabIndex == 1 && _screenSyncSettingsPanel != null)
-            _roomTabContent.Children.Add(_screenSyncSettingsPanel);
     }
 
     private void BuildTabToggleRow(WrapPanel row, int tabIndex)
     {
-        if (tabIndex == 0) return; // Layout tab has no toggle row
-        switch (tabIndex)
-        {
-            case 1: // Global
-                // Amp Up sync
-                bool syncActive = _activePattern == "__sync__";
-                row.Children.Add(BuildToggleTile("🔗", "AMP UP", "Mirror knob LEDs to room",
-                    syncActive, on =>
-                    {
-                        if (_config == null) return;
-                        if (on) { StopRoomPattern(); _activePattern = "__sync__"; _config.Ambience.LinkToLights = true; _config.Corsair.LightSyncMode = "vu_reactive"; }
-                        else { _activePattern = null; _config.Ambience.LinkToLights = false; _config.Corsair.LightSyncMode = "static"; }
-                        QueueSave(); RebuildRoomTabContent();
-                    }, Color.FromRgb(0x69, 0xF0, 0xAE)));
+        if (tabIndex != 0 || _config == null) return; // Only Room Effect tab has toggle row
 
-                // Global Music Reactive (brightness modulation)
-                bool globalMusic = _corsairMusicTimer?.IsEnabled == true;
-                row.Children.Add(BuildToggleTile("♪", "MUSIC REACTIVE", "Audio-driven brightness",
-                    globalMusic, on =>
-                    {
-                        if (_loading) return;
-                        if (on) StartGlobalMusicSync(); else StopCorsairMusicSync();
-                    }, Color.FromRgb(0xFF, 0xB8, 0x00)));
+        // Amp Up sync
+        bool syncActive = _activePattern == "__sync__";
+        row.Children.Add(BuildToggleTile("🔗", "AMP UP", "Mirror knob LEDs to room",
+            syncActive, on =>
+            {
+                if (_config == null) return;
+                if (on) { StopRoomPattern(); _activePattern = "__sync__"; _config.Ambience.LinkToLights = true; _config.Corsair.LightSyncMode = "vu_reactive"; }
+                else { _activePattern = null; _config.Ambience.LinkToLights = false; _config.Corsair.LightSyncMode = "static"; }
+                QueueSave(); RebuildRoomTabContent();
+            }, Color.FromRgb(0x69, 0xF0, 0xAE)));
 
-                // Screen Sync
-                bool gameModeOn = _config!.Ambience.GameModeEnabled;
-                bool syncRunning = _config.Ambience.ScreenSync.Enabled;
-                var screenSyncTile = BuildToggleTile("⬛", "SCREEN SYNC", "Fullscreen game detection",
-                    gameModeOn, on =>
-                    {
-                        if (_loading || _config == null) return;
-                        _config.Ambience.GameModeEnabled = on;
-                        if (!on && _config.Ambience.ScreenSync.Enabled)
-                        {
-                            _config.Ambience.ScreenSync.Enabled = false;
-                            if (_config.Corsair.Enabled) _config.Corsair.LightSyncMode = "vu_reactive";
-                            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-                        }
-                        if (_screenSyncSettingsPanel != null)
-                            _screenSyncSettingsPanel.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
-                        QueueSave();
-                    }, Color.FromRgb(0x44, 0x8A, 0xFF),
-                    syncRunning ? "ACTIVE" : "STANDBY",
-                    out var statusUpdater);
-                row.Children.Add(screenSyncTile);
+        // Music Reactive
+        bool globalMusic = _corsairMusicTimer?.IsEnabled == true;
+        row.Children.Add(BuildToggleTile("♪", "MUSIC REACTIVE", "Audio-driven brightness",
+            globalMusic, on =>
+            {
+                if (_loading) return;
+                if (on) StartGlobalMusicSync(); else StopCorsairMusicSync();
+            }, Color.FromRgb(0xFF, 0xB8, 0x00)));
 
-                // Spatial sync toggle (Mirror vs Spatial)
-                bool spatial = _config.Ambience.SpatialSync;
-                row.Children.Add(BuildToggleTile("↔", "SPATIAL", spatial ? "Effect flows across devices" : "All devices show same effect",
-                    spatial, on =>
-                    {
-                        if (_loading || _config == null) return;
-                        _config.Ambience.SpatialSync = on;
-                        QueueSave(); RebuildRoomTabContent();
-                    }, Color.FromRgb(0xBB, 0x86, 0xFC)));
-
-                // Screen Sync settings panel (rebuilt each time for simplicity)
+        // Screen Sync
+        bool gameModeOn = _config.Ambience.GameModeEnabled;
+        bool syncRunning = _config.Ambience.ScreenSync.Enabled;
+        var screenSyncTile = BuildToggleTile("⬛", "SCREEN SYNC", "Fullscreen game detection",
+            gameModeOn, on =>
+            {
+                if (_loading || _config == null) return;
+                _config.Ambience.GameModeEnabled = on;
+                if (!on && _config.Ambience.ScreenSync.Enabled)
+                {
+                    _config.Ambience.ScreenSync.Enabled = false;
+                    if (_config.Corsair.Enabled) _config.Corsair.LightSyncMode = "vu_reactive";
+                    _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+                }
                 if (_screenSyncSettingsPanel != null)
-                    _roomTabContent?.Children.Remove(_screenSyncSettingsPanel);
-                var ssPanel = new StackPanel { Margin = new Thickness(0, 8, 0, 0), Visibility = gameModeOn ? Visibility.Visible : Visibility.Collapsed };
-                BuildScreenSyncSettings(ssPanel, statusUpdater!);
-                _screenSyncSettingsPanel = ssPanel;
-                break;
+                    _screenSyncSettingsPanel.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+                QueueSave();
+            }, Color.FromRgb(0x44, 0x8A, 0xFF),
+            syncRunning ? "ACTIVE" : "STANDBY",
+            out var statusUpdater);
+        row.Children.Add(screenSyncTile);
 
-            case 2: // Govee
-                // Sync to Global
-                row.Children.Add(BuildToggleTile("🔗", "SYNC TO GLOBAL", "Follow Global tab effects",
-                    _config!.Ambience.GoveeSyncToGlobal, on =>
-                    {
-                        if (_config == null) return;
-                        _config.Ambience.GoveeSyncToGlobal = on;
-                        QueueSave(); RebuildRoomTabContent();
-                    }, Color.FromRgb(0x69, 0xF0, 0xAE)));
+        // Screen Sync settings panel
+        if (_screenSyncSettingsPanel != null)
+            _roomTabContent?.Children.Remove(_screenSyncSettingsPanel);
+        var ssPanel = new StackPanel { Margin = new Thickness(0, 8, 0, 0), Visibility = gameModeOn ? Visibility.Visible : Visibility.Collapsed };
+        BuildScreenSyncSettings(ssPanel, statusUpdater!);
+        _screenSyncSettingsPanel = ssPanel;
+    }
 
-                // Govee LAN Music Sync
-                bool goveeMusicOn = _goveeLanMusicTimer?.IsEnabled == true;
-                row.Children.Add(BuildToggleTile("♪", "MUSIC SYNC", "Bass=R / Mids=G / Treble=B via LAN",
-                    goveeMusicOn, on =>
-                    {
-                        if (_loading) return;
-                        // Find first Govee device with IP for music sync
-                        var firstIp = _config?.Ambience.GoveeDevices.FirstOrDefault(d => !string.IsNullOrWhiteSpace(d.Ip))?.Ip;
-                        if (firstIp == null) return;
-                        if (on) StartGoveeLanMusicSync(firstIp); else StopGoveeLanMusicSync();
-                    }, Color.FromRgb(0xFF, 0xB8, 0x00)));
-                break;
+    // ── ROOM EFFECT TAB (unified: effect + palette + direction + canvas) ──
 
-            case 3: // Corsair
-                // Sync to Global
-                row.Children.Add(BuildToggleTile("🔗", "SYNC TO GLOBAL", "Follow Global tab effects",
-                    _config!.Corsair.SyncToGlobal, on =>
-                    {
-                        if (_config == null) return;
-                        _config.Corsair.SyncToGlobal = on;
-                        QueueSave(); RebuildRoomTabContent();
-                    }, Color.FromRgb(0x69, 0xF0, 0xAE)));
+    private void BuildRoomEffectTab(StackPanel stack)
+    {
+        if (_config == null) return;
+        var layout = _config.RoomLayout;
 
-                // Corsair Music Sync
-                bool corsairMusicOn = _corsairMusicTimer?.IsEnabled == true;
-                row.Children.Add(BuildToggleTile("♪", "MUSIC SYNC", "Audio frequency → Corsair colors",
-                    corsairMusicOn, on =>
-                    {
-                        if (_loading || _corsairSync == null) return;
-                        if (on) StartCorsairMusicSync(); else StopCorsairMusicSync();
-                    }, Color.FromRgb(0xFF, 0xB8, 0x00)));
-                break;
+        // ── EFFECT ──
+        var (effBar, effLabel) = MakeSectionHeader("EFFECT");
+        stack.Children.Add(WrapHeader(effBar, effLabel));
+
+        var effectPicker = new Controls.EffectPickerControl(showGlobal: true)
+        {
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+        if (_activePattern != null && _activePattern != "__sync__")
+            effectPicker.SelectedEffect = Enum.TryParse<LightEffect>(_activePattern, true, out var eff) ? eff : LightEffect.SingleColor;
+        effectPicker.SelectionChanged += (_, _) =>
+        {
+            if (_loading) return;
+            var effect = effectPicker.SelectedEffect;
+            if (effect == LightEffect.SingleColor)
+            {
+                StopRoomPattern();
+                SendRoomColor(_roomColor1.R, _roomColor1.G, _roomColor1.B);
+            }
+            else
+            {
+                StartRoomPattern(effect.ToString());
+            }
+            if (_config != null)
+            {
+                _config.Ambience.LinkToLights = false;
+                _activePattern = effect == LightEffect.SingleColor ? null : effect.ToString();
+            }
+        };
+        stack.Children.Add(effectPicker);
+
+        // ── PALETTE ──
+        stack.Children.Add(MakeSeparator());
+        var (palBar, palLabel) = MakeSectionHeader("PALETTE");
+        stack.Children.Add(WrapHeader(palBar, palLabel));
+
+        var paletteEditor = new PaletteEditorControl
+        {
+            Palette = _roomPalette,
+            Margin = new Thickness(0, 4, 0, 8),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        paletteEditor.PaletteChanged += palette =>
+        {
+            if (_loading) return;
+            _roomPalette = palette;
+            if (palette.Stops.Count >= 2)
+            {
+                var sorted = palette.Stops.OrderBy(s => s.Position).ToList();
+                _roomColor1 = Color.FromRgb(sorted[0].R, sorted[0].G, sorted[0].B);
+                _roomColor2 = Color.FromRgb(sorted[^1].R, sorted[^1].G, sorted[^1].B);
+            }
+            if (_activePattern != null && _activePattern != "__sync__")
+                StartRoomPattern(_activePattern);
+        };
+        paletteEditor.StopClicked += (stopIdx, currentColor) =>
+        {
+            var dialog = new ColorPickerDialog(currentColor) { Owner = Window.GetWindow(this) };
+            dialog.ColorChanged += c => paletteEditor.UpdateSelectedStopColor(c);
+            dialog.ShowDialog();
+        };
+        stack.Children.Add(paletteEditor);
+
+        // ── SPEED ──
+        stack.Children.Add(MakeSubLabel("SPEED"));
+        var speedSlider = new StyledSlider
+        {
+            Minimum = 1, Maximum = 100, Value = 50,
+            Height = 35,
+            AccentColor = ThemeManager.Accent,
+            ShowLabel = false,
+            Margin = new Thickness(0, 0, 0, 8),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        speedSlider.ValueChanged += (_, _) =>
+        {
+            if (_roomRgb != null && Enum.TryParse<LightEffect>(_activePattern, true, out var eff2))
+            {
+                _roomRgb.UpdateGlobalConfig(new GlobalLightConfig
+                {
+                    Enabled = true, Effect = eff2,
+                    R = _roomColor1.R, G = _roomColor1.G, B = _roomColor1.B,
+                    R2 = _roomColor2.R, G2 = _roomColor2.G, B2 = _roomColor2.B,
+                    EffectSpeed = (int)speedSlider.Value,
+                    PaletteName = _roomPalette.Name,
+                });
+            }
+        };
+        stack.Children.Add(speedSlider);
+
+        // ── DIRECTION + MODE ──
+        stack.Children.Add(MakeSeparator());
+        var (dirBar, dirLabel) = MakeSectionHeader("DIRECTION");
+        stack.Children.Add(WrapHeader(dirBar, dirLabel));
+
+        var dirModeRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+
+        // Direction pills
+        var dirNames = new[] { "L → R", "F → B", "↑", "RADIAL", "DIAGONAL" };
+        var dirValues = new[] { EffectDirection.LeftToRight, EffectDirection.FrontToBack,
+            EffectDirection.BottomToTop, EffectDirection.Radial, EffectDirection.Diagonal };
+        for (int i = 0; i < dirNames.Length; i++)
+        {
+            var dirVal = dirValues[i];
+            bool active = layout.Direction == dirVal;
+            var pill = new Border
+            {
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(12, 4, 12, 4),
+                Margin = new Thickness(0, 0, 4, 0),
+                Cursor = Cursors.Hand,
+                Background = active
+                    ? new SolidColorBrush(Color.FromArgb(0x30, 0x00, 0xE6, 0x76))
+                    : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                BorderBrush = active
+                    ? new SolidColorBrush(Color.FromArgb(0x60, 0x00, 0xE6, 0x76))
+                    : new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
+                BorderThickness = new Thickness(1),
+            };
+            pill.Child = new TextBlock
+            {
+                Text = dirNames[i], FontSize = 10, FontWeight = FontWeights.Bold,
+                Foreground = active ? FindBrush("AccentBrush") : FindBrush("TextSecBrush"),
+            };
+            pill.MouseLeftButtonDown += (_, _) =>
+            {
+                layout.Direction = dirVal;
+                OnLayoutChanged();
+                RebuildRoomTabContent();
+            };
+            dirModeRow.Children.Add(pill);
+        }
+
+        // Spacer
+        dirModeRow.Children.Add(new Border { Width = 12 });
+
+        // Spatial / Mirror mode pills
+        bool isSpatial = _config.Ambience.SpatialSync;
+        foreach (var (modeName, modeVal) in new[] { ("SPATIAL", true), ("MIRROR", false) })
+        {
+            bool modeActive = isSpatial == modeVal;
+            var modePill = new Border
+            {
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(10, 4, 10, 4),
+                Margin = new Thickness(0, 0, 4, 0),
+                Cursor = Cursors.Hand,
+                Background = modeActive
+                    ? new SolidColorBrush(Color.FromArgb(0x30, 0xBB, 0x86, 0xFC))
+                    : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                BorderBrush = modeActive
+                    ? new SolidColorBrush(Color.FromArgb(0x60, 0xBB, 0x86, 0xFC))
+                    : new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
+                BorderThickness = new Thickness(1),
+                ToolTip = modeVal ? "Effect flows across devices by position" : "All devices show the same effect",
+            };
+            modePill.Child = new TextBlock
+            {
+                Text = modeName, FontSize = 10, FontWeight = FontWeights.Bold,
+                Foreground = modeActive
+                    ? new SolidColorBrush(Color.FromRgb(0xBB, 0x86, 0xFC))
+                    : FindBrush("TextSecBrush"),
+            };
+            var capturedVal = modeVal;
+            modePill.MouseLeftButtonDown += (_, _) =>
+            {
+                if (_config == null) return;
+                _config.Ambience.SpatialSync = capturedVal;
+                OnLayoutChanged();
+                QueueSave();
+                RebuildRoomTabContent();
+            };
+            dirModeRow.Children.Add(modePill);
+        }
+
+        stack.Children.Add(dirModeRow);
+
+        // ── ROOM LAYOUT CANVAS ──
+        stack.Children.Add(MakeSeparator());
+        var (canvasBar, canvasLabel) = MakeSectionHeader("ROOM LAYOUT");
+        stack.Children.Add(WrapHeader(canvasBar, canvasLabel));
+
+        _roomCanvas = new Controls.RoomCanvasControl
+        {
+            Height = 350,
+            Margin = new Thickness(0, 0, 0, 12),
+        };
+
+        // Auto-populate devices if layout is empty
+        if (layout.Devices.Count == 0)
+        {
+            AutoPopulateLayoutDevices(layout);
+            // Auto-enable spatial when devices are placed
+            _config.Ambience.SpatialSync = true;
+        }
+
+        _roomCanvas.SetLayout(layout);
+
+        _roomCanvas.DeviceSelected += dev =>
+        {
+            Dispatcher.BeginInvoke(() => RebuildSelectedDevicePanel(dev));
+        };
+        _roomCanvas.LayoutChanged += () =>
+        {
+            OnLayoutChanged();
+        };
+
+        stack.Children.Add(_roomCanvas);
+
+        // Selected device properties panel
+        _selectedDevicePanel = new StackPanel();
+        stack.Children.Add(_selectedDevicePanel);
+
+        // Unplaced devices tray
+        BuildDeviceTray(stack, layout);
+
+        // ── ROOM DIMENSIONS (collapsed by default) ──
+        var dimExpander = new Expander
+        {
+            Header = new TextBlock
+            {
+                Text = "ROOM SIZE", FontSize = 10, FontWeight = FontWeights.SemiBold,
+                Foreground = FindBrush("TextSecBrush"),
+            },
+            IsExpanded = false,
+            Foreground = FindBrush("TextSecBrush"),
+            Margin = new Thickness(0, 8, 0, 0),
+        };
+        var dimRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
+
+        dimRow.Children.Add(MakeSubLabel("WIDTH"));
+        dimRow.Children.Add(MakeDimensionInput(layout.WidthFt, v => { layout.WidthFt = v; OnLayoutChanged(); _roomCanvas?.Rebuild(); }));
+        dimRow.Children.Add(new TextBlock { Text = "×", FontSize = 14, Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) });
+        dimRow.Children.Add(MakeSubLabel("DEPTH"));
+        dimRow.Children.Add(MakeDimensionInput(layout.DepthFt, v => { layout.DepthFt = v; OnLayoutChanged(); _roomCanvas?.Rebuild(); }));
+        dimRow.Children.Add(new TextBlock { Text = "×", FontSize = 14, Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) });
+        dimRow.Children.Add(MakeSubLabel("HEIGHT"));
+        dimRow.Children.Add(MakeDimensionInput(layout.HeightFt, v => { layout.HeightFt = v; OnLayoutChanged(); }));
+        dimRow.Children.Add(new TextBlock { Text = "ft", FontSize = 11, Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) });
+
+        dimExpander.Content = dimRow;
+        stack.Children.Add(dimExpander);
+
+        // Screen Sync settings (if enabled)
+        if (_screenSyncSettingsPanel != null)
+            stack.Children.Add(_screenSyncSettingsPanel);
+    }
+
+    // ── DEVICES TAB (per-device Govee + Corsair controls) ──
+
+    private void BuildDevicesTab(StackPanel stack)
+    {
+        if (_config == null) return;
+
+        // Govee devices
+        if (_config.Ambience.GoveeEnabled && _config.Ambience.GoveeDevices.Count > 0)
+        {
+            var (govBar, govLabel) = MakeSectionHeader("GOVEE");
+            stack.Children.Add(WrapHeader(govBar, govLabel));
+            BuildGoveeRoomTab(stack);
+        }
+
+        // Corsair devices
+        if (_config.Corsair.Enabled && _corsairSync?.Devices.Count > 0)
+        {
+            stack.Children.Add(MakeSeparator());
+            var (corBar, corLabel) = MakeSectionHeader("CORSAIR");
+            stack.Children.Add(WrapHeader(corBar, corLabel));
+            BuildCorsairRoomTab(stack);
         }
     }
 
-    // ── LAYOUT TAB ─────────────────────────────────────────────────
+    // ── OLD LAYOUT TAB (kept for reference, called by BuildRoomEffectTab internals) ──
 
     private void BuildLayoutTab(StackPanel stack)
     {
