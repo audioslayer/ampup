@@ -438,17 +438,25 @@ public partial class RoomView : UserControl
             {
                 if (_loading || _config == null) return;
                 _config.Ambience.ScreenSync.Enabled = on;
-                _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-                if (!on)
+                if (on)
+                {
+                    // Stop room effect so it doesn't fight with screen sync
+                    StopRoomPattern();
+                    _config.Ambience.LinkToLights = false;
+                    if (_config.Corsair.Enabled)
+                        _config.Corsair.LightSyncMode = "dreamview";
+                }
+                else
                 {
                     // DreamSync.Stop() disables segments — clear AmbienceSync tracking
-                    // so room effects re-enable segments on next frame
                     _sync?.ClearAllSegmentTracking();
                     if (_config.Corsair.Enabled)
                         _config.Corsair.LightSyncMode = "vu_reactive";
+                    // Restart the room effect if one was selected
+                    if (_activePattern != null && _activePattern != "__sync__")
+                        StartRoomPattern(_activePattern);
                 }
-                if (on && _config.Corsair.Enabled)
-                    _config.Corsair.LightSyncMode = "dreamview";
+                _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
                 if (_screenSyncSettingsPanel != null)
                     _screenSyncSettingsPanel.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
                 QueueSave();
