@@ -23,10 +23,12 @@ public class AmbienceSync : IDisposable
     private readonly Dictionary<string, long> _segmentKeepAliveTick = new();
     private const long SegmentKeepAliveInterval = TimeSpan.TicksPerSecond * 25; // re-enable every 25s
 
-    // Rate limiter: Govee LAN UDP per device (~10 cmd/sec max)
+    // Rate limiter: Govee LAN UDP per device
+    // Razer binary protocol is lightweight — LedFx defaults to 40 FPS, 20 FPS is conservative and reliable.
+    // colorwc JSON is heavier but 10 FPS is well within device capability.
     private readonly Dictionary<string, long> _lastSendTick = new();
-    private const long MinTicksSegment = TimeSpan.TicksPerMillisecond * 100;  // 10 FPS for segment protocol
-    private const long MinTicksSingle  = TimeSpan.TicksPerMillisecond * 150;  // ~7 FPS for colorwc (safe headroom)
+    private const long MinTicksSegment = TimeSpan.TicksPerMillisecond * 50;   // 20 FPS for segment protocol (razer binary)
+    private const long MinTicksSingle  = TimeSpan.TicksPerMillisecond * 100;  // 10 FPS for colorwc (JSON)
 
     // Spatial mapper for room layout mode
     private SpatialMapper? _spatialMapper;
@@ -886,8 +888,8 @@ public class AmbienceSync : IDisposable
         "H6049" => 12,  // DreamView G1
         "H6043" => 15,  // DreamView TV Backlight
         "H6062" => 10,  // Glide Wall Light
-        "H610A" => 6,   // Glide Lively Wall Light (6 bars, 4 LEDs each but 6 addressable segments)
-        "H610B" => 6,
+        "H610A" => 24,  // Glide Lively Wall Light (6 bars × 4 LEDs = 24 addressable LEDs)
+        "H610B" => 24,
         "H6601" => 10,  // Curtain Lights
         _ => 0
     };
@@ -907,7 +909,7 @@ public class AmbienceSync : IDisposable
         if (name.Contains("tv backlight")) return 20;
         if (name.Contains("tv light bar")) return 12;
         if (name.Contains("glide") && !name.Contains("lively")) return 10; // H6062 original Glide
-        // H610A Glide Lively: no razer support, single-color only
+        if (name.Contains("glide") && name.Contains("lively")) return 24; // H610A: 6 bars × 4 LEDs
         return 0;
     }
 
