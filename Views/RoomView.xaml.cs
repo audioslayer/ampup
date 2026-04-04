@@ -753,21 +753,25 @@ public partial class RoomView : UserControl
                     VerticalAlignment = VerticalAlignment.Center,
                     Margin = new Thickness(0, 0, 12, 0),
                 };
+                var capturedIp = devConfig.Ip;
+                var capturedDev = devConfig;
                 onOff.Checked += async (_, _) =>
                 {
                     if (_loading || _config == null) return;
-                    devConfig.PoweredOn = true;
-                    AmbienceSync.PauseSync(devConfig.Ip, 5);
-                    await AmbienceSync.SendTurnAsync(devConfig.Ip, true);
-                    await Task.Delay(150); // Govee needs delay after power-on before color commands
+                    Logger.Log($"Device toggle ON: {capturedDev.Name} ({capturedIp})");
+                    capturedDev.PoweredOn = true;
+                    AmbienceSync.PauseSync(capturedIp, 5);
+                    await AmbienceSync.SendTurnAsync(capturedIp, true);
+                    await Task.Delay(150);
                     QueueSave();
                 };
                 onOff.Unchecked += async (_, _) =>
                 {
                     if (_loading || _config == null) return;
-                    devConfig.PoweredOn = false;
-                    AmbienceSync.PauseSync(devConfig.Ip, 5);
-                    await AmbienceSync.SendTurnAsync(devConfig.Ip, false);
+                    Logger.Log($"Device toggle OFF: {capturedDev.Name} ({capturedIp})");
+                    capturedDev.PoweredOn = false;
+                    AmbienceSync.PauseSync(capturedIp, 5);
+                    await AmbienceSync.SendTurnAsync(capturedIp, false);
                     QueueSave();
                 };
                 devRow.Children.Add(onOff);
