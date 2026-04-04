@@ -443,6 +443,18 @@ public partial class RoomView : UserControl
             out var statusUpdater);
         row.Children.Add(screenSyncTile);
 
+        // Game Mode — auto-enable screen sync when fullscreen app detected
+        bool gameMode = _config.Ambience.GameModeEnabled;
+        row.Children.Add(BuildToggleTile("🎮", "GAME MODE", gameMode
+                ? "Screen sync activates in fullscreen apps"
+                : "Auto-sync when fullscreen game detected",
+            gameMode, on =>
+            {
+                if (_loading || _config == null) return;
+                _config.Ambience.GameModeEnabled = on;
+                QueueSave();
+            }, Color.FromRgb(0xFF, 0x6B, 0x35)));
+
         // Screen Sync settings panel
         if (_screenSyncSettingsPanel != null)
             _roomTabContent?.Children.Remove(_screenSyncSettingsPanel);
