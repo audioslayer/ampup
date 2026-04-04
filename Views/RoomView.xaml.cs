@@ -3436,6 +3436,9 @@ public partial class RoomView : UserControl
                     dev.Device, dev.Sku, GoveeCloudApi.SetColor(r, g, b)));
     }
 
+    // Saved pattern for game mode restore
+    private string? _savedPatternForGameMode;
+
     /// <summary>
     /// Stop room effect for screen sync (game mode or manual toggle).
     /// Saves the active pattern so it can be restarted later.
@@ -3444,11 +3447,11 @@ public partial class RoomView : UserControl
     {
         Dispatcher.BeginInvoke(() =>
         {
+            // Save the current pattern before stopping (StopRoomPattern clears _activePattern)
             if (_activePattern != null && _activePattern != "__sync__")
-            {
-                StopRoomPattern();
-                _config!.Ambience.LinkToLights = false;
-            }
+                _savedPatternForGameMode = _activePattern;
+            StopRoomPattern();
+            if (_config != null) _config.Ambience.LinkToLights = false;
         });
     }
 
@@ -3459,8 +3462,13 @@ public partial class RoomView : UserControl
     {
         Dispatcher.BeginInvoke(() =>
         {
-            if (_activePattern != null && _activePattern != "__sync__")
-                StartRoomPattern(_activePattern);
+            var pattern = _savedPatternForGameMode;
+            _savedPatternForGameMode = null;
+            if (!string.IsNullOrEmpty(pattern))
+            {
+                Logger.Log($"GameMode: restarting room effect '{pattern}'");
+                StartRoomPattern(pattern);
+            }
         });
     }
 
