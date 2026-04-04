@@ -385,9 +385,12 @@ public class AmbienceSync : IDisposable
                     for (int s = 0; s < zones; s++)
                     {
                         // Paired mirror: both panels show the same pattern.
-                        // Hardware wiring runs opposite on each panel, so straight
-                        // modulo gives matching visual positions (no software reversal needed).
-                        int mapIdx = isPaired ? (s % panelSegs) : s;
+                        // Reverse within each panel so they match other Govee devices.
+                        int mapIdx;
+                        if (isPaired)
+                            mapIdx = (panelSegs - 1) - (s % panelSegs);
+                        else
+                            mapIdx = s;
                         int srcIdx = mapIdx * 15 / panelSegs;
                         srcIdx = Math.Clamp(srcIdx, 0, 14);
                         int r = linear45[srcIdx * 3];
