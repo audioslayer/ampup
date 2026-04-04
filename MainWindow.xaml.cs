@@ -1336,6 +1336,11 @@ public partial class MainWindow : FluentWindow
         _settingsView.SetCorsairSync(corsairSync);
     }
 
+    public void SetLgMonitor(LgMonitorSync lgMonitor)
+    {
+        _ambienceView.SetLgMonitor(lgMonitor);
+    }
+
     public void SetHAIntegration(HAIntegration? ha)
     {
         _ambienceView.SetHAIntegration(ha);

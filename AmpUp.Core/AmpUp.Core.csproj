@@ -6,6 +6,7 @@
     <RootNamespace>AmpUp.Core</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="HidSharp" Version="2.6.4" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="System.IO.Ports" Version="8.0.0" />
   </ItemGroup>

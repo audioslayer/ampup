@@ -35,6 +35,9 @@ public partial class RoomView : UserControl
 
     // Corsair iCUE
     private CorsairSync? _corsairSync;
+
+    // LG UltraGear monitor
+    private LgMonitorSync? _lgMonitor;
     private StackPanel? _corsairDeviceRows;
     private DispatcherTimer? _corsairMusicTimer;
 
@@ -93,6 +96,11 @@ public partial class RoomView : UserControl
     public void SetCorsairSync(CorsairSync corsairSync)
     {
         _corsairSync = corsairSync;
+    }
+
+    public void SetLgMonitor(LgMonitorSync? lgMonitor)
+    {
+        _lgMonitor = lgMonitor;
     }
 
     public void LoadConfig(AppConfig config, Action<AppConfig> onSave)
@@ -3553,6 +3561,12 @@ public partial class RoomView : UserControl
             for (int i = 0; i < 45; i++)
                 boosted[i] = (byte)Math.Min(linearColors[i] * boost, 255);
             _corsairSync.SyncColors(boosted);
+        }
+
+        // ── LG UltraGear monitor LEDs (48 LEDs, maps from 15-LED buffer) ──
+        if (_lgMonitor?.IsAvailable == true)
+        {
+            _lgMonitor.SyncFromRoomEffect(linearColors);
         }
 
         // ── HA lights in room layout (~2/sec — HA/BLE devices are slow) ──

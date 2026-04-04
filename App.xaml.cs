@@ -43,6 +43,7 @@ public partial class App : Application
     private AmbienceSync? _ambienceSync;
     private DreamSyncController? _dreamSync;
     private CorsairSync? _corsairSync;
+    private LgMonitorSync? _lgMonitor;
     private RadialWheelOverlay? _radialWheel;
     private bool _wheelVisible;
     private System.Windows.Threading.DispatcherTimer? _wheelDismissTimer;
@@ -134,6 +135,11 @@ public partial class App : Application
         };
         if (_config.Corsair.Enabled)
             _corsairSync.Start();
+
+        // LG UltraGear monitor LED sync
+        _lgMonitor = new LgMonitorSync();
+        if (_lgMonitor.TryConnect())
+            Logger.Log($"LG Monitor: {_lgMonitor.DeviceName} — {_lgMonitor.LedCountValue} LEDs");
 
         // DreamView / Screen Sync
         _dreamSync = new DreamSyncController(_config.Ambience.ScreenSync, _config.Ambience, new WindowsScreenCapture());
@@ -267,6 +273,8 @@ public partial class App : Application
         _mainWindow.SetDreamSync(_dreamSync);
         if (_corsairSync != null)
             _mainWindow.SetCorsairSync(_corsairSync);
+        if (_lgMonitor?.IsAvailable == true)
+            _mainWindow.SetLgMonitor(_lgMonitor);
         _mainWindow.SetHAIntegration(_ha);
 
         // Start minimized to tray if launched with --minimized (Windows startup)
@@ -2210,6 +2218,7 @@ public partial class App : Application
         _ambienceSync?.Dispose();
         _dreamSync?.Dispose();
         _corsairSync?.Dispose();
+        _lgMonitor?.Dispose();
         _cachedMic?.Dispose();
         _cachedMaster?.Dispose();
         lock (_notifyLock)
