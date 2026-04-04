@@ -166,10 +166,11 @@ public class DreamSyncController : IDisposable
                                 (byte R, byte G, byte B)[] segColors;
                                 if (AmbienceSync.IsPairedDevice(dev.Sku))
                                 {
-                                    // Paired device: first half = left screen edge, second half = right
+                                    // Paired device: first half = right screen edge, second half = left
+                                    // (H610A wiring: segments 0-5 = right panel, 6-11 = left panel)
                                     int half = segCount / 2;
-                                    var leftColors = MapZonesToSegments(zones, half, ZoneSide.Left);
-                                    var rightColors = MapZonesToSegments(zones, segCount - half, ZoneSide.Right);
+                                    var leftColors = MapZonesToSegments(zones, half, ZoneSide.Right);
+                                    var rightColors = MapZonesToSegments(zones, segCount - half, ZoneSide.Left);
                                     segColors = new (byte R, byte G, byte B)[segCount];
                                     // Reverse first panel to match physical orientation
                                     for (int si = 0; si < half; si++)
