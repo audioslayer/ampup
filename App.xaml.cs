@@ -952,24 +952,22 @@ public partial class App : Application
                                     else
                                     {
                                         var gc = _config.Ambience.GoveeDevices.FirstOrDefault(d => d.Ip == dev.DeviceId);
-                                        bool wasOff = gc != null ? !gc.PoweredOn : false;
+                                        bool wasOff = gc != null && !gc.PoweredOn;
                                         if (gc != null) gc.PoweredOn = true;
-                                        AmbienceSync.PauseSync(dev.DeviceId, 5);
+
+                                        // Scale brightness into RGB values (like Corsair) instead of
+                                        // sending a separate brightness command — razer segment colors
+                                        // override the brightness command at 20 FPS.
+                                        _config.Ambience.BrightnessScale = pct;
+
                                         if (wasOff)
                                         {
-                                            // Turn on first, delay 150ms for device to power up, then brightness
                                             var ip = dev.DeviceId;
-                                            var bright = pct;
                                             _ = Task.Run(async () =>
                                             {
                                                 await AmbienceSync.SendTurnAsync(ip, true);
                                                 await Task.Delay(150);
-                                                await AmbienceSync.SendBrightnessAsync(ip, bright);
                                             });
-                                        }
-                                        else
-                                        {
-                                            _ = AmbienceSync.SendBrightnessAsync(dev.DeviceId, pct);
                                         }
                                     }
                                     break;
