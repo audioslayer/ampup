@@ -955,19 +955,22 @@ public partial class App : Application
                                         bool wasOff = gc != null && !gc.PoweredOn;
                                         if (gc != null) gc.PoweredOn = true;
 
-                                        // Scale brightness into RGB values (like Corsair) instead of
-                                        // sending a separate brightness command — razer segment colors
-                                        // override the brightness command at 20 FPS.
-                                        _config.Ambience.BrightnessScale = pct;
-
+                                        // Send brightness command — the device applies this as a
+                                        // multiplier on top of whatever colors are being sent via razer.
+                                        var ip = dev.DeviceId;
+                                        var bright = pct;
                                         if (wasOff)
                                         {
-                                            var ip = dev.DeviceId;
                                             _ = Task.Run(async () =>
                                             {
                                                 await AmbienceSync.SendTurnAsync(ip, true);
                                                 await Task.Delay(150);
+                                                await AmbienceSync.SendBrightnessAsync(ip, bright);
                                             });
+                                        }
+                                        else
+                                        {
+                                            _ = AmbienceSync.SendBrightnessAsync(ip, bright);
                                         }
                                     }
                                     break;
