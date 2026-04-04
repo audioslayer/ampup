@@ -1351,6 +1351,8 @@ public partial class App : Application
             {
                 _config.Ambience.ScreenSync.Enabled = false;
                 _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+                // DreamSync.Stop() disables segments — clear tracking so room effects re-enable
+                _ambienceSync?.ClearAllSegmentTracking();
             }
 
             // Only restore Corsair if we changed it

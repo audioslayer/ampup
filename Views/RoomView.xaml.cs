@@ -431,8 +431,14 @@ public partial class RoomView : UserControl
                 if (_loading || _config == null) return;
                 _config.Ambience.ScreenSync.Enabled = on;
                 _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-                if (!on && _config.Corsair.Enabled)
-                    _config.Corsair.LightSyncMode = "vu_reactive";
+                if (!on)
+                {
+                    // DreamSync.Stop() disables segments — clear AmbienceSync tracking
+                    // so room effects re-enable segments on next frame
+                    _sync?.ClearAllSegmentTracking();
+                    if (_config.Corsair.Enabled)
+                        _config.Corsair.LightSyncMode = "vu_reactive";
+                }
                 if (on && _config.Corsair.Enabled)
                     _config.Corsair.LightSyncMode = "dreamview";
                 if (_screenSyncSettingsPanel != null)

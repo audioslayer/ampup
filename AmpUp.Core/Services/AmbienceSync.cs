@@ -803,6 +803,16 @@ public class AmbienceSync : IDisposable
         _ = Task.Run(() => SendSegmentEnable(ip, false));
     }
 
+    /// <summary>
+    /// Clear segment tracking state for all devices so they get re-enabled on next frame.
+    /// Called when DreamSync stops (it sends its own disable commands).
+    /// </summary>
+    public void ClearAllSegmentTracking()
+    {
+        _segmentEnabled.Clear();
+        _segmentKeepAliveTick.Clear();
+    }
+
     public static async Task DisableSegmentMode(string ip)
     {
         await SendSegmentEnable(ip, false);
