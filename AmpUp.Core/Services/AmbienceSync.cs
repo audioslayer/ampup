@@ -385,7 +385,14 @@ public class AmbienceSync : IDisposable
                     for (int s = 0; s < zones; s++)
                     {
                         // In mirror mode for paired devices, wrap segment index to first panel
-                        int mapIdx = isPaired ? (s % panelSegs) : s;
+                        // Second panel (s >= panelSegs) is reversed so both panels match visually
+                        int mapIdx;
+                        if (isPaired && s >= panelSegs)
+                            mapIdx = panelSegs - 1 - (s - panelSegs); // reverse second panel
+                        else if (isPaired)
+                            mapIdx = s;
+                        else
+                            mapIdx = s;
                         int srcIdx = mapIdx * 15 / panelSegs;
                         srcIdx = Math.Clamp(srcIdx, 0, 14);
                         int r = linear45[srcIdx * 3];
