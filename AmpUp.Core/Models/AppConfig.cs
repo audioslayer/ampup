@@ -45,6 +45,7 @@ public class AppConfig
     public CorsairConfig Corsair { get; set; } = new();
     public List<DeviceGroup> Groups { get; set; } = new();
     public RoomLayout RoomLayout { get; set; } = new();
+    public List<ColorPalette> CustomPalettes { get; set; } = new();
 }
 
 public class DeviceGroup
@@ -176,6 +177,7 @@ public class LightConfig
     public ReactiveMode ReactiveMode { get; set; } = ReactiveMode.SpectrumBands;
     public string ProgramName { get; set; } = "";
     public List<DeviceColorEntry> DeviceColors { get; set; } = new();
+    public string PaletteName { get; set; } = "";
 }
 
 public class GlobalLightConfig
@@ -194,6 +196,7 @@ public class GlobalLightConfig
     public ReactiveMode ReactiveMode { get; set; } = ReactiveMode.SpectrumBands;
     public List<string> GradientColors { get; set; } = new();
     public List<int> DisabledKnobs { get; set; } = new();
+    public string PaletteName { get; set; } = "";
 }
 
 public enum LightEffect

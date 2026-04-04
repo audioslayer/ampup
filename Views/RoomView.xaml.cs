@@ -936,29 +936,40 @@ public partial class RoomView : UserControl
         };
         stack.Children.Add(effectPicker);
 
-        // ── Section 2: PRESETS ──
+        // ── Section 2: PALETTE ──
         stack.Children.Add(MakeSeparator());
-        var (preBar, preLabel) = MakeSectionHeader("COLOR");
+        var (preBar, preLabel) = MakeSectionHeader("PALETTE");
         stack.Children.Add(WrapHeader(preBar, preLabel));
 
-        stack.Children.Add(MakeSubLabel("PRESETS"));
-        var presetWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 8) };
-        presetWrap.Children.Add(MakePresetTile("Solid", new SolidColorBrush(_roomColor1), new[] { _roomColor1 }, presetWrap));
-        foreach (var (name, colors) in ColorPalettes)
+        // Palette editor — gradient bar + color chips + built-in presets
+        var paletteEditor = new PaletteEditorControl
         {
-            var gb = new LinearGradientBrush { StartPoint = new Point(0, 0.5), EndPoint = new Point(1, 0.5) };
-            for (int ci = 0; ci < colors.Length; ci++)
-                gb.GradientStops.Add(new GradientStop(colors[ci], ci / (double)(colors.Length - 1)));
-            presetWrap.Children.Add(MakePresetTile(name, gb, colors, presetWrap));
-        }
-        stack.Children.Add(presetWrap);
-
-        // Manual color pickers
-        stack.Children.Add(MakeSubLabel("MANUAL"));
-        var colorRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 8) };
-        colorRow.Children.Add(MakeRoomColorPill("PRIMARY", _roomColor1, false));
-        colorRow.Children.Add(MakeRoomColorPill("SECONDARY", _roomColor2, true));
-        stack.Children.Add(colorRow);
+            Palette = _roomPalette,
+            Margin = new Thickness(0, 4, 0, 8),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        paletteEditor.PaletteChanged += palette =>
+        {
+            if (_loading) return;
+            _roomPalette = palette;
+            // Update legacy color1/color2 from palette endpoints for backward compat
+            if (palette.Stops.Count >= 2)
+            {
+                var sorted = palette.Stops.OrderBy(s => s.Position).ToList();
+                _roomColor1 = Color.FromRgb(sorted[0].R, sorted[0].G, sorted[0].B);
+                _roomColor2 = Color.FromRgb(sorted[^1].R, sorted[^1].G, sorted[^1].B);
+            }
+            // Restart pattern with new palette
+            if (_activePattern != null && _activePattern != "__sync__")
+                StartRoomPattern(_activePattern);
+        };
+        paletteEditor.StopClicked += (stopIdx, currentColor) =>
+        {
+            var dialog = new ColorPickerDialog(currentColor) { Owner = Window.GetWindow(this) };
+            dialog.ColorChanged += c => paletteEditor.UpdateSelectedStopColor(c);
+            dialog.ShowDialog();
+        };
+        stack.Children.Add(paletteEditor);
 
         // Speed slider
         stack.Children.Add(MakeSubLabel("SPEED"));
@@ -981,6 +992,7 @@ public partial class RoomView : UserControl
                     R = _roomColor1.R, G = _roomColor1.G, B = _roomColor1.B,
                     R2 = _roomColor2.R, G2 = _roomColor2.G, B2 = _roomColor2.B,
                     EffectSpeed = (int)speedSlider.Value,
+                    PaletteName = _roomPalette.Name,
                 });
             }
         };
@@ -2357,6 +2369,7 @@ public partial class RoomView : UserControl
 
     private Color _roomColor1 = ThemeManager.Accent;
     private Color _roomColor2 = Color.FromRgb(0xFF, 0xFF, 0xFF);
+    private ColorPalette _roomPalette = BuiltInPalettes.Fire;
     private string? _roomActivePreset;
     private Color[]? _paletteColors;
     private System.Windows.Threading.DispatcherTimer? _paletteCycleTimer;
@@ -2406,37 +2419,34 @@ public partial class RoomView : UserControl
         };
         _sceneContent.Children.Add(effectPicker);
 
-        // ── Color Presets ──
-        _sceneContent.Children.Add(MakeSubLabel("PRESETS"));
-        var presetWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 8) };
-
-        // Solid preset
-        var solidBrush = new SolidColorBrush(_roomColor1);
-        var solidTile = MakePresetTile("Solid", solidBrush, new[] { _roomColor1 }, presetWrap);
-        presetWrap.Children.Add(solidTile);
-
-        // Gradient presets
-        foreach (var (name, colors) in ColorPalettes)
+        // ── Palette Editor ──
+        _sceneContent.Children.Add(MakeSubLabel("PALETTE"));
+        var goveePaletteEditor = new PaletteEditorControl
         {
-            var gradientBrush = new LinearGradientBrush { StartPoint = new Point(0, 0.5), EndPoint = new Point(1, 0.5) };
-            for (int ci = 0; ci < colors.Length; ci++)
-                gradientBrush.GradientStops.Add(new GradientStop(colors[ci], ci / (double)(colors.Length - 1)));
-            presetWrap.Children.Add(MakePresetTile(name, gradientBrush, colors, presetWrap));
-        }
-        _sceneContent.Children.Add(presetWrap);
-
-        // ── Manual Color Pickers ──
-        _sceneContent.Children.Add(MakeSubLabel("COLOR"));
-        var colorRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 8) };
-
-        // Primary color picker
-        var primary = MakeRoomColorPill("PRIMARY", _roomColor1, false);
-        colorRow.Children.Add(primary);
-
-        // Secondary color picker
-        var secondary = MakeRoomColorPill("SECONDARY", _roomColor2, true);
-        colorRow.Children.Add(secondary);
-        _sceneContent.Children.Add(colorRow);
+            Palette = _roomPalette,
+            Margin = new Thickness(0, 4, 0, 8),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        goveePaletteEditor.PaletteChanged += palette =>
+        {
+            if (_loading) return;
+            _roomPalette = palette;
+            if (palette.Stops.Count >= 2)
+            {
+                var sorted = palette.Stops.OrderBy(s => s.Position).ToList();
+                _roomColor1 = Color.FromRgb(sorted[0].R, sorted[0].G, sorted[0].B);
+                _roomColor2 = Color.FromRgb(sorted[^1].R, sorted[^1].G, sorted[^1].B);
+            }
+            if (_activePattern != null && _activePattern != "__sync__")
+                StartRoomPattern(_activePattern);
+        };
+        goveePaletteEditor.StopClicked += (stopIdx, currentColor) =>
+        {
+            var dialog = new ColorPickerDialog(currentColor) { Owner = Window.GetWindow(this) };
+            dialog.ColorChanged += c => goveePaletteEditor.UpdateSelectedStopColor(c);
+            dialog.ShowDialog();
+        };
+        _sceneContent.Children.Add(goveePaletteEditor);
 
         // ── Speed slider ──
         _sceneContent.Children.Add(MakeSubLabel("SPEED"));
@@ -2460,6 +2470,7 @@ public partial class RoomView : UserControl
                     R = _roomColor1.R, G = _roomColor1.G, B = _roomColor1.B,
                     R2 = _roomColor2.R, G2 = _roomColor2.G, B2 = _roomColor2.B,
                     EffectSpeed = (int)speedSlider.Value,
+                    PaletteName = _roomPalette.Name,
                 };
                 _roomRgb.UpdateGlobalConfig(gl);
             }
@@ -2959,12 +2970,13 @@ public partial class RoomView : UserControl
         // Create a headless RgbController to render effects
         _roomRgb = new RgbController();
         _roomRgb.SetBrightness(100);
+        _roomRgb.UpdateCustomPalettes(_config?.CustomPalettes);
 
         // Set knob positions to full so effects render at full brightness
         for (int k = 0; k < 5; k++)
             _roomRgb.SetKnobPosition(k, 1.0f);
 
-        // Configure as global lighting with the selected effect
+        // Configure as global lighting with the selected effect + palette
         if (Enum.TryParse<LightEffect>(patternId, true, out var effect))
         {
             var gl = new GlobalLightConfig
@@ -2974,6 +2986,7 @@ public partial class RoomView : UserControl
                 R = color1.R, G = color1.G, B = color1.B,
                 R2 = color2.R, G2 = color2.G, B2 = color2.B,
                 EffectSpeed = 50,
+                PaletteName = _roomPalette.Name,
             };
             _roomRgb.UpdateGlobalConfig(gl);
         }

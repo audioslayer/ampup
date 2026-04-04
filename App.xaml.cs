@@ -1883,6 +1883,7 @@ public partial class App : Application
         _rgb.SetBrightness(_config.LedBrightness);
         _rgb.SetMuteBrightness(_config.MuteBrightness);
         _rgb.UpdateConfig(_config.Lights);
+        _rgb.UpdateCustomPalettes(_config.CustomPalettes);
         _rgb.UpdateGlobalConfig(_config.GlobalLight);
     }
 

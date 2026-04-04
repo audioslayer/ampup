@@ -112,6 +112,10 @@ public class RgbController : IDisposable
     // Random number generator for stochastic effects
     private static readonly Random _rng = new();
 
+    // Palette system — resolved once per tick for global, or per-knob for individual effects
+    private volatile List<ColorPalette>? _customPalettes;
+    private ColorPalette? _globalPalette; // cached for current tick
+
     // Transition state
     private ProfileTransition _transitionEffect = ProfileTransition.None;
     private int _transitionTick = -1;  // -1 = no transition active
@@ -311,6 +315,32 @@ public class RgbController : IDisposable
     /// Update the global lighting override config.
     /// </summary>
     public void UpdateGlobalConfig(GlobalLightConfig? config) => _globalLight = config;
+
+    /// <summary>
+    /// Set the list of user-created custom palettes (from config).
+    /// </summary>
+    public void UpdateCustomPalettes(List<ColorPalette>? palettes) => _customPalettes = palettes;
+
+    /// <summary>
+    /// Resolve a palette by name — checks built-in, then custom, then falls back to
+    /// generating a 2-stop palette from the legacy color1/color2 fields.
+    /// </summary>
+    private ColorPalette ResolvePalette(string? name, int r, int g, int b, int r2, int g2, int b2)
+    {
+        if (!string.IsNullOrEmpty(name))
+        {
+            if (BuiltInPalettes.ByName.TryGetValue(name, out var builtIn))
+                return builtIn;
+            var custom = _customPalettes;
+            if (custom != null)
+            {
+                var found = custom.Find(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+                if (found != null) return found;
+            }
+        }
+        // Fallback: legacy 2-color palette
+        return ColorPalette.FromTwoColors(r, g, b, r2, g2, b2);
+    }
 
     /// <summary>
     /// Set or clear the audio bands provider used by the AudioReactive effect.
@@ -518,16 +548,23 @@ public class RgbController : IDisposable
         // Global lighting mode — apply one config to all 5 knobs
         if (_globalLight != null && _globalLight.Enabled)
         {
+            // Resolve palette once per tick for global mode
+            _globalPalette = ResolvePalette(
+                _globalLight.PaletteName,
+                _globalLight.R, _globalLight.G, _globalLight.B,
+                _globalLight.R2, _globalLight.G2, _globalLight.B2);
+
             // Global-spanning effects render across all 15 LEDs as one strip
             if (SpanningEffects.Contains(_globalLight.Effect))
             {
                 ApplyGlobalSpanEffect(_globalLight);
+                _globalPalette = null;
                 return;
             }
 
             for (int k = 0; k < 5; k++)
             {
-                // When gradient colors are set, map each knob to its gradient position
+                // Map each knob to its palette position for per-knob color
                 var (kr, kg, kb) = GetGradientColor(_globalLight, k / 4f);
                 var light = new LightConfig
                 {
@@ -537,12 +574,15 @@ public class RgbController : IDisposable
                     R2 = _globalLight.R2, G2 = _globalLight.G2, B2 = _globalLight.B2,
                     EffectSpeed = _globalLight.EffectSpeed,
                     ReactiveMode = _globalLight.ReactiveMode,
+                    PaletteName = _globalLight.PaletteName,
                 };
                 ApplyEffect(k, light);
             }
+            _globalPalette = null;
             return;
         }
 
+        _globalPalette = null;
         foreach (var light in _lights)
         {
             int k = light.Idx;
@@ -727,14 +767,13 @@ public class RgbController : IDisposable
     }
 
     /// <summary>
-    /// Lerp between color1 (at 0%) and color2 (at 100%) based on knob position.
+    /// Sample palette at knob position. With 2-color palette = legacy lerp.
+    /// With multi-color palette = smooth gradient through all stops.
     /// </summary>
     private void EffectColorBlend(int k, LightConfig light, float pos)
     {
-        int r = (int)(light.R + (light.R2 - light.R) * pos);
-        int g = (int)(light.G + (light.G2 - light.G) * pos);
-        int b = (int)(light.B + (light.B2 - light.B) * pos);
-        SetColor(k, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
+        var (r, g, b) = GetKnobPaletteColor(light, pos);
+        SetColor(k, r, g, b);
     }
 
     /// <summary>
@@ -776,9 +815,7 @@ public class RgbController : IDisposable
         float t = (_animTick % (int)Math.Max(periodTicks, 1)) / Math.Max(periodTicks, 1);
         float blend = (float)(Math.Sin(t * Math.PI * 2) * 0.5 + 0.5); // smooth 0→1→0
 
-        int r = (int)(light.R + (light.R2 - light.R) * blend);
-        int g = (int)(light.G + (light.G2 - light.G) * blend);
-        int b = (int)(light.B + (light.B2 - light.B) * blend);
+        var (r, g, b) = GetKnobPaletteColor(light, blend);
 
         SetColor(k, 0, (int)(r * led0), (int)(g * led0), (int)(b * led0));
         SetColor(k, 1, (int)(r * led1), (int)(g * led1), (int)(b * led1));
@@ -821,12 +858,11 @@ public class RgbController : IDisposable
         int speed = Math.Clamp(light.EffectSpeed, 1, 100);
         float periodSec = 2.0f - (speed / 100f * 1.9f); // 2.0s to 0.1s
         float periodTicks = periodSec / 0.05f; // convert to 50ms ticks
-        bool useColor1 = (_animTick % (int)Math.Max(periodTicks, 1)) < (periodTicks / 2f);
-
-        if (useColor1)
-            SetColor(k, light.R, light.G, light.B);
-        else
-            SetColor(k, light.R2, light.G2, light.B2);
+        float phase = (_animTick % (int)Math.Max(periodTicks, 1)) / Math.Max(periodTicks, 1);
+        // Step through palette in discrete jumps (blink, not smooth)
+        float t = phase < 0.5f ? 0f : 1f;
+        var (r, g, b) = GetKnobPaletteColor(light, t);
+        SetColor(k, r, g, b);
     }
 
     /// <summary>
@@ -845,9 +881,7 @@ public class RgbController : IDisposable
             float angle = baseAngle - led * 0.5f;
             float t = (MathF.Sin(angle) + 1f) / 2f;
 
-            int r = Math.Clamp((int)(light.R + (light.R2 - light.R) * t), 0, 255);
-            int g = Math.Clamp((int)(light.G + (light.G2 - light.G) * t), 0, 255);
-            int b = Math.Clamp((int)(light.B + (light.B2 - light.B) * t), 0, 255);
+            var (r, g, b) = GetKnobPaletteColor(light, t);
             SetColor(k, led, r, g, b);
         }
     }
@@ -986,18 +1020,14 @@ public class RgbController : IDisposable
             for (int led = 0; led < 3; led++)
             {
                 float lb = ledBright[led];
-                int r = Math.Clamp((int)(light.R + (light.R2 - light.R) * lb), 0, 255);
-                int g = Math.Clamp((int)(light.G + (light.G2 - light.G) * lb), 0, 255);
-                int b2 = Math.Clamp((int)(light.B + (light.B2 - light.B) * lb), 0, 255);
-                SetColor(k, led, (int)(r * lb), (int)(g * lb), (int)(b2 * lb));
+                var (cr, cg, cb) = GetKnobPaletteColor(light, lb);
+                SetColor(k, led, (int)(cr * lb), (int)(cg * lb), (int)(cb * lb));
             }
         }
         else
         {
-            int r = (int)(light.R + (light.R2 - light.R) * level);
-            int g = (int)(light.G + (light.G2 - light.G) * level);
-            int b2 = (int)(light.B + (light.B2 - light.B) * level);
-            SetColor(k, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b2, 0, 255));
+            var (r, g, b2) = GetKnobPaletteColor(light, level);
+            SetColor(k, r, g, b2);
         }
     }
 
@@ -1020,12 +1050,13 @@ public class RgbController : IDisposable
             float angle = baseAngle + led * 0.4f; // subtle wave across the 3 LEDs
             float brightness = (MathF.Sin(angle) + 1f) / 2f;
             brightness *= brightness;
-            // Blend from color1 toward color2 at peak brightness
+            // Sample palette at LED position for gradient across the 3 LEDs
             float t = led / 2f;
-            int r = (int)((light.R + (light.R2 - light.R) * t) * brightness);
-            int g = (int)((light.G + (light.G2 - light.G) * t) * brightness);
-            int b = (int)((light.B + (light.B2 - light.B) * t) * brightness);
-            SetColor(k, led, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
+            var (cr, cg, cb) = GetKnobPaletteColor(light, t);
+            int r = Math.Clamp((int)(cr * brightness), 0, 255);
+            int g = Math.Clamp((int)(cg * brightness), 0, 255);
+            int b = Math.Clamp((int)(cb * brightness), 0, 255);
+            SetColor(k, led, r, g, b);
         }
     }
 
@@ -1045,12 +1076,13 @@ public class RgbController : IDisposable
                 _candleTarget[k, led] = 0.15f + (float)_rng.NextDouble() * 0.85f;
 
             float bright = _candleCurrent[k, led];
-            // LED 0 = deep ember (more color2), LED 2 = bright tip (more color1)
-            float emberT = 1f - led / 2f; // 1.0, 0.5, 0.0 — bottom=embers, top=flame
-            float emberBlend = emberT * 0.6f;
-            int r = Math.Clamp((int)(light.R * bright * (1f - emberBlend) + light.R2 * bright * emberBlend), 0, 255);
-            int g = Math.Clamp((int)(light.G * bright * (1f - emberBlend) + light.G2 * bright * emberBlend), 0, 255);
-            int b = Math.Clamp((int)(light.B * bright * (1f - emberBlend) + light.B2 * bright * emberBlend), 0, 255);
+            // LED 0 = deep ember (palette start), LED 2 = bright tip (palette end)
+            // Fire maps heat intensity to palette position: low=ember, high=flame
+            float heatT = led / 2f; // 0.0=bottom ember, 1.0=top flame
+            var (cr, cg, cb) = GetKnobPaletteColor(light, heatT);
+            int r = Math.Clamp((int)(cr * bright), 0, 255);
+            int g = Math.Clamp((int)(cg * bright), 0, 255);
+            int b = Math.Clamp((int)(cb * bright), 0, 255);
             SetColor(k, led, r, g, b);
         }
     }
@@ -1077,12 +1109,10 @@ public class RgbController : IDisposable
                 1 => 0.35f,
                 _ => 0.08f,
             };
-            // Head glows white-hot, tail shows color1→color2 gradient
+            // Head glows white-hot, tail shows palette gradient
             float ledT = led / 2f;
             float whiteBlend = dist == 0 ? 0.3f : 0f;
-            int cr = (int)(light.R + (light.R2 - light.R) * ledT);
-            int cg = (int)(light.G + (light.G2 - light.G) * ledT);
-            int cb = (int)(light.B + (light.B2 - light.B) * ledT);
+            var (cr, cg, cb) = GetKnobPaletteColor(light, ledT);
             SetColor(k, led,
                 Math.Clamp((int)((cr * (1f - whiteBlend) + 255 * whiteBlend) * brightness), 0, 255),
                 Math.Clamp((int)((cg * (1f - whiteBlend) + 255 * whiteBlend) * brightness), 0, 255),
@@ -1098,14 +1128,12 @@ public class RgbController : IDisposable
         int speed = Math.Clamp(light.EffectSpeed, 1, 100);
         int interval = Math.Max(1, 20 - speed / 5); // ticks between sparkles
 
-        // Set gradient base dim color on each LED (color1 → color2)
+        // Set palette-gradient base dim color on each LED
         for (int led = 0; led < 3; led++)
         {
             float t = led / 2f;
-            int baseR = (int)((light.R + (light.R2 - light.R) * t) * 0.15f);
-            int baseG = (int)((light.G + (light.G2 - light.G) * t) * 0.15f);
-            int baseB = (int)((light.B + (light.B2 - light.B) * t) * 0.15f);
-            SetColor(k, led, baseR, baseG, baseB);
+            var (cr, cg, cb) = GetKnobPaletteColor(light, t);
+            SetColor(k, led, (int)(cr * 0.15f), (int)(cg * 0.15f), (int)(cb * 0.15f));
         }
 
         // Manage sparkle timing
@@ -1123,11 +1151,12 @@ public class RgbController : IDisposable
         {
             float sparkBright = age < 2 ? 1.0f : 1.0f - (age - 2) / 3f;
             int sLed = _sparkleLed[k];
-            // Sparkle flashes color2 blended with white at peak
+            // Sparkle flashes palette end color blended with white at peak
+            var (pr, pg, pb) = GetKnobPaletteColor(light, 1f);
             float whiteBlend = sparkBright * 0.4f;
-            int sr = Math.Clamp((int)((light.R2 * (1f - whiteBlend) + 255 * whiteBlend) * sparkBright), 0, 255);
-            int sg = Math.Clamp((int)((light.G2 * (1f - whiteBlend) + 255 * whiteBlend) * sparkBright), 0, 255);
-            int sb = Math.Clamp((int)((light.B2 * (1f - whiteBlend) + 255 * whiteBlend) * sparkBright), 0, 255);
+            int sr = Math.Clamp((int)((pr * (1f - whiteBlend) + 255 * whiteBlend) * sparkBright), 0, 255);
+            int sg = Math.Clamp((int)((pg * (1f - whiteBlend) + 255 * whiteBlend) * sparkBright), 0, 255);
+            int sb = Math.Clamp((int)((pb * (1f - whiteBlend) + 255 * whiteBlend) * sparkBright), 0, 255);
             SetColor(k, sLed, sr, sg, sb);
         }
     }
@@ -1141,10 +1170,8 @@ public class RgbController : IDisposable
         for (int led = 0; led < 3; led++)
         {
             float t = led / 2f; // 0, 0.5, 1.0
-            int r = (int)(light.R + (light.R2 - light.R) * t);
-            int g = (int)(light.G + (light.G2 - light.G) * t);
-            int b = (int)(light.B + (light.B2 - light.B) * t);
-            SetColor(k, led, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
+            var (r, g, b) = GetKnobPaletteColor(light, t);
+            SetColor(k, led, r, g, b);
         }
     }
 
@@ -1164,9 +1191,10 @@ public class RgbController : IDisposable
         for (int led = 0; led < 3; led++)
         {
             float t = led / 2f; // 0, 0.5, 1.0 — gradient position
-            int r = Math.Clamp((int)((light.R + (light.R2 - light.R) * t) * brightness[led]), 0, 255);
-            int g = Math.Clamp((int)((light.G + (light.G2 - light.G) * t) * brightness[led]), 0, 255);
-            int b = Math.Clamp((int)((light.B + (light.B2 - light.B) * t) * brightness[led]), 0, 255);
+            var (cr, cg, cb) = GetKnobPaletteColor(light, t);
+            int r = Math.Clamp((int)(cr * brightness[led]), 0, 255);
+            int g = Math.Clamp((int)(cg * brightness[led]), 0, 255);
+            int b = Math.Clamp((int)(cb * brightness[led]), 0, 255);
             SetColor(k, led, r, g, b);
         }
     }
@@ -1221,10 +1249,13 @@ public class RgbController : IDisposable
             float brightness = Math.Max(0f, 1f - dist);
             brightness *= brightness; // sharpen the falloff
 
-            int r = (int)(light.R * brightness + light.R2 * 0.08f * (1f - brightness));
-            int g = (int)(light.G * brightness + light.G2 * 0.08f * (1f - brightness));
-            int b = (int)(light.B * brightness + light.B2 * 0.08f * (1f - brightness));
-            SetColor(k, led, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
+            // Bright dot uses palette end, dim background uses palette start
+            var (cr, cg, cb) = GetKnobPaletteColor(light, brightness);
+            var (dr, dg, db) = GetKnobPaletteColor(light, 0f);
+            int r = Math.Clamp((int)(cr * brightness + dr * 0.08f * (1f - brightness)), 0, 255);
+            int g = Math.Clamp((int)(cg * brightness + dg * 0.08f * (1f - brightness)), 0, 255);
+            int b = Math.Clamp((int)(cb * brightness + db * 0.08f * (1f - brightness)), 0, 255);
+            SetColor(k, led, r, g, b);
         }
     }
 
@@ -1251,11 +1282,9 @@ public class RgbController : IDisposable
         {
             if (led < litCount)
             {
-                // Gradient across lit LEDs — color1 → color2
+                // Palette gradient across lit LEDs
                 float t = led / 2f;
-                int r = Math.Clamp((int)(light.R + (light.R2 - light.R) * t), 0, 255);
-                int g = Math.Clamp((int)(light.G + (light.G2 - light.G) * t), 0, 255);
-                int b = Math.Clamp((int)(light.B + (light.B2 - light.B) * t), 0, 255);
+                var (r, g, b) = GetKnobPaletteColor(light, t);
                 SetColor(k, led, r, g, b);
             }
             else
@@ -1282,12 +1311,13 @@ public class RgbController : IDisposable
             float brightness = (MathF.Sin(angle) + 1f) / 2f;
             brightness *= brightness; // make peaks brighter, troughs darker
 
-            // Gradient from color1 → color2 across the 3 LEDs
+            // Sample palette across the 3 LEDs
             float t = led / 2f;
-            int r = (int)((light.R + (light.R2 - light.R) * t) * brightness);
-            int g = (int)((light.G + (light.G2 - light.G) * t) * brightness);
-            int b = (int)((light.B + (light.B2 - light.B) * t) * brightness);
-            SetColor(k, led, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
+            var (cr, cg, cb) = GetKnobPaletteColor(light, t);
+            int r = Math.Clamp((int)(cr * brightness), 0, 255);
+            int g = Math.Clamp((int)(cg * brightness), 0, 255);
+            int b = Math.Clamp((int)(cb * brightness), 0, 255);
+            SetColor(k, led, r, g, b);
         }
     }
 
@@ -1310,10 +1340,11 @@ public class RgbController : IDisposable
                 _candleTarget[k, led] = 0.2f + (float)_rng.NextDouble() * 0.8f;
 
             float bright = _candleCurrent[k, led];
-            float ember = bright * bright; // more ember at higher brightness
-            int r = Math.Clamp((int)(light.R * bright + (light.R2 - light.R) * ember * 0.3f), 0, 255);
-            int g = Math.Clamp((int)(light.G * bright + (light.G2 - light.G) * ember * 0.3f), 0, 255);
-            int b = Math.Clamp((int)(light.B * bright + (light.B2 - light.B) * ember * 0.3f), 0, 255);
+            // Map brightness to palette: dim=ember(0.0), bright=flame(1.0)
+            var (cr, cg, cb) = GetKnobPaletteColor(light, bright);
+            int r = Math.Clamp((int)(cr * bright), 0, 255);
+            int g = Math.Clamp((int)(cg * bright), 0, 255);
+            int b = Math.Clamp((int)(cb * bright), 0, 255);
             SetColor(k, led, r, g, b);
         }
     }
@@ -1338,12 +1369,13 @@ public class RgbController : IDisposable
             else if (dist < 1.5f) brightness = 0.3f;      // 1 behind
             else brightness = 0.05f;                       // 2 behind (dim tail)
 
-            // Head blends toward color2, tail stays color1
+            // Head samples palette end, tail samples palette start
             float blendT = dist < 0.5f ? 1f : dist < 1.5f ? 0.5f : 0f;
-            int r = (int)((light.R + (light.R2 - light.R) * blendT) * brightness);
-            int g = (int)((light.G + (light.G2 - light.G) * blendT) * brightness);
-            int b = (int)((light.B + (light.B2 - light.B) * blendT) * brightness);
-            SetColor(k, led, Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
+            var (cr, cg, cb) = GetKnobPaletteColor(light, blendT);
+            int r = Math.Clamp((int)(cr * brightness), 0, 255);
+            int g = Math.Clamp((int)(cg * brightness), 0, 255);
+            int b = Math.Clamp((int)(cb * brightness), 0, 255);
+            SetColor(k, led, r, g, b);
         }
     }
 
@@ -2605,33 +2637,41 @@ public class RgbController : IDisposable
     }
 
     /// <summary>
-    /// Get interpolated color at position 0.0-1.0 across gradient colors.
-    /// Falls back to color1/color2 blend if no gradient colors set.
+    /// Get interpolated color at position 0.0-1.0 from the active global palette.
+    /// Uses the resolved _globalPalette (set each tick in UpdateEffects).
+    /// Falls back to legacy color1/color2 blend if no palette resolved.
     /// </summary>
-    private static (int r, int g, int b) GetGradientColor(GlobalLightConfig cfg, float position)
+    private (int r, int g, int b) GetGradientColor(GlobalLightConfig cfg, float position)
     {
-        var colors = cfg.GradientColors;
-        if (colors == null || colors.Count < 2)
-        {
-            float t = Math.Clamp(position, 0f, 1f);
-            return (
-                Math.Clamp((int)(cfg.R + (cfg.R2 - cfg.R) * t), 0, 255),
-                Math.Clamp((int)(cfg.G + (cfg.G2 - cfg.G) * t), 0, 255),
-                Math.Clamp((int)(cfg.B + (cfg.B2 - cfg.B) * t), 0, 255)
-            );
-        }
+        if (_globalPalette != null)
+            return _globalPalette.Sample(position);
 
-        position = Math.Clamp(position, 0f, 1f);
-        float segment = position * (colors.Count - 1);
-        int idx = Math.Min((int)segment, colors.Count - 2);
-        float t2 = segment - idx;
-
-        var c1 = ParseHexColor(colors[idx]);
-        var c2 = ParseHexColor(colors[idx + 1]);
+        // Legacy fallback: simple color1→color2 lerp
+        float t = Math.Clamp(position, 0f, 1f);
         return (
-            Math.Clamp((int)(c1.r + (c2.r - c1.r) * t2), 0, 255),
-            Math.Clamp((int)(c1.g + (c2.g - c1.g) * t2), 0, 255),
-            Math.Clamp((int)(c1.b + (c2.b - c1.b) * t2), 0, 255)
+            Math.Clamp((int)(cfg.R + (cfg.R2 - cfg.R) * t), 0, 255),
+            Math.Clamp((int)(cfg.G + (cfg.G2 - cfg.G) * t), 0, 255),
+            Math.Clamp((int)(cfg.B + (cfg.B2 - cfg.B) * t), 0, 255)
+        );
+    }
+
+    /// <summary>
+    /// Get interpolated color from a per-knob palette at position 0.0-1.0.
+    /// Falls back to color1/color2 blend if no palette set.
+    /// </summary>
+    private (int r, int g, int b) GetKnobPaletteColor(LightConfig light, float position)
+    {
+        if (!string.IsNullOrEmpty(light.PaletteName))
+        {
+            var palette = ResolvePalette(light.PaletteName, light.R, light.G, light.B, light.R2, light.G2, light.B2);
+            return palette.Sample(position);
+        }
+        // Legacy fallback
+        float t = Math.Clamp(position, 0f, 1f);
+        return (
+            Math.Clamp((int)(light.R + (light.R2 - light.R) * t), 0, 255),
+            Math.Clamp((int)(light.G + (light.G2 - light.G) * t), 0, 255),
+            Math.Clamp((int)(light.B + (light.B2 - light.B) * t), 0, 255)
         );
     }
 

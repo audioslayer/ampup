@@ -86,6 +86,7 @@ public partial class LightsView : UserControl
     private List<string> _globalGradientColors = new();
     private StackPanel? _globalSettingsPanel;
     private StackPanel? _globalPalettePanel;
+    private PaletteEditorControl? _globalPaletteEditor;
     // _linkToAmbienceCheck removed — Link to Ambience moved to Room Lighting tab
     private StyledSlider? _brightnessSlider;
     private readonly Border[] _ledToggleBorders = new Border[5];
@@ -739,148 +740,56 @@ public partial class LightsView : UserControl
         // Color section with palettes + custom colors
         settings.Children.Add(MakeSectionHeader("COLOR"));
 
-        // Palette presets — always shown
+        // Palette editor — gradient bar + color chips + built-in presets
         var paletteSection = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
         _globalPalettePanel = paletteSection;
 
         paletteSection.Children.Add(new TextBlock
         {
-            Text = "PRESETS",
+            Text = "PALETTE",
             FontSize = 9,
             FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
             Margin = new Thickness(0, 0, 0, 6),
         });
 
-        var paletteWrap = new WrapPanel();
-        _paletteTiles.Clear();
+        // Build initial palette from config
+        var initialPalette = !string.IsNullOrEmpty(_config?.GlobalLight.PaletteName)
+            ? BuiltInPalettes.Resolve(_config.GlobalLight.PaletteName, _config?.CustomPalettes)
+            : ColorPalette.FromTwoColors(_globalColor1.R, _globalColor1.G, _globalColor1.B,
+                _globalColor2.R, _globalColor2.G, _globalColor2.B);
 
-        // Helper to build a palette tile
-        Border MakePaletteTile(string name, Brush tileBackground, Color[] colors)
+        _globalPaletteEditor = new PaletteEditorControl
         {
-            var capturedColors = colors;
-            var tileContent = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
-
-            var gradientBorder = new Border
-            {
-                Width = 46,
-                Height = 24,
-                CornerRadius = new CornerRadius(4),
-                ClipToBounds = true,
-                Background = tileBackground,
-            };
-            tileContent.Children.Add(gradientBorder);
-
-            tileContent.Children.Add(new TextBlock
-            {
-                Text = name,
-                FontSize = 8,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 3, 0, 0),
-            });
-
-            var tileBorder = new Border
-            {
-                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-                CornerRadius = new CornerRadius(6),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(4, 4, 4, 3),
-                Margin = new Thickness(0, 0, 6, 6),
-                Cursor = Cursors.Hand,
-                Child = tileContent,
-                ToolTip = name,
-                Tag = name,
-            };
-            tileBorder.MouseEnter += (_, _) =>
-            {
-                if (_activePresetName != name)
-                {
-                    tileBorder.BorderBrush = new SolidColorBrush(Colors.White);
-                    tileBorder.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
-                }
-            };
-            tileBorder.MouseLeave += (_, _) =>
-            {
-                if (_activePresetName != name)
-                {
-                    tileBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-                    tileBorder.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
-                }
-            };
-            tileBorder.MouseLeftButtonDown += (_, _) =>
-            {
-                if (name == "Solid")
-                {
-                    // Solid = use current primary color only, clear gradient
-                    _globalGradientColors = new();
-                }
-                else
-                {
-                    _globalColor1 = capturedColors[0];
-                    _globalColor2 = capturedColors[capturedColors.Length - 1];
-                    _globalGradientColors = capturedColors.Select(c => $"#{c.R:X2}{c.G:X2}{c.B:X2}").ToList();
-                }
-                if (_globalColor1Swatch != null)
-                    SetSwatchColor(_globalColor1Swatch, name == "Solid" ? _globalColor1 : capturedColors[0]);
-                if (_globalColor2Swatch != null && name != "Solid")
-                    SetSwatchColor(_globalColor2Swatch, capturedColors[capturedColors.Length - 1]);
-                _activePresetName = name;
-                UpdatePaletteHighlight();
-                if (!_loading) QueueSave();
-            };
-            _paletteTiles[name] = tileBorder;
-            return tileBorder;
-        }
-
-        // "Solid" preset — single color tile
-        var solidBrush = new SolidColorBrush(ThemeManager.Accent);
-        paletteWrap.Children.Add(MakePaletteTile("Solid", solidBrush, new[] { ThemeManager.Accent }));
-
-        // Gradient presets
-        foreach (var (name, colors) in ColorPalettes)
+            Palette = initialPalette,
+            Margin = new Thickness(0, 4, 0, 8),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        _globalPaletteEditor.PaletteChanged += palette =>
         {
-            var gradientBrush = new LinearGradientBrush { StartPoint = new System.Windows.Point(0, 0.5), EndPoint = new System.Windows.Point(1, 0.5) };
-            for (int ci = 0; ci < colors.Length; ci++)
-                gradientBrush.GradientStops.Add(new GradientStop(colors[ci], ci / (double)(colors.Length - 1)));
-            paletteWrap.Children.Add(MakePaletteTile(name, gradientBrush, colors));
-        }
-        paletteSection.Children.Add(paletteWrap);
+            if (_loading) return;
+            // Update legacy color fields from palette endpoints
+            if (palette.Stops.Count >= 2)
+            {
+                var sorted = palette.Stops.OrderBy(s => s.Position).ToList();
+                _globalColor1 = Color.FromRgb(sorted[0].R, sorted[0].G, sorted[0].B);
+                _globalColor2 = Color.FromRgb(sorted[^1].R, sorted[^1].G, sorted[^1].B);
+                _globalGradientColors = sorted.Select(s => $"#{s.R:X2}{s.G:X2}{s.B:X2}").ToList();
+            }
+            _activePresetName = palette.Name;
+            QueueSave();
+        };
+        _globalPaletteEditor.StopClicked += (stopIdx, currentColor) =>
+        {
+            var dialog = new ColorPickerDialog(currentColor) { Owner = Window.GetWindow(this) };
+            dialog.ColorChanged += c =>
+            {
+                _globalPaletteEditor.UpdateSelectedStopColor(c);
+            };
+            dialog.ShowDialog();
+        };
+        paletteSection.Children.Add(_globalPaletteEditor);
         settings.Children.Add(paletteSection);
-
-        // Custom colors — PRIMARY + SECONDARY swatches (in collapsible manual section)
-        var swatch1 = MakeGlobalColorSwatch(_globalColor1, isColor2: false);
-        _globalColor1Swatch = swatch1;
-        var swatch2 = MakeGlobalColorSwatch(_globalColor2, isColor2: true);
-        _globalColor2Swatch = swatch2;
-
-        var manualSection = new StackPanel();
-        _manualColorSection = manualSection;
-
-        var customColorLabel = new TextBlock
-        {
-            Text = "MANUAL",
-            FontSize = 9,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            Margin = new Thickness(0, 4, 0, 8),
-        };
-        manualSection.Children.Add(customColorLabel);
-
-        swatch2.Visibility = Visibility.Collapsed;
-        _globalColor2Panel = swatch2;
-
-        var globalColorRow = new WrapPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 4, 0, 8),
-        };
-
-        globalColorRow.Children.Add(swatch1);
-        globalColorRow.Children.Add(swatch2);
-        manualSection.Children.Add(globalColorRow);
-        settings.Children.Add(manualSection);
 
         // Speed slider (conditional)
         var speedPanel = new StackPanel { Visibility = Visibility.Collapsed };
@@ -1987,6 +1896,7 @@ public partial class LightsView : UserControl
         if (_globalReactiveModeCombo != null && Enum.TryParse<ReactiveMode>(_globalReactiveModeCombo.SelectedValue, out var glMode))
             gl.ReactiveMode = glMode;
         gl.GradientColors = _globalGradientColors;
+        gl.PaletteName = _globalPaletteEditor?.Palette?.Name ?? "";
         gl.DisabledKnobs = new List<int>();
         for (int i = 0; i < 5; i++)
         {
