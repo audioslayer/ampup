@@ -139,7 +139,15 @@ public partial class App : Application
         // LG UltraGear monitor LED sync
         _lgMonitor = new LgMonitorSync();
         if (_lgMonitor.TryConnect())
+        {
             Logger.Log($"LG Monitor: {_lgMonitor.DeviceName} — {_lgMonitor.LedCountValue} LEDs");
+            // Sync Turn Up knob LED frames to LG monitor (same as Corsair)
+            _rgb.OnFrameReady += frame =>
+            {
+                if (_lgMonitor?.IsAvailable != true) return;
+                _lgMonitor.SyncFromRoomEffect(frame);
+            };
+        }
 
         // DreamView / Screen Sync
         _dreamSync = new DreamSyncController(_config.Ambience.ScreenSync, _config.Ambience, new WindowsScreenCapture());
