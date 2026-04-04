@@ -878,8 +878,8 @@ public class AmbienceSync : IDisposable
     /// </summary>
     public static int GetSegmentCount(string? sku) => sku?.ToUpperInvariant() switch
     {
-        "H6056" => 6,   // Flow Plus Light Bar
-        "H6057" => 6,   // Flow Plus Light Bar
+        "H6056" => 15,  // Flow Plus Light Bar (18 LEDs/bar × 2 bars, API exposes 15 segments)
+        "H6057" => 15,  // Flow Plus Light Bar
         "H6046" => 12,  // RGBIC TV Light Bars
         "H6047" => 12,
         "H604A" => 20,  // RGBIC TV Backlight
@@ -904,7 +904,7 @@ public class AmbienceSync : IDisposable
 
         // Fallback: match by product name (for devices added before SKU detection)
         var name = dev.Name?.ToLowerInvariant() ?? "";
-        if (name.Contains("flow") && name.Contains("light bar")) return 6;
+        if (name.Contains("flow") && name.Contains("light bar")) return 15;
         if (name.Contains("dreamview") && name.Contains("g1")) return 12;
         if (name.Contains("tv backlight")) return 20;
         if (name.Contains("tv light bar")) return 12;
