@@ -374,11 +374,20 @@ public class AmbienceSync : IDisposable
                 bool isSeg = zones > 1 && device.UseSegmentProtocol;
                 if (isSeg)
                 {
-                    // Segment devices: map 15 LEDs to device segments directly
+                    // Segment devices: map 15 LEDs to device segments
                     var segColors = new (int R, int G, int B)[zones];
+
+                    // Paired devices (H610A=24, H6056=15): mirror pattern on each panel
+                    // so both panels show the same effect in sync
+                    bool isPaired = IsPairedDevice(device.Sku);
+                    int panelSegs = isPaired ? zones / 2 : zones;
+
                     for (int s = 0; s < zones; s++)
                     {
-                        int srcIdx = s * 15 / zones;
+                        // In mirror mode for paired devices, wrap segment index to first panel
+                        int mapIdx = isPaired ? (s % panelSegs) : s;
+                        int srcIdx = mapIdx * 15 / panelSegs;
+                        srcIdx = Math.Clamp(srcIdx, 0, 14);
                         int r = linear45[srcIdx * 3];
                         int g = linear45[srcIdx * 3 + 1];
                         int b = linear45[srcIdx * 3 + 2];
@@ -924,6 +933,21 @@ public class AmbienceSync : IDisposable
     }
 
     public static bool SupportsSegments(GoveeDeviceConfig dev) => GetSegmentCount(dev) > 0;
+
+    /// <summary>
+    /// Returns true for devices that are physically two separate units (left + right)
+    /// sharing one IP. In mirror mode, each panel should show the same pattern.
+    /// </summary>
+    public static bool IsPairedDevice(string? sku) => sku?.ToUpperInvariant() switch
+    {
+        "H610A" => true,  // Glide Lively: 2 panels × 12 LEDs
+        "H610B" => true,
+        "H6056" => true,  // Flow Plus: 2 light bars
+        "H6057" => true,
+        "H6046" => true,  // RGBIC TV Light Bars (pair)
+        "H6047" => true,
+        _ => false
+    };
 
     /// <summary>
     /// Map Govee SKU to a friendly product name. Falls back to SKU if unknown.
