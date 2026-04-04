@@ -163,7 +163,23 @@ public class DreamSyncController : IDisposable
                                 }
 
                                 // Map screen zones to device segments (side-aware for edge glow)
-                                var segColors = MapZonesToSegments(zones, segCount, mapping.Side);
+                                (byte R, byte G, byte B)[] segColors;
+                                if (AmbienceSync.IsPairedDevice(dev.Sku))
+                                {
+                                    // Paired device: first half = left screen edge, second half = right
+                                    int half = segCount / 2;
+                                    var leftColors = MapZonesToSegments(zones, half, ZoneSide.Left);
+                                    var rightColors = MapZonesToSegments(zones, segCount - half, ZoneSide.Right);
+                                    segColors = new (byte R, byte G, byte B)[segCount];
+                                    // Reverse first panel to match physical orientation
+                                    for (int si = 0; si < half; si++)
+                                        segColors[si] = leftColors[half - 1 - si];
+                                    Array.Copy(rightColors, 0, segColors, half, segCount - half);
+                                }
+                                else
+                                {
+                                    segColors = MapZonesToSegments(zones, segCount, mapping.Side);
+                                }
                                 for (int s = 0; s < segColors.Length; s++)
                                     segColors[s] = ApplyBrightness(segColors[s], amb.BrightnessScale);
 
