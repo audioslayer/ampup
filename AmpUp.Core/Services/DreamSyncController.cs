@@ -162,8 +162,8 @@ public class DreamSyncController : IDisposable
                                     _segmentEnableTick[mapping.DeviceIp] = nowMs;
                                 }
 
-                                // Map screen zones to device segments
-                                var segColors = MapZonesToSegments(zones, segCount);
+                                // Map screen zones to device segments (side-aware for edge glow)
+                                var segColors = MapZonesToSegments(zones, segCount, mapping.Side);
                                 for (int s = 0; s < segColors.Length; s++)
                                     segColors[s] = ApplyBrightness(segColors[s], amb.BrightnessScale);
 
@@ -405,19 +405,38 @@ public class DreamSyncController : IDisposable
     /// Map N screen zones to M device segments by proportional grouping.
     /// </summary>
     private static (byte R, byte G, byte B)[] MapZonesToSegments(
-        (byte R, byte G, byte B)[] zones, int segmentCount)
+        (byte R, byte G, byte B)[] zones, int segmentCount, ZoneSide side = ZoneSide.Full)
     {
         var result = new (byte R, byte G, byte B)[segmentCount];
         int zoneCount = zones.Length;
 
+        // Side-aware: only sample from the relevant portion of screen zones
+        int zoneStart = 0, zoneEnd = zoneCount;
+        switch (side)
+        {
+            case ZoneSide.Left:
+                zoneEnd = Math.Max(zoneCount / 4, 1); // leftmost 25% of screen
+                break;
+            case ZoneSide.Right:
+                zoneStart = zoneCount - Math.Max(zoneCount / 4, 1); // rightmost 25%
+                break;
+            case ZoneSide.Top:
+                zoneEnd = Math.Max(zoneCount / 4, 1);
+                break;
+            case ZoneSide.Bottom:
+                zoneStart = zoneCount - Math.Max(zoneCount / 4, 1);
+                break;
+        }
+        int sideZoneCount = zoneEnd - zoneStart;
+
         for (int seg = 0; seg < segmentCount; seg++)
         {
-            // Proportional mapping: which zones contribute to this segment
-            float start = (float)seg / segmentCount * zoneCount;
-            float end = (float)(seg + 1) / segmentCount * zoneCount;
+            // Proportional mapping within the side's zone range
+            float start = zoneStart + (float)seg / segmentCount * sideZoneCount;
+            float end = zoneStart + (float)(seg + 1) / segmentCount * sideZoneCount;
 
             int r = 0, g = 0, b = 0, count = 0;
-            for (int z = (int)start; z < (int)Math.Ceiling(end) && z < zoneCount; z++)
+            for (int z = (int)start; z < (int)Math.Ceiling(end) && z < zoneEnd; z++)
             {
                 r += zones[z].R;
                 g += zones[z].G;

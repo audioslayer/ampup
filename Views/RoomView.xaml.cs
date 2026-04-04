@@ -2162,29 +2162,31 @@ public partial class RoomView : UserControl
                 };
                 mapRow.Children.Add(devName);
 
-                int segCount = AmbienceSync.GetSegmentCount(goveeDevice);
-                if (segCount > 0 && goveeDevice.UseSegmentProtocol)
+                // Zone side picker — all devices get this for edge glow support
                 {
-                    mapRow.Children.Add(new TextBlock
-                    {
-                        Text = $"Per-segment ({segCount} zones)",
-                        FontSize = 12,
-                        Foreground = FindBrush("AccentBrush"),
-                        VerticalAlignment = VerticalAlignment.Center,
-                    });
-                }
-                else
-                {
-                    // Zone side picker
+                    int segCount = AmbienceSync.GetSegmentCount(goveeDevice);
                     var mapping = cfg.DeviceMappings.FirstOrDefault(m => m.DeviceIp == goveeDevice.Ip);
                     if (mapping == null)
                     {
                         mapping = new ZoneDeviceMapping { DeviceIp = goveeDevice.Ip, Side = ZoneSide.Full };
                         cfg.DeviceMappings.Add(mapping);
                     }
+
+                    if (segCount > 0 && goveeDevice.UseSegmentProtocol)
+                    {
+                        mapRow.Children.Add(new TextBlock
+                        {
+                            Text = $"{segCount} seg",
+                            FontSize = 10,
+                            Foreground = FindBrush("TextDimBrush"),
+                            VerticalAlignment = VerticalAlignment.Center,
+                            Margin = new Thickness(0, 0, 8, 0),
+                        });
+                    }
+
                     var sideCombo = new ComboBox { Width = 120 };
-                    sideCombo.Items.Add("Full"); sideCombo.Items.Add("Top"); sideCombo.Items.Add("Bottom");
-                    sideCombo.Items.Add("Left"); sideCombo.Items.Add("Right");
+                    sideCombo.Items.Add("Full"); sideCombo.Items.Add("Left"); sideCombo.Items.Add("Right");
+                    sideCombo.Items.Add("Top"); sideCombo.Items.Add("Bottom");
                     sideCombo.SelectedItem = mapping.Side.ToString();
                     var capturedMapping = mapping;
                     sideCombo.SelectionChanged += (_, _) =>
