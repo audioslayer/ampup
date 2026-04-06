@@ -24,9 +24,19 @@ public class RoomCanvasControl : Canvas
     // Live colors from effect engine (deviceId → RGB array)
     private readonly Dictionary<string, (byte R, byte G, byte B)[]> _liveColors = new();
 
+    // Monitor visual tracking
+    private Canvas? _monitorContainer;
+    private MonitorPlacement? _monitorPlacement;
+    private TextBlock? _monitorLabel;
+    private TextBlock? _monitorHeightBadge;
+    private bool _draggingMonitor;
+    private Point _monitorDragOffset;
+    private double _monitorOffsetX, _monitorOffsetY;
+
     // Events
     public event Action<RoomDevicePlacement>? DeviceSelected;
     public event Action<RoomDevicePlacement>? DeviceMoved;
+    public event Action<MonitorPlacement>? MonitorMoved;
     public event Action? LayoutChanged;
 
     // Theme colors
@@ -43,14 +53,23 @@ public class RoomCanvasControl : Canvas
     private static readonly Pen GridPenMajor = new(GridBrushMajor, 0.8);
     private static readonly Pen SelectedPen = new(SelectedBrush, 2);
 
+    // Monitor theme colors
+    private static readonly SolidColorBrush MonitorFillBrush = new(Color.FromRgb(0x1E, 0x2A, 0x3A));
+    private static readonly SolidColorBrush MonitorBorderBrush = new(Color.FromRgb(0x3A, 0x4A, 0x5A));
+    private static readonly SolidColorBrush MonitorScreenBrush = new(Color.FromRgb(0x00, 0xBC, 0xD4));
+    private static readonly Pen MonitorBorderPen = new(MonitorBorderBrush, 1);
+    private static readonly Pen MonitorScreenPen = new(MonitorScreenBrush, 2);
+
     private const double Padding = 40; // canvas padding in pixels
     private const double DeviceMinSize = 8;
 
     static RoomCanvasControl()
     {
         WallPen.Freeze(); GridPen.Freeze(); GridPenMajor.Freeze(); SelectedPen.Freeze();
+        MonitorBorderPen.Freeze(); MonitorScreenPen.Freeze();
         BgBrush.Freeze(); WallBrush.Freeze(); GridBrush.Freeze(); GridBrushMajor.Freeze();
         TextBrush.Freeze(); DeviceBrush.Freeze(); SelectedBrush.Freeze(); LabelBrush.Freeze();
+        MonitorFillBrush.Freeze(); MonitorBorderBrush.Freeze(); MonitorScreenBrush.Freeze();
     }
 
     public RoomCanvasControl()
@@ -147,6 +166,16 @@ public class RoomCanvasControl : Canvas
         // ── Compass label ──
         AddDimensionLabel("FRONT", offsetX + roomPxW / 2, offsetY + roomPxH + 14, true);
 
+        // ── Monitor (rendered before devices so devices appear on top) ──
+        _monitorContainer = null;
+        _monitorPlacement = _layout.Monitor;
+        _monitorLabel = null;
+        _monitorHeightBadge = null;
+        if (_monitorPlacement != null)
+        {
+            BuildMonitorVisual(_monitorPlacement, offsetX, offsetY);
+        }
+
         // ── Devices ──
         foreach (var dev in _layout.Devices)
         {
@@ -171,6 +200,133 @@ public class RoomCanvasControl : Canvas
         SetLeft(tb, x - (horizontal ? 20 : 5));
         SetTop(tb, y - (horizontal ? 5 : 20));
         Children.Add(tb);
+    }
+
+    private void BuildMonitorVisual(MonitorPlacement monitor, double offsetX, double offsetY)
+    {
+        double monW = Math.Max(monitor.WidthFt * _scale, DeviceMinSize * 3);
+        double monH = Math.Max(0.3 * _scale, DeviceMinSize); // thin bar in top-down view
+        double px = offsetX + monitor.X * _scale;
+        double py = offsetY + monitor.Y * _scale;
+
+        _monitorOffsetX = offsetX;
+        _monitorOffsetY = offsetY;
+
+        var container = new Canvas { Width = monW, Height = monH };
+        if (monitor.Rotation != 0)
+        {
+            container.RenderTransform = new RotateTransform(monitor.Rotation, monW / 2, monH / 2);
+        }
+
+        // Monitor body (dark blue-gray fill)
+        var body = new Rectangle
+        {
+            Width = monW, Height = monH,
+            RadiusX = 3, RadiusY = 3,
+            Fill = MonitorFillBrush,
+            Stroke = MonitorBorderBrush,
+            StrokeThickness = 1,
+        };
+        container.Children.Add(body);
+
+        // Screen face accent line (bottom edge = screen facing viewer/desk)
+        var screenLine = new Line
+        {
+            X1 = 2, Y1 = monH, X2 = monW - 2, Y2 = monH,
+            Stroke = MonitorScreenBrush,
+            StrokeThickness = 2,
+        };
+        container.Children.Add(screenLine);
+
+        SetLeft(container, px - monW / 2);
+        SetTop(container, py - monH / 2);
+        container.Cursor = Cursors.SizeAll;
+        Children.Add(container);
+        _monitorContainer = container;
+
+        // "Monitor" label below
+        var label = new TextBlock
+        {
+            Text = "Monitor",
+            FontSize = 9,
+            Foreground = MonitorScreenBrush,
+            TextAlignment = TextAlignment.Center,
+            MaxWidth = monW + 40,
+        };
+        label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        SetLeft(label, px - label.DesiredSize.Width / 2);
+        SetTop(label, py + monH / 2 + 4);
+        Children.Add(label);
+        _monitorLabel = label;
+
+        // Height badge above
+        var heightBadge = new TextBlock
+        {
+            Text = $"{monitor.Z:0.#}ft",
+            FontSize = 8,
+            Foreground = TextBrush,
+            TextAlignment = TextAlignment.Center,
+        };
+        heightBadge.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        SetLeft(heightBadge, px - heightBadge.DesiredSize.Width / 2);
+        SetTop(heightBadge, py - monH / 2 - 12);
+        Children.Add(heightBadge);
+        _monitorHeightBadge = heightBadge;
+
+        // ── Drag handlers (same pattern as devices) ──
+        container.MouseLeftButtonDown += (_, e) =>
+        {
+            _draggingMonitor = true;
+            var pos = e.GetPosition(this);
+            double cx = GetLeft(container) + container.Width / 2;
+            double cy = GetTop(container) + container.Height / 2;
+            _monitorDragOffset = new Point(pos.X - cx, pos.Y - cy);
+            container.CaptureMouse();
+            e.Handled = true;
+        };
+
+        container.MouseMove += (_, e) =>
+        {
+            if (!_draggingMonitor || !container.IsMouseCaptured) return;
+            var pos = e.GetPosition(this);
+            double newCx = pos.X - _monitorDragOffset.X;
+            double newCy = pos.Y - _monitorDragOffset.Y;
+
+            double newX = (newCx - _monitorOffsetX) / _scale;
+            double newY = (newCy - _monitorOffsetY) / _scale;
+
+            newX = Math.Clamp(newX, 0, _layout.WidthFt);
+            newY = Math.Clamp(newY, 0, _layout.DepthFt);
+
+            monitor.X = Math.Round(newX * 4) / 4; // snap to 0.25 ft
+            monitor.Y = Math.Round(newY * 4) / 4;
+
+            double px2 = _monitorOffsetX + monitor.X * _scale;
+            double py2 = _monitorOffsetY + monitor.Y * _scale;
+            SetLeft(container, px2 - container.Width / 2);
+            SetTop(container, py2 - container.Height / 2);
+
+            label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            SetLeft(label, px2 - label.DesiredSize.Width / 2);
+            SetTop(label, py2 + container.Height / 2 + 4);
+
+            SetLeft(heightBadge, px2 - heightBadge.DesiredSize.Width / 2);
+            SetTop(heightBadge, py2 - container.Height / 2 - 12);
+
+            e.Handled = true;
+        };
+
+        container.MouseLeftButtonUp += (_, e) =>
+        {
+            if (_draggingMonitor)
+            {
+                _draggingMonitor = false;
+                container.ReleaseMouseCapture();
+                MonitorMoved?.Invoke(monitor);
+                LayoutChanged?.Invoke();
+                e.Handled = true;
+            }
+        };
     }
 
     private DeviceVisual CreateDeviceVisual(RoomDevicePlacement dev, double offsetX, double offsetY)
@@ -464,7 +620,7 @@ public class RoomCanvasControl : Canvas
     {
         base.OnMouseLeftButtonDown(e);
         // Click on empty space deselects
-        if (_draggingDevice == null)
+        if (_draggingDevice == null && !_draggingMonitor)
             SelectDevice(null);
     }
 

@@ -1,4 +1,5 @@
 using AmpUp.Core.Interfaces;
+using AmpUp.Core.Models;
 
 namespace AmpUp;
 
@@ -12,6 +13,12 @@ public class WindowsScreenCapture : IScreenCapture
 
     public (byte R, byte G, byte B)[]? CaptureZones(int monitorIndex, int zoneCount)
         => _capture.CaptureZones(monitorIndex, zoneCount);
+
+    public (byte R, byte G, byte B)[]? CaptureZones(int monitorIndex, int zoneCount, bool cropBlackBars)
+        => _capture.CaptureZones(monitorIndex, zoneCount, cropBlackBars);
+
+    public (byte R, byte G, byte B)[,]? CaptureZoneGrid(int monitorIndex, int cols, int rows, ContentBounds? crop)
+        => _capture.CaptureZoneGrid(monitorIndex, cols, rows, crop);
 
     public int MonitorCount => ScreenCapture.MonitorCount;
 

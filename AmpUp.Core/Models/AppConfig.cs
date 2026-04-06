@@ -317,10 +317,24 @@ public class GoveeDeviceConfig
 
 public enum ZoneSide { Full, Left, Right, Top, Bottom }
 
+public enum DeviceCropMode { Content, FullScreen, Ambient }
+
 public class ZoneDeviceMapping
 {
     public string DeviceIp { get; set; } = "";
     public ZoneSide Side { get; set; } = ZoneSide.Full;
+    public bool UseAutoSpatial { get; set; } = false;
+    [JsonConverter(typeof(StringEnumConverter))]
+    public DeviceCropMode CropMode { get; set; } = DeviceCropMode.Content;
+}
+
+public class ContentBounds
+{
+    public double LeftPct { get; set; } = 0;    // 0.0-0.5, inset from left edge
+    public double RightPct { get; set; } = 0;   // 0.0-0.5, inset from right edge
+    public double TopPct { get; set; } = 0;
+    public double BottomPct { get; set; } = 0;
+    public bool AutoDetect { get; set; } = true;
 }
 
 public class ScreenSyncConfig
@@ -331,6 +345,8 @@ public class ScreenSyncConfig
     public int ZoneCount { get; set; } = 8;
     public float Saturation { get; set; } = 1.2f;
     public int Sensitivity { get; set; } = 5;
+    public bool CropBlackBars { get; set; } = true;
+    public ContentBounds ContentBounds { get; set; } = new();
     public List<ZoneDeviceMapping> DeviceMappings { get; set; } = new();
 }
 
@@ -381,6 +397,17 @@ public class VoiceMeeterConfig
 
 // ── Room Layout (3D spatial mapping for room lighting) ──
 
+public class MonitorPlacement
+{
+    public double X { get; set; } = 6.0;       // center, feet from left wall
+    public double Y { get; set; } = 1.0;       // near front wall (desk)
+    public double Z { get; set; } = 3.5;       // desk height
+    public double Rotation { get; set; } = 0;   // degrees
+    public double WidthFt { get; set; } = 2.8;  // physical width (~34" ultrawide)
+    public double HeightFt { get; set; } = 1.0;  // physical height
+    public int MonitorIndex { get; set; } = 0;   // links to ScreenSyncConfig.MonitorIndex
+}
+
 public class RoomLayout
 {
     public double WidthFt { get; set; } = 12.0;
@@ -388,6 +415,7 @@ public class RoomLayout
     public double HeightFt { get; set; } = 8.0;
     [JsonConverter(typeof(StringEnumConverter))]
     public EffectDirection Direction { get; set; } = EffectDirection.LeftToRight;
+    public MonitorPlacement? Monitor { get; set; }
     public List<RoomDevicePlacement> Devices { get; set; } = new();
 }
 

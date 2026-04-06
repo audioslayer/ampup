@@ -54,7 +54,9 @@ public partial class RoomView : UserControl
 
     // Room layout
     private AmpUp.Core.Engine.SpatialMapper? _spatialMapper;
+    private AmpUp.Core.Engine.ScreenSpatialMapper? _screenSpatialMapper;
     private Controls.RoomCanvasControl? _roomCanvas;
+    private Controls.ScreenEdgeControl? _screenEdgeControl;
 
     // Home Assistant integration (for HA light room sync)
     private HAIntegration? _ha;
@@ -1083,6 +1085,11 @@ public partial class RoomView : UserControl
             OnLayoutChanged();
         };
 
+        _roomCanvas.MonitorMoved += mon =>
+        {
+            OnLayoutChanged();
+        };
+
         stack.Children.Add(_roomCanvas);
 
         // ── Selected Device Properties (shown below canvas) ──
@@ -1093,6 +1100,9 @@ public partial class RoomView : UserControl
         var (trayBar, trayLabel) = MakeSectionHeader("DEVICES");
         stack.Children.Add(WrapHeader(trayBar, trayLabel));
         BuildDeviceTray(stack, layout);
+
+        // Trigger initial spatial mapper calculation
+        OnLayoutChanged();
     }
 
     private StackPanel? _selectedDevicePanel;
@@ -1258,6 +1268,26 @@ public partial class RoomView : UserControl
 
         var trayRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
 
+        // "Place Monitor" button (only if no monitor placed yet)
+        if (layout.Monitor == null)
+        {
+            var monBtn = MakeDeviceTrayButton("Place Monitor", "monitor", () =>
+            {
+                layout.Monitor = new MonitorPlacement
+                {
+                    X = layout.WidthFt / 2,
+                    Y = 1.0, // near front wall (desk)
+                    Z = 3.5,
+                    WidthFt = 2.8,
+                    HeightFt = 1.0,
+                };
+                OnLayoutChanged();
+                RebuildRoomTabContent();
+            });
+            trayRow.Children.Add(monBtn);
+            anyUnplaced = true;
+        }
+
         if (_config != null)
         {
             foreach (var dev in _config.Ambience.GoveeDevices)
@@ -1381,11 +1411,24 @@ public partial class RoomView : UserControl
     {
         if (_config == null) return;
 
-        // Update spatial mapper
+        // Update spatial mapper (room effects)
         if (_spatialMapper == null)
             _spatialMapper = new AmpUp.Core.Engine.SpatialMapper();
         _spatialMapper.Recalculate(_config.RoomLayout);
         _sync?.SetSpatialMapper(_config.RoomLayout.Devices.Count > 0 ? _spatialMapper : null);
+
+        // Update screen spatial mapper (screen sync)
+        if (_config.RoomLayout.Monitor != null)
+        {
+            if (_screenSpatialMapper == null)
+                _screenSpatialMapper = new AmpUp.Core.Engine.ScreenSpatialMapper();
+            _screenSpatialMapper.Recalculate(_config.RoomLayout);
+            _dreamSync?.SetSpatialMapper(_screenSpatialMapper);
+        }
+        else
+        {
+            _dreamSync?.SetSpatialMapper(null);
+        }
 
         QueueSave();
     }
@@ -2004,7 +2047,60 @@ public partial class RoomView : UserControl
             QueueSave();
         };
         row1.Children.Add(zoneCombo);
+
+        // Crop Black Bars toggle
+        var cropCheck = new CheckBox
+        {
+            Content = "Crop Black Bars",
+            IsChecked = cfg.CropBlackBars,
+            Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(20, 0, 0, 0),
+            ToolTip = "Auto-detect and ignore pillarbox/letterbox black bars\n(for 16:9 content on ultrawide monitors)",
+        };
+        cropCheck.Checked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.CropBlackBars = true;
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            QueueSave();
+        };
+        cropCheck.Unchecked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.CropBlackBars = false;
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            QueueSave();
+        };
+        row1.Children.Add(cropCheck);
+
         stack.Children.Add(row1);
+
+        // ── Screen Edge Control (draggable crop lines + live preview) ──
+        _screenEdgeControl = new Controls.ScreenEdgeControl
+        {
+            Height = 180,
+            Margin = new Thickness(0, 0, 0, 12),
+        };
+        _screenEdgeControl.SetContentBounds(cfg.ContentBounds);
+        _screenEdgeControl.ContentBoundsChanged += bounds =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.ContentBounds = bounds;
+            _config.Ambience.ScreenSync.CropBlackBars = bounds.AutoDetect;
+            cropCheck.IsChecked = bounds.AutoDetect;
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            QueueSave();
+        };
+        // Wire live zone colors from DreamSync to the edge control
+        if (_dreamSync != null)
+        {
+            _dreamSync.OnZoneGrid += (grid, cols, rows) =>
+            {
+                Dispatcher.BeginInvoke(() => _screenEdgeControl?.UpdateZoneColors(grid, cols, rows));
+            };
+        }
+        stack.Children.Add(_screenEdgeControl);
 
         // ── Row 2: Saturation + Sensitivity ──
         var row2 = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
@@ -2143,6 +2239,8 @@ public partial class RoomView : UserControl
             stack.Children.Add(MakeSeparator());
             stack.Children.Add(MakeSubLabel("DEVICE ZONE MAPPING"));
 
+            bool hasMonitor = _config.RoomLayout.Monitor != null;
+
             foreach (var goveeDevice in _config.Ambience.GoveeDevices)
             {
                 if (string.IsNullOrWhiteSpace(goveeDevice.Ip)) continue;
@@ -2155,47 +2253,112 @@ public partial class RoomView : UserControl
                     FontSize = 12, FontWeight = FontWeights.SemiBold,
                     Foreground = FindBrush("TextPrimaryBrush"),
                     VerticalAlignment = VerticalAlignment.Center,
-                    Width = 160,
+                    Width = 140,
                     TextTrimming = TextTrimming.CharacterEllipsis,
                 };
                 mapRow.Children.Add(devName);
 
-                // Zone side picker — all devices get this for edge glow support
+                int segCount = AmbienceSync.GetSegmentCount(goveeDevice);
+                var mapping = cfg.DeviceMappings.FirstOrDefault(m => m.DeviceIp == goveeDevice.Ip);
+                if (mapping == null)
                 {
-                    int segCount = AmbienceSync.GetSegmentCount(goveeDevice);
-                    var mapping = cfg.DeviceMappings.FirstOrDefault(m => m.DeviceIp == goveeDevice.Ip);
-                    if (mapping == null)
-                    {
-                        mapping = new ZoneDeviceMapping { DeviceIp = goveeDevice.Ip, Side = ZoneSide.Full };
-                        cfg.DeviceMappings.Add(mapping);
-                    }
-
-                    if (segCount > 0 && goveeDevice.UseSegmentProtocol)
-                    {
-                        mapRow.Children.Add(new TextBlock
-                        {
-                            Text = $"{segCount} seg",
-                            FontSize = 10,
-                            Foreground = FindBrush("TextDimBrush"),
-                            VerticalAlignment = VerticalAlignment.Center,
-                            Margin = new Thickness(0, 0, 8, 0),
-                        });
-                    }
-
-                    var sideCombo = new ComboBox { Width = 120 };
-                    sideCombo.Items.Add("Full"); sideCombo.Items.Add("Left"); sideCombo.Items.Add("Right");
-                    sideCombo.Items.Add("Top"); sideCombo.Items.Add("Bottom");
-                    sideCombo.SelectedItem = mapping.Side.ToString();
-                    var capturedMapping = mapping;
-                    sideCombo.SelectionChanged += (_, _) =>
-                    {
-                        if (_loading || _config == null) return;
-                        if (Enum.TryParse<ZoneSide>(sideCombo.SelectedItem?.ToString(), out var side))
-                            capturedMapping.Side = side;
-                        QueueSave();
-                    };
-                    mapRow.Children.Add(sideCombo);
+                    mapping = new ZoneDeviceMapping { DeviceIp = goveeDevice.Ip, Side = ZoneSide.Full };
+                    cfg.DeviceMappings.Add(mapping);
                 }
+                var capturedMapping = mapping;
+
+                if (segCount > 0 && goveeDevice.UseSegmentProtocol)
+                {
+                    mapRow.Children.Add(new TextBlock
+                    {
+                        Text = $"{segCount} seg",
+                        FontSize = 10,
+                        Foreground = FindBrush("TextDimBrush"),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(0, 0, 8, 0),
+                    });
+                }
+
+                // Auto spatial checkbox — derive zone from room position
+                var autoLabel = new TextBlock
+                {
+                    FontSize = 10, Foreground = FindBrush("TextSecBrush"),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(4, 0, 8, 0),
+                    Text = mapping.UseAutoSpatial && hasMonitor ? "auto" : "",
+                };
+
+                var sideCombo = new ComboBox { Width = 100, Margin = new Thickness(0, 0, 8, 0) };
+                sideCombo.Items.Add("Full"); sideCombo.Items.Add("Left"); sideCombo.Items.Add("Right");
+                sideCombo.Items.Add("Top"); sideCombo.Items.Add("Bottom");
+                sideCombo.SelectedItem = mapping.Side.ToString();
+                sideCombo.IsEnabled = !mapping.UseAutoSpatial;
+                sideCombo.SelectionChanged += (_, _) =>
+                {
+                    if (_loading || _config == null) return;
+                    if (Enum.TryParse<ZoneSide>(sideCombo.SelectedItem?.ToString(), out var side))
+                        capturedMapping.Side = side;
+                    _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+                    QueueSave();
+                };
+
+                var autoCheck = new CheckBox
+                {
+                    Content = "Auto",
+                    IsChecked = mapping.UseAutoSpatial,
+                    FontSize = 10,
+                    Foreground = FindBrush("TextSecBrush"),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 4, 0),
+                    IsEnabled = hasMonitor,
+                    ToolTip = hasMonitor
+                        ? "Automatically determine screen edge from device position in room layout"
+                        : "Place a monitor in the room layout to enable spatial mapping",
+                };
+                autoCheck.Checked += (_, _) =>
+                {
+                    if (_loading || _config == null) return;
+                    capturedMapping.UseAutoSpatial = true;
+                    sideCombo.IsEnabled = false;
+                    autoLabel.Text = "auto";
+                    _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+                    QueueSave();
+                };
+                autoCheck.Unchecked += (_, _) =>
+                {
+                    if (_loading || _config == null) return;
+                    capturedMapping.UseAutoSpatial = false;
+                    sideCombo.IsEnabled = true;
+                    autoLabel.Text = "";
+                    _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+                    QueueSave();
+                };
+                mapRow.Children.Add(autoCheck);
+                mapRow.Children.Add(autoLabel);
+                mapRow.Children.Add(sideCombo);
+
+                // Crop mode combo — per-device content bounds behavior
+                var cropCombo = new ComboBox { Width = 100, Margin = new Thickness(0, 0, 0, 0) };
+                cropCombo.Items.Add("Content"); cropCombo.Items.Add("Full Screen"); cropCombo.Items.Add("Ambient");
+                cropCombo.SelectedIndex = mapping.CropMode switch
+                {
+                    DeviceCropMode.FullScreen => 1,
+                    DeviceCropMode.Ambient => 2,
+                    _ => 0,
+                };
+                cropCombo.SelectionChanged += (_, _) =>
+                {
+                    if (_loading || _config == null) return;
+                    capturedMapping.CropMode = cropCombo.SelectedIndex switch
+                    {
+                        1 => DeviceCropMode.FullScreen,
+                        2 => DeviceCropMode.Ambient,
+                        _ => DeviceCropMode.Content,
+                    };
+                    _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+                    QueueSave();
+                };
+                mapRow.Children.Add(cropCombo);
 
                 stack.Children.Add(mapRow);
             }

@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using AmpUp.Core.Interfaces;
+using AmpUp.Core.Models;
 using AmpUp.Core;
 
 namespace AmpUp.Mac;
@@ -211,6 +212,14 @@ public class MacScreenCapture : IScreenCapture, IDisposable
             : 1.055 * Math.Pow(c, 1.0 / 2.4) - 0.055;
         return (byte)Math.Clamp((int)(srgb * 255.0 + 0.5), 0, 255);
     }
+
+    // Crop not implemented on Mac yet — pass through to regular capture
+    public (byte R, byte G, byte B)[]? CaptureZones(int monitorIndex, int zoneCount, bool cropBlackBars)
+        => CaptureZones(monitorIndex, zoneCount);
+
+    // Zone grid not implemented on Mac yet — stub
+    public (byte R, byte G, byte B)[,]? CaptureZoneGrid(int monitorIndex, int cols, int rows, ContentBounds? crop)
+        => null;
 
     public void Dispose()
     {

@@ -3,6 +3,7 @@ using System.Text;
 using AmpUp.Core;
 using AmpUp.Core.Models;
 using AmpUp.Core.Interfaces;
+using AmpUp.Core.Engine;
 
 namespace AmpUp.Core.Services;
 
@@ -26,6 +27,7 @@ public class DreamSyncController : IDisposable
     private readonly IScreenCapture _capture;
     private readonly object _lock = new();
     private bool _disposed;
+    private ScreenSpatialMapper? _spatialMapper;
 
     // Running state
     private CancellationTokenSource? _cts;
@@ -52,6 +54,9 @@ public class DreamSyncController : IDisposable
     // Raised each frame with current zone colors — used by the live preview in RoomView
     public event Action<(byte R, byte G, byte B)[]>? OnZoneColors;
 
+    // Raised each frame with the 2D zone grid — used by ScreenEdgeControl for spatial preview
+    public event Action<(byte R, byte G, byte B)[,], int, int>? OnZoneGrid;
+
     // Status text for UI display (e.g. "Syncing at 30fps" / "Stopped")
     public string Status { get; private set; } = "Stopped";
 
@@ -77,6 +82,11 @@ public class DreamSyncController : IDisposable
             Start();
         else if (!config.Enabled && _running)
             Stop();
+    }
+
+    public void SetSpatialMapper(ScreenSpatialMapper? mapper)
+    {
+        lock (_lock) { _spatialMapper = mapper; }
     }
 
     // ── Start / Stop ─────────────────────────────────────────────────────────
@@ -121,19 +131,70 @@ public class DreamSyncController : IDisposable
 
             try
             {
-                // Capture all zones from the configured monitor
-                var zones = _capture.CaptureZones(cfg.MonitorIndex, cfg.ZoneCount);
+                // Determine content crop bounds
+                ContentBounds? contentCrop = cfg.CropBlackBars ? cfg.ContentBounds : null;
+
+                // Try 2D grid capture first (preferred — enables spatial mapping)
+                int gridCols = cfg.ZoneCount;
+                int gridRows = 3; // top / middle / bottom
+                var grid = _capture.CaptureZoneGrid(cfg.MonitorIndex, gridCols, gridRows, contentCrop);
+
+                // Flat zone array (for legacy path + UI preview)
+                (byte R, byte G, byte B)[]? zones = null;
+
+                if (grid != null)
+                {
+                    // Flatten 2D grid to 1D for backward compat (average rows per column)
+                    zones = FlattenGridToHorizontal(grid, gridCols, gridRows);
+                }
+                else
+                {
+                    // Mac fallback: use legacy 1D capture
+                    zones = _capture.CaptureZones(cfg.MonitorIndex, cfg.ZoneCount, cfg.CropBlackBars);
+                }
+
                 if (zones != null)
                 {
-                    // Boost saturation on each zone
+                    // Boost saturation on flat zones (used for UI preview + legacy path)
                     for (int i = 0; i < zones.Length; i++)
                     {
                         var (r, g, b) = zones[i];
                         zones[i] = BoostSaturation(r, g, b, cfg.Saturation);
                     }
 
+                    // Also boost saturation on the 2D grid if available
+                    if (grid != null)
+                    {
+                        for (int row = 0; row < gridRows; row++)
+                            for (int col = 0; col < gridCols; col++)
+                            {
+                                var (r, g, b) = grid[row, col];
+                                grid[row, col] = BoostSaturation(r, g, b, cfg.Saturation);
+                            }
+                    }
+
                     // Notify UI for live preview (fire and forget — UI marshal on receipt)
                     OnZoneColors?.Invoke(zones);
+                    if (grid != null)
+                        OnZoneGrid?.Invoke(grid, gridCols, gridRows);
+
+                    // Snapshot spatial mapper under lock
+                    ScreenSpatialMapper? spatialMapper;
+                    lock (_lock) { spatialMapper = _spatialMapper; }
+
+                    // Check if any device needs a FullScreen capture (no crop)
+                    bool needFullScreen = false;
+                    foreach (var mapping in cfg.DeviceMappings)
+                    {
+                        if (mapping.CropMode == DeviceCropMode.FullScreen && !mapping.UseAutoSpatial)
+                        {
+                            needFullScreen = true;
+                            break;
+                        }
+                    }
+                    (byte R, byte G, byte B)[]? fullScreenZones = null;
+                    if (needFullScreen)
+                        fullScreenZones = _capture.CaptureZones(cfg.MonitorIndex, cfg.ZoneCount, false);
 
                     // Push to each configured Govee device (capped at 30fps — hardware limit)
                     bool sendThisFrame = _sendThrottle.ElapsedMilliseconds >= (1000 / MaxSendFps);
@@ -164,13 +225,31 @@ public class DreamSyncController : IDisposable
 
                                 // Map screen zones to device segments (side-aware for edge glow)
                                 (byte R, byte G, byte B)[] segColors;
-                                if (AmbienceSync.IsPairedDevice(dev.Sku))
+
+                                if (mapping.UseAutoSpatial && spatialMapper != null && grid != null)
                                 {
-                                    // Paired device: first half = right screen edge, second half = left
+                                    // ── Spatial mapping path (2D grid) ──
+                                    string deviceKey = dev.Ip ?? mapping.DeviceIp;
+                                    var region = spatialMapper.GetRegion(deviceKey);
+                                    if (region.HasValue)
+                                    {
+                                        segColors = MapZonesToSegmentsSpatial(grid, gridCols, gridRows, region.Value, segCount);
+                                    }
+                                    else
+                                    {
+                                        // Fallback if device not in spatial layout
+                                        segColors = MapZonesToSegments(zones, segCount, mapping.Side);
+                                    }
+                                }
+                                else if (AmbienceSync.IsPairedDevice(dev.Sku))
+                                {
+                                    // Paired device (legacy): first half = right screen edge, second half = left
                                     // (H610A wiring: segments 0-5 = right panel, 6-11 = left panel)
                                     int half = segCount / 2;
-                                    var leftColors = MapZonesToSegments(zones, half, ZoneSide.Right);
-                                    var rightColors = MapZonesToSegments(zones, segCount - half, ZoneSide.Left);
+                                    var effectiveZones = (mapping.CropMode == DeviceCropMode.FullScreen && fullScreenZones != null)
+                                        ? fullScreenZones : zones;
+                                    var leftColors = MapZonesToSegments(effectiveZones, half, ZoneSide.Right);
+                                    var rightColors = MapZonesToSegments(effectiveZones, segCount - half, ZoneSide.Left);
                                     segColors = new (byte R, byte G, byte B)[segCount];
                                     // Reverse first panel to match physical orientation
                                     for (int si = 0; si < half; si++)
@@ -179,8 +258,11 @@ public class DreamSyncController : IDisposable
                                 }
                                 else
                                 {
-                                    segColors = MapZonesToSegments(zones, segCount, mapping.Side);
+                                    var effectiveZones = (mapping.CropMode == DeviceCropMode.FullScreen && fullScreenZones != null)
+                                        ? fullScreenZones : zones;
+                                    segColors = MapZonesToSegments(effectiveZones, segCount, mapping.Side);
                                 }
+
                                 for (int s = 0; s < segColors.Length; s++)
                                     segColors[s] = ApplyBrightness(segColors[s], amb.BrightnessScale);
 
@@ -194,7 +276,9 @@ public class DreamSyncController : IDisposable
                             else
                             {
                                 // ── Single-color fallback (colorwc) ──
-                                var color = SampleColorForSide(zones, cfg.ZoneCount, mapping.Side);
+                                var effectiveZones = (mapping.CropMode == DeviceCropMode.FullScreen && fullScreenZones != null)
+                                    ? fullScreenZones : zones;
+                                var color = SampleColorForSide(effectiveZones, effectiveZones.Length, mapping.Side);
                                 color = ApplyBrightness(color, amb.BrightnessScale);
 
                                 int sensitivity = cfg.Sensitivity;
@@ -234,6 +318,103 @@ public class DreamSyncController : IDisposable
         }
 
         Status = "Stopped";
+    }
+
+    // ── Grid helpers ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Flatten a 2D zone grid to a 1D horizontal array by averaging rows per column.
+    /// Used for backward compatibility with OnZoneColors event and legacy mapping path.
+    /// </summary>
+    private static (byte R, byte G, byte B)[] FlattenGridToHorizontal(
+        (byte R, byte G, byte B)[,] grid, int cols, int rows)
+    {
+        var result = new (byte R, byte G, byte B)[cols];
+        for (int c = 0; c < cols; c++)
+        {
+            int r = 0, g = 0, b = 0;
+            for (int row = 0; row < rows; row++)
+            {
+                r += grid[row, c].R;
+                g += grid[row, c].G;
+                b += grid[row, c].B;
+            }
+            result[c] = ((byte)(r / rows), (byte)(g / rows), (byte)(b / rows));
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Map a 2D zone grid to device segments using a spatial screen region.
+    /// Vertical edge devices (Left/Right): segments map top→bottom across rows.
+    /// Horizontal edge devices (Top/Bottom): segments map left→right across cols.
+    /// Full: segments spread left→right, averaging all rows in range.
+    /// </summary>
+    private static (byte R, byte G, byte B)[] MapZonesToSegmentsSpatial(
+        (byte R, byte G, byte B)[,] grid, int cols, int rows,
+        ScreenSpatialMapper.ScreenRegion region, int segmentCount)
+    {
+        var result = new (byte R, byte G, byte B)[segmentCount];
+
+        // Convert normalized region bounds to grid indices (clamped)
+        int colStart = Math.Clamp((int)(region.XStart * cols), 0, cols - 1);
+        int colEnd = Math.Clamp((int)Math.Ceiling(region.XEnd * cols), 1, cols);
+        int rowStart = Math.Clamp((int)(region.YStart * rows), 0, rows - 1);
+        int rowEnd = Math.Clamp((int)Math.Ceiling(region.YEnd * rows), 1, rows);
+
+        int colRange = Math.Max(colEnd - colStart, 1);
+        int rowRange = Math.Max(rowEnd - rowStart, 1);
+
+        bool vertical = region.PrimaryEdge == ZoneSide.Left || region.PrimaryEdge == ZoneSide.Right;
+
+        if (vertical)
+        {
+            // Segments map top→bottom across rows, averaging cols in range
+            for (int seg = 0; seg < segmentCount; seg++)
+            {
+                float segRowStart = rowStart + (float)seg / segmentCount * rowRange;
+                float segRowEnd = rowStart + (float)(seg + 1) / segmentCount * rowRange;
+
+                int r = 0, g = 0, b = 0, count = 0;
+                for (int row = (int)segRowStart; row < (int)Math.Ceiling(segRowEnd) && row < rowEnd; row++)
+                {
+                    for (int col = colStart; col < colEnd; col++)
+                    {
+                        r += grid[row, col].R;
+                        g += grid[row, col].G;
+                        b += grid[row, col].B;
+                        count++;
+                    }
+                }
+                if (count > 0)
+                    result[seg] = ((byte)(r / count), (byte)(g / count), (byte)(b / count));
+            }
+        }
+        else
+        {
+            // Horizontal (Top/Bottom/Full): segments map left→right across cols, averaging rows in range
+            for (int seg = 0; seg < segmentCount; seg++)
+            {
+                float segColStart = colStart + (float)seg / segmentCount * colRange;
+                float segColEnd = colStart + (float)(seg + 1) / segmentCount * colRange;
+
+                int r = 0, g = 0, b = 0, count = 0;
+                for (int col = (int)segColStart; col < (int)Math.Ceiling(segColEnd) && col < colEnd; col++)
+                {
+                    for (int row = rowStart; row < rowEnd; row++)
+                    {
+                        r += grid[row, col].R;
+                        g += grid[row, col].G;
+                        b += grid[row, col].B;
+                        count++;
+                    }
+                }
+                if (count > 0)
+                    result[seg] = ((byte)(r / count), (byte)(g / count), (byte)(b / count));
+            }
+        }
+
+        return result;
     }
 
     // ── Color helpers ─────────────────────────────────────────────────────────
