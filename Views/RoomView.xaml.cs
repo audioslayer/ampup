@@ -419,7 +419,7 @@ public partial class RoomView : UserControl
             syncActive, on =>
             {
                 if (_config == null) return;
-                if (on) { StopRoomPattern(); _activePattern = "__sync__"; _config.Ambience.LinkToLights = true; _config.Corsair.LightSyncMode = "vu_reactive"; }
+                if (on) { ResumeAllGoveeSync(); StopRoomPattern(); _activePattern = "__sync__"; _config.Ambience.LinkToLights = true; _config.Corsair.LightSyncMode = "vu_reactive"; }
                 else { _activePattern = null; _config.Ambience.LinkToLights = false; _config.Corsair.LightSyncMode = "static"; }
                 QueueSave(); RebuildRoomTabContent();
             }, Color.FromRgb(0x69, 0xF0, 0xAE)));
@@ -443,6 +443,7 @@ public partial class RoomView : UserControl
                 if (on)
                 {
                     // Stop room effect so it doesn't fight with screen sync
+                    ResumeAllGoveeSync();
                     StopRoomPattern();
                     _config.Ambience.LinkToLights = false;
                     if (_config.Corsair.Enabled)
@@ -3654,11 +3655,14 @@ public partial class RoomView : UserControl
             _config.Corsair.LightSyncMode = "static";
         }
 
-        // Set all devices to max brightness (dimming is in RGB values)
+        // Resume any paused sync and set all devices to max brightness
         if (!corsairOnly && _config?.Ambience.GoveeEnabled == true)
             foreach (var dev in _config.Ambience.GoveeDevices)
                 if (!string.IsNullOrWhiteSpace(dev.Ip))
+                {
+                    AmbienceSync.ResumeSync(dev.Ip);
                     _ = AmbienceSync.SendBrightnessAsync(dev.Ip, 100);
+                }
 
         // Create a headless RgbController to render effects
         _roomRgb = new RgbController();
@@ -3689,6 +3693,18 @@ public partial class RoomView : UserControl
 
         // Start with a dummy output (no serial port — just runs the timer for rendering)
         _roomRgb.SetOutput((_, _, _) => { }, () => true);
+    }
+
+    /// <summary>
+    /// Resume sync for all Govee devices — clears any PauseSync timers so frames send immediately.
+    /// Called when starting room patterns or screen sync to avoid stale pauses from UI interactions.
+    /// </summary>
+    private void ResumeAllGoveeSync()
+    {
+        if (_config?.Ambience.GoveeEnabled != true) return;
+        foreach (var dev in _config.Ambience.GoveeDevices)
+            if (!string.IsNullOrWhiteSpace(dev.Ip))
+                AmbienceSync.ResumeSync(dev.Ip);
     }
 
     private void StopRoomPattern()
