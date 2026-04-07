@@ -78,6 +78,7 @@ public partial class LightsView : UserControl
     private StackPanel? _globalSpeedPanel;
     private ActionPicker? _globalReactiveModeCombo;
     private StackPanel? _globalReactiveModePanel;
+    private StackPanel? _globalIdleEffectPanel;
     private Color _globalColor1 = ThemeManager.Accent;
     private Color _globalColor2 = Color.FromRgb(0xFF, 0xFF, 0xFF);
     private List<string> _globalGradientColors = new();
@@ -132,7 +133,7 @@ public partial class LightsView : UserControl
     private static readonly LightEffect[] EffectsNeedingColor2 =
         { LightEffect.ColorBlend, LightEffect.Blink, LightEffect.Pulse, LightEffect.MicStatus, LightEffect.DeviceMute, LightEffect.AudioReactive, LightEffect.GradientFill, LightEffect.Fire, LightEffect.PingPong, LightEffect.Candle, LightEffect.Scanner, LightEffect.ColorWave, LightEffect.Segments, LightEffect.PositionBlend, LightEffect.ProgramMute, LightEffect.AppGroupMute, LightEffect.CycleFill, LightEffect.PositionBlendMute };
     private static readonly LightEffect[] EffectsNeedingSpeed =
-        { LightEffect.Blink, LightEffect.Pulse, LightEffect.RainbowWave, LightEffect.RainbowCycle, LightEffect.AudioReactive, LightEffect.Breathing, LightEffect.Comet, LightEffect.Sparkle, LightEffect.PingPong, LightEffect.Stack, LightEffect.Wave, LightEffect.Candle, LightEffect.Scanner, LightEffect.MeteorRain, LightEffect.ColorWave, LightEffect.Segments, LightEffect.Wheel, LightEffect.RainbowWheel, LightEffect.CycleFill, LightEffect.RainbowFill, LightEffect.Fire, LightEffect.Heartbeat, LightEffect.Plasma, LightEffect.Drip };
+        { LightEffect.Blink, LightEffect.Pulse, LightEffect.RainbowWave, LightEffect.RainbowCycle, LightEffect.AudioReactive, LightEffect.AudioPositionBlend, LightEffect.Breathing, LightEffect.Comet, LightEffect.Sparkle, LightEffect.PingPong, LightEffect.Stack, LightEffect.Wave, LightEffect.Candle, LightEffect.Scanner, LightEffect.MeteorRain, LightEffect.ColorWave, LightEffect.Segments, LightEffect.Wheel, LightEffect.RainbowWheel, LightEffect.CycleFill, LightEffect.RainbowFill, LightEffect.Fire, LightEffect.Heartbeat, LightEffect.Plasma, LightEffect.Drip };
     private static readonly LightEffect[] EffectsNeedingProgramName =
         { LightEffect.ProgramMute };
     private static readonly LightEffect[] EffectsNeedingDeviceSelect =
@@ -831,6 +832,32 @@ public partial class LightsView : UserControl
         _globalReactiveModePanel = reactiveModePanel;
         settings.Children.Add(reactiveModePanel);
 
+        // ── Idle Effect picker (for AudioPositionBlend — choose what plays when no music) ──
+        var idleEffectPanel = new StackPanel { Margin = new Thickness(0, 8, 0, 0), Visibility = Visibility.Collapsed };
+        idleEffectPanel.Children.Add(new TextBlock
+        {
+            Text = "IDLE EFFECT (no music)",
+            FontSize = 9, FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Margin = new Thickness(0, 0, 0, 6),
+        });
+        var idleEffectPicker = new EffectPickerControl(showGlobal: true)
+        {
+            Margin = new Thickness(0, 0, 0, 8),
+            ToolTip = "Effect to show when no music is detected — crossfades to audio reactive when music plays",
+        };
+        if (_config != null)
+            idleEffectPicker.SelectedEffect = _config.GlobalLight.IdleEffect;
+        idleEffectPicker.SelectionChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.GlobalLight.IdleEffect = idleEffectPicker.SelectedEffect;
+            QueueSave();
+        };
+        idleEffectPanel.Children.Add(idleEffectPicker);
+        _globalIdleEffectPanel = idleEffectPanel;
+        settings.Children.Add(idleEffectPanel);
+
         panel.Children.Add(settings);
     }
 
@@ -1081,13 +1108,16 @@ public partial class LightsView : UserControl
         bool needsColor2 = EffectsNeedingColor2.Contains(effect);
         bool needsSpeed = EffectsNeedingSpeed.Contains(effect);
         bool isReactive = effect == LightEffect.AudioReactive;
+        bool isAudioBlend = effect == LightEffect.AudioPositionBlend;
 
         if (_globalPalettePanel != null)
             _globalPalettePanel.Visibility = noColors ? Visibility.Collapsed : Visibility.Visible;
         if (_globalSpeedPanel != null)
-            _globalSpeedPanel.Visibility = needsSpeed ? Visibility.Visible : Visibility.Collapsed;
+            _globalSpeedPanel.Visibility = (needsSpeed || isAudioBlend) ? Visibility.Visible : Visibility.Collapsed;
         if (_globalReactiveModePanel != null)
             _globalReactiveModePanel.Visibility = isReactive ? Visibility.Visible : Visibility.Collapsed;
+        if (_globalIdleEffectPanel != null)
+            _globalIdleEffectPanel.Visibility = isAudioBlend ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnPickGlobalColor(bool isColor2)

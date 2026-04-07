@@ -57,8 +57,12 @@ public class RgbController : IDisposable
     private readonly float[] _starBright = new float[15];
     private readonly float[] _starTarget = new float[15];
 
-    // AudioPositionBlend crossfade: 0=PositionBlend, 1=AudioReactive
+    // AudioPositionBlend crossfade: 0=idle effect, 1=AudioReactive
     private readonly float[] _audioBlendFade = new float[5];
+    private float _audioBlendFadeGlobal; // global-level crossfade for spanning effects
+
+    // Shadow buffer for AudioPositionBlend global mode — stores idle effect frame
+    private readonly byte[] _idleBuffer = new byte[48]; // same layout as _colorMsg
 
     // ProgramMute state per knob — written from polling timer, read from animation timer
     private readonly object _stateLock = new();
@@ -556,6 +560,14 @@ public class RgbController : IDisposable
                 _globalLight.PaletteName,
                 _globalLight.R, _globalLight.G, _globalLight.B,
                 _globalLight.R2, _globalLight.G2, _globalLight.B2);
+
+            // AudioPositionBlend in global mode: render idle effect, crossfade with audio
+            if (_globalLight.Effect == LightEffect.AudioPositionBlend)
+            {
+                RenderGlobalAudioBlend(_globalLight);
+                _globalPalette = null;
+                return;
+            }
 
             // Global-spanning effects render across all 15 LEDs as one strip
             if (SpanningEffects.Contains(_globalLight.Effect))
@@ -1641,6 +1653,110 @@ public class RgbController : IDisposable
         int led = globalIdx % 3;
         if (knob >= 0 && knob < 5)
             SetColor(knob, led, r, g, b);
+    }
+
+    /// <summary>
+    /// Global AudioPositionBlend: renders the configured IdleEffect normally,
+    /// then crossfades to audio-reactive SpectrumBands when music is detected.
+    /// Works with both spanning effects (Ocean, Aurora, etc.) and per-knob effects.
+    /// </summary>
+    private void RenderGlobalAudioBlend(GlobalLightConfig gl)
+    {
+        // ── 1. Detect audio ──
+        var bands = _getAudioBands?.Invoke();
+        bool hasAudio = bands != null && bands.Length >= 5;
+        float energy = 0;
+        if (hasAudio)
+        {
+            for (int b = 0; b < 5; b++) energy += bands![b];
+            energy /= 5f;
+        }
+        bool audioActive = hasAudio && energy > 0.02f;
+
+        // Smooth crossfade: fast attack, slow decay
+        float target = audioActive ? 1f : 0f;
+        float fade = _audioBlendFadeGlobal;
+        if (target > fade)
+            fade = Math.Min(fade + 0.15f, 1f);
+        else
+            fade = Math.Max(fade - 0.03f, 0f);
+        _audioBlendFadeGlobal = fade;
+
+        // ── 2. Render idle effect ──
+        var idleGl = new GlobalLightConfig
+        {
+            Enabled = true,
+            Effect = gl.IdleEffect,
+            R = gl.R, G = gl.G, B = gl.B,
+            R2 = gl.R2, G2 = gl.G2, B2 = gl.B2,
+            EffectSpeed = gl.EffectSpeed,
+            ReactiveMode = gl.ReactiveMode,
+            PaletteName = gl.PaletteName,
+        };
+
+        if (SpanningEffects.Contains(gl.IdleEffect))
+            ApplyGlobalSpanEffect(idleGl);
+        else
+        {
+            for (int k = 0; k < 5; k++)
+            {
+                var (kr, kg, kb) = GetGradientColor(gl, k / 4f);
+                var light = new LightConfig
+                {
+                    Idx = k, Effect = gl.IdleEffect,
+                    R = kr, G = kg, B = kb,
+                    R2 = gl.R2, G2 = gl.G2, B2 = gl.B2,
+                    EffectSpeed = gl.EffectSpeed,
+                    PaletteName = gl.PaletteName,
+                };
+                ApplyEffect(k, light);
+            }
+        }
+
+        // If no audio, idle effect is the final output — done
+        if (fade < 0.01f)
+            return;
+
+        // Capture idle frame (linear pre-gamma colors used by OnFrameReady)
+        byte[] idleLinear = new byte[45];
+        Array.Copy(_linearColors, idleLinear, 45);
+
+        // ── 3. Render audio reactive (SpectrumBands per knob) ──
+        float sensitivity = gl.EffectSpeed / 50f;
+        for (int k = 0; k < 5; k++)
+        {
+            float level = hasAudio ? Math.Clamp(bands![Math.Clamp(k, 0, 4)] * sensitivity, 0f, 1f) : 0f;
+            float[] vuBright = {
+                Math.Clamp(level * 3f, 0f, 1f),
+                Math.Clamp((level - 0.33f) * 3f, 0f, 1f),
+                Math.Clamp((level - 0.66f) * 3f, 0f, 1f),
+            };
+            for (int led = 0; led < 3; led++)
+            {
+                var (cr, cg, cb) = GetKnobPaletteColor(
+                    new LightConfig { R = gl.R, G = gl.G, B = gl.B, R2 = gl.R2, G2 = gl.G2, B2 = gl.B2, PaletteName = gl.PaletteName },
+                    vuBright[led]);
+                SetColor(k, led, (int)(cr * vuBright[led]), (int)(cg * vuBright[led]), (int)(cb * vuBright[led]));
+            }
+        }
+
+        // ── 4. Crossfade linear colors (used by OnFrameReady → Govee/Corsair) ──
+        for (int i = 0; i < 45; i++)
+        {
+            _linearColors[i] = (byte)Math.Clamp(
+                idleLinear[i] * (1f - fade) + _linearColors[i] * fade, 0, 255);
+        }
+
+        // Re-apply gamma from the blended linear colors to the hardware output buffer
+        for (int k = 0; k < 5; k++)
+            for (int led = 0; led < 3; led++)
+            {
+                int offset = k * 9 + led * 3 + 2; // +2 for FE 05 header
+                int linOff = k * 9 + led * 3;
+                _colorMsg[offset]     = _gammaR[_linearColors[linOff]];
+                _colorMsg[offset + 1] = _gammaG[_linearColors[linOff + 1]];
+                _colorMsg[offset + 2] = _gammaB[_linearColors[linOff + 2]];
+            }
     }
 
     private void ApplyGlobalSpanEffect(GlobalLightConfig gl)

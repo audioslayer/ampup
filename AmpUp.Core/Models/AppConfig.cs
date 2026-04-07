@@ -197,6 +197,9 @@ public class GlobalLightConfig
     public List<string> GradientColors { get; set; } = new();
     public List<int> DisabledKnobs { get; set; } = new();
     public string PaletteName { get; set; } = "";
+    /// <summary>Idle effect for AudioPositionBlend — plays when no music detected.</summary>
+    [JsonConverter(typeof(StringEnumConverter))]
+    public LightEffect IdleEffect { get; set; } = LightEffect.PositionBlend;
 }
 
 public enum LightEffect
