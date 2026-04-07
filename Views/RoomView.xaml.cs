@@ -391,6 +391,7 @@ public partial class RoomView : UserControl
     private void RebuildRoomTabContent()
     {
         if (_roomTabContent == null || _config == null) return;
+        _loading = true;
         _roomTabContent.Children.Clear();
         _toggleRowContainer?.Children.Clear();
 
@@ -407,6 +408,7 @@ public partial class RoomView : UserControl
             case 0: BuildRoomEffectTab(_roomTabContent); break;
             case 1: BuildDevicesTab(_roomTabContent); break;
         }
+        _loading = false;
     }
 
     private void BuildTabToggleRow(WrapPanel row, int tabIndex)
@@ -3772,7 +3774,9 @@ public partial class RoomView : UserControl
         }
 
         // Send full 15-LED frame to Corsair (maps across all device LEDs)
-        if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
+        // Only send from room pattern — skip if Turn Up hardware is already feeding Corsair (vu_reactive)
+        if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled
+            && _config.Corsair.LightSyncMode != "vu_reactive")
         {
             float boost = _config.Corsair.LightBrightness / 100f;
             // Apply music brightness if active
