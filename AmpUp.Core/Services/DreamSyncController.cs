@@ -71,16 +71,18 @@ public class DreamSyncController : IDisposable
 
     public void UpdateConfig(ScreenSyncConfig config, AmbienceConfig ambience)
     {
+        bool wasEnabled;
         lock (_lock)
         {
+            wasEnabled = _config.Enabled;
             _config = config;
             _ambience = ambience;
         }
 
-        // If enabled state changed, start/stop accordingly
-        if (config.Enabled && !_running)
+        // Only start/stop on actual Enabled state transitions — not every config save
+        if (config.Enabled && !wasEnabled && !_running)
             Start();
-        else if (!config.Enabled && _running)
+        else if (!config.Enabled && wasEnabled && _running)
             Stop();
     }
 
