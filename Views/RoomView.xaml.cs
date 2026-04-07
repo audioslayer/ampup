@@ -1727,9 +1727,9 @@ public partial class RoomView : UserControl
                 if (isPaired)
                 {
                     // Paired device (H610A): two panels, each is a vertical VU meter
-                    // Both panels mirror the same VU meter driven by bass energy
+                    // Both panels mirror the same VU meter driven by overall energy
                     int half = segCount / 2;
-                    float level = Math.Clamp((_vuFillSmoothed[0] + _vuFillSmoothed[1]) / 1.5f, 0f, 1f);
+                    float level = overall;
 
                     // Compute the VU fill colors once
                     var vuColors = new (byte R, byte G, byte B)[half];
