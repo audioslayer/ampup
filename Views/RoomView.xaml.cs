@@ -1740,14 +1740,14 @@ public partial class RoomView : UserControl
                         vuColors[s] = BlendVuColor(c1, c2, fillPos, brightness);
                     }
 
-                    // Left panel (segments 0..half-1): reversed
+                    // Left panel (segments 0..half-1): straight (segment 0 = bottom physically)
                     for (int s = 0; s < half; s++)
-                        segColors[half - 1 - s] = vuColors[s];
+                        segColors[s] = vuColors[s];
 
-                    // Right panel (segments half..end): copy left panel directly (mirrored)
+                    // Right panel (segments half..end): copy left panel (mirrored)
                     int rightCount = segCount - half;
                     for (int s = 0; s < rightCount && s < half; s++)
-                        segColors[half + s] = segColors[s];
+                        segColors[half + s] = vuColors[s];
                 }
                 else
                 {
