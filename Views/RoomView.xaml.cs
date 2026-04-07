@@ -4002,8 +4002,6 @@ public partial class RoomView : UserControl
     {
         if (_config == null) return;
         _roomFrameCount++;
-        if (_roomFrameCount <= 5 || _roomFrameCount % 200 == 0)
-            Logger.Log($"OnRoomFrame #{_roomFrameCount}: pattern={_activePattern}, goveeEnabled={_config.Ambience.GoveeEnabled}, corsairOnly={_roomPatternCorsairOnly}, rgb={_roomRgb != null}");
 
         // Average the 15 LED colors to get a single room color
         int totalR = 0, totalG = 0, totalB = 0;

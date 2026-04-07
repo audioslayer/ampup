@@ -109,7 +109,12 @@ public class DreamSyncController : IDisposable
         _loopTask = null;
         _cts?.Dispose();
         _cts = null;
-        DisableAllSegments();
+        // Don't disable segments here — room effects may be using them.
+        // Segments auto-timeout on the device after ~60s without keepalive.
+        // Clear our tracking so they get re-enabled if DreamSync restarts.
+        _segmentEnabled.Clear();
+        _segmentEnableTick.Clear();
+        _lastSegmentColors.Clear();
         Status = "Stopped";
         Logger.Log("DreamSync: stopped");
     }
