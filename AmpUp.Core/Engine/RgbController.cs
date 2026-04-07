@@ -57,6 +57,9 @@ public class RgbController : IDisposable
     private readonly float[] _starBright = new float[15];
     private readonly float[] _starTarget = new float[15];
 
+    // AudioPositionBlend crossfade: 0=PositionBlend, 1=AudioReactive
+    private readonly float[] _audioBlendFade = new float[5];
+
     // ProgramMute state per knob — written from polling timer, read from animation timer
     private readonly object _stateLock = new();
     private readonly Dictionary<int, bool> _programMuteStates = new();
@@ -677,6 +680,9 @@ public class RgbController : IDisposable
             case LightEffect.PositionBlendMute:
                 EffectPositionBlendMute(k, light, rawPos);
                 break;
+            case LightEffect.AudioPositionBlend:
+                EffectAudioPositionBlend(k, light, rawPos);
+                break;
 
             case LightEffect.PingPong:
                 EffectPingPong(k, light);
@@ -1028,6 +1034,71 @@ public class RgbController : IDisposable
         {
             var (r, g, b2) = GetKnobPaletteColor(light, level);
             SetColor(k, r, g, b2);
+        }
+    }
+
+    /// <summary>
+    /// Hybrid effect: AudioReactive (SpectrumBands) when music is playing,
+    /// smooth crossfade to PositionBlend when audio stops.
+    /// Uses color1→color2 gradient for both modes.
+    /// </summary>
+    private void EffectAudioPositionBlend(int k, LightConfig light, float pos)
+    {
+        var bands = _getAudioBands?.Invoke();
+        bool hasAudio = bands != null && bands.Length >= 5;
+
+        // Detect if audio is actually active (not just noise floor)
+        float energy = 0;
+        if (hasAudio)
+        {
+            for (int b = 0; b < 5; b++) energy += bands![b];
+            energy /= 5f;
+        }
+        bool audioActive = hasAudio && energy > 0.02f;
+
+        // Smooth crossfade: attack fast (0.15), decay slow (0.03) per tick at 20fps
+        float target = audioActive ? 1f : 0f;
+        float fade = _audioBlendFade[k];
+        if (target > fade)
+            fade = Math.Min(fade + 0.15f, 1f);  // ~0.3s to full reactive
+        else
+            fade = Math.Max(fade - 0.03f, 0f);  // ~1.5s to full position blend
+        _audioBlendFade[k] = fade;
+
+        // Compute PositionBlend colors (3 LEDs)
+        float pct = pos * 100f;
+        float led0Pos = pct < 33f ? pct / 33f : 1f;
+        float led1Pos = pct < 33f ? 0f : pct < 66f ? (pct - 33f) / 33f : 1f;
+        float led2Pos = pct > 66f ? (pct - 66f) / 34f : 0f;
+        float[] posBright = { led0Pos, led1Pos, led2Pos };
+
+        // Compute AudioReactive (SpectrumBands) colors (3 LEDs)
+        float sensitivity = light.EffectSpeed / 50f;
+        float level = audioActive ? Math.Clamp(bands![Math.Clamp(k, 0, 4)] * sensitivity, 0f, 1f) : 0f;
+        float[] vuBright = {
+            Math.Clamp(level * 3f, 0f, 1f),
+            Math.Clamp((level - 0.33f) * 3f, 0f, 1f),
+            Math.Clamp((level - 0.66f) * 3f, 0f, 1f),
+        };
+
+        // Blend the two effects per LED
+        for (int led = 0; led < 3; led++)
+        {
+            float t = led / 2f; // gradient position 0, 0.5, 1.0
+
+            // PositionBlend contribution
+            var (pr, pg, pb) = GetKnobPaletteColor(light, t);
+            float pbr = posBright[led];
+
+            // AudioReactive contribution
+            var (ar, ag, ab) = GetKnobPaletteColor(light, vuBright[led]);
+            float abr = vuBright[led];
+
+            // Crossfade
+            int r = (int)Math.Clamp(pr * pbr * (1f - fade) + ar * abr * fade, 0, 255);
+            int g = (int)Math.Clamp(pg * pbr * (1f - fade) + ag * abr * fade, 0, 255);
+            int b = (int)Math.Clamp(pb * pbr * (1f - fade) + ab * abr * fade, 0, 255);
+            SetColor(k, led, r, g, b);
         }
     }
 

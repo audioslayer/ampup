@@ -213,6 +213,7 @@ public enum LightEffect
     CycleFill, RainbowFill,
     Heartbeat, Plasma, Drip,
     Aurora, Matrix, Starfield,
+    AudioPositionBlend,
 }
 
 public enum ReactiveMode
