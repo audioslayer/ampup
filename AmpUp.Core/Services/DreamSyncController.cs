@@ -109,7 +109,12 @@ public class DreamSyncController : IDisposable
         _loopTask = null;
         _cts?.Dispose();
         _cts = null;
-        DisableAllSegments();
+        // Don't send segment disable commands — Game Mode cycles start/stop frequently
+        // and disabling segments kills any room effect using them.
+        // Segments auto-timeout on the device after ~60s without keepalive.
+        _segmentEnabled.Clear();
+        _segmentEnableTick.Clear();
+        _lastSegmentColors.Clear();
         Status = "Stopped";
         Logger.Log("DreamSync: stopped");
     }
