@@ -3928,12 +3928,13 @@ public partial class RoomView : UserControl
             _config.Corsair.LightSyncMode = "static";
         }
 
-        // Resume any paused sync and set all devices to max brightness
+        // Resume any paused sync, turn on devices, and pre-enable segments
         if (!corsairOnly && _config?.Ambience.GoveeEnabled == true)
             foreach (var dev in _config.Ambience.GoveeDevices)
-                if (!string.IsNullOrWhiteSpace(dev.Ip))
+                if (!string.IsNullOrWhiteSpace(dev.Ip) && dev.PoweredOn)
                 {
                     AmbienceSync.ResumeSync(dev.Ip);
+                    _ = AmbienceSync.SendTurnAsync(dev.Ip, true);
                     _ = AmbienceSync.SendBrightnessAsync(dev.Ip, 100);
                 }
 

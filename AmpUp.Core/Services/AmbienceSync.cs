@@ -461,7 +461,7 @@ public class AmbienceSync : IDisposable
                 _segmentEnabled.Add(ip);
                 _segmentKeepAliveTick[ip] = now;
                 _ = Task.Run(() => SendSegmentEnable(ip, true));
-                Thread.Sleep(20);
+                Thread.Sleep(150); // Govee devices need time to process segment enable
             }
             _lastSendTick[ip] = now;
             _ = Task.Run(() => SendSegmentColors(ip, segColors));
