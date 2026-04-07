@@ -977,6 +977,34 @@ public partial class RoomView : UserControl
                 Margin = new Thickness(0, 8, 0, 0),
             });
         }
+
+        // ── Turn Up hardware ──
+        stack.Children.Add(MakeSeparator());
+        var (tuBar, tuLabel) = MakeSectionHeader("TURN UP");
+        stack.Children.Add(WrapHeader(tuBar, tuLabel));
+
+        var turnUpCheck = new CheckBox
+        {
+            Content = "Sync Screen to Turn Up LEDs",
+            IsChecked = _config.Ambience.ScreenSync.SyncToTurnUp,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            FontSize = 12,
+            Margin = new Thickness(0, 4, 0, 4),
+            ToolTip = "Send screen colors to Turn Up hardware LEDs when Screen Sync or Game Mode is active\n(overrides the current Lights tab effect)",
+        };
+        turnUpCheck.Checked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.SyncToTurnUp = true;
+            QueueSave();
+        };
+        turnUpCheck.Unchecked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.SyncToTurnUp = false;
+            QueueSave();
+        };
+        stack.Children.Add(turnUpCheck);
     }
 
     // ── OLD LAYOUT TAB (kept for reference, called by BuildRoomEffectTab internals) ──
@@ -2238,31 +2266,6 @@ public partial class RoomView : UserControl
             statusTileUpdater(active ? "ACTIVE" : "STANDBY", active);
         };
         statusTimer.Start();
-
-        // ── Turn Up Sync ──
-        stack.Children.Add(MakeSeparator());
-        var turnUpCheck = new CheckBox
-        {
-            Content = "Sync to Turn Up LEDs",
-            IsChecked = cfg.SyncToTurnUp,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            FontSize = 12,
-            Margin = new Thickness(0, 4, 0, 8),
-            ToolTip = "Send screen colors to Turn Up hardware LEDs\n(overrides the current Lights tab effect while Screen Sync is active)",
-        };
-        turnUpCheck.Checked += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Ambience.ScreenSync.SyncToTurnUp = true;
-            QueueSave();
-        };
-        turnUpCheck.Unchecked += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Ambience.ScreenSync.SyncToTurnUp = false;
-            QueueSave();
-        };
-        stack.Children.Add(turnUpCheck);
 
         // ── Device Zone Mapping ──
         if (_config!.Ambience.GoveeDevices.Count > 0)
