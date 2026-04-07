@@ -1696,17 +1696,17 @@ public partial class RoomView : UserControl
         // Smooth each band: fast attack, slow decay
         for (int b = 0; b < 5; b++)
         {
-            float raw = Math.Clamp(bands[b] * 3f, 0f, 1f); // boost for visibility
+            float raw = Math.Clamp(bands[b] * 2f, 0f, 1f);
             if (raw > _vuFillSmoothed[b])
                 _vuFillSmoothed[b] = raw; // instant attack
             else
                 _vuFillSmoothed[b] += (raw - _vuFillSmoothed[b]) * 0.2f; // slow decay
         }
 
-        // Overall energy for single-color devices
+        // Overall energy for single-color and paired devices
         float overall = 0;
         for (int b = 0; b < 5; b++) overall += _vuFillSmoothed[b];
-        overall = Math.Clamp(overall / 3f, 0f, 1f);
+        overall = Math.Clamp(overall / 5f, 0f, 1f);
 
         // VU color gradient: green (low) → yellow (mid) → red (high)
         var c1 = _roomColor1;
