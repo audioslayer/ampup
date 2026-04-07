@@ -3811,18 +3811,8 @@ public partial class RoomView : UserControl
         if (_corsairMusicTimer?.IsEnabled == true && musicBands != null && musicBands.Length >= 5)
         {
             float energy = Math.Min((musicBands[0] + musicBands[1] + musicBands[2] + musicBands[3] + musicBands[4]) * 2.5f, 1f);
-            // If the active pattern is AudioReactive (standalone music mode), use low floor.
-            // Otherwise user has a real effect selected — play it at full when silent, boost on beats.
-            bool isPureAudio = _activePattern == "AudioReactive";
-            if (isPureAudio)
-            {
-                musicBrightness = 0.05f + energy * 0.95f;
-            }
-            else
-            {
-                // Effect plays at full brightness when silent, pulses brighter on beats (up to 1.5x, clamped per-byte)
-                musicBrightness = 1.0f + energy * 0.5f;
-            }
+            // Dim when quiet, bright on beats — effect still visible at low floor
+            musicBrightness = 0.25f + energy * 0.75f;
             r = (byte)Math.Min(r * musicBrightness, 255);
             g = (byte)Math.Min(g * musicBrightness, 255);
             b = (byte)Math.Min(b * musicBrightness, 255);
