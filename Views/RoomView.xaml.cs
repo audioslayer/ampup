@@ -1765,10 +1765,11 @@ public partial class RoomView : UserControl
             }
             else
             {
-                // Single-color device: pulse with overall energy
-                byte r = (byte)(c1.R + (c2.R - c1.R) * overall);
-                byte g = (byte)(c1.G + (c2.G - c1.G) * overall);
-                byte b = (byte)(c1.B + (c2.B - c1.B) * overall);
+                // Single-color device: brightness pulse with energy (color1 dimmed by level)
+                float pulse = 0.1f + overall * 0.9f; // 10% floor, full on peaks
+                byte r = (byte)(c1.R * pulse);
+                byte g = (byte)(c1.G * pulse);
+                byte b = (byte)(c1.B * pulse);
                 _ = AmbienceSync.SendColorAsync(dev.Ip, r, g, b);
             }
         }
