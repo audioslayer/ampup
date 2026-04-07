@@ -463,7 +463,7 @@ public partial class RoomView : UserControl
                 }
                 _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
                 if (_screenSyncSettingsPanel != null)
-                    _screenSyncSettingsPanel.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+                    _screenSyncSettingsPanel.Visibility = (on || _config.Ambience.GameModeEnabled) ? Visibility.Visible : Visibility.Collapsed;
                 QueueSave();
             }, Color.FromRgb(0x44, 0x8A, 0xFF),
             syncRunning ? "ACTIVE" : "STANDBY",
@@ -479,13 +479,16 @@ public partial class RoomView : UserControl
             {
                 if (_loading || _config == null) return;
                 _config.Ambience.GameModeEnabled = on;
+                if (_screenSyncSettingsPanel != null)
+                    _screenSyncSettingsPanel.Visibility = (on || _config.Ambience.ScreenSync.Enabled) ? Visibility.Visible : Visibility.Collapsed;
                 QueueSave();
             }, Color.FromRgb(0xFF, 0x6B, 0x35)));
 
         // Screen Sync settings panel
         if (_screenSyncSettingsPanel != null)
             _roomTabContent?.Children.Remove(_screenSyncSettingsPanel);
-        var ssPanel = new StackPanel { Margin = new Thickness(0, 8, 0, 0), Visibility = syncRunning ? Visibility.Visible : Visibility.Collapsed };
+        bool showSyncSettings = syncRunning || _config.Ambience.GameModeEnabled;
+        var ssPanel = new StackPanel { Margin = new Thickness(0, 8, 0, 0), Visibility = showSyncSettings ? Visibility.Visible : Visibility.Collapsed };
         BuildScreenSyncSettings(ssPanel, statusUpdater!);
         _screenSyncSettingsPanel = ssPanel;
     }
@@ -2077,30 +2080,6 @@ public partial class RoomView : UserControl
         };
         row1.Children.Add(cropCheck);
 
-        // Sync to Turn Up LEDs checkbox
-        var turnUpCheck = new CheckBox
-        {
-            Content = "Sync to Turn Up",
-            IsChecked = cfg.SyncToTurnUp,
-            Foreground = FindBrush("TextSecBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(20, 0, 0, 0),
-            ToolTip = "Send screen colors to Turn Up hardware LEDs\n(overrides the current Lights tab effect)",
-        };
-        turnUpCheck.Checked += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Ambience.ScreenSync.SyncToTurnUp = true;
-            QueueSave();
-        };
-        turnUpCheck.Unchecked += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Ambience.ScreenSync.SyncToTurnUp = false;
-            QueueSave();
-        };
-        row1.Children.Add(turnUpCheck);
-
         stack.Children.Add(row1);
 
         // ── Screen Edge Control (draggable crop lines + live preview) ──
@@ -2259,6 +2238,31 @@ public partial class RoomView : UserControl
             statusTileUpdater(active ? "ACTIVE" : "STANDBY", active);
         };
         statusTimer.Start();
+
+        // ── Turn Up Sync ──
+        stack.Children.Add(MakeSeparator());
+        var turnUpCheck = new CheckBox
+        {
+            Content = "Sync to Turn Up LEDs",
+            IsChecked = cfg.SyncToTurnUp,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            FontSize = 12,
+            Margin = new Thickness(0, 4, 0, 8),
+            ToolTip = "Send screen colors to Turn Up hardware LEDs\n(overrides the current Lights tab effect while Screen Sync is active)",
+        };
+        turnUpCheck.Checked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.SyncToTurnUp = true;
+            QueueSave();
+        };
+        turnUpCheck.Unchecked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.SyncToTurnUp = false;
+            QueueSave();
+        };
+        stack.Children.Add(turnUpCheck);
 
         // ── Device Zone Mapping ──
         if (_config!.Ambience.GoveeDevices.Count > 0)
