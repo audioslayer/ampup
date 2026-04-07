@@ -3913,7 +3913,7 @@ public partial class RoomView : UserControl
 
     private void StartRoomPattern(string patternId, Color? c1 = null, Color? c2 = null, bool corsairOnly = false)
     {
-        StopRoomPattern();
+        StopRoomPattern(clearTurnUpOverride: false); // don't clear override — new effect will set it
         _activePattern = patternId;
         _roomPatternCorsairOnly = corsairOnly;
 
@@ -3980,7 +3980,7 @@ public partial class RoomView : UserControl
                 AmbienceSync.ResumeSync(dev.Ip);
     }
 
-    private void StopRoomPattern()
+    private void StopRoomPattern(bool clearTurnUpOverride = true)
     {
         StopPaletteCycle();
         if (_roomRgb != null)
@@ -3992,8 +3992,8 @@ public partial class RoomView : UserControl
         }
         _activePattern = null;
         _roomPatternCorsairOnly = false;
-        // Clear Turn Up override so Lights tab effect resumes
-        App.Rgb?.SetScreenSyncColors(null);
+        if (clearTurnUpOverride)
+            App.Rgb?.SetScreenSyncColors(null);
     }
 
     private int _roomFrameCount;
