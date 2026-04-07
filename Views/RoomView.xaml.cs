@@ -3803,21 +3803,31 @@ public partial class RoomView : UserControl
         byte g = (byte)(totalG / 15);
         byte b = (byte)(totalB / 15);
 
-        // Music reactive: modulate brightness from audio energy
+        // Music reactive: modulate brightness of the full frame from audio energy
         var musicBands = _globalMusicBands;
+        float musicBrightness = 1f;
         if (_corsairMusicTimer?.IsEnabled == true && musicBands != null && musicBands.Length >= 5)
         {
             float energy = Math.Min((musicBands[0] + musicBands[1] + musicBands[2] + musicBands[3] + musicBands[4]) * 2.5f, 1f);
-            float brightness = 0.15f + energy * 0.85f; // keep min 15% so effect remains visible
-            r = (byte)(r * brightness);
-            g = (byte)(g * brightness);
-            b = (byte)(b * brightness);
+            musicBrightness = 0.15f + energy * 0.85f; // keep min 15% so effect remains visible
+            r = (byte)(r * musicBrightness);
+            g = (byte)(g * musicBrightness);
+            b = (byte)(b * musicBrightness);
+        }
+
+        // Apply music brightness to the full 15-LED frame for Govee segment devices
+        byte[] frameToSend = linearColors;
+        if (musicBrightness < 0.99f)
+        {
+            frameToSend = new byte[45];
+            for (int i = 0; i < 45; i++)
+                frameToSend[i] = (byte)(linearColors[i] * musicBrightness);
         }
 
         // Send full frame to Govee via AmbienceSync (rate limited, segment-aware)
         if (!_roomPatternCorsairOnly && _config.Ambience.GoveeEnabled)
         {
-            _sync?.OnRoomFrame(linearColors, _config.Ambience);
+            _sync?.OnRoomFrame(frameToSend, _config.Ambience);
 
             // Cloud-only devices (no LAN IP) — throttle to ~1/sec (Cloud API rate limit)
             if (_cloudApi != null && (DateTime.UtcNow - _lastCloudRoomSend).TotalMilliseconds >= 1000)
@@ -3841,22 +3851,16 @@ public partial class RoomView : UserControl
             && _config.Corsair.LightSyncMode != "vu_reactive")
         {
             float boost = _config.Corsair.LightBrightness / 100f;
-            // Apply music brightness if active
-            if (musicBands != null && _corsairMusicTimer?.IsEnabled == true)
-            {
-                float energy = Math.Min((musicBands[0] + musicBands[1] + musicBands[2] + musicBands[3] + musicBands[4]) * 2.5f, 1f);
-                boost *= 0.15f + energy * 0.85f;
-            }
             var boosted = new byte[45];
             for (int i = 0; i < 45; i++)
-                boosted[i] = (byte)Math.Min(linearColors[i] * boost, 255);
+                boosted[i] = (byte)Math.Min(frameToSend[i] * boost, 255);
             _corsairSync.SyncColors(boosted);
         }
 
         // ── LG UltraGear monitor LEDs (48 LEDs, maps from 15-LED buffer) ──
         if (_lgMonitor?.IsAvailable == true)
         {
-            _lgMonitor.SyncFromRoomEffect(linearColors);
+            _lgMonitor.SyncFromRoomEffect(frameToSend);
         }
 
         // ── HA lights in room layout (~2/sec — HA/BLE devices are slow) ──
@@ -3873,7 +3877,7 @@ public partial class RoomView : UserControl
                     int hr = r, hg = g, hb = b;
                     if (_spatialMapper?.GetDevicePosition(dev.DeviceId) != null)
                     {
-                        var sampled = _spatialMapper.SampleForDevice(dev.DeviceId, linearColors, 1);
+                        var sampled = _spatialMapper.SampleForDevice(dev.DeviceId, frameToSend, 1);
                         if (sampled.Length > 0) { hr = sampled[0].R; hg = sampled[0].G; hb = sampled[0].B; }
                     }
                     // Separate brightness from color for proper dimming
