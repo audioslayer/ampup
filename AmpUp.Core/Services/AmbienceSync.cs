@@ -28,7 +28,7 @@ public class AmbienceSync : IDisposable
     // colorwc JSON is heavier but 10 FPS is well within device capability.
     private readonly Dictionary<string, long> _lastSendTick = new();
     private const long MinTicksSegment = TimeSpan.TicksPerMillisecond * 50;   // 20 FPS for segment protocol (razer binary)
-    private const long MinTicksSingle  = TimeSpan.TicksPerMillisecond * 100;  // 10 FPS for colorwc (JSON)
+    private const long MinTicksSingle  = TimeSpan.TicksPerMillisecond * 500;  // 2 FPS for colorwc — WiFi bulbs flash with rapid changes
 
     // Spatial mapper for room layout mode
     private SpatialMapper? _spatialMapper;
@@ -892,7 +892,8 @@ public class AmbienceSync : IDisposable
 
     private static async Task SendGoveeColor(string ip, int r, int g, int b)
     {
-        await SendColorAsync(ip, (byte)Math.Clamp(r, 0, 255), (byte)Math.Clamp(g, 0, 255), (byte)Math.Clamp(b, 0, 255));
+        // Use 500ms transition for smooth fading — WiFi bulbs flash with instant changes
+        await SendColorAsync(ip, (byte)Math.Clamp(r, 0, 255), (byte)Math.Clamp(g, 0, 255), (byte)Math.Clamp(b, 0, 255), durationMs: 500);
     }
 
     // ── JSON helpers ────────────────────────────────────────────────
