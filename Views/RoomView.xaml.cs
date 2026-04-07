@@ -1741,12 +1741,14 @@ public partial class RoomView : UserControl
                         float t = fillPos; // gradient position
                         segColors[half - 1 - s] = BlendVuColor(c1, c2, t, brightness);
                     }
-                    for (int s = 0; s < segCount - half; s++)
+                    int rightCount = segCount - half;
+                    for (int s = 0; s < rightCount; s++)
                     {
-                        float fillPos = (float)s / Math.Max(segCount - half - 1, 1);
+                        float fillPos = (float)s / Math.Max(rightCount - 1, 1);
                         float brightness = rightLevel > fillPos ? 1f : Math.Max(0, 1f - (fillPos - rightLevel) * 5f);
                         float t = fillPos;
-                        segColors[half + s] = BlendVuColor(c1, c2, t, brightness);
+                        // Mirror: reverse right panel to match left (both fill bottom→top)
+                        segColors[half + (rightCount - 1 - s)] = BlendVuColor(c1, c2, t, brightness);
                     }
                 }
                 else
