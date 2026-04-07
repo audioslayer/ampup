@@ -317,20 +317,32 @@ public class AmbienceSync : IDisposable
     /// Called by RoomView.OnRoomFrame for room pattern effects.
     /// Sends full 15-LED frame with rate limiting and segment support.
     /// </summary>
+    private int _roomFrameLogCount;
     public void OnRoomFrame(byte[] linear45, AmbienceConfig cfg)
     {
         if (_disposed || !cfg.GoveeEnabled || cfg.GoveeDevices.Count == 0) return;
+        _roomFrameLogCount++;
 
         // Collect active devices with their zone counts
         var activeDevices = new List<(GoveeDeviceConfig Dev, int Zones)>();
         foreach (var device in cfg.GoveeDevices)
         {
-            if (string.IsNullOrWhiteSpace(device.Ip) || !device.PoweredOn || IsSyncPaused(device.Ip)) continue;
+            bool paused = IsSyncPaused(device.Ip);
+            if (string.IsNullOrWhiteSpace(device.Ip) || !device.PoweredOn || paused)
+            {
+                if (_roomFrameLogCount <= 3)
+                    Logger.Log($"OnRoomFrame: skip {device.Name}({device.Ip}) — ip={!string.IsNullOrWhiteSpace(device.Ip)}, on={device.PoweredOn}, paused={paused}");
+                continue;
+            }
             int segs = (GetSegmentCount(device) > 0 && device.UseSegmentProtocol)
                 ? GetSegmentCount(device) : 1;
             activeDevices.Add((device, segs));
         }
-        if (activeDevices.Count == 0) return;
+        if (activeDevices.Count == 0)
+        {
+            Logger.Log($"OnRoomFrame: no active devices (total={cfg.GoveeDevices.Count})");
+            return;
+        }
 
         if (cfg.SpatialSync && _spatialMapper != null && _spatialMapper.HasLayout)
         {
