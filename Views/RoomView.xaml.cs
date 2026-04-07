@@ -3653,6 +3653,12 @@ public partial class RoomView : UserControl
         {
             _config.Ambience.LinkToLights = false;
             _config.Corsair.LightSyncMode = "static";
+            // Stop Screen Sync — it fights room effects for segment control
+            if (_config.Ambience.ScreenSync.Enabled)
+            {
+                _config.Ambience.ScreenSync.Enabled = false;
+                _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            }
         }
 
         // Resume any paused sync and set all devices to max brightness
