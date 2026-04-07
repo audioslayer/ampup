@@ -3808,7 +3808,10 @@ public partial class RoomView : UserControl
         // Music reactive: modulate brightness of the full frame from audio energy
         var musicBands = _globalMusicBands;
         float musicBrightness = 1f;
-        if (_corsairMusicTimer?.IsEnabled == true && musicBands != null && musicBands.Length >= 5)
+        bool musicTimerActive = _corsairMusicTimer?.IsEnabled == true;
+        if (_roomFrameCount % 100 == 1) // log every ~5s
+            Logger.Log($"OnRoomFrame: pattern={_activePattern}, musicTimer={musicTimerActive}, bands={musicBands?.Length}, brightness avg={r},{g},{b}");
+        if (musicTimerActive && musicBands != null && musicBands.Length >= 5)
         {
             float energy = Math.Min((musicBands[0] + musicBands[1] + musicBands[2] + musicBands[3] + musicBands[4]) * 2.5f, 1f);
             // Dim when quiet, bright on beats — effect still visible at low floor
