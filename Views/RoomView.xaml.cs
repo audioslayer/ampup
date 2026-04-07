@@ -1727,29 +1727,27 @@ public partial class RoomView : UserControl
                 if (isPaired)
                 {
                     // Paired device (H610A): two panels, each is a vertical VU meter
-                    // Left panel = bass+low-mid, Right panel = high-mid+treble
+                    // Both panels mirror the same VU meter driven by bass energy
                     int half = segCount / 2;
-                    float leftLevel = Math.Clamp((_vuFillSmoothed[0] + _vuFillSmoothed[1]) / 1.5f, 0f, 1f);
-                    float rightLevel = Math.Clamp((_vuFillSmoothed[2] + _vuFillSmoothed[3] + _vuFillSmoothed[4]) / 2f, 0f, 1f);
+                    float level = Math.Clamp((_vuFillSmoothed[0] + _vuFillSmoothed[1]) / 1.5f, 0f, 1f);
 
-                    // Fill segments bottom→top (segment 0 = bottom for each panel)
-                    // Reverse first panel to match physical orientation (same as DreamSync)
+                    // Compute the VU fill colors once
+                    var vuColors = new (byte R, byte G, byte B)[half];
                     for (int s = 0; s < half; s++)
                     {
                         float fillPos = (float)s / Math.Max(half - 1, 1);
-                        float brightness = leftLevel > fillPos ? 1f : Math.Max(0, 1f - (fillPos - leftLevel) * 5f);
-                        float t = fillPos; // gradient position
-                        segColors[half - 1 - s] = BlendVuColor(c1, c2, t, brightness);
+                        float brightness = level > fillPos ? 1f : Math.Max(0, 1f - (fillPos - level) * 5f);
+                        vuColors[s] = BlendVuColor(c1, c2, fillPos, brightness);
                     }
+
+                    // Left panel (segments 0..half-1): reversed
+                    for (int s = 0; s < half; s++)
+                        segColors[half - 1 - s] = vuColors[s];
+
+                    // Right panel (segments half..end): copy left panel directly (mirrored)
                     int rightCount = segCount - half;
-                    for (int s = 0; s < rightCount; s++)
-                    {
-                        float fillPos = (float)s / Math.Max(rightCount - 1, 1);
-                        float brightness = rightLevel > fillPos ? 1f : Math.Max(0, 1f - (fillPos - rightLevel) * 5f);
-                        float t = fillPos;
-                        // Right panel: straight order (H610A wiring: 0-5=right reversed, 6-11=left straight)
-                        segColors[half + s] = BlendVuColor(c1, c2, t, brightness);
-                    }
+                    for (int s = 0; s < rightCount && s < half; s++)
+                        segColors[half + s] = segColors[s];
                 }
                 else
                 {
