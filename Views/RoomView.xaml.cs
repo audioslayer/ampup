@@ -1023,6 +1023,31 @@ public partial class RoomView : UserControl
             QueueSave();
         };
         stack.Children.Add(turnUpCheck);
+
+        // Turn Up Mixer — sync room effect colors to Turn Up LEDs
+        var mixerCheck = new CheckBox
+        {
+            Content = "Turn Up Mixer",
+            IsChecked = _config.Ambience.SyncRoomToTurnUp,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            FontSize = 12,
+            Margin = new Thickness(0, 4, 0, 4),
+            ToolTip = "Sync room effect and VU Fill colors to Turn Up hardware LEDs\n(overrides the Lights tab effect while a room effect is playing)",
+        };
+        mixerCheck.Checked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.SyncRoomToTurnUp = true;
+            QueueSave();
+        };
+        mixerCheck.Unchecked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.SyncRoomToTurnUp = false;
+            App.Rgb?.SetScreenSyncColors(null); // restore Lights tab effect immediately
+            QueueSave();
+        };
+        stack.Children.Add(mixerCheck);
     }
 
     // ── OLD LAYOUT TAB (kept for reference, called by BuildRoomEffectTab internals) ──
@@ -1748,27 +1773,36 @@ public partial class RoomView : UserControl
             }
         }
 
-        // Also send to Corsair as a 15-LED frame
+        // Build a 15-LED frame (5 knobs × 3 LEDs) for Corsair and Turn Up
+        var frame = new byte[45];
+        for (int k = 0; k < 5; k++)
+        {
+            float level = _vuFillSmoothed[k];
+            for (int led = 0; led < 3; led++)
+            {
+                float fillPos = led / 2f;
+                float brightness = level > fillPos ? 1f : Math.Max(0, 1f - (fillPos - level) * 5f);
+                float t = fillPos;
+                var c = BlendVuColor(c1, c2, t, brightness);
+                int offset = k * 9 + led * 3;
+                frame[offset] = c.R;
+                frame[offset + 1] = c.G;
+                frame[offset + 2] = c.B;
+            }
+        }
+
+        // Send to Turn Up hardware LEDs
+        if (_config.Ambience.SyncRoomToTurnUp)
+            App.Rgb?.SetScreenSyncColors(frame);
+
+        // Send to Corsair
         if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
         {
-            var frame = new byte[45];
             float boost = _config.Corsair.LightBrightness / 100f;
-            for (int k = 0; k < 5; k++)
-            {
-                float level = _vuFillSmoothed[k];
-                for (int led = 0; led < 3; led++)
-                {
-                    float fillPos = led / 2f;
-                    float brightness = level > fillPos ? 1f : Math.Max(0, 1f - (fillPos - level) * 5f);
-                    float t = fillPos;
-                    var c = BlendVuColor(c1, c2, t, brightness);
-                    int offset = k * 9 + led * 3;
-                    frame[offset] = (byte)Math.Min(c.R * boost, 255);
-                    frame[offset + 1] = (byte)Math.Min(c.G * boost, 255);
-                    frame[offset + 2] = (byte)Math.Min(c.B * boost, 255);
-                }
-            }
-            _corsairSync.SyncColors(frame);
+            var boosted = new byte[45];
+            for (int i = 0; i < 45; i++)
+                boosted[i] = (byte)Math.Min(frame[i] * boost, 255);
+            _corsairSync.SyncColors(boosted);
         }
     }
 
@@ -4004,6 +4038,10 @@ public partial class RoomView : UserControl
             for (int i = 0; i < 45; i++)
                 frameToSend[i] = (byte)Math.Min(linearColors[i] * musicBrightness, 255);
         }
+
+        // Sync room effect to Turn Up hardware LEDs (overrides Lights tab effect)
+        if (_config.Ambience.SyncRoomToTurnUp)
+            App.Rgb?.SetScreenSyncColors(frameToSend);
 
         // Send full frame to Govee via AmbienceSync (rate limited, segment-aware)
         if (!_roomPatternCorsairOnly && _config.Ambience.GoveeEnabled)

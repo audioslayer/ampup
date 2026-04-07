@@ -298,6 +298,7 @@ public class AmbienceConfig
     public bool GoveeCloudEnabled { get; set; } = false;
     public List<GoveeDeviceConfig> GoveeDevices { get; set; } = new();
     public bool LinkToLights { get; set; } = false;
+    public bool SyncRoomToTurnUp { get; set; } = false;
     public int BrightnessScale { get; set; } = 75;
     public bool WarmToneShift { get; set; } = false;
     public string GoveeApiKey { get; set; } = "";

@@ -845,7 +845,9 @@ public partial class App : Application
         _ambienceSync?.UpdateConfig(_config.Ambience);
         _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
         // Clear Turn Up screen sync override when disabled
-        if (!_config.Ambience.ScreenSync.Enabled || !_config.Ambience.ScreenSync.SyncToTurnUp)
+        // Clear Turn Up screen sync override when neither screen sync nor room sync is active
+        if ((!_config.Ambience.ScreenSync.Enabled || !_config.Ambience.ScreenSync.SyncToTurnUp)
+            && !_config.Ambience.SyncRoomToTurnUp)
             _rgb.SetScreenSyncColors(null);
         if (_corsairSync != null)
         {
