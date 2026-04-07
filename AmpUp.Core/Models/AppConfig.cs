@@ -350,6 +350,7 @@ public class ScreenSyncConfig
     public float Saturation { get; set; } = 1.2f;
     public int Sensitivity { get; set; } = 5;
     public bool CropBlackBars { get; set; } = true;
+    public bool SyncToTurnUp { get; set; } = false;
     public ContentBounds ContentBounds { get; set; } = new();
     public List<ZoneDeviceMapping> DeviceMappings { get; set; } = new();
 }

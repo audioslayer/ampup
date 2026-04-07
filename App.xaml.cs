@@ -156,21 +156,29 @@ public partial class App : Application
         _dreamSync = new DreamSyncController(_config.Ambience.ScreenSync, _config.Ambience, new WindowsScreenCapture());
         _dreamSync.OnZoneColors += zones =>
         {
-            // Forward DreamView screen colors to Corsair when in dreamview mode
+            // Build a 45-byte RGB array from zone colors (map zones to 15 LEDs)
+            var frame = new byte[45];
+            for (int i = 0; i < 15; i++)
+            {
+                var zone = zones[i * zones.Length / 15];
+                frame[i * 3]     = zone.R;
+                frame[i * 3 + 1] = zone.G;
+                frame[i * 3 + 2] = zone.B;
+            }
+
+            // Forward to Turn Up hardware LEDs when enabled
+            if (_config.Ambience.ScreenSync.SyncToTurnUp)
+                _rgb.SetScreenSyncColors(frame);
+
+            // Forward to Corsair when in dreamview mode
             if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled
                 && _config.Corsair.LightSyncMode == "dreamview")
             {
-                // Build a 45-byte RGB array from zone colors (map zones to 15 LEDs)
-                var frame = new byte[45];
                 float boost = _config.Corsair.LightBrightness / 100f;
-                for (int i = 0; i < 15; i++)
-                {
-                    var zone = zones[i * zones.Length / 15];
-                    frame[i * 3]     = (byte)Math.Min(zone.R * boost, 255);
-                    frame[i * 3 + 1] = (byte)Math.Min(zone.G * boost, 255);
-                    frame[i * 3 + 2] = (byte)Math.Min(zone.B * boost, 255);
-                }
-                _corsairSync.SyncColors(frame);
+                var boosted = new byte[45];
+                for (int i = 0; i < 45; i++)
+                    boosted[i] = (byte)Math.Min(frame[i] * boost, 255);
+                _corsairSync.SyncColors(boosted);
             }
         };
         if (_config.Ambience.ScreenSync.Enabled)
@@ -836,6 +844,9 @@ public partial class App : Application
         _autoSwitcher?.UpdateConfig(_config.AutoSwitch);
         _ambienceSync?.UpdateConfig(_config.Ambience);
         _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+        // Clear Turn Up screen sync override when disabled
+        if (!_config.Ambience.ScreenSync.Enabled || !_config.Ambience.ScreenSync.SyncToTurnUp)
+            _rgb.SetScreenSyncColors(null);
         if (_corsairSync != null)
         {
             if (_config.Corsair.Enabled)

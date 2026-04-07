@@ -116,6 +116,10 @@ public class RgbController : IDisposable
     // Per-knob preview: only one knob shows preview color, others render normally
     private volatile int _previewKnobIdx = -1; // -1 = all knobs (legacy), 0-4 = specific knob
 
+    // Screen sync override: when set, replaces normal effect rendering with screen colors
+    // byte[45] = 15 LEDs × 3 (R,G,B), same layout as _linearColors
+    private volatile byte[]? _screenSyncColors;
+
     // Random number generator for stochastic effects
     private static readonly Random _rng = new();
 
@@ -278,6 +282,15 @@ public class RgbController : IDisposable
     {
         _previewColor = null;
         _previewKnobIdx = -1;
+    }
+
+    /// <summary>
+    /// Set screen sync colors on the Turn Up LEDs. Overrides normal effect rendering.
+    /// Pass a 45-byte array (15 LEDs × R,G,B) or null to resume normal effects.
+    /// </summary>
+    public void SetScreenSyncColors(byte[]? colors)
+    {
+        _screenSyncColors = colors;
     }
 
     /// <summary>
@@ -474,6 +487,21 @@ public class RgbController : IDisposable
             // Global preview: all knobs show preview color
             for (int knob = 0; knob < 5; knob++)
                 SetColor(knob, preview[0], preview[1], preview[2]);
+            Send();
+            OnFrameReady?.Invoke(_linearColors);
+            return;
+        }
+
+        // Screen sync override: push screen capture colors directly to Turn Up LEDs
+        var screenSync = _screenSyncColors;
+        if (screenSync != null && screenSync.Length == 45 && preview == null)
+        {
+            for (int k = 0; k < 5; k++)
+                for (int led = 0; led < 3; led++)
+                {
+                    int offset = k * 9 + led * 3;
+                    SetColor(k, led, screenSync[offset], screenSync[offset + 1], screenSync[offset + 2]);
+                }
             Send();
             OnFrameReady?.Invoke(_linearColors);
             return;

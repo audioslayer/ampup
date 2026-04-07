@@ -2077,6 +2077,30 @@ public partial class RoomView : UserControl
         };
         row1.Children.Add(cropCheck);
 
+        // Sync to Turn Up LEDs checkbox
+        var turnUpCheck = new CheckBox
+        {
+            Content = "Sync to Turn Up",
+            IsChecked = cfg.SyncToTurnUp,
+            Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(20, 0, 0, 0),
+            ToolTip = "Send screen colors to Turn Up hardware LEDs\n(overrides the current Lights tab effect)",
+        };
+        turnUpCheck.Checked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.SyncToTurnUp = true;
+            QueueSave();
+        };
+        turnUpCheck.Unchecked += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.SyncToTurnUp = false;
+            QueueSave();
+        };
+        row1.Children.Add(turnUpCheck);
+
         stack.Children.Add(row1);
 
         // ── Screen Edge Control (draggable crop lines + live preview) ──
