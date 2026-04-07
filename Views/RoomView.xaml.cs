@@ -3913,6 +3913,7 @@ public partial class RoomView : UserControl
 
     private void StartRoomPattern(string patternId, Color? c1 = null, Color? c2 = null, bool corsairOnly = false)
     {
+        Logger.Log($"StartRoomPattern: {patternId}, corsairOnly={corsairOnly}");
         StopRoomPattern(clearTurnUpOverride: false); // don't clear override — new effect will set it
         _activePattern = patternId;
         _roomPatternCorsairOnly = corsairOnly;
@@ -4002,6 +4003,8 @@ public partial class RoomView : UserControl
     {
         if (_config == null) return;
         _roomFrameCount++;
+        if (_roomFrameCount == 1)
+            Logger.Log($"OnRoomFrame: first frame, pattern={_activePattern}");
 
         // Average the 15 LED colors to get a single room color
         int totalR = 0, totalG = 0, totalB = 0;
