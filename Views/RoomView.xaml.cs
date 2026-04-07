@@ -3810,19 +3810,30 @@ public partial class RoomView : UserControl
         if (_corsairMusicTimer?.IsEnabled == true && musicBands != null && musicBands.Length >= 5)
         {
             float energy = Math.Min((musicBands[0] + musicBands[1] + musicBands[2] + musicBands[3] + musicBands[4]) * 2.5f, 1f);
-            musicBrightness = 0.15f + energy * 0.85f; // keep min 15% so effect remains visible
-            r = (byte)(r * musicBrightness);
-            g = (byte)(g * musicBrightness);
-            b = (byte)(b * musicBrightness);
+            // If the active pattern is AudioReactive (standalone music mode), use low floor.
+            // Otherwise user has a real effect selected — play it at full when silent, boost on beats.
+            bool isPureAudio = _activePattern == "AudioReactive";
+            if (isPureAudio)
+            {
+                musicBrightness = 0.05f + energy * 0.95f;
+            }
+            else
+            {
+                // Effect plays at full brightness when silent, pulses brighter on beats (up to 1.5x, clamped per-byte)
+                musicBrightness = 1.0f + energy * 0.5f;
+            }
+            r = (byte)Math.Min(r * musicBrightness, 255);
+            g = (byte)Math.Min(g * musicBrightness, 255);
+            b = (byte)Math.Min(b * musicBrightness, 255);
         }
 
-        // Apply music brightness to the full 15-LED frame for Govee segment devices
+        // Apply music brightness to the full 15-LED frame for all devices
         byte[] frameToSend = linearColors;
-        if (musicBrightness < 0.99f)
+        if (Math.Abs(musicBrightness - 1f) > 0.01f)
         {
             frameToSend = new byte[45];
             for (int i = 0; i < 45; i++)
-                frameToSend[i] = (byte)(linearColors[i] * musicBrightness);
+                frameToSend[i] = (byte)Math.Min(linearColors[i] * musicBrightness, 255);
         }
 
         // Send full frame to Govee via AmbienceSync (rate limited, segment-aware)
