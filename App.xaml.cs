@@ -1919,8 +1919,8 @@ public partial class App : Application
     /// </summary>
     private void UpdateAudioAnalyzer()
     {
-        bool needsAudio = _config.Lights.Any(l => l.Effect == LightEffect.AudioReactive)
-            || (_config.GlobalLight.Enabled && _config.GlobalLight.Effect == LightEffect.AudioReactive);
+        bool needsAudio = _config.Lights.Any(l => l.Effect == LightEffect.AudioReactive || l.Effect == LightEffect.AudioPositionBlend)
+            || (_config.GlobalLight.Enabled && (_config.GlobalLight.Effect == LightEffect.AudioReactive || _config.GlobalLight.Effect == LightEffect.AudioPositionBlend));
         if (needsAudio)
             _audioAnalyzer?.Start();
         else
