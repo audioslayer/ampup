@@ -46,6 +46,11 @@ public partial class RoomView : UserControl
     private DispatcherTimer? _goveeLanMusicTimer;
     private string? _goveeLanMusicIp;
 
+    // VU Fill mode — per-segment VU meters driven by audio
+    private bool _vuFillActive;
+    private DispatcherTimer? _vuFillTimer;
+    private readonly float[] _vuFillSmoothed = new float[5]; // per-band smoothed levels
+
     // Room pattern engine — headless RgbController for rendering effects
     private RgbController? _roomRgb;
     private string? _activePattern;
@@ -68,7 +73,7 @@ public partial class RoomView : UserControl
 
     // Navigation callback (set by MainWindow to navigate to Settings)
     public Action? NavigateToSettings { get; set; }
-    public bool IsMusicReactiveActive => _corsairMusicTimer?.IsEnabled == true;
+    public bool IsMusicReactiveActive => _corsairMusicTimer?.IsEnabled == true || _vuFillActive;
 
     public RoomView()
     {
@@ -428,13 +433,25 @@ public partial class RoomView : UserControl
             }, Color.FromRgb(0x69, 0xF0, 0xAE)));
 
         // Music Reactive
-        bool globalMusic = _corsairMusicTimer?.IsEnabled == true;
+        bool globalMusic = _corsairMusicTimer?.IsEnabled == true && !_vuFillActive;
         row.Children.Add(BuildToggleTile("♪", "MUSIC REACTIVE", "Audio-driven brightness",
             globalMusic, on =>
             {
                 if (_loading) return;
-                if (on) StartGlobalMusicSync(); else StopCorsairMusicSync();
+                if (on) { StopVuFill(); StartGlobalMusicSync(); }
+                else StopCorsairMusicSync();
+                RebuildRoomTabContent();
             }, Color.FromRgb(0xFF, 0xB8, 0x00)));
+
+        // VU Fill — segments fill up like VU meters with music
+        row.Children.Add(BuildToggleTile("≡", "VU FILL", "Segments fill with music energy",
+            _vuFillActive, on =>
+            {
+                if (_loading) return;
+                if (on) { StopCorsairMusicSync(); StartVuFill(); }
+                else StopVuFill();
+                RebuildRoomTabContent();
+            }, Color.FromRgb(0xFF, 0x40, 0x81)));
 
         // Screen Sync
         bool syncRunning = _config.Ambience.ScreenSync.Enabled;
@@ -1612,6 +1629,155 @@ public partial class RoomView : UserControl
             _roomRgb.OnFrameReady += OnRoomFrame;
             _roomRgb.SetOutput((_, _, _) => { }, () => true);
         }
+    }
+
+    // ── VU FILL MODE ─────────────────────────────────────────────────
+
+    private void StartVuFill()
+    {
+        StopVuFill();
+        _vuFillActive = true;
+
+        App.AudioAnalyzer?.Start();
+        ResumeAllGoveeSync();
+
+        // Set all Govee devices to max brightness (VU colors encode the brightness)
+        if (_config?.Ambience.GoveeEnabled == true)
+            foreach (var dev in _config.Ambience.GoveeDevices)
+                if (!string.IsNullOrWhiteSpace(dev.Ip))
+                    _ = AmbienceSync.SendBrightnessAsync(dev.Ip, 100);
+
+        _vuFillTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) }; // ~30fps
+        _vuFillTimer.Tick += (_, _) => VuFillTick();
+        _vuFillTimer.Start();
+    }
+
+    private void StopVuFill()
+    {
+        if (!_vuFillActive) return;
+        _vuFillActive = false;
+        _vuFillTimer?.Stop();
+        _vuFillTimer = null;
+        for (int i = 0; i < 5; i++) _vuFillSmoothed[i] = 0;
+    }
+
+    private void VuFillTick()
+    {
+        if (_config == null || !_vuFillActive) return;
+
+        var bands = App.AudioAnalyzer?.SmoothedBands;
+        if (bands == null || bands.Length < 5) return;
+
+        // Smooth each band: fast attack, slow decay
+        for (int b = 0; b < 5; b++)
+        {
+            float raw = Math.Clamp(bands[b] * 3f, 0f, 1f); // boost for visibility
+            if (raw > _vuFillSmoothed[b])
+                _vuFillSmoothed[b] = raw; // instant attack
+            else
+                _vuFillSmoothed[b] += (raw - _vuFillSmoothed[b]) * 0.2f; // slow decay
+        }
+
+        // Overall energy for single-color devices
+        float overall = 0;
+        for (int b = 0; b < 5; b++) overall += _vuFillSmoothed[b];
+        overall = Math.Clamp(overall / 3f, 0f, 1f);
+
+        // VU color gradient: green (low) → yellow (mid) → red (high)
+        var c1 = _roomColor1;
+        var c2 = _roomColor2;
+
+        foreach (var dev in _config.Ambience.GoveeDevices)
+        {
+            if (string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn) continue;
+
+            int segCount = AmbienceSync.GetSegmentCount(dev);
+            bool useSegs = segCount > 0 && dev.UseSegmentProtocol;
+
+            if (useSegs)
+            {
+                bool isPaired = AmbienceSync.IsPairedDevice(dev.Sku);
+                var segColors = new (byte R, byte G, byte B)[segCount];
+
+                if (isPaired)
+                {
+                    // Paired device (H610A): two panels, each is a vertical VU meter
+                    // Left panel = bass+low-mid, Right panel = high-mid+treble
+                    int half = segCount / 2;
+                    float leftLevel = Math.Clamp((_vuFillSmoothed[0] + _vuFillSmoothed[1]) / 1.5f, 0f, 1f);
+                    float rightLevel = Math.Clamp((_vuFillSmoothed[2] + _vuFillSmoothed[3] + _vuFillSmoothed[4]) / 2f, 0f, 1f);
+
+                    // Fill segments bottom→top (segment 0 = bottom for each panel)
+                    // Reverse first panel to match physical orientation (same as DreamSync)
+                    for (int s = 0; s < half; s++)
+                    {
+                        float fillPos = (float)s / Math.Max(half - 1, 1);
+                        float brightness = leftLevel > fillPos ? 1f : Math.Max(0, 1f - (fillPos - leftLevel) * 5f);
+                        float t = fillPos; // gradient position
+                        segColors[half - 1 - s] = BlendVuColor(c1, c2, t, brightness);
+                    }
+                    for (int s = 0; s < segCount - half; s++)
+                    {
+                        float fillPos = (float)s / Math.Max(segCount - half - 1, 1);
+                        float brightness = rightLevel > fillPos ? 1f : Math.Max(0, 1f - (fillPos - rightLevel) * 5f);
+                        float t = fillPos;
+                        segColors[half + s] = BlendVuColor(c1, c2, t, brightness);
+                    }
+                }
+                else
+                {
+                    // Single device: all segments = one VU meter
+                    for (int s = 0; s < segCount; s++)
+                    {
+                        float fillPos = (float)s / Math.Max(segCount - 1, 1);
+                        float brightness = overall > fillPos ? 1f : Math.Max(0, 1f - (fillPos - overall) * 5f);
+                        float t = fillPos;
+                        segColors[s] = BlendVuColor(c1, c2, t, brightness);
+                    }
+                }
+
+                _sync?.SendSegmentFrame(dev.Ip, segColors);
+            }
+            else
+            {
+                // Single-color device: pulse with overall energy
+                byte r = (byte)(c1.R + (c2.R - c1.R) * overall);
+                byte g = (byte)(c1.G + (c2.G - c1.G) * overall);
+                byte b = (byte)(c1.B + (c2.B - c1.B) * overall);
+                _ = AmbienceSync.SendColorAsync(dev.Ip, r, g, b);
+            }
+        }
+
+        // Also send to Corsair as a 15-LED frame
+        if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
+        {
+            var frame = new byte[45];
+            float boost = _config.Corsair.LightBrightness / 100f;
+            for (int k = 0; k < 5; k++)
+            {
+                float level = _vuFillSmoothed[k];
+                for (int led = 0; led < 3; led++)
+                {
+                    float fillPos = led / 2f;
+                    float brightness = level > fillPos ? 1f : Math.Max(0, 1f - (fillPos - level) * 5f);
+                    float t = fillPos;
+                    var c = BlendVuColor(c1, c2, t, brightness);
+                    int offset = k * 9 + led * 3;
+                    frame[offset] = (byte)Math.Min(c.R * boost, 255);
+                    frame[offset + 1] = (byte)Math.Min(c.G * boost, 255);
+                    frame[offset + 2] = (byte)Math.Min(c.B * boost, 255);
+                }
+            }
+            _corsairSync.SyncColors(frame);
+        }
+    }
+
+    private static (byte R, byte G, byte B) BlendVuColor(Color c1, Color c2, float t, float brightness)
+    {
+        byte r = (byte)Math.Clamp((c1.R + (c2.R - c1.R) * t) * brightness, 0, 255);
+        byte g = (byte)Math.Clamp((c1.G + (c2.G - c1.G) * t) * brightness, 0, 255);
+        byte b = (byte)Math.Clamp((c1.B + (c2.B - c1.B) * t) * brightness, 0, 255);
+        return (r, g, b);
     }
 
     // ── GOVEE TAB ───────────────────────────────────────────────────

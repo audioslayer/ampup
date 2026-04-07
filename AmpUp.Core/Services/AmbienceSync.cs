@@ -832,6 +832,31 @@ public class AmbienceSync : IDisposable
         await SendSegmentEnable(ip, false);
     }
 
+    /// <summary>
+    /// Send per-segment colors to a Govee device via LAN UDP. Handles segment enable + rate limiting.
+    /// Used by VU meter music mode for direct segment control.
+    /// </summary>
+    public void SendSegmentFrame(string ip, (byte R, byte G, byte B)[] colors)
+    {
+        if (string.IsNullOrWhiteSpace(ip) || IsSyncPaused(ip)) return;
+        var now = DateTime.UtcNow.Ticks;
+        if (_lastSendTick.TryGetValue(ip, out long lastTick) && now - lastTick < MinTicksSegment)
+            return;
+
+        bool needEnable = !_segmentEnabled.Contains(ip);
+        if (!needEnable && _segmentKeepAliveTick.TryGetValue(ip, out long lastKa))
+            needEnable = now - lastKa > SegmentKeepAliveInterval;
+        if (needEnable)
+        {
+            _segmentEnabled.Add(ip);
+            _segmentKeepAliveTick[ip] = now;
+            _ = Task.Run(() => SendSegmentEnable(ip, true));
+            Thread.Sleep(20);
+        }
+        _lastSendTick[ip] = now;
+        _ = Task.Run(() => SendSegmentColors(ip, colors));
+    }
+
     private static async Task SendSegmentEnable(string ip, bool enable)
     {
         var pkt = new byte[] { 0xBB, 0x00, 0x01, 0xB1, (byte)(enable ? 1 : 0), 0 };
