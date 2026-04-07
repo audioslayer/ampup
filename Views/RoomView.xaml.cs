@@ -1570,7 +1570,6 @@ public partial class RoomView : UserControl
     private void StartGlobalMusicSync()
     {
         StopCorsairMusicSync(); // stop any existing
-        // Keep room pattern running — music modulates its brightness in OnRoomFrame
 
         App.AudioAnalyzer?.Start();
 
@@ -1580,6 +1579,38 @@ public partial class RoomView : UserControl
             _globalMusicBands = App.AudioAnalyzer?.SmoothedBands;
         };
         _corsairMusicTimer.Start();
+
+        // If no room pattern is running, start an AudioReactive pattern so
+        // music-driven colors are sent to Govee/Corsair/Turn Up (not just brightness modulation)
+        if (_roomRgb == null && (_activePattern == null || _activePattern == "__sync__"))
+        {
+            _activePattern = "AudioReactive";
+            _roomPatternCorsairOnly = false;
+
+            ResumeAllGoveeSync();
+
+            _roomRgb = new RgbController();
+            _roomRgb.SetBrightness(100);
+            _roomRgb.SetAudioBandsProvider(() => App.AudioAnalyzer?.SmoothedBands);
+            _roomRgb.UpdateCustomPalettes(_config?.CustomPalettes);
+
+            for (int k = 0; k < 5; k++)
+                _roomRgb.SetKnobPosition(k, 1.0f);
+
+            var gl = new GlobalLightConfig
+            {
+                Enabled = true,
+                Effect = LightEffect.AudioReactive,
+                R = _roomColor1.R, G = _roomColor1.G, B = _roomColor1.B,
+                R2 = _roomColor2.R, G2 = _roomColor2.G, B2 = _roomColor2.B,
+                EffectSpeed = 50,
+                ReactiveMode = ReactiveMode.SpectrumBands,
+                PaletteName = _roomPalette.Name,
+            };
+            _roomRgb.UpdateGlobalConfig(gl);
+            _roomRgb.OnFrameReady += OnRoomFrame;
+            _roomRgb.SetOutput((_, _, _) => { }, () => true);
+        }
     }
 
     // ── GOVEE TAB ───────────────────────────────────────────────────
