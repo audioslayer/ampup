@@ -3731,6 +3731,7 @@ public partial class RoomView : UserControl
         // Create a headless RgbController to render effects
         _roomRgb = new RgbController();
         _roomRgb.SetBrightness(100);
+        _roomRgb.SetAudioBandsProvider(() => App.AudioAnalyzer?.SmoothedBands ?? Array.Empty<float>());
         _roomRgb.UpdateCustomPalettes(_config?.CustomPalettes);
 
         // Set knob positions to full so effects render at full brightness
