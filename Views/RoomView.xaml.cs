@@ -3759,6 +3759,8 @@ public partial class RoomView : UserControl
         // Send full frame to Govee via AmbienceSync (rate limited, segment-aware)
         if (!_roomPatternCorsairOnly && _config.Ambience.GoveeEnabled)
         {
+            if (_roomFrameCount <= 3)
+                Logger.Log($"OnRoomFrame #{_roomFrameCount}: sync={_sync != null}, corsairOnly={_roomPatternCorsairOnly}, govee={_config.Ambience.GoveeEnabled}, devices={_config.Ambience.GoveeDevices.Count}");
             _sync?.OnRoomFrame(linearColors, _config.Ambience);
 
             // Cloud-only devices (no LAN IP) — throttle to ~1/sec (Cloud API rate limit)
