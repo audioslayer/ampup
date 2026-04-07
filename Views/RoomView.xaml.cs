@@ -1591,7 +1591,7 @@ public partial class RoomView : UserControl
 
             _roomRgb = new RgbController();
             _roomRgb.SetBrightness(100);
-            _roomRgb.SetAudioBandsProvider(() => App.AudioAnalyzer?.SmoothedBands);
+            _roomRgb.SetAudioBandsProvider(() => App.AudioAnalyzer?.SmoothedBands ?? Array.Empty<float>());
             _roomRgb.UpdateCustomPalettes(_config?.CustomPalettes);
 
             for (int k = 0; k < 5; k++)
