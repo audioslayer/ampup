@@ -50,6 +50,7 @@ public partial class RoomView : UserControl
     private bool _vuFillActive;
     private DispatcherTimer? _vuFillTimer;
     private readonly float[] _vuFillSmoothed = new float[5]; // per-band smoothed levels
+    private readonly Dictionary<string, DateTime> _vuBulbLastSend = new(); // throttle for single-color bulbs
 
     // Room pattern engine — headless RgbController for rendering effects
     private RgbController? _roomRgb;
@@ -1765,12 +1766,16 @@ public partial class RoomView : UserControl
             }
             else
             {
-                // Single-color device: brightness pulse with energy (color1 dimmed by level)
-                float pulse = 0.1f + overall * 0.9f; // 10% floor, full on peaks
-                byte r = (byte)(c1.R * pulse);
-                byte g = (byte)(c1.G * pulse);
-                byte b = (byte)(c1.B * pulse);
-                _ = AmbienceSync.SendColorAsync(dev.Ip, r, g, b);
+                // Single-color device: pulse brightness via brightness API (bulbs respond better)
+                // Throttle to ~10/sec (Govee bulb rate limit)
+                string key = "vu_" + dev.Ip;
+                if (!_vuBulbLastSend.TryGetValue(key, out var last) ||
+                    (DateTime.UtcNow - last).TotalMilliseconds >= 100)
+                {
+                    _vuBulbLastSend[key] = DateTime.UtcNow;
+                    int brightPct = (int)(10 + overall * 90); // 10-100%
+                    _ = AmbienceSync.SendBrightnessAsync(dev.Ip, brightPct);
+                }
             }
         }
 
