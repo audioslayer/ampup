@@ -1747,8 +1747,8 @@ public partial class RoomView : UserControl
                         float fillPos = (float)s / Math.Max(rightCount - 1, 1);
                         float brightness = rightLevel > fillPos ? 1f : Math.Max(0, 1f - (fillPos - rightLevel) * 5f);
                         float t = fillPos;
-                        // Mirror: reverse right panel to match left (both fill bottom→top)
-                        segColors[half + (rightCount - 1 - s)] = BlendVuColor(c1, c2, t, brightness);
+                        // Right panel: straight order (H610A wiring: 0-5=right reversed, 6-11=left straight)
+                        segColors[half + s] = BlendVuColor(c1, c2, t, brightness);
                     }
                 }
                 else
