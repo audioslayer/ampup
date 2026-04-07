@@ -3788,6 +3788,7 @@ public partial class RoomView : UserControl
     }
 
     private int _roomFrameCount;
+    private float _musicReactiveBrightness = 1f; // smoothed brightness for music reactive
     private void OnRoomFrame(byte[] linearColors)
     {
         if (_config == null) return;
@@ -3805,17 +3806,25 @@ public partial class RoomView : UserControl
         byte g = (byte)(totalG / 15);
         byte b = (byte)(totalB / 15);
 
-        // Music reactive: modulate brightness of the full frame from audio energy
+        // Music reactive: modulate brightness with fast attack / slow decay for punchy beats
         var musicBands = _globalMusicBands;
         float musicBrightness = 1f;
-        bool musicTimerActive = _corsairMusicTimer?.IsEnabled == true;
-        if (_roomFrameCount % 100 == 1) // log every ~5s
-            Logger.Log($"OnRoomFrame: pattern={_activePattern}, musicTimer={musicTimerActive}, bands={musicBands?.Length}, brightness avg={r},{g},{b}");
-        if (musicTimerActive && musicBands != null && musicBands.Length >= 5)
+        if (_corsairMusicTimer?.IsEnabled == true && musicBands != null && musicBands.Length >= 5)
         {
-            float energy = Math.Min((musicBands[0] + musicBands[1] + musicBands[2] + musicBands[3] + musicBands[4]) * 2.5f, 1f);
-            // Dim when quiet, bright on beats — effect still visible at low floor
-            musicBrightness = 0.25f + energy * 0.75f;
+            // Weight bass heavily for beat detection (kick drum drives the pulse)
+            float bass = (musicBands[0] + musicBands[1]) * 3f;
+            float mids = musicBands[2] * 1.5f;
+            float treble = (musicBands[3] + musicBands[4]) * 0.5f;
+            float energy = Math.Min((bass + mids + treble) * 1.5f, 1f);
+
+            // Fast attack (snap to beat), slow decay (smooth fade out)
+            float target = 0.15f + energy * 0.85f;
+            if (target > _musicReactiveBrightness)
+                _musicReactiveBrightness = target; // instant attack
+            else
+                _musicReactiveBrightness += (target - _musicReactiveBrightness) * 0.15f; // slow decay
+
+            musicBrightness = _musicReactiveBrightness;
             r = (byte)Math.Min(r * musicBrightness, 255);
             g = (byte)Math.Min(g * musicBrightness, 255);
             b = (byte)Math.Min(b * musicBrightness, 255);
