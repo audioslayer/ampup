@@ -71,18 +71,16 @@ public class DreamSyncController : IDisposable
 
     public void UpdateConfig(ScreenSyncConfig config, AmbienceConfig ambience)
     {
-        bool wasEnabled;
         lock (_lock)
         {
-            wasEnabled = _config.Enabled;
             _config = config;
             _ambience = ambience;
         }
 
-        // Only start/stop on actual Enabled state transitions — not every config save
-        if (config.Enabled && !wasEnabled && !_running)
+        // If enabled state changed, start/stop accordingly
+        if (config.Enabled && !_running)
             Start();
-        else if (!config.Enabled && wasEnabled && _running)
+        else if (!config.Enabled && _running)
             Stop();
     }
 
@@ -111,12 +109,7 @@ public class DreamSyncController : IDisposable
         _loopTask = null;
         _cts?.Dispose();
         _cts = null;
-        // Don't disable segments here — room effects may be using them.
-        // Segments auto-timeout on the device after ~60s without keepalive.
-        // Clear our tracking so they get re-enabled if DreamSync restarts.
-        _segmentEnabled.Clear();
-        _segmentEnableTick.Clear();
-        _lastSegmentColors.Clear();
+        DisableAllSegments();
         Status = "Stopped";
         Logger.Log("DreamSync: stopped");
     }

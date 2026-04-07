@@ -438,7 +438,6 @@ public class AmbienceSync : IDisposable
     /// Send a frame to a single device. Handles rate limiting, segments, and single-color.
     /// Single-color devices pre-scale brightness into RGB (1 packet instead of 2 → 10 FPS).
     /// </summary>
-    private int _sendFrameLog;
     private void SendDeviceFrame(GoveeDeviceConfig device, (int R, int G, int B)[] colors, bool isSegment)
     {
         string ip = device.Ip;
@@ -447,9 +446,6 @@ public class AmbienceSync : IDisposable
         long minTicks = isSegment ? MinTicksSegment : MinTicksSingle;
         if (_lastSendTick.TryGetValue(ip, out long lastTick) && now - lastTick < minTicks)
             return;
-        _sendFrameLog++;
-        if (_sendFrameLog <= 5 || _sendFrameLog % 500 == 0)
-            Logger.Log($"SendDeviceFrame: {device.Name}({ip}), seg={isSegment}, colors={colors.Length}, rgb0=({colors[0].R},{colors[0].G},{colors[0].B})");
 
         if (isSegment)
         {
@@ -465,7 +461,7 @@ public class AmbienceSync : IDisposable
                 _segmentEnabled.Add(ip);
                 _segmentKeepAliveTick[ip] = now;
                 _ = Task.Run(() => SendSegmentEnable(ip, true));
-                Thread.Sleep(150); // Govee devices need time to process segment enable
+                Thread.Sleep(20);
             }
             _lastSendTick[ip] = now;
             _ = Task.Run(() => SendSegmentColors(ip, segColors));
