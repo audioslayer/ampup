@@ -3928,15 +3928,14 @@ public partial class RoomView : UserControl
             _config.Corsair.LightSyncMode = "static";
         }
 
-        // Resume any paused sync, turn on devices, and pre-enable segments
+        // Resume any paused sync and force segment re-enable on next frame
         if (!corsairOnly && _config?.Ambience.GoveeEnabled == true)
+        {
+            _sync?.ClearAllSegmentTracking(); // force fresh segment enable
             foreach (var dev in _config.Ambience.GoveeDevices)
-                if (!string.IsNullOrWhiteSpace(dev.Ip) && dev.PoweredOn)
-                {
+                if (!string.IsNullOrWhiteSpace(dev.Ip))
                     AmbienceSync.ResumeSync(dev.Ip);
-                    _ = AmbienceSync.SendTurnAsync(dev.Ip, true);
-                    _ = AmbienceSync.SendBrightnessAsync(dev.Ip, 100);
-                }
+        }
 
         // Create a headless RgbController to render effects
         _roomRgb = new RgbController();
