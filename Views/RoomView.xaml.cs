@@ -68,6 +68,7 @@ public partial class RoomView : UserControl
 
     // Navigation callback (set by MainWindow to navigate to Settings)
     public Action? NavigateToSettings { get; set; }
+    public bool IsMusicReactiveActive => _corsairMusicTimer?.IsEnabled == true;
 
     public RoomView()
     {

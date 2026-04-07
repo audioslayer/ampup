@@ -1932,6 +1932,9 @@ public partial class App : Application
     {
         bool needsAudio = _config.Lights.Any(l => l.Effect == LightEffect.AudioReactive || l.Effect == LightEffect.AudioPositionBlend)
             || (_config.GlobalLight.Enabled && (_config.GlobalLight.Effect == LightEffect.AudioReactive || _config.GlobalLight.Effect == LightEffect.AudioPositionBlend));
+        // Also keep running if the Room tab's music reactive is active
+        if (_mainWindow?.GetRoomView()?.IsMusicReactiveActive == true)
+            needsAudio = true;
         if (needsAudio)
             _audioAnalyzer?.Start();
         else
