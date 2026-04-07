@@ -1685,6 +1685,7 @@ public partial class RoomView : UserControl
         _vuFillTimer?.Stop();
         _vuFillTimer = null;
         for (int i = 0; i < 5; i++) _vuFillSmoothed[i] = 0;
+        App.Rgb?.SetScreenSyncColors(null); // restore normal Lights tab effect
     }
 
     private void VuFillTick()
@@ -3991,6 +3992,8 @@ public partial class RoomView : UserControl
         }
         _activePattern = null;
         _roomPatternCorsairOnly = false;
+        // Clear Turn Up override so Lights tab effect resumes
+        App.Rgb?.SetScreenSyncColors(null);
     }
 
     private int _roomFrameCount;
