@@ -4053,9 +4053,11 @@ public partial class RoomView : UserControl
             App.Rgb?.SetScreenSyncColors(frameToSend);
 
         // Send full frame to Govee via AmbienceSync (rate limited, segment-aware)
+        // Always send the original linearColors — Govee handles brightness via its own API.
+        // Music brightness modulation is only for Corsair/Turn Up/LG.
         if (!_roomPatternCorsairOnly && _config.Ambience.GoveeEnabled)
         {
-            _sync?.OnRoomFrame(frameToSend, _config.Ambience);
+            _sync?.OnRoomFrame(linearColors, _config.Ambience);
 
             // Cloud-only devices (no LAN IP) — throttle to ~1/sec (Cloud API rate limit)
             if (_cloudApi != null && (DateTime.UtcNow - _lastCloudRoomSend).TotalMilliseconds >= 1000)
