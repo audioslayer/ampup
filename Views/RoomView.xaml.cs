@@ -410,9 +410,12 @@ public partial class RoomView : UserControl
         // Build tab-specific toggle row
         if (_toggleRowContainer != null)
         {
-            var toggleRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8), HorizontalAlignment = HorizontalAlignment.Center };
+            var toggleRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4), HorizontalAlignment = HorizontalAlignment.Center };
             BuildTabToggleRow(toggleRow, _roomTabIndex);
             _toggleRowContainer.Children.Add(toggleRow);
+
+            // Settings row below toggles (Music Reactive slider / VU Fill mode pills)
+            BuildToggleSettingsRow(_toggleRowContainer);
         }
 
         switch (_roomTabIndex)
@@ -449,34 +452,6 @@ public partial class RoomView : UserControl
                 QueueSave(); RebuildRoomTabContent();
             }, Color.FromRgb(0xFF, 0xB8, 0x00)));
 
-        // Music sensitivity slider (only when Music Reactive is on)
-        if (globalMusic)
-        {
-            var sensRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 2, 0, 2), VerticalAlignment = VerticalAlignment.Center };
-            sensRow.Children.Add(new TextBlock { Text = "SENSITIVITY", FontSize = 9, FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
-            var sensSlider = new StyledSlider
-            {
-                Minimum = 1, Maximum = 100, Value = _config.Ambience.MusicSensitivity,
-                Width = 100, Height = 28, AccentColor = Color.FromRgb(0xFF, 0xB8, 0x00),
-                ShowLabel = false,
-            };
-            var sensLabel = new TextBlock { Text = $"{_config.Ambience.MusicSensitivity}%", FontSize = 10,
-                Foreground = FindBrush("TextSecBrush"), VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(4, 0, 0, 0) };
-            sensSlider.ValueChanged += (_, _) =>
-            {
-                if (_loading || _config == null) return;
-                _config.Ambience.MusicSensitivity = (int)sensSlider.Value;
-                sensLabel.Text = $"{(int)sensSlider.Value}%";
-                QueueSave();
-            };
-            sensRow.Children.Add(sensSlider);
-            sensRow.Children.Add(sensLabel);
-            row.Children.Add(sensRow);
-        }
-
         // VU Fill — segments fill up like VU meters with music
         row.Children.Add(BuildToggleTile("≡", "VU FILL", "Segments fill with music energy",
             _vuFillActive, on =>
@@ -486,47 +461,6 @@ public partial class RoomView : UserControl
                 else StopVuFill();
                 QueueSave(); RebuildRoomTabContent();
             }, Color.FromRgb(0xFF, 0x40, 0x81)));
-
-        // VU Fill mode picker (only when VU Fill is active)
-        if (_vuFillActive)
-        {
-            var modeRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4), HorizontalAlignment = HorizontalAlignment.Center };
-            var modes = new[] {
-                (VuFillMode.Classic,  "Classic",  "Standard bottom→top fill"),
-                (VuFillMode.Split,    "Split",    "Left=bass, Right=treble"),
-                (VuFillMode.Rainfall, "Rainfall", "Drips fall from top on beats"),
-                (VuFillMode.Pulse,    "Pulse",    "All segments pulse with bass"),
-                (VuFillMode.Spectrum, "Spectrum", "Each segment = frequency band"),
-                (VuFillMode.Drip,     "Drip",     "Liquid drips fall and splash at bottom"),
-            };
-            foreach (var (mode, label, tip) in modes)
-            {
-                bool active = _config.Ambience.VuFillMode == mode;
-                var pill = new Border
-                {
-                    CornerRadius = new CornerRadius(12),
-                    Background = active ? new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0x40, 0x81)) : new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-                    BorderBrush = active ? new SolidColorBrush(Color.FromRgb(0xFF, 0x40, 0x81)) : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-                    BorderThickness = new Thickness(1),
-                    Padding = new Thickness(12, 4, 12, 4),
-                    Margin = new Thickness(0, 0, 6, 0),
-                    Cursor = Cursors.Hand,
-                    ToolTip = tip,
-                };
-                pill.Child = new TextBlock { Text = label, FontSize = 11, Foreground = active ? new SolidColorBrush(Color.FromRgb(0xFF, 0x40, 0x81)) : FindBrush("TextSecBrush") };
-                var capturedMode = mode;
-                pill.MouseLeftButtonUp += (_, _) =>
-                {
-                    if (_config == null) return;
-                    _config.Ambience.VuFillMode = capturedMode;
-                    for (int i = 0; i < 15; i++) _vuFillPeaks[i] = 0; // reset peaks
-                    QueueSave();
-                    RebuildRoomTabContent();
-                };
-                modeRow.Children.Add(pill);
-            }
-            row.Children.Add(modeRow);
-        }
 
         // Screen Sync
         bool syncRunning = _config.Ambience.ScreenSync.Enabled;
@@ -587,6 +521,84 @@ public partial class RoomView : UserControl
     }
 
     // ── ROOM EFFECT TAB (unified: effect + palette + direction + canvas) ──
+
+    /// <summary>
+    /// Settings row below toggle tiles — shows Music Reactive sensitivity or VU Fill mode pills.
+    /// </summary>
+    private void BuildToggleSettingsRow(StackPanel container)
+    {
+        if (_config == null) return;
+        bool globalMusic = _corsairMusicTimer?.IsEnabled == true && !_vuFillActive;
+
+        if (globalMusic)
+        {
+            // Music Reactive sensitivity slider — centered below toggles
+            var sensRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8), HorizontalAlignment = HorizontalAlignment.Center };
+            sensRow.Children.Add(new TextBlock { Text = "SENSITIVITY", FontSize = 9, FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+            var sensSlider = new StyledSlider
+            {
+                Minimum = 1, Maximum = 100, Value = _config.Ambience.MusicSensitivity,
+                Width = 140, Height = 28, AccentColor = Color.FromRgb(0xFF, 0xB8, 0x00), ShowLabel = false,
+            };
+            var sensLabel = new TextBlock { Text = $"{_config.Ambience.MusicSensitivity}%", FontSize = 11,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xB8, 0x00)),
+                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+            sensSlider.ValueChanged += (_, _) =>
+            {
+                if (_loading || _config == null) return;
+                _config.Ambience.MusicSensitivity = (int)sensSlider.Value;
+                sensLabel.Text = $"{(int)sensSlider.Value}%";
+                QueueSave();
+            };
+            sensRow.Children.Add(sensSlider);
+            sensRow.Children.Add(sensLabel);
+            container.Children.Add(sensRow);
+        }
+
+        if (_vuFillActive)
+        {
+            // VU Fill mode pills — centered below toggles
+            var modeRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8), HorizontalAlignment = HorizontalAlignment.Center };
+            var accent = Color.FromRgb(0xFF, 0x40, 0x81);
+            var modes = new[] {
+                (VuFillMode.Classic,  "Classic"),  (VuFillMode.Split, "Split"),
+                (VuFillMode.Rainfall, "Rainfall"), (VuFillMode.Pulse, "Pulse"),
+                (VuFillMode.Spectrum, "Spectrum"), (VuFillMode.Drip,  "Drip"),
+            };
+            foreach (var (mode, label) in modes)
+            {
+                bool active = _config.Ambience.VuFillMode == mode;
+                var pill = new Border
+                {
+                    CornerRadius = new CornerRadius(14),
+                    Background = active ? new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B))
+                        : new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+                    BorderBrush = active ? new SolidColorBrush(accent) : new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
+                    BorderThickness = new Thickness(1),
+                    Padding = new Thickness(14, 5, 14, 5),
+                    Margin = new Thickness(3, 0, 3, 0),
+                    Cursor = Cursors.Hand,
+                };
+                pill.Child = new TextBlock
+                {
+                    Text = label, FontSize = 11, FontWeight = active ? FontWeights.SemiBold : FontWeights.Normal,
+                    Foreground = active ? new SolidColorBrush(accent) : FindBrush("TextSecBrush"),
+                };
+                var capturedMode = mode;
+                pill.MouseLeftButtonUp += (_, _) =>
+                {
+                    if (_config == null) return;
+                    _config.Ambience.VuFillMode = capturedMode;
+                    for (int i = 0; i < 15; i++) _vuFillPeaks[i] = 0;
+                    QueueSave(); RebuildRoomTabContent();
+                };
+                modeRow.Children.Add(pill);
+            }
+            container.Children.Add(modeRow);
+        }
+    }
 
     private void BuildRoomEffectTab(StackPanel stack)
     {
