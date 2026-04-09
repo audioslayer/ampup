@@ -61,6 +61,7 @@ public partial class LightsView : UserControl
         LightEffect.Scanner, LightEffect.MeteorRain, LightEffect.ColorWave, LightEffect.Segments,
         LightEffect.Wheel, LightEffect.RainbowWheel,
         LightEffect.Waterfall, LightEffect.Lava, LightEffect.VuWave,
+        LightEffect.NebulaDrift,
     };
 
     private static readonly LightEffect[] EffectsNeedingReactiveMode =

@@ -218,6 +218,7 @@ public enum LightEffect
     Aurora, Matrix, Starfield,
     AudioPositionBlend,
     Equalizer, Waterfall, Lava, VuWave,
+    NebulaDrift,
 }
 
 public enum ReactiveMode

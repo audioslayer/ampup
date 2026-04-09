@@ -575,6 +575,7 @@ public class RgbController : IDisposable
         LightEffect.Collision, LightEffect.DNA, LightEffect.Rainfall, LightEffect.PoliceLights,
         LightEffect.Aurora, LightEffect.Matrix, LightEffect.Starfield,
         LightEffect.Equalizer, LightEffect.Waterfall, LightEffect.Lava, LightEffect.VuWave,
+        LightEffect.NebulaDrift,
     };
 
     /// <summary>
@@ -795,6 +796,7 @@ public class RgbController : IDisposable
             case LightEffect.DNA:
             case LightEffect.Rainfall:
             case LightEffect.PoliceLights:
+            case LightEffect.NebulaDrift:
                 // Per-knob fallback: just show color1
                 SetColor(k, light.R, light.G, light.B);
                 break;
@@ -1817,6 +1819,7 @@ public class RgbController : IDisposable
             case LightEffect.Waterfall:     GlobalWaterfall(gl); break;
             case LightEffect.Lava:          GlobalLava(gl); break;
             case LightEffect.VuWave:        GlobalVuWave(gl); break;
+            case LightEffect.NebulaDrift:   GlobalNebulaDrift(gl); break;
         }
     }
 
@@ -1884,13 +1887,27 @@ public class RgbController : IDisposable
     private void GlobalColorWave(GlobalLightConfig gl)
     {
         int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
-        float offset = _animTick * (0.05f + speed / 100f * 0.3f);
+        float t = _animTick * (0.01f + speed / 100f * 0.06f);
 
         for (int i = 0; i < 15; i++)
         {
-            // Sine wave creates smooth wave position: 0→1→0 across the strip
-            float t = (MathF.Sin((i / 15f + offset) * MathF.PI * 2f) + 1f) / 2f;
-            var (r, g, b) = GetGradientColor(gl, t);
+            float pos = i / 14f;
+            // Three sine layers at different frequencies for organic, non-repeating motion
+            float wave1 = MathF.Sin(t * 0.9f + pos * 5f) * 0.5f + 0.5f;
+            float wave2 = MathF.Sin(t * 1.4f + pos * 7f + 1.8f) * 0.5f + 0.5f;
+            float wave3 = MathF.Sin(t * 0.5f + pos * 3f + 3.5f) * 0.5f + 0.5f;
+            float combined = (wave1 + wave2 * 0.6f + wave3 * 0.3f) / 1.9f;
+
+            // Use combined to pick gradient position — still respects user palette
+            var (cr, cg, cb) = GetGradientColor(gl, combined);
+
+            // Brightness squaring for dramatic contrast — bright peaks, dark troughs
+            float brightness = 0.12f + combined * 0.88f;
+            brightness *= brightness;
+
+            int r = Math.Clamp((int)(cr * brightness), 0, 255);
+            int g = Math.Clamp((int)(cg * brightness), 0, 255);
+            int b = Math.Clamp((int)(cb * brightness), 0, 255);
             SetGlobalLed(i, r, g, b);
         }
     }
@@ -2053,9 +2070,12 @@ public class RgbController : IDisposable
     {
         int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
         float smoothing = 0.03f + (speed / 100f) * 0.15f; // 0.03 (calm) to 0.18 (windy)
+        float t = _animTick * (0.02f + speed / 100f * 0.06f);
 
         for (int i = 0; i < 15; i++)
         {
+            float pos = i / 14f;
+
             // Smooth toward target
             _fireWallCurrent[i] += (_fireWallTarget[i] - _fireWallCurrent[i]) * smoothing;
 
@@ -2068,19 +2088,28 @@ public class RgbController : IDisposable
                 if (i < 14) { neighborBias += _fireWallCurrent[i + 1]; neighbors++; }
                 float neighborAvg = neighbors > 0 ? neighborBias / neighbors : 0.5f;
 
-                // Target = 70% random + 30% neighbor influence
                 float random = 0.2f + (float)_rng.NextDouble() * 0.8f;
                 _fireWallTarget[i] = random * 0.7f + neighborAvg * 0.3f;
             }
 
-            float bright = _fireWallCurrent[i];
-            float ember = bright * bright;
-            // Use gradient: base color from gradient position, ember tint blends toward end color
-            var (baseR, baseG, baseB) = GetGradientColor(gl, i / 14f);
-            var (emberR, emberG, emberB) = GetGradientColor(gl, 1f);
-            int r = Math.Clamp((int)(baseR * bright + (emberR - baseR) * ember * 0.3f), 0, 255);
-            int g = Math.Clamp((int)(baseG * bright + (emberG - baseG) * ember * 0.3f), 0, 255);
-            int b = Math.Clamp((int)(baseB * bright + (emberB - baseB) * ember * 0.3f), 0, 255);
+            // Multi-layer sine waves for organic flickering on top of smooth random
+            float flicker1 = MathF.Sin(t * 1.2f + pos * 5f) * 0.5f + 0.5f;
+            float flicker2 = MathF.Sin(t * 2.1f + pos * 8f + 2f) * 0.5f + 0.5f;
+            float flicker3 = MathF.Sin(t * 0.6f + pos * 3f + 4f) * 0.5f + 0.5f;
+            float sineLayer = (flicker1 + flicker2 * 0.5f + flicker3 * 0.3f) / 1.8f;
+
+            // Blend smooth random with sine layers (60/40) for organic but structured fire
+            float combined = _fireWallCurrent[i] * 0.6f + sineLayer * 0.4f;
+
+            // HSV in warm range: red (0) → orange (30) → yellow (60)
+            float hue = combined * 55f + MathF.Sin(t * 0.4f + pos * 4f) * 8f;
+            hue = Math.Clamp(hue, 0f, 60f);
+
+            // Brightness squaring for sharp flame tips
+            float brightness = 0.08f + combined * 0.92f;
+            brightness *= brightness;
+
+            HsvToRgb(hue, 0.9f, brightness, out int r, out int g, out int b);
             SetGlobalLed(i, r, g, b);
         }
     }
@@ -2251,24 +2280,27 @@ public class RgbController : IDisposable
 
         for (int i = 0; i < 15; i++)
         {
-            float x = i / 14f; // 0..1 across the strip
-            // Three overlapping waves at different frequencies and speeds
-            float wave = 0.5f
-                + 0.35f * MathF.Sin(x * MathF.PI * 2f - t * 1.7f)
-                + 0.25f * MathF.Sin(x * MathF.PI * 3.5f - t * 2.3f + 1.2f)
-                + 0.15f * MathF.Sin(x * MathF.PI * 5.5f - t * 3.1f + 0.7f);
+            float pos = i / 14f;
+            // Three overlapping sine layers for organic wave motion
+            float wave1 = MathF.Sin(t * 0.8f + pos * 4f) * 0.5f + 0.5f;
+            float wave2 = MathF.Sin(t * 1.3f + pos * 6f + 1.5f) * 0.5f + 0.5f;
+            float wave3 = MathF.Sin(t * 0.5f + pos * 2.5f + 3f) * 0.5f + 0.5f;
+            float combined = (wave1 + wave2 * 0.6f + wave3 * 0.3f) / 1.9f;
 
-            wave = Math.Clamp(wave, 0f, 1f);
+            // HSV ocean hues: deep blue → teal → cyan, with slow drift
+            float hue = 195f + combined * 50f + MathF.Sin(t * 0.25f + pos * 3f) * 20f;
+            hue = ((hue % 360f) + 360f) % 360f;
 
-            // Whitecaps: blend in end-of-gradient color at high wave values
-            float capBlend = Math.Max(0f, (wave - 0.7f) / 0.3f);
-            float waterBright = 0.2f + wave * 0.8f;
+            // Brightness squaring for dramatic wave peaks with dark troughs
+            float brightness = 0.1f + combined * 0.9f;
+            brightness *= brightness;
 
-            var (wr, wg, wb) = GetGradientColor(gl, x); // water color from gradient position
-            var (cr, cg, cb) = GetGradientColor(gl, 1f); // cap color from gradient end
-            int r = Math.Clamp((int)(wr * waterBright * (1f - capBlend) + cr * capBlend), 0, 255);
-            int g = Math.Clamp((int)(wg * waterBright * (1f - capBlend) + cg * capBlend), 0, 255);
-            int b = Math.Clamp((int)(wb * waterBright * (1f - capBlend) + cb * capBlend), 0, 255);
+            // Whitecap effect: high wave peaks get desaturated (foamy white)
+            float capBlend = Math.Max(0f, (combined - 0.75f) / 0.25f);
+            float sat = 0.85f * (1f - capBlend * 0.7f); // desaturate at peaks
+            float capBright = brightness + capBlend * (1f - brightness) * 0.6f; // brighten at peaks
+
+            HsvToRgb(hue, sat, capBright, out int r, out int g, out int b);
             SetGlobalLed(i, r, g, b);
         }
     }
@@ -2640,6 +2672,37 @@ public class RgbController : IDisposable
             float sat = b > 0.7f ? s * 0.5f : s;
             HsvToRgb(hue, sat, b, out int r, out int g, out int blue);
             SetGlobalLed(i, r, g, blue);
+        }
+    }
+
+    /// <summary>
+    /// Full-spectrum nebula: like Aurora but shifts through ALL rainbow hues slowly
+    /// with multiple sine layers and brightness squaring for dramatic, colorful drift.
+    /// </summary>
+    private void GlobalNebulaDrift(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.008f + speed / 100f * 0.04f);
+
+        for (int i = 0; i < 15; i++)
+        {
+            float pos = i / 14f;
+            // Three overlapping sine layers for organic motion
+            float wave1 = MathF.Sin(t * 0.6f + pos * 4f) * 0.5f + 0.5f;
+            float wave2 = MathF.Sin(t * 1.0f + pos * 7f + 2f) * 0.5f + 0.5f;
+            float wave3 = MathF.Sin(t * 0.35f + pos * 2.5f + 4.5f) * 0.5f + 0.5f;
+            float combined = (wave1 + wave2 * 0.6f + wave3 * 0.3f) / 1.9f;
+
+            // Full rainbow hue sweep — slow drift + position-based spread
+            float hue = t * 15f + pos * 120f + combined * 180f + MathF.Sin(t * 0.2f + pos * 5f) * 60f;
+            hue = ((hue % 360f) + 360f) % 360f;
+
+            // Brightness squaring for sharp vivid bands with dark gaps
+            float brightness = 0.1f + combined * 0.9f;
+            brightness *= brightness;
+
+            HsvToRgb(hue, 0.85f, brightness, out int r, out int g, out int b);
+            SetGlobalLed(i, r, g, b);
         }
     }
 

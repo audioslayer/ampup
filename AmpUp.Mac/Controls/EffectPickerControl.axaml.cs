@@ -91,6 +91,7 @@ public partial class EffectPickerControl : UserControl
         { LightEffect.Aurora,            Color.Parse("#69F0AE") },
         { LightEffect.Matrix,            Color.Parse("#00E676") },
         { LightEffect.Starfield,         Color.Parse("#B39DDB") },
+        { LightEffect.NebulaDrift,       Color.Parse("#CE93D8") },
     };
 
     private static readonly Dictionary<LightEffect, string> EffectLabels = new()
@@ -122,6 +123,7 @@ public partial class EffectPickerControl : UserControl
         { LightEffect.Drip, "Drip" },
         { LightEffect.Aurora, "Aurora" }, { LightEffect.Matrix, "Matrix" },
         { LightEffect.Starfield, "Stars" },
+        { LightEffect.NebulaDrift, "Nebula" },
     };
 
     public EffectPickerControl() : this(false) { }
@@ -171,6 +173,7 @@ public partial class EffectPickerControl : UserControl
                 LightEffect.Rainfall, LightEffect.PoliceLights,
                 LightEffect.Aurora, LightEffect.Matrix, LightEffect.Starfield,
                 LightEffect.Equalizer, LightEffect.Waterfall, LightEffect.Lava, LightEffect.VuWave,
+                LightEffect.NebulaDrift,
             });
         }
 

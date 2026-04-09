@@ -146,6 +146,7 @@ namespace AmpUp.Controls
             { LightEffect.Waterfall,     Color.FromRgb(0x40, 0xC4, 0xFF) }, // sky blue
             { LightEffect.Lava,          Color.FromRgb(0xFF, 0x6E, 0x40) }, // deep orange
             { LightEffect.VuWave,        Color.FromRgb(0xE0, 0x40, 0xFB) }, // magenta
+            { LightEffect.NebulaDrift,   Color.FromRgb(0xCE, 0x93, 0xD8) }, // nebula purple
         };
 
         // ── Constructor ──────────────────────────────────────────────────
@@ -231,6 +232,7 @@ namespace AmpUp.Controls
                     (LightEffect.Waterfall,      "≋",   "Waterfall",false),
                     (LightEffect.Lava,           "◉",   "Lava",     false),
                     (LightEffect.VuWave,         "∿",   "VU Wave",  false),
+                    (LightEffect.NebulaDrift,    "✧",   "Nebula",   false),
                 });
             }
         }
