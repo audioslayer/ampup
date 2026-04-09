@@ -170,6 +170,7 @@ public partial class EffectPickerControl : UserControl
                 LightEffect.Ocean, LightEffect.Collision, LightEffect.DNA,
                 LightEffect.Rainfall, LightEffect.PoliceLights,
                 LightEffect.Aurora, LightEffect.Matrix, LightEffect.Starfield,
+                LightEffect.Equalizer, LightEffect.Waterfall, LightEffect.Lava, LightEffect.VuWave,
             });
         }
 

@@ -142,6 +142,10 @@ namespace AmpUp.Controls
             { LightEffect.Aurora,        Color.FromRgb(0x69, 0xF0, 0xAE) }, // aurora green
             { LightEffect.Matrix,        Color.FromRgb(0x00, 0xE6, 0x76) }, // matrix green
             { LightEffect.Starfield,     Color.FromRgb(0xB3, 0x9D, 0xDB) }, // lavender
+            { LightEffect.Equalizer,     Color.FromRgb(0x00, 0xE6, 0x76) }, // green (VU)
+            { LightEffect.Waterfall,     Color.FromRgb(0x40, 0xC4, 0xFF) }, // sky blue
+            { LightEffect.Lava,          Color.FromRgb(0xFF, 0x6E, 0x40) }, // deep orange
+            { LightEffect.VuWave,        Color.FromRgb(0xE0, 0x40, 0xFB) }, // magenta
         };
 
         // ── Constructor ──────────────────────────────────────────────────
@@ -223,6 +227,10 @@ namespace AmpUp.Controls
                     (LightEffect.Aurora,         "≈",   "Aurora",   false),
                     (LightEffect.Matrix,         "⋮",   "Matrix",   false),
                     (LightEffect.Starfield,      "✦",   "Stars",    false),
+                    (LightEffect.Equalizer,      "▁▃▅",  "EQ",       false),
+                    (LightEffect.Waterfall,      "≋",   "Waterfall",false),
+                    (LightEffect.Lava,           "◉",   "Lava",     false),
+                    (LightEffect.VuWave,         "∿",   "VU Wave",  false),
                 });
             }
         }

@@ -573,6 +573,8 @@ public class RgbController : IDisposable
         LightEffect.BreathingSync, LightEffect.FireWall,
         LightEffect.DualRacer, LightEffect.Lightning, LightEffect.Fillup, LightEffect.Ocean,
         LightEffect.Collision, LightEffect.DNA, LightEffect.Rainfall, LightEffect.PoliceLights,
+        LightEffect.Aurora, LightEffect.Matrix, LightEffect.Starfield,
+        LightEffect.Equalizer, LightEffect.Waterfall, LightEffect.Lava, LightEffect.VuWave,
     };
 
     /// <summary>
@@ -1811,6 +1813,10 @@ public class RgbController : IDisposable
             case LightEffect.Aurora:        GlobalAurora(gl); break;
             case LightEffect.Matrix:        GlobalMatrix(gl); break;
             case LightEffect.Starfield:     GlobalStarfield(gl); break;
+            case LightEffect.Equalizer:     GlobalEqualizer(gl); break;
+            case LightEffect.Waterfall:     GlobalWaterfall(gl); break;
+            case LightEffect.Lava:          GlobalLava(gl); break;
+            case LightEffect.VuWave:        GlobalVuWave(gl); break;
         }
     }
 
@@ -2634,6 +2640,178 @@ public class RgbController : IDisposable
             float sat = b > 0.7f ? s * 0.5f : s;
             HsvToRgb(hue, sat, b, out int r, out int g, out int blue);
             SetGlobalLed(i, r, g, blue);
+        }
+    }
+
+    /// <summary>
+    /// Classic 5-band equalizer visualization. Each knob = one frequency band.
+    /// Bottom LED (2) lights first, then middle (1), then top (0) as level rises.
+    /// Looks amazing on vertical wall-mounted segment lights.
+    /// </summary>
+    private void GlobalEqualizer(GlobalLightConfig gl)
+    {
+        var bands = _getAudioBands?.Invoke();
+        if (bands == null || bands.Length < 5)
+            bands = new float[5]; // silent — show dark
+
+        for (int knob = 0; knob < 5; knob++)
+        {
+            float level = Math.Clamp(bands[knob], 0f, 1f);
+            // Color from gradient position (each band gets its own hue)
+            var (cr, cg, cb) = GetGradientColor(gl, knob / 4f);
+
+            for (int led = 0; led < 3; led++)
+            {
+                // LED 2 = bottom, LED 0 = top. Map so bottom lights first.
+                int physLed = 2 - led; // led 0 = bottom (threshold 0.0), led 2 = top (threshold 0.66)
+                float threshold = led / 3f;        // 0.0, 0.33, 0.66
+                float nextThreshold = (led + 1) / 3f;
+
+                float brightness;
+                if (level >= nextThreshold)
+                    brightness = 1f; // fully lit
+                else if (level > threshold)
+                    brightness = (level - threshold) / (nextThreshold - threshold); // partial fill
+                else
+                    brightness = 0.03f; // dim background so bars are visible
+
+                // Top segment (led=2, physLed=0) gets a warm peak tint when level is high
+                if (led == 2 && level > 0.75f)
+                {
+                    float peak = (level - 0.75f) / 0.25f;
+                    int r = Math.Clamp((int)(cr * brightness * (1f - peak * 0.3f) + 255 * peak * 0.5f), 0, 255);
+                    int g = Math.Clamp((int)(cg * brightness * (1f - peak * 0.5f)), 0, 255);
+                    int b = Math.Clamp((int)(cb * brightness * (1f - peak * 0.5f)), 0, 255);
+                    SetColor(knob, physLed, r, g, b);
+                }
+                else
+                {
+                    SetColor(knob, physLed,
+                        Math.Clamp((int)(cr * brightness), 0, 255),
+                        Math.Clamp((int)(cg * brightness), 0, 255),
+                        Math.Clamp((int)(cb * brightness), 0, 255));
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Colors cascade downward like a waterfall. New colors appear at the top
+    /// and flow down across all 15 LEDs. Speed adjustable. Uses palette gradient.
+    /// Gorgeous on vertical wall panels.
+    /// </summary>
+    private void GlobalWaterfall(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float flowRate = 0.02f + (speed / 100f) * 0.08f;
+        float t = _animTick * flowRate;
+
+        for (int i = 0; i < 15; i++)
+        {
+            // Each LED samples from a scrolling gradient — higher index = further downstream
+            float gradPos = (t + i * 0.12f) % 1f;
+
+            var (cr, cg, cb) = GetGradientColor(gl, gradPos);
+
+            // Add a gentle shimmer — slight brightness variation per LED over time
+            float shimmer = 0.75f + 0.25f * MathF.Sin(_animTick * 0.15f + i * 0.9f);
+
+            // Water sparkle effect: occasional bright flashes
+            float sparkle = 1f;
+            float sparklePhase = MathF.Sin(_animTick * 0.3f + i * 2.7f);
+            if (sparklePhase > 0.92f)
+                sparkle = 1.3f + (sparklePhase - 0.92f) * 5f;
+
+            float brightness = Math.Clamp(shimmer * sparkle, 0f, 1.5f);
+
+            SetGlobalLed(i,
+                Math.Clamp((int)(cr * brightness), 0, 255),
+                Math.Clamp((int)(cg * brightness), 0, 255),
+                Math.Clamp((int)(cb * brightness), 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Organic rising/falling blobs of warm color, like a lava lamp.
+    /// Multiple independent blobs with smooth sine-based motion.
+    /// Mesmerizing on vertical wall-mounted LED bars.
+    /// </summary>
+    private void GlobalLava(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.015f + speed / 100f * 0.06f);
+
+        for (int i = 0; i < 15; i++)
+        {
+            float pos = i / 14f; // 0..1 across the strip
+
+            // 4 independent blobs at different speeds and sizes
+            float blob1 = MathF.Exp(-8f * MathF.Pow(pos - (0.5f + 0.45f * MathF.Sin(t * 0.7f)), 2));
+            float blob2 = MathF.Exp(-6f * MathF.Pow(pos - (0.5f + 0.4f * MathF.Sin(t * 1.1f + 2f)), 2));
+            float blob3 = MathF.Exp(-10f * MathF.Pow(pos - (0.5f + 0.35f * MathF.Sin(t * 0.5f + 4f)), 2));
+            float blob4 = MathF.Exp(-7f * MathF.Pow(pos - (0.3f + 0.3f * MathF.Sin(t * 0.9f + 1f)), 2));
+
+            float combined = Math.Clamp(blob1 + blob2 * 0.8f + blob3 * 0.6f + blob4 * 0.5f, 0f, 1f);
+
+            // Sample palette color based on blob intensity — hotter blobs toward end of gradient
+            var (cr, cg, cb) = GetGradientColor(gl, combined);
+
+            // Brightness follows blob intensity with a warm ambient floor
+            float brightness = 0.05f + combined * 0.95f;
+            brightness *= brightness; // square for sharper blob edges
+
+            SetGlobalLed(i,
+                Math.Clamp((int)(cr * brightness), 0, 255),
+                Math.Clamp((int)(cg * brightness), 0, 255),
+                Math.Clamp((int)(cb * brightness), 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Audio-reactive wave that ripples across all 15 LEDs.
+    /// Bass creates big rolling waves from center, treble adds small ripples on top.
+    /// Uses palette colors. Stunning on wall-mounted segment devices.
+    /// </summary>
+    private void GlobalVuWave(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.05f + speed / 100f * 0.15f);
+
+        var bands = _getAudioBands?.Invoke();
+        float bass = bands != null && bands.Length > 1 ? bands[1] : 0f;
+        float mid = bands != null && bands.Length > 2 ? bands[2] : 0f;
+        float treble = bands != null && bands.Length > 4 ? bands[4] : 0f;
+
+        // Smooth the audio values for more organic motion
+        bass = Math.Clamp(bass, 0f, 1f);
+        mid = Math.Clamp(mid, 0f, 1f);
+        treble = Math.Clamp(treble, 0f, 1f);
+
+        for (int i = 0; i < 15; i++)
+        {
+            float pos = i / 14f;
+            float center = Math.Abs(pos - 0.5f) * 2f; // 0 at center, 1 at edges
+
+            // Bass: big slow wave from center outward
+            float bassWave = bass * MathF.Sin(center * MathF.PI * 1.5f - t * 2f) * 0.5f + 0.5f;
+            bassWave *= bass;
+
+            // Mid: medium ripples
+            float midWave = mid * MathF.Sin(pos * MathF.PI * 4f - t * 3f) * 0.3f;
+
+            // Treble: fast small ripples layered on top
+            float trebleWave = treble * MathF.Sin(pos * MathF.PI * 8f - t * 6f) * 0.15f;
+
+            float combined = Math.Clamp(0.05f + bassWave + midWave + trebleWave, 0f, 1f);
+
+            // Color from palette — shifts with audio energy
+            float colorPos = Math.Clamp(pos + bass * 0.2f * MathF.Sin(t), 0f, 1f);
+            var (cr, cg, cb) = GetGradientColor(gl, colorPos);
+
+            SetGlobalLed(i,
+                Math.Clamp((int)(cr * combined), 0, 255),
+                Math.Clamp((int)(cg * combined), 0, 255),
+                Math.Clamp((int)(cb * combined), 0, 255));
         }
     }
 

@@ -217,6 +217,7 @@ public enum LightEffect
     Heartbeat, Plasma, Drip,
     Aurora, Matrix, Starfield,
     AudioPositionBlend,
+    Equalizer, Waterfall, Lava, VuWave,
 }
 
 public enum ReactiveMode

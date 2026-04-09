@@ -60,6 +60,7 @@ public partial class LightsView : UserControl
         LightEffect.PingPong, LightEffect.Stack, LightEffect.Wave, LightEffect.Candle,
         LightEffect.Scanner, LightEffect.MeteorRain, LightEffect.ColorWave, LightEffect.Segments,
         LightEffect.Wheel, LightEffect.RainbowWheel,
+        LightEffect.Waterfall, LightEffect.Lava, LightEffect.VuWave,
     };
 
     private static readonly LightEffect[] EffectsNeedingReactiveMode =

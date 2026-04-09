@@ -844,8 +844,7 @@ public partial class App : Application
         _autoSwitcher?.UpdateConfig(_config.AutoSwitch);
         _ambienceSync?.UpdateConfig(_config.Ambience);
         _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-        // Clear Turn Up screen sync override when disabled
-        // Clear Turn Up screen sync override when neither screen sync nor room sync is active
+        // Clear Turn Up screen sync override when neither screen sync nor room mixer is active
         if ((!_config.Ambience.ScreenSync.Enabled || !_config.Ambience.ScreenSync.SyncToTurnUp)
             && !_config.Ambience.SyncRoomToTurnUp)
             _rgb.SetScreenSyncColors(null);
