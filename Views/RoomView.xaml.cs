@@ -50,6 +50,8 @@ public partial class RoomView : UserControl
     private bool _vuFillActive;
     private DispatcherTimer? _vuFillTimer;
     private readonly float[] _vuFillSmoothed = new float[5];
+    private readonly float[] _vuFillPeaks = new float[15]; // per-segment peak hold for Rainfall mode
+    private int _vuFillTick; // animation tick counter
     private readonly Dictionary<string, DateTime> _vuBulbLastSend = new();
 
     // Room pattern engine — headless RgbController for rendering effects
@@ -455,6 +457,46 @@ public partial class RoomView : UserControl
                 QueueSave(); RebuildRoomTabContent();
             }, Color.FromRgb(0xFF, 0x40, 0x81)));
 
+        // VU Fill mode picker (only when VU Fill is active)
+        if (_vuFillActive)
+        {
+            var modeRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4), HorizontalAlignment = HorizontalAlignment.Center };
+            var modes = new[] {
+                (VuFillMode.Classic,  "Classic",  "Standard bottom→top fill"),
+                (VuFillMode.Split,    "Split",    "Left=bass, Right=treble"),
+                (VuFillMode.Rainfall, "Rainfall", "Peaks fall from top"),
+                (VuFillMode.Pulse,    "Pulse",    "All segments pulse with bass"),
+                (VuFillMode.Spectrum, "Spectrum", "Each segment = frequency band"),
+            };
+            foreach (var (mode, label, tip) in modes)
+            {
+                bool active = _config.Ambience.VuFillMode == mode;
+                var pill = new Border
+                {
+                    CornerRadius = new CornerRadius(12),
+                    Background = active ? new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0x40, 0x81)) : new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+                    BorderBrush = active ? new SolidColorBrush(Color.FromRgb(0xFF, 0x40, 0x81)) : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                    BorderThickness = new Thickness(1),
+                    Padding = new Thickness(12, 4, 12, 4),
+                    Margin = new Thickness(0, 0, 6, 0),
+                    Cursor = Cursors.Hand,
+                    ToolTip = tip,
+                };
+                pill.Child = new TextBlock { Text = label, FontSize = 11, Foreground = active ? new SolidColorBrush(Color.FromRgb(0xFF, 0x40, 0x81)) : FindBrush("TextSecBrush") };
+                var capturedMode = mode;
+                pill.MouseLeftButtonUp += (_, _) =>
+                {
+                    if (_config == null) return;
+                    _config.Ambience.VuFillMode = capturedMode;
+                    for (int i = 0; i < 15; i++) _vuFillPeaks[i] = 0; // reset peaks
+                    QueueSave();
+                    RebuildRoomTabContent();
+                };
+                modeRow.Children.Add(pill);
+            }
+            row.Children.Add(modeRow);
+        }
+
         // Screen Sync
         bool syncRunning = _config.Ambience.ScreenSync.Enabled;
         var screenSyncTile = BuildToggleTile("⬛", "SCREEN SYNC", "Capture screen colors to room lights",
@@ -527,12 +569,14 @@ public partial class RoomView : UserControl
         var effectPicker = new Controls.EffectPickerControl(showGlobal: true)
         {
             Margin = new Thickness(0, 0, 0, 10),
+            IsEnabled = !_vuFillActive, // disable when VU Fill is running
+            Opacity = _vuFillActive ? 0.4 : 1.0,
         };
         if (_activePattern != null && _activePattern != "__sync__")
             effectPicker.SelectedEffect = Enum.TryParse<LightEffect>(_activePattern, true, out var eff) ? eff : LightEffect.SingleColor;
         effectPicker.SelectionChanged += (_, _) =>
         {
-            if (_loading) return;
+            if (_loading || _vuFillActive) return; // block when VU Fill active
             var effect = effectPicker.SelectedEffect;
             if (effect == LightEffect.SingleColor)
             {
@@ -1662,6 +1706,7 @@ public partial class RoomView : UserControl
     private void VuFillTick()
     {
         if (_config == null || !_vuFillActive) return;
+        _vuFillTick++;
 
         var bands = App.AudioAnalyzer?.SmoothedBands;
         if (bands == null || bands.Length < 5) return;
@@ -1682,6 +1727,7 @@ public partial class RoomView : UserControl
 
         var c1 = _roomColor1;
         var c2 = _roomColor2;
+        var mode = _config.Ambience.VuFillMode;
 
         foreach (var dev in _config.Ambience.GoveeDevices)
         {
@@ -1698,27 +1744,94 @@ public partial class RoomView : UserControl
                 if (isPaired)
                 {
                     int half = segCount / 2;
-                    float level = overall;
 
-                    var vuColors = new (byte R, byte G, byte B)[half];
-                    for (int s = 0; s < half; s++)
+                    switch (mode)
                     {
-                        float fillPos = (float)s / Math.Max(half - 1, 1);
-                        float brightness = level > fillPos ? 1f : Math.Max(0, 1f - (fillPos - level) * 5f);
-                        vuColors[s] = BlendVuColor(c1, c2, fillPos, brightness);
+                        case VuFillMode.Split:
+                        {
+                            // Left=bass, Right=treble — independent levels
+                            float leftLevel = Math.Clamp((_vuFillSmoothed[0] + _vuFillSmoothed[1]) / 1.5f, 0f, 1f);
+                            float rightLevel = Math.Clamp((_vuFillSmoothed[3] + _vuFillSmoothed[4]) / 1.5f, 0f, 1f);
+                            for (int s = 0; s < half; s++)
+                            {
+                                float fillPos = (float)s / Math.Max(half - 1, 1);
+                                float br = leftLevel > fillPos ? 1f : Math.Max(0, 1f - (fillPos - leftLevel) * 5f);
+                                segColors[s] = BlendVuColor(c1, c2, fillPos, br);
+                            }
+                            int rc = segCount - half;
+                            for (int s = 0; s < rc; s++)
+                            {
+                                float fillPos = (float)s / Math.Max(rc - 1, 1);
+                                float br = rightLevel > fillPos ? 1f : Math.Max(0, 1f - (fillPos - rightLevel) * 5f);
+                                segColors[half + s] = BlendVuColor(c1, c2, fillPos, br);
+                            }
+                            break;
+                        }
+                        case VuFillMode.Rainfall:
+                        {
+                            // Peaks fall from top, decay downward
+                            // Push new peak at top based on energy
+                            if (overall > 0.3f)
+                                for (int s = 0; s < half; s++)
+                                    _vuFillPeaks[s] = Math.Max(_vuFillPeaks[s], overall * (1f - (float)s / half * 0.3f));
+                            // Decay all peaks downward
+                            for (int s = 0; s < half; s++)
+                                _vuFillPeaks[s] = Math.Max(0, _vuFillPeaks[s] - 0.04f);
+                            // Render — reversed (top=bright, bottom=dim)
+                            for (int s = 0; s < half; s++)
+                            {
+                                float t = (float)(half - 1 - s) / Math.Max(half - 1, 1);
+                                segColors[s] = BlendVuColor(c1, c2, t, _vuFillPeaks[half - 1 - s]);
+                            }
+                            for (int s = 0; s < segCount - half; s++)
+                                segColors[half + s] = segColors[Math.Min(s, half - 1)]; // mirror
+                            break;
+                        }
+                        case VuFillMode.Pulse:
+                        {
+                            // All segments pulse together with bass
+                            float bass = Math.Clamp((_vuFillSmoothed[0] + _vuFillSmoothed[1]) * 1.5f, 0f, 1f);
+                            for (int s = 0; s < segCount; s++)
+                                segColors[s] = BlendVuColor(c1, c2, bass, bass);
+                            break;
+                        }
+                        case VuFillMode.Spectrum:
+                        {
+                            // Each segment = a frequency slice (spread 5 bands across segments)
+                            for (int s = 0; s < half; s++)
+                            {
+                                float bandPos = (float)s / Math.Max(half - 1, 1) * 4f; // map to 0-4
+                                int lo = Math.Min((int)bandPos, 4);
+                                int hi = Math.Min(lo + 1, 4);
+                                float frac = bandPos - lo;
+                                float level = _vuFillSmoothed[lo] * (1 - frac) + _vuFillSmoothed[hi] * frac;
+                                segColors[s] = BlendVuColor(c1, c2, (float)s / Math.Max(half - 1, 1), level);
+                            }
+                            for (int s = 0; s < segCount - half; s++)
+                                segColors[half + s] = segColors[Math.Min(s, half - 1)]; // mirror
+                            break;
+                        }
+                        default: // Classic
+                        {
+                            var vuColors = new (byte R, byte G, byte B)[half];
+                            for (int s = 0; s < half; s++)
+                            {
+                                float fillPos = (float)s / Math.Max(half - 1, 1);
+                                float br = overall > fillPos ? 1f : Math.Max(0, 1f - (fillPos - overall) * 5f);
+                                vuColors[s] = BlendVuColor(c1, c2, fillPos, br);
+                            }
+                            for (int s = 0; s < half; s++)
+                                segColors[s] = vuColors[s];
+                            int rightCount = segCount - half;
+                            for (int s = 0; s < rightCount && s < half; s++)
+                                segColors[half + s] = vuColors[s];
+                            break;
+                        }
                     }
-
-                    // Left panel: straight
-                    for (int s = 0; s < half; s++)
-                        segColors[s] = vuColors[s];
-
-                    // Right panel: copy left (mirrored)
-                    int rightCount = segCount - half;
-                    for (int s = 0; s < rightCount && s < half; s++)
-                        segColors[half + s] = vuColors[s];
                 }
                 else
                 {
+                    // Non-paired: all modes use simple fill (segments aren't split)
                     for (int s = 0; s < segCount; s++)
                     {
                         float fillPos = (float)s / Math.Max(segCount - 1, 1);

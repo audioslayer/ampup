@@ -225,6 +225,15 @@ public enum ReactiveMode
     BeatPulse, SpectrumBands, ColorShift,
 }
 
+public enum VuFillMode
+{
+    Classic,      // standard bottom→top fill
+    Split,        // left panel=bass, right panel=treble (independent levels)
+    Rainfall,     // peaks fall from top, decay downward
+    Pulse,        // all segments pulse together with bass energy
+    Spectrum,     // each segment = a frequency band (like equalizer)
+}
+
 public enum ProfileTransition
 {
     None, Flash, Cascade, RainbowSweep, Ripple, ColorBurst, Wipe,
@@ -300,6 +309,8 @@ public class AmbienceConfig
     public List<GoveeDeviceConfig> GoveeDevices { get; set; } = new();
     public bool LinkToLights { get; set; } = false;
     public bool SyncRoomToTurnUp { get; set; } = false;
+    [JsonConverter(typeof(StringEnumConverter))]
+    public VuFillMode VuFillMode { get; set; } = VuFillMode.Classic;
     public int BrightnessScale { get; set; } = 75;
     public bool WarmToneShift { get; set; } = false;
     public string GoveeApiKey { get; set; } = "";
