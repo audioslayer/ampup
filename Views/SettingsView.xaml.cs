@@ -1131,9 +1131,14 @@ public partial class SettingsView : UserControl
                 }
             }
 
-            if (found.Count == 0)
+            // Check if LAN scan actually found any devices with IPs
+            bool lanScanWorked = found.Any(f => !string.IsNullOrWhiteSpace(f.Ip));
+            bool hadExistingLan = _config.Ambience.GoveeDevices.Any(g => !string.IsNullOrWhiteSpace(g.Ip));
+
+            if (found.Count == 0 || (!lanScanWorked && hadExistingLan))
             {
-                TxtGoveeScanStatus.Text = "No devices found";
+                // LAN scan failed or found nothing — keep existing devices, don't wipe IPs
+                TxtGoveeScanStatus.Text = lanScanWorked ? "No devices found" : "LAN scan failed — keeping existing devices";
                 GoveeStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#555555"));
             }
             else
