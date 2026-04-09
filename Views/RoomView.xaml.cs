@@ -50,8 +50,10 @@ public partial class RoomView : UserControl
     private bool _vuFillActive;
     private DispatcherTimer? _vuFillTimer;
     private readonly float[] _vuFillSmoothed = new float[5];
-    private readonly float[] _vuFillPeaks = new float[15]; // per-segment peak hold for Rainfall mode
-    private int _vuFillTick; // animation tick counter
+    private readonly float[] _vuFillPeaks = new float[15]; // per-segment brightness for animated modes
+    private int _vuFillTick;
+    private float _vuAvgEnergy; // running average for onset detection
+    private bool _vuLastOnset; // debounce onset detection
     private readonly Dictionary<string, DateTime> _vuBulbLastSend = new();
 
     // Room pattern engine — headless RgbController for rendering effects
@@ -1770,18 +1772,25 @@ public partial class RoomView : UserControl
                         }
                         case VuFillMode.Rainfall:
                         {
-                            // Drips fall from top to bottom — beats spawn new drips at top
-                            // Shift all peaks down by one position every few ticks
-                            if (_vuFillTick % 3 == 0) // shift speed
+                            // Onset-triggered drips that fall from top to bottom
+                            // Detect onset: current energy significantly above running average
+                            float energy = (_vuFillSmoothed[0] + _vuFillSmoothed[1]) * 1.5f;
+                            _vuAvgEnergy += (energy - _vuAvgEnergy) * 0.05f; // slow-tracking average
+                            bool onset = energy > _vuAvgEnergy + 0.25f && !_vuLastOnset;
+                            _vuLastOnset = energy > _vuAvgEnergy + 0.15f; // hysteresis
+
+                            // Shift existing drips down (every 5 ticks = ~6 shifts/sec, visible speed)
+                            if (_vuFillTick % 5 == 0)
                             {
                                 for (int s = 0; s < half - 1; s++)
-                                    _vuFillPeaks[s] = _vuFillPeaks[s + 1] * 0.85f; // fade as it falls
-                                _vuFillPeaks[half - 1] = 0; // top clears
+                                    _vuFillPeaks[s] = _vuFillPeaks[s + 1] * 0.8f;
+                                _vuFillPeaks[half - 1] = 0;
                             }
-                            // Spawn new drip at top on beat
-                            float bass = Math.Clamp((_vuFillSmoothed[0] + _vuFillSmoothed[1]) * 1.5f, 0f, 1f);
-                            if (bass > 0.3f)
-                                _vuFillPeaks[half - 1] = Math.Max(_vuFillPeaks[half - 1], bass);
+
+                            // Spawn drip at top on onset
+                            if (onset)
+                                _vuFillPeaks[half - 1] = Math.Clamp(energy, 0.5f, 1f);
+
                             // Render
                             for (int s = 0; s < half; s++)
                             {
@@ -1818,41 +1827,36 @@ public partial class RoomView : UserControl
                         }
                         case VuFillMode.Drip:
                         {
-                            // Smooth liquid drip — a bright dot falls from top to bottom, splashes
-                            // Multiple drips can overlap. Uses _vuFillPeaks as drip positions (0=bottom, half-1=top)
-                            // Shift drips down smoothly
+                            // Liquid drip with gravity — onset spawns drip at top, falls and pools at bottom
+                            float energy = (_vuFillSmoothed[0] + _vuFillSmoothed[1]) * 1.5f;
+                            _vuAvgEnergy += (energy - _vuAvgEnergy) * 0.05f;
+                            bool onset = energy > _vuAvgEnergy + 0.25f && !_vuLastOnset;
+                            _vuLastOnset = energy > _vuAvgEnergy + 0.15f;
+
+                            // Slow decay on all segments (pool evaporates)
                             for (int s = 0; s < half; s++)
-                            {
-                                if (_vuFillPeaks[s] > 0)
-                                    _vuFillPeaks[s] = Math.Max(0, _vuFillPeaks[s] - 0.08f); // fall speed
-                            }
+                                _vuFillPeaks[s] = Math.Max(0, _vuFillPeaks[s] - 0.015f);
 
-                            // Spawn drip at top on bass hit
-                            float bassDrip = Math.Clamp((_vuFillSmoothed[0] + _vuFillSmoothed[1]) * 1.5f, 0f, 1f);
-                            if (bassDrip > 0.4f && _vuFillPeaks[half - 1] < 0.1f)
-                                _vuFillPeaks[half - 1] = bassDrip;
-
-                            // Gravity: accumulate at bottom — lower segments hold brightness longer
-                            // Bottom splash: if any drip reached bottom, flash it
-                            float bottomSplash = 0;
-                            for (int s = 1; s < half; s++)
+                            // Gravity: shift brightness downward (every 4 ticks = ~8/sec)
+                            if (_vuFillTick % 4 == 0)
                             {
-                                if (_vuFillPeaks[s] > 0.1f && _vuFillPeaks[s - 1] < _vuFillPeaks[s] * 0.3f)
+                                for (int s = 0; s < half - 1; s++)
                                 {
-                                    _vuFillPeaks[s - 1] = Math.Max(_vuFillPeaks[s - 1], _vuFillPeaks[s] * 0.7f);
+                                    float transfer = _vuFillPeaks[s + 1] * 0.3f;
+                                    _vuFillPeaks[s] = Math.Min(1f, _vuFillPeaks[s] + transfer);
+                                    _vuFillPeaks[s + 1] -= transfer;
                                 }
                             }
-                            if (_vuFillPeaks[0] > 0.5f) bottomSplash = _vuFillPeaks[0];
+
+                            // Spawn drip at top on onset
+                            if (onset)
+                                _vuFillPeaks[half - 1] = Math.Clamp(energy, 0.6f, 1f);
 
                             // Render
                             for (int s = 0; s < half; s++)
                             {
-                                float br = _vuFillPeaks[s];
-                                // Bottom splash glow
-                                if (s < 2 && bottomSplash > 0.3f)
-                                    br = Math.Max(br, bottomSplash * (1f - s * 0.4f));
                                 float t = (float)s / Math.Max(half - 1, 1);
-                                segColors[s] = BlendVuColor(c1, c2, t, Math.Clamp(br, 0, 1));
+                                segColors[s] = BlendVuColor(c1, c2, t, Math.Clamp(_vuFillPeaks[s], 0, 1));
                             }
                             for (int s = 0; s < segCount - half; s++)
                                 segColors[half + s] = segColors[Math.Min(s, half - 1)];
