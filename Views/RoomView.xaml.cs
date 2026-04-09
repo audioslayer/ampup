@@ -4150,6 +4150,9 @@ public partial class RoomView : UserControl
             float treble = (musicBands[3] + musicBands[4]) * 0.5f;
             float energy = Math.Min((bass + mids + treble) * 1.5f, 1f);
 
+            if (_roomFrameCount % 100 == 1)
+                Logger.Log($"MusicReactive: bands=[{musicBands[0]:F3},{musicBands[1]:F3},{musicBands[2]:F3},{musicBands[3]:F3},{musicBands[4]:F3}] energy={energy:F2} brightness={_musicReactiveBrightness:F2}");
+
             float target = 0.25f + energy * 0.75f;
             if (target > _musicReactiveBrightness)
                 _musicReactiveBrightness = target;
