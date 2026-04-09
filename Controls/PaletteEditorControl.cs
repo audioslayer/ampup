@@ -21,10 +21,13 @@ public class PaletteEditorControl : FrameworkElement
     private const double ChipY = GradientBarHeight + 14;
     private const double AddButtonSize = 16;
     private const double PresetRowY = GradientBarHeight + 34;
-    private const double PresetSwatchW = 32;
-    private const double PresetSwatchH = 18;
-    private const double PresetGap = 3;
-    private const double TotalHeight = PresetRowY + PresetSwatchH + 4;
+    private const double PresetSwatchW = 40;
+    private const double PresetSwatchH = 20;
+    private const double PresetGap = 4;
+    private const double PresetLabelH = 12;
+    private const double PresetRowH = PresetSwatchH + PresetLabelH + 2;
+    private const double PresetRows = 2; // wraps into 2 rows
+    private const double TotalHeight = PresetRowY + PresetRowH * PresetRows + 4;
 
     // State
     private ColorPalette _palette = new("Custom",
@@ -40,11 +43,18 @@ public class PaletteEditorControl : FrameworkElement
     private static readonly Pen s_chipBorder;
     private static readonly Pen s_chipSelectedBorder;
     private static readonly Pen s_gradientBorder;
+    private static readonly Pen s_hoverBorder;
     private static readonly Brush s_addBrush;
     private static readonly Pen s_addPen;
     private static readonly Typeface s_typeface;
     private static readonly Brush s_labelBrush;
+    private static readonly Brush s_hoverLabelBrush;
+    private static readonly Brush s_activeLabelBrush;
+    private static readonly Brush s_activeTintBrush;
     private static readonly Brush s_presetBorder;
+
+    // Hover tracking for presets
+    private int _hoverPresetIdx = -1;
 
     static PaletteEditorControl()
     {
@@ -67,6 +77,11 @@ public class PaletteEditorControl : FrameworkElement
         s_gradientBorder = new Pen(gradBorderBrush, 1);
         s_gradientBorder.Freeze();
 
+        var hoverBorderBrush = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+        hoverBorderBrush.Freeze();
+        s_hoverBorder = new Pen(hoverBorderBrush, 1.2);
+        s_hoverBorder.Freeze();
+
         var addBrush = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
         addBrush.Freeze();
         s_addBrush = addBrush;
@@ -75,9 +90,21 @@ public class PaletteEditorControl : FrameworkElement
 
         s_typeface = new Typeface("Segoe UI");
 
-        var labelBrush = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
+        var labelBrush = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
         labelBrush.Freeze();
         s_labelBrush = labelBrush;
+
+        var hoverLabelBrush = new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0xBB));
+        hoverLabelBrush.Freeze();
+        s_hoverLabelBrush = hoverLabelBrush;
+
+        var activeLabelBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
+        activeLabelBrush.Freeze();
+        s_activeLabelBrush = activeLabelBrush;
+
+        var activeTintBrush = new SolidColorBrush(Color.FromArgb(0x18, 0x00, 0xE6, 0x76));
+        activeTintBrush.Freeze();
+        s_activeTintBrush = activeTintBrush;
 
         var presetBorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
         presetBorderBrush.Freeze();
@@ -174,20 +201,52 @@ public class PaletteEditorControl : FrameworkElement
         dc.DrawLine(s_addPen, new Point(cx - 4, cy), new Point(cx + 4, cy));
         dc.DrawLine(s_addPen, new Point(cx, cy - 4), new Point(cx, cy + 4));
 
-        // 4. Preset palette swatches row
+        // 4. Preset palette swatches — wrapping grid with labels
         double px = 0;
-        foreach (var preset in BuiltInPalettes.All)
+        double py = PresetRowY;
+        int hoverIdx = _hoverPresetIdx;
+        for (int pi = 0; pi < BuiltInPalettes.All.Length; pi++)
         {
-            if (px + PresetSwatchW > ActualWidth) break;
+            var preset = BuiltInPalettes.All[pi];
+            if (px + PresetSwatchW > ActualWidth)
+            {
+                px = 0;
+                py += PresetRowH;
+                if (py + PresetSwatchH > ActualHeight) break;
+            }
 
             var presetBrush = BuildPresetBrush(preset);
-            var rect = new Rect(px, PresetRowY, PresetSwatchW, PresetSwatchH);
+            var rect = new Rect(px, py, PresetSwatchW, PresetSwatchH);
 
-            // Highlight if this preset matches current palette
             bool isActive = string.Equals(_palette.Name, preset.Name, StringComparison.OrdinalIgnoreCase);
-            var borderPen = isActive ? s_chipSelectedBorder : s_gradientBorder;
+            bool isHovered = pi == hoverIdx;
 
-            dc.DrawRoundedRectangle(presetBrush, borderPen, rect, 3, 3);
+            // Active: accent border; Hovered: lighter border; Default: subtle
+            Pen borderPen;
+            if (isActive) borderPen = s_chipSelectedBorder;
+            else if (isHovered) borderPen = s_hoverBorder;
+            else borderPen = s_gradientBorder;
+
+            // Active background tint
+            if (isActive)
+            {
+                var tintRect = new Rect(px - 2, py - 2, PresetSwatchW + 4, PresetRowH + 2);
+                dc.DrawRoundedRectangle(s_activeTintBrush, null, tintRect, 5, 5);
+            }
+
+            dc.DrawRoundedRectangle(presetBrush, borderPen, rect, 4, 4);
+
+            // Label below swatch
+            var labelText = new FormattedText(
+                preset.Name, System.Globalization.CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight, s_typeface, 8.5,
+                isActive ? s_activeLabelBrush : (isHovered ? s_hoverLabelBrush : s_labelBrush),
+                VisualTreeHelper.GetDpi(this).PixelsPerDip);
+            labelText.MaxTextWidth = PresetSwatchW;
+            labelText.TextAlignment = TextAlignment.Center;
+            labelText.MaxLineCount = 1;
+            dc.DrawText(labelText, new Point(px, py + PresetSwatchH + 1));
+
             px += PresetSwatchW + PresetGap;
         }
     }
@@ -196,14 +255,14 @@ public class PaletteEditorControl : FrameworkElement
     {
         var pos = e.GetPosition(this);
 
-        // Check preset row click
-        if (pos.Y >= PresetRowY && pos.Y <= PresetRowY + PresetSwatchH)
+        // Check preset row click (multi-row)
+        if (pos.Y >= PresetRowY)
         {
-            int idx = (int)(pos.X / (PresetSwatchW + PresetGap));
-            if (idx >= 0 && idx < BuiltInPalettes.All.Length)
+            int hitIdx = HitTestPreset(pos);
+            if (hitIdx >= 0 && hitIdx < BuiltInPalettes.All.Length)
             {
                 // Clone the preset so edits don't modify the built-in
-                var preset = BuiltInPalettes.All[idx];
+                var preset = BuiltInPalettes.All[hitIdx];
                 _palette = new ColorPalette(preset.Name,
                     preset.Stops.Select(s => new ColorStop(s.Position, s.R, s.G, s.B)).ToArray());
                 _selectedStop = -1;
@@ -271,12 +330,58 @@ public class PaletteEditorControl : FrameworkElement
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
-        if (!_isDragging || _dragStop < 0) return;
         var pos = e.GetPosition(this);
-        double newPos = XToStop(pos.X - _dragOffsetX);
-        _palette.Stops[_dragStop].Position = newPos;
-        InvalidateVisual();
-        PaletteChanged?.Invoke(_palette);
+
+        // Handle chip dragging
+        if (_isDragging && _dragStop >= 0)
+        {
+            double newPos = XToStop(pos.X - _dragOffsetX);
+            _palette.Stops[_dragStop].Position = newPos;
+            InvalidateVisual();
+            PaletteChanged?.Invoke(_palette);
+            return;
+        }
+
+        // Handle preset hover
+        int newHover = pos.Y >= PresetRowY ? HitTestPreset(pos) : -1;
+        if (newHover != _hoverPresetIdx)
+        {
+            _hoverPresetIdx = newHover;
+            Cursor = newHover >= 0 ? Cursors.Hand : Cursors.Arrow;
+            InvalidateVisual();
+        }
+    }
+
+    protected override void OnMouseLeave(MouseEventArgs e)
+    {
+        if (_hoverPresetIdx >= 0)
+        {
+            _hoverPresetIdx = -1;
+            InvalidateVisual();
+        }
+        base.OnMouseLeave(e);
+    }
+
+    /// <summary>Hit test which preset index the mouse is over, or -1 if none.</summary>
+    private int HitTestPreset(Point pos)
+    {
+        double px = 0;
+        double py = PresetRowY;
+        for (int pi = 0; pi < BuiltInPalettes.All.Length; pi++)
+        {
+            if (px + PresetSwatchW > ActualWidth)
+            {
+                px = 0;
+                py += PresetRowH;
+            }
+            if (pos.X >= px && pos.X <= px + PresetSwatchW &&
+                pos.Y >= py && pos.Y <= py + PresetRowH)
+            {
+                return pi;
+            }
+            px += PresetSwatchW + PresetGap;
+        }
+        return -1;
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
