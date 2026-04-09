@@ -4185,15 +4185,18 @@ public partial class RoomView : UserControl
         float musicBrightness = 1f;
         if (_corsairMusicTimer?.IsEnabled == true && musicBands != null && musicBands.Length >= 5)
         {
-            // Use bass energy — sensitivity slider controls gain (1=subtle, 100=extreme)
-            float gain = (config.Ambience.MusicSensitivity / 50f); // 0.02 at 1%, 1.0 at 50%, 2.0 at 100%
+            // Use bass energy — sensitivity slider controls gain
+            float gain = config.Ambience.MusicSensitivity / 50f; // 0.02→2.0
             float energy = Math.Clamp((musicBands[0] + musicBands[1]) * gain, 0f, 1f);
 
-            float target = 0.15f + energy * 0.85f; // 15% floor, 100% on peak bass
+            // Square the energy for more dramatic contrast (quiet=very dim, loud=bright)
+            energy = energy * energy;
+
+            float target = 0.1f + energy * 0.9f; // 10% floor, 100% on peak
             if (target > _musicReactiveBrightness)
-                _musicReactiveBrightness = _musicReactiveBrightness + (target - _musicReactiveBrightness) * 0.7f; // fast but not instant
+                _musicReactiveBrightness = target; // instant attack — snap to beat
             else
-                _musicReactiveBrightness += (target - _musicReactiveBrightness) * 0.08f; // slow decay
+                _musicReactiveBrightness += (target - _musicReactiveBrightness) * 0.25f; // fast decay between beats
 
             musicBrightness = _musicReactiveBrightness;
             r = (byte)Math.Min(r * musicBrightness, 255);
@@ -4201,10 +4204,11 @@ public partial class RoomView : UserControl
             b = (byte)Math.Min(b * musicBrightness, 255);
         }
 
-        // Build music-modulated frame for Corsair/Turn Up/LG (Govee gets original)
+        // Build music-modulated frame for all devices
         byte[] frameForSync = linearColors;
-        if (musicBrightness < 0.99f)
+        if (_corsairMusicTimer?.IsEnabled == true)
         {
+            // Always build modulated frame when music reactive is on
             frameForSync = new byte[45];
             for (int i = 0; i < 45; i++)
                 frameForSync[i] = (byte)Math.Min(linearColors[i] * musicBrightness, 255);
