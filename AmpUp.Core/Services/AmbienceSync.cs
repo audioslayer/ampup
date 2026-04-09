@@ -317,24 +317,15 @@ public class AmbienceSync : IDisposable
     /// Called by RoomView.OnRoomFrame for room pattern effects.
     /// Sends full 15-LED frame with rate limiting and segment support.
     /// </summary>
-    private int _roomFrameDbg;
     public void OnRoomFrame(byte[] linear45, AmbienceConfig cfg)
     {
         if (_disposed || !cfg.GoveeEnabled || cfg.GoveeDevices.Count == 0) return;
-        _roomFrameDbg++;
 
         // Collect active devices with their zone counts
         var activeDevices = new List<(GoveeDeviceConfig Dev, int Zones)>();
         foreach (var device in cfg.GoveeDevices)
         {
-            bool noIp = string.IsNullOrWhiteSpace(device.Ip);
-            bool paused = !noIp && IsSyncPaused(device.Ip);
-            if (noIp || !device.PoweredOn || paused)
-            {
-                if (_roomFrameDbg <= 3)
-                    Logger.Log($"AmbiSync.OnRoomFrame: SKIP {device.Name} ip={!noIp} on={device.PoweredOn} paused={paused}");
-                continue;
-            }
+            if (string.IsNullOrWhiteSpace(device.Ip) || !device.PoweredOn || IsSyncPaused(device.Ip)) continue;
             int segs = (GetSegmentCount(device) > 0 && device.UseSegmentProtocol)
                 ? GetSegmentCount(device) : 1;
             activeDevices.Add((device, segs));
@@ -447,23 +438,14 @@ public class AmbienceSync : IDisposable
     /// Send a frame to a single device. Handles rate limiting, segments, and single-color.
     /// Single-color devices pre-scale brightness into RGB (1 packet instead of 2 → 10 FPS).
     /// </summary>
-    private int _sendFrameDbg;
     private void SendDeviceFrame(GoveeDeviceConfig device, (int R, int G, int B)[] colors, bool isSegment)
     {
         string ip = device.Ip;
         if (string.IsNullOrWhiteSpace(ip)) return;
-        _sendFrameDbg++;
         var now = DateTime.UtcNow.Ticks;
         long minTicks = isSegment ? MinTicksSegment : MinTicksSingle;
         if (_lastSendTick.TryGetValue(ip, out long lastTick) && now - lastTick < minTicks)
-        {
-            if (_sendFrameDbg <= 10)
-                Logger.Log($"SendDeviceFrame: RATE LIMITED {device.Name}({ip}) seg={isSegment}");
             return;
-        }
-
-        if (_sendFrameDbg <= 10)
-            Logger.Log($"SendDeviceFrame: SENDING {device.Name}({ip}) seg={isSegment} colors={colors.Length} enable={!_segmentEnabled.Contains(ip)}");
 
         if (isSegment)
         {
