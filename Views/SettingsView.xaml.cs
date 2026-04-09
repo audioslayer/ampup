@@ -1102,6 +1102,7 @@ public partial class SettingsView : UserControl
                     GoveeCloudApi.EnrichLanDevicesWithCloudNames(found, cloudDevices);
 
                     // Add cloud-only devices that didn't respond to LAN scan
+                    // Default PoweredOn=false so they don't interfere with room effects
                     foreach (var cloud in cloudDevices)
                     {
                         if (string.IsNullOrEmpty(cloud.Device)) continue;
@@ -1117,7 +1118,8 @@ public partial class SettingsView : UserControl
                                 Name = name,
                                 Sku = cloud.Sku,
                                 DeviceId = cloud.Device,
-                                SyncMode = "global",
+                                SyncMode = "off",
+                                PoweredOn = false,
                             });
                             Logger.Log($"Govee scan: added cloud-only device: {name} ({cloud.Sku}, {cloud.Device})");
                         }
