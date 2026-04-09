@@ -1553,6 +1553,18 @@ public partial class App : Application
 
     private void HandleDeviceSwitched(string deviceName, bool isOutput)
     {
+        // Immediately update RgbController's device ID for DeviceSelect effect (don't wait for 500ms poll)
+        if (isOutput)
+        {
+            try
+            {
+                using var enumerator = new NAudio.CoreAudioApi.MMDeviceEnumerator();
+                var defaultDev = enumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
+                _rgb.SetDefaultOutputDevice(defaultDev.ID);
+            }
+            catch { }
+        }
+
         if (!_config.Osd.ShowDeviceSwitch) return;
         Dispatcher.Invoke(() =>
         {

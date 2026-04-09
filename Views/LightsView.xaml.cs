@@ -121,11 +121,12 @@ public partial class LightsView : UserControl
     // Per-channel border references (for context menu attachment)
     private readonly Border[] _ledBorders = new Border[5];
 
-    // DeviceSelect per-knob controls (3 rows each)
+    // DeviceSelect per-knob controls (dynamic rows based on output device count)
     private readonly StackPanel[] _deviceSelectPanels = new StackPanel[5];
     private readonly ListPicker[][] _dsDevicePickers = new ListPicker[5][];
     private readonly Border[][] _dsColorBtns = new Border[5][];
     private readonly Color[][] _dsColors = new Color[5][];
+    private int _dsRowCount = 3; // updated from audio device count
 
     // Audio devices cache (populated from AudioMixer)
     private List<(string Id, string Name, bool IsOutput)> _audioDevices = new();
@@ -181,6 +182,7 @@ public partial class LightsView : UserControl
 
         if (mixer != null)
             _audioDevices = mixer.GetAudioDevices();
+        _dsRowCount = Math.Clamp(_audioDevices.Count(d => d.IsOutput), 3, 8);
 
         // Populate global lighting card
         var gl = config.GlobalLight;
@@ -1392,19 +1394,22 @@ public partial class LightsView : UserControl
             deviceSelectContainer.Children.Add(MakeLabel("DEVICE COLORS"));
             deviceSelectContainer.ToolTip = "Set LED color for each audio output device";
 
-            _dsDevicePickers[idx] = new ListPicker[3];
-            _dsColorBtns[idx] = new Border[3];
-            _dsColors[idx] = new Color[3];
-            for (int row = 0; row < 3; row++)
+            _dsDevicePickers[idx] = new ListPicker[_dsRowCount];
+            _dsColorBtns[idx] = new Border[_dsRowCount];
+            _dsColors[idx] = new Color[_dsRowCount];
+            for (int row = 0; row < _dsRowCount; row++)
             {
                 int rowCapture = row;
 
-                // Initialize default colors per row (blue, green, orange)
-                _dsColors[idx][row] = row switch
+                // Initialize default colors — cycle through a palette
+                _dsColors[idx][row] = (row % 6) switch
                 {
-                    0 => Color.FromRgb(0x00, 0x96, 0xFF),
-                    1 => Color.FromRgb(0x00, 0xE6, 0x76),
-                    _ => Color.FromRgb(0xFF, 0x87, 0x22),
+                    0 => Color.FromRgb(0x00, 0x96, 0xFF), // blue
+                    1 => Color.FromRgb(0x00, 0xE6, 0x76), // green
+                    2 => Color.FromRgb(0xFF, 0x87, 0x22), // orange
+                    3 => Color.FromRgb(0xE0, 0x40, 0xFB), // magenta
+                    4 => Color.FromRgb(0xFF, 0xD5, 0x4F), // gold
+                    _ => Color.FromRgb(0x29, 0xB6, 0xF6), // cyan
                 };
 
                 var rowPanel = new Grid { Margin = new Thickness(0, 0, 0, 4) };
@@ -1582,7 +1587,7 @@ public partial class LightsView : UserControl
     private void LoadDeviceSelectColors(int idx, LightConfig light)
     {
         if (_dsDevicePickers[idx] == null || light.DeviceColors == null) return;
-        for (int row = 0; row < 3 && row < light.DeviceColors.Count; row++)
+        for (int row = 0; row < _dsDevicePickers[idx].Length && row < light.DeviceColors.Count; row++)
         {
             var entry = light.DeviceColors[row];
             // Select device in picker
@@ -1949,7 +1954,7 @@ public partial class LightsView : UserControl
             if (light.Effect == LightEffect.DeviceSelect && _dsDevicePickers[i] != null)
             {
                 light.DeviceColors = new List<DeviceColorEntry>();
-                for (int row = 0; row < 3; row++)
+                for (int row = 0; row < _dsDevicePickers[i].Length; row++)
                 {
                     var deviceId = _dsDevicePickers[i][row].SelectedTag as string ?? "";
                     if (!string.IsNullOrEmpty(deviceId))
