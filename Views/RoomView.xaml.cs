@@ -1639,6 +1639,7 @@ public partial class RoomView : UserControl
     private void StartVuFill()
     {
         StopVuFill();
+        StopRoomPattern(); // stop any running room effect so we don't fight for Govee segments
         _vuFillActive = true;
         App.AudioAnalyzer?.Start();
         ResumeAllGoveeSync();
