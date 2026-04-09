@@ -62,6 +62,28 @@ namespace AmpUp.Controls
             }
         }
 
+        // ── Category visibility ──────────────────────────────────────────
+        private readonly List<TextBlock> _categoryHeaders = new();
+        private readonly List<WrapPanel> _categoryPanels = new();
+        private int _visibleCategory = -1;
+
+        public int VisibleCategory => _visibleCategory;
+
+        /// <summary>
+        /// Show only the specified category (0=static, 1=animated, 2=reactive, 3=global).
+        /// Pass -1 to show all categories.
+        /// </summary>
+        public void SetVisibleCategory(int cat)
+        {
+            _visibleCategory = cat;
+            for (int i = 0; i < _categoryHeaders.Count; i++)
+            {
+                var vis = (cat == -1 || cat == i) ? Visibility.Visible : Visibility.Collapsed;
+                _categoryHeaders[i].Visibility = vis;
+                _categoryPanels[i].Visibility = vis;
+            }
+        }
+
         // ── Internals ────────────────────────────────────────────────────
         private readonly bool _showGlobal;
         private readonly List<EffectTile> _tiles = new();
@@ -249,6 +271,7 @@ namespace AmpUp.Controls
                 Margin = new Thickness(2, 6, 0, 4),
             };
             parent.Children.Add(header);
+            _categoryHeaders.Add(header);
 
             var wrap = new WrapPanel { Orientation = Orientation.Horizontal };
             foreach (var (effect, icon, label, isEmoji) in items)
@@ -257,6 +280,7 @@ namespace AmpUp.Controls
                 wrap.Children.Add(tile.Container);
             }
             parent.Children.Add(wrap);
+            _categoryPanels.Add(wrap);
         }
 
         // ── Tile builder ─────────────────────────────────────────────────

@@ -603,26 +603,94 @@ public partial class RoomView : UserControl
         }
     }
 
+    private int _effectCategory = 3; // default to Global Span
+
     private void BuildRoomEffectTab(StackPanel stack)
     {
         if (_config == null) return;
         var layout = _config.RoomLayout;
 
-        // ── EFFECT ──
-        var (effBar, effLabel) = MakeSectionHeader("EFFECT");
-        stack.Children.Add(WrapHeader(effBar, effLabel));
+        // ── TWO-COLUMN LAYOUT ──
+        var mainGrid = new Grid { Margin = new Thickness(0, 0, 0, 0) };
+        mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(280) });
+
+        // ════════════════════════════════════════════════════════════
+        // LEFT COLUMN — Category tabs + Effect picker
+        // ════════════════════════════════════════════════════════════
+        var leftCol = new StackPanel { Margin = new Thickness(0, 0, 12, 0) };
+
+        // Category tab bar
+        var categoryTabBar = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+        var categoryNames = new[] { "Static", "Animated", "Reactive", "Global Span" };
+        var categoryPills = new Border[4];
 
         var effectPicker = new Controls.EffectPickerControl(showGlobal: true)
         {
-            Margin = new Thickness(0, 0, 0, 10),
-            IsEnabled = !_vuFillActive, // disable when VU Fill is running
+            Margin = new Thickness(0, 0, 0, 0),
+            IsEnabled = !_vuFillActive,
             Opacity = _vuFillActive ? 0.4 : 1.0,
         };
         if (_activePattern != null && _activePattern != "__sync__")
             effectPicker.SelectedEffect = Enum.TryParse<LightEffect>(_activePattern, true, out var eff) ? eff : LightEffect.SingleColor;
+
+        // Auto-detect category from selected effect
+        if (_activePattern != null && _activePattern != "__sync__" && Enum.TryParse<LightEffect>(_activePattern, true, out var selEff))
+        {
+            int detectedCat = GetEffectCategory(selEff);
+            if (detectedCat >= 0) _effectCategory = detectedCat;
+        }
+
+        for (int ci = 0; ci < categoryNames.Length; ci++)
+        {
+            bool active = _effectCategory == ci;
+            var accent = ThemeManager.Accent;
+            var pill = new Border
+            {
+                CornerRadius = new CornerRadius(14),
+                Background = active ? new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B))
+                    : new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+                BorderBrush = active ? new SolidColorBrush(accent) : new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(12, 5, 12, 5),
+                Margin = new Thickness(0, 0, 4, 0),
+                Cursor = Cursors.Hand,
+            };
+            pill.Child = new TextBlock
+            {
+                Text = categoryNames[ci], FontSize = 11,
+                FontWeight = active ? FontWeights.SemiBold : FontWeights.Normal,
+                Foreground = active ? new SolidColorBrush(accent) : FindBrush("TextSecBrush"),
+            };
+            categoryPills[ci] = pill;
+            int capturedCat = ci;
+            pill.MouseLeftButtonUp += (_, _) =>
+            {
+                _effectCategory = capturedCat;
+                effectPicker.SetVisibleCategory(capturedCat);
+                // Update pill visuals
+                var ac = ThemeManager.Accent;
+                for (int j = 0; j < categoryPills.Length; j++)
+                {
+                    bool isActive = j == capturedCat;
+                    categoryPills[j].Background = isActive ? new SolidColorBrush(Color.FromArgb(0x30, ac.R, ac.G, ac.B))
+                        : new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+                    categoryPills[j].BorderBrush = isActive ? new SolidColorBrush(ac) : new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33));
+                    var tb = (TextBlock)categoryPills[j].Child;
+                    tb.FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal;
+                    tb.Foreground = isActive ? new SolidColorBrush(ac) : FindBrush("TextSecBrush");
+                }
+            };
+            categoryTabBar.Children.Add(pill);
+        }
+        leftCol.Children.Add(categoryTabBar);
+
+        // Set initial visible category
+        effectPicker.SetVisibleCategory(_effectCategory);
+
         effectPicker.SelectionChanged += (_, _) =>
         {
-            if (_loading || _vuFillActive) return; // block when VU Fill active
+            if (_loading || _vuFillActive) return;
             var effect = effectPicker.SelectedEffect;
             if (effect == LightEffect.SingleColor)
             {
@@ -639,17 +707,31 @@ public partial class RoomView : UserControl
                 _activePattern = effect == LightEffect.SingleColor ? null : effect.ToString();
             }
         };
-        stack.Children.Add(effectPicker);
+        leftCol.Children.Add(effectPicker);
 
-        // ── PALETTE ──
-        stack.Children.Add(MakeSeparator());
-        var (palBar, palLabel) = MakeSectionHeader("PALETTE");
-        stack.Children.Add(WrapHeader(palBar, palLabel));
+        Grid.SetColumn(leftCol, 0);
+        mainGrid.Children.Add(leftCol);
+
+        // ════════════════════════════════════════════════════════════
+        // RIGHT COLUMN — Settings panel (palette, presets, speed, brightness, direction)
+        // ════════════════════════════════════════════════════════════
+        var rightPanel = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12),
+        };
+        var rightStack = new StackPanel();
+
+        // ── PALETTE label + editor ──
+        rightStack.Children.Add(MakeSubLabel("PALETTE"));
 
         var paletteEditor = new PaletteEditorControl
         {
             Palette = _roomPalette,
-            Margin = new Thickness(0, 4, 0, 8),
+            Margin = new Thickness(0, 4, 0, 6),
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         paletteEditor.PaletteChanged += palette =>
@@ -671,17 +753,90 @@ public partial class RoomView : UserControl
             dialog.ColorChanged += c => paletteEditor.UpdateSelectedStopColor(c);
             dialog.ShowDialog();
         };
-        stack.Children.Add(paletteEditor);
+        rightStack.Children.Add(paletteEditor);
+
+        // ── Palette preset tiles (smaller, wrapped in 2-3 rows) ──
+        var presetWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+        foreach (var palette in BuiltInPalettes.All)
+        {
+            // Sample first and last color for gradient preview
+            var stops = palette.Stops.OrderBy(s => s.Position).ToList();
+            var c1 = stops.Count > 0 ? Color.FromRgb(stops[0].R, stops[0].G, stops[0].B) : Colors.Black;
+            var cEnd = stops.Count > 1 ? Color.FromRgb(stops[^1].R, stops[^1].G, stops[^1].B) : c1;
+
+            var gradientBar = new Border
+            {
+                Width = 36, Height = 14,
+                CornerRadius = new CornerRadius(3),
+                ClipToBounds = true,
+                Background = new LinearGradientBrush(c1, cEnd, 0),
+            };
+            var label = new TextBlock
+            {
+                Text = palette.Name, FontSize = 7,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x77, 0x77, 0x77)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 1, 0, 0),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = 40,
+            };
+            var tileContent = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+            tileContent.Children.Add(gradientBar);
+            tileContent.Children.Add(label);
+
+            var swatch = new Border
+            {
+                CornerRadius = new CornerRadius(4),
+                Margin = new Thickness(0, 0, 3, 3),
+                Padding = new Thickness(3, 3, 3, 2),
+                Cursor = Cursors.Hand,
+                ToolTip = palette.Name,
+                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                BorderThickness = new Thickness(1),
+                Child = tileContent,
+            };
+            var capturedPalette = palette;
+            var capturedLabel = label;
+            swatch.MouseLeftButtonDown += (_, _) =>
+            {
+                paletteEditor.Palette = capturedPalette;
+                _roomPalette = capturedPalette;
+                if (capturedPalette.Stops.Count >= 2)
+                {
+                    var sorted = capturedPalette.Stops.OrderBy(s => s.Position).ToList();
+                    _roomColor1 = Color.FromRgb(sorted[0].R, sorted[0].G, sorted[0].B);
+                    _roomColor2 = Color.FromRgb(sorted[^1].R, sorted[^1].G, sorted[^1].B);
+                }
+                if (_activePattern != null && _activePattern != "__sync__")
+                    StartRoomPattern(_activePattern);
+            };
+            swatch.MouseEnter += (_, _) =>
+            {
+                var ac = ThemeManager.Accent;
+                swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0xAA, ac.R, ac.G, ac.B));
+                swatch.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+                capturedLabel.Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
+            };
+            swatch.MouseLeave += (_, _) =>
+            {
+                swatch.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+                swatch.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+                capturedLabel.Foreground = new SolidColorBrush(Color.FromRgb(0x77, 0x77, 0x77));
+            };
+            presetWrap.Children.Add(swatch);
+        }
+        rightStack.Children.Add(presetWrap);
 
         // ── SPEED ──
-        stack.Children.Add(MakeSubLabel("SPEED"));
+        rightStack.Children.Add(MakeSubLabel("SPEED"));
         var speedSlider = new StyledSlider
         {
             Minimum = 1, Maximum = 100, Value = 50,
-            Height = 35,
+            Height = 28,
             AccentColor = ThemeManager.Accent,
             ShowLabel = false,
-            Margin = new Thickness(0, 0, 0, 8),
+            Margin = new Thickness(0, 2, 0, 8),
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         speedSlider.ValueChanged += (_, _) =>
@@ -698,25 +853,25 @@ public partial class RoomView : UserControl
                 });
             }
         };
-        stack.Children.Add(speedSlider);
+        rightStack.Children.Add(speedSlider);
 
         // ── BRIGHTNESS ──
-        var brightRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-        brightRow.Children.Add(MakeSubLabel("BRIGHTNESS"));
+        rightStack.Children.Add(MakeSubLabel("BRIGHTNESS"));
         var roomBrightSlider = new StyledSlider
         {
             Minimum = 1, Maximum = 100,
             Value = _config.Ambience.BrightnessScale,
-            Width = 200, Height = 35,
+            Height = 28,
             AccentColor = ThemeManager.Accent,
             ShowLabel = false,
+            Margin = new Thickness(0, 2, 0, 4),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         var roomBrightLabel = new TextBlock
         {
             Text = $"{_config.Ambience.BrightnessScale}%",
-            FontSize = 12, Foreground = FindBrush("TextSecBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0),
+            FontSize = 11, Foreground = FindBrush("TextSecBrush"),
+            Margin = new Thickness(0, 0, 0, 8),
         };
         roomBrightSlider.ValueChanged += (_, _) =>
         {
@@ -724,7 +879,6 @@ public partial class RoomView : UserControl
             int pct = (int)roomBrightSlider.Value;
             _config.Ambience.BrightnessScale = pct;
             roomBrightLabel.Text = $"{pct}%";
-            // Also send per-device brightness for immediate effect
             foreach (var dev in _config.Ambience.GoveeDevices)
             {
                 if (!string.IsNullOrWhiteSpace(dev.Ip) && dev.PoweredOn)
@@ -732,43 +886,39 @@ public partial class RoomView : UserControl
             }
             QueueSave();
         };
-        brightRow.Children.Add(roomBrightSlider);
-        brightRow.Children.Add(roomBrightLabel);
-        stack.Children.Add(brightRow);
+        rightStack.Children.Add(roomBrightSlider);
+        rightStack.Children.Add(roomBrightLabel);
 
-        // ── DIRECTION + MODE ──
-        stack.Children.Add(MakeSeparator());
-        var (dirBar, dirLabel) = MakeSectionHeader("DIRECTION");
-        stack.Children.Add(WrapHeader(dirBar, dirLabel));
+        // ── DIRECTION ──
+        rightStack.Children.Add(MakeSubLabel("DIRECTION"));
+        var dirWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 6) };
 
-        var dirModeRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
-
-        // Direction pills
-        var dirNames = new[] { "L → R", "F → B", "↑", "RADIAL", "DIAGONAL" };
+        var dirNames = new[] { "L \u2192 R", "F \u2192 B", "\u2191", "RADIAL", "DIAGONAL" };
         var dirValues = new[] { EffectDirection.LeftToRight, EffectDirection.FrontToBack,
             EffectDirection.BottomToTop, EffectDirection.Radial, EffectDirection.Diagonal };
         for (int i = 0; i < dirNames.Length; i++)
         {
             var dirVal = dirValues[i];
             bool active = layout.Direction == dirVal;
+            var accent = ThemeManager.Accent;
             var pill = new Border
             {
-                CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(12, 4, 12, 4),
-                Margin = new Thickness(0, 0, 4, 0),
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(8, 3, 8, 3),
+                Margin = new Thickness(0, 0, 3, 3),
                 Cursor = Cursors.Hand,
                 Background = active
-                    ? new SolidColorBrush(Color.FromArgb(0x30, 0x00, 0xE6, 0x76))
-                    : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                    ? new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B))
+                    : new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
                 BorderBrush = active
-                    ? new SolidColorBrush(Color.FromArgb(0x60, 0x00, 0xE6, 0x76))
-                    : new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
+                    ? new SolidColorBrush(Color.FromArgb(0x60, accent.R, accent.G, accent.B))
+                    : new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
                 BorderThickness = new Thickness(1),
             };
             pill.Child = new TextBlock
             {
-                Text = dirNames[i], FontSize = 10, FontWeight = FontWeights.Bold,
-                Foreground = active ? FindBrush("AccentBrush") : FindBrush("TextSecBrush"),
+                Text = dirNames[i], FontSize = 9, FontWeight = FontWeights.SemiBold,
+                Foreground = active ? new SolidColorBrush(accent) : FindBrush("TextSecBrush"),
             };
             pill.MouseLeftButtonDown += (_, _) =>
             {
@@ -776,38 +926,34 @@ public partial class RoomView : UserControl
                 OnLayoutChanged();
                 RebuildRoomTabContent();
             };
-            dirModeRow.Children.Add(pill);
+            dirWrap.Children.Add(pill);
         }
 
-        // Spacer
-        dirModeRow.Children.Add(new Border { Width = 12 });
-
-        // Spatial / Mirror mode pills
+        // Spatial / Mirror pills
         bool isSpatial = _config.Ambience.SpatialSync;
         foreach (var (modeName, modeVal) in new[] { ("SPATIAL", true), ("MIRROR", false) })
         {
             bool modeActive = isSpatial == modeVal;
+            var purple = Color.FromRgb(0xBB, 0x86, 0xFC);
             var modePill = new Border
             {
-                CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(10, 4, 10, 4),
-                Margin = new Thickness(0, 0, 4, 0),
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(8, 3, 8, 3),
+                Margin = new Thickness(0, 0, 3, 3),
                 Cursor = Cursors.Hand,
                 Background = modeActive
-                    ? new SolidColorBrush(Color.FromArgb(0x30, 0xBB, 0x86, 0xFC))
-                    : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                    ? new SolidColorBrush(Color.FromArgb(0x30, purple.R, purple.G, purple.B))
+                    : new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
                 BorderBrush = modeActive
-                    ? new SolidColorBrush(Color.FromArgb(0x60, 0xBB, 0x86, 0xFC))
-                    : new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
+                    ? new SolidColorBrush(Color.FromArgb(0x60, purple.R, purple.G, purple.B))
+                    : new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
                 BorderThickness = new Thickness(1),
                 ToolTip = modeVal ? "Effect flows across devices by position" : "All devices show the same effect",
             };
             modePill.Child = new TextBlock
             {
-                Text = modeName, FontSize = 10, FontWeight = FontWeights.Bold,
-                Foreground = modeActive
-                    ? new SolidColorBrush(Color.FromRgb(0xBB, 0x86, 0xFC))
-                    : FindBrush("TextSecBrush"),
+                Text = modeName, FontSize = 9, FontWeight = FontWeights.SemiBold,
+                Foreground = modeActive ? new SolidColorBrush(purple) : FindBrush("TextSecBrush"),
             };
             var capturedVal = modeVal;
             modePill.MouseLeftButtonDown += (_, _) =>
@@ -818,12 +964,17 @@ public partial class RoomView : UserControl
                 QueueSave();
                 RebuildRoomTabContent();
             };
-            dirModeRow.Children.Add(modePill);
+            dirWrap.Children.Add(modePill);
         }
+        rightStack.Children.Add(dirWrap);
 
-        stack.Children.Add(dirModeRow);
+        rightPanel.Child = rightStack;
+        Grid.SetColumn(rightPanel, 1);
+        mainGrid.Children.Add(rightPanel);
 
-        // ── ROOM LAYOUT (collapsible) ──
+        stack.Children.Add(mainGrid);
+
+        // ── ROOM LAYOUT (collapsible, below the two-column grid) ──
         stack.Children.Add(MakeSeparator());
         var layoutExpander = new Expander
         {
@@ -875,11 +1026,11 @@ public partial class RoomView : UserControl
         var dimRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 4) };
         dimRow.Children.Add(MakeSubLabel("SIZE"));
         dimRow.Children.Add(MakeDimensionInput(layout.WidthFt, v => { layout.WidthFt = v; OnLayoutChanged(); _roomCanvas?.Rebuild(); }));
-        dimRow.Children.Add(new TextBlock { Text = "×", FontSize = 14, Foreground = FindBrush("TextSecBrush"),
+        dimRow.Children.Add(new TextBlock { Text = "\u00d7", FontSize = 14, Foreground = FindBrush("TextSecBrush"),
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) });
         dimRow.Children.Add(MakeSubLabel(""));
         dimRow.Children.Add(MakeDimensionInput(layout.DepthFt, v => { layout.DepthFt = v; OnLayoutChanged(); _roomCanvas?.Rebuild(); }));
-        dimRow.Children.Add(new TextBlock { Text = "×", FontSize = 14, Foreground = FindBrush("TextSecBrush"),
+        dimRow.Children.Add(new TextBlock { Text = "\u00d7", FontSize = 14, Foreground = FindBrush("TextSecBrush"),
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) });
         dimRow.Children.Add(MakeSubLabel("HEIGHT"));
         dimRow.Children.Add(MakeDimensionInput(layout.HeightFt, v => { layout.HeightFt = v; OnLayoutChanged(); }));
@@ -894,6 +1045,41 @@ public partial class RoomView : UserControl
         // Screen Sync settings (if enabled)
         if (_screenSyncSettingsPanel != null)
             stack.Children.Add(_screenSyncSettingsPanel);
+    }
+
+    /// <summary>
+    /// Returns category index for an effect: 0=static, 1=animated, 2=reactive, 3=global span.
+    /// Returns -1 if unknown.
+    /// </summary>
+    private static int GetEffectCategory(LightEffect effect)
+    {
+        return effect switch
+        {
+            LightEffect.SingleColor or LightEffect.ColorBlend or LightEffect.PositionFill
+                or LightEffect.PositionBlend or LightEffect.PositionBlendMute or LightEffect.CycleFill
+                or LightEffect.RainbowFill or LightEffect.GradientFill => 0,
+
+            LightEffect.Blink or LightEffect.Pulse or LightEffect.Breathing or LightEffect.Fire
+                or LightEffect.Comet or LightEffect.Sparkle or LightEffect.PingPong or LightEffect.Stack
+                or LightEffect.Wave or LightEffect.Candle or LightEffect.RainbowWave or LightEffect.RainbowCycle
+                or LightEffect.Wheel or LightEffect.RainbowWheel or LightEffect.Heartbeat
+                or LightEffect.Plasma or LightEffect.Drip => 1,
+
+            LightEffect.MicStatus or LightEffect.DeviceMute or LightEffect.AudioReactive
+                or LightEffect.AudioPositionBlend or LightEffect.ProgramMute or LightEffect.AppGroupMute
+                or LightEffect.DeviceSelect => 2,
+
+            LightEffect.Scanner or LightEffect.MeteorRain or LightEffect.ColorWave or LightEffect.Segments
+                or LightEffect.TheaterChase or LightEffect.RainbowScanner or LightEffect.SparkleRain
+                or LightEffect.BreathingSync or LightEffect.FireWall or LightEffect.DualRacer
+                or LightEffect.Lightning or LightEffect.Fillup or LightEffect.Ocean or LightEffect.Collision
+                or LightEffect.DNA or LightEffect.Rainfall or LightEffect.PoliceLights or LightEffect.Aurora
+                or LightEffect.Matrix or LightEffect.Starfield or LightEffect.Equalizer
+                or LightEffect.Waterfall or LightEffect.Lava or LightEffect.VuWave
+                or LightEffect.NebulaDrift => 3,
+
+            _ => -1,
+        };
     }
 
     // ── DEVICES TAB (per-device power/brightness controls) ──
