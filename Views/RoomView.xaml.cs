@@ -74,7 +74,8 @@ public partial class RoomView : UserControl
 
     // Navigation callback (set by MainWindow to navigate to Settings)
     public Action? NavigateToSettings { get; set; }
-    public bool IsMusicReactiveActive => _corsairMusicTimer?.IsEnabled == true || _vuFillActive;
+    public bool IsMusicReactiveActive => _corsairMusicTimer?.IsEnabled == true || _vuFillActive
+        || (_roomRgb != null && _activePattern == "AudioReactive");
 
     public RoomView()
     {
@@ -440,8 +441,8 @@ public partial class RoomView : UserControl
             {
                 if (_loading) return;
                 if (on) { StopVuFill(); StartGlobalMusicSync(); }
-                else StopCorsairMusicSync();
-                RebuildRoomTabContent();
+                else { StopCorsairMusicSync(); if (_activePattern == "AudioReactive") StopRoomPattern(); }
+                QueueSave(); RebuildRoomTabContent();
             }, Color.FromRgb(0xFF, 0xB8, 0x00)));
 
         // VU Fill — segments fill up like VU meters with music
@@ -451,7 +452,7 @@ public partial class RoomView : UserControl
                 if (_loading) return;
                 if (on) { StopCorsairMusicSync(); StartVuFill(); }
                 else StopVuFill();
-                RebuildRoomTabContent();
+                QueueSave(); RebuildRoomTabContent();
             }, Color.FromRgb(0xFF, 0x40, 0x81)));
 
         // Screen Sync
@@ -1725,7 +1726,10 @@ public partial class RoomView : UserControl
                     }
                 }
 
-                _sync?.SendSegmentFrame(dev.Ip, segColors);
+                var syncRef = _sync;
+                var ipRef = dev.Ip;
+                var colorsRef = segColors;
+                _ = Task.Run(() => syncRef?.SendSegmentFrame(ipRef, colorsRef));
             }
             else
             {
@@ -3955,7 +3959,8 @@ public partial class RoomView : UserControl
     private float _musicReactiveBrightness = 1f;
     private void OnRoomFrame(byte[] linearColors)
     {
-        if (_config == null) return;
+        var config = _config; // snapshot for thread safety (called from timer thread)
+        if (config == null) return;
         _roomFrameCount++;
 
         // Average the 15 LED colors to get a single room color
@@ -4002,19 +4007,19 @@ public partial class RoomView : UserControl
         }
 
         // Sync room effect to Turn Up hardware LEDs
-        if (_config.Ambience.SyncRoomToTurnUp)
+        if (config.Ambience.SyncRoomToTurnUp)
             App.Rgb?.SetScreenSyncColors(frameForSync);
 
         // Send full frame to Govee via AmbienceSync (original colors — Govee brightness is separate)
-        if (!_roomPatternCorsairOnly && _config.Ambience.GoveeEnabled)
+        if (!_roomPatternCorsairOnly && config.Ambience.GoveeEnabled)
         {
-            _sync?.OnRoomFrame(linearColors, _config.Ambience);
+            _sync?.OnRoomFrame(linearColors, config.Ambience);
 
             // Cloud-only devices (no LAN IP) — throttle to ~1/sec (Cloud API rate limit)
             if (_cloudApi != null && (DateTime.UtcNow - _lastCloudRoomSend).TotalMilliseconds >= 1000)
             {
                 _lastCloudRoomSend = DateTime.UtcNow;
-                foreach (var dev in _config.Ambience.GoveeDevices)
+                foreach (var dev in config.Ambience.GoveeDevices)
                 {
                     if (!string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn) continue;
                     if (string.IsNullOrWhiteSpace(dev.DeviceId)) continue;
@@ -4027,10 +4032,10 @@ public partial class RoomView : UserControl
         }
 
         // Send full 15-LED frame to Corsair (skip if Turn Up hardware is already feeding Corsair)
-        if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled
-            && _config.Corsair.LightSyncMode != "vu_reactive")
+        if (_corsairSync?.IsAvailable == true && config.Corsair.Enabled
+            && config.Corsair.LightSyncMode != "vu_reactive")
         {
-            float boost = _config.Corsair.LightBrightness / 100f;
+            float boost = config.Corsair.LightBrightness / 100f;
             var boosted = new byte[45];
             for (int i = 0; i < 45; i++)
                 boosted[i] = (byte)Math.Min(frameForSync[i] * boost, 255);
@@ -4044,9 +4049,9 @@ public partial class RoomView : UserControl
         }
 
         // ── HA lights in room layout (~2/sec — HA/BLE devices are slow) ──
-        if (_ha != null && _config.HomeAssistant.Enabled && _config.RoomLayout.Devices.Count > 0)
+        if (_ha != null && config.HomeAssistant.Enabled && config.RoomLayout.Devices.Count > 0)
         {
-            foreach (var dev in _config.RoomLayout.Devices)
+            foreach (var dev in config.RoomLayout.Devices)
             {
                 if (dev.DeviceType != "ha") continue;
                 if (!_haLastSend.TryGetValue(dev.DeviceId, out var last) ||
