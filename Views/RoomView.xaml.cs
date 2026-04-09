@@ -46,6 +46,12 @@ public partial class RoomView : UserControl
     private DispatcherTimer? _goveeLanMusicTimer;
     private string? _goveeLanMusicIp;
 
+    // VU Fill mode — per-segment VU meters driven by audio
+    private bool _vuFillActive;
+    private DispatcherTimer? _vuFillTimer;
+    private readonly float[] _vuFillSmoothed = new float[5];
+    private readonly Dictionary<string, DateTime> _vuBulbLastSend = new();
+
     // Room pattern engine — headless RgbController for rendering effects
     private RgbController? _roomRgb;
     private string? _activePattern;
@@ -68,6 +74,7 @@ public partial class RoomView : UserControl
 
     // Navigation callback (set by MainWindow to navigate to Settings)
     public Action? NavigateToSettings { get; set; }
+    public bool IsMusicReactiveActive => _corsairMusicTimer?.IsEnabled == true || _vuFillActive;
 
     public RoomView()
     {
@@ -391,6 +398,7 @@ public partial class RoomView : UserControl
     private void RebuildRoomTabContent()
     {
         if (_roomTabContent == null || _config == null) return;
+        _loading = true;
         _roomTabContent.Children.Clear();
         _toggleRowContainer?.Children.Clear();
 
@@ -407,6 +415,7 @@ public partial class RoomView : UserControl
             case 0: BuildRoomEffectTab(_roomTabContent); break;
             case 1: BuildDevicesTab(_roomTabContent); break;
         }
+        _loading = false;
     }
 
     private void BuildTabToggleRow(WrapPanel row, int tabIndex)
@@ -425,13 +434,25 @@ public partial class RoomView : UserControl
             }, Color.FromRgb(0x69, 0xF0, 0xAE)));
 
         // Music Reactive
-        bool globalMusic = _corsairMusicTimer?.IsEnabled == true;
+        bool globalMusic = _corsairMusicTimer?.IsEnabled == true && !_vuFillActive;
         row.Children.Add(BuildToggleTile("♪", "MUSIC REACTIVE", "Audio-driven brightness",
             globalMusic, on =>
             {
                 if (_loading) return;
-                if (on) StartGlobalMusicSync(); else StopCorsairMusicSync();
+                if (on) { StopVuFill(); StartGlobalMusicSync(); }
+                else StopCorsairMusicSync();
+                RebuildRoomTabContent();
             }, Color.FromRgb(0xFF, 0xB8, 0x00)));
+
+        // VU Fill — segments fill up like VU meters with music
+        row.Children.Add(BuildToggleTile("≡", "VU FILL", "Segments fill with music energy",
+            _vuFillActive, on =>
+            {
+                if (_loading) return;
+                if (on) { StopCorsairMusicSync(); StartVuFill(); }
+                else StopVuFill();
+                RebuildRoomTabContent();
+            }, Color.FromRgb(0xFF, 0x40, 0x81)));
 
         // Screen Sync
         bool syncRunning = _config.Ambience.ScreenSync.Enabled;
@@ -972,6 +993,43 @@ public partial class RoomView : UserControl
                 Margin = new Thickness(0, 8, 0, 0),
             });
         }
+
+        // ── Turn Up hardware ──
+        stack.Children.Add(MakeSeparator());
+        var (tuBar, tuLabel) = MakeSectionHeader("TURN UP");
+        stack.Children.Add(WrapHeader(tuBar, tuLabel));
+
+        var turnUpCheck = new CheckBox
+        {
+            Content = "Sync Screen to Turn Up LEDs",
+            IsChecked = _config.Ambience.ScreenSync.SyncToTurnUp,
+            Foreground = FindBrush("TextPrimaryBrush"), FontSize = 12,
+            Margin = new Thickness(0, 4, 0, 4),
+            ToolTip = "Send screen colors to Turn Up hardware LEDs when Screen Sync is active",
+        };
+        turnUpCheck.Checked += (_, _) => { if (!_loading && _config != null) { _config.Ambience.ScreenSync.SyncToTurnUp = true; QueueSave(); } };
+        turnUpCheck.Unchecked += (_, _) => { if (!_loading && _config != null) { _config.Ambience.ScreenSync.SyncToTurnUp = false; QueueSave(); } };
+        stack.Children.Add(turnUpCheck);
+
+        var mixerCheck = new CheckBox
+        {
+            Content = "Turn Up Mixer",
+            IsChecked = _config.Ambience.SyncRoomToTurnUp,
+            Foreground = FindBrush("TextPrimaryBrush"), FontSize = 12,
+            Margin = new Thickness(0, 4, 0, 4),
+            ToolTip = "Sync room effect and VU Fill colors to Turn Up hardware LEDs",
+        };
+        mixerCheck.Checked += (_, _) => { if (!_loading && _config != null) { _config.Ambience.SyncRoomToTurnUp = true; QueueSave(); } };
+        mixerCheck.Unchecked += (_, _) =>
+        {
+            if (!_loading && _config != null)
+            {
+                _config.Ambience.SyncRoomToTurnUp = false;
+                App.Rgb?.SetScreenSyncColors(null);
+                QueueSave();
+            }
+        };
+        stack.Children.Add(mixerCheck);
     }
 
     // ── OLD LAYOUT TAB (kept for reference, called by BuildRoomEffectTab internals) ──
@@ -1537,7 +1595,6 @@ public partial class RoomView : UserControl
     private void StartGlobalMusicSync()
     {
         StopCorsairMusicSync(); // stop any existing
-        // Keep room pattern running — music modulates its brightness in OnRoomFrame
 
         App.AudioAnalyzer?.Start();
 
@@ -1547,6 +1604,176 @@ public partial class RoomView : UserControl
             _globalMusicBands = App.AudioAnalyzer?.SmoothedBands;
         };
         _corsairMusicTimer.Start();
+
+        // If no room pattern is running, start an AudioReactive pattern
+        if (_roomRgb == null && (_activePattern == null || _activePattern == "__sync__"))
+        {
+            _activePattern = "AudioReactive";
+            _roomPatternCorsairOnly = false;
+            ResumeAllGoveeSync();
+            _roomRgb = new RgbController();
+            _roomRgb.SetBrightness(100);
+            _roomRgb.SetAudioBandsProvider(() => App.AudioAnalyzer?.SmoothedBands ?? Array.Empty<float>());
+            _roomRgb.UpdateCustomPalettes(_config?.CustomPalettes);
+            for (int k = 0; k < 5; k++)
+                _roomRgb.SetKnobPosition(k, 1.0f);
+            _roomRgb.UpdateGlobalConfig(new GlobalLightConfig
+            {
+                Enabled = true, Effect = LightEffect.AudioReactive,
+                R = _roomColor1.R, G = _roomColor1.G, B = _roomColor1.B,
+                R2 = _roomColor2.R, G2 = _roomColor2.G, B2 = _roomColor2.B,
+                EffectSpeed = 50, ReactiveMode = ReactiveMode.SpectrumBands,
+                PaletteName = _roomPalette.Name,
+            });
+            _roomRgb.OnFrameReady += OnRoomFrame;
+            _roomRgb.SetOutput((_, _, _) => { }, () => true);
+        }
+    }
+
+    // ── VU FILL MODE ─────────────────────────────────────────────────
+
+    private void StartVuFill()
+    {
+        StopVuFill();
+        _vuFillActive = true;
+        App.AudioAnalyzer?.Start();
+        ResumeAllGoveeSync();
+
+        _vuFillTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) }; // ~30fps
+        _vuFillTimer.Tick += (_, _) => VuFillTick();
+        _vuFillTimer.Start();
+    }
+
+    private void StopVuFill()
+    {
+        if (!_vuFillActive) return;
+        _vuFillActive = false;
+        _vuFillTimer?.Stop();
+        _vuFillTimer = null;
+        for (int i = 0; i < 5; i++) _vuFillSmoothed[i] = 0;
+        App.Rgb?.SetScreenSyncColors(null);
+    }
+
+    private void VuFillTick()
+    {
+        if (_config == null || !_vuFillActive) return;
+
+        var bands = App.AudioAnalyzer?.SmoothedBands;
+        if (bands == null || bands.Length < 5) return;
+
+        // Smooth each band: fast attack, slow decay
+        for (int b = 0; b < 5; b++)
+        {
+            float raw = Math.Clamp(bands[b] * 2f, 0f, 1f);
+            if (raw > _vuFillSmoothed[b])
+                _vuFillSmoothed[b] = raw;
+            else
+                _vuFillSmoothed[b] += (raw - _vuFillSmoothed[b]) * 0.2f;
+        }
+
+        float overall = 0;
+        for (int b = 0; b < 5; b++) overall += _vuFillSmoothed[b];
+        overall = Math.Clamp(overall / 5f, 0f, 1f);
+
+        var c1 = _roomColor1;
+        var c2 = _roomColor2;
+
+        foreach (var dev in _config.Ambience.GoveeDevices)
+        {
+            if (string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn) continue;
+
+            int segCount = AmbienceSync.GetSegmentCount(dev);
+            bool useSegs = segCount > 0 && dev.UseSegmentProtocol;
+
+            if (useSegs)
+            {
+                bool isPaired = AmbienceSync.IsPairedDevice(dev.Sku);
+                var segColors = new (byte R, byte G, byte B)[segCount];
+
+                if (isPaired)
+                {
+                    int half = segCount / 2;
+                    float level = overall;
+
+                    var vuColors = new (byte R, byte G, byte B)[half];
+                    for (int s = 0; s < half; s++)
+                    {
+                        float fillPos = (float)s / Math.Max(half - 1, 1);
+                        float brightness = level > fillPos ? 1f : Math.Max(0, 1f - (fillPos - level) * 5f);
+                        vuColors[s] = BlendVuColor(c1, c2, fillPos, brightness);
+                    }
+
+                    // Left panel: straight
+                    for (int s = 0; s < half; s++)
+                        segColors[s] = vuColors[s];
+
+                    // Right panel: copy left (mirrored)
+                    int rightCount = segCount - half;
+                    for (int s = 0; s < rightCount && s < half; s++)
+                        segColors[half + s] = vuColors[s];
+                }
+                else
+                {
+                    for (int s = 0; s < segCount; s++)
+                    {
+                        float fillPos = (float)s / Math.Max(segCount - 1, 1);
+                        float brightness = overall > fillPos ? 1f : Math.Max(0, 1f - (fillPos - overall) * 5f);
+                        segColors[s] = BlendVuColor(c1, c2, fillPos, brightness);
+                    }
+                }
+
+                _sync?.SendSegmentFrame(dev.Ip, segColors);
+            }
+            else
+            {
+                // Single-color device: brightness pulse
+                string key = "vu_" + dev.Ip;
+                if (!_vuBulbLastSend.TryGetValue(key, out var last) ||
+                    (DateTime.UtcNow - last).TotalMilliseconds >= 100)
+                {
+                    _vuBulbLastSend[key] = DateTime.UtcNow;
+                    int brightPct = (int)(10 + overall * 90);
+                    _ = AmbienceSync.SendBrightnessAsync(dev.Ip, brightPct);
+                }
+            }
+        }
+
+        // Build 15-LED frame for Corsair and Turn Up
+        var frame = new byte[45];
+        for (int k = 0; k < 5; k++)
+        {
+            float level = _vuFillSmoothed[k];
+            for (int led = 0; led < 3; led++)
+            {
+                float fillPos = led / 2f;
+                float brightness = level > fillPos ? 1f : Math.Max(0, 1f - (fillPos - level) * 5f);
+                var c = BlendVuColor(c1, c2, fillPos, brightness);
+                int offset = k * 9 + led * 3;
+                frame[offset] = c.R;
+                frame[offset + 1] = c.G;
+                frame[offset + 2] = c.B;
+            }
+        }
+
+        if (_config.Ambience.SyncRoomToTurnUp)
+            App.Rgb?.SetScreenSyncColors(frame);
+
+        if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
+        {
+            float boost = _config.Corsair.LightBrightness / 100f;
+            var boosted = new byte[45];
+            for (int i = 0; i < 45; i++)
+                boosted[i] = (byte)Math.Min(frame[i] * boost, 255);
+            _corsairSync.SyncColors(boosted);
+        }
+    }
+
+    private static (byte R, byte G, byte B) BlendVuColor(Color c1, Color c2, float t, float brightness)
+    {
+        byte r = (byte)Math.Clamp((c1.R + (c2.R - c1.R) * t) * brightness, 0, 255);
+        byte g = (byte)Math.Clamp((c1.G + (c2.G - c1.G) * t) * brightness, 0, 255);
+        byte b = (byte)Math.Clamp((c1.B + (c2.B - c1.B) * t) * brightness, 0, 255);
+        return (r, g, b);
     }
 
     // ── GOVEE TAB ───────────────────────────────────────────────────
@@ -3665,8 +3892,10 @@ public partial class RoomView : UserControl
                 }
 
         // Create a headless RgbController to render effects
+        _roomFrameCount = 0;
         _roomRgb = new RgbController();
         _roomRgb.SetBrightness(100);
+        _roomRgb.SetAudioBandsProvider(() => App.AudioAnalyzer?.SmoothedBands ?? Array.Empty<float>());
         _roomRgb.UpdateCustomPalettes(_config?.CustomPalettes);
 
         // Set knob positions to full so effects render at full brightness
@@ -3719,9 +3948,11 @@ public partial class RoomView : UserControl
         }
         _activePattern = null;
         _roomPatternCorsairOnly = false;
+        App.Rgb?.SetScreenSyncColors(null); // restore Lights tab effect on Turn Up
     }
 
     private int _roomFrameCount;
+    private float _musicReactiveBrightness = 1f;
     private void OnRoomFrame(byte[] linearColors)
     {
         if (_config == null) return;
@@ -3739,18 +3970,42 @@ public partial class RoomView : UserControl
         byte g = (byte)(totalG / 15);
         byte b = (byte)(totalB / 15);
 
-        // Music reactive: modulate brightness from audio energy
+        // Music reactive: modulate brightness with fast attack / slow decay
         var musicBands = _globalMusicBands;
+        float musicBrightness = 1f;
         if (_corsairMusicTimer?.IsEnabled == true && musicBands != null && musicBands.Length >= 5)
         {
-            float energy = Math.Min((musicBands[0] + musicBands[1] + musicBands[2] + musicBands[3] + musicBands[4]) * 2.5f, 1f);
-            float brightness = 0.15f + energy * 0.85f; // keep min 15% so effect remains visible
-            r = (byte)(r * brightness);
-            g = (byte)(g * brightness);
-            b = (byte)(b * brightness);
+            float bass = (musicBands[0] + musicBands[1]) * 3f;
+            float mids = musicBands[2] * 1.5f;
+            float treble = (musicBands[3] + musicBands[4]) * 0.5f;
+            float energy = Math.Min((bass + mids + treble) * 1.5f, 1f);
+
+            float target = 0.25f + energy * 0.75f;
+            if (target > _musicReactiveBrightness)
+                _musicReactiveBrightness = target;
+            else
+                _musicReactiveBrightness += (target - _musicReactiveBrightness) * 0.15f;
+
+            musicBrightness = _musicReactiveBrightness;
+            r = (byte)Math.Min(r * musicBrightness, 255);
+            g = (byte)Math.Min(g * musicBrightness, 255);
+            b = (byte)Math.Min(b * musicBrightness, 255);
         }
 
-        // Send full frame to Govee via AmbienceSync (rate limited, segment-aware)
+        // Build music-modulated frame for Corsair/Turn Up/LG (Govee gets original)
+        byte[] frameForSync = linearColors;
+        if (musicBrightness < 0.99f)
+        {
+            frameForSync = new byte[45];
+            for (int i = 0; i < 45; i++)
+                frameForSync[i] = (byte)Math.Min(linearColors[i] * musicBrightness, 255);
+        }
+
+        // Sync room effect to Turn Up hardware LEDs
+        if (_config.Ambience.SyncRoomToTurnUp)
+            App.Rgb?.SetScreenSyncColors(frameForSync);
+
+        // Send full frame to Govee via AmbienceSync (original colors — Govee brightness is separate)
         if (!_roomPatternCorsairOnly && _config.Ambience.GoveeEnabled)
         {
             _sync?.OnRoomFrame(linearColors, _config.Ambience);
@@ -3771,26 +4026,21 @@ public partial class RoomView : UserControl
             }
         }
 
-        // Send full 15-LED frame to Corsair (maps across all device LEDs)
-        if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
+        // Send full 15-LED frame to Corsair (skip if Turn Up hardware is already feeding Corsair)
+        if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled
+            && _config.Corsair.LightSyncMode != "vu_reactive")
         {
             float boost = _config.Corsair.LightBrightness / 100f;
-            // Apply music brightness if active
-            if (musicBands != null && _corsairMusicTimer?.IsEnabled == true)
-            {
-                float energy = Math.Min((musicBands[0] + musicBands[1] + musicBands[2] + musicBands[3] + musicBands[4]) * 2.5f, 1f);
-                boost *= 0.15f + energy * 0.85f;
-            }
             var boosted = new byte[45];
             for (int i = 0; i < 45; i++)
-                boosted[i] = (byte)Math.Min(linearColors[i] * boost, 255);
+                boosted[i] = (byte)Math.Min(frameForSync[i] * boost, 255);
             _corsairSync.SyncColors(boosted);
         }
 
         // ── LG UltraGear monitor LEDs (48 LEDs, maps from 15-LED buffer) ──
         if (_lgMonitor?.IsAvailable == true)
         {
-            _lgMonitor.SyncFromRoomEffect(linearColors);
+            _lgMonitor.SyncFromRoomEffect(frameForSync);
         }
 
         // ── HA lights in room layout (~2/sec — HA/BLE devices are slow) ──
@@ -3807,7 +4057,7 @@ public partial class RoomView : UserControl
                     int hr = r, hg = g, hb = b;
                     if (_spatialMapper?.GetDevicePosition(dev.DeviceId) != null)
                     {
-                        var sampled = _spatialMapper.SampleForDevice(dev.DeviceId, linearColors, 1);
+                        var sampled = _spatialMapper.SampleForDevice(dev.DeviceId, frameForSync, 1);
                         if (sampled.Length > 0) { hr = sampled[0].R; hg = sampled[0].G; hb = sampled[0].B; }
                     }
                     // Separate brightness from color for proper dimming
