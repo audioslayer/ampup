@@ -482,7 +482,7 @@ public partial class RoomView : UserControl
                 }
                 _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
                 if (_screenSyncSettingsPanel != null)
-                    _screenSyncSettingsPanel.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+                    _screenSyncSettingsPanel.Visibility = (on || _config.Ambience.GameModeEnabled) ? Visibility.Visible : Visibility.Collapsed;
                 QueueSave();
             }, Color.FromRgb(0x44, 0x8A, 0xFF),
             syncRunning ? "ACTIVE" : "STANDBY",
@@ -498,13 +498,16 @@ public partial class RoomView : UserControl
             {
                 if (_loading || _config == null) return;
                 _config.Ambience.GameModeEnabled = on;
+                if (_screenSyncSettingsPanel != null)
+                    _screenSyncSettingsPanel.Visibility = (on || _config.Ambience.ScreenSync.Enabled) ? Visibility.Visible : Visibility.Collapsed;
                 QueueSave();
             }, Color.FromRgb(0xFF, 0x6B, 0x35)));
 
         // Screen Sync settings panel
         if (_screenSyncSettingsPanel != null)
             _roomTabContent?.Children.Remove(_screenSyncSettingsPanel);
-        var ssPanel = new StackPanel { Margin = new Thickness(0, 8, 0, 0), Visibility = syncRunning ? Visibility.Visible : Visibility.Collapsed };
+        bool showSyncSettings = syncRunning || _config.Ambience.GameModeEnabled;
+        var ssPanel = new StackPanel { Margin = new Thickness(0, 8, 0, 0), Visibility = showSyncSettings ? Visibility.Visible : Visibility.Collapsed };
         BuildScreenSyncSettings(ssPanel, statusUpdater!);
         _screenSyncSettingsPanel = ssPanel;
     }
