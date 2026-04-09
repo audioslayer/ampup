@@ -245,7 +245,7 @@ public partial class App : Application
         _autoSwitchTimer = new System.Threading.Timer(_ => _autoSwitcher?.Poll(), null, 2000, 1500);
 
         // Game Mode — auto-enable screen sync when fullscreen game detected
-        _gameModeTimer = new System.Threading.Timer(_ => PollGameMode(), null, 3000, 2000);
+        _gameModeTimer = new System.Threading.Timer(_ => PollGameMode(), null, 2000, 1000);
 
         // Start serial reader
         _serial = new SerialReader(_config.Serial.Port, _config.Serial.Baud);
@@ -1312,9 +1312,9 @@ public partial class App : Application
     {
         if (!_config.Ambience.GameModeEnabled) return;
 
-        // Debounce: don't toggle more than once every 10 seconds
+        // Debounce: don't toggle more than once every 3 seconds
         long nowMs = Environment.TickCount64;
-        if (nowMs - _gameModeLastChangeMs < 10_000) return;
+        if (nowMs - _gameModeLastChangeMs < 3_000) return;
 
         bool isFullscreen = false;
         try
