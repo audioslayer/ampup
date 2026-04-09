@@ -471,7 +471,9 @@ public partial class RoomView : UserControl
                 _config.Ambience.ScreenSync.Enabled = on;
                 if (on)
                 {
-                    // Stop room effect so it doesn't fight with screen sync
+                    // Stop everything so screen sync has exclusive control
+                    StopCorsairMusicSync();
+                    StopVuFill();
                     ResumeAllGoveeSync();
                     StopRoomPattern();
                     _config.Ambience.LinkToLights = false;
@@ -492,6 +494,7 @@ public partial class RoomView : UserControl
                 if (_screenSyncSettingsPanel != null)
                     _screenSyncSettingsPanel.Visibility = (on || _config.Ambience.GameModeEnabled) ? Visibility.Visible : Visibility.Collapsed;
                 QueueSave();
+                RebuildRoomTabContent(); // update Music Reactive / VU Fill toggle states
             }, Color.FromRgb(0x44, 0x8A, 0xFF),
             syncRunning ? "ACTIVE" : "STANDBY",
             out var statusUpdater);
@@ -4050,13 +4053,15 @@ public partial class RoomView : UserControl
     {
         Dispatcher.BeginInvoke(() =>
         {
-            // Save the current pattern before stopping (StopRoomPattern clears _activePattern)
-            // Keep existing saved pattern if _activePattern is already null (repeated calls)
+            // Stop all room modes — screen sync needs exclusive control
+            StopCorsairMusicSync();
+            StopVuFill();
             if (_activePattern != null && _activePattern != "__sync__")
                 _savedPatternForGameMode = _activePattern;
             if (_roomRgb != null)
                 StopRoomPattern();
             if (_config != null) _config.Ambience.LinkToLights = false;
+            RebuildRoomTabContent(); // update toggle states in UI
         });
     }
 
