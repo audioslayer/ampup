@@ -4145,19 +4145,15 @@ public partial class RoomView : UserControl
         float musicBrightness = 1f;
         if (_corsairMusicTimer?.IsEnabled == true && musicBands != null && musicBands.Length >= 5)
         {
-            float bass = (musicBands[0] + musicBands[1]) * 3f;
-            float mids = musicBands[2] * 1.5f;
-            float treble = (musicBands[3] + musicBands[4]) * 0.5f;
-            float energy = Math.Min((bass + mids + treble) * 1.5f, 1f);
+            // Use bass energy directly — bands are already 0-1 from AudioAnalyzer smoothing
+            // Bass (bands 0+1) drives the pulse, with fast attack / slow decay
+            float energy = Math.Clamp((musicBands[0] + musicBands[1]) * 0.6f, 0f, 1f);
 
-            if (_roomFrameCount % 100 == 1)
-                Logger.Log($"MusicReactive: bands=[{musicBands[0]:F3},{musicBands[1]:F3},{musicBands[2]:F3},{musicBands[3]:F3},{musicBands[4]:F3}] energy={energy:F2} brightness={_musicReactiveBrightness:F2}");
-
-            float target = 0.25f + energy * 0.75f;
+            float target = 0.15f + energy * 0.85f; // 15% floor, 100% on peak bass
             if (target > _musicReactiveBrightness)
-                _musicReactiveBrightness = target;
+                _musicReactiveBrightness = _musicReactiveBrightness + (target - _musicReactiveBrightness) * 0.7f; // fast but not instant
             else
-                _musicReactiveBrightness += (target - _musicReactiveBrightness) * 0.15f;
+                _musicReactiveBrightness += (target - _musicReactiveBrightness) * 0.08f; // slow decay
 
             musicBrightness = _musicReactiveBrightness;
             r = (byte)Math.Min(r * musicBrightness, 255);
