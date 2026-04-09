@@ -464,9 +464,10 @@ public partial class RoomView : UserControl
             var modes = new[] {
                 (VuFillMode.Classic,  "Classic",  "Standard bottom→top fill"),
                 (VuFillMode.Split,    "Split",    "Left=bass, Right=treble"),
-                (VuFillMode.Rainfall, "Rainfall", "Peaks fall from top"),
+                (VuFillMode.Rainfall, "Rainfall", "Drips fall from top on beats"),
                 (VuFillMode.Pulse,    "Pulse",    "All segments pulse with bass"),
                 (VuFillMode.Spectrum, "Spectrum", "Each segment = frequency band"),
+                (VuFillMode.Drip,     "Drip",     "Liquid drips fall and splash at bottom"),
             };
             foreach (var (mode, label, tip) in modes)
             {
@@ -1769,22 +1770,26 @@ public partial class RoomView : UserControl
                         }
                         case VuFillMode.Rainfall:
                         {
-                            // Peaks fall from top, decay downward
-                            // Push new peak at top based on energy
-                            if (overall > 0.3f)
-                                for (int s = 0; s < half; s++)
-                                    _vuFillPeaks[s] = Math.Max(_vuFillPeaks[s], overall * (1f - (float)s / half * 0.3f));
-                            // Decay all peaks downward
-                            for (int s = 0; s < half; s++)
-                                _vuFillPeaks[s] = Math.Max(0, _vuFillPeaks[s] - 0.04f);
-                            // Render — reversed (top=bright, bottom=dim)
+                            // Drips fall from top to bottom — beats spawn new drips at top
+                            // Shift all peaks down by one position every few ticks
+                            if (_vuFillTick % 3 == 0) // shift speed
+                            {
+                                for (int s = 0; s < half - 1; s++)
+                                    _vuFillPeaks[s] = _vuFillPeaks[s + 1] * 0.85f; // fade as it falls
+                                _vuFillPeaks[half - 1] = 0; // top clears
+                            }
+                            // Spawn new drip at top on beat
+                            float bass = Math.Clamp((_vuFillSmoothed[0] + _vuFillSmoothed[1]) * 1.5f, 0f, 1f);
+                            if (bass > 0.3f)
+                                _vuFillPeaks[half - 1] = Math.Max(_vuFillPeaks[half - 1], bass);
+                            // Render
                             for (int s = 0; s < half; s++)
                             {
-                                float t = (float)(half - 1 - s) / Math.Max(half - 1, 1);
-                                segColors[s] = BlendVuColor(c1, c2, t, _vuFillPeaks[half - 1 - s]);
+                                float t = (float)s / Math.Max(half - 1, 1);
+                                segColors[s] = BlendVuColor(c1, c2, t, _vuFillPeaks[s]);
                             }
                             for (int s = 0; s < segCount - half; s++)
-                                segColors[half + s] = segColors[Math.Min(s, half - 1)]; // mirror
+                                segColors[half + s] = segColors[Math.Min(s, half - 1)];
                             break;
                         }
                         case VuFillMode.Pulse:
@@ -1809,6 +1814,48 @@ public partial class RoomView : UserControl
                             }
                             for (int s = 0; s < segCount - half; s++)
                                 segColors[half + s] = segColors[Math.Min(s, half - 1)]; // mirror
+                            break;
+                        }
+                        case VuFillMode.Drip:
+                        {
+                            // Smooth liquid drip — a bright dot falls from top to bottom, splashes
+                            // Multiple drips can overlap. Uses _vuFillPeaks as drip positions (0=bottom, half-1=top)
+                            // Shift drips down smoothly
+                            for (int s = 0; s < half; s++)
+                            {
+                                if (_vuFillPeaks[s] > 0)
+                                    _vuFillPeaks[s] = Math.Max(0, _vuFillPeaks[s] - 0.08f); // fall speed
+                            }
+
+                            // Spawn drip at top on bass hit
+                            float bassDrip = Math.Clamp((_vuFillSmoothed[0] + _vuFillSmoothed[1]) * 1.5f, 0f, 1f);
+                            if (bassDrip > 0.4f && _vuFillPeaks[half - 1] < 0.1f)
+                                _vuFillPeaks[half - 1] = bassDrip;
+
+                            // Gravity: accumulate at bottom — lower segments hold brightness longer
+                            // Bottom splash: if any drip reached bottom, flash it
+                            float bottomSplash = 0;
+                            for (int s = 1; s < half; s++)
+                            {
+                                if (_vuFillPeaks[s] > 0.1f && _vuFillPeaks[s - 1] < _vuFillPeaks[s] * 0.3f)
+                                {
+                                    _vuFillPeaks[s - 1] = Math.Max(_vuFillPeaks[s - 1], _vuFillPeaks[s] * 0.7f);
+                                }
+                            }
+                            if (_vuFillPeaks[0] > 0.5f) bottomSplash = _vuFillPeaks[0];
+
+                            // Render
+                            for (int s = 0; s < half; s++)
+                            {
+                                float br = _vuFillPeaks[s];
+                                // Bottom splash glow
+                                if (s < 2 && bottomSplash > 0.3f)
+                                    br = Math.Max(br, bottomSplash * (1f - s * 0.4f));
+                                float t = (float)s / Math.Max(half - 1, 1);
+                                segColors[s] = BlendVuColor(c1, c2, t, Math.Clamp(br, 0, 1));
+                            }
+                            for (int s = 0; s < segCount - half; s++)
+                                segColors[half + s] = segColors[Math.Min(s, half - 1)];
                             break;
                         }
                         default: // Classic

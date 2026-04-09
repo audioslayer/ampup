@@ -229,9 +229,10 @@ public enum VuFillMode
 {
     Classic,      // standard bottom→top fill
     Split,        // left panel=bass, right panel=treble (independent levels)
-    Rainfall,     // peaks fall from top, decay downward
+    Rainfall,     // drips fall from top on beats
     Pulse,        // all segments pulse together with bass energy
     Spectrum,     // each segment = a frequency band (like equalizer)
+    Drip,         // liquid drips spawn at top, fall, splash at bottom
 }
 
 public enum ProfileTransition
