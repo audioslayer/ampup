@@ -449,6 +449,34 @@ public partial class RoomView : UserControl
                 QueueSave(); RebuildRoomTabContent();
             }, Color.FromRgb(0xFF, 0xB8, 0x00)));
 
+        // Music sensitivity slider (only when Music Reactive is on)
+        if (globalMusic)
+        {
+            var sensRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 2, 0, 2), VerticalAlignment = VerticalAlignment.Center };
+            sensRow.Children.Add(new TextBlock { Text = "SENSITIVITY", FontSize = 9, FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
+            var sensSlider = new StyledSlider
+            {
+                Minimum = 1, Maximum = 100, Value = _config.Ambience.MusicSensitivity,
+                Width = 100, Height = 28, AccentColor = Color.FromRgb(0xFF, 0xB8, 0x00),
+                ShowLabel = false,
+            };
+            var sensLabel = new TextBlock { Text = $"{_config.Ambience.MusicSensitivity}%", FontSize = 10,
+                Foreground = FindBrush("TextSecBrush"), VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(4, 0, 0, 0) };
+            sensSlider.ValueChanged += (_, _) =>
+            {
+                if (_loading || _config == null) return;
+                _config.Ambience.MusicSensitivity = (int)sensSlider.Value;
+                sensLabel.Text = $"{(int)sensSlider.Value}%";
+                QueueSave();
+            };
+            sensRow.Children.Add(sensSlider);
+            sensRow.Children.Add(sensLabel);
+            row.Children.Add(sensRow);
+        }
+
         // VU Fill — segments fill up like VU meters with music
         row.Children.Add(BuildToggleTile("≡", "VU FILL", "Segments fill with music energy",
             _vuFillActive, on =>
@@ -4145,9 +4173,9 @@ public partial class RoomView : UserControl
         float musicBrightness = 1f;
         if (_corsairMusicTimer?.IsEnabled == true && musicBands != null && musicBands.Length >= 5)
         {
-            // Use bass energy directly — bands are already 0-1 from AudioAnalyzer smoothing
-            // Bass (bands 0+1) drives the pulse, with fast attack / slow decay
-            float energy = Math.Clamp((musicBands[0] + musicBands[1]) * 0.6f, 0f, 1f);
+            // Use bass energy — sensitivity slider controls gain (1=subtle, 100=extreme)
+            float gain = (config.Ambience.MusicSensitivity / 50f); // 0.02 at 1%, 1.0 at 50%, 2.0 at 100%
+            float energy = Math.Clamp((musicBands[0] + musicBands[1]) * gain, 0f, 1f);
 
             float target = 0.15f + energy * 0.85f; // 15% floor, 100% on peak bass
             if (target > _musicReactiveBrightness)
