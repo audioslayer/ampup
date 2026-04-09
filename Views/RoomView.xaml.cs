@@ -4185,9 +4185,10 @@ public partial class RoomView : UserControl
         float musicBrightness = 1f;
         if (_corsairMusicTimer?.IsEnabled == true && musicBands != null && musicBands.Length >= 5)
         {
-            // Use bass energy — sensitivity slider controls gain
-            float gain = config.Ambience.MusicSensitivity / 50f; // 0.02→2.0
-            float energy = Math.Clamp((musicBands[0] + musicBands[1]) * gain, 0f, 1f);
+            // Bass + low-mid drives the pulse (bands 0-2, ≤2kHz). Treble ignored —
+            // industry standard: bass/mids control intensity, treble controls sparkle/detail.
+            float gain = config.Ambience.MusicSensitivity / 50f;
+            float energy = Math.Clamp((musicBands[0] * 0.5f + musicBands[1] * 0.3f + musicBands[2] * 0.2f) * gain, 0f, 1f);
 
             // Square the energy for more dramatic contrast (quiet=very dim, loud=bright)
             energy = energy * energy;
