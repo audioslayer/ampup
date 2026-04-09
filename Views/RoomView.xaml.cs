@@ -3882,14 +3882,11 @@ public partial class RoomView : UserControl
             _config.Corsair.LightSyncMode = "static";
         }
 
-        // Resume any paused sync and set all devices to max brightness
+        // Resume any paused sync (don't send brightness — it kicks segment devices out of razer mode)
         if (!corsairOnly && _config?.Ambience.GoveeEnabled == true)
             foreach (var dev in _config.Ambience.GoveeDevices)
                 if (!string.IsNullOrWhiteSpace(dev.Ip))
-                {
                     AmbienceSync.ResumeSync(dev.Ip);
-                    _ = AmbienceSync.SendBrightnessAsync(dev.Ip, 100);
-                }
 
         // Create a headless RgbController to render effects
         _roomFrameCount = 0;
