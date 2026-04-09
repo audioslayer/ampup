@@ -4042,8 +4042,10 @@ public partial class RoomView : UserControl
                     dev.Device, dev.Sku, GoveeCloudApi.SetColor(r, g, b)));
     }
 
-    // Saved pattern for game mode restore
+    // Saved state for game mode restore
     private string? _savedPatternForGameMode;
+    private bool _savedMusicReactive;
+    private bool _savedVuFill;
 
     /// <summary>
     /// Stop room effect for screen sync (game mode or manual toggle).
@@ -4053,15 +4055,19 @@ public partial class RoomView : UserControl
     {
         Dispatcher.BeginInvoke(() =>
         {
+            // Save current state before stopping
+            _savedMusicReactive = _corsairMusicTimer?.IsEnabled == true;
+            _savedVuFill = _vuFillActive;
+            if (_activePattern != null && _activePattern != "__sync__")
+                _savedPatternForGameMode = _activePattern;
+
             // Stop all room modes — screen sync needs exclusive control
             StopCorsairMusicSync();
             StopVuFill();
-            if (_activePattern != null && _activePattern != "__sync__")
-                _savedPatternForGameMode = _activePattern;
             if (_roomRgb != null)
                 StopRoomPattern();
             if (_config != null) _config.Ambience.LinkToLights = false;
-            RebuildRoomTabContent(); // update toggle states in UI
+            RebuildRoomTabContent();
         });
     }
 
@@ -4072,12 +4078,18 @@ public partial class RoomView : UserControl
     {
         Dispatcher.BeginInvoke(() =>
         {
+            // Restore room effect
             var pattern = _savedPatternForGameMode;
             if (!string.IsNullOrEmpty(pattern))
-            {
                 StartRoomPattern(pattern);
-                // Keep _savedPatternForGameMode so repeated fullscreen cycles work
-            }
+
+            // Restore Music Reactive / VU Fill
+            if (_savedVuFill)
+                StartVuFill();
+            else if (_savedMusicReactive)
+                StartGlobalMusicSync();
+
+            RebuildRoomTabContent();
         });
     }
 
