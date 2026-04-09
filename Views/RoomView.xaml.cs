@@ -3653,19 +3653,16 @@ public partial class RoomView : UserControl
         {
             _config.Ambience.LinkToLights = false;
             _config.Corsair.LightSyncMode = "static";
-            // Stop Screen Sync — it fights room effects for segment control
-            if (_config.Ambience.ScreenSync.Enabled)
-            {
-                _config.Ambience.ScreenSync.Enabled = false;
-                _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-            }
         }
 
-        // Resume any paused sync (don't send brightness — it kicks segment devices out of razer mode)
+        // Resume any paused sync and set all devices to max brightness
         if (!corsairOnly && _config?.Ambience.GoveeEnabled == true)
             foreach (var dev in _config.Ambience.GoveeDevices)
                 if (!string.IsNullOrWhiteSpace(dev.Ip))
+                {
                     AmbienceSync.ResumeSync(dev.Ip);
+                    _ = AmbienceSync.SendBrightnessAsync(dev.Ip, 100);
+                }
 
         // Create a headless RgbController to render effects
         _roomRgb = new RgbController();
@@ -3756,8 +3753,6 @@ public partial class RoomView : UserControl
         // Send full frame to Govee via AmbienceSync (rate limited, segment-aware)
         if (!_roomPatternCorsairOnly && _config.Ambience.GoveeEnabled)
         {
-            if (_roomFrameCount <= 3)
-                Logger.Log($"OnRoomFrame #{_roomFrameCount}: sync={_sync != null}, corsairOnly={_roomPatternCorsairOnly}, govee={_config.Ambience.GoveeEnabled}, devices={_config.Ambience.GoveeDevices.Count}");
             _sync?.OnRoomFrame(linearColors, _config.Ambience);
 
             // Cloud-only devices (no LAN IP) — throttle to ~1/sec (Cloud API rate limit)
