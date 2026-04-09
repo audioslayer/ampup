@@ -56,6 +56,12 @@ public class AudioMixer : IDisposable
                     if (pid == 0) continue;
                     var proc = System.Diagnostics.Process.GetProcessById(pid);
                     var name = proc.ProcessName.ToLowerInvariant();
+                    // Use compound key (name:pid) to store ALL sessions per process
+                    // (apps like Discord create multiple: voice, screenshare, notifications)
+                    var sessionKey = $"{name}:{pid}";
+                    if (!newSessions.ContainsKey(sessionKey))
+                        newSessions[sessionKey] = s;
+                    // Also store by plain name for backward compat (first wins)
                     if (!newSessions.ContainsKey(name))
                         newSessions[name] = s;
 
@@ -206,10 +212,13 @@ public class AudioMixer : IDisposable
                     return;
                 }
 
-                // Match by process name substring
-                var match = _sessions.FirstOrDefault(kv => FuzzyContains(kv.Key, target));
-                if (match.Value != null)
-                    match.Value.SimpleAudioVolume.Volume = vol;
+                // Match ALL sessions by process name substring (apps like Discord
+                // create multiple sessions — voice, screenshare, notifications)
+                foreach (var kv in _sessions)
+                {
+                    if (FuzzyContains(kv.Key, target))
+                        try { kv.Value.SimpleAudioVolume.Volume = vol; } catch { }
+                }
             }
         }
         catch (Exception ex)
@@ -420,11 +429,17 @@ public class AudioMixer : IDisposable
                 return 0f;
             }
 
-            // Process name substring match
+            // Process name substring match — return max volume across all matching sessions
+            // (apps like Discord have multiple sessions: voice, screenshare, notifications)
             lock (_lock)
             {
-                var match = _sessions.FirstOrDefault(kv => FuzzyContains(kv.Key, target));
-                if (match.Value != null) return match.Value.SimpleAudioVolume.Volume;
+                float maxVol = -1f;
+                foreach (var kv in _sessions)
+                {
+                    if (FuzzyContains(kv.Key, target))
+                        try { maxVol = Math.Max(maxVol, kv.Value.SimpleAudioVolume.Volume); } catch { }
+                }
+                if (maxVol >= 0) return maxVol;
             }
         }
         catch { }
