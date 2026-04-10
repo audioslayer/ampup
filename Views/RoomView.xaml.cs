@@ -635,6 +635,28 @@ public partial class RoomView : UserControl
         return tabIdx - 1;
     }
 
+    /// <summary>
+    /// Effects whose colors are fully hardcoded — the palette has no effect on the output,
+    /// so we hide the palette editor + presets for these to reduce UI clutter.
+    /// </summary>
+    private static readonly HashSet<LightEffect> PaletteIgnoredEffects = new()
+    {
+        // Global hardcoded
+        LightEffect.Aurora,
+        LightEffect.Ocean,
+        LightEffect.FireWall,
+        LightEffect.NebulaDrift,
+        LightEffect.Plasma,
+        LightEffect.RainbowScanner,
+        // Rainbow-based effects (hardcoded rainbow hues)
+        LightEffect.RainbowWave,
+        LightEffect.RainbowCycle,
+        LightEffect.RainbowWheel,
+        LightEffect.RainbowFill,
+    };
+
+    private static bool EffectIgnoresPalette(LightEffect e) => PaletteIgnoredEffects.Contains(e);
+
     private void BuildRoomEffectTab(StackPanel stack)
     {
         if (_config == null) return;
@@ -771,6 +793,10 @@ public partial class RoomView : UserControl
                 _config.Ambience.LinkToLights = false;
                 _activePattern = effect == LightEffect.SingleColor ? null : effect.ToString();
             }
+            // Hide the palette section for effects whose colors are hardcoded
+            paletteSection.Visibility = EffectIgnoresPalette(effect)
+                ? Visibility.Collapsed
+                : Visibility.Visible;
         };
         leftCol.Children.Add(effectPicker);
 
@@ -790,8 +816,9 @@ public partial class RoomView : UserControl
         };
         var rightStack = new StackPanel();
 
-        // ── PALETTE label + editor ──
-        rightStack.Children.Add(MakeSubLabel("PALETTE"));
+        // ── PALETTE section (hidden for hardcoded-color effects like Aurora/Ocean) ──
+        var paletteSection = new StackPanel();
+        paletteSection.Children.Add(MakeSubLabel("PALETTE"));
 
         var paletteEditor = new PaletteEditorControl
         {
@@ -819,7 +846,7 @@ public partial class RoomView : UserControl
             dialog.ShowDialog();
             paletteEditor.ClearSelection();
         };
-        rightStack.Children.Add(paletteEditor);
+        paletteSection.Children.Add(paletteEditor);
 
         // ── Palette preset tiles (smaller, wrapped in 2-3 rows) ──
         var presetWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
@@ -892,7 +919,16 @@ public partial class RoomView : UserControl
             };
             presetWrap.Children.Add(swatch);
         }
-        rightStack.Children.Add(presetWrap);
+        paletteSection.Children.Add(presetWrap);
+        rightStack.Children.Add(paletteSection);
+
+        // Hide palette section if the currently-selected effect ignores palette colors
+        if (_activePattern != null && _activePattern != "__sync__" &&
+            Enum.TryParse<LightEffect>(_activePattern, true, out var curEff) &&
+            EffectIgnoresPalette(curEff))
+        {
+            paletteSection.Visibility = Visibility.Collapsed;
+        }
 
         // ── SPEED ──
         rightStack.Children.Add(MakeSubLabel("SPEED"));
