@@ -305,7 +305,7 @@ public partial class RoomView : UserControl
     // ██  CARD 1: ROOM LIGHTING (unified)
     // ══════════════════════════════════════════════════════════════════
 
-    private int _roomTabIndex = 0; // 0=Room Effect, 1=Devices
+    private int _roomTabIndex = 0; // 0=Room Effect, 1=Layout, 2=Devices
     private StackPanel? _roomTabContent;
 
     private StackPanel? _screenSyncSettingsPanel;
@@ -321,9 +321,9 @@ public partial class RoomView : UserControl
         var stack = new StackPanel();
         card.Child = stack;
 
-        // ── Pill-style tab bar (Room Effect / Devices) ──
+        // ── Pill-style tab bar (Room Effect / Layout / Devices) ──
         var accent = ThemeManager.Accent;
-        var tabNames = new[] { "ROOM EFFECT", "DEVICES" };
+        var tabNames = new[] { "ROOM EFFECT", "LAYOUT", "DEVICES" };
         var tabCount = tabNames.Length;
         var tabBorders = new Border[tabCount];
 
@@ -419,7 +419,8 @@ public partial class RoomView : UserControl
         switch (_roomTabIndex)
         {
             case 0: BuildRoomEffectTab(_roomTabContent); break;
-            case 1: BuildDevicesTab(_roomTabContent); break;
+            case 1: BuildLayoutTab(_roomTabContent); break;
+            case 2: BuildDevicesTab(_roomTabContent); break;
         }
         _loading = false;
     }
@@ -972,25 +973,36 @@ public partial class RoomView : UserControl
 
         stack.Children.Add(mainGrid);
 
-        // ── ROOM LAYOUT (collapsible, below the two-column grid) ──
-        stack.Children.Add(MakeSeparator());
-        var layoutExpander = new Expander
-        {
-            Header = new TextBlock
-            {
-                Text = "ROOM LAYOUT", FontSize = 11, FontWeight = FontWeights.Bold,
-                Foreground = FindBrush("AccentBrush"),
-            },
-            IsExpanded = false,
-            Foreground = FindBrush("TextSecBrush"),
-            Margin = new Thickness(0, 4, 0, 0),
-        };
-        var layoutContent = new StackPanel();
+        // Screen Sync settings (if enabled) — below the two-column grid
+        if (_screenSyncSettingsPanel != null)
+            stack.Children.Add(_screenSyncSettingsPanel);
+    }
 
+    // ── LAYOUT TAB (room canvas, device placement, dimensions) ──────────
+    private void BuildLayoutTab(StackPanel stack)
+    {
+        if (_config == null) return;
+        var layout = _config.RoomLayout;
+
+        // ── Room dimensions ──
+        var dimRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+        dimRow.Children.Add(MakeSubLabel("SIZE"));
+        dimRow.Children.Add(MakeDimensionInput(layout.WidthFt, v => { layout.WidthFt = v; OnLayoutChanged(); _roomCanvas?.Rebuild(); }));
+        dimRow.Children.Add(new TextBlock { Text = "\u00d7", FontSize = 14, Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) });
+        dimRow.Children.Add(MakeDimensionInput(layout.DepthFt, v => { layout.DepthFt = v; OnLayoutChanged(); _roomCanvas?.Rebuild(); }));
+        dimRow.Children.Add(new TextBlock { Text = "\u00d7", FontSize = 14, Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) });
+        dimRow.Children.Add(MakeDimensionInput(layout.HeightFt, v => { layout.HeightFt = v; OnLayoutChanged(); }));
+        dimRow.Children.Add(new TextBlock { Text = "ft", FontSize = 11, Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) });
+        stack.Children.Add(dimRow);
+
+        // ── Room canvas ──
         _roomCanvas = new Controls.RoomCanvasControl
         {
-            Height = 350,
-            Margin = new Thickness(0, 8, 0, 12),
+            Height = 420,
+            Margin = new Thickness(0, 4, 0, 12),
         };
 
         // Auto-populate devices if layout is empty (Mirror stays default)
@@ -1008,38 +1020,14 @@ public partial class RoomView : UserControl
             OnLayoutChanged();
         };
 
-        layoutContent.Children.Add(_roomCanvas);
+        stack.Children.Add(_roomCanvas);
 
         // Selected device properties panel
         _selectedDevicePanel = new StackPanel();
-        layoutContent.Children.Add(_selectedDevicePanel);
+        stack.Children.Add(_selectedDevicePanel);
 
         // Unplaced devices tray
-        BuildDeviceTray(layoutContent, layout);
-
-        // Room dimensions
-        var dimRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 4) };
-        dimRow.Children.Add(MakeSubLabel("SIZE"));
-        dimRow.Children.Add(MakeDimensionInput(layout.WidthFt, v => { layout.WidthFt = v; OnLayoutChanged(); _roomCanvas?.Rebuild(); }));
-        dimRow.Children.Add(new TextBlock { Text = "\u00d7", FontSize = 14, Foreground = FindBrush("TextSecBrush"),
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) });
-        dimRow.Children.Add(MakeSubLabel(""));
-        dimRow.Children.Add(MakeDimensionInput(layout.DepthFt, v => { layout.DepthFt = v; OnLayoutChanged(); _roomCanvas?.Rebuild(); }));
-        dimRow.Children.Add(new TextBlock { Text = "\u00d7", FontSize = 14, Foreground = FindBrush("TextSecBrush"),
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) });
-        dimRow.Children.Add(MakeSubLabel("HEIGHT"));
-        dimRow.Children.Add(MakeDimensionInput(layout.HeightFt, v => { layout.HeightFt = v; OnLayoutChanged(); }));
-        dimRow.Children.Add(new TextBlock { Text = "ft", FontSize = 11, Foreground = FindBrush("TextSecBrush"),
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) });
-
-        layoutContent.Children.Add(dimRow);
-
-        layoutExpander.Content = layoutContent;
-        stack.Children.Add(layoutExpander);
-
-        // Screen Sync settings (if enabled)
-        if (_screenSyncSettingsPanel != null)
-            stack.Children.Add(_screenSyncSettingsPanel);
+        BuildDeviceTray(stack, layout);
     }
 
     /// <summary>
@@ -1307,9 +1295,9 @@ public partial class RoomView : UserControl
         stack.Children.Add(mixerCheck);
     }
 
-    // ── OLD LAYOUT TAB (kept for reference, called by BuildRoomEffectTab internals) ──
+    // ── OLD LAYOUT TAB (dead code — kept for reference) ──
 
-    private void BuildLayoutTab(StackPanel stack)
+    private void BuildLayoutTabOldDead(StackPanel stack)
     {
         if (_config == null) return;
         var layout = _config.RoomLayout;
