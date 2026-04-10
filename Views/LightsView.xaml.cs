@@ -787,6 +787,7 @@ public partial class LightsView : UserControl
                 _globalPaletteEditor.UpdateSelectedStopColor(c);
             };
             dialog.ShowDialog();
+            _globalPaletteEditor.ClearSelection();
         };
         paletteSection.Children.Add(_globalPaletteEditor);
         settings.Children.Add(paletteSection);

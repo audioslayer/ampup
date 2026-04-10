@@ -786,6 +786,7 @@ public partial class RoomView : UserControl
             var dialog = new ColorPickerDialog(currentColor) { Owner = Window.GetWindow(this) };
             dialog.ColorChanged += c => paletteEditor.UpdateSelectedStopColor(c);
             dialog.ShowDialog();
+            paletteEditor.ClearSelection();
         };
         rightStack.Children.Add(paletteEditor);
 
@@ -1859,6 +1860,7 @@ public partial class RoomView : UserControl
             var dialog = new ColorPickerDialog(currentColor) { Owner = Window.GetWindow(this) };
             dialog.ColorChanged += c => paletteEditor.UpdateSelectedStopColor(c);
             dialog.ShowDialog();
+            paletteEditor.ClearSelection();
         };
         stack.Children.Add(paletteEditor);
 
@@ -3767,6 +3769,7 @@ public partial class RoomView : UserControl
             var dialog = new ColorPickerDialog(currentColor) { Owner = Window.GetWindow(this) };
             dialog.ColorChanged += c => goveePaletteEditor.UpdateSelectedStopColor(c);
             dialog.ShowDialog();
+            goveePaletteEditor.ClearSelection();
         };
         _sceneContent.Children.Add(goveePaletteEditor);
 

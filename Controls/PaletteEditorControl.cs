@@ -148,6 +148,13 @@ public class PaletteEditorControl : FrameworkElement
         PaletteChanged?.Invoke(_palette);
     }
 
+    /// <summary>Clear the selected stop (deselect). Call after external dialog closes.</summary>
+    public void ClearSelection()
+    {
+        _selectedStop = -1;
+        InvalidateVisual();
+    }
+
     /// <summary>Get the sorted stops for palette position calculations.</summary>
     private List<ColorStop> SortedStops => _palette.Stops.OrderBy(s => s.Position).ToList();
 
@@ -337,9 +344,12 @@ public class PaletteEditorControl : FrameworkElement
             return;
         }
 
-        // Click elsewhere = deselect
-        _selectedStop = -1;
-        InvalidateVisual();
+        // Click anywhere else in the chip row (below gradient, above presets) = deselect
+        if (_selectedStop >= 0)
+        {
+            _selectedStop = -1;
+            InvalidateVisual();
+        }
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
