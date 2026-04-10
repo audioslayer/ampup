@@ -639,10 +639,16 @@ public partial class RoomView : UserControl
         // ════════════════════════════════════════════════════════════
         var leftCol = new StackPanel { Margin = new Thickness(0, 0, 12, 0) };
 
-        // Category tab bar
-        var categoryTabBar = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-        var categoryNames = new[] { "Static", "Animated", "Reactive", "Global Span" };
-        var categoryPills = new Border[4];
+        // Category tab bar — Material underline style
+        var categoryBarContainer = new Border
+        {
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Margin = new Thickness(0, 0, 0, 8),
+        };
+        var categoryTabBar = new StackPanel { Orientation = Orientation.Horizontal };
+        var categoryNames = new[] { "STATIC", "ANIMATED", "REACTIVE", "GLOBAL SPAN" };
+        var categoryTabs = new Border[4];
 
         var effectPicker = new Controls.EffectPickerControl(showGlobal: true)
         {
@@ -664,45 +670,54 @@ public partial class RoomView : UserControl
         {
             bool active = _effectCategory == ci;
             var accent = ThemeManager.Accent;
-            var pill = new Border
+            var tab = new Border
             {
-                CornerRadius = new CornerRadius(14),
-                Background = active ? new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B))
-                    : new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
-                BorderBrush = active ? new SolidColorBrush(accent) : new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(12, 5, 12, 5),
-                Margin = new Thickness(0, 0, 4, 0),
+                Padding = new Thickness(18, 8, 18, 8),
                 Cursor = Cursors.Hand,
+                BorderBrush = new SolidColorBrush(active ? accent : Colors.Transparent),
+                BorderThickness = new Thickness(0, 0, 0, 2),
+                Background = new SolidColorBrush(Colors.Transparent),
             };
-            pill.Child = new TextBlock
+            tab.Child = new TextBlock
             {
-                Text = categoryNames[ci], FontSize = 11,
-                FontWeight = active ? FontWeights.SemiBold : FontWeights.Normal,
-                Foreground = active ? new SolidColorBrush(accent) : FindBrush("TextSecBrush"),
+                Text = categoryNames[ci], FontSize = 10,
+                FontWeight = active ? FontWeights.Bold : FontWeights.SemiBold,
+                Foreground = active ? new SolidColorBrush(accent) : new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
             };
-            categoryPills[ci] = pill;
+            categoryTabs[ci] = tab;
             int capturedCat = ci;
-            pill.MouseLeftButtonUp += (_, _) =>
+
+            // Hover state for inactive tabs
+            tab.MouseEnter += (_, _) =>
+            {
+                if (_effectCategory != capturedCat && tab.Child is TextBlock t)
+                    t.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
+            };
+            tab.MouseLeave += (_, _) =>
+            {
+                if (_effectCategory != capturedCat && tab.Child is TextBlock t)
+                    t.Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
+            };
+
+            tab.MouseLeftButtonUp += (_, _) =>
             {
                 _effectCategory = capturedCat;
                 effectPicker.SetVisibleCategory(capturedCat);
-                // Update pill visuals
+                // Update tab visuals
                 var ac = ThemeManager.Accent;
-                for (int j = 0; j < categoryPills.Length; j++)
+                for (int j = 0; j < categoryTabs.Length; j++)
                 {
                     bool isActive = j == capturedCat;
-                    categoryPills[j].Background = isActive ? new SolidColorBrush(Color.FromArgb(0x30, ac.R, ac.G, ac.B))
-                        : new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
-                    categoryPills[j].BorderBrush = isActive ? new SolidColorBrush(ac) : new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33));
-                    var tb = (TextBlock)categoryPills[j].Child;
-                    tb.FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal;
-                    tb.Foreground = isActive ? new SolidColorBrush(ac) : FindBrush("TextSecBrush");
+                    categoryTabs[j].BorderBrush = new SolidColorBrush(isActive ? ac : Colors.Transparent);
+                    var tb = (TextBlock)categoryTabs[j].Child;
+                    tb.FontWeight = isActive ? FontWeights.Bold : FontWeights.SemiBold;
+                    tb.Foreground = isActive ? new SolidColorBrush(ac) : new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
                 }
             };
-            categoryTabBar.Children.Add(pill);
+            categoryTabBar.Children.Add(tab);
         }
-        leftCol.Children.Add(categoryTabBar);
+        categoryBarContainer.Child = categoryTabBar;
+        leftCol.Children.Add(categoryBarContainer);
 
         // Set initial visible category
         effectPicker.SetVisibleCategory(_effectCategory);
