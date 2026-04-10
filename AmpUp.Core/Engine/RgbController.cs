@@ -562,7 +562,6 @@ public class RgbController : IDisposable
         _transitionEffect = effect;
         _transitionColor = new TransitionColor { R = (byte)r, G = (byte)g, B = (byte)b };
         _transitionTick = 0;
-        Logger.Log($"RGB transition: {effect}");
     }
 
     // Global-spanning effects treat all 15 LEDs as one strip

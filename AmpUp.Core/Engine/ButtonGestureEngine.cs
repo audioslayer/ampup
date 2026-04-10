@@ -144,7 +144,6 @@ public class ButtonGestureEngine : IDisposable
         // Invoke outside lock to avoid holding it during downstream work
         if (holdBtn != null)
         {
-            Logger.Log($"Button {idx} hold → action: {action}");
             OnGestureAction?.Invoke(idx, "hold", action, holdBtn);
         }
     }
@@ -201,12 +200,10 @@ public class ButtonGestureEngine : IDisposable
         // Invoke outside lock
         if (dblBtn != null)
         {
-            Logger.Log($"Button {idx} double-press → action: {dblAction}");
             OnGestureAction?.Invoke(idx, "double", dblAction, dblBtn);
         }
         else if (tapBtn != null)
         {
-            Logger.Log($"Button {idx} press → action: {tapAction}");
             OnGestureAction?.Invoke(idx, "tap", tapAction, tapBtn);
         }
     }

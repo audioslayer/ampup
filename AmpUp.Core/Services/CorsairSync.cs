@@ -205,7 +205,6 @@ public class CorsairSync : IDisposable
                 return;
             }
             _started = true;
-            Logger.Log("CorsairSync: connecting to iCUE...");
         }
         catch (Exception ex)
         {
@@ -238,7 +237,6 @@ public class CorsairSync : IDisposable
         else
         {
             _connected = false;
-            Logger.Log($"CorsairSync: session state changed to {eventData.state}");
         }
     }
 
@@ -279,7 +277,6 @@ public class CorsairSync : IDisposable
                 Type = typeName,
                 LedCount = d.ledCount
             });
-            Logger.Log($"CorsairSync: found {typeName} — {d.model} ({d.ledCount} LEDs, id={d.id})");
         }
         Devices = list;
     }
@@ -412,7 +409,6 @@ public class CorsairSync : IDisposable
     {
         // iCUE SDK v4 does not expose fan speed control
         // Fan curves must be configured in iCUE itself
-        Logger.Log($"CorsairSync: fan speed control not available via SDK (requested {percent}% for {deviceId})");
         return Task.CompletedTask;
     }
 

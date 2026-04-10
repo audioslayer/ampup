@@ -387,7 +387,6 @@ public partial class App : Application
                 NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
             bool nowMuted = !device.AudioEndpointVolume.Mute;
             device.AudioEndpointVolume.Mute = nowMuted;
-            Logger.Log($"Tray middle-click: master mute toggled → {(nowMuted ? "muted" : "unmuted")}");
             // Tray icon update comes from OnMasterVolumeNotification callback
         }
         catch (Exception ex)
@@ -1487,8 +1486,6 @@ public partial class App : Application
                 _config.Corsair.LightSyncMode = "static"; // prevent frames overwriting black
             }
         }
-
-        Logger.Log($"RoomToggle: lights {(_roomLightsOn ? "ON" : "OFF")}");
     }
 
     private readonly Dictionary<string, bool> _groupStates = new();
@@ -1532,7 +1529,6 @@ public partial class App : Application
                     break;
             }
         }
-        Logger.Log($"GroupToggle: '{groupName}' → {(newState ? "ON" : "OFF")}");
     }
 
     private void HandleBrightnessCycle(int pct)

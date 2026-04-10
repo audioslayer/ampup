@@ -298,7 +298,6 @@ public class ObsIntegration : IDisposable
                 await Task.Delay(5000);
                 if (_disposed || !_config.Enabled) return;
 
-                Logger.Log("OBS WebSocket: attempting reconnect...");
                 try
                 {
                     await ConnectAsync();

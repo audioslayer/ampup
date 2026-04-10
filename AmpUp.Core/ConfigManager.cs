@@ -160,7 +160,6 @@ public static class ConfigManager
                 string json = JsonConvert.SerializeObject(config, Formatting.Indented);
                 AtomicWrite(ProfilePath(profileName), json);
             }
-            Logger.Log($"Profile saved: {profileName}");
         }
         catch (Exception ex)
         {

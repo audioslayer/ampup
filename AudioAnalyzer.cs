@@ -87,8 +87,6 @@ public class AudioAnalyzer : IDisposable
             for (int i = 0; i < 5; i++)
                 SmoothedBands[i] = 0f;
         }
-
-        Logger.Log("AudioAnalyzer stopped");
     }
 
     public void Dispose()

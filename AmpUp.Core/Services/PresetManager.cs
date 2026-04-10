@@ -73,7 +73,6 @@ public static class PresetManager
             preset.IsBuiltIn = false;
             var json = JsonConvert.SerializeObject(preset, Formatting.Indented);
             File.WriteAllText(path, json);
-            Logger.Log($"Preset saved: {preset.Name} → {path}");
         }
         catch (Exception ex)
         {
@@ -92,7 +91,6 @@ public static class PresetManager
             if (File.Exists(path))
             {
                 File.Delete(path);
-                Logger.Log($"Preset deleted: {presetName}");
             }
         }
         catch (Exception ex)
@@ -140,8 +138,6 @@ public static class PresetManager
         {
             config.GlobalLight.Enabled = false;
         }
-
-        Logger.Log($"Preset applied: {preset.Name}");
     }
 
     public static LedPreset CreateFromConfig(AppConfig config, string name, string category)

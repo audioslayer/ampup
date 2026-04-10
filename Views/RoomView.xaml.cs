@@ -3589,7 +3589,6 @@ public partial class RoomView : UserControl
         if (_corsairMusicTimer == null) return;
         _corsairMusicTimer.Stop();
         _corsairMusicTimer = null;
-        Logger.Log("Corsair music sync stopped");
     }
 
     // ══════════════════════════════════════════════════════════════════

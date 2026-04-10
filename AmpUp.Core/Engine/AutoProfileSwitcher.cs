@@ -40,7 +40,6 @@ public class AutoProfileSwitcher
         _lastRequestedProfile = targetProfile;
         _lastSwitchTime = DateTime.UtcNow;
 
-        Logger.Log($"[AutoProfileSwitcher] Foreground: '{processName}' → profile '{targetProfile}'");
         OnProfileSwitchRequested?.Invoke(targetProfile);
     }
 

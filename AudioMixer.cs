@@ -120,7 +120,6 @@ public class AudioMixer : IDisposable
         _lastValues[knob.Idx] = rawValue;
 
         float vol = ComputeVolume(rawValue, knob);
-        Logger.Log($"Knob {knob.Idx} ({knob.Label}) raw={rawValue} vol={vol:P0} target={knob.Target}");
 
         try
         {
@@ -231,7 +230,6 @@ public class AudioMixer : IDisposable
     {
         if (string.IsNullOrEmpty(deviceId))
         {
-            Logger.Log($"SetDeviceVolume: no deviceId configured");
             return;
         }
 
@@ -251,7 +249,6 @@ public class AudioMixer : IDisposable
                     }
                 }
             }
-            Logger.Log($"SetDeviceVolume: device not found: {deviceId}");
         }
         catch (Exception ex)
         {
@@ -276,7 +273,6 @@ public class AudioMixer : IDisposable
     {
         if (string.IsNullOrEmpty(deviceId))
         {
-            Logger.Log("ToggleOutputDeviceMute: no deviceId configured");
             return;
         }
 
@@ -296,7 +292,6 @@ public class AudioMixer : IDisposable
                     }
                 }
             }
-            Logger.Log($"ToggleOutputDeviceMute: device not found: {deviceId}");
         }
         catch (Exception ex)
         {

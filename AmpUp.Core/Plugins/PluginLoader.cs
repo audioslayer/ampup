@@ -50,7 +50,6 @@ public class PluginLoader
                 var plugin = (IPlugin)Activator.CreateInstance(type)!;
                 plugin.Initialize(host);
                 _plugins.Add(plugin);
-                Logger.Log($"Plugin loaded: {plugin.Name} v{plugin.Version} ({plugin.Id})");
             }
             catch (Exception ex)
             {
@@ -67,7 +66,6 @@ public class PluginLoader
             try
             {
                 plugin.Shutdown();
-                Logger.Log($"Plugin unloaded: {plugin.Name}");
             }
             catch (Exception ex)
             {

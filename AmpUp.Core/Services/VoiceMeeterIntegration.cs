@@ -195,7 +195,6 @@ public class VoiceMeeterIntegration : IDisposable
             VBVMR_GetParameterFloat($"Strip[{stripIdx}].Mute", out float current);
             float newVal = current < 0.5f ? 1f : 0f;
             VBVMR_SetParameterFloat($"Strip[{stripIdx}].Mute", newVal);
-            Logger.Log($"VoiceMeeter: Strip[{stripIdx}] mute → {(newVal > 0.5f ? "ON" : "OFF")}");
             return newVal > 0.5f;
         }
         catch (Exception ex)
@@ -217,7 +216,6 @@ public class VoiceMeeterIntegration : IDisposable
             VBVMR_GetParameterFloat($"Bus[{busIdx}].Mute", out float current);
             float newVal = current < 0.5f ? 1f : 0f;
             VBVMR_SetParameterFloat($"Bus[{busIdx}].Mute", newVal);
-            Logger.Log($"VoiceMeeter: Bus[{busIdx}] mute → {(newVal > 0.5f ? "ON" : "OFF")}");
             return newVal > 0.5f;
         }
         catch (Exception ex)

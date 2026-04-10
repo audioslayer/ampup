@@ -328,12 +328,10 @@ public class ButtonHandler : IDisposable
                             }
                             else
                             {
-                                Logger.Log($"govee_color: invalid hex '{govParts[1]}'");
                             }
                         }
                         else if (govParts.Length == 1 && !string.IsNullOrEmpty(govParts[0]))
                         {
-                            Logger.Log("govee_color: missing hex color in path (expected ip|hexcolor)");
                         }
                     }
                     break;
@@ -360,7 +358,6 @@ public class ButtonHandler : IDisposable
             if (status == null)
             {
                 // Can't query state — just send white
-                Logger.Log($"govee_white_toggle: can't query {ip}, sending white");
                 await AmbienceSync.SendColorAsync(ip, 255, 255, 255);
                 return;
             }
@@ -375,7 +372,6 @@ public class ButtonHandler : IDisposable
                 // Restore saved color
                 await AmbienceSync.SendColorAsync(ip, saved.R, saved.G, saved.B);
                 _goveeWhiteSavedColors.Remove(ip);
-                Logger.Log($"govee_white_toggle: restored {ip} to #{saved.R:X2}{saved.G:X2}{saved.B:X2}");
             }
             else
             {
@@ -383,7 +379,6 @@ public class ButtonHandler : IDisposable
                 if (!isWhite)
                     _goveeWhiteSavedColors[ip] = ((byte)r, (byte)g, (byte)b);
                 await AmbienceSync.SendColorAsync(ip, 255, 255, 255);
-                Logger.Log($"govee_white_toggle: set {ip} to white (saved #{r:X2}{g:X2}{b:X2})");
             }
         }
         catch (Exception ex)
@@ -406,7 +401,6 @@ public class ButtonHandler : IDisposable
     {
         if (string.IsNullOrWhiteSpace(path))
         {
-            Logger.Log("launch_exe: no path configured");
             return;
         }
         try
@@ -441,7 +435,6 @@ public class ButtonHandler : IDisposable
                 Arguments = arguments,
                 UseShellExecute = true
             });
-            Logger.Log($"Launched: {fileName} {arguments}".Trim());
         }
         catch (Exception ex)
         {
@@ -457,7 +450,6 @@ public class ButtonHandler : IDisposable
         {
             using var mic = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
             mic.AudioEndpointVolume.Mute = !mic.AudioEndpointVolume.Mute;
-            Logger.Log($"Mic mute: {mic.AudioEndpointVolume.Mute}");
         }
         catch (Exception ex)
         {
@@ -471,7 +463,6 @@ public class ButtonHandler : IDisposable
     {
         if (string.IsNullOrWhiteSpace(processName))
         {
-            Logger.Log("mute_program: no process name configured");
             return;
         }
         try
@@ -490,7 +481,6 @@ public class ButtonHandler : IDisposable
                         || proc.ProcessName.Replace(" ", "").Contains(processName.Replace(" ", ""), StringComparison.OrdinalIgnoreCase))
                     {
                         session.SimpleAudioVolume.Mute = !session.SimpleAudioVolume.Mute;
-                        Logger.Log($"mute_program: {proc.ProcessName} mute={session.SimpleAudioVolume.Mute}");
                         return;
                     }
                 }
@@ -499,7 +489,6 @@ public class ButtonHandler : IDisposable
                     // Process may have exited
                 }
             }
-            Logger.Log($"mute_program: no audio session found for '{processName}'");
         }
         catch (Exception ex)
         {
@@ -516,14 +505,12 @@ public class ButtonHandler : IDisposable
             var hwnd = NativeMethods.GetForegroundWindow();
             if (hwnd == IntPtr.Zero)
             {
-                Logger.Log("mute_active_window: no foreground window");
                 return;
             }
 
             NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
             if (pid == 0)
             {
-                Logger.Log("mute_active_window: could not get PID");
                 return;
             }
 
@@ -535,7 +522,6 @@ public class ButtonHandler : IDisposable
                 if (session.GetProcessID == pid)
                 {
                     session.SimpleAudioVolume.Mute = !session.SimpleAudioVolume.Mute;
-                    Logger.Log($"mute_active_window: PID {pid} mute={session.SimpleAudioVolume.Mute}");
                     return;
                 }
             }
@@ -556,7 +542,6 @@ public class ButtonHandler : IDisposable
                         if (sProc.ProcessName.Contains(fgName, StringComparison.OrdinalIgnoreCase))
                         {
                             session.SimpleAudioVolume.Mute = !session.SimpleAudioVolume.Mute;
-                            Logger.Log($"mute_active_window (name match): {sProc.ProcessName} mute={session.SimpleAudioVolume.Mute}");
                             return;
                         }
                     }
@@ -564,8 +549,6 @@ public class ButtonHandler : IDisposable
                 }
             }
             catch { }
-
-            Logger.Log($"mute_active_window: no audio session for PID {pid}");
         }
         catch (Exception ex)
         {
@@ -579,21 +562,18 @@ public class ButtonHandler : IDisposable
     {
         if (btn == null || _lastConfig == null)
         {
-            Logger.Log("mute_app_group: no config");
             return;
         }
 
         int knobIdx = btn.LinkedKnobIdx;
         if (knobIdx < 0 || knobIdx > 4)
         {
-            Logger.Log($"mute_app_group: invalid LinkedKnobIdx {knobIdx}");
             return;
         }
 
         var knob = _lastConfig.Knobs.FirstOrDefault(k => k.Idx == knobIdx);
         if (knob == null || knob.Apps == null || knob.Apps.Count == 0)
         {
-            Logger.Log($"mute_app_group: knob {knobIdx} has no app group");
             return;
         }
 
@@ -629,7 +609,6 @@ public class ButtonHandler : IDisposable
 
             if (matchingSessions.Count == 0)
             {
-                Logger.Log($"mute_app_group: no active sessions found for knob {knobIdx} apps");
                 return;
             }
 
@@ -642,8 +621,6 @@ public class ButtonHandler : IDisposable
                 try { session.SimpleAudioVolume.Mute = newMuteState; } catch { }
             }
 
-            var appNames = string.Join(", ", knob.Apps);
-            Logger.Log($"mute_app_group: knob {knobIdx} [{appNames}] → mute={newMuteState} ({matchingSessions.Count} sessions)");
         }
         catch (Exception ex)
         {
@@ -657,7 +634,6 @@ public class ButtonHandler : IDisposable
     {
         if (string.IsNullOrWhiteSpace(deviceId))
         {
-            Logger.Log("mute_device: no DeviceId configured");
             return;
         }
 
@@ -676,14 +652,12 @@ public class ButtonHandler : IDisposable
                         {
                             bool newMute = !device.AudioEndpointVolume.Mute;
                             device.AudioEndpointVolume.Mute = newMute;
-                            Logger.Log($"mute_device: {device.FriendlyName} mute={newMute}");
                             return;
                         }
                     }
                 }
                 catch { }
             }
-            Logger.Log($"mute_device: no active device found with ID '{deviceId}'");
         }
         catch (Exception ex)
         {
@@ -751,7 +725,6 @@ public class ButtonHandler : IDisposable
 
         if (deviceIds.Count < 2)
         {
-            Logger.Log($"cycle_{(flow == DataFlow.Render ? "output" : "input")}: not enough devices to cycle ({deviceIds.Count})");
             return;
         }
 
@@ -772,7 +745,6 @@ public class ButtonHandler : IDisposable
                 if (d.ID == nextId)
                 {
                     var name = d.FriendlyName;
-                    Logger.Log($"cycle_{(flow == DataFlow.Render ? "output" : "input")}: switched to {name}");
                     _gestureEngine.RaiseDeviceSwitched(name, flow == DataFlow.Render);
                     break;
                 }
@@ -787,7 +759,6 @@ public class ButtonHandler : IDisposable
     {
         if (string.IsNullOrWhiteSpace(deviceId))
         {
-            Logger.Log($"select_{(flow == DataFlow.Render ? "output" : "input")}: no DeviceId configured");
             return;
         }
         try
@@ -808,7 +779,6 @@ public class ButtonHandler : IDisposable
                 }
             }
             catch { }
-            Logger.Log($"select_{(flow == DataFlow.Render ? "output" : "input")}: set device {deviceId}");
         }
         catch (Exception ex)
         {
@@ -849,7 +819,6 @@ public class ButtonHandler : IDisposable
     {
         if (string.IsNullOrWhiteSpace(processName))
         {
-            Logger.Log("close_program: no process name configured");
             return;
         }
         try
@@ -875,11 +844,6 @@ public class ButtonHandler : IDisposable
             if (procs.Length > 0)
             {
                 procs[0].Kill();
-                Logger.Log($"close_program: killed {procs[0].ProcessName} (PID {procs[0].Id})");
-            }
-            else
-            {
-                Logger.Log($"close_program: no process found matching '{processName}'");
             }
         }
         catch (Exception ex)
@@ -894,7 +858,6 @@ public class ButtonHandler : IDisposable
     {
         if (string.IsNullOrWhiteSpace(macroKeys))
         {
-            Logger.Log("macro: no MacroKeys configured");
             return;
         }
 
@@ -919,7 +882,6 @@ public class ButtonHandler : IDisposable
                     default:
                         var vk = ResolveKeyCode(part);
                         if (vk != 0) keys.Add(vk);
-                        else Logger.Log($"macro: unknown key '{part}'");
                         break;
                 }
             }
@@ -938,8 +900,6 @@ public class ButtonHandler : IDisposable
             // Release modifiers in reverse order
             for (int i = modifiers.Count - 1; i >= 0; i--)
                 NativeMethods.keybd_event(modifiers[i], 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-
-            Logger.Log($"macro: executed '{macroKeys}'");
         }
         catch (Exception ex)
         {
@@ -999,10 +959,8 @@ public class ButtonHandler : IDisposable
     {
         if (string.IsNullOrWhiteSpace(profileName))
         {
-            Logger.Log("switch_profile: no ProfileName configured");
             return;
         }
-        Logger.Log($"switch_profile: requesting switch to '{profileName}'");
         _gestureEngine.RaiseProfileSwitch(profileName);
     }
 
@@ -1021,7 +979,6 @@ public class ButtonHandler : IDisposable
 
         if (profileNames == null || profileNames.Count < 2)
         {
-            Logger.Log("cycle_profile: need at least 2 profiles to cycle");
             return;
         }
 
@@ -1039,7 +996,6 @@ public class ButtonHandler : IDisposable
         _profileCycleIndex[btn.Idx] = nextIdx;
 
         var nextProfile = profileNames[nextIdx];
-        Logger.Log($"cycle_profile: {activeProfile} → {nextProfile} ({nextIdx + 1}/{profileNames.Count})");
         _gestureEngine.RaiseProfileSwitch(nextProfile);
     }
 
@@ -1049,7 +1005,6 @@ public class ButtonHandler : IDisposable
     {
         _brightnessPresetIndex = (_brightnessPresetIndex + 1) % BrightnessPresets.Length;
         var pct = BrightnessPresets[_brightnessPresetIndex];
-        Logger.Log($"cycle_brightness: {pct}%");
         _gestureEngine.RaiseBrightnessCycle(pct);
     }
 
@@ -1068,7 +1023,6 @@ public class ButtonHandler : IDisposable
     {
         if (string.IsNullOrWhiteSpace(powerAction))
         {
-            Logger.Log("system_power: no PowerAction configured");
             return;
         }
 
@@ -1077,33 +1031,26 @@ public class ButtonHandler : IDisposable
             switch (powerAction.ToLowerInvariant())
             {
                 case "sleep":
-                    Logger.Log("system_power: sleep");
                     // forceCritical=false allows apps to prepare for sleep properly
                     // (GPU, USB devices, etc. get clean suspend notifications)
                     NativeMethods.SetSuspendState(false, false, false);
                     break;
                 case "hibernate":
-                    Logger.Log("system_power: hibernate");
                     NativeMethods.SetSuspendState(true, false, false);
                     break;
                 case "lock":
-                    Logger.Log("system_power: lock");
                     NativeMethods.LockWorkStation();
                     break;
                 case "shutdown":
-                    Logger.Log("system_power: shutdown");
                     Process.Start("shutdown", "/s /t 0");
                     break;
                 case "restart":
-                    Logger.Log("system_power: restart");
                     Process.Start("shutdown", "/r /t 0");
                     break;
                 case "logoff":
-                    Logger.Log("system_power: logoff");
                     NativeMethods.ExitWindowsEx(0, 0);
                     break;
                 default:
-                    Logger.Log($"system_power: unknown power action '{powerAction}'");
                     break;
             }
         }

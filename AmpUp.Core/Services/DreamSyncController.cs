@@ -566,7 +566,6 @@ public class DreamSyncController : IDisposable
             _udpClients[ip] = udp;
         }
         _ = udp.SendAsync(data, data.Length, ip, LanControlPort);
-        Logger.Log($"DreamSync: segment {(enable ? "enabled" : "disabled")} for {ip}");
     }
 
     private void SendSegmentColors(string ip, (byte R, byte G, byte B)[] colors)

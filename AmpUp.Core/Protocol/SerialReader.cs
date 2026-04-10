@@ -66,12 +66,8 @@ public class SerialReader : IDisposable
                 try
                 {
                     _port.Write(new byte[] { 0xFE, 0x01, 0xFF }, 0, 3);
-                    Logger.Log("Sent position request (FE 01 FF)");
                 }
-                catch (Exception ex)
-                {
-                    Logger.Log($"Failed to request positions: {ex.Message}");
-                }
+                catch { }
 
                 await ReadLoop(ct);
             }
@@ -139,10 +135,7 @@ public class SerialReader : IDisposable
 
                 probe.Close();
             }
-            catch (Exception ex)
-            {
-                Logger.Log($"Probe {portName}: {ex.Message}");
-            }
+            catch { }
         }
 
         Logger.Log("Turn Up device not found on any COM port");

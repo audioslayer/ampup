@@ -99,7 +99,6 @@ public class LgMonitorSync : IDisposable
             var cmd = BuildSimpleCommand(CmdMode, new byte[] { 0x02, 0x02, 0x03, ModeVideoSync });
             WriteReport(cmd);
             _directModeActive = true;
-            Logger.Log("LG Monitor: direct mode enabled");
         }
         catch (Exception ex)
         {
@@ -208,7 +207,6 @@ public class LgMonitorSync : IDisposable
         {
             var cmd = BuildSimpleCommand(CmdPower, new byte[] { 0x02, 0x02, 0x01, (byte)(on ? 0x01 : 0x02) });
             WriteReport(cmd);
-            Logger.Log($"LG Monitor: power {(on ? "on" : "off")}");
         }
         catch (Exception ex)
         {

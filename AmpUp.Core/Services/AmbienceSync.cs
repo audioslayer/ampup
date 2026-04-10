@@ -206,27 +206,20 @@ public class AmbienceSync : IDisposable
             udp.Client.Bind(new IPEndPoint(IPAddress.Any, 4002));
             udp.EnableBroadcast = true;
             udp.Client.ReceiveTimeout = 5000;
-            Logger.Log("Govee scan: bound to port 4002");
 
             // Join multicast group so we receive responses sent to the group address
             try
             {
                 udp.JoinMulticastGroup(IPAddress.Parse("239.255.255.250"));
-                Logger.Log("Govee scan: joined multicast group 239.255.255.250");
             }
-            catch (Exception mex)
-            {
-                Logger.Log($"Govee scan: multicast join failed (non-fatal): {mex.Message}");
-            }
+            catch { }
 
             // Send discovery to multicast address (send twice — some devices need a nudge)
             var msg = Encoding.UTF8.GetBytes("{\"msg\":{\"cmd\":\"scan\",\"data\":{\"account_topic\":\"reserve\"}}}");
             await udp.SendAsync(msg, msg.Length, "239.255.255.250", 4001);
-            Logger.Log("Govee scan: multicast sent to 239.255.255.250:4001");
 
             await Task.Delay(500, ct);
             await udp.SendAsync(msg, msg.Length, "239.255.255.250", 4001);
-            Logger.Log("Govee scan: multicast re-sent to 239.255.255.250:4001");
 
             // Also send directly to known device IPs as fallback (some networks block multicast)
             foreach (var known in _config.GoveeDevices)
@@ -236,7 +229,6 @@ public class AmbienceSync : IDisposable
                     try
                     {
                         await udp.SendAsync(msg, msg.Length, known.Ip, 4001);
-                        Logger.Log($"Govee scan: unicast sent to {known.Ip}:4001");
                     }
                     catch { }
                 }
@@ -246,12 +238,8 @@ public class AmbienceSync : IDisposable
             try
             {
                 await udp.SendAsync(msg, msg.Length, "255.255.255.255", 4001);
-                Logger.Log("Govee scan: broadcast sent to 255.255.255.255:4001");
             }
-            catch (Exception bex)
-            {
-                Logger.Log($"Govee scan: broadcast failed (non-fatal): {bex.Message}");
-            }
+            catch { }
 
             // Collect responses for 5 seconds
             var deadline = DateTime.UtcNow.AddSeconds(5);
@@ -268,10 +256,8 @@ public class AmbienceSync : IDisposable
                             var data = udp.Receive(ref ep);
                             return (Data: data, Ep: ep);
                         }
-                        catch (Exception rx)
+                        catch
                         {
-                            if (rx is not System.Net.Sockets.SocketException)
-                                Logger.Log($"Govee scan receive error: {rx.Message}");
                             return (Data: (byte[]?)null, Ep: (IPEndPoint?)null);
                         }
                     }, ct);
@@ -280,9 +266,7 @@ public class AmbienceSync : IDisposable
 
                     string json = Encoding.UTF8.GetString(result.Data);
                     string ip = result.Ep.Address.ToString();
-                    Logger.Log($"Govee scan response from {ip}: {json}");
                     var (name, sku, deviceMac) = ParseScanResponse(json, ip);
-                    Logger.Log($"Govee parsed: name={name}, sku={sku}, mac={deviceMac}");
 
                     if (!results.Any(r => r.Ip == ip))
                     {
@@ -680,7 +664,6 @@ public class AmbienceSync : IDisposable
 
             // Update cached power state
             _devicePowerState[ip] = on;
-            Logger.Log($"Govee status ({ip}): on={on} bright={brightness} rgb=({r},{g},{b}) temp={colorTemp}K");
             return (on, brightness, r, g, b, colorTemp);
         }
         catch (Exception ex)
@@ -714,7 +697,6 @@ public class AmbienceSync : IDisposable
             bool newState = !currentlyOn;
             _devicePowerState[ip] = newState;
             await SendTurnAsync(ip, newState);
-            Logger.Log($"Govee toggle ({ip}): {(newState ? "on" : "off")}");
         }
         catch (Exception ex)
         {
