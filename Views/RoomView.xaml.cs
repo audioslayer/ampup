@@ -941,29 +941,48 @@ public partial class RoomView : UserControl
         if (_config == null) return;
         var layout = _config.RoomLayout;
 
-        // ── Room dimensions ──
-        var dimRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-        dimRow.Children.Add(MakeSubLabel("SIZE"));
-        dimRow.Children.Add(MakeDimensionInput(layout.WidthFt, v => { layout.WidthFt = v; OnLayoutChanged(); _roomCanvas?.Rebuild(); }));
-        dimRow.Children.Add(new TextBlock { Text = "\u00d7", FontSize = 14, Foreground = FindBrush("TextSecBrush"),
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) });
-        dimRow.Children.Add(MakeDimensionInput(layout.DepthFt, v => { layout.DepthFt = v; OnLayoutChanged(); _roomCanvas?.Rebuild(); }));
-        dimRow.Children.Add(new TextBlock { Text = "\u00d7", FontSize = 14, Foreground = FindBrush("TextSecBrush"),
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) });
-        dimRow.Children.Add(MakeDimensionInput(layout.HeightFt, v => { layout.HeightFt = v; OnLayoutChanged(); }));
-        dimRow.Children.Add(new TextBlock { Text = "ft", FontSize = 11, Foreground = FindBrush("TextSecBrush"),
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) });
-        stack.Children.Add(dimRow);
+        // ── Top card: dimensions + projection ─────────────────────────────
+        var topCard = MakeLayoutCard();
+        var topContent = new StackPanel();
 
-        // ── Projection mode (Mirror / Spatial) + Direction ──
+        // Row 1: Dimensions — three labeled columns
+        var dimRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
+        dimRow.Children.Add(MakeLabeledDimension("WIDTH", layout.WidthFt,
+            v => { layout.WidthFt = v; OnLayoutChanged(); _roomCanvas?.Rebuild(); }));
+        dimRow.Children.Add(MakeLabeledDimension("DEPTH", layout.DepthFt,
+            v => { layout.DepthFt = v; OnLayoutChanged(); _roomCanvas?.Rebuild(); }));
+        dimRow.Children.Add(MakeLabeledDimension("HEIGHT", layout.HeightFt,
+            v => { layout.HeightFt = v; OnLayoutChanged(); }));
+        dimRow.Children.Add(new TextBlock
+        {
+            Text = "ft",
+            FontSize = 11,
+            Foreground = FindBrush("TextDimBrush"),
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(4, 0, 0, 8),
+        });
+        topContent.Children.Add(dimRow);
+
+        // Thin divider
+        topContent.Children.Add(new Border
+        {
+            Height = 1,
+            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            Margin = new Thickness(0, 0, 0, 14),
+        });
+
+        // Row 2+3: Projection mode (Mirror / Spatial) + Direction pills
         // Only Spatial uses Direction — Mirror shows the same effect on all devices.
-        stack.Children.Add(BuildProjectionRow(layout));
+        topContent.Children.Add(BuildProjectionRow(layout));
+
+        topCard.Child = topContent;
+        stack.Children.Add(topCard);
 
         // ── Room canvas ──
         _roomCanvas = new Controls.RoomCanvasControl
         {
             Height = 420,
-            Margin = new Thickness(0, 4, 0, 12),
+            Margin = new Thickness(0, 0, 0, 12),
         };
 
         // Auto-populate devices if layout is empty (Mirror stays default)
@@ -981,18 +1000,93 @@ public partial class RoomView : UserControl
             OnLayoutChanged();
         };
 
-        stack.Children.Add(_roomCanvas);
+        // Wrap the canvas in a card too so it matches the design
+        var canvasCard = MakeLayoutCard();
+        canvasCard.Padding = new Thickness(8);
+        canvasCard.Child = _roomCanvas;
+        stack.Children.Add(canvasCard);
 
         // Selected device properties panel
-        _selectedDevicePanel = new StackPanel();
+        _selectedDevicePanel = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
         stack.Children.Add(_selectedDevicePanel);
 
-        // Unplaced devices tray
+        // Unplaced devices tray (wrapped in its own card)
         BuildDeviceTray(stack, layout);
     }
 
     /// <summary>
-    /// Builds the projection row: MIRROR / SPATIAL mode pills + direction pills (L→R, F→B, ↑, Radial, Diagonal).
+    /// Dark card container used throughout the Layout tab.
+    /// </summary>
+    private Border MakeLayoutCard() => new()
+    {
+        Background = new SolidColorBrush(Color.FromRgb(0x16, 0x16, 0x16)),
+        BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+        BorderThickness = new Thickness(1),
+        CornerRadius = new CornerRadius(10),
+        Padding = new Thickness(16),
+        Margin = new Thickness(0, 0, 0, 12),
+    };
+
+    /// <summary>
+    /// Bigger dimension input with label under it: "[ 12 ]" over "WIDTH".
+    /// </summary>
+    private StackPanel MakeLabeledDimension(string label, double value, Action<double> onChange)
+    {
+        var col = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(0, 0, 18, 0) };
+
+        var box = new TextBox
+        {
+            Text = value.ToString("0.#"),
+            Width = 64,
+            Height = 34,
+            FontSize = 15,
+            FontWeight = FontWeights.SemiBold,
+            Background = new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F)),
+            Foreground = FindBrush("TextPrimaryBrush"),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(4, 0, 4, 0),
+            VerticalContentAlignment = VerticalAlignment.Center,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            CaretBrush = FindBrush("AccentBrush"),
+        };
+        box.GotFocus += (_, _) =>
+        {
+            var ac = ThemeManager.Accent;
+            box.BorderBrush = new SolidColorBrush(Color.FromArgb(0xAA, ac.R, ac.G, ac.B));
+            box.SelectAll();
+        };
+        box.LostFocus += (_, _) =>
+        {
+            box.BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
+            if (double.TryParse(box.Text, out double v) && v > 0 && v <= 100)
+            {
+                double snapped = Math.Round(v * 2) / 2;
+                box.Text = snapped.ToString("0.#");
+                onChange(snapped);
+            }
+            else
+            {
+                box.Text = value.ToString("0.#");
+            }
+        };
+        col.Children.Add(box);
+
+        col.Children.Add(new TextBlock
+        {
+            Text = label,
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextDimBrush"),
+            Margin = new Thickness(0, 5, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Center,
+        });
+
+        return col;
+    }
+
+    /// <summary>
+    /// Builds the projection block: section headers + MIRROR/SPATIAL pills + direction pills.
     /// Direction only applies in Spatial mode, so it's dimmed/disabled when Mirror is active.
     /// </summary>
     private UIElement BuildProjectionRow(RoomLayout layout)
@@ -1000,18 +1094,11 @@ public partial class RoomView : UserControl
         if (_config == null) return new Border();
         bool isSpatial = _config.Ambience.SpatialSync;
 
-        var row = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(0, 0, 0, 8) };
+        var root = new StackPanel { Orientation = Orientation.Vertical };
 
-        // Label + Mirror/Spatial pills on same line
-        var modeLine = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
-        modeLine.Children.Add(new TextBlock
-        {
-            Text = "PROJECTION", FontSize = 9, FontWeight = FontWeights.SemiBold,
-            Foreground = FindBrush("TextDimBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 10, 0),
-        });
-
+        // ── PROJECTION header + pills ──
+        root.Children.Add(MakeCompactHeader("PROJECTION"));
+        var modeLine = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 14) };
         var purple = Color.FromRgb(0xBB, 0x86, 0xFC);
         foreach (var (modeName, modeVal, tooltip) in new[]
         {
@@ -1022,22 +1109,22 @@ public partial class RoomView : UserControl
             bool modeActive = isSpatial == modeVal;
             var modePill = new Border
             {
-                CornerRadius = new CornerRadius(10),
-                Padding = new Thickness(10, 3, 10, 3),
-                Margin = new Thickness(0, 0, 4, 0),
+                CornerRadius = new CornerRadius(14),
+                Padding = new Thickness(16, 7, 16, 7),
+                Margin = new Thickness(0, 0, 8, 0),
                 Cursor = Cursors.Hand,
                 Background = modeActive
-                    ? new SolidColorBrush(Color.FromArgb(0x30, purple.R, purple.G, purple.B))
-                    : new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
+                    ? new SolidColorBrush(Color.FromArgb(0x38, purple.R, purple.G, purple.B))
+                    : new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F)),
                 BorderBrush = modeActive
-                    ? new SolidColorBrush(Color.FromArgb(0x60, purple.R, purple.G, purple.B))
+                    ? new SolidColorBrush(Color.FromArgb(0x80, purple.R, purple.G, purple.B))
                     : new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
                 BorderThickness = new Thickness(1),
                 ToolTip = tooltip,
             };
             modePill.Child = new TextBlock
             {
-                Text = modeName, FontSize = 9, FontWeight = FontWeights.SemiBold,
+                Text = modeName, FontSize = 10, FontWeight = FontWeights.SemiBold,
                 Foreground = modeActive ? new SolidColorBrush(purple) : FindBrush("TextSecBrush"),
             };
             var capturedVal = modeVal;
@@ -1051,19 +1138,14 @@ public partial class RoomView : UserControl
             };
             modeLine.Children.Add(modePill);
         }
-        row.Children.Add(modeLine);
+        root.Children.Add(modeLine);
 
-        // Direction pills (only meaningful in Spatial mode — dim when Mirror)
-        var dirLine = new StackPanel { Orientation = Orientation.Horizontal };
-        dirLine.Children.Add(new TextBlock
-        {
-            Text = "DIRECTION", FontSize = 9, FontWeight = FontWeights.SemiBold,
-            Foreground = FindBrush("TextDimBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 14, 0),
-            Opacity = isSpatial ? 1.0 : 0.5,
-        });
+        // ── DIRECTION header + pills (dimmed when Mirror) ──
+        var dirHeader = MakeCompactHeader("DIRECTION");
+        dirHeader.Opacity = isSpatial ? 1.0 : 0.45;
+        root.Children.Add(dirHeader);
 
+        var dirLine = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 0) };
         var dirNames = new[] { "L \u2192 R", "F \u2192 B", "\u2191", "RADIAL", "DIAGONAL" };
         var dirValues = new[]
         {
@@ -1077,15 +1159,15 @@ public partial class RoomView : UserControl
             bool active = layout.Direction == dirVal;
             var pill = new Border
             {
-                CornerRadius = new CornerRadius(10),
-                Padding = new Thickness(10, 3, 10, 3),
-                Margin = new Thickness(0, 0, 4, 0),
+                CornerRadius = new CornerRadius(14),
+                Padding = new Thickness(14, 6, 14, 6),
+                Margin = new Thickness(0, 0, 6, 4),
                 Cursor = isSpatial ? Cursors.Hand : Cursors.Arrow,
                 Background = active
-                    ? new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B))
-                    : new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
+                    ? new SolidColorBrush(Color.FromArgb(0x38, accent.R, accent.G, accent.B))
+                    : new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F)),
                 BorderBrush = active
-                    ? new SolidColorBrush(Color.FromArgb(0x60, accent.R, accent.G, accent.B))
+                    ? new SolidColorBrush(Color.FromArgb(0x80, accent.R, accent.G, accent.B))
                     : new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
                 BorderThickness = new Thickness(1),
                 Opacity = isSpatial ? 1.0 : 0.4,
@@ -1093,7 +1175,7 @@ public partial class RoomView : UserControl
             };
             pill.Child = new TextBlock
             {
-                Text = dirNames[i], FontSize = 9, FontWeight = FontWeights.SemiBold,
+                Text = dirNames[i], FontSize = 10, FontWeight = FontWeights.SemiBold,
                 Foreground = active ? new SolidColorBrush(accent) : FindBrush("TextSecBrush"),
             };
             if (isSpatial)
@@ -1107,10 +1189,22 @@ public partial class RoomView : UserControl
             }
             dirLine.Children.Add(pill);
         }
-        row.Children.Add(dirLine);
+        root.Children.Add(dirLine);
 
-        return row;
+        return root;
     }
+
+    /// <summary>
+    /// Small dim uppercase header used inside Layout tab cards.
+    /// </summary>
+    private TextBlock MakeCompactHeader(string text) => new()
+    {
+        Text = text,
+        FontSize = 10,
+        FontWeight = FontWeights.SemiBold,
+        Foreground = FindBrush("TextDimBrush"),
+        Margin = new Thickness(0, 0, 0, 2),
+    };
 
     /// <summary>
     /// Returns category index for an effect: 0=static, 1=animated, 2=reactive, 3=global span.
@@ -1668,27 +1762,39 @@ public partial class RoomView : UserControl
     {
         // Show devices that are discovered but not yet in the layout
         var placedIds = new HashSet<string>(layout.Devices.Select(d => d.DeviceId));
-        bool anyUnplaced = false;
 
-        var trayRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+        var card = MakeLayoutCard();
+        card.Padding = new Thickness(16, 14, 16, 14);
+        var cardContent = new StackPanel();
+
+        cardContent.Children.Add(new TextBlock
+        {
+            Text = "ADD DEVICE",
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextDimBrush"),
+            Margin = new Thickness(0, 0, 0, 8),
+        });
+
+        var trayRow = new WrapPanel { Orientation = Orientation.Horizontal };
+        bool anyUnplaced = false;
 
         // "Place Monitor" button (only if no monitor placed yet)
         if (layout.Monitor == null)
         {
-            var monBtn = MakeDeviceTrayButton("Place Monitor", "monitor", () =>
+            trayRow.Children.Add(MakeDeviceTrayButton("Monitor", "monitor", () =>
             {
                 layout.Monitor = new MonitorPlacement
                 {
                     X = layout.WidthFt / 2,
-                    Y = 1.0, // near front wall (desk)
+                    Y = 1.0,
                     Z = 3.5,
                     WidthFt = 2.8,
                     HeightFt = 1.0,
                 };
                 OnLayoutChanged();
                 RebuildRoomTabContent();
-            });
-            trayRow.Children.Add(monBtn);
+            }));
             anyUnplaced = true;
         }
 
@@ -1700,7 +1806,7 @@ public partial class RoomView : UserControl
                 if (string.IsNullOrWhiteSpace(id) || placedIds.Contains(id)) continue;
 
                 int segs = AmpUp.Core.Services.AmbienceSync.GetSegmentCount(dev);
-                var addBtn = MakeDeviceTrayButton(dev.Name, "govee", () =>
+                trayRow.Children.Add(MakeDeviceTrayButton(dev.Name, "govee", () =>
                 {
                     layout.Devices.Add(new RoomDevicePlacement
                     {
@@ -1710,8 +1816,7 @@ public partial class RoomView : UserControl
                     });
                     OnLayoutChanged();
                     RebuildRoomTabContent();
-                });
-                trayRow.Children.Add(addBtn);
+                }));
                 anyUnplaced = true;
             }
         }
@@ -1721,11 +1826,10 @@ public partial class RoomView : UserControl
         {
             if (_haLightCache == null)
             {
-                var scanBtn = MakeDeviceTrayButton("Scan HA Lights", "ha", () =>
+                trayRow.Children.Add(MakeDeviceTrayButton("Scan HA Lights", "ha", () =>
                 {
                     _ = ShowHaLightPickerAsync(layout);
-                });
-                trayRow.Children.Add(scanBtn);
+                }));
                 anyUnplaced = true;
             }
             else
@@ -1733,10 +1837,10 @@ public partial class RoomView : UserControl
                 foreach (var entity in _haLightCache)
                 {
                     if (placedIds.Contains(entity.EntityId)) continue;
-                    if (entity.EntityId.Contains("segment_")) continue; // skip individual segments
+                    if (entity.EntityId.Contains("segment_")) continue;
                     var eid = entity.EntityId;
                     var ename = entity.FriendlyName;
-                    var addBtn = MakeDeviceTrayButton(ename, "ha", () =>
+                    trayRow.Children.Add(MakeDeviceTrayButton(ename, "ha", () =>
                     {
                         layout.Devices.Add(new RoomDevicePlacement
                         {
@@ -1746,8 +1850,7 @@ public partial class RoomView : UserControl
                         });
                         OnLayoutChanged();
                         RebuildRoomTabContent();
-                    });
-                    trayRow.Children.Add(addBtn);
+                    }));
                     anyUnplaced = true;
                 }
             }
@@ -1755,43 +1858,90 @@ public partial class RoomView : UserControl
 
         if (!anyUnplaced)
         {
-            trayRow.Children.Add(new TextBlock
+            cardContent.Children.Add(new TextBlock
             {
                 Text = "All discovered devices are placed in the layout.",
-                FontSize = 11, Foreground = FindBrush("TextSecBrush"),
+                FontSize = 11,
+                Foreground = FindBrush("TextSecBrush"),
+                Margin = new Thickness(0, 2, 0, 0),
             });
         }
-        stack.Children.Add(trayRow);
+        else
+        {
+            cardContent.Children.Add(trayRow);
+        }
+
+        card.Child = cardContent;
+        stack.Children.Add(card);
     }
 
+    /// <summary>
+    /// Device tray tile: small colored icon square + name on a dark rounded pill.
+    /// </summary>
     private Border MakeDeviceTrayButton(string name, string type, Action onClick)
     {
-        var btn = new Border
+        Color tint = type switch
         {
-            CornerRadius = new CornerRadius(6),
-            Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+            "monitor" => Color.FromRgb(0x7C, 0xB3, 0xFF), // blue
+            "govee"   => Color.FromRgb(0xFF, 0x8A, 0x65), // orange
+            "ha"      => Color.FromRgb(0x82, 0xCF, 0xFF), // cyan
+            _          => ThemeManager.Accent,
+        };
+
+        var tile = new Border
+        {
+            CornerRadius = new CornerRadius(10),
+            Background = new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E)),
             BorderThickness = new Thickness(1),
-            Padding = new Thickness(10, 6, 10, 6),
-            Margin = new Thickness(0, 0, 6, 6),
+            Padding = new Thickness(10, 7, 14, 7),
+            Margin = new Thickness(0, 0, 8, 8),
             Cursor = Cursors.Hand,
         };
         var content = new StackPanel { Orientation = Orientation.Horizontal };
-        content.Children.Add(new TextBlock
+
+        // Colored icon square
+        var iconBg = new Border
         {
-            Text = "+ ", FontSize = 11, FontWeight = FontWeights.Bold,
-            Foreground = FindBrush("AccentBrush"),
+            Width = 24, Height = 24,
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(Color.FromArgb(0x30, tint.R, tint.G, tint.B)),
+            Margin = new Thickness(0, 0, 10, 0),
             VerticalAlignment = VerticalAlignment.Center,
-        });
+        };
+        iconBg.Child = new TextBlock
+        {
+            Text = "+",
+            FontSize = 16, FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(tint),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        content.Children.Add(iconBg);
+
         content.Children.Add(new TextBlock
         {
             Text = !string.IsNullOrWhiteSpace(name) ? name : type,
-            FontSize = 11, Foreground = FindBrush("TextPrimaryBrush"),
+            FontSize = 12, FontWeight = FontWeights.Medium,
+            Foreground = FindBrush("TextPrimaryBrush"),
             VerticalAlignment = VerticalAlignment.Center,
         });
-        btn.Child = content;
-        btn.MouseLeftButtonDown += (_, _) => onClick();
-        return btn;
+
+        tile.Child = content;
+
+        tile.MouseEnter += (_, _) =>
+        {
+            var ac = ThemeManager.Accent;
+            tile.Background = new SolidColorBrush(Color.FromRgb(0x26, 0x26, 0x26));
+            tile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, ac.R, ac.G, ac.B));
+        };
+        tile.MouseLeave += (_, _) =>
+        {
+            tile.Background = new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F));
+            tile.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E));
+        };
+        tile.MouseLeftButtonDown += (_, _) => onClick();
+        return tile;
     }
 
     private List<HAEntity>? _haLightCache;
