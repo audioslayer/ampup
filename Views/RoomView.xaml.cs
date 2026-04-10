@@ -778,6 +778,11 @@ public partial class RoomView : UserControl
         // Forward-declared so the SelectionChanged closure can reference it; assigned below.
         StackPanel? paletteSection = null;
 
+        // Forward-declared so SelectionChanged can toggle them without forward reference.
+        // paletteEditor/singleColorSwatch are assigned above this block in the rightStack build.
+        PaletteEditorControl? paletteEditorRef = null;
+        Border? singleColorSwatchRef = null;
+
         effectPicker.SelectionChanged += (_, _) =>
         {
             if (_loading || _vuFillActive) return;
@@ -802,6 +807,16 @@ public partial class RoomView : UserControl
                 paletteSection.Visibility = EffectIgnoresPalette(effect)
                     ? Visibility.Collapsed
                     : Visibility.Visible;
+            }
+            // Swap between single-color swatch and multi-stop editor based on effect
+            bool isSingle = effect == LightEffect.SingleColor;
+            if (paletteEditorRef != null)
+                paletteEditorRef.Visibility = isSingle ? Visibility.Collapsed : Visibility.Visible;
+            if (singleColorSwatchRef != null)
+            {
+                singleColorSwatchRef.Visibility = isSingle ? Visibility.Visible : Visibility.Collapsed;
+                if (isSingle)
+                    singleColorSwatchRef.Background = new SolidColorBrush(_roomColor1);
             }
         };
         leftCol.Children.Add(effectPicker);
@@ -853,6 +868,58 @@ public partial class RoomView : UserControl
             paletteEditor.ClearSelection();
         };
         paletteSection.Children.Add(paletteEditor);
+
+        // ── Single-color swatch picker (only visible when SingleColor effect is selected) ──
+        var singleColorSwatch = new Border
+        {
+            Height = 42,
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(_roomColor1),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(0, 4, 0, 10),
+            Cursor = Cursors.Hand,
+            ToolTip = "Click to pick a solid color",
+            Visibility = Visibility.Collapsed,
+        };
+        singleColorSwatch.Child = new TextBlock
+        {
+            Text = "CLICK TO CHANGE COLOR",
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromArgb(0xB0, 0xFF, 0xFF, 0xFF)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = Colors.Black,
+                ShadowDepth = 1,
+                BlurRadius = 3,
+                Opacity = 0.6,
+            },
+        };
+        singleColorSwatch.MouseLeftButtonDown += (_, _) =>
+        {
+            var dialog = new ColorPickerDialog(_roomColor1) { Owner = Window.GetWindow(this) };
+            dialog.ColorChanged += c =>
+            {
+                _roomColor1 = c;
+                singleColorSwatch.Background = new SolidColorBrush(c);
+                // Push immediately so the device reflects the new color live
+                SendRoomColor(c.R, c.G, c.B);
+            };
+            dialog.ShowDialog();
+        };
+        paletteSection.Children.Add(singleColorSwatch);
+
+        // Publish refs so SelectionChanged can toggle them
+        paletteEditorRef = paletteEditor;
+        singleColorSwatchRef = singleColorSwatch;
+
+        // Set initial visibility based on currently-selected effect
+        bool startSingle = _activePattern == null; // SingleColor = null pattern
+        paletteEditor.Visibility = startSingle ? Visibility.Collapsed : Visibility.Visible;
+        singleColorSwatch.Visibility = startSingle ? Visibility.Visible : Visibility.Collapsed;
 
         // ── Palette preset tiles (smaller, wrapped in 2-3 rows) ──
         var presetWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
@@ -908,7 +975,15 @@ public partial class RoomView : UserControl
                     _roomColor2 = Color.FromRgb(sorted[^1].R, sorted[^1].G, sorted[^1].B);
                 }
                 if (_activePattern != null && _activePattern != "__sync__")
+                {
                     StartRoomPattern(_activePattern);
+                }
+                else
+                {
+                    // SingleColor mode — push the new color live
+                    singleColorSwatch.Background = new SolidColorBrush(_roomColor1);
+                    SendRoomColor(_roomColor1.R, _roomColor1.G, _roomColor1.B);
+                }
             };
             swatch.MouseEnter += (_, _) =>
             {
@@ -4512,17 +4587,31 @@ public partial class RoomView : UserControl
     private void SendRoomColor(byte r, byte g, byte b)
     {
         StopRoomPattern();
-        // Govee LAN
+        int brightness = _config?.Ambience.BrightnessScale ?? 100;
+
+        // Govee LAN — sequential per-device so clear-razer finishes before color.
+        // (Previously fire-and-forget, which caused a race where the disable-razer
+        // packet arrived after the color command and reverted the device.)
         if (_config?.Ambience.GoveeEnabled == true)
+        {
             foreach (var dev in _config.Ambience.GoveeDevices)
             {
                 if (string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn) continue;
-                // Disable segment mode first (device may still be in razer mode from previous effect)
-                if (AmbienceSync.GetSegmentCount(dev) > 0)
-                    _sync?.ClearSegmentMode(dev.Ip);
-                _ = AmbienceSync.SendColorAsync(dev.Ip, r, g, b);
-                _ = AmbienceSync.SendBrightnessAsync(dev.Ip, 100);
+                bool inSegmentMode = AmbienceSync.GetSegmentCount(dev) > 0;
+                string ip = dev.Ip;
+                _ = Task.Run(async () =>
+                {
+                    if (inSegmentMode)
+                    {
+                        await AmbienceSync.DisableSegmentMode(ip);
+                        _sync?.ClearSegmentMode(ip);
+                        await Task.Delay(120); // let the device settle out of razer mode
+                    }
+                    await AmbienceSync.SendColorAsync(ip, r, g, b);
+                    await AmbienceSync.SendBrightnessAsync(ip, brightness);
+                });
             }
+        }
         // Corsair
         if (_corsairSync?.IsAvailable == true && _config?.Corsair.Enabled == true)
         {
