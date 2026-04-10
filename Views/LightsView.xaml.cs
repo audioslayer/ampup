@@ -722,7 +722,7 @@ public partial class LightsView : UserControl
 
         // Effect picker
         settings.Children.Add(MakeSectionHeader("EFFECT"));
-        var effectPicker = new EffectPickerControl(showGlobal: true)
+        var effectPicker = new EffectPickerControl(showGlobal: true, showFavorites: false)
         {
             Margin = new Thickness(0, 0, 0, 10),
             ToolTip = "Choose the LED lighting effect",
@@ -849,7 +849,7 @@ public partial class LightsView : UserControl
             Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
             Margin = new Thickness(0, 0, 0, 6),
         });
-        var idleEffectPicker = new EffectPickerControl(showGlobal: true)
+        var idleEffectPicker = new EffectPickerControl(showGlobal: true, showFavorites: false)
         {
             Margin = new Thickness(0, 0, 0, 8),
             ToolTip = "Effect to show when no music is detected — crossfades to audio reactive when music plays",
@@ -1271,7 +1271,7 @@ public partial class LightsView : UserControl
 
             // ── EFFECT section ──
             panel.Children.Add(MakeSectionHeader("EFFECT"));
-            var effectPicker = new EffectPickerControl
+            var effectPicker = new EffectPickerControl(showGlobal: false, showFavorites: false)
             {
                 Margin = new Thickness(0, 0, 0, 10),
                 ToolTip = "Choose the LED lighting effect for this knob",

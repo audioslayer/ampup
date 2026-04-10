@@ -142,6 +142,7 @@ namespace AmpUp.Controls
 
         // ── Internals ────────────────────────────────────────────────────
         private readonly bool _showGlobal;
+        private readonly bool _showFavorites;
         private readonly List<EffectTile> _tiles = new();
         /// <summary>Duplicate tiles created for the Favorites view (separate from _tiles).</summary>
         private readonly List<EffectTile> _favoriteTiles = new();
@@ -231,9 +232,10 @@ namespace AmpUp.Controls
         };
 
         // ── Constructor ──────────────────────────────────────────────────
-        public EffectPickerControl(bool showGlobal = false)
+        public EffectPickerControl(bool showGlobal = false, bool showFavorites = true)
         {
             _showGlobal = showGlobal;
+            _showFavorites = showFavorites;
             Background = Brushes.Transparent;
             BorderThickness = new Thickness(0);
             SnapsToDevicePixels = true;
@@ -241,35 +243,38 @@ namespace AmpUp.Controls
             var mainPanel = new StackPanel();
             Child = mainPanel;
 
-            // Favorites panel (populated dynamically, shown only when category 4 is selected)
-            _favoritesHeader = new TextBlock
+            if (_showFavorites)
             {
-                Text = "FAVORITES",
-                FontSize = 9,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-                Margin = new Thickness(2, 6, 0, 4),
-                Visibility = Visibility.Collapsed,
-            };
-            mainPanel.Children.Add(_favoritesHeader);
+                // Favorites panel (populated dynamically, shown only when category 4 is selected)
+                _favoritesHeader = new TextBlock
+                {
+                    Text = "FAVORITES",
+                    FontSize = 9,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                    Margin = new Thickness(2, 6, 0, 4),
+                    Visibility = Visibility.Collapsed,
+                };
+                mainPanel.Children.Add(_favoritesHeader);
 
-            _favoritesPanel = new WrapPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Visibility = Visibility.Collapsed,
-            };
-            mainPanel.Children.Add(_favoritesPanel);
+                _favoritesPanel = new WrapPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Visibility = Visibility.Collapsed,
+                };
+                mainPanel.Children.Add(_favoritesPanel);
 
-            _favoritesEmpty = new TextBlock
-            {
-                Text = "No favorites yet. Click the ★ on any effect tile to add it here.",
-                FontSize = 11,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
-                FontStyle = FontStyles.Italic,
-                Margin = new Thickness(4, 6, 0, 6),
-                Visibility = Visibility.Collapsed,
-            };
-            mainPanel.Children.Add(_favoritesEmpty);
+                _favoritesEmpty = new TextBlock
+                {
+                    Text = "No favorites yet. Click the ★ on any effect tile to add it here.",
+                    FontSize = 11,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
+                    FontStyle = FontStyles.Italic,
+                    Margin = new Thickness(4, 6, 0, 6),
+                    Visibility = Visibility.Collapsed,
+                };
+                mainPanel.Children.Add(_favoritesEmpty);
+            }
 
             AddCategory(mainPanel, "STATIC", new[]
             {
@@ -410,7 +415,7 @@ namespace AmpUp.Controls
             var content = new Grid();
             content.Children.Add(stack);
 
-            if (addStar)
+            if (addStar && _showFavorites)
             {
                 var star = new TextBlock
                 {
