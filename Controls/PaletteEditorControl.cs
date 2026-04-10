@@ -37,6 +37,10 @@ public class PaletteEditorControl : FrameworkElement
     private int _dragStop = -1;
     private double _dragOffsetX;
     private bool _isDragging;
+    // Click-vs-drag tracking — color picker only opens on mouseup without movement
+    private Point _pressPos;
+    private bool _hasDragged;
+    private const double DragThreshold = 3.0;
 
     // Static frozen resources
     private static readonly Brush s_bgBrush;
@@ -121,6 +125,7 @@ public class PaletteEditorControl : FrameworkElement
     {
         Height = TotalHeight;
         Cursor = Cursors.Arrow;
+        ToolTip = "Click a stop to change its color. Drag to move. Right-click to delete.";
     }
 
     /// <summary>Get or set the current palette. Setting triggers a redraw.</summary>
@@ -187,19 +192,9 @@ public class PaletteEditorControl : FrameworkElement
             // Draw connecting line from bar to chip
             dc.DrawLine(s_chipBorder, new Point(x, GradientBarHeight), new Point(x, ChipY - ChipRadius));
 
-            // Draw chip circle
+            // Draw chip circle (selected gets accent border)
             var pen = i == _selectedStop ? s_chipSelectedBorder : s_chipBorder;
             dc.DrawEllipse(chipBrush, pen, new Point(x, ChipY), ChipRadius, ChipRadius);
-
-            // Draw "x" on selected chip if more than 2 stops
-            if (i == _selectedStop && _palette.Stops.Count > 2)
-            {
-                double xOff = ChipRadius * 0.4;
-                var xPen = new Pen(Brushes.White, 1.2);
-                xPen.Freeze();
-                dc.DrawLine(xPen, new Point(x - xOff, ChipY - xOff), new Point(x + xOff, ChipY + xOff));
-                dc.DrawLine(xPen, new Point(x + xOff, ChipY - xOff), new Point(x - xOff, ChipY + xOff));
-            }
         }
 
         // 3. "Add stop" button — filled dark circle with plus, positioned right of the bar
@@ -301,32 +296,21 @@ public class PaletteEditorControl : FrameworkElement
             return;
         }
 
-        // Check chip click
+        // Check chip click — select + begin potential drag.
+        // Color picker opens on MouseUp only if no drag happened (click-vs-drag disambiguation).
         for (int i = 0; i < _palette.Stops.Count; i++)
         {
             double chipX = StopToX(_palette.Stops[i].Position);
             if (Math.Abs(pos.X - chipX) <= ChipRadius + 2 && Math.Abs(pos.Y - ChipY) <= ChipRadius + 2)
             {
-                // If clicking selected stop's "x" area and >2 stops, remove it
-                if (i == _selectedStop && _palette.Stops.Count > 2)
-                {
-                    _palette.Stops.RemoveAt(i);
-                    _selectedStop = -1;
-                    InvalidateVisual();
-                    PaletteChanged?.Invoke(_palette);
-                    return;
-                }
-
                 _selectedStop = i;
                 _dragStop = i;
                 _isDragging = true;
+                _hasDragged = false;
+                _pressPos = pos;
                 _dragOffsetX = pos.X - chipX;
                 CaptureMouse();
                 InvalidateVisual();
-
-                // Fire event for external color picker
-                var stop = _palette.Stops[i];
-                StopClicked?.Invoke(i, Color.FromRgb(stop.R, stop.G, stop.B));
                 return;
             }
         }
@@ -359,10 +343,21 @@ public class PaletteEditorControl : FrameworkElement
         // Handle chip dragging
         if (_isDragging && _dragStop >= 0)
         {
-            double newPos = XToStop(pos.X - _dragOffsetX);
-            _palette.Stops[_dragStop].Position = newPos;
-            InvalidateVisual();
-            PaletteChanged?.Invoke(_palette);
+            // Promote to "dragged" once movement exceeds threshold
+            if (!_hasDragged &&
+                (Math.Abs(pos.X - _pressPos.X) > DragThreshold ||
+                 Math.Abs(pos.Y - _pressPos.Y) > DragThreshold))
+            {
+                _hasDragged = true;
+            }
+
+            if (_hasDragged)
+            {
+                double newPos = XToStop(pos.X - _dragOffsetX);
+                _palette.Stops[_dragStop].Position = newPos;
+                InvalidateVisual();
+                PaletteChanged?.Invoke(_palette);
+            }
             return;
         }
 
@@ -412,9 +407,45 @@ public class PaletteEditorControl : FrameworkElement
     {
         if (_isDragging)
         {
+            bool wasClick = !_hasDragged;
+            int clickedStop = _dragStop;
+
+            // Release capture + drag state BEFORE showing modal dialog —
+            // otherwise the dialog eats the mouseup and leaves capture stuck.
             _isDragging = false;
             _dragStop = -1;
+            _hasDragged = false;
             ReleaseMouseCapture();
+
+            // If this was a click (no drag), open the color picker for the stop
+            if (wasClick && clickedStop >= 0 && clickedStop < _palette.Stops.Count)
+            {
+                var stop = _palette.Stops[clickedStop];
+                StopClicked?.Invoke(clickedStop, Color.FromRgb(stop.R, stop.G, stop.B));
+            }
+        }
+    }
+
+    protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
+    {
+        var pos = e.GetPosition(this);
+
+        // Right-click on a chip = delete it (if more than 2 stops remain)
+        for (int i = 0; i < _palette.Stops.Count; i++)
+        {
+            double chipX = StopToX(_palette.Stops[i].Position);
+            if (Math.Abs(pos.X - chipX) <= ChipRadius + 2 && Math.Abs(pos.Y - ChipY) <= ChipRadius + 2)
+            {
+                if (_palette.Stops.Count > 2)
+                {
+                    _palette.Stops.RemoveAt(i);
+                    _selectedStop = -1;
+                    InvalidateVisual();
+                    PaletteChanged?.Invoke(_palette);
+                }
+                e.Handled = true;
+                return;
+            }
         }
     }
 
