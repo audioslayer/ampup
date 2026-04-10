@@ -321,37 +321,51 @@ public partial class RoomView : UserControl
         var stack = new StackPanel();
         card.Child = stack;
 
-        // ── Pill-style tab bar (Room Effect / Layout / Devices) ──
+        // ── Underline tab bar (Material-style) ──
         var accent = ThemeManager.Accent;
         var tabNames = new[] { "ROOM EFFECT", "LAYOUT", "DEVICES" };
         var tabCount = tabNames.Length;
         var tabBorders = new Border[tabCount];
 
-        var toggleBar = new Border
+        var tabContainer = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(3),
-            Margin = new Thickness(0, 0, 0, 12),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)),
+            BorderThickness = new Thickness(0, 0, 0, 1), // bottom divider line
+            Margin = new Thickness(0, 0, 0, 16),
+        };
+        var tabRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Center,
         };
-        var tabRow = new StackPanel { Orientation = Orientation.Horizontal };
         for (int i = 0; i < tabCount; i++)
         {
             var idx = i;
             var tab = new Border
             {
-                CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(18, 5, 18, 5),
+                Padding = new Thickness(22, 10, 22, 10),
                 Cursor = Cursors.Hand,
-                MinWidth = 80,
+                BorderBrush = new SolidColorBrush(Colors.Transparent),
+                BorderThickness = new Thickness(0, 0, 0, 2), // 2px underline slot
+                Background = new SolidColorBrush(Colors.Transparent),
             };
             tab.Child = new TextBlock
             {
-                Text = tabNames[i], FontSize = 10, FontWeight = FontWeights.Bold,
+                Text = tabNames[i], FontSize = 11, FontWeight = FontWeights.SemiBold,
                 HorizontalAlignment = HorizontalAlignment.Center,
+                Foreground = FindBrush("TextSecBrush"),
             };
             tabBorders[i] = tab;
+            tab.MouseEnter += (_, _) =>
+            {
+                if (idx != _roomTabIndex && tab.Child is TextBlock t)
+                    t.Foreground = FindBrush("TextPrimaryBrush");
+            };
+            tab.MouseLeave += (_, _) =>
+            {
+                if (idx != _roomTabIndex && tab.Child is TextBlock t)
+                    t.Foreground = FindBrush("TextSecBrush");
+            };
             tab.MouseLeftButtonDown += (_, _) =>
             {
                 _roomTabIndex = idx;
@@ -363,8 +377,8 @@ public partial class RoomView : UserControl
         }
         for (int i = 0; i < tabCount; i++)
             SetRoomTabActive(tabBorders[i], i == _roomTabIndex, accent);
-        toggleBar.Child = tabRow;
-        stack.Children.Add(toggleBar);
+        tabContainer.Child = tabRow;
+        stack.Children.Add(tabContainer);
 
         // Dynamic toggle row — rebuilt per tab in RebuildRoomTabContent
         _toggleRowContainer = new StackPanel();
@@ -382,19 +396,25 @@ public partial class RoomView : UserControl
         var label = tab.Child as TextBlock;
         if (active)
         {
-            tab.Background = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B));
-            tab.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, accent.R, accent.G, accent.B));
-            tab.BorderThickness = new Thickness(1);
-            tab.Opacity = 1.0;
-            if (label != null) label.Foreground = new SolidColorBrush(accent);
+            // Accent underline, bright label
+            tab.BorderBrush = new SolidColorBrush(accent);
+            tab.BorderThickness = new Thickness(0, 0, 0, 2);
+            if (label != null)
+            {
+                label.Foreground = new SolidColorBrush(accent);
+                label.FontWeight = FontWeights.Bold;
+            }
         }
         else
         {
-            tab.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-            tab.BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
-            tab.BorderThickness = new Thickness(1);
-            tab.Opacity = 0.4;
-            if (label != null) label.Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
+            // No underline, muted label
+            tab.BorderBrush = new SolidColorBrush(Colors.Transparent);
+            tab.BorderThickness = new Thickness(0, 0, 0, 2);
+            if (label != null)
+            {
+                label.Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
+                label.FontWeight = FontWeights.SemiBold;
+            }
         }
     }
 

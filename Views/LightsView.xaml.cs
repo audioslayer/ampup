@@ -612,17 +612,15 @@ public partial class LightsView : UserControl
         var panel = GlobalLightCardPanel;
         var accent = ((SolidColorBrush)FindResource("AccentBrush")).Color;
 
-        // Mode toggle: segmented "Per Knob | Global" tab bar
+        // Mode toggle: Material-style underline tabs "Per Knob | Global"
         var toggleBar = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(3),
-            Margin = new Thickness(0, 0, 0, 4),
-            HorizontalAlignment = HorizontalAlignment.Center,
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Margin = new Thickness(0, 0, 0, 12),
         };
 
-        var toggleRow = new StackPanel { Orientation = Orientation.Horizontal };
+        var toggleRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
 
         var perKnobTab = BuildModeTab("PER KNOB", true, accent);
         var globalTab = BuildModeTab("GLOBAL", false, accent);
@@ -973,17 +971,28 @@ public partial class LightsView : UserControl
     {
         var tab = new Border
         {
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(18, 5, 18, 5),
+            Padding = new Thickness(22, 10, 22, 10),
             Cursor = Cursors.Hand,
-            MinWidth = 90,
+            BorderBrush = new SolidColorBrush(Colors.Transparent),
+            BorderThickness = new Thickness(0, 0, 0, 2),
+            Background = new SolidColorBrush(Colors.Transparent),
         };
         tab.Child = new TextBlock
         {
             Text = text,
-            FontSize = 10,
-            FontWeight = FontWeights.Bold,
+            FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
             HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        tab.MouseEnter += (_, _) =>
+        {
+            if (tab.BorderBrush is SolidColorBrush br && br.Color.A == 0 && tab.Child is TextBlock t)
+                t.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
+        };
+        tab.MouseLeave += (_, _) =>
+        {
+            if (tab.BorderBrush is SolidColorBrush br && br.Color.A == 0 && tab.Child is TextBlock t)
+                t.Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
         };
         SetModeTabActive(tab, active, accent);
         return tab;
@@ -994,19 +1003,23 @@ public partial class LightsView : UserControl
         var label = tab.Child as TextBlock;
         if (active)
         {
-            tab.Background = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B));
-            tab.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, accent.R, accent.G, accent.B));
-            tab.BorderThickness = new Thickness(1);
+            tab.BorderBrush = new SolidColorBrush(accent);
+            tab.BorderThickness = new Thickness(0, 0, 0, 2);
             if (label != null)
+            {
                 label.Foreground = new SolidColorBrush(accent);
+                label.FontWeight = FontWeights.Bold;
+            }
         }
         else
         {
-            tab.Background = Brushes.Transparent;
-            tab.BorderBrush = Brushes.Transparent;
-            tab.BorderThickness = new Thickness(1);
+            tab.BorderBrush = new SolidColorBrush(Colors.Transparent);
+            tab.BorderThickness = new Thickness(0, 0, 0, 2);
             if (label != null)
-                label.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+            {
+                label.Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
+                label.FontWeight = FontWeights.SemiBold;
+            }
         }
     }
 
