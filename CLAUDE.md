@@ -377,7 +377,7 @@ Each button supports 3 gestures (15 total bindings):
 | `DeviceSelect` | per-device | Shows mapped color based on current default audio output device |
 | `AudioPositionBlend` | 2 | Music reactive with position blend fallback — crossfades between PositionBlend and AudioReactive based on audio energy. Global mode: configurable idle effect (e.g. Ocean) when silent, crossfades to audio-reactive on music |
 
-**Global Spanning (30):** *(only active in Global Lighting / Room modes, per-knob fallback = solid color1. Aurora, Matrix, Starfield added to SpanningEffects HashSet in v0.9.8.)*
+**Global Spanning (30):** *(only active in Global Lighting / Room modes, per-knob fallback = solid color1. Aurora, Matrix, Starfield were missing from SpanningEffects HashSet and fixed in v0.9.7.)*
 | Effect | Description |
 |-|-|
 | `Scanner` | KITT/Cylon dot sweeps back and forth with fading tail |
@@ -666,7 +666,7 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - **SendBrightnessAsync in room effect startup kicks out of razer mode** — Sending brightness API to segment devices during `StartRoomPattern` exits razer segment mode. Removed from startup path.
 - **Discord multi-session volume control (#13)** — NAudio only exposes the first session matching a process name, but Discord creates multiple sessions (voice + system). `RefreshSessions` now stores ALL sessions per process with compound key `name:pid`, and `SetVolume` iterates all matching sessions.
 - **DeviceSelect LED latency (#14)** — 500ms device-poll loop caused visible lag when switching outputs. Dynamic device count (3-8 based on actual devices configured). `HandleDeviceSwitched` now instantly updates LEDs without waiting for the poll interval.
-- **Aurora/Matrix/Starfield missing from SpanningEffects HashSet** — These effects were implemented but never added to the global-effect dispatch HashSet, so they silently fell back to solid color1 when selected in Global mode. Fixed in v0.9.8 — add all new spanning effects to `SpanningEffects` or they won't dispatch.
+- **Aurora/Matrix/Starfield missing from SpanningEffects HashSet** — These effects were implemented but never added to the global-effect dispatch HashSet, so they silently fell back to solid color1 when selected in Global mode. Fixed — add all new spanning effects to `SpanningEffects` or they won't dispatch.
 - **Music Reactive thread safety** — `OnRoomFrame` must snapshot config at start (copy to locals) and use `Task.Run` for segment sends. Reading config fields directly in the audio callback or sending synchronously causes UI thread blocking and tearing.
 - **VU Fill must StopRoomPattern before starting** — Starting VU Fill while a room pattern is running causes competing Govee segment frames (fighting writes at 20fps). Always call StopRoomPattern first.
 - **Mirror is the default direction mode** — Previously SpatialSync was auto-enabled, which confused users with simple 2-device setups. Mirror is now the default; SpatialSync is opt-in via DIRECTION pills.
@@ -778,17 +778,21 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
   - **Profile picker:** switch_profile and cycle_profile use flyout sub-menus in GridPicker/ActionPicker instead of dropdowns.
   - **Group picker:** Group targets use flyout sub-menus in GridPicker instead of dropdowns.
 
-- **v0.9.8-alpha (Apr 5)** — **Room tab redesign + 10 new LED effects + palette overhaul + critical bug fixes.**
+- **v0.9.7-alpha (Apr 5-9)** — **Major: Spatial Screen Sync + Room tab redesign + 10 new effects + palette overhaul + critical bug fixes.**
+  - **Monitor-aware spatial Screen Sync:** ScreenSpatialMapper computes per-device screen sampling regions based on monitor placement in room layout. Devices auto-mapped to screen edges based on physical position. 2D zone grid capture for height-aware sampling.
+  - **ScreenEdgeControl:** Front-view monitor control with draggable crop lines for pillarbox/letterbox content boundaries. Per-device crop mode (Content/Full Screen/Ambient) via `DeviceCropMode` enum.
   - **Room tab redesigned (major):** Material-style UNDERLINE tab bar (ROOM EFFECT / LAYOUT / DEVICES) replaces pill tabs. ROOM EFFECT is a two-column layout — LEFT category tab bar (STATIC / ANIMATED / REACTIVE / GLOBAL SPAN) filters EffectPickerControl via new `SetVisibleCategory`; RIGHT is a 280px dark card with PALETTE (gradient editor + 24 preset swatches in 2-row wrap), SPEED, BRIGHTNESS, DIRECTION pills. LAYOUT tab: 420px room canvas + device placement. DEVICES tab: Govee + Corsair + Turn Up sections.
-  - **Toggle row expansion:** `[AMP UP] [MUSIC REACTIVE] [VU FILL] [SCREEN SYNC] [GAME MODE]`. Music Reactive sub-row: SENSITIVITY slider (1-100%). VU Fill sub-row: 6 MODE pills.
-  - **VU Fill modes (6):** Classic (bottom→top energy), Split (bass=L, treble=R), Rainfall (onset-triggered drips), Pulse (bass pulse all segments), Spectrum (per-segment frequency band), Drip (liquid gravity pool at bottom). All use palette gradient, paired panels mirror. WLED-style onset detection (running average + threshold + hysteresis).
+  - **Material-style underline tabs everywhere:** Room tab bar, Lights tab bar (PER KNOB / GLOBAL), effect category tab bar all use the same pattern — no background container, bottom divider line, 2px accent underline under active tab, hover brightens inactive text.
+  - **Toggle row:** `[AMP UP] [MUSIC REACTIVE] [VU FILL] [SCREEN SYNC] [GAME MODE]`. Music Reactive sub-row: SENSITIVITY slider (1-100%). VU Fill sub-row: 6 MODE pills.
+  - **VU Fill room mode (6 modes):** Classic (bottom→top energy), Split (bass=L, treble=R), Rainfall (onset-triggered drips), Pulse (bass pulse all segments), Spectrum (per-segment frequency band), Drip (liquid gravity pool at bottom). All use palette gradient, paired panels mirror. WLED-style onset detection (running average + threshold + hysteresis). Single-color devices (lamps) use brightness pulsing instead of color shift.
   - **10 new LED spanning effects:** `Equalizer` (5-band VU across 15 LEDs), `Waterfall` (colors cascading down), `Lava` (4 Gaussian blobs with sine motion, lava-lamp feel), `VuWave` (bass-driven ripples), `NebulaDrift` (full 360-hue rainbow Aurora with multi-layer sines), `AudioPositionBlend` (per-knob + global mode with configurable idle effect — crossfades between PositionBlend/idle and AudioReactive on beats). Also fixed **Aurora / Matrix / Starfield** missing from `SpanningEffects` HashSet — they now actually dispatch in Global mode.
   - **Improved effects (Aurora-quality upgrades):** **Ocean** now uses HSV color shifting (blue/teal/cyan), brightness squaring, whitecap foam. **FireWall** blends smooth random with 3 sine layers and HSV warm hues (red→orange→yellow). **ColorWave** uses 3 sine layers instead of simple scroll + brightness squaring.
   - **20 premium color palettes:** 6 new (Cyberpunk, Sakura, Twilight, Coral Reef, Lavender, Copper). All existing palettes upgraded from 4-5 to 6-7 color stops for richer gradients.
-  - **Palette UI improvements:** PaletteEditorControl has larger preset swatches (40x20px with labels, hover/active states, 2-row wrapping). Cleaner Add Stop button (filled dark circle right of gradient bar, no overlap). Per-knob preset tiles in LightsView use card layout (gradient thumbnail + label, hover accent border).
-  - **Material-style underline tabs everywhere:** Room tab bar, Lights tab bar (PER KNOB / GLOBAL), effect category tab bar all use the same pattern — no background container, bottom divider line, 2px accent underline under active tab, hover brightens inactive text.
+  - **Palette UI improvements:** PaletteEditorControl has larger preset swatches (40x20px with labels, hover/active states, 2-row wrapping). Cleaner Add Stop button (filled dark circle right of gradient bar, no overlap). Auto-deselect chip after color picker closes. Per-knob preset tiles in LightsView use card layout (gradient thumbnail + label, hover accent border).
+  - **Music Reactive improvements:** Bass+low-mid frequency detection (≤2kHz, no treble). Squared energy for dramatic contrast. Fast attack / fast decay. Modulates full LED frame brightness (not just averaged color). Keeps room effect playing when silent, pulses on beats. `IsMusicReactiveActive` property keeps AudioAnalyzer alive through config saves. `OnRoomFrame` snapshots config at start and uses `Task.Run` for segment sends (no UI thread blocking).
+  - **Turn Up Mixer:** `syncRoomToTurnUp` config — syncs room effect and VU Fill colors to Turn Up hardware LEDs.
+  - **Sync Screen to Turn Up:** `screenSync.syncToTurnUp` config — screen sync colors drive hardware knob LEDs.
   - **Faster Game Mode transitions:** Polling 1s (was 2s), debounce 3s (was 10s). When Screen Sync or Game Mode activates, Music Reactive + VU Fill stop; Game Mode exit restores previous state.
-  - **Music Reactive stability:** `OnRoomFrame` snapshots config at start and uses `Task.Run` for segment sends (no UI thread blocking, no tearing). `IsMusicReactiveActive` property keeps AudioAnalyzer alive through config saves.
   - **Mirror is default direction** — removed auto-enable of SpatialSync (was confusing with simple 2-device setups).
   - **Critical bug fix: Govee LAN scan wipes device IPs** — when UDP multicast port (4001) was held by another app, LAN scan failed and cloud fallback replaced devices with `Ip=""`, silently wiping saved IPs. SettingsView.OnGoveeScan now preserves existing devices when scan fails.
   - **Bug fix: Cloud-only devices** default to `PoweredOn=false` and `SyncMode=off` to prevent interference with room effects.
@@ -796,22 +800,8 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
   - **Bug fix: SendBrightnessAsync removed from StartRoomPattern** — was kicking segment devices out of razer mode.
   - **Bug fix: Discord volume control (#13)** — NAudio only surfaces first session per process, but Discord creates multiple. `RefreshSessions` now stores ALL sessions per process (compound key `name:pid`), `SetVolume` iterates all matching sessions.
   - **Bug fix: DeviceSelect LED update latency (#14)** — Dynamic device count (3-8 based on actual devices configured), `HandleDeviceSwitched` instantly updates without waiting for 500ms device poll.
-  - **Config additions:** `ambience.syncRoomToTurnUp` (bool), `ambience.musicSensitivity` (1-100, default 50), `ambience.vuFillMode` (enum: Classic/Split/Rainfall/Pulse/Spectrum/Drip), `screenSync.syncToTurnUp` (bool), `globalLight.idleEffect` (LightEffect for AudioPositionBlend global mode).
+  - **Config additions:** `ambience.syncRoomToTurnUp` (bool), `ambience.musicSensitivity` (1-100, default 50), `ambience.vuFillMode` (enum: Classic/Split/Rainfall/Pulse/Spectrum/Drip), `screenSync.syncToTurnUp` (bool), `globalLight.idleEffect` (LightEffect for AudioPositionBlend global mode), `roomLayout` with monitor placement (`MonitorPlacement`) and device positions for spatial mapping.
   - **AmbienceSync:** `SendSegmentFrame` is now public for VU Fill per-segment control. Multi-session Discord support.
-  - **Significantly modified files:** `Views/RoomView.xaml.cs`, `AmpUp.Core/Engine/RgbController.cs`, `AmpUp.Core/Models/AppConfig.cs`, `AmpUp.Core/Models/BuiltInPalettes.cs`, `Controls/PaletteEditorControl.cs`, `Controls/EffectPickerControl.cs`, `Views/LightsView.xaml.cs`, `Views/SettingsView.xaml.cs`, `AmpUp.Core/Services/AmbienceSync.cs`, `App.xaml.cs`.
-
-- **v0.9.7-alpha (Apr 5)** — **Spatial Screen Sync + Music Reactive room modes + Turn Up LED sync.**
-  - **Monitor-aware spatial Screen Sync:** ScreenSpatialMapper computes per-device screen sampling regions based on monitor placement in room layout. Devices auto-mapped to screen edges based on physical position. 2D zone grid capture for height-aware sampling.
-  - **ScreenEdgeControl:** Front-view monitor control with draggable crop lines for pillarbox/letterbox content boundaries. Per-device crop mode (Content/Full Screen/Ambient) via `DeviceCropMode` enum.
-  - **AudioPositionBlend LED effect:** Music reactive with position blend fallback — crossfades between PositionBlend and AudioReactive based on audio energy. Per-knob mode and global mode (configurable idle effect like Ocean that crossfades to audio-reactive on music via `globalLight.idleEffect`).
-  - **VU Fill room mode:** Per-segment VU meters driven by audio frequency bands. Segments fill up like vertical meters. Single-color devices (lamps) use brightness pulsing instead of color shift. Paired panels mirror same bass VU.
-  - **Music Reactive improvements:** Bass-weighted beat detection with fast attack/slow decay. Modulates full LED frame brightness (not just averaged color). Keeps room effect playing when silent, pulses on beats. AudioAnalyzer survives config saves.
-  - **Turn Up Mixer:** `syncRoomToTurnUp` config — syncs room effect and VU Fill colors to Turn Up hardware LEDs.
-  - **Sync Screen to Turn Up:** `screenSync.syncToTurnUp` config — screen sync colors drive hardware knob LEDs.
-  - **Govee LAN scan failure protection:** Scan preserves existing device IPs when UDP socket fails (another app holds port).
-  - **Cloud-only Govee devices:** Default to `PoweredOn=false` and `SyncMode=off` to prevent room effect interference.
-  - **DreamSync.Stop() fix:** No longer sends segment disable command, preventing Game Mode cycling from killing wall lights.
-  - **Room layout config:** `roomLayout` with monitor placement (`MonitorPlacement`) and device positions for spatial mapping.
 
 ---
 
