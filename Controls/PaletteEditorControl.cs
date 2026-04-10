@@ -151,16 +151,18 @@ public class PaletteEditorControl : FrameworkElement
     /// <summary>Get the sorted stops for palette position calculations.</summary>
     private List<ColorStop> SortedStops => _palette.Stops.OrderBy(s => s.Position).ToList();
 
-    private double StopToX(double position) => position * (ActualWidth - 2) + 1;
-    private double XToStop(double x) => Math.Clamp((x - 1) / (ActualWidth - 2), 0, 1);
+    // Reserve right margin for the Add button
+    private double BarWidth => Math.Max(10, ActualWidth - AddButtonSize - 12);
+    private double StopToX(double position) => position * (BarWidth - 2) + 1;
+    private double XToStop(double x) => Math.Clamp((x - 1) / (BarWidth - 2), 0, 1);
 
     protected override void OnRender(DrawingContext dc)
     {
         if (ActualWidth < 20) return;
 
-        // 1. Gradient bar
+        // 1. Gradient bar — reserves space on right for Add button
         var gradBrush = BuildGradientBrush();
-        var gradRect = new Rect(0, 0, ActualWidth, GradientBarHeight);
+        var gradRect = new Rect(0, 0, BarWidth, GradientBarHeight);
         dc.DrawRoundedRectangle(gradBrush, s_gradientBorder, gradRect, 4, 4);
 
         // 2. Color stop chips
@@ -193,13 +195,22 @@ public class PaletteEditorControl : FrameworkElement
             }
         }
 
-        // 3. "+" button at the right
-        double addX = ActualWidth - AddButtonSize - 2;
-        dc.DrawEllipse(Brushes.Transparent, s_addPen, new Point(addX + AddButtonSize / 2, ChipY), AddButtonSize / 2, AddButtonSize / 2);
-        // Plus sign
-        double cx = addX + AddButtonSize / 2, cy = ChipY;
-        dc.DrawLine(s_addPen, new Point(cx - 4, cy), new Point(cx + 4, cy));
-        dc.DrawLine(s_addPen, new Point(cx, cy - 4), new Point(cx, cy + 4));
+        // 3. "Add stop" button — filled dark circle with plus, positioned right of the bar
+        if (_palette.Stops.Count < 8)
+        {
+            double addCx = BarWidth + 6 + AddButtonSize / 2;
+            double addCy = GradientBarHeight / 2; // align with center of gradient bar
+            var addBg = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+            addBg.Freeze();
+            var addBorder = new Pen(new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)), 1);
+            addBorder.Freeze();
+            dc.DrawEllipse(addBg, addBorder, new Point(addCx, addCy), AddButtonSize / 2, AddButtonSize / 2);
+            // Clean plus sign — thin, centered
+            var plusPen = new Pen(new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)), 1.5);
+            plusPen.Freeze();
+            dc.DrawLine(plusPen, new Point(addCx - 3.5, addCy), new Point(addCx + 3.5, addCy));
+            dc.DrawLine(plusPen, new Point(addCx, addCy - 3.5), new Point(addCx, addCy + 3.5));
+        }
 
         // 4. Preset palette swatches — wrapping grid with labels
         double px = 0;
@@ -273,8 +284,11 @@ public class PaletteEditorControl : FrameworkElement
         }
 
         // Check "+" button
-        double addCx = ActualWidth - AddButtonSize - 2 + AddButtonSize / 2;
-        if (Math.Abs(pos.X - addCx) < AddButtonSize && Math.Abs(pos.Y - ChipY) < AddButtonSize && _palette.Stops.Count < 8)
+        double addCx = BarWidth + 6 + AddButtonSize / 2;
+        double addCy = GradientBarHeight / 2;
+        double dxAdd = pos.X - addCx;
+        double dyAdd = pos.Y - addCy;
+        if (dxAdd * dxAdd + dyAdd * dyAdd < AddButtonSize * AddButtonSize && _palette.Stops.Count < 8)
         {
             AddStopAtGap();
             return;
