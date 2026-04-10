@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Shapes;
 
 namespace AmpUp.Controls
 {
@@ -130,7 +131,7 @@ namespace AmpUp.Controls
             // Update star visuals on all real tiles matching this effect
             foreach (var t in _tiles)
             {
-                if (t.Effect == effect && t.Star != null)
+                if (t.Effect == effect && t.FavoriteDot != null)
                     UpdateStarVisual(t);
             }
 
@@ -152,7 +153,7 @@ namespace AmpUp.Controls
             public Border Container = null!;
             public TextBlock Icon = null!;
             public TextBlock Label = null!;
-            public TextBlock? Star; // favorite star (top-right), null for favorite-panel copies
+            public Ellipse? FavoriteDot; // small gold dot shown only when favorited
             public LightEffect Effect;
             public bool IsHovered;
             public bool IsEmoji; // emoji icons ignore Foreground color
@@ -411,31 +412,27 @@ namespace AmpUp.Controls
             stack.Children.Add(iconBlock);
             stack.Children.Add(labelBlock);
 
-            // Grid lets us overlay the favorite star in the top-right corner
+            // Grid lets us overlay the favorite-dot badge in the top-right corner
             var content = new Grid();
             content.Children.Add(stack);
 
             if (addStar && _showFavorites)
             {
-                var star = new TextBlock
+                // Small gold dot — shown only when this effect is favorited.
+                // No always-visible control; users right-click the tile to toggle.
+                var dot = new Ellipse
                 {
-                    Text = "\u2605", // ★
-                    FontSize = 11,
+                    Width = 5,
+                    Height = 5,
+                    Fill = new SolidColorBrush(Color.FromRgb(0xFF, 0xD7, 0x00)), // gold
                     HorizontalAlignment = HorizontalAlignment.Right,
                     VerticalAlignment = VerticalAlignment.Top,
-                    Margin = new Thickness(0, -2, -2, 0),
-                    Cursor = Cursors.Hand,
-                    ToolTip = "Add to favorites",
+                    Margin = new Thickness(0, 3, 3, 0),
+                    IsHitTestVisible = false,
+                    Visibility = Visibility.Collapsed,
                 };
-                info.Star = star;
-                content.Children.Add(star);
-
-                // Click handler for the star — toggles favorite WITHOUT selecting the effect
-                star.MouseLeftButtonDown += (_, e) =>
-                {
-                    ToggleFavorite(info.Effect);
-                    e.Handled = true; // don't let the click bubble to the tile (would select)
-                };
+                info.FavoriteDot = dot;
+                content.Children.Add(dot);
             }
 
             var container = new Border
@@ -450,6 +447,7 @@ namespace AmpUp.Controls
                 Cursor = Cursors.Hand,
                 Child = content,
                 SnapsToDevicePixels = true,
+                ToolTip = _showFavorites ? "Right-click to favorite" : null,
             };
             info.Container = container;
 
@@ -457,7 +455,17 @@ namespace AmpUp.Controls
             {
                 _tiles.Add(info);
             }
-            if (info.Star != null) UpdateStarVisual(info);
+            if (info.FavoriteDot != null) UpdateStarVisual(info);
+
+            // Right-click toggles favorite — sleek, no extra UI clutter
+            if (_showFavorites && addStar)
+            {
+                container.MouseRightButtonUp += (_, e) =>
+                {
+                    ToggleFavorite(info.Effect);
+                    e.Handled = true;
+                };
+            }
 
             // Mouse handlers
             container.MouseLeftButtonUp += (_, _) =>
@@ -520,7 +528,7 @@ namespace AmpUp.Controls
                 else
                     ApplyNormalVisual(_tiles[i]);
 
-                if (_tiles[i].Star != null) UpdateStarVisual(_tiles[i]);
+                if (_tiles[i].FavoriteDot != null) UpdateStarVisual(_tiles[i]);
             }
 
             // Also refresh favorite-panel copies if present
@@ -573,16 +581,13 @@ namespace AmpUp.Controls
             info.Label.Foreground = new SolidColorBrush(c);
         }
 
-        /// <summary>Yellow filled star when favorite, dim gray outline when not.</summary>
+        /// <summary>Show the gold dot only when this effect is in favorites.</summary>
         private void UpdateStarVisual(EffectTile info)
         {
-            if (info.Star == null) return;
+            if (info.FavoriteDot == null) return;
             bool fav = _favorites.Contains(info.Effect);
-            info.Star.Text = fav ? "\u2605" : "\u2606"; // ★ / ☆
-            info.Star.Foreground = new SolidColorBrush(fav
-                ? Color.FromRgb(0xFF, 0xD7, 0x00)        // gold yellow
-                : Color.FromRgb(0x55, 0x55, 0x55));      // dim gray
-            info.Star.ToolTip = fav ? "Remove from favorites" : "Add to favorites";
+            info.FavoriteDot.Visibility = fav ? Visibility.Visible : Visibility.Collapsed;
+            info.Container.ToolTip = fav ? "Right-click to unfavorite" : "Right-click to favorite";
         }
 
         /// <summary>Rebuild the favorites panel with clones of the real tiles for each favorite effect.</summary>
