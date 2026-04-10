@@ -924,85 +924,6 @@ public partial class RoomView : UserControl
         rightStack.Children.Add(roomBrightSlider);
         rightStack.Children.Add(roomBrightLabel);
 
-        // ── DIRECTION ──
-        rightStack.Children.Add(MakeSubLabel("DIRECTION"));
-        var dirWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 6) };
-
-        var dirNames = new[] { "L \u2192 R", "F \u2192 B", "\u2191", "RADIAL", "DIAGONAL" };
-        var dirValues = new[] { EffectDirection.LeftToRight, EffectDirection.FrontToBack,
-            EffectDirection.BottomToTop, EffectDirection.Radial, EffectDirection.Diagonal };
-        for (int i = 0; i < dirNames.Length; i++)
-        {
-            var dirVal = dirValues[i];
-            bool active = layout.Direction == dirVal;
-            var accent = ThemeManager.Accent;
-            var pill = new Border
-            {
-                CornerRadius = new CornerRadius(10),
-                Padding = new Thickness(8, 3, 8, 3),
-                Margin = new Thickness(0, 0, 3, 3),
-                Cursor = Cursors.Hand,
-                Background = active
-                    ? new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B))
-                    : new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
-                BorderBrush = active
-                    ? new SolidColorBrush(Color.FromArgb(0x60, accent.R, accent.G, accent.B))
-                    : new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
-                BorderThickness = new Thickness(1),
-            };
-            pill.Child = new TextBlock
-            {
-                Text = dirNames[i], FontSize = 9, FontWeight = FontWeights.SemiBold,
-                Foreground = active ? new SolidColorBrush(accent) : FindBrush("TextSecBrush"),
-            };
-            pill.MouseLeftButtonDown += (_, _) =>
-            {
-                layout.Direction = dirVal;
-                OnLayoutChanged();
-                RebuildRoomTabContent();
-            };
-            dirWrap.Children.Add(pill);
-        }
-
-        // Mirror / Spatial pills (Mirror is default)
-        bool isSpatial = _config.Ambience.SpatialSync;
-        foreach (var (modeName, modeVal) in new[] { ("MIRROR", false), ("SPATIAL", true) })
-        {
-            bool modeActive = isSpatial == modeVal;
-            var purple = Color.FromRgb(0xBB, 0x86, 0xFC);
-            var modePill = new Border
-            {
-                CornerRadius = new CornerRadius(10),
-                Padding = new Thickness(8, 3, 8, 3),
-                Margin = new Thickness(0, 0, 3, 3),
-                Cursor = Cursors.Hand,
-                Background = modeActive
-                    ? new SolidColorBrush(Color.FromArgb(0x30, purple.R, purple.G, purple.B))
-                    : new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
-                BorderBrush = modeActive
-                    ? new SolidColorBrush(Color.FromArgb(0x60, purple.R, purple.G, purple.B))
-                    : new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
-                BorderThickness = new Thickness(1),
-                ToolTip = modeVal ? "Effect flows across devices by position" : "All devices show the same effect",
-            };
-            modePill.Child = new TextBlock
-            {
-                Text = modeName, FontSize = 9, FontWeight = FontWeights.SemiBold,
-                Foreground = modeActive ? new SolidColorBrush(purple) : FindBrush("TextSecBrush"),
-            };
-            var capturedVal = modeVal;
-            modePill.MouseLeftButtonDown += (_, _) =>
-            {
-                if (_config == null) return;
-                _config.Ambience.SpatialSync = capturedVal;
-                OnLayoutChanged();
-                QueueSave();
-                RebuildRoomTabContent();
-            };
-            dirWrap.Children.Add(modePill);
-        }
-        rightStack.Children.Add(dirWrap);
-
         rightPanel.Child = rightStack;
         Grid.SetColumn(rightPanel, 1);
         mainGrid.Children.Add(rightPanel);
@@ -1034,6 +955,10 @@ public partial class RoomView : UserControl
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) });
         stack.Children.Add(dimRow);
 
+        // ── Projection mode (Mirror / Spatial) + Direction ──
+        // Only Spatial uses Direction — Mirror shows the same effect on all devices.
+        stack.Children.Add(BuildProjectionRow(layout));
+
         // ── Room canvas ──
         _roomCanvas = new Controls.RoomCanvasControl
         {
@@ -1064,6 +989,127 @@ public partial class RoomView : UserControl
 
         // Unplaced devices tray
         BuildDeviceTray(stack, layout);
+    }
+
+    /// <summary>
+    /// Builds the projection row: MIRROR / SPATIAL mode pills + direction pills (L→R, F→B, ↑, Radial, Diagonal).
+    /// Direction only applies in Spatial mode, so it's dimmed/disabled when Mirror is active.
+    /// </summary>
+    private UIElement BuildProjectionRow(RoomLayout layout)
+    {
+        if (_config == null) return new Border();
+        bool isSpatial = _config.Ambience.SpatialSync;
+
+        var row = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(0, 0, 0, 8) };
+
+        // Label + Mirror/Spatial pills on same line
+        var modeLine = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+        modeLine.Children.Add(new TextBlock
+        {
+            Text = "PROJECTION", FontSize = 9, FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextDimBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 10, 0),
+        });
+
+        var purple = Color.FromRgb(0xBB, 0x86, 0xFC);
+        foreach (var (modeName, modeVal, tooltip) in new[]
+        {
+            ("MIRROR",  false, "All devices show the same effect"),
+            ("SPATIAL", true,  "Effect flows across devices by position"),
+        })
+        {
+            bool modeActive = isSpatial == modeVal;
+            var modePill = new Border
+            {
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(10, 3, 10, 3),
+                Margin = new Thickness(0, 0, 4, 0),
+                Cursor = Cursors.Hand,
+                Background = modeActive
+                    ? new SolidColorBrush(Color.FromArgb(0x30, purple.R, purple.G, purple.B))
+                    : new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
+                BorderBrush = modeActive
+                    ? new SolidColorBrush(Color.FromArgb(0x60, purple.R, purple.G, purple.B))
+                    : new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+                BorderThickness = new Thickness(1),
+                ToolTip = tooltip,
+            };
+            modePill.Child = new TextBlock
+            {
+                Text = modeName, FontSize = 9, FontWeight = FontWeights.SemiBold,
+                Foreground = modeActive ? new SolidColorBrush(purple) : FindBrush("TextSecBrush"),
+            };
+            var capturedVal = modeVal;
+            modePill.MouseLeftButtonDown += (_, _) =>
+            {
+                if (_config == null) return;
+                _config.Ambience.SpatialSync = capturedVal;
+                OnLayoutChanged();
+                QueueSave();
+                RebuildRoomTabContent();
+            };
+            modeLine.Children.Add(modePill);
+        }
+        row.Children.Add(modeLine);
+
+        // Direction pills (only meaningful in Spatial mode — dim when Mirror)
+        var dirLine = new StackPanel { Orientation = Orientation.Horizontal };
+        dirLine.Children.Add(new TextBlock
+        {
+            Text = "DIRECTION", FontSize = 9, FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextDimBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 14, 0),
+            Opacity = isSpatial ? 1.0 : 0.5,
+        });
+
+        var dirNames = new[] { "L \u2192 R", "F \u2192 B", "\u2191", "RADIAL", "DIAGONAL" };
+        var dirValues = new[]
+        {
+            EffectDirection.LeftToRight, EffectDirection.FrontToBack,
+            EffectDirection.BottomToTop, EffectDirection.Radial, EffectDirection.Diagonal,
+        };
+        var accent = ThemeManager.Accent;
+        for (int i = 0; i < dirNames.Length; i++)
+        {
+            var dirVal = dirValues[i];
+            bool active = layout.Direction == dirVal;
+            var pill = new Border
+            {
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(10, 3, 10, 3),
+                Margin = new Thickness(0, 0, 4, 0),
+                Cursor = isSpatial ? Cursors.Hand : Cursors.Arrow,
+                Background = active
+                    ? new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B))
+                    : new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
+                BorderBrush = active
+                    ? new SolidColorBrush(Color.FromArgb(0x60, accent.R, accent.G, accent.B))
+                    : new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+                BorderThickness = new Thickness(1),
+                Opacity = isSpatial ? 1.0 : 0.4,
+                ToolTip = isSpatial ? null : "Enable SPATIAL mode to use direction",
+            };
+            pill.Child = new TextBlock
+            {
+                Text = dirNames[i], FontSize = 9, FontWeight = FontWeights.SemiBold,
+                Foreground = active ? new SolidColorBrush(accent) : FindBrush("TextSecBrush"),
+            };
+            if (isSpatial)
+            {
+                pill.MouseLeftButtonDown += (_, _) =>
+                {
+                    layout.Direction = dirVal;
+                    OnLayoutChanged();
+                    RebuildRoomTabContent();
+                };
+            }
+            dirLine.Children.Add(pill);
+        }
+        row.Children.Add(dirLine);
+
+        return row;
     }
 
     /// <summary>
