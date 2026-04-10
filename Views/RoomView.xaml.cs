@@ -145,9 +145,7 @@ public partial class RoomView : UserControl
             _spatialMapper = new AmpUp.Core.Engine.SpatialMapper();
             _spatialMapper.Recalculate(config.RoomLayout);
             _sync?.SetSpatialMapper(_spatialMapper);
-            // Auto-enable spatial mode when devices are placed
-            if (!config.Ambience.SpatialSync)
-                config.Ambience.SpatialSync = true;
+            // Mirror is the default — don't auto-enable spatial mode
         }
     }
 
@@ -929,9 +927,9 @@ public partial class RoomView : UserControl
             dirWrap.Children.Add(pill);
         }
 
-        // Spatial / Mirror pills
+        // Mirror / Spatial pills (Mirror is default)
         bool isSpatial = _config.Ambience.SpatialSync;
-        foreach (var (modeName, modeVal) in new[] { ("SPATIAL", true), ("MIRROR", false) })
+        foreach (var (modeName, modeVal) in new[] { ("MIRROR", false), ("SPATIAL", true) })
         {
             bool modeActive = isSpatial == modeVal;
             var purple = Color.FromRgb(0xBB, 0x86, 0xFC);
@@ -995,12 +993,9 @@ public partial class RoomView : UserControl
             Margin = new Thickness(0, 8, 0, 12),
         };
 
-        // Auto-populate devices if layout is empty
+        // Auto-populate devices if layout is empty (Mirror stays default)
         if (layout.Devices.Count == 0)
-        {
             AutoPopulateLayoutDevices(layout);
-            _config.Ambience.SpatialSync = true;
-        }
 
         _roomCanvas.SetLayout(layout);
 
