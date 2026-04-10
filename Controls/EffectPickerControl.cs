@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -13,6 +14,11 @@ namespace AmpUp.Controls
         public event EventHandler? SelectionChanged;
         public event EventHandler<LightEffect>? EffectHovered;
         public event EventHandler? EffectHoverEnd;
+        /// <summary>Fired when the user toggles a tile's favorite star. Args = full updated favorites list.</summary>
+        public event EventHandler<List<LightEffect>>? FavoritesChanged;
+
+        // Special category index for the Favorites view.
+        public const int FavoritesCategoryIndex = 4;
 
         // ── Public properties ────────────────────────────────────────────
         private Color _accentColor = ThemeManager.Accent;
@@ -70,29 +76,82 @@ namespace AmpUp.Controls
         public int VisibleCategory => _visibleCategory;
 
         /// <summary>
-        /// Show only the specified category (0=static, 1=animated, 2=reactive, 3=global).
+        /// Show only the specified category: 0=static, 1=animated, 2=reactive, 3=global, 4=favorites.
         /// Pass -1 to show all categories.
         /// </summary>
         public void SetVisibleCategory(int cat)
         {
             _visibleCategory = cat;
+
+            bool showFavorites = cat == FavoritesCategoryIndex;
             for (int i = 0; i < _categoryHeaders.Count; i++)
             {
-                var vis = (cat == -1 || cat == i) ? Visibility.Visible : Visibility.Collapsed;
+                bool thisOne = cat == -1 || cat == i;
+                var vis = (thisOne && !showFavorites) ? Visibility.Visible : Visibility.Collapsed;
                 _categoryHeaders[i].Visibility = vis;
                 _categoryPanels[i].Visibility = vis;
             }
+
+            if (_favoritesHeader != null && _favoritesPanel != null)
+            {
+                var vis = showFavorites ? Visibility.Visible : Visibility.Collapsed;
+                _favoritesHeader.Visibility = vis;
+                _favoritesPanel.Visibility = vis;
+                if (showFavorites) RebuildFavoritesPanel();
+            }
+        }
+
+        // ── Favorites ────────────────────────────────────────────────────
+        private readonly HashSet<LightEffect> _favorites = new();
+        private TextBlock? _favoritesHeader;
+        private WrapPanel? _favoritesPanel;
+        /// <summary>Placeholder message shown in the favorites panel when the list is empty.</summary>
+        private TextBlock? _favoritesEmpty;
+
+        /// <summary>Get or set the favorited effects. Setting rebuilds visuals.</summary>
+        public IReadOnlyCollection<LightEffect> Favorites => _favorites;
+
+        public void SetFavorites(IEnumerable<LightEffect> favorites)
+        {
+            _favorites.Clear();
+            foreach (var f in favorites) _favorites.Add(f);
+            UpdateAllVisuals();
+            if (_visibleCategory == FavoritesCategoryIndex)
+                RebuildFavoritesPanel();
+        }
+
+        public bool IsFavorite(LightEffect effect) => _favorites.Contains(effect);
+
+        private void ToggleFavorite(LightEffect effect)
+        {
+            if (_favorites.Contains(effect)) _favorites.Remove(effect);
+            else _favorites.Add(effect);
+
+            // Update star visuals on all real tiles matching this effect
+            foreach (var t in _tiles)
+            {
+                if (t.Effect == effect && t.Star != null)
+                    UpdateStarVisual(t);
+            }
+
+            if (_visibleCategory == FavoritesCategoryIndex)
+                RebuildFavoritesPanel();
+
+            FavoritesChanged?.Invoke(this, new List<LightEffect>(_favorites));
         }
 
         // ── Internals ────────────────────────────────────────────────────
         private readonly bool _showGlobal;
         private readonly List<EffectTile> _tiles = new();
+        /// <summary>Duplicate tiles created for the Favorites view (separate from _tiles).</summary>
+        private readonly List<EffectTile> _favoriteTiles = new();
 
         private class EffectTile
         {
             public Border Container = null!;
             public TextBlock Icon = null!;
             public TextBlock Label = null!;
+            public TextBlock? Star; // favorite star (top-right), null for favorite-panel copies
             public LightEffect Effect;
             public bool IsHovered;
             public bool IsEmoji; // emoji icons ignore Foreground color
@@ -181,6 +240,36 @@ namespace AmpUp.Controls
 
             var mainPanel = new StackPanel();
             Child = mainPanel;
+
+            // Favorites panel (populated dynamically, shown only when category 4 is selected)
+            _favoritesHeader = new TextBlock
+            {
+                Text = "FAVORITES",
+                FontSize = 9,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                Margin = new Thickness(2, 6, 0, 4),
+                Visibility = Visibility.Collapsed,
+            };
+            mainPanel.Children.Add(_favoritesHeader);
+
+            _favoritesPanel = new WrapPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Visibility = Visibility.Collapsed,
+            };
+            mainPanel.Children.Add(_favoritesPanel);
+
+            _favoritesEmpty = new TextBlock
+            {
+                Text = "No favorites yet. Click the ★ on any effect tile to add it here.",
+                FontSize = 11,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
+                FontStyle = FontStyles.Italic,
+                Margin = new Thickness(4, 6, 0, 6),
+                Visibility = Visibility.Collapsed,
+            };
+            mainPanel.Children.Add(_favoritesEmpty);
 
             AddCategory(mainPanel, "STATIC", new[]
             {
@@ -284,7 +373,7 @@ namespace AmpUp.Controls
         }
 
         // ── Tile builder ─────────────────────────────────────────────────
-        private EffectTile BuildTile(LightEffect effect, string icon, string label, bool isEmoji)
+        private EffectTile BuildTile(LightEffect effect, string icon, string label, bool isEmoji, bool addStar = true, bool addToTiles = true)
         {
             var tileColor = EffectColors.GetValueOrDefault(effect, ThemeManager.Accent);
             var info = new EffectTile { Effect = effect, IsEmoji = isEmoji, TileColor = tileColor };
@@ -310,12 +399,39 @@ namespace AmpUp.Controls
             };
             info.Label = labelBlock;
 
-            var content = new StackPanel
+            var stack = new StackPanel
             {
                 HorizontalAlignment = HorizontalAlignment.Center,
             };
-            content.Children.Add(iconBlock);
-            content.Children.Add(labelBlock);
+            stack.Children.Add(iconBlock);
+            stack.Children.Add(labelBlock);
+
+            // Grid lets us overlay the favorite star in the top-right corner
+            var content = new Grid();
+            content.Children.Add(stack);
+
+            if (addStar)
+            {
+                var star = new TextBlock
+                {
+                    Text = "\u2605", // ★
+                    FontSize = 11,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Top,
+                    Margin = new Thickness(0, -2, -2, 0),
+                    Cursor = Cursors.Hand,
+                    ToolTip = "Add to favorites",
+                };
+                info.Star = star;
+                content.Children.Add(star);
+
+                // Click handler for the star — toggles favorite WITHOUT selecting the effect
+                star.MouseLeftButtonDown += (_, e) =>
+                {
+                    ToggleFavorite(info.Effect);
+                    e.Handled = true; // don't let the click bubble to the tile (would select)
+                };
+            }
 
             var container = new Border
             {
@@ -332,20 +448,33 @@ namespace AmpUp.Controls
             };
             info.Container = container;
 
-            int index = _tiles.Count;
-            _tiles.Add(info);
+            if (addToTiles)
+            {
+                _tiles.Add(info);
+            }
+            if (info.Star != null) UpdateStarVisual(info);
 
             // Mouse handlers
             container.MouseLeftButtonUp += (_, _) =>
             {
+                // Favorite-panel copies aren't in _tiles — resolve by effect instead.
                 int idx = _tiles.IndexOf(info);
-                if (idx >= 0 && idx != _selectedIndex)
+                if (idx < 0)
+                {
+                    // Find the real tile for this effect and select it
+                    for (int j = 0; j < _tiles.Count; j++)
+                    {
+                        if (_tiles[j].Effect == info.Effect) { idx = j; break; }
+                    }
+                    if (idx < 0) return;
+                }
+                if (idx != _selectedIndex)
                 {
                     _selectedIndex = idx;
                     UpdateAllVisuals();
                     SelectionChanged?.Invoke(this, EventArgs.Empty);
                 }
-                else if (idx == _selectedIndex)
+                else
                 {
                     // Already selected — still fire so callers can react
                     SelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -385,6 +514,21 @@ namespace AmpUp.Controls
                     ApplyHoverVisual(_tiles[i]);
                 else
                     ApplyNormalVisual(_tiles[i]);
+
+                if (_tiles[i].Star != null) UpdateStarVisual(_tiles[i]);
+            }
+
+            // Also refresh favorite-panel copies if present
+            var selEffect = _selectedIndex >= 0 && _selectedIndex < _tiles.Count
+                ? _tiles[_selectedIndex].Effect : (LightEffect?)null;
+            foreach (var fav in _favoriteTiles)
+            {
+                if (selEffect.HasValue && fav.Effect == selEffect.Value)
+                    ApplySelectedVisual(fav);
+                else if (fav.IsHovered)
+                    ApplyHoverVisual(fav);
+                else
+                    ApplyNormalVisual(fav);
             }
         }
 
@@ -422,6 +566,53 @@ namespace AmpUp.Controls
             if (!info.IsEmoji)
                 info.Icon.Foreground = new SolidColorBrush(c);
             info.Label.Foreground = new SolidColorBrush(c);
+        }
+
+        /// <summary>Yellow filled star when favorite, dim gray outline when not.</summary>
+        private void UpdateStarVisual(EffectTile info)
+        {
+            if (info.Star == null) return;
+            bool fav = _favorites.Contains(info.Effect);
+            info.Star.Text = fav ? "\u2605" : "\u2606"; // ★ / ☆
+            info.Star.Foreground = new SolidColorBrush(fav
+                ? Color.FromRgb(0xFF, 0xD7, 0x00)        // gold yellow
+                : Color.FromRgb(0x55, 0x55, 0x55));      // dim gray
+            info.Star.ToolTip = fav ? "Remove from favorites" : "Add to favorites";
+        }
+
+        /// <summary>Rebuild the favorites panel with clones of the real tiles for each favorite effect.</summary>
+        private void RebuildFavoritesPanel()
+        {
+            if (_favoritesPanel == null || _favoritesEmpty == null) return;
+            _favoritesPanel.Children.Clear();
+            _favoriteTiles.Clear();
+
+            if (_favorites.Count == 0)
+            {
+                _favoritesEmpty.Visibility = Visibility.Visible;
+                return;
+            }
+            _favoritesEmpty.Visibility = Visibility.Collapsed;
+
+            foreach (var fav in _favorites)
+            {
+                // Find the source tile so we can copy its icon + label text
+                var src = _tiles.FirstOrDefault(t => t.Effect == fav);
+                if (src == null) continue;
+
+                // Build a duplicate tile (no star overlay — click the tile to select)
+                var copy = BuildTile(fav, src.Icon.Text, src.Label.Text, src.IsEmoji,
+                    addStar: false, addToTiles: false);
+                _favoriteTiles.Add(copy);
+                _favoritesPanel.Children.Add(copy.Container);
+
+                // Reflect the real tile's selection state onto the copy
+                if (_selectedIndex >= 0 && _selectedIndex < _tiles.Count &&
+                    _tiles[_selectedIndex].Effect == fav)
+                    ApplySelectedVisual(copy);
+                else
+                    ApplyNormalVisual(copy);
+            }
         }
     }
 }

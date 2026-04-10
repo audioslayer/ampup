@@ -622,7 +622,18 @@ public partial class RoomView : UserControl
         }
     }
 
-    private int _effectCategory = 3; // default to Global Span
+    // Tab index: 0=Favorites, 1=Static, 2=Animated, 3=Reactive, 4=Global Span
+    private int _effectCategory = 4; // default to Global Span
+
+    /// <summary>
+    /// Map our room-tab index (0=Favorites, 1=Static...4=Global) to the EffectPickerControl's
+    /// internal category index (0=Static...3=Global, 4=Favorites).
+    /// </summary>
+    private static int TabIndexToPickerCategory(int tabIdx)
+    {
+        if (tabIdx == 0) return Controls.EffectPickerControl.FavoritesCategoryIndex;
+        return tabIdx - 1;
+    }
 
     private void BuildRoomEffectTab(StackPanel stack)
     {
@@ -647,8 +658,10 @@ public partial class RoomView : UserControl
             Margin = new Thickness(0, 0, 0, 8),
         };
         var categoryTabBar = new StackPanel { Orientation = Orientation.Horizontal };
-        var categoryNames = new[] { "STATIC", "ANIMATED", "REACTIVE", "GLOBAL SPAN" };
-        var categoryTabs = new Border[4];
+        // Tab index → visible-category index in EffectPickerControl:
+        //   0 → 4 (favorites), 1 → 0 (static), 2 → 1 (anim), 3 → 2 (react), 4 → 3 (global)
+        var categoryNames = new[] { "FAVORITES", "STATIC", "ANIMATED", "REACTIVE", "GLOBAL SPAN" };
+        var categoryTabs = new Border[5];
 
         var effectPicker = new Controls.EffectPickerControl(showGlobal: true)
         {
@@ -656,14 +669,32 @@ public partial class RoomView : UserControl
             IsEnabled = !_vuFillActive,
             Opacity = _vuFillActive ? 0.4 : 1.0,
         };
+
+        // Load persisted favorites into the picker
+        var favList = new List<LightEffect>();
+        foreach (var name in _config.FavoriteEffects)
+        {
+            if (Enum.TryParse<LightEffect>(name, true, out var fe))
+                favList.Add(fe);
+        }
+        effectPicker.SetFavorites(favList);
+
+        // Persist favorite toggles
+        effectPicker.FavoritesChanged += (_, favs) =>
+        {
+            if (_config == null) return;
+            _config.FavoriteEffects = favs.Select(f => f.ToString()).ToList();
+            QueueSave();
+        };
+
         if (_activePattern != null && _activePattern != "__sync__")
             effectPicker.SelectedEffect = Enum.TryParse<LightEffect>(_activePattern, true, out var eff) ? eff : LightEffect.SingleColor;
 
-        // Auto-detect category from selected effect
+        // Auto-detect category from selected effect (maps static=0..global=3 → tab index 1..4)
         if (_activePattern != null && _activePattern != "__sync__" && Enum.TryParse<LightEffect>(_activePattern, true, out var selEff))
         {
             int detectedCat = GetEffectCategory(selEff);
-            if (detectedCat >= 0) _effectCategory = detectedCat;
+            if (detectedCat >= 0) _effectCategory = detectedCat + 1;
         }
 
         for (int ci = 0; ci < categoryNames.Length; ci++)
@@ -702,7 +733,7 @@ public partial class RoomView : UserControl
             tab.MouseLeftButtonUp += (_, _) =>
             {
                 _effectCategory = capturedCat;
-                effectPicker.SetVisibleCategory(capturedCat);
+                effectPicker.SetVisibleCategory(TabIndexToPickerCategory(capturedCat));
                 // Update tab visuals
                 var ac = ThemeManager.Accent;
                 for (int j = 0; j < categoryTabs.Length; j++)
@@ -720,7 +751,7 @@ public partial class RoomView : UserControl
         leftCol.Children.Add(categoryBarContainer);
 
         // Set initial visible category
-        effectPicker.SetVisibleCategory(_effectCategory);
+        effectPicker.SetVisibleCategory(TabIndexToPickerCategory(_effectCategory));
 
         effectPicker.SelectionChanged += (_, _) =>
         {

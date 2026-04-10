@@ -46,6 +46,8 @@ public class AppConfig
     public List<DeviceGroup> Groups { get; set; } = new();
     public RoomLayout RoomLayout { get; set; } = new();
     public List<ColorPalette> CustomPalettes { get; set; } = new();
+    /// <summary>LightEffect enum names saved as favorites — shown in the Favorites tab of the effect picker.</summary>
+    public List<string> FavoriteEffects { get; set; } = new();
 }
 
 public class DeviceGroup
