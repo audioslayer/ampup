@@ -787,19 +787,17 @@ public partial class RoomView : UserControl
         {
             if (_loading || _vuFillActive) return;
             var effect = effectPicker.SelectedEffect;
+            // Run SingleColor through the pattern loop too — otherwise the Govee
+            // device falls out of razer mode after a few seconds (no keepalive frames).
+            // For SingleColor we collapse both colors to _roomColor1 so every LED is uniform.
             if (effect == LightEffect.SingleColor)
-            {
-                StopRoomPattern();
-                SendRoomColor(_roomColor1.R, _roomColor1.G, _roomColor1.B);
-            }
+                StartRoomPattern(effect.ToString(), _roomColor1, _roomColor1);
             else
-            {
                 StartRoomPattern(effect.ToString());
-            }
             if (_config != null)
             {
                 _config.Ambience.LinkToLights = false;
-                _activePattern = effect == LightEffect.SingleColor ? null : effect.ToString();
+                _activePattern = effect.ToString();
             }
             // Hide the palette section for effects whose colors are hardcoded
             if (paletteSection != null)
@@ -904,9 +902,11 @@ public partial class RoomView : UserControl
             dialog.ColorChanged += c =>
             {
                 _roomColor1 = c;
+                _roomColor2 = c; // keep in sync so the pattern loop renders uniform
                 singleColorSwatch.Background = new SolidColorBrush(c);
-                // Push immediately so the device reflects the new color live
-                SendRoomColor(c.R, c.G, c.B);
+                // Restart pattern with new color so continuous frames push it
+                if (_activePattern == "SingleColor")
+                    StartRoomPattern("SingleColor", c, c);
             };
             dialog.ShowDialog();
         };
@@ -917,7 +917,8 @@ public partial class RoomView : UserControl
         singleColorSwatchRef = singleColorSwatch;
 
         // Set initial visibility based on currently-selected effect
-        bool startSingle = _activePattern == null; // SingleColor = null pattern
+        bool startSingle = _activePattern == null ||
+            string.Equals(_activePattern, "SingleColor", StringComparison.OrdinalIgnoreCase);
         paletteEditor.Visibility = startSingle ? Visibility.Collapsed : Visibility.Visible;
         singleColorSwatch.Visibility = startSingle ? Visibility.Visible : Visibility.Collapsed;
 
@@ -976,13 +977,17 @@ public partial class RoomView : UserControl
                 }
                 if (_activePattern != null && _activePattern != "__sync__")
                 {
-                    StartRoomPattern(_activePattern);
-                }
-                else
-                {
-                    // SingleColor mode — push the new color live
-                    singleColorSwatch.Background = new SolidColorBrush(_roomColor1);
-                    SendRoomColor(_roomColor1.R, _roomColor1.G, _roomColor1.B);
+                    if (_activePattern == "SingleColor")
+                    {
+                        // In SingleColor mode the preset's first stop becomes the solid color
+                        _roomColor2 = _roomColor1;
+                        singleColorSwatch.Background = new SolidColorBrush(_roomColor1);
+                        StartRoomPattern("SingleColor", _roomColor1, _roomColor1);
+                    }
+                    else
+                    {
+                        StartRoomPattern(_activePattern);
+                    }
                 }
             };
             swatch.MouseEnter += (_, _) =>
@@ -4711,7 +4716,10 @@ public partial class RoomView : UserControl
         for (int k = 0; k < 5; k++)
             _roomRgb.SetKnobPosition(k, 1.0f);
 
-        // Configure as global lighting with the selected effect + palette
+        // Configure as global lighting with the selected effect + palette.
+        // For SingleColor we blank the palette name so ResolvePalette falls back to
+        // the two-color palette built from color1/color2 — since SendRoomColor sets
+        // both to the same color, every LED renders as a uniform solid.
         if (Enum.TryParse<LightEffect>(patternId, true, out var effect))
         {
             var gl = new GlobalLightConfig
@@ -4721,7 +4729,7 @@ public partial class RoomView : UserControl
                 R = color1.R, G = color1.G, B = color1.B,
                 R2 = color2.R, G2 = color2.G, B2 = color2.B,
                 EffectSpeed = 50,
-                PaletteName = _roomPalette.Name,
+                PaletteName = effect == LightEffect.SingleColor ? "" : _roomPalette.Name,
             };
             _roomRgb.UpdateGlobalConfig(gl);
         }
