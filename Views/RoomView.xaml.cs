@@ -775,6 +775,9 @@ public partial class RoomView : UserControl
         // Set initial visible category
         effectPicker.SetVisibleCategory(TabIndexToPickerCategory(_effectCategory));
 
+        // Forward-declared so the SelectionChanged closure can reference it; assigned below.
+        StackPanel? paletteSection = null;
+
         effectPicker.SelectionChanged += (_, _) =>
         {
             if (_loading || _vuFillActive) return;
@@ -794,9 +797,12 @@ public partial class RoomView : UserControl
                 _activePattern = effect == LightEffect.SingleColor ? null : effect.ToString();
             }
             // Hide the palette section for effects whose colors are hardcoded
-            paletteSection.Visibility = EffectIgnoresPalette(effect)
-                ? Visibility.Collapsed
-                : Visibility.Visible;
+            if (paletteSection != null)
+            {
+                paletteSection.Visibility = EffectIgnoresPalette(effect)
+                    ? Visibility.Collapsed
+                    : Visibility.Visible;
+            }
         };
         leftCol.Children.Add(effectPicker);
 
@@ -817,7 +823,7 @@ public partial class RoomView : UserControl
         var rightStack = new StackPanel();
 
         // ── PALETTE section (hidden for hardcoded-color effects like Aurora/Ocean) ──
-        var paletteSection = new StackPanel();
+        paletteSection = new StackPanel();
         paletteSection.Children.Add(MakeSubLabel("PALETTE"));
 
         var paletteEditor = new PaletteEditorControl
