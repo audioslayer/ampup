@@ -93,6 +93,13 @@ public partial class LightsView : UserControl
     private readonly Dictionary<string, Border> _paletteTiles = new();
     private string? _activePresetName;
 
+    // Knob selector row — 5 compact cards above the single editor container.
+    // Clicking a card switches which Led{N}Panel is visible in PerKnobEditor.
+    private readonly Border[] _selectorCards = new Border[5];
+    private readonly Border[] _selectorColorDots1 = new Border[5];
+    private readonly Border[] _selectorColorDots2 = new Border[5];
+    private int _selectedKnob;
+
     private static readonly (string Name, Color[] Colors)[] ColorPalettes = new[]
     {
         ("Fire",      new[] { Color.FromRgb(0x1A, 0x00, 0x00), Color.FromRgb(0x6B, 0x08, 0x00), Color.FromRgb(0xCC, 0x22, 0x00), Color.FromRgb(0xFF, 0x5E, 0x00), Color.FromRgb(0xFF, 0x9E, 0x00), Color.FromRgb(0xFF, 0xCC, 0x22), Color.FromRgb(0xFF, 0xE0, 0x66) }),
@@ -178,7 +185,9 @@ public partial class LightsView : UserControl
         BuildPresetsSection();
         BuildGlobalCard();
         BuildChannelControls();
+        BuildKnobSelectorRow();
         SetupStripContextMenus();
+        SelectKnob(0);
     }
 
     public void LoadConfig(AppConfig config, Action<AppConfig> onSave, AudioMixer? mixer = null)
@@ -1214,6 +1223,164 @@ public partial class LightsView : UserControl
         }
     }
 
+    /// <summary>
+    /// Build the 5 compact selector cards that sit above the single editor.
+    /// Each card shows knob label, current effect icon + name, and two color
+    /// dots. Clicking a card calls SelectKnob(idx), which swaps the visible
+    /// Led{N}Panel inside PerKnobEditor.
+    /// </summary>
+    private void BuildKnobSelectorRow()
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            int idx = i;
+
+            var card = new Border
+            {
+                Width = 132,
+                Height = 92,
+                CornerRadius = new CornerRadius(8),
+                Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                BorderThickness = new Thickness(1),
+                Margin = new Thickness(4, 0, 4, 0),
+                Padding = new Thickness(8, 6, 8, 6),
+                Cursor = Cursors.Hand,
+                ToolTip = "Click to edit this knob",
+            };
+
+            var content = new StackPanel
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+            };
+
+            var label = new TextBlock
+            {
+                Text = $"LED {i + 1}",
+                FontSize = 11,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = FindBrush("TextPrimaryBrush"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = 116,
+            };
+            _headers[i] = label;
+            content.Children.Add(label);
+
+            var effectIcon = new TextBlock
+            {
+                Text = "\U0001F7E2",
+                FontSize = 20,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Foreground = FindBrush("AccentBrush"),
+                Margin = new Thickness(0, 2, 0, 0),
+            };
+            _headerIcons[i] = effectIcon;
+            content.Children.Add(effectIcon);
+
+            var effectName = new TextBlock
+            {
+                Text = "Single Color",
+                FontSize = 9,
+                Foreground = FindBrush("TextSecBrush"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 1, 0, 0),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = 116,
+            };
+            _headerEffects[i] = effectName;
+            content.Children.Add(effectName);
+
+            // Color dot row (primary + secondary)
+            var dotRow = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 4, 0, 0),
+            };
+
+            var dot1 = new Border
+            {
+                Width = 10,
+                Height = 10,
+                CornerRadius = new CornerRadius(5),
+                Background = new SolidColorBrush(Colors.Black),
+                Margin = new Thickness(0, 0, 4, 0),
+            };
+            _selectorColorDots1[i] = dot1;
+            dotRow.Children.Add(dot1);
+
+            var dot2 = new Border
+            {
+                Width = 10,
+                Height = 10,
+                CornerRadius = new CornerRadius(5),
+                Background = new SolidColorBrush(Colors.Black),
+            };
+            _selectorColorDots2[i] = dot2;
+            dotRow.Children.Add(dot2);
+
+            content.Children.Add(dotRow);
+            card.Child = content;
+
+            card.MouseLeftButtonDown += (_, _) => SelectKnob(idx);
+            card.MouseEnter += (_, _) =>
+            {
+                if (_selectedKnob != idx)
+                    card.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+            };
+            card.MouseLeave += (_, _) =>
+            {
+                if (_selectedKnob != idx)
+                    card.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+            };
+
+            _selectorCards[i] = card;
+            KnobSelectorRow.Children.Add(card);
+        }
+    }
+
+    /// <summary>
+    /// Make the given knob the only visible editor panel and update selector
+    /// card active state. Safe to call before LoadConfig.
+    /// </summary>
+    private void SelectKnob(int idx)
+    {
+        if (idx < 0 || idx >= 5) return;
+        _selectedKnob = idx;
+
+        var panels = new[] { Led0Panel, Led1Panel, Led2Panel, Led3Panel, Led4Panel };
+        for (int i = 0; i < 5; i++)
+        {
+            panels[i].Visibility = i == idx ? Visibility.Visible : Visibility.Collapsed;
+            UpdateSelectorCardActive(i);
+        }
+    }
+
+    /// <summary>
+    /// Apply the active/inactive styling to a selector card based on whether
+    /// its index matches _selectedKnob.
+    /// </summary>
+    private void UpdateSelectorCardActive(int idx)
+    {
+        var card = _selectorCards[idx];
+        if (card == null) return;
+
+        bool active = idx == _selectedKnob;
+        if (active)
+        {
+            card.Background = new SolidColorBrush(Color.FromArgb(0x22, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
+            card.BorderBrush = new SolidColorBrush(ThemeManager.Accent);
+            card.BorderThickness = new Thickness(2);
+        }
+        else
+        {
+            card.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+            card.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+            card.BorderThickness = new Thickness(1);
+        }
+    }
+
     private void BuildChannelControls()
     {
         var panels = new[] { Led0Panel, Led1Panel, Led2Panel, Led3Panel, Led4Panel };
@@ -1223,51 +1390,10 @@ public partial class LightsView : UserControl
             int idx = i;
             var panel = panels[i];
 
-            // ── Header: label + icon + effect name ──
-            var headerStack = new StackPanel
-            {
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 4),
-            };
-
-            var header = new TextBlock
-            {
-                Text = $"LED {i + 1}",
-                FontSize = 10,
-                FontWeight = FontWeights.Bold,
-                Foreground = FindBrush("TextDimBrush"),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 6),
-            };
-            _headers[i] = header;
-            headerStack.Children.Add(header);
-
-            var headerIcon = new TextBlock
-            {
-                Text = "\U0001F7E2",
-                FontSize = 28,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Foreground = FindBrush("AccentBrush"),
-            };
-            _headerIcons[i] = headerIcon;
-            headerStack.Children.Add(headerIcon);
-
-            var headerEffect = new TextBlock
-            {
-                Text = "Single Color",
-                FontSize = 11,
-                FontWeight = FontWeights.SemiBold,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Foreground = FindBrush("AccentBrush"),
-                Margin = new Thickness(0, 4, 0, 0),
-            };
-            _headerEffects[i] = headerEffect;
-            headerStack.Children.Add(headerEffect);
-
-            panel.Children.Add(headerStack);
-
-            // ── Separator ──
-            panel.Children.Add(MakeSeparator(12));
+            // Header block moved to KnobSelectorRow — the selector card above
+            // the editor shows the knob label, effect icon, effect name, and
+            // color dots. _headers[i] / _headerIcons[i] / _headerEffects[i]
+            // are populated by BuildKnobSelectorRow().
 
             // ── EFFECT section ──
             panel.Children.Add(MakeSectionHeader("EFFECT"));
@@ -1519,10 +1645,15 @@ public partial class LightsView : UserControl
         _headerIcons[idx].Text = icon;
         _headerEffects[idx].Text = display;
 
-        // Color icon + label to match the knob's primary LED color
+        // Color icon to match the knob's primary LED color
         var knobColor = _colors1[idx];
         _headerIcons[idx].Foreground = new SolidColorBrush(knobColor);
-        _headerEffects[idx].Foreground = new SolidColorBrush(knobColor);
+
+        // Sync selector card color dots to current primary/secondary
+        if (_selectorColorDots1[idx] != null)
+            _selectorColorDots1[idx].Background = new SolidColorBrush(_colors1[idx]);
+        if (_selectorColorDots2[idx] != null)
+            _selectorColorDots2[idx].Background = new SolidColorBrush(_colors2[idx]);
     }
 
     private Border MakeColorSwatch(int idx, bool isColor2)
@@ -1620,8 +1751,8 @@ public partial class LightsView : UserControl
             {
                 _colors1[idx] = chosen;
                 SetSwatchColor(_color1Swatches[idx], chosen);
-                UpdateHeaderEffect(idx);
             }
+            UpdateHeaderEffect(idx);
             QueueSave();
         }
     }
@@ -1800,10 +1931,12 @@ public partial class LightsView : UserControl
 
     private void SetupStripContextMenus()
     {
-        // Get the border parents of each LED panel
-        var panels = new StackPanel[] { Led0Panel, Led1Panel, Led2Panel, Led3Panel, Led4Panel };
+        // Context menus live on the selector cards — right-clicking a card
+        // now shows Copy/Paste/Reset for that knob. All 5 LED panels share a
+        // single editor Border, so attaching to the panels' parent would give
+        // every card the same menu.
         for (int i = 0; i < 5; i++)
-            _ledBorders[i] = panels[i].Parent as Border ?? new Border();
+            _ledBorders[i] = _selectorCards[i];
 
         var menuBg = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
         var menuFg = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
@@ -2095,6 +2228,10 @@ public partial class LightsView : UserControl
             if (s != null) s.AccentColor = accent;
         foreach (var s in _brightnessSliders)
             if (s != null) s.AccentColor = accent;
+
+        // Refresh active selector card — uses ThemeManager.Accent for border/bg
+        for (int i = 0; i < 5; i++)
+            UpdateSelectorCardActive(i);
     }
 
     private TextBlock MakeLabel(string text)
