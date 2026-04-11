@@ -85,7 +85,7 @@ public class WelcomeDialog : Window
 
         root.Children.Add(new TextBlock
         {
-            Text = "Let's get your Turn Up connected in a few steps.",
+            Text = "Let's get your AmpUp hardware connected in a few steps.",
             Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
             FontSize = 13,
             Margin = new Thickness(0, 0, 0, 24),
@@ -101,12 +101,12 @@ public class WelcomeDialog : Window
         });
 
         // Steps with colored icon circles
-        root.Children.Add(BuildStep("1", "Connect your Turn Up",
+        root.Children.Add(BuildStep("1", "Connect your hardware",
             "Plug in the USB cable. Windows will install the driver automatically.",
             Color.FromRgb(0x00, 0xE6, 0x76))); // green
 
         root.Children.Add(BuildStepWithButton("2", "Find your device",
-            "Head to Settings → click Auto-Detect to find your Turn Up.",
+            "Head to Settings → click Auto-Detect to find your device.",
             "Open Settings", accent, () =>
             {
                 _onOpenSettings();

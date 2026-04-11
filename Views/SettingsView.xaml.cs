@@ -171,10 +171,15 @@ public partial class SettingsView : UserControl
         ChkAutoSuggestLayout.IsChecked = config.AutoSuggestLayout;
 
         // Profiles
-        CmbProfiles.Items.Clear();
-        foreach (var profile in config.Profiles)
-            CmbProfiles.Items.Add(profile);
-        CmbProfiles.SelectedItem = config.ActiveProfile;
+        CmbProfiles.ClearItems();
+        int activeProfileIdx = -1;
+        for (int i = 0; i < config.Profiles.Count; i++)
+        {
+            var profile = config.Profiles[i];
+            CmbProfiles.AddItem(profile, profile);
+            if (profile == config.ActiveProfile) activeProfileIdx = i;
+        }
+        if (activeProfileIdx >= 0) CmbProfiles.SelectedIndex = activeProfileIdx;
 
         // Integrations — Home Assistant
         ChkHaEnabled.IsChecked = config.HomeAssistant.Enabled;
@@ -294,12 +299,12 @@ public partial class SettingsView : UserControl
         loaded.Groups = _config.Groups;
     }
 
-    private void OnProfileSelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void OnProfileSelectionChanged(object? sender, EventArgs e)
     {
-        if (_loading || _config == null || CmbProfiles.SelectedItem == null) return;
+        if (_loading || _config == null || CmbProfiles.SelectedIndex < 0) return;
 
-        var selected = CmbProfiles.SelectedItem.ToString()!;
-        if (selected == _config.ActiveProfile) return;
+        var selected = CmbProfiles.SelectedTag as string ?? CmbProfiles.SelectedDisplay;
+        if (string.IsNullOrEmpty(selected) || selected == _config.ActiveProfile) return;
 
         _config.ActiveProfile = selected;
 
@@ -325,10 +330,15 @@ public partial class SettingsView : UserControl
     private void RefreshProfileDropdown()
     {
         _loading = true;
-        CmbProfiles.Items.Clear();
-        foreach (var p in _config!.Profiles)
-            CmbProfiles.Items.Add(p);
-        CmbProfiles.SelectedItem = _config.ActiveProfile;
+        CmbProfiles.ClearItems();
+        int activeIdx = -1;
+        for (int i = 0; i < _config!.Profiles.Count; i++)
+        {
+            var p = _config.Profiles[i];
+            CmbProfiles.AddItem(p, p);
+            if (p == _config.ActiveProfile) activeIdx = i;
+        }
+        if (activeIdx >= 0) CmbProfiles.SelectedIndex = activeIdx;
         _loading = false;
     }
 
@@ -340,24 +350,28 @@ public partial class SettingsView : UserControl
         var ports = SerialPort.GetPortNames();
         Array.Sort(ports, StringComparer.OrdinalIgnoreCase);
 
-        CmbSerialPort.Items.Clear();
-        foreach (var port in ports)
-            CmbSerialPort.Items.Add(port);
-
-        // Select the configured port if present
+        CmbSerialPort.ClearItems();
+        int targetIdx = -1;
         var target = selectPort ?? TxtSerialPort.Text.Trim();
-        if (!string.IsNullOrEmpty(target) && CmbSerialPort.Items.Contains(target))
-            CmbSerialPort.SelectedItem = target;
-        else if (CmbSerialPort.Items.Count > 0)
+        for (int i = 0; i < ports.Length; i++)
+        {
+            CmbSerialPort.AddItem(ports[i], ports[i]);
+            if (!string.IsNullOrEmpty(target) && string.Equals(ports[i], target, StringComparison.OrdinalIgnoreCase))
+                targetIdx = i;
+        }
+
+        if (targetIdx >= 0)
+            CmbSerialPort.SelectedIndex = targetIdx;
+        else if (CmbSerialPort.ItemCount > 0)
             CmbSerialPort.SelectedIndex = 0;
 
         _loading = false;
     }
 
-    private void OnPortComboSelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void OnPortComboSelectionChanged(object? sender, EventArgs e)
     {
         if (_loading) return;
-        if (CmbSerialPort.SelectedItem is string port)
+        if (CmbSerialPort.SelectedTag is string port)
         {
             _loading = true;
             TxtSerialPort.Text = port;
@@ -400,7 +414,7 @@ public partial class SettingsView : UserControl
             _loading = false;
             _debounceTimer.Stop();
             _debounceTimer.Start();
-            GlassDialog.ShowInfo($"Turn Up found on {found}.", owner: Window.GetWindow(this));
+            GlassDialog.ShowInfo($"AmpUp hardware found on {found}.", owner: Window.GetWindow(this));
         }
         else if (ports.Length == 1)
         {
@@ -417,7 +431,7 @@ public partial class SettingsView : UserControl
         {
             RefreshPortList();
             GlassDialog.ShowWarning(
-                "Could not identify the Turn Up device automatically.\nSelect the correct COM port from the dropdown.",
+                "Could not identify the AmpUp hardware automatically.\nSelect the correct COM port from the dropdown.",
                 owner: Window.GetWindow(this));
         }
 
@@ -545,9 +559,10 @@ public partial class SettingsView : UserControl
 
     private void OnLoadProfile(object sender, RoutedEventArgs e)
     {
-        if (_config == null || CmbProfiles.SelectedItem == null) return;
+        if (_config == null || CmbProfiles.SelectedIndex < 0) return;
 
-        var profileName = CmbProfiles.SelectedItem.ToString()!;
+        var profileName = (CmbProfiles.SelectedTag as string) ?? CmbProfiles.SelectedDisplay;
+        if (string.IsNullOrEmpty(profileName)) return;
         var loaded = ConfigManager.LoadProfile(profileName);
         if (loaded != null)
         {
@@ -594,9 +609,10 @@ public partial class SettingsView : UserControl
 
     private void OnDeleteProfile(object sender, RoutedEventArgs e)
     {
-        if (_config == null || CmbProfiles.SelectedItem == null) return;
+        if (_config == null || CmbProfiles.SelectedIndex < 0) return;
 
-        var profileName = CmbProfiles.SelectedItem.ToString()!;
+        var profileName = (CmbProfiles.SelectedTag as string) ?? CmbProfiles.SelectedDisplay;
+        if (string.IsNullOrEmpty(profileName)) return;
         if (profileName == "Default")
         {
             GlassDialog.ShowWarning("Cannot delete the Default profile.", owner: Window.GetWindow(this));

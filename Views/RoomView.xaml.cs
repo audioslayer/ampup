@@ -814,7 +814,7 @@ public partial class RoomView : UserControl
             {
                 singleColorSwatchRef.Visibility = isSingle ? Visibility.Visible : Visibility.Collapsed;
                 if (isSingle)
-                    singleColorSwatchRef.Background = new SolidColorBrush(_roomColor1);
+                    SetPillColor(singleColorSwatchRef, _roomColor1);
             }
         };
         leftCol.Children.Add(effectPicker);
@@ -868,48 +868,23 @@ public partial class RoomView : UserControl
         paletteSection.Children.Add(paletteEditor);
 
         // ── Single-color swatch picker (only visible when SingleColor effect is selected) ──
-        var singleColorSwatch = new Border
-        {
-            Height = 42,
-            CornerRadius = new CornerRadius(6),
-            Background = new SolidColorBrush(_roomColor1),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(0, 4, 0, 10),
-            Cursor = Cursors.Hand,
-            ToolTip = "Click to pick a solid color",
-            Visibility = Visibility.Collapsed,
-        };
-        singleColorSwatch.Child = new TextBlock
-        {
-            Text = "CLICK TO CHANGE COLOR",
-            FontSize = 10,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromArgb(0xB0, 0xFF, 0xFF, 0xFF)),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Effect = new System.Windows.Media.Effects.DropShadowEffect
-            {
-                Color = Colors.Black,
-                ShadowDepth = 1,
-                BlurRadius = 3,
-                Opacity = 0.6,
-            },
-        };
-        singleColorSwatch.MouseLeftButtonDown += (_, _) =>
+        Border singleColorSwatch = null!;
+        singleColorSwatch = MakeColorPill("COLOR", _roomColor1, "Click to pick a solid color", () =>
         {
             var dialog = new ColorPickerDialog(_roomColor1) { Owner = Window.GetWindow(this) };
             dialog.ColorChanged += c =>
             {
                 _roomColor1 = c;
                 _roomColor2 = c; // keep in sync so the pattern loop renders uniform
-                singleColorSwatch.Background = new SolidColorBrush(c);
+                SetPillColor(singleColorSwatch, c);
                 // Restart pattern with new color so continuous frames push it
                 if (_activePattern == "SingleColor")
                     StartRoomPattern("SingleColor", c, c);
             };
             dialog.ShowDialog();
-        };
+        });
+        singleColorSwatch.Margin = new Thickness(0, 4, 0, 10);
+        singleColorSwatch.Visibility = Visibility.Collapsed;
         paletteSection.Children.Add(singleColorSwatch);
 
         // Publish refs so SelectionChanged can toggle them
@@ -981,7 +956,7 @@ public partial class RoomView : UserControl
                     {
                         // In SingleColor mode the preset's first stop becomes the solid color
                         _roomColor2 = _roomColor1;
-                        singleColorSwatch.Background = new SolidColorBrush(_roomColor1);
+                        SetPillColor(singleColorSwatch, _roomColor1);
                         StartRoomPattern("SingleColor", _roomColor1, _roomColor1);
                     }
                     else
@@ -1586,18 +1561,18 @@ public partial class RoomView : UserControl
             });
         }
 
-        // ── Turn Up hardware ──
+        // ── AmpUp hardware ──
         stack.Children.Add(MakeSeparator());
-        var (tuBar, tuLabel) = MakeSectionHeader("TURN UP");
+        var (tuBar, tuLabel) = MakeSectionHeader("AMP UP HARDWARE");
         stack.Children.Add(WrapHeader(tuBar, tuLabel));
 
         var turnUpCheck = new CheckBox
         {
-            Content = "Sync Screen to Turn Up LEDs",
+            Content = "Sync Screen to Hardware LEDs",
             IsChecked = _config.Ambience.ScreenSync.SyncToTurnUp,
             Foreground = FindBrush("TextPrimaryBrush"), FontSize = 12,
             Margin = new Thickness(0, 4, 0, 4),
-            ToolTip = "Send screen colors to Turn Up hardware LEDs when Screen Sync is active",
+            ToolTip = "Send screen colors to AmpUp hardware LEDs when Screen Sync is active",
         };
         turnUpCheck.Checked += (_, _) => { if (!_loading && _config != null) { _config.Ambience.ScreenSync.SyncToTurnUp = true; QueueSave(); } };
         turnUpCheck.Unchecked += (_, _) => { if (!_loading && _config != null) { _config.Ambience.ScreenSync.SyncToTurnUp = false; QueueSave(); } };
@@ -1605,11 +1580,11 @@ public partial class RoomView : UserControl
 
         var mixerCheck = new CheckBox
         {
-            Content = "Turn Up Mixer",
+            Content = "Mirror Room to Hardware",
             IsChecked = _config.Ambience.SyncRoomToTurnUp,
             Foreground = FindBrush("TextPrimaryBrush"), FontSize = 12,
             Margin = new Thickness(0, 4, 0, 4),
-            ToolTip = "Sync room effect and VU Fill colors to Turn Up hardware LEDs",
+            ToolTip = "Sync room effect and VU Fill colors to AmpUp hardware LEDs",
         };
         mixerCheck.Checked += (_, _) => { if (!_loading && _config != null) { _config.Ambience.SyncRoomToTurnUp = true; QueueSave(); } };
         mixerCheck.Unchecked += (_, _) =>
@@ -2834,26 +2809,15 @@ public partial class RoomView : UserControl
         colLabel2.Foreground = new SolidColorBrush(ThemeManager.Accent);
         corsairDeviceContent.Children.Add(WrapHeader(colBar2, colLabel2));
 
-        // Shared dot/pill refs so presets can update manual pickers live
-        Border? corsairPriDot = null, corsairSecDot = null;
+        // Shared pill refs so presets can update manual pickers live
         Border? corsairPriPill = null, corsairSecPill = null;
 
         // Apply colors to fields + live-update pills + running effect
         void ApplyCorsairColors(Color c1, Color c2)
         {
             _corsairColor1 = c1; _corsairColor2 = c2;
-            if (corsairPriDot != null) corsairPriDot.Background = new SolidColorBrush(c1);
-            if (corsairPriPill != null)
-            {
-                corsairPriPill.Background = new SolidColorBrush(Color.FromArgb(0x33, c1.R, c1.G, c1.B));
-                corsairPriPill.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, c1.R, c1.G, c1.B));
-            }
-            if (corsairSecDot != null) corsairSecDot.Background = new SolidColorBrush(c2);
-            if (corsairSecPill != null)
-            {
-                corsairSecPill.Background = new SolidColorBrush(Color.FromArgb(0x33, c2.R, c2.G, c2.B));
-                corsairSecPill.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, c2.R, c2.G, c2.B));
-            }
+            SetPillColor(corsairPriPill, c1);
+            SetPillColor(corsairSecPill, c2);
             if (_roomPatternCorsairOnly && _roomRgb != null && _activePattern != null
                 && Enum.TryParse<LightEffect>(_activePattern, true, out var runEff))
             {
@@ -2912,29 +2876,8 @@ public partial class RoomView : UserControl
 
         Border MakeCorsairPill(string lbl, bool isSecondary)
         {
-            var c = isSecondary ? _corsairColor2 : _corsairColor1;
-            var dot = new Border
-            {
-                Width = 16, Height = 16, CornerRadius = new CornerRadius(8),
-                Background = new SolidColorBrush(c),
-                Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center,
-            };
-            var inner = new StackPanel { Orientation = Orientation.Horizontal };
-            inner.Children.Add(dot);
-            inner.Children.Add(new TextBlock { Text = lbl, FontSize = 9, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)), VerticalAlignment = VerticalAlignment.Center });
-            var pill = new Border
-            {
-                CornerRadius = new CornerRadius(14),
-                Background = new SolidColorBrush(Color.FromArgb(0x33, c.R, c.G, c.B)),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, c.R, c.G, c.B)),
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(6, 4, 12, 4),
-                Margin = new Thickness(0, 0, 8, 4),
-                Cursor = Cursors.Hand, ToolTip = $"{lbl} color — click to change", Child = inner,
-            };
-            if (isSecondary) { corsairSecDot = dot; corsairSecPill = pill; }
-            else { corsairPriDot = dot; corsairPriPill = pill; }
-            pill.MouseLeftButtonDown += (_, _) =>
+            var initial = isSecondary ? _corsairColor2 : _corsairColor1;
+            var pill = MakeColorPill(lbl, initial, $"{lbl} color — click to change", () =>
             {
                 var current = isSecondary ? _corsairColor2 : _corsairColor1;
                 var dlg = new ColorPickerDialog(current) { Owner = Window.GetWindow(this) };
@@ -2949,7 +2892,9 @@ public partial class RoomView : UserControl
                         (byte)Math.Min(_corsairColor1.G * boost, 255),
                         (byte)Math.Min(_corsairColor1.B * boost, 255));
                 }
-            };
+            });
+            if (isSecondary) corsairSecPill = pill;
+            else corsairPriPill = pill;
             return pill;
         }
 
@@ -3894,7 +3839,7 @@ public partial class RoomView : UserControl
 
         var modes = new (string label, string mode, string desc)[]
         {
-            ("Sync to Amp Up", "vu_reactive", "Mirror Turn Up knob LED effects"),
+            ("Sync to AmpUp", "vu_reactive", "Mirror AmpUp knob LED effects"),
             ("Static Color", "static", "Set a single color for all LEDs"),
             ("Off", "off", "No colors sent to Corsair"),
         };
@@ -4492,6 +4437,74 @@ public partial class RoomView : UserControl
         };
 
         return tile;
+    }
+
+    private Border MakeColorPill(string label, Color initial, string tooltip, Action onClick)
+    {
+        var c = initial;
+        var darkBg = Color.FromArgb(0x33, c.R, c.G, c.B);
+        var borderColor = Color.FromArgb(0x66, c.R, c.G, c.B);
+
+        var pill = new Border
+        {
+            CornerRadius = new CornerRadius(14),
+            Background = new SolidColorBrush(darkBg),
+            BorderBrush = new SolidColorBrush(borderColor),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(6, 4, 12, 4),
+            Margin = new Thickness(0, 0, 8, 4),
+            Cursor = Cursors.Hand,
+            ToolTip = tooltip,
+        };
+
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+
+        var dot = new Border
+        {
+            Width = 16, Height = 16,
+            CornerRadius = new CornerRadius(8),
+            Background = new SolidColorBrush(c),
+            Margin = new Thickness(0, 0, 6, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        row.Children.Add(dot);
+
+        row.Children.Add(new TextBlock
+        {
+            Text = label,
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+
+        pill.Tag = dot; // SetPillColor uses Tag to find inner dot
+        pill.Child = row;
+
+        pill.MouseEnter += (_, _) =>
+        {
+            var dotColor = ((SolidColorBrush)dot.Background).Color;
+            pill.BorderBrush = new SolidColorBrush(Color.FromArgb(0xAA, dotColor.R, dotColor.G, dotColor.B));
+            pill.Background = new SolidColorBrush(Color.FromArgb(0x44, dotColor.R, dotColor.G, dotColor.B));
+        };
+        pill.MouseLeave += (_, _) =>
+        {
+            var dotColor = ((SolidColorBrush)dot.Background).Color;
+            pill.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, dotColor.R, dotColor.G, dotColor.B));
+            pill.Background = new SolidColorBrush(Color.FromArgb(0x33, dotColor.R, dotColor.G, dotColor.B));
+        };
+
+        pill.MouseLeftButtonDown += (_, _) => onClick();
+        return pill;
+    }
+
+    private static void SetPillColor(Border? pill, Color color)
+    {
+        if (pill == null) return;
+        if (pill.Tag is Border inner)
+            inner.Background = new SolidColorBrush(color);
+        pill.Background = new SolidColorBrush(Color.FromArgb(0x33, color.R, color.G, color.B));
+        pill.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, color.R, color.G, color.B));
     }
 
     private Border MakeRoomColorPill(string label, Color initial, bool isSecondary)

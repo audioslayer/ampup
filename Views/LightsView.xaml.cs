@@ -947,6 +947,8 @@ public partial class LightsView : UserControl
         var label = (knob != null && !string.IsNullOrWhiteSpace(knob.Label))
             ? knob.Label : $"Knob {idx + 1}";
         border.ToolTip = $"Click to toggle {label} — currently {(on ? "ON" : "OFF")}";
+
+        UpdateSelectorCardActive(idx);
     }
 
     private void UpdateGlobalVisibility()
@@ -1342,6 +1344,8 @@ public partial class LightsView : UserControl
             card.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
             card.BorderThickness = new Thickness(1);
         }
+
+        card.Opacity = _ledEnabled[idx] ? 1.0 : 0.4;
     }
 
     private void BuildChannelControls()

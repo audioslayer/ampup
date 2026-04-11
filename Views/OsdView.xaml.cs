@@ -56,6 +56,7 @@ public partial class OsdView : UserControl
                 sld.AccentColor = ThemeManager.Accent;
         });
         BtnOsdPreview.Click += OnOsdPreview;
+        CmbOsdMonitor.SelectionChanged += CmbOsdMonitor_SelectionChanged;
         ChkHideInFullscreen.Checked += OnValueChanged;
         ChkHideInFullscreen.Unchecked += OnValueChanged;
 
@@ -502,7 +503,7 @@ public partial class OsdView : UserControl
 
     private void PopulateOsdMonitorPicker(int selectedIndex)
     {
-        CmbOsdMonitor.Items.Clear();
+        CmbOsdMonitor.ClearItems();
         var screens = System.Windows.Forms.Screen.AllScreens;
         var friendlyNames = NativeMethods.GetMonitorFriendlyNames();
 
@@ -512,14 +513,14 @@ public partial class OsdView : UserControl
                 ? friendly
                 : screens[i].DeviceName;
             string label = screens[i].Primary ? $"{name} (Primary)" : name;
-            CmbOsdMonitor.Items.Add(label);
+            CmbOsdMonitor.AddItem(label, i);
         }
 
         CmbOsdMonitor.SelectedIndex = (selectedIndex >= 0 && selectedIndex < screens.Length)
             ? selectedIndex : 0;
     }
 
-    private void CmbOsdMonitor_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void CmbOsdMonitor_SelectionChanged(object? sender, EventArgs e)
     {
         if (_loading || _config == null || CmbOsdMonitor.SelectedIndex < 0) return;
         _config.Osd.MonitorIndex = CmbOsdMonitor.SelectedIndex;

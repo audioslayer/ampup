@@ -69,15 +69,16 @@
                                    FontSize="12" VerticalAlignment="Center" />
 
                         <TextBlock Grid.Row="3" Grid.Column="0"
-                                   Text="Quick Wheel" Margin="4,6,0,6"
+                                   Text="Quick Wheel Auto-Dismiss" Margin="4,6,0,6"
                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                   FontSize="13" VerticalAlignment="Center" />
+                                   FontSize="13" VerticalAlignment="Center"
+                                   ToolTip="Delay before Quick Wheel closes after releasing the trigger button. Off = confirm immediately on release." />
                         <controls:StyledSlider x:Name="SldOsdWheelDur" Grid.Row="3" Grid.Column="1"
                                 Minimum="0" Maximum="15" Value="0" ShowLabel="False"
                                 Height="24" Margin="0,6,8,6"
-                                ToolTip="Auto-dismiss delay after releasing button (0 = confirm immediately on release)" />
+                                ToolTip="Delay before Quick Wheel closes after releasing the trigger button. Off = confirm immediately on release." />
                         <TextBlock x:Name="LblOsdWheelDur" Grid.Row="3" Grid.Column="2"
-                                   Text="5.0s" Foreground="{StaticResource TextSecBrush}"
+                                   Text="Off" Foreground="{StaticResource TextSecBrush}"
                                    FontSize="12" VerticalAlignment="Center" />
                     </Grid>
 
@@ -161,8 +162,7 @@
                         <StackPanel Grid.Column="2" VerticalAlignment="Top">
                             <TextBlock Text="Monitor" Style="{StaticResource SecondaryText}" Margin="0,0,0,6" />
                             <StackPanel Orientation="Horizontal">
-                                <ComboBox x:Name="CmbOsdMonitor" Width="280"
-                                          SelectionChanged="CmbOsdMonitor_SelectionChanged"
+                                <controls:ListPicker x:Name="CmbOsdMonitor" Width="280"
                                           ToolTip="Which monitor to show the OSD on" />
                                 <ui:Button x:Name="BtnOsdPreview" Content="Preview"
                                            Appearance="Secondary" Margin="12,0,0,0" />
