@@ -52,8 +52,6 @@ public partial class LightsView : UserControl
     private readonly StackPanel[] _colorSections = new StackPanel[5]; // entire COLOR section (header + swatches)
     private readonly WrapPanel[] _customColorRows = new WrapPanel[5]; // custom color pills
     private readonly WrapPanel[] _presetColorRows = new WrapPanel[5]; // preset palette swatches
-    private readonly Border[] _customColorTabs = new Border[5];
-    private readonly Border[] _presetColorTabs = new Border[5];
     private readonly StyledSlider[] _speedSliders = new StyledSlider[5];
     private readonly StackPanel[] _speedPanels = new StackPanel[5];
     private readonly StyledSlider[] _brightnessSliders = new StyledSlider[5];
@@ -1033,42 +1031,6 @@ public partial class LightsView : UserControl
         }
     }
 
-    private static Border BuildColorTab(string text, bool active)
-    {
-        var accent = ThemeManager.Accent;
-        var tab = new Border
-        {
-            CornerRadius = new CornerRadius(5),
-            Padding = new Thickness(10, 4, 10, 4),
-            Cursor = Cursors.Hand,
-        };
-        tab.Child = new TextBlock
-        {
-            Text = text,
-            FontSize = 8,
-            FontWeight = FontWeights.Bold,
-            HorizontalAlignment = HorizontalAlignment.Center,
-        };
-        SetColorTabActive(tab, active);
-        return tab;
-    }
-
-    private static void SetColorTabActive(Border tab, bool active)
-    {
-        var accent = ThemeManager.Accent;
-        var label = tab.Child as TextBlock;
-        if (active)
-        {
-            tab.Background = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B));
-            if (label != null) label.Foreground = new SolidColorBrush(accent);
-        }
-        else
-        {
-            tab.Background = Brushes.Transparent;
-            if (label != null) label.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
-        }
-    }
-
     // Color palette presets — each is a (name, color1, color2) tuple
     private static readonly (string Name, Color C1, Color C2)[] ColorPresets =
     {
@@ -1142,6 +1104,7 @@ public partial class LightsView : UserControl
                 _colors2[idx] = presetC2;
                 SetSwatchColor(_color1Swatches[idx], presetC1);
                 SetSwatchColor(_color2Swatches[idx], presetC2);
+                UpdateHeaderEffect(idx);
                 // Apply immediately to config so RgbController picks up on next tick
                 var light = _config?.Lights.FirstOrDefault(l => l.Idx == idx);
                 if (light != null)
@@ -1415,26 +1378,12 @@ public partial class LightsView : UserControl
             _effectPickers[i] = effectPicker;
             panel.Children.Add(effectPicker);
 
-            // ── COLOR section with Custom/Presets tabs ──
+            // ── COLORS section (unified: pills + presets, no tabs) ──
             var colorSection = new StackPanel();
             colorSection.Children.Add(MakeSeparator(10));
+            colorSection.Children.Add(MakeSectionHeader("COLORS"));
 
-            // Tab bar: Custom | Presets
-            var colorTabBar = new Border
-            {
-                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-                CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(2),
-                Margin = new Thickness(0, 0, 0, 6),
-                HorizontalAlignment = HorizontalAlignment.Left,
-            };
-            var colorTabRow = new StackPanel { Orientation = Orientation.Horizontal };
-            var customTab = BuildColorTab("CUSTOM", true);
-            var presetsTab = BuildColorTab("PRESETS", false);
-            _customColorTabs[i] = customTab;
-            _presetColorTabs[i] = presetsTab;
-
-            // Custom color row (PRIMARY + SECONDARY pills)
+            // PRIMARY + SECONDARY pills (the "Solid" option — always visible)
             var swatch1 = MakeColorSwatch(idx, isColor2: false);
             _color1Swatches[i] = swatch1;
             var swatch2 = MakeColorSwatch(idx, isColor2: true);
@@ -1443,46 +1392,24 @@ public partial class LightsView : UserControl
             var customRow = new WrapPanel
             {
                 Orientation = Orientation.Horizontal,
-                Margin = new Thickness(0, 4, 0, 0),
+                Margin = new Thickness(0, 2, 0, 6),
             };
             customRow.Children.Add(swatch1);
             customRow.Children.Add(swatch2);
             _color2Panels[i] = swatch2;
             _customColorRows[i] = customRow;
+            colorSection.Children.Add(customRow);
 
-            // Preset palette row
+            // Preset palette row — always visible below the pills
             var presetRow = new WrapPanel
             {
                 Orientation = Orientation.Horizontal,
-                Margin = new Thickness(0, 4, 0, 0),
-                Visibility = Visibility.Collapsed,
+                Margin = new Thickness(0, 0, 0, 0),
             };
             BuildColorPresets(presetRow, idx);
             _presetColorRows[i] = presetRow;
-
-            // Tab click handlers
-            int capturedIdx = idx;
-            customTab.MouseLeftButtonDown += (_, _) =>
-            {
-                SetColorTabActive(_customColorTabs[capturedIdx], true);
-                SetColorTabActive(_presetColorTabs[capturedIdx], false);
-                _customColorRows[capturedIdx].Visibility = Visibility.Visible;
-                _presetColorRows[capturedIdx].Visibility = Visibility.Collapsed;
-            };
-            presetsTab.MouseLeftButtonDown += (_, _) =>
-            {
-                SetColorTabActive(_presetColorTabs[capturedIdx], true);
-                SetColorTabActive(_customColorTabs[capturedIdx], false);
-                _customColorRows[capturedIdx].Visibility = Visibility.Collapsed;
-                _presetColorRows[capturedIdx].Visibility = Visibility.Visible;
-            };
-
-            colorTabRow.Children.Add(customTab);
-            colorTabRow.Children.Add(presetsTab);
-            colorTabBar.Child = colorTabRow;
-            colorSection.Children.Add(colorTabBar);
-            colorSection.Children.Add(customRow);
             colorSection.Children.Add(presetRow);
+
             _colorSections[i] = colorSection;
             panel.Children.Add(colorSection);
 
