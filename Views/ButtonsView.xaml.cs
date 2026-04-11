@@ -137,6 +137,7 @@ public partial class ButtonsView : UserControl
     private readonly TextBlock[] _tapPathLabels = new TextBlock[5];
     private readonly Button[] _tapBrowseButtons = new Button[5];
     private readonly Button[] _tapPickButtons = new Button[5];
+    private readonly System.Windows.Controls.Border[] _tapAppChips = new System.Windows.Controls.Border[5];
     private readonly TextBox[] _tapMacroBoxes = new TextBox[5];
     private readonly StackPanel[] _tapMacroPanels = new StackPanel[5];
     private readonly ListPicker[] _tapDevicePickers = new ListPicker[5];
@@ -158,6 +159,7 @@ public partial class ButtonsView : UserControl
     private readonly TextBlock[] _dblPathLabels = new TextBlock[5];
     private readonly Button[] _dblBrowseButtons = new Button[5];
     private readonly Button[] _dblPickButtons = new Button[5];
+    private readonly System.Windows.Controls.Border[] _dblAppChips = new System.Windows.Controls.Border[5];
     private readonly TextBox[] _dblMacroBoxes = new TextBox[5];
     private readonly StackPanel[] _dblMacroPanels = new StackPanel[5];
     private readonly ListPicker[] _dblDevicePickers = new ListPicker[5];
@@ -178,6 +180,7 @@ public partial class ButtonsView : UserControl
     private readonly TextBlock[] _holdPathLabels = new TextBlock[5];
     private readonly Button[] _holdBrowseButtons = new Button[5];
     private readonly Button[] _holdPickButtons = new Button[5];
+    private readonly System.Windows.Controls.Border[] _holdAppChips = new System.Windows.Controls.Border[5];
     private readonly TextBox[] _holdMacroBoxes = new TextBox[5];
     private readonly StackPanel[] _holdMacroPanels = new StackPanel[5];
     private readonly ListPicker[] _holdDevicePickers = new ListPicker[5];
@@ -393,7 +396,7 @@ public partial class ButtonsView : UserControl
         SelectGoveeSubTag(_dblCombos[idx], btn.DoublePressAction, btn.DoublePressPath);
         UpdateGestureVisibility(_dblPathPanels[idx], _dblPathLabels[idx], _dblBrowseButtons[idx], _dblPickButtons[idx], _dblMacroPanels[idx],
             _dblDevicePanels[idx], _dblCycleDevicePanels[idx], _dblCycleDevicePickers[idx], _dblCycleTypePanels[idx],
-            _dblPowerPanels[idx], _dblKnobPanels[idx], btn.DoublePressAction);
+            _dblPowerPanels[idx], _dblKnobPanels[idx], btn.DoublePressAction, _dblAppChips[idx], _dblPathBoxes[idx]);
         // Restore checked IDs after UpdateGestureVisibility (which may re-populate and clear)
         _dblCycleDevicePickers[idx].SetCheckedIds(btn.DoublePressDeviceIds);
 
@@ -412,7 +415,7 @@ public partial class ButtonsView : UserControl
         SelectGoveeSubTag(_holdCombos[idx], btn.HoldAction, btn.HoldPath);
         UpdateGestureVisibility(_holdPathPanels[idx], _holdPathLabels[idx], _holdBrowseButtons[idx], _holdPickButtons[idx], _holdMacroPanels[idx],
             _holdDevicePanels[idx], _holdCycleDevicePanels[idx], _holdCycleDevicePickers[idx], _holdCycleTypePanels[idx],
-            _holdPowerPanels[idx], _holdKnobPanels[idx], btn.HoldAction);
+            _holdPowerPanels[idx], _holdKnobPanels[idx], btn.HoldAction, _holdAppChips[idx], _holdPathBoxes[idx]);
         // Restore checked IDs after UpdateGestureVisibility (which may re-populate and clear)
         _holdCycleDevicePickers[idx].SetCheckedIds(btn.HoldDeviceIds);
 
@@ -513,7 +516,7 @@ public partial class ButtonsView : UserControl
             SelectGoveeSubTag(_dblCombos[i], btn.DoublePressAction, btn.DoublePressPath);
             UpdateGestureVisibility(_dblPathPanels[i], _dblPathLabels[i], _dblBrowseButtons[i], _dblPickButtons[i], _dblMacroPanels[i],
                 _dblDevicePanels[i], _dblCycleDevicePanels[i], _dblCycleDevicePickers[i], _dblCycleTypePanels[i],
-                _dblPowerPanels[i], _dblKnobPanels[i], btn.DoublePressAction);
+                _dblPowerPanels[i], _dblKnobPanels[i], btn.DoublePressAction, _dblAppChips[i], _dblPathBoxes[i]);
             // Restore checked IDs after UpdateGestureVisibility (which may re-populate and clear)
             _dblCycleDevicePickers[i].SetCheckedIds(btn.DoublePressDeviceIds);
 
@@ -532,7 +535,7 @@ public partial class ButtonsView : UserControl
             SelectGoveeSubTag(_holdCombos[i], btn.HoldAction, btn.HoldPath);
             UpdateGestureVisibility(_holdPathPanels[i], _holdPathLabels[i], _holdBrowseButtons[i], _holdPickButtons[i], _holdMacroPanels[i],
                 _holdDevicePanels[i], _holdCycleDevicePanels[i], _holdCycleDevicePickers[i], _holdCycleTypePanels[i],
-                _holdPowerPanels[i], _holdKnobPanels[i], btn.HoldAction);
+                _holdPowerPanels[i], _holdKnobPanels[i], btn.HoldAction, _holdAppChips[i], _holdPathBoxes[i]);
             // Restore checked IDs after UpdateGestureVisibility (which may re-populate and clear)
             _holdCycleDevicePickers[i].SetCheckedIds(btn.HoldDeviceIds);
         }
@@ -678,15 +681,17 @@ public partial class ButtonsView : UserControl
             _tapCombos[i] = tapCombo;
             tapSection.Children.Add(tapCombo);
 
-            var (pathPanel, pathLabel, pathBox, browseBtn, pickBtn) = MakePathRow("PROCESS NAME", "discord");
+            var (pathPanel, pathLabel, pathBox, browseBtn, pickBtn, appChip) = MakePathRow("PROCESS NAME", "discord");
             pathBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
             _tapPathPanels[i] = pathPanel;
             _tapPathLabels[i] = pathLabel;
             _tapPathBoxes[i] = pathBox;
             _tapBrowseButtons[i] = browseBtn;
             _tapPickButtons[i] = pickBtn;
-            browseBtn.Click += (_, _) => BrowseForFile(pathBox);
+            _tapAppChips[i] = appChip;
+            browseBtn.Click += (_, _) => BrowseForFile(pathBox, appChip);
             pickBtn.Click += (_, _) => ShowProcessPicker(pickBtn, pathBox, GetComboActionValue(_tapCombos[idx]));
+            appChip.MouseLeftButtonDown += (_, _) => OnAppChipClick(pathBox, appChip);
             tapSection.Children.Add(pathPanel);
 
             var (macroPanel, macroBox) = MakeTextBoxRow("MACRO KEYS", "ctrl+shift+m");
@@ -741,15 +746,17 @@ public partial class ButtonsView : UserControl
             _dblCombos[i] = dblCombo;
             dblSection.Children.Add(dblCombo);
 
-            var (dblPathPanel, dblPathLabel, dblPathBox, dblBrowseBtn, dblPickBtn) = MakePathRow("PROCESS NAME", "discord");
+            var (dblPathPanel, dblPathLabel, dblPathBox, dblBrowseBtn, dblPickBtn, dblAppChip) = MakePathRow("PROCESS NAME", "discord");
             dblPathBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
             _dblPathPanels[i] = dblPathPanel;
             _dblPathLabels[i] = dblPathLabel;
             _dblPathBoxes[i] = dblPathBox;
             _dblBrowseButtons[i] = dblBrowseBtn;
             _dblPickButtons[i] = dblPickBtn;
-            dblBrowseBtn.Click += (_, _) => BrowseForFile(dblPathBox);
+            _dblAppChips[i] = dblAppChip;
+            dblBrowseBtn.Click += (_, _) => BrowseForFile(dblPathBox, dblAppChip);
             dblPickBtn.Click += (_, _) => ShowProcessPicker(dblPickBtn, dblPathBox, GetComboActionValue(_dblCombos[idx]));
+            dblAppChip.MouseLeftButtonDown += (_, _) => OnAppChipClick(dblPathBox, dblAppChip);
             dblSection.Children.Add(dblPathPanel);
 
             var (dblMacroPanel, dblMacroBox) = MakeTextBoxRow("MACRO KEYS", "ctrl+shift+m");
@@ -794,7 +801,7 @@ public partial class ButtonsView : UserControl
                 var val = GetComboActionValue(dblCombo);
                 UpdateGestureVisibility(_dblPathPanels[idx], _dblPathLabels[idx], _dblBrowseButtons[idx], _dblPickButtons[idx], _dblMacroPanels[idx],
                     _dblDevicePanels[idx], _dblCycleDevicePanels[idx], _dblCycleDevicePickers[idx], _dblCycleTypePanels[idx],
-                    _dblPowerPanels[idx], _dblKnobPanels[idx], val);
+                    _dblPowerPanels[idx], _dblKnobPanels[idx], val, _dblAppChips[idx], _dblPathBoxes[idx]);
                 QueueSave();
             };
 
@@ -814,15 +821,17 @@ public partial class ButtonsView : UserControl
             _holdCombos[i] = holdCombo;
             holdSection.Children.Add(holdCombo);
 
-            var (holdPathPanel, holdPathLabel, holdPathBox, holdBrowseBtn, holdPickBtn) = MakePathRow("PROCESS NAME", "discord");
+            var (holdPathPanel, holdPathLabel, holdPathBox, holdBrowseBtn, holdPickBtn, holdAppChip) = MakePathRow("PROCESS NAME", "discord");
             holdPathBox.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
             _holdPathPanels[i] = holdPathPanel;
             _holdPathLabels[i] = holdPathLabel;
             _holdPathBoxes[i] = holdPathBox;
             _holdBrowseButtons[i] = holdBrowseBtn;
             _holdPickButtons[i] = holdPickBtn;
-            holdBrowseBtn.Click += (_, _) => BrowseForFile(holdPathBox);
+            _holdAppChips[i] = holdAppChip;
+            holdBrowseBtn.Click += (_, _) => BrowseForFile(holdPathBox, holdAppChip);
             holdPickBtn.Click += (_, _) => ShowProcessPicker(holdPickBtn, holdPathBox, GetComboActionValue(_holdCombos[idx]));
+            holdAppChip.MouseLeftButtonDown += (_, _) => OnAppChipClick(holdPathBox, holdAppChip);
             holdSection.Children.Add(holdPathPanel);
 
             var (holdMacroPanel, holdMacroBox) = MakeTextBoxRow("MACRO KEYS", "ctrl+shift+m");
@@ -867,7 +876,7 @@ public partial class ButtonsView : UserControl
                 var val = GetComboActionValue(holdCombo);
                 UpdateGestureVisibility(_holdPathPanels[idx], _holdPathLabels[idx], _holdBrowseButtons[idx], _holdPickButtons[idx], _holdMacroPanels[idx],
                     _holdDevicePanels[idx], _holdCycleDevicePanels[idx], _holdCycleDevicePickers[idx], _holdCycleTypePanels[idx],
-                    _holdPowerPanels[idx], _holdKnobPanels[idx], val);
+                    _holdPowerPanels[idx], _holdKnobPanels[idx], val, _holdAppChips[idx], _holdPathBoxes[idx]);
                 QueueSave();
             };
 
@@ -915,7 +924,7 @@ public partial class ButtonsView : UserControl
         bool isObsPathAction = action is "obs_scene" or "obs_mute";
         bool isVmPathAction = action is "vm_mute_strip" or "vm_mute_bus";
         _tapPathPanels[idx].Visibility = PathActions.Contains(action) || isHaServiceAction || action == "govee_color" || isObsPathAction || isVmPathAction ? Visibility.Visible : Visibility.Collapsed;
-        ApplyPathLabelAndButtons(_tapPathLabels[idx], _tapPathBoxes[idx], _tapBrowseButtons[idx], _tapPickButtons[idx], action);
+        ApplyPathLabelAndButtons(_tapPathLabels[idx], _tapPathBoxes[idx], _tapBrowseButtons[idx], _tapPickButtons[idx], action, _tapAppChips[idx]);
         _tapMacroPanels[idx].Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
         _tapDevicePanels[idx].Visibility = Visibility.Collapsed; // select/mute now use sub-flyout
         _tapCycleDevicePanels[idx].Visibility = action is "cycle_output" or "cycle_input" ? Visibility.Visible : Visibility.Collapsed;
@@ -929,13 +938,14 @@ public partial class ButtonsView : UserControl
     private void UpdateGestureVisibility(
         StackPanel pathPanel, TextBlock pathLabel, Button browseBtn, Button pickBtn, StackPanel macroPanel,
         StackPanel devicePanel, StackPanel cycleDevicePanel, CheckListPicker cycleDevicePicker, StackPanel cycleTypePanel,
-        StackPanel powerPanel, StackPanel knobPanel, string action)
+        StackPanel powerPanel, StackPanel knobPanel, string action,
+        System.Windows.Controls.Border? chip = null, TextBox? box = null)
     {
         bool isHaServiceAction = action == "ha_service";
         bool isObsPathAction = action is "obs_scene" or "obs_mute";
         bool isVmPathAction = action is "vm_mute_strip" or "vm_mute_bus";
         pathPanel.Visibility = PathActions.Contains(action) || isHaServiceAction || action == "govee_color" || isObsPathAction || isVmPathAction ? Visibility.Visible : Visibility.Collapsed;
-        ApplyPathLabelAndButtons(pathLabel, null, browseBtn, pickBtn, action);
+        ApplyPathLabelAndButtons(pathLabel, box, browseBtn, pickBtn, action, chip);
         macroPanel.Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
         devicePanel.Visibility = Visibility.Collapsed; // select/mute now use sub-flyout
         cycleDevicePanel.Visibility = action is "cycle_output" or "cycle_input" ? Visibility.Visible : Visibility.Collapsed;
@@ -946,8 +956,18 @@ public partial class ButtonsView : UserControl
         knobPanel.Visibility = action == "mute_app_group" ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private static void ApplyPathLabelAndButtons(TextBlock label, TextBox? box, Button browseBtn, Button pickBtn, string action)
+    private void ApplyPathLabelAndButtons(TextBlock label, TextBox? box, Button browseBtn, Button pickBtn, string action, System.Windows.Controls.Border? chip = null)
     {
+        // launch_exe shows the compact app chip; everything else shows the textbox input.
+        bool showChip = action == "launch_exe" && chip != null;
+        var inputBorder = box?.Parent as System.Windows.Controls.Border;
+        if (chip != null)
+            chip.Visibility = showChip ? Visibility.Visible : Visibility.Collapsed;
+        if (inputBorder != null)
+            inputBorder.Visibility = showChip ? Visibility.Collapsed : Visibility.Visible;
+        if (showChip && box != null)
+            UpdateAppChipDisplay(chip!, GetTextBoxValue(box));
+
         switch (action)
         {
             case "mute_program":
@@ -963,10 +983,10 @@ public partial class ButtonsView : UserControl
                 pickBtn.Visibility = Visibility.Visible;
                 break;
             case "launch_exe":
-                label.Text = "PROGRAM PATH";
+                label.Text = "APP";
                 if (box != null) box.ToolTip = "Full path to the executable to launch, or use the app picker";
                 browseBtn.Visibility = Visibility.Visible;
-                pickBtn.Visibility = Visibility.Visible;
+                pickBtn.Visibility = Visibility.Collapsed;
                 break;
             case "ha_service":
                 label.Text = "SERVICE CALL";
@@ -1380,13 +1400,17 @@ public partial class ButtonsView : UserControl
         return (container, box);
     }
 
-    private (StackPanel panel, TextBlock labelBlock, TextBox box, Button browseBtn, Button pickBtn) MakePathRow(string label, string placeholder)
+    private (StackPanel panel, TextBlock labelBlock, TextBox box, Button browseBtn, Button pickBtn, System.Windows.Controls.Border chip) MakePathRow(string label, string placeholder)
     {
         var container = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 8) };
         var labelBlock = MakeLabel(label);
         container.Children.Add(labelBlock);
 
-        var row = new DockPanel { LastChildFill = true };
+        // Grid so chip and text input can share column 0, toggled by Visibility
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         // Browse button with folder icon
         var browseBg = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
@@ -1417,7 +1441,7 @@ public partial class ButtonsView : UserControl
         browseBorder.SetBinding(VisibilityProperty, new System.Windows.Data.Binding("Visibility") { Source = browseBtn });
         browseBtn.MouseEnter += (_, _) => browseBorder.Background = browseHoverBg;
         browseBtn.MouseLeave += (_, _) => browseBorder.Background = browseBg;
-        DockPanel.SetDock(browseBorder, Dock.Right);
+        Grid.SetColumn(browseBorder, 2);
         row.Children.Add(browseBorder);
 
         // Pick (process list) button with list icon
@@ -1449,10 +1473,10 @@ public partial class ButtonsView : UserControl
         pickBorder.SetBinding(VisibilityProperty, new System.Windows.Data.Binding("Visibility") { Source = pickBtn });
         pickBtn.MouseEnter += (_, _) => pickBorder.Background = pickHoverBg;
         pickBtn.MouseLeave += (_, _) => pickBorder.Background = pickBg;
-        DockPanel.SetDock(pickBorder, Dock.Right);
+        Grid.SetColumn(pickBorder, 1);
         row.Children.Add(pickBorder);
 
-        // Text input with rounded border wrapper
+        // Text input with rounded border wrapper (shown for process-name actions)
         var inputBorder = new System.Windows.Controls.Border
         {
             CornerRadius = new CornerRadius(6),
@@ -1476,13 +1500,203 @@ public partial class ButtonsView : UserControl
         box.Text = "";
         SetPlaceholder(box);
         inputBorder.Child = box;
+        Grid.SetColumn(inputBorder, 0);
         row.Children.Add(inputBorder);
 
+        // App chip (shown for launch_exe) — collapsed by default
+        var chip = MakeAppChip();
+        chip.Visibility = Visibility.Collapsed;
+        Grid.SetColumn(chip, 0);
+        row.Children.Add(chip);
+
         container.Children.Add(row);
-        return (container, labelBlock, box, browseBtn, pickBtn);
+        return (container, labelBlock, box, browseBtn, pickBtn, chip);
     }
 
-    private void BrowseForFile(TextBox targetBox)
+    /// <summary>
+    /// Build a compact "app chip" — rounded border with app icon, display name,
+    /// and chevron. Click opens AppPickerDialog. Used for launch_exe action
+    /// instead of a raw program-path textbox.
+    /// </summary>
+    private System.Windows.Controls.Border MakeAppChip()
+    {
+        var iconImg = new System.Windows.Controls.Image
+        {
+            Width = 22,
+            Height = 22,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0),
+        };
+
+        var placeholderIcon = new MaterialIcon
+        {
+            Kind = MaterialIconKind.RocketLaunchOutline,
+            Width = 18,
+            Height = 18,
+            Foreground = FindBrush("TextDimBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(2, 0, 10, 0),
+        };
+
+        var nameText = new TextBlock
+        {
+            Text = "Choose Program...",
+            FontSize = 12,
+            Foreground = FindBrush("TextDimBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+
+        var chevron = new MaterialIcon
+        {
+            Kind = MaterialIconKind.ChevronDown,
+            Width = 14,
+            Height = 14,
+            Foreground = FindBrush("TextDimBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+
+        var content = new DockPanel { LastChildFill = true };
+        DockPanel.SetDock(iconImg, Dock.Left);
+        DockPanel.SetDock(placeholderIcon, Dock.Left);
+        DockPanel.SetDock(chevron, Dock.Right);
+        content.Children.Add(iconImg);
+        content.Children.Add(placeholderIcon);
+        content.Children.Add(chevron);
+        content.Children.Add(nameText);
+
+        var bg = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+        var hoverBg = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+        var idleBorder = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
+        bg.Freeze(); hoverBg.Freeze(); idleBorder.Freeze();
+
+        var border = new System.Windows.Controls.Border
+        {
+            CornerRadius = new CornerRadius(6),
+            Background = bg,
+            BorderBrush = idleBorder,
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(10, 0, 10, 0),
+            Height = 34,
+            Cursor = Cursors.Hand,
+            Child = content,
+            ToolTip = "Click to pick an app",
+        };
+
+        // Store inner refs on the Tag for retrieval in UpdateAppChipDisplay
+        border.Tag = new AppChipRefs(iconImg, placeholderIcon, nameText);
+
+        border.MouseEnter += (_, _) =>
+        {
+            border.Background = hoverBg;
+            border.BorderBrush = new SolidColorBrush(ThemeManager.Accent);
+        };
+        border.MouseLeave += (_, _) =>
+        {
+            border.Background = bg;
+            border.BorderBrush = idleBorder;
+        };
+
+        return border;
+    }
+
+    private sealed record AppChipRefs(System.Windows.Controls.Image Icon, MaterialIcon Placeholder, TextBlock Name);
+
+    /// <summary>
+    /// Refresh an app chip's icon, display name, and tooltip from the given path.
+    /// Empty path → "Choose Program..." placeholder state.
+    /// </summary>
+    private void UpdateAppChipDisplay(System.Windows.Controls.Border chip, string? path)
+    {
+        if (chip.Tag is not AppChipRefs refs) return;
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            refs.Icon.Source = null;
+            refs.Icon.Visibility = Visibility.Collapsed;
+            refs.Placeholder.Visibility = Visibility.Visible;
+            refs.Name.Text = "Choose Program...";
+            refs.Name.Foreground = FindBrush("TextDimBrush");
+            chip.ToolTip = "Click to pick an app";
+            return;
+        }
+
+        refs.Name.Text = GetAppDisplayName(path);
+        refs.Name.Foreground = FindBrush("TextPrimaryBrush");
+
+        var icon = TryExtractIcon(path);
+        if (icon != null)
+        {
+            refs.Icon.Source = icon;
+            refs.Icon.Visibility = Visibility.Visible;
+            refs.Placeholder.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            refs.Icon.Source = null;
+            refs.Icon.Visibility = Visibility.Collapsed;
+            refs.Placeholder.Visibility = Visibility.Visible;
+        }
+
+        chip.ToolTip = path;
+    }
+
+    private static string GetAppDisplayName(string path)
+    {
+        try
+        {
+            var expanded = Environment.ExpandEnvironmentVariables(path);
+            // Strip trailing args (first token before any space, respecting quoted paths)
+            var exe = expanded.StartsWith("\"")
+                ? expanded.Substring(1, Math.Max(0, expanded.IndexOf('"', 1) - 1))
+                : expanded.Split(' ')[0];
+
+            if (!string.IsNullOrWhiteSpace(exe) && System.IO.File.Exists(exe))
+            {
+                var fvi = System.Diagnostics.FileVersionInfo.GetVersionInfo(exe);
+                if (!string.IsNullOrWhiteSpace(fvi.ProductName))
+                    return fvi.ProductName!;
+                return System.IO.Path.GetFileNameWithoutExtension(exe);
+            }
+
+            return System.IO.Path.GetFileNameWithoutExtension(exe);
+        }
+        catch
+        {
+            return System.IO.Path.GetFileNameWithoutExtension(path);
+        }
+    }
+
+    private static ImageSource? TryExtractIcon(string path)
+    {
+        try
+        {
+            var expanded = Environment.ExpandEnvironmentVariables(path);
+            var exe = expanded.StartsWith("\"")
+                ? expanded.Substring(1, Math.Max(0, expanded.IndexOf('"', 1) - 1))
+                : expanded.Split(' ')[0];
+
+            if (string.IsNullOrWhiteSpace(exe) || !System.IO.File.Exists(exe))
+                return null;
+
+            using var icon = System.Drawing.Icon.ExtractAssociatedIcon(exe);
+            if (icon == null) return null;
+
+            var src = System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(
+                icon.Handle,
+                Int32Rect.Empty,
+                System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
+            src.Freeze();
+            return src;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private void BrowseForFile(TextBox targetBox, System.Windows.Controls.Border? chip = null)
     {
         var dlg = new OpenFileDialog
         {
@@ -1502,6 +1716,19 @@ public partial class ButtonsView : UserControl
         {
             targetBox.Text = dlg.FileName;
             targetBox.Foreground = FindBrush("TextPrimaryBrush");
+            if (chip != null) UpdateAppChipDisplay(chip, dlg.FileName);
+            QueueSave();
+        }
+    }
+
+    private void OnAppChipClick(TextBox targetBox, System.Windows.Controls.Border chip)
+    {
+        var picker = new AppPickerDialog { Owner = Window.GetWindow(this) };
+        if (picker.ShowDialog() == true && !string.IsNullOrEmpty(picker.SelectedPath))
+        {
+            targetBox.Text = picker.SelectedPath;
+            targetBox.Foreground = FindBrush("TextPrimaryBrush");
+            UpdateAppChipDisplay(chip, picker.SelectedPath);
             QueueSave();
         }
     }
