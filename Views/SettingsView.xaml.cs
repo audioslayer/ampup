@@ -49,13 +49,6 @@ public partial class SettingsView : UserControl
             CollectAndSave();
         };
 
-        // Clear LED preview when navigating away from Settings
-        IsVisibleChanged += (_, e) =>
-        {
-            if (e.NewValue is false && _calibPreviewColor != null)
-                ClearCalibPreview();
-        };
-
         // Wire up change events
         TxtSerialPort.TextChanged += OnValueChanged;
         TxtBaudRate.TextChanged += OnValueChanged;
@@ -114,16 +107,6 @@ public partial class SettingsView : UserControl
         TxtObsPort.TextChanged += OnValueChanged;
         TxtObsPassword.PasswordChanged += OnPasswordChanged;
         BtnObsTest.Click += OnObsTest;
-
-        // LED Calibration — Mute Brightness (StyledSlider)
-        BuildMuteBrightnessSlider();
-        BtnGammaReset.Click += OnGammaReset;
-        CalibTestRed.MouseLeftButtonDown += (_, _) => SetCalibPreview(255, 0, 0, CalibTestRed);
-        CalibTestGreen.MouseLeftButtonDown += (_, _) => SetCalibPreview(0, 255, 0, CalibTestGreen);
-        CalibTestBlue.MouseLeftButtonDown += (_, _) => SetCalibPreview(0, 0, 255, CalibTestBlue);
-        CalibTestPurple.MouseLeftButtonDown += (_, _) => SetCalibPreview(136, 0, 255, CalibTestPurple);
-        CalibTestWhite.MouseLeftButtonDown += (_, _) => SetCalibPreview(255, 255, 255, CalibTestWhite);
-        CalibTestOff.MouseLeftButtonDown += (_, _) => ClearCalibPreview();
 
         // OBS Studio
         ChkObsEnabled.Checked += OnValueChanged;
@@ -218,14 +201,6 @@ public partial class SettingsView : UserControl
         RefreshGoveeAmbienceHint();
 
         BuildAccentSwatches();
-
-        // LED Calibration
-        if (_sldMuteBrightness != null) _sldMuteBrightness.Value = Math.Clamp(config.MuteBrightness, 0, 100);
-        if (_txtMuteBrightness != null) _txtMuteBrightness.Text = $"{config.MuteBrightness}%";
-        BuildGammaSliders();
-        if (_sldGammaR != null) _sldGammaR.Value = config.GammaR;
-        if (_sldGammaG != null) _sldGammaG.Value = config.GammaG;
-        if (_sldGammaB != null) _sldGammaB.Value = config.GammaB;
 
         _loading = false;
         _configLoaded = true;
@@ -536,12 +511,6 @@ public partial class SettingsView : UserControl
 
         // Corsair iCUE
         _config.Corsair.Enabled = ChkCorsairEnabled.IsChecked == true;
-
-        // LED Calibration
-        _config.MuteBrightness = (int)(_sldMuteBrightness?.Value ?? 15);
-        _config.GammaR = Math.Round(_sldGammaR?.Value ?? 2.0, 1);
-        _config.GammaG = Math.Round(_sldGammaG?.Value ?? 2.0, 1);
-        _config.GammaB = Math.Round(_sldGammaB?.Value ?? 2.0, 1);
 
         _onSave(_config);
     }
@@ -1330,160 +1299,5 @@ public partial class SettingsView : UserControl
         }
     }
 
-    // ── LED Calibration ────────────────────────────────────────────────
-
-    private Border? _activeCalibSwatch;
-    private (byte R, byte G, byte B)? _calibPreviewColor;
-    private Controls.StyledSlider? _sldMuteBrightness;
-    private TextBlock? _txtMuteBrightness;
-    private Controls.StyledSlider? _sldGammaR, _sldGammaG, _sldGammaB;
-
-    private void BuildMuteBrightnessSlider()
-    {
-        MuteBrightnessPanel.Children.Clear();
-        var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-        headerRow.Children.Add(new TextBlock
-        {
-            Text = "MUTE DIM LEVEL", FontSize = 11, FontWeight = FontWeights.SemiBold,
-            Style = FindResource("HeaderText") as Style, Margin = new Thickness(0, 0, 8, 0),
-        });
-        _txtMuteBrightness = new TextBlock
-        {
-            Text = "15%", Style = FindResource("SecondaryText") as Style, VerticalAlignment = VerticalAlignment.Center,
-        };
-        headerRow.Children.Add(_txtMuteBrightness);
-        MuteBrightnessPanel.Children.Add(headerRow);
-
-        MuteBrightnessPanel.Children.Add(new TextBlock
-        {
-            Text = "How bright LEDs are when the app is muted (ProgramMute / AppGroupMute effects).",
-            Style = FindResource("SecondaryText") as Style, Margin = new Thickness(0, 0, 0, 6), TextWrapping = TextWrapping.Wrap,
-        });
-
-        _sldMuteBrightness = new Controls.StyledSlider
-        {
-            Minimum = 0, Maximum = 100, Value = 15,
-            Height = 35, AccentColor = ThemeManager.Accent, ShowLabel = false,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            ToolTip = "0% = fully off when muted, 15% = dim (default), 100% = same brightness as unmuted",
-        };
-        _sldMuteBrightness.ValueChanged += (_, _) =>
-        {
-            if (_txtMuteBrightness != null) _txtMuteBrightness.Text = $"{(int)_sldMuteBrightness.Value}%";
-            if (!_loading) OnValueChanged(null, EventArgs.Empty);
-        };
-        MuteBrightnessPanel.Children.Add(_sldMuteBrightness);
-    }
-
-    private void BuildGammaSliders()
-    {
-        GammaSlidersPanel.Children.Clear();
-
-        var channels = new[]
-        {
-            ("Red",   Color.FromRgb(0xEF, 0x53, 0x50)),
-            ("Green", Color.FromRgb(0x66, 0xBB, 0x6A)),
-            ("Blue",  Color.FromRgb(0x42, 0xA5, 0xF5)),
-        };
-        Controls.StyledSlider?[] refs = new Controls.StyledSlider?[3];
-
-        for (int i = 0; i < 3; i++)
-        {
-            var (label, color) = channels[i];
-            var row = new System.Windows.Controls.Grid { Margin = new Thickness(0, 4, 0, 4) };
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
-
-            var lbl = new TextBlock
-            {
-                Text = label, Foreground = new SolidColorBrush(color),
-                FontSize = 12, FontWeight = FontWeights.SemiBold,
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            System.Windows.Controls.Grid.SetColumn(lbl, 0);
-            row.Children.Add(lbl);
-
-            var valLabel = new TextBlock
-            {
-                Text = "1.0", Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
-                FontSize = 12, VerticalAlignment = VerticalAlignment.Center,
-            };
-            System.Windows.Controls.Grid.SetColumn(valLabel, 2);
-            row.Children.Add(valLabel);
-
-            var slider = new Controls.StyledSlider
-            {
-                Minimum = 0.5, Maximum = 4.0, Value = 1.0,
-                AccentColor = color, Height = 24,
-                ShowLabel = false, Step = 0.1,
-                Margin = new Thickness(8, 0, 8, 0),
-            };
-            var capturedLabel = valLabel;
-            slider.ValueChanged += (s, _) =>
-            {
-                capturedLabel.Text = slider.Value.ToString("F1");
-                OnGammaSliderChanged(s, EventArgs.Empty);
-            };
-            System.Windows.Controls.Grid.SetColumn(slider, 1);
-            row.Children.Add(slider);
-            refs[i] = slider;
-
-            GammaSlidersPanel.Children.Add(row);
-        }
-
-        _sldGammaR = refs[0];
-        _sldGammaG = refs[1];
-        _sldGammaB = refs[2];
-    }
-
-    private void OnGammaSliderChanged(object? sender, EventArgs e)
-    {
-        if (_loading) return;
-
-        // Live-update gamma on hardware if previewing a test color
-        if (_calibPreviewColor != null)
-        {
-            App.Rgb?.SetGamma(
-                Math.Round(_sldGammaR?.Value ?? 2.0, 1),
-                Math.Round(_sldGammaG?.Value ?? 2.0, 1),
-                Math.Round(_sldGammaB?.Value ?? 2.0, 1));
-        }
-
-        _debounceTimer.Stop();
-        _debounceTimer.Start();
-    }
-
-    private void OnGammaReset(object sender, RoutedEventArgs e)
-    {
-        if (_sldGammaR != null) _sldGammaR.Value = 1.0;
-        if (_sldGammaG != null) _sldGammaG.Value = 1.0;
-        if (_sldGammaB != null) _sldGammaB.Value = 1.0;
-    }
-
-    private void SetCalibPreview(byte r, byte g, byte b, Border swatch)
-    {
-        // Highlight active swatch
-        if (_activeCalibSwatch != null)
-            _activeCalibSwatch.BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33));
-        _activeCalibSwatch = swatch;
-        swatch.BorderBrush = new SolidColorBrush(ThemeManager.Accent);
-
-        _calibPreviewColor = (r, g, b);
-
-        // Send test color to all LEDs via preview override
-        App.Rgb?.SetPreviewColor(r, g, b);
-    }
-
-    private void ClearCalibPreview()
-    {
-        if (_activeCalibSwatch != null)
-            _activeCalibSwatch.BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33));
-        _activeCalibSwatch = null;
-        _calibPreviewColor = null;
-
-        // Resume normal LED effects
-        App.Rgb?.ClearPreviewColor();
-    }
 }
 

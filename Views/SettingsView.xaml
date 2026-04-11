@@ -204,47 +204,7 @@
                 </StackPanel>
             </Border>
 
-            <!-- ── LED CALIBRATION ──────────────────────────────────── -->
-            <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
-                        <TextBlock Text="LED CALIBRATION" Style="{StaticResource HeaderText}" Margin="0" />
-                    </StackPanel>
-                    <TextBlock Text="Adjust per-channel gamma to match your LEDs. Pick a test color to preview on the hardware while tuning."
-                               Style="{StaticResource SecondaryText}" Margin="0,0,0,12" TextWrapping="Wrap" />
-
-                    <!-- Test color row -->
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                        <TextBlock Text="Test Color" Style="{StaticResource SecondaryText}" VerticalAlignment="Center" Margin="0,0,12,0" />
-                        <Border x:Name="CalibTestRed" Width="32" Height="32" CornerRadius="6" Margin="0,0,6,0" Cursor="Hand"
-                                Background="#FF0000" BorderThickness="2" BorderBrush="#333333" ToolTip="Red" />
-                        <Border x:Name="CalibTestGreen" Width="32" Height="32" CornerRadius="6" Margin="0,0,6,0" Cursor="Hand"
-                                Background="#00FF00" BorderThickness="2" BorderBrush="#333333" ToolTip="Green" />
-                        <Border x:Name="CalibTestBlue" Width="32" Height="32" CornerRadius="6" Margin="0,0,6,0" Cursor="Hand"
-                                Background="#0000FF" BorderThickness="2" BorderBrush="#333333" ToolTip="Blue" />
-                        <Border x:Name="CalibTestPurple" Width="32" Height="32" CornerRadius="6" Margin="0,0,6,0" Cursor="Hand"
-                                Background="#8800FF" BorderThickness="2" BorderBrush="#333333" ToolTip="Purple" />
-                        <Border x:Name="CalibTestWhite" Width="32" Height="32" CornerRadius="6" Margin="0,0,6,0" Cursor="Hand"
-                                Background="#FFFFFF" BorderThickness="2" BorderBrush="#333333" ToolTip="White" />
-                        <Border x:Name="CalibTestOff" Width="32" Height="32" CornerRadius="6" Margin="0,0,0,0" Cursor="Hand"
-                                Background="#1A1A1A" BorderThickness="2" BorderBrush="#333333" ToolTip="Stop preview (resume normal)">
-                            <TextBlock Text="✕" Foreground="#666666" FontSize="14" FontWeight="Bold"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                    </StackPanel>
-
-                    <!-- Mute brightness slider (StyledSlider built in code-behind) -->
-                    <StackPanel x:Name="MuteBrightnessPanel" Margin="0,0,0,12" />
-
-                    <!-- Gamma sliders (built in code-behind as StyledSliders) -->
-                    <StackPanel x:Name="GammaSlidersPanel" Margin="0,0,0,4" />
-
-                    <ui:Button x:Name="BtnGammaReset" Content="Reset to Default (1.0)"
-                               Appearance="Secondary" Margin="0,8,0,0"
-                               ToolTip="Reset all gamma channels to 1.0 (linear, no correction)" />
-                </StackPanel>
-            </Border>
+            <!-- LED Calibration moved to the Lights tab (CALIBRATION sub-tab) -->
 
             <!-- ── INTEGRATIONS ────────────────────────────────────── -->
             <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">

@@ -68,6 +68,18 @@ public partial class LightsView : UserControl
     // Mode tabs
     private Border? _perKnobTab;
     private Border? _globalTab;
+    private Border? _calibrationTab;
+
+    // Calibration mode state (orthogonal to _globalEnableCheck — it's a UI view
+    // mode only, never persisted). When true, calibration panel is shown and
+    // both per-knob and global settings are hidden.
+    private bool _calibrationMode;
+    private StackPanel? _calibrationPanel;
+    private Controls.StyledSlider? _sldGammaR, _sldGammaG, _sldGammaB;
+    private Controls.StyledSlider? _sldMuteBrightness;
+    private TextBlock? _txtMuteBrightness;
+    private Border? _activeCalibSwatch;
+    private (byte R, byte G, byte B)? _calibPreviewColor;
 
     // Global lighting controls
     private CheckBox? _globalEnableCheck;
@@ -197,6 +209,13 @@ public partial class LightsView : UserControl
         if (mixer != null)
             _audioDevices = mixer.GetAudioDevices();
         _dsRowCount = Math.Clamp(_audioDevices.Count(d => d.IsOutput), 3, 8);
+
+        // Calibration values (live on AppConfig root, not GlobalLight)
+        if (_sldGammaR != null) _sldGammaR.Value = Math.Clamp(config.GammaR, 0.5, 4.0);
+        if (_sldGammaG != null) _sldGammaG.Value = Math.Clamp(config.GammaG, 0.5, 4.0);
+        if (_sldGammaB != null) _sldGammaB.Value = Math.Clamp(config.GammaB, 0.5, 4.0);
+        if (_sldMuteBrightness != null) _sldMuteBrightness.Value = Math.Clamp(config.MuteBrightness, 0, 100);
+        if (_txtMuteBrightness != null) _txtMuteBrightness.Text = $"{config.MuteBrightness}%";
 
         // Populate global lighting card
         var gl = config.GlobalLight;
@@ -631,28 +650,34 @@ public partial class LightsView : UserControl
 
         var perKnobTab = BuildModeTab("PER KNOB", true, accent);
         var globalTab = BuildModeTab("GLOBAL", false, accent);
+        var calibTab = BuildModeTab("CALIBRATION", false, accent);
         _perKnobTab = perKnobTab;
         _globalTab = globalTab;
+        _calibrationTab = calibTab;
 
         perKnobTab.MouseLeftButtonDown += (_, _) =>
         {
+            _calibrationMode = false;
             if (_globalEnableCheck != null) _globalEnableCheck.IsChecked = false;
-            SetModeTabActive(perKnobTab, true, accent);
-            SetModeTabActive(globalTab, false, accent);
             UpdateGlobalVisibility();
             if (!_loading) QueueSave();
         };
         globalTab.MouseLeftButtonDown += (_, _) =>
         {
+            _calibrationMode = false;
             if (_globalEnableCheck != null) _globalEnableCheck.IsChecked = true;
-            SetModeTabActive(globalTab, true, accent);
-            SetModeTabActive(perKnobTab, false, accent);
             UpdateGlobalVisibility();
             if (!_loading) QueueSave();
+        };
+        calibTab.MouseLeftButtonDown += (_, _) =>
+        {
+            _calibrationMode = true;
+            UpdateGlobalVisibility();
         };
 
         toggleRow.Children.Add(perKnobTab);
         toggleRow.Children.Add(globalTab);
+        toggleRow.Children.Add(calibTab);
         toggleBar.Child = toggleRow;
         panel.Children.Add(toggleBar);
 
@@ -874,6 +899,238 @@ public partial class LightsView : UserControl
         settings.Children.Add(idleEffectPanel);
 
         panel.Children.Add(settings);
+
+        BuildCalibrationPanel(panel);
+    }
+
+    /// <summary>
+    /// Build the CALIBRATION view — LED gamma tuning + test swatches + mute dim
+    /// slider. Collapsed by default; shown when the CALIBRATION tab is active.
+    /// </summary>
+    private void BuildCalibrationPanel(StackPanel host)
+    {
+        var calib = new StackPanel { Visibility = Visibility.Collapsed };
+
+        calib.Children.Add(new TextBlock
+        {
+            Text = "Adjust per-channel gamma to match your LEDs. Pick a test color to preview on the hardware while tuning.",
+            Style = FindStyle("SecondaryText"),
+            Margin = new Thickness(0, 0, 0, 12),
+            TextWrapping = TextWrapping.Wrap,
+        });
+
+        // Test color swatches
+        var testRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
+        testRow.Children.Add(new TextBlock
+        {
+            Text = "Test Color",
+            Style = FindStyle("SecondaryText"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 12, 0),
+        });
+
+        var testColors = new (byte R, byte G, byte B, string tip)[]
+        {
+            (0xFF, 0x00, 0x00, "Red"),
+            (0x00, 0xFF, 0x00, "Green"),
+            (0x00, 0x00, 0xFF, "Blue"),
+            (0x88, 0x00, 0xFF, "Purple"),
+            (0xFF, 0xFF, 0xFF, "White"),
+        };
+        foreach (var (r, g, b, tip) in testColors)
+        {
+            var swatch = new Border
+            {
+                Width = 32, Height = 32,
+                CornerRadius = new CornerRadius(6),
+                Margin = new Thickness(0, 0, 6, 0),
+                Cursor = Cursors.Hand,
+                Background = new SolidColorBrush(Color.FromRgb(r, g, b)),
+                BorderThickness = new Thickness(2),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
+                ToolTip = tip,
+            };
+            byte cr = r, cg = g, cb = b;
+            swatch.MouseLeftButtonDown += (_, _) => SetCalibPreview(cr, cg, cb, swatch);
+            testRow.Children.Add(swatch);
+        }
+
+        var offSwatch = new Border
+        {
+            Width = 32, Height = 32,
+            CornerRadius = new CornerRadius(6),
+            Cursor = Cursors.Hand,
+            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+            BorderThickness = new Thickness(2),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
+            ToolTip = "Stop preview (resume normal)",
+            Child = new TextBlock
+            {
+                Text = "✕", FontSize = 14, FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            },
+        };
+        offSwatch.MouseLeftButtonDown += (_, _) => ClearCalibPreview();
+        testRow.Children.Add(offSwatch);
+        calib.Children.Add(testRow);
+
+        // Mute dim level slider
+        var muteHeader = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+        muteHeader.Children.Add(new TextBlock
+        {
+            Text = "MUTE DIM LEVEL",
+            FontSize = 11, FontWeight = FontWeights.SemiBold,
+            Style = FindStyle("HeaderText"),
+            Margin = new Thickness(0, 0, 8, 0),
+        });
+        _txtMuteBrightness = new TextBlock
+        {
+            Text = "15%",
+            Style = FindStyle("SecondaryText"),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        muteHeader.Children.Add(_txtMuteBrightness);
+        calib.Children.Add(muteHeader);
+
+        calib.Children.Add(new TextBlock
+        {
+            Text = "How bright LEDs are when the app is muted (ProgramMute / AppGroupMute effects).",
+            Style = FindStyle("SecondaryText"),
+            Margin = new Thickness(0, 0, 0, 6),
+            TextWrapping = TextWrapping.Wrap,
+        });
+
+        _sldMuteBrightness = new Controls.StyledSlider
+        {
+            Minimum = 0, Maximum = 100, Value = 15,
+            Height = 35, AccentColor = ThemeManager.Accent, ShowLabel = false,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            ToolTip = "0% = fully off when muted, 15% = dim (default), 100% = same brightness as unmuted",
+            Margin = new Thickness(0, 0, 0, 14),
+        };
+        _sldMuteBrightness.ValueChanged += (_, _) =>
+        {
+            if (_txtMuteBrightness != null && _sldMuteBrightness != null)
+                _txtMuteBrightness.Text = $"{(int)_sldMuteBrightness.Value}%";
+            if (!_loading) QueueSave();
+        };
+        calib.Children.Add(_sldMuteBrightness);
+
+        // Gamma sliders (R / G / B)
+        var gammaChannels = new[]
+        {
+            ("Red",   Color.FromRgb(0xEF, 0x53, 0x50)),
+            ("Green", Color.FromRgb(0x66, 0xBB, 0x6A)),
+            ("Blue",  Color.FromRgb(0x42, 0xA5, 0xF5)),
+        };
+        var gammaRefs = new Controls.StyledSlider?[3];
+
+        for (int i = 0; i < 3; i++)
+        {
+            var (gLabel, gColor) = gammaChannels[i];
+            var row = new Grid { Margin = new Thickness(0, 4, 0, 4) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
+
+            var lbl = new TextBlock
+            {
+                Text = gLabel,
+                Foreground = new SolidColorBrush(gColor),
+                FontSize = 12, FontWeight = FontWeights.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            Grid.SetColumn(lbl, 0);
+            row.Children.Add(lbl);
+
+            var valLabel = new TextBlock
+            {
+                Text = "1.0",
+                Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+                FontSize = 12, VerticalAlignment = VerticalAlignment.Center,
+            };
+            Grid.SetColumn(valLabel, 2);
+            row.Children.Add(valLabel);
+
+            var slider = new Controls.StyledSlider
+            {
+                Minimum = 0.5, Maximum = 4.0, Value = 1.0,
+                AccentColor = gColor, Height = 24,
+                ShowLabel = false, Step = 0.1,
+                Margin = new Thickness(8, 0, 8, 0),
+            };
+            var captured = valLabel;
+            slider.ValueChanged += (_, _) =>
+            {
+                captured.Text = slider.Value.ToString("F1");
+                OnGammaSliderChanged();
+            };
+            Grid.SetColumn(slider, 1);
+            row.Children.Add(slider);
+            gammaRefs[i] = slider;
+
+            calib.Children.Add(row);
+        }
+
+        _sldGammaR = gammaRefs[0];
+        _sldGammaG = gammaRefs[1];
+        _sldGammaB = gammaRefs[2];
+
+        var resetBtn = new Wpf.Ui.Controls.Button
+        {
+            Content = "Reset to Default (1.0)",
+            Appearance = Wpf.Ui.Controls.ControlAppearance.Secondary,
+            Margin = new Thickness(0, 8, 0, 0),
+            ToolTip = "Reset all gamma channels to 1.0 (linear, no correction)",
+        };
+        resetBtn.Click += (_, _) =>
+        {
+            if (_sldGammaR != null) _sldGammaR.Value = 1.0;
+            if (_sldGammaG != null) _sldGammaG.Value = 1.0;
+            if (_sldGammaB != null) _sldGammaB.Value = 1.0;
+        };
+        calib.Children.Add(resetBtn);
+
+        _calibrationPanel = calib;
+        host.Children.Add(calib);
+    }
+
+    private void OnGammaSliderChanged()
+    {
+        if (_loading) return;
+
+        // Live-update gamma on hardware while a test color is active
+        if (_calibPreviewColor != null)
+        {
+            App.Rgb?.SetGamma(
+                Math.Round(_sldGammaR?.Value ?? 1.0, 1),
+                Math.Round(_sldGammaG?.Value ?? 1.0, 1),
+                Math.Round(_sldGammaB?.Value ?? 1.0, 1));
+        }
+
+        QueueSave();
+    }
+
+    private void SetCalibPreview(byte r, byte g, byte b, Border swatch)
+    {
+        if (_activeCalibSwatch != null)
+            _activeCalibSwatch.BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33));
+        _activeCalibSwatch = swatch;
+        swatch.BorderBrush = new SolidColorBrush(ThemeManager.Accent);
+
+        _calibPreviewColor = (r, g, b);
+        App.Rgb?.SetPreviewColor(r, g, b);
+    }
+
+    private void ClearCalibPreview()
+    {
+        if (_activeCalibSwatch != null)
+            _activeCalibSwatch.BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33));
+        _activeCalibSwatch = null;
+        _calibPreviewColor = null;
+        App.Rgb?.ClearPreviewColor();
     }
 
     private void UpdatePaletteHighlight()
@@ -953,27 +1210,37 @@ public partial class LightsView : UserControl
 
     private void UpdateGlobalVisibility()
     {
-        bool enabled = _globalEnableCheck?.IsChecked ?? false;
+        bool globalEnabled = _globalEnableCheck?.IsChecked ?? false;
+        bool calib = _calibrationMode;
         var accent = ((SolidColorBrush)FindResource("AccentBrush")).Color;
 
-        // Sync tab visuals
-        if (_perKnobTab != null && _globalTab != null)
+        // Sync tab visuals (3-way: per-knob / global / calibration)
+        if (_perKnobTab != null && _globalTab != null && _calibrationTab != null)
         {
-            SetModeTabActive(_perKnobTab, !enabled, accent);
-            SetModeTabActive(_globalTab, enabled, accent);
+            SetModeTabActive(_perKnobTab, !globalEnabled && !calib, accent);
+            SetModeTabActive(_globalTab, globalEnabled && !calib, accent);
+            SetModeTabActive(_calibrationTab, calib, accent);
         }
 
         if (_globalSettingsPanel != null)
-            _globalSettingsPanel.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+            _globalSettingsPanel.Visibility = (globalEnabled && !calib) ? Visibility.Visible : Visibility.Collapsed;
 
-        // Show/hide presets (only when global is enabled)
-        PresetsPanel.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+        // Presets live inside the global card — only show when Global is active
+        PresetsPanel.Visibility = (globalEnabled && !calib) ? Visibility.Visible : Visibility.Collapsed;
 
-        // Show/hide per-knob panels
-        PerKnobGrid.Visibility = enabled ? Visibility.Collapsed : Visibility.Visible;
+        // Per-knob editor (selector row + shared editor panel)
+        PerKnobGrid.Visibility = (!globalEnabled && !calib) ? Visibility.Visible : Visibility.Collapsed;
+
+        // Calibration panel
+        if (_calibrationPanel != null)
+            _calibrationPanel.Visibility = calib ? Visibility.Visible : Visibility.Collapsed;
+
+        // Leaving calibration mode must stop any active test-color preview
+        if (!calib && _calibPreviewColor != null)
+            ClearCalibPreview();
 
         // Update sub-controls based on current effect
-        if (enabled && _globalEffectPicker != null)
+        if (globalEnabled && !calib && _globalEffectPicker != null)
             UpdateGlobalEffectVisibility(_globalEffectPicker.SelectedEffect);
     }
 
@@ -2015,6 +2282,12 @@ public partial class LightsView : UserControl
     {
         if (_config == null || _onSave == null || !_configLoaded) return;
 
+        // Calibration values
+        if (_sldGammaR != null) _config.GammaR = Math.Round(_sldGammaR.Value, 1);
+        if (_sldGammaG != null) _config.GammaG = Math.Round(_sldGammaG.Value, 1);
+        if (_sldGammaB != null) _config.GammaB = Math.Round(_sldGammaB.Value, 1);
+        if (_sldMuteBrightness != null) _config.MuteBrightness = (int)_sldMuteBrightness.Value;
+
         // Save global lighting config
         var gl = _config.GlobalLight;
         gl.Enabled = _globalEnableCheck?.IsChecked ?? false;
@@ -2159,10 +2432,14 @@ public partial class LightsView : UserControl
             if (s != null) s.AccentColor = accent;
         foreach (var s in _brightnessSliders)
             if (s != null) s.AccentColor = accent;
+        if (_sldMuteBrightness != null) _sldMuteBrightness.AccentColor = accent;
 
         // Refresh active selector card — uses ThemeManager.Accent for border/bg
         for (int i = 0; i < 5; i++)
             UpdateSelectorCardActive(i);
+
+        // Refresh mode tab visuals (includes the CALIBRATION tab)
+        UpdateGlobalVisibility();
     }
 
     private TextBlock MakeLabel(string text)
