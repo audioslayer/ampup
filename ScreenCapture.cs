@@ -7,8 +7,9 @@ namespace AmpUp;
 
 /// <summary>
 /// GDI-based screen capture with zone-based color sampling.
-/// Captures a monitor region via BitBlt and samples dominant colors per zone.
-/// Runs on a background thread at up to 30fps. DXGI can replace this layer later.
+/// Captures a monitor region via StretchBlt (HALFTONE) into a cached downsampled bitmap
+/// and samples dominant colors per zone. Runs on a background thread at up to 30fps.
+/// DXGI Desktop Duplication can replace this layer later for frame-synced capture.
 /// </summary>
 public class ScreenCapture : IDisposable
 {
@@ -16,6 +17,16 @@ public class ScreenCapture : IDisposable
 
     // Pixel stride for downsampled sampling (every Nth pixel — good balance of speed vs accuracy)
     private const int SampleStride = 4;
+
+    // StretchBlt downsample factor — capture at 1/Nth of source resolution via GPU HALFTONE filter.
+    // HALFTONE box-filters on the way down, so sampling the result is more accurate than
+    // stride-sampling the full-res source. 2x is a safe default (~4x less CPU & memory).
+    private const int CaptureDownsample = 2;
+
+    // Cached downsampled bitmap reused across frames to eliminate per-frame allocations.
+    // Single-threaded instance (DreamSyncController owns a single capture instance).
+    private Bitmap? _cachedBmp;
+    private int _cachedSrcW, _cachedSrcH;
 
     // Pixels darker than this (R+G+B sum) are ignored to prevent dark UI from washing out colors
     private const int DarkThreshold = 30; // ~10 per channel
@@ -50,7 +61,7 @@ public class ScreenCapture : IDisposable
 
         try
         {
-            using var bmp = CaptureScreen(bounds);
+            var bmp = CaptureScreen(bounds);
             if (bmp == null) return null;
 
             if (cropBlackBars)
@@ -100,7 +111,7 @@ public class ScreenCapture : IDisposable
 
         try
         {
-            using var bmp = CaptureScreen(bounds);
+            var bmp = CaptureScreen(bounds);
             if (bmp == null) return null;
 
             // Determine crop rectangle
@@ -199,7 +210,7 @@ public class ScreenCapture : IDisposable
 
         try
         {
-            using var bmp = CaptureScreen(bounds);
+            var bmp = CaptureScreen(bounds);
             if (bmp == null) return null;
 
             var region = GetSideRegion(bmp.Width, bmp.Height, side);
@@ -226,18 +237,75 @@ public class ScreenCapture : IDisposable
 
     // ── GDI screen capture ───────────────────────────────────────────────────
 
-    private static Bitmap? CaptureScreen(Rectangle bounds)
+    // StretchBlt interop — GPU-accelerated downsample via HALFTONE filter.
+    // Captures ~4x faster at 4K than full-res BitBlt and produces a smaller
+    // bitmap for the CPU sampling loops to read.
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetDC(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
+
+    [DllImport("gdi32.dll")]
+    private static extern bool StretchBlt(
+        IntPtr hdcDest, int xDest, int yDest, int wDest, int hDest,
+        IntPtr hdcSrc, int xSrc, int ySrc, int wSrc, int hSrc,
+        uint rop);
+
+    [DllImport("gdi32.dll")]
+    private static extern int SetStretchBltMode(IntPtr hdc, int mode);
+
+    [DllImport("gdi32.dll")]
+    private static extern bool SetBrushOrgEx(IntPtr hdc, int x, int y, IntPtr pt);
+
+    private const int HALFTONE = 4;
+    private const uint SRCCOPY = 0x00CC0020;
+
+    private Bitmap? CaptureScreen(Rectangle bounds)
     {
-        var bmp = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppRgb);
+        // Downsampled target size — floored, minimum 1px per dim.
+        int dw = Math.Max(1, bounds.Width / CaptureDownsample);
+        int dh = Math.Max(1, bounds.Height / CaptureDownsample);
+
+        // Allocate (or reallocate) the cached bitmap only when source resolution changes.
+        if (_cachedBmp == null || _cachedSrcW != bounds.Width || _cachedSrcH != bounds.Height)
+        {
+            _cachedBmp?.Dispose();
+            _cachedBmp = new Bitmap(dw, dh, PixelFormat.Format32bppRgb);
+            _cachedSrcW = bounds.Width;
+            _cachedSrcH = bounds.Height;
+        }
+
         try
         {
-            using var g = Graphics.FromImage(bmp);
-            g.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size, CopyPixelOperation.SourceCopy);
-            return bmp;
+            using var g = Graphics.FromImage(_cachedBmp);
+            var destHdc = g.GetHdc();
+            IntPtr srcHdc = IntPtr.Zero;
+            try
+            {
+                srcHdc = GetDC(IntPtr.Zero);
+                if (srcHdc == IntPtr.Zero) return null;
+
+                // HALFTONE requires SetBrushOrgEx after SetStretchBltMode per MSDN.
+                SetStretchBltMode(destHdc, HALFTONE);
+                SetBrushOrgEx(destHdc, 0, 0, IntPtr.Zero);
+
+                bool ok = StretchBlt(
+                    destHdc, 0, 0, dw, dh,
+                    srcHdc, bounds.X, bounds.Y, bounds.Width, bounds.Height,
+                    SRCCOPY);
+
+                if (!ok) return null;
+            }
+            finally
+            {
+                if (srcHdc != IntPtr.Zero) ReleaseDC(IntPtr.Zero, srcHdc);
+                g.ReleaseHdc(destHdc);
+            }
+            return _cachedBmp;
         }
         catch
         {
-            bmp.Dispose();
             return null;
         }
     }
@@ -709,5 +777,7 @@ public class ScreenCapture : IDisposable
     public void Dispose()
     {
         _disposed = true;
+        _cachedBmp?.Dispose();
+        _cachedBmp = null;
     }
 }
