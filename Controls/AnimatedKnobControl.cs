@@ -13,12 +13,13 @@ namespace AmpUp.Controls
         private const double StartAngleDeg = 225.0;  // 7:30 position
         private const double TotalSweepDeg = 270.0;  // sweeps CW to 4:30
         private const double DefaultSize = 100.0;
-        private const double ArcStroke = 4.0;
-        private const double GlowStroke = 8.0;
-        private const double ArcInset = 6.0;
+        private const double ArcStroke = 5.0;        // thicker value + track for a solid dial feel
+        private const double ArcInset = 4.0;         // ring sits closer to the control edge
+        private const double TipDotRadius = 5.0;     // bright endpoint marker
+        private const double TipDotRingRadius = 7.0; // subtle accent ring around the dot
         private const double DirtyThreshold = 0.003;
         private const float LerpSpeed = 0.5f; // smoothing factor per tick (0=no move, 1=instant snap)
-        private const double KnobImageRatio = 0.72; // knob image fills 72% of control size
+        private const double KnobImageRatio = 0.82; // close the gap between the image and the ring
 
         // ── Static frozen resources (color-independent) ────────────────
         private static readonly Pen s_trackPen;
@@ -28,8 +29,9 @@ namespace AmpUp.Controls
 
         static AnimatedKnobControl()
         {
-            // Track arc: #2A2A2A, round caps
-            var trackBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+            // Track arc: #363636 — visible against the #1C card bg so the
+            // unfilled sweep reads as a proper dial, not as empty space.
+            var trackBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
             trackBrush.Freeze();
             s_trackPen = new Pen(trackBrush, ArcStroke) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
             s_trackPen.Freeze();
@@ -158,8 +160,8 @@ namespace AmpUp.Controls
 
         // ── Cached ArcColor-dependent resources ────────────────────────
         private Pen _valuePen = null!;
-        private Pen _glowPen = null!;
         private Brush _endDotBrush = null!;
+        private Brush _endDotRingBrush = null!;
         private Color _cachedArcColor;
 
         public AnimatedKnobControl()
@@ -180,15 +182,11 @@ namespace AmpUp.Controls
             _valuePen = new Pen(valueBrush, ArcStroke) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
             _valuePen.Freeze();
 
-            // Glow pen: ArcColor at 30% opacity
-            var glowColor = Color.FromArgb((byte)(255 * 0.30), color.R, color.G, color.B);
-            var glowBrush = new SolidColorBrush(glowColor);
-            glowBrush.Freeze();
-            _glowPen = new Pen(glowBrush, GlowStroke) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
-            _glowPen.Freeze();
-
-            // End dot brush
-            _endDotBrush = valueBrush; // already frozen
+            // End dot core (full color) + outer ring (40% alpha) for a small depth halo
+            _endDotBrush = valueBrush;
+            var ringBrush = new SolidColorBrush(Color.FromArgb(0x66, color.R, color.G, color.B));
+            ringBrush.Freeze();
+            _endDotRingBrush = ringBrush;
         }
 
         // ── Layout ─────────────────────────────────────────────────────
@@ -222,19 +220,18 @@ namespace AmpUp.Controls
             {
                 double valueSweep = value * TotalSweepDeg;
 
-                // 2. Glow arc (behind value arc)
+                // 2. Value arc (clean, solid — no glow ring)
                 var arcGeometry = CreateArcGeometry(cx, cy, radius, StartAngleDeg, valueSweep);
-                dc.DrawGeometry(null, _glowPen, arcGeometry);
-
-                // 3. Value arc
                 dc.DrawGeometry(null, _valuePen, arcGeometry);
 
-                // 4. Small bright dot at the arc tip (clock convention → screen coords)
+                // 3. Bright dot at the arc tip with a soft accent ring for depth
                 double tipClockDeg = StartAngleDeg + valueSweep;
                 double tipScreenRad = (tipClockDeg - 90.0) * Math.PI / 180.0;
                 double tipX = cx + radius * Math.Cos(tipScreenRad);
                 double tipY = cy + radius * Math.Sin(tipScreenRad);
-                dc.DrawEllipse(_endDotBrush, null, new Point(tipX, tipY), 3.0, 3.0);
+                var tipPoint = new Point(tipX, tipY);
+                dc.DrawEllipse(_endDotRingBrush, null, tipPoint, TipDotRingRadius, TipDotRingRadius);
+                dc.DrawEllipse(_endDotBrush, null, tipPoint, TipDotRadius, TipDotRadius);
             }
 
             // 5. Knob image (rotated by value)

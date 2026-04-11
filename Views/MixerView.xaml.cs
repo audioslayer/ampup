@@ -53,9 +53,7 @@ public partial class MixerView : UserControl
     private readonly RangeSlider[] _rangeSliders = new RangeSlider[5];
     private readonly TextBlock[] _muteLabels = new TextBlock[5];
     private readonly Border[] _stripBorders = new Border[5];
-    private readonly Color[] _lastLedColors = new Color[5]; // cache to skip redundant brush creation
-    private readonly Color[] _displayedColors = new Color[5]; // smoothed colors currently shown on UI
-    private const float ColorLerpSpeed = 0.15f; // how fast UI color catches up (0=frozen, 1=instant)
+    private readonly Color[] _displayedColors = new Color[5]; // last-applied UI tint, skips redundant updates
 
     // Collapsible settings
     private readonly Border[] _settingsBorders = new Border[5];
@@ -482,58 +480,34 @@ public partial class MixerView : UserControl
                 _glowControls[i].SetLevel(peak);
                 _glowControls[i].Tick();
 
-                // Sync UI colors with current LED color (smooth lerp for animated effects)
-                // For rainbow/cycling effects, use config color instead of rapidly changing LED color
-                if (App.Rgb != null)
+                // Sync UI tint to the knob's static primary LED color — no longer
+                // follows the live effect color, so Rainbow/Fire/Pulse won't flash
+                // the knob arc, VU meter, channel glow, or percent label.
+                // (Channel glow intensity still responds to audio via SetLevel above.)
+                var light = _config?.Lights?.FirstOrDefault(l => l.Idx == i);
+                if (light != null)
                 {
-                    var light = _config?.Lights?.FirstOrDefault(l => l.Idx == i);
-                    bool isRainbow = light != null && light.Effect is
-                        LightEffect.RainbowWave or LightEffect.RainbowCycle or
-                        LightEffect.RainbowFill or LightEffect.RainbowWheel or
-                        LightEffect.CycleFill or LightEffect.Plasma;
-
-                    byte cr, cg, cb;
-                    if (isRainbow)
+                    byte cr = (byte)Math.Clamp(light.R, 0, 255);
+                    byte cg = (byte)Math.Clamp(light.G, 0, 255);
+                    byte cb = (byte)Math.Clamp(light.B, 0, 255);
+                    // Fall back to accent if the user hasn't picked a color
+                    if (cr == 0 && cg == 0 && cb == 0)
                     {
-                        // Use config primary color for stable arc tint
-                        cr = (byte)Math.Clamp(light!.R, 0, 255);
-                        cg = (byte)Math.Clamp(light.G, 0, 255);
-                        cb = (byte)Math.Clamp(light.B, 0, 255);
-                        // If color is black (rainbow has no user color), use accent
-                        if (cr == 0 && cg == 0 && cb == 0)
-                        {
-                            cr = ThemeManager.Accent.R;
-                            cg = ThemeManager.Accent.G;
-                            cb = ThemeManager.Accent.B;
-                        }
-                    }
-                    else
-                    {
-                        (cr, cg, cb) = App.Rgb.GetCurrentColor(i);
+                        cr = ThemeManager.Accent.R;
+                        cg = ThemeManager.Accent.G;
+                        cb = ThemeManager.Accent.B;
                     }
 
-                    if (cr > 0 || cg > 0 || cb > 0)
+                    var target = EnsureMinBrightness(Color.FromRgb(cr, cg, cb));
+                    if (target != _displayedColors[i])
                     {
-                        var targetColor = EnsureMinBrightness(Color.FromRgb(cr, cg, cb));
-                        _lastLedColors[i] = targetColor;
-
-                        // Smooth lerp toward target color to avoid rapid flashing
-                        var cur = _displayedColors[i];
-                        var lerped = Color.FromRgb(
-                            (byte)(cur.R + (targetColor.R - cur.R) * ColorLerpSpeed),
-                            (byte)(cur.G + (targetColor.G - cur.G) * ColorLerpSpeed),
-                            (byte)(cur.B + (targetColor.B - cur.B) * ColorLerpSpeed));
-
-                        if (lerped != cur)
-                        {
-                            _displayedColors[i] = lerped;
-                            _knobs[i].ArcColor = lerped;
-                            _vuMeters[i].BarColor = lerped;
-                            _glowControls[i].GlowColor = lerped;
-                            var brush = new SolidColorBrush(lerped);
-                            brush.Freeze();
-                            _volLabels[i].Foreground = brush;
-                        }
+                        _displayedColors[i] = target;
+                        _knobs[i].ArcColor = target;
+                        _vuMeters[i].BarColor = target;
+                        _glowControls[i].GlowColor = target;
+                        var brush = new SolidColorBrush(target);
+                        brush.Freeze();
+                        _volLabels[i].Foreground = brush;
                     }
                 }
             }
