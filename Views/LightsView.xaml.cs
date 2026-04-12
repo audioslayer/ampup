@@ -881,7 +881,7 @@ public partial class LightsView : UserControl
         var speedCard = MakeSectionCard("SPEED", speedSlider);
         speedCard.Visibility = Visibility.Collapsed;
         _globalSpeedCard = speedCard;
-        _globalSpeedPanel = null; // visibility now controlled via _globalSpeedCard
+
         settings.Children.Add(speedCard);
 
         // ── Card 4: BRIGHTNESS ──
