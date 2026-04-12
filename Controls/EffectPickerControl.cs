@@ -385,8 +385,8 @@ namespace AmpUp.Controls
 
             // Animated preview replaces the old Unicode-glyph icon. Effect is rendered live
             // via EffectPreviewControl — see Controls/EffectPreviewControl.*.cs
-            double previewW = _showGlobal ? 72 : 68;
-            double previewH = _showGlobal ? 32 : 30;
+            double previewW = 68;
+            double previewH = 30;
             var preview = new EffectPreviewControl
             {
                 Width = previewW,
@@ -402,7 +402,7 @@ namespace AmpUp.Controls
             var labelBlock = new TextBlock
             {
                 Text = label,
-                FontSize = _showGlobal ? 10 : 10,
+                FontSize = 10,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
                 Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
@@ -442,12 +442,12 @@ namespace AmpUp.Controls
 
             var container = new Border
             {
-                Width = _showGlobal ? 86 : 82,
+                Width = 82,
                 Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
                 BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
-                Padding = _showGlobal ? new Thickness(4, 6, 4, 6) : new Thickness(4, 5, 4, 5),
+                Padding = new Thickness(4, 5, 4, 5),
                 Margin = new Thickness(2),
                 Cursor = Cursors.Hand,
                 Child = content,
