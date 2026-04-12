@@ -43,7 +43,7 @@ public partial class LightsView : UserControl
 
     // Per-channel controls
     private readonly TextBlock[] _headers = new TextBlock[5];
-    private readonly TextBlock[] _headerIcons = new TextBlock[5];
+    private readonly Controls.EffectPreviewControl[] _headerIcons = new Controls.EffectPreviewControl[5];
     private readonly TextBlock[] _headerEffects = new TextBlock[5];
     private readonly EffectPickerControl[] _effectPickers = new EffectPickerControl[5];
     private readonly Border[] _color1Swatches = new Border[5];
@@ -1499,16 +1499,18 @@ public partial class LightsView : UserControl
             _headers[i] = label;
             content.Children.Add(label);
 
-            var effectIcon = new TextBlock
+            var tileColor = Controls.EffectPickerControl.EffectColors
+                .GetValueOrDefault(LightEffect.SingleColor, ThemeManager.Accent);
+            var effectPreview = new Controls.EffectPreviewControl
             {
-                Text = "\U0001F7E2",
-                FontSize = 20,
+                Width = 56, Height = 26,
+                EffectKind = LightEffect.SingleColor,
+                TileColor = tileColor,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Foreground = FindBrush("AccentBrush"),
-                Margin = new Thickness(0, 2, 0, 0),
+                Margin = new Thickness(0, 4, 0, 2),
             };
-            _headerIcons[i] = effectIcon;
-            content.Children.Add(effectIcon);
+            _headerIcons[i] = effectPreview;
+            content.Children.Add(effectPreview);
 
             var effectName = new TextBlock
             {
@@ -1516,43 +1518,12 @@ public partial class LightsView : UserControl
                 FontSize = 9,
                 Foreground = FindBrush("TextSecBrush"),
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 1, 0, 0),
+                Margin = new Thickness(0, 2, 0, 0),
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 MaxWidth = 116,
             };
             _headerEffects[i] = effectName;
             content.Children.Add(effectName);
-
-            // Color dot row (primary + secondary)
-            var dotRow = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 4, 0, 0),
-            };
-
-            var dot1 = new Border
-            {
-                Width = 10,
-                Height = 10,
-                CornerRadius = new CornerRadius(5),
-                Background = new SolidColorBrush(Colors.Black),
-                Margin = new Thickness(0, 0, 4, 0),
-            };
-            _selectorColorDots1[i] = dot1;
-            dotRow.Children.Add(dot1);
-
-            var dot2 = new Border
-            {
-                Width = 10,
-                Height = 10,
-                CornerRadius = new CornerRadius(5),
-                Background = new SolidColorBrush(Colors.Black),
-            };
-            _selectorColorDots2[i] = dot2;
-            dotRow.Children.Add(dot2);
-
-            content.Children.Add(dotRow);
             card.Child = content;
 
             card.MouseLeftButtonDown += (_, _) => SelectKnob(idx);
@@ -1835,23 +1806,17 @@ public partial class LightsView : UserControl
     private void UpdateHeaderEffect(int idx)
     {
         var effect = _effectPickers[idx].SelectedEffect;
-        var icon = EffectIcons.GetValueOrDefault(effect, "\U0001F7E2");
         var name = effect.ToString();
         // Add spaces before capitals for display
         var display = System.Text.RegularExpressions.Regex.Replace(name, "(?<!^)([A-Z])", " $1");
 
-        _headerIcons[idx].Text = icon;
         _headerEffects[idx].Text = display;
 
-        // Color icon to match the knob's primary LED color
-        var knobColor = _colors1[idx];
-        _headerIcons[idx].Foreground = new SolidColorBrush(knobColor);
-
-        // Sync selector card color dots to current primary/secondary
-        if (_selectorColorDots1[idx] != null)
-            _selectorColorDots1[idx].Background = new SolidColorBrush(_colors1[idx]);
-        if (_selectorColorDots2[idx] != null)
-            _selectorColorDots2[idx].Background = new SolidColorBrush(_colors2[idx]);
+        var tileColor = Controls.EffectPickerControl.EffectColors
+            .GetValueOrDefault(effect, ThemeManager.Accent);
+        _headerIcons[idx].EffectKind = effect;
+        _headerIcons[idx].TileColor = tileColor;
+        _headerIcons[idx].AccentColor = _colors2[idx];
     }
 
     private Border MakeColorSwatch(int idx, bool isColor2)
