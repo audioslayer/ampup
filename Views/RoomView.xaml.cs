@@ -425,15 +425,17 @@ public partial class RoomView : UserControl
         _roomTabContent.Children.Clear();
         _toggleRowContainer?.Children.Clear();
 
-        // Build tab-specific toggle row
-        if (_toggleRowContainer != null)
+        // Build tab-specific toggle row inside a section card
+        if (_toggleRowContainer != null && _roomTabIndex == 0)
         {
             var toggleRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4), HorizontalAlignment = HorizontalAlignment.Center };
             BuildTabToggleRow(toggleRow, _roomTabIndex);
-            _toggleRowContainer.Children.Add(toggleRow);
 
-            // Settings row below toggles (Music Reactive slider / VU Fill mode pills)
-            BuildToggleSettingsRow(_toggleRowContainer);
+            var toggleContent = new StackPanel();
+            toggleContent.Children.Add(toggleRow);
+            BuildToggleSettingsRow(toggleContent);
+
+            _toggleRowContainer.Children.Add(MakeSectionCard("MODES", toggleContent));
         }
 
         switch (_roomTabIndex)
