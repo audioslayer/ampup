@@ -778,7 +778,7 @@ public partial class LightsView : UserControl
 
         paletteSection.Children.Add(new TextBlock
         {
-            Text = "PALETTE",
+            Text = "COLORS",
             FontSize = 9,
             FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),

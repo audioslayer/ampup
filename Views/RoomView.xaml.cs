@@ -835,9 +835,9 @@ public partial class RoomView : UserControl
         };
         var rightStack = new StackPanel();
 
-        // ── PALETTE section (hidden for hardcoded-color effects like Aurora/Ocean) ──
+        // ── COLORS section (hidden for hardcoded-color effects like Aurora/Ocean) ──
         paletteSection = new StackPanel();
-        paletteSection.Children.Add(MakeSubLabel("PALETTE"));
+        paletteSection.Children.Add(MakeSubLabel("COLORS"));
 
         var paletteEditor = new PaletteEditorControl
         {
@@ -897,30 +897,32 @@ public partial class RoomView : UserControl
         paletteEditor.Visibility = startSingle ? Visibility.Collapsed : Visibility.Visible;
         singleColorSwatch.Visibility = startSingle ? Visibility.Visible : Visibility.Collapsed;
 
-        // ── Palette preset tiles (smaller, wrapped in 2-3 rows) ──
-        var presetWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+        // ── Color preset tiles — card-style with multi-stop gradients ──
+        var presetWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 10) };
         foreach (var palette in BuiltInPalettes.All)
         {
-            // Sample first and last color for gradient preview
             var stops = palette.Stops.OrderBy(s => s.Position).ToList();
-            var c1 = stops.Count > 0 ? Color.FromRgb(stops[0].R, stops[0].G, stops[0].B) : Colors.Black;
-            var cEnd = stops.Count > 1 ? Color.FromRgb(stops[^1].R, stops[^1].G, stops[^1].B) : c1;
+            var gsc = new GradientStopCollection();
+            foreach (var s in stops)
+                gsc.Add(new GradientStop(Color.FromRgb(s.R, s.G, s.B), s.Position));
+            if (gsc.Count == 0)
+                gsc.Add(new GradientStop(Colors.Black, 0));
 
             var gradientBar = new Border
             {
-                Width = 36, Height = 14,
-                CornerRadius = new CornerRadius(3),
+                Width = 50, Height = 22,
+                CornerRadius = new CornerRadius(4),
                 ClipToBounds = true,
-                Background = new LinearGradientBrush(c1, cEnd, 0),
+                Background = new LinearGradientBrush(gsc, 0),
             };
             var label = new TextBlock
             {
-                Text = palette.Name, FontSize = 7,
+                Text = palette.Name, FontSize = 8,
                 Foreground = new SolidColorBrush(Color.FromRgb(0x77, 0x77, 0x77)),
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 1, 0, 0),
+                Margin = new Thickness(0, 3, 0, 0),
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxWidth = 40,
+                MaxWidth = 54,
             };
             var tileContent = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
             tileContent.Children.Add(gradientBar);
@@ -928,13 +930,13 @@ public partial class RoomView : UserControl
 
             var swatch = new Border
             {
-                CornerRadius = new CornerRadius(4),
-                Margin = new Thickness(0, 0, 3, 3),
-                Padding = new Thickness(3, 3, 3, 2),
+                CornerRadius = new CornerRadius(6),
+                Margin = new Thickness(0, 0, 4, 4),
+                Padding = new Thickness(4, 4, 4, 3),
                 Cursor = Cursors.Hand,
                 ToolTip = palette.Name,
-                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E)),
                 BorderThickness = new Thickness(1),
                 Child = tileContent,
             };
@@ -954,7 +956,6 @@ public partial class RoomView : UserControl
                 {
                     if (_activePattern == "SingleColor")
                     {
-                        // In SingleColor mode the preset's first stop becomes the solid color
                         _roomColor2 = _roomColor1;
                         SetPillColor(singleColorSwatch, _roomColor1);
                         StartRoomPattern("SingleColor", _roomColor1, _roomColor1);
@@ -968,14 +969,14 @@ public partial class RoomView : UserControl
             swatch.MouseEnter += (_, _) =>
             {
                 var ac = ThemeManager.Accent;
-                swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0xAA, ac.R, ac.G, ac.B));
-                swatch.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
-                capturedLabel.Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
+                swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0x77, ac.R, ac.G, ac.B));
+                swatch.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+                capturedLabel.Foreground = new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0xBB));
             };
             swatch.MouseLeave += (_, _) =>
             {
-                swatch.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-                swatch.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+                swatch.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E));
+                swatch.Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
                 capturedLabel.Foreground = new SolidColorBrush(Color.FromRgb(0x77, 0x77, 0x77));
             };
             presetWrap.Children.Add(swatch);
@@ -2152,9 +2153,9 @@ public partial class RoomView : UserControl
         };
         stack.Children.Add(effectPicker);
 
-        // ── Section 2: PALETTE ──
+        // ── Section 2: COLORS ──
         stack.Children.Add(MakeSeparator());
-        var (preBar, preLabel) = MakeSectionHeader("PALETTE");
+        var (preBar, preLabel) = MakeSectionHeader("COLORS");
         stack.Children.Add(WrapHeader(preBar, preLabel));
 
         // Palette editor — gradient bar + color chips + built-in presets
@@ -4037,7 +4038,7 @@ public partial class RoomView : UserControl
         _sceneContent.Children.Add(effectPicker);
 
         // ── Palette Editor ──
-        _sceneContent.Children.Add(MakeSubLabel("PALETTE"));
+        _sceneContent.Children.Add(MakeSubLabel("COLORS"));
         var goveePaletteEditor = new PaletteEditorControl
         {
             Palette = _roomPalette,
