@@ -6,123 +6,99 @@ namespace AmpUp.Controls
 {
     public partial class EffectPreviewControl
     {
-        private const int StaticDotCount = 3;
-
-        private static void StaticDotLayout(Ctx c, out double r, out double y, out double x0, out double step)
-        {
-            r = Math.Min(c.W, c.H) * 0.22;
-            y = c.Cy;
-            step = c.W / (StaticDotCount + 1.0);
-            x0 = step;
-        }
-
         private void RenderSingleColor(Ctx c)
         {
-            StaticDotLayout(c, out double r, out double y, out double x0, out double step);
-            for (int i = 0; i < StaticDotCount; i++)
-            {
-                Dot(c.Dc, x0 + step * i, y, r, c.Color);
-            }
+            double r = Math.Min(c.W, c.H) * 0.28;
+            var glow = new RadialGradientBrush(
+                Color.FromArgb(255, c.Color.R, c.Color.G, c.Color.B),
+                Color.FromArgb(0, c.Color.R, c.Color.G, c.Color.B));
+            c.Dc.DrawEllipse(glow, null, new Point(c.Cx, c.Cy), r * 1.8, r * 1.8);
+            c.Dc.DrawEllipse(Brush(c.Color), null, new Point(c.Cx, c.Cy), r, r);
         }
 
         private void RenderColorBlend(Ctx c)
         {
-            StaticDotLayout(c, out double r, out double y, out double x0, out double step);
-            for (int i = 0; i < StaticDotCount; i++)
-            {
-                double t = i / (double)(StaticDotCount - 1);
-                Dot(c.Dc, x0 + step * i, y, r, Lerp(c.Color, c.Color2, t));
-            }
+            var gb = new LinearGradientBrush(c.Color, c.Color2, 0);
+            c.Dc.DrawRoundedRectangle(gb, null, new Rect(0, 0, c.W, c.H), 3, 3);
         }
 
         private void RenderPositionFill(Ctx c)
         {
-            StaticDotLayout(c, out double r, out double y, out double x0, out double step);
-            double pos = Sin01(c.T * 1.2);
-            for (int i = 0; i < StaticDotCount; i++)
-            {
-                double threshold = (i + 1) / (double)StaticDotCount;
-                double fade = Math.Clamp((pos - (threshold - 1.0 / StaticDotCount)) * StaticDotCount, 0.0, 1.0);
-                double alpha = 0.18 + 0.82 * fade;
-                Dot(c.Dc, x0 + step * i, y, r, c.Color, alpha);
-            }
+            double fillPct = Sin01(c.T * 1.2);
+            double fillW = fillPct * c.W;
+            if (fillW < 1) fillW = 1;
+            Rect(c.Dc, 0, 0, c.W, c.H, Colors.Black, 0.3, 3);
+            var bar = new LinearGradientBrush(
+                c.Color,
+                Color.FromArgb(128, c.Color.R, c.Color.G, c.Color.B), 0);
+            c.Dc.DrawRoundedRectangle(bar, null, new Rect(0, 0, fillW, c.H), 2, 2);
         }
 
         private void RenderPositionBlend(Ctx c)
         {
-            StaticDotLayout(c, out double r, out double y, out double x0, out double step);
-            double pos = Sin01(c.T * 1.2);
-            for (int i = 0; i < StaticDotCount; i++)
-            {
-                double t = i / (double)(StaticDotCount - 1);
-                Color blended = Lerp(c.Color, c.Color2, t);
-                double threshold = (i + 1) / (double)StaticDotCount;
-                double fade = Math.Clamp((pos - (threshold - 1.0 / StaticDotCount)) * StaticDotCount, 0.0, 1.0);
-                double alpha = 0.18 + 0.82 * fade;
-                Dot(c.Dc, x0 + step * i, y, r, blended, alpha);
-            }
+            double fillPct = Sin01(c.T * 1.2);
+            double fillW = fillPct * c.W;
+            if (fillW < 1) fillW = 1;
+            Rect(c.Dc, 0, 0, c.W, c.H, Colors.Black, 0.3, 3);
+            var bar = new LinearGradientBrush(c.Color, c.Color2, 0);
+            c.Dc.DrawRoundedRectangle(bar, null, new Rect(0, 0, fillW, c.H), 2, 2);
         }
 
         private void RenderPositionBlendMute(Ctx c)
         {
-            StaticDotLayout(c, out double r, out double y, out double x0, out double step);
             double cycle = Saw(c.T / 4.0);
             bool muted = cycle > 0.5;
-            double mutedFade = Math.Clamp(Math.Abs(cycle - 0.5) * 6.0, 0.0, 1.0);
-            for (int i = 0; i < StaticDotCount; i++)
+            if (muted)
             {
-                double t = i / (double)(StaticDotCount - 1);
-                if (muted)
-                {
-                    Dot(c.Dc, x0 + step * i, y, r, c.Color2, 0.25 + 0.15 * mutedFade);
-                }
-                else
-                {
-                    Color blended = Lerp(c.Color, c.Color2, t);
-                    Dot(c.Dc, x0 + step * i, y, r, blended);
-                }
+                double dimAlpha = 0.15 + 0.1 * Sin01(c.T * 2.0);
+                Rect(c.Dc, 0, 0, c.W, c.H, c.Color2, dimAlpha, 3);
+                double iconR = Math.Min(c.W, c.H) * 0.22;
+                c.Dc.DrawEllipse(null, Pen(c.Color2, 1.5, 0.6), new Point(c.Cx, c.Cy), iconR, iconR);
+            }
+            else
+            {
+                double fillPct = Sin01(c.T * 1.2);
+                double fillW = Math.Max(1, fillPct * c.W);
+                Rect(c.Dc, 0, 0, c.W, c.H, Colors.Black, 0.3, 3);
+                var bar = new LinearGradientBrush(c.Color, c.Color2, 0);
+                c.Dc.DrawRoundedRectangle(bar, null, new Rect(0, 0, fillW, c.H), 2, 2);
             }
         }
 
         private void RenderCycleFill(Ctx c)
         {
-            StaticDotLayout(c, out double r, out double y, out double x0, out double step);
-            double pos = Sin01(c.T * 1.2);
+            double fillPct = Sin01(c.T * 1.2);
+            double fillW = Math.Max(1, fillPct * c.W);
             double tint = Sin01(c.T * 0.6);
-            Color tinted = Lerp(c.Color, c.Color2, tint);
-            for (int i = 0; i < StaticDotCount; i++)
-            {
-                double threshold = (i + 1) / (double)StaticDotCount;
-                double fade = Math.Clamp((pos - (threshold - 1.0 / StaticDotCount)) * StaticDotCount, 0.0, 1.0);
-                double alpha = 0.18 + 0.82 * fade;
-                Dot(c.Dc, x0 + step * i, y, r, tinted, alpha);
-            }
+            Color barColor = Lerp(c.Color, c.Color2, tint);
+            Color barColor2 = Lerp(c.Color2, c.Color, tint);
+            Rect(c.Dc, 0, 0, c.W, c.H, Colors.Black, 0.3, 3);
+            var bar = new LinearGradientBrush(barColor, barColor2, 0);
+            c.Dc.DrawRoundedRectangle(bar, null, new Rect(0, 0, fillW, c.H), 2, 2);
         }
 
         private void RenderRainbowFill(Ctx c)
         {
-            StaticDotLayout(c, out double r, out double y, out double x0, out double step);
-            double pos = Sin01(c.T * 1.2);
-            double hueBase = Saw(c.T * 0.25);
-            for (int i = 0; i < StaticDotCount; i++)
+            double fillPct = Sin01(c.T * 1.2);
+            double fillW = Math.Max(1, fillPct * c.W);
+            double hueShift = Saw(c.T * 0.25);
+            Rect(c.Dc, 0, 0, c.W, c.H, Colors.Black, 0.3, 3);
+            var stops = new GradientStopCollection
             {
-                double hue = hueBase + i / (double)StaticDotCount;
-                Color rainbow = Hsv(hue);
-                double threshold = (i + 1) / (double)StaticDotCount;
-                double fade = Math.Clamp((pos - (threshold - 1.0 / StaticDotCount)) * StaticDotCount, 0.0, 1.0);
-                double alpha = 0.18 + 0.82 * fade;
-                Dot(c.Dc, x0 + step * i, y, r, rainbow, alpha);
-            }
+                new GradientStop(Hsv(hueShift), 0.0),
+                new GradientStop(Hsv(hueShift + 0.2), 0.25),
+                new GradientStop(Hsv(hueShift + 0.4), 0.5),
+                new GradientStop(Hsv(hueShift + 0.6), 0.75),
+                new GradientStop(Hsv(hueShift + 0.8), 1.0),
+            };
+            var rainbow = new LinearGradientBrush(stops, 0);
+            c.Dc.DrawRoundedRectangle(rainbow, null, new Rect(0, 0, fillW, c.H), 2, 2);
         }
 
         private void RenderGradientFill(Ctx c)
         {
-            StaticDotLayout(c, out double r, out double y, out double x0, out double step);
-            for (int i = 0; i < StaticDotCount; i++)
-            {
-                double t = i / (double)(StaticDotCount - 1);
-                Dot(c.Dc, x0 + step * i, y, r, Lerp(c.Color, c.Color2, t));
-            }
+            var gb = new LinearGradientBrush(c.Color, c.Color2, 0);
+            c.Dc.DrawRoundedRectangle(gb, null, new Rect(0, 0, c.W, c.H), 3, 3);
         }
     }
 }

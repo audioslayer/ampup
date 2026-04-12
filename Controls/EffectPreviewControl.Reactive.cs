@@ -10,58 +10,63 @@ namespace AmpUp.Controls
         {
             bool unmuted = ((int)(c.T * 0.5)) % 2 == 0;
             var col = unmuted ? c.Color : c.Color2;
-            double k = unmuted ? 0.45 + 0.55 * Sin01(c.T * 3) : 0.35;
-            double r = Math.Min(c.W, c.H) * 0.22;
-            double sp = c.W / 4.0;
-            for (int i = 0; i < 3; i++)
-                Dot(c.Dc, sp * (i + 1), c.Cy, r, col, k);
+            double r = Math.Min(c.W, c.H) * 0.32;
+
+            if (unmuted)
+            {
+                double ringPulse = Sin01(c.T * 3);
+                double ringR = r + 4 + ringPulse * 4;
+                Dot(c.Dc, c.Cx, c.Cy, ringR, c.Color, 0.08 + 0.12 * ringPulse);
+            }
+
+            double k = unmuted ? 0.7 + 0.3 * Sin01(c.T * 3) : 0.4;
+            Dot(c.Dc, c.Cx, c.Cy, r, col, k);
         }
 
         private void RenderDeviceMute(Ctx c)
         {
             bool unmuted = ((int)(c.T * 0.5)) % 2 == 0;
             var col = unmuted ? c.Color : c.Color2;
-            double k = unmuted ? 0.45 + 0.55 * Sin01(c.T * 3) : 0.35;
-            double r = Math.Min(c.W, c.H) * 0.22;
-            double sp = c.W / 4.0;
-            for (int i = 0; i < 3; i++)
-                Dot(c.Dc, sp * (i + 1), c.Cy, r, col, k);
+            double r = Math.Min(c.W, c.H) * 0.32;
+            double k = unmuted ? 0.7 + 0.3 * Sin01(c.T * 3) : 0.4;
+            Dot(c.Dc, c.Cx, c.Cy, r, col, k);
 
             if (!unmuted)
             {
-                double mx = sp * 2;
-                var pen = Pen(c.Color2, 1.0, 0.9);
-                c.Dc.DrawLine(pen, new Point(mx - r, c.Cy), new Point(mx + r, c.Cy));
+                double d = r * 0.85;
+                var pen = Pen(c.Color2, 2.0, 0.85);
+                c.Dc.DrawLine(pen, new Point(c.Cx - d, c.Cy - d), new Point(c.Cx + d, c.Cy + d));
             }
         }
 
         private void RenderAudioReactive(Ctx c)
         {
-            double r = Math.Min(c.W, c.H) * 0.22;
-            double sp = c.W / 4.0;
-            double[] freqs = { 2.0, 3.5, 5.0 };
-            double[] phases = { 0.0, 1.3, 2.7 };
-            for (int i = 0; i < 3; i++)
+            int bars = 5;
+            double barW = c.W / (bars + 1);
+            double gap = barW * 0.2;
+            for (int i = 0; i < bars; i++)
             {
-                double k = Math.Pow(Sin01(c.T * freqs[i] + phases[i]), 2);
-                k = 0.2 + 0.8 * k;
-                Dot(c.Dc, sp * (i + 1), c.Cy, r, c.Color, k);
+                double energy = Math.Pow(Sin01(c.T * (2 + i * 0.7) + i), 2);
+                double barH = c.H * (0.2 + energy * 0.75);
+                double x = (c.W - bars * barW) / 2 + i * barW + gap / 2;
+                Rect(c.Dc, x, c.H - barH, barW - gap, barH, c.Color, 0.9, 1.5);
             }
         }
 
         private void RenderAudioPositionBlend(Ctx c)
         {
-            double r = Math.Min(c.W, c.H) * 0.22;
-            double sp = c.W / 4.0;
             double beatPhase = Saw(c.T / 1.2);
             double spike = Math.Pow(1.0 - beatPhase, 6);
-            for (int i = 0; i < 3; i++)
+            double bright = 0.4 + 0.6 * spike;
+
+            int cols = 12;
+            double sliceW = c.W / cols;
+            for (int i = 0; i < cols; i++)
             {
-                double t = i / 2.0;
-                var baseCol = Lerp(c.Color, c.Color2, t);
-                var col = Lerp(baseCol, c.Color, spike);
-                double k = 0.45 + 0.55 * spike;
-                Dot(c.Dc, sp * (i + 1), c.Cy, r, col, k);
+                double t = i / (double)(cols - 1);
+                var col = Lerp(c.Color, c.Color2, t);
+                col = Scale(col, bright);
+                Rect(c.Dc, i * sliceW, 0, sliceW + 1, c.H, col, 0.85, 0);
             }
         }
 
@@ -69,50 +74,57 @@ namespace AmpUp.Controls
         {
             bool unmuted = ((int)(c.T * 0.5)) % 2 == 0;
             var col = unmuted ? c.Color : c.Color2;
-            double k = unmuted ? 0.45 + 0.55 * Sin01(c.T * 3) : 0.35;
-            double r = Math.Min(c.W, c.H) * 0.22;
-            double sp = c.W / 4.0;
-            for (int i = 0; i < 3; i++)
-                Dot(c.Dc, sp * (i + 1), c.Cy, r, col, k);
+            double r = Math.Min(c.W, c.H) * 0.3;
+            double k = unmuted ? 0.7 + 0.3 * Sin01(c.T * 2.5) : 0.3;
+
+            Dot(c.Dc, c.Cx, c.Cy, r + 2, col, k * 0.3);
+            Dot(c.Dc, c.Cx, c.Cy, r, col, k);
 
             if (!unmuted)
             {
-                double mx = sp * 2;
-                var pen = Pen(c.Color2, 1.0, 0.9);
-                c.Dc.DrawLine(pen, new Point(mx - r, c.Cy), new Point(mx + r, c.Cy));
+                double d = r * 0.85;
+                var pen = Pen(c.Color2, 2.0, 0.8);
+                c.Dc.DrawLine(pen, new Point(c.Cx - d, c.Cy - d), new Point(c.Cx + d, c.Cy + d));
             }
         }
 
         private void RenderAppGroupMute(Ctx c)
         {
-            double r = Math.Min(c.W, c.H) * 0.22;
+            double r = Math.Min(c.W, c.H) * 0.18;
             double sp = c.W / 4.0;
-            double cyc = Saw(c.T / 1.5);
-            bool flickerA = cyc < 0.5;
-            bool flickerB = Sin01(c.T * 4.0) > 0.5;
+            double cyc = Saw(c.T / 2.0);
+            int pattern = (int)(cyc * 4);
+            bool[] muted = pattern switch
+            {
+                0 => new[] { false, false, true },
+                1 => new[] { false, true, true },
+                2 => new[] { true, false, false },
+                _ => new[] { false, true, false },
+            };
             for (int i = 0; i < 3; i++)
             {
-                bool muted;
-                if (i == 0) muted = false;
-                else if (i == 1) muted = flickerA;
-                else muted = flickerB;
-                var col = muted ? c.Color2 : c.Color;
-                double k = muted ? 0.35 : 0.45 + 0.45 * Sin01(c.T * 3 + i);
-                Dot(c.Dc, sp * (i + 1), c.Cy, r, col, k);
+                var col = muted[i] ? c.Color2 : c.Color;
+                double k = muted[i] ? 0.25 : 0.6 + 0.4 * Sin01(c.T * 3 + i * 1.2);
+                double dotR = muted[i] ? r * 0.8 : r;
+                Dot(c.Dc, sp * (i + 1), c.Cy, dotR, col, k);
             }
         }
 
         private void RenderDeviceSelect(Ctx c)
         {
-            double r = Math.Min(c.W, c.H) * 0.22;
+            double r = Math.Min(c.W, c.H) * 0.2;
             double sp = c.W / 4.0;
             var mid = Lerp(c.Color, c.Color2, 0.5);
             Color[] cols = { c.Color, mid, c.Color2 };
-            int sel = ((int)(c.T * 0.5)) % 3;
+            int sel = ((int)(c.T * 0.4)) % 3;
             for (int i = 0; i < 3; i++)
             {
-                double k = (i == sel) ? 0.55 + 0.45 * Sin01(c.T * 4) : 0.3;
-                Dot(c.Dc, sp * (i + 1), c.Cy, r, cols[i], k);
+                bool active = i == sel;
+                double pulse = active ? 0.7 + 0.3 * Sin01(c.T * 5) : 0.25;
+                double dotR = active ? r * 1.3 : r;
+                if (active)
+                    Dot(c.Dc, sp * (i + 1), c.Cy, dotR + 3, cols[i], 0.15);
+                Dot(c.Dc, sp * (i + 1), c.Cy, dotR, cols[i], pulse);
             }
         }
     }

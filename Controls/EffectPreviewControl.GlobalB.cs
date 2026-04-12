@@ -8,39 +8,62 @@ namespace AmpUp.Controls
     {
         private void RenderCollision(Ctx c)
         {
-            int N = 12;
-            double sp = c.W / (N + 1);
-            double r = Math.Min(sp * 0.42, c.H * 0.28);
             double phase = Saw(c.T * 0.5);
-            double pos1 = phase * (N - 1) / 2.0;
-            double pos2 = (N - 1) - phase * (N - 1) / 2.0;
+            double pos1 = phase * c.W * 0.5;
+            double pos2 = c.W - phase * c.W * 0.5;
+            double r = Math.Min(c.W * 0.06, c.H * 0.28);
             double flash = Math.Pow(Math.Max(0, phase - 0.85) / 0.15, 2);
-            for (int i = 0; i < N; i++)
+
+            Dot(c.Dc, pos1, c.Cy, r, c.Color, 0.95);
+            Dot(c.Dc, pos1 - r * 2, c.Cy, r * 0.5, c.Color, 0.4);
+            Dot(c.Dc, pos2, c.Cy, r, c.Color2, 0.95);
+            Dot(c.Dc, pos2 + r * 2, c.Cy, r * 0.5, c.Color2, 0.4);
+
+            if (flash > 0.01)
             {
-                double d1 = Math.Abs(i - pos1);
-                double d2 = Math.Abs(i - pos2);
-                double k1 = Math.Max(0, 1.0 - d1 * 0.7);
-                double k2 = Math.Max(0, 1.0 - d2 * 0.7);
-                var col = k1 > k2 ? c.Color : c.Color2;
-                double k = Math.Max(k1, k2);
-                if (flash > 0 && Math.Abs(i - (N - 1) / 2.0) < 1.8)
-                {
-                    col = Lerp(col, Colors.White, flash);
-                    k = Math.Max(k, flash);
-                }
-                Dot(c.Dc, sp * (i + 1), c.Cy, r, col, 0.15 + k * 0.85);
+                double fr = r * (1 + flash * 3);
+                Dot(c.Dc, c.Cx, c.Cy, fr, Colors.White, flash * 0.9);
+                Dot(c.Dc, c.Cx, c.Cy, fr * 0.5, Colors.White, flash);
             }
         }
 
         private void RenderDNA(Ctx c)
         {
-            int N = 12;
+            int N = 10;
             double sp = c.W / (N + 1);
-            double r = Math.Min(sp * 0.32, c.H * 0.22);
-            for (int i = 0; i < N; i++)
+            double r = Math.Min(sp * 0.35, c.H * 0.18);
+            var sg1 = new StreamGeometry();
+            var sg2 = new StreamGeometry();
+
+            using (var ctx1 = sg1.Open())
             {
-                double off = Math.Sin(c.T * 2 + i * 0.5) * c.H * 0.25;
-                double x = sp * (i + 1);
+                for (int i = 0; i <= N; i++)
+                {
+                    double x = sp * (i + 0.5);
+                    double off = Math.Sin(c.T * 2.5 + i * 0.6) * c.H * 0.3;
+                    if (i == 0) ctx1.BeginFigure(new Point(x, c.Cy + off), false, false);
+                    else ctx1.LineTo(new Point(x, c.Cy + off), true, true);
+                }
+            }
+
+            using (var ctx2 = sg2.Open())
+            {
+                for (int i = 0; i <= N; i++)
+                {
+                    double x = sp * (i + 0.5);
+                    double off = Math.Sin(c.T * 2.5 + i * 0.6) * c.H * 0.3;
+                    if (i == 0) ctx2.BeginFigure(new Point(x, c.Cy - off), false, false);
+                    else ctx2.LineTo(new Point(x, c.Cy - off), true, true);
+                }
+            }
+
+            c.Dc.DrawGeometry(null, Pen(c.Color, 1.5, 0.6), sg1);
+            c.Dc.DrawGeometry(null, Pen(c.Color2, 1.5, 0.6), sg2);
+
+            for (int i = 0; i < N; i += 2)
+            {
+                double x = sp * (i + 0.5);
+                double off = Math.Sin(c.T * 2.5 + i * 0.6) * c.H * 0.3;
                 Dot(c.Dc, x, c.Cy + off, r, c.Color, 0.95);
                 Dot(c.Dc, x, c.Cy - off, r, c.Color2, 0.95);
             }
@@ -48,168 +71,193 @@ namespace AmpUp.Controls
 
         private void RenderRainfall(Ctx c)
         {
-            int N = 12;
-            double sp = c.W / (N + 1);
-            double r = Math.Min(sp * 0.42, c.H * 0.28);
-            for (int i = 0; i < N; i++)
-                Dot(c.Dc, sp * (i + 1), c.Cy, r * 0.5, c.Color, 0.12);
-            for (int k = 0; k < 4; k++)
+            Rect(c.Dc, 0, 0, c.W, c.H, c.Color, 0.05, 3);
+
+            double[] xPcts = { 0.15, 0.38, 0.62, 0.85 };
+            double[] speeds = { 1.0, 0.8, 1.1, 0.9 };
+            double[] delays = { 0.0, 0.3, 0.6, 0.15 };
+
+            for (int i = 0; i < 4; i++)
             {
-                double phase = Saw(c.T * 0.8 + k * 0.25);
-                int col = ((int)(c.T * 0.8 + k * 0.25)) % N;
-                col = (col + k * 3) % N;
-                double y = phase * c.H;
-                double x = sp * (col + 1);
-                bool impact = phase > 0.9;
-                double rr = impact ? r * 1.4 : r * 0.8;
-                Dot(c.Dc, x, y, rr, c.Color, impact ? 1.0 : 0.85);
+                double x = c.W * xPcts[i];
+                double phase = Saw(c.T * speeds[i] + delays[i]);
+                double y = phase * (c.H + 8) - 4;
+                double dropW = 2;
+                double dropH = 6;
+                double a = 1.0 - phase * 0.5;
+
+                Rect(c.Dc, x - dropW / 2, y, dropW, dropH, c.Color, a, 1);
+
+                if (phase > 0.85)
+                {
+                    double splash = (phase - 0.85) / 0.15;
+                    Dot(c.Dc, x, c.H - 2, 3 * splash, c.Color, (1 - splash) * 0.7);
+                }
             }
         }
 
         private void RenderPoliceLights(Ctx c)
         {
-            int N = 12;
-            double sp = c.W / (N + 1);
-            double r = Math.Min(sp * 0.42, c.H * 0.28);
-            bool leftSide = ((int)(c.T * 6)) % 2 == 0;
-            double env = Math.Pow(Sin01(c.T * 12), 4);
-            for (int i = 0; i < N; i++)
-            {
-                bool inLeft = i < N / 2;
-                bool on = (inLeft && leftSide) || (!inLeft && !leftSide);
-                var col = inLeft ? c.Color : c.Color2;
-                Dot(c.Dc, sp * (i + 1), c.Cy, r, col, on ? env : 0.1);
-            }
+            bool leftOn = ((int)(c.T * 6)) % 2 == 0;
+            Rect(c.Dc, 0, 0, c.W / 2, c.H, c.Color, leftOn ? 0.9 : 0.12, 3);
+            Rect(c.Dc, c.W / 2, 0, c.W / 2, c.H, c.Color2, leftOn ? 0.12 : 0.9, 3);
         }
 
         private void RenderAurora(Ctx c)
         {
-            int N = 12;
-            double sp = c.W / (N + 1);
-            double r = Math.Min(sp * 0.42, c.H * 0.28);
-            for (int i = 0; i < N; i++)
+            double drift = c.T * 0.15;
+            double s0 = (Math.Sin(drift) * 0.5 + 0.5) * 0.3;
+            double s1 = (Math.Sin(drift + 1.5) * 0.5 + 0.5) * 0.3 + 0.35;
+            double s2 = (Math.Sin(drift + 3.0) * 0.5 + 0.5) * 0.3 + 0.7;
+
+            var stops = new GradientStopCollection
             {
-                double hue = 0.3 + 0.25 * Math.Sin(c.T * 0.4 + i * 0.2);
-                double v = Math.Pow(Sin01(c.T * 0.8 + i * 0.15), 1.5);
-                var col = Hsv(hue, 0.85, 0.9);
-                Dot(c.Dc, sp * (i + 1), c.Cy, r, col, 0.2 + v * 0.8);
-            }
+                new GradientStop(Hsv(0.45, 0.7, 0.6), Math.Clamp(s0, 0, 1)),
+                new GradientStop(Hsv(0.38, 0.8, 0.85), Math.Clamp(s1, 0, 1)),
+                new GradientStop(Hsv(0.3, 0.75, 0.7), Math.Clamp(s2, 0, 1)),
+                new GradientStop(Hsv(0.52, 0.6, 0.5), 0.0),
+                new GradientStop(Hsv(0.35, 0.65, 0.6), 1.0),
+            };
+            var gb = new LinearGradientBrush(stops, 0);
+            c.Dc.DrawRoundedRectangle(gb, null, new Rect(0, 0, c.W, c.H), 3, 3);
         }
 
         private void RenderMatrix(Ctx c)
         {
-            int N = 12;
-            double sp = c.W / (N + 1);
-            double r = Math.Min(sp * 0.32, c.H * 0.18);
+            Rect(c.Dc, 0, 0, c.W, c.H, Color.FromRgb(0, 15, 0), 0.7, 3);
+
             var green = Color.FromRgb(0, 0xE6, 0x76);
-            for (int i = 0; i < N; i++)
+            double[] xPcts = { 0.1, 0.3, 0.55, 0.78 };
+            double[] speeds = { 0.7, 0.5, 0.6, 0.45 };
+            double[] delays = { 0, 0.5, 0.2, 0.8 };
+            int[] lengths = { 3, 3, 2, 3 };
+
+            for (int col = 0; col < 4; col++)
             {
-                double headY = Saw(c.T * 0.6 + i * 0.07) * c.H;
-                double x = sp * (i + 1);
-                for (int t = 0; t < 3; t++)
+                double x = c.W * xPcts[col];
+                double headY = Saw(c.T * speeds[col] + delays[col]) * (c.H + 20) - 5;
+
+                for (int seg = 0; seg < lengths[col]; seg++)
                 {
-                    double y = headY - t * r * 1.6;
-                    if (y < 0) y += c.H;
-                    double a = (1.0 - t / 3.0) * 0.95;
-                    Dot(c.Dc, x, y, r, t == 0 ? Lerp(green, Colors.White, 0.4) : green, a);
+                    double y = headY - seg * 5;
+                    if (y < -3 || y > c.H + 3) continue;
+                    double a = seg == 0 ? 1.0 : Math.Max(0.15, 1.0 - seg * 0.35);
+                    var col2 = seg == 0 ? Lerp(green, Colors.White, 0.4) : green;
+                    double r = seg == 0 ? 2.0 : 1.5;
+                    Rect(c.Dc, x - r, y, r * 2, r * 2, col2, a, 1);
                 }
             }
         }
 
         private void RenderStarfield(Ctx c)
         {
-            int N = 12;
-            double sp = c.W / (N + 1);
-            double r = Math.Min(sp * 0.42, c.H * 0.28);
-            for (int i = 0; i < N; i++)
+            Rect(c.Dc, 0, 0, c.W, c.H, Color.FromRgb(8, 6, 15), 0.5, 3);
+
+            double[] xs = { 0.12, 0.45, 0.7, 0.3, 0.85, 0.55, 0.2, 0.65 };
+            double[] ys = { 0.2, 0.65, 0.25, 0.78, 0.5, 0.12, 0.55, 0.82 };
+            double[] rates = { 1.5, 2.1, 1.8, 2.5, 1.3, 2.0, 1.7, 2.3 };
+            bool[] warm = { false, true, false, false, false, true, false, false };
+
+            var lavender = Color.FromRgb(0xB3, 0x9D, 0xDB);
+            var gold = Color.FromRgb(0xFF, 0xCA, 0x28);
+
+            for (int i = 0; i < 8; i++)
             {
-                double k = Math.Pow(Sin01(c.T * (1.5 + Rand(i) * 2) + Rand(i + 100) * 10), 3);
-                var col = Lerp(c.Color, Colors.White, 0.3);
-                Dot(c.Dc, sp * (i + 1), c.Cy, r * (0.5 + k * 0.6), col, 0.1 + k * 0.9);
+                double k = Math.Pow(Sin01(c.T * rates[i] + Rand(i + 50) * 10), 3);
+                var col = warm[i] ? gold : Lerp(lavender, Colors.White, 0.2);
+                double r = 1.0 + k * 1.2;
+                Dot(c.Dc, c.W * xs[i], c.H * ys[i], r, col, 0.1 + k * 0.9);
             }
         }
 
         private void RenderEqualizer(Ctx c)
         {
-            int bands = 5;
-            double bw = c.W / (bands + 0.5);
-            double pad = bw * 0.15;
-            for (int k = 0; k < bands; k++)
+            int bars = 5;
+            double bw = c.W / (bars + 1);
+            double gap = 2;
+            for (int i = 0; i < bars; i++)
             {
-                double e = Math.Pow(Sin01(c.T * (2 + k * 0.5) + k), 2);
+                double e = Math.Pow(Sin01(c.T * (2 + i * 0.5) + i), 2);
                 double bh = c.H * (0.15 + e * 0.8);
-                double bx = bw * 0.4 + k * bw + pad;
-                double by = c.H - bh;
-                double bwi = bw - pad * 2;
-                Rect(c.Dc, bx, by, bwi, bh, c.Color, 0.95, 1.5);
-                double tipH = Math.Min(bh, c.H * 0.18);
-                Rect(c.Dc, bx, by, bwi, tipH, Lerp(c.Color, c.Color2, 0.7), 0.95, 1.5);
+                double x = (c.W - bars * bw) / 2 + i * bw + gap / 2;
+                double bwi = bw - gap;
+
+                Rect(c.Dc, x, c.H - bh, bwi, bh, c.Color, 0.95, 1.5);
+
+                double tipH = Math.Min(bh, c.H * 0.2);
+                Rect(c.Dc, x, c.H - bh, bwi, tipH, Lerp(c.Color, c.Color2, 0.7), 0.85, 1.5);
             }
         }
 
         private void RenderWaterfall(Ctx c)
         {
-            int N = 12;
-            double sp = c.W / (N + 1);
-            double r = Math.Min(sp * 0.5, c.H * 0.16);
-            for (int i = 0; i < N; i++)
+            double scroll = c.T * 0.3;
+            var stops = new GradientStopCollection();
+            for (int i = 0; i <= 6; i++)
             {
-                double x = sp * (i + 1);
-                for (int row = 0; row < 3; row++)
-                {
-                    double yt = (row + 0.5) / 3.0;
-                    double hue = ((c.T * 0.3 + i / (double)N + yt * 0.4) % 1.0 + 1.0) % 1.0;
-                    double v = 0.5 + 0.5 * Math.Sin(c.T * 1.5 - row * 1.2 + i * 0.3);
-                    var col = Hsv(hue, 0.85, 1.0);
-                    Dot(c.Dc, x, yt * c.H, r, col, 0.3 + v * 0.7);
-                }
+                double t = i / 6.0;
+                double hue = ((scroll + t * 0.5) % 1.0 + 1.0) % 1.0;
+                stops.Add(new GradientStop(Hsv(hue, 0.85, 0.9), t));
             }
+            var gb = new LinearGradientBrush(stops, 90);
+            c.Dc.DrawRoundedRectangle(gb, null, new Rect(0, 0, c.W, c.H), 3, 3);
         }
 
         private void RenderLava(Ctx c)
         {
-            int N = 12;
-            double sp = c.W / (N + 1);
-            double r = Math.Min(sp * 0.42, c.H * 0.28);
-            for (int i = 0; i < N; i++)
+            var deep = Color.FromRgb(0xCC, 0x33, 0x00);
+            var amber = Color.FromRgb(0xFF, 0xAA, 0x00);
+            var stops = new GradientStopCollection
             {
-                double sum = 0;
-                for (int k = 0; k < 4; k++)
-                {
-                    double bx = (Math.Sin(c.T * 0.3 + k * 1.5) + 1) * 0.5 * (N - 1);
-                    sum += Math.Exp(-Math.Pow((i - bx) / 1.5, 2));
-                }
-                double k01 = Math.Min(1.0, sum);
-                var hot = Lerp(c.Color, c.Color2, 0.7);
-                var col = Lerp(c.Color, hot, k01);
-                Dot(c.Dc, sp * (i + 1), c.Cy, r, col, 0.2 + k01 * 0.8);
+                new GradientStop(deep, 0),
+                new GradientStop(Lerp(deep, amber, 0.3), 0.35),
+                new GradientStop(amber, 0.7),
+                new GradientStop(deep, 1.0),
+            };
+            var bg = new LinearGradientBrush(stops, 0);
+            c.Dc.DrawRoundedRectangle(bg, null, new Rect(0, 0, c.W, c.H), 3, 3);
+
+            for (int k = 0; k < 3; k++)
+            {
+                double bx = c.W * (0.5 + 0.35 * Math.Sin(c.T * 0.4 + k * 2.1));
+                double by = c.H * (0.5 + 0.25 * Math.Sin(c.T * 0.3 + k * 1.7));
+                double br = 4 + 3 * Sin01(c.T * 0.5 + k);
+                var bright = Color.FromRgb(0xFF, 0xDD, 0x44);
+                Dot(c.Dc, bx, by, br, bright, 0.35 + 0.3 * Sin01(c.T * 0.6 + k * 0.8));
             }
         }
 
         private void RenderVuWave(Ctx c)
         {
-            int N = 12;
-            double sp = c.W / (N + 1);
-            double r = Math.Min(sp * 0.42, c.H * 0.28);
-            for (int i = 0; i < N; i++)
+            int bars = 5;
+            double bw = c.W / (bars + 1);
+            double gap = 2;
+
+            for (int i = 0; i < bars; i++)
             {
-                double k = Math.Pow(Sin01(c.T * 2 - Math.Abs(i - N / 2.0) * 0.4), 2);
-                Dot(c.Dc, sp * (i + 1), c.Cy, r, c.Color, 0.15 + k * 0.85);
+                double dist = Math.Abs(i - (bars - 1) / 2.0) / ((bars - 1) / 2.0);
+                double e = Math.Pow(Sin01(c.T * 2 - dist * 1.5), 2);
+                double bh = c.H * (0.1 + e * 0.85);
+                double x = (c.W - bars * bw) / 2 + i * bw + gap / 2;
+                double bwi = bw - gap;
+                double halfH = bh / 2;
+
+                Rect(c.Dc, x, c.Cy - halfH, bwi, bh, c.Color, 0.9, 1.5);
             }
         }
 
         private void RenderNebulaDrift(Ctx c)
         {
-            int N = 12;
-            double sp = c.W / (N + 1);
-            double r = Math.Min(sp * 0.42, c.H * 0.28);
-            for (int i = 0; i < N; i++)
+            double drift = c.T * 0.1;
+            var stops = new GradientStopCollection();
+            for (int i = 0; i <= 8; i++)
             {
-                double hue = ((c.T * 0.15 + i / (double)N + 0.1 * Math.Sin(c.T * 0.5 + i * 0.3)) % 1.0 + 1.0) % 1.0;
-                double v = Sin01(c.T * 0.3 + i * 0.2) * 0.7 + 0.3;
-                var col = Hsv(hue, 0.9, 1.0);
-                Dot(c.Dc, sp * (i + 1), c.Cy, r, col, v);
+                double t = i / 8.0;
+                double hue = ((drift + t) % 1.0 + 1.0) % 1.0;
+                stops.Add(new GradientStop(Hsv(hue, 0.8, 0.9), t));
             }
+            var gb = new LinearGradientBrush(stops, 0);
+            c.Dc.DrawRoundedRectangle(gb, null, new Rect(0, 0, c.W, c.H), 3, 3);
         }
     }
 }
