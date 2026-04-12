@@ -582,44 +582,84 @@ public partial class RoomView : UserControl
 
         if (_vuFillActive)
         {
-            // VU Fill mode pills — centered below toggles
-            var modeRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8), HorizontalAlignment = HorizontalAlignment.Center };
             var accent = Color.FromRgb(0xFF, 0x40, 0x81);
             var modes = new[] {
-                (VuFillMode.Classic,  "Classic"),  (VuFillMode.Split, "Split"),
-                (VuFillMode.Rainfall, "Rainfall"), (VuFillMode.Pulse, "Pulse"),
-                (VuFillMode.Spectrum, "Spectrum"), (VuFillMode.Drip,  "Drip"),
+                (VuFillMode.Classic,  "Classic",  "Bottom-to-top energy fill"),
+                (VuFillMode.Split,    "Split",    "Left=bass, right=treble"),
+                (VuFillMode.Rainfall, "Rainfall", "Onset-triggered drips"),
+                (VuFillMode.Pulse,    "Pulse",    "All segments pulse with bass"),
+                (VuFillMode.Spectrum, "Spectrum", "Per-segment frequency band"),
+                (VuFillMode.Drip,     "Drip",     "Liquid gravity pool"),
             };
-            foreach (var (mode, label) in modes)
+            var tileWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+            foreach (var (mode, label, tip) in modes)
             {
                 bool active = _config.Ambience.VuFillMode == mode;
-                var pill = new Border
+                var tileLabel = new TextBlock
                 {
-                    CornerRadius = new CornerRadius(14),
-                    Background = active ? new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B))
-                        : new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
-                    BorderBrush = active ? new SolidColorBrush(accent) : new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
-                    BorderThickness = new Thickness(1),
-                    Padding = new Thickness(14, 5, 14, 5),
-                    Margin = new Thickness(3, 0, 3, 0),
-                    Cursor = Cursors.Hand,
+                    Text = label, FontSize = 10,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    TextAlignment = TextAlignment.Center,
+                    Foreground = active ? new SolidColorBrush(accent) : new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
+                    Margin = new Thickness(0, 3, 0, 0),
                 };
-                pill.Child = new TextBlock
+                var preview = new Controls.EffectPreviewControl
                 {
-                    Text = label, FontSize = 11, FontWeight = active ? FontWeights.SemiBold : FontWeights.Normal,
-                    Foreground = active ? new SolidColorBrush(accent) : FindBrush("TextSecBrush"),
+                    Width = 68, Height = 30,
+                    EffectKind = mode switch
+                    {
+                        VuFillMode.Classic  => LightEffect.Equalizer,
+                        VuFillMode.Split    => LightEffect.DNA,
+                        VuFillMode.Rainfall => LightEffect.Rainfall,
+                        VuFillMode.Pulse    => LightEffect.Pulse,
+                        VuFillMode.Spectrum => LightEffect.Equalizer,
+                        VuFillMode.Drip     => LightEffect.Drip,
+                        _ => LightEffect.Equalizer,
+                    },
+                    TileColor = accent,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 2, 0, 0),
+                    Opacity = active ? 1.0 : 0.65,
+                };
+                var tileContent = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+                tileContent.Children.Add(preview);
+                tileContent.Children.Add(tileLabel);
+                var tile = new Border
+                {
+                    Width = 82,
+                    Background = active ? new SolidColorBrush(Color.FromArgb(0x25, accent.R, accent.G, accent.B))
+                        : new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
+                    BorderBrush = active ? new SolidColorBrush(Color.FromArgb(0x77, accent.R, accent.G, accent.B))
+                        : new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E)),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(6),
+                    Padding = new Thickness(4, 5, 4, 5),
+                    Margin = new Thickness(2),
+                    Cursor = Cursors.Hand,
+                    Child = tileContent,
+                    ToolTip = tip,
                 };
                 var capturedMode = mode;
-                pill.MouseLeftButtonUp += (_, _) =>
+                tile.MouseLeftButtonUp += (_, _) =>
                 {
                     if (_config == null) return;
                     _config.Ambience.VuFillMode = capturedMode;
                     for (int i = 0; i < 15; i++) _vuFillPeaks[i] = 0;
                     QueueSave(); RebuildRoomTabContent();
                 };
-                modeRow.Children.Add(pill);
+                tile.MouseEnter += (_, _) =>
+                {
+                    if (!active) { tile.Background = new SolidColorBrush(Color.FromArgb(0x10, accent.R, accent.G, accent.B));
+                        tile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x33, accent.R, accent.G, accent.B)); }
+                };
+                tile.MouseLeave += (_, _) =>
+                {
+                    if (!active) { tile.Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
+                        tile.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E)); }
+                };
+                tileWrap.Children.Add(tile);
             }
-            container.Children.Add(modeRow);
+            container.Children.Add(MakeSectionCard("VU FILL MODE", tileWrap));
         }
     }
 
