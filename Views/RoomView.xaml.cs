@@ -313,15 +313,17 @@ public partial class RoomView : UserControl
 
     private Border BuildRoomCard()
     {
-        var card = new Border
+        var wrapper = new Border { Margin = new Thickness(0) };
+        var stack = new StackPanel();
+        wrapper.Child = stack;
+
+        // ── Tab bar in its own card ──
+        var tabCard = new Border
         {
             Style = FindStyle("CardPanel") as Style,
-            Margin = new Thickness(0, 0, 0, 12),
+            Margin = new Thickness(0, 0, 0, 10),
+            Padding = new Thickness(8, 6, 8, 6),
         };
-        var stack = new StackPanel();
-        card.Child = stack;
-
-        // ── Underline tab bar (Material-style) ──
         var accent = ThemeManager.Accent;
         var tabNames = new[] { "ROOM EFFECT", "LAYOUT", "DEVICES" };
         var tabCount = tabNames.Length;
@@ -330,8 +332,8 @@ public partial class RoomView : UserControl
         var tabContainer = new Border
         {
             BorderBrush = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)),
-            BorderThickness = new Thickness(0, 0, 0, 1), // bottom divider line
-            Margin = new Thickness(0, 0, 0, 16),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Margin = new Thickness(0),
         };
         var tabRow = new StackPanel
         {
@@ -378,7 +380,8 @@ public partial class RoomView : UserControl
         for (int i = 0; i < tabCount; i++)
             SetRoomTabActive(tabBorders[i], i == _roomTabIndex, accent);
         tabContainer.Child = tabRow;
-        stack.Children.Add(tabContainer);
+        tabCard.Child = tabContainer;
+        stack.Children.Add(tabCard);
 
         // Dynamic toggle row — rebuilt per tab in RebuildRoomTabContent
         _toggleRowContainer = new StackPanel();
@@ -388,7 +391,7 @@ public partial class RoomView : UserControl
         stack.Children.Add(_roomTabContent);
 
         RebuildRoomTabContent();
-        return card;
+        return wrapper;
     }
 
     private static void SetRoomTabActive(Border tab, bool active, Color accent)
