@@ -1418,7 +1418,7 @@ public partial class ButtonsView : UserControl
         browseBg.Freeze(); browseHoverBg.Freeze();
         var browseBtn = new Button
         {
-            Content = new MaterialIcon { Kind = MaterialIconKind.FolderOpen, Width = 16, Height = 16, Foreground = FindBrush("TextPrimaryBrush") },
+            Content = new MaterialIcon { Kind = MaterialIconKind.FolderOpen, Width = 16, Height = 16, Foreground = FindBrush("TextSecBrush") },
             Width = 34,
             Height = 34,
             Padding = new Thickness(0),
