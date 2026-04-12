@@ -22,25 +22,6 @@ public partial class LightsView : UserControl
     private readonly List<(Border bar, TextBlock label)> _sectionHeaders = new();
 
     // Effect icons
-    private static readonly Dictionary<LightEffect, string> EffectIcons = new()
-    {
-        { LightEffect.SingleColor, "\U0001F7E2" },
-        { LightEffect.ColorBlend, "\U0001F308" },
-        { LightEffect.PositionFill, "\U0001F4CA" },
-        { LightEffect.Blink, "\u2728" },
-        { LightEffect.Pulse, "\U0001F4AB" },
-        { LightEffect.RainbowWave, "\U0001F308" },
-        { LightEffect.RainbowCycle, "\U0001F3A8" },
-        { LightEffect.MicStatus, "\U0001F3A4" },
-        { LightEffect.DeviceMute, "\U0001F507" },
-        { LightEffect.AudioReactive, "\U0001F3B5" },
-        { LightEffect.Breathing, "\U0001F4A8" },
-        { LightEffect.GradientFill, "\U0001F30C" },
-        { LightEffect.Comet, "\u2604" },
-        { LightEffect.Sparkle, "\u2728" },
-        { LightEffect.Fire, "\U0001F525" },
-    };
-
     // Per-channel controls
     private readonly TextBlock[] _headers = new TextBlock[5];
     private readonly Controls.EffectPreviewControl[] _headerIcons = new Controls.EffectPreviewControl[5];

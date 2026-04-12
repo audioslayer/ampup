@@ -105,7 +105,7 @@
 
         <!-- Hardware Preview Strip (Row 2 — always visible, full width) -->
         <controls:HardwarePreview x:Name="HwPreview" Grid.Row="2"
-            ToolTip="Live hardware status — click a knob to navigate to Knobs tab"
+            ToolTip="Live hardware status — click a knob to navigate to Mixer tab"
             Visibility="Collapsed" />
 
         <!-- Main Layout: Sidebar + Content -->
