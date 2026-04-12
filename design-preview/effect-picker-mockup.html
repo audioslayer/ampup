@@ -1,0 +1,1120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>AmpUp — Effect Picker Redesign Mockups</title>
+<style>
+  :root {
+    --bg-base: #0F0F0F;
+    --bg-panel: #141414;
+    --card-bg: #1C1C1C;
+    --card-border: #2A2A2A;
+    --text-primary: #E8E8E8;
+    --text-sec: #9A9A9A;
+    --text-dim: #555555;
+    --accent: #00E676;
+    --accent-glow: #69F0AE;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 40px 32px 80px;
+  }
+
+  .page-header {
+    margin-bottom: 32px;
+  }
+  .page-header h1 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 10px;
+  }
+  .page-header p {
+    color: var(--text-sec);
+    line-height: 1.55;
+    max-width: 780px;
+    margin: 0;
+  }
+
+  .section {
+    background: var(--bg-panel);
+    border: 1px solid var(--card-border);
+    border-radius: 14px;
+    padding: 28px 28px 32px;
+    margin-bottom: 24px;
+  }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 4px;
+  }
+  .section-head h2 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .section-head .tag {
+    font-size: 10px;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 2px 8px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .section-sub {
+    color: var(--text-sec);
+    margin: 0 0 22px;
+    font-size: 12.5px;
+    max-width: 720px;
+    line-height: 1.55;
+  }
+
+  .grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  /* =========================================================
+     Direction A — Animated Mini Visualizers
+     ========================================================= */
+  .a-tile {
+    --c: var(--accent);
+    width: 86px;
+    height: 92px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 6px 8px;
+    cursor: pointer;
+    transition: background .18s, border-color .18s, transform .18s;
+    position: relative;
+    overflow: hidden;
+  }
+  .a-tile:hover {
+    background: #222;
+    border-color: #3a3a3a;
+    transform: translateY(-1px);
+  }
+  .a-tile.selected {
+    background: #1e1e1e;
+    border-color: var(--c);
+    box-shadow: 0 0 0 1px var(--c), 0 0 18px -4px var(--c);
+  }
+  .a-viz {
+    width: 64px;
+    height: 44px;
+    border-radius: 6px;
+    background: #111;
+    margin-bottom: 8px;
+    overflow: hidden;
+    position: relative;
+    border: 1px solid #222;
+  }
+  .a-label {
+    font-size: 11px;
+    color: var(--text-sec);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  .a-tile.selected .a-label { color: var(--text-primary); }
+
+  /* Scanner — dot sweeps L/R with tail */
+  .viz-scanner::before {
+    content: ""; position: absolute;
+    top: 50%; left: 0; width: 10px; height: 4px;
+    border-radius: 2px; transform: translateY(-50%);
+    background: var(--c);
+    box-shadow: 0 0 8px var(--c);
+    animation: scan 1.6s ease-in-out infinite alternate;
+  }
+  @keyframes scan { to { left: calc(100% - 10px); } }
+
+  /* Meteor — diagonal streak */
+  .viz-meteor::before {
+    content: ""; position: absolute;
+    width: 22px; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--c));
+    top: 8px; left: -24px;
+    transform: rotate(18deg);
+    animation: meteor 1.6s linear infinite;
+    box-shadow: 0 0 6px var(--c);
+  }
+  @keyframes meteor { to { left: 100%; top: 38px; } }
+
+  /* Wave — animated SVG sine */
+  .viz-wave svg { width: 100%; height: 100%; display: block; }
+  .viz-wave path {
+    fill: none; stroke: var(--c); stroke-width: 2;
+    stroke-linecap: round;
+    stroke-dasharray: 90 40;
+    animation: dash 2s linear infinite;
+  }
+  @keyframes dash { to { stroke-dashoffset: -130; } }
+
+  /* Bands — 5 vertical bars */
+  .viz-bands {
+    display: flex; align-items: flex-end;
+    justify-content: space-around;
+    padding: 4px 6px;
+  }
+  .viz-bands i {
+    display: block; width: 5px; background: var(--c);
+    border-radius: 1px;
+    animation: band 0.9s ease-in-out infinite alternate;
+  }
+  .viz-bands i:nth-child(1) { animation-delay: .0s; height: 40%; }
+  .viz-bands i:nth-child(2) { animation-delay: .1s; height: 70%; }
+  .viz-bands i:nth-child(3) { animation-delay: .2s; height: 55%; }
+  .viz-bands i:nth-child(4) { animation-delay: .3s; height: 85%; }
+  .viz-bands i:nth-child(5) { animation-delay: .15s; height: 50%; }
+  @keyframes band { to { transform: scaleY(0.3); transform-origin: bottom; } }
+
+  /* Chase — 3 dots cycling */
+  .viz-chase { display: flex; align-items: center; justify-content: space-around; }
+  .viz-chase i {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--c); opacity: .25;
+    animation: chase 1.2s ease-in-out infinite;
+  }
+  .viz-chase i:nth-child(2) { animation-delay: .2s; }
+  .viz-chase i:nth-child(3) { animation-delay: .4s; }
+  .viz-chase i:nth-child(4) { animation-delay: .6s; }
+  .viz-chase i:nth-child(5) { animation-delay: .8s; }
+  @keyframes chase { 50% { opacity: 1; box-shadow: 0 0 8px var(--c);} }
+
+  /* Sparkle — random fading dots */
+  .viz-sparkle i {
+    position: absolute; width: 4px; height: 4px;
+    border-radius: 50%; background: var(--c);
+    box-shadow: 0 0 6px var(--c);
+    animation: sparkle 1.4s ease-in-out infinite;
+  }
+  .viz-sparkle i:nth-child(1){ top: 20%; left: 18%; animation-delay: 0s;}
+  .viz-sparkle i:nth-child(2){ top: 60%; left: 70%; animation-delay: .3s;}
+  .viz-sparkle i:nth-child(3){ top: 35%; left: 52%; animation-delay: .6s;}
+  .viz-sparkle i:nth-child(4){ top: 70%; left: 28%; animation-delay: .9s;}
+  .viz-sparkle i:nth-child(5){ top: 15%; left: 78%; animation-delay: .45s;}
+  @keyframes sparkle { 0%,100% { opacity: 0; transform: scale(0.4);} 50% { opacity: 1; transform: scale(1);} }
+
+  /* Breath — single glow pulse */
+  .viz-breath::after {
+    content: ""; position: absolute;
+    inset: 0; background: radial-gradient(circle at center, var(--c), transparent 60%);
+    animation: breath 2.4s ease-in-out infinite;
+  }
+  @keyframes breath { 0%,100% { opacity: .15;} 50% { opacity: .95;} }
+
+  /* Fire / Inferno — flicker gradient */
+  .viz-fire::before {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(0deg, var(--c) 0%, #FFD166 60%, transparent 100%);
+    filter: blur(2px);
+    animation: fire .5s ease-in-out infinite alternate;
+    transform-origin: bottom;
+  }
+  @keyframes fire { 0% { transform: scaleY(0.85) scaleX(0.95);} 100% { transform: scaleY(1.05) scaleX(1.03);} }
+
+  /* Dual Racers — 2 dots opposite dirs */
+  .viz-racers::before, .viz-racers::after {
+    content: ""; position: absolute;
+    width: 8px; height: 3px; border-radius: 2px;
+    background: var(--c);
+    box-shadow: 0 0 6px var(--c);
+  }
+  .viz-racers::before { top: 32%; left: 0; animation: racer1 1.6s linear infinite; }
+  .viz-racers::after { top: 62%; right: 0; animation: racer2 1.6s linear infinite; }
+  @keyframes racer1 { to { left: calc(100% - 8px);} }
+  @keyframes racer2 { to { right: calc(100% - 8px);} }
+
+  /* Bolt — lightning flash */
+  .viz-bolt svg { width: 100%; height: 100%; }
+  .viz-bolt svg path {
+    fill: var(--c); opacity: .3;
+    animation: bolt 1.3s ease-in-out infinite;
+    filter: drop-shadow(0 0 4px var(--c));
+  }
+  @keyframes bolt { 0%,90%,100% { opacity: .25;} 45%,55% { opacity: 1;} }
+
+  /* Fill Up — bar filling */
+  .viz-fillup::after {
+    content: ""; position: absolute;
+    left: 0; right: 0; bottom: 0;
+    background: var(--c);
+    animation: fillup 2s ease-in-out infinite;
+  }
+  @keyframes fillup { 0%, 100% { height: 0;} 50% { height: 100%;} }
+
+  /* Ocean — drifting blue bands */
+  .viz-ocean::before {
+    content: ""; position: absolute; inset: -2px;
+    background: repeating-linear-gradient(45deg, var(--c) 0 8px, #0E3B52 8px 16px);
+    opacity: .8;
+    animation: ocean 3s linear infinite;
+  }
+  @keyframes ocean { to { transform: translateX(-16px);} }
+
+  /* Collide — two dots meeting */
+  .viz-collide::before, .viz-collide::after {
+    content: ""; position: absolute; top: 50%; transform: translateY(-50%);
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--c); box-shadow: 0 0 6px var(--c);
+  }
+  .viz-collide::before { left: 0; animation: collL 1.6s ease-in-out infinite; }
+  .viz-collide::after { right: 0; animation: collR 1.6s ease-in-out infinite; }
+  @keyframes collL { 0%,100%{ left: 0;} 50%{ left: calc(50% - 4px);} }
+  @keyframes collR { 0%,100%{ right: 0;} 50%{ right: calc(50% - 4px);} }
+
+  /* Helix — 2 sine curves */
+  .viz-helix svg { width: 100%; height: 100%; }
+  .viz-helix path {
+    fill: none; stroke: var(--c); stroke-width: 1.5;
+    animation: helix 2s linear infinite;
+  }
+  .viz-helix path:nth-child(2) { opacity: .6; animation-delay: -1s; }
+  @keyframes helix { to { stroke-dashoffset: -60;} }
+
+  /* Rain — drops falling */
+  .viz-rain i {
+    position: absolute; width: 2px; height: 8px;
+    background: var(--c); border-radius: 1px;
+    animation: rain 1.3s linear infinite;
+  }
+  .viz-rain i:nth-child(1){ left: 15%; animation-delay: 0s;}
+  .viz-rain i:nth-child(2){ left: 40%; animation-delay: .4s;}
+  .viz-rain i:nth-child(3){ left: 65%; animation-delay: .8s;}
+  .viz-rain i:nth-child(4){ left: 85%; animation-delay: .2s;}
+  @keyframes rain { from { top: -10px;} to { top: 100%;} }
+
+  /* Police — alternating red/blue flash */
+  .viz-police::before, .viz-police::after {
+    content: ""; position: absolute;
+    top: 0; bottom: 0; width: 50%;
+  }
+  .viz-police::before { left: 0; background: #EF5350; animation: flashA .5s steps(2) infinite; }
+  .viz-police::after { right: 0; background: #42A5F5; animation: flashB .5s steps(2) infinite; }
+  @keyframes flashA { 0%,50% { opacity: 1;} 51%,100% { opacity: .15;} }
+  @keyframes flashB { 0%,50% { opacity: .15;} 51%,100% { opacity: 1;} }
+
+  /* Aurora — drifting green/purple bands */
+  .viz-aurora::before {
+    content: ""; position: absolute; inset: -10%;
+    background: linear-gradient(120deg, #69F0AE, #7E57C2, #26C6DA, #69F0AE);
+    background-size: 300% 100%;
+    filter: blur(5px);
+    animation: aurora 4s linear infinite;
+  }
+  @keyframes aurora { to { background-position: -300% 0;} }
+
+  /* Matrix — falling characters */
+  .viz-matrix {
+    font-family: "Consolas", monospace;
+    font-size: 8px;
+    color: var(--c);
+    line-height: 1.1;
+    padding: 2px 3px;
+    overflow: hidden;
+  }
+  .viz-matrix span {
+    display: inline-block; width: 100%;
+    animation: matrix 1.8s linear infinite;
+    text-shadow: 0 0 3px var(--c);
+  }
+  .viz-matrix span:nth-child(2) { animation-delay: -0.6s; }
+  .viz-matrix span:nth-child(3) { animation-delay: -1.2s; }
+  @keyframes matrix { from { transform: translateY(-100%);} to { transform: translateY(200%);} }
+
+  /* Stars — twinkling */
+  .viz-stars i {
+    position: absolute; width: 3px; height: 3px;
+    background: var(--c); border-radius: 50%;
+    box-shadow: 0 0 4px var(--c);
+    animation: star 2s ease-in-out infinite;
+  }
+  .viz-stars i:nth-child(1){ top: 20%; left: 18%;}
+  .viz-stars i:nth-child(2){ top: 60%; left: 70%; animation-delay: .4s;}
+  .viz-stars i:nth-child(3){ top: 40%; left: 45%; animation-delay: .8s;}
+  .viz-stars i:nth-child(4){ top: 72%; left: 25%; animation-delay: 1.2s;}
+  .viz-stars i:nth-child(5){ top: 25%; left: 80%; animation-delay: 1.6s;}
+  @keyframes star { 0%,100% { opacity: .2;} 50% { opacity: 1;} }
+
+  /* EQ — VU bars */
+  .viz-eq { display: flex; align-items: flex-end; justify-content: space-around; padding: 4px; }
+  .viz-eq i {
+    width: 4px; background: linear-gradient(0deg, var(--c), #FFD166);
+    animation: band 0.7s ease-in-out infinite alternate;
+  }
+  .viz-eq i:nth-child(1){height: 60%;}
+  .viz-eq i:nth-child(2){height: 80%; animation-delay: .15s;}
+  .viz-eq i:nth-child(3){height: 45%; animation-delay: .3s;}
+  .viz-eq i:nth-child(4){height: 70%; animation-delay: .1s;}
+  .viz-eq i:nth-child(5){height: 55%; animation-delay: .25s;}
+  .viz-eq i:nth-child(6){height: 90%; animation-delay: .05s;}
+
+  /* Waterfall — streaks falling */
+  .viz-waterfall::before {
+    content: ""; position: absolute; inset: 0;
+    background: repeating-linear-gradient(180deg, var(--c) 0 4px, transparent 4px 12px);
+    animation: waterfall 1.4s linear infinite;
+  }
+  @keyframes waterfall { from { background-position: 0 0;} to { background-position: 0 12px;} }
+
+  /* Lava — blob */
+  .viz-lava::before {
+    content: ""; position: absolute;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: radial-gradient(circle, var(--c), transparent 70%);
+    top: 30%; left: 20%;
+    filter: blur(2px);
+    animation: lava1 3.5s ease-in-out infinite;
+  }
+  .viz-lava::after {
+    content: ""; position: absolute;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: radial-gradient(circle, #FFD166, transparent 70%);
+    top: 50%; left: 60%;
+    filter: blur(2px);
+    animation: lava2 4s ease-in-out infinite;
+  }
+  @keyframes lava1 { 0%,100% { transform: translate(0,0);} 50% { transform: translate(12px,-8px);} }
+  @keyframes lava2 { 0%,100% { transform: translate(0,0);} 50% { transform: translate(-8px,-10px);} }
+
+  /* VU Wave — sine modulation */
+  .viz-vuwave svg { width: 100%; height: 100%; }
+  .viz-vuwave path {
+    fill: var(--c); opacity: .6;
+    animation: vuwave 1.5s ease-in-out infinite alternate;
+    transform-origin: bottom;
+  }
+  @keyframes vuwave { from { transform: scaleY(.4);} to { transform: scaleY(1);} }
+
+  /* Nebula — swirling radial */
+  .viz-nebula::before {
+    content: ""; position: absolute; inset: -20%;
+    background:
+      radial-gradient(circle at 30% 30%, var(--c), transparent 50%),
+      radial-gradient(circle at 70% 70%, #F06292, transparent 50%),
+      radial-gradient(circle at 50% 50%, #42A5F5, transparent 60%);
+    filter: blur(6px);
+    animation: nebula 5s linear infinite;
+  }
+  @keyframes nebula { to { transform: rotate(360deg);} }
+
+  /* =========================================================
+     Direction B — Material Icons + Color Pill
+     ========================================================= */
+  .b-tile {
+    --c: var(--accent);
+    width: 72px;
+    height: 80px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 9px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 4px 8px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: background .15s, border-color .15s, transform .15s;
+  }
+  .b-tile::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 12px; right: 12px;
+    height: 2px;
+    background: var(--c);
+    border-radius: 0 0 2px 2px;
+    opacity: .75;
+  }
+  .b-tile:hover {
+    background: #222;
+    border-color: #3a3a3a;
+    transform: translateY(-1px);
+  }
+  .b-tile:hover::before { opacity: 1; }
+  .b-tile.selected {
+    background: #1e1e1e;
+    border-color: var(--c);
+    box-shadow: 0 0 0 1px var(--c);
+  }
+  .b-tile.selected::before {
+    left: 0; right: 0;
+    height: 2px;
+    box-shadow: 0 0 10px var(--c);
+  }
+  .b-icon {
+    color: var(--c);
+    width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .b-icon svg { width: 100%; height: 100%; display: block; }
+  .b-label {
+    font-size: 10.5px;
+    color: var(--text-sec);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  .b-tile.selected .b-label { color: var(--text-primary); }
+
+  /* =========================================================
+     Direction C — Gradient Preview Cards
+     ========================================================= */
+  .c-tile {
+    --c: var(--accent);
+    width: 98px;
+    height: 72px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: transform .15s, border-color .15s;
+  }
+  .c-swatch {
+    position: absolute; inset: 0;
+    transition: transform .3s ease;
+  }
+  .c-tile:hover { border-color: var(--c); transform: translateY(-1px); }
+  .c-tile:hover .c-swatch { transform: scale(1.06); }
+  .c-tile.selected {
+    border-color: var(--c);
+    box-shadow: 0 0 0 1px var(--c), 0 0 18px -4px var(--c);
+  }
+  .c-label {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    padding: 5px 8px 6px;
+    font-size: 10.5px;
+    color: var(--text-primary);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    background: linear-gradient(0deg, rgba(0,0,0,.92) 0%, rgba(0,0,0,.55) 70%, transparent 100%);
+    text-shadow: 0 1px 2px rgba(0,0,0,.6);
+    z-index: 2;
+  }
+
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    <h1>Effect Picker — Three Redesign Directions</h1>
+    <p>
+      Three alternatives to replace the current Unicode-glyph tiles in the LED effect grid.
+      All 25 GLOBAL SPAN effects are rendered in each section so you can judge how each style scales.
+      Hover any tile to preview, and note the highlighted tile in each section to see the selected state.
+    </p>
+  </div>
+
+  <!-- =========================================================
+       DIRECTION A
+       ========================================================= -->
+  <div class="section">
+    <div class="section-head">
+      <h2>Direction A — Animated Mini Visualizers</h2>
+      <span class="tag">Recommended</span>
+    </div>
+    <p class="section-sub">
+      Each tile shows a tiny CSS-animated preview of what the effect actually does.
+      Most expressive option — users see the motion before clicking. Slightly larger tiles (86×92) make room for the viz.
+    </p>
+    <div class="grid">
+
+      <div class="a-tile" style="--c:#EF5350">
+        <div class="a-viz viz-scanner"></div>
+        <div class="a-label">Scanner</div>
+      </div>
+
+      <div class="a-tile" style="--c:#7C8CF8">
+        <div class="a-viz viz-meteor"></div>
+        <div class="a-label">Meteor</div>
+      </div>
+
+      <div class="a-tile selected" style="--c:#BA68C8">
+        <div class="a-viz viz-wave">
+          <svg viewBox="0 0 64 44" preserveAspectRatio="none">
+            <path d="M0 22 Q 8 6, 16 22 T 32 22 T 48 22 T 64 22" />
+          </svg>
+        </div>
+        <div class="a-label">Wave</div>
+      </div>
+
+      <div class="a-tile" style="--c:#FF8A3D">
+        <div class="a-viz viz-bands">
+          <i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <div class="a-label">Bands</div>
+      </div>
+
+      <div class="a-tile" style="--c:#26C6DA">
+        <div class="a-viz viz-chase">
+          <i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <div class="a-label">Chase</div>
+      </div>
+
+      <div class="a-tile" style="--c:#EC407A">
+        <div class="a-viz viz-scanner"></div>
+        <div class="a-label">R.Scan</div>
+      </div>
+
+      <div class="a-tile" style="--c:#FFF176">
+        <div class="a-viz viz-sparkle">
+          <i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <div class="a-label">Sparkle</div>
+      </div>
+
+      <div class="a-tile" style="--c:#80CBC4">
+        <div class="a-viz viz-breath"></div>
+        <div class="a-label">Breath</div>
+      </div>
+
+      <div class="a-tile" style="--c:#FF5722">
+        <div class="a-viz viz-fire"></div>
+        <div class="a-label">Inferno</div>
+      </div>
+
+      <div class="a-tile" style="--c:#42A5F5">
+        <div class="a-viz viz-racers"></div>
+        <div class="a-label">Racers</div>
+      </div>
+
+      <div class="a-tile" style="--c:#FFF176">
+        <div class="a-viz viz-bolt">
+          <svg viewBox="0 0 64 44">
+            <path d="M28 4 L18 26 L30 26 L22 40 L40 18 L28 18 L36 4 Z"/>
+          </svg>
+        </div>
+        <div class="a-label">Bolt</div>
+      </div>
+
+      <div class="a-tile" style="--c:#66BB6A">
+        <div class="a-viz viz-fillup"></div>
+        <div class="a-label">Fill Up</div>
+      </div>
+
+      <div class="a-tile" style="--c:#29B6F6">
+        <div class="a-viz viz-ocean"></div>
+        <div class="a-label">Ocean</div>
+      </div>
+
+      <div class="a-tile" style="--c:#FF8A3D">
+        <div class="a-viz viz-collide"></div>
+        <div class="a-label">Collide</div>
+      </div>
+
+      <div class="a-tile" style="--c:#BA68C8">
+        <div class="a-viz viz-helix">
+          <svg viewBox="0 0 64 44" preserveAspectRatio="none">
+            <path d="M0 22 Q 16 4, 32 22 T 64 22" stroke-dasharray="60 20"/>
+            <path d="M0 22 Q 16 40, 32 22 T 64 22" stroke-dasharray="60 20"/>
+          </svg>
+        </div>
+        <div class="a-label">Helix</div>
+      </div>
+
+      <div class="a-tile" style="--c:#4DD0E1">
+        <div class="a-viz viz-rain">
+          <i></i><i></i><i></i><i></i>
+        </div>
+        <div class="a-label">Rain</div>
+      </div>
+
+      <div class="a-tile" style="--c:#EF5350">
+        <div class="a-viz viz-police"></div>
+        <div class="a-label">Police</div>
+      </div>
+
+      <div class="a-tile" style="--c:#69F0AE">
+        <div class="a-viz viz-aurora"></div>
+        <div class="a-label">Aurora</div>
+      </div>
+
+      <div class="a-tile" style="--c:#00E676">
+        <div class="a-viz viz-matrix">
+          <span>10110</span>
+          <span>01101</span>
+          <span>11010</span>
+        </div>
+        <div class="a-label">Matrix</div>
+      </div>
+
+      <div class="a-tile" style="--c:#B39DDB">
+        <div class="a-viz viz-stars">
+          <i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <div class="a-label">Stars</div>
+      </div>
+
+      <div class="a-tile" style="--c:#00E676">
+        <div class="a-viz viz-eq">
+          <i></i><i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <div class="a-label">EQ</div>
+      </div>
+
+      <div class="a-tile" style="--c:#40C4FF">
+        <div class="a-viz viz-waterfall"></div>
+        <div class="a-label">Waterfall</div>
+      </div>
+
+      <div class="a-tile" style="--c:#FF6E40">
+        <div class="a-viz viz-lava"></div>
+        <div class="a-label">Lava</div>
+      </div>
+
+      <div class="a-tile" style="--c:#E040FB">
+        <div class="a-viz viz-vuwave">
+          <svg viewBox="0 0 64 44" preserveAspectRatio="none">
+            <path d="M0 44 L0 24 Q 16 10, 32 24 T 64 24 L64 44 Z"/>
+          </svg>
+        </div>
+        <div class="a-label">VU Wave</div>
+      </div>
+
+      <div class="a-tile" style="--c:#CE93D8">
+        <div class="a-viz viz-nebula"></div>
+        <div class="a-label">Nebula</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- =========================================================
+       DIRECTION B
+       ========================================================= -->
+  <div class="section">
+    <div class="section-head">
+      <h2>Direction B — Line Icons + Color Pill</h2>
+    </div>
+    <p class="section-sub">
+      Refined line icons (1.5px stroke, ~26px) in each effect's personality color, plus a 2px colored pill at the top of each card.
+      Smaller (72×80), denser grid. More restrained — reads like a professional app toolbar.
+    </p>
+    <div class="grid">
+
+      <div class="b-tile" style="--c:#EF5350">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12h4l2-3 2 6 2-6 2 3h6"/>
+          </svg>
+        </div>
+        <div class="b-label">Scanner</div>
+      </div>
+
+      <div class="b-tile" style="--c:#7C8CF8">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 5L5 19"/><circle cx="19" cy="5" r="2"/><path d="M15 9l-2 1M11 13l-2 1M7 17l-1.5.7"/>
+          </svg>
+        </div>
+        <div class="b-label">Meteor</div>
+      </div>
+
+      <div class="b-tile" style="--c:#BA68C8">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 12c2 0 2-4 4-4s2 8 4 8 2-8 4-8 2 4 4 4 2-2 4-2"/>
+          </svg>
+        </div>
+        <div class="b-label">Wave</div>
+      </div>
+
+      <div class="b-tile" style="--c:#FF8A3D">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+            <line x1="5" y1="20" x2="5" y2="12"/><line x1="9.5" y1="20" x2="9.5" y2="7"/>
+            <line x1="14" y1="20" x2="14" y2="10"/><line x1="18.5" y1="20" x2="18.5" y2="5"/>
+          </svg>
+        </div>
+        <div class="b-label">Bands</div>
+      </div>
+
+      <div class="b-tile" style="--c:#26C6DA">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+            <circle cx="4" cy="12" r="1.5"/><circle cx="9" cy="12" r="1.5"/>
+            <circle cx="14" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>
+            <path d="M21 9l1 3-1 3"/>
+          </svg>
+        </div>
+        <div class="b-label">Chase</div>
+      </div>
+
+      <div class="b-tile selected" style="--c:#EC407A">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+            <path d="M3 12c2-6 5-6 7 0s5 6 7 0 3-6 4 0"/>
+          </svg>
+        </div>
+        <div class="b-label">R.Scan</div>
+      </div>
+
+      <div class="b-tile" style="--c:#FFF176">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/>
+            <circle cx="19" cy="5" r=".8"/><circle cx="5" cy="18" r=".8"/>
+          </svg>
+        </div>
+        <div class="b-label">Sparkle</div>
+      </div>
+
+      <div class="b-tile" style="--c:#80CBC4">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+            <circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="8" opacity=".4"/>
+          </svg>
+        </div>
+        <div class="b-label">Breath</div>
+      </div>
+
+      <div class="b-tile" style="--c:#FF5722">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3c2 4-1 6 1 9 1.5 2 4 1 4 4 0 3-2 5-5 5s-6-2-6-6c0-3 3-4 3-7 0-2 1-4 3-5z"/>
+          </svg>
+        </div>
+        <div class="b-label">Inferno</div>
+      </div>
+
+      <div class="b-tile" style="--c:#42A5F5">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+            <path d="M3 9h14l2-2M3 15h14l2 2"/>
+          </svg>
+        </div>
+        <div class="b-label">Racers</div>
+      </div>
+
+      <div class="b-tile" style="--c:#FFF176">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
+            <path d="M13 2L4 14h7l-1 8 9-12h-7z"/>
+          </svg>
+        </div>
+        <div class="b-label">Bolt</div>
+      </div>
+
+      <div class="b-tile" style="--c:#66BB6A">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+            <rect x="4" y="4" width="16" height="16" rx="2"/>
+            <path d="M4 14h16" opacity=".4"/>
+            <path d="M6 20h12v-6H6z" fill="currentColor" stroke="none"/>
+          </svg>
+        </div>
+        <div class="b-label">Fill Up</div>
+      </div>
+
+      <div class="b-tile" style="--c:#29B6F6">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+            <path d="M3 10c3 0 3-3 6-3s3 3 6 3 3-3 6-3"/>
+            <path d="M3 15c3 0 3-3 6-3s3 3 6 3 3-3 6-3"/>
+          </svg>
+        </div>
+        <div class="b-label">Ocean</div>
+      </div>
+
+      <div class="b-tile" style="--c:#FF8A3D">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+            <path d="M3 12h6l1 2 2-4 1 2h6"/>
+            <path d="M5 8l-2-2M19 8l2-2M5 16l-2 2M19 16l2 2"/>
+          </svg>
+        </div>
+        <div class="b-label">Collide</div>
+      </div>
+
+      <div class="b-tile" style="--c:#BA68C8">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+            <path d="M8 3C12 8 12 16 8 21"/>
+            <path d="M16 3C12 8 12 16 16 21"/>
+            <line x1="10" y1="7" x2="14" y2="7"/>
+            <line x1="10" y1="12" x2="14" y2="12"/>
+            <line x1="10" y1="17" x2="14" y2="17"/>
+          </svg>
+        </div>
+        <div class="b-label">Helix</div>
+      </div>
+
+      <div class="b-tile" style="--c:#4DD0E1">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3c3 5 5 7 5 11a5 5 0 0 1-10 0c0-4 2-6 5-11z"/>
+          </svg>
+        </div>
+        <div class="b-label">Rain</div>
+      </div>
+
+      <div class="b-tile" style="--c:#EF5350">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+            <circle cx="7" cy="12" r="3"/>
+            <circle cx="17" cy="12" r="3"/>
+            <path d="M4 18h16" opacity=".4"/>
+          </svg>
+        </div>
+        <div class="b-label">Police</div>
+      </div>
+
+      <div class="b-tile" style="--c:#69F0AE">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+            <path d="M3 16c3-2 5-8 9-8s5 6 9 4"/>
+            <path d="M3 12c3-2 5-6 9-6s5 4 9 2" opacity=".5"/>
+          </svg>
+        </div>
+        <div class="b-label">Aurora</div>
+      </div>
+
+      <div class="b-tile" style="--c:#00E676">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+            <line x1="6" y1="3" x2="6" y2="18"/>
+            <line x1="12" y1="3" x2="12" y2="14"/>
+            <line x1="18" y1="3" x2="18" y2="20"/>
+            <circle cx="6" cy="20" r="1.2"/><circle cx="12" cy="16" r="1.2"/><circle cx="18" cy="22" r="1.2" opacity=".5"/>
+          </svg>
+        </div>
+        <div class="b-label">Matrix</div>
+      </div>
+
+      <div class="b-tile" style="--c:#B39DDB">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
+            <path d="M12 3l1.8 5.2L19 9l-4.5 3 1.8 5.2L12 14.5 7.7 17.2 9.5 12 5 9l5.2-.8z"/>
+          </svg>
+        </div>
+        <div class="b-label">Stars</div>
+      </div>
+
+      <div class="b-tile" style="--c:#00E676">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+            <line x1="4" y1="20" x2="4" y2="13"/>
+            <line x1="8.5" y1="20" x2="8.5" y2="8"/>
+            <line x1="13" y1="20" x2="13" y2="15"/>
+            <line x1="17.5" y1="20" x2="17.5" y2="5"/>
+            <line x1="22" y1="20" x2="22" y2="10"/>
+          </svg>
+        </div>
+        <div class="b-label">EQ</div>
+      </div>
+
+      <div class="b-tile" style="--c:#40C4FF">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+            <path d="M6 3v7M12 3v12M18 3v7M6 14l-2 6h4zM18 14l-2 6h4z"/>
+          </svg>
+        </div>
+        <div class="b-label">Waterfall</div>
+      </div>
+
+      <div class="b-tile" style="--c:#FF6E40">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+            <circle cx="9" cy="10" r="3"/>
+            <circle cx="15" cy="15" r="2"/>
+            <path d="M4 20h16" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="b-label">Lava</div>
+      </div>
+
+      <div class="b-tile" style="--c:#E040FB">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+            <path d="M3 18c2 0 2-8 4-8s2 10 4 10 2-12 4-12 2 8 4 8 2-4 3-4"/>
+          </svg>
+        </div>
+        <div class="b-label">VU Wave</div>
+      </div>
+
+      <div class="b-tile" style="--c:#CE93D8">
+        <div class="b-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+            <circle cx="12" cy="12" r="8"/>
+            <circle cx="12" cy="12" r="4" opacity=".5"/>
+            <circle cx="12" cy="12" r="1" fill="currentColor"/>
+          </svg>
+        </div>
+        <div class="b-label">Nebula</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- =========================================================
+       DIRECTION C
+       ========================================================= -->
+  <div class="section">
+    <div class="section-head">
+      <h2>Direction C — Gradient Preview Cards</h2>
+    </div>
+    <p class="section-sub">
+      Movie-poster style. Each tile is a gradient swatch hinting at palette and motion direction, with the label floating over a darkened bottom strip.
+      Wider tiles (98×72). Most "visual" option — browse by vibe rather than icon.
+    </p>
+    <div class="grid">
+
+      <div class="c-tile" style="--c:#EF5350">
+        <div class="c-swatch" style="background: linear-gradient(90deg, #2a0a0a 0%, #EF5350 50%, #2a0a0a 100%);"></div>
+        <div class="c-label">Scanner</div>
+      </div>
+
+      <div class="c-tile" style="--c:#7C8CF8">
+        <div class="c-swatch" style="background: linear-gradient(135deg, #0a0a1f 0%, #7C8CF8 60%, #ffffff 100%);"></div>
+        <div class="c-label">Meteor</div>
+      </div>
+
+      <div class="c-tile" style="--c:#BA68C8">
+        <div class="c-swatch" style="background: linear-gradient(90deg, #3D1A4A, #BA68C8, #7B1FA2, #BA68C8, #3D1A4A);"></div>
+        <div class="c-label">Wave</div>
+      </div>
+
+      <div class="c-tile" style="--c:#FF8A3D">
+        <div class="c-swatch" style="background: linear-gradient(90deg, #FF8A3D 0%, #FF8A3D 20%, #1a0a00 20%, #1a0a00 35%, #FFD166 35%, #FFD166 55%, #1a0a00 55%, #1a0a00 70%, #FF5722 70%);"></div>
+        <div class="c-label">Bands</div>
+      </div>
+
+      <div class="c-tile" style="--c:#26C6DA">
+        <div class="c-swatch" style="background: radial-gradient(circle at 20% 50%, #26C6DA 8%, transparent 12%), radial-gradient(circle at 50% 50%, #26C6DA 8%, transparent 12%), radial-gradient(circle at 80% 50%, #26C6DA 8%, transparent 12%), #0a2023;"></div>
+        <div class="c-label">Chase</div>
+      </div>
+
+      <div class="c-tile selected" style="--c:#EC407A">
+        <div class="c-swatch" style="background: linear-gradient(90deg, #2a0a18, #EC407A 30%, #FFF176 50%, #EC407A 70%, #2a0a18);"></div>
+        <div class="c-label">R.Scan</div>
+      </div>
+
+      <div class="c-tile" style="--c:#FFF176">
+        <div class="c-swatch" style="background: radial-gradient(circle at 30% 35%, #FFF176 6%, transparent 10%), radial-gradient(circle at 70% 60%, #FFF176 6%, transparent 10%), radial-gradient(circle at 50% 80%, #FFF176 4%, transparent 8%), radial-gradient(circle at 20% 70%, #FFF176 4%, transparent 8%), #0a0a00;"></div>
+        <div class="c-label">Sparkle</div>
+      </div>
+
+      <div class="c-tile" style="--c:#80CBC4">
+        <div class="c-swatch" style="background: radial-gradient(ellipse at center, #80CBC4 0%, #004D40 60%, #000 100%);"></div>
+        <div class="c-label">Breath</div>
+      </div>
+
+      <div class="c-tile" style="--c:#FF5722">
+        <div class="c-swatch" style="background: linear-gradient(0deg, #FF5722 0%, #FFD166 50%, #1a0a00 100%);"></div>
+        <div class="c-label">Inferno</div>
+      </div>
+
+      <div class="c-tile" style="--c:#42A5F5">
+        <div class="c-swatch" style="background: linear-gradient(90deg, #42A5F5 0%, #0a1a2a 50%, #42A5F5 100%);"></div>
+        <div class="c-label">Racers</div>
+      </div>
+
+      <div class="c-tile" style="--c:#FFF176">
+        <div class="c-swatch" style="background: linear-gradient(135deg, #0a0a00 0%, #0a0a00 40%, #FFF176 50%, #0a0a00 60%, #0a0a00 100%);"></div>
+        <div class="c-label">Bolt</div>
+      </div>
+
+      <div class="c-tile" style="--c:#66BB6A">
+        <div class="c-swatch" style="background: linear-gradient(0deg, #66BB6A 0%, #66BB6A 55%, #0a1a0a 55%, #0a1a0a 100%);"></div>
+        <div class="c-label">Fill Up</div>
+      </div>
+
+      <div class="c-tile" style="--c:#29B6F6">
+        <div class="c-swatch" style="background: linear-gradient(180deg, #01579B, #0277BD, #29B6F6, #4FC3F7, #B3E5FC);"></div>
+        <div class="c-label">Ocean</div>
+      </div>
+
+      <div class="c-tile" style="--c:#FF8A3D">
+        <div class="c-swatch" style="background: radial-gradient(circle at center, #FFF176, #FF8A3D 30%, #1a0a00 70%);"></div>
+        <div class="c-label">Collide</div>
+      </div>
+
+      <div class="c-tile" style="--c:#BA68C8">
+        <div class="c-swatch" style="background: linear-gradient(135deg, #BA68C8, #4A148C, #BA68C8, #4A148C, #BA68C8);"></div>
+        <div class="c-label">Helix</div>
+      </div>
+
+      <div class="c-tile" style="--c:#4DD0E1">
+        <div class="c-swatch" style="background: linear-gradient(180deg, #0a1a1f 0%, #4DD0E1 100%);"></div>
+        <div class="c-label">Rain</div>
+      </div>
+
+      <div class="c-tile" style="--c:#EF5350">
+        <div class="c-swatch" style="background: linear-gradient(90deg, #EF5350 0%, #EF5350 50%, #42A5F5 50%, #42A5F5 100%);"></div>
+        <div class="c-label">Police</div>
+      </div>
+
+      <div class="c-tile" style="--c:#69F0AE">
+        <div class="c-swatch" style="background: linear-gradient(135deg, #0a1a2a 0%, #69F0AE 30%, #7E57C2 60%, #26C6DA 85%, #0a1a2a 100%);"></div>
+        <div class="c-label">Aurora</div>
+      </div>
+
+      <div class="c-tile" style="--c:#00E676">
+        <div class="c-swatch" style="background: linear-gradient(180deg, #00E676 0%, #0a1a0a 100%);"></div>
+        <div class="c-label">Matrix</div>
+      </div>
+
+      <div class="c-tile" style="--c:#B39DDB">
+        <div class="c-swatch" style="background: radial-gradient(circle at 25% 30%, #FFF 4%, transparent 6%), radial-gradient(circle at 70% 65%, #FFF 4%, transparent 6%), radial-gradient(circle at 50% 50%, #FFF 3%, transparent 5%), radial-gradient(ellipse at center, #2C1B4A, #0a0415);"></div>
+        <div class="c-label">Stars</div>
+      </div>
+
+      <div class="c-tile" style="--c:#00E676">
+        <div class="c-swatch" style="background: linear-gradient(90deg, #00E676 0%, #00E676 18%, #0a1a0a 18%, #0a1a0a 22%, #FFD166 22%, #FFD166 40%, #0a1a0a 40%, #0a1a0a 44%, #FF5722 44%, #FF5722 62%, #0a1a0a 62%, #0a1a0a 66%, #00E676 66%);"></div>
+        <div class="c-label">EQ</div>
+      </div>
+
+      <div class="c-tile" style="--c:#40C4FF">
+        <div class="c-swatch" style="background: linear-gradient(180deg, #B3E5FC 0%, #40C4FF 30%, #0277BD 70%, #01579B 100%);"></div>
+        <div class="c-label">Waterfall</div>
+      </div>
+
+      <div class="c-tile" style="--c:#FF6E40">
+        <div class="c-swatch" style="background: radial-gradient(circle at 30% 40%, #FFD166 10%, #FF6E40 25%, transparent 35%), radial-gradient(circle at 70% 70%, #FF6E40 15%, transparent 25%), #1a0600;"></div>
+        <div class="c-label">Lava</div>
+      </div>
+
+      <div class="c-tile" style="--c:#E040FB">
+        <div class="c-swatch" style="background: linear-gradient(90deg, #1a0a1a, #E040FB 25%, #FF80AB 50%, #E040FB 75%, #1a0a1a);"></div>
+        <div class="c-label">VU Wave</div>
+      </div>
+
+      <div class="c-tile" style="--c:#CE93D8">
+        <div class="c-swatch" style="background: radial-gradient(ellipse at 35% 40%, #CE93D8 0%, #7E57C2 30%, #1a0a2a 70%, #0a0415 100%);"></div>
+        <div class="c-label">Nebula</div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

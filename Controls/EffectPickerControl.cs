@@ -151,12 +151,11 @@ namespace AmpUp.Controls
         private class EffectTile
         {
             public Border Container = null!;
-            public TextBlock Icon = null!;
+            public EffectPreviewControl Preview = null!;
             public TextBlock Label = null!;
             public Ellipse? FavoriteDot; // small gold dot shown only when favorited
             public LightEffect Effect;
             public bool IsHovered;
-            public bool IsEmoji; // emoji icons ignore Foreground color
             public Color TileColor; // unique color per effect
         }
 
@@ -382,17 +381,23 @@ namespace AmpUp.Controls
         private EffectTile BuildTile(LightEffect effect, string icon, string label, bool isEmoji, bool addStar = true, bool addToTiles = true)
         {
             var tileColor = EffectColors.GetValueOrDefault(effect, ThemeManager.Accent);
-            var info = new EffectTile { Effect = effect, IsEmoji = isEmoji, TileColor = tileColor };
+            var info = new EffectTile { Effect = effect, TileColor = tileColor };
 
-            var iconBlock = new TextBlock
+            // Animated preview replaces the old Unicode-glyph icon. Effect is rendered live
+            // via EffectPreviewControl — see Controls/EffectPreviewControl.*.cs
+            double previewW = _showGlobal ? 72 : 56;
+            double previewH = _showGlobal ? 32 : 26;
+            var preview = new EffectPreviewControl
             {
-                Text = icon,
-                FontSize = _showGlobal ? (isEmoji ? 20 : 24) : (isEmoji ? 16 : 18),
+                Width = previewW,
+                Height = previewH,
+                EffectKind = effect,
+                TileColor = tileColor,
+                AccentColor = GetCompanionColor(effect, tileColor),
                 HorizontalAlignment = HorizontalAlignment.Center,
-                TextAlignment = TextAlignment.Center,
-                Foreground = new SolidColorBrush(Color.FromRgb((byte)(tileColor.R * 0.6), (byte)(tileColor.G * 0.6), (byte)(tileColor.B * 0.6))),
+                Margin = new Thickness(0, 2, 0, 0),
             };
-            info.Icon = iconBlock;
+            info.Preview = preview;
 
             var labelBlock = new TextBlock
             {
@@ -401,7 +406,7 @@ namespace AmpUp.Controls
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
                 Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
-                Margin = new Thickness(0, 2, 0, 0),
+                Margin = new Thickness(0, 3, 0, 0),
             };
             info.Label = labelBlock;
 
@@ -409,7 +414,7 @@ namespace AmpUp.Controls
             {
                 HorizontalAlignment = HorizontalAlignment.Center,
             };
-            stack.Children.Add(iconBlock);
+            stack.Children.Add(preview);
             stack.Children.Add(labelBlock);
 
             // Grid lets us overlay the favorite-dot badge in the top-right corner
@@ -437,12 +442,12 @@ namespace AmpUp.Controls
 
             var container = new Border
             {
-                Width = _showGlobal ? 70 : 54,
+                Width = _showGlobal ? 86 : 68,
                 Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
                 BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
-                Padding = _showGlobal ? new Thickness(4, 8, 4, 6) : new Thickness(2, 6, 2, 5),
+                Padding = _showGlobal ? new Thickness(4, 6, 4, 6) : new Thickness(2, 4, 2, 5),
                 Margin = new Thickness(2),
                 Cursor = Cursors.Hand,
                 Child = content,
@@ -547,12 +552,9 @@ namespace AmpUp.Controls
 
         private void ApplyNormalVisual(EffectTile info)
         {
-            var c = info.TileColor;
             info.Container.Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
             info.Container.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E));
-            if (!info.IsEmoji)
-                info.Icon.Foreground = new SolidColorBrush(
-                    Color.FromRgb((byte)(c.R * 0.6), (byte)(c.G * 0.6), (byte)(c.B * 0.6)));
+            info.Preview.Opacity = 0.65;
             info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0x7A, 0x7A, 0x7A));
         }
 
@@ -563,9 +565,7 @@ namespace AmpUp.Controls
                 Color.FromArgb(0x10, c.R, c.G, c.B));
             info.Container.BorderBrush = new SolidColorBrush(
                 Color.FromArgb(0x33, c.R, c.G, c.B));
-            if (!info.IsEmoji)
-                info.Icon.Foreground = new SolidColorBrush(
-                    Color.FromRgb((byte)(c.R * 0.8), (byte)(c.G * 0.8), (byte)(c.B * 0.8)));
+            info.Preview.Opacity = 0.9;
             info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0xBB));
         }
 
@@ -576,9 +576,34 @@ namespace AmpUp.Controls
                 Color.FromArgb(0x25, c.R, c.G, c.B));
             info.Container.BorderBrush = new SolidColorBrush(
                 Color.FromArgb(0x77, c.R, c.G, c.B));
-            if (!info.IsEmoji)
-                info.Icon.Foreground = new SolidColorBrush(c);
+            info.Preview.Opacity = 1.0;
             info.Label.Foreground = new SolidColorBrush(c);
+        }
+
+        // Companion (secondary) color used for effects that blend between two colors.
+        // Falls back to a warm pink so gradient effects still read as intentional.
+        private static Color GetCompanionColor(LightEffect effect, Color primary)
+        {
+            return effect switch
+            {
+                LightEffect.ColorBlend       => Color.FromRgb(0xFF, 0xD5, 0x4F),
+                LightEffect.GradientFill     => Color.FromRgb(0xE0, 0x6C, 0x9F),
+                LightEffect.PositionBlend    => Color.FromRgb(0xE0, 0x6C, 0x9F),
+                LightEffect.PositionBlendMute=> Color.FromRgb(0x55, 0x55, 0x55),
+                LightEffect.CycleFill        => Color.FromRgb(0x66, 0xBB, 0x6A),
+                LightEffect.Fire             => Color.FromRgb(0xFF, 0xD5, 0x4F),
+                LightEffect.FireWall         => Color.FromRgb(0xFF, 0xD5, 0x4F),
+                LightEffect.Lava             => Color.FromRgb(0xFF, 0xD5, 0x4F),
+                LightEffect.Ocean            => Color.FromRgb(0x80, 0xDE, 0xEA),
+                LightEffect.Aurora           => Color.FromRgb(0xBA, 0x68, 0xC8),
+                LightEffect.DNA              => Color.FromRgb(0x26, 0xC6, 0xDA),
+                LightEffect.PoliceLights     => Color.FromRgb(0x42, 0xA5, 0xF5),
+                LightEffect.DualRacer        => Color.FromRgb(0xEF, 0x53, 0x50),
+                LightEffect.Collision        => Color.FromRgb(0xFF, 0xF1, 0x76),
+                LightEffect.NebulaDrift      => Color.FromRgb(0x64, 0xB5, 0xF6),
+                LightEffect.VuWave           => Color.FromRgb(0x00, 0xE6, 0x76),
+                _ => primary,
+            };
         }
 
         /// <summary>Show the gold dot only when this effect is in favorites.</summary>
