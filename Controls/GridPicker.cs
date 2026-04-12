@@ -251,7 +251,7 @@ public class GridPicker : Border
 
         MouseLeftButtonUp += (_, e) =>
         {
-            _popupBorder.MinWidth = 200;
+            _popupBorder.MinWidth = Math.Max(ActualWidth, 200);
             if (_isOpen) CloseFlyout(); else OpenFlyout();
             e.Handled = true;
         };
