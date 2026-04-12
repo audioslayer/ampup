@@ -910,9 +910,16 @@ public partial class App : Application
                 if (Environment.TickCount64 - _startupTick >= 8000)
                 {
                     float vol = e.Value / 1023f;
-                    // Per-monitor if deviceId is set (GDI device name), otherwise all monitors
-                    var deviceName = !string.IsNullOrEmpty(knob.DeviceId) ? knob.DeviceId : null;
-                    MonitorBrightness.SetThrottled(vol, deviceName);
+                    if (string.IsNullOrEmpty(knob.DeviceId))
+                    {
+                        MonitorBrightness.SetThrottled(vol); // all monitors
+                    }
+                    else
+                    {
+                        // Support multiple monitors: semicolon-separated device names
+                        foreach (var devName in knob.DeviceId.Split(';', StringSplitOptions.RemoveEmptyEntries))
+                            MonitorBrightness.SetThrottled(vol, devName);
+                    }
                 }
             }
             else if (knob.Target.Equals("led_brightness", StringComparison.OrdinalIgnoreCase))
@@ -1200,9 +1207,7 @@ public partial class App : Application
             "any" => "Auto",
             "apps" => "App Group",
             "monitor" when !string.IsNullOrEmpty(knob.DeviceId) =>
-                MonitorBrightness.GetMonitorInfos()
-                    .FirstOrDefault(m => m.DeviceName.Equals(knob.DeviceId, StringComparison.OrdinalIgnoreCase))
-                    ?.FriendlyName ?? "Monitor",
+                GetMonitorLabel(knob.DeviceId),
             "monitor" => "Monitor",
             "led_brightness" => "LED Brightness",
             "room_lights" => "Room Lights",
@@ -1607,6 +1612,19 @@ public partial class App : Application
             EnsureOsd();
             _osdOverlay!.ShowProfileSwitch(profileName, iconCfg, config);
         });
+    }
+
+    private static string GetMonitorLabel(string deviceId)
+    {
+        var ids = deviceId.Split(';', StringSplitOptions.RemoveEmptyEntries);
+        if (ids.Length == 0) return "Monitor";
+        var infos = MonitorBrightness.GetMonitorInfos();
+        if (ids.Length == 1)
+        {
+            var mon = infos.FirstOrDefault(m => m.DeviceName.Equals(ids[0], StringComparison.OrdinalIgnoreCase));
+            return mon?.FriendlyName ?? "Monitor";
+        }
+        return $"{ids.Length} Monitors";
     }
 
     private string _lastDefaultOutputDeviceId = "";

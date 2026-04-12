@@ -49,6 +49,10 @@ public class GridPicker : Border
 
     // Sub-menu providers: keyed by item tag string
     private readonly Dictionary<string, Func<List<SubItem>>> _subMenuProviders = new();
+    // Tags of parent items that use multi-select sub-menus (checkboxes instead of single-select)
+    private readonly HashSet<string> _multiSelectParents = new();
+    // Multi-select state: stores checked sub-item tags
+    private readonly HashSet<string> _selectedSubTags = new(StringComparer.OrdinalIgnoreCase);
 
     public event EventHandler? SelectionChanged;
 
@@ -57,8 +61,14 @@ public class GridPicker : Border
     /// <summary>
     /// When a sub-menu item is selected, SelectedTag returns "parentTag:subTag".
     /// SelectedSubTag returns just the sub-item tag, or null if no sub-item.
+    /// For multi-select sub-menus, returns semicolon-separated tags.
     /// </summary>
-    public string? SelectedSubTag => _selectedSubTag;
+    public string? SelectedSubTag => _multiSelectParents.Contains(_activeSubParentTag as string ?? "")
+        ? (_selectedSubTags.Count > 0 ? string.Join(";", _selectedSubTags) : null)
+        : _selectedSubTag;
+
+    /// <summary>Returns the set of checked tags for multi-select sub-menus.</summary>
+    public IReadOnlyCollection<string> SelectedSubTags => _selectedSubTags;
 
     // Category icons and colors for visual identity
     private static readonly Dictionary<string, (string Icon, Color Color)> CategoryStyles = new()
@@ -408,9 +418,20 @@ public class GridPicker : Border
         _subMenuProviders[parentTag] = provider;
     }
 
+    /// <summary>
+    /// Register a multi-select sub-menu. Items show checkboxes and clicking toggles
+    /// selection without closing the flyout. Use SelectedSubTags to get checked items.
+    /// </summary>
+    public void RegisterMultiSelectSubMenu(string parentTag, Func<List<SubItem>> provider)
+    {
+        _subMenuProviders[parentTag] = provider;
+        _multiSelectParents.Add(parentTag);
+    }
+
     public void ClearSubMenus()
     {
         _subMenuProviders.Clear();
+        _multiSelectParents.Clear();
     }
 
     public void ClearItems()
@@ -419,6 +440,7 @@ public class GridPicker : Border
         _categories.Clear();
         _selectedIndex = -1;
         _selectedSubTag = null;
+        _selectedSubTags.Clear();
         _label.Text = "Select...";
         _label.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
         RebuildPopupItems();
@@ -475,32 +497,85 @@ public class GridPicker : Border
         }
     }
 
+    /// <summary>
+    /// Select a multi-select sub-menu parent with multiple checked sub-tags.
+    /// </summary>
+    public void SelectByTags(string parentTag, IEnumerable<string> subTags, string displayOverride)
+    {
+        _selectedSubTags.Clear();
+        foreach (var t in subTags)
+            _selectedSubTags.Add(t);
+
+        for (int i = 0; i < _items.Count; i++)
+        {
+            if (_items[i].Tag as string == parentTag)
+            {
+                _selectedIndex = i;
+                _activeSubParentTag = parentTag;
+                _label.Text = displayOverride;
+                _label.Foreground = new SolidColorBrush(AccentColor);
+                RebuildPopupItems();
+                return;
+            }
+        }
+    }
+
     // ── Sub-items rebuild ────────────────────────────────────────
 
     private void RebuildSubItems()
     {
         _subItemsPanel.Children.Clear();
+        bool isMultiSelect = _multiSelectParents.Contains(_activeSubParentTag as string ?? "");
 
         for (int i = 0; i < _activeSubItems.Count; i++)
         {
             int idx = i;
             var sub = _activeSubItems[i];
-            bool selected = _selectedSubTag == sub.Tag
-                && _activeSubParentTag as string == _items[_selectedIndex >= 0 ? _selectedIndex : 0].Tag as string;
+
+            bool selected;
+            if (isMultiSelect)
+            {
+                // "All" item (empty tag) is selected when no specific monitors are checked
+                selected = string.IsNullOrEmpty(sub.Tag)
+                    ? _selectedSubTags.Count == 0
+                    : _selectedSubTags.Contains(sub.Tag);
+            }
+            else
+            {
+                selected = _selectedSubTag == sub.Tag
+                    && _activeSubParentTag as string == _items[_selectedIndex >= 0 ? _selectedIndex : 0].Tag as string;
+            }
 
             var rowGrid = new Grid();
-            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // accent bar
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // accent bar or checkbox
 
-            // Accent bar
-            var accentBar = new Border
+            if (isMultiSelect)
             {
-                Width = 2,
-                Background = selected ? new SolidColorBrush(AccentColor) : Brushes.Transparent,
-                CornerRadius = new CornerRadius(1),
-                Margin = new Thickness(0, 2, 6, 2)
-            };
-            Grid.SetColumn(accentBar, 0);
-            rowGrid.Children.Add(accentBar);
+                // Checkbox indicator
+                var checkText = new TextBlock
+                {
+                    Text = selected ? "☑" : "☐",
+                    FontSize = 13,
+                    Foreground = selected ? new SolidColorBrush(AccentColor) : new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 6, 0)
+                };
+                Grid.SetColumn(checkText, 0);
+                rowGrid.Children.Add(checkText);
+            }
+            else
+            {
+                // Accent bar
+                var accentBar = new Border
+                {
+                    Width = 2,
+                    Background = selected ? new SolidColorBrush(AccentColor) : Brushes.Transparent,
+                    CornerRadius = new CornerRadius(1),
+                    Margin = new Thickness(0, 2, 6, 2)
+                };
+                Grid.SetColumn(accentBar, 0);
+                rowGrid.Children.Add(accentBar);
+            }
 
             int textCol = 1;
 
@@ -568,37 +643,98 @@ public class GridPicker : Border
                 }
             };
 
-            // Click — select sub-item
-            itemBorder.MouseLeftButtonUp += (_, e) =>
+            if (isMultiSelect)
             {
-                var parentTag = _activeSubParentTag as string ?? "";
-                var subItem = _activeSubItems[idx];
-
-                // Find parent item index
-                for (int pi = 0; pi < _items.Count; pi++)
+                // Click — toggle checkbox, don't close flyout
+                itemBorder.MouseLeftButtonUp += (_, e) =>
                 {
-                    if (_items[pi].Tag as string == parentTag)
+                    var parentTag = _activeSubParentTag as string ?? "";
+                    var subItem = _activeSubItems[idx];
+
+                    // Find parent item index
+                    for (int pi = 0; pi < _items.Count; pi++)
                     {
-                        _selectedIndex = pi;
-                        break;
+                        if (_items[pi].Tag as string == parentTag)
+                        {
+                            _selectedIndex = pi;
+                            break;
+                        }
                     }
-                }
 
-                _selectedSubTag = subItem.Tag;
+                    if (string.IsNullOrEmpty(subItem.Tag))
+                    {
+                        // "All" clicked — clear individual selections
+                        _selectedSubTags.Clear();
+                    }
+                    else
+                    {
+                        // Toggle individual monitor
+                        if (!_selectedSubTags.Remove(subItem.Tag))
+                            _selectedSubTags.Add(subItem.Tag);
+                    }
 
-                // Show friendly name on the trigger label
-                _label.Text = subItem.Display;
-                _label.Foreground = new SolidColorBrush(AccentColor);
+                    // Update label
+                    UpdateMultiSelectLabel(parentTag);
 
-                CloseFlyout();
+                    // Rebuild to reflect checkbox states
+                    RebuildSubItems();
+                    SelectionChanged?.Invoke(this, EventArgs.Empty);
+                    e.Handled = true;
+                };
+            }
+            else
+            {
+                // Click — select sub-item (single-select)
+                itemBorder.MouseLeftButtonUp += (_, e) =>
+                {
+                    var parentTag = _activeSubParentTag as string ?? "";
+                    var subItem = _activeSubItems[idx];
 
-                RebuildPopupItems();
-                SelectionChanged?.Invoke(this, EventArgs.Empty);
-                e.Handled = true;
-            };
+                    // Find parent item index
+                    for (int pi = 0; pi < _items.Count; pi++)
+                    {
+                        if (_items[pi].Tag as string == parentTag)
+                        {
+                            _selectedIndex = pi;
+                            break;
+                        }
+                    }
+
+                    _selectedSubTag = subItem.Tag;
+
+                    // Show friendly name on the trigger label
+                    _label.Text = subItem.Display;
+                    _label.Foreground = new SolidColorBrush(AccentColor);
+
+                    CloseFlyout();
+
+                    RebuildPopupItems();
+                    SelectionChanged?.Invoke(this, EventArgs.Empty);
+                    e.Handled = true;
+                };
+            }
 
             _subItemsPanel.Children.Add(itemBorder);
         }
+    }
+
+    private void UpdateMultiSelectLabel(string parentTag)
+    {
+        if (_selectedSubTags.Count == 0)
+        {
+            _label.Text = "All Monitors";
+        }
+        else if (_selectedSubTags.Count == 1)
+        {
+            var tag = _selectedSubTags.First();
+            var sub = _activeSubItems.FirstOrDefault(s => s.Tag == tag);
+            _label.Text = sub?.Display ?? tag;
+        }
+        else
+        {
+            _label.Text = $"{_selectedSubTags.Count} Monitors";
+        }
+        _label.Foreground = new SolidColorBrush(AccentColor);
     }
 
     private void ApplySubFilter()

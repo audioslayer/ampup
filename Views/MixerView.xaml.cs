@@ -922,7 +922,7 @@ public partial class MixerView : UserControl
             // Register sub-flyout providers for device pickers
             picker.RegisterSubMenu("output_device", () => GetDeviceSubItems(isOutput: true));
             picker.RegisterSubMenu("input_device", () => GetDeviceSubItems(isOutput: false));
-            picker.RegisterSubMenu("monitor", () => GetMonitorSubItems());
+            picker.RegisterMultiSelectSubMenu("monitor", () => GetMonitorSubItems());
 
             bool vmEnabled = config.VoiceMeeter.Enabled;
             bool corsairEnabled = config.Corsair.Enabled && config.Corsair.FanEnabled;
@@ -1011,13 +1011,22 @@ public partial class MixerView : UserControl
             return;
         }
 
-        // Monitor target with device ID — use sub-tag selection
+        // Monitor target with device ID(s) — multi-select sub-tag
         if (baseTarget == "monitor" && !string.IsNullOrEmpty(deviceId))
         {
-            var mon = MonitorBrightness.GetMonitorInfos()
-                .FirstOrDefault(m => m.DeviceName.Equals(deviceId, StringComparison.OrdinalIgnoreCase));
-            var displayName = mon?.FriendlyName ?? deviceId;
-            picker.SelectByTag("monitor", deviceId, displayName);
+            var monitorIds = deviceId.Split(';', StringSplitOptions.RemoveEmptyEntries);
+            var monInfos = MonitorBrightness.GetMonitorInfos();
+            string displayName;
+            if (monitorIds.Length == 1)
+            {
+                var mon = monInfos.FirstOrDefault(m => m.DeviceName.Equals(monitorIds[0], StringComparison.OrdinalIgnoreCase));
+                displayName = mon?.FriendlyName ?? monitorIds[0];
+            }
+            else
+            {
+                displayName = $"{monitorIds.Length} Monitors";
+            }
+            picker.SelectByTags("monitor", monitorIds, displayName);
             if (picker.Tag is TextBlock monDisplay)
                 monDisplay.Text = displayName;
             return;
@@ -1273,8 +1282,14 @@ public partial class MixerView : UserControl
             knob.MaxVolume = (int)_rangeSliders[i].UpperValue;
 
             // Device ID from sub-flyout (output_device / input_device / monitor targets)
-            if (selectedTarget is "output_device" or "input_device" or "monitor")
+            if (selectedTarget is "output_device" or "input_device")
                 knob.DeviceId = _targetPickers[i].SelectedSubTag ?? "";
+            else if (selectedTarget is "monitor")
+            {
+                // Multi-select: join checked monitor device names with semicolons
+                var tags = _targetPickers[i].SelectedSubTags;
+                knob.DeviceId = tags.Count > 0 ? string.Join(";", tags) : "";
+            }
             else
                 knob.DeviceId = "";
         }
