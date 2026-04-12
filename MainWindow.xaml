@@ -215,7 +215,7 @@
                                         <TextBlock Text="&#xE405;" FontFamily="{StaticResource MaterialSymbols}"
                                                    FontSize="22" Foreground="{DynamicResource AccentBrush}"
                                                    HorizontalAlignment="Center" TextAlignment="Center" />
-                                        <TextBlock x:Name="NavMixerLabel" Text="Knobs" FontSize="9" Foreground="{DynamicResource AccentBrush}"
+                                        <TextBlock x:Name="NavMixerLabel" Text="Mixer" FontSize="9" Foreground="{DynamicResource AccentBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
                                 </Grid>

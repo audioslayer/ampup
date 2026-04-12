@@ -59,13 +59,10 @@
             </Grid>
 
             <!-- ── SMART MIX ──────────────────────────────────────── -->
-            <Border x:Name="SmartMixSection" Margin="0,12,0,0">
+            <Border x:Name="SmartMixSection" Style="{StaticResource CardPanel}" Margin="0,10,0,0">
                 <StackPanel>
-
-                    <!-- Collapsible header -->
                     <Border x:Name="SmartMixHeader" Cursor="Hand"
-                            Background="Transparent"
-                            Padding="0,0,0,0"
+                            Background="Transparent" Padding="0,0,0,0"
                             MouseLeftButtonDown="SmartMixHeader_Click">
                         <StackPanel Orientation="Horizontal">
                             <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
@@ -76,14 +73,12 @@
                                        VerticalAlignment="Center" Margin="8,0,0,0" />
                         </StackPanel>
                     </Border>
-
-                    <!-- Collapsible content (built dynamically in code-behind) -->
                     <StackPanel x:Name="SmartMixContent" Visibility="Collapsed" Margin="0,12,0,0" />
                 </StackPanel>
             </Border>
 
             <!-- ── AUDIO SESSIONS (collapsible) ──────────────────── -->
-            <Border x:Name="AudioSessionsSection" Margin="0,12,0,0">
+            <Border x:Name="AudioSessionsSection" Style="{StaticResource CardPanel}" Margin="0,10,0,0">
                 <StackPanel>
                     <Border x:Name="AudioSessionsHeader" Cursor="Hand"
                             Background="Transparent" Padding="0,0,0,0"
@@ -97,7 +92,6 @@
                                        VerticalAlignment="Center" Margin="8,0,0,0" />
                         </StackPanel>
                     </Border>
-
                     <StackPanel x:Name="AudioSessionsContent" Visibility="Collapsed" Margin="0,12,0,0" />
                 </StackPanel>
             </Border>
