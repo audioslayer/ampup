@@ -669,8 +669,9 @@ public partial class MixerView : UserControl
             // BOTTOM SECTION: Settings (always visible)
             // ═══════════════════════════════════════════════════════════
 
-            var settingsPanels = new[] { Ch0Settings, Ch1Settings, Ch2Settings, Ch3Settings, Ch4Settings };
-            var settingsPanel = settingsPanels[i];
+            var targetCells = new[] { Ch0Target, Ch1Target, Ch2Target, Ch3Target, Ch4Target };
+            var curveCells = new[] { Ch0Curve, Ch1Curve, Ch2Curve, Ch3Curve, Ch4Curve };
+            var rangeCells = new[] { Ch0Range, Ch1Range, Ch2Range, Ch3Range, Ch4Range };
             _settingsExpanded[i] = true;
 
             // ── Settings content ──
@@ -736,7 +737,7 @@ public partial class MixerView : UserControl
 
             _appsPanels[i] = appsContainer;
 
-            settingsPanel.Children.Add(MakeSectionCard("TARGET", targetPicker, appsContainer));
+            targetCells[i].Child = MakeSectionCard("TARGET", targetPicker, appsContainer);
 
             // CURVE — CurvePickerControl (visual mini graphs)
             var curvePicker = new CurvePickerControl
@@ -749,7 +750,7 @@ public partial class MixerView : UserControl
                 if (!_loading) QueueSave();
             };
             _curvePickers[i] = curvePicker;
-            settingsPanel.Children.Add(MakeSectionCard("CURVE", curvePicker));
+            curveCells[i].Child = MakeSectionCard("CURVE", curvePicker);
 
             // VOLUME RANGE
             var rangeSlider = new RangeSlider
@@ -771,7 +772,7 @@ public partial class MixerView : UserControl
                 if (!_loading) QueueSave();
             };
             _rangeSliders[i] = rangeSlider;
-            settingsPanel.Children.Add(MakeSectionCard("VOLUME RANGE", rangeSlider));
+            rangeCells[i].Child = MakeSectionCard("VOLUME RANGE", rangeSlider);
 
         }
     }
