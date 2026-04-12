@@ -428,17 +428,13 @@ public partial class RoomView : UserControl
         _roomTabContent.Children.Clear();
         _toggleRowContainer?.Children.Clear();
 
-        // Build tab-specific toggle row inside a section card
+        // Build tab-specific toggle row (floating, no card wrapper)
         if (_toggleRowContainer != null && _roomTabIndex == 0)
         {
             var toggleRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4), HorizontalAlignment = HorizontalAlignment.Center };
             BuildTabToggleRow(toggleRow, _roomTabIndex);
-
-            var toggleContent = new StackPanel();
-            toggleContent.Children.Add(toggleRow);
-            BuildToggleSettingsRow(toggleContent);
-
-            _toggleRowContainer.Children.Add(MakeSectionCard("MODES", toggleContent));
+            _toggleRowContainer.Children.Add(toggleRow);
+            BuildToggleSettingsRow(_toggleRowContainer);
         }
 
         switch (_roomTabIndex)
