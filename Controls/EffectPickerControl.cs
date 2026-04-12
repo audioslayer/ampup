@@ -636,7 +636,7 @@ namespace AmpUp.Controls
                 if (src == null) continue;
 
                 // Build a duplicate tile (no star overlay — click the tile to select)
-                var copy = BuildTile(fav, src.Icon.Text, src.Label.Text, src.IsEmoji,
+                var copy = BuildTile(fav, "", src.Label.Text, false,
                     addStar: false, addToTiles: false);
                 _favoriteTiles.Add(copy);
                 _favoritesPanel.Children.Add(copy.Container);
