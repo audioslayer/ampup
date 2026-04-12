@@ -25,16 +25,15 @@
                             Margin="0,0,0,10" />
 
                 <!-- Single editor container — holds all 5 LED panels as siblings,
-                     only the selected knob's panel is visible at a time. -->
-                <Border Style="{StaticResource CardPanel}">
-                    <Grid x:Name="PerKnobEditor">
-                        <StackPanel x:Name="Led0Panel" />
-                        <StackPanel x:Name="Led1Panel" Visibility="Collapsed" />
-                        <StackPanel x:Name="Led2Panel" Visibility="Collapsed" />
-                        <StackPanel x:Name="Led3Panel" Visibility="Collapsed" />
-                        <StackPanel x:Name="Led4Panel" Visibility="Collapsed" />
-                    </Grid>
-                </Border>
+                     only the selected knob's panel is visible at a time.
+                     Each section wraps itself in its own card in code-behind. -->
+                <Grid x:Name="PerKnobEditor">
+                    <StackPanel x:Name="Led0Panel" />
+                    <StackPanel x:Name="Led1Panel" Visibility="Collapsed" />
+                    <StackPanel x:Name="Led2Panel" Visibility="Collapsed" />
+                    <StackPanel x:Name="Led3Panel" Visibility="Collapsed" />
+                    <StackPanel x:Name="Led4Panel" Visibility="Collapsed" />
+                </Grid>
             </StackPanel>
         </StackPanel>
     </ScrollViewer>

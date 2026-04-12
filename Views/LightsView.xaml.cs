@@ -49,11 +49,11 @@ public partial class LightsView : UserControl
     private readonly Border[] _color1Swatches = new Border[5];
     private readonly Border[] _color2Swatches = new Border[5];
     private readonly Border[] _color2Panels = new Border[5];
-    private readonly StackPanel[] _colorSections = new StackPanel[5]; // entire COLOR section (header + swatches)
+    private readonly Border[] _colorSections = new Border[5]; // entire COLOR section card
     private readonly WrapPanel[] _customColorRows = new WrapPanel[5]; // custom color pills
     private readonly WrapPanel[] _presetColorRows = new WrapPanel[5]; // preset palette swatches
     private readonly StyledSlider[] _speedSliders = new StyledSlider[5];
-    private readonly StackPanel[] _speedPanels = new StackPanel[5];
+    private readonly Border[] _speedPanels = new Border[5];
     private readonly StyledSlider[] _brightnessSliders = new StyledSlider[5];
     private readonly ActionPicker[] _reactiveModeComboBoxes = new ActionPicker[5];
     private readonly StackPanel[] _reactiveModePanels = new StackPanel[5];
@@ -1600,11 +1600,10 @@ public partial class LightsView : UserControl
             // color dots. _headers[i] / _headerIcons[i] / _headerEffects[i]
             // are populated by BuildKnobSelectorRow().
 
-            // ── EFFECT section ──
-            panel.Children.Add(MakeSectionHeader("EFFECT"));
+            // ── EFFECT card ──
             var effectPicker = new EffectPickerControl(showGlobal: false, showFavorites: false)
             {
-                Margin = new Thickness(0, 0, 0, 10),
+                Margin = new Thickness(0, 0, 0, 4),
                 ToolTip = "Choose the LED lighting effect for this knob",
             };
             effectPicker.SelectionChanged += (_, _) =>
@@ -1618,14 +1617,11 @@ public partial class LightsView : UserControl
             effectPicker.EffectHovered += (_, effect) => PreviewEffectOnHardware(idx, effect);
             effectPicker.EffectHoverEnd += (_, _) => EndEffectPreview(idx);
             _effectPickers[i] = effectPicker;
-            panel.Children.Add(effectPicker);
+            panel.Children.Add(MakeSectionCard("EFFECT", effectPicker));
 
-            // ── COLORS section (unified: pills + presets, no tabs) ──
+            // ── COLORS card ──
             var colorSection = new StackPanel();
-            colorSection.Children.Add(MakeSeparator(10));
-            colorSection.Children.Add(MakeSectionHeader("COLORS"));
 
-            // PRIMARY + SECONDARY pills (the "Solid" option — always visible)
             var swatch1 = MakeColorSwatch(idx, isColor2: false);
             _color1Swatches[i] = swatch1;
             var swatch2 = MakeColorSwatch(idx, isColor2: true);
@@ -1642,7 +1638,6 @@ public partial class LightsView : UserControl
             _customColorRows[i] = customRow;
             colorSection.Children.Add(customRow);
 
-            // Preset palette row — always visible below the pills
             var presetRow = new WrapPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -1652,14 +1647,11 @@ public partial class LightsView : UserControl
             _presetColorRows[i] = presetRow;
             colorSection.Children.Add(presetRow);
 
-            _colorSections[i] = colorSection;
-            panel.Children.Add(colorSection);
+            var colorCard = MakeSectionCard("COLORS", colorSection);
+            _colorSections[i] = colorCard;
+            panel.Children.Add(colorCard);
 
-            // ── SPEED section (conditionally visible — separator included) ──
-            var speedContainer = new StackPanel();
-            speedContainer.Children.Add(MakeSeparator(10));
-            speedContainer.Children.Add(MakeSectionHeader("SPEED"));
-
+            // ── SPEED card ──
             var speedSlider = new StyledSlider
             {
                 Minimum = 1,
@@ -1675,16 +1667,11 @@ public partial class LightsView : UserControl
             };
             _speedSliders[i] = speedSlider;
 
-            speedContainer.Children.Add(speedSlider);
-            speedContainer.Margin = new Thickness(0, 0, 0, 0);
-            _speedPanels[i] = speedContainer;
-            panel.Children.Add(speedContainer);
+            var speedCard = MakeSectionCard("SPEED", speedSlider);
+            _speedPanels[i] = speedCard;
+            panel.Children.Add(speedCard);
 
-            // ── BRIGHTNESS section (always visible) ──
-            var brightContainer = new StackPanel();
-            brightContainer.Children.Add(MakeSeparator(10));
-            brightContainer.Children.Add(MakeSectionHeader("BRIGHTNESS"));
-
+            // ── BRIGHTNESS card ──
             var brightSlider = new StyledSlider
             {
                 Minimum = 0,
@@ -1699,8 +1686,7 @@ public partial class LightsView : UserControl
                 if (!_loading) QueueSave();
             };
             _brightnessSliders[i] = brightSlider;
-            brightContainer.Children.Add(brightSlider);
-            panel.Children.Add(brightContainer);
+            panel.Children.Add(MakeSectionCard("BRIGHTNESS", brightSlider));
 
             // Reactive mode picker (only visible for AudioReactive)
             var reactiveContainer = new StackPanel();
@@ -2374,6 +2360,24 @@ public partial class LightsView : UserControl
             Height = 1,
             Background = FindBrush("CardBorderBrush"),
             Margin = new Thickness(0, spacing, 0, spacing),
+        };
+    }
+
+    private Border MakeSectionCard(string title, params UIElement[] children)
+    {
+        var content = new StackPanel();
+        content.Children.Add(MakeSectionHeader(title));
+        foreach (var child in children)
+            content.Children.Add(child);
+        return new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(16),
+            Margin = new Thickness(0, 0, 0, 10),
+            Child = content,
         };
     }
 
