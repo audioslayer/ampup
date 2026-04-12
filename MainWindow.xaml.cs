@@ -313,17 +313,16 @@ public partial class MainWindow : FluentWindow
 
         if (_activeNavButton != null)
         {
-            var (oldIcon, oldLabel) = FindNavChildren(_activeNavButton);
-            if (oldIcon != null) oldIcon.Foreground = dimIcon;
+            var (oldPhIcon, oldLabel) = FindNavChildren(_activeNavButton);
+            if (oldPhIcon != null) oldPhIcon.IconColor = ((SolidColorBrush)dimIcon).Color;
             if (oldLabel != null) oldLabel.Foreground = dimLabel;
 
-            // Hide previous indicator bar
             if (_activeNavBar != null)
                 _activeNavBar.Visibility = Visibility.Collapsed;
         }
 
-        var (newIcon, newLabel) = FindNavChildren(navButton);
-        if (newIcon != null) newIcon.Foreground = accent;
+        var (newPhIcon, newLabel) = FindNavChildren(navButton);
+        if (newPhIcon != null) newPhIcon.IconColor = ((SolidColorBrush)accent).Color;
         if (newLabel != null) newLabel.Foreground = accent;
 
         // Show new indicator bar
@@ -337,10 +336,8 @@ public partial class MainWindow : FluentWindow
         _activeNavButton = navButton;
     }
 
-    private static (System.Windows.Controls.TextBlock? Icon, System.Windows.Controls.TextBlock? Label) FindNavChildren(System.Windows.Controls.Button button)
+    private static (Controls.PhosphorIcon? Icon, System.Windows.Controls.TextBlock? Label) FindNavChildren(System.Windows.Controls.Button button)
     {
-        // Content is a Grid wrapping a Border (indicator bar) + StackPanel.
-        // StackPanel children: [0] icon TextBlock (Material font), [1] label TextBlock.
         var grid = button.Content as System.Windows.Controls.Grid;
         var sp = grid != null
             ? grid.Children.OfType<System.Windows.Controls.StackPanel>().FirstOrDefault()
@@ -348,10 +345,9 @@ public partial class MainWindow : FluentWindow
 
         if (sp != null)
         {
-            var textBlocks = sp.Children.OfType<System.Windows.Controls.TextBlock>().ToList();
-            var icon = textBlocks.Count > 0 ? textBlocks[0] : null;
-            var label = textBlocks.Count > 1 ? textBlocks[1] : null;
-            return (icon, label);
+            var phIcon = sp.Children.OfType<Controls.PhosphorIcon>().FirstOrDefault();
+            var label = sp.Children.OfType<System.Windows.Controls.TextBlock>().FirstOrDefault();
+            return (phIcon, label);
         }
         return (null, null);
     }

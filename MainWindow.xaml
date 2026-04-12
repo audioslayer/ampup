@@ -172,9 +172,8 @@
                                         Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                         Visibility="Collapsed" Margin="0" />
                                 <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                    <TextBlock Text="&#xE8B8;" FontFamily="{StaticResource MaterialSymbols}"
-                                               FontSize="22" Foreground="{StaticResource TextSecBrush}"
-                                               HorizontalAlignment="Center" TextAlignment="Center" />
+                                    <controls:PhosphorIcon x:Name="NavSettingsIcon" IconName="Gear" IconSize="22"
+                                               IconColor="#9A9A9A" HorizontalAlignment="Center" />
                                     <TextBlock x:Name="NavSettingsLabel" Text="Settings" FontSize="9" Foreground="{StaticResource TextSecBrush}"
                                                HorizontalAlignment="Center" Margin="0,3,0,0" />
                                 </StackPanel>
@@ -191,9 +190,8 @@
                                         Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                         Visibility="Collapsed" Margin="0" />
                                 <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                    <TextBlock Text="&#xEF3E;" FontFamily="{StaticResource MaterialSymbols}"
-                                               FontSize="22" Foreground="{StaticResource TextSecBrush}"
-                                               HorizontalAlignment="Center" TextAlignment="Center" />
+                                    <controls:PhosphorIcon x:Name="NavBindingsIcon" IconName="AppWindow" IconSize="22"
+                                               IconColor="#9A9A9A" HorizontalAlignment="Center" />
                                     <TextBlock x:Name="NavBindingsLabel" Text="Overview" FontSize="9" Foreground="{StaticResource TextSecBrush}"
                                                HorizontalAlignment="Center" Margin="0,3,0,0" />
                                 </StackPanel>
@@ -212,9 +210,8 @@
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <TextBlock Text="&#xE405;" FontFamily="{StaticResource MaterialSymbols}"
-                                                   FontSize="22" Foreground="{DynamicResource AccentBrush}"
-                                                   HorizontalAlignment="Center" TextAlignment="Center" />
+                                        <controls:PhosphorIcon x:Name="NavMixerIcon" IconName="SlidersHorizontal" IconSize="22"
+                                                   IconColor="#00E676" HorizontalAlignment="Center" />
                                         <TextBlock x:Name="NavMixerLabel" Text="Mixer" FontSize="9" Foreground="{DynamicResource AccentBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
@@ -230,9 +227,8 @@
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <TextBlock Text="&#xF1C1;" FontFamily="{StaticResource MaterialSymbols}"
-                                                   FontSize="22" Foreground="{StaticResource TextSecBrush}"
-                                                   HorizontalAlignment="Center" TextAlignment="Center" />
+                                        <controls:PhosphorIcon x:Name="NavButtonsIcon" IconName="Keyboard" IconSize="22"
+                                                   IconColor="#9A9A9A" HorizontalAlignment="Center" />
                                         <TextBlock x:Name="NavButtonsLabel" Text="Buttons" FontSize="9" Foreground="{StaticResource TextSecBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
@@ -248,9 +244,8 @@
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <TextBlock Text="&#xE40A;" FontFamily="{StaticResource MaterialSymbols}"
-                                                   FontSize="22" Foreground="{StaticResource TextSecBrush}"
-                                                   HorizontalAlignment="Center" TextAlignment="Center" />
+                                        <controls:PhosphorIcon x:Name="NavLightsIcon" IconName="Lightbulb" IconSize="22"
+                                                   IconColor="#9A9A9A" HorizontalAlignment="Center" />
                                         <TextBlock x:Name="NavLightsLabel" Text="Lights" FontSize="9" Foreground="{StaticResource TextSecBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
@@ -266,9 +261,8 @@
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <TextBlock Text="&#xE0F0;" FontFamily="{StaticResource MaterialSymbols}"
-                                                   FontSize="22" Foreground="{StaticResource TextSecBrush}"
-                                                   HorizontalAlignment="Center" TextAlignment="Center" />
+                                        <controls:PhosphorIcon x:Name="NavAmbienceIcon" IconName="House" IconSize="22"
+                                                   IconColor="#9A9A9A" HorizontalAlignment="Center" />
                                         <TextBlock x:Name="NavAmbienceLabel" Text="Room" FontSize="9" Foreground="{StaticResource TextSecBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
@@ -285,9 +279,8 @@
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <TextBlock Text="&#xE9C9;" FontFamily="{StaticResource MaterialSymbols}"
-                                                   FontSize="22" Foreground="{StaticResource TextSecBrush}"
-                                                   HorizontalAlignment="Center" TextAlignment="Center" />
+                                        <controls:PhosphorIcon x:Name="NavOsdIcon" IconName="Monitor" IconSize="22"
+                                                   IconColor="#9A9A9A" HorizontalAlignment="Center" />
                                         <TextBlock x:Name="NavOsdLabel" Text="OSD" FontSize="9" Foreground="{StaticResource TextSecBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
@@ -304,9 +297,8 @@
                                             Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
                                             Visibility="Collapsed" Margin="0" />
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <TextBlock Text="&#xEA3B;" FontFamily="{StaticResource MaterialSymbols}"
-                                                   FontSize="22" Foreground="{StaticResource TextSecBrush}"
-                                                   HorizontalAlignment="Center" TextAlignment="Center" />
+                                        <controls:PhosphorIcon x:Name="NavGroupsIcon" IconName="Link" IconSize="22"
+                                                   IconColor="#9A9A9A" HorizontalAlignment="Center" />
                                         <TextBlock x:Name="NavGroupsLabel" Text="Groups" FontSize="9" Foreground="{StaticResource TextSecBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>

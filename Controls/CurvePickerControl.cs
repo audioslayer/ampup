@@ -166,6 +166,7 @@ namespace AmpUp.Controls
                 Cursor = Cursors.Hand,
                 Child = cardContent,
                 SnapsToDevicePixels = true,
+                ClipToBounds = true,
             };
             info.Container = container;
             if (tooltip != null)
