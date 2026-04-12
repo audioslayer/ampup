@@ -901,24 +901,17 @@ public partial class LightsView : UserControl
     {
         var calib = new StackPanel { Visibility = Visibility.Collapsed };
 
-        calib.Children.Add(new TextBlock
+        // ── TEST COLORS card ──
+        var testContent = new StackPanel();
+        testContent.Children.Add(new TextBlock
         {
-            Text = "Adjust per-channel gamma to match your LEDs. Pick a test color to preview on the hardware while tuning.",
+            Text = "Pick a test color to preview on the hardware while tuning gamma.",
             Style = FindStyle("SecondaryText"),
-            Margin = new Thickness(0, 0, 0, 12),
+            Margin = new Thickness(0, 0, 0, 10),
             TextWrapping = TextWrapping.Wrap,
         });
 
-        // Test color swatches
-        var testRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
-        testRow.Children.Add(new TextBlock
-        {
-            Text = "Test Color",
-            Style = FindStyle("SecondaryText"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 12, 0),
-        });
-
+        var testRow = new StackPanel { Orientation = Orientation.Horizontal };
         var testColors = new (byte R, byte G, byte B, string tip)[]
         {
             (0xFF, 0x00, 0x00, "Red"),
@@ -964,29 +957,24 @@ public partial class LightsView : UserControl
         };
         offSwatch.MouseLeftButtonDown += (_, _) => ClearCalibPreview();
         testRow.Children.Add(offSwatch);
-        calib.Children.Add(testRow);
+        testContent.Children.Add(testRow);
+        calib.Children.Add(MakeSectionCard("TEST COLORS", testContent));
 
-        // Mute dim level slider
-        var muteHeader = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-        muteHeader.Children.Add(new TextBlock
-        {
-            Text = "MUTE DIM LEVEL",
-            FontSize = 11, FontWeight = FontWeights.SemiBold,
-            Style = FindStyle("HeaderText"),
-            Margin = new Thickness(0, 0, 8, 0),
-        });
+        // ── MUTE DIM LEVEL card ──
+        var muteContent = new StackPanel();
+        var muteValueRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
         _txtMuteBrightness = new TextBlock
         {
             Text = "15%",
             Style = FindStyle("SecondaryText"),
             VerticalAlignment = VerticalAlignment.Center,
         };
-        muteHeader.Children.Add(_txtMuteBrightness);
-        calib.Children.Add(muteHeader);
+        muteValueRow.Children.Add(_txtMuteBrightness);
+        muteContent.Children.Add(muteValueRow);
 
-        calib.Children.Add(new TextBlock
+        muteContent.Children.Add(new TextBlock
         {
-            Text = "How bright LEDs are when the app is muted (ProgramMute / AppGroupMute effects).",
+            Text = "How bright LEDs are when muted (ProgramMute / AppGroupMute effects).",
             Style = FindStyle("SecondaryText"),
             Margin = new Thickness(0, 0, 0, 6),
             TextWrapping = TextWrapping.Wrap,
@@ -998,7 +986,6 @@ public partial class LightsView : UserControl
             Height = 35, AccentColor = ThemeManager.Accent, ShowLabel = false,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             ToolTip = "0% = fully off when muted, 15% = dim (default), 100% = same brightness as unmuted",
-            Margin = new Thickness(0, 0, 0, 14),
         };
         _sldMuteBrightness.ValueChanged += (_, _) =>
         {
@@ -1006,9 +993,11 @@ public partial class LightsView : UserControl
                 _txtMuteBrightness.Text = $"{(int)_sldMuteBrightness.Value}%";
             if (!_loading) QueueSave();
         };
-        calib.Children.Add(_sldMuteBrightness);
+        muteContent.Children.Add(_sldMuteBrightness);
+        calib.Children.Add(MakeSectionCard("MUTE DIM LEVEL", muteContent));
 
-        // Gamma sliders (R / G / B)
+        // ── GAMMA card ──
+        var gammaContent = new StackPanel();
         var gammaChannels = new[]
         {
             ("Red",   Color.FromRgb(0xEF, 0x53, 0x50)),
@@ -1061,7 +1050,7 @@ public partial class LightsView : UserControl
             row.Children.Add(slider);
             gammaRefs[i] = slider;
 
-            calib.Children.Add(row);
+            gammaContent.Children.Add(row);
         }
 
         _sldGammaR = gammaRefs[0];
@@ -1081,7 +1070,8 @@ public partial class LightsView : UserControl
             if (_sldGammaG != null) _sldGammaG.Value = 1.0;
             if (_sldGammaB != null) _sldGammaB.Value = 1.0;
         };
-        calib.Children.Add(resetBtn);
+        gammaContent.Children.Add(resetBtn);
+        calib.Children.Add(MakeSectionCard("GAMMA", gammaContent));
 
         _calibrationPanel = calib;
         host.Children.Add(calib);
