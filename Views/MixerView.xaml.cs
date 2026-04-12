@@ -689,7 +689,6 @@ public partial class MixerView : UserControl
             // ── Settings content ──
 
             // TARGET — GridPicker with categories
-            settingsPanel.Children.Add(MakeSectionHeader("TARGET"));
             var targetPicker = new GridPicker
             {
                 Margin = new Thickness(0, 0, 0, 6),
@@ -735,16 +734,24 @@ public partial class MixerView : UserControl
                 QueueSave();
             };
             _targetPickers[i] = targetPicker;
-            settingsPanel.Children.Add(targetPicker);
 
             // Store reference to update target display
             targetPicker.Tag = targetDisplay;
 
-            // ── Separator ──
-            settingsPanel.Children.Add(MakeSeparator(8));
+            // App group picker (hidden unless "apps")
+            var appsContainer = new StackPanel { Visibility = Visibility.Collapsed };
+            appsContainer.Children.Add(MakeLabel("APP GROUP"));
+            appsContainer.ToolTip = "Click apps to add or remove from this group";
+
+            var appsListPanel = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
+            _appsListPanels[i] = appsListPanel;
+            appsContainer.Children.Add(appsListPanel);
+
+            _appsPanels[i] = appsContainer;
+
+            settingsPanel.Children.Add(MakeSectionCard("TARGET", targetPicker, appsContainer));
 
             // CURVE — CurvePickerControl (visual mini graphs)
-            settingsPanel.Children.Add(MakeSectionHeader("CURVE"));
             var curvePicker = new CurvePickerControl
             {
                 Margin = new Thickness(0, 0, 0, 6),
@@ -755,13 +762,9 @@ public partial class MixerView : UserControl
                 if (!_loading) QueueSave();
             };
             _curvePickers[i] = curvePicker;
-            settingsPanel.Children.Add(curvePicker);
-
-            // ── Separator ──
-            settingsPanel.Children.Add(MakeSeparator(8));
+            settingsPanel.Children.Add(MakeSectionCard("CURVE", curvePicker));
 
             // VOLUME RANGE
-            settingsPanel.Children.Add(MakeSectionHeader("VOLUME RANGE"));
             var rangeSlider = new RangeSlider
             {
                 Minimum = 0,
@@ -781,19 +784,7 @@ public partial class MixerView : UserControl
                 if (!_loading) QueueSave();
             };
             _rangeSliders[i] = rangeSlider;
-            settingsPanel.Children.Add(rangeSlider);
-
-            // App group picker (hidden unless "apps")
-            var appsContainer = new StackPanel { Visibility = Visibility.Collapsed };
-            appsContainer.Children.Add(MakeLabel("APP GROUP"));
-            appsContainer.ToolTip = "Click apps to add or remove from this group";
-
-            var appsListPanel = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
-            _appsListPanels[i] = appsListPanel;
-            appsContainer.Children.Add(appsListPanel);
-
-            _appsPanels[i] = appsContainer;
-            settingsPanel.Children.Add(appsContainer);
+            settingsPanel.Children.Add(MakeSectionCard("VOLUME RANGE", rangeSlider));
 
             panel.Children.Add(settingsBorder);
         }
@@ -1380,6 +1371,24 @@ public partial class MixerView : UserControl
                 _glowControls[i].GlowColor = color;
             }
         }
+    }
+
+    private Border MakeSectionCard(string title, params UIElement[] children)
+    {
+        var content = new StackPanel();
+        content.Children.Add(MakeSectionHeader(title));
+        foreach (var child in children)
+            content.Children.Add(child);
+        return new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(16),
+            Margin = new Thickness(0, 0, 0, 10),
+            Child = content,
+        };
     }
 
     private Border MakeSeparator(int spacing = 10)

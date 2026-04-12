@@ -705,7 +705,7 @@ public partial class LightsView : UserControl
         // ── Card 1: EFFECT (LED toggles + effect picker + reactive mode + idle effect) ──
 
         // LED enable/disable toggles — 5 mini card indicators (centered)
-        var ledToggleRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14), HorizontalAlignment = HorizontalAlignment.Center };
+        var ledToggleRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6), HorizontalAlignment = HorizontalAlignment.Center };
         for (int i = 0; i < 5; i++)
         {
             int idx = i;
@@ -713,33 +713,35 @@ public partial class LightsView : UserControl
             var label = (knobLabel != null && !string.IsNullOrWhiteSpace(knobLabel.Label))
                 ? knobLabel.Label : $"Knob {i + 1}";
 
-            var numText = new TextBlock
-            {
-                Text = (i + 1).ToString(),
-                FontSize = 12,
-                FontWeight = FontWeights.Bold,
-                HorizontalAlignment = HorizontalAlignment.Center,
-            };
             var nameText = new TextBlock
             {
                 Text = label,
-                FontSize = 8,
+                FontSize = 11,
+                FontWeight = FontWeights.SemiBold,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxWidth = 52,
-                Margin = new Thickness(0, 1, 0, 0),
+                MaxWidth = 116,
+            };
+            var numText = new TextBlock
+            {
+                Text = (i + 1).ToString(),
+                FontSize = 18,
+                FontWeight = FontWeights.Bold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 6, 0, 4),
             };
             var inner = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-            inner.Children.Add(numText);
             inner.Children.Add(nameText);
+            inner.Children.Add(numText);
 
             var toggleBorder = new Border
             {
-                Width = 58,
-                Height = 42,
+                Width = 132,
+                Height = 92,
                 CornerRadius = new CornerRadius(8),
                 BorderThickness = new Thickness(1),
-                Margin = new Thickness(0, 0, 6, 0),
+                Margin = new Thickness(4, 0, 4, 0),
+                Padding = new Thickness(8, 6, 8, 6),
                 Cursor = Cursors.Hand,
                 Child = inner,
                 ToolTip = $"Click to toggle {label}",
