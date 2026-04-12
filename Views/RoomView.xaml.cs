@@ -647,13 +647,17 @@ public partial class RoomView : UserControl
                     for (int i = 0; i < 15; i++) _vuFillPeaks[i] = 0;
                     QueueSave(); RebuildRoomTabContent();
                 };
+                var vuTransform = new TranslateTransform(0, 0);
+                tile.RenderTransform = vuTransform;
                 tile.MouseEnter += (_, _) =>
                 {
+                    vuTransform.Y = -1;
                     if (!active) { tile.Background = new SolidColorBrush(Color.FromArgb(0x10, accent.R, accent.G, accent.B));
                         tile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x33, accent.R, accent.G, accent.B)); }
                 };
                 tile.MouseLeave += (_, _) =>
                 {
+                    vuTransform.Y = 0;
                     if (!active) { tile.Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
                         tile.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E)); }
                 };
@@ -982,8 +986,11 @@ public partial class RoomView : UserControl
                     }
                 }
             };
+            var paletteTransform = new TranslateTransform(0, 0);
+            swatch.RenderTransform = paletteTransform;
             swatch.MouseEnter += (_, _) =>
             {
+                paletteTransform.Y = -1;
                 var ac = ThemeManager.Accent;
                 swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0x77, ac.R, ac.G, ac.B));
                 swatch.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
@@ -991,6 +998,7 @@ public partial class RoomView : UserControl
             };
             swatch.MouseLeave += (_, _) =>
             {
+                paletteTransform.Y = 0;
                 swatch.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E));
                 swatch.Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
                 capturedLabel.Foreground = new SolidColorBrush(Color.FromRgb(0x77, 0x77, 0x77));
@@ -4227,6 +4235,8 @@ public partial class RoomView : UserControl
         }
         UpdateVisuals();
 
+        var tileTransform = new TranslateTransform(0, 0);
+        tile.RenderTransform = tileTransform;
         tile.MouseLeftButtonDown += (_, _) =>
         {
             isActive = !isActive;
@@ -4235,11 +4245,18 @@ public partial class RoomView : UserControl
         };
         tile.MouseEnter += (_, _) =>
         {
-            if (!isActive) tile.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+            tileTransform.Y = -1;
+            if (!isActive)
+            {
+                tile.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+                tile.BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
+            }
         };
         tile.MouseLeave += (_, _) =>
         {
+            tileTransform.Y = 0;
             if (!isActive) tile.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+            UpdateVisuals(); // restore correct border
         };
 
         return tile;

@@ -42,6 +42,10 @@ public partial class LightsView : UserControl
     private readonly StackPanel[] _programNamePanels = new StackPanel[5];
 
 
+    // Global knob effect previews
+    private readonly Controls.EffectPreviewControl[] _globalKnobPreviews = new Controls.EffectPreviewControl[5];
+    private readonly TextBlock[] _globalKnobEffectNames = new TextBlock[5];
+
     // Track current colors in memory
     private readonly Color[] _colors1 = new Color[5];
     private readonly Color[] _colors2 = new Color[5];
@@ -476,15 +480,19 @@ public partial class LightsView : UserControl
         card.Child = stack;
 
         // Hover effect
+        var presetTransform = new TranslateTransform(0, 0);
+        card.RenderTransform = presetTransform;
         card.MouseEnter += (s, _) =>
         {
             var b = (Border)s!;
+            presetTransform.Y = -1;
             b.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, previewColor.R, previewColor.G, previewColor.B));
             b.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
         };
         card.MouseLeave += (s, _) =>
         {
             var b = (Border)s!;
+            presetTransform.Y = 0;
             b.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
             b.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
         };
@@ -703,17 +711,37 @@ public partial class LightsView : UserControl
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 MaxWidth = 116,
             };
-            var numText = new TextBlock
+            var globalEffect = _config?.GlobalLight?.Effect ?? LightEffect.RainbowWave;
+            var globalTileColor = Controls.EffectPickerControl.EffectColors
+                .GetValueOrDefault(globalEffect, ThemeManager.Accent);
+            var effectPreview = new Controls.EffectPreviewControl
             {
-                Text = (i + 1).ToString(),
-                FontSize = 18,
-                FontWeight = FontWeights.Bold,
+                Width = 56, Height = 26,
+                EffectKind = globalEffect,
+                TileColor = globalTileColor,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 6, 0, 4),
+                Margin = new Thickness(0, 4, 0, 2),
             };
+            _globalKnobPreviews[i] = effectPreview;
+
+            var globalEffectName = globalEffect.ToString();
+            var globalEffectDisplay = System.Text.RegularExpressions.Regex.Replace(globalEffectName, "(?<!^)([A-Z])", " $1");
+            var effectNameText = new TextBlock
+            {
+                Text = globalEffectDisplay,
+                FontSize = 9,
+                Foreground = FindBrush("TextSecBrush"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 2, 0, 0),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = 116,
+            };
+            _globalKnobEffectNames[i] = effectNameText;
+
             var inner = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
             inner.Children.Add(nameText);
-            inner.Children.Add(numText);
+            inner.Children.Add(effectPreview);
+            inner.Children.Add(effectNameText);
 
             var toggleBorder = new Border
             {
@@ -727,6 +755,10 @@ public partial class LightsView : UserControl
                 Child = inner,
                 ToolTip = $"Click to toggle {label}",
             };
+            var toggleTransform = new TranslateTransform(0, 0);
+            toggleBorder.RenderTransform = toggleTransform;
+            toggleBorder.MouseEnter += (_, _) => { toggleTransform.Y = -1; };
+            toggleBorder.MouseLeave += (_, _) => { toggleTransform.Y = 0; };
             toggleBorder.MouseLeftButtonDown += (_, _) =>
             {
                 _ledEnabled[idx] = !_ledEnabled[idx];
@@ -1154,13 +1186,15 @@ public partial class LightsView : UserControl
             border.Opacity = 0.4;
         }
 
-        // Update text colors
-        if (border.Child is StackPanel inner && inner.Children.Count >= 2)
+        // Update text colors and preview opacity
+        if (border.Child is StackPanel inner)
         {
-            if (inner.Children[0] is TextBlock num)
-                num.Foreground = new SolidColorBrush(on ? accent : Color.FromRgb(0x88, 0x88, 0x88));
-            if (inner.Children[1] is TextBlock name)
-                name.Foreground = new SolidColorBrush(on ? Color.FromRgb(0xCC, 0xCC, 0xCC) : Color.FromRgb(0x55, 0x55, 0x55));
+            if (inner.Children[0] is TextBlock nameLabel)
+                nameLabel.Foreground = new SolidColorBrush(on ? accent : Color.FromRgb(0x88, 0x88, 0x88));
+            if (_globalKnobPreviews[idx] != null)
+                _globalKnobPreviews[idx].Opacity = on ? 1.0 : 0.3;
+            if (_globalKnobEffectNames[idx] != null)
+                _globalKnobEffectNames[idx].Foreground = new SolidColorBrush(on ? Color.FromRgb(0xCC, 0xCC, 0xCC) : Color.FromRgb(0x55, 0x55, 0x55));
         }
 
         var knob = _config?.Knobs.FirstOrDefault(k => k.Idx == idx);
@@ -1347,9 +1381,12 @@ public partial class LightsView : UserControl
                 if (!_loading) QueueSave();
             };
 
-            // Hover glow — accent border + slightly lighter bg
+            // Hover glow — accent border + slightly lighter bg + lift
+            var swatchTransform = new TranslateTransform(0, 0);
+            swatch.RenderTransform = swatchTransform;
             swatch.MouseEnter += (_, _) =>
             {
+                swatchTransform.Y = -1;
                 var accent = ThemeManager.Accent;
                 swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0xAA, accent.R, accent.G, accent.B));
                 swatch.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
@@ -1357,6 +1394,7 @@ public partial class LightsView : UserControl
             };
             swatch.MouseLeave += (_, _) =>
             {
+                swatchTransform.Y = 0;
                 swatch.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
                 swatch.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
                 label.Foreground = new SolidColorBrush(Color.FromRgb(0x77, 0x77, 0x77));
@@ -1382,6 +1420,22 @@ public partial class LightsView : UserControl
             _globalReactiveModePanel.Visibility = isReactive ? Visibility.Visible : Visibility.Collapsed;
         if (_globalIdleEffectPanel != null)
             _globalIdleEffectPanel.Visibility = isAudioBlend ? Visibility.Visible : Visibility.Collapsed;
+
+        // Update global knob preview cards
+        var tileColor = Controls.EffectPickerControl.EffectColors
+            .GetValueOrDefault(effect, ThemeManager.Accent);
+        var effectName = effect.ToString();
+        var effectDisplay = System.Text.RegularExpressions.Regex.Replace(effectName, "(?<!^)([A-Z])", " $1");
+        for (int k = 0; k < 5; k++)
+        {
+            if (_globalKnobPreviews[k] != null)
+            {
+                _globalKnobPreviews[k].EffectKind = effect;
+                _globalKnobPreviews[k].TileColor = tileColor;
+            }
+            if (_globalKnobEffectNames[k] != null)
+                _globalKnobEffectNames[k].Text = effectDisplay;
+        }
     }
 
     private void OnPickGlobalColor(bool isColor2)
@@ -1489,16 +1543,26 @@ public partial class LightsView : UserControl
             content.Children.Add(effectName);
             card.Child = content;
 
+            var selectorTransform = new TranslateTransform(0, 0);
+            card.RenderTransform = selectorTransform;
             card.MouseLeftButtonDown += (_, _) => SelectKnob(idx);
             card.MouseEnter += (_, _) =>
             {
+                selectorTransform.Y = -1;
                 if (_selectedKnob != idx)
+                {
                     card.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+                    card.BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
+                }
             };
             card.MouseLeave += (_, _) =>
             {
+                selectorTransform.Y = 0;
                 if (_selectedKnob != idx)
+                {
                     card.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+                    card.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+                }
             };
 
             _selectorCards[i] = card;

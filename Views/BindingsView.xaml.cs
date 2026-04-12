@@ -510,13 +510,19 @@ public class BindingsView : UserControl
             Opacity = isEmpty ? 0.45 : 1.0
         };
 
+        var knobCardTransform = new TranslateTransform(0, 0);
+        card.RenderTransform = knobCardTransform;
         card.MouseEnter += (_, _) =>
         {
+            knobCardTransform.Y = -1;
             if (!isEmpty)
                 card.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x80));
+            else
+                card.BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
         };
         card.MouseLeave += (_, _) =>
         {
+            knobCardTransform.Y = 0;
             card.BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush");
         };
         card.MouseLeftButtonDown += (_, _) => _onNavigateToMixer?.Invoke(profileName);
@@ -629,13 +635,19 @@ public class BindingsView : UserControl
             Opacity = isEmpty ? 0.45 : 1.0
         };
 
+        var btnCardTransform = new TranslateTransform(0, 0);
+        card.RenderTransform = btnCardTransform;
         card.MouseEnter += (_, _) =>
         {
+            btnCardTransform.Y = -1;
             if (!isEmpty)
                 card.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x80));
+            else
+                card.BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
         };
         card.MouseLeave += (_, _) =>
         {
+            btnCardTransform.Y = 0;
             card.BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush");
         };
         card.MouseLeftButtonDown += (_, _) => _onNavigateToButtons?.Invoke(profileName);
