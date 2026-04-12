@@ -125,7 +125,6 @@ public class GridPicker : Border
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             MaxHeight = 420,
-            MaxWidth = 280,
             Content = _categoriesPanel
         };
 
