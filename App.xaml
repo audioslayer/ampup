@@ -9,6 +9,7 @@
                 <ui:ThemesDictionary Theme="Dark" />
                 <ui:ControlsDictionary />
                 <ResourceDictionary Source="Theme.xaml" />
+                <ResourceDictionary Source="Icons/PhosphorIcons.xaml" />
             </ResourceDictionary.MergedDictionaries>
             <Style TargetType="Window">
                 <Setter Property="FontFamily" Value="pack://application:,,,/Fonts/#Space Grotesk" />
