@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.9.7--alpha-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.9.8--alpha-blue" alt="Version" />
   <img src="https://img.shields.io/badge/Windows%2010%2F11-0078D6?logo=windows&logoColor=white" alt="Windows" />
   <img src="https://img.shields.io/badge/macOS%2014.2+-000000?logo=apple&logoColor=white" alt="macOS" />
   <img src="https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white" alt=".NET 8" />
@@ -31,12 +31,12 @@ Amp Up is a community-built, open-source replacement for the official Turn Up so
 ## 📥 Install
 
 ### 🪟 Windows
-1. Download **`AmpUp-Setup-0.9.7-alpha.exe`** from [Releases](https://github.com/audioslayer/ampup/releases)
+1. Download **`AmpUp-Setup-0.9.8-alpha.exe`** from [Releases](https://github.com/audioslayer/ampup/releases)
 2. Run the installer (auto-installs .NET 8 if needed — one-time)
 3. Amp Up appears in your system tray ✨
 
 ### 🍎 macOS
-1. Download **`AmpUp-0.9.7-alpha.dmg`** from [Releases](https://github.com/audioslayer/ampup/releases)
+1. Download **`AmpUp-0.9.8-alpha.dmg`** from [Releases](https://github.com/audioslayer/ampup/releases)
 2. Open the DMG → drag to Applications
 3. Launch and grant audio permission on first run 🎤
 
@@ -68,7 +68,7 @@ Amp Up is a community-built, open-source replacement for the official Turn Up so
   - 💡 LED brightness cycling
 
 ### 🌈 Lights — Full RGB Control
-- **60+ effects** — SingleColor, ColorBlend, Breathing, Fire, Comet, Sparkle, PingPong, Wave, RainbowCycle, Heartbeat, Plasma, Drip, AudioReactive, MicStatus, DeviceMute, and more
+- **60+ effects** with **57 animated tile previews** — live visualizations right in the effect picker so you can see what each effect looks like before selecting
 - **25 global-spanning effects** — Scanner, MeteorRain, FireWall, DNA, PoliceLights, Lightning, Ocean, Aurora, Matrix, Starfield, Equalizer, Waterfall, Lava, VU Wave, Nebula Drift...
 - **20 premium palettes** — Cyberpunk, Sakura, Aurora, Coral Reef, Lavender, Copper, Fire, Ocean, Neon, Galaxy, Mint, Storm, and more (6–7 color stops each)
 - **Multi-stop gradient editor** — drag to move stops, click to change color, right-click to delete
@@ -142,6 +142,8 @@ Amp Up is a community-built, open-source replacement for the official Turn Up so
 - **Per-game / per-workflow** setups with auto-switching
 
 ### ⚙️ Quality of Life
+- **Phosphor Duotone icons** — consistent, modern icon set throughout the UI
+- **Card-based section layout** — clean grouped sections with consistent hover animations
 - **Auto-update** — checks GitHub for new releases, one-click install
 - **Start with Windows** — launches silently to system tray
 - **Hot-reload config** — changes apply instantly, no restart needed
@@ -221,6 +223,7 @@ cd AmpUp.Mac
 
 | Version | Highlights |
 |-|-|
+| **v0.9.8** 🎨 | **UI polish release** — 57 animated effect tile previews (live visualizations in the picker), Phosphor Duotone icon set throughout, card-based section layout with consistent hover animations, refined visual hierarchy across all views. |
 | **v0.9.7** 🎨 | **Room Effect full redesign** — two-column layout with Material underline category tabs (⭐ Favorites / Static / Animated / Reactive / Global Span), gradient palette editor, Layout tab as its own card-based canvas. **⭐ Favorites** — right-click any effect to pin. **10 new effects** — Equalizer, Waterfall, Lava, VU Wave, Nebula Drift + Aurora-quality upgrades to Ocean / FireWall. **20 premium palettes** with 6–7 color stops. **6 VU Fill modes** (Classic/Split/Rainfall/Pulse/Spectrum/Drip). **Music Reactive sensitivity**. Fixes: Discord multi-session volume, DeviceSelect latency, palette drag, SingleColor turn-off, Govee LAN scan preserving devices. |
 | **v0.9.6** 🔥 | **Room tab redesign** — unified room card, pill tabs, dynamic per-tab toggle cards (Amp Up / Music / Screen Sync), Corsair color pickers + presets, Govee flyout sub-menus, music reactive keeps effect playing, Groups global across profiles, device Groups brightness control, Settings footer with Buy Me a Coffee, phantom OSD fix, LED toggle mini cards, AmbienceView → RoomView rename |
 | **v0.9.3** | LED effects overhaul (6 new, 5 improved), OSD curve-applied volume, color presets, hardware hover preview |

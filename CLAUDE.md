@@ -56,7 +56,7 @@ MainWindow.xaml / .cs      FluentWindow with Mica, sidebar nav, connection statu
 Theme.xaml                 Glassmorphism color palette, card/text styles, custom green scrollbar, styled controls
 
 Views/
-  MixerView.xaml / .cs     5 channel strips — knob, VU meter, volume %, target/curve/range controls (sidebar label: "Knobs")
+  MixerView.xaml / .cs     5 channel strips — knob, VU meter, volume %, target/curve/range controls (sidebar label: "Mixer")
                            App group uses chip/pill tags. Smart Mix (Voice Ducking + App Profiles) built in code-behind.
   ButtonsView.xaml / .cs   5 button columns — 3 gesture rows (tap/double/hold), categorized action picker with sub-flyouts
   LightsView.xaml / .cs    Global lighting card + 5 LED columns — effect picker (hover preview on hardware),
@@ -90,10 +90,17 @@ Controls/
   AnimatedKnobControl.cs   WPF FrameworkElement — arc sweep knob, glow, frozen resources
   VuMeterControl.cs        WPF FrameworkElement — 16-segment VU meter, DrawingVisual, peak hold
   CurvePickerControl.cs    3 clickable mini graphs showing Linear/Log/Exp response curves
-  EffectPickerControl.cs   Categorized grid of colorful icon tiles for LED effects (~60 effects)
+  EffectPickerControl.cs   Categorized grid of animated preview tiles for LED effects (~60 effects)
                            4 categories: STATIC (8), ANIMATED (17), REACTIVE (7), GLOBAL SPAN (30)
                            SetVisibleCategory() filters the grid for RoomView's category tab bar.
                            Hover preview: fires EffectHovered event to preview on hardware LEDs
+                           Each tile renders a live mini-visualizer via EffectPreviewControl
+  EffectPreviewControl.cs  Live animated mini-visualizer for effect tiles — 57 unique renders
+                           (gradient fills, EQ bars, sine waves, ECG heartbeat, fire flicker, aurora drift).
+                           Shared 30 FPS timer, auto-pauses hidden tiles. 82px wide unified tile size.
+  PhosphorIcon.cs          Phosphor Duotone icon control — base layer at 0.2 opacity + detail at full.
+                           29 icons defined in Icons/PhosphorIcons.xaml ResourceDictionary.
+                           Used for sidebar nav (Gear, SlidersHorizontal, Keyboard, Lightbulb, etc.).
   ActionPicker.cs          Categorized action dropdown with inline sub-panel for button actions
   GridPicker.cs            Categorized target dropdown with inline sub-panel for knob targets
                            Both use borderless Window flyout + inline sub-panel (single HWND, no cross-window issues).
@@ -458,7 +465,11 @@ All transitions run 1 second (20 ticks at 20 FPS) then auto-clear.
 
 - **CurvePickerControl** — 3 mini canvas graphs showing actual response curves (Linear/Log/Exp). Click to select. Uses same math as AudioMixer.ApplyCurve. Accent-colored polylines on dark background with grid dots.
 
-- **EffectPickerControl** — 15 LED effects as categorized icon tiles. 3 categories: STATIC, ANIMATED, REACTIVE. Each tile has its own unique color (Fire=orange, Sparkle=yellow, etc.). Dark glass tiles with accent glow on selection.
+- **EffectPickerControl** — ~60 LED effects as categorized animated preview tiles. 4 categories: STATIC, ANIMATED, REACTIVE, GLOBAL SPAN. Each tile renders a live mini-visualizer via `EffectPreviewControl`. Dark glass tiles with accent glow on selection.
+
+- **EffectPreviewControl** — Live animated mini-visualizer for effect tiles. 57 unique renders (gradient fills, EQ bars, sine waves, ECG heartbeat, fire flicker, aurora drift). Shared 30 FPS timer, auto-pauses hidden tiles. 82px wide unified tile size.
+
+- **PhosphorIcon** — Phosphor Duotone icon control. Base layer at 0.2 opacity + detail layer at full opacity. 29 icons defined in `Icons/PhosphorIcons.xaml` ResourceDictionary. Used for sidebar nav icons (Gear, SlidersHorizontal, Keyboard, Lightbulb, House, Monitor, Link, AppWindow).
 
 - **GridPicker** — Categorized target dropdown with inline sub-panel. Used in MixerView for knob targets. Uses borderless Window flyout with inline sub-panel (single HWND, no cross-window issues). Items support subtitle text (e.g. "Home Assistant" + "Light"). Sub-panel shows context header + highlights active parent item.
 
@@ -472,7 +483,7 @@ All transitions run 1 second (20 ticks at 20 FPS) then auto-clear.
 
 ### View Details
 
-- **MixerView (sidebar: "Knobs"):** 5 channel strips with visual curve pickers (CurvePickerControl), app group chip/pill tags (clickable, accent-tinted, wrap layout), hover glow on strip borders. GridPicker with sub-flyouts for output_device/input_device, HA entities (shown as "Home Assistant" + domain subtitle), Govee devices. Smart Mix section built in code-behind: Voice Ducking (ListPicker for trigger app, amount slider, collapsible Advanced for fade timing) + App Profiles (dynamic add/remove rules with app + profile ListPickers).
+- **MixerView (sidebar: "Mixer"):** 5 channel strips with visual curve pickers (CurvePickerControl), app group chip/pill tags (clickable, accent-tinted, wrap layout), hover glow on strip borders. GridPicker with sub-flyouts for output_device/input_device, HA entities (shown as "Home Assistant" + domain subtitle), Govee devices. Smart Mix section built in code-behind: Voice Ducking (ListPicker for trigger app, amount slider, collapsible Advanced for fade timing) + App Profiles (dynamic add/remove rules with app + profile ListPickers).
 
 - **ButtonsView:** 5 column layout — one per button. 3 gesture sections per button with colored headers (TAP=green, DOUBLE=gold, HOLD=orange). ActionPicker with categorized dropdown and sub-flyouts for HA entities and audio device actions.
 
@@ -777,6 +788,18 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - **v0.9.6-alpha (Mar 28)** — **Profile + Group pickers use flyout sub-menus.**
   - **Profile picker:** switch_profile and cycle_profile use flyout sub-menus in GridPicker/ActionPicker instead of dropdowns.
   - **Group picker:** Group targets use flyout sub-menus in GridPicker instead of dropdowns.
+
+- **v0.9.8-alpha (Apr 11)** — **Major UI facelift + Phosphor Duotone icons.**
+  - **Animated effect tiles:** Every effect tile in the picker now shows a live animated mini-visualizer (gradient fills, EQ bars, sine waves, ECG heartbeat, fire flicker, aurora drift). 57 unique renders via `EffectPreviewControl` — shared 30 FPS timer, auto-pauses hidden tiles. Tiles unified at 82px wide.
+  - **Phosphor Duotone icons:** 29 duotone icons (base at 0.2 opacity + detail at full) via `PhosphorIcon` control + `Icons/PhosphorIcons.xaml` ResourceDictionary. Sidebar nav icons replaced: Gear, SlidersHorizontal, Keyboard, Lightbulb, House, Monitor, Link, AppWindow.
+  - **Section cards everywhere:** All tabs (Mixer, Lights, Room, OSD) use separate rounded cards per section with accent-bar headers, matching the Settings page pattern. `MakeSectionCard` helper in each view.
+  - **Consistent hover animations:** All clickable cards get 1px lift + border brighten on hover via `TranslateTransform`.
+  - **Mixer tab redesign:** Renamed from "Knobs" to "Mixer". Channel strip split from settings into separate cards. TARGET/CURVE/VOLUME RANGE aligned across columns via Grid rows. Smart Mix + Audio Sessions in cards. GridPicker dropdown: hidden scrollbar, content-width sizing.
+  - **Lights tab:** Per-knob selector cards show live effect previews (replacing emoji + color dots). Global knob toggles enlarged to 132×92 with effect previews. Calibration split into TEST COLORS / MUTE DIM / GAMMA cards. BRIGHTNESS moved below knob selectors on Global tab.
+  - **Room tab:** Tab bar in own card. Room Effect converted to single-column cards. VU Fill pills replaced with animated preview tiles. Mode toggles float without card wrapper. Device zone dropdowns widened.
+  - **Color preset tiles:** Renamed PALETTE → COLORS. Swatches enlarged to 50×22 with multi-stop gradients. Card-style tiles (#1E1E1E bg, 6px rounded corners).
+  - **CurvePickerControl:** ClipToBounds fix — curve line no longer bleeds outside card border.
+  - **Buttons:** Folder browse icon dimmed to secondary text color.
 
 - **v0.9.7-alpha (Apr 5-9)** — **Major: Spatial Screen Sync + Room tab redesign + 10 new effects + palette overhaul + critical bug fixes.**
   - **Monitor-aware spatial Screen Sync:** ScreenSpatialMapper computes per-device screen sampling regions based on monitor placement in room layout. Devices auto-mapped to screen edges based on physical position. 2D zone grid capture for height-aware sampling.
