@@ -662,15 +662,9 @@ public partial class RoomView : UserControl
         if (_config == null) return;
         var layout = _config.RoomLayout;
 
-        // ── TWO-COLUMN LAYOUT ──
-        var mainGrid = new Grid { Margin = new Thickness(0, 0, 0, 0) };
-        mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(280) });
-
         // ════════════════════════════════════════════════════════════
-        // LEFT COLUMN — Category tabs + Effect picker
+        // EFFECT card — Category tabs + Effect picker
         // ════════════════════════════════════════════════════════════
-        var leftCol = new StackPanel { Margin = new Thickness(0, 0, 12, 0) };
 
         // Category tab bar — Material underline style
         var categoryBarContainer = new Border
@@ -770,16 +764,16 @@ public partial class RoomView : UserControl
             categoryTabBar.Children.Add(tab);
         }
         categoryBarContainer.Child = categoryTabBar;
-        leftCol.Children.Add(categoryBarContainer);
 
         // Set initial visible category
         effectPicker.SetVisibleCategory(TabIndexToPickerCategory(_effectCategory));
 
+        stack.Children.Add(MakeSectionCard("EFFECT", categoryBarContainer, effectPicker));
+
         // Forward-declared so the SelectionChanged closure can reference it; assigned below.
-        StackPanel? paletteSection = null;
+        Border? paletteSection = null;
 
         // Forward-declared so SelectionChanged can toggle them without forward reference.
-        // paletteEditor/singleColorSwatch are assigned above this block in the rightStack build.
         PaletteEditorControl? paletteEditorRef = null;
         Border? singleColorSwatchRef = null;
 
@@ -817,39 +811,10 @@ public partial class RoomView : UserControl
                     SetPillColor(singleColorSwatchRef, _roomColor1);
             }
         };
-        leftCol.Children.Add(effectPicker);
-
-        var leftCard = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(12),
-            Margin = new Thickness(0, 0, 12, 0),
-            Child = leftCol,
-        };
-        leftCol.Margin = new Thickness(0);
-
-        Grid.SetColumn(leftCard, 0);
-        mainGrid.Children.Add(leftCard);
 
         // ════════════════════════════════════════════════════════════
-        // RIGHT COLUMN — Settings panel (palette, presets, speed, brightness, direction)
+        // COLORS card — palette editor, single-color swatch, preset tiles
         // ════════════════════════════════════════════════════════════
-        var rightPanel = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(16),
-        };
-        var rightStack = new StackPanel();
-
-        // ── COLORS section (hidden for hardcoded-color effects like Aurora/Ocean) ──
-        paletteSection = new StackPanel();
-        paletteSection.Children.Add(MakeSubLabel("COLORS"));
 
         var paletteEditor = new PaletteEditorControl
         {
@@ -877,7 +842,6 @@ public partial class RoomView : UserControl
             dialog.ShowDialog();
             paletteEditor.ClearSelection();
         };
-        paletteSection.Children.Add(paletteEditor);
 
         // ── Single-color swatch picker (only visible when SingleColor effect is selected) ──
         Border singleColorSwatch = null!;
@@ -897,7 +861,6 @@ public partial class RoomView : UserControl
         });
         singleColorSwatch.Margin = new Thickness(0, 4, 0, 10);
         singleColorSwatch.Visibility = Visibility.Collapsed;
-        paletteSection.Children.Add(singleColorSwatch);
 
         // Publish refs so SelectionChanged can toggle them
         paletteEditorRef = paletteEditor;
@@ -910,7 +873,7 @@ public partial class RoomView : UserControl
         singleColorSwatch.Visibility = startSingle ? Visibility.Visible : Visibility.Collapsed;
 
         // ── Color preset tiles — card-style with multi-stop gradients ──
-        var presetWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 10) };
+        var presetWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
         foreach (var palette in BuiltInPalettes.All)
         {
             var stops = palette.Stops.OrderBy(s => s.Position).ToList();
@@ -993,8 +956,9 @@ public partial class RoomView : UserControl
             };
             presetWrap.Children.Add(swatch);
         }
-        paletteSection.Children.Add(presetWrap);
-        rightStack.Children.Add(paletteSection);
+
+        paletteSection = MakeSectionCard("COLORS", paletteEditor, singleColorSwatch, presetWrap);
+        stack.Children.Add(paletteSection);
 
         // Hide palette section if the currently-selected effect ignores palette colors
         if (_activePattern != null && _activePattern != "__sync__" &&
@@ -1004,15 +968,16 @@ public partial class RoomView : UserControl
             paletteSection.Visibility = Visibility.Collapsed;
         }
 
-        // ── SPEED ──
-        rightStack.Children.Add(MakeSubLabel("SPEED"));
+        // ════════════════════════════════════════════════════════════
+        // SPEED card
+        // ════════════════════════════════════════════════════════════
         var speedSlider = new StyledSlider
         {
             Minimum = 1, Maximum = 100, Value = 50,
             Height = 28,
             AccentColor = ThemeManager.Accent,
             ShowLabel = false,
-            Margin = new Thickness(0, 2, 0, 8),
+            Margin = new Thickness(0, 2, 0, 0),
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         speedSlider.ValueChanged += (_, _) =>
@@ -1029,10 +994,11 @@ public partial class RoomView : UserControl
                 });
             }
         };
-        rightStack.Children.Add(speedSlider);
+        stack.Children.Add(MakeSectionCard("SPEED", speedSlider));
 
-        // ── BRIGHTNESS ──
-        rightStack.Children.Add(MakeSubLabel("BRIGHTNESS"));
+        // ════════════════════════════════════════════════════════════
+        // BRIGHTNESS card
+        // ════════════════════════════════════════════════════════════
         var roomBrightSlider = new StyledSlider
         {
             Minimum = 1, Maximum = 100,
@@ -1047,7 +1013,7 @@ public partial class RoomView : UserControl
         {
             Text = $"{_config.Ambience.BrightnessScale}%",
             FontSize = 11, Foreground = FindBrush("TextSecBrush"),
-            Margin = new Thickness(0, 0, 0, 8),
+            Margin = new Thickness(0, 0, 0, 0),
         };
         roomBrightSlider.ValueChanged += (_, _) =>
         {
@@ -1062,16 +1028,9 @@ public partial class RoomView : UserControl
             }
             QueueSave();
         };
-        rightStack.Children.Add(roomBrightSlider);
-        rightStack.Children.Add(roomBrightLabel);
+        stack.Children.Add(MakeSectionCard("BRIGHTNESS", roomBrightSlider, roomBrightLabel));
 
-        rightPanel.Child = rightStack;
-        Grid.SetColumn(rightPanel, 1);
-        mainGrid.Children.Add(rightPanel);
-
-        stack.Children.Add(mainGrid);
-
-        // Screen Sync settings (if enabled) — below the two-column grid
+        // Screen Sync settings (if enabled) — below the cards
         if (_screenSyncSettingsPanel != null)
             stack.Children.Add(_screenSyncSettingsPanel);
     }
