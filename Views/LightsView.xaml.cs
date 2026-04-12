@@ -86,7 +86,7 @@ public partial class LightsView : UserControl
     private EffectPickerControl? _globalEffectPicker;
     private StyledSlider? _globalSpeedSlider;
     private Border? _globalSpeedCard;
-    private StackPanel? _globalSpeedPanel;
+
     private ActionPicker? _globalReactiveModeCombo;
     private StackPanel? _globalReactiveModePanel;
     private StackPanel? _globalIdleEffectPanel;
@@ -885,7 +885,7 @@ public partial class LightsView : UserControl
 
         // ── Card 4: BRIGHTNESS ──
 
-        settings.Children.Add(MakeSectionCard("BRIGHTNESS", _brightnessSlider));
+        settings.Children.Add(MakeSectionCard("BRIGHTNESS", _brightnessSlider!));
 
         panel.Children.Add(settings);
 
