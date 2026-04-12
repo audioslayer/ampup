@@ -811,7 +811,8 @@ public partial class LightsView : UserControl
         idleEffectPanel.Children.Add(idleEffectPicker);
         _globalIdleEffectPanel = idleEffectPanel;
 
-        settings.Children.Add(MakeSectionCard("EFFECT", ledToggleRow, effectPicker, reactiveModePanel, idleEffectPanel));
+        settings.Children.Add(MakeSectionCard("KNOBS", ledToggleRow));
+        settings.Children.Add(MakeSectionCard("EFFECT", effectPicker, reactiveModePanel, idleEffectPanel));
 
         // ── Card 2: COLORS (palette editor) ──
 
