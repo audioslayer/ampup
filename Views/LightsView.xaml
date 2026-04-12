@@ -4,7 +4,7 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel>
             <!-- Global Lighting Card (includes presets) -->
-            <Border x:Name="GlobalLightCard" Style="{StaticResource CardPanel}" Margin="0,0,0,8" Padding="8,6">
+            <Border x:Name="GlobalLightCard" Style="{StaticResource CardPanel}" Margin="0,0,0,8" Padding="16,10">
                 <StackPanel>
                     <!-- Global lighting controls built in code-behind -->
                     <StackPanel x:Name="GlobalLightCardPanel" />
