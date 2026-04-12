@@ -819,8 +819,20 @@ public partial class RoomView : UserControl
         };
         leftCol.Children.Add(effectPicker);
 
-        Grid.SetColumn(leftCol, 0);
-        mainGrid.Children.Add(leftCol);
+        var leftCard = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(12),
+            Margin = new Thickness(0, 0, 12, 0),
+            Child = leftCol,
+        };
+        leftCol.Margin = new Thickness(0);
+
+        Grid.SetColumn(leftCard, 0);
+        mainGrid.Children.Add(leftCard);
 
         // ════════════════════════════════════════════════════════════
         // RIGHT COLUMN — Settings panel (palette, presets, speed, brightness, direction)
@@ -830,8 +842,8 @@ public partial class RoomView : UserControl
             Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
             BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(12),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(16),
         };
         var rightStack = new StackPanel();
 
@@ -1148,12 +1160,12 @@ public partial class RoomView : UserControl
     /// </summary>
     private Border MakeLayoutCard() => new()
     {
-        Background = new SolidColorBrush(Color.FromRgb(0x16, 0x16, 0x16)),
+        Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
         BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
         BorderThickness = new Thickness(1),
         CornerRadius = new CornerRadius(10),
         Padding = new Thickness(16),
-        Margin = new Thickness(0, 0, 0, 12),
+        Margin = new Thickness(0, 0, 0, 10),
     };
 
     /// <summary>
@@ -1380,8 +1392,7 @@ public partial class RoomView : UserControl
         bool hasGovee = _config.Ambience.GoveeEnabled && _config.Ambience.GoveeDevices.Count > 0;
         if (hasGovee)
         {
-            var (govBar, govLabel) = MakeSectionHeader("GOVEE");
-            stack.Children.Add(WrapHeader(govBar, govLabel));
+            var goveeChildren = new List<UIElement>();
 
             foreach (var govDev in _config.Ambience.GoveeDevices)
             {
@@ -1473,17 +1484,18 @@ public partial class RoomView : UserControl
                     });
                 }
 
-                stack.Children.Add(devRow);
+                goveeChildren.Add(devRow);
             }
+
+            if (goveeChildren.Count > 0)
+                stack.Children.Add(MakeSectionCard("GOVEE", goveeChildren.ToArray()));
         }
 
         // ── Corsair devices ──
         bool hasCorsair = _config.Corsair.Enabled && _corsairSync?.IsAvailable == true;
         if (hasCorsair)
         {
-            if (hasGovee) stack.Children.Add(MakeSeparator());
-            var (corBar, corLabel) = MakeSectionHeader("CORSAIR");
-            stack.Children.Add(WrapHeader(corBar, corLabel));
+            var corsairChildren = new List<UIElement>();
 
             if (_corsairSync?.Devices.Count > 0)
             {
@@ -1508,7 +1520,7 @@ public partial class RoomView : UserControl
                         VerticalAlignment = VerticalAlignment.Center,
                     });
 
-                    stack.Children.Add(devRow);
+                    corsairChildren.Add(devRow);
                 }
 
                 // Brightness slider for all Corsair
@@ -1539,17 +1551,19 @@ public partial class RoomView : UserControl
                 };
                 corBrightRow.Children.Add(corBrightSlider);
                 corBrightRow.Children.Add(corBrightLabel);
-                stack.Children.Add(corBrightRow);
+                corsairChildren.Add(corBrightRow);
             }
             else
             {
-                stack.Children.Add(new TextBlock
+                corsairChildren.Add(new TextBlock
                 {
                     Text = "No Corsair devices detected — make sure iCUE is running.",
                     FontSize = 11, Foreground = FindBrush("TextSecBrush"),
                     Margin = new Thickness(0, 4, 0, 0),
                 });
             }
+
+            stack.Children.Add(MakeSectionCard("CORSAIR", corsairChildren.ToArray()));
         }
 
         if (!hasGovee && !hasCorsair)
@@ -1563,10 +1577,6 @@ public partial class RoomView : UserControl
         }
 
         // ── AmpUp hardware ──
-        stack.Children.Add(MakeSeparator());
-        var (tuBar, tuLabel) = MakeSectionHeader("AMP UP HARDWARE");
-        stack.Children.Add(WrapHeader(tuBar, tuLabel));
-
         var turnUpCheck = new CheckBox
         {
             Content = "Sync Screen to Hardware LEDs",
@@ -1577,7 +1587,6 @@ public partial class RoomView : UserControl
         };
         turnUpCheck.Checked += (_, _) => { if (!_loading && _config != null) { _config.Ambience.ScreenSync.SyncToTurnUp = true; QueueSave(); } };
         turnUpCheck.Unchecked += (_, _) => { if (!_loading && _config != null) { _config.Ambience.ScreenSync.SyncToTurnUp = false; QueueSave(); } };
-        stack.Children.Add(turnUpCheck);
 
         var mixerCheck = new CheckBox
         {
@@ -1597,7 +1606,8 @@ public partial class RoomView : UserControl
                 QueueSave();
             }
         };
-        stack.Children.Add(mixerCheck);
+
+        stack.Children.Add(MakeSectionCard("AMP UP HARDWARE", turnUpCheck, mixerCheck));
     }
 
     // ── OLD LAYOUT TAB (dead code — kept for reference) ──
@@ -5466,6 +5476,25 @@ public partial class RoomView : UserControl
         Background = FindBrush("CardBorderBrush"),
         Margin = new Thickness(0, 4, 0, 12),
     };
+
+    private Border MakeSectionCard(string title, params UIElement[] children)
+    {
+        var content = new StackPanel();
+        var (bar, label) = MakeSectionHeader(title);
+        content.Children.Add(WrapHeader(bar, label));
+        foreach (var child in children)
+            content.Children.Add(child);
+        return new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(16),
+            Margin = new Thickness(0, 0, 0, 10),
+            Child = content,
+        };
+    }
 
     private TextBlock MakeErrorText(string text) => new()
     {

@@ -85,6 +85,7 @@ public partial class LightsView : UserControl
     private CheckBox? _globalEnableCheck;
     private EffectPickerControl? _globalEffectPicker;
     private StyledSlider? _globalSpeedSlider;
+    private Border? _globalSpeedCard;
     private StackPanel? _globalSpeedPanel;
     private ActionPicker? _globalReactiveModeCombo;
     private StackPanel? _globalReactiveModePanel;
@@ -93,6 +94,7 @@ public partial class LightsView : UserControl
     private Color _globalColor2 = Color.FromRgb(0xFF, 0xFF, 0xFF);
     private List<string> _globalGradientColors = new();
     private StackPanel? _globalSettingsPanel;
+    private Border? _globalPaletteCard;
     private StackPanel? _globalPalettePanel;
     private PaletteEditorControl? _globalPaletteEditor;
     // _linkToAmbienceCheck removed — Link to Ambience moved to Room Lighting tab
@@ -696,9 +698,11 @@ public partial class LightsView : UserControl
             if (!_loading) QueueSave();
         };
 
-        // Settings panel (collapsed when disabled)
+        // Settings panel (collapsed when disabled) — holds individual section cards
         var settings = new StackPanel { Visibility = Visibility.Collapsed };
         _globalSettingsPanel = settings;
+
+        // ── Card 1: EFFECT (LED toggles + effect picker + reactive mode + idle effect) ──
 
         // LED enable/disable toggles — 5 mini card indicators (centered)
         var ledToggleRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14), HorizontalAlignment = HorizontalAlignment.Center };
@@ -750,10 +754,7 @@ public partial class LightsView : UserControl
             ledToggleRow.Children.Add(toggleBorder);
         }
         _ledTogglePanel = ledToggleRow;
-        settings.Children.Add(ledToggleRow);
 
-        // Effect picker
-        settings.Children.Add(MakeSectionHeader("EFFECT"));
         var effectPicker = new EffectPickerControl(showGlobal: true, showFavorites: false)
         {
             Margin = new Thickness(0, 0, 0, 10),
@@ -767,23 +768,55 @@ public partial class LightsView : UserControl
             QueueSave();
         };
         _globalEffectPicker = effectPicker;
-        settings.Children.Add(effectPicker);
 
-        // Color section with palettes + custom colors
-        settings.Children.Add(MakeSectionHeader("COLOR"));
-
-        // Palette editor — gradient bar + color chips + built-in presets
-        var paletteSection = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
-        _globalPalettePanel = paletteSection;
-
-        paletteSection.Children.Add(new TextBlock
+        // Reactive mode (conditional, inside effect card)
+        var reactiveModePanel = new StackPanel { Visibility = Visibility.Collapsed };
+        reactiveModePanel.Children.Add(MakeLabel("REACTIVE MODE"));
+        var modePicker = new ActionPicker
         {
-            Text = "COLORS",
-            FontSize = 9,
-            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 10),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        modePicker.AddItem("Beat Pulse", "BeatPulse", "♫", Color.FromRgb(0xFF, 0x80, 0xAB), "Bass drives all knob brightness simultaneously");
+        modePicker.AddItem("Spectrum Bands", "SpectrumBands", "≡", Color.FromRgb(0x64, 0xB5, 0xF6), "Each knob = its own frequency band");
+        modePicker.AddItem("Color Shift", "ColorShift", "◑", Color.FromRgb(0xBA, 0x68, 0xC8), "Hue shifts across spectrum based on audio energy");
+        modePicker.Select("SpectrumBands");
+        modePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+        _globalReactiveModeCombo = modePicker;
+        reactiveModePanel.Children.Add(modePicker);
+        _globalReactiveModePanel = reactiveModePanel;
+
+        // Idle Effect picker (for AudioPositionBlend, inside effect card)
+        var idleEffectPanel = new StackPanel { Margin = new Thickness(0, 8, 0, 0), Visibility = Visibility.Collapsed };
+        idleEffectPanel.Children.Add(new TextBlock
+        {
+            Text = "IDLE EFFECT (no music)",
+            FontSize = 9, FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
             Margin = new Thickness(0, 0, 0, 6),
         });
+        var idleEffectPicker = new EffectPickerControl(showGlobal: true, showFavorites: false)
+        {
+            Margin = new Thickness(0, 0, 0, 8),
+            ToolTip = "Effect to show when no music is detected — crossfades to audio reactive when music plays",
+        };
+        if (_config != null)
+            idleEffectPicker.SelectedEffect = _config.GlobalLight.IdleEffect;
+        idleEffectPicker.SelectionChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.GlobalLight.IdleEffect = idleEffectPicker.SelectedEffect;
+            QueueSave();
+        };
+        idleEffectPanel.Children.Add(idleEffectPicker);
+        _globalIdleEffectPanel = idleEffectPanel;
+
+        settings.Children.Add(MakeSectionCard("EFFECT", ledToggleRow, effectPicker, reactiveModePanel, idleEffectPanel));
+
+        // ── Card 2: COLORS (palette editor) ──
+
+        var paletteSection = new StackPanel { Margin = new Thickness(0, 0, 0, 0) };
+        _globalPalettePanel = paletteSection;
 
         // Build initial palette from config
         var initialPalette = !string.IsNullOrEmpty(_config?.GlobalLight.PaletteName)
@@ -822,11 +855,12 @@ public partial class LightsView : UserControl
             _globalPaletteEditor.ClearSelection();
         };
         paletteSection.Children.Add(_globalPaletteEditor);
-        settings.Children.Add(paletteSection);
 
-        // Speed slider (conditional)
-        var speedPanel = new StackPanel { Visibility = Visibility.Collapsed };
-        speedPanel.Children.Add(MakeSectionHeader("SPEED"));
+        var colorsCard = MakeSectionCard("COLORS", paletteSection);
+        _globalPaletteCard = colorsCard;
+        settings.Children.Add(colorsCard);
+
+        // ── Card 3: SPEED (conditional) ──
 
         var speedSlider = new StyledSlider
         {
@@ -843,60 +877,15 @@ public partial class LightsView : UserControl
         };
         _globalSpeedSlider = speedSlider;
 
-        speedPanel.Children.Add(speedSlider);
-        speedPanel.Margin = new Thickness(0, 2, 0, 10);
-        _globalSpeedPanel = speedPanel;
-        settings.Children.Add(speedPanel);
+        var speedCard = MakeSectionCard("SPEED", speedSlider);
+        speedCard.Visibility = Visibility.Collapsed;
+        _globalSpeedCard = speedCard;
+        _globalSpeedPanel = null; // visibility now controlled via _globalSpeedCard
+        settings.Children.Add(speedCard);
 
-        // Brightness (always visible when global is enabled)
-        var brightnessPanel = new StackPanel { Margin = new Thickness(0, 2, 0, 10) };
-        brightnessPanel.Children.Add(MakeSectionHeader("BRIGHTNESS"));
-        brightnessPanel.Children.Add(_brightnessSlider);
-        settings.Children.Add(brightnessPanel);
+        // ── Card 4: BRIGHTNESS ──
 
-        // Reactive mode (conditional)
-        var reactiveModePanel = new StackPanel { Visibility = Visibility.Collapsed };
-        reactiveModePanel.Children.Add(MakeLabel("REACTIVE MODE"));
-        var modePicker = new ActionPicker
-        {
-            Margin = new Thickness(0, 0, 0, 10),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        modePicker.AddItem("Beat Pulse", "BeatPulse", "♫", Color.FromRgb(0xFF, 0x80, 0xAB), "Bass drives all knob brightness simultaneously");
-        modePicker.AddItem("Spectrum Bands", "SpectrumBands", "≡", Color.FromRgb(0x64, 0xB5, 0xF6), "Each knob = its own frequency band");
-        modePicker.AddItem("Color Shift", "ColorShift", "◑", Color.FromRgb(0xBA, 0x68, 0xC8), "Hue shifts across spectrum based on audio energy");
-        modePicker.Select("SpectrumBands");
-        modePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
-        _globalReactiveModeCombo = modePicker;
-        reactiveModePanel.Children.Add(modePicker);
-        _globalReactiveModePanel = reactiveModePanel;
-        settings.Children.Add(reactiveModePanel);
-
-        // ── Idle Effect picker (for AudioPositionBlend — choose what plays when no music) ──
-        var idleEffectPanel = new StackPanel { Margin = new Thickness(0, 8, 0, 0), Visibility = Visibility.Collapsed };
-        idleEffectPanel.Children.Add(new TextBlock
-        {
-            Text = "IDLE EFFECT (no music)",
-            FontSize = 9, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            Margin = new Thickness(0, 0, 0, 6),
-        });
-        var idleEffectPicker = new EffectPickerControl(showGlobal: true, showFavorites: false)
-        {
-            Margin = new Thickness(0, 0, 0, 8),
-            ToolTip = "Effect to show when no music is detected — crossfades to audio reactive when music plays",
-        };
-        if (_config != null)
-            idleEffectPicker.SelectedEffect = _config.GlobalLight.IdleEffect;
-        idleEffectPicker.SelectionChanged += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.GlobalLight.IdleEffect = idleEffectPicker.SelectedEffect;
-            QueueSave();
-        };
-        idleEffectPanel.Children.Add(idleEffectPicker);
-        _globalIdleEffectPanel = idleEffectPanel;
-        settings.Children.Add(idleEffectPanel);
+        settings.Children.Add(MakeSectionCard("BRIGHTNESS", _brightnessSlider));
 
         panel.Children.Add(settings);
 
@@ -1411,10 +1400,10 @@ public partial class LightsView : UserControl
         bool isReactive = effect == LightEffect.AudioReactive;
         bool isAudioBlend = effect == LightEffect.AudioPositionBlend;
 
-        if (_globalPalettePanel != null)
-            _globalPalettePanel.Visibility = noColors ? Visibility.Collapsed : Visibility.Visible;
-        if (_globalSpeedPanel != null)
-            _globalSpeedPanel.Visibility = (needsSpeed || isAudioBlend) ? Visibility.Visible : Visibility.Collapsed;
+        if (_globalPaletteCard != null)
+            _globalPaletteCard.Visibility = noColors ? Visibility.Collapsed : Visibility.Visible;
+        if (_globalSpeedCard != null)
+            _globalSpeedCard.Visibility = (needsSpeed || isAudioBlend) ? Visibility.Visible : Visibility.Collapsed;
         if (_globalReactiveModePanel != null)
             _globalReactiveModePanel.Visibility = isReactive ? Visibility.Visible : Visibility.Collapsed;
         if (_globalIdleEffectPanel != null)
