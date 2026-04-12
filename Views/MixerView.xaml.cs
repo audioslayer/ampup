@@ -669,21 +669,8 @@ public partial class MixerView : UserControl
             // BOTTOM SECTION: Settings (always visible)
             // ═══════════════════════════════════════════════════════════
 
-            var divider = new Border
-            {
-                Height = 1,
-                Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-                Margin = new Thickness(0, 8, 0, 10)
-            };
-            panel.Children.Add(divider);
-
-            var settingsPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 0) };
-            var settingsBorder = new Border
-            {
-                Child = settingsPanel,
-                Padding = new Thickness(0)
-            };
-            _settingsBorders[i] = settingsBorder;
+            var settingsPanels = new[] { Ch0Settings, Ch1Settings, Ch2Settings, Ch3Settings, Ch4Settings };
+            var settingsPanel = settingsPanels[i];
             _settingsExpanded[i] = true;
 
             // ── Settings content ──
@@ -786,7 +773,6 @@ public partial class MixerView : UserControl
             _rangeSliders[i] = rangeSlider;
             settingsPanel.Children.Add(MakeSectionCard("VOLUME RANGE", rangeSlider));
 
-            panel.Children.Add(settingsBorder);
         }
     }
 
