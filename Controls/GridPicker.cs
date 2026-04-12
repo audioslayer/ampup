@@ -215,7 +215,7 @@ public class GridPicker : Border
             BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(6, 8, 6, 8),
+            Padding = new Thickness(6, 8, 2, 8),
             Child = hStack,
         };
 
@@ -698,7 +698,7 @@ public class GridPicker : Border
                         ? new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E))
                         : Brushes.Transparent,
                 CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(10, 7, 4, 7),
+                Padding = new Thickness(10, 7, 2, 7),
                 Margin = new Thickness(2, 1, 2, 1),
                 Cursor = Cursors.Hand,
             };
@@ -730,7 +730,7 @@ public class GridPicker : Border
                     FontSize = 14,
                     Foreground = new SolidColorBrush(isActiveSubParent ? AccentColor : Color.FromRgb(0x66, 0x66, 0x66)),
                     VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(4, 0, 0, 0),
+                    Margin = new Thickness(4, 0, -2, 0),
                     FontWeight = FontWeights.Bold
                 };
                 DockPanel.SetDock(arrow, Dock.Right);
