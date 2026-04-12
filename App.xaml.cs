@@ -910,7 +910,9 @@ public partial class App : Application
                 if (Environment.TickCount64 - _startupTick >= 8000)
                 {
                     float vol = e.Value / 1023f;
-                    MonitorBrightness.SetThrottled(vol);
+                    // Per-monitor if deviceId is set (GDI device name), otherwise all monitors
+                    var deviceName = !string.IsNullOrEmpty(knob.DeviceId) ? knob.DeviceId : null;
+                    MonitorBrightness.SetThrottled(vol, deviceName);
                 }
             }
             else if (knob.Target.Equals("led_brightness", StringComparison.OrdinalIgnoreCase))
@@ -1197,6 +1199,10 @@ public partial class App : Application
             "system" => "System Sounds",
             "any" => "Auto",
             "apps" => "App Group",
+            "monitor" when !string.IsNullOrEmpty(knob.DeviceId) =>
+                MonitorBrightness.GetMonitorInfos()
+                    .FirstOrDefault(m => m.DeviceName.Equals(knob.DeviceId, StringComparison.OrdinalIgnoreCase))
+                    ?.FriendlyName ?? "Monitor",
             "monitor" => "Monitor",
             "led_brightness" => "LED Brightness",
             "room_lights" => "Room Lights",

@@ -852,6 +852,20 @@ public partial class MixerView : UserControl
             .ToList();
     }
 
+    private List<GridPicker.SubItem> GetMonitorSubItems()
+    {
+        var clr = Color.FromRgb(0xFF, 0xA7, 0x26); // orange
+        var items = new List<GridPicker.SubItem>
+        {
+            new("All Monitors", "", "▭", clr)
+        };
+        foreach (var mon in MonitorBrightness.GetMonitorInfos())
+        {
+            items.Add(new GridPicker.SubItem(mon.FriendlyName, mon.DeviceName, "▭", clr));
+        }
+        return items;
+    }
+
     private List<GridPicker.SubItem> GetGoveeSubItems(AppConfig config)
     {
         var clr = Color.FromRgb(0xFF, 0xB7, 0x4D);
@@ -908,6 +922,7 @@ public partial class MixerView : UserControl
             // Register sub-flyout providers for device pickers
             picker.RegisterSubMenu("output_device", () => GetDeviceSubItems(isOutput: true));
             picker.RegisterSubMenu("input_device", () => GetDeviceSubItems(isOutput: false));
+            picker.RegisterSubMenu("monitor", () => GetMonitorSubItems());
 
             bool vmEnabled = config.VoiceMeeter.Enabled;
             bool corsairEnabled = config.Corsair.Enabled && config.Corsair.FanEnabled;
@@ -993,6 +1008,18 @@ public partial class MixerView : UserControl
             picker.SelectByTag(baseTarget, entityId, displayName);
             if (picker.Tag is TextBlock display)
                 display.Text = displayName;
+            return;
+        }
+
+        // Monitor target with device ID — use sub-tag selection
+        if (baseTarget == "monitor" && !string.IsNullOrEmpty(deviceId))
+        {
+            var mon = MonitorBrightness.GetMonitorInfos()
+                .FirstOrDefault(m => m.DeviceName.Equals(deviceId, StringComparison.OrdinalIgnoreCase));
+            var displayName = mon?.FriendlyName ?? deviceId;
+            picker.SelectByTag("monitor", deviceId, displayName);
+            if (picker.Tag is TextBlock monDisplay)
+                monDisplay.Text = displayName;
             return;
         }
 
@@ -1245,8 +1272,8 @@ public partial class MixerView : UserControl
             knob.MinVolume = (int)_rangeSliders[i].LowerValue;
             knob.MaxVolume = (int)_rangeSliders[i].UpperValue;
 
-            // Device ID from sub-flyout (output_device / input_device targets)
-            if (selectedTarget is "output_device" or "input_device")
+            // Device ID from sub-flyout (output_device / input_device / monitor targets)
+            if (selectedTarget is "output_device" or "input_device" or "monitor")
                 knob.DeviceId = _targetPickers[i].SelectedSubTag ?? "";
             else
                 knob.DeviceId = "";

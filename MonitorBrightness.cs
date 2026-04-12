@@ -6,6 +6,7 @@ namespace AmpUp;
 /// Controls physical monitor brightness via DDC/CI (Monitor Control Command Set).
 /// Uses the Windows High-Level Monitor API (dxva2.dll).
 /// Caches physical monitor handles; auto-invalidates on failure.
+/// Supports per-monitor control via GDI device name (e.g. \\.\DISPLAY1).
 /// </summary>
 public static class MonitorBrightness
 {
@@ -29,10 +30,24 @@ public static class MonitorBrightness
     [DllImport("dxva2.dll")]
     private static extern bool DestroyPhysicalMonitor(IntPtr hMonitor);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFOEX lpmi);
+
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT
     {
         public int left, top, right, bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct MONITORINFOEX
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+        public string szDevice;
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -43,29 +58,62 @@ public static class MonitorBrightness
         public string szPhysicalMonitorDescription;
     }
 
+    /// <summary>Info about a single physical monitor for UI display and targeting.</summary>
+    public class MonitorInfo
+    {
+        /// <summary>GDI device name, e.g. \\.\DISPLAY1. Stable identifier for config.</summary>
+        public string DeviceName { get; init; } = "";
+        /// <summary>Friendly name from DisplayConfig, e.g. "DELL U2723QE".</summary>
+        public string FriendlyName { get; init; } = "";
+        /// <summary>Index into the cached handles list.</summary>
+        internal int HandleIndex { get; init; }
+    }
+
     // ── Handle cache ────────────────────────────────────────────────
 
     private static readonly object _cacheLock = new();
     private static List<PHYSICAL_MONITOR>? _cachedMonitors;
+    private static List<string>? _cachedDeviceNames; // GDI device name per handle, same order
 
-    private static List<PHYSICAL_MONITOR> GetCachedMonitors()
+    private static void EnsureCache()
     {
-        if (_cachedMonitors != null) return _cachedMonitors;
+        if (_cachedMonitors != null) return;
 
         var monitors = new List<PHYSICAL_MONITOR>();
+        var deviceNames = new List<string>();
+
         EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData) =>
         {
+            // Get GDI device name for this HMONITOR
+            var info = new MONITORINFOEX();
+            info.cbSize = Marshal.SizeOf<MONITORINFOEX>();
+            string gdiName = "";
+            if (GetMonitorInfo(hMonitor, ref info))
+                gdiName = info.szDevice?.Trim('\0') ?? "";
+
             if (GetNumberOfPhysicalMonitorsFromHMONITOR(hMonitor, out uint count) && count > 0)
             {
                 var arr = new PHYSICAL_MONITOR[count];
                 if (GetPhysicalMonitorsFromHMONITOR(hMonitor, count, arr))
-                    monitors.AddRange(arr);
+                {
+                    foreach (var pm in arr)
+                    {
+                        monitors.Add(pm);
+                        deviceNames.Add(gdiName);
+                    }
+                }
             }
             return true;
         }, IntPtr.Zero);
 
         _cachedMonitors = monitors;
-        return monitors;
+        _cachedDeviceNames = deviceNames;
+    }
+
+    private static List<PHYSICAL_MONITOR> GetCachedMonitors()
+    {
+        EnsureCache();
+        return _cachedMonitors!;
     }
 
     private static void InvalidateCache()
@@ -76,26 +124,30 @@ public static class MonitorBrightness
             try { DestroyPhysicalMonitor(m.hPhysicalMonitor); } catch { }
         }
         _cachedMonitors = null;
+        _cachedDeviceNames = null;
     }
 
-    // ── Throttled set (last-value-wins, 60ms interval) ──────────────
+    // ── Per-monitor throttled set (last-value-wins, 60ms interval) ──
 
-    private static float _pendingBrightness = -1f;
-    private static bool _throttleRunning;
+    // Per-device throttle: keyed by deviceName ("" = all monitors)
+    private static readonly Dictionary<string, float> _pendingBrightness = new();
+    private static readonly Dictionary<string, bool> _throttleRunning = new();
     private static readonly object _throttleLock = new();
 
     /// <summary>
     /// Stores the brightness value and applies it at 60ms intervals (last-value-wins).
-    /// Safe to call on every knob event.
+    /// Safe to call on every knob event. Pass deviceName="" or null for all monitors.
     /// </summary>
-    public static void SetThrottled(float brightness)
+    public static void SetThrottled(float brightness, string? deviceName = null)
     {
-        _pendingBrightness = Math.Clamp(brightness, 0f, 1f);
+        var key = deviceName ?? "";
+        brightness = Math.Clamp(brightness, 0f, 1f);
 
         lock (_throttleLock)
         {
-            if (_throttleRunning) return;
-            _throttleRunning = true;
+            _pendingBrightness[key] = brightness;
+            if (_throttleRunning.TryGetValue(key, out bool running) && running) return;
+            _throttleRunning[key] = true;
         }
 
         _ = Task.Run(async () =>
@@ -104,24 +156,31 @@ public static class MonitorBrightness
             {
                 while (true)
                 {
-                    float target = _pendingBrightness;
-                    ApplyBrightness(target);
+                    float target;
+                    lock (_throttleLock) { target = _pendingBrightness[key]; }
+
+                    if (string.IsNullOrEmpty(key))
+                        ApplyBrightnessAll(target);
+                    else
+                        ApplyBrightnessSingle(key, target);
 
                     await Task.Delay(60);
 
-                    // If value didn't change while we were applying, we're done
-                    if (Math.Abs(_pendingBrightness - target) < 0.001f)
-                        break;
+                    lock (_throttleLock)
+                    {
+                        if (Math.Abs(_pendingBrightness[key] - target) < 0.001f)
+                            break;
+                    }
                 }
             }
             finally
             {
-                lock (_throttleLock) { _throttleRunning = false; }
+                lock (_throttleLock) { _throttleRunning[key] = false; }
             }
         });
     }
 
-    private static void ApplyBrightness(float brightness)
+    private static void ApplyBrightnessAll(float brightness)
     {
         lock (_cacheLock)
         {
@@ -138,23 +197,43 @@ public static class MonitorBrightness
                             uint val = (uint)(min + (max - min) * brightness);
                             SetMonitorBrightness(m.hPhysicalMonitor, val);
                         }
-                        else
-                        {
-                            anyFailed = true;
-                        }
+                        else anyFailed = true;
                     }
-                    catch
-                    {
-                        anyFailed = true;
-                    }
+                    catch { anyFailed = true; }
                 }
-                if (anyFailed)
-                    InvalidateCache();
+                if (anyFailed) InvalidateCache();
             }
-            catch
+            catch { InvalidateCache(); }
+        }
+    }
+
+    private static void ApplyBrightnessSingle(string deviceName, float brightness)
+    {
+        lock (_cacheLock)
+        {
+            try
             {
-                InvalidateCache();
+                EnsureCache();
+                for (int i = 0; i < _cachedMonitors!.Count; i++)
+                {
+                    if (!string.Equals(_cachedDeviceNames![i], deviceName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var m = _cachedMonitors[i];
+                    try
+                    {
+                        if (GetMonitorBrightness(m.hPhysicalMonitor, out uint min, out _, out uint max))
+                        {
+                            uint val = (uint)(min + (max - min) * brightness);
+                            SetMonitorBrightness(m.hPhysicalMonitor, val);
+                        }
+                        else InvalidateCache();
+                    }
+                    catch { InvalidateCache(); }
+                    return;
+                }
             }
+            catch { InvalidateCache(); }
         }
     }
 
@@ -238,6 +317,48 @@ public static class MonitorBrightness
             }
             catch { }
             return names;
+        }
+    }
+
+    /// <summary>
+    /// Get info about all detected physical monitors (friendly names + GDI device names).
+    /// Used by UI to populate the monitor sub-flyout picker.
+    /// </summary>
+    public static List<MonitorInfo> GetMonitorInfos()
+    {
+        lock (_cacheLock)
+        {
+            var result = new List<MonitorInfo>();
+            try
+            {
+                EnsureCache();
+                var friendlyNames = NativeMethods.GetMonitorFriendlyNames();
+
+                for (int i = 0; i < _cachedMonitors!.Count; i++)
+                {
+                    var gdiName = _cachedDeviceNames![i];
+                    var friendly = "";
+                    if (!string.IsNullOrEmpty(gdiName))
+                        friendlyNames.TryGetValue(gdiName, out friendly!);
+
+                    // Fallback to DDC/CI description if no friendly name
+                    if (string.IsNullOrEmpty(friendly))
+                        friendly = _cachedMonitors[i].szPhysicalMonitorDescription;
+
+                    // Last resort: use the GDI device name itself
+                    if (string.IsNullOrEmpty(friendly))
+                        friendly = gdiName;
+
+                    result.Add(new MonitorInfo
+                    {
+                        DeviceName = gdiName,
+                        FriendlyName = friendly ?? $"Monitor {i + 1}",
+                        HandleIndex = i
+                    });
+                }
+            }
+            catch { }
+            return result;
         }
     }
 
