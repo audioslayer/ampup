@@ -827,6 +827,7 @@ public partial class LightsView : UserControl
         _globalIdleEffectPanel = idleEffectPanel;
 
         settings.Children.Add(ledToggleRow);
+        settings.Children.Add(MakeSectionCard("BRIGHTNESS", _brightnessSlider!));
         settings.Children.Add(MakeSectionCard("EFFECT", effectPicker, reactiveModePanel, idleEffectPanel));
 
         // ── Card 2: COLORS (palette editor) ──
@@ -898,10 +899,6 @@ public partial class LightsView : UserControl
         _globalSpeedCard = speedCard;
 
         settings.Children.Add(speedCard);
-
-        // ── Card 4: BRIGHTNESS ──
-
-        settings.Children.Add(MakeSectionCard("BRIGHTNESS", _brightnessSlider!));
 
         panel.Children.Add(settings);
 
