@@ -563,7 +563,7 @@ public partial class RoomView : UserControl
         // ── Single row: SENSITIVITY (if music reactive) + SPEED + BRIGHTNESS ──
         if (hasEffect || globalMusic || _vuFillActive)
         {
-            var sliderAccent = Color.FromRgb(0xFF, 0xB8, 0x00);
+            var sliderAccent = ThemeManager.Accent;
             var slidersRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8), HorizontalAlignment = HorizontalAlignment.Center };
 
             // SENSITIVITY (only when Music Reactive is on)
@@ -2984,93 +2984,44 @@ public partial class RoomView : UserControl
     private void BuildScreenSyncSettings(StackPanel stack, Action<string, bool> statusTileUpdater)
     {
         var cfg = _config!.Ambience.ScreenSync;
-        var sliderAccent = Color.FromRgb(0x00, 0xB0, 0xFF); // blue accent for screen sync
+        var accent = ThemeManager.Accent;
+        var dimBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
 
-        // ── Sliders row: Saturation + Sensitivity + iCUE Brightness ──
-        var slidersRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12), HorizontalAlignment = HorizontalAlignment.Center };
-
-        slidersRow.Children.Add(new TextBlock { Text = "SATURATION", FontSize = 9, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
-        var satSlider = new StyledSlider
+        // Helper: make a labeled slider row (label left, slider + value right)
+        StackPanel MakeSliderRow(string label, StyledSlider slider, TextBlock valLabel)
         {
-            Minimum = 50, Maximum = 200, Value = (int)(cfg.Saturation * 100),
-            Width = 100, Height = 28, AccentColor = sliderAccent, ShowLabel = false,
-        };
-        var satLabel = new TextBlock { Text = $"{cfg.Saturation:F1}×", FontSize = 11,
-            Foreground = new SolidColorBrush(sliderAccent),
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
-        satSlider.ValueChanged += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Ambience.ScreenSync.Saturation = (float)(satSlider.Value / 100.0);
-            satLabel.Text = $"{satSlider.Value / 100.0:F1}×";
-            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-            QueueSave();
-        };
-        slidersRow.Children.Add(satSlider);
-        slidersRow.Children.Add(satLabel);
-        slidersRow.Children.Add(new Border { Width = 20 });
-
-        slidersRow.Children.Add(new TextBlock { Text = "SENSITIVITY", FontSize = 9, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
-        var sensSlider = new StyledSlider
-        {
-            Minimum = 1, Maximum = 20, Value = cfg.Sensitivity,
-            Width = 100, Height = 28, AccentColor = sliderAccent, ShowLabel = false,
-        };
-        var sensLabel = new TextBlock { Text = $"{cfg.Sensitivity}", FontSize = 11,
-            Foreground = new SolidColorBrush(sliderAccent),
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
-        sensSlider.ValueChanged += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Ambience.ScreenSync.Sensitivity = (int)sensSlider.Value;
-            sensLabel.Text = $"{(int)sensSlider.Value}";
-            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-            QueueSave();
-        };
-        slidersRow.Children.Add(sensSlider);
-        slidersRow.Children.Add(sensLabel);
-
-        // Corsair brightness (only when Corsair is enabled)
-        if (_config!.Corsair.Enabled)
-        {
-            slidersRow.Children.Add(new Border { Width = 20 });
-            slidersRow.Children.Add(new TextBlock { Text = "iCUE BRIGHTNESS", FontSize = 9, FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
-            var corsairBrightSlider = new StyledSlider
-            {
-                Minimum = 1, Maximum = 100, Value = Math.Min(_config.Corsair.LightBrightness, 100),
-                Width = 100, Height = 28, AccentColor = Color.FromRgb(0xFF, 0xD3, 0x00), ShowLabel = false,
-            };
-            var corsairBrightLabel = new TextBlock { Text = $"{_config.Corsair.LightBrightness}%", FontSize = 11,
-                Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xD3, 0x00)),
-                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
-            corsairBrightSlider.ValueChanged += (_, _) =>
-            {
-                if (_config == null) return;
-                _config.Corsair.LightBrightness = (int)corsairBrightSlider.Value;
-                corsairBrightLabel.Text = $"{(int)corsairBrightSlider.Value}%";
-                QueueSave();
-            };
-            slidersRow.Children.Add(corsairBrightSlider);
-            slidersRow.Children.Add(corsairBrightLabel);
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+            row.Children.Add(new TextBlock { Text = label, FontSize = 10, FontWeight = FontWeights.SemiBold,
+                Foreground = dimBrush, VerticalAlignment = VerticalAlignment.Center, Width = 90 });
+            row.Children.Add(slider);
+            row.Children.Add(valLabel);
+            return row;
         }
 
-        stack.Children.Add(slidersRow);
+        // Helper: make a labeled combo row
+        StackPanel MakeComboRow(string label, ComboBox combo)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+            row.Children.Add(new TextBlock { Text = label, FontSize = 10, FontWeight = FontWeights.SemiBold,
+                Foreground = dimBrush, VerticalAlignment = VerticalAlignment.Center, Width = 90 });
+            row.Children.Add(combo);
+            return row;
+        }
 
-        // ── Config row: Monitor + FPS + Zones + Crop ──
-        var configRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10), HorizontalAlignment = HorizontalAlignment.Center };
+        // ══════════════════════════════════════════════════════════════
+        // Two-column layout: LEFT = controls, RIGHT = live preview
+        // ══════════════════════════════════════════════════════════════
+        var grid = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
+        // ── LEFT COLUMN: controls ──
+        var leftCol = new StackPanel { Margin = new Thickness(0, 0, 16, 0) };
+
+        // Monitor
         var screens = System.Windows.Forms.Screen.AllScreens;
         var friendlyNames = NativeMethods.GetMonitorFriendlyNames();
-        configRow.Children.Add(new TextBlock { Text = "MONITOR", FontSize = 9, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
-        var monitorCombo = new ComboBox { MinWidth = 180, MaxWidth = 300, Margin = new Thickness(0, 0, 16, 0) };
+        var monitorCombo = new ComboBox { MinWidth = 160, MaxWidth = 280 };
         for (int i = 0; i < screens.Length; i++)
         {
             var screen = screens[i];
@@ -3088,13 +3039,14 @@ public partial class RoomView : UserControl
             _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
             QueueSave();
         };
-        configRow.Children.Add(monitorCombo);
+        leftCol.Children.Add(MakeComboRow("MONITOR", monitorCombo));
 
-        configRow.Children.Add(new TextBlock { Text = "FPS", FontSize = 9, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
-        var fpsCombo = new ComboBox { Width = 80, Margin = new Thickness(0, 0, 16, 0) };
-        fpsCombo.Items.Add("15fps"); fpsCombo.Items.Add("30fps"); fpsCombo.Items.Add("60fps");
+        // FPS + Zones on same row
+        var fpsZoneRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+        fpsZoneRow.Children.Add(new TextBlock { Text = "FPS", FontSize = 10, FontWeight = FontWeights.SemiBold,
+            Foreground = dimBrush, VerticalAlignment = VerticalAlignment.Center, Width = 90 });
+        var fpsCombo = new ComboBox { Width = 75, Margin = new Thickness(0, 0, 16, 0) };
+        fpsCombo.Items.Add("15"); fpsCombo.Items.Add("30"); fpsCombo.Items.Add("60");
         fpsCombo.SelectedIndex = cfg.TargetFps switch { 15 => 0, 60 => 2, _ => 1 };
         fpsCombo.SelectionChanged += (_, _) =>
         {
@@ -3103,13 +3055,11 @@ public partial class RoomView : UserControl
             _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
             QueueSave();
         };
-        configRow.Children.Add(fpsCombo);
-
-        configRow.Children.Add(new TextBlock { Text = "ZONES", FontSize = 9, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
-        var zoneCombo = new ComboBox { Width = 100, Margin = new Thickness(0, 0, 16, 0) };
-        zoneCombo.Items.Add("4 zones"); zoneCombo.Items.Add("8 zones"); zoneCombo.Items.Add("16 zones");
+        fpsZoneRow.Children.Add(fpsCombo);
+        fpsZoneRow.Children.Add(new TextBlock { Text = "ZONES", FontSize = 10, FontWeight = FontWeights.SemiBold,
+            Foreground = dimBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+        var zoneCombo = new ComboBox { Width = 75 };
+        zoneCombo.Items.Add("4"); zoneCombo.Items.Add("8"); zoneCombo.Items.Add("16");
         zoneCombo.SelectedIndex = cfg.ZoneCount switch { 4 => 0, 16 => 2, _ => 1 };
         zoneCombo.SelectionChanged += (_, _) =>
         {
@@ -3119,16 +3069,77 @@ public partial class RoomView : UserControl
             RebuildZonePreview(stack);
             QueueSave();
         };
-        configRow.Children.Add(zoneCombo);
+        fpsZoneRow.Children.Add(zoneCombo);
+        leftCol.Children.Add(fpsZoneRow);
+
+        // Saturation slider
+        var satSlider = new StyledSlider
+        {
+            Minimum = 50, Maximum = 200, Value = (int)(cfg.Saturation * 100),
+            Width = 140, Height = 28, AccentColor = accent, ShowLabel = false,
+        };
+        var satLabel = new TextBlock { Text = $"{cfg.Saturation:F1}×", FontSize = 11,
+            Foreground = new SolidColorBrush(accent),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+        satSlider.ValueChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.Saturation = (float)(satSlider.Value / 100.0);
+            satLabel.Text = $"{satSlider.Value / 100.0:F1}×";
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            QueueSave();
+        };
+        leftCol.Children.Add(MakeSliderRow("SATURATION", satSlider, satLabel));
+
+        // Sensitivity slider
+        var sensSlider = new StyledSlider
+        {
+            Minimum = 1, Maximum = 20, Value = cfg.Sensitivity,
+            Width = 140, Height = 28, AccentColor = accent, ShowLabel = false,
+        };
+        var sensLabel = new TextBlock { Text = $"{cfg.Sensitivity}", FontSize = 11,
+            Foreground = new SolidColorBrush(accent),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+        sensSlider.ValueChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.Sensitivity = (int)sensSlider.Value;
+            sensLabel.Text = $"{(int)sensSlider.Value}";
+            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+            QueueSave();
+        };
+        leftCol.Children.Add(MakeSliderRow("SENSITIVITY", sensSlider, sensLabel));
+
+        // Corsair brightness (only when Corsair is enabled)
+        if (_config!.Corsair.Enabled)
+        {
+            var corsairBrightSlider = new StyledSlider
+            {
+                Minimum = 1, Maximum = 100, Value = Math.Min(_config.Corsair.LightBrightness, 100),
+                Width = 140, Height = 28, AccentColor = accent, ShowLabel = false,
+            };
+            var corsairBrightLabel = new TextBlock { Text = $"{_config.Corsair.LightBrightness}%", FontSize = 11,
+                Foreground = new SolidColorBrush(accent),
+                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+            corsairBrightSlider.ValueChanged += (_, _) =>
+            {
+                if (_config == null) return;
+                _config.Corsair.LightBrightness = (int)corsairBrightSlider.Value;
+                corsairBrightLabel.Text = $"{(int)corsairBrightSlider.Value}%";
+                QueueSave();
+            };
+            leftCol.Children.Add(MakeSliderRow("iCUE BRIGHT", corsairBrightSlider, corsairBrightLabel));
+        }
 
         // Crop Black Bars toggle
+        var cropRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 0) };
+        cropRow.Children.Add(new Border { Width = 90 }); // align with labels
         var cropCheck = new CheckBox
         {
             Content = "Crop Black Bars",
             IsChecked = cfg.CropBlackBars,
             Foreground = FindBrush("TextSecBrush"),
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(4, 0, 0, 0),
             ToolTip = "Auto-detect and ignore pillarbox/letterbox black bars\n(for 16:9 content on ultrawide monitors)",
         };
         cropCheck.Checked += (_, _) =>
@@ -3145,15 +3156,18 @@ public partial class RoomView : UserControl
             _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
             QueueSave();
         };
-        configRow.Children.Add(cropCheck);
+        cropRow.Children.Add(cropCheck);
+        leftCol.Children.Add(cropRow);
 
-        stack.Children.Add(configRow);
+        Grid.SetColumn(leftCol, 0);
+        grid.Children.Add(leftCol);
 
-        // ── Screen Edge Control (draggable crop lines + live preview) ──
+        // ── RIGHT COLUMN: live preview ──
+        var rightCol = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+
         _screenEdgeControl = new Controls.ScreenEdgeControl
         {
-            Height = 180,
-            Margin = new Thickness(0, 0, 0, 8),
+            Height = 200,
         };
         _screenEdgeControl.SetContentBounds(cfg.ContentBounds);
         _screenEdgeControl.ContentBoundsChanged += bounds =>
@@ -3165,15 +3179,14 @@ public partial class RoomView : UserControl
             _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
             QueueSave();
         };
-        // Wire live zone colors from DreamSync to the edge control
         if (_dreamSync != null)
         {
-            _dreamSync.OnZoneGrid += (grid, cols, rows) =>
+            _dreamSync.OnZoneGrid += (grid2, cols, rows) =>
             {
-                Dispatcher.BeginInvoke(() => _screenEdgeControl?.UpdateZoneColors(grid, cols, rows));
+                Dispatcher.BeginInvoke(() => _screenEdgeControl?.UpdateZoneColors(grid2, cols, rows));
             };
         }
-        stack.Children.Add(_screenEdgeControl);
+        rightCol.Children.Add(_screenEdgeControl);
 
         _dreamStatusLabel = new TextBlock
         {
@@ -3181,9 +3194,14 @@ public partial class RoomView : UserControl
             FontSize = 10,
             Foreground = FindBrush("TextDimBrush"),
             HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 0, 0, 6),
+            Margin = new Thickness(0, 4, 0, 0),
         };
-        stack.Children.Add(_dreamStatusLabel);
+        rightCol.Children.Add(_dreamStatusLabel);
+
+        Grid.SetColumn(rightCol, 1);
+        grid.Children.Add(rightCol);
+
+        stack.Children.Add(grid);
 
         // Status update timer — updates status label and Game Mode badge
         var statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
