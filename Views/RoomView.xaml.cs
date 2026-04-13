@@ -4830,19 +4830,23 @@ public partial class RoomView : UserControl
         byte b = (byte)(totalB / 15);
 
         // Music reactive: modulate brightness with fast attack / slow decay
+        // Skip when the active pattern is already AudioReactive — it already renders
+        // audio-driven brightness, so double-modulating would crush everything to near-black.
         var musicBands = _globalMusicBands;
         float musicBrightness = 1f;
-        if (_corsairMusicTimer?.IsEnabled == true && musicBands != null && musicBands.Length >= 5)
+        bool isAudioReactivePattern = _activePattern == "AudioReactive" || _activePattern == "AudioPositionBlend";
+        if (_corsairMusicTimer?.IsEnabled == true && !isAudioReactivePattern
+            && musicBands != null && musicBands.Length >= 5)
         {
             // Bass + low-mid drives the pulse (bands 0-2, ≤2kHz). Treble ignored —
             // industry standard: bass/mids control intensity, treble controls sparkle/detail.
             float gain = config.Ambience.MusicSensitivity / 50f;
             float energy = Math.Clamp((musicBands[0] * 0.5f + musicBands[1] * 0.3f + musicBands[2] * 0.2f) * gain, 0f, 1f);
 
-            // Square the energy for more dramatic contrast (quiet=very dim, loud=bright)
-            energy = energy * energy;
+            // Gentle curve for visible contrast without crushing moderate levels
+            energy = MathF.Pow(energy, 1.3f);
 
-            float target = 0.1f + energy * 0.9f; // 10% floor, 100% on peak
+            float target = 0.15f + energy * 0.85f; // 15% floor, 100% on peak
             if (target > _musicReactiveBrightness)
                 _musicReactiveBrightness = target; // instant attack — snap to beat
             else
@@ -4856,9 +4860,9 @@ public partial class RoomView : UserControl
 
         // Build music-modulated frame for all devices
         byte[] frameForSync = linearColors;
-        if (_corsairMusicTimer?.IsEnabled == true)
+        if (_corsairMusicTimer?.IsEnabled == true && !isAudioReactivePattern)
         {
-            // Always build modulated frame when music reactive is on
+            // Modulate non-AudioReactive patterns (e.g. Ocean, Scanner) with music brightness
             frameForSync = new byte[45];
             for (int i = 0; i < 45; i++)
                 frameForSync[i] = (byte)Math.Min(linearColors[i] * musicBrightness, 255);
