@@ -337,7 +337,7 @@ public class GoveeDeviceConfig
     public bool PoweredOn { get; set; } = true;
 }
 
-public enum ZoneSide { Full, Left, Right, Top, Bottom }
+public enum ZoneSide { Full, Left, Right, Top, Bottom, LeftVertical, RightVertical }
 
 public enum DeviceCropMode { Content, FullScreen, Ambient }
 

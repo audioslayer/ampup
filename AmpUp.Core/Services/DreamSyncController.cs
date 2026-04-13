@@ -280,6 +280,11 @@ public class DreamSyncController : IDisposable
                                         segColors[si] = leftColors[half - 1 - si];
                                     Array.Copy(rightColors, 0, segColors, half, segCount - half);
                                 }
+                                else if ((mapping.Side == ZoneSide.LeftVertical || mapping.Side == ZoneSide.RightVertical) && grid != null)
+                                {
+                                    // Vertical light bars — sample top-to-bottom from left/right columns of 2D grid
+                                    segColors = MapGridToSegmentsVertical(grid, gridCols, gridRows, segCount, mapping.Side);
+                                }
                                 else
                                 {
                                     var effectiveZones = (mapping.CropMode == DeviceCropMode.FullScreen && fullScreenZones != null)
@@ -465,6 +470,12 @@ public class DreamSyncController : IDisposable
             case ZoneSide.Bottom:
                 start = zoneCount / 2;
                 break;
+            case ZoneSide.LeftVertical:
+                end = Math.Max(zoneCount / 4, 1); // treat as left for single-color fallback
+                break;
+            case ZoneSide.RightVertical:
+                start = zoneCount - Math.Max(zoneCount / 4, 1);
+                break;
             // Full: use all zones
         }
 
@@ -620,6 +631,52 @@ public class DreamSyncController : IDisposable
             _udpClients[ip] = udp;
         }
         _ = udp.SendAsync(data, data.Length, ip, LanControlPort);
+    }
+
+    /// <summary>
+    /// Map the 2D zone grid vertically to device segments — samples a left or right
+    /// column slice from top to bottom. Used for vertical light bars on screen edges.
+    /// </summary>
+    private static (byte R, byte G, byte B)[] MapGridToSegmentsVertical(
+        (byte R, byte G, byte B)[,] grid, int cols, int rows, int segmentCount, ZoneSide side)
+    {
+        var result = new (byte R, byte G, byte B)[segmentCount];
+        if (rows == 0 || cols == 0) return result;
+
+        // Which columns to sample (leftmost 25% or rightmost 25%)
+        int colStart, colEnd;
+        if (side == ZoneSide.LeftVertical)
+        {
+            colStart = 0;
+            colEnd = Math.Max(cols / 4, 1);
+        }
+        else // RightVertical
+        {
+            colStart = cols - Math.Max(cols / 4, 1);
+            colEnd = cols;
+        }
+
+        // Map N segments to the rows (top-to-bottom), averaging the selected columns
+        for (int seg = 0; seg < segmentCount; seg++)
+        {
+            float rowStart = (float)seg / segmentCount * rows;
+            float rowEnd = (float)(seg + 1) / segmentCount * rows;
+
+            int r = 0, g = 0, b = 0, count = 0;
+            for (int row = (int)rowStart; row < (int)Math.Ceiling(rowEnd) && row < rows; row++)
+            {
+                for (int col = colStart; col < colEnd; col++)
+                {
+                    r += grid[row, col].R;
+                    g += grid[row, col].G;
+                    b += grid[row, col].B;
+                    count++;
+                }
+            }
+            if (count > 0)
+                result[seg] = ((byte)(r / count), (byte)(g / count), (byte)(b / count));
+        }
+        return result;
     }
 
     /// <summary>

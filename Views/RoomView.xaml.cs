@@ -3325,6 +3325,7 @@ public partial class RoomView : UserControl
                 var sideCombo = new ComboBox { Width = 120, Margin = new Thickness(0, 0, 8, 0) };
                 sideCombo.Items.Add("Full"); sideCombo.Items.Add("Left"); sideCombo.Items.Add("Right");
                 sideCombo.Items.Add("Top"); sideCombo.Items.Add("Bottom");
+                sideCombo.Items.Add("LeftVertical"); sideCombo.Items.Add("RightVertical");
                 sideCombo.SelectedItem = mapping.Side.ToString();
                 sideCombo.IsEnabled = !mapping.UseAutoSpatial;
                 sideCombo.SelectionChanged += (_, _) =>
