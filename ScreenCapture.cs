@@ -28,8 +28,9 @@ public class ScreenCapture : IDisposable
     private Bitmap? _cachedBmp;
     private int _cachedSrcW, _cachedSrcH;
 
-    // Pixels darker than this (R+G+B sum) are ignored to prevent dark UI from washing out colors
-    private const int DarkThreshold = 30; // ~10 per channel
+    // Pixels darker than this (R+G+B sum) are ignored to prevent dark UI from washing out colors.
+    // Set high enough to filter gray/near-black pixels that dilute saturated colors (e.g. red → pink).
+    private const int DarkThreshold = 80; // ~27 per channel
 
     // Black bar detection: a column/row is "black" if fewer than this % of pixels are non-dark
     private const float BlackBarContentThreshold = 0.02f; // 2% — a mostly-black column

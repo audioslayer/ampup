@@ -3079,7 +3079,7 @@ public partial class RoomView : UserControl
         // Saturation slider
         var satSlider = new StyledSlider
         {
-            Minimum = 50, Maximum = 200, Value = (int)(cfg.Saturation * 100),
+            Minimum = 50, Maximum = 300, Value = (int)(cfg.Saturation * 100),
             Height = 28, AccentColor = accent, ShowLabel = false,
         };
         var satLabel = new TextBlock { Text = $"{cfg.Saturation:F1}×", FontSize = 11,

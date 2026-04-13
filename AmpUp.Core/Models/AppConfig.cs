@@ -365,7 +365,7 @@ public class ScreenSyncConfig
     public int MonitorIndex { get; set; } = 0;
     public int TargetFps { get; set; } = 30;
     public int ZoneCount { get; set; } = 8;
-    public float Saturation { get; set; } = 1.2f;
+    public float Saturation { get; set; } = 1.5f;
     public int Sensitivity { get; set; } = 5;
     public bool CropBlackBars { get; set; } = true;
     public bool SyncToTurnUp { get; set; } = false;
