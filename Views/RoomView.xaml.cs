@@ -552,32 +552,102 @@ public partial class RoomView : UserControl
     {
         if (_config == null) return;
         bool globalMusic = _corsairMusicTimer?.IsEnabled == true && !_vuFillActive;
+        bool hasEffect = _activePattern != null && _activePattern != "__sync__";
 
-        if (globalMusic)
+        // ── Single row: SENSITIVITY (if music reactive) + SPEED + BRIGHTNESS ──
+        if (hasEffect || globalMusic || _vuFillActive)
         {
-            // Music Reactive sensitivity slider — centered below toggles
-            var sensRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8), HorizontalAlignment = HorizontalAlignment.Center };
-            sensRow.Children.Add(new TextBlock { Text = "SENSITIVITY", FontSize = 9, FontWeight = FontWeights.SemiBold,
+            var sliderAccent = Color.FromRgb(0xFF, 0xB8, 0x00);
+            var slidersRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8), HorizontalAlignment = HorizontalAlignment.Center };
+
+            // SENSITIVITY (only when Music Reactive is on)
+            if (globalMusic)
+            {
+                slidersRow.Children.Add(new TextBlock { Text = "SENSITIVITY", FontSize = 9, FontWeight = FontWeights.SemiBold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                    VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+                var sensSlider = new StyledSlider
+                {
+                    Minimum = 1, Maximum = 100, Value = _config.Ambience.MusicSensitivity,
+                    Width = 120, Height = 28, AccentColor = sliderAccent, ShowLabel = false,
+                };
+                var sensLabel = new TextBlock { Text = $"{_config.Ambience.MusicSensitivity}%", FontSize = 11,
+                    Foreground = new SolidColorBrush(sliderAccent),
+                    VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+                sensSlider.ValueChanged += (_, _) =>
+                {
+                    if (_loading || _config == null) return;
+                    _config.Ambience.MusicSensitivity = (int)sensSlider.Value;
+                    sensLabel.Text = $"{(int)sensSlider.Value}%";
+                    QueueSave();
+                };
+                slidersRow.Children.Add(sensSlider);
+                slidersRow.Children.Add(sensLabel);
+                slidersRow.Children.Add(new Border { Width = 20 });
+            }
+
+            // SPEED
+            slidersRow.Children.Add(new TextBlock { Text = "SPEED", FontSize = 9, FontWeight = FontWeights.SemiBold,
                 Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
                 VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
-            var sensSlider = new StyledSlider
+            var speedSlider = new StyledSlider
             {
-                Minimum = 1, Maximum = 100, Value = _config.Ambience.MusicSensitivity,
-                Width = 140, Height = 28, AccentColor = Color.FromRgb(0xFF, 0xB8, 0x00), ShowLabel = false,
+                Minimum = 1, Maximum = 100, Value = _roomEffectSpeed,
+                Width = 120, Height = 28, AccentColor = sliderAccent, ShowLabel = false,
             };
-            var sensLabel = new TextBlock { Text = $"{_config.Ambience.MusicSensitivity}%", FontSize = 11,
-                Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xB8, 0x00)),
+            var speedLabel = new TextBlock { Text = $"{_roomEffectSpeed}%", FontSize = 11,
+                Foreground = new SolidColorBrush(sliderAccent),
                 VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
-            sensSlider.ValueChanged += (_, _) =>
+            speedSlider.ValueChanged += (_, _) =>
+            {
+                if (_loading) return;
+                _roomEffectSpeed = (int)speedSlider.Value;
+                speedLabel.Text = $"{_roomEffectSpeed}%";
+                if (_roomRgb != null && Enum.TryParse<LightEffect>(_activePattern, true, out var eff2))
+                {
+                    _roomRgb.UpdateGlobalConfig(new GlobalLightConfig
+                    {
+                        Enabled = true, Effect = eff2,
+                        R = _roomColor1.R, G = _roomColor1.G, B = _roomColor1.B,
+                        R2 = _roomColor2.R, G2 = _roomColor2.G, B2 = _roomColor2.B,
+                        EffectSpeed = _roomEffectSpeed,
+                        PaletteName = _roomPalette.Name,
+                    });
+                }
+            };
+            slidersRow.Children.Add(speedSlider);
+            slidersRow.Children.Add(speedLabel);
+            slidersRow.Children.Add(new Border { Width = 20 });
+
+            // BRIGHTNESS
+            slidersRow.Children.Add(new TextBlock { Text = "BRIGHTNESS", FontSize = 9, FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+            var brightSlider = new StyledSlider
+            {
+                Minimum = 1, Maximum = 100, Value = _config.Ambience.BrightnessScale,
+                Width = 120, Height = 28, AccentColor = sliderAccent, ShowLabel = false,
+            };
+            var brightLabel = new TextBlock { Text = $"{_config.Ambience.BrightnessScale}%", FontSize = 11,
+                Foreground = new SolidColorBrush(sliderAccent),
+                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+            brightSlider.ValueChanged += (_, _) =>
             {
                 if (_loading || _config == null) return;
-                _config.Ambience.MusicSensitivity = (int)sensSlider.Value;
-                sensLabel.Text = $"{(int)sensSlider.Value}%";
+                int pct = (int)brightSlider.Value;
+                _config.Ambience.BrightnessScale = pct;
+                brightLabel.Text = $"{pct}%";
+                foreach (var dev in _config.Ambience.GoveeDevices)
+                {
+                    if (!string.IsNullOrWhiteSpace(dev.Ip) && dev.PoweredOn)
+                        _ = AmbienceSync.SendBrightnessAsync(dev.Ip, pct);
+                }
                 QueueSave();
             };
-            sensRow.Children.Add(sensSlider);
-            sensRow.Children.Add(sensLabel);
-            container.Children.Add(sensRow);
+            slidersRow.Children.Add(brightSlider);
+            slidersRow.Children.Add(brightLabel);
+
+            container.Children.Add(slidersRow);
         }
 
         if (_vuFillActive)
@@ -664,79 +734,6 @@ public partial class RoomView : UserControl
                 tileWrap.Children.Add(tile);
             }
             container.Children.Add(MakeSectionCard("VU FILL MODE", tileWrap));
-        }
-
-        // ── SPEED + BRIGHTNESS sliders — always visible when a room effect is active ──
-        bool hasEffect = _activePattern != null && _activePattern != "__sync__";
-        if (hasEffect || globalMusic || _vuFillActive)
-        {
-            var sliderAccent = Color.FromRgb(0xFF, 0xB8, 0x00);
-            var slidersRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4), HorizontalAlignment = HorizontalAlignment.Center };
-
-            // SPEED
-            slidersRow.Children.Add(new TextBlock { Text = "SPEED", FontSize = 9, FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
-            var speedSlider = new StyledSlider
-            {
-                Minimum = 1, Maximum = 100, Value = _roomEffectSpeed,
-                Width = 110, Height = 28, AccentColor = sliderAccent, ShowLabel = false,
-            };
-            var speedLabel = new TextBlock { Text = $"{_roomEffectSpeed}%", FontSize = 11,
-                Foreground = new SolidColorBrush(sliderAccent),
-                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
-            speedSlider.ValueChanged += (_, _) =>
-            {
-                if (_loading) return;
-                _roomEffectSpeed = (int)speedSlider.Value;
-                speedLabel.Text = $"{_roomEffectSpeed}%";
-                if (_roomRgb != null && Enum.TryParse<LightEffect>(_activePattern, true, out var eff2))
-                {
-                    _roomRgb.UpdateGlobalConfig(new GlobalLightConfig
-                    {
-                        Enabled = true, Effect = eff2,
-                        R = _roomColor1.R, G = _roomColor1.G, B = _roomColor1.B,
-                        R2 = _roomColor2.R, G2 = _roomColor2.G, B2 = _roomColor2.B,
-                        EffectSpeed = _roomEffectSpeed,
-                        PaletteName = _roomPalette.Name,
-                    });
-                }
-            };
-            slidersRow.Children.Add(speedSlider);
-            slidersRow.Children.Add(speedLabel);
-
-            // Spacer
-            slidersRow.Children.Add(new Border { Width = 20 });
-
-            // BRIGHTNESS
-            slidersRow.Children.Add(new TextBlock { Text = "BRIGHTNESS", FontSize = 9, FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
-            var brightSlider = new StyledSlider
-            {
-                Minimum = 1, Maximum = 100, Value = _config.Ambience.BrightnessScale,
-                Width = 110, Height = 28, AccentColor = sliderAccent, ShowLabel = false,
-            };
-            var brightLabel = new TextBlock { Text = $"{_config.Ambience.BrightnessScale}%", FontSize = 11,
-                Foreground = new SolidColorBrush(sliderAccent),
-                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
-            brightSlider.ValueChanged += (_, _) =>
-            {
-                if (_loading || _config == null) return;
-                int pct = (int)brightSlider.Value;
-                _config.Ambience.BrightnessScale = pct;
-                brightLabel.Text = $"{pct}%";
-                foreach (var dev in _config.Ambience.GoveeDevices)
-                {
-                    if (!string.IsNullOrWhiteSpace(dev.Ip) && dev.PoweredOn)
-                        _ = AmbienceSync.SendBrightnessAsync(dev.Ip, pct);
-                }
-                QueueSave();
-            };
-            slidersRow.Children.Add(brightSlider);
-            slidersRow.Children.Add(brightLabel);
-
-            container.Children.Add(slidersRow);
         }
     }
 
