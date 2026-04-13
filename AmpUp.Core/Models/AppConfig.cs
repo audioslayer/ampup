@@ -324,6 +324,11 @@ public class AmbienceConfig
     public bool GameModeEnabled { get; set; } = false;
     public bool GoveeSyncToGlobal { get; set; } = true; // Govee follows Global tab effects
     public bool SpatialSync { get; set; } = false; // false=Mirror (all same), true=Spatial (flow across)
+    // Persisted room effect state — restored on startup
+    public string? RoomEffect { get; set; } = null; // null = not active
+    public string RoomColor1 { get; set; } = "#00E676";
+    public string RoomColor2 { get; set; } = "#FFFFFF";
+    public int RoomEffectSpeed { get; set; } = 50;
 }
 
 public class GoveeDeviceConfig

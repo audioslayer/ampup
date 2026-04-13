@@ -124,6 +124,34 @@ public partial class RoomView : UserControl
         _onSave = onSave;
         _loading = false;
 
+        // Restore persisted room colors and speed
+        try
+        {
+            if (!string.IsNullOrEmpty(config.Ambience.RoomColor1))
+                _roomColor1 = (Color)ColorConverter.ConvertFromString(config.Ambience.RoomColor1);
+            if (!string.IsNullOrEmpty(config.Ambience.RoomColor2))
+                _roomColor2 = (Color)ColorConverter.ConvertFromString(config.Ambience.RoomColor2);
+            _roomEffectSpeed = config.Ambience.RoomEffectSpeed > 0 ? config.Ambience.RoomEffectSpeed : 50;
+        }
+        catch { }
+
+        // Restore active room effect on startup (deferred so sync/dreamSync are wired up first).
+        // Skip if screen sync is enabled — it has exclusive control of room lights.
+        if (!string.IsNullOrEmpty(config.Ambience.RoomEffect)
+            && config.Ambience.GoveeEnabled
+            && !config.Ambience.ScreenSync.Enabled)
+        {
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () =>
+            {
+                if (_config?.Ambience.GoveeEnabled == true
+                    && !string.IsNullOrEmpty(_config.Ambience.RoomEffect)
+                    && !_config.Ambience.ScreenSync.Enabled)
+                {
+                    StartRoomPattern(_config.Ambience.RoomEffect);
+                }
+            });
+        }
+
         // Initialize cloud API if enabled and key is configured
         if (config.Ambience.GoveeCloudEnabled && !string.IsNullOrEmpty(config.Ambience.GoveeApiKey))
         {
@@ -4807,6 +4835,16 @@ public partial class RoomView : UserControl
 
         var color1 = c1 ?? _roomColor1;
         var color2 = c2 ?? _roomColor2;
+
+        // Persist the active room effect so it resumes on next launch
+        if (!corsairOnly && _config != null)
+        {
+            _config.Ambience.RoomEffect = patternId;
+            _config.Ambience.RoomColor1 = $"#{color1.R:X2}{color1.G:X2}{color1.B:X2}";
+            _config.Ambience.RoomColor2 = $"#{color2.R:X2}{color2.G:X2}{color2.B:X2}";
+            _config.Ambience.RoomEffectSpeed = _roomEffectSpeed;
+            _onSave?.Invoke(_config);
+        }
 
         // Disable other sync modes so pattern isn't overwritten
         if (_config != null)
