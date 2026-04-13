@@ -267,18 +267,31 @@ public class DreamSyncController : IDisposable
                                 }
                                 else if (AmbienceSync.IsPairedDevice(dev.Sku))
                                 {
-                                    // Paired device (legacy): first half = right screen edge, second half = left
-                                    // (H610A wiring: segments 0-5 = right panel, 6-11 = left panel)
                                     int half = segCount / 2;
-                                    var effectiveZones = (mapping.CropMode == DeviceCropMode.FullScreen && fullScreenZones != null)
-                                        ? fullScreenZones : zones;
-                                    var leftColors = MapZonesToSegments(effectiveZones, half, ZoneSide.Right);
-                                    var rightColors = MapZonesToSegments(effectiveZones, segCount - half, ZoneSide.Left);
-                                    segColors = new (byte R, byte G, byte B)[segCount];
-                                    // Reverse first panel to match physical orientation
-                                    for (int si = 0; si < half; si++)
-                                        segColors[si] = leftColors[half - 1 - si];
-                                    Array.Copy(rightColors, 0, segColors, half, segCount - half);
+                                    if ((mapping.Side == ZoneSide.LeftVertical || mapping.Side == ZoneSide.RightVertical) && grid != null)
+                                    {
+                                        // Paired vertical: left panel (first half) = left screen edge top→bottom
+                                        //                  right panel (second half) = right screen edge top→bottom
+                                        var leftPanelColors = MapGridToSegmentsVertical(grid, gridCols, gridRows, half, ZoneSide.LeftVertical);
+                                        var rightPanelColors = MapGridToSegmentsVertical(grid, gridCols, gridRows, segCount - half, ZoneSide.RightVertical);
+                                        segColors = new (byte R, byte G, byte B)[segCount];
+                                        Array.Copy(leftPanelColors, 0, segColors, 0, half);
+                                        Array.Copy(rightPanelColors, 0, segColors, half, segCount - half);
+                                    }
+                                    else
+                                    {
+                                        // Paired horizontal (default): first half = right screen edge, second half = left
+                                        // (H610A wiring: segments 0-5 = right panel, 6-11 = left panel)
+                                        var effectiveZones = (mapping.CropMode == DeviceCropMode.FullScreen && fullScreenZones != null)
+                                            ? fullScreenZones : zones;
+                                        var leftColors = MapZonesToSegments(effectiveZones, half, ZoneSide.Right);
+                                        var rightColors = MapZonesToSegments(effectiveZones, segCount - half, ZoneSide.Left);
+                                        segColors = new (byte R, byte G, byte B)[segCount];
+                                        // Reverse first panel to match physical orientation
+                                        for (int si = 0; si < half; si++)
+                                            segColors[si] = leftColors[half - 1 - si];
+                                        Array.Copy(rightColors, 0, segColors, half, segCount - half);
+                                    }
                                 }
                                 else if ((mapping.Side == ZoneSide.LeftVertical || mapping.Side == ZoneSide.RightVertical) && grid != null)
                                 {
