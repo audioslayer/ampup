@@ -981,6 +981,7 @@ public partial class RoomView : UserControl
             dialog.ShowDialog();
         });
         singleColorSwatch.Margin = new Thickness(0, 4, 0, 10);
+        singleColorSwatch.HorizontalAlignment = HorizontalAlignment.Left;
         singleColorSwatch.Visibility = Visibility.Collapsed;
 
         // Publish refs so SelectionChanged can toggle them
