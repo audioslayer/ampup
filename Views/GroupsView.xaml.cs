@@ -17,6 +17,9 @@ public partial class GroupsView : UserControl
     // Corsair integration reference
     private CorsairSync? _corsairSync;
 
+    // HA integration reference (for entity picker)
+    private HAIntegration? _ha;
+
     // Section header elements (refreshed on accent change)
     private readonly List<(Border bar, TextBlock label)> _sectionHeaders = new();
 
@@ -35,6 +38,11 @@ public partial class GroupsView : UserControl
     public void SetCorsairSync(CorsairSync corsairSync)
     {
         _corsairSync = corsairSync;
+    }
+
+    public void SetHAIntegration(HAIntegration? ha)
+    {
+        _ha = ha;
     }
 
     public void LoadConfig(AppConfig config, Action<AppConfig> onSave)
@@ -561,10 +569,10 @@ public partial class GroupsView : UserControl
 
             var haItem = new MenuItem
             {
-                Header = "Add entity by ID...",
+                Header = "Add Home Assistant entity...",
                 Foreground = FindBrush("TextPrimaryBrush"),
             };
-            haItem.Click += (_, _) => ShowHaEntityInput(groupIndex);
+            haItem.Click += (_, _) => ShowHaEntityPicker(groupIndex);
             menu.Items.Add(haItem);
             hasItems = true;
         }
@@ -586,55 +594,157 @@ public partial class GroupsView : UserControl
         menu.IsOpen = true;
     }
 
-    // ── HA Entity Input Dialog ───────────────────────────────────────
+    // ── HA Entity Picker ─────────────────────────────────────────────
 
-    private void ShowHaEntityInput(int groupIndex)
+    private void ShowHaEntityPicker(int groupIndex)
     {
         if (_config == null) return;
+
+        // Get cached entities — fall back to empty list if HA not connected
+        var allEntities = _ha?.CachedEntities ?? new List<HAEntity>();
+
+        // Light-related domains shown first, then everything else
+        var lightDomains = new[] { "light", "switch", "scene", "script", "input_boolean" };
+        var entities = allEntities
+            .OrderBy(e => Array.IndexOf(lightDomains, e.Domain) is int i && i >= 0 ? i : 99)
+            .ThenBy(e => e.FriendlyName)
+            .ToList();
 
         var dialog = new Window
         {
             Title = "Add Home Assistant Entity",
-            Width = 400,
-            Height = 180,
+            Width = 440,
+            Height = 520,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Owner = Window.GetWindow(this),
             ResizeMode = ResizeMode.NoResize,
             Background = Brush("#1C1C1C"),
         };
 
-        var stack = new StackPanel { Margin = new Thickness(20) };
+        var root = new Grid { Margin = new Thickness(16) };
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });   // search
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // list
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });   // buttons
 
-        stack.Children.Add(new TextBlock
-        {
-            Text = "Entity ID",
-            FontSize = 12,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = Brush("#E8E8E8"),
-            Margin = new Thickness(0, 0, 0, 8),
-        });
-
-        var entityBox = new TextBox
+        // Search box
+        var searchBox = new TextBox
         {
             FontSize = 13,
-            Padding = new Thickness(8, 6, 8, 6),
+            Padding = new Thickness(8, 7, 8, 7),
             Background = Brush("#242424"),
             Foreground = Brush("#E8E8E8"),
             BorderBrush = Brush("#363636"),
             CaretBrush = Brush("#00E676"),
+            Margin = new Thickness(0, 0, 0, 8),
         };
-        entityBox.SetValue(TextBox.TextProperty, "light.");
-        stack.Children.Add(entityBox);
-
-        stack.Children.Add(new TextBlock
+        searchBox.SetValue(System.Windows.Controls.TextBox.TextProperty, "");
+        var searchHint = new TextBlock
         {
-            Text = "e.g. light.living_room, switch.desk_lamp",
-            FontSize = 10,
+            Text = "Search entities...",
+            FontSize = 13,
             Foreground = Brush("#555555"),
-            Margin = new Thickness(0, 4, 0, 12),
-        });
+            IsHitTestVisible = false,
+            Margin = new Thickness(10, 7, 0, 0),
+            VerticalAlignment = VerticalAlignment.Top,
+        };
+        var searchGrid = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+        searchGrid.Children.Add(searchBox);
+        searchGrid.Children.Add(searchHint);
+        searchBox.TextChanged += (_, _) => searchHint.Visibility =
+            string.IsNullOrEmpty(searchBox.Text) ? Visibility.Visible : Visibility.Collapsed;
+        Grid.SetRow(searchGrid, 0);
+        root.Children.Add(searchGrid);
 
-        var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        // Entity list
+        var listBox = new ListBox
+        {
+            Background = Brush("#141414"),
+            BorderBrush = Brush("#2A2A2A"),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(0),
+        };
+
+        void PopulateList(string filter)
+        {
+            listBox.Items.Clear();
+            var filtered = string.IsNullOrWhiteSpace(filter)
+                ? entities
+                : entities.Where(e =>
+                    e.FriendlyName.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+                    e.EntityId.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            if (filtered.Count == 0 && allEntities.Count == 0)
+            {
+                // HA not connected or no entities — show manual entry row
+                var noEntities = new TextBlock
+                {
+                    Text = "No entities found — check Home Assistant connection in Settings",
+                    FontSize = 11,
+                    Foreground = Brush("#555555"),
+                    Margin = new Thickness(12, 10, 12, 10),
+                    TextWrapping = TextWrapping.Wrap,
+                };
+                listBox.Items.Add(noEntities);
+                return;
+            }
+
+            string? lastDomain = null;
+            foreach (var entity in filtered)
+            {
+                // Domain separator header
+                if (entity.Domain != lastDomain)
+                {
+                    lastDomain = entity.Domain;
+                    var header = new TextBlock
+                    {
+                        Text = entity.Domain.ToUpperInvariant(),
+                        FontSize = 9,
+                        FontWeight = FontWeights.SemiBold,
+                        Foreground = Brush("#03A9F4"),
+                        Margin = new Thickness(10, 8, 0, 2),
+                        IsHitTestVisible = false,
+                    };
+                    listBox.Items.Add(header);
+                }
+
+                var row = new ListBoxItem
+                {
+                    Tag = entity,
+                    Padding = new Thickness(10, 6, 10, 6),
+                };
+                var rowContent = new StackPanel();
+                rowContent.Children.Add(new TextBlock
+                {
+                    Text = entity.FriendlyName,
+                    FontSize = 13,
+                    Foreground = Brush("#E8E8E8"),
+                });
+                rowContent.Children.Add(new TextBlock
+                {
+                    Text = entity.EntityId,
+                    FontSize = 10,
+                    Foreground = Brush("#555555"),
+                    Margin = new Thickness(0, 1, 0, 0),
+                });
+                row.Content = rowContent;
+                listBox.Items.Add(row);
+            }
+        }
+
+        PopulateList("");
+        searchBox.TextChanged += (_, _) => PopulateList(searchBox.Text);
+
+        var scroll = new ScrollViewer { Content = listBox, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        Grid.SetRow(scroll, 1);
+        root.Children.Add(scroll);
+
+        // Button row
+        var btnRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 10, 0, 0),
+        };
         var cancelBtn = new Button
         {
             Content = "Cancel",
@@ -648,37 +758,35 @@ public partial class GroupsView : UserControl
         {
             Content = "Add",
             Padding = new Thickness(14, 6, 14, 6),
+            IsDefault = true,
         };
         addBtn.Click += (_, _) =>
         {
-            var entityId = entityBox.Text.Trim();
-            if (string.IsNullOrEmpty(entityId)) return;
+            HAEntity? selected = null;
+            if (listBox.SelectedItem is ListBoxItem { Tag: HAEntity e })
+                selected = e;
 
-            // Derive friendly name from entity_id (e.g. "light.living_room" -> "Living Room")
-            var friendlyName = entityId;
-            var dotIdx = entityId.IndexOf('.');
-            if (dotIdx >= 0 && dotIdx < entityId.Length - 1)
-            {
-                friendlyName = entityId.Substring(dotIdx + 1)
-                    .Replace('_', ' ');
-                friendlyName = System.Globalization.CultureInfo.CurrentCulture.TextInfo
-                    .ToTitleCase(friendlyName);
-            }
+            if (selected == null) return;
 
             _config!.Groups[groupIndex].Devices.Add(new GroupDevice
             {
                 Type = "ha",
-                DeviceId = entityId,
-                Name = friendlyName,
+                DeviceId = selected.EntityId,
+                Name = selected.FriendlyName,
             });
             Save();
             RebuildGroupPanel();
             dialog.Close();
         };
-        btnRow.Children.Add(addBtn);
-        stack.Children.Add(btnRow);
 
-        dialog.Content = stack;
+        // Double-click to add immediately
+        listBox.MouseDoubleClick += (_, _) => addBtn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        btnRow.Children.Add(addBtn);
+        Grid.SetRow(btnRow, 2);
+        root.Children.Add(btnRow);
+
+        dialog.Content = root;
         dialog.ShowDialog();
     }
 

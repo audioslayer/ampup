@@ -1375,6 +1375,7 @@ public partial class MainWindow : FluentWindow
     public void SetHAIntegration(HAIntegration? ha)
     {
         _ambienceView.SetHAIntegration(ha);
+        _groupsView.SetHAIntegration(ha);
     }
 
     public void UpdateGoveeDeviceBrightness(string? ip, float normalized, bool poweredOn)
