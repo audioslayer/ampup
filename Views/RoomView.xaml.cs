@@ -546,7 +546,7 @@ public partial class RoomView : UserControl
     // ── ROOM EFFECT TAB (unified: effect + palette + direction + canvas) ──
 
     /// <summary>
-    /// Settings row below toggle tiles — shows Music Reactive sensitivity or VU Fill mode pills.
+    /// Settings row below toggle tiles — SPEED/BRIGHTNESS sliders, Music Reactive sensitivity, VU Fill mode pills.
     /// </summary>
     private void BuildToggleSettingsRow(StackPanel container)
     {
@@ -664,6 +664,79 @@ public partial class RoomView : UserControl
                 tileWrap.Children.Add(tile);
             }
             container.Children.Add(MakeSectionCard("VU FILL MODE", tileWrap));
+        }
+
+        // ── SPEED + BRIGHTNESS sliders — always visible when a room effect is active ──
+        bool hasEffect = _activePattern != null && _activePattern != "__sync__";
+        if (hasEffect || globalMusic || _vuFillActive)
+        {
+            var sliderAccent = Color.FromRgb(0xFF, 0xB8, 0x00);
+            var slidersRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4), HorizontalAlignment = HorizontalAlignment.Center };
+
+            // SPEED
+            slidersRow.Children.Add(new TextBlock { Text = "SPEED", FontSize = 9, FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+            var speedSlider = new StyledSlider
+            {
+                Minimum = 1, Maximum = 100, Value = _roomEffectSpeed,
+                Width = 110, Height = 28, AccentColor = sliderAccent, ShowLabel = false,
+            };
+            var speedLabel = new TextBlock { Text = $"{_roomEffectSpeed}%", FontSize = 11,
+                Foreground = new SolidColorBrush(sliderAccent),
+                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+            speedSlider.ValueChanged += (_, _) =>
+            {
+                if (_loading) return;
+                _roomEffectSpeed = (int)speedSlider.Value;
+                speedLabel.Text = $"{_roomEffectSpeed}%";
+                if (_roomRgb != null && Enum.TryParse<LightEffect>(_activePattern, true, out var eff2))
+                {
+                    _roomRgb.UpdateGlobalConfig(new GlobalLightConfig
+                    {
+                        Enabled = true, Effect = eff2,
+                        R = _roomColor1.R, G = _roomColor1.G, B = _roomColor1.B,
+                        R2 = _roomColor2.R, G2 = _roomColor2.G, B2 = _roomColor2.B,
+                        EffectSpeed = _roomEffectSpeed,
+                        PaletteName = _roomPalette.Name,
+                    });
+                }
+            };
+            slidersRow.Children.Add(speedSlider);
+            slidersRow.Children.Add(speedLabel);
+
+            // Spacer
+            slidersRow.Children.Add(new Border { Width = 20 });
+
+            // BRIGHTNESS
+            slidersRow.Children.Add(new TextBlock { Text = "BRIGHTNESS", FontSize = 9, FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+            var brightSlider = new StyledSlider
+            {
+                Minimum = 1, Maximum = 100, Value = _config.Ambience.BrightnessScale,
+                Width = 110, Height = 28, AccentColor = sliderAccent, ShowLabel = false,
+            };
+            var brightLabel = new TextBlock { Text = $"{_config.Ambience.BrightnessScale}%", FontSize = 11,
+                Foreground = new SolidColorBrush(sliderAccent),
+                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+            brightSlider.ValueChanged += (_, _) =>
+            {
+                if (_loading || _config == null) return;
+                int pct = (int)brightSlider.Value;
+                _config.Ambience.BrightnessScale = pct;
+                brightLabel.Text = $"{pct}%";
+                foreach (var dev in _config.Ambience.GoveeDevices)
+                {
+                    if (!string.IsNullOrWhiteSpace(dev.Ip) && dev.PoweredOn)
+                        _ = AmbienceSync.SendBrightnessAsync(dev.Ip, pct);
+                }
+                QueueSave();
+            };
+            slidersRow.Children.Add(brightSlider);
+            slidersRow.Children.Add(brightLabel);
+
+            container.Children.Add(slidersRow);
         }
     }
 
@@ -1017,67 +1090,7 @@ public partial class RoomView : UserControl
             paletteSection.Visibility = Visibility.Collapsed;
         }
 
-        // ════════════════════════════════════════════════════════════
-        // SPEED card
-        // ════════════════════════════════════════════════════════════
-        var speedSlider = new StyledSlider
-        {
-            Minimum = 1, Maximum = 100, Value = 50,
-            Height = 28,
-            AccentColor = ThemeManager.Accent,
-            ShowLabel = false,
-            Margin = new Thickness(0, 2, 0, 0),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        speedSlider.ValueChanged += (_, _) =>
-        {
-            if (_roomRgb != null && Enum.TryParse<LightEffect>(_activePattern, true, out var eff2))
-            {
-                _roomRgb.UpdateGlobalConfig(new GlobalLightConfig
-                {
-                    Enabled = true, Effect = eff2,
-                    R = _roomColor1.R, G = _roomColor1.G, B = _roomColor1.B,
-                    R2 = _roomColor2.R, G2 = _roomColor2.G, B2 = _roomColor2.B,
-                    EffectSpeed = (int)speedSlider.Value,
-                    PaletteName = _roomPalette.Name,
-                });
-            }
-        };
-        stack.Children.Add(MakeSectionCard("SPEED", speedSlider));
-
-        // ════════════════════════════════════════════════════════════
-        // BRIGHTNESS card
-        // ════════════════════════════════════════════════════════════
-        var roomBrightSlider = new StyledSlider
-        {
-            Minimum = 1, Maximum = 100,
-            Value = _config.Ambience.BrightnessScale,
-            Height = 28,
-            AccentColor = ThemeManager.Accent,
-            ShowLabel = false,
-            Margin = new Thickness(0, 2, 0, 4),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        var roomBrightLabel = new TextBlock
-        {
-            Text = $"{_config.Ambience.BrightnessScale}%",
-            FontSize = 11, Foreground = FindBrush("TextSecBrush"),
-            Margin = new Thickness(0, 0, 0, 0),
-        };
-        roomBrightSlider.ValueChanged += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            int pct = (int)roomBrightSlider.Value;
-            _config.Ambience.BrightnessScale = pct;
-            roomBrightLabel.Text = $"{pct}%";
-            foreach (var dev in _config.Ambience.GoveeDevices)
-            {
-                if (!string.IsNullOrWhiteSpace(dev.Ip) && dev.PoweredOn)
-                    _ = AmbienceSync.SendBrightnessAsync(dev.Ip, pct);
-            }
-            QueueSave();
-        };
-        stack.Children.Add(MakeSectionCard("BRIGHTNESS", roomBrightSlider, roomBrightLabel));
+        // SPEED and BRIGHTNESS sliders are in the toggle settings row (BuildToggleSettingsRow)
 
         // Screen Sync settings (if enabled) — below the cards
         if (_screenSyncSettingsPanel != null)
@@ -2211,7 +2224,7 @@ public partial class RoomView : UserControl
         stack.Children.Add(MakeSubLabel("SPEED"));
         var speedSlider = new StyledSlider
         {
-            Minimum = 1, Maximum = 100, Value = 50,
+            Minimum = 1, Maximum = 100, Value = _roomEffectSpeed,
             Height = 35,
             AccentColor = ThemeManager.Accent,
             ShowLabel = false,
@@ -2220,6 +2233,7 @@ public partial class RoomView : UserControl
         };
         speedSlider.ValueChanged += (_, _) =>
         {
+            _roomEffectSpeed = (int)speedSlider.Value;
             if (_roomRgb != null && Enum.TryParse<LightEffect>(_activePattern, true, out var eff))
             {
                 _roomRgb.UpdateGlobalConfig(new GlobalLightConfig
@@ -2227,7 +2241,7 @@ public partial class RoomView : UserControl
                     Enabled = true, Effect = eff,
                     R = _roomColor1.R, G = _roomColor1.G, B = _roomColor1.B,
                     R2 = _roomColor2.R, G2 = _roomColor2.G, B2 = _roomColor2.B,
-                    EffectSpeed = (int)speedSlider.Value,
+                    EffectSpeed = _roomEffectSpeed,
                     PaletteName = _roomPalette.Name,
                 });
             }
@@ -2265,7 +2279,7 @@ public partial class RoomView : UserControl
                 Enabled = true, Effect = LightEffect.AudioReactive,
                 R = _roomColor1.R, G = _roomColor1.G, B = _roomColor1.B,
                 R2 = _roomColor2.R, G2 = _roomColor2.G, B2 = _roomColor2.B,
-                EffectSpeed = 50, ReactiveMode = ReactiveMode.SpectrumBands,
+                EffectSpeed = _roomEffectSpeed, ReactiveMode = ReactiveMode.SpectrumBands,
                 PaletteName = _roomPalette.Name,
             });
             _roomRgb.OnFrameReady += OnRoomFrame;
@@ -2843,7 +2857,7 @@ public partial class RoomView : UserControl
                 _roomRgb.UpdateGlobalConfig(new GlobalLightConfig
                 {
                     Enabled = true, Effect = runEff,
-                    R = c1.R, G = c1.G, B = c1.B, R2 = c2.R, G2 = c2.G, B2 = c2.B, EffectSpeed = 50,
+                    R = c1.R, G = c1.G, B = c1.B, R2 = c2.R, G2 = c2.G, B2 = c2.B, EffectSpeed = _roomEffectSpeed,
                 });
             }
         }
@@ -4007,6 +4021,7 @@ public partial class RoomView : UserControl
     private Color _roomColor2 = Color.FromRgb(0xFF, 0xFF, 0xFF);
     private ColorPalette _roomPalette = BuiltInPalettes.Fire;
     private string? _roomActivePreset;
+    private int _roomEffectSpeed = 50;
     private Color[]? _paletteColors;
     private System.Windows.Threading.DispatcherTimer? _paletteCycleTimer;
     private int _paletteIndex;
@@ -4454,7 +4469,7 @@ public partial class RoomView : UserControl
                     Enabled = true, Effect = eff,
                     R = _roomColor1.R, G = _roomColor1.G, B = _roomColor1.B,
                     R2 = _roomColor2.R, G2 = _roomColor2.G, B2 = _roomColor2.B,
-                    EffectSpeed = 50,
+                    EffectSpeed = _roomEffectSpeed,
                 });
             }
             else
@@ -4589,7 +4604,7 @@ public partial class RoomView : UserControl
                         Enabled = true, Effect = eff2,
                         R = _roomColor1.R, G = _roomColor1.G, B = _roomColor1.B,
                         R2 = _roomColor2.R, G2 = _roomColor2.G, B2 = _roomColor2.B,
-                        EffectSpeed = 50,
+                        EffectSpeed = _roomEffectSpeed,
                     });
                 }
                 else if (!isSecondary)
@@ -4619,7 +4634,7 @@ public partial class RoomView : UserControl
             Enabled = true, Effect = eff,
             R = c1.R, G = c1.G, B = c1.B,
             R2 = c2.R, G2 = c2.G, B2 = c2.B,
-            EffectSpeed = 50,
+            EffectSpeed = _roomEffectSpeed,
         });
     }
 
@@ -4769,7 +4784,7 @@ public partial class RoomView : UserControl
                 Effect = effect,
                 R = color1.R, G = color1.G, B = color1.B,
                 R2 = color2.R, G2 = color2.G, B2 = color2.B,
-                EffectSpeed = 50,
+                EffectSpeed = _roomEffectSpeed,
                 PaletteName = effect == LightEffect.SingleColor ? "" : _roomPalette.Name,
             };
             _roomRgb.UpdateGlobalConfig(gl);
