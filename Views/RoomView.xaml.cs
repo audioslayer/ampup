@@ -3210,8 +3210,10 @@ public partial class RoomView : UserControl
         {
             if (_loading || _config == null) return;
             _config.Ambience.ScreenSync.ContentBounds = bounds;
-            _config.Ambience.ScreenSync.CropBlackBars = bounds.AutoDetect;
-            cropCheck.IsChecked = bounds.AutoDetect;
+            // CropBlackBars = true when auto-detecting OR when user has manual crop set
+            bool hasCrop = bounds.AutoDetect || bounds.LeftPct > 0 || bounds.RightPct > 0 || bounds.TopPct > 0 || bounds.BottomPct > 0;
+            _config.Ambience.ScreenSync.CropBlackBars = hasCrop;
+            cropCheck.IsChecked = hasCrop;
             _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
             QueueSave();
         };
