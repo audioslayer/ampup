@@ -600,69 +600,177 @@ public partial class GroupsView : UserControl
     {
         if (_config == null) return;
 
-        // Get cached entities — fall back to empty list if HA not connected
-        var allEntities = _ha?.CachedEntities ?? new List<HAEntity>();
+        var accent = ThemeManager.Accent;
+        var accentHex = ThemeManager.AccentHex;
 
-        // Light-related domains shown first, then everything else
-        var lightDomains = new[] { "light", "switch", "scene", "script", "input_boolean" };
-        var entities = allEntities
-            .OrderBy(e => Array.IndexOf(lightDomains, e.Domain) is int i && i >= 0 ? i : 99)
-            .ThenBy(e => e.FriendlyName)
-            .ToList();
-
+        // ── Glass-style window (matches GlassDialog) ──────────────────
         var dialog = new Window
         {
-            Title = "Add Home Assistant Entity",
-            Width = 440,
-            Height = 520,
+            WindowStyle = WindowStyle.None,
+            AllowsTransparency = true,
+            Background = Brushes.Transparent,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Owner = Window.GetWindow(this),
             ResizeMode = ResizeMode.NoResize,
-            Background = Brush("#1C1C1C"),
+            ShowInTaskbar = false,
+            Width = 440,
+            SizeToContent = SizeToContent.Height,
+        };
+        dialog.MouseLeftButtonDown += (_, _) => { try { dialog.DragMove(); } catch { } };
+
+        // Outer glass border
+        var accentBorderBrush = new LinearGradientBrush(
+            ThemeManager.WithAlpha(accent, 0x55),
+            ThemeManager.WithAlpha(accent, 0x22),
+            new System.Windows.Point(0, 0), new System.Windows.Point(1, 1));
+        var outerBorder = new Border
+        {
+            CornerRadius = new CornerRadius(14),
+            Margin = new Thickness(8),
+            BorderThickness = new Thickness(1.2),
+            BorderBrush = accentBorderBrush,
+            Background = new LinearGradientBrush(
+                (Color)ColorConverter.ConvertFromString("#EE111111"),
+                (Color)ColorConverter.ConvertFromString("#DD0A0A0A"),
+                new System.Windows.Point(0, 0), new System.Windows.Point(1, 1)),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = accent, BlurRadius = 24, Opacity = 0.15, ShadowDepth = 0
+            },
+            Opacity = 0,
+        };
+        outerBorder.RenderTransform = new ScaleTransform(0.95, 0.95);
+        outerBorder.RenderTransformOrigin = new System.Windows.Point(0.5, 0.5);
+
+        // Fade-in on load
+        dialog.Loaded += (_, _) =>
+        {
+            var da = new System.Windows.Media.Animation.DoubleAnimation(0, 1,
+                TimeSpan.FromMilliseconds(150)) { EasingFunction = new System.Windows.Media.Animation.CubicEase() };
+            var sx = new System.Windows.Media.Animation.DoubleAnimation(0.95, 1,
+                TimeSpan.FromMilliseconds(150)) { EasingFunction = new System.Windows.Media.Animation.CubicEase() };
+            outerBorder.BeginAnimation(UIElement.OpacityProperty, da);
+            ((ScaleTransform)outerBorder.RenderTransform).BeginAnimation(ScaleTransform.ScaleXProperty, sx);
+            ((ScaleTransform)outerBorder.RenderTransform).BeginAnimation(ScaleTransform.ScaleYProperty, sx);
         };
 
-        var root = new Grid { Margin = new Thickness(16) };
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });   // search
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // list
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });   // buttons
+        var inner = new StackPanel { Margin = new Thickness(20, 16, 20, 20) };
+
+        // Title row: label + X close button
+        var titleRow = new Grid { Margin = new Thickness(0, 0, 0, 12) };
+        titleRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        titleRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var titleText = new TextBlock
+        {
+            Text = "HOME ASSISTANT",
+            FontSize = 10, FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x66)),
+        };
+        Grid.SetColumn(titleText, 0);
+        var closeBtn = new TextBlock
+        {
+            Text = "✕", FontSize = 11, Cursor = Cursors.Hand,
+            Foreground = Brush("#555555"), VerticalAlignment = VerticalAlignment.Center,
+        };
+        closeBtn.MouseLeftButtonDown += (_, _) => dialog.Close();
+        closeBtn.MouseEnter += (_, _) => closeBtn.Foreground = Brush("#E8E8E8");
+        closeBtn.MouseLeave += (_, _) => closeBtn.Foreground = Brush("#555555");
+        Grid.SetColumn(closeBtn, 1);
+        titleRow.Children.Add(titleText);
+        titleRow.Children.Add(closeBtn);
+        inner.Children.Add(titleRow);
 
         // Search box
+        var searchBorder = new Border
+        {
+            Background = Brush("#1A242424"),
+            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x33)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(2),
+            Margin = new Thickness(0, 0, 0, 10),
+        };
         var searchBox = new TextBox
         {
+            FontFamily = new FontFamily("Segoe UI"),
             FontSize = 13,
-            Padding = new Thickness(8, 7, 8, 7),
-            Background = Brush("#242424"),
             Foreground = Brush("#E8E8E8"),
-            BorderBrush = Brush("#363636"),
-            CaretBrush = Brush("#00E676"),
-            Margin = new Thickness(0, 0, 0, 8),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            CaretBrush = new SolidColorBrush(accent),
+            Padding = new Thickness(10, 7, 10, 7),
         };
-        searchBox.SetValue(System.Windows.Controls.TextBox.TextProperty, "");
-        var searchHint = new TextBlock
-        {
-            Text = "Search entities...",
-            FontSize = 13,
-            Foreground = Brush("#555555"),
-            IsHitTestVisible = false,
-            Margin = new Thickness(10, 7, 0, 0),
-            VerticalAlignment = VerticalAlignment.Top,
-        };
-        var searchGrid = new Grid { Margin = new Thickness(0, 0, 0, 8) };
-        searchGrid.Children.Add(searchBox);
-        searchGrid.Children.Add(searchHint);
-        searchBox.TextChanged += (_, _) => searchHint.Visibility =
-            string.IsNullOrEmpty(searchBox.Text) ? Visibility.Visible : Visibility.Collapsed;
-        Grid.SetRow(searchGrid, 0);
-        root.Children.Add(searchGrid);
+        searchBorder.Child = searchBox;
+        inner.Children.Add(searchBorder);
 
         // Entity list
         var listBox = new ListBox
         {
-            Background = Brush("#141414"),
-            BorderBrush = Brush("#2A2A2A"),
+            Background = Brush("#0D0D0D"),
+            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x22)),
             BorderThickness = new Thickness(1),
             Padding = new Thickness(0),
+            MaxHeight = 320,
+            FontFamily = new FontFamily("Segoe UI"),
         };
+        inner.Children.Add(listBox);
+
+        // Button row
+        var btnRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 14, 0, 0),
+        };
+
+        Button MakeBtn(string label, bool primary)
+        {
+            var b = new Button
+            {
+                Content = label,
+                FontFamily = new FontFamily("Segoe UI"),
+                FontSize = 13,
+                FontWeight = primary ? FontWeights.SemiBold : FontWeights.Regular,
+                Padding = new Thickness(20, 8, 20, 8),
+                Margin = new Thickness(6, 0, 0, 0),
+                Cursor = Cursors.Hand,
+                Background = primary ? new SolidColorBrush(accent) : Brush("#1C1C1C"),
+                Foreground = primary ? Brush("#0F0F0F") : Brush("#E8E8E8"),
+                BorderBrush = primary ? new SolidColorBrush(accent) : Brush("#2A2A2A"),
+                BorderThickness = new Thickness(1),
+            };
+            // Rounded template
+            var tmpl = new ControlTemplate(typeof(Button));
+            var bd = new FrameworkElementFactory(typeof(Border));
+            bd.Name = "Bd";
+            bd.SetValue(Border.CornerRadiusProperty, new CornerRadius(8));
+            bd.SetValue(Border.BackgroundProperty, b.Background);
+            bd.SetValue(Border.BorderBrushProperty, b.BorderBrush);
+            bd.SetValue(Border.BorderThicknessProperty, new Thickness(1));
+            bd.SetValue(Border.PaddingProperty, new Thickness(20, 8, 20, 8));
+            var cp = new FrameworkElementFactory(typeof(ContentPresenter));
+            cp.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+            cp.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+            bd.AppendChild(cp);
+            tmpl.VisualTree = bd;
+            b.Template = tmpl;
+            return b;
+        }
+
+        var cancelBtn = MakeBtn("Cancel", false);
+        cancelBtn.Click += (_, _) => dialog.Close();
+        btnRow.Children.Add(cancelBtn);
+
+        var addBtn = MakeBtn("Add", true);
+        btnRow.Children.Add(addBtn);
+        inner.Children.Add(btnRow);
+
+        outerBorder.Child = inner;
+        dialog.Content = outerBorder;
+
+        // ── Entity population (async fetch if cache empty) ────────────
+        var lightDomains = new[] { "light", "switch", "scene", "script", "input_boolean" };
+        List<HAEntity> entities = new();
 
         void PopulateList(string filter)
         {
@@ -673,101 +781,82 @@ public partial class GroupsView : UserControl
                     e.FriendlyName.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
                     e.EntityId.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToList();
 
-            if (filtered.Count == 0 && allEntities.Count == 0)
+            if (filtered.Count == 0)
             {
-                // HA not connected or no entities — show manual entry row
-                var noEntities = new TextBlock
+                listBox.Items.Add(new ListBoxItem
                 {
-                    Text = "No entities found — check Home Assistant connection in Settings",
-                    FontSize = 11,
-                    Foreground = Brush("#555555"),
-                    Margin = new Thickness(12, 10, 12, 10),
-                    TextWrapping = TextWrapping.Wrap,
-                };
-                listBox.Items.Add(noEntities);
+                    Content = new TextBlock
+                    {
+                        Text = entities.Count == 0
+                            ? "No entities found — check Home Assistant connection in Settings"
+                            : "No matches",
+                        FontSize = 12, Foreground = Brush("#555555"),
+                        Margin = new Thickness(4, 4, 4, 4),
+                    },
+                    IsEnabled = false,
+                });
                 return;
             }
 
             string? lastDomain = null;
             foreach (var entity in filtered)
             {
-                // Domain separator header
                 if (entity.Domain != lastDomain)
                 {
                     lastDomain = entity.Domain;
-                    var header = new TextBlock
+                    listBox.Items.Add(new TextBlock
                     {
                         Text = entity.Domain.ToUpperInvariant(),
-                        FontSize = 9,
-                        FontWeight = FontWeights.SemiBold,
-                        Foreground = Brush("#03A9F4"),
+                        FontSize = 9, FontWeight = FontWeights.SemiBold,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0x03, 0xA9, 0xF4)),
                         Margin = new Thickness(10, 8, 0, 2),
                         IsHitTestVisible = false,
-                    };
-                    listBox.Items.Add(header);
+                    });
                 }
-
-                var row = new ListBoxItem
-                {
-                    Tag = entity,
-                    Padding = new Thickness(10, 6, 10, 6),
-                };
-                var rowContent = new StackPanel();
-                rowContent.Children.Add(new TextBlock
-                {
-                    Text = entity.FriendlyName,
-                    FontSize = 13,
-                    Foreground = Brush("#E8E8E8"),
-                });
-                rowContent.Children.Add(new TextBlock
-                {
-                    Text = entity.EntityId,
-                    FontSize = 10,
-                    Foreground = Brush("#555555"),
-                    Margin = new Thickness(0, 1, 0, 0),
-                });
-                row.Content = rowContent;
+                var row = new ListBoxItem { Tag = entity, Padding = new Thickness(10, 6, 10, 6) };
+                var rowStack = new StackPanel();
+                rowStack.Children.Add(new TextBlock { Text = entity.FriendlyName, FontSize = 13, Foreground = Brush("#E8E8E8") });
+                rowStack.Children.Add(new TextBlock { Text = entity.EntityId, FontSize = 10, Foreground = Brush("#555555"), Margin = new Thickness(0, 1, 0, 0) });
+                row.Content = rowStack;
                 listBox.Items.Add(row);
             }
         }
 
-        PopulateList("");
+        void LoadEntities(List<HAEntity> all)
+        {
+            entities = all
+                .OrderBy(e => Array.IndexOf(lightDomains, e.Domain) is int i && i >= 0 ? i : 99)
+                .ThenBy(e => e.FriendlyName)
+                .ToList();
+            PopulateList(searchBox.Text);
+        }
+
         searchBox.TextChanged += (_, _) => PopulateList(searchBox.Text);
 
-        var scroll = new ScrollViewer { Content = listBox, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        Grid.SetRow(scroll, 1);
-        root.Children.Add(scroll);
+        // Show loading state then fetch
+        listBox.Items.Add(new ListBoxItem
+        {
+            Content = new TextBlock { Text = "Loading entities...", FontSize = 12, Foreground = Brush("#555555"), Margin = new Thickness(4) },
+            IsEnabled = false,
+        });
 
-        // Button row
-        var btnRow = new StackPanel
+        dialog.Loaded += async (_, _) =>
         {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 10, 0, 0),
-        };
-        var cancelBtn = new Button
-        {
-            Content = "Cancel",
-            Padding = new Thickness(14, 6, 14, 6),
-            Margin = new Thickness(0, 0, 8, 0),
-        };
-        cancelBtn.Click += (_, _) => dialog.Close();
-        btnRow.Children.Add(cancelBtn);
+            searchBox.Focus();
+            if (_ha == null) { LoadEntities(new()); return; }
 
-        var addBtn = new Button
-        {
-            Content = "Add",
-            Padding = new Thickness(14, 6, 14, 6),
-            IsDefault = true,
+            // Use cache if populated, otherwise fetch now
+            var cached = _ha.CachedEntities;
+            if (cached.Count > 0) { LoadEntities(cached); return; }
+
+            var fetched = await _ha.GetEntitiesAsync();
+            Dispatcher.Invoke(() => LoadEntities(fetched));
         };
+
+        // Add action
         addBtn.Click += (_, _) =>
         {
-            HAEntity? selected = null;
-            if (listBox.SelectedItem is ListBoxItem { Tag: HAEntity e })
-                selected = e;
-
-            if (selected == null) return;
-
+            if (listBox.SelectedItem is not ListBoxItem { Tag: HAEntity selected }) return;
             _config!.Groups[groupIndex].Devices.Add(new GroupDevice
             {
                 Type = "ha",
@@ -778,15 +867,8 @@ public partial class GroupsView : UserControl
             RebuildGroupPanel();
             dialog.Close();
         };
-
-        // Double-click to add immediately
         listBox.MouseDoubleClick += (_, _) => addBtn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
-        btnRow.Children.Add(addBtn);
-        Grid.SetRow(btnRow, 2);
-        root.Children.Add(btnRow);
-
-        dialog.Content = root;
         dialog.ShowDialog();
     }
 
