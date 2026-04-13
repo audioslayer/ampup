@@ -4742,6 +4742,19 @@ public partial class RoomView : UserControl
     /// Stop room effect for screen sync (game mode or manual toggle).
     /// Saves the active pattern so it can be restarted later.
     /// </summary>
+    /// <summary>
+    /// Called when a device group is turned back on — restart room effect so lights resume
+    /// the running effect instead of going to solid color.
+    /// </summary>
+    public void ResumeRoomEffect()
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_activePattern != null && _activePattern != "__sync__")
+                StartRoomPattern(_activePattern);
+        });
+    }
+
     public void StopRoomPatternForScreenSync()
     {
         Dispatcher.BeginInvoke(() =>

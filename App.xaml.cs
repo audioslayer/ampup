@@ -1510,6 +1510,7 @@ public partial class App : Application
         bool newState = !currentlyOn;
         _groupStates[groupName] = newState;
 
+        bool anyGoveeOn = false;
         foreach (var dev in group.Devices)
         {
             switch (dev.Type)
@@ -1518,6 +1519,7 @@ public partial class App : Application
                     var gc = _config.Ambience.GoveeDevices.FirstOrDefault(d => d.Ip == dev.DeviceId);
                     if (gc != null) gc.PoweredOn = newState;
                     _ = AmbienceSync.SendTurnAsync(dev.DeviceId, newState);
+                    if (newState) anyGoveeOn = true;
                     break;
                 case "corsair":
                     if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
@@ -1547,6 +1549,14 @@ public partial class App : Application
                     _mixer?.ToggleOutputDeviceMute(dev.DeviceId);
                     break;
             }
+        }
+
+        // If any Govee device was turned on, give it ~800ms to power up then
+        // restart the room effect so it resumes the active pattern instead of solid color.
+        if (anyGoveeOn)
+        {
+            Task.Delay(800).ContinueWith(_ =>
+                _mainWindow?.GetRoomView()?.ResumeRoomEffect());
         }
     }
 
