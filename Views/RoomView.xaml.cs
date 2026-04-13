@@ -560,26 +560,41 @@ public partial class RoomView : UserControl
         bool globalMusic = _corsairMusicTimer?.IsEnabled == true && !_vuFillActive;
         bool hasEffect = _activePattern != null && _activePattern != "__sync__";
 
-        // ── Single row: SENSITIVITY (if music reactive) + SPEED + BRIGHTNESS ──
+        // ── Full-width slider row: SENSITIVITY (if music reactive) + SPEED + BRIGHTNESS ──
         if (hasEffect || globalMusic || _vuFillActive)
         {
-            var sliderAccent = ThemeManager.Accent;
-            var slidersRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8), HorizontalAlignment = HorizontalAlignment.Center };
+            var ac = ThemeManager.Accent;
+            var dimBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+            var acBrush = new SolidColorBrush(ac);
+
+            // Helper: build a labeled slider cell (label above, slider + value below)
+            UIElement MakeSliderCell(string label, StyledSlider slider, TextBlock valLabel)
+            {
+                var cell = new StackPanel { Margin = new Thickness(0, 0, 16, 0) };
+                cell.Children.Add(new TextBlock { Text = label, FontSize = 9, FontWeight = FontWeights.SemiBold,
+                    Foreground = dimBrush, Margin = new Thickness(0, 0, 0, 4) });
+                var row = new DockPanel();
+                DockPanel.SetDock(valLabel, Dock.Right);
+                row.Children.Add(valLabel);
+                row.Children.Add(slider);
+                cell.Children.Add(row);
+                return cell;
+            }
+
+            var slidersGrid = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+            int col = 0;
 
             // SENSITIVITY (only when Music Reactive is on)
             if (globalMusic)
             {
-                slidersRow.Children.Add(new TextBlock { Text = "SENSITIVITY", FontSize = 9, FontWeight = FontWeights.SemiBold,
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-                    VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+                slidersGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 var sensSlider = new StyledSlider
                 {
                     Minimum = 1, Maximum = 100, Value = _config.Ambience.MusicSensitivity,
-                    Width = 120, Height = 28, AccentColor = sliderAccent, ShowLabel = false,
+                    Height = 28, AccentColor = ac, ShowLabel = false, HorizontalAlignment = HorizontalAlignment.Stretch,
                 };
                 var sensLabel = new TextBlock { Text = $"{_config.Ambience.MusicSensitivity}%", FontSize = 11,
-                    Foreground = new SolidColorBrush(sliderAccent),
-                    VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+                    Foreground = acBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
                 sensSlider.ValueChanged += (_, _) =>
                 {
                     if (_loading || _config == null) return;
@@ -587,23 +602,21 @@ public partial class RoomView : UserControl
                     sensLabel.Text = $"{(int)sensSlider.Value}%";
                     QueueSave();
                 };
-                slidersRow.Children.Add(sensSlider);
-                slidersRow.Children.Add(sensLabel);
-                slidersRow.Children.Add(new Border { Width = 20 });
+                var sensCell = MakeSliderCell("SENSITIVITY", sensSlider, sensLabel);
+                Grid.SetColumn(sensCell as FrameworkElement, col);
+                slidersGrid.Children.Add(sensCell);
+                col++;
             }
 
             // SPEED
-            slidersRow.Children.Add(new TextBlock { Text = "SPEED", FontSize = 9, FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+            slidersGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             var speedSlider = new StyledSlider
             {
                 Minimum = 1, Maximum = 100, Value = _roomEffectSpeed,
-                Width = 120, Height = 28, AccentColor = sliderAccent, ShowLabel = false,
+                Height = 28, AccentColor = ac, ShowLabel = false, HorizontalAlignment = HorizontalAlignment.Stretch,
             };
             var speedLabel = new TextBlock { Text = $"{_roomEffectSpeed}%", FontSize = 11,
-                Foreground = new SolidColorBrush(sliderAccent),
-                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+                Foreground = acBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
             speedSlider.ValueChanged += (_, _) =>
             {
                 if (_loading) return;
@@ -621,22 +634,20 @@ public partial class RoomView : UserControl
                     });
                 }
             };
-            slidersRow.Children.Add(speedSlider);
-            slidersRow.Children.Add(speedLabel);
-            slidersRow.Children.Add(new Border { Width = 20 });
+            var speedCell = MakeSliderCell("SPEED", speedSlider, speedLabel);
+            Grid.SetColumn(speedCell as FrameworkElement, col);
+            slidersGrid.Children.Add(speedCell);
+            col++;
 
             // BRIGHTNESS
-            slidersRow.Children.Add(new TextBlock { Text = "BRIGHTNESS", FontSize = 9, FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+            slidersGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             var brightSlider = new StyledSlider
             {
                 Minimum = 1, Maximum = 100, Value = _config.Ambience.BrightnessScale,
-                Width = 120, Height = 28, AccentColor = sliderAccent, ShowLabel = false,
+                Height = 28, AccentColor = ac, ShowLabel = false, HorizontalAlignment = HorizontalAlignment.Stretch,
             };
             var brightLabel = new TextBlock { Text = $"{_config.Ambience.BrightnessScale}%", FontSize = 11,
-                Foreground = new SolidColorBrush(sliderAccent),
-                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+                Foreground = acBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
             brightSlider.ValueChanged += (_, _) =>
             {
                 if (_loading || _config == null) return;
@@ -650,10 +661,11 @@ public partial class RoomView : UserControl
                 }
                 QueueSave();
             };
-            slidersRow.Children.Add(brightSlider);
-            slidersRow.Children.Add(brightLabel);
+            var brightCell = MakeSliderCell("BRIGHTNESS", brightSlider, brightLabel);
+            Grid.SetColumn(brightCell as FrameworkElement, col);
+            slidersGrid.Children.Add(brightCell);
 
-            container.Children.Add(slidersRow);
+            container.Children.Add(slidersGrid);
         }
 
         if (_vuFillActive)
@@ -2987,15 +2999,20 @@ public partial class RoomView : UserControl
         var accent = ThemeManager.Accent;
         var dimBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
 
-        // Helper: make a labeled slider row (label left, slider + value right)
+        // Helper: make a labeled slider row (label left, slider stretches, value right)
         StackPanel MakeSliderRow(string label, StyledSlider slider, TextBlock valLabel)
         {
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-            row.Children.Add(new TextBlock { Text = label, FontSize = 10, FontWeight = FontWeights.SemiBold,
-                Foreground = dimBrush, VerticalAlignment = VerticalAlignment.Center, Width = 90 });
-            row.Children.Add(slider);
-            row.Children.Add(valLabel);
-            return row;
+            var outer = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
+            outer.Children.Add(new TextBlock { Text = label, FontSize = 9, FontWeight = FontWeights.SemiBold,
+                Foreground = dimBrush, Margin = new Thickness(0, 0, 0, 4) });
+            var dock = new DockPanel();
+            valLabel.Margin = new Thickness(8, 0, 0, 0);
+            DockPanel.SetDock(valLabel, Dock.Right);
+            dock.Children.Add(valLabel);
+            slider.HorizontalAlignment = HorizontalAlignment.Stretch;
+            dock.Children.Add(slider);
+            outer.Children.Add(dock);
+            return outer;
         }
 
         // Helper: make a labeled combo row
@@ -3076,7 +3093,7 @@ public partial class RoomView : UserControl
         var satSlider = new StyledSlider
         {
             Minimum = 50, Maximum = 200, Value = (int)(cfg.Saturation * 100),
-            Width = 140, Height = 28, AccentColor = accent, ShowLabel = false,
+            Height = 28, AccentColor = accent, ShowLabel = false,
         };
         var satLabel = new TextBlock { Text = $"{cfg.Saturation:F1}×", FontSize = 11,
             Foreground = new SolidColorBrush(accent),
@@ -3095,7 +3112,7 @@ public partial class RoomView : UserControl
         var sensSlider = new StyledSlider
         {
             Minimum = 1, Maximum = 20, Value = cfg.Sensitivity,
-            Width = 140, Height = 28, AccentColor = accent, ShowLabel = false,
+            Height = 28, AccentColor = accent, ShowLabel = false,
         };
         var sensLabel = new TextBlock { Text = $"{cfg.Sensitivity}", FontSize = 11,
             Foreground = new SolidColorBrush(accent),
@@ -3116,7 +3133,7 @@ public partial class RoomView : UserControl
             var corsairBrightSlider = new StyledSlider
             {
                 Minimum = 1, Maximum = 100, Value = Math.Min(_config.Corsair.LightBrightness, 100),
-                Width = 140, Height = 28, AccentColor = accent, ShowLabel = false,
+                Height = 28, AccentColor = accent, ShowLabel = false,
             };
             var corsairBrightLabel = new TextBlock { Text = $"{_config.Corsair.LightBrightness}%", FontSize = 11,
                 Foreground = new SolidColorBrush(accent),
