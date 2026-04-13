@@ -317,20 +317,11 @@ public class ScreenEdgeControl : Canvas
         if (_zoneCols <= 0 || _zoneRows <= 0) return;
         if (_screenW <= 0 || _screenH <= 0) return;
 
-        double cLeft = _bounds.LeftPct * _screenW;
-        double cRight = _bounds.RightPct * _screenW;
-        double cTop = _bounds.TopPct * _screenH;
-        double cBottom = _bounds.BottomPct * _screenH;
-
-        double contentX = _screenX + cLeft;
-        double contentY = _screenY + cTop;
-        double contentW = _screenW - cLeft - cRight;
-        double contentH = _screenH - cTop - cBottom;
-
-        if (contentW < 2 || contentH < 2) return;
-
-        double cellW = contentW / _zoneCols;
-        double cellH = contentH / _zoneRows;
+        // Zone cells fill the FULL screen area (not just content area).
+        // The black bar overlays draw on top to visually chop off cropped regions,
+        // so the user sees zones being cut off rather than resized.
+        double cellW = _screenW / _zoneCols;
+        double cellH = _screenH / _zoneRows;
 
         for (int r = 0; r < _zoneRows; r++)
         {
@@ -347,11 +338,11 @@ public class ScreenEdgeControl : Canvas
                     Opacity = 0.7
                 };
 
-                SetLeft(cell, contentX + c * cellW + ZoneCellPadding);
-                SetTop(cell, contentY + r * cellH + ZoneCellPadding);
+                SetLeft(cell, _screenX + c * cellW + ZoneCellPadding);
+                SetTop(cell, _screenY + r * cellH + ZoneCellPadding);
 
-                // Insert before crop lines (so lines draw on top)
-                int insertIdx = Children.IndexOf(_cropLines[0]);
+                // Insert before black bars so bars draw on top and chop the cells
+                int insertIdx = Children.IndexOf(_blackBarLeft);
                 if (insertIdx >= 0)
                     Children.Insert(insertIdx, cell);
                 else
