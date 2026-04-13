@@ -387,13 +387,41 @@ public partial class GroupsView : UserControl
             FontSize = 12,
             Foreground = FindBrush("TextPrimaryBrush"),
         });
-        namePanel.Children.Add(new TextBlock
+        var idLine = new StackPanel { Orientation = Orientation.Horizontal };
+        idLine.Children.Add(new TextBlock
         {
             Text = device.DeviceId,
             FontSize = 9,
             Foreground = FindBrush("TextDimBrush"),
             TextTrimming = TextTrimming.CharacterEllipsis,
         });
+        // Show action badge for HA devices
+        if (device.Type == "ha")
+        {
+            var actionLabel = device.Action switch
+            {
+                "on"  => "TURN ON",
+                "off" => "TURN OFF",
+                _     => "TOGGLE",
+            };
+            idLine.Children.Add(new Border
+            {
+                CornerRadius = new CornerRadius(3),
+                Padding = new Thickness(5, 1, 5, 1),
+                Margin = new Thickness(6, 0, 0, 0),
+                Background = Brush("#1A1A1A"),
+                BorderBrush = Brush("#333333"),
+                BorderThickness = new Thickness(1),
+                Child = new TextBlock
+                {
+                    Text = actionLabel,
+                    FontSize = 8,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = Brush("#9A9A9A"),
+                },
+            });
+        }
+        namePanel.Children.Add(idLine);
         dock.Children.Add(namePanel);
 
         return row;
@@ -757,6 +785,68 @@ public partial class GroupsView : UserControl
             return b;
         }
 
+        // Action pills: Toggle / Turn On / Turn Off
+        var actionRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 10, 0, 0),
+        };
+        actionRow.Children.Add(new TextBlock
+        {
+            Text = "ACTION",
+            FontSize = 9, FontWeight = FontWeights.SemiBold,
+            Foreground = Brush("#555555"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 10, 0),
+        });
+
+        string selectedAction = "toggle";
+        var actionPills = new List<Border>();
+
+        Border MakePill(string label, string value)
+        {
+            var isSelected = value == selectedAction;
+            var pill = new Border
+            {
+                CornerRadius = new CornerRadius(12),
+                Padding = new Thickness(14, 5, 14, 5),
+                Margin = new Thickness(0, 0, 6, 0),
+                BorderThickness = new Thickness(1),
+                Cursor = Cursors.Hand,
+                Background = isSelected ? new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x22)) : Brush("#1A1A1A"),
+                BorderBrush = isSelected ? new SolidColorBrush(accent) : Brush("#333333"),
+                Tag = value,
+            };
+            pill.Child = new TextBlock
+            {
+                Text = label,
+                FontSize = 11,
+                Foreground = isSelected ? new SolidColorBrush(accent) : Brush("#9A9A9A"),
+            };
+            actionPills.Add(pill);
+            return pill;
+        }
+
+        void SelectAction(string value)
+        {
+            selectedAction = value;
+            foreach (var p in actionPills)
+            {
+                bool sel = p.Tag as string == value;
+                p.Background = sel ? new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x22)) : Brush("#1A1A1A");
+                p.BorderBrush = sel ? new SolidColorBrush(accent) : Brush("#333333");
+                ((TextBlock)p.Child).Foreground = sel ? new SolidColorBrush(accent) : Brush("#9A9A9A");
+            }
+        }
+
+        foreach (var (label, val) in new[] { ("Toggle", "toggle"), ("Turn On", "on"), ("Turn Off", "off") })
+        {
+            var pill = MakePill(label, val);
+            pill.MouseLeftButtonUp += (_, _) => SelectAction(pill.Tag as string ?? "toggle");
+            actionRow.Children.Add(pill);
+        }
+        inner.Children.Add(actionRow);
+
         var cancelBtn = MakeBtn("Cancel", false);
         cancelBtn.Click += (_, _) => dialog.Close();
         btnRow.Children.Add(cancelBtn);
@@ -769,7 +859,7 @@ public partial class GroupsView : UserControl
         dialog.Content = outerBorder;
 
         // ── Entity population (async fetch if cache empty) ────────────
-        var lightDomains = new[] { "light", "switch", "scene", "script", "input_boolean" };
+        var lightDomains = new[] { "light", "group", "switch", "scene", "script", "input_boolean", "media_player" };
         List<HAEntity> entities = new();
 
         void PopulateList(string filter)
@@ -862,6 +952,7 @@ public partial class GroupsView : UserControl
                 Type = "ha",
                 DeviceId = selected.EntityId,
                 Name = selected.FriendlyName,
+                Action = selectedAction,
             });
             Save();
             RebuildGroupPanel();

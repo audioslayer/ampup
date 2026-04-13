@@ -62,6 +62,7 @@ public class GroupDevice
     public string Type { get; set; } = ""; // "govee" | "corsair" | "ha" | "audio_output"
     public string DeviceId { get; set; } = ""; // IP for govee, device ID for corsair, entity_id for HA
     public string Name { get; set; } = ""; // friendly name
+    public string Action { get; set; } = "toggle"; // "toggle" | "on" | "off" — for HA entities
 }
 
 public class CorsairConfig

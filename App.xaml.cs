@@ -1533,7 +1533,15 @@ public partial class App : Application
                     break;
                 case "ha":
                     if (_ha != null && _ha.IsAvailable)
-                        _ = _ha.ToggleEntityAsync(dev.DeviceId);
+                    {
+                        var haAction = dev.Action switch
+                        {
+                            "on" => "turn_on",
+                            "off" => "turn_off",
+                            _ => "toggle",
+                        };
+                        _ = _ha.CallServiceAsync(dev.DeviceId.Split('.')[0], haAction, dev.DeviceId);
+                    }
                     break;
                 case "audio_output":
                     _mixer?.ToggleOutputDeviceMute(dev.DeviceId);
