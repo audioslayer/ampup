@@ -922,6 +922,7 @@ public class AmbienceSync : IDisposable
         "H610A" => 12,  // Glide Lively Wall Light (6 bars × 2 addressable segments per bar)
         "H610B" => 12,
         "H6601" => 10,  // Curtain Lights
+        "H61A0" => 19,  // RGBIC Neon Rope Light (10ft = 19 segments)
         _ => 0
     };
 
@@ -939,6 +940,7 @@ public class AmbienceSync : IDisposable
         if (name.Contains("dreamview") && name.Contains("g1")) return 12;
         if (name.Contains("tv backlight")) return 20;
         if (name.Contains("tv light bar")) return 12;
+        if (name.Contains("neon rope")) return 19;                          // H61A0
         if (name.Contains("glide") && !name.Contains("lively")) return 10; // H6062 original Glide
         if (name.Contains("glide") && name.Contains("lively")) return 24; // H610A: 6 bars × 4 LEDs
         return 0;
@@ -980,6 +982,7 @@ public class AmbienceSync : IDisposable
             "H6066" => "Glide Tri Panels",
             "H6072" => "Glide Hexa Pro",
             "H6076" => "Glide Tri Pro",
+            "H61A0" => "RGBIC Neon Rope Light",
             "H6601" => "LED Strip Light",
             "H6602" => "LED Strip Light",
             "H6604" => "RGBIC Strip Light",
