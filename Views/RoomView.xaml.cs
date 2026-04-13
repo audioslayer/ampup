@@ -3026,14 +3026,9 @@ public partial class RoomView : UserControl
         }
 
         // ══════════════════════════════════════════════════════════════
-        // Two-column layout: LEFT = controls, RIGHT = live preview
+        // Single-column layout: config row → sliders → full-width preview
         // ══════════════════════════════════════════════════════════════
-        var grid = new Grid { Margin = new Thickness(0, 0, 0, 4) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        // ── LEFT COLUMN: controls ──
-        var leftCol = new StackPanel { Margin = new Thickness(0, 0, 16, 0) };
+        var leftCol = new StackPanel();
 
         // Monitor
         var screens = System.Windows.Forms.Screen.AllScreens;
@@ -3106,7 +3101,6 @@ public partial class RoomView : UserControl
             _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
             QueueSave();
         };
-        leftCol.Children.Add(MakeSliderRow("SATURATION", satSlider, satLabel));
 
         // Sensitivity slider
         var sensSlider = new StyledSlider
@@ -3125,27 +3119,28 @@ public partial class RoomView : UserControl
             _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
             QueueSave();
         };
-        leftCol.Children.Add(MakeSliderRow("SENSITIVITY", sensSlider, sensLabel));
 
-        // Corsair brightness (only when Corsair is enabled)
+        // Corsair brightness (declared outside if so grid code can reference)
+        StyledSlider? corsairBrightSlider = null;
+        TextBlock? corsairBrightLabel = null;
         if (_config!.Corsair.Enabled)
         {
-            var corsairBrightSlider = new StyledSlider
+            corsairBrightSlider = new StyledSlider
             {
                 Minimum = 1, Maximum = 100, Value = Math.Min(_config.Corsair.LightBrightness, 100),
                 Height = 28, AccentColor = accent, ShowLabel = false,
             };
-            var corsairBrightLabel = new TextBlock { Text = $"{_config.Corsair.LightBrightness}%", FontSize = 11,
+            corsairBrightLabel = new TextBlock { Text = $"{_config.Corsair.LightBrightness}%", FontSize = 11,
                 Foreground = new SolidColorBrush(accent),
                 VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+            var cbs = corsairBrightSlider; var cbl = corsairBrightLabel;
             corsairBrightSlider.ValueChanged += (_, _) =>
             {
                 if (_config == null) return;
-                _config.Corsair.LightBrightness = (int)corsairBrightSlider.Value;
-                corsairBrightLabel.Text = $"{(int)corsairBrightSlider.Value}%";
+                _config.Corsair.LightBrightness = (int)cbs.Value;
+                cbl.Text = $"{(int)cbs.Value}%";
                 QueueSave();
             };
-            leftCol.Children.Add(MakeSliderRow("iCUE BRIGHT", corsairBrightSlider, corsairBrightLabel));
         }
 
         // Crop Black Bars toggle
@@ -3176,15 +3171,39 @@ public partial class RoomView : UserControl
         cropRow.Children.Add(cropCheck);
         leftCol.Children.Add(cropRow);
 
-        Grid.SetColumn(leftCol, 0);
-        grid.Children.Add(leftCol);
+        // ── Sliders row: Saturation + Sensitivity + iCUE in a grid ──
+        var sliderGrid = new Grid { Margin = new Thickness(0, 4, 0, 8) };
+        int sCol = 0;
 
-        // ── RIGHT COLUMN: live preview ──
-        var rightCol = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        // Saturation
+        sliderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var satCell = MakeSliderRow("SATURATION", satSlider, satLabel);
+        satCell.Margin = new Thickness(0, 0, 12, 0);
+        Grid.SetColumn(satCell, sCol++);
+        sliderGrid.Children.Add(satCell);
 
+        // Sensitivity
+        sliderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var sensCell = MakeSliderRow("SENSITIVITY", sensSlider, sensLabel);
+        sensCell.Margin = new Thickness(0, 0, 12, 0);
+        Grid.SetColumn(sensCell, sCol++);
+        sliderGrid.Children.Add(sensCell);
+
+        // Corsair brightness (if enabled)
+        if (corsairBrightSlider != null && corsairBrightLabel != null)
+        {
+            sliderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var corsairCell = MakeSliderRow("iCUE BRIGHTNESS", corsairBrightSlider, corsairBrightLabel);
+            Grid.SetColumn(corsairCell, sCol++);
+            sliderGrid.Children.Add(corsairCell);
+        }
+
+        leftCol.Children.Add(sliderGrid);
+
+        // ── Full-width live preview ──
         _screenEdgeControl = new Controls.ScreenEdgeControl
         {
-            Height = 200,
+            Height = 220,
         };
         _screenEdgeControl.SetContentBounds(cfg.ContentBounds);
         _screenEdgeControl.ContentBoundsChanged += bounds =>
@@ -3203,7 +3222,7 @@ public partial class RoomView : UserControl
                 Dispatcher.BeginInvoke(() => _screenEdgeControl?.UpdateZoneColors(grid2, cols, rows));
             };
         }
-        rightCol.Children.Add(_screenEdgeControl);
+        leftCol.Children.Add(_screenEdgeControl);
 
         _dreamStatusLabel = new TextBlock
         {
@@ -3213,12 +3232,9 @@ public partial class RoomView : UserControl
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 4, 0, 0),
         };
-        rightCol.Children.Add(_dreamStatusLabel);
+        leftCol.Children.Add(_dreamStatusLabel);
 
-        Grid.SetColumn(rightCol, 1);
-        grid.Children.Add(rightCol);
-
-        stack.Children.Add(grid);
+        stack.Children.Add(leftCol);
 
         // Status update timer — updates status label and Game Mode badge
         var statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
