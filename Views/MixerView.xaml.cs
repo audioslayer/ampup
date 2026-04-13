@@ -437,7 +437,9 @@ public partial class MixerView : UserControl
 
     private void LiveTimer_Tick(object? sender, EventArgs e)
     {
+        // IsVisible stays true when minimized (minimize changes WindowState, not Visibility)
         if (!IsVisible) return;
+        if (Window.GetWindow(this)?.WindowState == WindowState.Minimized) return;
         if (_mixer == null || _config == null) return;
         var config = _config; // local copy suppresses CS8602
 

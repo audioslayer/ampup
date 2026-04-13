@@ -156,11 +156,30 @@ public partial class MainWindow : FluentWindow
         };
         _hwPreviewTimer.Tick += HwPreviewTimer_Tick;
         _hwPreviewTimer.Start();
+
+        // Stop the timer when minimized or hidden to tray — WPF DispatcherTimers
+        // keep firing even when the window is minimized, causing unnecessary WASAPI
+        // peak calls + rendering at 20 FPS with nothing visible.
+        StateChanged += (_, _) =>
+        {
+            if (WindowState == WindowState.Minimized)
+                _hwPreviewTimer.Stop();
+            else
+                _hwPreviewTimer.Start();
+        };
+        IsVisibleChanged += (_, _) =>
+        {
+            if (!IsVisible)
+                _hwPreviewTimer.Stop();
+            else if (WindowState != WindowState.Minimized)
+                _hwPreviewTimer.Start();
+        };
     }
 
     private void OnRgbFrameReady(byte[] frame)
     {
-        // Called from RgbController thread — marshal to UI thread
+        // Called from RgbController thread — skip marshal when window isn't visible
+        if (!IsVisible || WindowState == WindowState.Minimized) return;
         Dispatcher.BeginInvoke(() => HwPreview.SetLedFrame(frame));
     }
 
