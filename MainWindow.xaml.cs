@@ -32,6 +32,7 @@ public partial class MainWindow : FluentWindow
     private Action<AppConfig>? _onConfigChanged;
 
     private System.Windows.Threading.DispatcherTimer? _hwPreviewTimer;
+    private volatile bool _windowActive = true; // safe to read from any thread
 
     public MainWindow()
     {
@@ -163,23 +164,36 @@ public partial class MainWindow : FluentWindow
         StateChanged += (_, _) =>
         {
             if (WindowState == WindowState.Minimized)
+            {
+                _windowActive = false;
                 _hwPreviewTimer.Stop();
+            }
             else
+            {
+                _windowActive = true;
                 _hwPreviewTimer.Start();
+            }
         };
         IsVisibleChanged += (_, _) =>
         {
             if (!IsVisible)
+            {
+                _windowActive = false;
                 _hwPreviewTimer.Stop();
+            }
             else if (WindowState != WindowState.Minimized)
+            {
+                _windowActive = true;
                 _hwPreviewTimer.Start();
+            }
         };
     }
 
     private void OnRgbFrameReady(byte[] frame)
     {
-        // Called from RgbController thread — skip marshal when window isn't visible
-        if (!IsVisible || WindowState == WindowState.Minimized) return;
+        // Called from RgbController thread — _windowActive is volatile, safe to read here.
+        // Don't touch any WPF dependency properties (e.g. WindowState, IsVisible) from this thread.
+        if (!_windowActive) return;
         Dispatcher.BeginInvoke(() => HwPreview.SetLedFrame(frame));
     }
 
