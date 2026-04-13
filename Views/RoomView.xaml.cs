@@ -511,8 +511,6 @@ public partial class RoomView : UserControl
                         StartRoomPattern(_activePattern);
                 }
                 _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-                if (_screenSyncSettingsPanel != null)
-                    _screenSyncSettingsPanel.Visibility = (on || _config.Ambience.GameModeEnabled) ? Visibility.Visible : Visibility.Collapsed;
                 QueueSave();
                 RebuildRoomTabContent(); // update Music Reactive / VU Fill toggle states
             }, Color.FromRgb(0x44, 0x8A, 0xFF),
@@ -529,24 +527,18 @@ public partial class RoomView : UserControl
             {
                 if (_loading || _config == null) return;
                 _config.Ambience.GameModeEnabled = on;
-                if (_screenSyncSettingsPanel != null)
-                    _screenSyncSettingsPanel.Visibility = (on || _config.Ambience.ScreenSync.Enabled) ? Visibility.Visible : Visibility.Collapsed;
                 QueueSave();
             }, Color.FromRgb(0xFF, 0x6B, 0x35)));
 
-        // Screen Sync settings panel — wrapped in section card
+        // Screen Sync settings panel — always visible with live preview
         if (_screenSyncSettingsPanel != null)
             _roomTabContent?.Children.Remove(_screenSyncSettingsPanel);
-        bool showSyncSettings = syncRunning || _config.Ambience.GameModeEnabled;
         var ssInner = new StackPanel();
         BuildScreenSyncSettings(ssInner, statusUpdater!);
         var ssCard = MakeSectionCard("SCREEN SYNC", ssInner);
-        ssCard.Visibility = showSyncSettings ? Visibility.Visible : Visibility.Collapsed;
         ssCard.Margin = new Thickness(0, 8, 0, 0);
-        // Store the card as the panel so visibility toggling still works
         _screenSyncSettingsPanel = new StackPanel();
         _screenSyncSettingsPanel.Children.Add(ssCard);
-        _screenSyncSettingsPanel.Visibility = showSyncSettings ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ── ROOM EFFECT TAB (unified: effect + palette + direction + canvas) ──
@@ -3248,6 +3240,32 @@ public partial class RoomView : UserControl
             statusTileUpdater(active ? "ACTIVE" : "STANDBY", active);
         };
         statusTimer.Start();
+
+        // Preview capture timer — low-FPS screen capture when sync isn't actively running
+        // so the user always sees a live preview of the selected monitor
+        var previewTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) }; // ~5 FPS
+        previewTimer.Tick += (_, _) =>
+        {
+            // Skip when sync is running (DreamSync already feeds the preview via OnZoneGrid)
+            if (_dreamSync == null || _dreamSync.IsRunning) return;
+            // Skip when the card isn't visible
+            if (_screenSyncSettingsPanel?.Visibility != Visibility.Visible) return;
+
+            try
+            {
+                var grid = _dreamSync.CapturePreviewGrid();
+                if (grid != null)
+                {
+                    int cols = grid.GetLength(1);
+                    int rows = grid.GetLength(0);
+                    _screenEdgeControl?.UpdateZoneColors(grid, cols, rows);
+                    if (_dreamStatusLabel != null)
+                        _dreamStatusLabel.Text = "Preview";
+                }
+            }
+            catch { /* preview is best-effort */ }
+        };
+        previewTimer.Start();
 
         // ── Device Zone Mapping ──
         if (_config!.Ambience.GoveeDevices.Count > 0)

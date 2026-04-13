@@ -89,6 +89,25 @@ public class DreamSyncController : IDisposable
         lock (_lock) { _spatialMapper = mapper; }
     }
 
+    /// <summary>
+    /// One-shot screen capture for preview only — does not send to any devices.
+    /// Returns the 2D zone grid, or null if capture fails.
+    /// </summary>
+    public (byte R, byte G, byte B)[,]? CapturePreviewGrid()
+    {
+        ScreenSyncConfig cfg;
+        lock (_lock) { cfg = _config; }
+
+        ContentBounds? crop = cfg.CropBlackBars ? cfg.ContentBounds : null;
+        if (crop == null && (cfg.ContentBounds.LeftPct > 0 || cfg.ContentBounds.RightPct > 0
+            || cfg.ContentBounds.TopPct > 0 || cfg.ContentBounds.BottomPct > 0))
+            crop = cfg.ContentBounds;
+
+        int cols = cfg.ZoneCount;
+        int rows = 3;
+        return _capture.CaptureZoneGrid(cfg.MonitorIndex, cols, rows, crop);
+    }
+
     // ── Start / Stop ─────────────────────────────────────────────────────────
 
     public void Start()
