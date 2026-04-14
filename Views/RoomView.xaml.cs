@@ -806,6 +806,13 @@ public partial class RoomView : UserControl
         LightEffect.RainbowCycle,
         LightEffect.RainbowWheel,
         LightEffect.RainbowFill,
+        // HSV-generated room sweep effects
+        LightEffect.Vortex,
+        LightEffect.Shockwave,
+        LightEffect.Tidal,
+        LightEffect.Prism,
+        LightEffect.EmberDrift,
+        LightEffect.Glitch,
     };
 
     private static bool EffectIgnoresPalette(LightEffect e) => PaletteIgnoredEffects.Contains(e);
