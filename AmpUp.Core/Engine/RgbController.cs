@@ -2888,155 +2888,175 @@ public class RgbController : IDisposable
     // ── New room sweep effects (v0.9.9) ──
 
     /// <summary>
-    /// Spiral that accelerates toward center — colors swirl inward with trailing tails.
-    /// Creates a whirlpool effect across the room. Palette colors spiral along the strip.
+    /// Spiral that accelerates toward center — deep purple/magenta/cyan whirlpool.
+    /// Colors shift through jewel tones with organic sine-based spiral motion.
     /// </summary>
     private void GlobalVortex(GlobalLightConfig gl)
     {
         int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
         float t = _animTick * (0.03f + speed / 100f * 0.12f);
-        float center = 7f; // center LED
+        float center = 7f;
 
         for (int i = 0; i < 15; i++)
         {
-            float dist = Math.Abs(i - center) / 7f; // 0 at center, 1 at edges
-            // Spiral phase: accelerates toward center (shorter dist = faster rotation)
+            float dist = Math.Abs(i - center) / 7f;
             float spiralPhase = t * (1f + (1f - dist) * 3f) + i * 0.4f;
-            // Brightness: pulsing with spiral, brighter near center
             float brightness = 0.15f + 0.85f * (0.5f + 0.5f * MathF.Sin(spiralPhase));
-            // Pull colors inward — palette position rotates and wraps
-            float colorPos = (dist + t * 0.3f) % 1f;
-            var (cr, cg, cb) = GetGradientColor(gl, colorPos);
-            // Fade edges slightly for depth
             brightness *= 0.4f + 0.6f * (1f - dist * 0.5f);
-            SetGlobalLed(i,
-                Math.Clamp((int)(cr * brightness), 0, 255),
-                Math.Clamp((int)(cg * brightness), 0, 255),
-                Math.Clamp((int)(cb * brightness), 0, 255));
+
+            // Rich jewel tones: purple→magenta→cyan→violet, spiraling with position
+            float hue = 260f + MathF.Sin(spiralPhase * 0.7f) * 80f + dist * 60f;
+            hue += MathF.Sin(t * 0.4f + i * 0.3f) * 30f;
+            hue = ((hue % 360f) + 360f) % 360f;
+            float sat = 0.75f + 0.2f * MathF.Sin(spiralPhase * 1.3f);
+            brightness *= brightness; // squared for dramatic contrast
+
+            HsvToRgb(hue, sat, brightness, out int r, out int g, out int b);
+            SetGlobalLed(i, r, g, b);
         }
     }
 
     /// <summary>
-    /// Sharp bright pulse expands outward from center, fades behind. Repeats periodically.
-    /// Like dropping a stone in water — a bright ring radiates outward.
+    /// Sharp bright pulse expands outward from center — warm gold→orange→red ring with cool blue trail.
+    /// Each pulse shifts hue slightly for variety. Bright white-hot leading edge.
     /// </summary>
     private float _shockwavePhase;
+    private int _shockwavePulseCount;
     private void GlobalShockwave(GlobalLightConfig gl)
     {
         int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
         float step = 0.06f + speed / 100f * 0.2f;
         _shockwavePhase += step;
 
-        // Cycle: expand from 0→1, then pause briefly before next pulse
-        float cycleLen = 1.3f; // 1.0 for expansion + 0.3 pause
+        float cycleLen = 1.3f;
         float phase = _shockwavePhase % cycleLen;
-        float waveFront = phase / 1.0f; // 0→1 during expansion, >1 during pause
+        if (phase < step) _shockwavePulseCount++; // count each new pulse
+        float waveFront = phase / 1.0f;
 
         for (int i = 0; i < 15; i++)
         {
-            float dist = Math.Abs(i - 7f) / 7f; // 0 at center, 1 at edges
-            // Sharp leading edge — bright ring at wavefront
+            float dist = Math.Abs(i - 7f) / 7f;
             float ringDist = Math.Abs(dist - waveFront);
-            float ringWidth = 0.12f; // narrow bright band
+            float ringWidth = 0.12f;
             float ring = Math.Max(0f, 1f - ringDist / ringWidth);
-            ring *= ring; // sharpen the edge
-            // Fade trail behind the wave
+            ring *= ring;
             float trail = dist < waveFront ? Math.Max(0f, 1f - (waveFront - dist) * 3f) * 0.3f : 0f;
             float brightness = Math.Clamp(ring + trail, 0f, 1f);
-            // During pause, everything fades
             if (phase > 1.0f) brightness *= Math.Max(0f, 1f - (phase - 1.0f) / 0.3f);
 
-            var (cr, cg, cb) = GetGradientColor(gl, dist);
-            SetGlobalLed(i,
-                Math.Clamp((int)(cr * brightness), 0, 255),
-                Math.Clamp((int)(cg * brightness), 0, 255),
-                Math.Clamp((int)(cb * brightness), 0, 255));
+            // Leading edge: hot white→gold. Trail: orange→deep red→cool blue
+            float hueBase = 30f + (_shockwavePulseCount % 5) * 20f; // shift each pulse
+            float hue;
+            float sat;
+            if (ring > 0.3f)
+            {
+                // Leading edge: warm gold, desaturated (white-hot)
+                hue = hueBase;
+                sat = 0.4f + 0.3f * (1f - ring);
+            }
+            else
+            {
+                // Trail: shift from orange→red→blue as it fades
+                float trailAge = Math.Max(0f, waveFront - dist);
+                hue = hueBase + trailAge * 200f; // 30→230 (gold→blue)
+                sat = 0.7f + trailAge * 0.2f;
+            }
+            hue = ((hue % 360f) + 360f) % 360f;
+
+            HsvToRgb(hue, Math.Clamp(sat, 0f, 1f), brightness, out int r, out int g, out int b);
+            SetGlobalLed(i, r, g, b);
         }
     }
 
     /// <summary>
-    /// Rising tide sweeps across LEDs with bright foamy leading edge, holds at peak, then recedes.
-    /// Dramatic fill + drain with a bright crest where the water meets air.
+    /// Rising tide with rich ocean colors — deep navy depths, teal mid-water,
+    /// cyan surface with bright white foam crest. Recedes to reveal deep purple.
     /// </summary>
     private void GlobalTidal(GlobalLightConfig gl)
     {
         int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
         float t = _animTick * (0.008f + speed / 100f * 0.03f);
 
-        // Smooth sine-based tide: rises 0→1, falls 1→0
         float tideSin = MathF.Sin(t * MathF.PI * 2f);
-        float tideLevel = 0.5f + 0.5f * tideSin; // 0→1→0
-        // Secondary foam ripple layered on top
+        float tideLevel = 0.5f + 0.5f * tideSin;
         float foam = 0.03f * MathF.Sin(t * MathF.PI * 17f);
 
         for (int i = 0; i < 15; i++)
         {
-            float pos = i / 14f; // 0=left, 1=right (LED 0 = "bottom" of the tide)
+            float pos = i / 14f;
             float waterLine = tideLevel + foam;
 
             if (pos <= waterLine)
             {
-                // Below water: full color, slight depth darkening
-                float depth = 1f - (waterLine - pos) * 0.3f;
-                depth = Math.Clamp(depth, 0.5f, 1f);
-                // Subtle wave motion in submerged area
-                float wave = 0.9f + 0.1f * MathF.Sin(pos * 12f - t * 5f);
-                float brightness = depth * wave;
-                var (cr, cg, cb) = GetGradientColor(gl, pos);
-                SetGlobalLed(i,
-                    Math.Clamp((int)(cr * brightness), 0, 255),
-                    Math.Clamp((int)(cg * brightness), 0, 255),
-                    Math.Clamp((int)(cb * brightness), 0, 255));
+                // Submerged: deep navy at bottom → teal → bright cyan near surface
+                float depthRatio = (waterLine - pos) / Math.Max(waterLine, 0.01f);
+                // Depth hue: 180 (cyan) at surface → 220 (blue) → 260 (indigo) at deep
+                float hue = 180f + depthRatio * 80f;
+                hue += MathF.Sin(pos * 8f - t * 3f) * 10f; // subtle shimmer
+                float sat = 0.7f + depthRatio * 0.2f;
+                float bright = 0.9f - depthRatio * 0.5f;
+                // Subtle wave motion
+                bright *= 0.9f + 0.1f * MathF.Sin(pos * 12f - t * 5f);
+
+                HsvToRgb(((hue % 360f) + 360f) % 360f, sat, bright, out int r, out int g, out int b);
+                SetGlobalLed(i, r, g, b);
             }
             else
             {
-                // Above water: bright foam crest at the edge, dark above
+                // Above water: bright foam crest, dark sky above
                 float distFromWater = pos - waterLine;
                 float crest = Math.Max(0f, 1f - distFromWater * 15f);
-                crest *= crest; // sharp falloff
-                // Foam is white-tinted version of palette
-                var (cr, cg, cb) = GetGradientColor(gl, waterLine);
-                int foamR = Math.Clamp((int)(cr + (255 - cr) * crest * 0.7f), 0, 255);
-                int foamG = Math.Clamp((int)(cg + (255 - cg) * crest * 0.7f), 0, 255);
-                int foamB = Math.Clamp((int)(cb + (255 - cb) * crest * 0.7f), 0, 255);
-                SetGlobalLed(i,
-                    (int)(foamR * crest), (int)(foamG * crest), (int)(foamB * crest));
+                crest *= crest;
+                // Foam: white-cyan at crest, fading to dark purple-blue sky
+                float skyHue = 260f + distFromWater * 40f; // deep purple sky
+                if (crest > 0.1f)
+                {
+                    // Foam: near-white cyan
+                    HsvToRgb(185f, 0.15f * (1f - crest), crest, out int r, out int g, out int b);
+                    SetGlobalLed(i, r, g, b);
+                }
+                else
+                {
+                    // Dark sky with faint purple
+                    float skyBright = 0.03f + 0.05f * MathF.Sin(t * 0.5f + pos * 4f);
+                    HsvToRgb(((skyHue % 360f) + 360f) % 360f, 0.6f, skyBright, out int r, out int g, out int b);
+                    SetGlobalLed(i, r, g, b);
+                }
             }
         }
     }
 
     /// <summary>
-    /// White light splits into rainbow spectral bands that spread apart, then recombine.
-    /// Like light through a prism — bands separate and merge cyclically.
+    /// Light through a prism — full visible spectrum bands spread apart then merge to white.
+    /// Uses all 360 degrees of hue with high saturation for vivid spectral colors.
     /// </summary>
     private void GlobalPrism(GlobalLightConfig gl)
     {
         int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
         float t = _animTick * (0.015f + speed / 100f * 0.06f);
 
-        // Spread factor: 0 = all merged (white), 1 = fully separated (rainbow)
         float spread = 0.5f + 0.5f * MathF.Sin(t * MathF.PI * 2f);
-        float offset = t * 0.5f; // slow drift across the strip
+        float offset = t * 0.5f;
 
         for (int i = 0; i < 15; i++)
         {
             float pos = i / 14f;
-            // Each LED gets a hue based on its position, modulated by spread
-            // When spread=0, all LEDs get the same hue (merged white)
-            // When spread=1, each LED gets a distinct spectral hue
-            float hue = (pos * spread + offset) % 1f;
+            // Full spectral spread: red→orange→yellow→green→cyan→blue→violet
+            float hue = ((pos * spread * 300f + offset * 360f) % 360f + 360f) % 360f;
 
-            // Convert hue to RGB (simple HSV with S=1, V=1)
-            HsvToRgb(hue * 360f, 1f, 1f, out int sr, out int sg, out int sb);
+            // High saturation for vivid spectral colors, slight variation per position
+            float sat = 0.85f + 0.15f * MathF.Sin(pos * MathF.PI);
+            float bright = 0.8f + 0.2f * spread;
 
-            // Blend toward white when spread is low (prism merging)
-            float whiteBlend = (1f - spread) * 0.7f;
-            int r = (int)(sr + (255 - sr) * whiteBlend);
-            int g = (int)(sg + (255 - sg) * whiteBlend);
-            int b = (int)(sb + (255 - sb) * whiteBlend);
+            HsvToRgb(hue, sat, bright, out int sr, out int sg, out int sb);
 
-            // Brightness pulse at the merge point for dramatic impact
-            float mergePulse = 1f - spread * 0.2f;
+            // Blend toward warm white when merged (spread=0)
+            float whiteBlend = (1f - spread) * 0.8f;
+            int r = Math.Clamp((int)(sr + (255 - sr) * whiteBlend), 0, 255);
+            int g = Math.Clamp((int)(sg + (245 - sg) * whiteBlend), 0, 255); // warm white
+            int b = Math.Clamp((int)(sb + (220 - sb) * whiteBlend), 0, 255);
+
+            float mergePulse = 0.85f + 0.15f * (1f - spread);
             SetGlobalLed(i,
                 Math.Clamp((int)(r * mergePulse), 0, 255),
                 Math.Clamp((int)(g * mergePulse), 0, 255),
@@ -3045,55 +3065,57 @@ public class RgbController : IDisposable
     }
 
     /// <summary>
-    /// Slow-floating warm particles drifting at different speeds — organic and cozy.
-    /// Multiple independent embers with smooth sine motion and warm color variations.
+    /// Floating embers — warm particles drifting through amber, copper, rose, and gold hues.
+    /// Each ember has its own unique warm hue that slowly shifts. Dark base with rich glow.
     /// </summary>
-    private readonly float[] _emberPositions = new float[6];
     private readonly float[] _emberSpeeds = new float[] { 0.013f, 0.021f, 0.017f, 0.009f, 0.025f, 0.011f };
     private readonly float[] _emberPhases = new float[] { 0f, 2.1f, 4.3f, 1.2f, 3.7f, 5.5f };
+    // Each ember gets a unique warm hue offset: amber, copper, gold, rose, peach, crimson
+    private readonly float[] _emberHues = new float[] { 25f, 15f, 42f, 345f, 30f, 5f };
     private void GlobalEmberDrift(GlobalLightConfig gl)
     {
         int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
         float speedMul = 0.5f + speed / 100f * 2f;
 
-        // Dark base
+        // Dark warm base: very dim deep red
         for (int i = 0; i < 15; i++)
         {
-            var (cr, cg, cb) = GetGradientColor(gl, i / 14f);
-            SetGlobalLed(i, Math.Max((int)(cr * 0.05f), 0), Math.Max((int)(cg * 0.05f), 0), Math.Max((int)(cb * 0.05f), 0));
+            float baseHue = 10f + MathF.Sin(i * 0.5f + _animTick * 0.005f) * 15f;
+            HsvToRgb(baseHue, 0.9f, 0.04f, out int br, out int bg, out int bb);
+            SetGlobalLed(i, br, bg, bb);
         }
 
-        // Float 6 independent embers across the strip
+        // Float 6 independent embers with unique warm hues
         for (int e = 0; e < 6; e++)
         {
-            // Each ember drifts via unique sine motion
             float emberPos = 7f + 6.5f * MathF.Sin(_animTick * _emberSpeeds[e] * speedMul + _emberPhases[e]);
-            // Brightness pulses independently
             float glow = 0.4f + 0.6f * (0.5f + 0.5f * MathF.Sin(_animTick * _emberSpeeds[e] * speedMul * 1.7f + _emberPhases[e] * 2f));
 
-            // Affect nearby LEDs with gaussian-like falloff
+            // Each ember shifts hue slowly over time
+            float hue = _emberHues[e] + MathF.Sin(_animTick * 0.01f + e * 1.5f) * 15f;
+            hue = ((hue % 360f) + 360f) % 360f;
+            float sat = 0.85f + 0.1f * MathF.Sin(_animTick * 0.02f + e);
+
+            HsvToRgb(hue, sat, glow, out int er, out int eg, out int eb);
+
             for (int i = 0; i < 15; i++)
             {
                 float dist = Math.Abs(i - emberPos);
                 if (dist > 2.5f) continue;
-                float falloff = MathF.Exp(-dist * dist * 0.6f) * glow;
-                // Sample color from palette at ember's position
-                float colorPos = Math.Clamp(emberPos / 14f, 0f, 1f);
-                var (cr, cg, cb) = GetGradientColor(gl, colorPos);
-                // Additive blend onto existing
+                float falloff = MathF.Exp(-dist * dist * 0.6f);
                 int offset = i * 3;
                 int curR = _linearColors[offset], curG = _linearColors[offset + 1], curB = _linearColors[offset + 2];
                 SetGlobalLed(i,
-                    Math.Clamp(curR + (int)(cr * falloff), 0, 255),
-                    Math.Clamp(curG + (int)(cg * falloff), 0, 255),
-                    Math.Clamp(curB + (int)(cb * falloff), 0, 255));
+                    Math.Clamp(curR + (int)(er * falloff), 0, 255),
+                    Math.Clamp(curG + (int)(eg * falloff), 0, 255),
+                    Math.Clamp(curB + (int)(eb * falloff), 0, 255));
             }
         }
     }
 
     /// <summary>
-    /// Cyberpunk digital corruption — random segments flash bright with brief glitch jumps.
-    /// Sharp contrast bursts with color shifting and rapid decay.
+    /// Cyberpunk digital corruption — neon cyan/magenta/green base with harsh white glitch bursts.
+    /// Each glitch has randomized neon hue corruption. Scan lines flash across.
     /// </summary>
     private readonly float[] _glitchLevels = new float[15];
     private readonly float[] _glitchHueShift = new float[15];
@@ -3102,21 +3124,21 @@ public class RgbController : IDisposable
     {
         int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
 
-        // Base: dim palette gradient
+        // Base: dim neon gradient — cyan→magenta→green shifting slowly
         for (int i = 0; i < 15; i++)
         {
-            var (cr, cg, cb) = GetGradientColor(gl, i / 14f);
-            float base_ = 0.15f + _glitchLevels[i];
-            SetGlobalLed(i,
-                Math.Clamp((int)(cr * base_), 0, 255),
-                Math.Clamp((int)(cg * base_), 0, 255),
-                Math.Clamp((int)(cb * base_), 0, 255));
+            float pos = i / 14f;
+            float baseHue = 170f + pos * 120f + MathF.Sin(_animTick * 0.02f) * 30f; // cyan→magenta range
+            baseHue = ((baseHue % 360f) + 360f) % 360f;
+            float baseBright = 0.12f + 0.06f * MathF.Sin(pos * 6f + _animTick * 0.05f);
+            HsvToRgb(baseHue, 0.9f, baseBright + _glitchLevels[i] * 0.3f, out int r, out int g, out int b);
+            SetGlobalLed(i, r, g, b);
         }
 
         // Decay existing glitches
         for (int i = 0; i < 15; i++)
         {
-            _glitchLevels[i] *= 0.75f; // fast decay
+            _glitchLevels[i] *= 0.75f;
             if (_glitchLevels[i] < 0.02f) _glitchLevels[i] = 0f;
         }
 
@@ -3124,20 +3146,19 @@ public class RgbController : IDisposable
         _glitchCooldown--;
         if (_glitchCooldown <= 0)
         {
-            // Random burst: 1-4 consecutive LEDs flash
             int burstLen = 1 + _rng.Next(4);
             int burstStart = _rng.Next(15 - burstLen + 1);
             for (int i = burstStart; i < burstStart + burstLen; i++)
             {
-                _glitchLevels[i] = 0.6f + (float)_rng.NextDouble() * 0.4f; // 0.6-1.0
-                _glitchHueShift[i] = (float)_rng.NextDouble() * 0.3f; // slight color corruption
+                _glitchLevels[i] = 0.6f + (float)_rng.NextDouble() * 0.4f;
+                // Random neon hue: cyan(180), magenta(300), green(120), yellow(60)
+                float[] neonHues = { 180f, 300f, 120f, 60f, 200f, 330f };
+                _glitchHueShift[i] = neonHues[_rng.Next(neonHues.Length)];
             }
-            // Next burst interval: faster at higher speed
             int minWait = Math.Max(1, 12 - speed / 10);
             int maxWait = Math.Max(minWait + 1, 30 - speed / 4);
             _glitchCooldown = minWait + _rng.Next(maxWait - minWait);
 
-            // Occasional "scan line" — brief horizontal flash across all LEDs
             if (_rng.Next(5) == 0)
             {
                 for (int i = 0; i < 15; i++)
@@ -3145,18 +3166,20 @@ public class RgbController : IDisposable
             }
         }
 
-        // Apply glitch colors with hue corruption
+        // Render glitch bursts with neon hue corruption
         for (int i = 0; i < 15; i++)
         {
             if (_glitchLevels[i] <= 0.02f) continue;
-            float shiftedPos = Math.Clamp(i / 14f + _glitchHueShift[i], 0f, 1f);
-            var (cr, cg, cb) = GetGradientColor(gl, shiftedPos);
             float level = _glitchLevels[i];
-            // Boost to near-white at high levels for that harsh digital flash
-            int gr = Math.Clamp((int)(cr * 0.3f + 255 * 0.7f * level), 0, 255);
-            int gg = Math.Clamp((int)(cg * 0.3f + 255 * 0.7f * level), 0, 255);
-            int gb = Math.Clamp((int)(cb * 0.3f + 255 * 0.7f * level), 0, 255);
-            SetGlobalLed(i, gr, gg, gb);
+            // Glitch color: neon hue with high saturation, going white-hot at peak
+            float sat = Math.Max(0f, 0.9f - level * 0.6f); // desaturates toward white at high levels
+            HsvToRgb(_glitchHueShift[i], sat, level, out int gr, out int gg, out int gb);
+            // Additive blend on top of base
+            int offset = i * 3;
+            SetGlobalLed(i,
+                Math.Clamp(_linearColors[offset] + gr, 0, 255),
+                Math.Clamp(_linearColors[offset + 1] + gg, 0, 255),
+                Math.Clamp(_linearColors[offset + 2] + gb, 0, 255));
         }
     }
 
