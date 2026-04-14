@@ -259,5 +259,167 @@ namespace AmpUp.Controls
             var gb = new LinearGradientBrush(stops, 0);
             c.Dc.DrawRoundedRectangle(gb, null, new Rect(0, 0, c.W, c.H), 3, 3);
         }
+
+        // ── New room sweep effects ──
+
+        private void RenderVortex(Ctx c)
+        {
+            // Swirling spiral lines converging to center
+            Rect(c.Dc, 0, 0, c.W, c.H, c.Color, 0.08, 3);
+            int arms = 3;
+            for (int a = 0; a < arms; a++)
+            {
+                double baseAngle = c.T * 1.5 + a * (Math.PI * 2 / arms);
+                var sg = new StreamGeometry();
+                using (var ctx = sg.Open())
+                {
+                    for (int s = 0; s <= 20; s++)
+                    {
+                        double t = s / 20.0;
+                        double radius = (1.0 - t) * Math.Min(c.W, c.H) * 0.45;
+                        double angle = baseAngle + t * Math.PI * 3; // 1.5 full rotations
+                        double x = c.Cx + Math.Cos(angle) * radius;
+                        double y = c.Cy + Math.Sin(angle) * radius;
+                        if (s == 0) ctx.BeginFigure(new Point(x, y), false, false);
+                        else ctx.LineTo(new Point(x, y), true, true);
+                    }
+                }
+                double alpha = 0.5 + 0.3 * Math.Sin(c.T * 2 + a);
+                c.Dc.DrawGeometry(null, Pen(Lerp(c.Color, c.Color2, (double)a / arms), 1.8, alpha), sg);
+            }
+            // Bright center
+            Dot(c.Dc, c.Cx, c.Cy, 3, Colors.White, 0.5 + 0.3 * Sin01(c.T * 2));
+        }
+
+        private void RenderShockwave(Ctx c)
+        {
+            Rect(c.Dc, 0, 0, c.W, c.H, c.Color, 0.06, 3);
+            double phase = Saw(c.T * 0.4);
+            double maxR = Math.Sqrt(c.Cx * c.Cx + c.Cy * c.Cy);
+            double ringR = phase * maxR;
+            double ringWidth = 3.0;
+
+            // Ring
+            if (phase < 0.85)
+            {
+                double alpha = 1.0 - phase * 0.8;
+                c.Dc.DrawEllipse(null, Pen(c.Color, ringWidth, alpha),
+                    new Point(c.Cx, c.Cy), ringR, ringR);
+                // Inner glow trail
+                if (ringR > ringWidth * 2)
+                {
+                    c.Dc.DrawEllipse(null, Pen(Lerp(c.Color, c.Color2, 0.5), 1.5, alpha * 0.4),
+                        new Point(c.Cx, c.Cy), ringR * 0.7, ringR * 0.7);
+                }
+            }
+            // Center flash at start of pulse
+            double flash = Math.Max(0, 1.0 - phase * 5);
+            if (flash > 0.01)
+                Dot(c.Dc, c.Cx, c.Cy, 4 * flash, Colors.White, flash * 0.9);
+        }
+
+        private void RenderTidal(Ctx c)
+        {
+            // Rising/falling water fill with foam crest
+            double tide = Sin01(c.T * 0.35);
+            double waterY = c.H * (1.0 - tide * 0.85);
+
+            // Water body
+            var waterStops = new GradientStopCollection
+            {
+                new GradientStop(Lerp(c.Color, Colors.Black, 0.3), 0),
+                new GradientStop(c.Color, 0.6),
+                new GradientStop(Lerp(c.Color, c.Color2, 0.3), 1.0),
+            };
+            var waterBrush = new LinearGradientBrush(waterStops, 90);
+            c.Dc.DrawRoundedRectangle(waterBrush, null,
+                new Rect(0, waterY, c.W, c.H - waterY), 0, 0);
+
+            // Foam crest — bright line at water surface
+            double foamAlpha = 0.6 + 0.3 * Math.Sin(c.T * 8);
+            var foam = Lerp(c.Color2, Colors.White, 0.5);
+            c.Dc.DrawLine(Pen(foam, 2.0, foamAlpha),
+                new Point(0, waterY), new Point(c.W, waterY));
+
+            // Ripple lines
+            double ripple = Math.Sin(c.T * 4) * 2;
+            c.Dc.DrawLine(Pen(foam, 1.0, 0.2),
+                new Point(0, waterY + 4 + ripple), new Point(c.W, waterY + 4 + ripple));
+        }
+
+        private void RenderPrism(Ctx c)
+        {
+            // Rainbow bands spreading apart then merging to white
+            double spread = Sin01(c.T * 0.3);
+            double offset = c.T * 0.2;
+            int bands = 7;
+            double bandW = c.W / bands;
+
+            for (int i = 0; i < bands; i++)
+            {
+                double hue = ((double)i / bands + offset) % 1.0;
+                var col = Hsv(hue, 1.0, 1.0);
+                // Blend toward white when merged
+                var final_ = Lerp(Colors.White, col, spread);
+                double alpha = 0.6 + 0.35 * spread;
+                Rect(c.Dc, i * bandW, 0, bandW + 1, c.H, final_, alpha, 0);
+            }
+
+            // White center flash when fully merged
+            double mergeFlash = Math.Pow(1.0 - spread, 3);
+            if (mergeFlash > 0.05)
+                Rect(c.Dc, 0, 0, c.W, c.H, Colors.White, mergeFlash * 0.7, 3);
+        }
+
+        private void RenderEmberDrift(Ctx c)
+        {
+            // Dark background with floating warm dots
+            Rect(c.Dc, 0, 0, c.W, c.H, c.Color, 0.08, 3);
+
+            double[] xs = { 0.15, 0.4, 0.65, 0.85, 0.3, 0.7 };
+            double[] ys = { 0.3, 0.7, 0.4, 0.6, 0.5, 0.25 };
+            double[] speeds = { 0.4, 0.3, 0.5, 0.35, 0.45, 0.55 };
+
+            for (int i = 0; i < 6; i++)
+            {
+                double x = c.W * (xs[i] + 0.15 * Math.Sin(c.T * speeds[i] + i * 1.5));
+                double y = c.H * (ys[i] + 0.12 * Math.Sin(c.T * speeds[i] * 0.7 + i * 2.3));
+                double glow = 0.3 + 0.7 * Math.Pow(Sin01(c.T * speeds[i] * 1.5 + i), 2);
+                double r = 2.0 + glow * 2.5;
+                var col = Lerp(c.Color, c.Color2, (double)i / 6);
+                Dot(c.Dc, x, y, r, col, glow);
+                // Soft outer glow
+                Dot(c.Dc, x, y, r * 2, col, glow * 0.15);
+            }
+        }
+
+        private void RenderGlitch(Ctx c)
+        {
+            // Dark base with random bright bursts
+            Rect(c.Dc, 0, 0, c.W, c.H, c.Color, 0.12, 3);
+
+            // Pseudo-random flicker segments
+            int segments = 6;
+            double segW = c.W / segments;
+            for (int i = 0; i < segments; i++)
+            {
+                // Deterministic "random" per segment per time window
+                double seed = Rand(i + (int)(c.T * 3) * 7);
+                double alpha = seed > 0.6 ? (seed - 0.6) / 0.4 : 0;
+                alpha *= 0.9;
+                if (alpha < 0.05) continue;
+                var col = seed > 0.85 ? Colors.White : Lerp(c.Color, c.Color2, seed);
+                Rect(c.Dc, i * segW, 0, segW, c.H, col, alpha, 1);
+            }
+
+            // Scan line
+            double scanPhase = Saw(c.T * 1.5);
+            if (scanPhase < 0.1)
+            {
+                double scanY = scanPhase / 0.1 * c.H;
+                c.Dc.DrawLine(Pen(Colors.White, 1.5, 0.5),
+                    new Point(0, scanY), new Point(c.W, scanY));
+            }
+        }
     }
 }

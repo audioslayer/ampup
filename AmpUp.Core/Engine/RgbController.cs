@@ -575,6 +575,8 @@ public class RgbController : IDisposable
         LightEffect.Aurora, LightEffect.Matrix, LightEffect.Starfield,
         LightEffect.Equalizer, LightEffect.Waterfall, LightEffect.Lava, LightEffect.VuWave,
         LightEffect.NebulaDrift,
+        LightEffect.Vortex, LightEffect.Shockwave, LightEffect.Tidal,
+        LightEffect.Prism, LightEffect.EmberDrift, LightEffect.Glitch,
     };
 
     /// <summary>
@@ -1819,6 +1821,12 @@ public class RgbController : IDisposable
             case LightEffect.Lava:          GlobalLava(gl); break;
             case LightEffect.VuWave:        GlobalVuWave(gl); break;
             case LightEffect.NebulaDrift:   GlobalNebulaDrift(gl); break;
+            case LightEffect.Vortex:       GlobalVortex(gl); break;
+            case LightEffect.Shockwave:    GlobalShockwave(gl); break;
+            case LightEffect.Tidal:        GlobalTidal(gl); break;
+            case LightEffect.Prism:        GlobalPrism(gl); break;
+            case LightEffect.EmberDrift:   GlobalEmberDrift(gl); break;
+            case LightEffect.Glitch:       GlobalGlitch(gl); break;
         }
     }
 
@@ -2874,6 +2882,281 @@ public class RgbController : IDisposable
                 Math.Clamp((int)(cr * combined), 0, 255),
                 Math.Clamp((int)(cg * combined), 0, 255),
                 Math.Clamp((int)(cb * combined), 0, 255));
+        }
+    }
+
+    // ── New room sweep effects (v0.9.9) ──
+
+    /// <summary>
+    /// Spiral that accelerates toward center — colors swirl inward with trailing tails.
+    /// Creates a whirlpool effect across the room. Palette colors spiral along the strip.
+    /// </summary>
+    private void GlobalVortex(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.03f + speed / 100f * 0.12f);
+        float center = 7f; // center LED
+
+        for (int i = 0; i < 15; i++)
+        {
+            float dist = Math.Abs(i - center) / 7f; // 0 at center, 1 at edges
+            // Spiral phase: accelerates toward center (shorter dist = faster rotation)
+            float spiralPhase = t * (1f + (1f - dist) * 3f) + i * 0.4f;
+            // Brightness: pulsing with spiral, brighter near center
+            float brightness = 0.15f + 0.85f * (0.5f + 0.5f * MathF.Sin(spiralPhase));
+            // Pull colors inward — palette position rotates and wraps
+            float colorPos = (dist + t * 0.3f) % 1f;
+            var (cr, cg, cb) = GetGradientColor(gl, colorPos);
+            // Fade edges slightly for depth
+            brightness *= 0.4f + 0.6f * (1f - dist * 0.5f);
+            SetGlobalLed(i,
+                Math.Clamp((int)(cr * brightness), 0, 255),
+                Math.Clamp((int)(cg * brightness), 0, 255),
+                Math.Clamp((int)(cb * brightness), 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Sharp bright pulse expands outward from center, fades behind. Repeats periodically.
+    /// Like dropping a stone in water — a bright ring radiates outward.
+    /// </summary>
+    private float _shockwavePhase;
+    private void GlobalShockwave(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float step = 0.06f + speed / 100f * 0.2f;
+        _shockwavePhase += step;
+
+        // Cycle: expand from 0→1, then pause briefly before next pulse
+        float cycleLen = 1.3f; // 1.0 for expansion + 0.3 pause
+        float phase = _shockwavePhase % cycleLen;
+        float waveFront = phase / 1.0f; // 0→1 during expansion, >1 during pause
+
+        for (int i = 0; i < 15; i++)
+        {
+            float dist = Math.Abs(i - 7f) / 7f; // 0 at center, 1 at edges
+            // Sharp leading edge — bright ring at wavefront
+            float ringDist = Math.Abs(dist - waveFront);
+            float ringWidth = 0.12f; // narrow bright band
+            float ring = Math.Max(0f, 1f - ringDist / ringWidth);
+            ring *= ring; // sharpen the edge
+            // Fade trail behind the wave
+            float trail = dist < waveFront ? Math.Max(0f, 1f - (waveFront - dist) * 3f) * 0.3f : 0f;
+            float brightness = Math.Clamp(ring + trail, 0f, 1f);
+            // During pause, everything fades
+            if (phase > 1.0f) brightness *= Math.Max(0f, 1f - (phase - 1.0f) / 0.3f);
+
+            var (cr, cg, cb) = GetGradientColor(gl, dist);
+            SetGlobalLed(i,
+                Math.Clamp((int)(cr * brightness), 0, 255),
+                Math.Clamp((int)(cg * brightness), 0, 255),
+                Math.Clamp((int)(cb * brightness), 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Rising tide sweeps across LEDs with bright foamy leading edge, holds at peak, then recedes.
+    /// Dramatic fill + drain with a bright crest where the water meets air.
+    /// </summary>
+    private void GlobalTidal(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.008f + speed / 100f * 0.03f);
+
+        // Smooth sine-based tide: rises 0→1, falls 1→0
+        float tideSin = MathF.Sin(t * MathF.PI * 2f);
+        float tideLevel = 0.5f + 0.5f * tideSin; // 0→1→0
+        // Secondary foam ripple layered on top
+        float foam = 0.03f * MathF.Sin(t * MathF.PI * 17f);
+
+        for (int i = 0; i < 15; i++)
+        {
+            float pos = i / 14f; // 0=left, 1=right (LED 0 = "bottom" of the tide)
+            float waterLine = tideLevel + foam;
+
+            if (pos <= waterLine)
+            {
+                // Below water: full color, slight depth darkening
+                float depth = 1f - (waterLine - pos) * 0.3f;
+                depth = Math.Clamp(depth, 0.5f, 1f);
+                // Subtle wave motion in submerged area
+                float wave = 0.9f + 0.1f * MathF.Sin(pos * 12f - t * 5f);
+                float brightness = depth * wave;
+                var (cr, cg, cb) = GetGradientColor(gl, pos);
+                SetGlobalLed(i,
+                    Math.Clamp((int)(cr * brightness), 0, 255),
+                    Math.Clamp((int)(cg * brightness), 0, 255),
+                    Math.Clamp((int)(cb * brightness), 0, 255));
+            }
+            else
+            {
+                // Above water: bright foam crest at the edge, dark above
+                float distFromWater = pos - waterLine;
+                float crest = Math.Max(0f, 1f - distFromWater * 15f);
+                crest *= crest; // sharp falloff
+                // Foam is white-tinted version of palette
+                var (cr, cg, cb) = GetGradientColor(gl, waterLine);
+                int foamR = Math.Clamp((int)(cr + (255 - cr) * crest * 0.7f), 0, 255);
+                int foamG = Math.Clamp((int)(cg + (255 - cg) * crest * 0.7f), 0, 255);
+                int foamB = Math.Clamp((int)(cb + (255 - cb) * crest * 0.7f), 0, 255);
+                SetGlobalLed(i,
+                    (int)(foamR * crest), (int)(foamG * crest), (int)(foamB * crest));
+            }
+        }
+    }
+
+    /// <summary>
+    /// White light splits into rainbow spectral bands that spread apart, then recombine.
+    /// Like light through a prism — bands separate and merge cyclically.
+    /// </summary>
+    private void GlobalPrism(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.015f + speed / 100f * 0.06f);
+
+        // Spread factor: 0 = all merged (white), 1 = fully separated (rainbow)
+        float spread = 0.5f + 0.5f * MathF.Sin(t * MathF.PI * 2f);
+        float offset = t * 0.5f; // slow drift across the strip
+
+        for (int i = 0; i < 15; i++)
+        {
+            float pos = i / 14f;
+            // Each LED gets a hue based on its position, modulated by spread
+            // When spread=0, all LEDs get the same hue (merged white)
+            // When spread=1, each LED gets a distinct spectral hue
+            float hue = (pos * spread + offset) % 1f;
+
+            // Convert hue to RGB (simple HSV with S=1, V=1)
+            HsvToRgb(hue * 360f, 1f, 1f, out int sr, out int sg, out int sb);
+
+            // Blend toward white when spread is low (prism merging)
+            float whiteBlend = (1f - spread) * 0.7f;
+            int r = (int)(sr + (255 - sr) * whiteBlend);
+            int g = (int)(sg + (255 - sg) * whiteBlend);
+            int b = (int)(sb + (255 - sb) * whiteBlend);
+
+            // Brightness pulse at the merge point for dramatic impact
+            float mergePulse = 1f - spread * 0.2f;
+            SetGlobalLed(i,
+                Math.Clamp((int)(r * mergePulse), 0, 255),
+                Math.Clamp((int)(g * mergePulse), 0, 255),
+                Math.Clamp((int)(b * mergePulse), 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Slow-floating warm particles drifting at different speeds — organic and cozy.
+    /// Multiple independent embers with smooth sine motion and warm color variations.
+    /// </summary>
+    private readonly float[] _emberPositions = new float[6];
+    private readonly float[] _emberSpeeds = new float[] { 0.013f, 0.021f, 0.017f, 0.009f, 0.025f, 0.011f };
+    private readonly float[] _emberPhases = new float[] { 0f, 2.1f, 4.3f, 1.2f, 3.7f, 5.5f };
+    private void GlobalEmberDrift(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float speedMul = 0.5f + speed / 100f * 2f;
+
+        // Dark base
+        for (int i = 0; i < 15; i++)
+        {
+            var (cr, cg, cb) = GetGradientColor(gl, i / 14f);
+            SetGlobalLed(i, Math.Max((int)(cr * 0.05f), 0), Math.Max((int)(cg * 0.05f), 0), Math.Max((int)(cb * 0.05f), 0));
+        }
+
+        // Float 6 independent embers across the strip
+        for (int e = 0; e < 6; e++)
+        {
+            // Each ember drifts via unique sine motion
+            float emberPos = 7f + 6.5f * MathF.Sin(_animTick * _emberSpeeds[e] * speedMul + _emberPhases[e]);
+            // Brightness pulses independently
+            float glow = 0.4f + 0.6f * (0.5f + 0.5f * MathF.Sin(_animTick * _emberSpeeds[e] * speedMul * 1.7f + _emberPhases[e] * 2f));
+
+            // Affect nearby LEDs with gaussian-like falloff
+            for (int i = 0; i < 15; i++)
+            {
+                float dist = Math.Abs(i - emberPos);
+                if (dist > 2.5f) continue;
+                float falloff = MathF.Exp(-dist * dist * 0.6f) * glow;
+                // Sample color from palette at ember's position
+                float colorPos = Math.Clamp(emberPos / 14f, 0f, 1f);
+                var (cr, cg, cb) = GetGradientColor(gl, colorPos);
+                // Additive blend onto existing
+                int offset = i * 3;
+                int curR = _linearColors[offset], curG = _linearColors[offset + 1], curB = _linearColors[offset + 2];
+                SetGlobalLed(i,
+                    Math.Clamp(curR + (int)(cr * falloff), 0, 255),
+                    Math.Clamp(curG + (int)(cg * falloff), 0, 255),
+                    Math.Clamp(curB + (int)(cb * falloff), 0, 255));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Cyberpunk digital corruption — random segments flash bright with brief glitch jumps.
+    /// Sharp contrast bursts with color shifting and rapid decay.
+    /// </summary>
+    private readonly float[] _glitchLevels = new float[15];
+    private readonly float[] _glitchHueShift = new float[15];
+    private int _glitchCooldown;
+    private void GlobalGlitch(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+
+        // Base: dim palette gradient
+        for (int i = 0; i < 15; i++)
+        {
+            var (cr, cg, cb) = GetGradientColor(gl, i / 14f);
+            float base_ = 0.15f + _glitchLevels[i];
+            SetGlobalLed(i,
+                Math.Clamp((int)(cr * base_), 0, 255),
+                Math.Clamp((int)(cg * base_), 0, 255),
+                Math.Clamp((int)(cb * base_), 0, 255));
+        }
+
+        // Decay existing glitches
+        for (int i = 0; i < 15; i++)
+        {
+            _glitchLevels[i] *= 0.75f; // fast decay
+            if (_glitchLevels[i] < 0.02f) _glitchLevels[i] = 0f;
+        }
+
+        // Spawn new glitch burst
+        _glitchCooldown--;
+        if (_glitchCooldown <= 0)
+        {
+            // Random burst: 1-4 consecutive LEDs flash
+            int burstLen = 1 + _rng.Next(4);
+            int burstStart = _rng.Next(15 - burstLen + 1);
+            for (int i = burstStart; i < burstStart + burstLen; i++)
+            {
+                _glitchLevels[i] = 0.6f + (float)_rng.NextDouble() * 0.4f; // 0.6-1.0
+                _glitchHueShift[i] = (float)_rng.NextDouble() * 0.3f; // slight color corruption
+            }
+            // Next burst interval: faster at higher speed
+            int minWait = Math.Max(1, 12 - speed / 10);
+            int maxWait = Math.Max(minWait + 1, 30 - speed / 4);
+            _glitchCooldown = minWait + _rng.Next(maxWait - minWait);
+
+            // Occasional "scan line" — brief horizontal flash across all LEDs
+            if (_rng.Next(5) == 0)
+            {
+                for (int i = 0; i < 15; i++)
+                    _glitchLevels[i] = Math.Max(_glitchLevels[i], 0.3f + (float)_rng.NextDouble() * 0.2f);
+            }
+        }
+
+        // Apply glitch colors with hue corruption
+        for (int i = 0; i < 15; i++)
+        {
+            if (_glitchLevels[i] <= 0.02f) continue;
+            float shiftedPos = Math.Clamp(i / 14f + _glitchHueShift[i], 0f, 1f);
+            var (cr, cg, cb) = GetGradientColor(gl, shiftedPos);
+            float level = _glitchLevels[i];
+            // Boost to near-white at high levels for that harsh digital flash
+            int gr = Math.Clamp((int)(cr * 0.3f + 255 * 0.7f * level), 0, 255);
+            int gg = Math.Clamp((int)(cg * 0.3f + 255 * 0.7f * level), 0, 255);
+            int gb = Math.Clamp((int)(cb * 0.3f + 255 * 0.7f * level), 0, 255);
+            SetGlobalLed(i, gr, gg, gb);
         }
     }
 

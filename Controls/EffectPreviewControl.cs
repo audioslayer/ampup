@@ -244,6 +244,12 @@ namespace AmpUp.Controls
                 case LightEffect.Lava:            RenderLava(c);            break;
                 case LightEffect.VuWave:          RenderVuWave(c);          break;
                 case LightEffect.NebulaDrift:     RenderNebulaDrift(c);     break;
+                case LightEffect.Vortex:          RenderVortex(c);          break;
+                case LightEffect.Shockwave:       RenderShockwave(c);       break;
+                case LightEffect.Tidal:           RenderTidal(c);           break;
+                case LightEffect.Prism:           RenderPrism(c);           break;
+                case LightEffect.EmberDrift:       RenderEmberDrift(c);      break;
+                case LightEffect.Glitch:          RenderGlitch(c);          break;
 
                 default: RenderFallback(c); break;
             }

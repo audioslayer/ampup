@@ -349,6 +349,12 @@ namespace AmpUp.Controls
                     (LightEffect.Lava,           "◉",   "Lava",     false),
                     (LightEffect.VuWave,         "∿",   "VU Wave",  false),
                     (LightEffect.NebulaDrift,    "✧",   "Nebula",   false),
+                    (LightEffect.Vortex,         "◎",   "Vortex",   false),
+                    (LightEffect.Shockwave,      "◉",   "Shockwave",false),
+                    (LightEffect.Tidal,          "≈",   "Tidal",    false),
+                    (LightEffect.Prism,          "▽",   "Prism",    false),
+                    (LightEffect.EmberDrift,     "✧",   "Embers",   false),
+                    (LightEffect.Glitch,         "⌇",   "Glitch",   false),
                 });
             }
         }
@@ -602,6 +608,12 @@ namespace AmpUp.Controls
                 LightEffect.Collision        => Color.FromRgb(0xFF, 0xF1, 0x76),
                 LightEffect.NebulaDrift      => Color.FromRgb(0x64, 0xB5, 0xF6),
                 LightEffect.VuWave           => Color.FromRgb(0x00, 0xE6, 0x76),
+                LightEffect.Vortex           => Color.FromRgb(0xCE, 0x93, 0xD8),
+                LightEffect.Shockwave        => Color.FromRgb(0xFF, 0xAB, 0x40),
+                LightEffect.Tidal            => Color.FromRgb(0x4D, 0xD0, 0xE1),
+                LightEffect.Prism            => Color.FromRgb(0xFF, 0xFF, 0xFF),
+                LightEffect.EmberDrift       => Color.FromRgb(0xFF, 0xB7, 0x4D),
+                LightEffect.Glitch           => Color.FromRgb(0x00, 0xFF, 0xC8),
                 _ => primary,
             };
         }

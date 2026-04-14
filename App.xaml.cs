@@ -216,7 +216,7 @@ public partial class App : Application
         // Restore last known knob positions from config (device doesn't report on connect)
         foreach (var knob in _config.Knobs)
         {
-            if (knob.Idx >= 0 && knob.Idx < 5)
+            if (knob.Idx >= 0 && knob.Idx < 5 && knob.LastRawValue >= 0)
             {
                 KnobPositions[knob.Idx] = knob.LastRawValue / 1023f;
                 // Apply the saved volume to WASAPI

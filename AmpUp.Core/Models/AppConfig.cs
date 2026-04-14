@@ -98,7 +98,7 @@ public class KnobConfig
     [JsonConverter(typeof(StringEnumConverter))]
     public ResponseCurve Curve { get; set; } = ResponseCurve.Linear;
     public List<string> Apps { get; set; } = new();
-    public int LastRawValue { get; set; } = 1023;
+    public int LastRawValue { get; set; } = -1; // -1 = never saved, skip startup restore
 }
 
 public enum ResponseCurve
@@ -222,6 +222,7 @@ public enum LightEffect
     AudioPositionBlend,
     Equalizer, Waterfall, Lava, VuWave,
     NebulaDrift,
+    Vortex, Shockwave, Tidal, Prism, EmberDrift, Glitch,
 }
 
 public enum ReactiveMode
