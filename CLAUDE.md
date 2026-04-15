@@ -522,13 +522,27 @@ All transitions run 1 second (20 ticks at 20 FPS) then auto-clear.
 ### Theme (Theme.xaml)
 
 ```
-BgBase      = #0F0F0F     BgDark      = #141414
+BgBase      = #0F0F0F     BgDark      = #141414       (default "Midnight" theme)
 CardBg      = #1C1C1C     CardBorder  = #2A2A2A
 InputBg     = #242424     InputBorder = #363636
 Accent      = #00E676     AccentGlow  = #69F0AE     AccentDim = #00A854
 TextPrimary = #E8E8E8     TextSec     = #B0B0B0     TextDim   = #8A8A8A
 DangerRed   = #FF4444     SuccessGrn  = #00DD77     WarnYellow= #FFB800
 ```
+
+**Card Themes** (selectable in Settings → Appearance):
+| Theme | BgBase | CardBg | Tint |
+|-|-|-|-|
+| Midnight | #0F0F0F | #1C1C1C | Neutral grey (default) |
+| Blue Steel | #0D0F12 | #191D22 | Cool blue-grey |
+| Ember | #120E0D | #1E1918 | Warm red-brown |
+| Forest | #0D110E | #191E1A | Dark green-grey |
+| Violet | #100D12 | #1C181F | Dark purple-grey |
+| Slate | #0E0F11 | #1B1C1F | Warmer grey-blue |
+| Obsidian | #080808 | #131313 | Pure black, extra dark |
+| Mocha | #110F0D | #1E1A18 | Warm brown |
+
+Themes are applied at runtime via `ThemeManager.SetCardTheme()` which updates all background/card DynamicResource brushes. Config field: `cardTheme` (string, default "Midnight").
 
 Custom scrollbars: slim 8px, transparent track, green thumb (#00E676) with hover/drag brightness states.
 

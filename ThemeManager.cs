@@ -8,6 +8,62 @@ public static class ThemeManager
     public static Color Accent { get; private set; } = Color.FromRgb(0x00, 0xE6, 0x76);
     public static Color AccentGlow { get; private set; }
     public static Color AccentDim { get; private set; }
+    public static string CurrentCardTheme { get; private set; } = "Midnight";
+
+    // Card theme presets: (Name, BgBase, BgDark, CardBg, CardBorder, InputBg, InputBorder)
+    public static readonly (string Name, string BgBase, string BgDark, string CardBg, string CardBorder, string InputBg, string InputBorder)[] CardThemes =
+    {
+        ("Midnight",   "#0F0F0F", "#141414", "#1C1C1C", "#2A2A2A", "#242424", "#363636"),
+        ("Blue Steel", "#0D0F12", "#121518", "#191D22", "#272C33", "#21252C", "#343A44"),
+        ("Ember",      "#120E0D", "#171211", "#1E1918", "#2C2524", "#262020", "#38302F"),
+        ("Forest",     "#0D110E", "#121613", "#191E1A", "#272C28", "#212621", "#333A34"),
+        ("Violet",     "#100D12", "#151117", "#1C181F", "#29252D", "#232028", "#353039"),
+        ("Slate",      "#0E0F11", "#131416", "#1B1C1F", "#29292E", "#232427", "#363739"),
+        ("Obsidian",   "#080808", "#0C0C0C", "#131313", "#1F1F1F", "#191919", "#282828"),
+        ("Mocha",      "#110F0D", "#161311", "#1E1A18", "#2C2826", "#252120", "#373230"),
+    };
+
+    /// <summary>
+    /// Sets the card/background theme and updates all background-related resources.
+    /// Call from UI thread.
+    /// </summary>
+    public static void SetCardTheme(string themeName)
+    {
+        var theme = Array.Find(CardThemes, t => t.Name == themeName);
+        if (theme.Name == null) return; // invalid name
+
+        CurrentCardTheme = themeName;
+
+        var bgBase = (Color)ColorConverter.ConvertFromString(theme.BgBase);
+        var bgDark = (Color)ColorConverter.ConvertFromString(theme.BgDark);
+        var cardBg = (Color)ColorConverter.ConvertFromString(theme.CardBg);
+        var cardBorder = (Color)ColorConverter.ConvertFromString(theme.CardBorder);
+        var inputBg = (Color)ColorConverter.ConvertFromString(theme.InputBg);
+        var inputBorder = (Color)ColorConverter.ConvertFromString(theme.InputBorder);
+
+        var res = Application.Current.Resources;
+
+        // Update colors
+        res["BgBase"] = bgBase;
+        res["BgDark"] = bgDark;
+        res["CardBg"] = cardBg;
+        res["CardBorder"] = cardBorder;
+        res["InputBg"] = inputBg;
+        res["InputBorder"] = inputBorder;
+
+        // Update brushes
+        res["BgBaseBrush"] = Freeze(new SolidColorBrush(bgBase));
+        res["BgDarkBrush"] = Freeze(new SolidColorBrush(bgDark));
+        res["CardBgBrush"] = Freeze(new SolidColorBrush(cardBg));
+        res["CardBorderBrush"] = Freeze(new SolidColorBrush(cardBorder));
+        res["InputBgBrush"] = Freeze(new SolidColorBrush(inputBg));
+        res["InputBorderBrush"] = Freeze(new SolidColorBrush(inputBorder));
+
+        OnCardThemeChanged?.Invoke();
+    }
+
+    /// <summary>Event fired after card theme changes.</summary>
+    public static event Action? OnCardThemeChanged;
 
     /// <summary>
     /// Sets the accent color and updates all accent-related resources in Application.Current.Resources.

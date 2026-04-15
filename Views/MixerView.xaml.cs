@@ -1412,8 +1412,8 @@ public partial class MixerView : UserControl
             content.Children.Add(child);
         return new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            Background = FindBrush("CardBgBrush"),
+            BorderBrush = FindBrush("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(16),

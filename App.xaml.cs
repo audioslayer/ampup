@@ -105,8 +105,9 @@ public partial class App : Application
         // Load config and create backend
         _config = ConfigManager.Load();
 
-        // Apply user's accent color
+        // Apply user's accent color and card theme
         ThemeManager.SetAccentColor(_config.AccentColor);
+        ThemeManager.SetCardTheme(_config.CardTheme);
 
         _mixer = new AudioMixer();
         _buttons = new ButtonHandler();

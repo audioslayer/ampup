@@ -83,7 +83,7 @@
                     </Grid>
 
                     <!-- Divider -->
-                    <Border Height="1" Background="{StaticResource CardBorderBrush}" Margin="0,10,0,12" />
+                    <Border Height="1" Background="{DynamicResource CardBorderBrush}" Margin="0,10,0,12" />
 
                     <!-- Position + Monitor row -->
                     <Grid>
@@ -97,8 +97,8 @@
                         <!-- Position picker -->
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="Position" Style="{StaticResource SecondaryText}" Margin="0,0,0,6" />
-                            <Border Background="{StaticResource InputBgBrush}"
-                                    BorderBrush="{StaticResource InputBorderBrush}"
+                            <Border Background="{DynamicResource InputBgBrush}"
+                                    BorderBrush="{DynamicResource InputBorderBrush}"
                                     BorderThickness="1" CornerRadius="6"
                                     Width="160" Height="100" Padding="6">
                                 <Grid x:Name="OsdPositionGrid">

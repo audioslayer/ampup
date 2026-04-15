@@ -127,7 +127,7 @@
                     </Grid>
 
                     <!-- Divider -->
-                    <Border Height="1" Background="{StaticResource CardBorderBrush}" Margin="0,0,0,6" />
+                    <Border Height="1" Background="{DynamicResource CardBorderBrush}" Margin="0,0,0,6" />
 
                     <!-- Session rows injected here by code-behind -->
                     <StackPanel x:Name="SessionListPanel" />

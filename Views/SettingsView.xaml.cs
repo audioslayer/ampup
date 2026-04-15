@@ -201,6 +201,7 @@ public partial class SettingsView : UserControl
         RefreshGoveeAmbienceHint();
 
         BuildAccentSwatches();
+        BuildCardThemeSwatches();
 
         _loading = false;
         _configLoaded = true;
@@ -236,6 +237,69 @@ public partial class SettingsView : UserControl
                 _onSave(_config);
             };
             AccentSwatches.Children.Add(swatch);
+        }
+    }
+
+    private void BuildCardThemeSwatches()
+    {
+        CardThemeSwatches.Children.Clear();
+        var currentTheme = _config?.CardTheme ?? "Midnight";
+
+        foreach (var theme in ThemeManager.CardThemes)
+        {
+            var cardColor = (Color)ColorConverter.ConvertFromString(theme.CardBg);
+            var borderColor = (Color)ColorConverter.ConvertFromString(theme.CardBorder);
+            var bgColor = (Color)ColorConverter.ConvertFromString(theme.BgBase);
+            var isSelected = theme.Name == currentTheme;
+
+            // Mini card preview showing the theme colors
+            var preview = new Border
+            {
+                Width = 52, Height = 36,
+                CornerRadius = new CornerRadius(6),
+                Background = new SolidColorBrush(bgColor),
+                BorderThickness = new Thickness(2),
+                BorderBrush = isSelected
+                    ? new SolidColorBrush(ThemeManager.Accent)
+                    : new SolidColorBrush(borderColor),
+                Margin = new Thickness(0, 0, 8, 8),
+                Cursor = Cursors.Hand,
+                ToolTip = theme.Name,
+                Padding = new Thickness(4, 4, 4, 2),
+            };
+
+            // Inner mini card to show CardBg
+            var innerCard = new Border
+            {
+                CornerRadius = new CornerRadius(3),
+                Background = new SolidColorBrush(cardColor),
+                BorderBrush = new SolidColorBrush(borderColor),
+                BorderThickness = new Thickness(0.5),
+            };
+            preview.Child = innerCard;
+
+            // Label inside inner card
+            var label = new TextBlock
+            {
+                Text = theme.Name.Length > 7 ? theme.Name[..7] : theme.Name,
+                FontSize = 7,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            innerCard.Child = label;
+
+            preview.MouseLeftButtonDown += (_, _) =>
+            {
+                if (_config == null || _onSave == null) return;
+                _config.CardTheme = theme.Name;
+                ThemeManager.SetCardTheme(theme.Name);
+                BuildCardThemeSwatches(); // refresh selection indicator
+                _onSave(_config);
+            };
+
+            CardThemeSwatches.Children.Add(preview);
         }
     }
 

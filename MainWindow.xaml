@@ -36,7 +36,7 @@
         </Grid.RowDefinitions>
 
         <!-- Header Bar (draggable) -->
-        <Grid Grid.Row="0" Background="{StaticResource BgBaseBrush}"
+        <Grid Grid.Row="0" Background="{DynamicResource BgBaseBrush}"
               MouseLeftButtonDown="HeaderBar_MouseLeftButtonDown">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
@@ -109,7 +109,7 @@
             Visibility="Collapsed" />
 
         <!-- Main Layout: Sidebar + Content -->
-        <Grid Grid.Row="1" Background="{StaticResource BgDarkBrush}">
+        <Grid Grid.Row="1" Background="{DynamicResource BgDarkBrush}">
             <Grid.ColumnDefinitions>
                 <!-- Sidebar -->
                 <ColumnDefinition Width="76" />
@@ -118,8 +118,8 @@
             </Grid.ColumnDefinitions>
 
             <!-- Sidebar Navigation -->
-            <Border Grid.Column="0" Background="{StaticResource BgBaseBrush}"
-                    BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,0,1,0">
+            <Border Grid.Column="0" Background="{DynamicResource BgBaseBrush}"
+                    BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,0,1,0">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -129,7 +129,7 @@
                     <!-- Profile button at top of sidebar -->
                     <StackPanel Grid.Row="0" Margin="0,12,0,0">
                         <Border x:Name="ProfileButton" Width="48" Height="48" CornerRadius="24"
-                                Background="{StaticResource CardBgBrush}"
+                                Background="{DynamicResource CardBgBrush}"
                                 BorderThickness="2" Cursor="Hand" ToolTip="Switch profile"
                                 HorizontalAlignment="Center"
                                 MouseLeftButtonUp="ProfileButton_Click">

@@ -50,7 +50,7 @@
                     </StackPanel>
 
                     <!-- Advanced toggle -->
-                    <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0"
+                    <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0"
                             Margin="0,4,0,0" Padding="0,10,0,0">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Cursor="Hand" Margin="0,0,0,0"
@@ -69,8 +69,8 @@
                                                    ToolTip="COM port for the AmpUp hardware (e.g. COM3)" />
                                         <ui:TextBox x:Name="TxtSerialPort" Width="160"
                                                     PlaceholderText="COM3"
-                                                    Background="{StaticResource InputBgBrush}"
-                                                    BorderBrush="{StaticResource InputBorderBrush}"
+                                                    Background="{DynamicResource InputBgBrush}"
+                                                    BorderBrush="{DynamicResource InputBorderBrush}"
                                                     Foreground="{StaticResource TextPrimaryBrush}"
                                                     ToolTip="COM port for the AmpUp hardware (e.g. COM3)" />
                                     </StackPanel>
@@ -79,8 +79,8 @@
                                                    ToolTip="Communication speed — leave at 115200" />
                                         <ui:TextBox x:Name="TxtBaudRate" Width="160"
                                                     PlaceholderText="115200"
-                                                    Background="{StaticResource InputBgBrush}"
-                                                    BorderBrush="{StaticResource InputBorderBrush}"
+                                                    Background="{DynamicResource InputBgBrush}"
+                                                    BorderBrush="{DynamicResource InputBorderBrush}"
                                                     Foreground="{StaticResource TextPrimaryBrush}"
                                                     ToolTip="Communication speed — leave at 115200" />
                                     </StackPanel>
@@ -118,6 +118,9 @@
                     <TextBlock Text="Accent Color" Style="{StaticResource SecondaryText}" Margin="0,0,0,8"
                                ToolTip="App-wide theme color — affects headers, LEDs, and highlights" />
                     <WrapPanel x:Name="AccentSwatches" Orientation="Horizontal" />
+                    <TextBlock Text="Card Theme" Style="{StaticResource SecondaryText}" Margin="0,12,0,8"
+                               ToolTip="Background and card color tint — changes the overall mood of the app" />
+                    <WrapPanel x:Name="CardThemeSwatches" Orientation="Horizontal" />
                 </StackPanel>
             </Border>
 
@@ -175,7 +178,7 @@
                     </StackPanel>
 
                     <!-- Export / Import profile files -->
-                    <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0"
+                    <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0"
                             Margin="0,14,0,0" Padding="0,14,0,0">
                         <StackPanel>
                             <TextBlock Text="Export or import profile files to share between machines."
@@ -192,7 +195,7 @@
                     </Border>
 
                     <!-- Import from Turn Up -->
-                    <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0"
+                    <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0"
                             Margin="0,14,0,0" Padding="0,14,0,0">
                         <StackPanel>
                             <TextBlock Text="Have an existing Turn Up configuration? Import your knob, button, and light settings."
@@ -232,15 +235,15 @@
                                 <TextBlock Text="URL" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
                                 <ui:TextBox x:Name="TxtHaUrl" Width="320"
                                             PlaceholderText="http://homeassistant.local:8123"
-                                            Background="{StaticResource InputBgBrush}"
-                                            BorderBrush="{StaticResource InputBorderBrush}"
+                                            Background="{DynamicResource InputBgBrush}"
+                                            BorderBrush="{DynamicResource InputBorderBrush}"
                                             Foreground="{StaticResource TextPrimaryBrush}" />
                             </StackPanel>
                             <StackPanel>
                                 <TextBlock Text="Token" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
                                 <PasswordBox x:Name="TxtHaToken" Width="320"
-                                             Background="{StaticResource InputBgBrush}"
-                                             BorderBrush="{StaticResource InputBorderBrush}"
+                                             Background="{DynamicResource InputBgBrush}"
+                                             BorderBrush="{DynamicResource InputBorderBrush}"
                                              Foreground="{StaticResource TextPrimaryBrush}" />
                             </StackPanel>
                         </StackPanel>
@@ -257,7 +260,7 @@
                     </StackPanel>
 
                     <!-- OBS Studio -->
-                    <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0"
+                    <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0"
                             Margin="0,14,0,0" Padding="0,14,0,0">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
@@ -276,23 +279,23 @@
                                     <TextBlock Text="Host" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
                                     <ui:TextBox x:Name="TxtObsHost" Width="220"
                                                 PlaceholderText="localhost"
-                                                Background="{StaticResource InputBgBrush}"
-                                                BorderBrush="{StaticResource InputBorderBrush}"
+                                                Background="{DynamicResource InputBgBrush}"
+                                                BorderBrush="{DynamicResource InputBorderBrush}"
                                                 Foreground="{StaticResource TextPrimaryBrush}" />
                                 </StackPanel>
                                 <StackPanel Margin="0,0,16,0">
                                     <TextBlock Text="Port" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
                                     <ui:TextBox x:Name="TxtObsPort" Width="100"
                                                 PlaceholderText="4455"
-                                                Background="{StaticResource InputBgBrush}"
-                                                BorderBrush="{StaticResource InputBorderBrush}"
+                                                Background="{DynamicResource InputBgBrush}"
+                                                BorderBrush="{DynamicResource InputBorderBrush}"
                                                 Foreground="{StaticResource TextPrimaryBrush}" />
                                 </StackPanel>
                                 <StackPanel>
                                     <TextBlock Text="Password" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
                                     <PasswordBox x:Name="TxtObsPassword" Width="220"
-                                                 Background="{StaticResource InputBgBrush}"
-                                                 BorderBrush="{StaticResource InputBorderBrush}"
+                                                 Background="{DynamicResource InputBgBrush}"
+                                                 BorderBrush="{DynamicResource InputBorderBrush}"
                                                  Foreground="{StaticResource TextPrimaryBrush}" />
                                 </StackPanel>
                             </StackPanel>
@@ -308,7 +311,7 @@
                     </Border>
 
                     <!-- Govee -->
-                    <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0"
+                    <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0"
                             Margin="0,14,0,0" Padding="0,14,0,0">
                         <StackPanel>
                             <TextBlock Text="Govee" Style="{StaticResource BodyText}" FontWeight="SemiBold" Margin="0,0,0,8" />
@@ -351,7 +354,7 @@
                                 </StackPanel>
 
                                 <!-- Vertical separator -->
-                                <Border Grid.Column="1" Width="1" Background="{StaticResource CardBorderBrush}"
+                                <Border Grid.Column="1" Width="1" Background="{DynamicResource CardBorderBrush}"
                                         Margin="16,0,16,0" />
 
                                 <!-- Cloud API Column -->
@@ -372,8 +375,8 @@
                                                    ToolTip="Enables scenes and music mode control" />
                                         <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                             <PasswordBox x:Name="TxtGoveeApiKey" Width="320"
-                                                         Background="{StaticResource InputBgBrush}"
-                                                         BorderBrush="{StaticResource InputBorderBrush}"
+                                                         Background="{DynamicResource InputBgBrush}"
+                                                         BorderBrush="{DynamicResource InputBorderBrush}"
                                                          Foreground="{StaticResource TextPrimaryBrush}" />
                                             <ui:Button x:Name="BtnGoveeSetupGuide" Content="Setup Guide"
                                                        Appearance="Secondary" Margin="8,0,0,0" Height="32" />
@@ -393,7 +396,7 @@
                     </Border>
 
                     <!-- VoiceMeeter -->
-                    <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0"
+                    <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0"
                             Margin="0,14,0,0" Padding="0,14,0,0">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
@@ -414,7 +417,7 @@
                     </Border>
 
                     <!-- Corsair iCUE -->
-                    <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0"
+                    <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0"
                             Margin="0,14,0,0" Padding="0,14,0,0">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">

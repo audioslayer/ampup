@@ -72,7 +72,7 @@
 
     <!-- ── Card Style ────────────────────────────────────────────── -->
     <Style x:Key="CardPanel" TargetType="Border">
-        <Setter Property="Background" Value="{StaticResource CardBgBrush}" />
+        <Setter Property="Background" Value="{DynamicResource CardBgBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="10" />
         <Setter Property="Padding" Value="16" />
@@ -227,7 +227,7 @@
                                     MaxHeight="{TemplateBinding MaxDropDownHeight}"
                                     CornerRadius="6"
                                     Background="#FF1A1A1A"
-                                    BorderBrush="{StaticResource InputBorderBrush}"
+                                    BorderBrush="{DynamicResource InputBorderBrush}"
                                     BorderThickness="1"
                                     Margin="0,2,0,0"
                                     Effect="{StaticResource CardShadow}"
@@ -340,7 +340,7 @@
     <Style TargetType="ToolTip">
         <Setter Property="Background" Value="#FF1A1A1A" />
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Padding" Value="8,4" />
         <Setter Property="FontSize" Value="11" />
