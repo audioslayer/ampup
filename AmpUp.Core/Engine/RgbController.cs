@@ -1101,48 +1101,42 @@ public class RgbController : IDisposable
         }
         bool audioActive = hasAudio && energy > 0.02f;
 
-        // Smooth crossfade: attack fast (0.15), decay slow (0.03) per tick at 20fps
-        float target = audioActive ? 1f : 0f;
-        float fade = _audioBlendFade[k];
-        if (target > fade)
-            fade = Math.Min(fade + 0.15f, 1f);  // ~0.3s to full reactive
-        else
-            fade = Math.Max(fade - 0.03f, 0f);  // ~1.5s to full position blend
-        _audioBlendFade[k] = fade;
+        // PositionBlend that pulses with music:
+        // The fill stays based on knob position, but brightness modulates with audio energy.
+        // When silent, shows steady position fill. When music plays, brightness beats.
 
-        // Compute PositionBlend colors (3 LEDs)
+        // Compute audio energy for this knob's frequency band
+        float sensitivity = light.EffectSpeed / 50f;
+        float bandLevel = audioActive ? Math.Clamp(bands![Math.Clamp(k, 0, 4)] * sensitivity, 0f, 1f) : 0f;
+
+        // Smooth the beat: fast attack, slower decay
+        float prev = _audioBlendFade[k];
+        float smoothed = bandLevel > prev
+            ? Math.Min(prev + 0.3f, 1f)   // fast attack
+            : Math.Max(prev - 0.06f, 0f); // medium decay
+        _audioBlendFade[k] = smoothed;
+
+        // Brightness multiplier: idle = 1.0, with audio = 0.15 base + 0.85 * beat
+        // This makes the fill pulse between dim and full brightness with the music
+        float brightMul = audioActive ? 0.15f + 0.85f * smoothed : 1f;
+
+        // Compute PositionBlend fill (3 LEDs)
         float pct = pos * 100f;
         float led0Pos = pct < 33f ? pct / 33f : 1f;
         float led1Pos = pct < 33f ? 0f : pct < 66f ? (pct - 33f) / 33f : 1f;
         float led2Pos = pct > 66f ? (pct - 66f) / 34f : 0f;
         float[] posBright = { led0Pos, led1Pos, led2Pos };
 
-        // Compute AudioReactive (SpectrumBands) colors (3 LEDs)
-        float sensitivity = light.EffectSpeed / 50f;
-        float level = audioActive ? Math.Clamp(bands![Math.Clamp(k, 0, 4)] * sensitivity, 0f, 1f) : 0f;
-        float[] vuBright = {
-            Math.Clamp(level * 3f, 0f, 1f),
-            Math.Clamp((level - 0.33f) * 3f, 0f, 1f),
-            Math.Clamp((level - 0.66f) * 3f, 0f, 1f),
-        };
-
-        // Blend the two effects per LED
+        // Render position fill with beat-modulated brightness
         for (int led = 0; led < 3; led++)
         {
             float t = led / 2f; // gradient position 0, 0.5, 1.0
+            var (cr, cg, cb) = GetKnobPaletteColor(light, t);
+            float bright = posBright[led] * brightMul;
 
-            // PositionBlend contribution
-            var (pr, pg, pb) = GetKnobPaletteColor(light, t);
-            float pbr = posBright[led];
-
-            // AudioReactive contribution
-            var (ar, ag, ab) = GetKnobPaletteColor(light, vuBright[led]);
-            float abr = vuBright[led];
-
-            // Crossfade
-            int r = (int)Math.Clamp(pr * pbr * (1f - fade) + ar * abr * fade, 0, 255);
-            int g = (int)Math.Clamp(pg * pbr * (1f - fade) + ag * abr * fade, 0, 255);
-            int b = (int)Math.Clamp(pb * pbr * (1f - fade) + ab * abr * fade, 0, 255);
+            int r = (int)Math.Clamp(cr * bright, 0, 255);
+            int g = (int)Math.Clamp(cg * bright, 0, 255);
+            int b = (int)Math.Clamp(cb * bright, 0, 255);
             SetColor(k, led, r, g, b);
         }
     }
