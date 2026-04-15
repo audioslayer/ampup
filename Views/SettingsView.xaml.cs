@@ -248,6 +248,54 @@ public partial class SettingsView : UserControl
             };
             AccentSwatches.Children.Add(swatch);
         }
+
+        // Custom color picker swatch (+)
+        var customColor = _config?.AccentColor != null
+            && !AccentPresets.Any(p => p.Hex.Equals(_config.AccentColor, StringComparison.OrdinalIgnoreCase))
+            ? (Color)ColorConverter.ConvertFromString(_config.AccentColor)
+            : (Color?)null;
+        var customSwatch = new Border
+        {
+            Width = 32, Height = 32,
+            CornerRadius = new CornerRadius(16),
+            Background = customColor.HasValue
+                ? new SolidColorBrush(customColor.Value)
+                : new LinearGradientBrush(
+                    new GradientStopCollection
+                    {
+                        new(Colors.Red, 0.0), new(Colors.Yellow, 0.17), new(Colors.Lime, 0.33),
+                        new(Colors.Cyan, 0.5), new(Colors.Blue, 0.67), new(Colors.Magenta, 0.83), new(Colors.Red, 1.0),
+                    }, new Point(0, 0), new Point(1, 1)),
+            BorderThickness = new Thickness(2),
+            BorderBrush = customColor.HasValue
+                ? new SolidColorBrush(Colors.White)
+                : Brushes.Transparent,
+            Margin = new Thickness(0, 0, 8, 8),
+            Cursor = Cursors.Hand,
+            ToolTip = "Custom color",
+        };
+        var plusText = new TextBlock
+        {
+            Text = customColor.HasValue ? "" : "+",
+            FontSize = 16, FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(Colors.White),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        customSwatch.Child = plusText;
+        customSwatch.MouseLeftButtonDown += (_, _) =>
+        {
+            if (_config == null || _onSave == null) return;
+            var initial = customColor ?? ThemeManager.Accent;
+            var dialog = new ColorPickerDialog(initial) { Owner = Window.GetWindow(this) };
+            dialog.ShowDialog();
+            var hex = $"#{dialog.SelectedColor.R:X2}{dialog.SelectedColor.G:X2}{dialog.SelectedColor.B:X2}";
+            _config.AccentColor = hex;
+            ThemeManager.SetAccentColor(hex);
+            BuildAccentSwatches();
+            _onSave(_config);
+        };
+        AccentSwatches.Children.Add(customSwatch);
     }
 
     private void BuildCardThemeSwatches()
@@ -327,6 +375,103 @@ public partial class SettingsView : UserControl
 
             CardThemeSwatches.Children.Add(wrapper);
         }
+
+        // Custom theme picker swatch
+        var isCustomSelected = currentTheme == "Custom";
+        Color? customSeedColor = null;
+        if (!string.IsNullOrEmpty(_config?.CustomThemeColor))
+        {
+            try { customSeedColor = (Color)ColorConverter.ConvertFromString(_config.CustomThemeColor); } catch { }
+        }
+
+        var customThemeWrapper = new StackPanel
+        {
+            Margin = new Thickness(0, 0, 10, 8),
+            Cursor = Cursors.Hand,
+        };
+
+        var customThemeSwatch = new Border
+        {
+            Width = 48, Height = 32,
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(2),
+            BorderBrush = isCustomSelected
+                ? new SolidColorBrush(ThemeManager.Accent)
+                : new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)),
+        };
+
+        if (customSeedColor.HasValue)
+        {
+            var t = ThemeManager.GenerateThemeFromColor(customSeedColor.Value);
+            var bg = (Color)ColorConverter.ConvertFromString(t.BgBase);
+            var card = (Color)ColorConverter.ConvertFromString(t.CardBg);
+            var input = (Color)ColorConverter.ConvertFromString(t.InputBg);
+            customThemeSwatch.Background = new LinearGradientBrush(
+                new GradientStopCollection { new(bg, 0.0), new(card, 0.5), new(input, 1.0) },
+                new Point(0, 0), new Point(1, 1));
+        }
+        else
+        {
+            customThemeSwatch.Background = new LinearGradientBrush(
+                new GradientStopCollection
+                {
+                    new(Colors.Red, 0.0), new(Colors.Yellow, 0.17), new(Colors.Lime, 0.33),
+                    new(Colors.Cyan, 0.5), new(Colors.Blue, 0.67), new(Colors.Magenta, 0.83), new(Colors.Red, 1.0),
+                }, new Point(0, 0), new Point(1, 1));
+        }
+
+        customThemeSwatch.MouseEnter += (_, _) =>
+        {
+            if (!isCustomSelected)
+                customThemeSwatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, 0xFF, 0xFF, 0xFF));
+        };
+        customThemeSwatch.MouseLeave += (_, _) =>
+        {
+            if (!isCustomSelected)
+                customThemeSwatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF));
+        };
+
+        if (!customSeedColor.HasValue)
+        {
+            customThemeSwatch.Child = new TextBlock
+            {
+                Text = "+",
+                FontSize = 16, FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(Colors.White),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+        }
+
+        customThemeWrapper.Children.Add(customThemeSwatch);
+        customThemeWrapper.Children.Add(new TextBlock
+        {
+            Text = "Custom",
+            FontSize = 9,
+            Foreground = isCustomSelected
+                ? new SolidColorBrush(ThemeManager.Accent)
+                : new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 4, 0, 0),
+        });
+
+        customThemeWrapper.MouseLeftButtonDown += (_, _) =>
+        {
+            if (_config == null || _onSave == null) return;
+            var initial = customSeedColor ?? ThemeManager.Accent;
+            var dialog = new ColorPickerDialog(initial) { Owner = Window.GetWindow(this) };
+            dialog.ColorChanged += c => ThemeManager.SetCustomTheme(c); // live preview
+            dialog.ShowDialog();
+            var picked = dialog.SelectedColor;
+            var hex = $"#{picked.R:X2}{picked.G:X2}{picked.B:X2}";
+            _config.CustomThemeColor = hex;
+            _config.CardTheme = "Custom";
+            ThemeManager.SetCustomTheme(picked);
+            BuildCardThemeSwatches();
+            _onSave(_config);
+        };
+
+        CardThemeSwatches.Children.Add(customThemeWrapper);
     }
 
     private void OnValueChanged(object? sender, EventArgs e)

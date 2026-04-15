@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -18,15 +19,15 @@ public class AmbienceSync : IDisposable
     private bool _disposed;
 
     // Per-device last-sent color for delta throttling
-    private readonly Dictionary<string, (byte R, byte G, byte B)> _lastSent = new();
+    private readonly ConcurrentDictionary<string, (byte R, byte G, byte B)> _lastSent = new();
     private readonly HashSet<string> _segmentEnabled = new();
-    private readonly Dictionary<string, long> _segmentKeepAliveTick = new();
+    private readonly ConcurrentDictionary<string, long> _segmentKeepAliveTick = new();
     private const long SegmentKeepAliveInterval = TimeSpan.TicksPerSecond * 25; // re-enable every 25s
 
     // Rate limiter: Govee LAN UDP per device
     // Razer binary protocol is lightweight — LedFx defaults to 40 FPS, 20 FPS is conservative and reliable.
     // colorwc JSON is heavier but 10 FPS is well within device capability.
-    private readonly Dictionary<string, long> _lastSendTick = new();
+    private readonly ConcurrentDictionary<string, long> _lastSendTick = new();
     private const long MinTicksSegment = TimeSpan.TicksPerMillisecond * 50;   // 20 FPS for segment protocol (razer binary)
     private const long MinTicksSingle  = TimeSpan.TicksPerMillisecond * 100;  // 10 FPS for colorwc (JSON)
 
@@ -795,7 +796,7 @@ public class AmbienceSync : IDisposable
     public void ClearSegmentMode(string ip)
     {
         _segmentEnabled.Remove(ip);
-        _segmentKeepAliveTick.Remove(ip);
+        _segmentKeepAliveTick.TryRemove(ip, out _);
         _ = Task.Run(() => SendSegmentEnable(ip, false));
     }
 
