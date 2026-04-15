@@ -833,6 +833,35 @@ public partial class LightsView : UserControl
         _globalIdleEffectPanel = idleEffectPanel;
 
         settings.Children.Add(ledToggleRow);
+
+        // ── SPEED + BRIGHTNESS inline row (Room tab style) — right under toggles ──
+
+        var speedSlider = new StyledSlider
+        {
+            Minimum = 1,
+            Maximum = 100,
+            Value = 50,
+            ShowLabel = false,
+            AccentColor = ThemeManager.Accent,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Height = 28,
+            ToolTip = "Animation speed — higher = faster",
+        };
+        speedSlider.ValueChanged += (_, _) =>
+        {
+            if (!_loading) QueueSave();
+        };
+        _globalSpeedSlider = speedSlider;
+
+        _brightnessSlider!.ShowLabel = false;
+        _brightnessSlider.Height = 28;
+        _brightnessSlider.HorizontalAlignment = HorizontalAlignment.Stretch;
+
+        var speedBrightnessRow = MakeSpeedBrightnessRow(speedSlider, _brightnessSlider);
+        _globalSpeedCard = speedBrightnessRow;
+
+        settings.Children.Add(speedBrightnessRow);
+
         settings.Children.Add(MakeSectionCard("EFFECT", effectPicker, reactiveModePanel, idleEffectPanel));
 
         // ── Card 2: COLORS (palette editor) ──
@@ -881,34 +910,6 @@ public partial class LightsView : UserControl
         var colorsCard = MakeSectionCard("COLORS", paletteSection);
         _globalPaletteCard = colorsCard;
         settings.Children.Add(colorsCard);
-
-        // ── SPEED + BRIGHTNESS inline row (Room tab style) ──
-
-        var speedSlider = new StyledSlider
-        {
-            Minimum = 1,
-            Maximum = 100,
-            Value = 50,
-            ShowLabel = false,
-            AccentColor = ThemeManager.Accent,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            Height = 28,
-            ToolTip = "Animation speed — higher = faster",
-        };
-        speedSlider.ValueChanged += (_, _) =>
-        {
-            if (!_loading) QueueSave();
-        };
-        _globalSpeedSlider = speedSlider;
-
-        _brightnessSlider!.ShowLabel = false;
-        _brightnessSlider.Height = 28;
-        _brightnessSlider.HorizontalAlignment = HorizontalAlignment.Stretch;
-
-        var speedBrightnessRow = MakeSpeedBrightnessRow(speedSlider, _brightnessSlider);
-        _globalSpeedCard = speedBrightnessRow;
-
-        settings.Children.Add(speedBrightnessRow);
 
         panel.Children.Add(settings);
 
@@ -1636,6 +1637,45 @@ public partial class LightsView : UserControl
             // color dots. _headers[i] / _headerIcons[i] / _headerEffects[i]
             // are populated by BuildKnobSelectorRow().
 
+            // ── SPEED + BRIGHTNESS inline row (right under knob selector) ──
+            var speedSlider = new StyledSlider
+            {
+                Minimum = 1,
+                Maximum = 100,
+                Value = 50,
+                ShowLabel = false,
+                Height = 28,
+                AccentColor = ThemeManager.Accent,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                ToolTip = "Animation speed — higher = faster",
+            };
+            speedSlider.ValueChanged += (_, _) =>
+            {
+                if (!_loading) QueueSave();
+            };
+            _speedSliders[i] = speedSlider;
+
+            var brightSlider = new StyledSlider
+            {
+                Minimum = 0,
+                Maximum = 100,
+                Value = 100,
+                ShowLabel = false,
+                Height = 28,
+                AccentColor = ThemeManager.Accent,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                ToolTip = "Per-knob LED brightness (on top of global brightness)",
+            };
+            brightSlider.ValueChanged += (_, _) =>
+            {
+                if (!_loading) QueueSave();
+            };
+            _brightnessSliders[i] = brightSlider;
+
+            var sbRow = MakeSpeedBrightnessRow(speedSlider, brightSlider);
+            _speedPanels[i] = sbRow;
+            panel.Children.Add(sbRow);
+
             // ── EFFECT card ──
             var effectPicker = new EffectPickerControl(showGlobal: false, showFavorites: false)
             {
@@ -1686,45 +1726,6 @@ public partial class LightsView : UserControl
             var colorCard = MakeSectionCard("COLORS", colorSection);
             _colorSections[i] = colorCard;
             panel.Children.Add(colorCard);
-
-            // ── SPEED + BRIGHTNESS inline row ──
-            var speedSlider = new StyledSlider
-            {
-                Minimum = 1,
-                Maximum = 100,
-                Value = 50,
-                ShowLabel = false,
-                Height = 28,
-                AccentColor = ThemeManager.Accent,
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                ToolTip = "Animation speed — higher = faster",
-            };
-            speedSlider.ValueChanged += (_, _) =>
-            {
-                if (!_loading) QueueSave();
-            };
-            _speedSliders[i] = speedSlider;
-
-            var brightSlider = new StyledSlider
-            {
-                Minimum = 0,
-                Maximum = 100,
-                Value = 100,
-                ShowLabel = false,
-                Height = 28,
-                AccentColor = ThemeManager.Accent,
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                ToolTip = "Per-knob LED brightness (on top of global brightness)",
-            };
-            brightSlider.ValueChanged += (_, _) =>
-            {
-                if (!_loading) QueueSave();
-            };
-            _brightnessSliders[i] = brightSlider;
-
-            var sbRow = MakeSpeedBrightnessRow(speedSlider, brightSlider);
-            _speedPanels[i] = sbRow;
-            panel.Children.Add(sbRow);
 
             // Reactive mode picker (only visible for AudioReactive)
             var reactiveContainer = new StackPanel();
