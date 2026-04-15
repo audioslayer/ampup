@@ -243,7 +243,7 @@ public partial class OsdOverlay : Window
                     (byte)Math.Clamp(light.G, 0, 255),
                     (byte)Math.Clamp(light.B, 0, 255)));
             else
-                cardBg = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+                cardBg = (SolidColorBrush)Application.Current.FindResource("BgDarkBrush");
 
             var card = new Border
             {
@@ -267,7 +267,7 @@ public partial class OsdOverlay : Window
             {
                 Width = 18, Height = 18,
                 CornerRadius = new CornerRadius(9),
-                Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                Background = (SolidColorBrush)Application.Current.FindResource("CardBorderBrush"),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 0, 0, 4),
                 Child = new TextBlock

@@ -73,10 +73,10 @@ public class GridPicker : Border
     // Category icons and colors for visual identity
     private static readonly Dictionary<string, (string Icon, Color Color)> CategoryStyles = new()
     {
-        { "AUDIO",        ("♪", Color.FromRgb(0x64, 0xB5, 0xF6)) },  // blue
-        { "DEVICES",      ("⬡", Color.FromRgb(0xBA, 0x68, 0xC8)) },  // purple
-        { "INTEGRATIONS", ("◈", Color.FromRgb(0xFF, 0xB7, 0x4D)) },  // amber
-        { "APPS",         ("◉", Color.FromRgb(0x66, 0xBB, 0x6A)) },  // green
+        { "AUDIO",        ("\u266A", Color.FromRgb(0x64, 0xB5, 0xF6)) },  // blue
+        { "DEVICES",      ("\u2B21", Color.FromRgb(0xBA, 0x68, 0xC8)) },  // purple
+        { "INTEGRATIONS", ("\u25C8", Color.FromRgb(0xFF, 0xB7, 0x4D)) },  // amber
+        { "APPS",         ("\u25C9", Color.FromRgb(0x66, 0xBB, 0x6A)) },  // green
     };
 
     public record SubItem(string Display, string Tag, string? Icon = null, Color? IconColor = null);
@@ -92,7 +92,6 @@ public class GridPicker : Border
     public GridPicker()
     {
         // Main trigger — looks like a proper input field
-        Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
         BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
         BorderThickness = new Thickness(1.5);
         CornerRadius = new CornerRadius(6);
@@ -100,6 +99,7 @@ public class GridPicker : Border
         Cursor = Cursors.Hand;
         SnapsToDevicePixels = true;
         MinHeight = 36;
+        this.SetResourceReference(BackgroundProperty, "InputBgBrush");
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -118,7 +118,7 @@ public class GridPicker : Border
 
         _chevron = new TextBlock
         {
-            Text = "▾",
+            Text = "\u25BE",
             FontSize = 12,
             Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
             VerticalAlignment = VerticalAlignment.Center,
@@ -158,16 +158,16 @@ public class GridPicker : Border
 
         _subFilterBox = new TextBox
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
             Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
             CaretBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
             BorderThickness = new Thickness(1),
             Padding = new Thickness(8, 5, 8, 5),
             FontSize = 11,
             Visibility = Visibility.Collapsed,
             Margin = new Thickness(4, 0, 4, 6),
         };
+        _subFilterBox.SetResourceReference(TextBox.BackgroundProperty, "CardBgBrush");
+        _subFilterBox.SetResourceReference(TextBox.BorderBrushProperty, "CardBorderBrush");
         _subFilterPlaceholder = new TextBlock
         {
             Text = "Search...",
@@ -196,7 +196,6 @@ public class GridPicker : Border
 
         _subPanelBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x11, 0x11, 0x11)),
             CornerRadius = new CornerRadius(0, 8, 8, 0),
             Padding = new Thickness(4, 6, 4, 6),
             Child = subStack,
@@ -204,15 +203,16 @@ public class GridPicker : Border
             MaxWidth = 300,
             Visibility = Visibility.Collapsed,
         };
+        _subPanelBorder.SetResourceReference(Border.BackgroundProperty, "BgBaseBrush");
 
         // Thin vertical divider between main items and sub-panel
         _subDivider = new Border
         {
             Width = 1,
-            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
             Margin = new Thickness(0, 10, 0, 10),
             Visibility = Visibility.Collapsed,
         };
+        _subDivider.SetResourceReference(Border.BackgroundProperty, "CardBorderBrush");
 
         // Horizontal layout: main items | divider | sub-panel
         var hStack = new StackPanel { Orientation = Orientation.Horizontal };
@@ -222,13 +222,13 @@ public class GridPicker : Border
 
         _popupBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(6, 8, 6, 8),
             Child = hStack,
         };
+        _popupBorder.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+        _popupBorder.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
 
         // Timer for delayed sub-menu open on hover
         _subOpenTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
@@ -247,7 +247,7 @@ public class GridPicker : Border
         MouseEnter += (_, _) =>
         {
             BorderBrush = new SolidColorBrush(Color.FromArgb(0xAA, AccentColor.R, AccentColor.G, AccentColor.B));
-            Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
+            this.SetResourceReference(BackgroundProperty, "InputBgBrush");
             _chevron.Foreground = new SolidColorBrush(AccentColor);
         };
         MouseLeave += (_, _) =>
@@ -255,7 +255,7 @@ public class GridPicker : Border
             if (!_isOpen)
             {
                 BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
-                Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+                this.SetResourceReference(BackgroundProperty, "InputBgBrush");
                 _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
             }
         };
@@ -282,9 +282,9 @@ public class GridPicker : Border
 
         var outerBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
             Child = _popupBorder,
         };
+        outerBorder.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
 
         _flyout = new Window
         {
@@ -294,7 +294,7 @@ public class GridPicker : Border
             ShowInTaskbar = false,
             Topmost = true,
             AllowsTransparency = false,
-            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
+            Background = (Brush)Application.Current.FindResource("BgDarkBrush"),
             Content = outerBorder
         };
 
@@ -331,7 +331,7 @@ public class GridPicker : Border
         _popupBorder.BeginAnimation(UIElement.OpacityProperty, fadeAnim);
 
         BorderBrush = new SolidColorBrush(AccentColor);
-        Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
+        this.SetResourceReference(BackgroundProperty, "InputBgBrush");
     }
 
     private void CloseFlyout()
@@ -349,7 +349,7 @@ public class GridPicker : Border
         _flyout = null;
 
         BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
-        Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+        this.SetResourceReference(BackgroundProperty, "InputBgBrush");
         _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
     }
 
@@ -554,7 +554,7 @@ public class GridPicker : Border
                 // Checkbox indicator
                 var checkText = new TextBlock
                 {
-                    Text = selected ? "☑" : "☐",
+                    Text = selected ? "\u2611" : "\u2610",
                     FontSize = 13,
                     Foreground = selected ? new SolidColorBrush(AccentColor) : new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
                     VerticalAlignment = VerticalAlignment.Center,
@@ -630,7 +630,7 @@ public class GridPicker : Border
             {
                 if (!selected)
                 {
-                    itemBorder.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+                    itemBorder.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
                     itemText.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
                 }
             };
@@ -787,7 +787,7 @@ public class GridPicker : Border
                 if (cat >= 0)
                 {
                     var catName = _categories[cat].CategoryName.ToUpperInvariant();
-                    var (icon, color) = CategoryStyles.GetValueOrDefault(catName, ("•", AccentColor));
+                    var (icon, color) = CategoryStyles.GetValueOrDefault(catName, ("\u2022", AccentColor));
 
                     var headerRow = new StackPanel
                     {
@@ -831,14 +831,14 @@ public class GridPicker : Border
             {
                 Background = selected
                     ? new SolidColorBrush(Color.FromArgb(0x18, AccentColor.R, AccentColor.G, AccentColor.B))
-                    : isActiveSubParent
-                        ? new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E))
-                        : Brushes.Transparent,
+                    : Brushes.Transparent,
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(10, 7, 10, 7),
                 Margin = new Thickness(2, 1, 2, 1),
                 Cursor = Cursors.Hand,
             };
+            if (isActiveSubParent && !selected)
+                itemRow.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
 
             var itemPanel = new DockPanel();
 
@@ -863,7 +863,7 @@ public class GridPicker : Border
             {
                 var arrow = new TextBlock
                 {
-                    Text = "›",
+                    Text = "\u203A",
                     FontSize = 14,
                     Foreground = new SolidColorBrush(isActiveSubParent ? AccentColor : Color.FromRgb(0x66, 0x66, 0x66)),
                     VerticalAlignment = VerticalAlignment.Center,
@@ -929,7 +929,7 @@ public class GridPicker : Border
             {
                 if (idx != _selectedIndex && !isActiveSubParent)
                 {
-                    itemRow.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+                    itemRow.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
                 }
 
                 // Start sub-menu open timer if this item has a sub-menu
@@ -949,11 +949,12 @@ public class GridPicker : Border
             itemRow.MouseLeave += (_, _) =>
             {
                 bool sel = idx == _selectedIndex;
-                itemRow.Background = sel
-                    ? new SolidColorBrush(Color.FromArgb(0x18, AccentColor.R, AccentColor.G, AccentColor.B))
-                    : isActiveSubParent
-                        ? new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E))
-                        : Brushes.Transparent;
+                if (sel)
+                    itemRow.Background = new SolidColorBrush(Color.FromArgb(0x18, AccentColor.R, AccentColor.G, AccentColor.B));
+                else if (isActiveSubParent)
+                    itemRow.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+                else
+                    itemRow.Background = Brushes.Transparent;
             };
 
             // Click

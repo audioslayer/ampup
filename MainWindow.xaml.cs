@@ -581,7 +581,7 @@ public partial class MainWindow : FluentWindow
 
         var popupBorder = new System.Windows.Controls.Border
         {
-            Background = new System.Windows.Media.SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
+            Background = (System.Windows.Media.Brush)FindResource("BgDarkBrush"),
             BorderBrush = (System.Windows.Media.SolidColorBrush)FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
@@ -607,7 +607,7 @@ public partial class MainWindow : FluentWindow
             ShowInTaskbar = false,
             Topmost = true,
             AllowsTransparency = false,
-            Background = new System.Windows.Media.SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
+            Background = (System.Windows.Media.Brush)FindResource("BgDarkBrush"),
             Content = popupBorder,
             Left = screenPos.X,
             Top = screenPos.Y
@@ -761,7 +761,7 @@ public partial class MainWindow : FluentWindow
             rowBorder.MouseEnter += (_, _) =>
             {
                 if (profileCapture != _config.ActiveProfile)
-                    rowBorder.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+                    rowBorder.Background = (SolidColorBrush)FindResource("InputBgBrush");
             };
             rowBorder.MouseLeave += (_, _) =>
             {
@@ -785,7 +785,7 @@ public partial class MainWindow : FluentWindow
         var divider = new System.Windows.Controls.Border
         {
             Height = 1,
-            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            Background = (SolidColorBrush)FindResource("CardBorderBrush"),
             Margin = new Thickness(4, 6, 4, 6)
         };
         ProfilePopupPanel.Children.Add(divider);
@@ -818,7 +818,7 @@ public partial class MainWindow : FluentWindow
         };
         addBorder.MouseEnter += (_, _) =>
         {
-            addBorder.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+            addBorder.Background = (SolidColorBrush)FindResource("InputBgBrush");
         };
         addBorder.MouseLeave += (_, _) =>
         {
@@ -996,14 +996,14 @@ public partial class MainWindow : FluentWindow
                     Margin = new Thickness(1),
                     Child = iconEl,
                     Background = symbolCapture == currentIcon.Symbol
-                        ? new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A))
+                        ? (SolidColorBrush)FindResource("CardBorderBrush")
                         : System.Windows.Media.Brushes.Transparent
                 };
-                btn.MouseEnter += (_, _) => btn.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+                btn.MouseEnter += (_, _) => btn.Background = (SolidColorBrush)FindResource("CardBorderBrush");
                 btn.MouseLeave += (_, _) =>
                 {
                     btn.Background = symbolCapture == currentIcon.Symbol
-                        ? new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A))
+                        ? (SolidColorBrush)FindResource("CardBorderBrush")
                         : System.Windows.Media.Brushes.Transparent;
                 };
                 btn.MouseLeftButtonDown += (_, _) =>
@@ -1019,7 +1019,7 @@ public partial class MainWindow : FluentWindow
         // ── Window ──
         var popupBorder = new System.Windows.Controls.Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
+            Background = (SolidColorBrush)FindResource("BgDarkBrush"),
             BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
@@ -1053,7 +1053,7 @@ public partial class MainWindow : FluentWindow
             ShowInTaskbar = false,
             Topmost = true,
             AllowsTransparency = false,
-            Background = new SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
+            Background = (SolidColorBrush)FindResource("BgDarkBrush"),
             Content = popupBorder,
             Left = screenPos.X,
             Top = screenPos.Y
@@ -1255,15 +1255,15 @@ public partial class MainWindow : FluentWindow
                     Margin = new Thickness(1),
                     Child = iconEl,
                     Background = symbolCapture == currentIcon.Symbol
-                        ? new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A))
+                        ? (SolidColorBrush)FindResource("CardBorderBrush")
                         : System.Windows.Media.Brushes.Transparent
                 };
-                btn.MouseEnter += (_, _) => btn.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+                btn.MouseEnter += (_, _) => btn.Background = (SolidColorBrush)FindResource("CardBorderBrush");
                 btn.MouseLeave += (_, _) =>
                 {
                     var cur = _config.ProfileIcons.GetValueOrDefault(profileName)?.Symbol ?? "";
                     btn.Background = symbolCapture == cur
-                        ? new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A))
+                        ? (SolidColorBrush)FindResource("CardBorderBrush")
                         : System.Windows.Media.Brushes.Transparent;
                 };
                 btn.MouseLeftButtonDown += (_, _) =>
@@ -1284,7 +1284,7 @@ public partial class MainWindow : FluentWindow
 
         var popupBorder = new System.Windows.Controls.Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
+            Background = (SolidColorBrush)FindResource("BgDarkBrush"),
             BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
@@ -1319,7 +1319,7 @@ public partial class MainWindow : FluentWindow
             ShowInTaskbar = false,
             Topmost = true,
             AllowsTransparency = false,
-            Background = new System.Windows.Media.SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
+            Background = (System.Windows.Media.Brush)FindResource("BgDarkBrush"),
             Content = popupBorder,
             Left = screenPos.X,
             Top = screenPos.Y

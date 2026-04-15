@@ -63,8 +63,8 @@ namespace AmpUp.Controls
         public SegmentedControl()
         {
             // Outer border styling
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+            SetResourceReference(BackgroundProperty, "BgDarkBrush");
+            SetResourceReference(BorderBrushProperty, "CardBorderBrush");
             BorderThickness = new Thickness(1);
             CornerRadius = new CornerRadius(4);
             SnapsToDevicePixels = true;
@@ -179,7 +179,7 @@ namespace AmpUp.Controls
 
         private void ApplyHoverVisual(SegmentInfo info)
         {
-            info.Container.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+            info.Container.Background = (Brush)Application.Current.FindResource("InputBgBrush");
             info.Container.BorderBrush = Brushes.Transparent;
             info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0xBB));
             info.Label.FontWeight = FontWeights.Normal;

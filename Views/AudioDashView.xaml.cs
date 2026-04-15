@@ -147,7 +147,7 @@ public partial class AudioDashView : UserControl
                 bool active = peak > 0.02f;
                 row.PeakFill.Background = active
                     ? (SolidColorBrush)FindResource("AccentBrush")
-                    : new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
+                    : (SolidColorBrush)FindResource("InputBorderBrush");
             }
             catch { }
         }
@@ -167,7 +167,7 @@ public partial class AudioDashView : UserControl
             Padding = new Thickness(4, 6, 4, 6),
             Cursor = Cursors.Hand,
         };
-        row.MouseEnter += (_, _) => row.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+        row.MouseEnter += (_, _) => row.Background = (SolidColorBrush)FindResource("CardBgBrush");
         row.MouseLeave += (_, _) => row.Background = Brushes.Transparent;
 
         var grid = new Grid();
@@ -216,7 +216,7 @@ public partial class AudioDashView : UserControl
         {
             Height = 4,
             CornerRadius = new CornerRadius(2),
-            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            Background = (SolidColorBrush)FindResource("CardBorderBrush"),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(8, 0, 8, 0),
         };
@@ -226,7 +226,7 @@ public partial class AudioDashView : UserControl
             CornerRadius = new CornerRadius(2),
             Background = active
                 ? (SolidColorBrush)FindResource("AccentBrush")
-                : new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
+                : (SolidColorBrush)FindResource("InputBorderBrush"),
             Width = Math.Clamp(info.Peak * 104, 0, 104),
             HorizontalAlignment = HorizontalAlignment.Left,
         };
@@ -370,8 +370,8 @@ public partial class AudioDashView : UserControl
         // Unassigned — dimmed pill
         var unassigned = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
+            Background = (SolidColorBrush)FindResource("InputBgBrush"),
+            BorderBrush = (SolidColorBrush)FindResource("InputBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(4),
             Padding = new Thickness(6, 2, 6, 2),
@@ -493,10 +493,10 @@ public partial class AudioDashView : UserControl
             {
                 Background = isCurrent
                     ? new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B))
-                    : new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
+                    : (SolidColorBrush)FindResource("CardBgBrush"),
                 BorderBrush = isCurrent
                     ? new SolidColorBrush(Color.FromArgb(0x80, accent.R, accent.G, accent.B))
-                    : new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
+                    : (SolidColorBrush)FindResource("InputBorderBrush"),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(4),
                 Padding = new Thickness(10, 4, 10, 4),
@@ -523,10 +523,10 @@ public partial class AudioDashView : UserControl
             {
                 pill.Background = captured
                     ? new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B))
-                    : new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
+                    : (SolidColorBrush)FindResource("CardBgBrush");
                 pill.BorderBrush = captured
                     ? new SolidColorBrush(Color.FromArgb(0x80, accent.R, accent.G, accent.B))
-                    : new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33));
+                    : (SolidColorBrush)FindResource("InputBorderBrush");
             };
 
             pill.MouseLeftButtonDown += (_, e) =>

@@ -17,20 +17,10 @@ public class RangeSlider : FrameworkElement
     private const double TrackMargin = 8.0;
 
     // Frozen pens/brushes
-    private static readonly Brush s_trackBg;
-    private static readonly Brush s_thumbBorder;
     private static readonly Typeface s_typeface = new("Segoe UI");
 
-    static RangeSlider()
-    {
-        var bg = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
-        bg.Freeze();
-        s_trackBg = bg;
-
-        var border = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14));
-        border.Freeze();
-        s_thumbBorder = border;
-    }
+    private Brush GetTrackBg() => (Brush)Application.Current.FindResource("InputBgBrush");
+    private Brush GetThumbBorder() => (Brush)Application.Current.FindResource("BgDarkBrush");
 
     // ── Dependency Properties ───────────────────────────────────
 
@@ -108,7 +98,7 @@ public class RangeSlider : FrameworkElement
         double trackTop = cy - TrackHeight / 2;
 
         // Background track
-        dc.DrawRoundedRectangle(s_trackBg, null,
+        dc.DrawRoundedRectangle(GetTrackBg(), null,
             new Rect(TrackLeft, trackTop, TrackWidth, TrackHeight), 1.5, 1.5);
 
         // Filled range (accent colored)
@@ -125,7 +115,7 @@ public class RangeSlider : FrameworkElement
         // Thumbs (accent colored)
         var thumbFillBrush = new SolidColorBrush(AccentColor);
         thumbFillBrush.Freeze();
-        var thumbPen = new Pen(s_thumbBorder, 1.5);
+        var thumbPen = new Pen(GetThumbBorder(), 1.5);
         thumbPen.Freeze();
         dc.DrawEllipse(thumbFillBrush, thumbPen, new Point(lx, cy), ThumbRadius, ThumbRadius);
         dc.DrawEllipse(thumbFillBrush, thumbPen, new Point(ux, cy), ThumbRadius, ThumbRadius);

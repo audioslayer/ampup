@@ -80,7 +80,6 @@ public class ActionPicker : Border
     public ActionPicker()
     {
         // Button appearance
-        Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
         BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
         BorderThickness = new Thickness(1.5);
         CornerRadius = new CornerRadius(6);
@@ -88,6 +87,7 @@ public class ActionPicker : Border
         Height = 36;
         Cursor = Cursors.Hand;
         SnapsToDevicePixels = true;
+        this.SetResourceReference(BackgroundProperty, "InputBgBrush");
 
         // Layout: [icon] [label -- fills] [chevron]
         var dock = new DockPanel { LastChildFill = true };
@@ -153,16 +153,16 @@ public class ActionPicker : Border
 
         _subFilterBox = new TextBox
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
             Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
             CaretBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
             BorderThickness = new Thickness(1),
             Padding = new Thickness(8, 5, 8, 5),
             FontSize = 11,
             Visibility = Visibility.Collapsed,
             Margin = new Thickness(4, 0, 4, 6),
         };
+        _subFilterBox.SetResourceReference(TextBox.BackgroundProperty, "CardBgBrush");
+        _subFilterBox.SetResourceReference(TextBox.BorderBrushProperty, "CardBorderBrush");
         _subFilterPlaceholder = new TextBlock
         {
             Text = "Search...",
@@ -191,7 +191,6 @@ public class ActionPicker : Border
 
         _subPanelBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x11, 0x11, 0x11)),
             CornerRadius = new CornerRadius(0, 6, 6, 0),
             Padding = new Thickness(4, 6, 4, 6),
             Child = subStack,
@@ -199,15 +198,16 @@ public class ActionPicker : Border
             MaxWidth = 300,
             Visibility = Visibility.Collapsed,
         };
+        _subPanelBorder.SetResourceReference(Border.BackgroundProperty, "BgBaseBrush");
 
         // Thin vertical divider between main items and sub-panel
         _subDivider = new Border
         {
             Width = 1,
-            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
             Margin = new Thickness(0, 10, 0, 10),
             Visibility = Visibility.Collapsed,
         };
+        _subDivider.SetResourceReference(Border.BackgroundProperty, "CardBorderBrush");
 
         // Horizontal layout: [main items] [divider] [sub-panel]
         var hStack = new StackPanel { Orientation = Orientation.Horizontal };
@@ -217,12 +217,12 @@ public class ActionPicker : Border
 
         _popupBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Child = hStack,
         };
+        _popupBorder.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+        _popupBorder.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
 
         _subOpenTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
         _subOpenTimer.Tick += (_, _) =>
@@ -279,9 +279,9 @@ public class ActionPicker : Border
 
         var outerBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
             Child = _popupBorder,
         };
+        outerBorder.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
 
         _flyout = new Window
         {
@@ -291,7 +291,7 @@ public class ActionPicker : Border
             ShowInTaskbar = false,
             Topmost = true,
             AllowsTransparency = false,
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+            Background = (Brush)Application.Current.FindResource("BgDarkBrush"),
             Content = outerBorder
         };
 
@@ -548,7 +548,7 @@ public class ActionPicker : Border
             {
                 if (!selected)
                 {
-                    itemBorder.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+                    itemBorder.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
                     itemText.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
                 }
             };
@@ -712,13 +712,13 @@ public class ActionPicker : Border
             Cursor = Cursors.Hand,
             Background = selected
                 ? new SolidColorBrush(Color.FromArgb(0x1F, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B))
-                : isActiveSubParent
-                    ? new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E))
-                    : Brushes.Transparent,
+                : Brushes.Transparent,
             SnapsToDevicePixels = true,
             Child = rowGrid,
             ToolTip = item.Tooltip,
         };
+        if (isActiveSubParent && !selected)
+            row.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
 
         int capturedIdx = idx;
 
@@ -726,7 +726,7 @@ public class ActionPicker : Border
         {
             if (capturedIdx != _selectedIndex)
             {
-                row.Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
+                row.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
                 nameText.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
             }
 

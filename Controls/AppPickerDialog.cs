@@ -59,7 +59,7 @@ public class AppPickerDialog : Window
         ResizeMode = ResizeMode.NoResize;
         WindowStyle = WindowStyle.None;
         AllowsTransparency = false;
-        Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x14, 0x14, 0x14));
+        Background = (System.Windows.Media.Brush)Application.Current.FindResource("BgDarkBrush");
 
         BuildUI();
         LoadApps();
@@ -69,8 +69,8 @@ public class AppPickerDialog : Window
     {
         var root = new Border
         {
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x14, 0x14, 0x14)),
-            BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3A, 0x3A, 0x3A)),
+            Background = (System.Windows.Media.Brush)Application.Current.FindResource("BgDarkBrush"),
+            BorderBrush = (System.Windows.Media.Brush)Application.Current.FindResource("InputBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
         };
@@ -104,8 +104,8 @@ public class AppPickerDialog : Window
         // Search box
         var searchBorder = new Border
         {
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x1C, 0x1C, 0x1C)),
-            BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x36, 0x36, 0x36)),
+            Background = (System.Windows.Media.Brush)Application.Current.FindResource("CardBgBrush"),
+            BorderBrush = (System.Windows.Media.Brush)Application.Current.FindResource("InputBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(8, 0, 8, 0),
@@ -285,7 +285,7 @@ public class AppPickerDialog : Window
     {
         var row = new Border
         {
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            Background = (System.Windows.Media.Brush)Application.Current.FindResource("CardBgBrush"),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 8, 10, 8),
             Margin = new Thickness(0, 2, 0, 2),
@@ -363,7 +363,7 @@ public class AppPickerDialog : Window
         };
         row.MouseLeave += (_, _) =>
         {
-            row.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x1C, 0x1C, 0x1C));
+            row.Background = (System.Windows.Media.Brush)Application.Current.FindResource("CardBgBrush");
         };
 
         // Click to select

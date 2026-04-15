@@ -36,7 +36,7 @@ public class TrayContextMenu : Window
 
         AllowsTransparency = false;
         WindowStyle = WindowStyle.None;
-        Background = new SolidColorBrush(Color.FromRgb(0x11, 0x11, 0x11));
+        Background = (Brush)Application.Current.FindResource("BgBaseBrush");
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
         Topmost = true;
@@ -101,7 +101,7 @@ public class TrayContextMenu : Window
         var outer = new Border
         {
             CornerRadius = new CornerRadius(12),
-            Background = new SolidColorBrush(Color.FromRgb(0x11, 0x11, 0x11)),
+            Background = (Brush)Application.Current.FindResource("BgBaseBrush"),
             BorderBrush = new SolidColorBrush(Color.FromArgb(64, accent.R, accent.G, accent.B)),
             BorderThickness = new Thickness(1),
         };

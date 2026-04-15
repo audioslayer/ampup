@@ -359,10 +359,10 @@ public partial class RoomView : UserControl
 
         var tabContainer = new Border
         {
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)),
             BorderThickness = new Thickness(0, 0, 0, 1),
             Margin = new Thickness(0),
         };
+        tabContainer.SetResourceReference(Border.BorderBrushProperty, "InputBgBrush");
         var tabRow = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -736,9 +736,9 @@ public partial class RoomView : UserControl
                 {
                     Width = 82,
                     Background = active ? new SolidColorBrush(Color.FromArgb(0x25, accent.R, accent.G, accent.B))
-                        : new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
+                        : FindBrush("CardBgBrush"),
                     BorderBrush = active ? new SolidColorBrush(Color.FromArgb(0x77, accent.R, accent.G, accent.B))
-                        : new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E)),
+                        : FindBrush("CardBorderBrush"),
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(6),
                     Padding = new Thickness(4, 5, 4, 5),
@@ -766,8 +766,8 @@ public partial class RoomView : UserControl
                 tile.MouseLeave += (_, _) =>
                 {
                     vuTransform.Y = 0;
-                    if (!active) { tile.Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
-                        tile.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E)); }
+                    if (!active) { tile.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+                        tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush"); }
                 };
                 tileWrap.Children.Add(tile);
             }
@@ -829,10 +829,10 @@ public partial class RoomView : UserControl
         // Category tab bar — Material underline style
         var categoryBarContainer = new Border
         {
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)),
             BorderThickness = new Thickness(0, 0, 0, 1),
             Margin = new Thickness(0, 0, 0, 8),
         };
+        categoryBarContainer.SetResourceReference(Border.BorderBrushProperty, "InputBgBrush");
         var categoryTabBar = new StackPanel { Orientation = Orientation.Horizontal };
         // Tab index → visible-category index in EffectPickerControl:
         //   0 → 4 (favorites), 1 → 0 (static), 2 → 1 (anim), 3 → 2 (react), 4 → 3 (global)
@@ -1080,12 +1080,13 @@ public partial class RoomView : UserControl
         topContent.Children.Add(dimRow);
 
         // Thin divider
-        topContent.Children.Add(new Border
+        var divider = new Border
         {
             Height = 1,
-            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
             Margin = new Thickness(0, 0, 0, 14),
-        });
+        };
+        divider.SetResourceReference(Border.BackgroundProperty, "CardBorderBrush");
+        topContent.Children.Add(divider);
 
         // Row 2+3: Projection mode (Mirror / Spatial) + Direction pills
         // Only Spatial uses Direction — Mirror shows the same effect on all devices.
@@ -1161,9 +1162,9 @@ public partial class RoomView : UserControl
             Height = 34,
             FontSize = 15,
             FontWeight = FontWeights.SemiBold,
-            Background = new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F)),
+            Background = FindBrush("CardBgBrush"),
             Foreground = FindBrush("TextPrimaryBrush"),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+            BorderBrush = FindBrush("InputBorderBrush"),
             BorderThickness = new Thickness(1),
             Padding = new Thickness(4, 0, 4, 0),
             VerticalContentAlignment = VerticalAlignment.Center,
@@ -1178,7 +1179,7 @@ public partial class RoomView : UserControl
         };
         box.LostFocus += (_, _) =>
         {
-            box.BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
+            box.BorderBrush = FindBrush("InputBorderBrush");
             if (double.TryParse(box.Text, out double v) && v > 0 && v <= 100)
             {
                 double snapped = Math.Round(v * 2) / 2;
@@ -1235,10 +1236,10 @@ public partial class RoomView : UserControl
                 Cursor = Cursors.Hand,
                 Background = modeActive
                     ? new SolidColorBrush(Color.FromArgb(0x38, purple.R, purple.G, purple.B))
-                    : new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F)),
+                    : FindBrush("CardBgBrush"),
                 BorderBrush = modeActive
                     ? new SolidColorBrush(Color.FromArgb(0x80, purple.R, purple.G, purple.B))
-                    : new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+                    : FindBrush("InputBorderBrush"),
                 BorderThickness = new Thickness(1),
                 ToolTip = tooltip,
             };
@@ -1285,10 +1286,10 @@ public partial class RoomView : UserControl
                 Cursor = isSpatial ? Cursors.Hand : Cursors.Arrow,
                 Background = active
                     ? new SolidColorBrush(Color.FromArgb(0x38, accent.R, accent.G, accent.B))
-                    : new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F)),
+                    : FindBrush("CardBgBrush"),
                 BorderBrush = active
                     ? new SolidColorBrush(Color.FromArgb(0x80, accent.R, accent.G, accent.B))
-                    : new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+                    : FindBrush("InputBorderBrush"),
                 BorderThickness = new Thickness(1),
                 Opacity = isSpatial ? 1.0 : 0.4,
                 ToolTip = isSpatial ? null : "Enable SPATIAL mode to use direction",
@@ -1646,10 +1647,10 @@ public partial class RoomView : UserControl
                 Cursor = Cursors.Hand,
                 Background = active
                     ? new SolidColorBrush(Color.FromArgb(0x30, 0x00, 0xE6, 0x76))
-                    : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                    : FindBrush("CardBorderBrush"),
                 BorderBrush = active
                     ? new SolidColorBrush(Color.FromArgb(0x60, 0x00, 0xE6, 0x76))
-                    : new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
+                    : FindBrush("InputBorderBrush"),
                 BorderThickness = new Thickness(1),
             };
             pill.Child = new TextBlock
@@ -2011,13 +2012,13 @@ public partial class RoomView : UserControl
         var tile = new Border
         {
             CornerRadius = new CornerRadius(10),
-            Background = new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E)),
             BorderThickness = new Thickness(1),
             Padding = new Thickness(10, 7, 14, 7),
             Margin = new Thickness(0, 0, 8, 8),
             Cursor = Cursors.Hand,
         };
+        tile.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
         var content = new StackPanel { Orientation = Orientation.Horizontal };
 
         // Colored icon square
@@ -2052,13 +2053,13 @@ public partial class RoomView : UserControl
         tile.MouseEnter += (_, _) =>
         {
             var ac = ThemeManager.Accent;
-            tile.Background = new SolidColorBrush(Color.FromRgb(0x26, 0x26, 0x26));
+            tile.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
             tile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, ac.R, ac.G, ac.B));
         };
         tile.MouseLeave += (_, _) =>
         {
-            tile.Background = new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F));
-            tile.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E));
+            tile.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+            tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
         };
         tile.MouseLeftButtonDown += (_, _) => onClick();
         return tile;
@@ -2837,25 +2838,25 @@ public partial class RoomView : UserControl
             tileContent.Children.Add(nameLabel);
             var tile = new Border
             {
-                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
                 CornerRadius = new CornerRadius(6),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
                 BorderThickness = new Thickness(1),
                 Padding = new Thickness(5, 5, 5, 3),
                 Margin = new Thickness(0, 0, 6, 6),
                 Cursor = Cursors.Hand, ToolTip = pname, Child = tileContent,
             };
+            tile.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+            tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
             tile.MouseEnter += (_, _) =>
             {
                 var accent = ThemeManager.Accent;
                 tile.BorderBrush = new SolidColorBrush(Color.FromArgb(0xAA, accent.R, accent.G, accent.B));
-                tile.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+                tile.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
                 nameLabel.Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
             };
             tile.MouseLeave += (_, _) =>
             {
-                tile.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-                tile.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+                tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+                tile.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
                 nameLabel.Foreground = new SolidColorBrush(Color.FromRgb(0x77, 0x77, 0x77));
             };
             tile.MouseLeftButtonDown += (_, _) => ApplyCorsairColors(captured[0], captured[captured.Length > 1 ? captured.Length - 1 : 0]);
@@ -3369,10 +3370,10 @@ public partial class RoomView : UserControl
                     {
                         Width = 28, Height = 28,
                         CornerRadius = new CornerRadius(4),
-                        Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
                         Margin = new Thickness(0, 0, 4, 4),
                         ToolTip = $"Zone {z + 1}",
                     };
+                    swatch.SetResourceReference(Border.BackgroundProperty, "CardBorderBrush");
                     _dreamZoneSwatches.Add(swatch);
                     wp.Children.Add(swatch);
                 }
@@ -3885,10 +3886,10 @@ public partial class RoomView : UserControl
                 CornerRadius = new CornerRadius(8),
                 Background = isActive
                     ? new SolidColorBrush(Color.FromArgb(0x30, corsairYellow.R, corsairYellow.G, corsairYellow.B))
-                    : new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+                    : FindBrush("BgDarkBrush"),
                 BorderBrush = isActive
                     ? new SolidColorBrush(corsairYellow)
-                    : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                    : FindBrush("CardBorderBrush"),
                 BorderThickness = new Thickness(1),
                 Margin = new Thickness(0, 0, 8, 8),
                 Cursor = Cursors.Hand,
@@ -4233,19 +4234,22 @@ public partial class RoomView : UserControl
         void UpdateVisuals()
         {
             var a = ThemeManager.Accent;
-            tile.Background = new SolidColorBrush(isActive
-                ? Color.FromArgb(0x22, a.R, a.G, a.B)
-                : Color.FromRgb(0x1C, 0x1C, 0x1C));
-            tile.BorderBrush = new SolidColorBrush(isActive
-                ? Color.FromArgb(0xA0, a.R, a.G, a.B)
-                : Color.FromRgb(0x2E, 0x2E, 0x2E));
+            if (isActive)
+                tile.Background = new SolidColorBrush(Color.FromArgb(0x22, a.R, a.G, a.B));
+            else
+                tile.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+            if (isActive)
+                tile.BorderBrush = new SolidColorBrush(Color.FromArgb(0xA0, a.R, a.G, a.B));
+            else
+                tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
             titleText.Foreground = new SolidColorBrush(isActive ? a : Color.FromRgb(0xE8, 0xE8, 0xE8));
             subtitleText.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
             statusText.Text = isActive ? "ON" : "OFF";
             statusText.Foreground = new SolidColorBrush(isActive ? a : Color.FromRgb(0x55, 0x55, 0x55));
-            statusPill.Background = new SolidColorBrush(isActive
-                ? Color.FromArgb(0x28, a.R, a.G, a.B)
-                : Color.FromRgb(0x24, 0x24, 0x24));
+            if (isActive)
+                statusPill.Background = new SolidColorBrush(Color.FromArgb(0x28, a.R, a.G, a.B));
+            else
+                statusPill.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
         }
         UpdateVisuals();
 
@@ -4262,8 +4266,8 @@ public partial class RoomView : UserControl
             tileTransform.Y = -1;
             if (!isActive)
             {
-                tile.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
-                tile.BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
+                tile.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+                tile.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
             }
         };
         tile.MouseLeave += (_, _) =>
@@ -4328,10 +4332,10 @@ public partial class RoomView : UserControl
             CornerRadius = new CornerRadius(6),
             Background = isActive
                 ? new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B))
-                : new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+                : FindBrush("BgDarkBrush"),
             BorderBrush = isActive
                 ? new SolidColorBrush(accent)
-                : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                : FindBrush("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             Margin = new Thickness(0, 0, 0, 12),
             Cursor = Cursors.Hand,
@@ -4364,7 +4368,7 @@ public partial class RoomView : UserControl
         {
             if (!isActive)
             {
-                tile.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+                tile.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
                 tile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, accent.R, accent.G, accent.B));
             }
         };
@@ -4372,8 +4376,8 @@ public partial class RoomView : UserControl
         {
             if (!isActive)
             {
-                tile.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
-                tile.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+                tile.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+                tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
             }
         };
         tile.MouseLeftButtonUp += (_, _) =>
@@ -4409,11 +4413,11 @@ public partial class RoomView : UserControl
         {
             Background = isActive
                 ? new SolidColorBrush(Color.FromArgb(0x30, colors[0].R, colors[0].G, colors[0].B))
-                : new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+                : FindBrush("BgDarkBrush"),
             CornerRadius = new CornerRadius(6),
             BorderBrush = isActive
                 ? new SolidColorBrush(Colors.White)
-                : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                : FindBrush("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             Padding = new Thickness(4, 4, 4, 3),
             Margin = new Thickness(0, 0, 6, 6),
@@ -4427,15 +4431,15 @@ public partial class RoomView : UserControl
             if (_roomActivePreset != name)
             {
                 tile.BorderBrush = new SolidColorBrush(Colors.White);
-                tile.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+                tile.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
             }
         };
         tile.MouseLeave += (_, _) =>
         {
             if (_roomActivePreset != name)
             {
-                tile.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-                tile.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+                tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+                tile.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
             }
         };
 
@@ -5030,14 +5034,14 @@ public partial class RoomView : UserControl
         {
             Width = 82, Height = 58,
             CornerRadius = new CornerRadius(6),
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
             BorderThickness = new Thickness(1),
             Margin = new Thickness(0, 0, 6, 6),
             Cursor = Cursors.Hand,
             ToolTip = "Set a solid color",
             Tag = "__solid__",
         };
+        tile.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+        tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
         var tileContent = new StackPanel
         {
@@ -5065,13 +5069,13 @@ public partial class RoomView : UserControl
 
         tile.MouseEnter += (_, _) =>
         {
-            tile.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+            tile.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
             tile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, solidColor.R, solidColor.G, solidColor.B));
         };
         tile.MouseLeave += (_, _) =>
         {
-            tile.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
-            tile.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+            tile.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+            tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
         };
 
         tile.MouseLeftButtonUp += (_, _) =>
@@ -5079,8 +5083,8 @@ public partial class RoomView : UserControl
             foreach (var child in wrap.Children)
                 if (child is Border b)
                 {
-                    b.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
-                    b.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+                    b.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+                    b.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
                 }
 
             tile.Background = new SolidColorBrush(Color.FromArgb(0x30, solidColor.R, solidColor.G, solidColor.B));
@@ -5140,14 +5144,14 @@ public partial class RoomView : UserControl
             {
                 Width = 82, Height = 58,
                 CornerRadius = new CornerRadius(6),
-                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
                 BorderThickness = new Thickness(1),
                 Margin = new Thickness(0, 0, 6, 6),
                 Cursor = Cursors.Hand,
                 ToolTip = scene.Name,
                 Tag = sceneId,
             };
+            tile.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+            tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
             var tileContent = new StackPanel
             {
@@ -5180,7 +5184,7 @@ public partial class RoomView : UserControl
             {
                 if (tile.Tag as string != activeSceneId)
                 {
-                    tile.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+                    tile.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
                     tile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, tileColor.R, tileColor.G, tileColor.B));
                 }
             };
@@ -5188,8 +5192,8 @@ public partial class RoomView : UserControl
             {
                 if (tile.Tag as string != activeSceneId)
                 {
-                    tile.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
-                    tile.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+                    tile.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+                    tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
                 }
             };
             tile.MouseLeftButtonUp += async (_, _) =>
@@ -5198,8 +5202,8 @@ public partial class RoomView : UserControl
                 {
                     if (child is Border b && b.Tag as string != sceneId)
                     {
-                        b.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
-                        b.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+                        b.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+                        b.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
                     }
                 }
 

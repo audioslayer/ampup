@@ -224,7 +224,7 @@ public partial class RadialWheelOverlay : Window
                 FontSize = 10,
                 FontWeight = isEmpty ? FontWeights.Normal : FontWeights.SemiBold,
                 Foreground = new SolidColorBrush(isEmpty
-                    ? Color.FromRgb(0x33, 0x33, 0x33)
+                    ? ((SolidColorBrush)Application.Current.FindResource("InputBorderBrush")).Color
                     : Colors.White),
                 TextAlignment = TextAlignment.Center,
                 MaxWidth = 75,
@@ -260,7 +260,7 @@ public partial class RadialWheelOverlay : Window
             fill = highlighted ? Color.FromArgb(0xAA, 0x18, 0x18, 0x18) : EmptyBase;
             stroke = highlighted
                 ? Color.FromArgb(0x55, AccentColor.R, AccentColor.G, AccentColor.B)
-                : Color.FromRgb(0x22, 0x22, 0x22);
+                : ((SolidColorBrush)Application.Current.FindResource("InputBgBrush")).Color;
             strokeW = 1;
         }
         else if (highlighted)
@@ -330,7 +330,7 @@ public partial class RadialWheelOverlay : Window
                     ? Color.FromArgb(0xAA, 0x18, 0x18, 0x18) : EmptyBase);
                 _segPaths[i].Stroke = new SolidColorBrush(hl
                     ? Color.FromArgb(0x55, AccentColor.R, AccentColor.G, AccentColor.B)
-                    : Color.FromRgb(0x22, 0x22, 0x22));
+                    : ((SolidColorBrush)Application.Current.FindResource("InputBgBrush")).Color);
                 _segPaths[i].StrokeThickness = 1;
                 _segPaths[i].Effect = null;
             }

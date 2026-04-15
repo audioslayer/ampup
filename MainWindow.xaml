@@ -13,7 +13,7 @@
         WindowBackdropType="None"
         BorderThickness="0"
         BorderBrush="Transparent"
-        Background="#FF0F0F0F">
+        Background="{DynamicResource BgBaseBrush}">
 
     <ui:FluentWindow.Resources>
         <FontFamily x:Key="MaterialSymbols">pack://application:,,,/Fonts/#Material Symbols Outlined</FontFamily>

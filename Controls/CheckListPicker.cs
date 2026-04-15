@@ -31,13 +31,13 @@ public class CheckListPicker : Border
 
     public CheckListPicker()
     {
-        Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
-        BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
         BorderThickness = new Thickness(1);
         CornerRadius = new CornerRadius(4);
         Padding = new Thickness(8, 5, 8, 5);
         Cursor = Cursors.Hand;
         SnapsToDevicePixels = true;
+        this.SetResourceReference(BackgroundProperty, "BgDarkBrush");
+        this.SetResourceReference(BorderBrushProperty, "CardBorderBrush");
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -80,15 +80,15 @@ public class CheckListPicker : Border
             if (!_isOpen)
             {
                 BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, AccentColor.R, AccentColor.G, AccentColor.B));
-                Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+                this.SetResourceReference(BackgroundProperty, "InputBgBrush");
             }
         };
         MouseLeave += (_, _) =>
         {
             if (!_isOpen)
             {
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+                this.SetResourceReference(BorderBrushProperty, "CardBorderBrush");
+                this.SetResourceReference(BackgroundProperty, "BgDarkBrush");
             }
         };
 
@@ -183,14 +183,14 @@ public class CheckListPicker : Border
 
         var popupBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(0),
             Child = _scrollViewer,
             MinWidth = Math.Max(ActualWidth, 120),
         };
+        popupBorder.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+        popupBorder.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
         _flyout = new Window
         {
@@ -200,7 +200,7 @@ public class CheckListPicker : Border
             ShowInTaskbar = false,
             Topmost = true,
             AllowsTransparency = false,
-            Background = new SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
+            Background = (Brush)Application.Current.FindResource("BgDarkBrush"),
             Content = popupBorder
         };
 
@@ -233,7 +233,7 @@ public class CheckListPicker : Border
         popupBorder.BeginAnimation(UIElement.OpacityProperty, fadeAnim);
 
         BorderBrush = new SolidColorBrush(AccentColor);
-        Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+        this.SetResourceReference(BackgroundProperty, "InputBgBrush");
     }
 
     private void CloseFlyout()
@@ -248,8 +248,8 @@ public class CheckListPicker : Border
         _flyout?.Close();
         _flyout = null;
 
-        BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-        Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+        this.SetResourceReference(BorderBrushProperty, "CardBorderBrush");
+        this.SetResourceReference(BackgroundProperty, "BgDarkBrush");
     }
 
     private void RebuildPopupItems()
@@ -280,7 +280,7 @@ public class CheckListPicker : Border
             {
                 checkBox.Child = new TextBlock
                 {
-                    Text = "✓",
+                    Text = "\u2713",
                     FontSize = 9,
                     FontWeight = FontWeights.Bold,
                     Foreground = new SolidColorBrush(AccentColor),
@@ -322,7 +322,7 @@ public class CheckListPicker : Border
             itemBorder.MouseEnter += (_, _) =>
             {
                 if (!_items[idx].Checked)
-                    itemBorder.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+                    itemBorder.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
             };
             itemBorder.MouseLeave += (_, _) =>
             {

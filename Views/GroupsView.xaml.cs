@@ -409,8 +409,8 @@ public partial class GroupsView : UserControl
                 CornerRadius = new CornerRadius(3),
                 Padding = new Thickness(5, 1, 5, 1),
                 Margin = new Thickness(6, 0, 0, 0),
-                Background = Brush("#1A1A1A"),
-                BorderBrush = Brush("#333333"),
+                Background = (SolidColorBrush)FindResource("BgDarkBrush"),
+                BorderBrush = (SolidColorBrush)FindResource("InputBorderBrush"),
                 BorderThickness = new Thickness(1),
                 Child = new TextBlock
                 {
@@ -734,7 +734,7 @@ public partial class GroupsView : UserControl
         // Entity list
         var listBox = new ListBox
         {
-            Background = Brush("#0D0D0D"),
+            Background = (SolidColorBrush)FindResource("BgBaseBrush"),
             BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x22)),
             BorderThickness = new Thickness(1),
             Padding = new Thickness(0),
@@ -762,9 +762,9 @@ public partial class GroupsView : UserControl
                 Padding = new Thickness(20, 8, 20, 8),
                 Margin = new Thickness(6, 0, 0, 0),
                 Cursor = Cursors.Hand,
-                Background = primary ? new SolidColorBrush(accent) : Brush("#1C1C1C"),
-                Foreground = primary ? Brush("#0F0F0F") : Brush("#E8E8E8"),
-                BorderBrush = primary ? new SolidColorBrush(accent) : Brush("#2A2A2A"),
+                Background = primary ? new SolidColorBrush(accent) : (SolidColorBrush)FindResource("CardBgBrush"),
+                Foreground = primary ? (SolidColorBrush)FindResource("BgBaseBrush") : Brush("#E8E8E8"),
+                BorderBrush = primary ? new SolidColorBrush(accent) : (SolidColorBrush)FindResource("CardBorderBrush"),
                 BorderThickness = new Thickness(1),
             };
             // Rounded template
@@ -813,8 +813,8 @@ public partial class GroupsView : UserControl
                 Margin = new Thickness(0, 0, 6, 0),
                 BorderThickness = new Thickness(1),
                 Cursor = Cursors.Hand,
-                Background = isSelected ? new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x22)) : Brush("#1A1A1A"),
-                BorderBrush = isSelected ? new SolidColorBrush(accent) : Brush("#333333"),
+                Background = isSelected ? new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x22)) : (SolidColorBrush)FindResource("BgDarkBrush"),
+                BorderBrush = isSelected ? new SolidColorBrush(accent) : (SolidColorBrush)FindResource("InputBorderBrush"),
                 Tag = value,
             };
             pill.Child = new TextBlock
@@ -833,8 +833,8 @@ public partial class GroupsView : UserControl
             foreach (var p in actionPills)
             {
                 bool sel = p.Tag as string == value;
-                p.Background = sel ? new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x22)) : Brush("#1A1A1A");
-                p.BorderBrush = sel ? new SolidColorBrush(accent) : Brush("#333333");
+                p.Background = sel ? new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x22)) : (SolidColorBrush)FindResource("BgDarkBrush");
+                p.BorderBrush = sel ? new SolidColorBrush(accent) : (SolidColorBrush)FindResource("InputBorderBrush");
                 ((TextBlock)p.Child).Foreground = sel ? new SolidColorBrush(accent) : Brush("#9A9A9A");
             }
         }

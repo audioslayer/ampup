@@ -219,9 +219,7 @@ public partial class ButtonsView : UserControl
 
     private void SetupColumnContextMenus()
     {
-        var menuBg = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
-        var menuFg = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
-        var menuBorder = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+        var menuFg = FindBrush("TextPrimaryBrush");
 
         for (int i = 0; i < 5; i++)
         {
@@ -233,20 +231,20 @@ public partial class ButtonsView : UserControl
             {
                 Header = "Copy Button",
                 Foreground = menuFg,
-                Background = menuBg,
             };
+            copyItem.SetResourceReference(MenuItem.BackgroundProperty, "CardBgBrush");
             var pasteItem = new MenuItem
             {
                 Header = "Paste Button",
                 Foreground = menuFg,
-                Background = menuBg,
             };
+            pasteItem.SetResourceReference(MenuItem.BackgroundProperty, "CardBgBrush");
             var resetItem = new MenuItem
             {
                 Header = "Reset to Default",
                 Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x88, 0x88)),
-                Background = menuBg,
             };
+            resetItem.SetResourceReference(MenuItem.BackgroundProperty, "CardBgBrush");
 
             copyItem.Click += (_, _) =>
             {
@@ -318,17 +316,17 @@ public partial class ButtonsView : UserControl
 
             var separator = new Separator
             {
-                Background = menuBorder,
-                Foreground = menuBorder,
+                Background = FindBrush("CardBorderBrush"),
+                Foreground = FindBrush("CardBorderBrush"),
                 Margin = new Thickness(4, 2, 4, 2),
             };
 
             var contextMenu = new ContextMenu
             {
-                Background = menuBg,
-                BorderBrush = menuBorder,
                 BorderThickness = new Thickness(1),
             };
+            contextMenu.SetResourceReference(ContextMenu.BackgroundProperty, "CardBgBrush");
+            contextMenu.SetResourceReference(ContextMenu.BorderBrushProperty, "CardBorderBrush");
 
             contextMenu.ContextMenuOpening += (_, _) =>
             {
@@ -1413,9 +1411,8 @@ public partial class ButtonsView : UserControl
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         // Browse button with folder icon
-        var browseBg = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-        var browseHoverBg = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
-        browseBg.Freeze(); browseHoverBg.Freeze();
+        var browseBg = (Brush)Application.Current.FindResource("CardBorderBrush");
+        var browseHoverBg = (Brush)Application.Current.FindResource("InputBorderBrush");
         var browseBtn = new Button
         {
             Content = new MaterialIcon { Kind = MaterialIconKind.FolderOpen, Width = 16, Height = 16, Foreground = FindBrush("TextSecBrush") },
@@ -1445,9 +1442,8 @@ public partial class ButtonsView : UserControl
         row.Children.Add(browseBorder);
 
         // Pick (process list) button with list icon
-        var pickBg = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-        var pickHoverBg = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
-        pickBg.Freeze(); pickHoverBg.Freeze();
+        var pickBg = (Brush)Application.Current.FindResource("CardBorderBrush");
+        var pickHoverBg = (Brush)Application.Current.FindResource("InputBorderBrush");
         var pickBtn = new Button
         {
             Content = new MaterialIcon { Kind = MaterialIconKind.FormatListBulleted, Width = 16, Height = 16, Foreground = FindBrush("TextSecBrush") },
@@ -1480,11 +1476,11 @@ public partial class ButtonsView : UserControl
         var inputBorder = new System.Windows.Controls.Border
         {
             CornerRadius = new CornerRadius(6),
-            Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
             BorderThickness = new Thickness(1),
             Padding = new Thickness(0),
         };
+        inputBorder.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+        inputBorder.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
         var box = new TextBox
         {
             Background = Brushes.Transparent,
@@ -1566,10 +1562,9 @@ public partial class ButtonsView : UserControl
         content.Children.Add(chevron);
         content.Children.Add(nameText);
 
-        var bg = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
-        var hoverBg = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-        var idleBorder = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
-        bg.Freeze(); hoverBg.Freeze(); idleBorder.Freeze();
+        var bg = (Brush)Application.Current.FindResource("InputBgBrush");
+        var hoverBg = (Brush)Application.Current.FindResource("CardBorderBrush");
+        var idleBorder = (Brush)Application.Current.FindResource("InputBorderBrush");
 
         var border = new System.Windows.Controls.Border
         {
@@ -1788,18 +1783,18 @@ public partial class ButtonsView : UserControl
 
         var panel = new StackPanel
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            Background = FindBrush("CardBgBrush"),
             MinWidth = 160,
         };
 
         var border = new System.Windows.Controls.Border
         {
             Child = scroll,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
-            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
         };
+        border.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        border.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
         scroll.Content = panel;
 
         Window? procFlyout = null;
@@ -1847,7 +1842,7 @@ public partial class ButtonsView : UserControl
             ShowInTaskbar = false,
             Topmost = true,
             AllowsTransparency = false,
-            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            Background = FindBrush("CardBgBrush"),
             Content = border,
             Left = screenPos.X,
             Top = screenPos.Y

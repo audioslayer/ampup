@@ -315,11 +315,11 @@ public partial class LightsView : UserControl
         // Save Current button on right
         var saveBtn = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
             CornerRadius = new CornerRadius(4), Padding = new Thickness(10, 4, 10, 4),
             Cursor = Cursors.Hand, HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
         };
+        saveBtn.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
         var saveTxt = new TextBlock
         {
             Text = "💾 SAVE CURRENT", FontSize = 10, FontWeight = FontWeights.SemiBold,
@@ -327,8 +327,8 @@ public partial class LightsView : UserControl
         };
         saveBtn.Child = saveTxt;
         saveBtn.MouseLeftButtonUp += (_, _) => SaveCurrentAsPreset();
-        saveBtn.MouseEnter += (s, _) => ((Border)s!).Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-        saveBtn.MouseLeave += (s, _) => ((Border)s!).Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+        saveBtn.MouseEnter += (s, _) => ((Border)s!).SetResourceReference(Border.BackgroundProperty, "CardBorderBrush");
+        saveBtn.MouseLeave += (s, _) => ((Border)s!).SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
         DockPanel.SetDock(saveBtn, Dock.Right);
         headerRow.Children.Add(saveBtn);
         headerRow.Children.Add(headerLabel);
@@ -341,11 +341,11 @@ public partial class LightsView : UserControl
         {
             var pill = new Border
             {
-                Background = new SolidColorBrush(cat == "All" ? Color.FromRgb(0x2A, 0x2A, 0x2A) : Color.FromRgb(0x1C, 0x1C, 0x1C)),
                 CornerRadius = new CornerRadius(10), Padding = new Thickness(10, 4, 10, 4),
                 Margin = new Thickness(0, 0, 6, 0), Cursor = Cursors.Hand,
                 Tag = cat,
             };
+            pill.SetResourceReference(Border.BackgroundProperty, cat == "All" ? "CardBorderBrush" : "CardBgBrush");
             var txt = new TextBlock
             {
                 Text = cat, FontSize = 10,
@@ -386,7 +386,7 @@ public partial class LightsView : UserControl
         foreach (Border pill in _presetFilterPanel.Children)
         {
             var isActive = (string)pill.Tag == _presetFilter;
-            pill.Background = new SolidColorBrush(isActive ? Color.FromRgb(0x2A, 0x2A, 0x2A) : Color.FromRgb(0x1C, 0x1C, 0x1C));
+            pill.SetResourceReference(Border.BackgroundProperty, isActive ? "CardBorderBrush" : "CardBgBrush");
             if (pill.Child is TextBlock txt)
                 txt.Foreground = new SolidColorBrush(isActive ? Color.FromRgb(0xE8, 0xE8, 0xE8) : Color.FromRgb(0xB0, 0xB0, 0xB0));
         }
@@ -493,7 +493,7 @@ public partial class LightsView : UserControl
             var b = (Border)s!;
             presetTransform.Y = -1;
             b.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, previewColor.R, previewColor.G, previewColor.B));
-            b.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+            b.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
         };
         card.MouseLeave += (s, _) =>
         {
@@ -576,9 +576,9 @@ public partial class LightsView : UserControl
         var nameBox = new TextBox
         {
             Text = "My Preset", FontSize = 12,
-            Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
+            Background = FindBrush("InputBgBrush"),
             Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+            BorderBrush = FindBrush("InputBorderBrush"),
             Padding = new Thickness(6, 4, 6, 4),
         };
         stack.Children.Add(nameBox);
@@ -591,7 +591,7 @@ public partial class LightsView : UserControl
         var catCombo = new ComboBox
         {
             FontSize = 12,
-            Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
+            Background = FindBrush("InputBgBrush"),
             Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
         };
         foreach (var cat in new[] { "Gaming", "Music", "Work", "Party", "Ambient" })
@@ -638,10 +638,10 @@ public partial class LightsView : UserControl
         // Mode toggle: Material-style underline tabs "Per Knob | Global"
         var toggleBar = new Border
         {
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)),
             BorderThickness = new Thickness(0, 0, 0, 1),
             Margin = new Thickness(0, 0, 0, 12),
         };
+        toggleBar.SetResourceReference(Border.BorderBrushProperty, "InputBgBrush");
 
         var toggleRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
 
@@ -948,9 +948,9 @@ public partial class LightsView : UserControl
                 Cursor = Cursors.Hand,
                 Background = new SolidColorBrush(Color.FromRgb(r, g, b)),
                 BorderThickness = new Thickness(2),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
                 ToolTip = tip,
             };
+            swatch.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
             byte cr = r, cg = g, cb = b;
             swatch.MouseLeftButtonDown += (_, _) => SetCalibPreview(cr, cg, cb, swatch);
             testRow.Children.Add(swatch);
@@ -961,9 +961,7 @@ public partial class LightsView : UserControl
             Width = 32, Height = 32,
             CornerRadius = new CornerRadius(6),
             Cursor = Cursors.Hand,
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
             BorderThickness = new Thickness(2),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
             ToolTip = "Stop preview (resume normal)",
             Child = new TextBlock
             {
@@ -973,6 +971,8 @@ public partial class LightsView : UserControl
                 VerticalAlignment = VerticalAlignment.Center,
             },
         };
+        offSwatch.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+        offSwatch.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
         offSwatch.MouseLeftButtonDown += (_, _) => ClearCalibPreview();
         testRow.Children.Add(offSwatch);
         testContent.Children.Add(testRow);
@@ -1114,7 +1114,7 @@ public partial class LightsView : UserControl
     private void SetCalibPreview(byte r, byte g, byte b, Border swatch)
     {
         if (_activeCalibSwatch != null)
-            _activeCalibSwatch.BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33));
+            _activeCalibSwatch.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
         _activeCalibSwatch = swatch;
         swatch.BorderBrush = new SolidColorBrush(ThemeManager.Accent);
 
@@ -1125,7 +1125,7 @@ public partial class LightsView : UserControl
     private void ClearCalibPreview()
     {
         if (_activeCalibSwatch != null)
-            _activeCalibSwatch.BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33));
+            _activeCalibSwatch.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
         _activeCalibSwatch = null;
         _calibPreviewColor = null;
         App.Rgb?.ClearPreviewColor();
@@ -1157,13 +1157,15 @@ public partial class LightsView : UserControl
         foreach (var (name, tile) in _paletteTiles)
         {
             bool active = name == _activePresetName;
-            tile.BorderBrush = active
-                ? new SolidColorBrush(accent)
-                : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+            if (active)
+                tile.BorderBrush = new SolidColorBrush(accent);
+            else
+                tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
             tile.BorderThickness = new Thickness(active ? 1.5 : 1);
-            tile.Background = active
-                ? new SolidColorBrush(Color.FromArgb(0x20, accent.R, accent.G, accent.B))
-                : new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+            if (active)
+                tile.Background = new SolidColorBrush(Color.FromArgb(0x20, accent.R, accent.G, accent.B));
+            else
+                tile.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
         }
 
         // Show manual section only when "Solid" is active (custom color picking)
@@ -1358,11 +1360,11 @@ public partial class LightsView : UserControl
                 Padding = new Thickness(4, 4, 4, 3),
                 Cursor = Cursors.Hand,
                 ToolTip = name,
-                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
                 BorderThickness = new Thickness(1),
                 Child = tileContent,
             };
+            swatch.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+            swatch.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
             var presetC1 = c1;
             var presetC2 = c2;
@@ -1392,14 +1394,14 @@ public partial class LightsView : UserControl
                 swatchTransform.Y = -1;
                 var accent = ThemeManager.Accent;
                 swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0xAA, accent.R, accent.G, accent.B));
-                swatch.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+                swatch.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
                 label.Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
             };
             swatch.MouseLeave += (_, _) =>
             {
                 swatchTransform.Y = 0;
-                swatch.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-                swatch.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+                swatch.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+                swatch.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
                 label.Foreground = new SolidColorBrush(Color.FromRgb(0x77, 0x77, 0x77));
             };
 
@@ -1554,8 +1556,8 @@ public partial class LightsView : UserControl
                 selectorTransform.Y = -1;
                 if (_selectedKnob != idx)
                 {
-                    card.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
-                    card.BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
+                    card.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+                    card.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
                 }
             };
             card.MouseLeave += (_, _) =>
@@ -1801,11 +1803,11 @@ public partial class LightsView : UserControl
                     Height = 28,
                     CornerRadius = new CornerRadius(5),
                     Background = new SolidColorBrush(_dsColors[idx][row]),
-                    BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
                     BorderThickness = new Thickness(1),
                     Cursor = Cursors.Hand,
                     VerticalAlignment = VerticalAlignment.Center,
                 };
+                colorBtn.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
                 colorBtn.MouseLeftButtonDown += (_, _) => OnPickDeviceSelectColor(idx, rowCapture);
                 _dsColorBtns[idx][row] = colorBtn;
                 Grid.SetColumn(colorBtn, 1);
@@ -1992,11 +1994,11 @@ public partial class LightsView : UserControl
                     Height = 28,
                     CornerRadius = new CornerRadius(5),
                     Background = new SolidColorBrush(_dsColors[idx][row]),
-                    BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
                     BorderThickness = new Thickness(1),
                     Cursor = Cursors.Hand,
                     VerticalAlignment = VerticalAlignment.Center,
                 };
+                colorBtn.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
                 colorBtn.MouseLeftButtonDown += (_, _) => OnPickDeviceSelectColor(idx, rowCapture);
                 _dsColorBtns[idx][row] = colorBtn;
                 Grid.SetColumn(colorBtn, 1);
@@ -2188,9 +2190,9 @@ public partial class LightsView : UserControl
         for (int i = 0; i < 5; i++)
             _ledBorders[i] = _selectorCards[i];
 
-        var menuBg = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+        var menuBg = FindBrush("CardBgBrush");
         var menuFg = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
-        var menuBorder = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+        var menuBorder = FindBrush("CardBorderBrush");
 
         for (int i = 0; i < 5; i++)
         {
@@ -2635,7 +2637,7 @@ public class ColorPickerDialog : Window
         WindowStyle = WindowStyle.None;
         // Do NOT set AllowsTransparency = true — on Windows 11 it creates a layered window
         // (WS_EX_LAYERED) which breaks mouse hit-testing on Canvas/Image children.
-        Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14));
+        Background = (Brush)Application.Current.FindResource("BgDarkBrush");
 
         // Convert initial color to HSV
         RgbToHsv(initial.R, initial.G, initial.B, out _hue, out _sat, out _val);
@@ -2643,8 +2645,8 @@ public class ColorPickerDialog : Window
         // Outer border for the dialog (rounded, dark)
         var outerBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            Background = (Brush)Application.Current.FindResource("BgDarkBrush"),
+            BorderBrush = (Brush)Application.Current.FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(1),
         };
 
@@ -2697,11 +2699,11 @@ public class ColorPickerDialog : Window
         {
             CornerRadius = new CornerRadius(6),
             ClipToBounds = true,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
             BorderThickness = new Thickness(1),
             Child = _spectrumCanvas,
             Margin = new Thickness(0, 0, 0, 10)
         };
+        _spectrumArea.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
         _spectrumCanvas.MouseLeftButtonDown += Spectrum_MouseDown;
         _spectrumCanvas.MouseMove += Spectrum_MouseMove;
         _spectrumCanvas.MouseLeftButtonUp += Spectrum_MouseUp;
@@ -2732,11 +2734,11 @@ public class ColorPickerDialog : Window
                 Background = new SolidColorBrush(c),
                 Margin = new Thickness(0, 0, 4, 4),
                 Cursor = Cursors.Hand,
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
                 BorderThickness = new Thickness(1),
             };
+            dot.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
             dot.MouseEnter += (_, _) => dot.BorderBrush = new SolidColorBrush(Colors.White);
-            dot.MouseLeave += (_, _) => dot.BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
+            dot.MouseLeave += (_, _) => dot.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
             var capturedColor = c;
             dot.MouseLeftButtonDown += (_, _) =>
             {
@@ -2780,11 +2782,11 @@ public class ColorPickerDialog : Window
         {
             CornerRadius = new CornerRadius(4),
             ClipToBounds = true,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
             BorderThickness = new Thickness(1),
             Child = _hueCanvas,
             Margin = new Thickness(0, 0, 0, 12)
         };
+        hueBar.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
         _hueBar = hueBar;
         _hueCanvas.MouseLeftButtonDown += Hue_MouseDown;
         _hueCanvas.MouseMove += Hue_MouseMove;
@@ -2801,10 +2803,10 @@ public class ColorPickerDialog : Window
             Height = 32,
             CornerRadius = new CornerRadius(6),
             Background = new SolidColorBrush(initial),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
             BorderThickness = new Thickness(1),
             Margin = new Thickness(0, 0, 8, 0)
         };
+        _preview.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
         Grid.SetColumn(_preview, 0);
         previewRow.Children.Add(_preview);
 
@@ -2813,9 +2815,9 @@ public class ColorPickerDialog : Window
             Text = ColorToHex(initial),
             FontFamily = new FontFamily("Consolas"),
             FontSize = 13,
-            Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
+            Background = (Brush)Application.Current.FindResource("InputBgBrush"),
             Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+            BorderBrush = (Brush)Application.Current.FindResource("InputBorderBrush"),
             VerticalContentAlignment = VerticalAlignment.Center,
             Padding = new Thickness(6, 4, 6, 4)
         };
@@ -2863,9 +2865,9 @@ public class ColorPickerDialog : Window
         {
             Content = "Cancel",
             Width = 80,
-            Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
+            Background = (Brush)Application.Current.FindResource("InputBgBrush"),
             Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+            BorderBrush = (Brush)Application.Current.FindResource("InputBorderBrush"),
             Cursor = Cursors.Hand
         };
         cancelBtn.Click += (_, _) =>

@@ -46,13 +46,13 @@ public class ListPicker : Border
     public ListPicker()
     {
         // Trigger button
-        Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
-        BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
         BorderThickness = new Thickness(1);
         CornerRadius = new CornerRadius(4);
         Padding = new Thickness(8, 5, 8, 5);
         Cursor = Cursors.Hand;
         SnapsToDevicePixels = true;
+        this.SetResourceReference(BackgroundProperty, "BgDarkBrush");
+        this.SetResourceReference(BorderBrushProperty, "CardBorderBrush");
 
         // Layout: [icon] label + chevron
         var grid = new Grid();
@@ -117,15 +117,15 @@ public class ListPicker : Border
 
         _filterBox = new TextBox
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
             Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
             CaretBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
             BorderThickness = new Thickness(0, 0, 0, 1),
             Padding = new Thickness(8, 6, 8, 6),
             FontSize = 12,
             Visibility = Visibility.Collapsed,
         };
+        _filterBox.SetResourceReference(TextBox.BackgroundProperty, "BgDarkBrush");
+        _filterBox.SetResourceReference(TextBox.BorderBrushProperty, "InputBorderBrush");
         _filterBox.TextChanged += (_, _) =>
         {
             _filterText = _filterBox.Text.Trim();
@@ -147,15 +147,15 @@ public class ListPicker : Border
             if (!_isOpen)
             {
                 BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, AccentColor.R, AccentColor.G, AccentColor.B));
-                Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+                this.SetResourceReference(BackgroundProperty, "InputBgBrush");
             }
         };
         MouseLeave += (_, _) =>
         {
             if (!_isOpen)
             {
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+                this.SetResourceReference(BorderBrushProperty, "CardBorderBrush");
+                this.SetResourceReference(BackgroundProperty, "BgDarkBrush");
                 _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
             }
         };
@@ -251,14 +251,14 @@ public class ListPicker : Border
 
         var popupBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(0),
             Child = _popupStack,
             MinWidth = Math.Max(ActualWidth, 120),
         };
+        popupBorder.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+        popupBorder.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
         _flyout = new Window
         {
@@ -268,7 +268,7 @@ public class ListPicker : Border
             ShowInTaskbar = false,
             Topmost = true,
             AllowsTransparency = false,
-            Background = new SolidColorBrush(Color.FromRgb(0x15, 0x15, 0x15)),
+            Background = (Brush)Application.Current.FindResource("BgDarkBrush"),
             Content = popupBorder
         };
 
@@ -302,7 +302,7 @@ public class ListPicker : Border
         popupBorder.BeginAnimation(UIElement.OpacityProperty, fadeAnim);
 
         BorderBrush = new SolidColorBrush(AccentColor);
-        Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+        this.SetResourceReference(BackgroundProperty, "InputBgBrush");
 
         if (showFilter)
             _filterBox.Focus();
@@ -319,8 +319,8 @@ public class ListPicker : Border
 
         _flyout?.Close();
         _flyout = null;
-        BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-        Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+        this.SetResourceReference(BorderBrushProperty, "CardBorderBrush");
+        this.SetResourceReference(BackgroundProperty, "BgDarkBrush");
         _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
     }
 
@@ -415,7 +415,7 @@ public class ListPicker : Border
             {
                 if (idx != _selectedIndex)
                 {
-                    itemBorder.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+                    itemBorder.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
                     itemText.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
                 }
             };

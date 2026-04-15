@@ -144,8 +144,6 @@ public partial class MixerView : UserControl
     private void SetupStripHoverEffects()
     {
         var borders = new[] { Ch0Border, Ch1Border, Ch2Border, Ch3Border, Ch4Border };
-        var normalBorder = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-
         for (int i = 0; i < 5; i++)
         {
             _stripBorders[i] = borders[i];
@@ -157,7 +155,7 @@ public partial class MixerView : UserControl
             };
             strip.MouseLeave += (_, _) =>
             {
-                strip.BorderBrush = normalBorder;
+                strip.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
             };
         }
     }
@@ -166,9 +164,7 @@ public partial class MixerView : UserControl
     {
         var borders = new[] { Ch0Border, Ch1Border, Ch2Border, Ch3Border, Ch4Border };
 
-        var menuBg = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
-        var menuFg = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
-        var menuBorder = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+        var menuFg = FindBrush("TextPrimaryBrush");
 
         for (int i = 0; i < 5; i++)
         {
@@ -179,20 +175,20 @@ public partial class MixerView : UserControl
             {
                 Header = "Copy Channel Config",
                 Foreground = menuFg,
-                Background = menuBg,
             };
+            copyItem.SetResourceReference(MenuItem.BackgroundProperty, "CardBgBrush");
             var pasteItem = new MenuItem
             {
                 Header = "Paste Channel Config",
                 Foreground = menuFg,
-                Background = menuBg,
             };
+            pasteItem.SetResourceReference(MenuItem.BackgroundProperty, "CardBgBrush");
             var resetItem = new MenuItem
             {
                 Header = "Reset to Default",
                 Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x88, 0x88)),
-                Background = menuBg,
             };
+            resetItem.SetResourceReference(MenuItem.BackgroundProperty, "CardBgBrush");
 
             copyItem.Click += (_, _) =>
             {
@@ -262,17 +258,17 @@ public partial class MixerView : UserControl
 
             var separator = new Separator
             {
-                Background = menuBorder,
-                Foreground = menuBorder,
+                Background = FindBrush("CardBorderBrush"),
+                Foreground = FindBrush("CardBorderBrush"),
                 Margin = new Thickness(4, 2, 4, 2),
             };
 
             var contextMenu = new ContextMenu
             {
-                Background = menuBg,
-                BorderBrush = menuBorder,
                 BorderThickness = new Thickness(1),
             };
+            contextMenu.SetResourceReference(ContextMenu.BackgroundProperty, "CardBgBrush");
+            contextMenu.SetResourceReference(ContextMenu.BorderBrushProperty, "CardBorderBrush");
 
             contextMenu.ContextMenuOpening += (_, _) =>
             {
@@ -541,11 +537,11 @@ public partial class MixerView : UserControl
                 Width = 36,
                 Height = 36,
                 CornerRadius = new CornerRadius(8),
-                Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 2, 0, 6),
                 Visibility = Visibility.Collapsed
             };
+            iconContainer.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
             var icon = new Image
             {
                 Width = 22,
@@ -1192,10 +1188,10 @@ public partial class MixerView : UserControl
             {
                 Background = new SolidColorBrush(isInGroup
                     ? Color.FromArgb(0x28, accent.R, accent.G, accent.B)
-                    : Color.FromRgb(0x1A, 0x1A, 0x1A)),
+                    : Colors.Transparent),
                 BorderBrush = new SolidColorBrush(isInGroup
                     ? Color.FromArgb(0x66, accent.R, accent.G, accent.B)
-                    : Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                    : Colors.Transparent),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(12),
                 Padding = new Thickness(10, 4, 10, 4),
@@ -1206,19 +1202,26 @@ public partial class MixerView : UserControl
                     ? (isRunning ? "Click to remove from group" : "Not running — click to remove")
                     : "Click to add to group",
             };
+            if (!isInGroup)
+            {
+                chip.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+                chip.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+            }
 
             // Hover effect
             chip.MouseEnter += (_, _) =>
             {
-                chip.Background = new SolidColorBrush(isInGroup
-                    ? Color.FromArgb(0x3A, accent.R, accent.G, accent.B)
-                    : Color.FromRgb(0x24, 0x24, 0x24));
+                if (isInGroup)
+                    chip.Background = new SolidColorBrush(Color.FromArgb(0x3A, accent.R, accent.G, accent.B));
+                else
+                    chip.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
             };
             chip.MouseLeave += (_, _) =>
             {
-                chip.Background = new SolidColorBrush(isInGroup
-                    ? Color.FromArgb(0x28, accent.R, accent.G, accent.B)
-                    : Color.FromRgb(0x1A, 0x1A, 0x1A));
+                if (isInGroup)
+                    chip.Background = new SolidColorBrush(Color.FromArgb(0x28, accent.R, accent.G, accent.B));
+                else
+                    chip.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
             };
 
             // Click to toggle
@@ -1578,7 +1581,7 @@ public partial class MixerView : UserControl
             Margin = new Thickness(0, 0, 8, 0),
             Cursor = System.Windows.Input.Cursors.Hand,
             Background = new SolidColorBrush(ThemeManager.Accent),
-            Foreground = new SolidColorBrush(Color.FromRgb(0x0F, 0x0F, 0x0F)),
+            Foreground = FindBrush("BgBaseBrush"),
             BorderThickness = new Thickness(0),
         };
 
@@ -1588,7 +1591,7 @@ public partial class MixerView : UserControl
             FontSize = 11,
             Padding = new Thickness(10, 5, 10, 5),
             Cursor = System.Windows.Input.Cursors.Hand,
-            Background = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
+            Background = FindBrush("InputBorderBrush"),
             Foreground = new SolidColorBrush(Color.FromRgb(0x99, 0x99, 0x99)),
             BorderThickness = new Thickness(0),
         };
@@ -1707,11 +1710,11 @@ public partial class MixerView : UserControl
 
     private void BuildSmartMixSection()
     {
-        var cardBg = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
-        var cardBorder = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-        var inputBg = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
-        var inputBorder = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
-        var textPrimary = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
+        var cardBg = FindBrush("CardBgBrush");
+        var cardBorder = FindBrush("CardBorderBrush");
+        var inputBg = FindBrush("InputBgBrush");
+        var inputBorder = FindBrush("InputBorderBrush");
+        var textPrimary = FindBrush("TextPrimaryBrush");
         var textSec = FindBrush("TextSecBrush") ?? new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
         var accent = ThemeManager.Accent;
         var accentBrush = new SolidColorBrush(accent);
@@ -1794,7 +1797,7 @@ public partial class MixerView : UserControl
         // Slider row: StyledSlider + percent label
         var sliderBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x18, 0x18, 0x18)),
+            Background = FindBrush("BgDarkBrush"),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(14, 8, 14, 8),
             Margin = new Thickness(0, 0, 0, 14),
@@ -1867,7 +1870,7 @@ public partial class MixerView : UserControl
         // Fade Out
         var fadeOutBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x18, 0x18, 0x18)),
+            Background = FindBrush("BgDarkBrush"),
             CornerRadius = new CornerRadius(8), Padding = new Thickness(14, 10, 14, 10),
         };
         var fadeOutStack = new StackPanel();
@@ -1903,7 +1906,7 @@ public partial class MixerView : UserControl
         // Fade In
         var fadeInBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x18, 0x18, 0x18)),
+            Background = FindBrush("BgDarkBrush"),
             CornerRadius = new CornerRadius(8), Padding = new Thickness(14, 10, 14, 10),
         };
         var fadeInStack = new StackPanel();
@@ -2029,14 +2032,14 @@ public partial class MixerView : UserControl
         // "Add Rule" button
         var addRuleBtn = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(0, 8, 0, 8),
             Margin = new Thickness(0, 6, 0, 0),
             Cursor = System.Windows.Input.Cursors.Hand,
         };
+        addRuleBtn.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        addRuleBtn.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
         var addRuleText = new TextBlock
         {
             Text = "+ Add Rule",
@@ -2045,8 +2048,8 @@ public partial class MixerView : UserControl
             HorizontalAlignment = HorizontalAlignment.Center,
         };
         addRuleBtn.Child = addRuleText;
-        addRuleBtn.MouseEnter += (_, _) => addRuleBtn.Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
-        addRuleBtn.MouseLeave += (_, _) => addRuleBtn.Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
+        addRuleBtn.MouseEnter += (_, _) => addRuleBtn.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+        addRuleBtn.MouseLeave += (_, _) => addRuleBtn.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
         addRuleBtn.MouseLeftButtonUp += (_, _) =>
         {
             AddAutoSwitchRule("", "");
@@ -2123,11 +2126,11 @@ public partial class MixerView : UserControl
 
         var row = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(12, 10, 12, 10),
             Margin = new Thickness(0, 0, 0, 6),
         };
+        row.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -2307,7 +2310,9 @@ public partial class MixerView : UserControl
         AddColumnHeader(headerGrid, 4, "KNOB", HorizontalAlignment.Left, new Thickness(4, 0, 0, 0));
 
         wrapper.Children.Add(headerGrid);
-        wrapper.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)), Margin = new Thickness(0, 0, 0, 6) });
+        var sessionSep = new Border { Height = 1, Margin = new Thickness(0, 0, 0, 6) };
+        sessionSep.SetResourceReference(Border.BackgroundProperty, "CardBorderBrush");
+        wrapper.Children.Add(sessionSep);
         wrapper.Children.Add(_sessionListPanel);
 
         // Show Hidden toggle
@@ -2389,9 +2394,10 @@ public partial class MixerView : UserControl
                 row.PeakFill.Width = Math.Clamp(peak * trackWidth, 0, trackWidth);
 
                 var accent = ((SolidColorBrush)FindResource("AccentBrush")).Color;
-                row.PeakFill.Background = peak > 0.02f
-                    ? new SolidColorBrush(accent)
-                    : new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
+                if (peak > 0.02f)
+                    row.PeakFill.Background = new SolidColorBrush(accent);
+                else
+                    row.PeakFill.SetResourceReference(Border.BackgroundProperty, "InputBorderBrush");
             }
             catch { }
         }
@@ -2409,7 +2415,7 @@ public partial class MixerView : UserControl
             Padding = new Thickness(4, 6, 4, 6),
             Cursor = System.Windows.Input.Cursors.Hand,
         };
-        row.MouseEnter += (_, _) => row.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+        row.MouseEnter += (_, _) => row.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
         row.MouseLeave += (_, _) => row.Background = Brushes.Transparent;
 
         var grid = new Grid();
@@ -2452,16 +2458,19 @@ public partial class MixerView : UserControl
         var peakTrack = new Border
         {
             Height = 4, CornerRadius = new CornerRadius(2),
-            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0),
         };
+        peakTrack.SetResourceReference(Border.BackgroundProperty, "CardBorderBrush");
         var peakFill = new Border
         {
             Height = 4, CornerRadius = new CornerRadius(2),
-            Background = active ? new SolidColorBrush(accent) : new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
             Width = Math.Clamp(info.Peak * 104, 0, 104),
             HorizontalAlignment = HorizontalAlignment.Left,
         };
+        if (active)
+            peakFill.Background = new SolidColorBrush(accent);
+        else
+            peakFill.SetResourceReference(Border.BackgroundProperty, "InputBorderBrush");
         peakTrack.Child = peakFill;
         Grid.SetColumn(peakTrack, 3);
         grid.Children.Add(peakTrack);
@@ -2573,16 +2582,17 @@ public partial class MixerView : UserControl
             };
         }
 
-        return new Border
+        var unassignedBadge = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
             BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4),
             Padding = new Thickness(6, 2, 6, 2), HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0),
             Child = new TextBlock { Text = "Unassigned", FontSize = 9,
                 Foreground = (SolidColorBrush)FindResource("TextDimBrush") }
         };
+        unassignedBadge.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+        unassignedBadge.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
+        return unassignedBadge;
     }
 
     private void BuildAssignPills(StackPanel panel, string processName)
@@ -2614,10 +2624,6 @@ public partial class MixerView : UserControl
 
             var pill = new Border
             {
-                Background = isCurrent ? new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B))
-                    : new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
-                BorderBrush = isCurrent ? new SolidColorBrush(Color.FromArgb(0x80, accent.R, accent.G, accent.B))
-                    : new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
                 BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4),
                 Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 4, 0),
                 Cursor = System.Windows.Input.Cursors.Hand,
@@ -2628,13 +2634,31 @@ public partial class MixerView : UserControl
                     Foreground = isCurrent ? new SolidColorBrush(accent) : new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA)),
                 }
             };
+            if (isCurrent)
+            {
+                pill.Background = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B));
+                pill.BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, accent.R, accent.G, accent.B));
+            }
+            else
+            {
+                pill.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+                pill.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
+            }
 
             bool captured = isCurrent;
             pill.MouseEnter += (_, _) => { pill.Background = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B)); pill.BorderBrush = new SolidColorBrush(accent); };
             pill.MouseLeave += (_, _) =>
             {
-                pill.Background = captured ? new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B)) : new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
-                pill.BorderBrush = captured ? new SolidColorBrush(Color.FromArgb(0x80, accent.R, accent.G, accent.B)) : new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33));
+                if (captured)
+                {
+                    pill.Background = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B));
+                    pill.BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, accent.R, accent.G, accent.B));
+                }
+                else
+                {
+                    pill.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+                    pill.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
+                }
             };
             pill.MouseLeftButtonDown += (_, ev) =>
             {

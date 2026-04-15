@@ -23,12 +23,13 @@ public class GoveeSetupGuide : Window
     private TextBlock _feedbackText = null!;
     private Button _connectButton = null!;
 
-    // Theme colors
-    private static readonly SolidColorBrush BgBase       = new(Color.FromRgb(0x0F, 0x0F, 0x0F));
-    private static readonly SolidColorBrush CardBg        = new(Color.FromRgb(0x1C, 0x1C, 0x1C));
-    private static readonly SolidColorBrush CardBorder    = new(Color.FromRgb(0x2A, 0x2A, 0x2A));
-    private static readonly SolidColorBrush InputBg       = new(Color.FromRgb(0x24, 0x24, 0x24));
-    private static readonly SolidColorBrush InputBorder   = new(Color.FromRgb(0x36, 0x36, 0x36));
+    // Theme colors — read from resources for runtime theme switching
+    private static Brush Res(string key) => (Brush)Application.Current.FindResource(key);
+    private static SolidColorBrush BgBase       => (SolidColorBrush)Res("BgBaseBrush");
+    private static SolidColorBrush CardBg        => (SolidColorBrush)Res("CardBgBrush");
+    private static SolidColorBrush CardBorder    => (SolidColorBrush)Res("CardBorderBrush");
+    private static SolidColorBrush InputBg       => (SolidColorBrush)Res("InputBgBrush");
+    private static SolidColorBrush InputBorder   => (SolidColorBrush)Res("InputBorderBrush");
     private static readonly SolidColorBrush AccentBrush   = new(Color.FromRgb(0x00, 0xE6, 0x76));
     private static readonly SolidColorBrush AccentGlow    = new(Color.FromRgb(0x69, 0xF0, 0xAE));
     private static readonly SolidColorBrush AccentDim     = new(Color.FromRgb(0x00, 0xA8, 0x54));
@@ -37,9 +38,9 @@ public class GoveeSetupGuide : Window
     private static readonly SolidColorBrush TextDim       = new(Color.FromRgb(0x8A, 0x8A, 0x8A));
     private static readonly SolidColorBrush DangerRed     = new(Color.FromRgb(0xFF, 0x44, 0x44));
     private static readonly SolidColorBrush SuccessGrn    = new(Color.FromRgb(0x00, 0xDD, 0x77));
-    private static readonly SolidColorBrush DotInactive   = new(Color.FromRgb(0x36, 0x36, 0x36));
-    private static readonly SolidColorBrush NavButtonBg   = new(Color.FromRgb(0x2A, 0x2A, 0x2A));
-    private static readonly SolidColorBrush NavButtonHover = new(Color.FromRgb(0x38, 0x38, 0x38));
+    private static SolidColorBrush DotInactive   => (SolidColorBrush)Res("InputBorderBrush");
+    private static SolidColorBrush NavButtonBg   => (SolidColorBrush)Res("CardBorderBrush");
+    private static SolidColorBrush NavButtonHover => new(Color.FromRgb(0x38, 0x38, 0x38));
 
     public GoveeSetupGuide()
     {
@@ -72,7 +73,7 @@ public class GoveeSetupGuide : Window
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(80) });   // nav bar
 
         // --- Title bar ---
-        var titleBar = new Grid { Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)) };
+        var titleBar = new Grid { Background = Res("BgDarkBrush") };
         titleBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         titleBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 

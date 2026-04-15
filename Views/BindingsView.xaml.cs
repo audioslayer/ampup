@@ -518,7 +518,7 @@ public class BindingsView : UserControl
             if (!isEmpty)
                 card.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x80));
             else
-                card.BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
+                card.BorderBrush = (SolidColorBrush)FindResource("InputBorderBrush");
         };
         card.MouseLeave += (_, _) =>
         {
@@ -643,7 +643,7 @@ public class BindingsView : UserControl
             if (!isEmpty)
                 card.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x80));
             else
-                card.BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
+                card.BorderBrush = (SolidColorBrush)FindResource("InputBorderBrush");
         };
         card.MouseLeave += (_, _) =>
         {

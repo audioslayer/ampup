@@ -99,7 +99,7 @@ public class TrayMixerPopup : Window
         var outer = new Border
         {
             CornerRadius = new CornerRadius(10),
-            Background = new SolidColorBrush(Color.FromArgb(242, 0x0F, 0x0F, 0x0F)), // #F20F0F0F
+            Background = (Brush)Application.Current.FindResource("BgBaseBrush"), // was #F20F0F0F
             BorderBrush = new SolidColorBrush(Color.FromArgb(60, accent.R, accent.G, accent.B)),
             BorderThickness = new Thickness(1),
             Effect = new DropShadowEffect
@@ -140,7 +140,7 @@ public class TrayMixerPopup : Window
         var deviceSection = BuildDeviceSwitcher();
         _deviceBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            Background = (Brush)Application.Current.FindResource("CardBgBrush"),
             Child = deviceSection,
         };
         var deviceBorder = _deviceBorder;
@@ -203,7 +203,7 @@ public class TrayMixerPopup : Window
 
         var wrapper = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x0F, 0x0F, 0x0F)),
+            Background = (Brush)Application.Current.FindResource("BgBaseBrush"),
             Padding = new Thickness(0, 4, 0, 4),
             Child = scroll
         };
@@ -374,7 +374,7 @@ public class TrayMixerPopup : Window
             _sessionList.Children.Add(new Border
             {
                 Height = 1,
-                Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
+                Background = (SolidColorBrush)Application.Current.FindResource("CardBgBrush"),
                 Margin = new Thickness(6, 1, 6, 1)
             });
 
@@ -459,7 +459,7 @@ public class TrayMixerPopup : Window
                         _sessionList.Children.Add(new Border
                         {
                             Height = 1,
-                            Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
+                            Background = (SolidColorBrush)Application.Current.FindResource("CardBgBrush"),
                             Margin = new Thickness(6, 0, 6, 0)
                         });
                     }
@@ -476,7 +476,7 @@ public class TrayMixerPopup : Window
                     _sessionList.Children.Add(new Border
                     {
                         Height = 1,
-                        Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                        Background = (SolidColorBrush)Application.Current.FindResource("CardBorderBrush"),
                         Margin = new Thickness(6, 2, 6, 2)
                     });
                 }
@@ -496,7 +496,7 @@ public class TrayMixerPopup : Window
                 {
                     Kind = MaterialIconKind.VolumeOff,
                     Width = 20, Height = 20,
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
+                    Foreground = (Brush)Application.Current.FindResource("InputBorderBrush"),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     Margin = new Thickness(0, 0, 0, 5),
                 });
@@ -591,7 +591,7 @@ public class TrayMixerPopup : Window
         var d = new Border
         {
             Height = 1,
-            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A))
+            Background = (SolidColorBrush)Application.Current.FindResource("CardBorderBrush")
         };
         DockPanel.SetDock(d, Dock.Top);
         return d;
@@ -603,8 +603,8 @@ public class TrayMixerPopup : Window
     {
         var panel = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            Background = (SolidColorBrush)Application.Current.FindResource("BgDarkBrush"),
+            BorderBrush = (SolidColorBrush)Application.Current.FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(0, 1, 0, 0),
             Padding = new Thickness(10, 10, 10, 10),
             Tag = "quickassign" // marker for refresh
@@ -633,7 +633,7 @@ public class TrayMixerPopup : Window
         headerStack.Children.Add(new Border
         {
             Height = 1,
-            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            Background = (SolidColorBrush)Application.Current.FindResource("CardBorderBrush"),
         });
         root.Children.Add(headerStack);
 
@@ -804,7 +804,7 @@ public class TrayMixerPopup : Window
         // Card container
         var card = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            Background = (Brush)Application.Current.FindResource("CardBgBrush"),
             CornerRadius = new CornerRadius(6),
             BorderThickness = new Thickness(1),
             Margin = new Thickness(0, 2, 0, 2),
@@ -822,7 +822,7 @@ public class TrayMixerPopup : Window
         }
         else
         {
-            card.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+            card.BorderBrush = (SolidColorBrush)Application.Current.FindResource("CardBorderBrush");
         }
 
         var cellContent = new StackPanel { Margin = new Thickness(7, 6, 7, 6) };
@@ -926,7 +926,7 @@ public class TrayMixerPopup : Window
             }
             else
             {
-                btn.Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
+                btn.Background = (SolidColorBrush)Application.Current.FindResource("InputBgBrush");
                 btn.BorderBrush = new SolidColorBrush(Color.FromRgb(0x40, 0x40, 0x40));
                 btn.BorderThickness = new Thickness(1);
             }
@@ -957,7 +957,7 @@ public class TrayMixerPopup : Window
             {
                 if (!isCurrent)
                 {
-                    btn.Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x28));
+                    btn.Background = (SolidColorBrush)Application.Current.FindResource("InputBgBrush");
                     btn.BorderBrush = new SolidColorBrush(Color.FromRgb(0x40, 0x40, 0x40));
                     if (btn.Child is TextBlock pt)
                         pt.Foreground = new SolidColorBrush(Color.FromRgb(0x99, 0x99, 0x99));
@@ -979,12 +979,12 @@ public class TrayMixerPopup : Window
         card.MouseEnter += (_, _) =>
         {
             if (!isExpanded)
-                card.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
+                card.Background = (SolidColorBrush)Application.Current.FindResource("InputBgBrush");
         };
         card.MouseLeave += (_, _) =>
         {
             if (!isExpanded)
-                card.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+                card.Background = (SolidColorBrush)Application.Current.FindResource("CardBgBrush");
         };
 
         // Click card to toggle expanded state
@@ -1057,14 +1057,14 @@ public class TrayMixerPopup : Window
         var accent = GetAccentColor();
         var footer = new StackPanel
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            Background = (SolidColorBrush)Application.Current.FindResource("CardBgBrush"),
         };
 
         // Divider at top of footer
         footer.Children.Add(new Border
         {
             Height = 1,
-            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+            Background = (SolidColorBrush)Application.Current.FindResource("CardBorderBrush"),
         });
 
         var items = new StackPanel { Margin = new Thickness(6, 6, 6, 4) };
@@ -1228,10 +1228,10 @@ public class TrayMixerPopup : Window
         var accent = GetAccentColor();
         var header = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
+            Background = (SolidColorBrush)Application.Current.FindResource("BgDarkBrush"),
             CornerRadius = new CornerRadius(10, 10, 0, 0),
             Padding = new Thickness(12, 7, 8, 7),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
+            BorderBrush = (SolidColorBrush)Application.Current.FindResource("CardBgBrush"),
             BorderThickness = new Thickness(0, 0, 0, 1),
         };
 
@@ -1770,7 +1770,7 @@ public class TrayMixerPopup : Window
                 Margin = new Thickness(6, 0, 6, 0),
                 CornerRadius = new CornerRadius(6)
             };
-            row.MouseEnter += (_, _) => row.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+            row.MouseEnter += (_, _) => row.Background = (SolidColorBrush)Application.Current.FindResource("CardBgBrush");
             row.MouseLeave += (_, _) => row.Background = Brushes.Transparent;
 
             // Right-click context menu
@@ -1792,7 +1792,7 @@ public class TrayMixerPopup : Window
                 {
                     Width = 32, Height = 32,
                     CornerRadius = new CornerRadius(6),
-                    Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
+                    Background = (SolidColorBrush)Application.Current.FindResource("BgDarkBrush"),
                     VerticalAlignment = VerticalAlignment.Center,
                     Child = new System.Windows.Controls.Image
                     {
@@ -1949,7 +1949,7 @@ public class TrayMixerPopup : Window
                 Margin = new Thickness(6, 0, 6, 0),
                 CornerRadius = new CornerRadius(6)
             };
-            row.MouseEnter += (_, _) => row.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+            row.MouseEnter += (_, _) => row.Background = (SolidColorBrush)Application.Current.FindResource("CardBgBrush");
             row.MouseLeave += (_, _) => row.Background = Brushes.Transparent;
 
             var panel = new DockPanel { LastChildFill = true };
@@ -2069,7 +2069,7 @@ public class TrayMixerPopup : Window
 
             return new Border
             {
-                Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+                Background = (SolidColorBrush)Application.Current.FindResource("CardBgBrush"),
                 CornerRadius = new CornerRadius(3),
                 Padding = new Thickness(4, 1, 4, 1),
                 Margin = new Thickness(5, 0, 0, 0),
@@ -2102,7 +2102,7 @@ public class TrayMixerPopup : Window
             ShowInTaskbar = false,
             Topmost = true,
             SizeToContent = SizeToContent.WidthAndHeight,
-            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
+            Background = (SolidColorBrush)Application.Current.FindResource("BgDarkBrush"),
         };
 
         var isHidden = _config.HiddenTrayApps.Any(h => h.Equals(processName, StringComparison.OrdinalIgnoreCase));
@@ -2111,8 +2111,8 @@ public class TrayMixerPopup : Window
 
         var outer = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x18, 0x18, 0x18)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x30, 0x30, 0x30)),
+            Background = (Brush)Application.Current.FindResource("BgDarkBrush"),
+            BorderBrush = (Brush)Application.Current.FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 16, ShadowDepth = 3, Opacity = 0.7 },
@@ -2156,7 +2156,7 @@ public class TrayMixerPopup : Window
             return new Border
             {
                 Height = 1,
-                Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                Background = (SolidColorBrush)Application.Current.FindResource("CardBorderBrush"),
                 Margin = new Thickness(8, 2, 8, 2),
             };
         }
