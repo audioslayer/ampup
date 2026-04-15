@@ -247,59 +247,75 @@ public partial class SettingsView : UserControl
 
         foreach (var theme in ThemeManager.CardThemes)
         {
-            var cardColor = (Color)ColorConverter.ConvertFromString(theme.CardBg);
-            var borderColor = (Color)ColorConverter.ConvertFromString(theme.CardBorder);
             var bgColor = (Color)ColorConverter.ConvertFromString(theme.BgBase);
+            var cardColor = (Color)ColorConverter.ConvertFromString(theme.CardBg);
+            var inputColor = (Color)ColorConverter.ConvertFromString(theme.InputBg);
+            var borderColor = (Color)ColorConverter.ConvertFromString(theme.CardBorder);
             var isSelected = theme.Name == currentTheme;
 
-            // Mini card preview showing the theme colors
-            var preview = new Border
+            // Outer wrapper: vertical stack with gradient swatch + label
+            var wrapper = new StackPanel
             {
-                Width = 52, Height = 36,
-                CornerRadius = new CornerRadius(6),
-                Background = new SolidColorBrush(bgColor),
+                Margin = new Thickness(0, 0, 10, 8),
+                Cursor = Cursors.Hand,
+            };
+
+            // Gradient swatch showing the 3 theme layers
+            var swatch = new Border
+            {
+                Width = 48, Height = 32,
+                CornerRadius = new CornerRadius(8),
                 BorderThickness = new Thickness(2),
                 BorderBrush = isSelected
                     ? new SolidColorBrush(ThemeManager.Accent)
-                    : new SolidColorBrush(borderColor),
-                Margin = new Thickness(0, 0, 8, 8),
-                Cursor = Cursors.Hand,
-                ToolTip = theme.Name,
-                Padding = new Thickness(4, 4, 4, 2),
+                    : new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)),
+                Background = new LinearGradientBrush(
+                    new GradientStopCollection
+                    {
+                        new(bgColor, 0.0),
+                        new(cardColor, 0.5),
+                        new(inputColor, 1.0),
+                    },
+                    new Point(0, 0), new Point(1, 1)),
             };
 
-            // Inner mini card to show CardBg
-            var innerCard = new Border
+            // Hover effect
+            swatch.MouseEnter += (_, _) =>
             {
-                CornerRadius = new CornerRadius(3),
-                Background = new SolidColorBrush(cardColor),
-                BorderBrush = new SolidColorBrush(borderColor),
-                BorderThickness = new Thickness(0.5),
+                if (!isSelected)
+                    swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, 0xFF, 0xFF, 0xFF));
             };
-            preview.Child = innerCard;
+            swatch.MouseLeave += (_, _) =>
+            {
+                if (!isSelected)
+                    swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF));
+            };
 
-            // Label inside inner card
+            wrapper.Children.Add(swatch);
+
+            // Label below
             var label = new TextBlock
             {
-                Text = theme.Name.Length > 7 ? theme.Name[..7] : theme.Name,
-                FontSize = 7,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
+                Text = theme.Name,
+                FontSize = 9,
+                Foreground = isSelected
+                    ? new SolidColorBrush(ThemeManager.Accent)
+                    : new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
                 HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 4, 0, 0),
             };
-            innerCard.Child = label;
+            wrapper.Children.Add(label);
 
-            preview.MouseLeftButtonDown += (_, _) =>
+            wrapper.MouseLeftButtonDown += (_, _) =>
             {
                 if (_config == null || _onSave == null) return;
                 _config.CardTheme = theme.Name;
                 ThemeManager.SetCardTheme(theme.Name);
-                BuildCardThemeSwatches(); // refresh selection indicator
+                BuildCardThemeSwatches();
                 _onSave(_config);
             };
 
-            CardThemeSwatches.Children.Add(preview);
+            CardThemeSwatches.Children.Add(wrapper);
         }
     }
 
