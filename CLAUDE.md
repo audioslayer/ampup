@@ -255,6 +255,7 @@ installer/ampup-setup.iss  Inno Setup script (reads version from auto-generated 
   "startWithWindows": true,
   "ledBrightness": 100,
   "gammaR": 1.0, "gammaG": 1.0, "gammaB": 1.0,
+  "cardTheme": "Midnight",
   "activeProfile": "Default",
   "profiles": ["Default"]
 }
@@ -802,6 +803,22 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - **v0.9.6-alpha (Mar 28)** — **Profile + Group pickers use flyout sub-menus.**
   - **Profile picker:** switch_profile and cycle_profile use flyout sub-menus in GridPicker/ActionPicker instead of dropdowns.
   - **Group picker:** Group targets use flyout sub-menus in GridPicker instead of dropdowns.
+
+- **v0.9.9-alpha (Apr 14)** — **Card Themes + Room Effects + Label Readability.**
+  - **12 card themes:** Settings → Appearance → Card Theme. Midnight (default), Blue Steel, Ocean, Teal, Ice, Ember, Forest, Violet, Rose, Slate, Obsidian, Mocha. Each theme tints BgBase/BgDark/CardBg/CardBorder/InputBg/InputBorder. `ThemeManager.SetCardTheme()` updates DynamicResource brushes at runtime. ~250 hardcoded grey values converted to DynamicResource bindings across 22 files. Gradient swatch picker in Settings shows actual theme colors.
+  - **6 new room sweep effects:** Tidal (ocean surge), Prism (rainbow refraction), Embers (glowing coals), Shockwave (expanding pulse), Vortex (spiraling tunnel), Glitch (digital corruption). All HSV-generated — palette controls auto-hidden.
+  - **Label readability overhaul:** TextDim `#555555` → `#8A8A8A`, TextSec `#9A9A9A` → `#B0B0B0`. All hardcoded dim label text brightened across 15+ files.
+  - **DeviceSelect dynamic rows fix (#14):** `PopulateDeviceSelectPickers` hardcoded `row < 3` → iterates actual length. `RebuildDeviceSelectRows()` recreates UI when device count changes.
+  - **Room effect persistence:** Effect, palette, speed, brightness, direction restored on app restart.
+  - **Room effect resumes** after group toggle turns lights back on.
+  - **Music Reactive fix:** No more double-modulation crushing brightness to near-black.
+  - **Screen Sync redesign:** Single-column layout, full-width preview at ~5 FPS, vertical edge mapping for light bars (LeftVertical/RightVertical).
+  - **Screen Sync color fix:** Red no longer shows as pink (raised dark pixel threshold + saturation).
+  - **Crop preview fix:** Manual crop lines now properly applied to capture.
+  - **HA searchable entity picker:** Replaces text input in Groups with async entity fetch + glass style.
+  - **HA per-entity action picker:** Toggle / Turn On / Turn Off selectable per device.
+  - **Govee H61A0 support:** 19-segment RGBIC Neon Rope Light.
+  - **Startup volume blast fixed.** Cross-thread WindowState crash fixed. UI timers stop when minimized. Duplicate palette swatches removed.
 
 - **v0.9.8-alpha (Apr 11)** — **Major UI facelift + Phosphor Duotone icons.**
   - **Animated effect tiles:** Every effect tile in the picker now shows a live animated mini-visualizer (gradient fills, EQ bars, sine waves, ECG heartbeat, fire flicker, aurora drift). 57 unique renders via `EffectPreviewControl` — shared 30 FPS timer, auto-pauses hidden tiles. Tiles unified at 82px wide.
