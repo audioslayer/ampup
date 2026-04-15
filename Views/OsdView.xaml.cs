@@ -199,8 +199,8 @@ public partial class OsdView : UserControl
         var modeCombo = new ComboBox
         {
             Width = 155,
-            Background = (System.Windows.Media.Brush)FindResource("InputBgBrush"),
-            BorderBrush = (System.Windows.Media.Brush)FindResource("InputBorderBrush"),
+            Background = (System.Windows.Media.Brush)FindResource("BgBaseBrush"),
+            BorderBrush = (System.Windows.Media.Brush)FindResource("BgDarkBrush"),
             Foreground = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"),
             ToolTip = "What this wheel shows",
         };
@@ -215,8 +215,8 @@ public partial class OsdView : UserControl
         var btnCombo = new ComboBox
         {
             Width = 135,
-            Background = (System.Windows.Media.Brush)FindResource("InputBgBrush"),
-            BorderBrush = (System.Windows.Media.Brush)FindResource("InputBorderBrush"),
+            Background = (System.Windows.Media.Brush)FindResource("BgBaseBrush"),
+            BorderBrush = (System.Windows.Media.Brush)FindResource("BgDarkBrush"),
             Foreground = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"),
             ToolTip = "Which button to hold",
         };
@@ -309,8 +309,8 @@ public partial class OsdView : UserControl
         var actionCombo = new ComboBox
         {
             Width = 175,
-            Background = (System.Windows.Media.Brush)FindResource("InputBgBrush"),
-            BorderBrush = (System.Windows.Media.Brush)FindResource("InputBorderBrush"),
+            Background = (System.Windows.Media.Brush)FindResource("BgBaseBrush"),
+            BorderBrush = (System.Windows.Media.Brush)FindResource("BgDarkBrush"),
             Foreground = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"),
             ToolTip = "Action to execute when this slot is selected",
         };
@@ -338,8 +338,8 @@ public partial class OsdView : UserControl
         {
             Text = string.IsNullOrEmpty(slot.Label) && selectedIdx >= 0 ? CustomSlotActions[selectedIdx].label : slot.Label,
             Width = 145,
-            Background = (System.Windows.Media.Brush)FindResource("InputBgBrush"),
-            BorderBrush = (System.Windows.Media.Brush)FindResource("InputBorderBrush"),
+            Background = (System.Windows.Media.Brush)FindResource("BgBaseBrush"),
+            BorderBrush = (System.Windows.Media.Brush)FindResource("BgDarkBrush"),
             Foreground = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"),
             ToolTip = "Display label on the wheel segment",
             VerticalContentAlignment = VerticalAlignment.Center,
