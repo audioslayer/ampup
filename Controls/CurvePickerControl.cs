@@ -157,8 +157,6 @@ namespace AmpUp.Controls
             // Card border
             var container = new Border
             {
-                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(4, 4, 4, 2),
@@ -168,6 +166,8 @@ namespace AmpUp.Controls
                 SnapsToDevicePixels = true,
                 ClipToBounds = true,
             };
+            container.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+            container.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
             info.Container = container;
             if (tooltip != null)
                 container.ToolTip = tooltip;
@@ -256,17 +256,17 @@ namespace AmpUp.Controls
 
         private void ApplyNormalVisual(CurveCard info)
         {
-            info.Container.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
-            info.Container.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-            info.CurveLine.Stroke = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+            info.Container.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+            info.Container.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+            info.CurveLine.Stroke = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A));
             info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
         }
 
         private void ApplyHoverVisual(CurveCard info)
         {
-            info.Container.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
-            info.Container.BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
-            info.CurveLine.Stroke = new SolidColorBrush(Color.FromRgb(0x77, 0x77, 0x77));
+            info.Container.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+            info.Container.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
+            info.CurveLine.Stroke = new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0xBB));
             info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0xBB));
         }
 

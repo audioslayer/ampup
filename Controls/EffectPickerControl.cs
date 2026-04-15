@@ -449,8 +449,6 @@ namespace AmpUp.Controls
             var container = new Border
             {
                 Width = 82,
-                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(4, 5, 4, 5),
@@ -460,6 +458,8 @@ namespace AmpUp.Controls
                 SnapsToDevicePixels = true,
                 ToolTip = _showFavorites ? "Right-click to favorite" : null,
             };
+            container.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+            container.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
             info.Container = container;
 
             if (addToTiles)

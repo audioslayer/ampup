@@ -152,8 +152,8 @@
     <ControlTemplate x:Key="DarkComboToggle" TargetType="ToggleButton">
         <Border x:Name="Border"
                 CornerRadius="6"
-                Background="#FF222222"
-                BorderBrush="#FF444444"
+                Background="{DynamicResource InputBgBrush}"
+                BorderBrush="{DynamicResource InputBorderBrush}"
                 BorderThickness="1.5"
                 Padding="0">
             <Grid>
@@ -163,7 +163,7 @@
                 </Grid.ColumnDefinitions>
                 <!-- Arrow column with subtle divider -->
                 <Border Grid.Column="1"
-                        BorderBrush="#FF333333"
+                        BorderBrush="{DynamicResource CardBorderBrush}"
                         BorderThickness="1,0,0,0">
                     <Path x:Name="Arrow"
                           Data="M 0,0 L 5,5 L 10,0"
@@ -178,7 +178,7 @@
         <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-                <Setter TargetName="Border" Property="Background" Value="#FF282828" />
+                <Setter TargetName="Border" Property="Background" Value="{DynamicResource CardBgBrush}" />
                 <Setter TargetName="Arrow" Property="Stroke" Value="{DynamicResource AccentBrush}" />
             </Trigger>
             <Trigger Property="IsChecked" Value="True">
@@ -191,8 +191,8 @@
     <!-- ── ComboBox full dark style ──────────────────────────────── -->
     <Style x:Key="HoverComboBox" TargetType="ComboBox">
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-        <Setter Property="Background" Value="#FF222222" />
-        <Setter Property="BorderBrush" Value="#FF444444" />
+        <Setter Property="Background" Value="{DynamicResource InputBgBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
         <Setter Property="BorderThickness" Value="1.5" />
         <Setter Property="Padding" Value="10,8" />
         <Setter Property="MinHeight" Value="34" />
@@ -226,7 +226,7 @@
                                     MinWidth="{TemplateBinding ActualWidth}"
                                     MaxHeight="{TemplateBinding MaxDropDownHeight}"
                                     CornerRadius="6"
-                                    Background="#FF1A1A1A"
+                                    Background="{DynamicResource BgDarkBrush}"
                                     BorderBrush="{DynamicResource InputBorderBrush}"
                                     BorderThickness="1"
                                     Margin="0,2,0,0"
@@ -261,10 +261,10 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsHighlighted" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="#FF2A2A2A" />
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource CardBorderBrush}" />
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="#FF2A2A2A" />
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource CardBorderBrush}" />
                             <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
@@ -338,7 +338,7 @@
 
     <!-- ── ToolTip — dark glass ─────────────────────────────────── -->
     <Style TargetType="ToolTip">
-        <Setter Property="Background" Value="#FF1A1A1A" />
+        <Setter Property="Background" Value="{DynamicResource BgDarkBrush}" />
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
