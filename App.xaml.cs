@@ -107,19 +107,7 @@ public partial class App : Application
 
         // Apply user's accent color and card theme
         ThemeManager.SetAccentColor(_config.AccentColor);
-        if (_config.CardTheme == "Custom" && !string.IsNullOrEmpty(_config.CustomThemeColor))
-        {
-            try
-            {
-                var seed = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(_config.CustomThemeColor);
-                ThemeManager.SetCustomTheme(seed);
-            }
-            catch { ThemeManager.SetCardTheme("Midnight"); }
-        }
-        else
-        {
-            ThemeManager.SetCardTheme(_config.CardTheme);
-        }
+        ThemeManager.SetCardTheme(_config.CardTheme);
 
         _mixer = new AudioMixer();
         _buttons = new ButtonHandler();
