@@ -34,7 +34,7 @@ public partial class LightsView : UserControl
     private readonly WrapPanel[] _customColorRows = new WrapPanel[5]; // custom color pills
     private readonly WrapPanel[] _presetColorRows = new WrapPanel[5]; // preset palette swatches
     private readonly StyledSlider[] _speedSliders = new StyledSlider[5];
-    private readonly Border[] _speedPanels = new Border[5];
+    private readonly FrameworkElement[] _speedPanels = new FrameworkElement[5];
     private readonly StyledSlider[] _brightnessSliders = new StyledSlider[5];
     private readonly ActionPicker[] _reactiveModeComboBoxes = new ActionPicker[5];
     private readonly StackPanel[] _reactiveModePanels = new StackPanel[5];
@@ -70,7 +70,7 @@ public partial class LightsView : UserControl
     private CheckBox? _globalEnableCheck;
     private EffectPickerControl? _globalEffectPicker;
     private StyledSlider? _globalSpeedSlider;
-    private Border? _globalSpeedCard;
+    private FrameworkElement? _globalSpeedCard;
 
     private ActionPicker? _globalReactiveModeCombo;
     private StackPanel? _globalReactiveModePanel;
@@ -833,7 +833,6 @@ public partial class LightsView : UserControl
         _globalIdleEffectPanel = idleEffectPanel;
 
         settings.Children.Add(ledToggleRow);
-        settings.Children.Add(MakeSectionCard("BRIGHTNESS", _brightnessSlider!));
         settings.Children.Add(MakeSectionCard("EFFECT", effectPicker, reactiveModePanel, idleEffectPanel));
 
         // ── Card 2: COLORS (palette editor) ──
@@ -883,15 +882,17 @@ public partial class LightsView : UserControl
         _globalPaletteCard = colorsCard;
         settings.Children.Add(colorsCard);
 
-        // ── Card 3: SPEED (conditional) ──
+        // ── SPEED + BRIGHTNESS inline row (Room tab style) ──
 
         var speedSlider = new StyledSlider
         {
             Minimum = 1,
             Maximum = 100,
             Value = 50,
-            Suffix = "",
+            ShowLabel = false,
             AccentColor = ThemeManager.Accent,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Height = 28,
             ToolTip = "Animation speed — higher = faster",
         };
         speedSlider.ValueChanged += (_, _) =>
@@ -900,11 +901,14 @@ public partial class LightsView : UserControl
         };
         _globalSpeedSlider = speedSlider;
 
-        var speedCard = MakeSectionCard("SPEED", speedSlider);
-        speedCard.Visibility = Visibility.Collapsed;
-        _globalSpeedCard = speedCard;
+        _brightnessSlider!.ShowLabel = false;
+        _brightnessSlider.Height = 28;
+        _brightnessSlider.HorizontalAlignment = HorizontalAlignment.Stretch;
 
-        settings.Children.Add(speedCard);
+        var speedBrightnessRow = MakeSpeedBrightnessRow(speedSlider, _brightnessSlider);
+        _globalSpeedCard = speedBrightnessRow;
+
+        settings.Children.Add(speedBrightnessRow);
 
         panel.Children.Add(settings);
 
@@ -1420,7 +1424,7 @@ public partial class LightsView : UserControl
         if (_globalPaletteCard != null)
             _globalPaletteCard.Visibility = noColors ? Visibility.Collapsed : Visibility.Visible;
         if (_globalSpeedCard != null)
-            _globalSpeedCard.Visibility = (needsSpeed || isAudioBlend) ? Visibility.Visible : Visibility.Collapsed;
+            _globalSpeedCard.Visibility = Visibility.Visible; // always show (brightness is always relevant)
         if (_globalReactiveModePanel != null)
             _globalReactiveModePanel.Visibility = isReactive ? Visibility.Visible : Visibility.Collapsed;
         if (_globalIdleEffectPanel != null)
@@ -1683,14 +1687,16 @@ public partial class LightsView : UserControl
             _colorSections[i] = colorCard;
             panel.Children.Add(colorCard);
 
-            // ── SPEED card ──
+            // ── SPEED + BRIGHTNESS inline row ──
             var speedSlider = new StyledSlider
             {
                 Minimum = 1,
                 Maximum = 100,
                 Value = 50,
-                Suffix = "",
+                ShowLabel = false,
+                Height = 28,
                 AccentColor = ThemeManager.Accent,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
                 ToolTip = "Animation speed — higher = faster",
             };
             speedSlider.ValueChanged += (_, _) =>
@@ -1699,18 +1705,15 @@ public partial class LightsView : UserControl
             };
             _speedSliders[i] = speedSlider;
 
-            var speedCard = MakeSectionCard("SPEED", speedSlider);
-            _speedPanels[i] = speedCard;
-            panel.Children.Add(speedCard);
-
-            // ── BRIGHTNESS card ──
             var brightSlider = new StyledSlider
             {
                 Minimum = 0,
                 Maximum = 100,
                 Value = 100,
-                Suffix = "%",
+                ShowLabel = false,
+                Height = 28,
                 AccentColor = ThemeManager.Accent,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
                 ToolTip = "Per-knob LED brightness (on top of global brightness)",
             };
             brightSlider.ValueChanged += (_, _) =>
@@ -1718,7 +1721,10 @@ public partial class LightsView : UserControl
                 if (!_loading) QueueSave();
             };
             _brightnessSliders[i] = brightSlider;
-            panel.Children.Add(MakeSectionCard("BRIGHTNESS", brightSlider));
+
+            var sbRow = MakeSpeedBrightnessRow(speedSlider, brightSlider);
+            _speedPanels[i] = sbRow;
+            panel.Children.Add(sbRow);
 
             // Reactive mode picker (only visible for AudioReactive)
             var reactiveContainer = new StackPanel();
@@ -2169,7 +2175,7 @@ public partial class LightsView : UserControl
         if (_colorSections[idx] != null)
             _colorSections[idx].Visibility = noColors ? Visibility.Collapsed : Visibility.Visible;
         _color2Panels[idx].Visibility = (!noColors && needsColor2) ? Visibility.Visible : Visibility.Collapsed;
-        _speedPanels[idx].Visibility = needsSpeed ? Visibility.Visible : Visibility.Collapsed;
+        _speedPanels[idx].Visibility = Visibility.Visible; // always show (brightness is always relevant)
         _reactiveModePanels[idx].Visibility = isReactive ? Visibility.Visible : Visibility.Collapsed;
         _programNamePanels[idx].Visibility = needsProgramName ? Visibility.Visible : Visibility.Collapsed;
 
@@ -2464,6 +2470,49 @@ public partial class LightsView : UserControl
             Background = FindBrush("CardBorderBrush"),
             Margin = new Thickness(0, spacing, 0, spacing),
         };
+    }
+
+    /// <summary>
+    /// Builds a side-by-side SPEED + BRIGHTNESS slider row (Room tab style).
+    /// </summary>
+    private Grid MakeSpeedBrightnessRow(StyledSlider speedSlider, StyledSlider brightSlider)
+    {
+        var ac = ThemeManager.Accent;
+        var dimBrush = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A));
+        var acBrush = new SolidColorBrush(ac);
+
+        UIElement MakeSliderCell(string label, StyledSlider slider, TextBlock valLabel)
+        {
+            var cell = new StackPanel { Margin = new Thickness(0, 0, 16, 0) };
+            cell.Children.Add(new TextBlock { Text = label, FontSize = 9, FontWeight = FontWeights.SemiBold,
+                Foreground = dimBrush, Margin = new Thickness(0, 0, 0, 4) });
+            var row = new DockPanel();
+            DockPanel.SetDock(valLabel, Dock.Right);
+            row.Children.Add(valLabel);
+            row.Children.Add(slider);
+            cell.Children.Add(row);
+            return cell;
+        }
+
+        var grid = new Grid { Margin = new Thickness(0, 4, 0, 8) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var speedLabel = new TextBlock { Text = $"{(int)speedSlider.Value}%", FontSize = 11,
+            Foreground = acBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+        speedSlider.ValueChanged += (_, _) => speedLabel.Text = $"{(int)speedSlider.Value}%";
+        var speedCell = MakeSliderCell("SPEED", speedSlider, speedLabel);
+        Grid.SetColumn(speedCell as FrameworkElement, 0);
+        grid.Children.Add(speedCell);
+
+        var brightLabel = new TextBlock { Text = $"{(int)brightSlider.Value}%", FontSize = 11,
+            Foreground = acBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+        brightSlider.ValueChanged += (_, _) => brightLabel.Text = $"{(int)brightSlider.Value}%";
+        var brightCell = MakeSliderCell("BRIGHTNESS", brightSlider, brightLabel);
+        Grid.SetColumn(brightCell as FrameworkElement, 1);
+        grid.Children.Add(brightCell);
+
+        return grid;
     }
 
     private Border MakeSectionCard(string title, params UIElement[] children)
