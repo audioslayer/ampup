@@ -44,7 +44,7 @@ public class RoomCanvasControl : Canvas
     private static readonly SolidColorBrush WallBrush = new(Color.FromRgb(0x3A, 0x3A, 0x3A));
     private static readonly SolidColorBrush GridBrush = new(Color.FromRgb(0x1A, 0x1A, 0x1A));
     private static readonly SolidColorBrush GridBrushMajor = new(Color.FromRgb(0x22, 0x22, 0x22));
-    private static readonly SolidColorBrush TextBrush = new(Color.FromRgb(0x9A, 0x9A, 0x9A));
+    private static readonly SolidColorBrush TextBrush = new(Color.FromRgb(0xB0, 0xB0, 0xB0));
     private static readonly SolidColorBrush DeviceBrush = new(Color.FromRgb(0x2A, 0x2A, 0x2A));
     private static readonly SolidColorBrush SelectedBrush = new(Color.FromRgb(0x00, 0xE6, 0x76));
     private static readonly SolidColorBrush LabelBrush = new(Color.FromRgb(0xE8, 0xE8, 0xE8));

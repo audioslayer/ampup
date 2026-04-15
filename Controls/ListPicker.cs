@@ -108,7 +108,7 @@ public class ListPicker : Border
         var filterPlaceholder = new TextBlock
         {
             Text = "Filter...",
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
             FontSize = 12,
             Padding = new Thickness(10, 7, 0, 0),
             IsHitTestVisible = false,

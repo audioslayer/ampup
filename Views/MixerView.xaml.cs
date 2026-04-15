@@ -1711,7 +1711,7 @@ public partial class MixerView : UserControl
         var inputBg = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
         var inputBorder = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36));
         var textPrimary = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
-        var textSec = FindBrush("TextSecBrush") ?? new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
+        var textSec = FindBrush("TextSecBrush") ?? new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
         var accent = ThemeManager.Accent;
         var accentBrush = new SolidColorBrush(accent);
 
@@ -2116,7 +2116,7 @@ public partial class MixerView : UserControl
     {
         if (_autoSwitchRulesPanel == null) return;
 
-        var textSec = FindBrush("TextSecBrush") ?? new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
+        var textSec = FindBrush("TextSecBrush") ?? new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
         var accent = ThemeManager.Accent;
         var accentBrush = new SolidColorBrush(accent);
 
@@ -2314,7 +2314,7 @@ public partial class MixerView : UserControl
         _showHiddenLabel = new TextBlock
         {
             Text = "Show Hidden (0)", FontSize = 10,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
             Cursor = System.Windows.Input.Cursors.Hand,
             Margin = new Thickness(0, 8, 0, 0),
         };
@@ -2325,7 +2325,7 @@ public partial class MixerView : UserControl
             RefreshSessionList();
         };
         _showHiddenLabel.MouseEnter += (_, _) => _showHiddenLabel.Foreground = new SolidColorBrush(accent);
-        _showHiddenLabel.MouseLeave += (_, _) => _showHiddenLabel.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+        _showHiddenLabel.MouseLeave += (_, _) => _showHiddenLabel.Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A));
         wrapper.Children.Add(_showHiddenLabel);
 
         card.Child = wrapper;
@@ -2338,7 +2338,7 @@ public partial class MixerView : UserControl
         var tb = new TextBlock
         {
             Text = text, FontSize = 9, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
             HorizontalAlignment = align,
         };
         if (margin.HasValue) tb.Margin = margin.Value;
@@ -2598,7 +2598,7 @@ public partial class MixerView : UserControl
         pillRow.Children.Add(new TextBlock
         {
             Text = "ASSIGN TO", FontSize = 8, FontWeight = FontWeights.Bold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0),
         });
 

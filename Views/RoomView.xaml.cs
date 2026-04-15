@@ -443,7 +443,7 @@ public partial class RoomView : UserControl
             tab.BorderThickness = new Thickness(0, 0, 0, 2);
             if (label != null)
             {
-                label.Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
+                label.Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
                 label.FontWeight = FontWeights.SemiBold;
             }
         }
@@ -584,7 +584,7 @@ public partial class RoomView : UserControl
         if (hasEffect || globalMusic || _vuFillActive)
         {
             var ac = ThemeManager.Accent;
-            var dimBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+            var dimBrush = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A));
             var acBrush = new SolidColorBrush(ac);
 
             // Helper: build a labeled slider cell (label above, slider + value below)
@@ -889,7 +889,7 @@ public partial class RoomView : UserControl
             {
                 Text = categoryNames[ci], FontSize = 10,
                 FontWeight = active ? FontWeights.Bold : FontWeights.SemiBold,
-                Foreground = active ? new SolidColorBrush(accent) : new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+                Foreground = active ? new SolidColorBrush(accent) : new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
             };
             categoryTabs[ci] = tab;
             int capturedCat = ci;
@@ -903,7 +903,7 @@ public partial class RoomView : UserControl
             tab.MouseLeave += (_, _) =>
             {
                 if (_effectCategory != capturedCat && tab.Child is TextBlock t)
-                    t.Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
+                    t.Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
             };
 
             tab.MouseLeftButtonUp += (_, _) =>
@@ -918,7 +918,7 @@ public partial class RoomView : UserControl
                     categoryTabs[j].BorderBrush = new SolidColorBrush(isActive ? ac : Colors.Transparent);
                     var tb = (TextBlock)categoryTabs[j].Child;
                     tb.FontWeight = isActive ? FontWeights.Bold : FontWeights.SemiBold;
-                    tb.Foreground = isActive ? new SolidColorBrush(ac) : new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
+                    tb.Foreground = isActive ? new SolidColorBrush(ac) : new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
                 }
             };
             categoryTabBar.Children.Add(tab);
@@ -2937,7 +2937,7 @@ public partial class RoomView : UserControl
     {
         var cfg = _config!.Ambience.ScreenSync;
         var accent = ThemeManager.Accent;
-        var dimBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+        var dimBrush = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A));
 
         // Helper: make a labeled slider row (label left, slider stretches, value right)
         StackPanel MakeSliderRow(string label, StyledSlider slider, TextBlock valLabel)
@@ -5519,7 +5519,7 @@ public partial class RoomView : UserControl
         Text = text,
         FontSize = 9,
         FontWeight = FontWeights.SemiBold,
-        Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+        Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
         VerticalAlignment = VerticalAlignment.Center,
         Margin = new Thickness(0, 0, 8, 0),
     };

@@ -251,7 +251,7 @@ namespace AmpUp.Controls
                     Text = "FAVORITES",
                     FontSize = 9,
                     FontWeight = FontWeights.SemiBold,
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
                     Margin = new Thickness(2, 6, 0, 4),
                     Visibility = Visibility.Collapsed,
                 };
@@ -367,7 +367,7 @@ namespace AmpUp.Controls
                 Text = title,
                 FontSize = 9,
                 FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
                 Margin = new Thickness(2, 6, 0, 4),
             };
             parent.Children.Add(header);

@@ -86,7 +86,7 @@ public class PaletteEditorControl : FrameworkElement
         s_hoverBorder = new Pen(hoverBorderBrush, 1.2);
         s_hoverBorder.Freeze();
 
-        var addBrush = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
+        var addBrush = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
         addBrush.Freeze();
         s_addBrush = addBrush;
         s_addPen = new Pen(addBrush, 1.5);

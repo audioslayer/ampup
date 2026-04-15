@@ -795,7 +795,7 @@ public partial class GroupsView : UserControl
         {
             Text = "ACTION",
             FontSize = 9, FontWeight = FontWeights.SemiBold,
-            Foreground = Brush("#555555"),
+            Foreground = Brush("#8A8A8A"),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 10, 0),
         });
@@ -880,7 +880,7 @@ public partial class GroupsView : UserControl
                         Text = entities.Count == 0
                             ? "No entities found — check Home Assistant connection in Settings"
                             : "No matches",
-                        FontSize = 12, Foreground = Brush("#555555"),
+                        FontSize = 12, Foreground = Brush("#8A8A8A"),
                         Margin = new Thickness(4, 4, 4, 4),
                     },
                     IsEnabled = false,
@@ -906,7 +906,7 @@ public partial class GroupsView : UserControl
                 var row = new ListBoxItem { Tag = entity, Padding = new Thickness(10, 6, 10, 6) };
                 var rowStack = new StackPanel();
                 rowStack.Children.Add(new TextBlock { Text = entity.FriendlyName, FontSize = 13, Foreground = Brush("#E8E8E8") });
-                rowStack.Children.Add(new TextBlock { Text = entity.EntityId, FontSize = 10, Foreground = Brush("#555555"), Margin = new Thickness(0, 1, 0, 0) });
+                rowStack.Children.Add(new TextBlock { Text = entity.EntityId, FontSize = 10, Foreground = Brush("#8A8A8A"), Margin = new Thickness(0, 1, 0, 0) });
                 row.Content = rowStack;
                 listBox.Items.Add(row);
             }
@@ -926,7 +926,7 @@ public partial class GroupsView : UserControl
         // Show loading state then fetch
         listBox.Items.Add(new ListBoxItem
         {
-            Content = new TextBlock { Text = "Loading entities...", FontSize = 12, Foreground = Brush("#555555"), Margin = new Thickness(4) },
+            Content = new TextBlock { Text = "Loading entities...", FontSize = 12, Foreground = Brush("#8A8A8A"), Margin = new Thickness(4) },
             IsEnabled = false,
         });
 

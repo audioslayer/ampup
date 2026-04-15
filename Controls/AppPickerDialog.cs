@@ -124,7 +124,7 @@ public class AppPickerDialog : Window
         var placeholder = new TextBlock
         {
             Text = "Search apps...",
-            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x55, 0x55, 0x55)),
+            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x8A, 0x8A, 0x8A)),
             FontSize = 12,
             IsHitTestVisible = false,
             VerticalAlignment = VerticalAlignment.Center,
@@ -264,7 +264,7 @@ public class AppPickerDialog : Window
             _resultsPanel.Children.Add(new TextBlock
             {
                 Text = "No apps found",
-                Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x55, 0x55, 0x55)),
+                Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x8A, 0x8A, 0x8A)),
                 FontSize = 12,
                 Margin = new Thickness(4, 20, 0, 0),
                 HorizontalAlignment = HorizontalAlignment.Center,
@@ -277,7 +277,7 @@ public class AppPickerDialog : Window
         Text = text,
         FontSize = 9,
         FontWeight = FontWeights.SemiBold,
-        Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x55, 0x55, 0x55)),
+        Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x8A, 0x8A, 0x8A)),
         Margin = new Thickness(4, 10, 0, 4),
     };
 
@@ -348,7 +348,7 @@ public class AppPickerDialog : Window
         {
             Text = displayPath,
             FontSize = 9,
-            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x55, 0x55, 0x55)),
+            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x8A, 0x8A, 0x8A)),
             TextTrimming = TextTrimming.CharacterEllipsis,
         });
         content.Children.Add(textPanel);

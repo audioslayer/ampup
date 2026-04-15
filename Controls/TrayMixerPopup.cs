@@ -120,14 +120,14 @@ public class TrayMixerPopup : Window
         _statusDot = new TextBlock
         {
             Text = "○",
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
             FontSize = 7, VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 4, 0)
         };
         _statusText = new TextBlock
         {
             Text = "Disconnected",
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
             FontSize = 9, VerticalAlignment = VerticalAlignment.Center
         };
 
@@ -232,14 +232,14 @@ public class TrayMixerPopup : Window
             _statusDot.Text = "●";
             _statusDot.Foreground = new SolidColorBrush(Color.FromRgb(0x00, 0xDD, 0x77));
             _statusText.Text = "Connected";
-            _statusText.Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
+            _statusText.Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
         }
         else
         {
             _statusDot.Text = "○";
-            _statusDot.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+            _statusDot.Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A));
             _statusText.Text = "Disconnected";
-            _statusText.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+            _statusText.Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A));
         }
     }
 
@@ -503,7 +503,7 @@ public class TrayMixerPopup : Window
                 emptyPanel.Children.Add(new TextBlock
                 {
                     Text = "No active audio apps",
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
                     FontSize = 11,
                     HorizontalAlignment = HorizontalAlignment.Center,
                 });
@@ -516,7 +516,7 @@ public class TrayMixerPopup : Window
             _sessionList.Children.Add(new TextBlock
             {
                 Text = "Audio unavailable",
-                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
                 FontSize = 11,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 14, 0, 10)
@@ -642,7 +642,7 @@ public class TrayMixerPopup : Window
             root.Children.Add(new TextBlock
             {
                 Text = "Not available",
-                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
                 FontSize = 10,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 8, 0, 0)
@@ -663,7 +663,7 @@ public class TrayMixerPopup : Window
             root.Children.Add(new TextBlock
             {
                 Text = "No audio apps running",
-                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
                 FontSize = 10,
                 FontStyle = FontStyles.Italic,
                 HorizontalAlignment = HorizontalAlignment.Center,
@@ -713,7 +713,7 @@ public class TrayMixerPopup : Window
             var chevron = new TextBlock
             {
                 Text = "›",
-                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
                 FontSize = 11, VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(4, 0, 0, 0)
             };
@@ -723,7 +723,7 @@ public class TrayMixerPopup : Window
             hiddenDock.Children.Add(new TextBlock
             {
                 Text = $"Hidden apps ({hiddenRunning.Count})",
-                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
                 FontSize = 9,
                 VerticalAlignment = VerticalAlignment.Center,
             });
@@ -1412,7 +1412,7 @@ public class TrayMixerPopup : Window
         var typeLabel = new TextBlock
         {
             Text = label,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
             FontSize = 9, FontWeight = FontWeights.Bold,
             FontFamily = new FontFamily("Segoe UI"),
             Width = 48, VerticalAlignment = VerticalAlignment.Center,
@@ -1425,7 +1425,7 @@ public class TrayMixerPopup : Window
         {
             Kind = MaterialIconKind.ChevronDown,
             Width = 14, Height = 14,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
@@ -1439,7 +1439,7 @@ public class TrayMixerPopup : Window
             Child = arrow,
         };
         arrowBtn.MouseEnter += (_, _) => { arrowBtn.Background = new SolidColorBrush(Color.FromArgb(0x20, accent.R, accent.G, accent.B)); arrow.Foreground = new SolidColorBrush(accent); };
-        arrowBtn.MouseLeave += (_, _) => { arrowBtn.Background = Brushes.Transparent; arrow.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)); };
+        arrowBtn.MouseLeave += (_, _) => { arrowBtn.Background = Brushes.Transparent; arrow.Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)); };
         DockPanel.SetDock(arrowBtn, Dock.Right);
         dock.Children.Add(arrowBtn);
 
@@ -2077,7 +2077,7 @@ public class TrayMixerPopup : Window
                 Child = new TextBlock
                 {
                     Text = display,
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
                     FontSize = 8,
                     VerticalAlignment = VerticalAlignment.Center,
                 }
@@ -2168,7 +2168,7 @@ public class TrayMixerPopup : Window
             Child = new TextBlock
             {
                 Text = "ASSIGN TO KNOB",
-                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
                 FontSize = 8.5,
                 FontWeight = FontWeights.SemiBold,
             }
@@ -2203,7 +2203,7 @@ public class TrayMixerPopup : Window
             Child = new TextBlock
             {
                 Text = "MOVE TO DEVICE",
-                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
                 FontSize = 8.5,
                 FontWeight = FontWeights.SemiBold,
             }
@@ -2250,7 +2250,7 @@ public class TrayMixerPopup : Window
         if (isPinned)
         {
             menuStack.Children.Add(MakeItem($"Unpin {displayName}",
-                new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+                new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
                 () =>
                 {
                     _config.PinnedTrayApps.RemoveAll(p => p.Equals(processName, StringComparison.OrdinalIgnoreCase));
@@ -2289,7 +2289,7 @@ public class TrayMixerPopup : Window
         else
         {
             menuStack.Children.Add(MakeItem($"Hide {displayName} from mixer",
-                new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+                new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
                 () =>
                 {
                     if (!_config.HiddenTrayApps.Any(h => h.Equals(processName, StringComparison.OrdinalIgnoreCase)))
@@ -2466,7 +2466,7 @@ public class TrayMixerPopup : Window
             Width = 16, Height = 16,
             Foreground = new SolidColorBrush(muted
                 ? Color.FromRgb(0xFF, 0x44, 0x44)
-                : Color.FromRgb(0x9A, 0x9A, 0x9A)),
+                : Color.FromRgb(0xB0, 0xB0, 0xB0)),
         };
         btn.ToolTip = muted ? "Unmute" : "Mute";
     }

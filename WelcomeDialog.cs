@@ -86,7 +86,7 @@ public class WelcomeDialog : Window
         root.Children.Add(new TextBlock
         {
             Text = "Let's get your AmpUp hardware connected in a few steps.",
-            Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
             FontSize = 13,
             Margin = new Thickness(0, 0, 0, 24),
             TextWrapping = TextWrapping.Wrap
@@ -230,7 +230,7 @@ public class WelcomeDialog : Window
         textStack.Children.Add(new TextBlock
         {
             Text = description,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, btnText != null ? 8 : 0)

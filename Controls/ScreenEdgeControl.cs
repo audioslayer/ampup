@@ -31,7 +31,7 @@ public class ScreenEdgeControl : Canvas
     private static readonly SolidColorBrush s_blackBarFill = new(Color.FromRgb(0x0A, 0x0A, 0x0A));
     private static readonly SolidColorBrush s_accentBrush = new(Color.FromRgb(0x00, 0xE6, 0x76));
     private static readonly SolidColorBrush s_accentDimBrush = new(Color.FromRgb(0x00, 0xA8, 0x54));
-    private static readonly SolidColorBrush s_dimBrush = new(Color.FromRgb(0x55, 0x55, 0x55));
+    private static readonly SolidColorBrush s_dimBrush = new(Color.FromRgb(0x8A, 0x8A, 0x8A));
     private static readonly SolidColorBrush s_zoneFallback = new(Color.FromRgb(0x1C, 0x1C, 0x1C));
     private static readonly SolidColorBrush s_transparent = Brushes.Transparent;
     private static readonly Pen s_outerBorderPen = new(s_borderBrush, 1.5);

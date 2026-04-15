@@ -474,7 +474,7 @@ public partial class AudioDashView : UserControl
             Text = "ASSIGN TO",
             FontSize = 8,
             FontWeight = FontWeights.Bold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 8, 0),
         });

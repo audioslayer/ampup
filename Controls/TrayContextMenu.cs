@@ -83,14 +83,14 @@ public class TrayContextMenu : Window
             _statusDot.Text = "●";
             _statusDot.Foreground = new SolidColorBrush(Color.FromRgb(0x00, 0xDD, 0x77));
             _statusText.Text = port != null ? $"Connected ({port})" : "Connected";
-            _statusText.Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
+            _statusText.Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
         }
         else
         {
             _statusDot.Text = "○";
-            _statusDot.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+            _statusDot.Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A));
             _statusText.Text = "Disconnected";
-            _statusText.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+            _statusText.Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A));
         }
     }
 
@@ -153,7 +153,7 @@ public class TrayContextMenu : Window
         _statusDot = new TextBlock
         {
             Text = "○",
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
             FontSize = 9,
             FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center,
@@ -162,7 +162,7 @@ public class TrayContextMenu : Window
         _statusText = new TextBlock
         {
             Text = "Disconnected",
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
             FontSize = 9,
             FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center
@@ -272,7 +272,7 @@ public class TrayContextMenu : Window
         var arrowLabel = new TextBlock
         {
             Text = "›",
-            Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
             FontSize = 14,
             FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center,
@@ -340,7 +340,7 @@ public class TrayContextMenu : Window
             _assignExpandPanel.Children.Add(new TextBlock
             {
                 Text = "No audio apps running",
-                Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
                 FontSize = 9,
                 FontFamily = new FontFamily("Segoe UI"),
                 FontStyle = FontStyles.Italic,
@@ -446,7 +446,7 @@ public class TrayContextMenu : Window
                     Text = isCurrent ? $"✓  {knobName}" : $"     {knobName}",
                     Foreground = isCurrent
                         ? new SolidColorBrush(accent)
-                        : new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+                        : new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
                     FontSize = 9.5,
                     FontFamily = new FontFamily("Segoe UI"),
                     FontWeight = isCurrent ? FontWeights.SemiBold : FontWeights.Normal,

@@ -398,7 +398,7 @@ public partial class ImportWizardWindow : Window
             Text = "\u2192",
             FontFamily = new FontFamily("Segoe UI"),
             FontSize = 12,
-            Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#555555")),
+            Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8A8A8A")),
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center,
         };

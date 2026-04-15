@@ -33,8 +33,8 @@ public class GoveeSetupGuide : Window
     private static readonly SolidColorBrush AccentGlow    = new(Color.FromRgb(0x69, 0xF0, 0xAE));
     private static readonly SolidColorBrush AccentDim     = new(Color.FromRgb(0x00, 0xA8, 0x54));
     private static readonly SolidColorBrush TextPrimary   = new(Color.FromRgb(0xE8, 0xE8, 0xE8));
-    private static readonly SolidColorBrush TextSec       = new(Color.FromRgb(0x9A, 0x9A, 0x9A));
-    private static readonly SolidColorBrush TextDim       = new(Color.FromRgb(0x55, 0x55, 0x55));
+    private static readonly SolidColorBrush TextSec       = new(Color.FromRgb(0xB0, 0xB0, 0xB0));
+    private static readonly SolidColorBrush TextDim       = new(Color.FromRgb(0x8A, 0x8A, 0x8A));
     private static readonly SolidColorBrush DangerRed     = new(Color.FromRgb(0xFF, 0x44, 0x44));
     private static readonly SolidColorBrush SuccessGrn    = new(Color.FromRgb(0x00, 0xDD, 0x77));
     private static readonly SolidColorBrush DotInactive   = new(Color.FromRgb(0x36, 0x36, 0x36));

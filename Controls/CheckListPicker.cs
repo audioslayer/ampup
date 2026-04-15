@@ -266,7 +266,7 @@ public class CheckListPicker : Border
                 Width = 14, Height = 14,
                 BorderBrush = isChecked
                     ? new SolidColorBrush(AccentColor)
-                    : new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+                    : new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
                 BorderThickness = new Thickness(1.5),
                 CornerRadius = new CornerRadius(2),
                 Background = isChecked

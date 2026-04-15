@@ -195,7 +195,12 @@ public partial class LightsView : UserControl
 
         if (mixer != null)
             _audioDevices = mixer.GetAudioDevices();
-        _dsRowCount = Math.Clamp(_audioDevices.Count(d => d.IsOutput), 3, 8);
+        var newRowCount = Math.Clamp(_audioDevices.Count(d => d.IsOutput), 3, 8);
+        if (newRowCount != _dsRowCount)
+        {
+            _dsRowCount = newRowCount;
+            RebuildDeviceSelectRows();
+        }
 
         // Calibration values (live on AppConfig root, not GlobalLight)
         if (_sldGammaR != null) _sldGammaR.Value = Math.Clamp(config.GammaR, 0.5, 4.0);
@@ -318,7 +323,7 @@ public partial class LightsView : UserControl
         var saveTxt = new TextBlock
         {
             Text = "💾 SAVE CURRENT", FontSize = 10, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
         };
         saveBtn.Child = saveTxt;
         saveBtn.MouseLeftButtonUp += (_, _) => SaveCurrentAsPreset();
@@ -344,7 +349,7 @@ public partial class LightsView : UserControl
             var txt = new TextBlock
             {
                 Text = cat, FontSize = 10,
-                Foreground = new SolidColorBrush(cat == "All" ? Color.FromRgb(0xE8, 0xE8, 0xE8) : Color.FromRgb(0x9A, 0x9A, 0x9A)),
+                Foreground = new SolidColorBrush(cat == "All" ? Color.FromRgb(0xE8, 0xE8, 0xE8) : Color.FromRgb(0xB0, 0xB0, 0xB0)),
             };
             pill.Child = txt;
             pill.MouseLeftButtonUp += (s, _) =>
@@ -383,7 +388,7 @@ public partial class LightsView : UserControl
             var isActive = (string)pill.Tag == _presetFilter;
             pill.Background = new SolidColorBrush(isActive ? Color.FromRgb(0x2A, 0x2A, 0x2A) : Color.FromRgb(0x1C, 0x1C, 0x1C));
             if (pill.Child is TextBlock txt)
-                txt.Foreground = new SolidColorBrush(isActive ? Color.FromRgb(0xE8, 0xE8, 0xE8) : Color.FromRgb(0x9A, 0x9A, 0x9A));
+                txt.Foreground = new SolidColorBrush(isActive ? Color.FromRgb(0xE8, 0xE8, 0xE8) : Color.FromRgb(0xB0, 0xB0, 0xB0));
         }
     }
 
@@ -526,7 +531,7 @@ public partial class LightsView : UserControl
         "Work" => Color.FromRgb(0x00, 0xBD, 0xD0),
         "Party" => Color.FromRgb(0xFF, 0xB8, 0x00),
         "Ambient" => Color.FromRgb(0x00, 0xDD, 0x77),
-        _ => Color.FromRgb(0x9A, 0x9A, 0x9A),
+        _ => Color.FromRgb(0xB0, 0xB0, 0xB0),
     };
 
     private void ApplyPreset(LedPreset preset)
@@ -807,7 +812,7 @@ public partial class LightsView : UserControl
         {
             Text = "IDLE EFFECT (no music)",
             FontSize = 9, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
             Margin = new Thickness(0, 0, 0, 6),
         });
         var idleEffectPicker = new EffectPickerControl(showGlobal: true, showFavorites: false)
@@ -1039,7 +1044,7 @@ public partial class LightsView : UserControl
             var valLabel = new TextBlock
             {
                 Text = "1.0",
-                Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+                Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
                 FontSize = 12, VerticalAlignment = VerticalAlignment.Center,
             };
             Grid.SetColumn(valLabel, 2);
@@ -1263,7 +1268,7 @@ public partial class LightsView : UserControl
         tab.MouseLeave += (_, _) =>
         {
             if (tab.BorderBrush is SolidColorBrush br && br.Color.A == 0 && tab.Child is TextBlock t)
-                t.Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
+                t.Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
         };
         SetModeTabActive(tab, active, accent);
         return tab;
@@ -1288,7 +1293,7 @@ public partial class LightsView : UserControl
             tab.BorderThickness = new Thickness(0, 0, 0, 2);
             if (label != null)
             {
-                label.Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
+                label.Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
                 label.FontWeight = FontWeights.SemiBold;
             }
         }
@@ -1930,10 +1935,81 @@ public partial class LightsView : UserControl
         }
     }
 
+    private void RebuildDeviceSelectRows()
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            int idx = i;
+            var container = _deviceSelectPanels[idx];
+            if (container == null) continue;
+
+            // Preserve existing colors
+            var oldColors = _dsColors[idx];
+
+            // Remove all rows (keep the "DEVICE COLORS" label at index 0)
+            while (container.Children.Count > 1)
+                container.Children.RemoveAt(container.Children.Count - 1);
+
+            _dsDevicePickers[idx] = new ListPicker[_dsRowCount];
+            _dsColorBtns[idx] = new Border[_dsRowCount];
+            _dsColors[idx] = new Color[_dsRowCount];
+
+            for (int row = 0; row < _dsRowCount; row++)
+            {
+                int rowCapture = row;
+
+                // Preserve existing color or use default palette
+                _dsColors[idx][row] = (oldColors != null && row < oldColors.Length)
+                    ? oldColors[row]
+                    : (row % 6) switch
+                    {
+                        0 => Color.FromRgb(0x00, 0x96, 0xFF),
+                        1 => Color.FromRgb(0x00, 0xE6, 0x76),
+                        2 => Color.FromRgb(0xFF, 0x87, 0x22),
+                        3 => Color.FromRgb(0xE0, 0x40, 0xFB),
+                        4 => Color.FromRgb(0xFF, 0xD5, 0x4F),
+                        _ => Color.FromRgb(0x29, 0xB6, 0xF6),
+                    };
+
+                var rowPanel = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+                rowPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                rowPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var devicePicker = new ListPicker
+                {
+                    Margin = new Thickness(0, 0, 4, 0),
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                };
+                devicePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
+                _dsDevicePickers[idx][row] = devicePicker;
+                Grid.SetColumn(devicePicker, 0);
+                rowPanel.Children.Add(devicePicker);
+
+                var colorBtn = new Border
+                {
+                    Width = 28,
+                    Height = 28,
+                    CornerRadius = new CornerRadius(5),
+                    Background = new SolidColorBrush(_dsColors[idx][row]),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
+                    BorderThickness = new Thickness(1),
+                    Cursor = Cursors.Hand,
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                colorBtn.MouseLeftButtonDown += (_, _) => OnPickDeviceSelectColor(idx, rowCapture);
+                _dsColorBtns[idx][row] = colorBtn;
+                Grid.SetColumn(colorBtn, 1);
+                rowPanel.Children.Add(colorBtn);
+
+                container.Children.Add(rowPanel);
+            }
+        }
+    }
+
     private void PopulateDeviceSelectPickers(int idx)
     {
         if (_dsDevicePickers[idx] == null) return;
-        for (int row = 0; row < 3; row++)
+        for (int row = 0; row < _dsDevicePickers[idx].Length; row++)
         {
             var picker = _dsDevicePickers[idx][row];
             picker.ClearItems();
@@ -2582,7 +2658,7 @@ public class ColorPickerDialog : Window
             Text = "PICK COLOR",
             FontSize = 10,
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center,
         };
@@ -2634,7 +2710,7 @@ public class ColorPickerDialog : Window
             Text = "QUICK PICK",
             FontSize = 9,
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
             Margin = new Thickness(0, 0, 0, 6),
         });
         var presetPanel = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
@@ -2786,7 +2862,7 @@ public class ColorPickerDialog : Window
             Content = "Cancel",
             Width = 80,
             Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
-            Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
             BorderBrush = new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)),
             Cursor = Cursors.Hand
         };
@@ -3021,7 +3097,7 @@ public class ColorPickerDialog : Window
         var valLabel = new TextBlock
         {
             Text = value.ToString(),
-            Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
             FontSize = 11,
             VerticalAlignment = VerticalAlignment.Center,
             TextAlignment = TextAlignment.Right

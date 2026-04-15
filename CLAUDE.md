@@ -526,7 +526,7 @@ BgBase      = #0F0F0F     BgDark      = #141414
 CardBg      = #1C1C1C     CardBorder  = #2A2A2A
 InputBg     = #242424     InputBorder = #363636
 Accent      = #00E676     AccentGlow  = #69F0AE     AccentDim = #00A854
-TextPrimary = #E8E8E8     TextSec     = #9A9A9A     TextDim   = #555555
+TextPrimary = #E8E8E8     TextSec     = #B0B0B0     TextDim   = #8A8A8A
 DangerRed   = #FF4444     SuccessGrn  = #00DD77     WarnYellow= #FFB800
 ```
 
