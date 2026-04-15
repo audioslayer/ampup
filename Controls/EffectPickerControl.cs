@@ -458,8 +458,8 @@ namespace AmpUp.Controls
                 SnapsToDevicePixels = true,
                 ToolTip = _showFavorites ? "Right-click to favorite" : null,
             };
-            container.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
-            container.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+            container.SetResourceReference(Border.BackgroundProperty, "BgBaseBrush");
+            container.SetResourceReference(Border.BorderBrushProperty, "BgDarkBrush");
             info.Container = container;
 
             if (addToTiles)
@@ -558,8 +558,8 @@ namespace AmpUp.Controls
 
         private void ApplyNormalVisual(EffectTile info)
         {
-            info.Container.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-            info.Container.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
+            info.Container.SetResourceReference(Border.BackgroundProperty, "BgBaseBrush");
+            info.Container.SetResourceReference(Border.BorderBrushProperty, "BgDarkBrush");
             info.Preview.Opacity = 0.65;
             info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0x7A, 0x7A, 0x7A));
         }
