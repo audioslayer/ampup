@@ -42,24 +42,24 @@
                     <Grid><controls:ChannelGlowControl x:Name="Ch4Glow" /><StackPanel x:Name="Ch4Panel" Margin="10,12" /></Grid>
                 </Border>
 
-                <!-- Rows 1-3: VOLUME RANGE / CURVE / TARGET — placed by code-behind -->
+                <!-- Rows 1-3: VOLUME RANGE / TARGET / CURVE — placed by code-behind -->
                 <Border x:Name="Ch0Range" Grid.Row="1" Grid.Column="0" Margin="0,0,4,0" />
                 <Border x:Name="Ch1Range" Grid.Row="1" Grid.Column="1" Margin="4,0" />
                 <Border x:Name="Ch2Range" Grid.Row="1" Grid.Column="2" Margin="4,0" />
                 <Border x:Name="Ch3Range" Grid.Row="1" Grid.Column="3" Margin="4,0" />
                 <Border x:Name="Ch4Range" Grid.Row="1" Grid.Column="4" Margin="4,0,0,0" />
 
-                <Border x:Name="Ch0Curve" Grid.Row="2" Grid.Column="0" Margin="0,0,4,0" />
-                <Border x:Name="Ch1Curve" Grid.Row="2" Grid.Column="1" Margin="4,0" />
-                <Border x:Name="Ch2Curve" Grid.Row="2" Grid.Column="2" Margin="4,0" />
-                <Border x:Name="Ch3Curve" Grid.Row="2" Grid.Column="3" Margin="4,0" />
-                <Border x:Name="Ch4Curve" Grid.Row="2" Grid.Column="4" Margin="4,0,0,0" />
+                <Border x:Name="Ch0Target" Grid.Row="2" Grid.Column="0" Margin="0,0,4,0" />
+                <Border x:Name="Ch1Target" Grid.Row="2" Grid.Column="1" Margin="4,0" />
+                <Border x:Name="Ch2Target" Grid.Row="2" Grid.Column="2" Margin="4,0" />
+                <Border x:Name="Ch3Target" Grid.Row="2" Grid.Column="3" Margin="4,0" />
+                <Border x:Name="Ch4Target" Grid.Row="2" Grid.Column="4" Margin="4,0,0,0" />
 
-                <Border x:Name="Ch0Target" Grid.Row="3" Grid.Column="0" Margin="0,0,4,0" />
-                <Border x:Name="Ch1Target" Grid.Row="3" Grid.Column="1" Margin="4,0" />
-                <Border x:Name="Ch2Target" Grid.Row="3" Grid.Column="2" Margin="4,0" />
-                <Border x:Name="Ch3Target" Grid.Row="3" Grid.Column="3" Margin="4,0" />
-                <Border x:Name="Ch4Target" Grid.Row="3" Grid.Column="4" Margin="4,0,0,0" />
+                <Border x:Name="Ch0Curve" Grid.Row="3" Grid.Column="0" Margin="0,0,4,0" />
+                <Border x:Name="Ch1Curve" Grid.Row="3" Grid.Column="1" Margin="4,0" />
+                <Border x:Name="Ch2Curve" Grid.Row="3" Grid.Column="2" Margin="4,0" />
+                <Border x:Name="Ch3Curve" Grid.Row="3" Grid.Column="3" Margin="4,0" />
+                <Border x:Name="Ch4Curve" Grid.Row="3" Grid.Column="4" Margin="4,0,0,0" />
             </Grid>
 
             <!-- ── SMART MIX ──────────────────────────────────────── -->
