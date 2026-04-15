@@ -750,15 +750,14 @@ public partial class MixerView : UserControl
             _curvePickers[i] = curvePicker;
             curveCells[i].Child = MakeSectionCard("CURVE", curvePicker);
 
-            // VOLUME RANGE
+            // VOLUME RANGE — inline row (no card)
             var rangeSlider = new RangeSlider
             {
                 Minimum = 0,
                 Maximum = 100,
                 LowerValue = 0,
                 UpperValue = 100,
-                Height = 38,
-                Margin = new Thickness(0, 0, 0, 6),
+                Height = 28,
                 ToolTip = "Set the min and max volume this knob can reach",
             };
             rangeSlider.LowerValueChanged += (_, _) =>
@@ -770,7 +769,40 @@ public partial class MixerView : UserControl
                 if (!_loading) QueueSave();
             };
             _rangeSliders[i] = rangeSlider;
-            rangeCells[i].Child = MakeSectionCard("VOLUME RANGE", rangeSlider);
+
+            var rangeLabel = new TextBlock
+            {
+                Text = "VOLUME RANGE",
+                FontSize = 9,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
+                Margin = new Thickness(0, 0, 0, 4),
+            };
+            var minLabel = new TextBlock
+            {
+                Text = "0%",
+                FontSize = 10,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
+            };
+            var maxLabel = new TextBlock
+            {
+                Text = "100%",
+                FontSize = 10,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
+                HorizontalAlignment = HorizontalAlignment.Right,
+            };
+            rangeSlider.LowerValueChanged += (_, _) => minLabel.Text = $"{(int)rangeSlider.LowerValue}%";
+            rangeSlider.UpperValueChanged += (_, _) => maxLabel.Text = $"{(int)rangeSlider.UpperValue}%";
+
+            var labelsRow = new Grid();
+            labelsRow.Children.Add(minLabel);
+            labelsRow.Children.Add(maxLabel);
+
+            var rangePanel = new StackPanel { Margin = new Thickness(0, 4, 0, 8) };
+            rangePanel.Children.Add(rangeLabel);
+            rangePanel.Children.Add(rangeSlider);
+            rangePanel.Children.Add(labelsRow);
+            rangeCells[i].Child = rangePanel;
 
         }
     }
