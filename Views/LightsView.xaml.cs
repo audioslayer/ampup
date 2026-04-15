@@ -420,12 +420,13 @@ public partial class LightsView : UserControl
 
         var card = new Border
         {
-            Width = 110, Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            Width = 110,
             CornerRadius = new CornerRadius(8), Padding = new Thickness(8),
             Margin = new Thickness(0, 0, 8, 8), Cursor = Cursors.Hand,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
             BorderThickness = new Thickness(1),
         };
+        card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
         var stack = new StackPanel();
 
@@ -498,8 +499,8 @@ public partial class LightsView : UserControl
         {
             var b = (Border)s!;
             presetTransform.Y = 0;
-            b.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-            b.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+            b.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+            b.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
         };
 
         // Click to apply
@@ -562,7 +563,7 @@ public partial class LightsView : UserControl
             Width = 340, Height = 220,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             ResizeMode = ResizeMode.NoResize,
-            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            Background = FindBrush("CardBgBrush"),
             Owner = Window.GetWindow(this),
         };
 
@@ -1183,8 +1184,8 @@ public partial class LightsView : UserControl
         }
         else
         {
-            border.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
-            border.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E));
+            border.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+            border.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
             border.Opacity = 0.4;
         }
 
@@ -1491,14 +1492,14 @@ public partial class LightsView : UserControl
                 Width = 132,
                 Height = 92,
                 CornerRadius = new CornerRadius(8),
-                Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
                 BorderThickness = new Thickness(1),
                 Margin = new Thickness(4, 0, 4, 0),
                 Padding = new Thickness(8, 6, 8, 6),
                 Cursor = Cursors.Hand,
                 ToolTip = "Click to edit this knob",
             };
+            card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+            card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
             var content = new StackPanel
             {
@@ -1562,8 +1563,8 @@ public partial class LightsView : UserControl
                 selectorTransform.Y = 0;
                 if (_selectedKnob != idx)
                 {
-                    card.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
-                    card.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+                    card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+                    card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
                 }
             };
 
@@ -1607,8 +1608,8 @@ public partial class LightsView : UserControl
         }
         else
         {
-            card.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
-            card.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+            card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+            card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
             card.BorderThickness = new Thickness(1);
         }
 
@@ -2469,16 +2470,17 @@ public partial class LightsView : UserControl
         content.Children.Add(MakeSectionHeader(title));
         foreach (var child in children)
             content.Children.Add(child);
-        return new Border
+        var border = new Border
         {
-            Background = FindBrush("CardBgBrush"),
-            BorderBrush = FindBrush("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(16),
             Margin = new Thickness(0, 0, 0, 10),
             Child = content,
         };
+        border.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        border.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        return border;
     }
 
     private void RefreshAccentColors()
@@ -2650,7 +2652,7 @@ public class ColorPickerDialog : Window
         var dragHandle = new Border
         {
             Height = 28,
-            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
+            Background = (Brush)Application.Current.FindResource("CardBgBrush"),
             Cursor = Cursors.SizeAll,
         };
         var titleText = new TextBlock

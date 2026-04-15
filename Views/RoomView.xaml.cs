@@ -1133,15 +1133,19 @@ public partial class RoomView : UserControl
     /// <summary>
     /// Dark card container used throughout the Layout tab.
     /// </summary>
-    private Border MakeLayoutCard() => new()
+    private Border MakeLayoutCard()
     {
-        Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
-        BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-        BorderThickness = new Thickness(1),
-        CornerRadius = new CornerRadius(10),
-        Padding = new Thickness(16),
-        Margin = new Thickness(0, 0, 0, 10),
-    };
+        var card = new Border
+        {
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(16),
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+        card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        return card;
+    }
 
     /// <summary>
     /// Bigger dimension input with label under it: "[ 12 ]" over "WIDTH".
@@ -4265,7 +4269,7 @@ public partial class RoomView : UserControl
         tile.MouseLeave += (_, _) =>
         {
             tileTransform.Y = 0;
-            if (!isActive) tile.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+            if (!isActive) tile.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
             UpdateVisuals(); // restore correct border
         };
 
@@ -4278,12 +4282,12 @@ public partial class RoomView : UserControl
         {
             CornerRadius = new CornerRadius(8),
             BorderThickness = new Thickness(1),
-            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E)),
             Padding = new Thickness(12, 8, 12, 8),
             Margin = new Thickness(0, 0, 8, 8),
             MinWidth = 110,
         };
+        tile.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
         var titleText = new TextBlock
         {
             Text = "STATUS", FontSize = 9, FontWeight = FontWeights.Bold,
@@ -5538,16 +5542,17 @@ public partial class RoomView : UserControl
         content.Children.Add(WrapHeader(bar, label));
         foreach (var child in children)
             content.Children.Add(child);
-        return new Border
+        var border = new Border
         {
-            Background = FindBrush("CardBgBrush"),
-            BorderBrush = FindBrush("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(16),
             Margin = new Thickness(0, 0, 0, 10),
             Child = content,
         };
+        border.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        border.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        return border;
     }
 
     private TextBlock MakeErrorText(string text) => new()

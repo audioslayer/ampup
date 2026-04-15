@@ -1410,16 +1410,17 @@ public partial class MixerView : UserControl
         content.Children.Add(MakeSectionHeader(title));
         foreach (var child in children)
             content.Children.Add(child);
-        return new Border
+        var border = new Border
         {
-            Background = FindBrush("CardBgBrush"),
-            BorderBrush = FindBrush("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(16),
             Margin = new Thickness(0, 0, 0, 10),
             Child = content,
         };
+        border.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        border.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        return border;
     }
 
     private Border MakeSeparator(int spacing = 10)
@@ -2283,12 +2284,12 @@ public partial class MixerView : UserControl
 
         var card = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(16, 12, 16, 12),
         };
+        card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
         var wrapper = new StackPanel();
 

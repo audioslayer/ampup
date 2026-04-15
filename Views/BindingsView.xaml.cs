@@ -227,13 +227,13 @@ public class BindingsView : UserControl
 
         var section = new Border
         {
-            Background = (SolidColorBrush)FindResource("CardBgBrush"),
-            BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Margin = new Thickness(0, 0, 0, 16),
             Padding = new Thickness(16, 14, 16, 16)
         };
+        section.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        section.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
         var sectionContent = new StackPanel();
 
