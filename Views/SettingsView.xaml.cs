@@ -14,16 +14,26 @@ public partial class SettingsView : UserControl
 {
     private static readonly (string Name, string Hex)[] AccentPresets =
     {
-        ("Green",   "#00E676"),
-        ("Cyan",    "#00B4D8"),
-        ("Blue",    "#448AFF"),
-        ("Purple",  "#B388FF"),
-        ("Pink",    "#FF4081"),
-        ("Red",     "#FF5252"),
-        ("Orange",  "#FF6E40"),
-        ("Gold",    "#FFD740"),
-        ("Mint",    "#69F0AE"),
-        ("White",   "#E0E0E0"),
+        ("Green",      "#00E676"),
+        ("Cyan",       "#00B4D8"),
+        ("Blue",       "#448AFF"),
+        ("Purple",     "#B388FF"),
+        ("Pink",       "#FF4081"),
+        ("Red",        "#FF5252"),
+        ("Orange",     "#FF6E40"),
+        ("Gold",       "#FFD740"),
+        ("Mint",       "#69F0AE"),
+        ("White",      "#E0E0E0"),
+        ("Lime",       "#C6FF00"),
+        ("Teal",       "#1DE9B6"),
+        ("Sky",        "#40C4FF"),
+        ("Indigo",     "#536DFE"),
+        ("Lavender",   "#CE93D8"),
+        ("Coral",      "#FF8A80"),
+        ("Peach",      "#FFAB91"),
+        ("Amber",      "#FFCA28"),
+        ("Aqua",       "#84FFFF"),
+        ("Rose",       "#F48FB1"),
     };
 
     private AppConfig? _config;
