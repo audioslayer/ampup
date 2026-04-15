@@ -558,8 +558,8 @@ namespace AmpUp.Controls
 
         private void ApplyNormalVisual(EffectTile info)
         {
-            info.Container.Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
-            info.Container.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E));
+            info.Container.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+            info.Container.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
             info.Preview.Opacity = 0.65;
             info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0x7A, 0x7A, 0x7A));
         }
