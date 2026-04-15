@@ -80,14 +80,14 @@ public class ActionPicker : Border
     public ActionPicker()
     {
         // Button appearance
-        BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
+        this.SetResourceReference(Border.BorderBrushProperty, "BgDarkBrush");
         BorderThickness = new Thickness(1.5);
         CornerRadius = new CornerRadius(6);
         Padding = new Thickness(8, 0, 8, 0);
         Height = 36;
         Cursor = Cursors.Hand;
         SnapsToDevicePixels = true;
-        this.SetResourceReference(BackgroundProperty, "InputBgBrush");
+        this.SetResourceReference(BackgroundProperty, "BgBaseBrush");
 
         // Layout: [icon] [label -- fills] [chevron]
         var dock = new DockPanel { LastChildFill = true };
@@ -250,7 +250,7 @@ public class ActionPicker : Border
         {
             if (!_isOpen)
             {
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
+                this.SetResourceReference(Border.BorderBrushProperty, "BgDarkBrush");
                 _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
             }
         };
@@ -345,7 +345,7 @@ public class ActionPicker : Border
         _flyout?.Close();
         _flyout = null;
 
-        BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
+        this.SetResourceReference(Border.BorderBrushProperty, "BgDarkBrush");
         _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
     }
 

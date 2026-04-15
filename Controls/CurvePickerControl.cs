@@ -166,8 +166,8 @@ namespace AmpUp.Controls
                 SnapsToDevicePixels = true,
                 ClipToBounds = true,
             };
-            container.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
-            container.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+            container.SetResourceReference(Border.BackgroundProperty, "BgBaseBrush");
+            container.SetResourceReference(Border.BorderBrushProperty, "BgDarkBrush");
             info.Container = container;
             if (tooltip != null)
                 container.ToolTip = tooltip;
@@ -256,16 +256,16 @@ namespace AmpUp.Controls
 
         private void ApplyNormalVisual(CurveCard info)
         {
-            info.Container.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
-            info.Container.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+            info.Container.SetResourceReference(Border.BackgroundProperty, "BgBaseBrush");
+            info.Container.SetResourceReference(Border.BorderBrushProperty, "BgDarkBrush");
             info.CurveLine.Stroke = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A));
             info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
         }
 
         private void ApplyHoverVisual(CurveCard info)
         {
-            info.Container.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-            info.Container.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
+            info.Container.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+            info.Container.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
             info.CurveLine.Stroke = new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0xBB));
             info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0xBB));
         }

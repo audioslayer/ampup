@@ -92,14 +92,14 @@ public class GridPicker : Border
     public GridPicker()
     {
         // Main trigger — looks like a proper input field
-        BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
+        this.SetResourceReference(Border.BorderBrushProperty, "BgDarkBrush");
         BorderThickness = new Thickness(1.5);
         CornerRadius = new CornerRadius(6);
         Padding = new Thickness(12, 8, 8, 8);
         Cursor = Cursors.Hand;
         SnapsToDevicePixels = true;
         MinHeight = 36;
-        this.SetResourceReference(BackgroundProperty, "InputBgBrush");
+        this.SetResourceReference(BackgroundProperty, "BgBaseBrush");
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -247,15 +247,15 @@ public class GridPicker : Border
         MouseEnter += (_, _) =>
         {
             BorderBrush = new SolidColorBrush(Color.FromArgb(0xAA, AccentColor.R, AccentColor.G, AccentColor.B));
-            this.SetResourceReference(BackgroundProperty, "InputBgBrush");
+            this.SetResourceReference(BackgroundProperty, "BgDarkBrush");
             _chevron.Foreground = new SolidColorBrush(AccentColor);
         };
         MouseLeave += (_, _) =>
         {
             if (!_isOpen)
             {
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
-                this.SetResourceReference(BackgroundProperty, "InputBgBrush");
+                this.SetResourceReference(Border.BorderBrushProperty, "BgDarkBrush");
+                this.SetResourceReference(BackgroundProperty, "BgBaseBrush");
                 _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
             }
         };
@@ -331,7 +331,7 @@ public class GridPicker : Border
         _popupBorder.BeginAnimation(UIElement.OpacityProperty, fadeAnim);
 
         BorderBrush = new SolidColorBrush(AccentColor);
-        this.SetResourceReference(BackgroundProperty, "InputBgBrush");
+        this.SetResourceReference(BackgroundProperty, "BgDarkBrush");
     }
 
     private void CloseFlyout()
@@ -348,8 +348,8 @@ public class GridPicker : Border
         _flyout?.Close();
         _flyout = null;
 
-        BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
-        this.SetResourceReference(BackgroundProperty, "InputBgBrush");
+        this.SetResourceReference(Border.BorderBrushProperty, "BgDarkBrush");
+        this.SetResourceReference(BackgroundProperty, "BgBaseBrush");
         _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
     }
 
