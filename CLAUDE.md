@@ -151,7 +151,6 @@ AudioMixer.cs              WASAPI per-app volume + GetPeakLevel, response curves
                            Sessions indexed by both process name AND WASAPI DisplayName (for UWP/MS Store apps)
                            FuzzyContains: strips spaces before matching ("Apple Music" → "AppleMusic")
 ButtonHandler.cs           Gesture state machine (press/double/hold) → 26 action types (incl. mute_device)
-AudioMixer.cs              (see also AmpUp.Core/Engine/ for VolumePipeline, RgbController)
 DuckingEngine.cs           Auto-ducking: monitors trigger app audio, fades target app volumes with smooth interpolation
 AutoProfileSwitcher.cs     Auto-profile switching: monitors foreground window, fires profile switch events with debounce
 MonitorBrightness.cs       DDC/CI physical monitor brightness via dxva2.dll. Cached handles + throttled
@@ -170,8 +169,6 @@ AmpUp.Core/
   Engine/ScreenSpatialMapper.cs  Maps device positions to screen regions for DreamView spatial sync
                            Uses monitor placement + room layout to compute per-device screen sampling regions
 
-Controls/
-  ScreenEdgeControl.cs     Front-view monitor control with draggable crop lines for pillarbox/letterbox content
 NativeMethods.cs           P/Invoke declarations (user32, PowrProf, DisplayConfig for monitor friendly names)
 Config.cs                  Loads/saves config.json + profile system (Newtonsoft.Json)
 Logger.cs                  Appends to %AppData%\AmpUp\ampup.log
@@ -385,7 +382,7 @@ Each button supports 3 gestures (15 total bindings):
 | `DeviceSelect` | per-device | Shows mapped color based on current default audio output device |
 | `AudioPositionBlend` | 2 | Music reactive with position blend fallback — crossfades between PositionBlend and AudioReactive based on audio energy. Global mode: configurable idle effect (e.g. Ocean) when silent, crossfades to audio-reactive on music |
 
-**Global Spanning (30):** *(only active in Global Lighting / Room modes, per-knob fallback = solid color1. Aurora, Matrix, Starfield were missing from SpanningEffects HashSet and fixed in v0.9.7.)*
+**Global Spanning (30):** *(only active in Global Lighting / Room modes, per-knob fallback = solid color1)*
 | Effect | Description |
 |-|-|
 | `Scanner` | KITT/Cylon dot sweeps back and forth with fading tail |
@@ -442,7 +439,7 @@ All transitions run 1 second (20 ticks at 20 FPS) then auto-clear.
 
 ## AudioAnalyzer (FFT)
 
-`AudioAnalyzer.cs` captures system audio via `WasapiLoopbackCapture` and runs FFT to extract 5 frequency bands:
+`AudioAnalyzer.cs` captures system audio via `WasapiLoopbackCapture` and runs 1024-sample Hann-windowed FFT to extract 5 frequency bands. NormRef=0.005f (WASAPI loopback levels are very low). Smoothing: fast attack (0.5), slow decay (0.88). Lazy start/stop — only runs when at least one light uses AudioReactive. Thread safety via `lock(_lock)`.
 
 | Band | Frequency Range | Musical Content |
 |-|-|-|
@@ -452,100 +449,37 @@ All transitions run 1 second (20 ticks at 20 FPS) then auto-clear.
 | 3 | 2000–6000 Hz | High-mid (presence) |
 | 4 | 6000–20000 Hz | Treble (cymbals, air) |
 
-- **FFT size:** 1024 samples, Hann windowed
-- **Normalization:** `NormRef = 0.005f` (WASAPI loopback levels are very low)
-- **Smoothing:** Fast attack (0.5), slow decay (0.88)
-- **Lifecycle:** Lazy start/stop — only runs when at least one light uses AudioReactive
-- **Thread safety:** `lock(_lock)` on SmoothedBands updates
-
 ---
 
-## UI Architecture
+## Theme
 
-### Custom Controls (`Controls/`)
-
-- **CurvePickerControl** — 3 mini canvas graphs showing actual response curves (Linear/Log/Exp). Click to select. Uses same math as AudioMixer.ApplyCurve. Accent-colored polylines on dark background with grid dots.
-
-- **EffectPickerControl** — ~60 LED effects as categorized animated preview tiles. 4 categories: STATIC, ANIMATED, REACTIVE, GLOBAL SPAN. Each tile renders a live mini-visualizer via `EffectPreviewControl`. Dark glass tiles with accent glow on selection.
-
-- **EffectPreviewControl** — Live animated mini-visualizer for effect tiles. 57 unique renders (gradient fills, EQ bars, sine waves, ECG heartbeat, fire flicker, aurora drift). Shared 30 FPS timer, auto-pauses hidden tiles. 82px wide unified tile size.
-
-- **PhosphorIcon** — Phosphor Duotone icon control. Base layer at 0.2 opacity + detail layer at full opacity. 29 icons defined in `Icons/PhosphorIcons.xaml` ResourceDictionary. Used for sidebar nav icons (Gear, SlidersHorizontal, Keyboard, Lightbulb, House, Monitor, Link, AppWindow).
-
-- **GridPicker** — Categorized target dropdown with inline sub-panel. Used in MixerView for knob targets. Uses borderless Window flyout with inline sub-panel (single HWND, no cross-window issues). Items support subtitle text (e.g. "Home Assistant" + "Light"). Sub-panel shows context header + highlights active parent item.
-
-- **ActionPicker** — Categorized action dropdown with inline sub-panel. Used in ButtonsView for all 15 gesture action slots. 7 categories: MEDIA (green), MUTE (red), APP CONTROL (blue), DEVICE (purple), SYSTEM (gold), POWER (red), INTEGRATIONS (cyan). Same inline sub-panel pattern as GridPicker.
-
-- **AnimatedKnobControl** — WPF FrameworkElement, `OnRender(DrawingContext)`. Arc sweep 225° start / 270° sweep via `StreamGeometry`. All Pen/Brush frozen as static fields. Renders knob-face.png with colored arc ring. Smooth lerp animation via `SetTarget()` + `Tick()` (0.5 per tick). Arc color syncs with live LED color from RgbController.
-
-- **VuMeterControl** — WPF FrameworkElement, `DrawingVisual` child. 16 segments, standard green (0-9) / orange (10-12) / red (13-15), peak hold 1.5s.
-
-- **ChannelGlowControl** — Audio-reactive radial gradient glow behind mixer channel cards. Tinted with live LED color. Fast attack (0.4), slow decay (0.92). Skips re-render when alpha/color unchanged (perf).
-
-### View Details
-
-- **MixerView (sidebar: "Mixer"):** 5 channel strips with visual curve pickers (CurvePickerControl), app group chip/pill tags (clickable, accent-tinted, wrap layout), hover glow on strip borders. GridPicker with sub-flyouts for output_device/input_device, HA entities (shown as "Home Assistant" + domain subtitle), Govee devices. Smart Mix section built in code-behind: Voice Ducking (ListPicker for trigger app, amount slider, collapsible Advanced for fade timing) + App Profiles (dynamic add/remove rules with app + profile ListPickers).
-
-- **ButtonsView:** 5 column layout — one per button. 3 gesture sections per button with colored headers (TAP=green, DOUBLE=gold, HOLD=orange). ActionPicker with categorized dropdown and sub-flyouts for HA entities and audio device actions.
-
-- **LightsView:** Material-style underline tab bar (PER KNOB / GLOBAL) replaces the segmented toggle. Global Lighting card at top (EffectPickerControl + colors + speed + brightness slider on right). 5 per-knob panels below (hidden when global is on). EffectPickerControl replaces dropdown. Per-knob preset tiles use card layout (gradient thumbnail + label, hover accent border) and 20 premium palettes are available in PRESETS tab.
-
-- **SettingsView:** Section headers with accent left-border indicators. HA and Govee integrations displayed side-by-side. Profile section has Overview button. LED Calibration section: per-channel R/G/B gamma sliders (StyledSlider, Step=0.1, accent-tinted), 6 test color swatches with live hardware preview, auto-clear on tab switch. (OSD settings moved to OsdView in v0.8.1.)
-
-- **OsdView:** OSD overlay toggles (volume/profile/device) with per-type duration sliders (StyledSlider, Step=0.5, separate value labels), position grid picker, monitor selector, hide-in-fullscreen checkbox. Quick Wheels section: dynamic add/remove rows, each with Mode (Profiles/Output Device) + Trigger Button. Any knob navigates. Auto-syncs button HoldActions.
-
-- **BindingsView (sidebar: "Overview"):** Profile Overview page showing all knob/button assignments across profiles. Knob cards tinted with LED color. Button cards show all gestures with colored TAP/DBL/HOLD badges. Preview OSD button per profile. Click any card to switch to that profile and navigate to the correct tab.
-
-- **RoomView (sidebar: "Room"):** Material-style UNDERLINE tab bar (ROOM EFFECT / LAYOUT / DEVICES) — no background container, bottom divider line, 2px accent underline under active tab, hover brightens inactive text. Replaces the pill-style tabs.
-
-  **Top toggle row** (via BuildToggleTile helper):
-  - `[AMP UP]` — mirror knob LEDs to room
-  - `[MUSIC REACTIVE]` — bass+mids brightness modulation (20-2kHz), fast attack / slow decay, squared energy for dramatic contrast. When on, a SENSITIVITY slider (1-100%) appears in a sub-row.
-  - `[VU FILL]` — per-segment VU meters driven by audio. When on, 6 MODE pills appear in a sub-row: **Classic** (bottom→top energy fill), **Split** (left=bass, right=treble), **Rainfall** (onset-triggered drips shift down), **Pulse** (all segments pulse with bass), **Spectrum** (per-segment frequency band), **Drip** (liquid gravity pool at bottom). All modes use room color1→color2 palette gradient. Paired panels (H610A) always mirror. WLED-style onset detection.
-  - `[SCREEN SYNC]` — capture screen colors to room lights
-  - `[GAME MODE]` — auto-enable screen sync when fullscreen game detected. Polls at 1s with 3s debounce.
-
-  When Screen Sync or Game Mode activates, Music Reactive + VU Fill are stopped; Game Mode exit restores previous state.
-
-  **ROOM EFFECT tab** — two-column layout:
-  - **LEFT:** Category tab bar (underline style: STATIC / ANIMATED / REACTIVE / GLOBAL SPAN) filters the EffectPickerControl (`SetVisibleCategory`).
-  - **RIGHT:** 280px dark card settings panel — PALETTE (PaletteEditorControl gradient editor + 24 preset swatches with labels in 2-row wrap layout), SPEED slider, BRIGHTNESS slider, DIRECTION pills (Mirror is default — SpatialSync is no longer auto-enabled).
-
-  **LAYOUT tab** — 420px room canvas, dimensions row, device placement + device tray.
-
-  **DEVICES tab** — per-device controls in three sections:
-  - **Govee:** device cards with on/off, brightness, color scenes, music mode. On/off persists `PoweredOn` to config. DreamView screen sync settings collapsible per-device with ScreenEdgeControl for content crop and crop mode (Content / Full Screen / Ambient).
-  - **Corsair:** effect picker + PRIMARY/SECONDARY color pickers with 10 gradient presets, speed slider. `corsairOnly` flag prevents Govee leak. Section headers use `ThemeManager.Accent`.
-  - **Turn Up:** Sync Screen (screen sync colors drive hardware knob LEDs) + Turn Up Mixer (sync room effect and VU Fill colors to Turn Up hardware LEDs) checkboxes.
-
-  Corsair detected devices list moved to Settings tab (SetCorsairSync + PopulateCorsairDeviceList). Music Reactive: bass-weighted beat detection, modulates full LED frame brightness (keeps room effect playing). `OnRoomFrame` snapshots config at start and uses `Task.Run` for segment sends (no UI thread blocking). `IsMusicReactiveActive` property keeps AudioAnalyzer alive through config saves.
-
-### Theme (Theme.xaml)
-
+### Accent Colors
 ```
-BgBase      = #0F0F0F     BgDark      = #141414       (default "Midnight" theme)
-CardBg      = #1C1C1C     CardBorder  = #2A2A2A
-InputBg     = #242424     InputBorder = #363636
-Accent      = #00E676     AccentGlow  = #69F0AE     AccentDim = #00A854
-TextPrimary = #E8E8E8     TextSec     = #B0B0B0     TextDim   = #8A8A8A
-DangerRed   = #FF4444     SuccessGrn  = #00DD77     WarnYellow= #FFB800
+Accent      = #00E676     AccentGlow  = computed (Lighten 40%)     AccentDim = computed (Darken 35%)
+TextPrimary = #E8E8E8     TextSec     = #B0B0B0                   TextDim   = #8A8A8A
+DangerRed   = #FF4444     SuccessGrn  = #00DD77                   WarnYellow= #FFB800
 ```
 
-**Card Themes** (selectable in Settings → Appearance):
-| Theme | BgBase | CardBg | Tint |
-|-|-|-|-|
-| Midnight | #0F0F0F | #1C1C1C | Neutral grey (default) |
-| Blue Steel | #0D0F12 | #191D22 | Cool blue-grey |
-| Ember | #120E0D | #1E1918 | Warm red-brown |
-| Forest | #0D110E | #191E1A | Dark green-grey |
-| Violet | #100D12 | #1C181F | Dark purple-grey |
-| Slate | #0E0F11 | #1B1C1F | Warmer grey-blue |
-| Obsidian | #080808 | #131313 | Pure black, extra dark |
-| Mocha | #110F0D | #1E1A18 | Warm brown |
+### Card Themes (12 themes, selectable in Settings → Appearance)
+
+| Theme | BgBase | BgDark | CardBg | CardBorder | InputBg | InputBorder |
+|-|-|-|-|-|-|-|
+| Midnight (default) | #0F0F0F | #141414 | #1C1C1C | #2A2A2A | #242424 | #363636 |
+| Blue Steel | #0A0E14 | #0F1520 | #152230 | #1E3048 | #1A2838 | #2A3E56 |
+| Ocean | #081014 | #0C1820 | #10223A | #183050 | #142840 | #1E3E5E |
+| Teal | #081210 | #0C1A18 | #102824 | #183834 | #14302C | #1E4842 |
+| Ice | #0C1218 | #101A24 | #182838 | #24384E | #1E3040 | #2C4660 |
+| Ember | #140A08 | #1C100C | #281810 | #3A2418 | #301E16 | #4A3228 |
+| Forest | #081208 | #0C1A0E | #122414 | #1C3420 | #182C1A | #264030 |
+| Violet | #100A16 | #18101E | #22182C | #30243C | #2A1E34 | #3E3050 |
+| Rose | #140A10 | #1E0E16 | #2C1420 | #3E2030 | #341A28 | #4C2C3E |
+| Slate | #0C0E12 | #121418 | #1A1E24 | #282E36 | #22282E | #343C44 |
+| Obsidian | #060606 | #0A0A0A | #101010 | #1A1A1A | #151515 | #222222 |
+| Mocha | #120C08 | #1A1210 | #261C16 | #382A22 | #2E221A | #443830 |
 
 Themes are applied at runtime via `ThemeManager.SetCardTheme()` which updates all background/card DynamicResource brushes. Config field: `cardTheme` (string, default "Midnight").
 
-Custom scrollbars: slim 8px, transparent track, green thumb (#00E676) with hover/drag brightness states.
+Custom scrollbars: slim 8px, transparent track, accent-colored thumb with hover/drag brightness states.
 
 ---
 
@@ -638,224 +572,86 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 
 ## Known Issues / Gotchas
 
+### WPF Pitfalls
 - **WPF-UI namespace conflicts:** `Wpf.Ui.Controls` has types like `Border` that conflict with `System.Windows.Controls.Border`. Always fully qualify when both namespaces are in scope.
-- **config.json is read from next to the `.exe`**, not the project root
-- **Single instance:** Only one AmpUp can run. Check Task Manager for stale process.
-- **Single-press has ~300ms latency** — intentional for double-press detection
-- **Hold threshold is 500ms** — configurable in `ButtonHandler.cs`
-- **WASAPI loopback levels are very low** — NormRef=0.005f in AudioAnalyzer. If LEDs don't react, lower further.
-- **Sleep uses graceful suspend** (forceCritical=false) — required for proper GPU/USB wake
-- **Newtonsoft.Json PascalCase** — config props in memory are PascalCase, JSON file is camelCase
-- **Cannot `dotnet build` on Linux** — WPF is Windows-only
 - **AllowsTransparency=true breaks Win11** — creates WS_EX_LAYERED window, mouse hit-testing fails on Canvas/Image. Never use on popup/dialog windows.
-- **WPF TextBlock has no LetterSpacing** — not a real WPF property, don't try to set it
+- **WPF TextBlock has no LetterSpacing** — not a real WPF property, don't try to set it.
 - **WPF emoji render monochrome** — Unicode emoji in TextBlock render as black glyphs, not color. Use colored text/shapes instead.
-- **Parallel agents can mismatch APIs** — when agents build caller and callee in parallel, method names may not match. Always verify interface alignment or build sequentially.
-- **Govee LAN API** — UDP multicast to 239.255.255.250:4001 for discovery, listen on 4002. Control via unicast to device IP:**4003**. Rate limit: max 10 sends/sec. Supports on/off, brightness, solid color, and per-segment colors via "razer" command (binary frames with base64 encoding). Segment protocol: enable=`BB 00 01 B1 01 [xor]`, colors=`BB [len] B0 00 [count] [RGB...] [xor]`, auto-disables after ~60s (keepalive every 30s).
-- **Govee Cloud API** — REST at openapi.api.govee.com, header `Govee-API-Key`. Supports scenes, segments, music mode. Rate limit: ~100 req/min, 10k/day. API key from Govee app settings. No speed control for dynamic scenes (animation speed is baked into preset).
-- **Govee DreamView conflict** — DreamView sends screen colors at 30fps via LAN UDP. Cloud scene commands get immediately overridden. UI dims device cards when DreamView is active.
-- **WPF Popup HWND isolation** — Popups live in separate native windows, making MouseLeave/MouseEnter unreliable. GridPicker and ActionPicker avoid this by using borderless Window flyouts with inline sub-panels (no second window needed).
-- **Monitor friendly names** — `Screen.DeviceName` only gives `\\.\DISPLAY1`. Use `NativeMethods.GetMonitorFriendlyNames()` (DisplayConfig API) for real names like "DELL U2723QE".
-- **ScreenCapture gamma** — sRGB pixels must be linearized before averaging, then re-encoded. Simple RGB averaging produces darker/muddier results.
-- **StyledSlider ShowLabel** — Set `ShowLabel = false` when the value is displayed in a separate label to avoid duplicate display under the thumb.
-- **Turn Up device doesn't auto-report positions** — Device only sends health pings on connect, NOT a knob batch. Must send `FE 01 FF` (info request) to get initial positions. Discovered via serial probe (all commands 0x00-0x20 tested, only 0x01 responds).
+- **WPF Popup HWND isolation** — Popups live in separate native windows, making MouseLeave/MouseEnter unreliable. GridPicker and ActionPicker avoid this by using borderless Window flyouts with inline sub-panels.
+- **OSD ShowKnobOsd must use Dispatcher** — HandleKnob runs on the serial reader thread. ShowKnobOsd touches WPF controls and MUST be wrapped in `Dispatcher.BeginInvoke`.
+
+### Theming
+- **Card themes use DynamicResource** — all background/card colors are bound via DynamicResource so `ThemeManager.SetCardTheme()` can swap them at runtime. Do not hardcode grey hex values for backgrounds.
+- **Render-path brushes are frozen statics** — AnimatedKnobControl, VuMeterControl, and ChannelGlowControl freeze Pen/Brush as static fields for performance. These cannot be changed after creation. Use `ThemeManager.OnCardThemeChanged` to rebuild if needed.
+
+### Config / Runtime
+- **config.json is read from next to the `.exe`**, not the project root.
+- **Single instance:** Only one AmpUp can run. Check Task Manager for stale process.
+- **Newtonsoft.Json PascalCase** — config props in memory are PascalCase, JSON file is camelCase.
+- **Cannot `dotnet build` on Linux** — WPF is Windows-only.
+- **build-installer.bat working directory** — Must use `%~dp0` to locate AmpUp.csproj relative to script, not current working directory.
+
+### Hardware
+- **Turn Up device doesn't auto-report positions** — Device only sends health pings on connect. Must send `FE 01 FF` (info request) to get initial positions.
 - **USB chip:** WCH CH343 (`VID_1A86 PID_55D3`), serial number `5185001494`. Device ID from firmware: `00 1F CC E4`.
-- **WASAPI master peak very low** — Master endpoint `AudioMeterInformation.MasterPeakValue` returns ~0.02-0.04 for normal audio. Per-app sessions return 0.2-0.5. VU meter uses 2.3x uniform boost.
-- **Active window reads AmpUp's own PID** — `GetActiveWindowVolume` must skip `Environment.ProcessId` to avoid showing wrong volume when mixer window is focused.
-- **Govee device SKU can be empty** — Devices added before LAN scan SKU detection have empty `Sku` field. `GetSegmentCount` falls back to name matching (e.g. "Light Bar" → 6 segments).
-- **Govee LAN control port is 4003** — Not 4001 as some docs suggest. Discovery uses multicast 4001, listen on 4002, but all control commands go to unicast device:4003.
-- **Govee colorwc implicitly turns on device** — Sending any color command turns on a powered-off Govee device. AmbienceSync checks `device.PoweredOn` before sending. 5-second startup guard on Govee brightness (same as HA/monitor).
-- **Turn Up gamma table unused** — Official Turn Up source (JaredWF/TurnUpCustomizer) defines a gamma8 table but never applies it in SetLightColors. Raw RGB is sent. Our default gamma is 1.0 (linear) to match.
-- **MS Store apps use helper processes** — Apple Music audio runs through AMPLibraryAgent, not AppleMusic process. AudioMixer indexes sessions by WASAPI DisplayName to catch these. FuzzyContains strips spaces for matching.
-- **Tray popup DPI on multi-monitor** — Screen.WorkingArea returns physical pixels but WPF Left/Top expect DIPs. Must convert via TransformFromDevice. Show window off-screen first so PresentationSource is available for DPI calc.
-- **Vertical taskbar positioning** — Detect taskbar side by comparing WorkingArea to screen Bounds. If WorkingArea.Right < Bounds.Right → taskbar on right, etc.
-- **OSD phantom popups on reconnect** — Device reconnect sends knob batch, each fires HandleKnob → OSD. Suppressed by: 5s startup guard, 2s reconnect guard (`_connectedAt`), and value-change guard (±15 ADC from last OSD display).
-- **OSD shows curve-applied volume** — OSD uses `VolumePipeline.ComputeVolume()` to show actual volume (with response curve + min/max range), not raw knob position. Per-knob final-value timer (200ms) ensures the last position is always shown even during fast turns.
-- **OSD ShowKnobOsd must use Dispatcher** — HandleKnob runs on the serial reader thread. ShowKnobOsd touches WPF controls and MUST be wrapped in `Dispatcher.BeginInvoke`. Calling directly causes cross-thread exception that prevents `_rgb.SetKnobPosition` from running, killing LEDs.
-- **StyledSlider ShowLabel clips at small heights** — Label draws below thumb at cy+ThumbRadius+4. Use ShowLabel=false with separate TextBlock for sliders under ~35px height.
-- **build-installer.bat working directory** — Must use `%~dp0` to locate AmpUp.csproj relative to script, not current working directory. Otherwise version extraction fails silently.
-- **Mac: TCC audio permission per binary** — macOS grants Microphone/audio recording permission per executable path. Each new build location needs its own permission grant. Must launch from Terminal (not SSH) the first time for the permission dialog to appear. SSH sessions cannot show TCC prompts.
-- **Mac: Avalonia NativeMenu blocks all exit calls** — `Environment.Exit()`, `Process.Kill()`, `_exit()`, and even `kill -9` via `Process.Start` all fail when called from an Avalonia NativeMenu click handler on macOS. The handler runs in a Cocoa context that swallows exit attempts. **Solution:** Use a background polling thread started at app init that watches a `_wantQuit` volatile bool flag. The menu handler sets the flag; the background thread calls `Environment.Exit(0)` from its own thread context. This was a multi-hour debugging session — do NOT try to exit from NativeMenu handlers directly.
-- **Mac: Cleanup() can hang on quit** — `_serial?.Dispose()` and other resource disposal can block the main thread during quit, preventing exit code from running. **Solution:** Run all Cleanup dispose calls on a background thread with a 2-second `ManualResetEventSlim` timeout so quit always proceeds.
-- **Mac: MainWindow.Closing cancels Shutdown** — Both `MainWindow` and `TrayIconManager` had Closing handlers that unconditionally cancelled close (hide-to-tray). This prevents `lifetime.Shutdown()` from working. **Solution:** `IsQuitting` flag checked by all Closing handlers — when true, don't cancel.
-- **Mac: deploy.sh must use dotnet exec** — `dotnet run --project` launches from the project directory where `libAmpUpAudio.dylib` doesn't exist. Must use `dotnet exec` from `bin/Debug/net8.0/osx-arm64/` where the dylib is copied by `build.sh`.
-- **Mac: DOTNET_ROOT required for native host** — The `AmpUp.Mac` native executable needs `DOTNET_ROOT=/opt/homebrew/opt/dotnet@8/libexec` set in the environment to find the .NET runtime. Only needed for dev builds; release .app bundles are self-contained.
-- **Mac: media keys via AppleScript app control** — CGEvent posting requires Accessibility permission. osascript+System Events also requires Accessibility. **Solution:** Use direct AppleScript app control (`tell application "Spotify" to playpause`) which needs no permissions. Falls back to Music app if Spotify isn't running.
-- **Windows: tray context menu dismissed by popup Deactivated** — Right-clicking a session row opened the context menu window, which stole focus from the tray popup, triggering Deactivated→Hide(). **Solution:** `_contextMenuOpen` flag suppresses Hide() during Deactivated while context menu is open.
-- **Windows: OSD monitor picker stale on display change** — Monitor combo only populated on load. **Solution:** Refresh on `IsVisibleChanged` (tab switch) and `SystemEvents.DisplaySettingsChanged`.
-- **Windows: tray device enumeration blocks UI** — `EnumerateAudioEndPoints` + `AudioSessionManager.Sessions` for non-default devices can take 3-5s with USB/Bluetooth devices. **Solution:** Move PID→device name map building to `Task.Run` with a separate `MMDeviceEnumerator`. Popup opens instantly, device badges fill in async.
-- **KnobEvent.IsBatch flag** — Batch frames (0x04) from device never trigger OSD, tracked via `IsBatch` flag on `KnobEvent`. HandleKnob skips OSD for batch events.
-- **Govee group brightness turn-on delay** — 150ms delay between `SendTurnAsync` and `SendBrightnessAsync` when device transitions from off to on. Without delay, brightness command is ignored.
-- **Govee LAN scan socket failure wipes device IPs** — If another app holds the UDP multicast port (4001), LAN scan fails and used to clear all device IPs. Fixed: scan now preserves existing devices when LAN scan fails.
-- **Cloud-only Govee devices must default PoweredOn=false** — Devices discovered via Cloud API (no LAN IP) default to `PoweredOn=false` and `SyncMode=off` to prevent interference with room effects that only target LAN devices.
-- **DreamSync.Stop() segment disable conflicts with Game Mode** — `DisableAllSegments` on stop was killing wall lights when cycling room effects. Removed active disable; segments auto-timeout after ~60s without keepalive.
-- **SendBrightnessAsync in room effect startup kicks out of razer mode** — Sending brightness API to segment devices during `StartRoomPattern` exits razer segment mode. Removed from startup path.
-- **Discord multi-session volume control (#13)** — NAudio only exposes the first session matching a process name, but Discord creates multiple sessions (voice + system). `RefreshSessions` now stores ALL sessions per process with compound key `name:pid`, and `SetVolume` iterates all matching sessions.
-- **DeviceSelect LED latency (#14)** — 500ms device-poll loop caused visible lag when switching outputs. Dynamic device count (3-8 based on actual devices configured). `HandleDeviceSwitched` now instantly updates LEDs without waiting for the poll interval.
-- **Aurora/Matrix/Starfield missing from SpanningEffects HashSet** — These effects were implemented but never added to the global-effect dispatch HashSet, so they silently fell back to solid color1 when selected in Global mode. Fixed — add all new spanning effects to `SpanningEffects` or they won't dispatch.
-- **Music Reactive thread safety** — `OnRoomFrame` must snapshot config at start (copy to locals) and use `Task.Run` for segment sends. Reading config fields directly in the audio callback or sending synchronously causes UI thread blocking and tearing.
-- **VU Fill must StopRoomPattern before starting** — Starting VU Fill while a room pattern is running causes competing Govee segment frames (fighting writes at 20fps). Always call StopRoomPattern first.
-- **Mirror is the default direction mode** — Previously SpatialSync was auto-enabled, which confused users with simple 2-device setups. Mirror is now the default; SpatialSync is opt-in via DIRECTION pills.
-- **DreamSync.Stop() segment disable kills wall lights** — Do NOT send `DisableAllSegments` on stop. Game Mode cycling off caused segments to go dark. Segments auto-timeout on device (~60s) so just let them expire.
-- **Premium palette color count** — BuiltInPalettes now ships 20 palettes with 6-7 color stops each (was 10 with 4-5 stops). If you add a palette with fewer than 6 stops, the gradient looks flat compared to the others.
-- **AudioPositionBlend global idleEffect required** — When `GlobalLight.Effect == AudioPositionBlend`, the engine needs `globalLight.idleEffect` set to a "boring" effect like Ocean. Without it, silent passages show a dim solid color instead of the intended fallback animation.
+- **Turn Up gamma table unused** — Official Turn Up source defines a gamma8 table but never applies it. Raw RGB is sent. Our default gamma is 1.0 (linear) to match.
+
+### Audio
+- **WASAPI loopback levels are very low** — NormRef=0.005f in AudioAnalyzer. If LEDs don't react, lower further.
+- **WASAPI master peak very low** — `MasterPeakValue` returns ~0.02-0.04. VU meter uses 2.3x uniform boost.
+- **Active window reads AmpUp's own PID** — `GetActiveWindowVolume` must skip `Environment.ProcessId`.
+- **MS Store apps use helper processes** — Apple Music audio runs through AMPLibraryAgent. AudioMixer indexes sessions by WASAPI DisplayName. FuzzyContains strips spaces for matching.
+- **Discord multi-session** — Discord creates multiple WASAPI sessions (voice + system). `RefreshSessions` stores ALL sessions per process with compound key `name:pid`.
+
+### Timing
+- **Single-press has ~300ms latency** — intentional for double-press detection.
+- **Hold threshold is 500ms** — configurable in `ButtonHandler.cs`.
+
+### Tray / OSD
+- **Tray popup DPI on multi-monitor** — Screen.WorkingArea returns physical pixels but WPF Left/Top expect DIPs. Must convert via TransformFromDevice.
+- **Monitor friendly names** — `Screen.DeviceName` only gives `\\.\DISPLAY1`. Use `NativeMethods.GetMonitorFriendlyNames()` for real names.
+- **OSD shows curve-applied volume** — OSD uses `VolumePipeline.ComputeVolume()`, not raw knob position.
+
+### Govee
+- **Govee LAN API** — UDP multicast to 239.255.255.250:4001 for discovery, listen on 4002. Control via unicast to device IP:**4003**. Rate limit: max 10 sends/sec. Segment protocol: enable=`BB 00 01 B1 01 [xor]`, colors=`BB [len] B0 00 [count] [RGB...] [xor]`, auto-disables after ~60s (keepalive every 30s).
+- **Govee colorwc implicitly turns on device** — AmbienceSync checks `device.PoweredOn` before sending.
+- **Govee Cloud API** — REST at openapi.api.govee.com, header `Govee-API-Key`. Rate limit: ~100 req/min, 10k/day.
+
+### Development
+- **Parallel agents can mismatch APIs** — when agents build caller and callee in parallel, method names may not match. Always verify interface alignment or build sequentially.
+- **New spanning effects must be in SpanningEffects HashSet** — or they silently fall back to solid color1 in Global mode.
+- **AudioPositionBlend global idleEffect required** — `globalLight.idleEffect` must be set (e.g. Ocean) or silent passages show dim solid color.
+- **Music Reactive thread safety** — `OnRoomFrame` must snapshot config at start and use `Task.Run` for segment sends.
+- **VU Fill must StopRoomPattern before starting** — otherwise competing Govee segment frames fight at 20fps.
+- **ScreenCapture gamma** — sRGB pixels must be linearized before averaging, then re-encoded.
 
 ---
 
 ## Version History
 
-- **v0.3.1-alpha** — Renamed from WolfMixer to AmpUp. Icon design, GitHub release.
-- **v0.3.2-alpha** — Audio-Reactive RGB (FFT), Mute App Group, Visual Curve Picker, Global Lighting, 6 new effects (Breathing/Fire/Comet/Sparkle/GradientFill), Profile Switch Transitions, EffectPickerControl, ActionPickerControl, App Group toggles, Power action tiles, custom scrollbars, full UI polish pass.
-- **v0.4.0-alpha** — 8 new LED effects, styled sliders, dynamic accent theming, view redesigns, chromeless color picker, file browse button, column-based button layout.
-- **v0.4.1-alpha** — Fix: Double Press and Hold gestures now show all context controls (device picker, macro, profile, power, knob) — previously only path textbox. Per-gesture config fields so each gesture has independent settings. New CheckListPicker multi-select for cycle_output/cycle_input device subset selection.
-- **v0.5.0-alpha** — Auto-ducking (DuckingEngine: fade other apps when trigger app speaks), auto-profile switching (AutoProfileSwitcher: foreground-window based profile selection), tray quick-mixer popup (left-click tray icon to show per-app volume sliders), profile export/import (save/load profile JSON files via file dialog). New Settings UI sections for all three features.
-- **v0.5.1-alpha** — Quick Assign from Tray (right-click tray → Assign Running Apps submenu → pick knob), Auto-Detect & Suggest Layout (amber banner in MixerView when known apps detected and knobs unconfigured), Knob Copy/Paste (right-click channel strip → Copy/Paste/Reset context menu with static clipboard).
-- **v0.5.2-alpha** — Bug fix: knob UI updates immediately on hardware turn (push position directly to MixerView via Dispatcher.BeginInvoke, bypassing 50ms poll). Bug fix: potentiometer jitter deadzone in SerialReader (±3 ADC count threshold suppresses noise). New LED effect: DeviceSelect — shows per-device colors based on which Windows output device is currently default (up to 3 device→color mappings per knob, configured in LightsView).
-- **v0.5.x (Mar 11 polish)** — Copy/paste context menus for Lights and Buttons views. UI consistency audit + tooltips across all views (standardized headers, labels, ComboBox styles; tooltips on every control explaining what it does). Moved Auto-Ducking and Auto-Profile Switching from Settings to collapsible "Smart Mix" section in Mixer tab. Friendly serial port selector with auto-detect (COM port dropdown, auto-detect button probes for CH343/CH340, connection status indicator, raw port/baud hidden under Advanced). 4 new per-knob LED effects (PositionBlend, Wheel, RainbowWheel, ProgramMute). Mute Device button action. 13 new global-spanning LED effects (TheaterChase, RainbowScanner, SparkleRain, BreathingSync, FireWall, DualRacer, Lightning, Fillup, Ocean, Collision, DNA, Rainfall, PoliceLights).
-- **v0.6.0-alpha (Mar 12)** — **Ambience tab**: Govee LAN sync + Cloud dashboard. 4-step API key setup wizard. AppGroupMute LED effect. Process picker UX. Win11 color picker fix. Bug audit (8 fixes). Theme consistency pass.
-- **v0.7.0-alpha (Mar 14)** — **Polish & ease of use release.** Inline sub-panel pickers (GridPicker/ActionPicker use single borderless Window with inline right panel — eliminates cross-HWND hover bugs). HA targets show "Home Assistant" with domain subtitle. Govee uses sub-flyout for device selection. App Group chips (pill tags replace checkboxes). Smart Mix redesign (Voice Ducking with ListPicker, App Profiles with dynamic add/remove rules). OSD horizontal 5-column profile layout (number badges, all 3 gestures with colored TAP/DBL/HOLD badges, LED color tints, configurable per-type duration). DreamView improvements (gamma-correct screen capture, dark pixel filtering, real monitor names via DisplayConfig API, device cards dim when active). Profile Overview page (renamed from Bindings, profile-aware navigation, Preview OSD button, LED color card tints). StyledSlider ShowLabel toggle. Wider combo boxes throughout.
-- **v0.7.2-alpha (Mar 14)** — **Bug fix release.** Fixed purple LED colors (gamma 2.8→2.0). Fixed DeviceSelect persistence (CollectAndSave was wiping DeviceMappings). Fixed multi-monitor tray menu positioning (Screen.FromPoint). OSD monitor selector with friendly names. Fixed tray mixer popup crash (Track.AppendChild). Fixed VU meters (persistent MMDevice for COM objects). Fixed VU freezing on theme change (Loaded handler restarts timer).
-- **v0.7.3-alpha (Mar 14)** — **Unified tray popup.** Left+right click open same popup with mixer, device switcher (click to cycle output/input), app assignment, Open/Exit, update banner. Ambient glow effect on mixer cards (audio-reactive, LED-tinted). Smooth knob lerp animation. Live LED color sync in UI (rainbow/fire effects cycle in mixer). OSD throttled to 10fps. Performance: visibility guards on all UI timers, brush caching, ~60% less background CPU.
-- **v0.7.4-alpha (Mar 14)** — **Hardware position request.** Discovered `FE 01 FF` command requests knob positions from device on connect (confirmed via serial probe — device only sends health pings, not auto-batch). Button cards dynamic height. OSD friendly labels. Full Turn Up protocol mapped (0x00-0x20 probed, only 0x01 responds).
-- **v0.7.5-alpha (Mar 14)** — **Per-segment DreamView.** Govee devices with known segments (H6056=6) receive individual colors via segment protocol instead of single solid color. Screen zones proportionally mapped to device segments. Fixed DreamView not syncing (auto-create device mappings). Fixed active_window showing wrong volume when AmpUp focused (skip own PID). Standard green/orange/red VU meters (2.3x boost). Channel label input UX (green caret, dark bg on focus, select-all).
-- **v0.7.6-alpha (Mar 14)** — **Bug fix: profile switching via button.** Fixed button-triggered profile switch discarding unsaved config (button bindings reverted when switching back). UI edits now persist to profile file immediately.
-- **v0.7.7-alpha (Mar 15)** — **DPI fix.** Fixed flyout popup positioning on multi-monitor setups with mixed DPI scaling (#6). All 7 PointToScreen sites corrected for PerMonitorV2.
-- **v0.8.0-alpha (Mar 15)** — **Interactive hardware widget + macOS port foundation.** Hardware device visualization on Overview page (live knob positions, LED colors, button states, tooltips). Profile editor (rename, icon, color — real-time save). Duplicate profile + reorder. AmpUp.Core shared library extracted (10-step refactor for cross-platform). OSD startup suppression. Unknown action color fix.
-- **v0.8.1-alpha (Mar 16)** — **Quick Wheel OSD + Monitor Brightness fix.** New OSD tab (moved OSD settings from Settings, added Quick Wheel config). RadialWheelOverlay: glass radial pie-menu for profile switching — hold button to open, spin knob or mouse hover to navigate, release/click to select, Escape to dismiss. Three input modes: hardware knob (30 ADC delta threshold), mouse (hover+click), keyboard (Escape). `quick_wheel` button action auto-syncs between OSD tab and Buttons tab. Monitor brightness throttle fix (#7): cached DDC/CI handles + 60ms throttled `SetThrottled()` with last-value-wins pattern. 5-second startup guard on monitor brightness (prevents flicker on boot, same pattern as HA). Quick Wheel added to button action picker under System category.
-- **v0.8.2-alpha (Mar 16)** — **Quick Wheel mode selector + tray audio activity.** Quick Wheel supports two modes (Profile / Output Device) selectable in OSD settings. Any knob navigates (removed single-knob restriction). 8-slot flower layout with profile icons/colors. Tray popup shows per-app audio peak level bars. Fuzzy process name matching for MS Store apps (#8). Phantom OSD suppression (reconnect + value-change guards). Buttons tab syncs when Quick Wheel toggled.
-- **v0.8.3-alpha (Mar 16)** — **Purple LED fix + LED Calibration.** Confirmed official Turn Up app sends raw RGB (no gamma). Default gamma now 1.0. LED Calibration in Settings: per-channel R/G/B gamma sliders with live hardware preview (test color swatches). WASAPI DisplayName session indexing fixes Apple Music (#8). Installer version extraction fix.
-- **v0.8.4-alpha (Mar 16)** — **Multi-monitor tray fix + fullscreen OSD.** DPI-aware tray popup positioning (pixel→DIP conversion). Vertical taskbar detection. Hide OSD in fullscreen option. Quick Wheel follows theme accent color.
-- **v0.8.5-alpha (Mar 16)** — **Multiple Quick Wheels + Govee fixes.** Config changed from single QuickWheel to list of QuickWheels — each button can trigger a different wheel mode. OSD layout redesign (vertical flow, separate value labels). Govee PoweredOn state: on/off checkbox persists to config, color sync respects it, 5s startup guard. Govee knob turns update Ambience UI live (on/off checkbox + brightness slider). StyledSlider Step/LabelFormat properties for decimal sliders.
-- **v0.1.0-alpha-mac (Mar 15)** — **First macOS release.** Per-app volume control via Core Audio Process Taps (first hardware mixer to do this on Mac). Avalonia UI with dark theme. All views: Mixer, Buttons, Lights, Settings. Serial + LEDs + buttons all working on Apple Silicon.
-- **v0.8.5-alpha (Mar 17)** — **Massive update: Mac port complete, tray overhaul, bug fixes from first user (Rapdactyl).**
-  - **User-reported bug fixes:** Instant mute LED feedback (OnVolumeNotification callbacks), solid mute LED colors (removed unwanted breathing/pink shift), tray icon resilience (survives monitor config changes via DisplaySettingsChanged + WM_TASKBARCREATED).
-  - **Tray mixer overhaul (EarTrumpet-inspired):** 32px rounded app icons, scroll wheel volume on rows, volume % tray icon indicator, per-app device badges, search/filter bar, pin apps to top, System Sounds row, scroll wheel on tray icon for master volume, middle-click mute toggle, Quick Assign panel (app grid + inline knob picker), right-click context menu (assign to knob, move to device, hide/show), themed HoverComboBox device dropdowns, live mute state polling, deduplicated app list (Discord fix), friendly display names (Apple Music fix).
-  - **New views:** Live Hardware Preview strip (bottom bar — LED colors, knob positions, VU levels), Audio Dashboard (Activity tab — all audio sessions with levels, knob assignments, quick-assign).
-  - **Mac port feature-complete:** All views ported to Avalonia, editable pickers (knob/button/LED), menu bar tray icon, .app bundle + DMG installer, Govee LAN/Cloud + HA + DreamView wiring, auto-update, Hardware Preview strip, Audio Dashboard, real OSD overlay (transparent topmost window), keyboard shortcuts (Cmd+1-6), full polish audit.
-  - **Build:** Framework-dependent builds (installer ~55MB → ~5-8MB), .NET 8 Desktop Runtime auto-detection in installer.
-  - **Repo:** Mac code merged into master (single branch), versions synced (both 0.8.5-alpha).
-
-- **v0.9.0-alpha (Mar 17)** — **Major UI overhaul + cross-platform polish.**
-  - **Lights redesign:** Segmented "Per Knob / Global" tab toggle replaces checkbox. Presets hidden until Global enabled, shown inside Global card.
-  - **Audio Sessions in Mixer:** Collapsible section replaces Activity tab. Inline knob assignment pills, hide/show apps, no STATUS column. Session list doesn't rebuild while assign panel is expanded.
-  - **Tray popup redesign:** Footer removed. Header has AMP UP (click to open app), Quick Assign button, X close. Device dropdown with chevron arrow — click name to quick-cycle checked devices, click chevron for full list. Checkboxes for quick-swap device subset (persisted to config). Tray follows app theme accent color (ThemeManager.Accent, not Windows system blue). Update banner moved above sessions.
-  - **Per-knob LED preview:** Color picker only lights up the knob being edited. Global picker still previews all 5.
-  - **PositionFill fix:** Uses single primary color (was incorrectly blending color1→color2 like PositionBlend).
-  - **Material icon fallbacks:** Apps without extractable icons show MaterialIconKind.Application instead of plain letter.
-  - **Modernized button path inputs:** Rounded borders (CornerRadius=6), Material FolderOpen/FormatListBulleted icons, vertically centered text.
-  - **Accent-colored Overview buttons:** Duplicate, Preview OSD, and arrow buttons use accent-tinted styling.
-  - **Nav indicators removed:** Dot/bar indicators removed — accent-colored text/icon is sufficient.
-  - **Blue window border removed:** BorderThickness=0 on FluentWindow.
-  - **OSD ghost suppression:** Threshold bumped from ±8 to ±15 ADC counts.
-  - **Button startup guard:** 5s startup + 2s reconnect guard on button events prevents phantom sleep/actions on app open.
-  - **Hardware preview footer hidden:** HardwarePreview strip collapsed, row height set to Auto.
-  - **Lights view scrollable:** Wrapped in ScrollViewer (was clipped at bottom).
-  - **Import removed from nav:** Settings moved to bottom of sidebar. Import button added to Welcome dialog instead.
-  - **Deploy.bat fix:** Uses `git fetch origin && git reset --hard origin/master` instead of `git reset --hard HEAD` (fixes conflicts from Mac .sh files).
-  - **Build fixes:** AmpUp.Mac excluded from WPF glob in .csproj, all warnings suppressed (VoiceMeeter SupportedOSPlatform, nullable dereference).
-  - **CycleDeviceSubset config:** New `Dictionary<string, List<string>>` field for persisting quick-swap device subsets.
-  - **Mac: Material Icons throughout** — Added Material.Icons.Avalonia package. All nav icons, button actions, ambience scenes, audio dashboard use MaterialIcon controls matching Windows.
-  - **Mac: RGB lights fix** — Knob positions initialized to 1.0 on connect + ApplyColors() immediate render. Config (lights, gamma, brightness) applied on startup and save.
-  - **Mac: Quick Wheel working** — Hold-button opens RadialWheelOverlay, knob navigates segments, release confirms selection. Profile switching via wheel.
-  - **Mac: Audio device selection** — Native Swift bridge for Core Audio device enumeration. Settings view shows output/input device dropdowns with all available devices.
-  - **Mac: App identity** — CFBundleName/CFBundleDisplayName set to "Amp Up". Proper macOS app menu (About, Preferences, Quit). Tray icon shows app logo.
-  - **Mac: Native window controls** — Traffic light buttons (close/minimize/zoom) visible. Header bar draggable.
-  - **Mac: Swift 6.2 fixes** — CATapDescription API, AudioHardwareCreateProcessTap, VirtualMasterVolume→VirtualMainVolume rename, peakSize let→var.
-
-- **v0.9.2-alpha (Mar 19)** — **Bug fix release + Mac audio/quit fixes.**
-  - **Windows bug fixes:** Tray right-click context menu no longer instantly dismissed (_contextMenuOpen flag). OSD monitor picker refreshes on display change (DisplaySettingsChanged + IsVisibleChanged). Tray popup crash fix (IsVisible guard on Hide). Tray popup instant open (device enumeration moved to background thread).
-  - **Mac: per-app volume fixed** — libAmpUpAudio.dylib wasn't loading because deploy.sh used `dotnet run` (wrong working dir). Fixed to `dotnet exec` from build output. Also fixed dylib not copied to osx-arm64 RID folder.
-  - **Mac: media keys working** — Play/Pause/Next/Prev buttons use direct AppleScript app control (`tell application "Spotify" to playpause`). No Accessibility permission needed.
-  - **Mac: quit fully working** — Extensive fix for Avalonia on macOS refusing to exit. NativeMenu handlers block all exit calls (Environment.Exit, Process.Kill, _exit, kill -9). Solution: background "quit watcher" thread polls a volatile bool flag, calls Environment.Exit from its own context. Cleanup runs on background thread with 2s timeout to prevent hanging. All quit paths (tray, Dock, Cmd+Q) route through same mechanism.
-  - **Mac: dev workflow** — Desktop shortcuts: "AmpUp Test" (AppleScript app, launches dev build silently), "AmpUp Build" (pulls + builds). Production install at /Applications/AmpUp.app with auto-updater.
-
-- **v0.9.3-alpha (Mar 21)** — **Major LED effects overhaul + OSD accuracy fix.**
-  - **OSD curve-applied volume:** OSD now shows actual volume (with response curve applied via VolumePipeline) instead of raw knob position. Fixes "88% shown when volume is 100%" with non-linear curves. Per-knob final-value timer ensures last position always displays after fast turns.
-  - **MixerView rounding:** `Math.Round` instead of truncation for volume percentages.
-  - **SerialReader:** Jitter deadzone increased to ±5. Endpoint snap uses raw value before snap to prevent oscillation at snap boundary.
-  - **LED effects overhaul (6 new, 5 improved):**
-    - **New per-knob:** Heartbeat (lub-dub pulse), Plasma (psychedelic sine waves), Drip (liquid drop + splash)
-    - **New global:** Aurora (northern lights), Matrix (digital rain), Starfield (gentle twinkling)
-    - **Improved:** Fire (smooth candle-style, no more strobing), Pulse (per-LED phase offset ripple), AudioReactive SpectrumBands (3-LED VU fill), RainbowWave/RainbowCycle (speed slider now works)
-    - **Fixed:** Collision timing bug at high speeds, PositionFill/PositionBlend smooth fade matching Turn Up source
-    - **New fill variants:** CycleFill (fill + color cycling), RainbowFill (fill + rainbow hues)
-  - **Color presets:** Per-knob CUSTOM/PRESETS tab toggle. 10 gradient palettes (Fire, Ocean, Sunset, Neon, Ice, Forest, Lava, Galaxy, Mint, Storm). Click to set both colors instantly.
-  - **Effect preset colors:** Effects like Fire auto-set ideal colors on selection. Rainbow effects hide color pickers entirely.
-  - **Hardware hover preview:** Hovering over effect tiles temporarily shows that effect on Turn Up LEDs.
-  - **Slimmer header:** Per Knob/Global toggle card reduced padding.
-
-- **v0.9.4-alpha (Mar 28)** — **Room tab redesign + Corsair enhancements.**
-  - **AmbienceView renamed to RoomView.** Pill-style tab bar (Global / Govee / Corsair) matching Lights tab.
-  - **Dynamic toggle rows:** BuildToggleTile helper for self-updating mini card toggles per tab. Global: [AMP UP] [MUSIC REACTIVE] [SCREEN SYNC]. Govee: [SYNC TO GLOBAL] [MUSIC SYNC]. Corsair: [SYNC TO GLOBAL] [MUSIC SYNC]. BuildStatusTile for read-only status cards.
-  - **Screen Sync settings** now collapsible inside room card (no separate card).
-  - **Corsair tab:** PRIMARY/SECONDARY color pickers with 10 gradient presets, speed slider, effect picker. corsairOnly flag prevents Govee leak. Section headers use ThemeManager.Accent.
-  - **Music Reactive:** Global keeps room effect playing, modulates brightness via audio energy. Govee LAN sends per-device bass=R/mid=G/treble=B.
-  - **StartRoomPattern** now accepts optional `Color c1, Color c2, bool corsairOnly` params.
-  - **LED toggles:** Centered mini cards (58x42) with knob names instead of old numbered squares.
-  - **KnobEvent.IsBatch:** New flag to identify batch frames (0x04). HandleKnob skips OSD for batch events.
-
-- **v0.9.5-alpha (Mar 28)** — **Groups global + Govee flyout sub-menus.**
-  - **Groups are global:** Added to `PreserveGlobalSettings()` in both MainWindow and SettingsView.
-  - **Govee flyout sub-menus:** govee_toggle/govee_color/govee_white_toggle now use ActionPicker sub-menus (same pattern as select_output).
-  - **Settings footer:** Static Buy Me a Coffee pill button at bottom of Settings page.
-  - **Corsair detected devices** moved from Corsair room tab to Settings tab (SetCorsairSync + PopulateCorsairDeviceList).
-
-- **v0.9.6-alpha (Mar 28)** — **Profile + Group pickers use flyout sub-menus.**
-  - **Profile picker:** switch_profile and cycle_profile use flyout sub-menus in GridPicker/ActionPicker instead of dropdowns.
-  - **Group picker:** Group targets use flyout sub-menus in GridPicker instead of dropdowns.
-
-- **v0.9.9-alpha (Apr 14)** — **Card Themes + Room Effects + Label Readability.**
-  - **12 card themes:** Settings → Appearance → Card Theme. Midnight (default), Blue Steel, Ocean, Teal, Ice, Ember, Forest, Violet, Rose, Slate, Obsidian, Mocha. Each theme tints BgBase/BgDark/CardBg/CardBorder/InputBg/InputBorder. `ThemeManager.SetCardTheme()` updates DynamicResource brushes at runtime. ~250 hardcoded grey values converted to DynamicResource bindings across 22 files. Gradient swatch picker in Settings shows actual theme colors.
-  - **6 new room sweep effects:** Tidal (ocean surge), Prism (rainbow refraction), Embers (glowing coals), Shockwave (expanding pulse), Vortex (spiraling tunnel), Glitch (digital corruption). All HSV-generated — palette controls auto-hidden.
-  - **Label readability overhaul:** TextDim `#555555` → `#8A8A8A`, TextSec `#9A9A9A` → `#B0B0B0`. All hardcoded dim label text brightened across 15+ files.
-  - **DeviceSelect dynamic rows fix (#14):** `PopulateDeviceSelectPickers` hardcoded `row < 3` → iterates actual length. `RebuildDeviceSelectRows()` recreates UI when device count changes.
-  - **Room effect persistence:** Effect, palette, speed, brightness, direction restored on app restart.
-  - **Room effect resumes** after group toggle turns lights back on.
-  - **Music Reactive fix:** No more double-modulation crushing brightness to near-black.
-  - **Screen Sync redesign:** Single-column layout, full-width preview at ~5 FPS, vertical edge mapping for light bars (LeftVertical/RightVertical).
-  - **Screen Sync color fix:** Red no longer shows as pink (raised dark pixel threshold + saturation).
-  - **Crop preview fix:** Manual crop lines now properly applied to capture.
-  - **HA searchable entity picker:** Replaces text input in Groups with async entity fetch + glass style.
-  - **HA per-entity action picker:** Toggle / Turn On / Turn Off selectable per device.
-  - **Govee H61A0 support:** 19-segment RGBIC Neon Rope Light.
-  - **Startup volume blast fixed.** Cross-thread WindowState crash fixed. UI timers stop when minimized. Duplicate palette swatches removed.
-
-- **v0.9.8-alpha (Apr 11)** — **Major UI facelift + Phosphor Duotone icons.**
-  - **Animated effect tiles:** Every effect tile in the picker now shows a live animated mini-visualizer (gradient fills, EQ bars, sine waves, ECG heartbeat, fire flicker, aurora drift). 57 unique renders via `EffectPreviewControl` — shared 30 FPS timer, auto-pauses hidden tiles. Tiles unified at 82px wide.
-  - **Phosphor Duotone icons:** 29 duotone icons (base at 0.2 opacity + detail at full) via `PhosphorIcon` control + `Icons/PhosphorIcons.xaml` ResourceDictionary. Sidebar nav icons replaced: Gear, SlidersHorizontal, Keyboard, Lightbulb, House, Monitor, Link, AppWindow.
-  - **Section cards everywhere:** All tabs (Mixer, Lights, Room, OSD) use separate rounded cards per section with accent-bar headers, matching the Settings page pattern. `MakeSectionCard` helper in each view.
-  - **Consistent hover animations:** All clickable cards get 1px lift + border brighten on hover via `TranslateTransform`.
-  - **Mixer tab redesign:** Renamed from "Knobs" to "Mixer". Channel strip split from settings into separate cards. TARGET/CURVE/VOLUME RANGE aligned across columns via Grid rows. Smart Mix + Audio Sessions in cards. GridPicker dropdown: hidden scrollbar, content-width sizing.
-  - **Lights tab:** Per-knob selector cards show live effect previews (replacing emoji + color dots). Global knob toggles enlarged to 132×92 with effect previews. Calibration split into TEST COLORS / MUTE DIM / GAMMA cards. BRIGHTNESS moved below knob selectors on Global tab.
-  - **Room tab:** Tab bar in own card. Room Effect converted to single-column cards. VU Fill pills replaced with animated preview tiles. Mode toggles float without card wrapper. Device zone dropdowns widened.
-  - **Color preset tiles:** Renamed PALETTE → COLORS. Swatches enlarged to 50×22 with multi-stop gradients. Card-style tiles (#1E1E1E bg, 6px rounded corners).
-  - **CurvePickerControl:** ClipToBounds fix — curve line no longer bleeds outside card border.
-  - **Buttons:** Folder browse icon dimmed to secondary text color.
-
-- **v0.9.7-alpha (Apr 5-9)** — **Major: Spatial Screen Sync + Room tab redesign + 10 new effects + palette overhaul + critical bug fixes.**
-  - **Monitor-aware spatial Screen Sync:** ScreenSpatialMapper computes per-device screen sampling regions based on monitor placement in room layout. Devices auto-mapped to screen edges based on physical position. 2D zone grid capture for height-aware sampling.
-  - **ScreenEdgeControl:** Front-view monitor control with draggable crop lines for pillarbox/letterbox content boundaries. Per-device crop mode (Content/Full Screen/Ambient) via `DeviceCropMode` enum.
-  - **Room tab redesigned (major):** Material-style UNDERLINE tab bar (ROOM EFFECT / LAYOUT / DEVICES) replaces pill tabs. ROOM EFFECT is a two-column layout — LEFT category tab bar (STATIC / ANIMATED / REACTIVE / GLOBAL SPAN) filters EffectPickerControl via new `SetVisibleCategory`; RIGHT is a 280px dark card with PALETTE (gradient editor + 24 preset swatches in 2-row wrap), SPEED, BRIGHTNESS, DIRECTION pills. LAYOUT tab: 420px room canvas + device placement. DEVICES tab: Govee + Corsair + Turn Up sections.
-  - **Material-style underline tabs everywhere:** Room tab bar, Lights tab bar (PER KNOB / GLOBAL), effect category tab bar all use the same pattern — no background container, bottom divider line, 2px accent underline under active tab, hover brightens inactive text.
-  - **Toggle row:** `[AMP UP] [MUSIC REACTIVE] [VU FILL] [SCREEN SYNC] [GAME MODE]`. Music Reactive sub-row: SENSITIVITY slider (1-100%). VU Fill sub-row: 6 MODE pills.
-  - **VU Fill room mode (6 modes):** Classic (bottom→top energy), Split (bass=L, treble=R), Rainfall (onset-triggered drips), Pulse (bass pulse all segments), Spectrum (per-segment frequency band), Drip (liquid gravity pool at bottom). All use palette gradient, paired panels mirror. WLED-style onset detection (running average + threshold + hysteresis). Single-color devices (lamps) use brightness pulsing instead of color shift.
-  - **10 new LED spanning effects:** `Equalizer` (5-band VU across 15 LEDs), `Waterfall` (colors cascading down), `Lava` (4 Gaussian blobs with sine motion, lava-lamp feel), `VuWave` (bass-driven ripples), `NebulaDrift` (full 360-hue rainbow Aurora with multi-layer sines), `AudioPositionBlend` (per-knob + global mode with configurable idle effect — crossfades between PositionBlend/idle and AudioReactive on beats). Also fixed **Aurora / Matrix / Starfield** missing from `SpanningEffects` HashSet — they now actually dispatch in Global mode.
-  - **Improved effects (Aurora-quality upgrades):** **Ocean** now uses HSV color shifting (blue/teal/cyan), brightness squaring, whitecap foam. **FireWall** blends smooth random with 3 sine layers and HSV warm hues (red→orange→yellow). **ColorWave** uses 3 sine layers instead of simple scroll + brightness squaring.
-  - **20 premium color palettes:** 6 new (Cyberpunk, Sakura, Twilight, Coral Reef, Lavender, Copper). All existing palettes upgraded from 4-5 to 6-7 color stops for richer gradients.
-  - **Palette UI improvements:** PaletteEditorControl has larger preset swatches (40x20px with labels, hover/active states, 2-row wrapping). Cleaner Add Stop button (filled dark circle right of gradient bar, no overlap). Auto-deselect chip after color picker closes. Per-knob preset tiles in LightsView use card layout (gradient thumbnail + label, hover accent border).
-  - **Music Reactive improvements:** Bass+low-mid frequency detection (≤2kHz, no treble). Squared energy for dramatic contrast. Fast attack / fast decay. Modulates full LED frame brightness (not just averaged color). Keeps room effect playing when silent, pulses on beats. `IsMusicReactiveActive` property keeps AudioAnalyzer alive through config saves. `OnRoomFrame` snapshots config at start and uses `Task.Run` for segment sends (no UI thread blocking).
-  - **Turn Up Mixer:** `syncRoomToTurnUp` config — syncs room effect and VU Fill colors to Turn Up hardware LEDs.
-  - **Sync Screen to Turn Up:** `screenSync.syncToTurnUp` config — screen sync colors drive hardware knob LEDs.
-  - **Faster Game Mode transitions:** Polling 1s (was 2s), debounce 3s (was 10s). When Screen Sync or Game Mode activates, Music Reactive + VU Fill stop; Game Mode exit restores previous state.
-  - **Mirror is default direction** — removed auto-enable of SpatialSync (was confusing with simple 2-device setups).
-  - **Critical bug fix: Govee LAN scan wipes device IPs** — when UDP multicast port (4001) was held by another app, LAN scan failed and cloud fallback replaced devices with `Ip=""`, silently wiping saved IPs. SettingsView.OnGoveeScan now preserves existing devices when scan fails.
-  - **Bug fix: Cloud-only devices** default to `PoweredOn=false` and `SyncMode=off` to prevent interference with room effects.
-  - **Bug fix: DreamSync.Stop() no longer disables segments** — Game Mode cycling was killing wall lights. Segments auto-timeout on device.
-  - **Bug fix: SendBrightnessAsync removed from StartRoomPattern** — was kicking segment devices out of razer mode.
-  - **Bug fix: Discord volume control (#13)** — NAudio only surfaces first session per process, but Discord creates multiple. `RefreshSessions` now stores ALL sessions per process (compound key `name:pid`), `SetVolume` iterates all matching sessions.
-  - **Bug fix: DeviceSelect LED update latency (#14)** — Dynamic device count (3-8 based on actual devices configured), `HandleDeviceSwitched` instantly updates without waiting for 500ms device poll.
-  - **Config additions:** `ambience.syncRoomToTurnUp` (bool), `ambience.musicSensitivity` (1-100, default 50), `ambience.vuFillMode` (enum: Classic/Split/Rainfall/Pulse/Spectrum/Drip), `screenSync.syncToTurnUp` (bool), `globalLight.idleEffect` (LightEffect for AudioPositionBlend global mode), `roomLayout` with monitor placement (`MonitorPlacement`) and device positions for spatial mapping.
-  - **AmbienceSync:** `SendSegmentFrame` is now public for VU Fill per-segment control. Multi-session Discord support.
+- **v0.7.0-alpha** — Inline sub-panel pickers, app group chips, Smart Mix redesign, OSD overhaul, DreamView gamma-correct capture, Profile Overview page.
+- **v0.7.2-alpha** — Bug fixes: purple LEDs, DeviceSelect persistence, multi-monitor tray, VU meters.
+- **v0.7.3-alpha** — Unified tray popup (left+right click), ambient glow on mixer cards, smooth knob lerp, live LED color sync.
+- **v0.7.4-alpha** — Discovered `FE 01 FF` info request command. Full Turn Up protocol mapped.
+- **v0.7.5-alpha** — Per-segment DreamView, screen zone mapping, green/orange/red VU meters.
+- **v0.7.6-alpha** — Fixed profile switching via button discarding unsaved config.
+- **v0.7.7-alpha** — DPI fix for flyout popups on mixed-DPI multi-monitor setups.
+- **v0.8.0-alpha** — Hardware device widget on Overview, profile editor, AmpUp.Core shared library extracted for cross-platform.
+- **v0.8.1-alpha** — Quick Wheel radial OSD, monitor brightness DDC/CI throttle fix, OSD tab.
+- **v0.8.2-alpha** — Quick Wheel mode selector (Profile/Output Device), tray audio activity bars, fuzzy process matching.
+- **v0.8.3-alpha** — LED Calibration with per-channel gamma sliders, confirmed Turn Up sends raw RGB (gamma default 1.0).
+- **v0.8.4-alpha** — DPI-aware tray popup, vertical taskbar detection, hide OSD in fullscreen.
+- **v0.8.5-alpha** — Multiple Quick Wheels, Govee PoweredOn persistence, Mac port feature-complete, tray overhaul (EarTrumpet-inspired), framework-dependent builds.
+- **v0.1.0-alpha-mac** — First macOS release with per-app volume via Core Audio Process Taps.
+- **v0.9.0-alpha** — Major UI overhaul: Lights tab redesign, audio sessions in Mixer, tray popup redesign, per-knob LED preview.
+- **v0.9.2-alpha** — Bug fixes: tray context menu, OSD monitor picker refresh, Mac per-app volume and quit fixes.
+- **v0.9.3-alpha** — LED effects overhaul (6 new, 5 improved), OSD curve-applied volume, color presets, hardware hover preview.
+- **v0.9.4-alpha** — Room tab redesign (AmbienceView renamed), Corsair enhancements, Music Reactive brightness modulation.
+- **v0.9.5-alpha** — Groups global, Govee flyout sub-menus, Corsair devices moved to Settings.
+- **v0.9.6-alpha** — Profile and Group pickers use flyout sub-menus.
+- **v0.9.7-alpha** — Spatial Screen Sync, Room tab two-column redesign, 10 new spanning effects, 20 premium palettes, VU Fill 6 modes, critical Govee bug fixes.
+- **v0.9.8-alpha** — Animated effect preview tiles, Phosphor Duotone icons, section cards UI pattern, Mixer/Lights/Room tab redesigns.
+- **v0.9.9-alpha** — 12 card themes, 6 new room sweep effects (HSV-generated), label readability overhaul, Screen Sync redesign, HA searchable entity picker.
 
 ---
 
@@ -891,11 +687,11 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 
 ## Roadmap
 
-### Completed ✅
+### Completed
 - [x] **OBS Studio integration** — source gain, mute, scene switching (WebSocket v5)
 - [x] **VoiceMeeter integration** — strip/bus gain control and mute
 - [x] **Plugin system** — interfaces (ITurnUpPlugin, etc.) + LED presets (12 built-in)
-- [x] **Exponential2 response curve** — steeper x³/10000 for fine control at low volumes
+- [x] **Exponential2 response curve** — steeper x^3/10000 for fine control at low volumes
 - [x] **Audio device type distinction** — separate Media vs Communications vs Both when cycling/selecting
 - [x] **Mac: editable views** — knob target picker, button action picker, light effect picker
 - [x] **Mac: proper .app bundle** — drag-to-Applications DMG install
