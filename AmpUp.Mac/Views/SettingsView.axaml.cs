@@ -25,8 +25,6 @@ public partial class SettingsView : UserControl
     private List<MacAudioDeviceBridge.AudioDeviceInfo> _outputDevices = new();
     private List<MacAudioDeviceBridge.AudioDeviceInfo> _inputDevices = new();
 
-    public Action? OnNavigateToOverview { get; set; }
-
     public SettingsView()
     {
         InitializeComponent();
@@ -50,7 +48,6 @@ public partial class SettingsView : UserControl
         BtnAddProfile.Click += (_, _) => OnAddProfile();
         BtnRenameProfile.Click += (_, _) => OnRenameProfile();
         BtnDeleteProfile.Click += (_, _) => OnDeleteProfile();
-        BtnOverview.Click += (_, _) => OnNavigateToOverview?.Invoke();
 
         // Home Assistant
         ChkHaEnabled.IsCheckedChanged += OnHaEnabledChanged;

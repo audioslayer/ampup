@@ -155,7 +155,6 @@
                                 <Button x:Name="BtnDeleteProfile" Content="Delete"
                                         Background="{DynamicResource DangerRedBrush}"
                                         Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <Button x:Name="BtnOverview" Content="Overview" />
                             </StackPanel>
                         </StackPanel>
                     </StackPanel>
