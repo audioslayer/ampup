@@ -18,42 +18,21 @@ public partial class ButtonsView : UserControl
     private Action<AppConfig>? _onSave;
     private bool _loading;
 
-    // Action definitions — full 26-action set
+    // Action definitions — trimmed to actions currently handled by the Mac backend
     private static readonly (string Display, string Value, MaterialIconKind Icon, string Category, Color Color)[] AllActions =
     {
-        ("None",              "none",              MaterialIconKind.MinusCircleOutline,    "Media",   Color.Parse("#444444")),
-        ("Play / Pause",      "media_play_pause",  MaterialIconKind.PlayPause,             "Media",   Color.Parse("#66BB6A")),
-        ("Next Track",        "media_next",        MaterialIconKind.SkipNext,              "Media",   Color.Parse("#66BB6A")),
-        ("Prev Track",        "media_prev",        MaterialIconKind.SkipPrevious,          "Media",   Color.Parse("#66BB6A")),
-        ("Mute Volume",       "mute_master",       MaterialIconKind.VolumeOff,             "Mute",    Color.Parse("#EF5350")),
-        ("Mute Mic",          "mute_mic",          MaterialIconKind.MicrophoneOff,         "Mute",    Color.Parse("#EF5350")),
-        ("Mute App",          "mute_program",      MaterialIconKind.VolumeOff,             "Mute",    Color.Parse("#EF5350")),
-        ("Mute Active Win",   "mute_active_window",MaterialIconKind.VolumeOff,             "Mute",    Color.Parse("#EF5350")),
-        ("Mute App Group",    "mute_app_group",    MaterialIconKind.VolumeOff,             "Mute",    Color.Parse("#EF5350")),
-        ("Mute Device",       "mute_device",       MaterialIconKind.VolumeOff,             "Mute",    Color.Parse("#EF5350")),
-        ("Launch App",        "launch_exe",        MaterialIconKind.RocketLaunch,          "App",     Color.Parse("#42A5F5")),
-        ("Close App",         "close_program",     MaterialIconKind.CloseCircle,           "App",     Color.Parse("#FF7C43")),
-        ("Cycle Output",      "cycle_output",      MaterialIconKind.VolumeHigh,            "Device",  Color.Parse("#AB47BC")),
-        ("Cycle Input",       "cycle_input",       MaterialIconKind.Microphone,            "Device",  Color.Parse("#AB47BC")),
-        ("Select Output",     "select_output",     MaterialIconKind.VolumeHigh,            "Device",  Color.Parse("#CE93D8")),
-        ("Select Input",      "select_input",      MaterialIconKind.Microphone,            "Device",  Color.Parse("#CE93D8")),
-        ("Keyboard Macro",    "macro",             MaterialIconKind.Keyboard,              "System",  Color.Parse("#FFD54F")),
-        ("Switch Profile",    "switch_profile",    MaterialIconKind.SwapHorizontal,        "System",  Color.Parse("#29B6F6")),
-        ("Cycle Brightness",  "cycle_brightness",  MaterialIconKind.Lightbulb,             "System",  Color.Parse("#FFF176")),
-        ("Quick Wheel",       "quick_wheel",       MaterialIconKind.FerrisWheel,           "System",  Color.Parse("#80DEEA")),
-        ("Sleep",             "power_sleep",       MaterialIconKind.Sleep,                 "Power",   Color.Parse("#78909C")),
-        ("Lock Screen",       "power_lock",        MaterialIconKind.Lock,                  "Power",   Color.Parse("#90A4AE")),
-        ("Shut Down",         "power_off",         MaterialIconKind.Power,                 "Power",   Color.Parse("#FF7043")),
-        ("Restart",           "power_restart",     MaterialIconKind.Restart,               "Power",   Color.Parse("#FF8A65")),
-        ("Log Off",           "power_logoff",      MaterialIconKind.Logout,                "Power",   Color.Parse("#BCAAA4")),
-        ("Hibernate",         "power_hibernate",   MaterialIconKind.WeatherNight,          "Power",   Color.Parse("#7986CB")),
+        ("None",           "none",             MaterialIconKind.MinusCircleOutline, "Media",  Color.Parse("#444444")),
+        ("Play / Pause",   "media_play_pause", MaterialIconKind.PlayPause,          "Media",  Color.Parse("#66BB6A")),
+        ("Next Track",     "media_next",       MaterialIconKind.SkipNext,           "Media",  Color.Parse("#66BB6A")),
+        ("Prev Track",     "media_prev",       MaterialIconKind.SkipPrevious,       "Media",  Color.Parse("#66BB6A")),
+        ("Switch Profile", "switch_profile",   MaterialIconKind.SwapHorizontal,     "System", Color.Parse("#29B6F6")),
+        ("Quick Wheel",    "quick_wheel",      MaterialIconKind.FerrisWheel,        "System", Color.Parse("#80DEEA")),
     };
 
-    private static readonly string[] PathActions = { "mute_program", "launch_exe", "close_program" };
-    private static readonly string[] MacroActions = { "macro" };
+    private static readonly string[] PathActions = Array.Empty<string>();
+    private static readonly string[] MacroActions = Array.Empty<string>();
     private static readonly string[] ProfileActions = { "switch_profile" };
-    private static readonly string[] KnobActions = { "mute_app_group" };
-    private static readonly string[] DeviceSelectActions = { "select_output", "select_input" };
+    private static readonly string[] KnobActions = Array.Empty<string>();
 
     // Per-column controls
     private readonly TextBlock[] _headers = new TextBlock[5];

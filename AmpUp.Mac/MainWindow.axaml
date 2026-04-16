@@ -72,21 +72,6 @@
 
                     <!-- Nav items -->
                     <DockPanel Grid.Row="1" Margin="0,12,0,0" LastChildFill="True">
-                        <!-- Bottom nav items -->
-                        <Button x:Name="NavBindings" Classes="NavButton" DockPanel.Dock="Bottom"
-                                Click="NavBindings_Click" ToolTip.Tip="Profile Overview">
-                            <StackPanel HorizontalAlignment="Center">
-                                <Border x:Name="NavBindingsBar" Width="3" Height="20" CornerRadius="2"
-                                        Background="{DynamicResource AccentBrush}"
-                                        IsVisible="False" HorizontalAlignment="Left" Margin="-4,0,0,0" />
-                                <mi:MaterialIcon Kind="ViewDashboard" Width="22" Height="22"
-                                           HorizontalAlignment="Center" />
-                                <TextBlock x:Name="NavBindingsLabel" Text="Overview" FontSize="9"
-                                           Foreground="{DynamicResource TextSecBrush}"
-                                           HorizontalAlignment="Center" Margin="0,3,0,0" />
-                            </StackPanel>
-                        </Button>
-
                         <!-- Main nav items -->
                         <StackPanel>
                             <Button x:Name="NavMixer" Classes="NavButton" Click="NavMixer_Click">
@@ -97,7 +82,7 @@
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
                                         <mi:MaterialIcon Kind="TuneVariant" Width="22" Height="22"
                                                    HorizontalAlignment="Center" />
-                                        <TextBlock x:Name="NavMixerLabel" Text="Knobs" FontSize="9"
+                                        <TextBlock x:Name="NavMixerLabel" Text="Mixer" FontSize="9"
                                                    Foreground="{DynamicResource TextSecBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
@@ -128,53 +113,6 @@
                                         <mi:MaterialIcon Kind="Lightbulb" Width="22" Height="22"
                                                    HorizontalAlignment="Center" />
                                         <TextBlock x:Name="NavLightsLabel" Text="Lights" FontSize="9"
-                                                   Foreground="{DynamicResource TextSecBrush}"
-                                                   HorizontalAlignment="Center" Margin="0,3,0,0" />
-                                    </StackPanel>
-                                </Grid>
-                            </Button>
-
-                            <Button x:Name="NavAudioDash" Classes="NavButton" Click="NavAudioDash_Click"
-                                    ToolTip.Tip="Audio Activity — real-time session overview">
-                                <Grid ColumnDefinitions="3,*">
-                                    <Border x:Name="NavAudioDashBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
-                                            Background="{DynamicResource AccentBrush}"
-                                            VerticalAlignment="Center" IsVisible="False" Margin="-4,0,0,0" />
-                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <mi:MaterialIcon Kind="ChartBar" Width="22" Height="22"
-                                                   HorizontalAlignment="Center" />
-                                        <TextBlock x:Name="NavAudioDashLabel" Text="Activity" FontSize="9"
-                                                   Foreground="{DynamicResource TextSecBrush}"
-                                                   HorizontalAlignment="Center" Margin="0,3,0,0" />
-                                    </StackPanel>
-                                </Grid>
-                            </Button>
-
-                            <Button x:Name="NavAmbience" Classes="NavButton" Click="NavAmbience_Click">
-                                <Grid ColumnDefinitions="3,*">
-                                    <Border x:Name="NavAmbienceBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
-                                            Background="{DynamicResource AccentBrush}"
-                                            VerticalAlignment="Center" IsVisible="False" Margin="-4,0,0,0" />
-                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <mi:MaterialIcon Kind="MapMarker" Width="22" Height="22"
-                                                   HorizontalAlignment="Center" />
-                                        <TextBlock x:Name="NavAmbienceLabel" Text="Ambience" FontSize="9"
-                                                   Foreground="{DynamicResource TextSecBrush}"
-                                                   HorizontalAlignment="Center" Margin="0,3,0,0" />
-                                    </StackPanel>
-                                </Grid>
-                            </Button>
-
-                            <Button x:Name="NavOsd" Classes="NavButton" Click="NavOsd_Click"
-                                    ToolTip.Tip="OSD Overlay &amp; Quick Wheel settings">
-                                <Grid ColumnDefinitions="3,*">
-                                    <Border x:Name="NavOsdBar" Grid.Column="0" Width="3" Height="20" CornerRadius="2"
-                                            Background="{DynamicResource AccentBrush}"
-                                            VerticalAlignment="Center" IsVisible="False" Margin="-4,0,0,0" />
-                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <mi:MaterialIcon Kind="Monitor" Width="22" Height="22"
-                                                   HorizontalAlignment="Center" />
-                                        <TextBlock x:Name="NavOsdLabel" Text="OSD" FontSize="9"
                                                    Foreground="{DynamicResource TextSecBrush}"
                                                    HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>

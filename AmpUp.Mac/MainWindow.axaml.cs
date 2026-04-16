@@ -55,7 +55,7 @@ public partial class MainWindow : Window
         // Profile button click → show profile picker
         ProfileButton.PointerPressed += (_, _) => ShowProfilePopup();
 
-        // Keyboard shortcuts: Cmd+1..7 for tabs
+        // Keyboard shortcuts: Cmd+1..4 for core tabs
         KeyDown += OnWindowKeyDown;
     }
 
@@ -171,20 +171,7 @@ public partial class MainWindow : Window
         _buttonsView.LoadConfig(config, onSave);
         _lightsView.LoadConfig(config, onSave);
         _settingsView.LoadConfig(config, onSave);
-        _bindingsView.LoadConfig(config);
-        _osdView.LoadConfig(config, onSave);
-        _ambienceView.LoadConfig(config, onSave, ambienceSync, dreamSync);
         HwPreview.LoadConfig(config);
-        _audioDashView.LoadConfig(config, onSave);
-
-        // Wire cross-view navigation
-        _settingsView.OnNavigateToOverview = () => NavigateTo(_bindingsView, NavBindings);
-        _ambienceView.NavigateToSettings = () => NavigateTo(_settingsView, NavSettings);
-
-        // Wire BindingsView navigation callbacks
-        _bindingsView.SetNavigationCallbacks(
-            onMixer: _ => NavigateTo(_mixerView, NavMixer),
-            onButtons: _ => NavigateTo(_buttonsView, NavButtons));
 
         // Sync active profile label
         SetActiveProfile(config.ActiveProfile);
@@ -209,7 +196,8 @@ public partial class MainWindow : Window
     public void RefreshViews(AppConfig config)
     {
         _mixerView.LoadConfig(config);
-        _bindingsView.LoadConfig(config);
+        _buttonsView.LoadConfig(config, _onSave ?? (_ => { }));
+        _lightsView.LoadConfig(config, _onSave ?? (_ => { }));
         HwPreview.LoadConfig(config);
     }
 
@@ -223,17 +211,12 @@ public partial class MainWindow : Window
     private void NavMixer_Click(object? sender, RoutedEventArgs e) => NavigateTo(_mixerView, NavMixer);
     private void NavButtons_Click(object? sender, RoutedEventArgs e) => NavigateTo(_buttonsView, NavButtons);
     private void NavLights_Click(object? sender, RoutedEventArgs e) => NavigateTo(_lightsView, NavLights);
-    private void NavAudioDash_Click(object? sender, RoutedEventArgs e) => NavigateTo(_audioDashView, NavAudioDash);
-    private void NavAmbience_Click(object? sender, RoutedEventArgs e) => NavigateTo(_ambienceView, NavAmbience);
-    private void NavOsd_Click(object? sender, RoutedEventArgs e) => NavigateTo(_osdView, NavOsd);
     private void NavSettings_Click(object? sender, RoutedEventArgs e) => NavigateTo(_settingsView, NavSettings);
-    private void NavBindings_Click(object? sender, RoutedEventArgs e) => NavigateTo(_bindingsView, NavBindings);
 
     // ── Keyboard shortcuts ────────────────────────────────────────
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
-        // Cmd+1-7 for tab navigation (⌘1=Knobs, ⌘2=Buttons, ⌘3=Lights,
-        //   ⌘4=Ambience, ⌘5=OSD, ⌘6=Settings, ⌘7=Overview)
+        // Cmd+1-4 for core tab navigation (⌘1=Mixer, ⌘2=Buttons, ⌘3=Lights, ⌘4=Settings)
         bool cmd = e.KeyModifiers.HasFlag(KeyModifiers.Meta);
         if (!cmd) return;
 
@@ -242,23 +225,16 @@ public partial class MainWindow : Window
             case Key.D1: NavigateTo(_mixerView, NavMixer); e.Handled = true; break;
             case Key.D2: NavigateTo(_buttonsView, NavButtons); e.Handled = true; break;
             case Key.D3: NavigateTo(_lightsView, NavLights); e.Handled = true; break;
-            case Key.D4: NavigateTo(_ambienceView, NavAmbience); e.Handled = true; break;
-            case Key.D5: NavigateTo(_osdView, NavOsd); e.Handled = true; break;
-            case Key.D6: NavigateTo(_settingsView, NavSettings); e.Handled = true; break;
-            case Key.D7: NavigateTo(_bindingsView, NavBindings); e.Handled = true; break;
+            case Key.D4: NavigateTo(_settingsView, NavSettings); e.Handled = true; break;
         }
     }
 
     private Dictionary<Button, NavInfo> GetNavMap() => new()
     {
-        { NavMixer,     new(NavMixerBar,     NavMixerLabel)     },
-        { NavButtons,   new(NavButtonsBar,   NavButtonsLabel)   },
-        { NavLights,    new(NavLightsBar,    NavLightsLabel)    },
-        { NavAudioDash, new(NavAudioDashBar, NavAudioDashLabel) },
-        { NavAmbience,  new(NavAmbienceBar,  NavAmbienceLabel)  },
-        { NavOsd,       new(NavOsdBar,       NavOsdLabel)       },
-        { NavSettings,  new(NavSettingsBar,  NavSettingsLabel)  },
-        { NavBindings,  new(NavBindingsBar,  NavBindingsLabel)  },
+        { NavMixer,    new(NavMixerBar,    NavMixerLabel)    },
+        { NavButtons,  new(NavButtonsBar,  NavButtonsLabel)  },
+        { NavLights,   new(NavLightsBar,   NavLightsLabel)   },
+        { NavSettings, new(NavSettingsBar, NavSettingsLabel) },
     };
 
     private void NavigateTo(UserControl view, Button navButton)

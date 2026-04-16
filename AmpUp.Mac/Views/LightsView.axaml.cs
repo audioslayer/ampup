@@ -183,7 +183,13 @@ public partial class LightsView : UserControl
         colorRow.Children.Add(_globalColor2Panel);
         _globalSettingsPanel.Children.Add(colorRow);
 
-        // Speed slider
+        // Speed + brightness row for quicker basic control access
+        var slidersGrid = new Grid
+        {
+            ColumnDefinitions = ColumnDefinitions.Parse("*,*"),
+            ColumnSpacing = 12,
+        };
+
         _globalSpeedPanel = new StackPanel { Spacing = 4, IsVisible = false };
         _globalSpeedPanel.Children.Add(MakeSectionHeader("SPEED"));
         _globalSpeedSlider = new Slider { Minimum = 1, Maximum = 100, Value = 50 };
@@ -192,9 +198,9 @@ public partial class LightsView : UserControl
             if (e.Property == Slider.ValueProperty && !_loading) Save();
         };
         _globalSpeedPanel.Children.Add(_globalSpeedSlider);
-        _globalSettingsPanel.Children.Add(_globalSpeedPanel);
+        Grid.SetColumn(_globalSpeedPanel, 0);
+        slidersGrid.Children.Add(_globalSpeedPanel);
 
-        // Brightness slider (always visible when global enabled)
         var brightnessPanel = new StackPanel { Spacing = 4 };
         brightnessPanel.Children.Add(MakeSectionHeader("BRIGHTNESS"));
         _brightnessSlider = new Slider { Minimum = 0, Maximum = 100, Value = 100 };
@@ -203,7 +209,10 @@ public partial class LightsView : UserControl
             if (e.Property == Slider.ValueProperty && !_loading) Save();
         };
         brightnessPanel.Children.Add(_brightnessSlider);
-        _globalSettingsPanel.Children.Add(brightnessPanel);
+        Grid.SetColumn(brightnessPanel, 1);
+        slidersGrid.Children.Add(brightnessPanel);
+
+        _globalSettingsPanel.Children.Add(slidersGrid);
 
         panel.Children.Add(_globalSettingsPanel);
     }

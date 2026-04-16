@@ -37,19 +37,15 @@ public partial class MixerView : UserControl
 
     private bool _smartMixExpanded;
 
-    // Target options for ComboBox
+    // Target options for ComboBox, trimmed to the core Mac workflow
     private static readonly string[] TargetOptions =
     {
-        "master", "mic", "system", "any", "active_window",
-        "output_device", "input_device", "monitor", "led_brightness",
-        "discord", "spotify", "chrome", "apps"
+        "master", "discord", "spotify", "chrome", "apps"
     };
 
     private static readonly string[] TargetDisplayNames =
     {
-        "Master", "Mic", "System", "Any", "Active Window",
-        "Output Device", "Input Device", "Monitor", "LED Brightness",
-        "Discord", "Spotify", "Chrome", "App Group"
+        "Master", "Discord", "Spotify", "Chrome", "App Group"
     };
 
     public MixerView()
@@ -235,6 +231,54 @@ public partial class MixerView : UserControl
                 Margin = new Thickness(0, 8, 0, 10)
             });
 
+            // ── VOLUME RANGE ──
+            panel.Children.Add(MakeSectionHeader("VOLUME RANGE"));
+
+            var rangeRow = new Grid
+            {
+                ColumnDefinitions = ColumnDefinitions.Parse("Auto,*,Auto"),
+                Margin = new Thickness(0, 0, 0, 6)
+            };
+
+            var minLabel = new TextBlock
+            {
+                Text = "0%",
+                FontSize = 11,
+                Foreground = FindBrush("TextSecBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            Grid.SetColumn(minLabel, 0);
+            rangeRow.Children.Add(minLabel);
+            _rangeMinLabels[i] = minLabel;
+
+            var rangeFill = new Border
+            {
+                Height = 4,
+                CornerRadius = new CornerRadius(2),
+                Background = new SolidColorBrush(Color.Parse("#00E676")),
+                Opacity = 0.3,
+                Margin = new Thickness(8, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            Grid.SetColumn(rangeFill, 1);
+            rangeRow.Children.Add(rangeFill);
+
+            var maxLabel = new TextBlock
+            {
+                Text = "100%",
+                FontSize = 11,
+                Foreground = FindBrush("TextSecBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            Grid.SetColumn(maxLabel, 2);
+            rangeRow.Children.Add(maxLabel);
+            _rangeMaxLabels[i] = maxLabel;
+
+            panel.Children.Add(rangeRow);
+
+            // ── SEPARATOR ──
+            panel.Children.Add(MakeSeparator(8));
+
             // ── TARGET ──
             panel.Children.Add(MakeSectionHeader("TARGET"));
 
@@ -322,54 +366,6 @@ public partial class MixerView : UserControl
                 _curveButtons[i * 3 + c] = curveBorder;
             }
             panel.Children.Add(curveGrid);
-
-            // ── SEPARATOR ──
-            panel.Children.Add(MakeSeparator(8));
-
-            // ── VOLUME RANGE ──
-            panel.Children.Add(MakeSectionHeader("VOLUME RANGE"));
-
-            var rangeRow = new Grid
-            {
-                ColumnDefinitions = ColumnDefinitions.Parse("Auto,*,Auto"),
-                Margin = new Thickness(0, 0, 0, 6)
-            };
-
-            var minLabel = new TextBlock
-            {
-                Text = "0%",
-                FontSize = 11,
-                Foreground = FindBrush("TextSecBrush"),
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            Grid.SetColumn(minLabel, 0);
-            rangeRow.Children.Add(minLabel);
-            _rangeMinLabels[i] = minLabel;
-
-            var rangeFill = new Border
-            {
-                Height = 4,
-                CornerRadius = new CornerRadius(2),
-                Background = new SolidColorBrush(Color.Parse("#00E676")),
-                Opacity = 0.3,
-                Margin = new Thickness(8, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            Grid.SetColumn(rangeFill, 1);
-            rangeRow.Children.Add(rangeFill);
-
-            var maxLabel = new TextBlock
-            {
-                Text = "100%",
-                FontSize = 11,
-                Foreground = FindBrush("TextSecBrush"),
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            Grid.SetColumn(maxLabel, 2);
-            rangeRow.Children.Add(maxLabel);
-            _rangeMaxLabels[i] = maxLabel;
-
-            panel.Children.Add(rangeRow);
         }
     }
 
