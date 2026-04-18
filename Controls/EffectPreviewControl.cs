@@ -248,8 +248,11 @@ namespace AmpUp.Controls
                 case LightEffect.Shockwave:       RenderShockwave(c);       break;
                 case LightEffect.Tidal:           RenderTidal(c);           break;
                 case LightEffect.Prism:           RenderPrism(c);           break;
-                case LightEffect.EmberDrift:       RenderEmberDrift(c);      break;
+                case LightEffect.EmberDrift:      RenderEmberDrift(c);      break;
                 case LightEffect.Glitch:          RenderGlitch(c);          break;
+                case LightEffect.OpalWave:        RenderOpalWave(c);        break;
+                case LightEffect.Bloom:           RenderBloom(c);           break;
+                case LightEffect.ColorTwinkle:    RenderColorTwinkle(c);    break;
 
                 default: RenderFallback(c); break;
             }

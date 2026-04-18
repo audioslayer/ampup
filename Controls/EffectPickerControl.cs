@@ -229,6 +229,9 @@ namespace AmpUp.Controls
             { LightEffect.Lava,          Color.FromRgb(0xFF, 0x6E, 0x40) }, // deep orange
             { LightEffect.VuWave,        Color.FromRgb(0xE0, 0x40, 0xFB) }, // magenta
             { LightEffect.NebulaDrift,   Color.FromRgb(0xCE, 0x93, 0xD8) }, // nebula purple
+            { LightEffect.OpalWave,      Color.FromRgb(0xD1, 0xC4, 0xE9) }, // pearlescent lilac
+            { LightEffect.Bloom,         Color.FromRgb(0xF4, 0x8F, 0xB1) }, // blooming pink
+            { LightEffect.ColorTwinkle,  Color.FromRgb(0xFF, 0xF5, 0x9D) }, // pastel gold
         };
 
         // ── Constructor ──────────────────────────────────────────────────
@@ -355,6 +358,9 @@ namespace AmpUp.Controls
                     (LightEffect.Prism,          "▽",   "Prism",    false),
                     (LightEffect.EmberDrift,     "✧",   "Embers",   false),
                     (LightEffect.Glitch,         "⌇",   "Glitch",   false),
+                    (LightEffect.OpalWave,       "≈",   "Opal",     false),
+                    (LightEffect.Bloom,          "◌",   "Bloom",    false),
+                    (LightEffect.ColorTwinkle,   "✦",   "Twinkle",  false),
                 });
             }
         }
@@ -614,6 +620,9 @@ namespace AmpUp.Controls
                 LightEffect.Prism            => Color.FromRgb(0xFF, 0xFF, 0xFF),
                 LightEffect.EmberDrift       => Color.FromRgb(0xFF, 0xB7, 0x4D),
                 LightEffect.Glitch           => Color.FromRgb(0x00, 0xFF, 0xC8),
+                LightEffect.OpalWave         => Color.FromRgb(0xD1, 0xC4, 0xE9),
+                LightEffect.Bloom            => Color.FromRgb(0xF4, 0x8F, 0xB1),
+                LightEffect.ColorTwinkle     => Color.FromRgb(0xFF, 0xF5, 0x9D),
                 _ => primary,
             };
         }

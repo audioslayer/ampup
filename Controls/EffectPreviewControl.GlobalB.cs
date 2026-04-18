@@ -421,5 +421,62 @@ namespace AmpUp.Controls
                     new Point(0, scanY), new Point(c.W, scanY));
             }
         }
+
+        private void RenderOpalWave(Ctx c)
+        {
+            var stops = new GradientStopCollection();
+            for (int i = 0; i <= 6; i++)
+            {
+                double p = i / 6.0;
+                double drift = p
+                    + 0.18 * Math.Sin(c.T * 1.2 + p * 5.5)
+                    + 0.08 * Math.Sin(c.T * 2.4 - p * 11.0);
+                drift = ((drift % 1.0) + 1.0) % 1.0;
+                var col = Lerp(Hsv(drift, 0.45, 1.0), Colors.White, 0.18);
+                stops.Add(new GradientStop(col, p));
+            }
+            var gb = new LinearGradientBrush(stops, 0);
+            c.Dc.DrawRoundedRectangle(gb, null, new Rect(0, 0, c.W, c.H), 3, 3);
+        }
+
+        private void RenderBloom(Ctx c)
+        {
+            Rect(c.Dc, 0, 0, c.W, c.H, c.Color, 0.06, 3);
+            double center = c.Cx + Math.Sin(c.T * 0.9) * c.W * 0.18;
+            double phase = 0.5 + 0.5 * Math.Sin(c.T * 1.8);
+            double radius = 4 + phase * Math.Min(c.W, c.H) * 0.42;
+            for (int ring = 0; ring < 3; ring++)
+            {
+                double rr = radius * (0.48 + ring * 0.28);
+                double a = Math.Max(0.08, 0.42 - ring * 0.1);
+                var col = ring switch
+                {
+                    0 => c.Color2,
+                    1 => Lerp(c.Color, c.Color2, 0.5),
+                    _ => c.Color,
+                };
+                c.Dc.DrawEllipse(null, Pen(col, 2.0 - ring * 0.35, a),
+                    new Point(center, c.Cy), rr, rr * 0.68);
+            }
+            Dot(c.Dc, center, c.Cy, 4.5, Colors.White, 0.35 + phase * 0.25);
+        }
+
+        private void RenderColorTwinkle(Ctx c)
+        {
+            Rect(c.Dc, 0, 0, c.W, c.H, c.Color, 0.05, 3);
+            int stars = 7;
+            for (int i = 0; i < stars; i++)
+            {
+                double seed = i * 1.371;
+                double phase = ((c.T * (0.45 + i * 0.06) + seed) % 1.0 + 1.0) % 1.0;
+                double glow = Math.Sin(phase * Math.PI);
+                glow *= glow;
+                double x = c.W * (0.1 + (i / (double)(stars - 1)) * 0.8);
+                double y = c.H * (0.25 + 0.5 * Math.Sin(seed * 2.7));
+                var col = Lerp(c.Color, c.Color2, (Math.Sin(c.T * 0.6 + seed) * 0.5 + 0.5));
+                Dot(c.Dc, x, y, 1.4 + glow * 2.4, col, 0.15 + glow * 0.85);
+                Dot(c.Dc, x, y, 3.8 + glow * 2.0, col, glow * 0.12);
+            }
+        }
     }
 }

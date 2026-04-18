@@ -224,6 +224,7 @@ public enum LightEffect
     Equalizer, Waterfall, Lava, VuWave,
     NebulaDrift,
     Vortex, Shockwave, Tidal, Prism, EmberDrift, Glitch,
+    OpalWave, Bloom, ColorTwinkle,
 }
 
 public enum ReactiveMode

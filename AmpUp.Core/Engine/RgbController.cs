@@ -577,6 +577,7 @@ public class RgbController : IDisposable
         LightEffect.NebulaDrift,
         LightEffect.Vortex, LightEffect.Shockwave, LightEffect.Tidal,
         LightEffect.Prism, LightEffect.EmberDrift, LightEffect.Glitch,
+        LightEffect.OpalWave, LightEffect.Bloom, LightEffect.ColorTwinkle,
     };
 
     /// <summary>
@@ -1821,6 +1822,9 @@ public class RgbController : IDisposable
             case LightEffect.Prism:        GlobalPrism(gl); break;
             case LightEffect.EmberDrift:   GlobalEmberDrift(gl); break;
             case LightEffect.Glitch:       GlobalGlitch(gl); break;
+            case LightEffect.OpalWave:     GlobalOpalWave(gl); break;
+            case LightEffect.Bloom:        GlobalBloom(gl); break;
+            case LightEffect.ColorTwinkle: GlobalColorTwinkle(gl); break;
         }
     }
 
@@ -3174,6 +3178,126 @@ public class RgbController : IDisposable
                 Math.Clamp(_linearColors[offset] + gr, 0, 255),
                 Math.Clamp(_linearColors[offset + 1] + gg, 0, 255),
                 Math.Clamp(_linearColors[offset + 2] + gb, 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Soft pearlescent waves inspired by popular palette/noise effects in WLED/FastLED.
+    /// Uses the current palette and continuously shifts it through overlapping slow waves.
+    /// </summary>
+    private void GlobalOpalWave(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.01f + speed / 100f * 0.045f);
+
+        for (int i = 0; i < 15; i++)
+        {
+            float pos = i / 14f;
+            float flow = pos
+                + 0.18f * MathF.Sin(t * 1.3f + pos * MathF.PI * 2.3f)
+                + 0.08f * MathF.Sin(t * 2.1f - pos * MathF.PI * 4.7f);
+
+            float wrapped = flow - MathF.Floor(flow);
+            var (pr, pg, pb) = GetGradientColor(gl, wrapped);
+
+            float shimmer = 0.72f
+                + 0.18f * MathF.Sin(t * 2.2f + pos * 7f)
+                + 0.10f * MathF.Sin(t * 4.5f - pos * 11f);
+            shimmer = Math.Clamp(shimmer, 0.45f, 1f);
+
+            // Pearlescent lift toward white keeps multi-color palettes dreamy instead of muddy.
+            int r = Math.Clamp((int)(pr + (255 - pr) * 0.18f), 0, 255);
+            int g = Math.Clamp((int)(pg + (248 - pg) * 0.14f), 0, 255);
+            int b = Math.Clamp((int)(pb + (255 - pb) * 0.20f), 0, 255);
+
+            SetGlobalLed(i,
+                Math.Clamp((int)(r * shimmer), 0, 255),
+                Math.Clamp((int)(g * shimmer), 0, 255),
+                Math.Clamp((int)(b * shimmer), 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Expanding floral color blooms. Each pulse opens from a drifting center and fades
+    /// through the active palette, giving a softer palette-driven alternative to Shockwave.
+    /// </summary>
+    private void GlobalBloom(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.012f + speed / 100f * 0.055f);
+        float center = 7f + MathF.Sin(t * 0.7f) * 2.6f;
+        float bloomRadius = 0.6f + 6.2f * (0.5f + 0.5f * MathF.Sin(t * 1.4f));
+
+        for (int i = 0; i < 15; i++)
+        {
+            float dist = Math.Abs(i - center);
+            float shell = MathF.Max(0f, 1f - MathF.Abs(dist - bloomRadius) / 1.9f);
+            float core = MathF.Max(0f, 1f - dist / (1.4f + 0.35f * bloomRadius));
+            float glow = Math.Clamp(shell * 0.85f + core * 0.55f, 0f, 1f);
+            glow *= glow;
+
+            float colorPos = (i / 14f + t * 0.08f + core * 0.22f) % 1f;
+            var (r, g, b) = GetGradientColor(gl, colorPos);
+
+            // Add a soft highlight at the bloom front.
+            float bloomLift = 0.10f + shell * 0.22f;
+            r = Math.Clamp((int)(r + (255 - r) * bloomLift), 0, 255);
+            g = Math.Clamp((int)(g + (245 - g) * bloomLift), 0, 255);
+            b = Math.Clamp((int)(b + (255 - b) * bloomLift), 0, 255);
+
+            SetGlobalLed(i,
+                Math.Clamp((int)(r * glow), 0, 255),
+                Math.Clamp((int)(g * glow), 0, 255),
+                Math.Clamp((int)(b * glow), 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Palette-driven twinkles inspired by WLED/FastLED favorites like Twinkle/Colortwinkle.
+    /// Smooth attack/decay keeps the effect elegant instead of looking like random blinking.
+    /// </summary>
+    private readonly float[] _twinkleLevels = new float[15];
+    private readonly float[] _twinkleTargets = new float[15];
+    private readonly float[] _twinklePalettePos = new float[15];
+    private readonly int[] _twinkleCooldowns = new int[15];
+    private void GlobalColorTwinkle(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+
+        for (int i = 0; i < 15; i++)
+        {
+            if (_twinkleCooldowns[i] > 0)
+                _twinkleCooldowns[i]--;
+
+            if (_twinkleCooldowns[i] <= 0 && _rng.NextDouble() < (0.05 + speed / 100.0 * 0.12))
+            {
+                _twinkleTargets[i] = 0.55f + (float)_rng.NextDouble() * 0.45f;
+                _twinklePalettePos[i] = ((float)_rng.NextDouble() + i / 14f * 0.18f) % 1f;
+                _twinkleCooldowns[i] = 4 + _rng.Next(Math.Max(3, 18 - speed / 6));
+            }
+
+            // Fast attack, slower decay.
+            float target = _twinkleTargets[i];
+            _twinkleLevels[i] += (_twinkleLevels[i] < target ? 0.24f : -0.08f);
+            _twinkleLevels[i] = Math.Clamp(_twinkleLevels[i], 0f, 1f);
+            _twinkleTargets[i] = Math.Max(0f, _twinkleTargets[i] - 0.06f);
+
+            float baseGlow = 0.06f + 0.05f * MathF.Sin(_animTick * 0.01f + i * 0.7f);
+            var (r, g, b) = GetGradientColor(gl, (_twinklePalettePos[i] + _animTick * 0.0025f) % 1f);
+
+            float alpha = Math.Clamp(baseGlow + _twinkleLevels[i], 0f, 1f);
+            int rr = Math.Clamp((int)(r * alpha), 0, 255);
+            int gg = Math.Clamp((int)(g * alpha), 0, 255);
+            int bb = Math.Clamp((int)(b * alpha), 0, 255);
+
+            if (_twinkleLevels[i] > 0.55f)
+            {
+                rr = Math.Clamp((int)(rr + (255 - rr) * 0.25f), 0, 255);
+                gg = Math.Clamp((int)(gg + (250 - gg) * 0.18f), 0, 255);
+                bb = Math.Clamp((int)(bb + (255 - bb) * 0.25f), 0, 255);
+            }
+
+            SetGlobalLed(i, rr, gg, bb);
         }
     }
 

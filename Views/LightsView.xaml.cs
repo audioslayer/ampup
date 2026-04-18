@@ -145,7 +145,7 @@ public partial class LightsView : UserControl
     private static readonly LightEffect[] EffectsNeedingColor2 =
         { LightEffect.ColorBlend, LightEffect.Blink, LightEffect.Pulse, LightEffect.MicStatus, LightEffect.DeviceMute, LightEffect.AudioReactive, LightEffect.GradientFill, LightEffect.Fire, LightEffect.PingPong, LightEffect.Candle, LightEffect.Scanner, LightEffect.ColorWave, LightEffect.Segments, LightEffect.PositionBlend, LightEffect.ProgramMute, LightEffect.AppGroupMute, LightEffect.CycleFill, LightEffect.PositionBlendMute };
     private static readonly LightEffect[] EffectsNeedingSpeed =
-        { LightEffect.Blink, LightEffect.Pulse, LightEffect.RainbowWave, LightEffect.RainbowCycle, LightEffect.AudioReactive, LightEffect.AudioPositionBlend, LightEffect.Breathing, LightEffect.Comet, LightEffect.Sparkle, LightEffect.PingPong, LightEffect.Stack, LightEffect.Wave, LightEffect.Candle, LightEffect.Scanner, LightEffect.MeteorRain, LightEffect.ColorWave, LightEffect.Segments, LightEffect.Wheel, LightEffect.RainbowWheel, LightEffect.CycleFill, LightEffect.RainbowFill, LightEffect.Fire, LightEffect.Heartbeat, LightEffect.Plasma, LightEffect.Drip, LightEffect.Waterfall, LightEffect.Lava, LightEffect.VuWave, LightEffect.NebulaDrift };
+        { LightEffect.Blink, LightEffect.Pulse, LightEffect.RainbowWave, LightEffect.RainbowCycle, LightEffect.AudioReactive, LightEffect.AudioPositionBlend, LightEffect.Breathing, LightEffect.Comet, LightEffect.Sparkle, LightEffect.PingPong, LightEffect.Stack, LightEffect.Wave, LightEffect.Candle, LightEffect.Scanner, LightEffect.MeteorRain, LightEffect.ColorWave, LightEffect.Segments, LightEffect.Wheel, LightEffect.RainbowWheel, LightEffect.CycleFill, LightEffect.RainbowFill, LightEffect.Fire, LightEffect.Heartbeat, LightEffect.Plasma, LightEffect.Drip, LightEffect.Waterfall, LightEffect.Lava, LightEffect.VuWave, LightEffect.NebulaDrift, LightEffect.Vortex, LightEffect.Shockwave, LightEffect.Tidal, LightEffect.Prism, LightEffect.EmberDrift, LightEffect.Glitch, LightEffect.OpalWave, LightEffect.Bloom, LightEffect.ColorTwinkle };
     private static readonly LightEffect[] EffectsNeedingProgramName =
         { LightEffect.ProgramMute };
     private static readonly LightEffect[] EffectsNeedingDeviceSelect =
@@ -2134,6 +2134,9 @@ public partial class LightsView : UserControl
         { LightEffect.DNA,          (Color.FromRgb(0x00, 0xFF, 0x88), Color.FromRgb(0x88, 0x00, 0xFF)) }, // green + purple
         { LightEffect.Lightning,    (Color.FromRgb(0xFF, 0xFF, 0xDD), Color.FromRgb(0xAA, 0x88, 0xFF)) }, // white-yellow + purple
         { LightEffect.CycleFill,    (Color.FromRgb(0x00, 0xE6, 0x76), Color.FromRgb(0x00, 0x88, 0xFF)) }, // green + blue
+        { LightEffect.OpalWave,     (Color.FromRgb(0xD8, 0xC8, 0xFF), Color.FromRgb(0x7A, 0xF2, 0xE2)) }, // opal lilac + aqua
+        { LightEffect.Bloom,        (Color.FromRgb(0xFF, 0x73, 0xB3), Color.FromRgb(0x7C, 0xB8, 0xFF)) }, // rose pink + periwinkle
+        { LightEffect.ColorTwinkle, (Color.FromRgb(0xFF, 0xE7, 0x7A), Color.FromRgb(0xFF, 0xA8, 0xF0)) }, // warm gold + pastel pink
     };
 
     // Effects that don't use any user colors (pure rainbow/HSV)
