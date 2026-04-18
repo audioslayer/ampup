@@ -1,10 +1,10 @@
-# AmpUp — Claude Code Context
+# AmpUp — Codex Context
 
 AmpUp is a C# .NET 8 WPF app that replaces the "Turn Up" USB volume mixer app.
 It reads serial events from the Turn Up hardware and maps them to Windows per-app audio volume control.
 Uses WPF-UI (FluentWindow, Mica backdrop) with a glassmorphism dark theme, sidebar navigation, and code-behind pattern (no MVVM).
 
-**macOS port: v0.1.0-alpha released** — see [CLAUDE-MAC.md](CLAUDE-MAC.md) for Mac-specific docs, SSH access, and architecture plan.
+**macOS port: v0.1.0-alpha released** — see [Codex-MAC.md](Codex-MAC.md) for Mac-specific docs, SSH access, and architecture plan.
 **Shared library:** `AmpUp.Core/` contains platform-agnostic code (models, serial, RGB, config, integrations).
 **Official Turn Up source:** We have admin access to `JaredWF/TurnUpCustomizer` — protocol fully confirmed, see memory for analysis.
 
@@ -570,7 +570,7 @@ Two clones of the same repo:
 
 | Location | Purpose |
 |-|-|
-| `Z:\Projects\ampup\` | Code editing with Claude Code (this machine) |
+| `Z:\Projects\ampup\` | Code editing with Codex (this machine) |
 | `C:\Users\audio\Desktop\AmpUp\` | Build + test + run the live app (same Windows PC) |
 
 **Workflow:** Edit on Z: → `git push` → `deploy.bat` on Desktop → test → `release.bat` when ready.
