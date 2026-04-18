@@ -103,6 +103,7 @@ public partial class MixerView : UserControl
     // App group picker (for "apps" target)
     private readonly StackPanel[] _appsPanels = new StackPanel[5];
     private readonly WrapPanel[] _appsListPanels = new WrapPanel[5];
+    private readonly TextBlock[] _targetDisplays = new TextBlock[5];
 
 
     // HA entities cache
@@ -355,6 +356,7 @@ public partial class MixerView : UserControl
                 _volLabels[i].Foreground = new SolidColorBrush(color);
                 _vuMeters[i].BarColor = color;
                 _glowControls[i].GlowColor = color;
+                ApplyStripTint(i, color);
             }
         }
 
@@ -506,6 +508,7 @@ public partial class MixerView : UserControl
                         var brush = new SolidColorBrush(target);
                         brush.Freeze();
                         _volLabels[i].Foreground = brush;
+                        ApplyStripTint(i, target);
                     }
                 }
             }
@@ -557,7 +560,7 @@ public partial class MixerView : UserControl
             var label = new TextBox
             {
                 Text = $"Knob {i + 1}",
-                FontSize = 12,
+                FontSize = 14,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = FindBrush("TextPrimaryBrush"),
                 CaretBrush = FindBrush("AccentBrush"),
@@ -567,7 +570,7 @@ public partial class MixerView : UserControl
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
                 Padding = new Thickness(4, 2, 4, 2),
-                Margin = new Thickness(0, 0, 0, 2),
+                Margin = new Thickness(0, 0, 0, 4),
                 MaxLength = 20,
                 Cursor = System.Windows.Input.Cursors.IBeam,
                 ToolTip = "Click to rename this channel",
@@ -614,8 +617,8 @@ public partial class MixerView : UserControl
 
             var knob = new AnimatedKnobControl
             {
-                Width = 100,
-                Height = 100,
+                Width = 110,
+                Height = 110,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 ToolTip = "Turn the physical knob to adjust volume",
@@ -629,7 +632,7 @@ public partial class MixerView : UserControl
                 Width = 6,
                 Height = 60,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 2, 0),
+                Margin = new Thickness(6, 0, 0, 0),
                 ToolTip = "Audio level for this channel",
             };
             Grid.SetColumn(vuMeter, 1);
@@ -642,35 +645,48 @@ public partial class MixerView : UserControl
             {
                 Text = "0%",
                 FontFamily = new FontFamily("Consolas"),
-                FontSize = 18,
+                FontSize = 20,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = FindBrush("TextPrimaryBrush"),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 6)
+                Margin = new Thickness(0, 2, 0, 8)
             };
             _volLabels[i] = volLabel;
             panel.Children.Add(volLabel);
 
-            // Target display (shows current target as small text)
+            // Target display (small status pill under the live value)
             var targetDisplay = new TextBlock
             {
                 FontSize = 10,
+                FontWeight = FontWeights.SemiBold,
                 Foreground = FindBrush("TextSecBrush"),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 8)
+                Margin = new Thickness(0),
             };
-            panel.Children.Add(targetDisplay);
+            _targetDisplays[i] = targetDisplay;
+            panel.Children.Add(new Border
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                CornerRadius = new CornerRadius(12),
+                Padding = new Thickness(10, 4, 10, 4),
+                Margin = new Thickness(0, 0, 0, 4),
+                Background = new SolidColorBrush(Color.FromArgb(0x14, 255, 255, 255)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0x24, 255, 255, 255)),
+                BorderThickness = new Thickness(1),
+                Child = targetDisplay
+            });
 
             // ═══════════════════════════════════════════════════════════
             // BOTTOM SECTION: Settings (always visible)
             // ═══════════════════════════════════════════════════════════
 
-            var targetCells = new[] { Ch0Target, Ch1Target, Ch2Target, Ch3Target, Ch4Target };
-            var curveCells = new[] { Ch0Curve, Ch1Curve, Ch2Curve, Ch3Curve, Ch4Curve };
-            var rangeCells = new[] { Ch0Range, Ch1Range, Ch2Range, Ch3Range, Ch4Range };
+            var settingsCells = new[] { Ch0Settings, Ch1Settings, Ch2Settings, Ch3Settings, Ch4Settings };
             _settingsExpanded[i] = true;
+
+            var settingsStack = new StackPanel();
+            settingsCells[i].Child = settingsStack;
 
             // ── Settings content ──
 
@@ -735,7 +751,7 @@ public partial class MixerView : UserControl
 
             _appsPanels[i] = appsContainer;
 
-            targetCells[i].Child = MakeSectionCard("TARGET", targetPicker, appsContainer);
+            settingsStack.Children.Add(MakeSectionCard("TARGET", targetPicker, appsContainer));
 
             // CURVE — CurvePickerControl (visual mini graphs)
             var curvePicker = new CurvePickerControl
@@ -748,7 +764,7 @@ public partial class MixerView : UserControl
                 if (!_loading) QueueSave();
             };
             _curvePickers[i] = curvePicker;
-            curveCells[i].Child = MakeSectionCard("CURVE", curvePicker);
+            settingsStack.Children.Add(MakeSectionCard("CURVE", curvePicker));
 
             // VOLUME RANGE — inline row (no card)
             var rangeSlider = new RangeSlider
@@ -798,11 +814,11 @@ public partial class MixerView : UserControl
             labelsRow.Children.Add(minLabel);
             labelsRow.Children.Add(maxLabel);
 
-            var rangePanel = new StackPanel { Margin = new Thickness(0, 4, 0, 8) };
+            var rangePanel = new StackPanel { Margin = new Thickness(0, 0, 0, 2) };
             rangePanel.Children.Add(rangeLabel);
             rangePanel.Children.Add(rangeSlider);
             rangePanel.Children.Add(labelsRow);
-            rangeCells[i].Child = rangePanel;
+            settingsStack.Children.Insert(0, MakeSectionCard("RANGE", rangePanel));
 
         }
     }
@@ -1435,8 +1451,21 @@ public partial class MixerView : UserControl
                 _volLabels[i].Foreground = new SolidColorBrush(color);
                 _vuMeters[i].BarColor = color;
                 _glowControls[i].GlowColor = color;
+                ApplyStripTint(i, color);
             }
         }
+    }
+
+    private void ApplyStripTint(int idx, Color color)
+    {
+        if (idx < 0 || idx >= _stripBorders.Length || _stripBorders[idx] == null) return;
+
+        var soft = Color.FromArgb(0x16, color.R, color.G, color.B);
+        var deep = Color.FromArgb(0x06, color.R, color.G, color.B);
+        var border = Color.FromArgb(0x50, color.R, color.G, color.B);
+
+        _stripBorders[idx].Background = new LinearGradientBrush(soft, deep, 90);
+        _stripBorders[idx].BorderBrush = new SolidColorBrush(border);
     }
 
     private Border MakeSectionCard(string title, params UIElement[] children)
@@ -1448,9 +1477,9 @@ public partial class MixerView : UserControl
         var border = new Border
         {
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(16),
-            Margin = new Thickness(0, 0, 0, 10),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(14, 12, 14, 12),
+            Margin = new Thickness(0, 0, 0, 12),
             Child = content,
         };
         border.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
