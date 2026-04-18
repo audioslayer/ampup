@@ -219,73 +219,93 @@ public static class BuiltInPalettes
         new ColorStop(1.00, 0xFF, 0xCC, 0x88));  // golden copper
 
     public static readonly ColorPalette Opaline = new("Opaline",
-        new ColorStop(0.00, 0x2A, 0x18, 0x42),   // dusky violet
-        new ColorStop(0.25, 0x6D, 0x5B, 0xC6),   // opal purple
+        new ColorStop(0.00, 0x1F, 0x12, 0x35),   // shadow violet
+        new ColorStop(0.16, 0x4B, 0x39, 0x89),   // deep amethyst
+        new ColorStop(0.32, 0x7A, 0x6F, 0xD7),   // opal purple
         new ColorStop(0.50, 0x92, 0xE3, 0xE6),   // sea glass cyan
-        new ColorStop(0.75, 0xF6, 0xB7, 0xE8),   // pearlescent pink
+        new ColorStop(0.68, 0xB8, 0xF1, 0xD7),   // mint pearl
+        new ColorStop(0.84, 0xF6, 0xB7, 0xE8),   // pearlescent pink
         new ColorStop(1.00, 0xF3, 0xF2, 0xFF));  // milky white
 
     public static readonly ColorPalette Voltage = new("Voltage",
-        new ColorStop(0.00, 0x0A, 0x0F, 0x2E),   // deep navy
-        new ColorStop(0.25, 0x00, 0x6A, 0xFF),   // electric blue
+        new ColorStop(0.00, 0x05, 0x0A, 0x20),   // blackout navy
+        new ColorStop(0.15, 0x00, 0x2A, 0x7A),   // charged blue
+        new ColorStop(0.32, 0x00, 0x6A, 0xFF),   // electric blue
         new ColorStop(0.50, 0x00, 0xF5, 0xFF),   // plasma cyan
-        new ColorStop(0.75, 0x8A, 0xFF, 0x00),   // acid lime
+        new ColorStop(0.68, 0x4A, 0xFF, 0xD9),   // energized aqua
+        new ColorStop(0.84, 0x8A, 0xFF, 0x00),   // acid lime
         new ColorStop(1.00, 0xF8, 0xFF, 0xD1));  // ionized glow
 
     public static readonly ColorPalette EmberBloom = new("Ember Bloom",
-        new ColorStop(0.00, 0x24, 0x06, 0x00),   // charred ember
-        new ColorStop(0.25, 0x8A, 0x14, 0x00),   // molten red
-        new ColorStop(0.50, 0xFF, 0x63, 0x00),   // orange flame
-        new ColorStop(0.75, 0xFF, 0xB1, 0x2A),   // amber petal
+        new ColorStop(0.00, 0x18, 0x04, 0x00),   // coal black
+        new ColorStop(0.14, 0x4B, 0x08, 0x00),   // buried ember
+        new ColorStop(0.30, 0x8A, 0x14, 0x00),   // molten red
+        new ColorStop(0.48, 0xD9, 0x34, 0x00),   // hot ember
+        new ColorStop(0.64, 0xFF, 0x63, 0x00),   // orange flame
+        new ColorStop(0.82, 0xFF, 0xB1, 0x2A),   // amber petal
         new ColorStop(1.00, 0xFF, 0xE6, 0x9A));  // pale gold
 
     public static readonly ColorPalette DeepSea = new("Deep Sea",
-        new ColorStop(0.00, 0x02, 0x0A, 0x16),   // trench
-        new ColorStop(0.25, 0x00, 0x2D, 0x52),   // midnight current
+        new ColorStop(0.00, 0x01, 0x06, 0x10),   // abyss trench
+        new ColorStop(0.16, 0x00, 0x16, 0x2D),   // deep current
+        new ColorStop(0.32, 0x00, 0x2D, 0x52),   // midnight current
         new ColorStop(0.50, 0x00, 0x76, 0x8F),   // cold teal
-        new ColorStop(0.75, 0x2E, 0xC4, 0xC7),   // bioluminescent aqua
+        new ColorStop(0.68, 0x00, 0xA5, 0xAF),   // open water glow
+        new ColorStop(0.84, 0x2E, 0xC4, 0xC7),   // bioluminescent aqua
         new ColorStop(1.00, 0xB7, 0xFF, 0xF4));  // surface shimmer
 
     public static readonly ColorPalette CandyPop = new("Candy Pop",
         new ColorStop(0.00, 0xFF, 0x3C, 0x8E),   // candy pink
-        new ColorStop(0.25, 0xFF, 0x7A, 0x59),   // coral punch
+        new ColorStop(0.16, 0xFF, 0x5B, 0x77),   // punch berry
+        new ColorStop(0.32, 0xFF, 0x7A, 0x59),   // coral punch
         new ColorStop(0.50, 0xFF, 0xD1, 0x3B),   // mango pop
-        new ColorStop(0.75, 0x6A, 0xF0, 0x7D),   // sour lime
+        new ColorStop(0.68, 0xB7, 0xF0, 0x48),   // citrus fizz
+        new ColorStop(0.84, 0x6A, 0xF0, 0x7D),   // sour lime
         new ColorStop(1.00, 0x47, 0xB8, 0xFF));  // bubblegum blue
 
     public static readonly ColorPalette MidnightCity = new("Midnight City",
-        new ColorStop(0.00, 0x08, 0x0B, 0x1B),   // night sky
-        new ColorStop(0.25, 0x32, 0x1B, 0x59),   // neon alley
+        new ColorStop(0.00, 0x06, 0x08, 0x16),   // city night
+        new ColorStop(0.16, 0x18, 0x12, 0x34),   // alley shadow
+        new ColorStop(0.32, 0x32, 0x1B, 0x59),   // neon alley
         new ColorStop(0.50, 0xA5, 0x23, 0xA7),   // magenta sign glow
-        new ColorStop(0.75, 0x00, 0xC2, 0xFF),   // cyan skyline
+        new ColorStop(0.68, 0xFF, 0x4A, 0xA3),   // hot signage
+        new ColorStop(0.84, 0x00, 0xC2, 0xFF),   // cyan skyline
         new ColorStop(1.00, 0xF4, 0x63, 0x7B));  // distant tail lights
 
     public static readonly ColorPalette TropicalPunch = new("Tropical Punch",
         new ColorStop(0.00, 0x4A, 0x00, 0x5E),   // plum dusk
-        new ColorStop(0.25, 0xFF, 0x4D, 0x6D),   // hibiscus pink
+        new ColorStop(0.16, 0xA0, 0x11, 0x75),   // orchid bloom
+        new ColorStop(0.32, 0xFF, 0x4D, 0x6D),   // hibiscus pink
         new ColorStop(0.50, 0xFF, 0x8C, 0x42),   // papaya orange
-        new ColorStop(0.75, 0xFF, 0xD1, 0x66),   // golden sun
+        new ColorStop(0.68, 0xFF, 0xB8, 0x50),   // sunlit mango
+        new ColorStop(0.84, 0xFF, 0xD1, 0x66),   // golden sun
         new ColorStop(1.00, 0x00, 0xD6, 0xB9));  // tropical lagoon
 
     public static readonly ColorPalette NorthernSky = new("Northern Sky",
-        new ColorStop(0.00, 0x04, 0x11, 0x24),   // polar night
-        new ColorStop(0.25, 0x00, 0x56, 0x7A),   // cold blue
+        new ColorStop(0.00, 0x03, 0x0D, 0x1D),   // polar night
+        new ColorStop(0.16, 0x00, 0x2C, 0x46),   // frost blue
+        new ColorStop(0.32, 0x00, 0x56, 0x7A),   // cold blue
         new ColorStop(0.50, 0x00, 0xC9, 0x88),   // aurora green
-        new ColorStop(0.75, 0x70, 0x6C, 0xFF),   // indigo veil
+        new ColorStop(0.68, 0x35, 0xE1, 0xC3),   // polar shimmer
+        new ColorStop(0.84, 0x70, 0x6C, 0xFF),   // indigo veil
         new ColorStop(1.00, 0xD8, 0xF5, 0xFF));  // frozen glow
 
     public static readonly ColorPalette RoseGold = new("Rose Gold",
-        new ColorStop(0.00, 0x2A, 0x0F, 0x16),   // dark rose
-        new ColorStop(0.25, 0x8F, 0x3B, 0x57),   // muted rose
+        new ColorStop(0.00, 0x20, 0x0B, 0x12),   // dark rose shadow
+        new ColorStop(0.16, 0x55, 0x1F, 0x33),   // wine rose
+        new ColorStop(0.32, 0x8F, 0x3B, 0x57),   // muted rose
         new ColorStop(0.50, 0xD7, 0x86, 0x8A),   // blush metal
-        new ColorStop(0.75, 0xF0, 0xB2, 0x91),   // champagne copper
+        new ColorStop(0.68, 0xE8, 0xA0, 0x92),   // polished blush
+        new ColorStop(0.84, 0xF0, 0xB2, 0x91),   // champagne copper
         new ColorStop(1.00, 0xFF, 0xE8, 0xD0));  // soft highlight
 
     public static readonly ColorPalette DreamState = new("Dream State",
         new ColorStop(0.00, 0x12, 0x0E, 0x33),   // sleep blue
-        new ColorStop(0.25, 0x4A, 0x2D, 0x8C),   // amethyst
+        new ColorStop(0.16, 0x2A, 0x1C, 0x61),   // deep dream violet
+        new ColorStop(0.32, 0x4A, 0x2D, 0x8C),   // amethyst
         new ColorStop(0.50, 0x9A, 0x63, 0xFF),   // lucid violet
-        new ColorStop(0.75, 0xFF, 0x8F, 0xD8),   // dream pink
+        new ColorStop(0.68, 0xD4, 0x7D, 0xF0),   // dream glow
+        new ColorStop(0.84, 0xFF, 0x8F, 0xD8),   // dream pink
         new ColorStop(1.00, 0x8D, 0xF1, 0xFF));  // soft cyan wake
 
     /// <summary>
