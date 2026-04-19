@@ -9,7 +9,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Style="{StaticResource CardPanel}" Margin="0,0,0,10">
+        <Border x:Name="ButtonsSurfaceBar" Grid.Row="0" Style="{StaticResource CardPanel}" Margin="0,0,0,10" Visibility="Collapsed">
             <StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                     <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />

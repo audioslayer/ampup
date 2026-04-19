@@ -69,6 +69,7 @@ public partial class SettingsView : UserControl
         CmbProfiles.SelectionChanged += OnProfileSelectionChanged;
 
         // Port selector
+        SegHardwareMode.AddSegment("Auto", HardwareMode.Auto);
         SegHardwareMode.AddSegment("Turn Up", HardwareMode.TurnUpOnly);
         SegHardwareMode.AddSegment("Stream Controller", HardwareMode.StreamControllerOnly);
         SegHardwareMode.AddSegment("Both", HardwareMode.DualMode);
@@ -165,8 +166,9 @@ public partial class SettingsView : UserControl
         TxtBaudRate.Text = config.Serial.Baud.ToString();
         SegHardwareMode.SelectedIndex = config.HardwareMode switch
         {
-            HardwareMode.StreamControllerOnly => 1,
-            HardwareMode.DualMode => 2,
+            HardwareMode.TurnUpOnly => 1,
+            HardwareMode.StreamControllerOnly => 2,
+            HardwareMode.DualMode => 3,
             _ => 0,
         };
         RefreshPortList(selectPort: config.Serial.Port);

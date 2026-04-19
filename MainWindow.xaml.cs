@@ -26,6 +26,10 @@ public partial class MainWindow : FluentWindow
 
     private Window? _profileFlyout;
     private bool _profileFlyoutOpen = false;
+    private Window? _deviceFlyout;
+    private bool _deviceFlyoutOpen = false;
+    private bool _turnUpConnected;
+    private bool _streamControllerConnected;
 
     private AppConfig _config;
     private AudioMixer? _mixer;
@@ -125,8 +129,21 @@ public partial class MainWindow : FluentWindow
             ShadowDepth = 0
         };
 
+        DeviceButton.BorderBrush = new LinearGradientBrush(
+            ThemeManager.WithAlpha(ThemeManager.Accent, 0x88),
+            ThemeManager.WithAlpha(ThemeManager.Accent, 0x44),
+            new Point(0, 0), new Point(1, 1));
+        DeviceButton.Effect = new System.Windows.Media.Effects.DropShadowEffect
+        {
+            Color = ThemeManager.Accent,
+            BlurRadius = 12,
+            Opacity = 0.18,
+            ShadowDepth = 0
+        };
+
         // Connection dot glow
         ConnectionDotGlow.Color = ThemeManager.Accent;
+        DeviceButtonGlow.Color = ThemeManager.Accent;
     }
 
     /// <summary>
@@ -137,6 +154,7 @@ public partial class MainWindow : FluentWindow
         _config = config;
         _mixer = mixer;
         _onConfigChanged = onConfigChanged;
+        ApplyHardwareSurfaceFromState(persist: false);
         RefreshViews();
         StartHwPreviewTimer();
     }
@@ -222,11 +240,15 @@ public partial class MainWindow : FluentWindow
     public void RefreshViews(AppConfig? newConfig = null)
     {
         if (newConfig != null) _config = newConfig;
+        ApplyHardwareSurfaceFromState(persist: false);
         UpdateProfileButton();
+        UpdateDeviceButton();
         Action<AppConfig> saveHandler = cfg =>
         {
             _config = cfg;
             _onConfigChanged?.Invoke(cfg);
+            ApplyHardwareSurfaceFromState(persist: false);
+            UpdateDeviceButton();
 
             // Update Ambience tab visibility when integrations are toggled
             bool showAmbience = cfg.Ambience.GoveeEnabled || cfg.Ambience.GoveeCloudEnabled || cfg.Corsair.Enabled;
@@ -558,8 +580,103 @@ public partial class MainWindow : FluentWindow
         ProfileLabel.Text = _config.ActiveProfile;
     }
 
+    private void UpdateDeviceButton()
+    {
+        var surface = GetEffectiveDeviceSurface();
+        DeviceLabel.Text = surface switch
+        {
+            DeviceSurface.StreamController => "Stream",
+            DeviceSurface.Both => "Both",
+            _ => "Turn Up",
+        };
+
+        DeviceButton.Opacity = CanOpenDeviceFlyout() ? 1.0 : 0.82;
+        DeviceButton.Cursor = CanOpenDeviceFlyout() ? Cursors.Hand : Cursors.Arrow;
+        DeviceButton.ToolTip = BuildDeviceTooltip();
+    }
+
+    private string BuildDeviceTooltip()
+    {
+        return _config.HardwareMode switch
+        {
+            HardwareMode.Auto when _turnUpConnected && !_streamControllerConnected =>
+                "Auto-detected Turn Up",
+            HardwareMode.Auto when !_turnUpConnected && _streamControllerConnected =>
+                "Auto-detected Stream Controller",
+            HardwareMode.Auto when _turnUpConnected && _streamControllerConnected =>
+                "Both devices connected. Click to choose the active surface.",
+            HardwareMode.TurnUpOnly => "Hardware mode is locked to Turn Up in Settings",
+            HardwareMode.StreamControllerOnly => "Hardware mode is locked to Stream Controller in Settings",
+            HardwareMode.DualMode => "Both devices are enabled. Click to choose the active surface.",
+            _ => "No hardware detected yet"
+        };
+    }
+
+    private bool CanOpenDeviceFlyout()
+    {
+        return _config.HardwareMode switch
+        {
+            HardwareMode.Auto => _turnUpConnected && _streamControllerConnected,
+            HardwareMode.DualMode => true,
+            _ => false
+        };
+    }
+
+    private DeviceSurface GetPreferredSurface()
+    {
+        var preferred = _config.TabSelection.Buttons;
+        return preferred switch
+        {
+            DeviceSurface.StreamController => DeviceSurface.StreamController,
+            DeviceSurface.Both => DeviceSurface.Both,
+            _ => DeviceSurface.TurnUp,
+        };
+    }
+
+    private DeviceSurface GetEffectiveDeviceSurface()
+    {
+        return _config.HardwareMode switch
+        {
+            HardwareMode.TurnUpOnly => DeviceSurface.TurnUp,
+            HardwareMode.StreamControllerOnly => DeviceSurface.StreamController,
+            HardwareMode.DualMode => GetPreferredSurface(),
+            HardwareMode.Auto when _turnUpConnected && !_streamControllerConnected => DeviceSurface.TurnUp,
+            HardwareMode.Auto when !_turnUpConnected && _streamControllerConnected => DeviceSurface.StreamController,
+            HardwareMode.Auto when _turnUpConnected && _streamControllerConnected => GetPreferredSurface(),
+            _ => GetPreferredSurface(),
+        };
+    }
+
+    private void ApplyDeviceSurface(DeviceSurface surface, bool persist)
+    {
+        _config.TabSelection.Mixer = surface;
+        _config.TabSelection.Buttons = surface;
+        _config.TabSelection.Lights = surface;
+        UpdateDeviceButton();
+
+        if (persist)
+        {
+            _onConfigChanged?.Invoke(_config);
+            RefreshViews();
+        }
+    }
+
+    private void ApplyHardwareSurfaceFromState(bool persist)
+    {
+        var surface = GetEffectiveDeviceSurface();
+        _config.TabSelection.Mixer = surface;
+        _config.TabSelection.Buttons = surface;
+        _config.TabSelection.Lights = surface;
+        UpdateDeviceButton();
+
+        if (persist)
+            _onConfigChanged?.Invoke(_config);
+    }
+
     private void ProfileButton_Click(object sender, MouseButtonEventArgs e)
     {
+        if (_deviceFlyoutOpen)
+            CloseDeviceFlyout();
         if (_profileFlyoutOpen)
             CloseProfileFlyout();
         else
@@ -616,6 +733,178 @@ public partial class MainWindow : FluentWindow
         _profileFlyout.KeyDown += (_, e2) => { if (e2.Key == Key.Escape) CloseProfileFlyout(); };
         _profileFlyout.Show();
         _profileFlyoutOpen = true;
+    }
+
+    private void DeviceButton_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (_profileFlyoutOpen)
+            CloseProfileFlyout();
+        if (!CanOpenDeviceFlyout())
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (_deviceFlyoutOpen)
+            CloseDeviceFlyout();
+        else
+            OpenDeviceFlyout();
+        e.Handled = true;
+    }
+
+    private void OpenDeviceFlyout()
+    {
+        BuildDeviceFlyout();
+
+        if (DevicePopupPanel.Parent is System.Windows.Controls.Decorator oldDecorator)
+            oldDecorator.Child = null;
+        else if (DevicePopupPanel.Parent is System.Windows.Controls.Panel oldPanel)
+            oldPanel.Children.Remove(DevicePopupPanel);
+        else if (DevicePopupPanel.Parent is System.Windows.Controls.ContentControl oldContent)
+            oldContent.Content = null;
+
+        var popupBorder = new System.Windows.Controls.Border
+        {
+            Background = (System.Windows.Media.Brush)FindResource("BgDarkBrush"),
+            BorderBrush = (System.Windows.Media.SolidColorBrush)FindResource("CardBorderBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(6),
+            MinWidth = 200,
+            Child = DevicePopupPanel
+        };
+        DevicePopupPanel.Visibility = System.Windows.Visibility.Visible;
+
+        var screenPos = DeviceButton.PointToScreen(new Point(DeviceButton.ActualWidth + 4, 0));
+        var dpiSource = PresentationSource.FromVisual(DeviceButton);
+        if (dpiSource?.CompositionTarget != null)
+        {
+            var dpiX = dpiSource.CompositionTarget.TransformToDevice.M11;
+            var dpiY = dpiSource.CompositionTarget.TransformToDevice.M22;
+            screenPos = new Point(screenPos.X / dpiX, screenPos.Y / dpiY);
+        }
+        _deviceFlyout = new Window
+        {
+            WindowStyle = WindowStyle.None,
+            ResizeMode = ResizeMode.NoResize,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            ShowInTaskbar = false,
+            Topmost = true,
+            AllowsTransparency = false,
+            Background = (System.Windows.Media.Brush)FindResource("BgDarkBrush"),
+            Content = popupBorder,
+            Left = screenPos.X,
+            Top = screenPos.Y
+        };
+        _deviceFlyout.Deactivated += (_, _) => CloseDeviceFlyout();
+        _deviceFlyout.KeyDown += (_, e2) => { if (e2.Key == Key.Escape) CloseDeviceFlyout(); };
+        _deviceFlyout.Show();
+        _deviceFlyoutOpen = true;
+    }
+
+    private void CloseDeviceFlyout()
+    {
+        if (!_deviceFlyoutOpen) return;
+        _deviceFlyoutOpen = false;
+
+        if (_deviceFlyout?.Content is System.Windows.Controls.Border b)
+            b.Child = null;
+
+        _deviceFlyout?.Close();
+        _deviceFlyout = null;
+    }
+
+    private void BuildDeviceFlyout()
+    {
+        DevicePopupPanel.Children.Clear();
+
+        DevicePopupPanel.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = "HARDWARE",
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (SolidColorBrush)FindResource("TextDimBrush"),
+            Margin = new Thickness(6, 4, 0, 8)
+        });
+
+        foreach (var option in new[] { DeviceSurface.TurnUp, DeviceSurface.StreamController, DeviceSurface.Both })
+        {
+            var optionCapture = option;
+            bool isActive = optionCapture == GetEffectiveDeviceSurface();
+
+            string label = optionCapture switch
+            {
+                DeviceSurface.StreamController => "Stream Controller",
+                DeviceSurface.Both => "Both",
+                _ => "Turn Up",
+            };
+
+            string subtitle = optionCapture switch
+            {
+                DeviceSurface.StreamController => _streamControllerConnected ? "LCD keys, side buttons, encoders" : "Available when connected",
+                DeviceSurface.Both => _turnUpConnected && _streamControllerConnected ? "Use both surfaces together" : "Requires both devices connected",
+                _ => _turnUpConnected ? "5 knobs, 5 buttons, LEDs" : "Available when connected",
+            };
+
+            bool enabled = optionCapture switch
+            {
+                DeviceSurface.StreamController => _streamControllerConnected,
+                DeviceSurface.Both => _turnUpConnected && _streamControllerConnected,
+                _ => _turnUpConnected,
+            };
+
+            var textStack = new System.Windows.Controls.StackPanel();
+            textStack.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text = label,
+                FontSize = 12,
+                FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal,
+                Foreground = enabled
+                    ? (SolidColorBrush)(isActive ? FindResource("AccentBrush") : FindResource("TextPrimaryBrush"))
+                    : (SolidColorBrush)FindResource("TextDimBrush")
+            });
+            textStack.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text = subtitle,
+                FontSize = 10,
+                Foreground = (SolidColorBrush)FindResource("TextDimBrush"),
+                Margin = new Thickness(0, 2, 0, 0)
+            });
+
+            var rowBorder = new System.Windows.Controls.Border
+            {
+                Padding = new Thickness(8, 7, 8, 7),
+                CornerRadius = new CornerRadius(6),
+                Cursor = enabled ? Cursors.Hand : Cursors.Arrow,
+                Opacity = enabled ? 1.0 : 0.55,
+                Background = isActive
+                    ? new SolidColorBrush(Color.FromArgb(0x20, 0x00, 0xB4, 0xD8))
+                    : System.Windows.Media.Brushes.Transparent,
+                Child = textStack
+            };
+
+            if (enabled)
+            {
+                rowBorder.MouseEnter += (_, _) =>
+                {
+                    if (optionCapture != GetEffectiveDeviceSurface())
+                        rowBorder.Background = (SolidColorBrush)FindResource("InputBgBrush");
+                };
+                rowBorder.MouseLeave += (_, _) =>
+                {
+                    rowBorder.Background = optionCapture == GetEffectiveDeviceSurface()
+                        ? new SolidColorBrush(Color.FromArgb(0x20, 0x00, 0xB4, 0xD8))
+                        : System.Windows.Media.Brushes.Transparent;
+                };
+                rowBorder.MouseLeftButtonDown += (_, _) =>
+                {
+                    ApplyDeviceSurface(optionCapture, persist: true);
+                    CloseDeviceFlyout();
+                };
+            }
+
+            DevicePopupPanel.Children.Add(rowBorder);
+        }
     }
 
     private void CloseProfileFlyout()
@@ -1480,6 +1769,7 @@ public partial class MainWindow : FluentWindow
     {
         Dispatcher.Invoke(() =>
         {
+            _turnUpConnected = connected;
             ConnectionDot.Fill = connected
                 ? (SolidColorBrush)FindResource("SuccessGrnBrush")
                 : (SolidColorBrush)FindResource("TextDimBrush");
@@ -1499,6 +1789,11 @@ public partial class MainWindow : FluentWindow
                 pulse.Stop(this);
                 ConnectionDot.Opacity = 1.0;
             }
+
+            if (_config.HardwareMode == HardwareMode.Auto)
+                RefreshViews();
+            else
+                UpdateDeviceButton();
         });
     }
 
@@ -1506,7 +1801,12 @@ public partial class MainWindow : FluentWindow
     {
         Dispatcher.Invoke(() =>
         {
+            _streamControllerConnected = connected;
             _settingsView.UpdateN3ConnectionStatus(connected, deviceName);
+            if (_config.HardwareMode == HardwareMode.Auto)
+                RefreshViews();
+            else
+                UpdateDeviceButton();
         });
     }
 }

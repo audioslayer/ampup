@@ -10,7 +10,7 @@ public class AppConfig
     public List<ButtonConfig> Buttons { get; set; } = new();
     public N3Config N3 { get; set; } = new();
     [JsonConverter(typeof(StringEnumConverter))]
-    public HardwareMode HardwareMode { get; set; } = HardwareMode.DualMode;
+    public HardwareMode HardwareMode { get; set; } = HardwareMode.Auto;
     public HardwareTabSelection TabSelection { get; set; } = new();
     public List<LightConfig> Lights { get; set; } = new();
     public bool StartWithWindows { get; set; } = true;
@@ -263,6 +263,7 @@ public class StreamControllerDisplayKeyConfig
 
 public enum HardwareMode
 {
+    Auto,
     TurnUpOnly,
     StreamControllerOnly,
     DualMode,
