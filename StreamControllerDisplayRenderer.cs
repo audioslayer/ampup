@@ -122,8 +122,9 @@ internal static class StreamControllerDisplayRenderer
         using var subFont = new DrawingFont("Segoe UI", 8f, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Pixel);
         using var badgeFont = new DrawingFont("Segoe UI", 18f, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Pixel);
 
-        string title = string.IsNullOrWhiteSpace(key.Title) ? $"K{key.Idx + 1}" : key.Title.Trim();
+        string title = key.Title?.Trim() ?? "";
         string subtitle = key.Subtitle?.Trim() ?? "";
+        bool hasText = !string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(subtitle);
 
         var center = new DrawingStringFormat
         {
@@ -131,11 +132,13 @@ internal static class StreamControllerDisplayRenderer
             LineAlignment = DrawingStringAlignment.Center
         };
 
-        graphicsCard.DrawString((key.Idx + 1).ToString(), badgeFont, whiteBrush, new DrawingRectangleF(0, 8, 60, 22), center);
-        graphicsCard.DrawString(title, titleFont, whiteBrush, new DrawingRectangleF(4, 30, 52, 14), center);
-        if (!string.IsNullOrWhiteSpace(subtitle))
+        if (hasText)
         {
-            graphicsCard.DrawString(subtitle, subFont, whiteBrush, new DrawingRectangleF(4, 44, 52, 10), center);
+            graphicsCard.DrawString((key.Idx + 1).ToString(), badgeFont, whiteBrush, new DrawingRectangleF(0, 8, 60, 22), center);
+            if (!string.IsNullOrWhiteSpace(title))
+                graphicsCard.DrawString(title, titleFont, whiteBrush, new DrawingRectangleF(4, 30, 52, 14), center);
+            if (!string.IsNullOrWhiteSpace(subtitle))
+                graphicsCard.DrawString(subtitle, subFont, whiteBrush, new DrawingRectangleF(4, 44, 52, 10), center);
         }
 
         ApplyEffectOverlay(bitmap, n3, frame);

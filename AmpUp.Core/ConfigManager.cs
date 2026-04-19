@@ -87,12 +87,12 @@ public static class ConfigManager
     };
     private static readonly (int idx, string title, string subtitle, string background, string accent)[] DefaultN3DisplayKeys =
     {
-        (0, "Key 1", "", "#1C1C1C", "#00E676"),
-        (1, "Key 2", "", "#1C1C1C", "#00B4D8"),
-        (2, "Key 3", "", "#1C1C1C", "#448AFF"),
-        (3, "Key 4", "", "#1C1C1C", "#FF6E40"),
-        (4, "Key 5", "", "#1C1C1C", "#FFD740"),
-        (5, "Key 6", "", "#1C1C1C", "#FF4081"),
+        (0, "", "", "#1C1C1C", "#00E676"),
+        (1, "", "", "#1C1C1C", "#00B4D8"),
+        (2, "", "", "#1C1C1C", "#448AFF"),
+        (3, "", "", "#1C1C1C", "#FF6E40"),
+        (4, "", "", "#1C1C1C", "#FFD740"),
+        (5, "", "", "#1C1C1C", "#FF4081"),
     };
     private static readonly string[] DefaultStreamControllerKnobLabels = { "Encoder 1", "Encoder 2", "Encoder 3" };
     private static readonly string[] DefaultStreamControllerKnobTargets = { "none", "none", "none" };
@@ -162,6 +162,18 @@ public static class ConfigManager
                     AccentColor = accent
                 });
             }
+        }
+        foreach (var key in config.N3.DisplayKeys)
+        {
+            bool legacyPlaceholderTitle =
+                key.Title.Equals($"Key {key.Idx + 1}", StringComparison.OrdinalIgnoreCase)
+                || key.Title.Equals($"K{key.Idx + 1}", StringComparison.OrdinalIgnoreCase);
+            bool looksUntouched =
+                string.IsNullOrWhiteSpace(key.ImagePath)
+                && string.IsNullOrWhiteSpace(key.Subtitle)
+                && legacyPlaceholderTitle;
+            if (looksUntouched)
+                key.Title = "";
         }
         for (int i = 0; i < 5; i++)
         {
