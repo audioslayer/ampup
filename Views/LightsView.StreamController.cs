@@ -352,7 +352,12 @@ public partial class LightsView
 
         for (int i = 0; i < 6; i++)
         {
-            var key = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == i) ?? new StreamControllerDisplayKeyConfig { Idx = i };
+            var key = new StreamControllerDisplayKeyConfig
+            {
+                Idx = i,
+                BackgroundColor = "#000000",
+                AccentColor = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == i)?.AccentColor ?? "#00E676"
+            };
             _scScreensaverPreviewImages[i].Source = StreamControllerDisplayRenderer.CreateHardwarePreview(key, previewConfig, frame);
         }
     }

@@ -1958,6 +1958,20 @@ public partial class App : Application
             for (int i = 0; i < N3Controller.DisplayKeyCount; i++)
             {
                 var key = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == i);
+                if (_config.N3.ScreensaverEnabled)
+                {
+                    var effectKey = new StreamControllerDisplayKeyConfig
+                    {
+                        Idx = i,
+                        BackgroundColor = "#000000",
+                        AccentColor = key?.AccentColor ?? "#00E676"
+                    };
+                    byte[] effectJpeg = StreamControllerDisplayRenderer.CreateDeviceJpeg(effectKey, _config.N3, frame);
+                    _n3.SendDisplayImage(i, effectJpeg, commit: false);
+                    anyNonEmpty = true;
+                    continue;
+                }
+
                 if (key == null)
                 {
                     _n3.ClearDisplay(i, commit: false);
