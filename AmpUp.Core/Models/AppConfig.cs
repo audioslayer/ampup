@@ -280,10 +280,17 @@ public class N3Config
     public List<StreamControllerDisplayKeyConfig> DisplayKeys { get; set; } = new();
     public int DisplayBrightness { get; set; } = 100;
     /// <summary>
-    /// Blank the N3 LCD screens after this many minutes of no keyboard/mouse
-    /// input. 0 = never sleep. Any input wakes the screens back up.
+    /// Legacy field (kept for backwards-compat migration). Older builds saved
+    /// the idle-sleep timeout in minutes. New code reads <see cref="IdleSleepSeconds"/>.
+    /// ConfigManager copies this × 60 on load when IdleSleepSeconds is default.
     /// </summary>
-    public int IdleSleepMinutes { get; set; } = 10;
+    public int IdleSleepMinutes { get; set; } = 0;
+    /// <summary>
+    /// Blank the N3 LCD screens after this many seconds of no keyboard/mouse
+    /// input. 0 = never sleep. Any input wakes the screens back up.
+    /// Default 600 = 10 minutes.
+    /// </summary>
+    public int IdleSleepSeconds { get; set; } = 600;
     public int CurrentPage { get; set; } = 0;
     public int PageCount { get; set; } = 1;
     /// <summary>Named folders for `open_folder` action — each holds its own keys/buttons/pages.</summary>

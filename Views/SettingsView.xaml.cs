@@ -86,16 +86,15 @@ public partial class SettingsView : UserControl
 
         SldN3IdleSleep.ValueChanged += (_, _) =>
         {
-            int mins = (int)Math.Round(SldN3IdleSleep.Value);
-            TxtN3IdleSleepLabel.Text = mins == 0
-                ? "Stream Controller Screen Sleep: Never"
-                : $"Stream Controller Screen Sleep: {mins} minute{(mins == 1 ? "" : "s")}";
+            int secs = SnapN3IdleSeconds((int)Math.Round(SldN3IdleSleep.Value));
+            TxtN3IdleSleepLabel.Text = $"Stream Controller Screen Sleep: {FormatN3IdleDuration(secs)}";
             if (!_loading && _config != null)
             {
-                _config.N3.IdleSleepMinutes = mins;
+                _config.N3.IdleSleepSeconds = secs;
                 OnValueChanged(null, EventArgs.Empty);
             }
         };
+        BtnN3SleepNow.Click += (_, _) => (Application.Current as App)?.ForceN3Sleep();
         CmbSerialPort.SelectionChanged += OnPortComboSelectionChanged;
         BtnRefreshPorts.Click += (_, _) => RefreshPortList();
         BtnAutoDetect.Click += OnAutoDetect;
@@ -200,12 +199,10 @@ public partial class SettingsView : UserControl
             _ => 0,
         };
         RefreshActiveSurfaceVisibility();
-        SldN3IdleSleep.Value = Math.Clamp(config.N3.IdleSleepMinutes, 0, 60);
+        SldN3IdleSleep.Value = Math.Clamp(config.N3.IdleSleepSeconds, 0, 3600);
         {
-            int mins = (int)Math.Round(SldN3IdleSleep.Value);
-            TxtN3IdleSleepLabel.Text = mins == 0
-                ? "Stream Controller Screen Sleep: Never"
-                : $"Stream Controller Screen Sleep: {mins} minute{(mins == 1 ? "" : "s")}";
+            int secs = SnapN3IdleSeconds((int)Math.Round(SldN3IdleSleep.Value));
+            TxtN3IdleSleepLabel.Text = $"Stream Controller Screen Sleep: {FormatN3IdleDuration(secs)}";
         }
         RefreshPortList(selectPort: config.Serial.Port);
         ChkStartWithWindows.IsChecked = config.StartWithWindows;
@@ -682,6 +679,34 @@ public partial class SettingsView : UserControl
         bool show = _config.HardwareMode == HardwareMode.DualMode
             || (_config.HardwareMode == HardwareMode.Auto && _turnUpConnected && _streamControllerConnected);
         ActiveSurfacePanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Snap a raw second value from the slider to a natural stop:
+    /// 0 (never), 5/10/15/30s, 1m/2m/5m/10m/15m/30m/60m. Lets users pick
+    /// short test durations (10s) but doesn't offer meaningless granularity.
+    /// </summary>
+    private static int SnapN3IdleSeconds(int raw)
+    {
+        int[] stops = { 0, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600 };
+        int best = stops[0];
+        int bestDist = int.MaxValue;
+        foreach (var s in stops)
+        {
+            int d = Math.Abs(raw - s);
+            if (d < bestDist) { bestDist = d; best = s; }
+        }
+        return best;
+    }
+
+    private static string FormatN3IdleDuration(int seconds)
+    {
+        if (seconds <= 0) return "Never";
+        if (seconds < 60) return $"{seconds}s";
+        int mins = seconds / 60;
+        int rem = seconds % 60;
+        if (rem == 0) return $"{mins}m";
+        return $"{mins}m {rem}s";
     }
 
     private void OnHardwareModeChanged(object? sender, EventArgs e)

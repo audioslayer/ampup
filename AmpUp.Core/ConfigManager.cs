@@ -214,6 +214,15 @@ public static class ConfigManager
             config.TabSelection.PreferredSurface = config.TabSelection.Buttons;
         }
 
+        // Legacy N3.IdleSleepMinutes -> IdleSleepSeconds. Older builds saved
+        // the timeout in minutes. Migrate once and clear the legacy field so
+        // the runtime only looks at seconds going forward.
+        if (config.N3.IdleSleepSeconds == 600 && config.N3.IdleSleepMinutes > 0)
+        {
+            config.N3.IdleSleepSeconds = config.N3.IdleSleepMinutes * 60;
+            config.N3.IdleSleepMinutes = 0;
+        }
+
         switch (config.HardwareMode)
         {
             case HardwareMode.TurnUpOnly:

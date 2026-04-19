@@ -2041,6 +2041,18 @@ public partial class App : Application
     // Used so we only restore brightness on wake, not on every tick.
     private bool _n3AsleepFromIdle;
 
+    // One-shot — forces the next refresh tick to put the N3 to sleep even
+    // if the idle threshold hasn't been crossed. Wired to the Settings
+    // "Sleep Now" button; consumed on the first tick that detects input.
+    private bool _forceN3Sleep;
+
+    /// <summary>Immediately blank the N3 LCDs. Wakes on the next mouse/keyboard input.</summary>
+    public void ForceN3Sleep()
+    {
+        _forceN3Sleep = true;
+        OnStreamControllerRefreshTick();
+    }
+
     private void OnStreamControllerRefreshTick()
     {
         try
@@ -2050,30 +2062,26 @@ public partial class App : Application
             // ── N3 idle sleep ─────────────────────────────────────────────
             if (_n3 != null && _isN3Connected)
             {
-                int thresholdMin = Math.Max(0, _config.N3.IdleSleepMinutes);
-                if (thresholdMin > 0)
+                int thresholdSec = Math.Max(0, _config.N3.IdleSleepSeconds);
+                uint idleMs = NativeMethods.GetIdleMilliseconds();
+                bool idleTriggered = thresholdSec > 0 && idleMs >= (uint)thresholdSec * 1000u;
+                bool shouldSleep = _forceN3Sleep || idleTriggered;
+
+                if (shouldSleep && !_n3AsleepFromIdle)
                 {
-                    uint idleMs = NativeMethods.GetIdleMilliseconds();
-                    bool shouldSleep = idleMs >= (uint)thresholdMin * 60_000u;
-                    if (shouldSleep && !_n3AsleepFromIdle)
-                    {
-                        _n3.SetBrightness(0);
-                        _n3AsleepFromIdle = true;
-                    }
-                    else if (!shouldSleep && _n3AsleepFromIdle)
-                    {
-                        _n3.SetBrightness((byte)Math.Clamp(_config.N3.DisplayBrightness, 0, 100));
-                        SyncStreamControllerDisplays();
-                        _n3AsleepFromIdle = false;
-                    }
+                    _n3.SetBrightness(0);
+                    _n3AsleepFromIdle = true;
                 }
-                else if (_n3AsleepFromIdle)
+                else if (!shouldSleep && _n3AsleepFromIdle)
                 {
-                    // Feature disabled while asleep — wake up.
                     _n3.SetBrightness((byte)Math.Clamp(_config.N3.DisplayBrightness, 0, 100));
                     SyncStreamControllerDisplays();
                     _n3AsleepFromIdle = false;
                 }
+
+                // A forced sleep is consumed once input arrives, so the next
+                // keypress wakes the screens just like a timeout-sleep would.
+                if (_forceN3Sleep && idleMs < 500) _forceN3Sleep = false;
             }
 
             if (_config.N3?.DisplayKeys == null) return;

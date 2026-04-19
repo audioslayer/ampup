@@ -70,13 +70,20 @@
                         </StackPanel>
 
                         <StackPanel Margin="0,4,0,10">
-                            <TextBlock x:Name="TxtN3IdleSleepLabel" Text="Stream Controller Screen Sleep: 10 minutes"
+                            <TextBlock x:Name="TxtN3IdleSleepLabel" Text="Stream Controller Screen Sleep: 10m"
                                        Style="{StaticResource SecondaryText}" Margin="0,0,0,6"
-                                       ToolTip="Blank the N3 LCD screens after this many minutes of no keyboard/mouse activity. Drag to 0 to keep them lit." />
-                            <controls:StyledSlider x:Name="SldN3IdleSleep"
-                                                   Minimum="0" Maximum="60"
-                                                   Width="360"
-                                                   HorizontalAlignment="Left" />
+                                       ToolTip="Blank the N3 LCD screens after this long with no keyboard/mouse activity. Drag to 0 to keep them lit." />
+                            <StackPanel Orientation="Horizontal">
+                                <controls:StyledSlider x:Name="SldN3IdleSleep"
+                                                       Minimum="0" Maximum="3600"
+                                                       Width="300"
+                                                       HorizontalAlignment="Left"
+                                                       VerticalAlignment="Center" />
+                                <ui:Button x:Name="BtnN3SleepNow" Content="Sleep Now"
+                                           Appearance="Secondary" Margin="10,0,0,0" Height="34"
+                                           VerticalAlignment="Center"
+                                           ToolTip="Blank the N3 screens right now. Any keyboard/mouse input wakes them back up." />
+                            </StackPanel>
                         </StackPanel>
                         <TextBlock Text="Device Port" Style="{StaticResource SecondaryText}" Margin="0,0,0,6"
                                    ToolTip="Select the COM port for your AmpUp hardware" />
