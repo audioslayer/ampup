@@ -70,6 +70,21 @@ public static class ConfigManager
 
     private static readonly string[] DefaultKnobLabels = { "", "", "", "", "" };
     private static readonly string[] DefaultKnobTargets = { "none", "none", "none", "none", "none" };
+    private static readonly (int idx, string label, string action)[] DefaultN3Buttons =
+    {
+        (100, "N3 Key 1", "none"),
+        (101, "N3 Key 2", "none"),
+        (102, "N3 Key 3", "none"),
+        (103, "N3 Key 4", "none"),
+        (104, "N3 Key 5", "none"),
+        (105, "N3 Key 6", "none"),
+        (106, "N3 Side 1", "media_prev"),
+        (107, "N3 Side 2", "media_play_pause"),
+        (108, "N3 Side 3", "media_next"),
+        (109, "N3 Press 1", "mute_master"),
+        (110, "N3 Press 2", "mute_active_window"),
+        (111, "N3 Press 3", "mute_mic"),
+    };
 
     private static void EnsureDefaults(AppConfig config)
     {
@@ -87,6 +102,18 @@ public static class ConfigManager
         {
             if (!config.Buttons.Any(b => b.Idx == i))
                 config.Buttons.Add(new ButtonConfig { Idx = i });
+        }
+        foreach (var (idx, label, action) in DefaultN3Buttons)
+        {
+            if (!config.N3.Buttons.Any(b => b.Idx == idx))
+            {
+                config.N3.Buttons.Add(new ButtonConfig
+                {
+                    Idx = idx,
+                    Label = label,
+                    Action = action
+                });
+            }
         }
         for (int i = 0; i < 5; i++)
         {

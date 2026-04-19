@@ -8,6 +8,7 @@ public class AppConfig
     public SerialConfig Serial { get; set; } = new();
     public List<KnobConfig> Knobs { get; set; } = new();
     public List<ButtonConfig> Buttons { get; set; } = new();
+    public N3Config N3 { get; set; } = new();
     public List<LightConfig> Lights { get; set; } = new();
     public bool StartWithWindows { get; set; } = true;
     public bool StartMinimized { get; set; } = false;
@@ -225,6 +226,14 @@ public enum LightEffect
     NebulaDrift,
     Vortex, Shockwave, Tidal, Prism, EmberDrift, Glitch,
     OpalWave, Bloom, ColorTwinkle,
+}
+
+public class N3Config
+{
+    public bool Enabled { get; set; } = true;
+    public bool MirrorFirstThreeKnobs { get; set; } = true;
+    public int EncoderStep { get; set; } = 32;
+    public List<ButtonConfig> Buttons { get; set; } = new();
 }
 
 public enum ReactiveMode

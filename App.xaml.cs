@@ -50,6 +50,9 @@ public partial class App : Application
     private bool _wheelVisible;
     private System.Windows.Threading.DispatcherTimer? _wheelDismissTimer;
     private readonly int[] _lastKnobRaw = new int[5];
+    private const int N3DisplayKeyBase = 100;
+    private const int N3SideButtonBase = 106;
+    private const int N3EncoderPressBase = 109;
 
     /// <summary>
     /// Last hardware knob positions (0-1), updated on every knob event.
@@ -158,6 +161,7 @@ public partial class App : Application
 
         // TreasLin / VSDinside N3 HID bring-up
         _n3 = new N3Controller();
+        _n3.OnInput += HandleN3Input;
         if (_n3.TryConnect())
         {
             Logger.Log("N3: native HID bring-up active");
@@ -1363,6 +1367,61 @@ public partial class App : Application
             _buttons.HandleDown(e.Idx, _config);
         else
             _buttons.HandleUp(e.Idx, _config);
+    }
+
+    private void HandleN3Input(N3InputEvent e)
+    {
+        if (!_config.N3.Enabled) return;
+
+        switch (e.Kind)
+        {
+            case N3InputKind.EncoderTwist:
+                HandleN3EncoderTwist(e);
+                break;
+
+            case N3InputKind.DisplayKey:
+                HandleN3VirtualButton(N3DisplayKeyBase + e.Index, e.IsPressed == true);
+                break;
+
+            case N3InputKind.SideButton:
+                HandleN3VirtualButton(N3SideButtonBase + e.Index, e.IsPressed == true);
+                break;
+
+            case N3InputKind.EncoderPress:
+                HandleN3VirtualButton(N3EncoderPressBase + e.Index, e.IsPressed == true);
+                break;
+        }
+    }
+
+    private void HandleN3EncoderTwist(N3InputEvent e)
+    {
+        if (!_config.N3.MirrorFirstThreeKnobs) return;
+        if (e.Index < 0 || e.Index > 2) return;
+
+        var knob = _config.Knobs.FirstOrDefault(k => k.Idx == e.Index);
+        if (knob == null) return;
+
+        int current = knob.LastRawValue >= 0
+            ? knob.LastRawValue
+            : (int)Math.Round(KnobPositions[e.Index] * 1023f);
+
+        int step = Math.Clamp(_config.N3.EncoderStep, 1, 128);
+        int next = Math.Clamp(current + (e.Delta * step), 0, 1023);
+        HandleKnob(new KnobEvent { Idx = e.Index, Value = next });
+    }
+
+    private void HandleN3VirtualButton(int idx, bool isDown)
+    {
+        // Match the same startup/reconnect guardrails as the Turn Up button path.
+        if (Environment.TickCount64 - _startupTick < 5000)
+            return;
+        if ((DateTime.UtcNow - _connectedAt).TotalMilliseconds < 2000)
+            return;
+
+        if (isDown)
+            _buttons.HandleDown(idx, _config);
+        else
+            _buttons.HandleUp(idx, _config);
     }
 
     private void HandleConnection(bool connected)

@@ -53,6 +53,10 @@
     <None Remove="AsRockBridge\**" />
     <Content Remove="AsRockBridge\**" />
     <EmbeddedResource Remove="AsRockBridge\**" />
+    <Compile Remove="N3Diag\**" />
+    <None Remove="N3Diag\**" />
+    <Content Remove="N3Diag\**" />
+    <EmbeddedResource Remove="N3Diag\**" />
   </ItemGroup>
 
   <ItemGroup>

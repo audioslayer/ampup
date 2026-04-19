@@ -232,6 +232,27 @@ public sealed class N3Controller : IDisposable
         }
     }
 
+    public bool SendDiagnosticCommand(string label, params byte[] payload)
+    {
+        if (!IsAvailable)
+        {
+            Logger.Log($"N3: diagnostic send skipped ({label}) because device is not connected");
+            return false;
+        }
+
+        try
+        {
+            WriteExtendedReport(payload);
+            Logger.Log($"N3: diagnostic tx [{label}] {ToHex(payload)}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"N3: diagnostic send failed ({label}) - {ex.Message}");
+            return false;
+        }
+    }
+
     private bool EnsureInitialized()
     {
         if (!IsAvailable) return false;
@@ -336,7 +357,7 @@ public sealed class N3Controller : IDisposable
             });
     }
 
-    private bool TryParseInput(byte[] report, out N3InputEvent parsed)
+    public static bool TryParseInputReport(byte[] report, out N3InputEvent parsed)
     {
         parsed = new N3InputEvent { Kind = N3InputKind.Unknown, RawReport = report };
 
@@ -394,6 +415,11 @@ public sealed class N3Controller : IDisposable
         };
 
         return true;
+    }
+
+    private bool TryParseInput(byte[] report, out N3InputEvent parsed)
+    {
+        return TryParseInputReport(report, out parsed);
     }
 
     private static N3InputEvent BuildSideButtonEvent(int index, byte input, byte state, byte[] report)
