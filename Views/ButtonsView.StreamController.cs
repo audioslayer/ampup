@@ -32,6 +32,18 @@ public partial class ButtonsView
     private TextBlock? _scEditorTitle;
     private Image? _scEditorPreview;
     private TextBox? _scTitleBox;
+
+    // Display type (Normal / Clock / Dynamic) + related editors
+    private SegmentedControl? _scDisplayTypePicker;
+    private StackPanel? _scClockPanel;
+    private TextBox? _scClockFormatBox;
+    private StackPanel? _scDynamicPanel;
+    private ListPicker? _scDynamicSourcePicker;
+    private TextBox? _scDynamicActiveIconBox;
+    private Button? _scDynamicChooseIconButton;
+    private TextBox? _scDynamicActiveTitleBox;
+    // Panels that host the "Normal" editors — grouped so they can hide together.
+    private readonly List<FrameworkElement> _scNormalOnlyRows = new();
     private SegmentedControl? _scTextPositionPicker;
     private StyledSlider? _scTextSizeSlider;
     private TextBlock? _scTextSizeLabel;
@@ -111,6 +123,53 @@ public partial class ButtonsView
 
     private int PagedDisplayKeyBase => StreamControllerDisplayKeyBase + (_scCurrentPage * StreamControllerKeysPerPage);
 
+    // ── Folder editing state ────────────────────────────────────────────
+    // "" means we're editing the root grid. Otherwise the name is the key
+    // into _config.N3.Folders. The editor UI routes all key/button reads
+    // through GetActiveN3DisplayKeys / GetActiveN3ButtonList so existing
+    // editing flows "just work" on folder contents.
+    private string _scActiveFolder = "";
+    private Border? _scFolderBanner;
+    private TextBlock? _scFolderBannerLabel;
+    private Button? _scFolderBackToRootButton;
+    private ListPicker? _scFolderPicker;
+    private StackPanel? _scFolderPanel;
+    private Button? _scNewFolderButton;
+
+    private bool InFolderContext => !string.IsNullOrEmpty(_scActiveFolder);
+
+    private ButtonFolderConfig? ActiveFolder =>
+        _config?.N3.Folders.FirstOrDefault(f => f.Name == _scActiveFolder);
+
+    private List<StreamControllerDisplayKeyConfig> GetActiveN3DisplayKeys()
+    {
+        if (_config == null) return new List<StreamControllerDisplayKeyConfig>();
+        var folder = ActiveFolder;
+        return folder?.DisplayKeys ?? _config.N3.DisplayKeys;
+    }
+
+    private List<ButtonConfig> GetActiveN3ButtonList()
+    {
+        if (_config == null) return new List<ButtonConfig>();
+        var folder = ActiveFolder;
+        return folder?.Buttons ?? _config.N3.Buttons;
+    }
+
+    private int GetActiveN3PageCount()
+    {
+        if (_config == null) return 1;
+        var folder = ActiveFolder;
+        return Math.Max(1, folder?.PageCount ?? _config.N3.PageCount);
+    }
+
+    private void SetActiveN3PageCount(int count)
+    {
+        if (_config == null) return;
+        var folder = ActiveFolder;
+        if (folder != null) folder.PageCount = Math.Max(1, count);
+        else _config.N3.PageCount = Math.Max(1, count);
+    }
+
     private void InitializeDeviceSelector()
     {
         DeviceSelector.AccentColor = ThemeManager.Accent;
@@ -130,9 +189,22 @@ public partial class ButtonsView
         };
     }
 
+    private System.Windows.Threading.DispatcherTimer? _scPreviewRefreshTimer;
+
     private void BuildStreamControllerDesigner()
     {
         StreamControllerRoot.Children.Clear();
+
+        // Tick the UI key grid once per 15s so Clock / DynamicState previews stay fresh.
+        if (_scPreviewRefreshTimer == null)
+        {
+            _scPreviewRefreshTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(15),
+            };
+            _scPreviewRefreshTimer.Tick += (_, _) => RefreshLiveDisplayPreviews();
+            _scPreviewRefreshTimer.Start();
+        }
 
         var root = new Grid();
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.15, GridUnitType.Star) });
@@ -140,6 +212,45 @@ public partial class ButtonsView
 
         // ── LEFT: Center Stage ──────────────────────────────────────────
         var left = new StackPanel();
+
+        // Folder breadcrumb banner — only visible while editing a folder
+        _scFolderBanner = new Border
+        {
+            Visibility = Visibility.Collapsed,
+            Margin = new Thickness(0, 0, 0, 10),
+            Padding = new Thickness(12, 8, 12, 8),
+            CornerRadius = new CornerRadius(8),
+            Background = new SolidColorBrush(Color.FromArgb(0x22, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
+            BorderThickness = new Thickness(1),
+        };
+        var bannerRow = new Grid();
+        bannerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        bannerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _scFolderBannerLabel = new TextBlock
+        {
+            Text = "Editing folder",
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        Grid.SetColumn(_scFolderBannerLabel, 0);
+        bannerRow.Children.Add(_scFolderBannerLabel);
+        _scFolderBackToRootButton = new Button
+        {
+            Content = "← Back to Root",
+            Padding = new Thickness(10, 4, 10, 4),
+            FontSize = 11,
+            Cursor = Cursors.Hand,
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+        _scFolderBackToRootButton.Click += (_, _) => NavigateToFolderInEditor("");
+        Grid.SetColumn(_scFolderBackToRootButton, 1);
+        bannerRow.Children.Add(_scFolderBackToRootButton);
+        _scFolderBanner.Child = bannerRow;
+        left.Children.Add(_scFolderBanner);
 
         // Key grid with nav arrows
         var gridArea = new Grid { Margin = new Thickness(0, 0, 0, 8) };
@@ -412,10 +523,98 @@ public partial class ButtonsView
             QueueSave();
         });
 
-        _scDisplayTabContent.Children.Add(MakeEditorLabel("TITLE"));
+        // ── Display Type (Normal / Clock / Dynamic) ────────────────────
+        var displayTypeLabel = MakeEditorLabel("DISPLAY TYPE");
+        _scDisplayTabContent.Children.Add(displayTypeLabel);
+        _scDisplayTypePicker = new SegmentedControl
+        {
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 0, 0, 10)
+        };
+        _scDisplayTypePicker.AddSegment("Normal", DisplayKeyType.Normal);
+        _scDisplayTypePicker.AddSegment("Clock", DisplayKeyType.Clock);
+        _scDisplayTypePicker.AddSegment("Dynamic", DisplayKeyType.DynamicState);
+        _scDisplayTypePicker.SelectionChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            var key = GetSelectedDisplayKeyConfig();
+            if (key != null && _scDisplayTypePicker.SelectedTag is DisplayKeyType dt)
+                key.DisplayType = dt;
+            UpdateDisplayTypeVisibility();
+            UpdateEditorPreviewOnly();
+            QueueSave();
+        };
+        _scDisplayTabContent.Children.Add(_scDisplayTypePicker);
+
+        // Clock-type editors
+        _scClockPanel = new StackPanel { Visibility = Visibility.Collapsed };
+        _scClockPanel.Children.Add(MakeEditorLabel("CLOCK FORMAT"));
+        _scClockFormatBox = MakeEditorTextBox("HH:mm");
+        _scClockFormatBox.TextChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            var key = GetSelectedDisplayKeyConfig();
+            if (key != null) key.ClockFormat = _scClockFormatBox.Text;
+            UpdateEditorPreviewOnly();
+            QueueSave();
+        };
+        _scClockPanel.Children.Add(_scClockFormatBox);
+        var clockChipsRow = new WrapPanel { Margin = new Thickness(0, 6, 0, 10) };
+        foreach (var (chipLabel, chipFmt) in new[] { ("HH:mm", "HH:mm"), ("h:mm tt", "h:mm tt"), ("h:mm:ss tt", "h:mm:ss tt") })
+        {
+            var chip = MakeClockFormatChip(chipLabel, chipFmt);
+            clockChipsRow.Children.Add(chip);
+        }
+        _scClockPanel.Children.Add(clockChipsRow);
+        _scDisplayTabContent.Children.Add(_scClockPanel);
+
+        // Dynamic-type editors
+        _scDynamicPanel = new StackPanel { Visibility = Visibility.Collapsed };
+        _scDynamicPanel.Children.Add(MakeEditorLabel("STATE SOURCE"));
+        _scDynamicSourcePicker = new ListPicker { Margin = new Thickness(0, 0, 0, 10) };
+        foreach (var (src, label) in DynamicKeyStateProvider.Sources)
+            _scDynamicSourcePicker.AddItem(label, src);
+        _scDynamicSourcePicker.SelectionChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            var key = GetSelectedDisplayKeyConfig();
+            if (key != null)
+                key.DynamicStateSource = _scDynamicSourcePicker.SelectedTag as string ?? "";
+            UpdateEditorPreviewOnly();
+            QueueSave();
+        };
+        _scDynamicPanel.Children.Add(_scDynamicSourcePicker);
+
+        _scDynamicPanel.Children.Add(MakeEditorLabel("ACTIVE ICON"));
+        _scDynamicActiveIconBox = MakeEditorTextBox("No active icon");
+        _scDynamicActiveIconBox.IsReadOnly = true;
+        _scDynamicPanel.Children.Add(_scDynamicActiveIconBox);
+        _scDynamicChooseIconButton = MakeEditorButton("Choose Active Icon", (_, _) => ChooseStreamControllerDynamicActiveIcon());
+        _scDynamicChooseIconButton.Margin = new Thickness(0, 6, 0, 10);
+        _scDynamicPanel.Children.Add(_scDynamicChooseIconButton);
+
+        _scDynamicPanel.Children.Add(MakeEditorLabel("ACTIVE TITLE"));
+        _scDynamicActiveTitleBox = MakeEditorTextBox("Active label");
+        _scDynamicActiveTitleBox.TextChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            var key = GetSelectedDisplayKeyConfig();
+            if (key != null) key.DynamicStateActiveTitle = _scDynamicActiveTitleBox.Text;
+            UpdateEditorPreviewOnly();
+            QueueSave();
+        };
+        _scDynamicPanel.Children.Add(_scDynamicActiveTitleBox);
+        _scDisplayTabContent.Children.Add(_scDynamicPanel);
+
+        var titleLabel = MakeEditorLabel("TITLE");
+        _scDisplayTabContent.Children.Add(titleLabel);
         _scDisplayTabContent.Children.Add(_scTitleBox);
+        _scNormalOnlyRows.Add(titleLabel);
+        _scNormalOnlyRows.Add(_scTitleBox);
         // Text position picker
-        _scDisplayTabContent.Children.Add(MakeEditorLabel("TEXT POSITION"));
+        var textPositionLabel = MakeEditorLabel("TEXT POSITION");
+        _scDisplayTabContent.Children.Add(textPositionLabel);
+        _scNormalOnlyRows.Add(textPositionLabel);
         _scTextPositionPicker = new SegmentedControl
         {
             HorizontalAlignment = HorizontalAlignment.Left,
@@ -427,6 +626,7 @@ public partial class ButtonsView
         _scTextPositionPicker.AddSegment("Hidden", DisplayTextPosition.Hidden);
         _scTextPositionPicker.SelectionChanged += (_, _) => { if (!_loading) { UpdateEditorPreviewOnly(); QueueSave(); } };
         _scDisplayTabContent.Children.Add(_scTextPositionPicker);
+        _scNormalOnlyRows.Add(_scTextPositionPicker);
 
         // Text size slider
         _scTextSizeLabel = new TextBlock
@@ -438,6 +638,7 @@ public partial class ButtonsView
             Margin = new Thickness(0, 0, 0, 4)
         };
         _scDisplayTabContent.Children.Add(_scTextSizeLabel);
+        _scNormalOnlyRows.Add(_scTextSizeLabel);
         _scTextSizeSlider = new StyledSlider
         {
             Minimum = 6,
@@ -455,21 +656,29 @@ public partial class ButtonsView
             if (!_loading) { UpdateEditorPreviewOnly(); QueueSave(); }
         };
         _scDisplayTabContent.Children.Add(_scTextSizeSlider);
+        _scNormalOnlyRows.Add(_scTextSizeSlider);
 
         // Text color palette
-        _scDisplayTabContent.Children.Add(MakeEditorLabel("TEXT COLOR"));
+        var textColorLabel = MakeEditorLabel("TEXT COLOR");
+        _scDisplayTabContent.Children.Add(textColorLabel);
+        _scNormalOnlyRows.Add(textColorLabel);
         _scTextColorSwatch = new Border(); // placeholder for tracking
         var textColorWrap = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
         _scTextColorSwatchPanel = textColorWrap;
         _scDisplayTabContent.Children.Add(textColorWrap);
+        _scNormalOnlyRows.Add(textColorWrap);
 
-        _scDisplayTabContent.Children.Add(MakeEditorLabel("ICON"));
+        var iconLabel = MakeEditorLabel("ICON");
+        _scDisplayTabContent.Children.Add(iconLabel);
         _scDisplayTabContent.Children.Add(_scIconBox);
+        _scNormalOnlyRows.Add(iconLabel);
+        _scNormalOnlyRows.Add(_scIconBox);
         var iconButtonRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
         iconButtonRow.Children.Add(_scChooseIconButton);
         _scClearIconButton.Margin = new Thickness(8, 0, 0, 0);
         iconButtonRow.Children.Add(_scClearIconButton);
         _scDisplayTabContent.Children.Add(iconButtonRow);
+        _scNormalOnlyRows.Add(iconButtonRow);
 
         right.Children.Add(_scDisplayTabContent);
 
@@ -493,6 +702,8 @@ public partial class ButtonsView
         (_scDevicePanel, _scDevicePicker) = MakeStreamDeviceRow();
         (_scKnobPanel, _scKnobPicker) = MakeStreamKnobRow();
         _scTogglePanel = MakeStreamToggleRow();
+        _scMultiActionPanel = MakeStreamMultiActionPanel();
+        (_scFolderPanel, _scFolderPicker, _scNewFolderButton) = MakeStreamFolderRow();
 
         _scActionTabContent.Children.Add(_scPathPanel);
         _scActionTabContent.Children.Add(_scMacroPanel);
@@ -501,6 +712,8 @@ public partial class ButtonsView
         _scActionTabContent.Children.Add(_scDevicePanel);
         _scActionTabContent.Children.Add(_scKnobPanel);
         _scActionTabContent.Children.Add(_scTogglePanel);
+        _scActionTabContent.Children.Add(_scMultiActionPanel);
+        _scActionTabContent.Children.Add(_scFolderPanel);
 
         right.Children.Add(_scActionTabContent);
 
@@ -1203,6 +1416,38 @@ public partial class ButtonsView
             if (_scTextSizeSlider != null) _scTextSizeSlider.Value = Math.Clamp(key.TextSize, 6, 28);
             if (_scTextSizeLabel != null) _scTextSizeLabel.Text = $"Font Size: {Math.Clamp(key.TextSize, 6, 28)}";
             BuildTextColorSwatches();
+
+            // Display Type + Clock / Dynamic fields
+            if (_scDisplayTypePicker != null)
+            {
+                _scDisplayTypePicker.SelectedIndex = key.DisplayType switch
+                {
+                    DisplayKeyType.Clock => 1,
+                    DisplayKeyType.DynamicState => 2,
+                    _ => 0
+                };
+            }
+            if (_scClockFormatBox != null)
+                _scClockFormatBox.Text = string.IsNullOrWhiteSpace(key.ClockFormat) ? "HH:mm" : key.ClockFormat;
+            if (_scDynamicSourcePicker != null)
+            {
+                int srcIdx = -1;
+                for (int s = 0; s < DynamicKeyStateProvider.Sources.Length; s++)
+                {
+                    if (DynamicKeyStateProvider.Sources[s].Source == key.DynamicStateSource)
+                    {
+                        srcIdx = s;
+                        break;
+                    }
+                }
+                _scDynamicSourcePicker.SelectedIndex = srcIdx;
+            }
+            if (_scDynamicActiveIconBox != null)
+                _scDynamicActiveIconBox.Text = string.IsNullOrWhiteSpace(key.DynamicStateActiveIcon) ? "No active icon" : key.DynamicStateActiveIcon;
+            if (_scDynamicActiveTitleBox != null)
+                _scDynamicActiveTitleBox.Text = key.DynamicStateActiveTitle;
+            UpdateDisplayTypeVisibility();
+
             _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateHardwarePreview(key);
             _scDisplayDesignPanel!.Visibility = Visibility.Visible;
 
@@ -1334,6 +1579,42 @@ public partial class ButtonsView
         if (globalIdx >= _scPageCount * StreamControllerKeysPerPage)
             return null;
         return _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == globalIdx);
+    }
+
+    /// <summary>
+    /// Re-renders the 6 key tiles + editor preview so Clock and DynamicState keys
+    /// pick up time/state changes without the user needing to interact.
+    /// </summary>
+    private void RefreshLiveDisplayPreviews()
+    {
+        if (_config == null) return;
+
+        bool anyLive = false;
+        foreach (var k in _config.N3.DisplayKeys)
+        {
+            if (k.DisplayType == DisplayKeyType.Clock || k.DisplayType == DisplayKeyType.DynamicState)
+            {
+                anyLive = true;
+                break;
+            }
+        }
+        if (!anyLive) return;
+
+        for (int i = 0; i < 6; i++)
+        {
+            int globalIdx = _scCurrentPage * StreamControllerKeysPerPage + i;
+            var key = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == globalIdx);
+            if (key == null) continue;
+            if (key.DisplayType == DisplayKeyType.Normal) continue;
+            _scDisplayImages[i].Source = StreamControllerDisplayRenderer.CreateHardwarePreview(key);
+        }
+
+        var selected = GetSelectedDisplayKeyConfig();
+        if (selected != null && _scEditorPreview != null
+            && (selected.DisplayType == DisplayKeyType.Clock || selected.DisplayType == DisplayKeyType.DynamicState))
+        {
+            _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateHardwarePreview(selected);
+        }
     }
 
     private void UpdateEditorPreviewOnly()
@@ -1600,6 +1881,74 @@ public partial class ButtonsView
         QueueSave();
     }
 
+    // ── Display type helpers ────────────────────────────────────────────
+
+    private Border MakeClockFormatChip(string label, string format)
+    {
+        var chip = new Border
+        {
+            Background = FindBrush("InputBgBrush"),
+            BorderBrush = FindBrush("InputBorderBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(10, 4, 10, 4),
+            Margin = new Thickness(0, 0, 6, 6),
+            Cursor = Cursors.Hand,
+            Child = new TextBlock
+            {
+                Text = label,
+                FontSize = 11,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = FindBrush("TextPrimaryBrush")
+            }
+        };
+        chip.MouseLeftButtonUp += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            if (_scClockFormatBox == null) return;
+            _scClockFormatBox.Text = format;
+            var key = GetSelectedDisplayKeyConfig();
+            if (key != null) key.ClockFormat = format;
+            UpdateEditorPreviewOnly();
+            QueueSave();
+        };
+        return chip;
+    }
+
+    private void UpdateDisplayTypeVisibility()
+    {
+        var dt = _scDisplayTypePicker?.SelectedTag is DisplayKeyType t ? t : DisplayKeyType.Normal;
+        if (_scClockPanel != null)
+            _scClockPanel.Visibility = dt == DisplayKeyType.Clock ? Visibility.Visible : Visibility.Collapsed;
+        if (_scDynamicPanel != null)
+            _scDynamicPanel.Visibility = dt == DisplayKeyType.DynamicState ? Visibility.Visible : Visibility.Collapsed;
+
+        bool showNormal = dt == DisplayKeyType.Normal;
+        foreach (var row in _scNormalOnlyRows)
+            row.Visibility = showNormal ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ChooseStreamControllerDynamicActiveIcon()
+    {
+        if (_config == null) return;
+        var display = GetSelectedDisplayKeyConfig();
+        if (display == null) return;
+
+        var dialog = new StreamControllerIconPickerDialog { Owner = Window.GetWindow(this) };
+        if (dialog.ShowDialog() == true)
+        {
+            // Dynamic active icon is a MaterialIconKind name only — ignore downloaded images.
+            if (!string.IsNullOrWhiteSpace(dialog.SelectedIconKind))
+            {
+                display.DynamicStateActiveIcon = dialog.SelectedIconKind!;
+                if (_scDynamicActiveIconBox != null)
+                    _scDynamicActiveIconBox.Text = dialog.SelectedIconKind!;
+                UpdateEditorPreviewOnly();
+                QueueSave();
+            }
+        }
+    }
+
     // ── Image / Icon pickers ────────────────────────────────────────────
 
     private void ChooseStreamControllerIcon()
@@ -1656,5 +2005,22 @@ public partial class ButtonsView
             SetTextBoxValue(_scPathBox, dialog.SelectedPath);
             QueueSave();
         }
+    }
+
+    // ── Scaffolding stub (TODO: flesh out as part of multi-action rollout) ───
+
+    private StackPanel MakeStreamMultiActionPanel()
+    {
+        return new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 10, 0, 0) };
+    }
+
+    /// <summary>
+    /// Called from App when the hardware opens/closes a folder. Currently a stub —
+    /// full folder-aware UI update will arrive with the folder feature rollout.
+    /// </summary>
+    public void SetActiveN3Folder(string folderName)
+    {
+        // TODO: switch the editor/grid to the folder's ButtonConfig list.
+        LoadStreamControllerConfig();
     }
 }

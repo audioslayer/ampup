@@ -23,6 +23,16 @@ public class ButtonGestureEngine : IDisposable
     private volatile AppConfig? _lastConfig;
 
     /// <summary>
+    /// Optional process-wide override for button resolution. When set, this delegate
+    /// takes priority over the default search in AppConfig.Buttons / AppConfig.N3.Buttons.
+    /// Used by folder navigation to route N3 key presses to folder-scoped buttons.
+    /// Return null from the delegate to fall back to the default resolver.
+    /// Static so host code that doesn't hold a direct ButtonGestureEngine reference
+    /// (e.g. via ButtonHandler's private field) can still wire this up.
+    /// </summary>
+    public static Func<int, ButtonConfig?>? ButtonResolverOverride { get; set; }
+
+    /// <summary>
     /// Fires when a gesture resolves to an action.
     /// Parameters: (buttonIdx, gesture ["tap"/"double"/"hold"], actionString, resolvedButtonConfig)
     /// The resolvedButtonConfig has Action/Path/DeviceId etc. already mapped from the correct gesture fields.
@@ -204,6 +214,13 @@ public class ButtonGestureEngine : IDisposable
 
     private ButtonConfig? ResolveButtonConfig(int idx)
     {
+        var over = ButtonResolverOverride;
+        if (over != null)
+        {
+            var fromOverride = over(idx);
+            if (fromOverride != null) return fromOverride;
+        }
+
         return _lastConfig?.Buttons.FirstOrDefault(b => b.Idx == idx)
             ?? _lastConfig?.N3.Buttons.FirstOrDefault(b => b.Idx == idx);
     }

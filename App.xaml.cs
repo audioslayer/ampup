@@ -52,11 +52,19 @@ public partial class App : Application
     private RadialWheelOverlay? _radialWheel;
     private bool _wheelVisible;
     private System.Windows.Threading.DispatcherTimer? _wheelDismissTimer;
+    private System.Windows.Threading.DispatcherTimer? _streamControllerRefreshTimer;
+    private DateTime _lastDynamicStateTick = DateTime.MinValue;
     private readonly int[] _lastKnobRaw = new int[5];
     private const int N3DisplayKeyBase = 100;
     private const int N3SideButtonBase = 106;
     private const int N3EncoderPressBase = 109;
     private const int N3KnobStateBase = 5;
+
+    // ── Folder (sub-grid) navigation state ────────────────────────────
+    // Empty string means we're at the root. Folder name matches ButtonFolderConfig.Name.
+    private string _currentN3Folder = "";
+    // Back key occupies LCD slot 0 whenever we're inside a folder — it is virtual
+    // (no ButtonConfig entry) and handled directly in HandleN3Input.
 
     /// <summary>
     /// Last hardware knob positions (0-1), updated on every knob event.
@@ -169,12 +177,20 @@ public partial class App : Application
         _n3.OnInput += HandleN3Input;
         _isN3Connected = _n3.TryConnect();
         _n3DeviceName = _isN3Connected ? _n3.DeviceName : null;
+
+        // Let the display renderer resolve dynamic-state sources without
+        // taking a hard dependency on OBS / AudioMixer.
+        StreamControllerDisplayRenderer.DynamicStateResolver =
+            source => DynamicKeyStateProvider.IsActive(source, _obs, _mixer);
+
         if (_isN3Connected)
         {
             Logger.Log("N3: native HID bring-up active");
             _n3.SetBrightness((byte)Math.Clamp(_config.N3.DisplayBrightness, 0, 100));
             SyncStreamControllerDisplays();
         }
+
+        StartStreamControllerRefreshTimer();
 
         // DreamView / Screen Sync
         _dreamSync = new DreamSyncController(_config.Ambience.ScreenSync, _config.Ambience, new WindowsScreenCapture());
@@ -216,6 +232,11 @@ public partial class App : Application
         _buttons.OnRoomToggle += HandleRoomToggle;
         _buttons.OnGroupToggle += HandleGroupToggle;
         _buttons.OnScPageChange += HandleScPageChange;
+        _buttons.OnOpenFolder += NavigateToN3Folder;
+
+        // Wire up folder-aware button resolution so gesture engine can find buttons
+        // inside the currently-open folder by their (non-root) idx.
+        AmpUp.Core.Engine.ButtonGestureEngine.ButtonResolverOverride = ResolveN3ButtonForGestureEngine;
 
         // Start Home Assistant integration
         _ha = new HAIntegration(_config.HomeAssistant);
@@ -832,6 +853,7 @@ public partial class App : Application
         _mutePollingTimer?.Dispose();
         _autoSwitchTimer?.Dispose();
         _gameModeTimer?.Dispose();
+        _streamControllerRefreshTimer?.Stop();
         _duckingEngine?.Dispose();
         Dispatcher.Invoke(() => Shutdown());
     }
@@ -1664,6 +1686,23 @@ public partial class App : Application
                 break;
 
             case N3InputKind.DisplayKey:
+                // When inside a folder, LCD slot 0 is the virtual "Back" key and
+                // slots 1-5 shift to folder keys 0-4.
+                if (IsInFolder)
+                {
+                    if (e.Index == 0)
+                    {
+                        // Only react on release to match Stream Deck folder UX.
+                        if (e.IsPressed == false)
+                            NavigateToN3Folder("");
+                        break;
+                    }
+
+                    int folderLocalIdx = N3DisplayKeyBase + (_config.N3.CurrentPage * 6) + (e.Index - 1);
+                    HandleN3VirtualButton(folderLocalIdx, e.IsPressed == true);
+                    break;
+                }
+
                 int pagedIdx = N3DisplayKeyBase + (_config.N3.CurrentPage * 6) + e.Index;
                 HandleN3VirtualButton(pagedIdx, e.IsPressed == true);
                 break;
@@ -1939,6 +1978,130 @@ public partial class App : Application
         }
     }
 
+    /// <summary>
+    /// Kicks off a low-frequency DispatcherTimer that re-renders the Stream Controller
+    /// LCD keys whenever any key is configured as Clock or DynamicState. Clock keys
+    /// need a redraw at least once per minute; DynamicState keys benefit from ~5s polling
+    /// for OBS recording/streaming and mute states.
+    /// </summary>
+    private void StartStreamControllerRefreshTimer()
+    {
+        if (_streamControllerRefreshTimer != null) return;
+
+        _streamControllerRefreshTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(5),
+        };
+        _streamControllerRefreshTimer.Tick += (_, _) => OnStreamControllerRefreshTick();
+        _streamControllerRefreshTimer.Start();
+    }
+
+    private void OnStreamControllerRefreshTick()
+    {
+        try
+        {
+            if (_config?.N3?.DisplayKeys == null) return;
+
+            bool hasDynamic = false;
+            bool hasClock = false;
+            foreach (var k in _config.N3.DisplayKeys)
+            {
+                if (k.DisplayType == DisplayKeyType.Clock) hasClock = true;
+                else if (k.DisplayType == DisplayKeyType.DynamicState) hasDynamic = true;
+                if (hasClock && hasDynamic) break;
+            }
+
+            if (!hasClock && !hasDynamic) return;
+
+            // Keep OBS state fresh so obs_recording / obs_streaming reflect reality.
+            if (hasDynamic && _obs != null && _obs.IsAvailable)
+                _ = _obs.RefreshStatusAsync();
+
+            SyncStreamControllerDisplays();
+            _lastDynamicStateTick = DateTime.Now;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Stream Controller refresh tick failed: {ex.Message}");
+        }
+    }
+
+    // ── Folder-aware config routing ────────────────────────────────────
+    //
+    // When inside a folder (_currentN3Folder != ""), LCD keys and button
+    // configs come from that folder's own lists instead of the root N3 lists.
+
+    private List<StreamControllerDisplayKeyConfig> GetActiveDisplayKeys()
+    {
+        if (string.IsNullOrEmpty(_currentN3Folder)) return _config.N3.DisplayKeys;
+        var folder = _config.N3.Folders.FirstOrDefault(f => f.Name == _currentN3Folder);
+        return folder?.DisplayKeys ?? _config.N3.DisplayKeys;
+    }
+
+    private List<ButtonConfig> GetActiveN3Buttons()
+    {
+        if (string.IsNullOrEmpty(_currentN3Folder)) return _config.N3.Buttons;
+        var folder = _config.N3.Folders.FirstOrDefault(f => f.Name == _currentN3Folder);
+        return folder?.Buttons ?? _config.N3.Buttons;
+    }
+
+    private int GetActivePageCount()
+    {
+        if (string.IsNullOrEmpty(_currentN3Folder)) return Math.Max(1, _config.N3.PageCount);
+        var folder = _config.N3.Folders.FirstOrDefault(f => f.Name == _currentN3Folder);
+        return Math.Max(1, folder?.PageCount ?? 1);
+    }
+
+    private bool IsInFolder => !string.IsNullOrEmpty(_currentN3Folder);
+
+    /// <summary>
+    /// Navigate into a named folder. Empty string returns to root. Resets page
+    /// to 0 and re-syncs the LCD displays.
+    /// </summary>
+    public void NavigateToN3Folder(string folderName)
+    {
+        folderName ??= "";
+
+        // Validate: if navigating to a non-existent folder, fall back to root.
+        if (folderName.Length > 0 && _config.N3.Folders.All(f => f.Name != folderName))
+        {
+            Logger.Log($"NavigateToN3Folder: folder '{folderName}' not found — returning to root");
+            folderName = "";
+        }
+
+        _currentN3Folder = folderName;
+        _config.N3.CurrentPage = 0;
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                SyncStreamControllerDisplays();
+                _mainWindow?.GetButtonsView()?.SetActiveN3Folder(_currentN3Folder);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"NavigateToN3Folder UI update error: {ex.Message}");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Folder-aware button resolver for the gesture engine. When inside a
+    /// folder, any N3 button idx resolves to the folder's own ButtonConfig list.
+    /// </summary>
+    private ButtonConfig? ResolveN3ButtonForGestureEngine(int idx)
+    {
+        if (!IsInFolder) return null; // fall through to default resolver
+
+        // Only N3 idx ranges get folder-scoped resolution. Turn Up buttons (0-4)
+        // always use the root _config.Buttons list.
+        if (idx < N3DisplayKeyBase) return null;
+
+        var folder = _config.N3.Folders.FirstOrDefault(f => f.Name == _currentN3Folder);
+        return folder?.Buttons.FirstOrDefault(b => b.Idx == idx);
+    }
+
     private void SyncStreamControllerDisplays()
     {
         if (_n3 == null || !_isN3Connected) return;
@@ -1946,10 +2109,24 @@ public partial class App : Application
 
         try
         {
+            bool inFolder = IsInFolder;
             int pageOffset = _config.N3.CurrentPage * 6;
+            var activeKeys = GetActiveDisplayKeys();
+
             for (int i = 0; i < N3Controller.DisplayKeyCount; i++)
             {
-                var key = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == pageOffset + i);
+                // While inside a folder, key slot 0 is a virtual "Back" key — other
+                // slots render folder keys shifted by 1 so everything lines up.
+                if (inFolder && i == 0)
+                {
+                    var backKey = BuildBackKeyDisplay();
+                    byte[] backJpeg = StreamControllerDisplayRenderer.CreateDeviceJpeg(backKey);
+                    _n3.SendDisplayImage(i, backJpeg, commit: false);
+                    continue;
+                }
+
+                int folderLocalIdx = inFolder ? pageOffset + (i - 1) : pageOffset + i;
+                var key = activeKeys.FirstOrDefault(k => k.Idx == folderLocalIdx);
                 if (key == null)
                 {
                     _n3.ClearDisplay(i, commit: false);
@@ -1976,6 +2153,22 @@ public partial class App : Application
         {
             Logger.Log($"Stream Controller display sync failed: {ex.Message}");
         }
+    }
+
+    /// <summary>Build a virtual "Back" display key used when inside a folder.</summary>
+    internal static StreamControllerDisplayKeyConfig BuildBackKeyDisplay()
+    {
+        return new StreamControllerDisplayKeyConfig
+        {
+            Idx = -1,
+            Title = "Back",
+            PresetIconKind = "ArrowLeft",
+            BackgroundColor = "#222222",
+            AccentColor = "#FFB74D",
+            TextPosition = DisplayTextPosition.Bottom,
+            TextSize = 12,
+            TextColor = "#FFFFFF",
+        };
     }
 
     private bool _roomLightsOn = true;
@@ -2070,7 +2263,7 @@ public partial class App : Application
 
     private void HandleScPageChange(int value, bool absolute)
     {
-        int maxPage = Math.Max(1, _config.N3.PageCount) - 1;
+        int maxPage = GetActivePageCount() - 1;
         int newPage = absolute
             ? Math.Clamp(value, 0, maxPage)
             : Math.Clamp(_config.N3.CurrentPage + value, 0, maxPage);
@@ -2814,6 +3007,7 @@ public partial class App : Application
         _mutePollingTimer?.Dispose();
         _autoSwitchTimer?.Dispose();
         _gameModeTimer?.Dispose();
+        _streamControllerRefreshTimer?.Stop();
         _duckingEngine?.Dispose();
         _osdOverlay?.Close();
         _radialWheel?.Close();

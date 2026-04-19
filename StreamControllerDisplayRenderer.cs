@@ -29,9 +29,16 @@ internal static class StreamControllerDisplayRenderer
     private const int RenderCanvasSize = 126;
     private const int DeviceCanvasSize = 60;
 
+    /// <summary>
+    /// Optional state resolver used by <see cref="DisplayKeyType.DynamicState"/> keys.
+    /// Wired up at app startup so the renderer can ask "is this source active?" without
+    /// taking a hard dependency on OBS / AudioMixer.
+    /// </summary>
+    public static Func<string, bool>? DynamicStateResolver { get; set; }
+
     public static BitmapSource CreatePreview(StreamControllerDisplayKeyConfig key)
     {
-        using var bitmap = ComposeImage(key);
+        using var bitmap = ComposeImage(ResolveEffectiveKey(key));
         return ToBitmapSource(bitmap);
     }
 
@@ -61,8 +68,83 @@ internal static class StreamControllerDisplayRenderer
 
     public static byte[] CreateDeviceJpeg(StreamControllerDisplayKeyConfig key)
     {
-        using var bitmap = ComposeImage(key);
+        using var bitmap = ComposeImage(ResolveEffectiveKey(key));
         return EncodeForDevice(bitmap);
+    }
+
+    /// <summary>
+    /// Returns a key config with DisplayType-specific overrides baked in:
+    ///   Clock        — title becomes the current time, images/icons are cleared.
+    ///   DynamicState — when active, swap icon + title to the configured active values.
+    ///   Normal       — returned as-is.
+    /// </summary>
+    private static StreamControllerDisplayKeyConfig ResolveEffectiveKey(StreamControllerDisplayKeyConfig key)
+    {
+        if (key.DisplayType == DisplayKeyType.Normal)
+            return key;
+
+        // Clone so we don't mutate the user's config.
+        var clone = new StreamControllerDisplayKeyConfig
+        {
+            Idx = key.Idx,
+            ImagePath = key.ImagePath,
+            PresetIconKind = key.PresetIconKind,
+            Title = key.Title,
+            Subtitle = key.Subtitle,
+            BackgroundColor = key.BackgroundColor,
+            AccentColor = key.AccentColor,
+            TextPosition = key.TextPosition,
+            TextSize = key.TextSize,
+            TextColor = key.TextColor,
+            DisplayType = key.DisplayType,
+            ClockFormat = key.ClockFormat,
+            DynamicStateSource = key.DynamicStateSource,
+            DynamicStateActiveIcon = key.DynamicStateActiveIcon,
+            DynamicStateActiveTitle = key.DynamicStateActiveTitle,
+        };
+
+        if (key.DisplayType == DisplayKeyType.Clock)
+        {
+            string fmt = string.IsNullOrWhiteSpace(key.ClockFormat) ? "HH:mm" : key.ClockFormat;
+            string rendered;
+            try { rendered = DateTime.Now.ToString(fmt); }
+            catch { rendered = DateTime.Now.ToString("HH:mm"); }
+
+            clone.Title = rendered;
+            clone.ImagePath = "";
+            clone.PresetIconKind = "";
+            // Center the time, default large font if the user hasn't customised it.
+            clone.TextPosition = DisplayTextPosition.Middle;
+            if (clone.TextSize < 18) clone.TextSize = 22;
+            return clone;
+        }
+
+        if (key.DisplayType == DisplayKeyType.DynamicState)
+        {
+            bool active = false;
+            try
+            {
+                active = DynamicStateResolver?.Invoke(key.DynamicStateSource) ?? false;
+            }
+            catch
+            {
+                active = false;
+            }
+
+            if (active)
+            {
+                if (!string.IsNullOrWhiteSpace(key.DynamicStateActiveIcon))
+                {
+                    clone.PresetIconKind = key.DynamicStateActiveIcon;
+                    clone.ImagePath = "";
+                }
+                if (!string.IsNullOrWhiteSpace(key.DynamicStateActiveTitle))
+                    clone.Title = key.DynamicStateActiveTitle;
+            }
+            return clone;
+        }
+
+        return clone;
     }
 
     public static byte[] CreateDeviceJpegFromPath(string imagePath)

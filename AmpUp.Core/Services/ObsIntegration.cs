@@ -22,9 +22,39 @@ public class ObsIntegration : IDisposable
 
     public bool IsAvailable { get; private set; }
 
+    /// <summary>True while OBS is actively recording. Updated by <see cref="RefreshStatusAsync"/>.</summary>
+    public bool IsRecording { get; private set; }
+
+    /// <summary>True while OBS is actively streaming. Updated by <see cref="RefreshStatusAsync"/>.</summary>
+    public bool IsStreaming { get; private set; }
+
     public ObsIntegration(ObsConfig config)
     {
         _config = config;
+    }
+
+    /// <summary>
+    /// Polls OBS for the current recording/streaming state and updates <see cref="IsRecording"/> / <see cref="IsStreaming"/>.
+    /// Call periodically (e.g. every few seconds) to keep dynamic-state UI in sync.
+    /// </summary>
+    public async Task RefreshStatusAsync()
+    {
+        if (!IsAvailable) { IsRecording = false; IsStreaming = false; return; }
+
+        try
+        {
+            var rec = await SendRequestAsync("GetRecordStatus", timeoutMs: 2000);
+            if (rec != null)
+                IsRecording = rec["responseData"]?["outputActive"]?.Value<bool>() ?? false;
+
+            var stream = await SendRequestAsync("GetStreamStatus", timeoutMs: 2000);
+            if (stream != null)
+                IsStreaming = stream["responseData"]?["outputActive"]?.Value<bool>() ?? false;
+        }
+        catch
+        {
+            // Silent — leave last-known values in place.
+        }
     }
 
     public void UpdateConfig(ObsConfig config)
@@ -78,6 +108,8 @@ public class ObsIntegration : IDisposable
     public async Task DisconnectAsync()
     {
         IsAvailable = false;
+        IsRecording = false;
+        IsStreaming = false;
         _cts?.Cancel();
 
         if (_ws != null)
