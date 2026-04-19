@@ -65,8 +65,12 @@ public sealed class N3Controller : IDisposable
     private readonly object _streamLock = new();
     private HidDevice? _device;
     private HidStream? _stream;
+    private HidDevice? _keyboardDevice;
+    private HidStream? _keyboardStream;
     private CancellationTokenSource? _readCts;
     private Task? _readTask;
+    private CancellationTokenSource? _keyboardReadCts;
+    private Task? _keyboardReadTask;
     private System.Threading.Timer? _keepAliveTimer;
     private volatile bool _disposed;
     private volatile bool _initialized;
@@ -79,6 +83,7 @@ public sealed class N3Controller : IDisposable
     public int InputReportLength { get; private set; }
     public int OutputReportLength { get; private set; }
     public string DevicePath { get; private set; } = "";
+    public string KeyboardPath { get; private set; } = "";
 
     public bool TryConnect(bool initialize = true)
     {
@@ -93,6 +98,14 @@ public sealed class N3Controller : IDisposable
                 return false;
             }
 
+            foreach (var candidate in devices)
+            {
+                string candidatePath = candidate.DevicePath ?? "";
+                int candidateIn = SafeGet(() => candidate.GetMaxInputReportLength(), 0);
+                int candidateOut = SafeGet(() => candidate.GetMaxOutputReportLength(), 0);
+                Logger.Log($"N3: candidate path={candidatePath} in={candidateIn} out={candidateOut}");
+            }
+
             _device = SelectPrimaryInterface(devices);
             if (_device == null)
             {
@@ -103,6 +116,28 @@ public sealed class N3Controller : IDisposable
             _stream = _device.Open();
             _stream.ReadTimeout = ReadTimeoutMs;
             _stream.WriteTimeout = WriteTimeoutMs;
+
+            _keyboardDevice = devices.FirstOrDefault(d =>
+                !string.Equals(d.DevicePath, _device.DevicePath, StringComparison.OrdinalIgnoreCase) &&
+                (d.DevicePath?.Contains("mi_01", StringComparison.OrdinalIgnoreCase) == true ||
+                 SafeGet(() => d.GetMaxOutputReportLength(), 0) <= 64));
+
+            if (_keyboardDevice != null)
+            {
+                try
+                {
+                    _keyboardStream = _keyboardDevice.Open();
+                    _keyboardStream.ReadTimeout = ReadTimeoutMs;
+                    _keyboardStream.WriteTimeout = WriteTimeoutMs;
+                    KeyboardPath = _keyboardDevice.DevicePath ?? "";
+                    Logger.Log(
+                        $"N3: keyboard-side HID opened (path={KeyboardPath}, in={SafeGet(() => _keyboardDevice.GetMaxInputReportLength(), 0)}, out={SafeGet(() => _keyboardDevice.GetMaxOutputReportLength(), 0)})");
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"N3: keyboard-side HID open failed - {ex.Message}");
+                }
+            }
 
             InputReportLength = SafeGet(() => _device.GetMaxInputReportLength(), DefaultPacketSize + 1);
             OutputReportLength = SafeGet(() => _device.GetMaxOutputReportLength(), DefaultPacketSize + 1);
@@ -120,6 +155,7 @@ public sealed class N3Controller : IDisposable
             }
 
             StartReadLoop();
+            StartKeyboardReadLoop();
             _keepAliveTimer = new System.Threading.Timer(_ => SafeKeepAlive(), null, KeepAliveMs, KeepAliveMs);
             return true;
         }
@@ -210,24 +246,47 @@ public sealed class N3Controller : IDisposable
         _readCts?.Dispose();
         _readCts = new CancellationTokenSource();
 
-        _readTask = Task.Run(() => ReadLoop(_readCts.Token));
+        int reportLength = InputReportLength > 0 ? InputReportLength : 513;
+        Logger.Log($"N3: read loop started on primary HID (len={reportLength})");
+        _readTask = Task.Run(() => ReadLoop(_stream, reportLength, "primary", true, _readCts.Token));
     }
 
-    private async Task ReadLoop(CancellationToken ct)
+    private void StartKeyboardReadLoop()
     {
-        int reportLength = Math.Max(InputReportLength, DefaultPacketSize + 1);
+        if (_keyboardStream == null) return;
 
-        while (!ct.IsCancellationRequested && _stream != null && !_disposed)
+        _keyboardReadCts?.Cancel();
+        _keyboardReadCts?.Dispose();
+        _keyboardReadCts = new CancellationTokenSource();
+
+        int reportLength = SafeGet(() => _keyboardDevice?.GetMaxInputReportLength() ?? 64, 64);
+        Logger.Log($"N3: read loop started on keyboard-side HID (len={reportLength})");
+        _keyboardReadTask = Task.Run(() => ReadLoop(_keyboardStream, reportLength, "keyboard", false, _keyboardReadCts.Token));
+    }
+
+    private async Task ReadLoop(HidStream stream, int reportLength, string channelName, bool parseKnownProtocol, CancellationToken ct)
+    {
+        reportLength = Math.Max(reportLength, 8);
+
+        while (!ct.IsCancellationRequested && !_disposed)
         {
             var buffer = new byte[reportLength];
 
             try
             {
                 int read;
-                lock (_streamLock)
+
+                if (ReferenceEquals(stream, _stream))
                 {
-                    if (_stream == null) break;
-                    read = _stream.Read(buffer, 0, buffer.Length);
+                    lock (_streamLock)
+                    {
+                        if (_stream == null) break;
+                        read = _stream.Read(buffer, 0, buffer.Length);
+                    }
+                }
+                else
+                {
+                    read = stream.Read(buffer, 0, buffer.Length);
                 }
 
                 if (read <= 0) continue;
@@ -235,14 +294,14 @@ public sealed class N3Controller : IDisposable
                 var report = buffer.AsSpan(0, read).ToArray();
                 if (IsAllZero(report)) continue;
 
-                if (TryParseInput(report, out var parsed))
+                if (parseKnownProtocol && TryParseInput(report, out var parsed))
                 {
-                    Logger.Log($"N3 input: {parsed.Describe()} raw={ToHex(report)}");
+                    Logger.Log($"N3 input [{channelName}]: {parsed.Describe()} raw={ToHex(report)}");
                     OnInput?.Invoke(parsed);
                 }
                 else
                 {
-                    Logger.Log($"N3 raw: {ToHex(report)}");
+                    Logger.Log($"N3 raw [{channelName}]: {ToHex(report)}");
                 }
             }
             catch (TimeoutException)
@@ -255,7 +314,7 @@ public sealed class N3Controller : IDisposable
             }
             catch (Exception ex)
             {
-                Logger.Log($"N3: read loop stopped - {ex.Message}");
+                Logger.Log($"N3: read loop stopped on {channelName} - {ex.Message}");
                 break;
             }
         }
@@ -465,7 +524,19 @@ public sealed class N3Controller : IDisposable
 
         try
         {
+            _keyboardReadCts?.Cancel();
+        }
+        catch { }
+
+        try
+        {
             _readTask?.Wait(250);
+        }
+        catch { }
+
+        try
+        {
+            _keyboardReadTask?.Wait(250);
         }
         catch { }
 
@@ -476,13 +547,25 @@ public sealed class N3Controller : IDisposable
         }
         catch { }
 
+        try
+        {
+            _keyboardReadCts?.Dispose();
+            _keyboardReadCts = null;
+        }
+        catch { }
+
         lock (_streamLock)
         {
             try { _stream?.Dispose(); } catch { }
             _stream = null;
         }
 
+        try { _keyboardStream?.Dispose(); } catch { }
+        _keyboardStream = null;
+
         _device = null;
+        _keyboardDevice = null;
+        KeyboardPath = "";
     }
 
     public void Dispose()
