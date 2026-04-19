@@ -209,8 +209,8 @@ public partial class MixerView
             labelsRow.Children.Add(minLabel);
             labelsRow.Children.Add(maxLabel);
 
-            var rangePanel = new StackPanel { Margin = new Thickness(i == 0 ? 0 : 4, 0, i == ScChannelCount - 1 ? 0 : 4, 8) };
-            rangePanel.Children.Add(new TextBlock
+            var rangeStack = new StackPanel();
+            rangeStack.Children.Add(new TextBlock
             {
                 Text = "VOLUME RANGE",
                 FontSize = 9,
@@ -218,11 +218,18 @@ public partial class MixerView
                 Foreground = FindBrush("TextDimBrush"),
                 Margin = new Thickness(0, 0, 0, 4)
             });
-            rangePanel.Children.Add(range);
-            rangePanel.Children.Add(labelsRow);
-            Grid.SetRow(rangePanel, 2);
-            Grid.SetColumn(rangePanel, i);
-            grid.Children.Add(rangePanel);
+            rangeStack.Children.Add(range);
+            rangeStack.Children.Add(labelsRow);
+
+            var rangeHost = new Border
+            {
+                Padding = new Thickness(16, 0, 16, 0),
+                Margin = new Thickness(i == 0 ? 0 : 4, 0, i == ScChannelCount - 1 ? 0 : 4, 8),
+                Child = rangeStack,
+            };
+            Grid.SetRow(rangeHost, 2);
+            Grid.SetColumn(rangeHost, i);
+            grid.Children.Add(rangeHost);
         }
 
         StreamControllerMixerContent.Children.Add(grid);
