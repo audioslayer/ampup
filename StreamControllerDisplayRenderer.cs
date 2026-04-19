@@ -30,7 +30,7 @@ namespace AmpUp;
 
 internal static class StreamControllerDisplayRenderer
 {
-    private const int RenderCanvasSize = 240;
+    private const int RenderCanvasSize = 126;
     private const int DeviceCanvasSize = 60;
     private const int SceneTileSize = 160;
     private const int SceneStripWidth = SceneTileSize * N3Controller.DisplayKeyCount;
@@ -201,47 +201,67 @@ internal static class StreamControllerDisplayRenderer
         {
             Width = size,
             Height = size,
-            Background = new System.Windows.Media.LinearGradientBrush(bg, bg2, 55)
+            Background = new System.Windows.Media.LinearGradientBrush(bg, bg2, 55),
+            ClipToBounds = true
         };
 
         var accentGlow = new Border
         {
-            Width = size * 0.72,
-            Height = size * 0.72,
+            Width = size * 1.16,
+            Height = size * 1.16,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            CornerRadius = new CornerRadius(size * 0.36),
+            CornerRadius = new CornerRadius(size * 0.58),
             Background = new RadialGradientBrush(
-                System.Windows.Media.Color.FromArgb(0x64, accent.R, accent.G, accent.B),
+                System.Windows.Media.Color.FromArgb(0x86, accent.R, accent.G, accent.B),
                 System.Windows.Media.Color.FromArgb(0x00, accent.R, accent.G, accent.B))
         };
         root.Children.Add(accentGlow);
 
-        var surface = new Border
+        var edgeGlow = new Border
         {
-            Width = size * 0.76,
-            Height = size * 0.76,
+            Width = size,
+            Height = size,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            CornerRadius = new CornerRadius(size * 0.16),
-            BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x42, accent.R, accent.G, accent.B)),
-            BorderThickness = new Thickness(Math.Max(2, size * 0.011)),
             Background = new System.Windows.Media.LinearGradientBrush(
-                System.Windows.Media.Color.FromArgb(0x16, 255, 255, 255),
-                System.Windows.Media.Color.FromArgb(0x04, 255, 255, 255),
+                System.Windows.Media.Color.FromArgb(0x28, 255, 255, 255),
+                System.Windows.Media.Color.FromArgb(0x00, 255, 255, 255),
                 90)
         };
-        root.Children.Add(surface);
+        edgeGlow.OpacityMask = new RadialGradientBrush(
+            System.Windows.Media.Color.FromArgb(0x00, 255, 255, 255),
+            System.Windows.Media.Color.FromArgb(0xFF, 255, 255, 255))
+        {
+            Center = new System.Windows.Point(0.5, 0.5),
+            GradientOrigin = new System.Windows.Point(0.5, 0.5),
+            RadiusX = 0.88,
+            RadiusY = 0.88
+        };
+        root.Children.Add(edgeGlow);
+
+        if (hasText)
+        {
+            root.Children.Add(new Border
+            {
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Height = size * 0.34,
+                Background = new System.Windows.Media.LinearGradientBrush(
+                    System.Windows.Media.Color.FromArgb(0x00, 0, 0, 0),
+                    System.Windows.Media.Color.FromArgb(0xAA, 0, 0, 0),
+                    90)
+            });
+        }
 
         var icon = new MaterialIcon
         {
             Kind = presetKind,
-            Width = size * 0.34,
-            Height = size * 0.34,
+            Width = size * (hasText ? 0.56 : 0.68),
+            Height = size * (hasText ? 0.56 : 0.68),
             Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xF7, 0xF7, 0xF7)),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, size * (hasText ? -0.08 : 0), 0, 0)
+            Margin = new Thickness(0, size * (hasText ? -0.12 : 0), 0, 0)
         };
         root.Children.Add(icon);
 
@@ -251,7 +271,7 @@ internal static class StreamControllerDisplayRenderer
             {
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Bottom,
-                Margin = new Thickness(size * 0.08, 0, size * 0.08, size * 0.08)
+                Margin = new Thickness(size * 0.08, 0, size * 0.08, size * 0.07)
             };
 
             if (!string.IsNullOrWhiteSpace(title))

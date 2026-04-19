@@ -470,7 +470,7 @@ public partial class ButtonsView
         for (int i = 0; i < 6; i++)
         {
             var key = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == i) ?? new StreamControllerDisplayKeyConfig { Idx = i };
-            _scDisplayImages[i].Source = StreamControllerDisplayRenderer.CreatePreview(key);
+            _scDisplayImages[i].Source = StreamControllerDisplayRenderer.CreateHardwarePreview(key);
             _scDisplayCaptions[i].Text = string.IsNullOrWhiteSpace(key.Title) ? $"Key {i + 1}" : key.Title;
         }
 
@@ -513,7 +513,7 @@ public partial class ButtonsView
             _scSubtitleBox.Text = key.Subtitle;
             _scImagePathBox.Text = string.IsNullOrWhiteSpace(key.ImagePath) ? "No image selected" : key.ImagePath;
             _scPresetIconBox.Text = string.IsNullOrWhiteSpace(key.PresetIconKind) ? "No preset icon selected" : key.PresetIconKind;
-            _scEditorPreview.Source = StreamControllerDisplayRenderer.CreatePreview(key);
+            _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateHardwarePreview(key);
             _scDisplayDesignPanel!.Visibility = Visibility.Visible;
         }
         else
@@ -609,9 +609,9 @@ public partial class ButtonsView
 
         display.Title = _scTitleBox.Text.Trim();
         display.Subtitle = _scSubtitleBox.Text.Trim();
-        _scEditorPreview.Source = StreamControllerDisplayRenderer.CreatePreview(display);
+        _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateHardwarePreview(display);
         int idx = display.Idx;
-        _scDisplayImages[idx].Source = StreamControllerDisplayRenderer.CreatePreview(display);
+        _scDisplayImages[idx].Source = StreamControllerDisplayRenderer.CreateHardwarePreview(display);
         _scDisplayCaptions[idx].Text = string.IsNullOrWhiteSpace(display.Title) ? $"Key {idx + 1}" : display.Title;
     }
 
