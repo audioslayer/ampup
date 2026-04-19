@@ -21,7 +21,7 @@
   - usage page `0xFFA0` / `65440`
   - usage `0x0001`
 - The device can run alongside the original Turn Up at the same time
-- Direct native HID support now works in AmpUp and `N3Diag`
+- Direct native HID support now works in AmpUp
 
 ## Confirmed input protocol
 - Input packets are ACK-prefixed on this unit and parse correctly from `MI_00`
