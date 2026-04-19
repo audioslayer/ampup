@@ -22,14 +22,35 @@
                         <TextBlock Text="CONNECTION" Style="{StaticResource HeaderText}" Margin="0" />
                     </StackPanel>
 
-                    <!-- Status indicator -->
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12" VerticalAlignment="Center">
-                        <Ellipse x:Name="ConnectionDot" Width="8" Height="8"
-                                 Fill="#FF4444" Margin="0,0,8,0" VerticalAlignment="Center" />
-                        <TextBlock x:Name="TxtConnectionStatus"
-                                   Text="Disconnected"
-                                   Style="{StaticResource SecondaryText}"
-                                   VerticalAlignment="Center" Margin="0" />
+                    <!-- Status indicators -->
+                    <StackPanel Margin="0,0,0,12">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,6">
+                            <TextBlock Text="Turn Up"
+                                       Width="96"
+                                       Style="{StaticResource SecondaryText}"
+                                       VerticalAlignment="Center"
+                                       Margin="0" />
+                            <Ellipse x:Name="ConnectionDot" Width="8" Height="8"
+                                     Fill="#FF4444" Margin="0,0,8,0" VerticalAlignment="Center" />
+                            <TextBlock x:Name="TxtConnectionStatus"
+                                       Text="Disconnected"
+                                       Style="{StaticResource SecondaryText}"
+                                       VerticalAlignment="Center" Margin="0" />
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="TreasLin N3"
+                                       Width="96"
+                                       Style="{StaticResource SecondaryText}"
+                                       VerticalAlignment="Center"
+                                       Margin="0" />
+                            <Ellipse x:Name="N3ConnectionDot" Width="8" Height="8"
+                                     Fill="#FF4444" Margin="0,0,8,0" VerticalAlignment="Center" />
+                            <TextBlock x:Name="TxtN3ConnectionStatus"
+                                       Text="Not detected"
+                                       Style="{StaticResource SecondaryText}"
+                                       VerticalAlignment="Center" Margin="0" />
+                        </StackPanel>
                     </StackPanel>
 
                     <!-- Port selector row -->

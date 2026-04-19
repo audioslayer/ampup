@@ -30,6 +30,8 @@ public partial class App : Application
     private DateTime _connectedAt = DateTime.MinValue;
     private Forms.NotifyIcon? _trayIcon;
     private bool _isConnected;
+    private bool _isN3Connected;
+    private string? _n3DeviceName;
     private static bool _isShuttingDown;
     private OsdOverlay? _osdOverlay;
     private HAIntegration? _ha;
@@ -162,7 +164,9 @@ public partial class App : Application
         // TreasLin / VSDinside N3 HID bring-up
         _n3 = new N3Controller();
         _n3.OnInput += HandleN3Input;
-        if (_n3.TryConnect())
+        _isN3Connected = _n3.TryConnect();
+        _n3DeviceName = _isN3Connected ? _n3.DeviceName : null;
+        if (_isN3Connected)
         {
             Logger.Log("N3: native HID bring-up active");
         }
@@ -339,6 +343,7 @@ public partial class App : Application
         // Sync connection status — serial may have connected before window was created
         if (_isConnected)
             _mainWindow.SetConnectionStatus(true, _serial.Port?.PortName);
+        _mainWindow.SetN3ConnectionStatus(_isN3Connected, _n3DeviceName);
 
         // Welcome dialog — show on first run OR when version changes (update)
         var currentVersion = UpdateChecker.CurrentVersion;

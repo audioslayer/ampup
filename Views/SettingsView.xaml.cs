@@ -611,6 +611,19 @@ public partial class SettingsView : UserControl
 
     // ── Config collect/save ────────────────────────────────────────────
 
+    public void UpdateN3ConnectionStatus(bool connected, string? deviceName = null)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            N3ConnectionDot.Fill = new SolidColorBrush(connected
+                ? (Color)ColorConverter.ConvertFromString("#00E676")
+                : (Color)ColorConverter.ConvertFromString("#FF4444"));
+            TxtN3ConnectionStatus.Text = connected
+                ? $"Connected over USB HID{(string.IsNullOrWhiteSpace(deviceName) ? "" : $" ({deviceName})")}"
+                : "Not detected";
+        });
+    }
+
     private void CollectAndSave()
     {
         if (_config == null || _onSave == null || !_configLoaded) return;
@@ -1433,4 +1446,3 @@ public partial class SettingsView : UserControl
     }
 
 }
-

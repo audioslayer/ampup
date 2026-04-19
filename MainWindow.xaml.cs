@@ -1501,4 +1501,12 @@ public partial class MainWindow : FluentWindow
             }
         });
     }
+
+    public void SetN3ConnectionStatus(bool connected, string? deviceName = null)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            _settingsView.UpdateN3ConnectionStatus(connected, deviceName);
+        });
+    }
 }
