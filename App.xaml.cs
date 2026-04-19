@@ -44,6 +44,7 @@ public partial class App : Application
     private DreamSyncController? _dreamSync;
     private CorsairSync? _corsairSync;
     private LgMonitorSync? _lgMonitor;
+    private N3Controller? _n3;
     private RadialWheelOverlay? _radialWheel;
     private bool _wheelVisible;
     private System.Windows.Threading.DispatcherTimer? _wheelDismissTimer;
@@ -151,6 +152,13 @@ public partial class App : Application
                 if (!_config.Ambience.LinkToLights) return;
                 _lgMonitor.SyncFromRoomEffect(frame);
             };
+        }
+
+        // TreasLin / VSDinside N3 HID bring-up
+        _n3 = new N3Controller();
+        if (_n3.TryConnect())
+        {
+            Logger.Log("N3: native HID bring-up active");
         }
 
         // DreamView / Screen Sync
@@ -2300,6 +2308,7 @@ public partial class App : Application
         _dreamSync?.Dispose();
         _corsairSync?.Dispose();
         _lgMonitor?.Dispose();
+        _n3?.Dispose();
         _cachedMic?.Dispose();
         _cachedMaster?.Dispose();
         lock (_notifyLock)
