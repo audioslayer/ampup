@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using Microsoft.Win32;
@@ -64,6 +65,7 @@ public partial class App : Application
     private readonly System.Threading.Timer[] _osdFinalTimers = new System.Threading.Timer[5]; // delayed final OSD update
     private long _startupTick = Environment.TickCount64; // suppress OSD on launch
     private uint _wmTaskbarCreated; // registered window message ID for WM_TASKBARCREATED
+    private bool _rawInputRegistered;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -316,13 +318,16 @@ public partial class App : Application
         // minimized-to-tray case we force handle creation via EnsureHandle).
         _mainWindow.SourceInitialized += (_, _) =>
         {
-            var hwndSource = HwndSource.FromHwnd(new WindowInteropHelper(_mainWindow).Handle);
+            var handle = new WindowInteropHelper(_mainWindow).Handle;
+            RegisterRawInputSink(handle);
+            var hwndSource = HwndSource.FromHwnd(handle);
             hwndSource?.AddHook(WndProc);
         };
         // If the window was already shown above, SourceInitialized already fired — hook now.
         var existingHandle = new WindowInteropHelper(_mainWindow).Handle;
         if (existingHandle != IntPtr.Zero)
         {
+            RegisterRawInputSink(existingHandle);
             var hwndSource = HwndSource.FromHwnd(existingHandle);
             hwndSource?.AddHook(WndProc);
         }
@@ -446,6 +451,10 @@ public partial class App : Application
             int change = delta > 0 ? 2 : -2;
             Dispatcher.BeginInvoke(() => AdjustMasterVolume(change));
             handled = true;
+        }
+        else if (msg == NativeMethods.WM_INPUT)
+        {
+            HandleRawInput(lParam);
         }
         return IntPtr.Zero;
     }
@@ -582,6 +591,98 @@ public partial class App : Application
             RecreateTrayIcon();
         }
         return IntPtr.Zero;
+    }
+
+    private void RegisterRawInputSink(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero || _rawInputRegistered) return;
+
+        var devices = new[]
+        {
+            new NativeMethods.RAWINPUTDEVICE
+            {
+                usUsagePage = 0x01,
+                usUsage = 0x06,
+                dwFlags = NativeMethods.RIDEV_INPUTSINK | NativeMethods.RIDEV_DEVNOTIFY,
+                hwndTarget = hwnd
+            }
+        };
+
+        if (NativeMethods.RegisterRawInputDevices(devices, (uint)devices.Length,
+            (uint)Marshal.SizeOf<NativeMethods.RAWINPUTDEVICE>()))
+        {
+            _rawInputRegistered = true;
+            Logger.Log("Raw input: keyboard sink registered");
+        }
+        else
+        {
+            Logger.Log($"Raw input: registration failed ({Marshal.GetLastWin32Error()})");
+        }
+    }
+
+    private void HandleRawInput(IntPtr lParam)
+    {
+        try
+        {
+            uint size = 0;
+            uint headerSize = (uint)Marshal.SizeOf<NativeMethods.RAWINPUTHEADER>();
+            uint result = NativeMethods.GetRawInputData(lParam, NativeMethods.RID_INPUT, IntPtr.Zero, ref size, headerSize);
+            if (result != 0 || size == 0) return;
+
+            IntPtr buffer = Marshal.AllocHGlobal((int)size);
+            try
+            {
+                if (NativeMethods.GetRawInputData(lParam, NativeMethods.RID_INPUT, buffer, ref size, headerSize) != size)
+                {
+                    return;
+                }
+
+                var raw = Marshal.PtrToStructure<NativeMethods.RAWINPUT>(buffer);
+                if (raw.header.dwType != NativeMethods.RIM_TYPEKEYBOARD) return;
+
+                string deviceName = GetRawInputDeviceName(raw.header.hDevice);
+                if (string.IsNullOrWhiteSpace(deviceName)) return;
+                if (!deviceName.Contains("vid_5548&pid_1001", StringComparison.OrdinalIgnoreCase)) return;
+
+                string direction = raw.data.keyboard.Message switch
+                {
+                    NativeMethods.WM_KEYDOWN or NativeMethods.WM_SYSKEYDOWN => "down",
+                    NativeMethods.WM_KEYUP or NativeMethods.WM_SYSKEYUP => "up",
+                    _ => $"msg=0x{raw.data.keyboard.Message:X4}"
+                };
+
+                Logger.Log(
+                    $"N3 raw [keyboard-msg]: dev={deviceName} vkey=0x{raw.data.keyboard.VKey:X2} " +
+                    $"make=0x{raw.data.keyboard.MakeCode:X2} flags=0x{raw.data.keyboard.Flags:X2} {direction}");
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Raw input: handle failed - {ex.Message}");
+        }
+    }
+
+    private static string GetRawInputDeviceName(IntPtr deviceHandle)
+    {
+        uint size = 0;
+        uint result = NativeMethods.GetRawInputDeviceInfo(deviceHandle, NativeMethods.RIDI_DEVICENAME, IntPtr.Zero, ref size);
+        if (result != 0 || size == 0) return "";
+
+        IntPtr ptr = Marshal.AllocHGlobal((int)(size * 2));
+        try
+        {
+            result = NativeMethods.GetRawInputDeviceInfo(deviceHandle, NativeMethods.RIDI_DEVICENAME, ptr, ref size);
+            if (result == uint.MaxValue || result == 0) return "";
+            return Marshal.PtrToStringUni(ptr) ?? "";
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(ptr);
+        }
     }
 
     private void ShowMainWindow()
