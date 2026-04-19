@@ -1,33 +1,79 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using Material.Icons;
 using Material.Icons.WPF;
+using Newtonsoft.Json.Linq;
+using SkiaSharp;
+using Svg.Skia;
 
 namespace AmpUp.Controls;
 
 public class StreamControllerIconPickerDialog : Window
 {
+    private static readonly HttpClient _http = CreateHttpClient();
+    private static readonly string[] OnlinePrefixes =
+    {
+        "material-symbols",
+        "mdi",
+        "ph",
+        "tabler",
+        "fluent",
+        "bi",
+        "carbon",
+        "simple-icons"
+    };
+
     private readonly List<IconPresetEntry> _entries = BuildEntries();
-    private readonly WrapPanel _grid = new() { Margin = new Thickness(0, 8, 0, 0) };
+    private readonly Dictionary<string, string> _onlineSvgCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly WrapPanel _localGrid = new() { Margin = new Thickness(0, 8, 0, 0) };
+    private readonly WrapPanel _onlineGrid = new() { Margin = new Thickness(0, 8, 0, 0) };
     private readonly TextBox _searchBox;
     private readonly SegmentedControl _categoryPicker;
+    private readonly SegmentedControl _sourcePicker;
+    private readonly Border _localPanel;
+    private readonly Border _onlinePanel;
+    private readonly TextBlock _subtitle;
+    private readonly TextBlock _onlineStatus;
+    private readonly DispatcherTimer _searchDebounce;
+
+    private CancellationTokenSource? _searchCts;
 
     public string? SelectedIconKind { get; private set; }
+    public string? SelectedDownloadedImagePath { get; private set; }
 
     private sealed record IconPresetEntry(string Label, string Kind, string Category, Color Accent);
 
+    private sealed class OnlineIconEntry
+    {
+        public required string IconId { get; init; }
+        public required string Prefix { get; init; }
+        public required string Name { get; init; }
+        public required string Label { get; init; }
+        public required Border Card { get; init; }
+        public required Image PreviewImage { get; init; }
+    }
+
     public StreamControllerIconPickerDialog()
     {
-        Title = "Choose Preset Icon";
-        Width = 760;
-        Height = 620;
-        ResizeMode = ResizeMode.NoResize;
+        Title = "Choose Stream Controller Icon";
+        Width = 860;
+        Height = 700;
+        MinWidth = 860;
+        MinHeight = 700;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        ResizeMode = ResizeMode.NoResize;
         WindowStyle = WindowStyle.None;
         Background = (Brush)Application.Current.FindResource("BgDarkBrush");
 
@@ -40,7 +86,18 @@ public class StreamControllerIconPickerDialog : Window
             Height = 34,
             VerticalContentAlignment = VerticalAlignment.Center
         };
-        _searchBox.TextChanged += (_, _) => RefreshGrid();
+        _searchBox.TextChanged += OnSearchTextChanged;
+
+        _sourcePicker = new SegmentedControl
+        {
+            HorizontalAlignment = HorizontalAlignment.Left,
+            AccentColor = ThemeManager.Accent,
+            Margin = new Thickness(0, 0, 0, 10)
+        };
+        _sourcePicker.AddSegment("Built-In", "Local");
+        _sourcePicker.AddSegment("Online", "Online");
+        _sourcePicker.SelectedIndex = 0;
+        _sourcePicker.SelectionChanged += (_, _) => UpdateSourceMode();
 
         _categoryPicker = new SegmentedControl
         {
@@ -56,10 +113,62 @@ public class StreamControllerIconPickerDialog : Window
         _categoryPicker.AddSegment("Creative", "Creative");
         _categoryPicker.AddSegment("Streaming", "Streaming");
         _categoryPicker.SelectedIndex = 0;
-        _categoryPicker.SelectionChanged += (_, _) => RefreshGrid();
+        _categoryPicker.SelectionChanged += (_, _) => RefreshLocalGrid();
+
+        _subtitle = new TextBlock
+        {
+            Foreground = (Brush)Application.Current.FindResource("TextSecBrush"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 12)
+        };
+
+        _onlineStatus = new TextBlock
+        {
+            Foreground = (Brush)Application.Current.FindResource("TextDimBrush"),
+            Margin = new Thickness(0, 6, 0, 0),
+            Text = "Search thousands of icons and only cache the one you pick."
+        };
+
+        _localPanel = new Border
+        {
+            Child = new ScrollViewer
+            {
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                Content = _localGrid
+            }
+        };
+
+        _onlinePanel = new Border
+        {
+            Visibility = Visibility.Collapsed,
+            Child = new StackPanel
+            {
+                Children =
+                {
+                    _onlineStatus,
+                    new ScrollViewer
+                    {
+                        VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                        Margin = new Thickness(0, 6, 0, 0),
+                        Content = _onlineGrid
+                    }
+                }
+            }
+        };
+
+        _searchDebounce = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(320)
+        };
+        _searchDebounce.Tick += (_, _) =>
+        {
+            _searchDebounce.Stop();
+            _ = SearchOnlineAsync(_searchBox.Text.Trim());
+        };
 
         BuildUi();
-        RefreshGrid();
+        RefreshLocalGrid();
+        UpdateSourceMode();
     }
 
     private void BuildUi()
@@ -81,31 +190,25 @@ public class StreamControllerIconPickerDialog : Window
         var titleRow = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
         var title = new TextBlock
         {
-            Text = "PRESET ICONS",
+            Text = "STREAM CONTROLLER ICONS",
             FontSize = 14,
             FontWeight = FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeManager.Accent)
         };
         var close = new TextBlock
         {
-            Text = "✕",
+            Text = "X",
             FontSize = 16,
             Foreground = (Brush)Application.Current.FindResource("TextDimBrush"),
             Cursor = Cursors.Hand
         };
-        close.MouseLeftButtonDown += (_, _) => { DialogResult = false; Close(); };
+        close.MouseLeftButtonDown += (_, _) => CloseDialog(false);
         DockPanel.SetDock(close, Dock.Right);
         titleRow.Children.Add(close);
         titleRow.Children.Add(title);
         header.Children.Add(titleRow);
-
-        header.Children.Add(new TextBlock
-        {
-            Text = "Uses the built-in Material icon pack already shipping with Amp Up, so you get Stream Deck-style preset symbols without increasing the app size much.",
-            Foreground = (Brush)Application.Current.FindResource("TextSecBrush"),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 12)
-        });
+        header.Children.Add(_subtitle);
+        header.Children.Add(_sourcePicker);
 
         var searchBorder = new Border
         {
@@ -116,10 +219,11 @@ public class StreamControllerIconPickerDialog : Window
             Padding = new Thickness(10, 0, 10, 0),
             Margin = new Thickness(0, 0, 0, 10)
         };
+
         var searchGrid = new Grid();
         var placeholder = new TextBlock
         {
-            Text = "Search icons...",
+            Text = "Search play, mute, spotify, obs, mic...",
             Foreground = (Brush)Application.Current.FindResource("TextDimBrush"),
             IsHitTestVisible = false,
             VerticalAlignment = VerticalAlignment.Center
@@ -135,23 +239,85 @@ public class StreamControllerIconPickerDialog : Window
         header.Children.Add(_categoryPicker);
         main.Children.Add(header);
 
-        var scroll = new ScrollViewer
+        var content = new Grid
         {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Margin = new Thickness(18, 0, 18, 18),
-            Content = _grid
+            Margin = new Thickness(18, 0, 18, 18)
         };
-        main.Children.Add(scroll);
+        content.Children.Add(_localPanel);
+        content.Children.Add(_onlinePanel);
+        main.Children.Add(content);
 
         Content = outer;
 
-        MouseLeftButtonDown += (_, e) => { if (e.ChangedButton == MouseButton.Left) DragMove(); };
-        KeyDown += (_, e) => { if (e.Key == Key.Escape) { DialogResult = false; Close(); } };
+        MouseLeftButtonDown += (_, e) =>
+        {
+            if (e.ChangedButton == MouseButton.Left)
+                DragMove();
+        };
+        KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Escape)
+                CloseDialog(false);
+        };
+        Closed += (_, _) => _searchCts?.Cancel();
     }
 
-    private void RefreshGrid()
+    private void UpdateSourceMode()
     {
-        _grid.Children.Clear();
+        bool online = IsOnlineMode;
+        _categoryPicker.Visibility = online ? Visibility.Collapsed : Visibility.Visible;
+        _localPanel.Visibility = online ? Visibility.Collapsed : Visibility.Visible;
+        _onlinePanel.Visibility = online ? Visibility.Visible : Visibility.Collapsed;
+        _subtitle.Text = online
+            ? "Browse a huge online icon library without shipping thousands of assets in Amp Up. Only the icon you pick gets cached locally."
+            : "Use the built-in icon set that already ships with Amp Up for quick offline picks.";
+
+        if (online)
+        {
+            if (string.IsNullOrWhiteSpace(_searchBox.Text))
+            {
+                _onlineGrid.Children.Clear();
+                _onlineStatus.Text = "Search thousands of icons and only cache the one you pick.";
+            }
+            else
+            {
+                _ = SearchOnlineAsync(_searchBox.Text.Trim());
+            }
+        }
+        else
+        {
+            _searchDebounce.Stop();
+            _searchCts?.Cancel();
+            RefreshLocalGrid();
+        }
+    }
+
+    private bool IsOnlineMode => string.Equals(_sourcePicker.SelectedTag as string, "Online", StringComparison.Ordinal);
+
+    private void OnSearchTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (!IsOnlineMode)
+        {
+            RefreshLocalGrid();
+            return;
+        }
+
+        _searchDebounce.Stop();
+        if (string.IsNullOrWhiteSpace(_searchBox.Text))
+        {
+            _searchCts?.Cancel();
+            _onlineGrid.Children.Clear();
+            _onlineStatus.Text = "Search thousands of icons and only cache the one you pick.";
+            return;
+        }
+
+        _onlineStatus.Text = "Searching...";
+        _searchDebounce.Start();
+    }
+
+    private void RefreshLocalGrid()
+    {
+        _localGrid.Children.Clear();
         string category = _categoryPicker.SelectedTag as string ?? "All";
         string query = _searchBox.Text.Trim();
 
@@ -163,10 +329,323 @@ public class StreamControllerIconPickerDialog : Window
             .ToList();
 
         foreach (var entry in filtered)
-            _grid.Children.Add(BuildTile(entry));
+            _localGrid.Children.Add(BuildLocalTile(entry));
     }
 
-    private UIElement BuildTile(IconPresetEntry entry)
+    private async Task SearchOnlineAsync(string query)
+    {
+        if (!IsOnlineMode)
+            return;
+
+        _searchCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _searchCts = cts;
+        var token = cts.Token;
+
+        try
+        {
+            _onlineGrid.Children.Clear();
+            _onlineStatus.Text = $"Searching for \"{query}\"...";
+
+            string prefixes = string.Join(",", OnlinePrefixes);
+            string url = $"https://api.iconify.design/search?query={Uri.EscapeDataString(query)}&limit=72&prefixes={Uri.EscapeDataString(prefixes)}";
+            using var response = await _http.GetAsync(url, token);
+            response.EnsureSuccessStatusCode();
+
+            var json = JObject.Parse(await response.Content.ReadAsStringAsync(token));
+            var icons = json["icons"]?.Values<string?>().Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!).ToList() ?? new List<string>();
+            if (token.IsCancellationRequested)
+                return;
+
+            if (icons.Count == 0)
+            {
+                _onlineStatus.Text = "No icons found yet. Try a broader search like play, mic, app, folder, game, or browser.";
+                return;
+            }
+
+            var entries = icons
+                .Select(BuildOnlineEntry)
+                .Where(e => e != null)
+                .Cast<OnlineIconEntry>()
+                .ToList();
+
+            foreach (var entry in entries)
+                _onlineGrid.Children.Add(entry.Card);
+
+            _onlineStatus.Text = $"Showing {entries.Count} icons";
+            await LoadOnlinePreviewMarkupAsync(entries, token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch
+        {
+            if (!token.IsCancellationRequested)
+                _onlineStatus.Text = "Online icon search hit a snag. Check your connection and try again.";
+        }
+    }
+
+    private OnlineIconEntry? BuildOnlineEntry(string? iconId)
+    {
+        if (string.IsNullOrWhiteSpace(iconId))
+            return null;
+
+        var parts = iconId.Split(':');
+        if (parts.Length != 2)
+            return null;
+
+        var image = new Image
+        {
+            Width = 34,
+            Height = 34,
+            Stretch = Stretch.Uniform
+        };
+
+        var card = new Border
+        {
+            Width = 116,
+            Height = 118,
+            Margin = new Thickness(0, 0, 10, 10),
+            CornerRadius = new CornerRadius(12),
+            Background = (Brush)Application.Current.FindResource("CardBgBrush"),
+            BorderBrush = (Brush)Application.Current.FindResource("CardBorderBrush"),
+            BorderThickness = new Thickness(1),
+            Cursor = Cursors.Hand,
+            Tag = iconId
+        };
+
+        var iconWrap = new Border
+        {
+            Width = 68,
+            Height = 68,
+            Margin = new Thickness(0, 10, 0, 8),
+            CornerRadius = new CornerRadius(18),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Background = new LinearGradientBrush(
+                Color.FromArgb(0x1A, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B),
+                Color.FromArgb(0x04, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B),
+                90),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x24, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
+            BorderThickness = new Thickness(1),
+            Child = image
+        };
+
+        var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        stack.Children.Add(iconWrap);
+        stack.Children.Add(new TextBlock
+        {
+            Text = ToLabel(parts[1]),
+            Foreground = (Brush)Application.Current.FindResource("TextPrimaryBrush"),
+            FontWeight = FontWeights.SemiBold,
+            FontSize = 11,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TextAlignment = TextAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(8, 0, 8, 0),
+            MaxHeight = 30
+        });
+
+        card.Child = stack;
+        card.MouseEnter += (_, _) =>
+        {
+            card.Background = new SolidColorBrush(Color.FromArgb(0x16, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
+            card.BorderBrush = new SolidColorBrush(ThemeManager.Accent);
+        };
+        card.MouseLeave += (_, _) =>
+        {
+            card.Background = (Brush)Application.Current.FindResource("CardBgBrush");
+            card.BorderBrush = (Brush)Application.Current.FindResource("CardBorderBrush");
+        };
+        card.MouseLeftButtonUp += async (_, _) => await SelectOnlineIconAsync(card);
+
+        return new OnlineIconEntry
+        {
+            IconId = iconId,
+            Prefix = parts[0],
+            Name = parts[1],
+            Label = ToLabel(parts[1]),
+            Card = card,
+            PreviewImage = image
+        };
+    }
+
+    private async Task LoadOnlinePreviewMarkupAsync(List<OnlineIconEntry> entries, CancellationToken token)
+    {
+        foreach (var group in entries.GroupBy(e => e.Prefix))
+        {
+            if (token.IsCancellationRequested)
+                return;
+
+            try
+            {
+                string names = string.Join(",", group.Select(e => e.Name));
+                string url = $"https://api.iconify.design/{Uri.EscapeDataString(group.Key)}.json?icons={Uri.EscapeDataString(names)}";
+                using var response = await _http.GetAsync(url, token);
+                response.EnsureSuccessStatusCode();
+
+                var json = JObject.Parse(await response.Content.ReadAsStringAsync(token));
+                var iconsObject = json["icons"] as JObject;
+                if (iconsObject == null)
+                    continue;
+
+                int defaultWidth = (int?)json["width"] ?? 24;
+                int defaultHeight = (int?)json["height"] ?? 24;
+
+                foreach (var entry in group)
+                {
+                    if (token.IsCancellationRequested)
+                        return;
+
+                    if (iconsObject[entry.Name] is not JObject iconData)
+                        continue;
+
+                    string svgMarkup = BuildSvgMarkup(iconData, defaultWidth, defaultHeight);
+                    _onlineSvgCache[entry.IconId] = svgMarkup;
+
+                    var source = await Task.Run(() => RenderSvgToBitmapSource(svgMarkup, 72), token);
+                    if (source == null || token.IsCancellationRequested)
+                        continue;
+
+                    await Dispatcher.InvokeAsync(() => entry.PreviewImage.Source = source, DispatcherPriority.Background, token);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private async Task SelectOnlineIconAsync(Border card)
+    {
+        if (card.Tag is not string iconId)
+            return;
+
+        if (!_onlineSvgCache.TryGetValue(iconId, out var svgMarkup))
+        {
+            _onlineStatus.Text = "Finishing icon download...";
+            svgMarkup = await FetchSingleSvgMarkupAsync(iconId, CancellationToken.None);
+            if (string.IsNullOrWhiteSpace(svgMarkup))
+            {
+                _onlineStatus.Text = "That icon could not be loaded.";
+                return;
+            }
+
+            _onlineSvgCache[iconId] = svgMarkup;
+        }
+
+        _onlineStatus.Text = "Caching selected icon...";
+        try
+        {
+            string filePath = await Task.Run(() => CacheSelectedIcon(iconId, svgMarkup));
+            SelectedDownloadedImagePath = filePath;
+            SelectedIconKind = null;
+            CloseDialog(true);
+        }
+        catch
+        {
+            _onlineStatus.Text = "The icon preview loaded, but saving it failed.";
+        }
+    }
+
+    private static string CacheSelectedIcon(string iconId, string svgMarkup)
+    {
+        string folder = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "AmpUp",
+            "IconCache");
+        Directory.CreateDirectory(folder);
+
+        string fileName = SanitizeFileName(iconId.Replace(':', '_')) + ".png";
+        string filePath = Path.Combine(folder, fileName);
+        byte[] pngBytes = RenderSvgToPngBytes(svgMarkup, 512);
+        File.WriteAllBytes(filePath, pngBytes);
+        return filePath;
+    }
+
+    private static string BuildSvgMarkup(JObject iconData, int defaultWidth, int defaultHeight)
+    {
+        int left = (int?)iconData["left"] ?? 0;
+        int top = (int?)iconData["top"] ?? 0;
+        int width = (int?)iconData["width"] ?? defaultWidth;
+        int height = (int?)iconData["height"] ?? defaultHeight;
+        string body = (string?)iconData["body"] ?? "";
+
+        return $"""
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="{left} {top} {width} {height}" color="#F5F5F5">
+            {body}
+            </svg>
+            """;
+    }
+
+    private async Task<string> FetchSingleSvgMarkupAsync(string iconId, CancellationToken token)
+    {
+        var parts = iconId.Split(':');
+        if (parts.Length != 2)
+            return "";
+
+        string url = $"https://api.iconify.design/{Uri.EscapeDataString(parts[0])}.json?icons={Uri.EscapeDataString(parts[1])}";
+        using var response = await _http.GetAsync(url, token);
+        response.EnsureSuccessStatusCode();
+
+        var json = JObject.Parse(await response.Content.ReadAsStringAsync(token));
+        var iconData = json["icons"]?[parts[1]] as JObject;
+        if (iconData == null)
+            return "";
+
+        int defaultWidth = (int?)json["width"] ?? 24;
+        int defaultHeight = (int?)json["height"] ?? 24;
+        return BuildSvgMarkup(iconData, defaultWidth, defaultHeight);
+    }
+
+    private static BitmapSource? RenderSvgToBitmapSource(string svgMarkup, int size)
+    {
+        byte[] pngBytes = RenderSvgToPngBytes(svgMarkup, size);
+        using var stream = new MemoryStream(pngBytes);
+
+        var image = new BitmapImage();
+        image.BeginInit();
+        image.CacheOption = BitmapCacheOption.OnLoad;
+        image.StreamSource = stream;
+        image.EndInit();
+        image.Freeze();
+        return image;
+    }
+
+    private static byte[] RenderSvgToPngBytes(string svgMarkup, int size)
+    {
+        using var svg = new SKSvg();
+        using var svgStream = new MemoryStream(Encoding.UTF8.GetBytes(svgMarkup));
+        var picture = svg.Load(svgStream);
+        if (picture == null)
+            return Array.Empty<byte>();
+
+        var bounds = picture.CullRect;
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+            bounds = new SKRect(0, 0, 24, 24);
+
+        using var surface = SKSurface.Create(new SKImageInfo(size, size, SKColorType.Bgra8888, SKAlphaType.Premul));
+        var canvas = surface.Canvas;
+        canvas.Clear(SKColors.Transparent);
+
+        float scale = Math.Min(size / bounds.Width, size / bounds.Height) * 0.86f;
+        float dx = ((size - bounds.Width * scale) * 0.5f) - bounds.Left * scale;
+        float dy = ((size - bounds.Height * scale) * 0.5f) - bounds.Top * scale;
+
+        canvas.Translate(dx, dy);
+        canvas.Scale(scale);
+        canvas.DrawPicture(picture);
+        canvas.Flush();
+
+        using var image = surface.Snapshot();
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        return data?.ToArray() ?? Array.Empty<byte>();
+    }
+
+    private UIElement BuildLocalTile(IconPresetEntry entry)
     {
         var card = new Border
         {
@@ -235,11 +714,45 @@ public class StreamControllerIconPickerDialog : Window
         card.MouseLeftButtonUp += (_, _) =>
         {
             SelectedIconKind = entry.Kind;
-            DialogResult = true;
-            Close();
+            SelectedDownloadedImagePath = null;
+            CloseDialog(true);
         };
 
         return card;
+    }
+
+    private void CloseDialog(bool result)
+    {
+        DialogResult = result;
+        Close();
+    }
+
+    private static HttpClient CreateHttpClient()
+    {
+        var client = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(12)
+        };
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("AmpUp/0.9.9-alpha");
+        return client;
+    }
+
+    private static string ToLabel(string slug)
+    {
+        return string.Join(" ",
+            slug.Split(new[] { '-', '_' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(part => part.Length > 0
+                    ? char.ToUpperInvariant(part[0]) + part[1..]
+                    : part));
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var builder = new StringBuilder(name.Length);
+        foreach (char ch in name)
+            builder.Append(invalid.Contains(ch) ? '_' : ch);
+        return builder.ToString();
     }
 
     private static List<IconPresetEntry> BuildEntries()

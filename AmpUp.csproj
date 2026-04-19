@@ -68,6 +68,7 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
+    <PackageReference Include="Svg.Skia" Version="4.3.0" />
     <PackageReference Include="WPF-UI" Version="4.*" />
     <PackageReference Include="Material.Icons.WPF" Version="3.*" />
     <PackageReference Include="NAudio" Version="2.2.1" />

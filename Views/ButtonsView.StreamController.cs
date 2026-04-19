@@ -683,12 +683,22 @@ public partial class ButtonsView
         if (display == null) return;
 
         var dialog = new StreamControllerIconPickerDialog { Owner = Window.GetWindow(this) };
-        if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.SelectedIconKind))
+        if (dialog.ShowDialog() == true)
         {
-            display.PresetIconKind = dialog.SelectedIconKind!;
-            display.ImagePath = "";
-            LoadStreamControllerSelection();
-            QueueSave();
+            if (!string.IsNullOrWhiteSpace(dialog.SelectedDownloadedImagePath))
+            {
+                display.ImagePath = dialog.SelectedDownloadedImagePath!;
+                display.PresetIconKind = "";
+                LoadStreamControllerSelection();
+                QueueSave();
+            }
+            else if (!string.IsNullOrWhiteSpace(dialog.SelectedIconKind))
+            {
+                display.PresetIconKind = dialog.SelectedIconKind!;
+                display.ImagePath = "";
+                LoadStreamControllerSelection();
+                QueueSave();
+            }
         }
     }
 
