@@ -1954,7 +1954,6 @@ public partial class App : Application
                     _config.Ambience.ScreenSync.MonitorIndex)
                 : null;
 
-            bool anyNonEmpty = false;
             for (int i = 0; i < N3Controller.DisplayKeyCount; i++)
             {
                 var key = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == i);
@@ -1968,7 +1967,6 @@ public partial class App : Application
                     };
                     byte[] effectJpeg = StreamControllerDisplayRenderer.CreateDeviceJpeg(effectKey, _config.N3, frame);
                     _n3.SendDisplayImage(i, effectJpeg, commit: false);
-                    anyNonEmpty = true;
                     continue;
                 }
 
@@ -1990,12 +1988,9 @@ public partial class App : Application
                 byte[] jpeg = StreamControllerDisplayRenderer.CreateDeviceJpeg(key, _config.N3, frame);
 
                 _n3.SendDisplayImage(i, jpeg, commit: false);
-                anyNonEmpty = true;
             }
 
             _n3.CommitDisplayChanges();
-            if (anyNonEmpty)
-                Logger.Log("Stream Controller displays synced");
         }
         catch (Exception ex)
         {

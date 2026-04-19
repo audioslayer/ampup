@@ -28,36 +28,36 @@ internal static class StreamControllerDisplayRenderer
 {
     private const int RenderCanvasSize = 240;
     private const int DeviceCanvasSize = 60;
-    private const int ScreenSliceSize = 160;
+    private const int SceneTileSize = 160;
+    private const int SceneStripWidth = SceneTileSize * N3Controller.DisplayKeyCount;
 
     internal sealed class StreamControllerEffectFrame : IDisposable
     {
         public int Tick { get; }
         public float[] AudioBands { get; }
-        public DrawingBitmap? ScreenStrip { get; }
+        public DrawingBitmap? EffectStrip { get; }
 
-        public StreamControllerEffectFrame(int tick, float[]? audioBands, DrawingBitmap? screenStrip)
+        public StreamControllerEffectFrame(int tick, float[]? audioBands, DrawingBitmap? effectStrip)
         {
             Tick = tick;
             AudioBands = audioBands ?? Array.Empty<float>();
-            ScreenStrip = screenStrip;
+            EffectStrip = effectStrip;
         }
 
-        public void Dispose() => ScreenStrip?.Dispose();
+        public void Dispose() => EffectStrip?.Dispose();
     }
 
     public static StreamControllerEffectFrame CreateFrame(N3Config? n3, int tick, float[]? audioBands, int monitorIndex = 0)
     {
-        DrawingBitmap? screenStrip = null;
-        if (n3?.ScreensaverEnabled == true && n3.ScreensaverEffect == StreamControllerScreensaverEffect.ScreenSync)
+        DrawingBitmap? effectStrip = null;
+        if (n3?.ScreensaverEnabled == true)
         {
-            screenStrip = ScreenCapture.CapturePreviewFrame(
-                monitorIndex,
-                ScreenSliceSize * N3Controller.DisplayKeyCount,
-                ScreenSliceSize);
+            effectStrip = n3.ScreensaverEffect == StreamControllerScreensaverEffect.ScreenSync
+                ? CreateScreenSceneStrip(opacity: Math.Clamp(n3.ScreensaverOpacity, 0, 100), monitorIndex)
+                : CreateAnimatedSceneStrip(n3, tick, audioBands);
         }
 
-        return new StreamControllerEffectFrame(tick, audioBands, screenStrip);
+        return new StreamControllerEffectFrame(tick, audioBands, effectStrip);
     }
 
     public static BitmapSource CreatePreview(StreamControllerDisplayKeyConfig key, N3Config? n3 = null, StreamControllerEffectFrame? frame = null)
@@ -92,7 +92,7 @@ internal static class StreamControllerDisplayRenderer
 
     public static byte[] CreateDeviceJpeg(StreamControllerDisplayKeyConfig key, N3Config? n3 = null, StreamControllerEffectFrame? frame = null)
     {
-        using var bitmap = ComposeImage(key, n3, frame);
+        using var bitmap = RenderKeyBitmap(key, n3, frame);
         return EncodeForDevice(bitmap);
     }
 
@@ -101,6 +101,14 @@ internal static class StreamControllerDisplayRenderer
         using var source = DrawingImage.FromFile(imagePath);
         using var canvas = RenderSourceToCanvas(source, RenderCanvasSize);
         return EncodeForDevice(canvas);
+    }
+
+    private static DrawingBitmap RenderKeyBitmap(StreamControllerDisplayKeyConfig key, N3Config? n3, StreamControllerEffectFrame? frame)
+    {
+        if (n3?.ScreensaverEnabled == true && frame?.EffectStrip != null)
+            return ExtractKeyScene(frame.EffectStrip, key.Idx);
+
+        return ComposeImage(key, n3, frame);
     }
 
     private static DrawingBitmap ComposeImage(StreamControllerDisplayKeyConfig key, N3Config? n3, StreamControllerEffectFrame? frame)
@@ -196,27 +204,112 @@ internal static class StreamControllerDisplayRenderer
         switch (n3.ScreensaverEffect)
         {
             case StreamControllerScreensaverEffect.Aurora:
-                DrawAuroraOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed, keyIdx);
+                DrawAuroraOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
                 break;
             case StreamControllerScreensaverEffect.Fire:
-                DrawLavaOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed, keyIdx);
+                DrawLavaOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
                 break;
             case StreamControllerScreensaverEffect.Prism:
-                DrawPrismOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed, keyIdx);
+                DrawPrismOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
                 break;
             case StreamControllerScreensaverEffect.MusicBounce:
-                DrawMusicOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed, keyIdx, audioBands);
+                DrawMusicOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed, audioBands);
                 break;
             case StreamControllerScreensaverEffect.ScreenSync:
-                DrawScreenSyncOverlay(graphics, bitmap.Width, bitmap.Height, opacity, keyIdx, frame?.ScreenStrip);
+                DrawScreenSyncOverlay(graphics, bitmap.Width, bitmap.Height, opacity, frame?.EffectStrip);
                 break;
             default:
-                DrawRainbowOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed, keyIdx);
+                DrawRainbowOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
                 break;
         }
     }
 
-    private static void DrawRainbowOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed, int keyIdx)
+    private static DrawingBitmap CreateAnimatedSceneStrip(N3Config n3, int tick, float[]? audioBands)
+    {
+        var bitmap = new DrawingBitmap(SceneStripWidth, SceneTileSize);
+        using var graphics = DrawingGraphics.FromImage(bitmap);
+        ConfigureGraphics(graphics);
+        graphics.Clear(DrawingColor.Black);
+
+        int opacity = Math.Clamp(n3.ScreensaverOpacity, 0, 100);
+        var bands = audioBands ?? Array.Empty<float>();
+
+        switch (n3.ScreensaverEffect)
+        {
+            case StreamControllerScreensaverEffect.Aurora:
+                DrawAuroraOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
+                break;
+            case StreamControllerScreensaverEffect.Fire:
+                DrawLavaOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
+                break;
+            case StreamControllerScreensaverEffect.Prism:
+                DrawPrismOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
+                break;
+            case StreamControllerScreensaverEffect.MusicBounce:
+                DrawMusicOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed, bands);
+                break;
+            default:
+                DrawRainbowOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
+                break;
+        }
+
+        return bitmap;
+    }
+
+    private static DrawingBitmap? CreateScreenSceneStrip(int opacity, int monitorIndex)
+    {
+        using var capture = ScreenCapture.CapturePreviewFrame(monitorIndex, SceneStripWidth, SceneTileSize);
+        if (capture == null)
+            return null;
+
+        var bitmap = new DrawingBitmap(SceneStripWidth, SceneTileSize);
+        using var graphics = DrawingGraphics.FromImage(bitmap);
+        ConfigureGraphics(graphics);
+
+        using var attributes = new ImageAttributes();
+        attributes.SetColorMatrix(CreateSaturationMatrix(1.35f, Math.Clamp(opacity / 100f, 0f, 1f)));
+        graphics.DrawImage(
+            capture,
+            new DrawingRectangle(0, 0, bitmap.Width, bitmap.Height),
+            0,
+            0,
+            capture.Width,
+            capture.Height,
+            System.Drawing.GraphicsUnit.Pixel,
+            attributes);
+
+        using var gloss = new DrawingLinearGradientBrush(
+            new DrawingPointF(0, 0),
+            new DrawingPointF(0, bitmap.Height),
+            DrawingColor.FromArgb((int)(opacity * 1.1f), 255, 255, 255),
+            DrawingColor.FromArgb(0, 255, 255, 255));
+        graphics.FillRectangle(gloss, 0, 0, bitmap.Width, bitmap.Height * 0.2f);
+
+        return bitmap;
+    }
+
+    private static DrawingBitmap ExtractKeyScene(DrawingBitmap sceneStrip, int keyIdx)
+    {
+        int idx = Math.Clamp(keyIdx, 0, N3Controller.DisplayKeyCount - 1);
+        int sliceWidth = Math.Max(1, sceneStrip.Width / N3Controller.DisplayKeyCount);
+        int srcX = Math.Clamp(idx * sliceWidth, 0, Math.Max(0, sceneStrip.Width - sliceWidth));
+
+        var bitmap = new DrawingBitmap(RenderCanvasSize, RenderCanvasSize);
+        using var graphics = DrawingGraphics.FromImage(bitmap);
+        ConfigureGraphics(graphics);
+        graphics.Clear(DrawingColor.Black);
+        graphics.DrawImage(
+            sceneStrip,
+            new DrawingRectangle(0, 0, RenderCanvasSize, RenderCanvasSize),
+            srcX,
+            0,
+            sliceWidth,
+            sceneStrip.Height,
+            System.Drawing.GraphicsUnit.Pixel);
+        return bitmap;
+    }
+
+    private static void DrawRainbowOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed)
     {
         float alpha = opacity / 100f;
         float time = tick / 1000f * (0.35f + speed / 70f);
@@ -230,9 +323,9 @@ internal static class StreamControllerDisplayRenderer
 
         for (int i = 0; i < 6; i++)
         {
-            float hue = (time * 72f + i * 48f + keyIdx * 16f) % 360f;
+            float hue = (time * 72f + i * 48f) % 360f;
             float cx = width * (0.16f + i * 0.15f + 0.06f * (float)Math.Sin(time * 1.1f + i * 0.85f));
-            float cy = height * (0.28f + 0.16f * (float)Math.Sin(time * 1.4f + i * 0.6f + keyIdx * 0.4f));
+            float cy = height * (0.28f + 0.16f * (float)Math.Sin(time * 1.4f + i * 0.6f));
             FillGlow(graphics, cx - width * 0.30f, cy - height * 0.34f, width * 0.60f, height * 0.68f, FromHsv((int)hue, 0.82, 1.0, alpha * 0.28f));
         }
 
@@ -250,7 +343,7 @@ internal static class StreamControllerDisplayRenderer
         }
     }
 
-    private static void DrawAuroraOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed, int keyIdx)
+    private static void DrawAuroraOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed)
     {
         float alpha = opacity / 100f;
         float time = tick / 1000f * (0.20f + speed / 110f);
@@ -271,7 +364,7 @@ internal static class StreamControllerDisplayRenderer
 
         for (int i = 0; i < colors.Length; i++)
         {
-            float cx = width * (0.22f + i * 0.28f + 0.08f * (float)Math.Sin(time * 1.2f + i + keyIdx * 0.45f));
+            float cx = width * (0.12f + i * 0.26f + 0.10f * (float)Math.Sin(time * 1.2f + i));
             float cy = height * (0.46f + 0.08f * (float)Math.Sin(time * 1.6f + i * 1.4f));
             FillGlow(graphics, cx - width * 0.22f, cy - height * 0.42f, width * 0.44f, height * 0.88f, colors[i]);
         }
@@ -279,7 +372,7 @@ internal static class StreamControllerDisplayRenderer
         for (int line = 0; line < 7; line++)
         {
             float x = width * (0.05f + line * 0.15f);
-            float sway = 16f * (float)Math.Sin(time * 2.0f + line * 0.9f + keyIdx * 0.2f);
+            float sway = Math.Max(16f, width * 0.018f) * (float)Math.Sin(time * 2.0f + line * 0.9f);
             var color = line % 2 == 0
                 ? DrawingColor.FromArgb((int)(alpha * 58), 160, 255, 214)
                 : DrawingColor.FromArgb((int)(alpha * 46), 92, 225, 255);
@@ -293,7 +386,7 @@ internal static class StreamControllerDisplayRenderer
         }
     }
 
-    private static void DrawLavaOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed, int keyIdx)
+    private static void DrawLavaOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed)
     {
         float alpha = opacity / 100f;
         float time = tick / 1000f * (0.35f + speed / 75f);
@@ -307,8 +400,8 @@ internal static class StreamControllerDisplayRenderer
 
         for (int i = 0; i < 5; i++)
         {
-            float cx = width * (0.08f + i * 0.22f + 0.04f * (float)Math.Sin(time * 0.9f + i));
-            float cy = height * (0.85f - 0.22f * (float)Math.Sin(time * 1.3f + i * 0.9f + keyIdx * 0.35f));
+            float cx = width * (0.10f + i * 0.18f + 0.06f * (float)Math.Sin(time * 0.9f + i));
+            float cy = height * (0.85f - 0.22f * (float)Math.Sin(time * 1.3f + i * 0.9f));
             float size = width * (0.22f + 0.05f * (float)Math.Sin(time * 1.9f + i));
             FillGlow(graphics, cx - size * 0.7f, cy - size * 0.9f, size * 1.4f, size * 1.8f, DrawingColor.FromArgb((int)(alpha * 140), 255, 180, 38));
             FillGlow(graphics, cx - size * 0.45f, cy - size * 0.5f, size * 0.9f, size, DrawingColor.FromArgb((int)(alpha * 100), 255, 92, 0));
@@ -316,7 +409,7 @@ internal static class StreamControllerDisplayRenderer
 
         for (int ember = 0; ember < 12; ember++)
         {
-            float px = width * (float)Rand(ember * 17 + keyIdx * 31);
+            float px = width * (float)Rand(ember * 17 + 31);
             float phase = ((tick / 850f) + ember * 0.19f) % 1f;
             float py = height * (1f - phase);
             float radius = Math.Max(2f, width * 0.012f * (1f + 0.8f * (float)Rand(ember * 41)));
@@ -325,7 +418,7 @@ internal static class StreamControllerDisplayRenderer
         }
     }
 
-    private static void DrawPrismOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed, int keyIdx)
+    private static void DrawPrismOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed)
     {
         float alpha = opacity / 100f;
         float time = tick / 1000f * (0.28f + speed / 100f);
@@ -340,7 +433,7 @@ internal static class StreamControllerDisplayRenderer
         for (int i = -1; i < 6; i++)
         {
             float x = i * width * 0.18f + (time * width * 0.22f % (width * 0.18f));
-            int hue = (int)((i * 52f + time * 92f + keyIdx * 18f) % 360f);
+            int hue = (int)((i * 52f + time * 92f) % 360f);
             var c1 = FromHsv(hue, 0.85, 1.0, alpha * 0.42f);
             var c2 = FromHsv((hue + 45) % 360, 0.65, 1.0, 0f);
             using var brush = new DrawingLinearGradientBrush(
@@ -361,11 +454,10 @@ internal static class StreamControllerDisplayRenderer
         FillGlow(graphics, width * 0.18f, height * 0.14f, width * 0.64f, height * 0.5f, DrawingColor.FromArgb((int)(alpha * 55), 255, 255, 255));
     }
 
-    private static void DrawMusicOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed, int keyIdx, float[] audioBands)
+    private static void DrawMusicOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed, float[] audioBands)
     {
         float alpha = opacity / 100f;
         float[] bands = audioBands.Length >= 5 ? audioBands : new float[] { 0.1f, 0.18f, 0.13f, 0.08f, 0.05f };
-        int[] bandMap = { 0, 1, 2, 4, 3, 1 };
         float time = tick / 1000f * (0.35f + speed / 100f);
 
         using var bg = new DrawingLinearGradientBrush(
@@ -375,13 +467,14 @@ internal static class StreamControllerDisplayRenderer
             DrawingColor.FromArgb((int)(85 * alpha), 6, 2, 20));
         graphics.FillRectangle(bg, 0, 0, width, height);
 
-        float spacing = width / 7f;
-        float barWidth = width * 0.09f;
+        int barCount = 18;
+        float spacing = width / (barCount + 1f);
+        float barWidth = Math.Max(12f, width * 0.028f);
 
-        for (int i = 0; i < 6; i++)
+        for (int i = 0; i < barCount; i++)
         {
-            float band = Math.Clamp(bands[bandMap[i]], 0f, 1f);
-            float shimmer = 0.14f * (float)Math.Sin(time * 5f + i * 0.8f + keyIdx * 0.5f);
+            float band = Math.Clamp(bands[i % bands.Length], 0f, 1f);
+            float shimmer = 0.14f * (float)Math.Sin(time * 5f + i * 0.8f);
             float heightPct = Math.Clamp(0.16f + band * 0.78f + shimmer, 0.08f, 0.92f);
             float barHeight = height * heightPct;
             float x = spacing * (i + 0.55f) - barWidth * 0.5f;
@@ -404,26 +497,22 @@ internal static class StreamControllerDisplayRenderer
         }
     }
 
-    private static void DrawScreenSyncOverlay(DrawingGraphics graphics, int width, int height, int opacity, int keyIdx, DrawingBitmap? screenStrip)
+    private static void DrawScreenSyncOverlay(DrawingGraphics graphics, int width, int height, int opacity, DrawingBitmap? screenStrip)
     {
         if (screenStrip == null)
         {
-            DrawPrismOverlay(graphics, width, height, Environment.TickCount, opacity, 55, keyIdx);
+            DrawPrismOverlay(graphics, width, height, Environment.TickCount, opacity, 55);
             return;
         }
-
-        int sliceWidth = Math.Max(1, screenStrip.Width / N3Controller.DisplayKeyCount);
-        int srcX = Math.Clamp(keyIdx * sliceWidth, 0, Math.Max(0, screenStrip.Width - sliceWidth));
-        var destRect = new DrawingRectangle(0, 0, width, height);
 
         using var attributes = new ImageAttributes();
         attributes.SetColorMatrix(CreateSaturationMatrix(1.30f, opacity / 100f));
         graphics.DrawImage(
             screenStrip,
-            destRect,
-            srcX,
+            new DrawingRectangle(0, 0, width, height),
             0,
-            sliceWidth,
+            0,
+            screenStrip.Width,
             screenStrip.Height,
             System.Drawing.GraphicsUnit.Pixel,
             attributes);
