@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using System.Windows.Threading;
 using AmpUp.Controls;
 
 namespace AmpUp.Views;
@@ -17,6 +18,7 @@ public partial class LightsView
     private TextBlock? _scScreensaverOpacityLabel;
     private TextBlock? _scScreensaverSpeedLabel;
     private readonly Image[] _scScreensaverPreviewImages = new Image[6];
+    private DispatcherTimer? _scScreensaverPreviewTimer;
 
     private void InitializeLightsDeviceSelector()
     {
@@ -37,6 +39,14 @@ public partial class LightsView
         };
 
         BuildStreamControllerLightsPanel();
+
+        _scScreensaverPreviewTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
+        _scScreensaverPreviewTimer.Tick += (_, _) =>
+        {
+            if (StreamControllerLightsPanel.Visibility == Visibility.Visible)
+                RefreshStreamControllerScreensaverPreview();
+        };
+        _scScreensaverPreviewTimer.Start();
     }
 
     private void BuildStreamControllerLightsPanel()
@@ -215,7 +225,7 @@ public partial class LightsView
 
         stack.Children.Add(new TextBlock
         {
-            Text = "Preview",
+            Text = "Live Hardware Preview",
             Foreground = FindBrush("TextPrimaryBrush"),
             FontWeight = FontWeights.SemiBold,
             Margin = new Thickness(0, 0, 0, 8)
@@ -232,7 +242,7 @@ public partial class LightsView
             {
                 Width = 56,
                 Height = 56,
-                Stretch = Stretch.UniformToFill
+                Stretch = Stretch.Uniform
             };
             _scScreensaverPreviewImages[i] = image;
 
@@ -343,7 +353,7 @@ public partial class LightsView
         for (int i = 0; i < 6; i++)
         {
             var key = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == i) ?? new StreamControllerDisplayKeyConfig { Idx = i };
-            _scScreensaverPreviewImages[i].Source = StreamControllerDisplayRenderer.CreatePreview(key, previewConfig, frame);
+            _scScreensaverPreviewImages[i].Source = StreamControllerDisplayRenderer.CreateHardwarePreview(key, previewConfig, frame);
         }
     }
 }

@@ -26,6 +26,20 @@ internal static class StreamControllerDisplayRenderer
     public static BitmapSource CreatePreview(StreamControllerDisplayKeyConfig key, N3Config? n3 = null, StreamControllerEffectFrame? frame = null)
     {
         using var bitmap = ComposeImage(key, n3, frame);
+        return ToBitmapSource(bitmap);
+    }
+
+    public static BitmapSource CreateHardwarePreview(StreamControllerDisplayKeyConfig key, N3Config? n3 = null, StreamControllerEffectFrame? frame = null)
+    {
+        var jpeg = CreateDeviceJpeg(key, n3, frame);
+        using var stream = new MemoryStream(jpeg);
+        using var bitmap = new DrawingBitmap(stream);
+        bitmap.RotateFlip(System.Drawing.RotateFlipType.Rotate270FlipNone);
+        return ToBitmapSource(bitmap);
+    }
+
+    private static BitmapSource ToBitmapSource(DrawingBitmap bitmap)
+    {
         using var stream = new MemoryStream();
         bitmap.Save(stream, ImageFormat.Png);
         stream.Position = 0;
