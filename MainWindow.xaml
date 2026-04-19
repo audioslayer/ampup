@@ -151,28 +151,6 @@
                                    HorizontalAlignment="Center" Margin="0,5,0,0"
                                    TextTrimming="CharacterEllipsis" MaxWidth="60" TextAlignment="Center" />
 
-                        <Border x:Name="DeviceButton" Width="48" Height="48" CornerRadius="24"
-                                Background="{DynamicResource CardBgBrush}"
-                                BorderThickness="2" Cursor="Hand" ToolTip="Switch active hardware surface"
-                                HorizontalAlignment="Center" Margin="0,12,0,0"
-                                MouseLeftButtonUp="DeviceButton_Click">
-                            <Border.BorderBrush>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                    <GradientStop Color="#8800E676" Offset="0" />
-                                    <GradientStop Color="#4400E676" Offset="1" />
-                                </LinearGradientBrush>
-                            </Border.BorderBrush>
-                            <Border.Effect>
-                                <DropShadowEffect x:Name="DeviceButtonGlow" Color="#00E676" BlurRadius="12" Opacity="0.18" ShadowDepth="0" />
-                            </Border.Effect>
-                            <controls:PhosphorIcon x:Name="DeviceIcon" IconName="Cpu" IconSize="22"
-                                       IconColor="#00E676" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <TextBlock x:Name="DeviceLabel" Text="Auto" FontSize="8" FontWeight="Medium"
-                                   Foreground="{StaticResource TextSecBrush}"
-                                   HorizontalAlignment="Center" Margin="0,5,0,0"
-                                   TextTrimming="CharacterEllipsis" MaxWidth="60" TextAlignment="Center" />
-
                         <!-- Separator line under profile button -->
                         <Border Height="1" Margin="14,10,14,0"
                                 Background="{DynamicResource AccentBorder22Brush}" />
@@ -180,7 +158,6 @@
 
                     <!-- ProfilePopupPanel is populated and shown via code-behind Window flyout -->
                     <StackPanel x:Name="ProfilePopupPanel" Visibility="Collapsed" />
-                    <StackPanel x:Name="DevicePopupPanel" Visibility="Collapsed" />
 
                     <DockPanel Grid.Row="1" Margin="0,12,0,0" LastChildFill="True">
                         <!-- Settings at very bottom -->

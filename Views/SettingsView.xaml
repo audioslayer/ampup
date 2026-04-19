@@ -61,6 +61,13 @@
                                                    HorizontalAlignment="Left"
                                                    MinWidth="360"
                                                    Margin="0,0,0,10" />
+                        <StackPanel x:Name="ActiveSurfacePanel" Visibility="Collapsed" Margin="0,4,0,10">
+                            <TextBlock Text="Active Surface" Style="{StaticResource SecondaryText}" Margin="0,0,0,6"
+                                       ToolTip="Which surface drives the Mixer, Buttons, and Lights tabs when both devices are available" />
+                            <controls:SegmentedControl x:Name="SegActiveSurface"
+                                                       HorizontalAlignment="Left"
+                                                       MinWidth="360" />
+                        </StackPanel>
                         <TextBlock Text="Device Port" Style="{StaticResource SecondaryText}" Margin="0,0,0,6"
                                    ToolTip="Select the COM port for your AmpUp hardware" />
                         <StackPanel Orientation="Horizontal">

@@ -44,6 +44,8 @@ public partial class SettingsView : UserControl
     private readonly DispatcherTimer _debounceTimer;
     private bool _loading;
     private bool _configLoaded;
+    private bool _turnUpConnected;
+    private bool _streamControllerConnected;
 
     public SettingsView()
     {
@@ -73,7 +75,12 @@ public partial class SettingsView : UserControl
         SegHardwareMode.AddSegment("Turn Up", HardwareMode.TurnUpOnly);
         SegHardwareMode.AddSegment("Stream Controller", HardwareMode.StreamControllerOnly);
         SegHardwareMode.AddSegment("Both", HardwareMode.DualMode);
-        SegHardwareMode.SelectionChanged += OnValueChanged;
+        SegHardwareMode.SelectionChanged += OnHardwareModeChanged;
+
+        SegActiveSurface.AddSegment("Turn Up", DeviceSurface.TurnUp);
+        SegActiveSurface.AddSegment("Stream Controller", DeviceSurface.StreamController);
+        SegActiveSurface.AddSegment("Both", DeviceSurface.Both);
+        SegActiveSurface.SelectionChanged += OnActiveSurfaceChanged;
         CmbSerialPort.SelectionChanged += OnPortComboSelectionChanged;
         BtnRefreshPorts.Click += (_, _) => RefreshPortList();
         BtnAutoDetect.Click += OnAutoDetect;
@@ -171,6 +178,13 @@ public partial class SettingsView : UserControl
             HardwareMode.DualMode => 3,
             _ => 0,
         };
+        SegActiveSurface.SelectedIndex = config.TabSelection.Buttons switch
+        {
+            DeviceSurface.StreamController => 1,
+            DeviceSurface.Both => 2,
+            _ => 0,
+        };
+        RefreshActiveSurfaceVisibility();
         RefreshPortList(selectPort: config.Serial.Port);
         ChkStartWithWindows.IsChecked = config.StartWithWindows;
         ChkAutoSuggestLayout.IsChecked = config.AutoSuggestLayout;
@@ -612,12 +626,14 @@ public partial class SettingsView : UserControl
     {
         Dispatcher.Invoke(() =>
         {
+            _turnUpConnected = connected;
             ConnectionDot.Fill = new SolidColorBrush(connected
                 ? (Color)ColorConverter.ConvertFromString("#00E676")
                 : (Color)ColorConverter.ConvertFromString("#FF4444"));
             TxtConnectionStatus.Text = connected
                 ? $"Connected on {portName ?? "unknown"}"
                 : "Disconnected";
+            RefreshActiveSurfaceVisibility();
         });
     }
 
@@ -627,13 +643,40 @@ public partial class SettingsView : UserControl
     {
         Dispatcher.Invoke(() =>
         {
+            _streamControllerConnected = connected;
             N3ConnectionDot.Fill = new SolidColorBrush(connected
                 ? (Color)ColorConverter.ConvertFromString("#00E676")
                 : (Color)ColorConverter.ConvertFromString("#FF4444"));
             TxtN3ConnectionStatus.Text = connected
                 ? $"Connected over USB HID{(string.IsNullOrWhiteSpace(deviceName) ? "" : $" ({deviceName})")}"
                 : "Not detected";
+            RefreshActiveSurfaceVisibility();
         });
+    }
+
+    public void RefreshActiveSurfaceVisibility()
+    {
+        if (_config == null) return;
+        bool show = _config.HardwareMode == HardwareMode.DualMode
+            || (_config.HardwareMode == HardwareMode.Auto && _turnUpConnected && _streamControllerConnected);
+        ActiveSurfacePanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnHardwareModeChanged(object? sender, EventArgs e)
+    {
+        RefreshActiveSurfaceVisibility();
+        OnValueChanged(sender, e);
+    }
+
+    private void OnActiveSurfaceChanged(object? sender, EventArgs e)
+    {
+        if (_loading || _config == null || _onSave == null || !_configLoaded) return;
+        if (SegActiveSurface.SelectedTag is not DeviceSurface surface) return;
+
+        _config.TabSelection.Mixer = surface;
+        _config.TabSelection.Buttons = surface;
+        _config.TabSelection.Lights = surface;
+        _onSave(_config);
     }
 
     private void CollectAndSave()
