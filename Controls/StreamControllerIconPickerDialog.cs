@@ -47,6 +47,9 @@ public class StreamControllerIconPickerDialog : Window
     private readonly TextBlock _subtitle;
     private readonly TextBlock _onlineStatus;
     private readonly DispatcherTimer _searchDebounce;
+    private readonly Border _searchChrome;
+    private readonly TextBlock _searchPlaceholder;
+    private readonly Button _clearSearchButton;
 
     private CancellationTokenSource? _searchCts;
 
@@ -82,11 +85,16 @@ public class StreamControllerIconPickerDialog : Window
             Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
             Foreground = (Brush)Application.Current.FindResource("TextPrimaryBrush"),
-            FontSize = 12,
-            Height = 34,
-            VerticalContentAlignment = VerticalAlignment.Center
+            CaretBrush = new SolidColorBrush(ThemeManager.Accent),
+            SelectionBrush = new SolidColorBrush(Color.FromArgb(0x55, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
+            FontSize = 13,
+            Height = 40,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Padding = new Thickness(0)
         };
         _searchBox.TextChanged += OnSearchTextChanged;
+        _searchBox.GotKeyboardFocus += (_, _) => UpdateSearchChrome();
+        _searchBox.LostKeyboardFocus += (_, _) => UpdateSearchChrome();
 
         _sourcePicker = new SegmentedControl
         {
@@ -127,6 +135,50 @@ public class StreamControllerIconPickerDialog : Window
             Foreground = (Brush)Application.Current.FindResource("TextDimBrush"),
             Margin = new Thickness(0, 6, 0, 0),
             Text = "Search thousands of icons and only cache the one you pick."
+        };
+
+        _searchChrome = new Border
+        {
+            Background = (Brush)Application.Current.FindResource("InputBgBrush"),
+            BorderBrush = (Brush)Application.Current.FindResource("InputBorderBrush"),
+            BorderThickness = new Thickness(1.5),
+            CornerRadius = new CornerRadius(11),
+            Padding = new Thickness(12, 0, 10, 0),
+            Margin = new Thickness(0, 0, 0, 12)
+        };
+
+        _searchPlaceholder = new TextBlock
+        {
+            Text = "Search play, mute, spotify, obs, mic...",
+            Foreground = (Brush)Application.Current.FindResource("TextDimBrush"),
+            IsHitTestVisible = false,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(2, 0, 0, 0)
+        };
+
+        _clearSearchButton = new Button
+        {
+            Width = 26,
+            Height = 26,
+            Padding = new Thickness(0),
+            Margin = new Thickness(8, 0, 0, 0),
+            Background = Brushes.Transparent,
+            BorderBrush = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Cursor = Cursors.Hand,
+            Visibility = Visibility.Collapsed,
+            Content = new MaterialIcon
+            {
+                Kind = MaterialIconKind.CloseCircle,
+                Width = 16,
+                Height = 16,
+                Foreground = (Brush)Application.Current.FindResource("TextDimBrush")
+            }
+        };
+        _clearSearchButton.Click += (_, _) =>
+        {
+            _searchBox.Clear();
+            _searchBox.Focus();
         };
 
         _localPanel = new Border
@@ -215,32 +267,34 @@ public class StreamControllerIconPickerDialog : Window
         header.Children.Add(_subtitle);
         header.Children.Add(_sourcePicker);
 
-        var searchBorder = new Border
-        {
-            Background = (Brush)Application.Current.FindResource("CardBgBrush"),
-            BorderBrush = (Brush)Application.Current.FindResource("InputBorderBrush"),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(10, 0, 10, 0),
-            Margin = new Thickness(0, 0, 0, 10)
-        };
-
         var searchGrid = new Grid();
-        var placeholder = new TextBlock
+        searchGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        searchGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        searchGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var searchIcon = new MaterialIcon
         {
-            Text = "Search play, mute, spotify, obs, mic...",
+            Kind = MaterialIconKind.Magnify,
+            Width = 18,
+            Height = 18,
+            VerticalAlignment = VerticalAlignment.Center,
             Foreground = (Brush)Application.Current.FindResource("TextDimBrush"),
-            IsHitTestVisible = false,
-            VerticalAlignment = VerticalAlignment.Center
+            Margin = new Thickness(0, 0, 10, 0)
         };
-        _searchBox.TextChanged += (_, _) =>
-        {
-            placeholder.Visibility = string.IsNullOrWhiteSpace(_searchBox.Text) ? Visibility.Visible : Visibility.Collapsed;
-        };
-        searchGrid.Children.Add(_searchBox);
-        searchGrid.Children.Add(placeholder);
-        searchBorder.Child = searchGrid;
-        header.Children.Add(searchBorder);
+        Grid.SetColumn(searchIcon, 0);
+        searchGrid.Children.Add(searchIcon);
+
+        var searchBoxHost = new Grid();
+        searchBoxHost.Children.Add(_searchBox);
+        searchBoxHost.Children.Add(_searchPlaceholder);
+        Grid.SetColumn(searchBoxHost, 1);
+        searchGrid.Children.Add(searchBoxHost);
+
+        Grid.SetColumn(_clearSearchButton, 2);
+        searchGrid.Children.Add(_clearSearchButton);
+
+        _searchChrome.Child = searchGrid;
+        header.Children.Add(_searchChrome);
         header.Children.Add(_categoryPicker);
         main.Children.Add(header);
 
@@ -260,6 +314,7 @@ public class StreamControllerIconPickerDialog : Window
                 CloseDialog(false);
         };
         Closed += (_, _) => _searchCts?.Cancel();
+        UpdateSearchChrome();
     }
 
     private void UpdateSourceMode()
@@ -296,6 +351,7 @@ public class StreamControllerIconPickerDialog : Window
 
     private void OnSearchTextChanged(object? sender, TextChangedEventArgs e)
     {
+        UpdateSearchChrome();
         if (!IsOnlineMode)
         {
             RefreshLocalGrid();
@@ -313,6 +369,21 @@ public class StreamControllerIconPickerDialog : Window
 
         _onlineStatus.Text = "Searching...";
         _searchDebounce.Start();
+    }
+
+    private void UpdateSearchChrome()
+    {
+        bool hasText = !string.IsNullOrWhiteSpace(_searchBox.Text);
+        bool focused = _searchBox.IsKeyboardFocused;
+
+        _searchPlaceholder.Visibility = hasText ? Visibility.Collapsed : Visibility.Visible;
+        _clearSearchButton.Visibility = hasText ? Visibility.Visible : Visibility.Collapsed;
+        _searchChrome.BorderBrush = focused
+            ? new SolidColorBrush(ThemeManager.Accent)
+            : (Brush)Application.Current.FindResource("InputBorderBrush");
+        _searchChrome.Background = focused
+            ? (Brush)Application.Current.FindResource("CardBgBrush")
+            : (Brush)Application.Current.FindResource("InputBgBrush");
     }
 
     private void RefreshLocalGrid()

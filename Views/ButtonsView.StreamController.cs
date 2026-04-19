@@ -330,7 +330,16 @@ public partial class ButtonsView
         return new TextBox
         {
             Margin = new Thickness(0, 0, 0, 8),
-            MinHeight = 34,
+            MinHeight = 38,
+            Background = (Brush)Application.Current.FindResource("InputBgBrush"),
+            Foreground = (Brush)Application.Current.FindResource("TextPrimaryBrush"),
+            BorderBrush = (Brush)Application.Current.FindResource("InputBorderBrush"),
+            BorderThickness = new Thickness(1.5),
+            Padding = new Thickness(12, 8, 12, 8),
+            FontSize = 12,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            CaretBrush = new SolidColorBrush(ThemeManager.Accent),
+            SelectionBrush = new SolidColorBrush(Color.FromArgb(0x55, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
             Text = "",
             Tag = placeholder
         };
