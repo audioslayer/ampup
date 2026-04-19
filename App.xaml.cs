@@ -335,6 +335,11 @@ public partial class App : Application
         // we tear down and rebuild notification subscriptions and the peak device on unlock.
         SystemEvents.SessionSwitch += OnSessionSwitch;
 
+        // Listen for system sleep/wake so the N3 LCD screens can blank with
+        // the PC and light back up on resume instead of burning at full
+        // brightness on a sleeping machine.
+        SystemEvents.PowerModeChanged += OnPowerModeChanged;
+
         // Register WM_TASKBARCREATED so we can recreate the tray icon if Explorer crashes/restarts
         _wmTaskbarCreated = NativeMethods.RegisterWindowMessage("TaskbarCreated");
 
@@ -617,6 +622,37 @@ public partial class App : Application
     private volatile bool _sessionLocked;
 
     /// <summary>
+    /// Blank the N3 screens when the system suspends so they don't sit lit
+    /// on a sleeping PC, and restore them on resume. Set brightness=0 is the
+    /// cheapest sleep — the device stays connected so wake-from-sleep just
+    /// pushes brightness back up; no re-init required.
+    /// </summary>
+    private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)
+    {
+        Logger.Log($"Power mode: {e.Mode}");
+        try
+        {
+            if (e.Mode == PowerModes.Suspend)
+            {
+                if (_n3 != null && _isN3Connected)
+                    _n3.SetBrightness(0);
+            }
+            else if (e.Mode == PowerModes.Resume)
+            {
+                if (_n3 != null && _isN3Connected)
+                {
+                    _n3.SetBrightness((byte)Math.Clamp(_config.N3.DisplayBrightness, 0, 100));
+                    SyncStreamControllerDisplays();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"PowerModeChanged error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// WndProc hook on the main window. Catches WM_TASKBARCREATED, which Windows sends to
     /// all top-level windows when Explorer restarts the shell/taskbar (crash recovery, logoff,
     /// or display changes). On receipt we recreate the tray icon so it reappears automatically.
@@ -840,6 +876,7 @@ public partial class App : Application
 
         SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
         SystemEvents.SessionSwitch -= OnSessionSwitch;
+        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
 
         _trayIconHwndSource?.Dispose();
         _trayIconHwndSource = null;
@@ -3001,6 +3038,7 @@ public partial class App : Application
     {
         SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
         SystemEvents.SessionSwitch -= OnSessionSwitch;
+        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
 
         _trayIconHwndSource?.Dispose();
         if (_trayIcon != null)
