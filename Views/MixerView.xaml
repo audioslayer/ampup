@@ -74,6 +74,11 @@
                 <Border x:Name="Ch3Curve" Grid.Row="3" Grid.Column="3" Margin="4,0" />
                 <Border x:Name="Ch4Curve" Grid.Row="3" Grid.Column="4" Margin="4,0,0,0" />
             </Grid>
+            </StackPanel>
+
+            <Border x:Name="StreamControllerMixerPanel" Style="{StaticResource CardPanel}" Margin="0,10,0,0" Visibility="Collapsed">
+                <StackPanel x:Name="StreamControllerMixerContent" />
+            </Border>
 
             <!-- ── SMART MIX ──────────────────────────────────────── -->
             <Border x:Name="SmartMixSection" Style="{StaticResource CardPanel}" Margin="0,10,0,0">
@@ -111,11 +116,6 @@
                     </Border>
                     <StackPanel x:Name="AudioSessionsContent" Visibility="Collapsed" Margin="0,12,0,0" />
                 </StackPanel>
-            </Border>
-            </StackPanel>
-
-            <Border x:Name="StreamControllerMixerPanel" Style="{StaticResource CardPanel}" Margin="0,10,0,0" Visibility="Collapsed">
-                <StackPanel x:Name="StreamControllerMixerContent" />
             </Border>
 
         </StackPanel>
