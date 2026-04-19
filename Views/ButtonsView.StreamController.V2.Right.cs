@@ -65,8 +65,8 @@ public partial class ButtonsView
             CornerRadius = new CornerRadius(14),
             Padding = new Thickness(10),
             Margin = new Thickness(0, 0, 0, 14),
-            Width = 280,
-            Height = 160,
+            Width = 220,
+            Height = 220,
             HorizontalAlignment = HorizontalAlignment.Center,
         };
 
@@ -342,6 +342,12 @@ public partial class ButtonsView
         // ── Action picker ──────────────────────────────────────────────
         if (_v2ActionPicker != null)
         {
+            // FillV2ActionPanel runs before config loads (ctor time), so the
+            // picker starts empty. Re-populate once config is in hand.
+            PopulateV2ActionPickerItems();
+            _v2ActionPicker.SetFavorites(_config.N3.FavoriteActions);
+            _v2ActionPicker.SetRecents(_config.N3.RecentActions);
+
             var buttonList = IsN3PagedKeySelection() ? GetActiveN3ButtonList() : _config.N3.Buttons;
             var button = buttonList.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx)
                          ?? new ButtonConfig { Idx = _scSelectedButtonIdx };
