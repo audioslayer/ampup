@@ -29,6 +29,11 @@ public partial class ButtonsView
     private Grid? _v2KeyGrid;
     private StackPanel? _v2PageDotsPanel;
 
+    // ── Folders management panel (collapsible, styled like Audio Sessions) ──
+    private TextBlock? _v2FolderSectionArrow;
+    private StackPanel? _v2FolderSectionContent;
+    private bool _v2FoldersExpanded;
+
     // Cache of tile-level state so we can skip the expensive
     // CreateHardwarePreview + tile.Refresh() rebuild when nothing a tile
     // actually renders has changed. Keyed by the tile's slot index (0-5).
@@ -79,8 +84,249 @@ public partial class ButtonsView
         // ── HARDWARE device chassis — holds LCDs, page toolbar, buttons, encoders ──
         _v2LeftPanel.Children.Add(BuildV2HardwareDeviceBody());
 
+        // ── FOLDERS (collapsible) — styled like the Mixer's Audio Sessions card ──
+        _v2LeftPanel.Children.Add(BuildV2FoldersSection());
+
         // Initial population of visuals.
         RefreshV2LeftPanel();
+    }
+
+    private Border BuildV2FoldersSection()
+    {
+        var section = new Border
+        {
+            Margin = new Thickness(0, 14, 0, 0),
+            Padding = new Thickness(16),
+            CornerRadius = new CornerRadius(10),
+            BorderThickness = new Thickness(1),
+        };
+        section.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        section.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+
+        var stack = new StackPanel();
+
+        // Clickable header — accent bar + label + chevron, matches AUDIO SESSIONS.
+        var headerRow = new Border
+        {
+            Cursor = Cursors.Hand,
+            Background = System.Windows.Media.Brushes.Transparent,
+        };
+        var headerStack = new StackPanel { Orientation = Orientation.Horizontal };
+        headerStack.Children.Add(new Border
+        {
+            Width = 3,
+            CornerRadius = new CornerRadius(2),
+            Background = new SolidColorBrush(ThemeManager.Accent),
+            Margin = new Thickness(0, 0, 10, 0),
+        });
+        var headerLabel = new TextBlock
+        {
+            Text = "FOLDERS",
+            FontSize = 14,
+            FontWeight = FontWeights.Bold,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        headerStack.Children.Add(headerLabel);
+        _v2FolderSectionArrow = new TextBlock
+        {
+            Text = "\u25B6",
+            FontSize = 9,
+            Foreground = new SolidColorBrush(ThemeManager.Accent),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+        headerStack.Children.Add(_v2FolderSectionArrow);
+        headerRow.Child = headerStack;
+        headerRow.MouseLeftButtonDown += (_, _) => ToggleV2FoldersExpanded();
+        stack.Children.Add(headerRow);
+
+        _v2FolderSectionContent = new StackPanel
+        {
+            Visibility = Visibility.Collapsed,
+            Margin = new Thickness(0, 12, 0, 0),
+        };
+        stack.Children.Add(_v2FolderSectionContent);
+
+        section.Child = stack;
+        return section;
+    }
+
+    private void ToggleV2FoldersExpanded()
+    {
+        _v2FoldersExpanded = !_v2FoldersExpanded;
+        if (_v2FolderSectionContent != null)
+            _v2FolderSectionContent.Visibility = _v2FoldersExpanded ? Visibility.Visible : Visibility.Collapsed;
+        if (_v2FolderSectionArrow != null)
+            _v2FolderSectionArrow.Text = _v2FoldersExpanded ? "\u25BC" : "\u25B6";
+
+        if (_v2FoldersExpanded) RefreshV2FoldersList();
+    }
+
+    /// <summary>Rebuild the folder list inside the FOLDERS card — called on expand and after create/rename/delete.</summary>
+    private void RefreshV2FoldersList()
+    {
+        if (_v2FolderSectionContent == null || _config == null) return;
+        _v2FolderSectionContent.Children.Clear();
+
+        // "+ New Folder" action row at the top.
+        var newBtn = MakeEditorButton("+ New Folder", (_, _) =>
+        {
+            if (_config == null) return;
+            string? name = GlassDialog.Prompt("Enter a name for the new folder:", "New Folder", Window.GetWindow(this));
+            if (string.IsNullOrWhiteSpace(name)) return;
+            name = name.Trim();
+            if (_config.N3.Folders.Any(f => f.Name == name))
+            {
+                int counter = 2;
+                string candidate;
+                do { candidate = $"{name} ({counter++})"; }
+                while (_config.N3.Folders.Any(f => f.Name == candidate));
+                name = candidate;
+            }
+            var folder = new ButtonFolderConfig { Name = name, PageCount = 1 };
+            for (int i = 0; i < StreamControllerKeysPerPage; i++)
+            {
+                folder.DisplayKeys.Add(new StreamControllerDisplayKeyConfig { Idx = i });
+                folder.Buttons.Add(new ButtonConfig { Idx = StreamControllerDisplayKeyBase + i });
+            }
+            _config.N3.Folders.Add(folder);
+            QueueSave();
+            RefreshV2FoldersList();
+        });
+        newBtn.Margin = new Thickness(0, 0, 0, 8);
+        _v2FolderSectionContent.Children.Add(newBtn);
+
+        if (_config.N3.Folders.Count == 0)
+        {
+            _v2FolderSectionContent.Children.Add(new TextBlock
+            {
+                Text = "No folders yet. Create one above or right-click any key → Open as Folder.",
+                FontSize = 11,
+                Foreground = FindBrush("TextDimBrush"),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(2, 4, 2, 0),
+            });
+            return;
+        }
+
+        foreach (var folder in _config.N3.Folders)
+        {
+            _v2FolderSectionContent.Children.Add(BuildV2FolderRow(folder));
+        }
+    }
+
+    private Border BuildV2FolderRow(ButtonFolderConfig folder)
+    {
+        var row = new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12, 10, 12, 10),
+            Margin = new Thickness(0, 0, 0, 6),
+            BorderThickness = new Thickness(1),
+        };
+        row.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+        row.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        // Folder name + key-count subtitle.
+        var labelStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        labelStack.Children.Add(new TextBlock
+        {
+            Text = "\U0001F4C1  " + folder.Name,
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        });
+        int keyCount = folder.Buttons.Count(b => !string.IsNullOrEmpty(b.Action) && b.Action != "none");
+        labelStack.Children.Add(new TextBlock
+        {
+            Text = $"{folder.PageCount} page{(folder.PageCount == 1 ? "" : "s")} · {keyCount} key{(keyCount == 1 ? "" : "s")} assigned",
+            FontSize = 10,
+            Foreground = FindBrush("TextDimBrush"),
+            Margin = new Thickness(0, 2, 0, 0),
+        });
+        Grid.SetColumn(labelStack, 0);
+        grid.Children.Add(labelStack);
+
+        // Open button.
+        var openBtn = MakeEditorButton("Open", (_, _) => NavigateToFolderInEditor(folder.Name));
+        openBtn.Margin = new Thickness(6, 0, 0, 0);
+        Grid.SetColumn(openBtn, 1);
+        grid.Children.Add(openBtn);
+
+        // Rename button.
+        var renameBtn = MakeEditorButton("Rename", (_, _) =>
+        {
+            if (_config == null) return;
+            string? newName = GlassDialog.Prompt("Rename folder:", folder.Name, Window.GetWindow(this));
+            if (string.IsNullOrWhiteSpace(newName) || newName.Trim() == folder.Name) return;
+            newName = newName.Trim();
+            if (_config.N3.Folders.Any(f => f.Name == newName)) return;
+
+            // Update references on any button pointing at the old name.
+            var oldName = folder.Name;
+            folder.Name = newName;
+            foreach (var btn in _config.N3.Buttons)
+                if (btn.Action == "open_folder" && btn.FolderName == oldName)
+                    btn.FolderName = newName;
+            foreach (var f in _config.N3.Folders)
+                foreach (var btn in f.Buttons)
+                    if (btn.Action == "open_folder" && btn.FolderName == oldName)
+                        btn.FolderName = newName;
+            if (_scActiveFolder == oldName) _scActiveFolder = newName;
+
+            QueueSave();
+            RefreshV2FoldersList();
+            RefreshV2LeftPanel();
+        });
+        renameBtn.Margin = new Thickness(6, 0, 0, 0);
+        Grid.SetColumn(renameBtn, 2);
+        grid.Children.Add(renameBtn);
+
+        // Delete button.
+        var delBtn = MakeEditorButton("Delete", (_, _) =>
+        {
+            if (_config == null) return;
+            if (!GlassDialog.Confirm($"Delete folder \"{folder.Name}\" and all its keys?", "Delete Folder", dangerYes: true, owner: Window.GetWindow(this)))
+                return;
+
+            _config.N3.Folders.Remove(folder);
+
+            // Clear any open_folder references pointing at this folder.
+            foreach (var btn in _config.N3.Buttons)
+                if (btn.Action == "open_folder" && btn.FolderName == folder.Name)
+                {
+                    btn.Action = "none";
+                    btn.FolderName = "";
+                }
+            foreach (var f in _config.N3.Folders)
+                foreach (var btn in f.Buttons)
+                    if (btn.Action == "open_folder" && btn.FolderName == folder.Name)
+                    {
+                        btn.Action = "none";
+                        btn.FolderName = "";
+                    }
+            if (_scActiveFolder == folder.Name)
+                NavigateToFolderInEditor("");
+
+            QueueSave();
+            RefreshV2FoldersList();
+            RefreshV2LeftPanel();
+        });
+        delBtn.Margin = new Thickness(6, 0, 0, 0);
+        delBtn.Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x6B));
+        Grid.SetColumn(delBtn, 3);
+        grid.Children.Add(delBtn);
+
+        row.Child = grid;
+        return row;
     }
 
     // ────────────────────────────────────────────────────────────────────────
