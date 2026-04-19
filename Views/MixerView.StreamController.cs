@@ -107,8 +107,8 @@ public partial class MixerView
 
             var knob = new AnimatedKnobControl
             {
-                Width = 88,
-                Height = 88,
+                Width = 100,
+                Height = 100,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 ToolTip = "Turn the encoder to adjust volume",
