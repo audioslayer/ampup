@@ -635,12 +635,13 @@ public partial class App : Application
             if (e.Mode == PowerModes.Suspend)
             {
                 if (_n3 != null && _isN3Connected)
-                    _n3.SetBrightness(0);
+                    _n3.Sleep();
             }
             else if (e.Mode == PowerModes.Resume)
             {
                 if (_n3 != null && _isN3Connected)
                 {
+                    _n3.Wake();
                     _n3.SetBrightness((byte)Math.Clamp(_config.N3.DisplayBrightness, 0, 100));
                     SyncStreamControllerDisplays();
                 }
@@ -2060,6 +2061,9 @@ public partial class App : Application
             if (_config == null) return;
 
             // ── N3 idle sleep ─────────────────────────────────────────────
+            // Uses the real firmware standby command (CRT HAN) via N3Controller.Sleep —
+            // actually powers the LCDs down, not just dims to brightness 0.
+            // Wake re-inits the device and resyncs display frames.
             if (_n3 != null && _isN3Connected)
             {
                 int thresholdSec = Math.Max(0, _config.N3.IdleSleepSeconds);
@@ -2069,11 +2073,12 @@ public partial class App : Application
 
                 if (shouldSleep && !_n3AsleepFromIdle)
                 {
-                    _n3.SetBrightness(0);
+                    _n3.Sleep();
                     _n3AsleepFromIdle = true;
                 }
                 else if (!shouldSleep && _n3AsleepFromIdle)
                 {
+                    _n3.Wake();
                     _n3.SetBrightness((byte)Math.Clamp(_config.N3.DisplayBrightness, 0, 100));
                     SyncStreamControllerDisplays();
                     _n3AsleepFromIdle = false;

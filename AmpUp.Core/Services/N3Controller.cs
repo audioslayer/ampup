@@ -204,6 +204,47 @@ public sealed class N3Controller : IDisposable
         }
     }
 
+    /// <summary>
+    /// Put the N3 LCDs into firmware standby via the `CRT HAN` command —
+    /// different from SetBrightness(0), which just dims; this actually powers
+    /// the panels down. Wake with <see cref="Wake"/>.
+    /// Reference: 4ndv/mirajazz src/device.rs sleep() implementation.
+    /// </summary>
+    public void Sleep()
+    {
+        if (!EnsureInitialized()) return;
+        try
+        {
+            // CRT HAN — same packet mirajazz's sleep() sends.
+            WriteExtendedReport(0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x48, 0x41, 0x4E);
+            Logger.Log("N3: sleep (CRT HAN) sent");
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"N3: sleep failed - {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Wake the N3 from <see cref="Sleep"/> by re-running the init sequence.
+    /// Callers should follow up with <see cref="SetBrightness"/> + a display
+    /// resync so the previously-rendered frames come back.
+    /// </summary>
+    public void Wake()
+    {
+        try
+        {
+            // Re-run init — CRT DIS + CRT LIG — to power the screens back on.
+            WriteExtendedReport(0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x44, 0x49, 0x53);
+            WriteExtendedReport(0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x4C, 0x49, 0x47, 0x00, 0x00, 0x00, 0x00);
+            Logger.Log("N3: wake (CRT DIS + CRT LIG) sent");
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"N3: wake failed - {ex.Message}");
+        }
+    }
+
     public void KeepAlive()
     {
         if (!EnsureInitialized()) return;
