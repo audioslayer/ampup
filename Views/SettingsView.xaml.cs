@@ -41,6 +41,8 @@ public partial class SettingsView : UserControl
     private CorsairSync? _corsairSyncRef;
     public Action? OnNavigateToOverview { get; set; }
     public Action<string>? OnEditProfile { get; set; }
+    public Action<DeviceSurface>? OnActiveSurfaceChangedExternal { get; set; }
+    public Action? OnHardwareModeChangedExternal { get; set; }
     private readonly DispatcherTimer _debounceTimer;
     private bool _loading;
     private bool _configLoaded;
@@ -664,8 +666,18 @@ public partial class SettingsView : UserControl
 
     private void OnHardwareModeChanged(object? sender, EventArgs e)
     {
+        if (_loading || _config == null || !_configLoaded)
+        {
+            RefreshActiveSurfaceVisibility();
+            return;
+        }
+
+        if (SegHardwareMode.SelectedTag is HardwareMode mode)
+            _config.HardwareMode = mode;
+
         RefreshActiveSurfaceVisibility();
         OnValueChanged(sender, e);
+        OnHardwareModeChangedExternal?.Invoke();
     }
 
     private void OnActiveSurfaceChanged(object? sender, EventArgs e)
@@ -676,7 +688,7 @@ public partial class SettingsView : UserControl
         _config.TabSelection.Mixer = surface;
         _config.TabSelection.Buttons = surface;
         _config.TabSelection.Lights = surface;
-        _onSave(_config);
+        OnActiveSurfaceChangedExternal?.Invoke(surface);
     }
 
     private void CollectAndSave()

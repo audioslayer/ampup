@@ -240,6 +240,8 @@ public partial class MainWindow : FluentWindow
 
         _settingsView.OnNavigateToOverview = () => NavigateTo(_bindingsView, NavBindings);
         _settingsView.OnEditProfile = profileName => ShowProfileEditor(profileName);
+        _settingsView.OnActiveSurfaceChangedExternal = surface => ApplyDeviceSurface(surface, persist: true);
+        _settingsView.OnHardwareModeChangedExternal = () => RefreshViews();
         _settingsView.LoadConfig(_config, saveHandler);
         _lightsView.LoadConfig(_config, saveHandler, _mixer);
         _buttonsView.LoadConfig(_config, _mixer!, saveHandler);
