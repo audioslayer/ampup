@@ -105,6 +105,10 @@ internal static class StreamControllerDisplayRenderer
 
     private static DrawingBitmap ComposeImage(StreamControllerDisplayKeyConfig key, N3Config? n3, StreamControllerEffectFrame? frame)
     {
+        string title = key.Title?.Trim() ?? "";
+        string subtitle = key.Subtitle?.Trim() ?? "";
+        bool hasText = !string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(subtitle);
+
         if (!string.IsNullOrWhiteSpace(key.ImagePath) && File.Exists(key.ImagePath))
         {
             using var source = DrawingImage.FromFile(key.ImagePath);
@@ -116,9 +120,12 @@ internal static class StreamControllerDisplayRenderer
         var bitmap = new DrawingBitmap(RenderCanvasSize, RenderCanvasSize);
         using var graphics = DrawingGraphics.FromImage(bitmap);
         ConfigureGraphics(graphics);
-        graphics.Clear(ParseColor(key.BackgroundColor, DrawingColor.FromArgb(0x1C, 0x1C, 0x1C)));
+        graphics.Clear(hasText
+            ? ParseColor(key.BackgroundColor, DrawingColor.FromArgb(0x1C, 0x1C, 0x1C))
+            : DrawingColor.Black);
 
-        DrawKeyCard(graphics, key, RenderCanvasSize);
+        if (hasText)
+            DrawKeyCard(graphics, key, RenderCanvasSize, title, subtitle);
         ApplyEffectOverlay(bitmap, key.Idx, n3, frame);
 
         return bitmap;
@@ -140,7 +147,7 @@ internal static class StreamControllerDisplayRenderer
         return canvas;
     }
 
-    private static void DrawKeyCard(DrawingGraphics graphics, StreamControllerDisplayKeyConfig key, int size)
+    private static void DrawKeyCard(DrawingGraphics graphics, StreamControllerDisplayKeyConfig key, int size, string title, string subtitle)
     {
         float scale = size / 60f;
         var accent = ParseColor(key.AccentColor, DrawingColor.FromArgb(0x00, 0xE6, 0x76));
@@ -157,13 +164,6 @@ internal static class StreamControllerDisplayRenderer
         using var titleFont = new DrawingFont("Segoe UI", 10f * scale, System.Drawing.FontStyle.Bold, DrawingGraphicsUnit.Pixel);
         using var subFont = new DrawingFont("Segoe UI", 8f * scale, System.Drawing.FontStyle.Regular, DrawingGraphicsUnit.Pixel);
         using var badgeFont = new DrawingFont("Segoe UI", 18f * scale, System.Drawing.FontStyle.Bold, DrawingGraphicsUnit.Pixel);
-
-        string title = key.Title?.Trim() ?? "";
-        string subtitle = key.Subtitle?.Trim() ?? "";
-        bool hasText = !string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(subtitle);
-
-        if (!hasText)
-            return;
 
         var center = new DrawingStringFormat
         {
