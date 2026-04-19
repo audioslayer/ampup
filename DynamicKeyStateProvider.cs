@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using NAudio.CoreAudioApi;
+using NAudio.CoreAudioApi.Interfaces;
 using AmpUp.Core.Services;
 
 namespace AmpUp;
@@ -12,7 +14,7 @@ namespace AmpUp;
 ///   mute_mic          — default communications capture endpoint is muted
 ///   obs_recording     — OBS is recording
 ///   obs_streaming     — OBS is streaming
-///   spotify_playing   — Spotify is actively playing (NOT implemented — always false for MVP)
+///   spotify_playing   — Spotify has an active (non-paused) audio session on the default output
 ///   discord_mic       — Discord mic muted (NOT implemented — always false for MVP)
 /// </summary>
 internal static class DynamicKeyStateProvider
@@ -41,8 +43,7 @@ internal static class DynamicKeyStateProvider
                     return obs?.IsStreaming == true;
 
                 case "spotify_playing":
-                    // TODO: requires Windows SMTC / Spotify Web API integration — MVP returns false.
-                    return false;
+                    return IsProcessSessionActive("spotify");
 
                 case "discord_mic":
                     // TODO: no reliable public API for Discord mic mute — MVP returns false.
@@ -76,6 +77,42 @@ internal static class DynamicKeyStateProvider
         }
     }
 
+    /// <summary>
+    /// True when any WASAPI session on the default render endpoint whose process name
+    /// contains <paramref name="processNameFragment"/> reports <c>AudioSessionStateActive</c>
+    /// (i.e. producing audio right now — not paused or inactive).
+    /// </summary>
+    private static bool IsProcessSessionActive(string processNameFragment)
+    {
+        try
+        {
+            MMDevice? device;
+            lock (_enumLock)
+                device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            if (device == null) return false;
+            using (device)
+            {
+                var sessions = device.AudioSessionManager.Sessions;
+                for (int i = 0; i < sessions.Count; i++)
+                {
+                    var s = sessions[i];
+                    try
+                    {
+                        if (s.State != AudioSessionState.AudioSessionStateActive) continue;
+                        var pid = (int)s.GetProcessID;
+                        if (pid == 0) continue;
+                        var procName = Process.GetProcessById(pid).ProcessName;
+                        if (procName.Contains(processNameFragment, StringComparison.OrdinalIgnoreCase))
+                            return true;
+                    }
+                    catch { }
+                }
+            }
+        }
+        catch { }
+        return false;
+    }
+
     /// <summary>Labels for the editor UI. Keep order stable.</summary>
     public static readonly (string Source, string Label)[] Sources =
     {
@@ -83,7 +120,7 @@ internal static class DynamicKeyStateProvider
         ("mute_mic",        "Mic Muted"),
         ("obs_recording",   "OBS Recording"),
         ("obs_streaming",   "OBS Streaming"),
-        ("spotify_playing", "Spotify Playing (coming soon)"),
+        ("spotify_playing", "Spotify Playing"),
         ("discord_mic",     "Discord Mic Muted (coming soon)"),
     };
 }
