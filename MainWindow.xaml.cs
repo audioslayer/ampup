@@ -1555,25 +1555,9 @@ public partial class MainWindow : FluentWindow
         Dispatcher.Invoke(() =>
         {
             _turnUpConnected = connected;
-            ConnectionDot.Fill = connected
-                ? (SolidColorBrush)FindResource("SuccessGrnBrush")
-                : (SolidColorBrush)FindResource("TextDimBrush");
-            ConnectionLabel.Text = connected ? "Connected" : "Disconnected";
             _settingsView.UpdateConnectionStatus(connected, portName);
             HwPreview.SetConnected(connected);
-
-            // Glow the dot when connected
-            ConnectionDotGlow.BlurRadius = connected ? 8 : 0;
-            ConnectionDotGlow.Opacity = connected ? 0.5 : 0;
-
-            var pulse = (System.Windows.Media.Animation.Storyboard)FindResource("PulseAnimation");
-            if (connected)
-                pulse.Begin(this, true);
-            else
-            {
-                pulse.Stop(this);
-                ConnectionDot.Opacity = 1.0;
-            }
+            UpdateAggregateConnectionUi();
 
             if (_config.HardwareMode == HardwareMode.Auto)
                 RefreshViews();
@@ -1588,10 +1572,34 @@ public partial class MainWindow : FluentWindow
         {
             _streamControllerConnected = connected;
             _settingsView.UpdateN3ConnectionStatus(connected, deviceName);
+            UpdateAggregateConnectionUi();
+
             if (_config.HardwareMode == HardwareMode.Auto)
                 RefreshViews();
             else
                 _settingsView.RefreshActiveSurfaceVisibility();
         });
+    }
+
+    private void UpdateAggregateConnectionUi()
+    {
+        bool anyConnected = _turnUpConnected || _streamControllerConnected;
+
+        ConnectionDot.Fill = anyConnected
+            ? (SolidColorBrush)FindResource("SuccessGrnBrush")
+            : (SolidColorBrush)FindResource("TextDimBrush");
+        ConnectionLabel.Text = anyConnected ? "Connected" : "Disconnected";
+
+        ConnectionDotGlow.BlurRadius = anyConnected ? 8 : 0;
+        ConnectionDotGlow.Opacity = anyConnected ? 0.5 : 0;
+
+        var pulse = (System.Windows.Media.Animation.Storyboard)FindResource("PulseAnimation");
+        if (anyConnected)
+            pulse.Begin(this, true);
+        else
+        {
+            pulse.Stop(this);
+            ConnectionDot.Opacity = 1.0;
+        }
     }
 }

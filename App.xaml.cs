@@ -358,6 +358,7 @@ public partial class App : Application
         if (_isConnected)
             _mainWindow.SetConnectionStatus(true, _serial.Port?.PortName);
         _mainWindow.SetN3ConnectionStatus(_isN3Connected, _n3DeviceName);
+        UpdateAggregateTrayStatus();
 
         // Welcome dialog — show on first run OR when version changes (update)
         var currentVersion = UpdateChecker.CurrentVersion;
@@ -523,14 +524,7 @@ public partial class App : Application
                     _trayIcon = null;
                 }
                 SetupTrayIcon();
-                // Re-apply current connection status icon/text
-                if (_trayIcon != null)
-                {
-                    var oldIcon = _trayIcon.Icon;
-                    _trayIcon.Icon = CreateTrayIcon(_isConnected);
-                    _trayIcon.Text = _isConnected ? "Amp Up — Connected" : "Amp Up — Disconnected";
-                    oldIcon?.Dispose();
-                }
+                UpdateAggregateTrayStatus();
             }
             catch (Exception ex)
             {
@@ -732,7 +726,7 @@ public partial class App : Application
                 onSave: cfg => { ConfigManager.Save(cfg); _mainWindow?.RefreshViews(); },
                 onRefresh: () => _mainWindow?.RefreshViews()
             );
-            _trayMixerPopup.UpdateStatus(_isConnected, _isConnected ? _serial.Port?.PortName : null);
+            UpdateAggregateTrayStatus();
             _trayMixerPopup.ShowPopup();
         });
     }
@@ -751,7 +745,7 @@ public partial class App : Application
                 onRefresh: () => _mainWindow?.RefreshViews()
             );
 
-            _trayContextMenu.UpdateStatus(_isConnected, _isConnected ? _serial.Port?.PortName : null);
+            UpdateAggregateTrayStatus();
 
             var pos = Forms.Cursor.Position;
             _trayContextMenu.ShowAt(pos.X, pos.Y);
@@ -943,7 +937,7 @@ public partial class App : Application
             {
                 var oldIcon = _trayIcon?.Icon;
                 if (_trayIcon != null)
-                    _trayIcon.Icon = CreateTrayIcon(_isConnected);
+                    _trayIcon.Icon = CreateTrayIcon(_isConnected || _isN3Connected);
                 oldIcon?.Dispose();
             }
             catch { }
@@ -1747,17 +1741,7 @@ public partial class App : Application
         {
             try
             {
-                if (_trayIcon != null)
-                {
-                    var oldIcon = _trayIcon.Icon;
-                    _trayIcon.Icon = CreateTrayIcon(connected);
-                    _trayIcon.Text = connected ? "Amp Up — Connected" : "Amp Up — Disconnected";
-                    oldIcon?.Dispose();
-                }
-
-                _trayContextMenu?.UpdateStatus(connected, portName);
-                _trayMixerPopup?.UpdateStatus(connected, portName);
-
+                UpdateAggregateTrayStatus();
                 _mainWindow?.SetConnectionStatus(connected, portName);
             }
             catch (Exception ex)
@@ -1765,6 +1749,25 @@ public partial class App : Application
                 Logger.Log($"HandleConnection UI update error: {ex.Message}");
             }
         });
+    }
+
+    private void UpdateAggregateTrayStatus()
+    {
+        bool anyConnected = _isConnected || _isN3Connected;
+        string? label = _isConnected ? _serial.Port?.PortName
+                       : _isN3Connected ? _n3DeviceName
+                       : null;
+
+        if (_trayIcon != null)
+        {
+            var oldIcon = _trayIcon.Icon;
+            _trayIcon.Icon = CreateTrayIcon(anyConnected);
+            _trayIcon.Text = anyConnected ? "Amp Up — Connected" : "Amp Up — Disconnected";
+            oldIcon?.Dispose();
+        }
+
+        _trayContextMenu?.UpdateStatus(anyConnected, label);
+        _trayMixerPopup?.UpdateStatus(anyConnected, label);
     }
 
     /// <summary>
