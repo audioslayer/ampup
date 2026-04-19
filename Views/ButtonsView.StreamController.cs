@@ -138,6 +138,10 @@ public partial class ButtonsView
 
     private bool InFolderContext => !string.IsNullOrEmpty(_scActiveFolder);
 
+    // Re-entrance guard — NavigateToFolderInEditor calls App.NavigateToN3Folder
+    // which calls SetActiveN3Folder which re-enters NavigateToFolderInEditor.
+    private bool _v2FolderSyncing;
+
     private ButtonFolderConfig? ActiveFolder =>
         _config?.N3.Folders.FirstOrDefault(f => f.Name == _scActiveFolder);
 
@@ -1371,6 +1375,8 @@ public partial class ButtonsView
     /// Programmatic navigation for the editor — changes which folder's contents
     /// are being edited, updates the banner, resets page to 0, and reloads the UI.
     /// Matches what App.NavigateToN3Folder does for the hardware, plus UI refresh.
+    /// Mirrors the change to the physical device so what the user edits is what
+    /// the N3 shows.
     /// </summary>
     public void NavigateToFolderInEditor(string folderName)
     {
@@ -1390,6 +1396,17 @@ public partial class ButtonsView
         // editor save flow has ButtonConfig/DisplayKeyConfig objects to mutate.
         if (_config != null && InFolderContext)
             EnsureStreamControllerPageConfigs(0);
+
+        // Mirror the editor navigation to the physical device so the N3 LCDs
+        // render whichever folder the user is editing. Guarded by _v2Syncing
+        // flag because App.NavigateToN3Folder calls SetActiveN3Folder which
+        // re-enters this method — we'd loop forever without the guard.
+        if (!_v2FolderSyncing)
+        {
+            _v2FolderSyncing = true;
+            try { (Application.Current as App)?.NavigateToN3Folder(folderName); }
+            finally { _v2FolderSyncing = false; }
+        }
 
         LoadStreamControllerConfig();
     }
