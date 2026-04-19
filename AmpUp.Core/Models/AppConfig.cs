@@ -283,6 +283,10 @@ public class N3Config
     public int PageCount { get; set; } = 1;
     /// <summary>Named folders for `open_folder` action — each holds its own keys/buttons/pages.</summary>
     public List<ButtonFolderConfig> Folders { get; set; } = new();
+    /// <summary>Action string values starred by the user. Shown in a Favorites row in the action picker.</summary>
+    public List<string> FavoriteActions { get; set; } = new();
+    /// <summary>Most-recently chosen actions, newest first. Capped to 8 entries by the picker.</summary>
+    public List<string> RecentActions { get; set; } = new();
 }
 
 public class HardwareTabSelection
