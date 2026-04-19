@@ -60,6 +60,18 @@ public partial class ButtonsView
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             Margin = new Thickness(12, 0, 0, 0),
         };
+        // WPF's default mousewheel behaviour bubbles to the outer ScrollViewer
+        // in ButtonsView.xaml, which steals the scroll when the pointer is
+        // over this pane. Handle the wheel here and scroll ourselves so the
+        // right-pane always scrolls when hovered.
+        rightHost.PreviewMouseWheel += (sender, e) =>
+        {
+            if (sender is ScrollViewer sv)
+            {
+                sv.ScrollToVerticalOffset(sv.VerticalOffset - e.Delta);
+                e.Handled = true;
+            }
+        };
         var rightStack = new StackPanel();
         _v2PreviewPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 16) };
         _v2ActionPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
