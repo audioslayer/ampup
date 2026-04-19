@@ -27,6 +27,8 @@ public partial class ButtonsView
     private Border? _v2ToggleCard;
     private Border? _v2MultiActionCard;
     private Border? _v2FolderCard;
+    private Border? _v2ProfileCard;
+    private ListPicker? _v2ProfilePicker;
 
     // Track the accent-colored header parts so theme changes can refresh them.
     private readonly List<(Border bar, TextBlock label)> _v2SectionHeaders = new();
@@ -75,6 +77,35 @@ public partial class ButtonsView
         // 9. Folder picker (open_folder).
         _v2FolderCard = MakeV2SectionCard("FOLDER", out _, _scFolderPanel);
         _v2ActionFieldsPanel.Children.Add(_v2FolderCard);
+
+        // 10. Profile picker (switch_profile).
+        _v2ProfilePicker = new ListPicker();
+        _v2ProfilePicker.SelectionChanged += (_, _) =>
+        {
+            if (_loading || _config == null || _v2ProfilePicker == null) return;
+            var profileName = _v2ProfilePicker.SelectedTag as string ?? "";
+            bool isN3Paged = _scSelectedButtonIdx >= StreamControllerDisplayKeyBase
+                             && _scSelectedButtonIdx < StreamControllerSideButtonBase;
+            var list = isN3Paged ? GetActiveN3ButtonList() : _config.N3.Buttons;
+            var btn = list.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
+            if (btn == null) return;
+            btn.Action = "switch_profile";
+            btn.ProfileName = profileName;
+
+            // Keep legacy picker's SubTag in sync so CollectAndSave's
+            // UpdateStreamControllerSelection doesn't clobber ProfileName.
+            if (_scActionPicker != null && !string.IsNullOrEmpty(profileName))
+            {
+                bool prev = _loading;
+                _loading = true;
+                try { SelectProfileSubTag(_scActionPicker, "switch_profile", profileName); }
+                finally { _loading = prev; }
+            }
+            QueueSave();
+            RefreshV2LeftPanel();
+        };
+        _v2ProfileCard = MakeV2SectionCard("PROFILE TO SWITCH TO", out _, _v2ProfilePicker);
+        _v2ActionFieldsPanel.Children.Add(_v2ProfileCard);
 
         // Start everything hidden — visibility gets driven by the action picker.
         foreach (var child in _v2ActionFieldsPanel.Children)
@@ -125,6 +156,10 @@ public partial class ButtonsView
         SetCardVisible(_v2ToggleCard, action == "toggle_action");
         SetCardVisible(_v2MultiActionCard, action == "multi_action");
         SetCardVisible(_v2FolderCard, action == "open_folder");
+        SetCardVisible(_v2ProfileCard, action == "switch_profile");
+
+        if (action == "switch_profile")
+            RefreshV2ProfilePickerItems();
 
         // Delegate inner-widget reconfig to the legacy helpers so we don't
         // duplicate URL / page-number / app-chip / folder / toggle wiring.
@@ -170,6 +205,48 @@ public partial class ButtonsView
     }
 
     // ── V2 section-card helpers ─────────────────────────────────────────
+
+    /// <summary>
+    /// Repopulates the V2 profile picker from <c>_config.Profiles</c> and
+    /// selects the current <c>ProfileName</c> for the selected button.
+    /// </summary>
+    private void RefreshV2ProfilePickerItems()
+    {
+        if (_v2ProfilePicker == null || _config == null) return;
+
+        bool prev = _loading;
+        _loading = true;
+        try
+        {
+            _v2ProfilePicker.ClearItems();
+            foreach (var name in _config.Profiles)
+            {
+                if (!string.IsNullOrWhiteSpace(name))
+                    _v2ProfilePicker.AddItem(name, name);
+            }
+
+            bool isN3Paged = _scSelectedButtonIdx >= StreamControllerDisplayKeyBase
+                             && _scSelectedButtonIdx < StreamControllerSideButtonBase;
+            var list = isN3Paged ? GetActiveN3ButtonList() : _config.N3.Buttons;
+            var btn = list.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
+            var current = btn?.ProfileName ?? "";
+
+            int foundIdx = -1;
+            for (int i = 0; i < _v2ProfilePicker.ItemCount; i++)
+            {
+                if (_v2ProfilePicker.GetTagAt(i) as string == current)
+                {
+                    foundIdx = i;
+                    break;
+                }
+            }
+            _v2ProfilePicker.SelectedIndex = foundIdx;
+        }
+        finally
+        {
+            _loading = prev;
+        }
+    }
 
     /// <summary>
     /// Builds a V2 section card (accent-bar header + content area) and re-hosts
