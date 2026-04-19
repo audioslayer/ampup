@@ -227,35 +227,80 @@ public partial class ButtonsView
         pageRow.Children.Add(removePageButton);
         left.Children.Add(pageRow);
 
-        // Quick controls section
-        left.Children.Add(MakeStreamHeader("QUICK CONTROLS", "Side buttons and encoder presses"));
-        var controlGrid = new UniformGrid { Columns = 3, Margin = new Thickness(0, 8, 0, 0) };
+        // Quick controls — mirrors physical hardware layout:
+        // Bottom buttons (under LCD grid) on the left, knobs on the right
+        left.Children.Add(MakeStreamHeader("HARDWARE CONTROLS", "Physical buttons and encoder knobs"));
+
+        var hwLayout = new Grid { Margin = new Thickness(0, 8, 0, 0) };
+        hwLayout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
+        hwLayout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
+
+        // Left side: 3 bottom buttons in a row
+        var btnColumn = new StackPanel();
+        btnColumn.Children.Add(new TextBlock
+        {
+            Text = "BUTTONS",
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextDimBrush"),
+            Margin = new Thickness(0, 0, 0, 6)
+        });
+        var buttonRow = new UniformGrid { Columns = 3 };
         for (int i = 0; i < 3; i++)
         {
             int buttonIdx = StreamControllerSideButtonBase + i;
             int captureI = i;
-            var card = MakeSmallControlCard($"Side {i + 1}", out var label);
+            var card = MakeSmallControlCard($"Btn {i + 1}", out var label);
             card.Margin = new Thickness(i == 0 ? 0 : 4, 0, i == 2 ? 0 : 4, 0);
-            card.MouseLeftButtonUp += (_, _) => SelectStreamControllerItem(new StreamControllerSelection(buttonIdx, $"Side Button {captureI + 1}", null));
+            card.MouseLeftButtonUp += (_, _) => SelectStreamControllerItem(new StreamControllerSelection(buttonIdx, $"Button {captureI + 1}", null));
             _scSideCards[i] = card;
             _scSideLabels[i] = label;
-            controlGrid.Children.Add(card);
+            buttonRow.Children.Add(card);
         }
-        left.Children.Add(controlGrid);
+        btnColumn.Children.Add(buttonRow);
+        Grid.SetColumn(btnColumn, 0);
+        hwLayout.Children.Add(btnColumn);
 
-        var pressGrid = new UniformGrid { Columns = 3, Margin = new Thickness(0, 6, 0, 0) };
-        for (int i = 0; i < 3; i++)
+        // Right side: knobs — 1 large on top, 2 small below
+        var knobColumn = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
+        knobColumn.Children.Add(new TextBlock
+        {
+            Text = "ENCODERS",
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextDimBrush"),
+            Margin = new Thickness(0, 0, 0, 6)
+        });
+
+        // Large knob (encoder 1)
+        {
+            int buttonIdx = StreamControllerEncoderPressBase + 0;
+            var card = MakeSmallControlCard("Knob 1", out var label);
+            card.MinHeight = 52;
+            card.MouseLeftButtonUp += (_, _) => SelectStreamControllerItem(new StreamControllerSelection(buttonIdx, "Encoder Press 1", null));
+            _scPressCards[0] = card;
+            _scPressLabels[0] = label;
+            knobColumn.Children.Add(card);
+        }
+
+        // Two small knobs side by side
+        var smallKnobRow = new UniformGrid { Columns = 2, Margin = new Thickness(0, 4, 0, 0) };
+        for (int i = 1; i < 3; i++)
         {
             int buttonIdx = StreamControllerEncoderPressBase + i;
             int captureI = i;
             var card = MakeSmallControlCard($"Knob {i + 1}", out var label);
-            card.Margin = new Thickness(i == 0 ? 0 : 4, 0, i == 2 ? 0 : 4, 0);
+            card.Margin = new Thickness(i == 1 ? 0 : 4, 0, i == 2 ? 0 : 4, 0);
             card.MouseLeftButtonUp += (_, _) => SelectStreamControllerItem(new StreamControllerSelection(buttonIdx, $"Encoder Press {captureI + 1}", null));
             _scPressCards[i] = card;
             _scPressLabels[i] = label;
-            pressGrid.Children.Add(card);
+            smallKnobRow.Children.Add(card);
         }
-        left.Children.Add(pressGrid);
+        knobColumn.Children.Add(smallKnobRow);
+        Grid.SetColumn(knobColumn, 1);
+        hwLayout.Children.Add(knobColumn);
+
+        left.Children.Add(hwLayout);
 
         // ── RIGHT: Sidebar Editor ───────────────────────────────────────
         var rightScroll = new ScrollViewer
