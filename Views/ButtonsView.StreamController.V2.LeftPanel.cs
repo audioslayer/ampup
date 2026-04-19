@@ -28,6 +28,11 @@ public partial class ButtonsView
     private Button? _v2FolderBackButton;
     private Grid? _v2KeyGrid;
     private StackPanel? _v2PageDotsPanel;
+
+    // Cache of tile-level state so we can skip the expensive
+    // CreateHardwarePreview + tile.Refresh() rebuild when nothing a tile
+    // actually renders has changed. Keyed by the tile's slot index (0-5).
+    private readonly Dictionary<int, string> _v2KeyTileStateHash = new();
     private TextBlock? _v2PageLabel;
     private Button? _v2PagePrevButton;
     private Button? _v2PageNextButton;
@@ -392,21 +397,22 @@ public partial class ButtonsView
             // In a folder, slot 0 previews the auto Back key (read-only).
             if (InFolderContext && i == 0)
             {
-                var backKey = App.BuildBackKeyDisplay();
-                tile.PreviewImage = StreamControllerDisplayRenderer.CreateHardwarePreview(backKey);
-                tile.Title = "Back";
-                tile.Subtitle = "Auto";
-                tile.IsSelected = false;
-                tile.Opacity = 0.6;
-                tile.Cursor = Cursors.Arrow;
-                tile.ToolTip = "Automatic Back key \u2014 returns to root folder on press.";
-                tile.Refresh();
+                string backHash = "back|selected=false";
+                if (!_v2KeyTileStateHash.TryGetValue(i, out var prevHash) || prevHash != backHash)
+                {
+                    var backKey = App.BuildBackKeyDisplay();
+                    tile.PreviewImage = StreamControllerDisplayRenderer.CreateHardwarePreview(backKey);
+                    tile.Title = "Back";
+                    tile.Subtitle = "Auto";
+                    tile.IsSelected = false;
+                    tile.Opacity = 0.6;
+                    tile.Cursor = Cursors.Arrow;
+                    tile.ToolTip = "Automatic Back key \u2014 returns to root folder on press.";
+                    tile.Refresh();
+                    _v2KeyTileStateHash[i] = backHash;
+                }
                 continue;
             }
-
-            tile.Opacity = 1.0;
-            tile.Cursor = Cursors.Hand;
-            tile.ToolTip = null;
 
             int globalIdx = _scCurrentPage * StreamControllerKeysPerPage + i + folderSlotOffset;
             int buttonIdx = StreamControllerDisplayKeyBase + globalIdx;
@@ -414,12 +420,23 @@ public partial class ButtonsView
             var key = activeKeys.FirstOrDefault(k => k.Idx == globalIdx)
                       ?? new StreamControllerDisplayKeyConfig { Idx = globalIdx };
             var button = activeButtons.FirstOrDefault(b => b.Idx == buttonIdx);
+            bool isSelected = _scSelectedButtonIdx == buttonIdx;
 
+            // Compose a hash from fields the tile actually renders — skip
+            // CreateHardwarePreview + tile.Refresh() when nothing changed.
+            string hash = $"{key.Title}|{key.ImagePath}|{key.PresetIconKind}|{key.TextPosition}|{key.TextSize}|{key.TextColor}|{key.BackgroundColor}|{key.AccentColor}|{key.DisplayType}|{key.ClockFormat}|{key.DynamicStateSource}|{key.DynamicStateActiveIcon}|{key.DynamicStateActiveTitle}|{button?.Action}|{isSelected}";
+            if (_v2KeyTileStateHash.TryGetValue(i, out var lastHash) && lastHash == hash)
+                continue;
+
+            tile.Opacity = 1.0;
+            tile.Cursor = Cursors.Hand;
+            tile.ToolTip = null;
             tile.PreviewImage = StreamControllerDisplayRenderer.CreateHardwarePreview(key);
             tile.Title = string.IsNullOrWhiteSpace(key.Title) ? $"Key {globalIdx + 1}" : key.Title;
             tile.Subtitle = GetStreamActionDisplay(button?.Action);
-            tile.IsSelected = _scSelectedButtonIdx == buttonIdx;
+            tile.IsSelected = isSelected;
             tile.Refresh();
+            _v2KeyTileStateHash[i] = hash;
         }
     }
 
