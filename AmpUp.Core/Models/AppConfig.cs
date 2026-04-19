@@ -158,6 +158,45 @@ public class ButtonConfig
     public int DoublePressLinkedKnobIdx { get; set; } = -1;
     [JsonConverter(typeof(StringEnumConverter))]
     public CycleDeviceType DoublePressCycleDeviceType { get; set; } = CycleDeviceType.Both;
+
+    // ── Stream Controller extended action features ──────────────────
+    /// <summary>Ordered list of steps for `multi_action`.</summary>
+    public List<MultiActionStep> ActionSequence { get; set; } = new();
+    /// <summary>Free text typed by `type_text` action (may include newlines).</summary>
+    public string TextSnippet { get; set; } = "";
+    /// <summary>For `toggle_action`: action string run on state A (first press).</summary>
+    public string ToggleActionA { get; set; } = "none";
+    public string TogglePathA { get; set; } = "";
+    public string ToggleActionB { get; set; } = "none";
+    public string TogglePathB { get; set; } = "";
+    /// <summary>False = next press runs A; true = next press runs B. Flipped each press.</summary>
+    public bool ToggleStateIsB { get; set; } = false;
+    /// <summary>For `open_folder`: folder name to navigate into on press.</summary>
+    public string FolderName { get; set; } = "";
+}
+
+public class MultiActionStep
+{
+    public string Action { get; set; } = "none";
+    public string Path { get; set; } = "";
+    /// <summary>Delay in milliseconds to wait BEFORE running this step (0 = fire immediately).</summary>
+    public int DelayMs { get; set; } = 0;
+    public string MacroKeys { get; set; } = "";
+    public string DeviceId { get; set; } = "";
+    public string ProfileName { get; set; } = "";
+    public string PowerAction { get; set; } = "";
+}
+
+public class ButtonFolderConfig
+{
+    /// <summary>Unique name, referenced by button `FolderName`. Root folder uses empty string.</summary>
+    public string Name { get; set; } = "";
+    /// <summary>Display keys (LCD buttons) inside this folder. Same shape as N3Config.DisplayKeys.</summary>
+    public List<StreamControllerDisplayKeyConfig> DisplayKeys { get; set; } = new();
+    /// <summary>Button configs (actions) inside this folder.</summary>
+    public List<ButtonConfig> Buttons { get; set; } = new();
+    /// <summary>Pages inside this folder (0-based, default 1 page).</summary>
+    public int PageCount { get; set; } = 1;
 }
 
 public class DeviceColorEntry
@@ -242,6 +281,8 @@ public class N3Config
     public int DisplayBrightness { get; set; } = 100;
     public int CurrentPage { get; set; } = 0;
     public int PageCount { get; set; } = 1;
+    /// <summary>Named folders for `open_folder` action — each holds its own keys/buttons/pages.</summary>
+    public List<ButtonFolderConfig> Folders { get; set; } = new();
 }
 
 public class HardwareTabSelection
@@ -267,6 +308,24 @@ public class StreamControllerDisplayKeyConfig
     public DisplayTextPosition TextPosition { get; set; } = DisplayTextPosition.Bottom;
     public int TextSize { get; set; } = 14;
     public string TextColor { get; set; } = "#FFFFFF";
+
+    /// <summary>Key render type — Normal shows title+icon, Clock renders live time, DynamicState follows an external state source.</summary>
+    [JsonConverter(typeof(StringEnumConverter))]
+    public DisplayKeyType DisplayType { get; set; } = DisplayKeyType.Normal;
+    /// <summary>Format string for Clock display (e.g. "HH:mm" or "h:mm tt"). Default = 24h.</summary>
+    public string ClockFormat { get; set; } = "HH:mm";
+    /// <summary>For DynamicState — what to watch. Known sources: "mute_master", "mute_mic", "obs_recording", "obs_streaming", "spotify_playing", "discord_mic". Empty = inactive.</summary>
+    public string DynamicStateSource { get; set; } = "";
+    /// <summary>Icon/title override to render when the dynamic state is in its ACTIVE state (muted/recording/playing).</summary>
+    public string DynamicStateActiveIcon { get; set; } = "";
+    public string DynamicStateActiveTitle { get; set; } = "";
+}
+
+public enum DisplayKeyType
+{
+    Normal,
+    Clock,
+    DynamicState,
 }
 
 public enum DisplayTextPosition

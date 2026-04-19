@@ -45,9 +45,15 @@ public partial class ButtonsView : UserControl
         ("VM: Mute Strip", "vm_mute_strip"), ("VM: Mute Bus", "vm_mute_bus"),
         ("SC: Next Page", "sc_page_next"), ("SC: Prev Page", "sc_page_prev"),
         ("SC: Home Page", "sc_page_home"), ("SC: Go To Page", "sc_go_to_page"),
+        ("Multi-Action",  "multi_action"),
+        ("Open Folder",   "open_folder"),
+        ("Toggle (A/B)",  "toggle_action"),
+        ("Open URL",      "open_url"),
+        ("Type Text",     "type_text"),
+        ("Screenshot",    "screenshot"),
     };
 
-    private static readonly string[] PathActions = { "mute_program", "launch_exe", "close_program", "sc_go_to_page" };
+    private static readonly string[] PathActions = { "mute_program", "launch_exe", "close_program", "sc_go_to_page", "open_url" };
 
     private static readonly (string Display, string Value)[] PowerOptions =
     {
@@ -75,6 +81,9 @@ public partial class ButtonsView : UserControl
         { "vm_mute_strip", "🔇" }, { "vm_mute_bus", "🔇" },
         { "sc_page_next", "▶" }, { "sc_page_prev", "◀" },
         { "sc_page_home", "⌂" }, { "sc_go_to_page", "▦" },
+        { "multi_action", "≡" }, { "open_folder", "▤" },
+        { "toggle_action", "⇄" }, { "open_url", "🌐" },
+        { "type_text", "✎" }, { "screenshot", "📷" },
     };
 
     private static readonly Dictionary<string, Color> ActionColors = new()
@@ -124,6 +133,12 @@ public partial class ButtonsView : UserControl
         { "sc_page_prev",       Color.FromRgb(0x26, 0xC6, 0xDA) },
         { "sc_page_home",       Color.FromRgb(0x00, 0xE6, 0x76) },
         { "sc_go_to_page",      Color.FromRgb(0x29, 0xB6, 0xF6) },
+        { "multi_action",       Color.FromRgb(0xAB, 0x47, 0xBC) },
+        { "open_folder",        Color.FromRgb(0xFF, 0xC1, 0x07) },
+        { "toggle_action",      Color.FromRgb(0x7E, 0x57, 0xC2) },
+        { "open_url",           Color.FromRgb(0x29, 0xB6, 0xF6) },
+        { "type_text",          Color.FromRgb(0x66, 0xBB, 0x6A) },
+        { "screenshot",         Color.FromRgb(0xFF, 0x8A, 0x65) },
     };
 
     // Clipboard for button copy/paste
@@ -1241,6 +1256,12 @@ public partial class ButtonsView : UserControl
         { "sc_page_prev",       "Navigate to the previous Stream Controller page" },
         { "sc_page_home",       "Jump back to page 1 (home page)" },
         { "sc_go_to_page",      "Jump to a specific page number (enter page number in path)" },
+        { "multi_action",       "Run a sequence of actions with optional delays" },
+        { "open_folder",        "Navigate to a named folder (nested page group)" },
+        { "toggle_action",      "Alternate between two actions on each press (A / B / A / B)" },
+        { "open_url",           "Open a web URL in the default browser" },
+        { "type_text",          "Type a pre-set text snippet as keystrokes" },
+        { "screenshot",         "Capture the screen to clipboard" },
     };
 
     private void RebuildActionPickers(AppConfig config)
@@ -1327,9 +1348,10 @@ public partial class ButtonsView : UserControl
     {
         ("Media",           new[] { "none", "media_play_pause", "media_next", "media_prev" }),
         ("Mute",            new[] { "mute_master", "mute_mic", "mute_program", "mute_active_window", "mute_app_group", "mute_device" }),
-        ("App Control",     new[] { "launch_exe", "close_program" }),
+        ("App Control",     new[] { "launch_exe", "close_program", "open_url", "type_text", "screenshot" }),
         ("Device",          new[] { "cycle_output", "cycle_input", "select_output", "select_input" }),
         ("System",          new[] { "macro", "switch_profile", "cycle_profile", "cycle_brightness", "quick_wheel" }),
+        ("Advanced",        new[] { "multi_action", "toggle_action", "open_folder" }),
         ("Power",           new[] { "power_sleep", "power_lock", "power_off", "power_restart", "power_logoff", "power_hibernate" }),
         ("Integrations",    new[] { "group_toggle", "room_toggle", "ha_toggle", "ha_scene", "ha_service", "govee_toggle", "govee_color", "govee_white_toggle", "obs_record", "obs_stream", "obs_scene", "obs_mute", "vm_mute_strip", "vm_mute_bus" }),
         ("Stream Controller", new[] { "sc_page_next", "sc_page_prev", "sc_page_home", "sc_go_to_page" }),

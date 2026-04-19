@@ -355,12 +355,121 @@ public class ButtonHandler : IDisposable
                     if (int.TryParse(path, out int targetPage))
                         OnScPageChange?.Invoke(targetPage - 1, true); // path is 1-based
                     break;
+                case "multi_action":
+                    if (btn?.ActionSequence != null && btn.ActionSequence.Count > 0)
+                        _ = RunMultiActionAsync(btn.ActionSequence);
+                    break;
+                case "toggle_action":
+                    if (btn != null)
+                        RunToggleAction(btn);
+                    break;
+                case "open_folder":
+                    if (!string.IsNullOrEmpty(btn?.FolderName))
+                        OnOpenFolder?.Invoke(btn.FolderName);
+                    break;
+                case "open_url":
+                    OpenUrl(path);
+                    break;
+                case "type_text":
+                    TypeTextSnippet(btn?.TextSnippet ?? path);
+                    break;
+                case "screenshot":
+                    CaptureScreenshot();
+                    break;
             }
         }
         catch (Exception ex)
         {
             Logger.Log($"ExecuteAction error ({action}): {ex.Message}");
         }
+    }
+
+    // ── Stream Controller extended actions (stubs; filled in by feature implementations) ─
+
+    /// <summary>Fires with folder name when `open_folder` fires — UI handler navigates to that folder.</summary>
+    public event Action<string>? OnOpenFolder;
+
+    private async Task RunMultiActionAsync(List<MultiActionStep> steps)
+    {
+        foreach (var step in steps)
+        {
+            if (step.DelayMs > 0)
+                await Task.Delay(step.DelayMs);
+            var stepBtn = new ButtonConfig
+            {
+                Action = step.Action,
+                Path = step.Path ?? "",
+                MacroKeys = step.MacroKeys ?? "",
+                DeviceId = step.DeviceId ?? "",
+                ProfileName = step.ProfileName ?? "",
+                PowerAction = step.PowerAction ?? "",
+            };
+            ExecuteAction(step.Action, step.Path ?? "", stepBtn);
+        }
+    }
+
+    private void RunToggleAction(ButtonConfig btn)
+    {
+        bool runB = btn.ToggleStateIsB;
+        var action = runB ? btn.ToggleActionB : btn.ToggleActionA;
+        var path = runB ? btn.TogglePathB : btn.TogglePathA;
+        btn.ToggleStateIsB = !runB;
+        ExecuteAction(action, path ?? "", btn);
+    }
+
+    private static void OpenUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return;
+        try
+        {
+            var trimmed = url.Trim();
+            if (!trimmed.Contains("://"))
+                trimmed = "https://" + trimmed;
+            Process.Start(new ProcessStartInfo { FileName = trimmed, UseShellExecute = true });
+        }
+        catch (Exception ex) { Logger.Log($"open_url error: {ex.Message}"); }
+    }
+
+    private static void TypeTextSnippet(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        try
+        {
+            // SendKeys.SendWait escapes by default via System.Windows.Forms.
+            // We use low-level keybd_event via ExecuteMacro's chain is keystroke-combo oriented,
+            // so for plain text we use SendKeys.
+            System.Windows.Forms.SendKeys.SendWait(EscapeSendKeys(text));
+        }
+        catch (Exception ex) { Logger.Log($"type_text error: {ex.Message}"); }
+    }
+
+    private static string EscapeSendKeys(string text)
+    {
+        // SendKeys treats +^%~(){}[] as special — escape with {}
+        var sb = new System.Text.StringBuilder(text.Length + 8);
+        foreach (var ch in text)
+        {
+            if ("+^%~(){}[]".IndexOf(ch) >= 0)
+                sb.Append('{').Append(ch).Append('}');
+            else if (ch == '\n')
+                sb.Append('~'); // Enter
+            else
+                sb.Append(ch);
+        }
+        return sb.ToString();
+    }
+
+    private static void CaptureScreenshot()
+    {
+        try
+        {
+            var bounds = System.Windows.Forms.Screen.PrimaryScreen?.Bounds ?? new System.Drawing.Rectangle(0, 0, 1920, 1080);
+            using var bmp = new System.Drawing.Bitmap(bounds.Width, bounds.Height);
+            using (var g = System.Drawing.Graphics.FromImage(bmp))
+                g.CopyFromScreen(bounds.Left, bounds.Top, 0, 0, bounds.Size);
+            System.Windows.Forms.Clipboard.SetImage(bmp);
+        }
+        catch (Exception ex) { Logger.Log($"screenshot error: {ex.Message}"); }
     }
 
     // ── Govee white toggle ─────────────────────────────────────────────
