@@ -2,6 +2,68 @@
 
 This guide is for the first hands-on session after the N3 arrives.
 
+## Status after first hardware session
+
+This file started as a pre-hardware test checklist. The core bring-up questions are now answered well enough to treat direct support as proven.
+
+### Confirmed findings
+- The device enumerates on Windows as `VID 5548 / PID 1001`
+- Product string on our test unit is `HOTSPOTEKUSB HID DEMO`
+- The main HID path is the expected vendor-defined interface:
+  - `MI_00`
+  - usage page `65440` / `0xFFA0`
+  - usage `1`
+  - input report length `513`
+  - output report length `1025`
+- The device works at the same time as the original Turn Up mixer
+- Input works directly over native HID after init, with ACK-prefixed packets
+- Confirmed input map on our unit:
+  - LCD keys: `0x01` to `0x06`
+  - side buttons: `0x25`, `0x30`, `0x31`
+  - encoder presses: `0x33`, `0x35`, `0x34`
+  - encoder turns:
+    - left: `0x90` / `0x91`
+    - middle: `0x50` / `0x51`
+    - right: `0x60` / `0x61`
+- Confirmed minimal init path:
+  - `CRT DIS`
+  - `CRT LIG`
+- Confirmed display write path:
+  - `CRT BAT` header
+  - big-endian image size
+  - key id written as `key + 1`
+  - raw JPEG bytes streamed in output reports
+  - `CRT STP` commit
+- Confirmed clear path:
+  - `CRT CLE`
+  - `CRT STP`
+- Working image assumptions held up in practice:
+  - `60x60`
+  - JPEG
+  - rotate `90`
+
+### Product naming decision
+- In AmpUp UI, use `Stream Controller` as the user-facing label for this hardware family
+- Keep `N3` only as internal shorthand where useful in code/docs
+- Rationale: this family is rebranded across multiple names including TreasLin N3, Mirabox N3, Ajazz AKP03, and other sibling models
+
+### What is no longer unknown
+- Whether direct HID support is realistic: yes
+- Whether input can be parsed natively without VSD Craft: yes
+- Whether Turn Up and this controller can coexist: yes
+- Whether LCD keys can be written directly over HID: yes
+
+### Current next-step plan
+1. Keep the existing AmpUp tabs instead of making a separate N3-only page
+2. Add a device selector such as `Turn Up`, `Stream Controller`, and `Both`
+3. Make the Buttons tab the main Stream Controller editor
+4. Build a Stream Deck-style LCD key surface there:
+   - 6 clickable visual keys
+   - image upload / clear
+   - action binding
+5. Keep dual-device support as a first-class mode
+6. Treat VSD Craft as optional reference software only, not a required runtime dependency
+
 ## Goal
 Implement self-contained native N3 support inside AmpUp, without long-term dependence on VSD Craft, OpenDeck, or any helper app.
 
