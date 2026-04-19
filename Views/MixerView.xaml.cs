@@ -135,6 +135,7 @@ public partial class MixerView : UserControl
         ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshAccentColors);
 
         BuildChannelControls();
+        InitializeMixerDeviceSelector();
         SetupStripHoverEffects();
         SetupStripContextMenus();
         SetupSuggestionBanner();
@@ -318,6 +319,7 @@ public partial class MixerView : UserControl
         _onSave = onConfigChanged;
 
         _audioDevices = mixer.GetAudioDevices();
+        LoadStreamControllerMixerConfig(config);
 
         if (config.HomeAssistant.Enabled && !string.IsNullOrWhiteSpace(config.HomeAssistant.Token))
         {

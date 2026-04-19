@@ -85,6 +85,15 @@ public static class ConfigManager
         (110, "N3 Press 2", "mute_active_window"),
         (111, "N3 Press 3", "mute_mic"),
     };
+    private static readonly (int idx, string title, string subtitle, string background, string accent)[] DefaultN3DisplayKeys =
+    {
+        (0, "Key 1", "", "#1C1C1C", "#00E676"),
+        (1, "Key 2", "", "#1C1C1C", "#00B4D8"),
+        (2, "Key 3", "", "#1C1C1C", "#448AFF"),
+        (3, "Key 4", "", "#1C1C1C", "#FF6E40"),
+        (4, "Key 5", "", "#1C1C1C", "#FFD740"),
+        (5, "Key 6", "", "#1C1C1C", "#FF4081"),
+    };
 
     private static void EnsureDefaults(AppConfig config)
     {
@@ -115,6 +124,20 @@ public static class ConfigManager
                 });
             }
         }
+        foreach (var (idx, title, subtitle, background, accent) in DefaultN3DisplayKeys)
+        {
+            if (!config.N3.DisplayKeys.Any(k => k.Idx == idx))
+            {
+                config.N3.DisplayKeys.Add(new StreamControllerDisplayKeyConfig
+                {
+                    Idx = idx,
+                    Title = title,
+                    Subtitle = subtitle,
+                    BackgroundColor = background,
+                    AccentColor = accent
+                });
+            }
+        }
         for (int i = 0; i < 5; i++)
         {
             if (!config.Lights.Any(l => l.Idx == i))
@@ -137,6 +160,28 @@ public static class ConfigManager
             if (config.Osd.QuickWheel.Enabled)
                 config.Osd.QuickWheels.Add(config.Osd.QuickWheel);
             config.Osd.QuickWheel = null;
+        }
+
+        NormalizeDeviceSurfaceSelections(config);
+    }
+
+    private static void NormalizeDeviceSurfaceSelections(AppConfig config)
+    {
+        switch (config.HardwareMode)
+        {
+            case HardwareMode.TurnUpOnly:
+                config.TabSelection.Mixer = DeviceSurface.TurnUp;
+                config.TabSelection.Buttons = DeviceSurface.TurnUp;
+                config.TabSelection.Lights = DeviceSurface.TurnUp;
+                break;
+            case HardwareMode.StreamControllerOnly:
+                config.TabSelection.Mixer = DeviceSurface.StreamController;
+                config.TabSelection.Buttons = DeviceSurface.StreamController;
+                config.TabSelection.Lights = DeviceSurface.StreamController;
+                break;
+            case HardwareMode.DualMode:
+            default:
+                break;
         }
     }
 

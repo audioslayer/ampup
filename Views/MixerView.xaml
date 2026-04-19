@@ -6,6 +6,19 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                   Background="Transparent">
         <StackPanel Margin="0,0,0,24">
+            <Border Style="{StaticResource CardPanel}" Margin="0,0,0,10">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="MIXER SURFACE" Style="{StaticResource HeaderText}" Margin="0" />
+                    </StackPanel>
+                    <controls:SegmentedControl x:Name="MixerDeviceSelector"
+                                               HorizontalAlignment="Left"
+                                               MinWidth="360" />
+                </StackPanel>
+            </Border>
+
+            <StackPanel x:Name="TurnUpMixerContent">
 
             <!-- ── CHANNEL STRIPS + SETTINGS GRID ─────────────────── -->
             <!-- 4 rows: knob dials, TARGET, CURVE, VOLUME RANGE — rows auto-size
@@ -98,6 +111,11 @@
                     </Border>
                     <StackPanel x:Name="AudioSessionsContent" Visibility="Collapsed" Margin="0,12,0,0" />
                 </StackPanel>
+            </Border>
+            </StackPanel>
+
+            <Border x:Name="StreamControllerMixerPanel" Style="{StaticResource CardPanel}" Margin="0,10,0,0" Visibility="Collapsed">
+                <StackPanel x:Name="StreamControllerMixerContent" />
             </Border>
 
         </StackPanel>

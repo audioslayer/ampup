@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
@@ -169,6 +170,8 @@ public partial class App : Application
         if (_isN3Connected)
         {
             Logger.Log("N3: native HID bring-up active");
+            _n3.SetBrightness((byte)Math.Clamp(_config.N3.DisplayBrightness, 0, 100));
+            SyncStreamControllerDisplays();
         }
 
         // DreamView / Screen Sync
@@ -973,10 +976,18 @@ public partial class App : Application
             else
                 _corsairSync.Stop();
         }
+        if (_n3 != null && _isN3Connected)
+        {
+            _n3.SetBrightness((byte)Math.Clamp(_config.N3.DisplayBrightness, 0, 100));
+            SyncStreamControllerDisplays();
+        }
     }
 
     private void HandleKnob(KnobEvent e)
     {
+        if (_config.HardwareMode == HardwareMode.StreamControllerOnly)
+            return;
+
         // Track hardware position for UI display
         if (e.Idx >= 0 && e.Idx < 5)
             KnobPositions[e.Idx] = e.Value / 1023f;
@@ -1362,6 +1373,9 @@ public partial class App : Application
 
     private void HandleButton(ButtonEvent e)
     {
+        if (_config.HardwareMode == HardwareMode.StreamControllerOnly)
+            return;
+
         // Ignore button events during startup (5s) and reconnection (2s) to prevent phantom actions
         if (Environment.TickCount64 - _startupTick < 5000)
             return;
@@ -1376,6 +1390,7 @@ public partial class App : Application
 
     private void HandleN3Input(N3InputEvent e)
     {
+        if (_config.HardwareMode == HardwareMode.TurnUpOnly) return;
         if (!_config.N3.Enabled) return;
 
         switch (e.Kind)
@@ -1620,6 +1635,11 @@ public partial class App : Application
         ConfigManager.Save(_config);
         ApplyRgbConfig();
         UpdateAudioAnalyzer();
+        if (_n3 != null && _isN3Connected)
+        {
+            _n3.SetBrightness((byte)Math.Clamp(_config.N3.DisplayBrightness, 0, 100));
+            SyncStreamControllerDisplays();
+        }
 
         // Use the profile's icon color for the transition
         var transIconCfg = _config.ProfileIcons.GetValueOrDefault(profileName) ?? new ProfileIconConfig();
@@ -1641,6 +1661,50 @@ public partial class App : Application
                 var iconCfg = _config.ProfileIcons.GetValueOrDefault(profileName) ?? new ProfileIconConfig();
                 _osdOverlay!.ShowProfileSwitch(profileName, iconCfg, _config);
             });
+        }
+    }
+
+    private void SyncStreamControllerDisplays()
+    {
+        if (_n3 == null || !_isN3Connected) return;
+        if (_config.HardwareMode == HardwareMode.TurnUpOnly) return;
+
+        try
+        {
+            bool anyNonEmpty = false;
+            for (int i = 0; i < N3Controller.DisplayKeyCount; i++)
+            {
+                var key = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == i);
+                if (key == null)
+                {
+                    _n3.ClearDisplay(i, commit: false);
+                    continue;
+                }
+
+                bool hasImage = !string.IsNullOrWhiteSpace(key.ImagePath) && File.Exists(key.ImagePath);
+                bool hasText = !string.IsNullOrWhiteSpace(key.Title) || !string.IsNullOrWhiteSpace(key.Subtitle);
+
+                if (!hasImage && !hasText)
+                {
+                    _n3.ClearDisplay(i, commit: false);
+                    continue;
+                }
+
+                byte[] jpeg = hasImage
+                    ? StreamControllerDisplayRenderer.CreateDeviceJpegFromPath(key.ImagePath)
+                    : StreamControllerDisplayRenderer.CreateDeviceJpeg(key);
+
+                _n3.SendDisplayImage(i, jpeg, commit: false);
+                anyNonEmpty = true;
+            }
+
+            _n3.CommitDisplayChanges();
+            if (anyNonEmpty)
+                Logger.Log("Stream Controller displays synced");
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Stream Controller display sync failed: {ex.Message}");
         }
     }
 

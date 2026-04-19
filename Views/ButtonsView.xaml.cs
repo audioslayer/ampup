@@ -214,6 +214,8 @@ public partial class ButtonsView : UserControl
         ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshAccentColors);
 
         BuildColumns();
+        InitializeDeviceSelector();
+        BuildStreamControllerDesigner();
         SetupColumnContextMenus();
     }
 
@@ -538,6 +540,20 @@ public partial class ButtonsView : UserControl
             _holdCycleDevicePickers[i].SetCheckedIds(btn.HoldDeviceIds);
         }
 
+        _loading = true;
+        DeviceSelector.SelectedIndex = config.TabSelection.Buttons switch
+        {
+            DeviceSurface.StreamController => 1,
+            DeviceSurface.Both => 2,
+            _ => 0,
+        };
+        UpdateDeviceSurfaceVisibility(config.TabSelection.Buttons);
+        _loading = false;
+
+        _loading = true;
+        LoadStreamControllerConfig();
+        _loading = false;
+
         _loading = false;
         _configLoaded = true;
 
@@ -554,7 +570,7 @@ public partial class ButtonsView : UserControl
         var grids = new[] { Btn0Grid, Btn1Grid, Btn2Grid, Btn3Grid, Btn4Grid };
 
         // Store card border references
-        foreach (var child in ColumnsGrid.Children)
+        foreach (var child in TurnUpButtonsPanel.Children)
         {
             if (child is Border border && border.Child is Grid g)
             {
@@ -1083,6 +1099,11 @@ public partial class ButtonsView : UserControl
             btn.HoldLinkedKnobIdx = int.TryParse(_holdKnobPickers[i].SelectedTag as string, out int hki) ? hki : -1;
         }
 
+        if (DeviceSelector.SelectedTag is DeviceSurface surface)
+            _config.TabSelection.Buttons = surface;
+
+        UpdateStreamControllerSelection();
+
         _onSave(_config);
     }
 
@@ -1129,6 +1150,7 @@ public partial class ButtonsView : UserControl
     private void RefreshAccentColors()
     {
         var accent = ThemeManager.Accent;
+        DeviceSelector.AccentColor = accent;
         foreach (var (bar, label) in _sectionHeaders)
         {
             bar.Background = new SolidColorBrush(accent);

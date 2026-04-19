@@ -192,6 +192,7 @@ public partial class LightsView : UserControl
         BuildPresetsSection();
         BuildGlobalCard();
         BuildChannelControls();
+        InitializeLightsDeviceSelector();
         BuildKnobSelectorRow();
         SetupStripContextMenus();
         SelectKnob(0);
@@ -202,6 +203,7 @@ public partial class LightsView : UserControl
         _loading = true;
         _config = config;
         _onSave = onSave;
+        LoadStreamControllerLightsConfig(config);
 
         if (mixer != null)
             _audioDevices = mixer.GetAudioDevices();
@@ -2355,6 +2357,7 @@ public partial class LightsView : UserControl
     private void CollectAndSave()
     {
         if (_config == null || _onSave == null || !_configLoaded) return;
+        SaveStreamControllerLightsConfig();
 
         // Calibration values
         if (_sldGammaR != null) _config.GammaR = Math.Round(_sldGammaR.Value, 1);

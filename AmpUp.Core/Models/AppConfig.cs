@@ -9,6 +9,9 @@ public class AppConfig
     public List<KnobConfig> Knobs { get; set; } = new();
     public List<ButtonConfig> Buttons { get; set; } = new();
     public N3Config N3 { get; set; } = new();
+    [JsonConverter(typeof(StringEnumConverter))]
+    public HardwareMode HardwareMode { get; set; } = HardwareMode.DualMode;
+    public HardwareTabSelection TabSelection { get; set; } = new();
     public List<LightConfig> Lights { get; set; } = new();
     public bool StartWithWindows { get; set; } = true;
     public bool StartMinimized { get; set; } = false;
@@ -234,6 +237,42 @@ public class N3Config
     public bool MirrorFirstThreeKnobs { get; set; } = true;
     public int EncoderStep { get; set; } = 32;
     public List<ButtonConfig> Buttons { get; set; } = new();
+    public List<StreamControllerDisplayKeyConfig> DisplayKeys { get; set; } = new();
+    public int DisplayBrightness { get; set; } = 100;
+}
+
+public class HardwareTabSelection
+{
+    [JsonConverter(typeof(StringEnumConverter))]
+    public DeviceSurface Mixer { get; set; } = DeviceSurface.TurnUp;
+    [JsonConverter(typeof(StringEnumConverter))]
+    public DeviceSurface Buttons { get; set; } = DeviceSurface.TurnUp;
+    [JsonConverter(typeof(StringEnumConverter))]
+    public DeviceSurface Lights { get; set; } = DeviceSurface.TurnUp;
+}
+
+public class StreamControllerDisplayKeyConfig
+{
+    public int Idx { get; set; }
+    public string ImagePath { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string Subtitle { get; set; } = "";
+    public string BackgroundColor { get; set; } = "#1C1C1C";
+    public string AccentColor { get; set; } = "#00E676";
+}
+
+public enum HardwareMode
+{
+    TurnUpOnly,
+    StreamControllerOnly,
+    DualMode,
+}
+
+public enum DeviceSurface
+{
+    TurnUp,
+    StreamController,
+    Both,
 }
 
 public enum ReactiveMode

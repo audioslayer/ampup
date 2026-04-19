@@ -69,6 +69,10 @@ public partial class SettingsView : UserControl
         CmbProfiles.SelectionChanged += OnProfileSelectionChanged;
 
         // Port selector
+        SegHardwareMode.AddSegment("Turn Up", HardwareMode.TurnUpOnly);
+        SegHardwareMode.AddSegment("Stream Controller", HardwareMode.StreamControllerOnly);
+        SegHardwareMode.AddSegment("Both", HardwareMode.DualMode);
+        SegHardwareMode.SelectionChanged += OnValueChanged;
         CmbSerialPort.SelectionChanged += OnPortComboSelectionChanged;
         BtnRefreshPorts.Click += (_, _) => RefreshPortList();
         BtnAutoDetect.Click += OnAutoDetect;
@@ -159,6 +163,12 @@ public partial class SettingsView : UserControl
 
         TxtSerialPort.Text = config.Serial.Port;
         TxtBaudRate.Text = config.Serial.Baud.ToString();
+        SegHardwareMode.SelectedIndex = config.HardwareMode switch
+        {
+            HardwareMode.StreamControllerOnly => 1,
+            HardwareMode.DualMode => 2,
+            _ => 0,
+        };
         RefreshPortList(selectPort: config.Serial.Port);
         ChkStartWithWindows.IsChecked = config.StartWithWindows;
         ChkAutoSuggestLayout.IsChecked = config.AutoSuggestLayout;
@@ -631,6 +641,8 @@ public partial class SettingsView : UserControl
         _config.Serial.Port = TxtSerialPort.Text.Trim();
         if (int.TryParse(TxtBaudRate.Text.Trim(), out var baud))
             _config.Serial.Baud = baud;
+        if (SegHardwareMode.SelectedTag is HardwareMode hardwareMode)
+            _config.HardwareMode = hardwareMode;
 
         _config.StartWithWindows = ChkStartWithWindows.IsChecked == true;
         _config.AutoSuggestLayout = ChkAutoSuggestLayout.IsChecked == true;

@@ -55,6 +55,12 @@
 
                     <!-- Port selector row -->
                     <StackPanel Margin="0,0,0,10">
+                        <TextBlock Text="Hardware Mode" Style="{StaticResource SecondaryText}" Margin="0,0,0,6"
+                                   ToolTip="Choose whether Amp Up listens to Turn Up, Stream Controller, or both at once" />
+                        <controls:SegmentedControl x:Name="SegHardwareMode"
+                                                   HorizontalAlignment="Left"
+                                                   MinWidth="360"
+                                                   Margin="0,0,0,10" />
                         <TextBlock Text="Device Port" Style="{StaticResource SecondaryText}" Margin="0,0,0,6"
                                    ToolTip="Select the COM port for your AmpUp hardware" />
                         <StackPanel Orientation="Horizontal">
