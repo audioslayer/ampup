@@ -1946,13 +1946,13 @@ public partial class App : Application
 
         try
         {
-            StreamControllerDisplayRenderer.StreamControllerEffectFrame? frame = null;
-            if (_config.N3.ScreensaverEnabled)
-            {
-                frame = new StreamControllerDisplayRenderer.StreamControllerEffectFrame(
+            using var frame = _config.N3.ScreensaverEnabled
+                ? StreamControllerDisplayRenderer.CreateFrame(
+                    _config.N3,
                     _streamControllerOverlayTick == 0 ? Environment.TickCount : _streamControllerOverlayTick,
-                    AudioAnalyzer?.SmoothedBands);
-            }
+                    AudioAnalyzer?.SmoothedBands,
+                    _config.Ambience.ScreenSync.MonitorIndex)
+                : null;
 
             bool anyNonEmpty = false;
             for (int i = 0; i < N3Controller.DisplayKeyCount; i++)

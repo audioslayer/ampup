@@ -236,6 +236,56 @@ public class ScreenCapture : IDisposable
 
     public static int MonitorCount => System.Windows.Forms.Screen.AllScreens.Length;
 
+    public static Bitmap? CapturePreviewFrame(int monitorIndex, int targetWidth, int targetHeight)
+    {
+        var bounds = GetMonitorBounds(monitorIndex);
+        if (bounds.Width <= 0 || bounds.Height <= 0 || targetWidth <= 0 || targetHeight <= 0)
+            return null;
+
+        var bitmap = new Bitmap(targetWidth, targetHeight, PixelFormat.Format32bppRgb);
+        try
+        {
+            using var g = Graphics.FromImage(bitmap);
+            var destHdc = g.GetHdc();
+            IntPtr srcHdc = IntPtr.Zero;
+            try
+            {
+                srcHdc = GetDC(IntPtr.Zero);
+                if (srcHdc == IntPtr.Zero)
+                {
+                    bitmap.Dispose();
+                    return null;
+                }
+
+                SetStretchBltMode(destHdc, HALFTONE);
+                SetBrushOrgEx(destHdc, 0, 0, IntPtr.Zero);
+
+                bool ok = StretchBlt(
+                    destHdc, 0, 0, targetWidth, targetHeight,
+                    srcHdc, bounds.X, bounds.Y, bounds.Width, bounds.Height,
+                    SRCCOPY);
+
+                if (!ok)
+                {
+                    bitmap.Dispose();
+                    return null;
+                }
+            }
+            finally
+            {
+                if (srcHdc != IntPtr.Zero) ReleaseDC(IntPtr.Zero, srcHdc);
+                g.ReleaseHdc(destHdc);
+            }
+
+            return bitmap;
+        }
+        catch
+        {
+            bitmap.Dispose();
+            return null;
+        }
+    }
+
     // ── GDI screen capture ───────────────────────────────────────────────────
 
     // StretchBlt interop — GPU-accelerated downsample via HALFTONE filter.

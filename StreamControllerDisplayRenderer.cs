@@ -1,18 +1,23 @@
 using System.IO;
+using System.Linq;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using AmpUp.Core.Models;
 using DrawingBitmap = System.Drawing.Bitmap;
+using DrawingBrush = System.Drawing.SolidBrush;
 using DrawingColor = System.Drawing.Color;
 using DrawingFont = System.Drawing.Font;
 using DrawingGraphics = System.Drawing.Graphics;
+using DrawingGraphicsUnit = System.Drawing.GraphicsUnit;
 using DrawingImage = System.Drawing.Image;
-using DrawingBrush = System.Drawing.SolidBrush;
+using DrawingLinearGradientBrush = System.Drawing.Drawing2D.LinearGradientBrush;
 using DrawingPen = System.Drawing.Pen;
+using DrawingPointF = System.Drawing.PointF;
+using DrawingRectangle = System.Drawing.Rectangle;
 using DrawingRectangleF = System.Drawing.RectangleF;
+using DrawingSize = System.Drawing.Size;
 using DrawingStringAlignment = System.Drawing.StringAlignment;
 using DrawingStringFormat = System.Drawing.StringFormat;
-using DrawingLinearGradientBrush = System.Drawing.Drawing2D.LinearGradientBrush;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Drawing.Text;
@@ -21,7 +26,39 @@ namespace AmpUp;
 
 internal static class StreamControllerDisplayRenderer
 {
-    internal readonly record struct StreamControllerEffectFrame(int Tick, float[]? AudioBands);
+    private const int RenderCanvasSize = 240;
+    private const int DeviceCanvasSize = 60;
+    private const int ScreenSliceSize = 160;
+
+    internal sealed class StreamControllerEffectFrame : IDisposable
+    {
+        public int Tick { get; }
+        public float[] AudioBands { get; }
+        public DrawingBitmap? ScreenStrip { get; }
+
+        public StreamControllerEffectFrame(int tick, float[]? audioBands, DrawingBitmap? screenStrip)
+        {
+            Tick = tick;
+            AudioBands = audioBands ?? Array.Empty<float>();
+            ScreenStrip = screenStrip;
+        }
+
+        public void Dispose() => ScreenStrip?.Dispose();
+    }
+
+    public static StreamControllerEffectFrame CreateFrame(N3Config? n3, int tick, float[]? audioBands, int monitorIndex = 0)
+    {
+        DrawingBitmap? screenStrip = null;
+        if (n3?.ScreensaverEnabled == true && n3.ScreensaverEffect == StreamControllerScreensaverEffect.ScreenSync)
+        {
+            screenStrip = ScreenCapture.CapturePreviewFrame(
+                monitorIndex,
+                ScreenSliceSize * N3Controller.DisplayKeyCount,
+                ScreenSliceSize);
+        }
+
+        return new StreamControllerEffectFrame(tick, audioBands, screenStrip);
+    }
 
     public static BitmapSource CreatePreview(StreamControllerDisplayKeyConfig key, N3Config? n3 = null, StreamControllerEffectFrame? frame = null)
     {
@@ -62,20 +99,7 @@ internal static class StreamControllerDisplayRenderer
     public static byte[] CreateDeviceJpegFromPath(string imagePath)
     {
         using var source = DrawingImage.FromFile(imagePath);
-        using var canvas = new DrawingBitmap(60, 60);
-        using var graphics = DrawingGraphics.FromImage(canvas);
-        graphics.Clear(DrawingColor.Black);
-        graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-        graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-
-        float scale = Math.Min(60f / source.Width, 60f / source.Height);
-        float drawWidth = source.Width * scale;
-        float drawHeight = source.Height * scale;
-        float x = (60f - drawWidth) / 2f;
-        float y = (60f - drawHeight) / 2f;
-        graphics.DrawImage(source, x, y, drawWidth, drawHeight);
-
+        using var canvas = RenderSourceToCanvas(source, RenderCanvasSize);
         return EncodeForDevice(canvas);
     }
 
@@ -84,47 +108,62 @@ internal static class StreamControllerDisplayRenderer
         if (!string.IsNullOrWhiteSpace(key.ImagePath) && File.Exists(key.ImagePath))
         {
             using var source = DrawingImage.FromFile(key.ImagePath);
-            var loaded = new DrawingBitmap(60, 60);
-            using var graphics = DrawingGraphics.FromImage(loaded);
-            graphics.Clear(DrawingColor.Black);
-            graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-            graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-
-            float scale = Math.Min(60f / source.Width, 60f / source.Height);
-            float drawWidth = source.Width * scale;
-            float drawHeight = source.Height * scale;
-            float x = (60f - drawWidth) / 2f;
-            float y = (60f - drawHeight) / 2f;
-            graphics.DrawImage(source, x, y, drawWidth, drawHeight);
-            ApplyEffectOverlay(loaded, n3, frame);
+            var loaded = RenderSourceToCanvas(source, RenderCanvasSize);
+            ApplyEffectOverlay(loaded, key.Idx, n3, frame);
             return loaded;
         }
 
-        var bitmap = new DrawingBitmap(60, 60);
-        using var graphicsCard = DrawingGraphics.FromImage(bitmap);
-        graphicsCard.SmoothingMode = SmoothingMode.AntiAlias;
-        graphicsCard.InterpolationMode = InterpolationMode.HighQualityBicubic;
-        graphicsCard.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-        graphicsCard.Clear(ParseColor(key.BackgroundColor, DrawingColor.FromArgb(0x1C, 0x1C, 0x1C)));
+        var bitmap = new DrawingBitmap(RenderCanvasSize, RenderCanvasSize);
+        using var graphics = DrawingGraphics.FromImage(bitmap);
+        ConfigureGraphics(graphics);
+        graphics.Clear(ParseColor(key.BackgroundColor, DrawingColor.FromArgb(0x1C, 0x1C, 0x1C)));
 
+        DrawKeyCard(graphics, key, RenderCanvasSize);
+        ApplyEffectOverlay(bitmap, key.Idx, n3, frame);
+
+        return bitmap;
+    }
+
+    private static DrawingBitmap RenderSourceToCanvas(DrawingImage source, int size)
+    {
+        var canvas = new DrawingBitmap(size, size);
+        using var graphics = DrawingGraphics.FromImage(canvas);
+        ConfigureGraphics(graphics);
+        graphics.Clear(DrawingColor.Black);
+
+        float scale = Math.Min(size / (float)source.Width, size / (float)source.Height);
+        float drawWidth = source.Width * scale;
+        float drawHeight = source.Height * scale;
+        float x = (size - drawWidth) * 0.5f;
+        float y = (size - drawHeight) * 0.5f;
+        graphics.DrawImage(source, x, y, drawWidth, drawHeight);
+        return canvas;
+    }
+
+    private static void DrawKeyCard(DrawingGraphics graphics, StreamControllerDisplayKeyConfig key, int size)
+    {
+        float scale = size / 60f;
         var accent = ParseColor(key.AccentColor, DrawingColor.FromArgb(0x00, 0xE6, 0x76));
+
         using var accentBrush = new DrawingBrush(accent);
         using var shadowBrush = new DrawingBrush(DrawingColor.FromArgb(120, 0, 0, 0));
         using var whiteBrush = new DrawingBrush(DrawingColor.White);
-        using var borderPen = new DrawingPen(DrawingColor.FromArgb(180, accent.R, accent.G, accent.B), 2f);
+        using var borderPen = new DrawingPen(DrawingColor.FromArgb(180, accent.R, accent.G, accent.B), 2f * scale);
 
-        graphicsCard.FillRectangle(shadowBrush, 0, 38, 60, 22);
-        graphicsCard.FillRectangle(accentBrush, 0, 0, 60, 10);
-        graphicsCard.DrawRectangle(borderPen, 1, 1, 57, 57);
+        graphics.FillRectangle(shadowBrush, 0, 38f * scale, size, 22f * scale);
+        graphics.FillRectangle(accentBrush, 0, 0, size, 10f * scale);
+        graphics.DrawRectangle(borderPen, 1f * scale, 1f * scale, size - (3f * scale), size - (3f * scale));
 
-        using var titleFont = new DrawingFont("Segoe UI", 10f, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Pixel);
-        using var subFont = new DrawingFont("Segoe UI", 8f, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Pixel);
-        using var badgeFont = new DrawingFont("Segoe UI", 18f, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Pixel);
+        using var titleFont = new DrawingFont("Segoe UI", 10f * scale, System.Drawing.FontStyle.Bold, DrawingGraphicsUnit.Pixel);
+        using var subFont = new DrawingFont("Segoe UI", 8f * scale, System.Drawing.FontStyle.Regular, DrawingGraphicsUnit.Pixel);
+        using var badgeFont = new DrawingFont("Segoe UI", 18f * scale, System.Drawing.FontStyle.Bold, DrawingGraphicsUnit.Pixel);
 
         string title = key.Title?.Trim() ?? "";
         string subtitle = key.Subtitle?.Trim() ?? "";
         bool hasText = !string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(subtitle);
+
+        if (!hasText)
+            return;
 
         var center = new DrawingStringFormat
         {
@@ -132,21 +171,14 @@ internal static class StreamControllerDisplayRenderer
             LineAlignment = DrawingStringAlignment.Center
         };
 
-        if (hasText)
-        {
-            graphicsCard.DrawString((key.Idx + 1).ToString(), badgeFont, whiteBrush, new DrawingRectangleF(0, 8, 60, 22), center);
-            if (!string.IsNullOrWhiteSpace(title))
-                graphicsCard.DrawString(title, titleFont, whiteBrush, new DrawingRectangleF(4, 30, 52, 14), center);
-            if (!string.IsNullOrWhiteSpace(subtitle))
-                graphicsCard.DrawString(subtitle, subFont, whiteBrush, new DrawingRectangleF(4, 44, 52, 10), center);
-        }
-
-        ApplyEffectOverlay(bitmap, n3, frame);
-
-        return bitmap;
+        graphics.DrawString((key.Idx + 1).ToString(), badgeFont, whiteBrush, new DrawingRectangleF(0, 8f * scale, size, 22f * scale), center);
+        if (!string.IsNullOrWhiteSpace(title))
+            graphics.DrawString(title, titleFont, whiteBrush, new DrawingRectangleF(4f * scale, 30f * scale, 52f * scale, 14f * scale), center);
+        if (!string.IsNullOrWhiteSpace(subtitle))
+            graphics.DrawString(subtitle, subFont, whiteBrush, new DrawingRectangleF(4f * scale, 44f * scale, 52f * scale, 10f * scale), center);
     }
 
-    private static void ApplyEffectOverlay(DrawingBitmap bitmap, N3Config? n3, StreamControllerEffectFrame? frame)
+    private static void ApplyEffectOverlay(DrawingBitmap bitmap, int keyIdx, N3Config? n3, StreamControllerEffectFrame? frame)
     {
         if (n3 == null || !n3.ScreensaverEnabled)
             return;
@@ -159,94 +191,310 @@ internal static class StreamControllerDisplayRenderer
         var audioBands = frame?.AudioBands ?? Array.Empty<float>();
 
         using var graphics = DrawingGraphics.FromImage(bitmap);
-        graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-        graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        ConfigureGraphics(graphics);
 
         switch (n3.ScreensaverEffect)
         {
+            case StreamControllerScreensaverEffect.Aurora:
+                DrawAuroraOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed, keyIdx);
+                break;
             case StreamControllerScreensaverEffect.Fire:
-                DrawFireOverlay(graphics, tick, opacity, n3.ScreensaverSpeed);
+                DrawLavaOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed, keyIdx);
+                break;
+            case StreamControllerScreensaverEffect.Prism:
+                DrawPrismOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed, keyIdx);
                 break;
             case StreamControllerScreensaverEffect.MusicBounce:
-                DrawMusicBounceOverlay(graphics, tick, opacity, n3.ScreensaverSpeed, audioBands);
+                DrawMusicOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed, keyIdx, audioBands);
+                break;
+            case StreamControllerScreensaverEffect.ScreenSync:
+                DrawScreenSyncOverlay(graphics, bitmap.Width, bitmap.Height, opacity, keyIdx, frame?.ScreenStrip);
                 break;
             default:
-                DrawRainbowOverlay(graphics, tick, opacity, n3.ScreensaverSpeed);
+                DrawRainbowOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed, keyIdx);
                 break;
         }
     }
 
-    private static void DrawRainbowOverlay(DrawingGraphics graphics, int tick, int opacity, int speed)
-    {
-        float shift = (tick / 1000f) * (0.7f + (speed / 70f));
-        for (int i = -1; i < 5; i++)
-        {
-            float start = i * 18f + ((shift * 18f) % 18f);
-            var c1 = FromHsv((i * 68 + tick / 18) % 360, 0.82, 1.0, opacity / 100f * 0.75f);
-            var c2 = FromHsv((i * 68 + 48 + tick / 18) % 360, 0.9, 1.0, opacity / 100f * 0.15f);
-            using var brush = new DrawingLinearGradientBrush(
-                new System.Drawing.PointF(start, 0),
-                new System.Drawing.PointF(start + 18, 60),
-                c1,
-                c2);
-            graphics.FillRectangle(brush, start, 0, 18, 60);
-        }
-    }
-
-    private static void DrawFireOverlay(DrawingGraphics graphics, int tick, int opacity, int speed)
+    private static void DrawRainbowOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed, int keyIdx)
     {
         float alpha = opacity / 100f;
-        for (int x = 0; x < 60; x += 6)
-        {
-            double wave = (Math.Sin((tick / (120.0 - speed)) + x * 0.35) + 1.0) * 0.5;
-            double wave2 = (Math.Sin((tick / (85.0 - speed * 0.5)) + x * 0.18 + 1.5) + 1.0) * 0.5;
-            float height = 16f + (float)((wave * 18f) + (wave2 * 10f));
-            int y = (int)(60 - height);
+        float time = tick / 1000f * (0.35f + speed / 70f);
 
-            using var glow = new DrawingLinearGradientBrush(
-                new System.Drawing.PointF(x, 60),
-                new System.Drawing.PointF(x, y),
-                DrawingColor.FromArgb((int)(160 * alpha), 255, 210, 70),
-                DrawingColor.FromArgb(0, 255, 80, 20));
-            graphics.FillEllipse(glow, x - 4, y - 8, 14, height + 12);
+        using var bg = new DrawingLinearGradientBrush(
+            new DrawingPointF(0, 0),
+            new DrawingPointF(width, height),
+            DrawingColor.FromArgb((int)(70 * alpha), 6, 8, 22),
+            DrawingColor.FromArgb((int)(35 * alpha), 18, 6, 28));
+        graphics.FillRectangle(bg, 0, 0, width, height);
 
-            using var coreBrush = new DrawingBrush(DrawingColor.FromArgb((int)(110 * alpha), 255, 120, 20));
-            graphics.FillRectangle(coreBrush, x, y + 8, 6, height - 6);
-        }
-    }
-
-    private static void DrawMusicBounceOverlay(DrawingGraphics graphics, int tick, int opacity, int speed, float[] audioBands)
-    {
-        float alpha = opacity / 100f;
-        float[] bands = audioBands.Length >= 5 ? audioBands : new float[] { 0.1f, 0.2f, 0.15f, 0.1f, 0.08f };
-        int[] bandMap = { 0, 1, 2, 3, 4, 3 };
         for (int i = 0; i < 6; i++)
         {
-            float band = bands[bandMap[i]];
-            float pulse = 0.4f + 0.6f * band;
-            float bob = (float)Math.Sin((tick / (140.0 - speed)) + i * 0.9) * 4f;
-            float height = 12f + band * 32f;
-            float x = 4 + i * 9;
-            float y = 44 - height - bob;
-            var color = FromHsv((120 + i * 22 + tick / 25) % 360, 0.7, 1.0, alpha * (0.35f + pulse * 0.45f));
-            using var brush = new DrawingBrush(color);
-            using var path = CreateRoundedRectPath(x, y, 6, height, 3);
-            graphics.FillPath(brush, path);
+            float hue = (time * 72f + i * 48f + keyIdx * 16f) % 360f;
+            float cx = width * (0.16f + i * 0.15f + 0.06f * (float)Math.Sin(time * 1.1f + i * 0.85f));
+            float cy = height * (0.28f + 0.16f * (float)Math.Sin(time * 1.4f + i * 0.6f + keyIdx * 0.4f));
+            FillGlow(graphics, cx - width * 0.30f, cy - height * 0.34f, width * 0.60f, height * 0.68f, FromHsv((int)hue, 0.82, 1.0, alpha * 0.28f));
         }
+
+        for (int i = -1; i < 4; i++)
+        {
+            float start = i * width * 0.26f + (time * width * 0.18f % (width * 0.26f));
+            var c1 = FromHsv((int)((time * 88f + i * 54f) % 360), 0.85, 1.0, alpha * 0.32f);
+            var c2 = FromHsv((int)((time * 88f + i * 54f + 55f) % 360), 0.7, 1.0, 0f);
+            using var streak = new DrawingLinearGradientBrush(
+                new DrawingPointF(start, 0),
+                new DrawingPointF(start + width * 0.18f, height),
+                c1,
+                c2);
+            graphics.FillRectangle(streak, start, 0, width * 0.18f, height);
+        }
+    }
+
+    private static void DrawAuroraOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed, int keyIdx)
+    {
+        float alpha = opacity / 100f;
+        float time = tick / 1000f * (0.20f + speed / 110f);
+
+        using var bg = new DrawingLinearGradientBrush(
+            new DrawingPointF(0, 0),
+            new DrawingPointF(0, height),
+            DrawingColor.FromArgb((int)(70 * alpha), 3, 10, 18),
+            DrawingColor.FromArgb((int)(90 * alpha), 2, 22, 18));
+        graphics.FillRectangle(bg, 0, 0, width, height);
+
+        DrawingColor[] colors =
+        {
+            DrawingColor.FromArgb((int)(alpha * 120), 70, 255, 185),
+            DrawingColor.FromArgb((int)(alpha * 110), 48, 220, 255),
+            DrawingColor.FromArgb((int)(alpha * 90), 154, 102, 255),
+        };
+
+        for (int i = 0; i < colors.Length; i++)
+        {
+            float cx = width * (0.22f + i * 0.28f + 0.08f * (float)Math.Sin(time * 1.2f + i + keyIdx * 0.45f));
+            float cy = height * (0.46f + 0.08f * (float)Math.Sin(time * 1.6f + i * 1.4f));
+            FillGlow(graphics, cx - width * 0.22f, cy - height * 0.42f, width * 0.44f, height * 0.88f, colors[i]);
+        }
+
+        for (int line = 0; line < 7; line++)
+        {
+            float x = width * (0.05f + line * 0.15f);
+            float sway = 16f * (float)Math.Sin(time * 2.0f + line * 0.9f + keyIdx * 0.2f);
+            var color = line % 2 == 0
+                ? DrawingColor.FromArgb((int)(alpha * 58), 160, 255, 214)
+                : DrawingColor.FromArgb((int)(alpha * 46), 92, 225, 255);
+            using var pen = new DrawingPen(color, Math.Max(4f, width * 0.03f));
+            graphics.DrawBezier(
+                pen,
+                new DrawingPointF(x, height * 0.08f),
+                new DrawingPointF(x + sway, height * 0.28f),
+                new DrawingPointF(x - sway, height * 0.72f),
+                new DrawingPointF(x + sway * 0.4f, height * 0.96f));
+        }
+    }
+
+    private static void DrawLavaOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed, int keyIdx)
+    {
+        float alpha = opacity / 100f;
+        float time = tick / 1000f * (0.35f + speed / 75f);
+
+        using var bg = new DrawingLinearGradientBrush(
+            new DrawingPointF(0, height),
+            new DrawingPointF(0, 0),
+            DrawingColor.FromArgb((int)(110 * alpha), 255, 115, 10),
+            DrawingColor.FromArgb((int)(70 * alpha), 40, 6, 3));
+        graphics.FillRectangle(bg, 0, 0, width, height);
+
+        for (int i = 0; i < 5; i++)
+        {
+            float cx = width * (0.08f + i * 0.22f + 0.04f * (float)Math.Sin(time * 0.9f + i));
+            float cy = height * (0.85f - 0.22f * (float)Math.Sin(time * 1.3f + i * 0.9f + keyIdx * 0.35f));
+            float size = width * (0.22f + 0.05f * (float)Math.Sin(time * 1.9f + i));
+            FillGlow(graphics, cx - size * 0.7f, cy - size * 0.9f, size * 1.4f, size * 1.8f, DrawingColor.FromArgb((int)(alpha * 140), 255, 180, 38));
+            FillGlow(graphics, cx - size * 0.45f, cy - size * 0.5f, size * 0.9f, size, DrawingColor.FromArgb((int)(alpha * 100), 255, 92, 0));
+        }
+
+        for (int ember = 0; ember < 12; ember++)
+        {
+            float px = width * (float)Rand(ember * 17 + keyIdx * 31);
+            float phase = ((tick / 850f) + ember * 0.19f) % 1f;
+            float py = height * (1f - phase);
+            float radius = Math.Max(2f, width * 0.012f * (1f + 0.8f * (float)Rand(ember * 41)));
+            using var brush = new DrawingBrush(DrawingColor.FromArgb((int)(alpha * 180 * (1f - phase)), 255, 220, 120));
+            graphics.FillEllipse(brush, px - radius, py - radius, radius * 2, radius * 2);
+        }
+    }
+
+    private static void DrawPrismOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed, int keyIdx)
+    {
+        float alpha = opacity / 100f;
+        float time = tick / 1000f * (0.28f + speed / 100f);
+
+        using var bg = new DrawingLinearGradientBrush(
+            new DrawingPointF(0, 0),
+            new DrawingPointF(width, height),
+            DrawingColor.FromArgb((int)(60 * alpha), 12, 9, 26),
+            DrawingColor.FromArgb((int)(40 * alpha), 8, 4, 20));
+        graphics.FillRectangle(bg, 0, 0, width, height);
+
+        for (int i = -1; i < 6; i++)
+        {
+            float x = i * width * 0.18f + (time * width * 0.22f % (width * 0.18f));
+            int hue = (int)((i * 52f + time * 92f + keyIdx * 18f) % 360f);
+            var c1 = FromHsv(hue, 0.85, 1.0, alpha * 0.42f);
+            var c2 = FromHsv((hue + 45) % 360, 0.65, 1.0, 0f);
+            using var brush = new DrawingLinearGradientBrush(
+                new DrawingPointF(x, 0),
+                new DrawingPointF(x + width * 0.20f, height),
+                c1,
+                c2);
+            DrawingPointF[] points =
+            {
+                new(x, 0),
+                new(x + width * 0.17f, 0),
+                new(x + width * 0.32f, height),
+                new(x + width * 0.10f, height),
+            };
+            graphics.FillPolygon(brush, points);
+        }
+
+        FillGlow(graphics, width * 0.18f, height * 0.14f, width * 0.64f, height * 0.5f, DrawingColor.FromArgb((int)(alpha * 55), 255, 255, 255));
+    }
+
+    private static void DrawMusicOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed, int keyIdx, float[] audioBands)
+    {
+        float alpha = opacity / 100f;
+        float[] bands = audioBands.Length >= 5 ? audioBands : new float[] { 0.1f, 0.18f, 0.13f, 0.08f, 0.05f };
+        int[] bandMap = { 0, 1, 2, 4, 3, 1 };
+        float time = tick / 1000f * (0.35f + speed / 100f);
+
+        using var bg = new DrawingLinearGradientBrush(
+            new DrawingPointF(0, 0),
+            new DrawingPointF(0, height),
+            DrawingColor.FromArgb((int)(45 * alpha), 4, 8, 18),
+            DrawingColor.FromArgb((int)(85 * alpha), 6, 2, 20));
+        graphics.FillRectangle(bg, 0, 0, width, height);
+
+        float spacing = width / 7f;
+        float barWidth = width * 0.09f;
+
+        for (int i = 0; i < 6; i++)
+        {
+            float band = Math.Clamp(bands[bandMap[i]], 0f, 1f);
+            float shimmer = 0.14f * (float)Math.Sin(time * 5f + i * 0.8f + keyIdx * 0.5f);
+            float heightPct = Math.Clamp(0.16f + band * 0.78f + shimmer, 0.08f, 0.92f);
+            float barHeight = height * heightPct;
+            float x = spacing * (i + 0.55f) - barWidth * 0.5f;
+            float y = height - (barHeight + height * 0.08f);
+            var top = FromHsv((int)((145 + i * 22 + tick / 20) % 360), 0.62, 1.0, alpha * 0.95f);
+            var bottom = FromHsv((int)((185 + i * 18 + tick / 28) % 360), 0.92, 0.95, alpha * 0.72f);
+
+            FillGlow(graphics, x - barWidth, y - barWidth * 1.4f, barWidth * 3f, barHeight + barWidth * 2.2f, DrawingColor.FromArgb((int)(alpha * 80), top.R, top.G, top.B));
+
+            using var path = CreateRoundedRectPath(x, y, barWidth, barHeight, barWidth * 0.45f);
+            using var brush = new DrawingLinearGradientBrush(
+                new DrawingPointF(x, y),
+                new DrawingPointF(x, y + barHeight),
+                top,
+                bottom);
+            graphics.FillPath(brush, path);
+
+            using var capBrush = new DrawingBrush(DrawingColor.FromArgb((int)(alpha * 160), 255, 255, 255));
+            graphics.FillEllipse(capBrush, x + barWidth * 0.18f, y + barWidth * 0.12f, barWidth * 0.64f, barWidth * 0.18f);
+        }
+    }
+
+    private static void DrawScreenSyncOverlay(DrawingGraphics graphics, int width, int height, int opacity, int keyIdx, DrawingBitmap? screenStrip)
+    {
+        if (screenStrip == null)
+        {
+            DrawPrismOverlay(graphics, width, height, Environment.TickCount, opacity, 55, keyIdx);
+            return;
+        }
+
+        int sliceWidth = Math.Max(1, screenStrip.Width / N3Controller.DisplayKeyCount);
+        int srcX = Math.Clamp(keyIdx * sliceWidth, 0, Math.Max(0, screenStrip.Width - sliceWidth));
+        var destRect = new DrawingRectangle(0, 0, width, height);
+
+        using var attributes = new ImageAttributes();
+        attributes.SetColorMatrix(CreateSaturationMatrix(1.30f, opacity / 100f));
+        graphics.DrawImage(
+            screenStrip,
+            destRect,
+            srcX,
+            0,
+            sliceWidth,
+            screenStrip.Height,
+            System.Drawing.GraphicsUnit.Pixel,
+            attributes);
+
+        using var gloss = new DrawingLinearGradientBrush(
+            new DrawingPointF(0, 0),
+            new DrawingPointF(0, height),
+            DrawingColor.FromArgb((int)(opacity * 1.1), 255, 255, 255),
+            DrawingColor.FromArgb(0, 255, 255, 255));
+        graphics.FillRectangle(gloss, 0, 0, width, height * 0.22f);
+
+        using var borderPen = new DrawingPen(DrawingColor.FromArgb((int)(opacity * 1.5), 255, 255, 255), Math.Max(2f, width * 0.012f));
+        graphics.DrawRectangle(borderPen, width * 0.02f, height * 0.02f, width * 0.96f, height * 0.96f);
     }
 
     private static byte[] EncodeForDevice(DrawingImage image)
     {
-        using var rotated = new DrawingBitmap(image);
-        rotated.RotateFlip(System.Drawing.RotateFlipType.Rotate90FlipNone);
+        using var deviceSized = new DrawingBitmap(DeviceCanvasSize, DeviceCanvasSize);
+        using (var graphics = DrawingGraphics.FromImage(deviceSized))
+        {
+            ConfigureGraphics(graphics);
+            graphics.Clear(DrawingColor.Black);
+            graphics.DrawImage(image, 0, 0, DeviceCanvasSize, DeviceCanvasSize);
+        }
+
+        deviceSized.RotateFlip(System.Drawing.RotateFlipType.Rotate90FlipNone);
 
         using var stream = new MemoryStream();
         var codec = ImageCodecInfo.GetImageEncoders().First(x => x.FormatID == ImageFormat.Jpeg.Guid);
         using var encoderParams = new EncoderParameters(1);
         encoderParams.Param[0] = new EncoderParameter(Encoder.Quality, 92L);
-        rotated.Save(stream, codec, encoderParams);
+        deviceSized.Save(stream, codec, encoderParams);
         return stream.ToArray();
+    }
+
+    private static void ConfigureGraphics(DrawingGraphics graphics)
+    {
+        graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        graphics.CompositingQuality = CompositingQuality.HighQuality;
+        graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+    }
+
+    private static void FillGlow(DrawingGraphics graphics, float x, float y, float width, float height, DrawingColor centerColor)
+    {
+        using var path = new GraphicsPath();
+        path.AddEllipse(x, y, width, height);
+        using var brush = new PathGradientBrush(path)
+        {
+            CenterColor = centerColor,
+            SurroundColors = new[] { DrawingColor.FromArgb(0, centerColor.R, centerColor.G, centerColor.B) }
+        };
+        graphics.FillPath(brush, path);
+    }
+
+    private static ColorMatrix CreateSaturationMatrix(float saturation, float alpha)
+    {
+        const float rw = 0.3086f;
+        const float gw = 0.6094f;
+        const float bw = 0.0820f;
+        float inv = 1f - saturation;
+
+        return new ColorMatrix(new[]
+        {
+            new[] { inv * rw + saturation, inv * rw, inv * rw, 0f, 0f },
+            new[] { inv * gw, inv * gw + saturation, inv * gw, 0f, 0f },
+            new[] { inv * bw, inv * bw, inv * bw + saturation, 0f, 0f },
+            new[] { 0f, 0f, 0f, Math.Clamp(alpha, 0f, 1f), 0f },
+            new[] { 0f, 0f, 0f, 0f, 1f }
+        });
     }
 
     private static DrawingColor ParseColor(string hex, DrawingColor fallback)
@@ -290,5 +538,14 @@ internal static class StreamControllerDisplayRenderer
         path.AddArc(x, y + height - diameter, diameter, diameter, 90, 90);
         path.CloseFigure();
         return path;
+    }
+
+    private static double Rand(int seed)
+    {
+        uint x = (uint)seed * 2654435761u;
+        x ^= x >> 13;
+        x *= 1597334677u;
+        x ^= x >> 16;
+        return (x & 0xFFFFFF) / (double)0x1000000;
     }
 }

@@ -139,7 +139,7 @@ public partial class LightsView
         });
         stack.Children.Add(new TextBlock
         {
-            Text = "Lay animated color over your Stream Controller keys like a mini screensaver. Your button art stays underneath and the effect rides on top.",
+            Text = "Turn the key displays into a full animated scene. These effects temporarily replace the normal key art so the Stream Controller can behave more like a mini room-RGB surface.",
             Foreground = FindBrush("TextSecBrush"),
             Margin = new Thickness(0, 6, 0, 10),
             TextWrapping = TextWrapping.Wrap
@@ -162,8 +162,11 @@ public partial class LightsView
             Margin = new Thickness(0, 0, 0, 10)
         };
         _scScreensaverEffect.AddSegment("Rainbow", StreamControllerScreensaverEffect.Rainbow);
-        _scScreensaverEffect.AddSegment("Fire", StreamControllerScreensaverEffect.Fire);
+        _scScreensaverEffect.AddSegment("Aurora", StreamControllerScreensaverEffect.Aurora);
+        _scScreensaverEffect.AddSegment("Lava", StreamControllerScreensaverEffect.Fire);
+        _scScreensaverEffect.AddSegment("Prism", StreamControllerScreensaverEffect.Prism);
         _scScreensaverEffect.AddSegment("Music", StreamControllerScreensaverEffect.MusicBounce);
+        _scScreensaverEffect.AddSegment("Screen", StreamControllerScreensaverEffect.ScreenSync);
         _scScreensaverEffect.SelectionChanged += (_, _) =>
         {
             RefreshStreamControllerScreensaverPreview();
@@ -282,9 +285,12 @@ public partial class LightsView
         if (_scScreensaverEffect != null)
             _scScreensaverEffect.SelectedIndex = config.N3.ScreensaverEffect switch
             {
-                StreamControllerScreensaverEffect.Fire => 1,
-                StreamControllerScreensaverEffect.MusicBounce => 2,
-                _ => 0,
+                StreamControllerScreensaverEffect.Aurora => 1,
+                StreamControllerScreensaverEffect.Fire => 2,
+                StreamControllerScreensaverEffect.Prism => 3,
+                StreamControllerScreensaverEffect.MusicBounce => 4,
+                StreamControllerScreensaverEffect.ScreenSync => 5,
+                _ => 0
             };
         if (_scScreensaverOpacitySlider != null)
             _scScreensaverOpacitySlider.Value = Math.Clamp(config.N3.ScreensaverOpacity, 0, 100);
@@ -346,9 +352,11 @@ public partial class LightsView
             ScreensaverSpeed = _scScreensaverSpeedSlider != null ? (int)Math.Round(_scScreensaverSpeedSlider.Value) : 50
         };
 
-        var frame = new StreamControllerDisplayRenderer.StreamControllerEffectFrame(
+        using var frame = StreamControllerDisplayRenderer.CreateFrame(
+            previewConfig,
             Environment.TickCount,
-            App.AudioAnalyzer?.SmoothedBands);
+            App.AudioAnalyzer?.SmoothedBands,
+            _config.Ambience.ScreenSync.MonitorIndex);
 
         for (int i = 0; i < 6; i++)
         {

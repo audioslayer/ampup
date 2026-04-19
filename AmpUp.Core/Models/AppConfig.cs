@@ -285,8 +285,11 @@ public enum DeviceSurface
 public enum StreamControllerScreensaverEffect
 {
     Rainbow,
+    Aurora,
     Fire,
+    Prism,
     MusicBounce,
+    ScreenSync,
 }
 
 public enum ReactiveMode
