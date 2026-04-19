@@ -14,6 +14,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Material.Icons;
 using Material.Icons.WPF;
+using Microsoft.Win32;
 using Newtonsoft.Json.Linq;
 using SkiaSharp;
 using Svg.Skia;
@@ -264,7 +265,15 @@ public class StreamControllerIconPickerDialog : Window
 
         _searchChrome.Child = searchGrid;
         header.Children.Add(_searchChrome);
-        header.Children.Add(_categoryPicker);
+
+        var categoryRow = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
+        var uploadButton = BuildUploadButton();
+        DockPanel.SetDock(uploadButton, Dock.Right);
+        categoryRow.Children.Add(uploadButton);
+        _categoryPicker.Margin = new Thickness(0);
+        categoryRow.Children.Add(_categoryPicker);
+        header.Children.Add(categoryRow);
+
         main.Children.Add(header);
 
         var content = new Grid
@@ -745,6 +754,59 @@ public class StreamControllerIconPickerDialog : Window
         };
 
         return card;
+    }
+
+    private Button BuildUploadButton()
+    {
+        var content = new StackPanel { Orientation = Orientation.Horizontal };
+        content.Children.Add(new MaterialIcon
+        {
+            Kind = MaterialIconKind.Upload,
+            Width = 15,
+            Height = 15,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = new SolidColorBrush(ThemeManager.Accent),
+            Margin = new Thickness(0, 0, 6, 0)
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = "Upload Image",
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = (Brush)Application.Current.FindResource("TextPrimaryBrush")
+        });
+
+        var button = new Button
+        {
+            Content = content,
+            Padding = new Thickness(12, 6, 12, 6),
+            Background = (Brush)Application.Current.FindResource("InputBgBrush"),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
+            BorderThickness = new Thickness(1),
+            Foreground = (Brush)Application.Current.FindResource("TextPrimaryBrush"),
+            Cursor = Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = "Use your own image file"
+        };
+        button.Click += (_, _) => UploadCustomImage();
+        return button;
+    }
+
+    private void UploadCustomImage()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|All files|*.*",
+            Title = "Choose Stream Controller image"
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            SelectedDownloadedImagePath = dialog.FileName;
+            SelectedIconKind = null;
+            CloseDialog(true);
+        }
     }
 
     private void CloseDialog(bool result)
