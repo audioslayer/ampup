@@ -520,6 +520,7 @@ public partial class MixerView : UserControl
         }
 
         UpdateStreamControllerMixerLiveState();
+        TickStreamControllerMixer();
     }
 
     private void BuildChannelControls()
