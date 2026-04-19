@@ -90,31 +90,25 @@ public partial class ButtonsView
         _v2PreviewPanel.Children.Add(_v2PreviewCard);
 
         // ── 3. Common fields (LCD-only) ──────────────────────────────────
-        // Re-host the existing _sc* widgets so their handlers and state stay
-        // live. The legacy "Normal-only" visibility toggle can leave some
-        // inputs collapsed from an earlier Clock/Dynamic selection — force
-        // Visible here since V2 surfaces the Display Type picker separately.
+        // Split into two section cards — ICON (preview type, icon, dynamic
+        // state source) and TEXT (title, position, size, color) — so the
+        // editor reads as distinct sections instead of one long stack.
         _v2CommonFieldsPanel = new StackPanel();
 
-        // DISPLAY TYPE (Normal / Clock / Dynamic) — key driver of layout.
+        // DISPLAY TYPE sits above both cards since it drives what's visible.
         if (_scDisplayTypePicker != null)
         {
             _v2CommonFieldsPanel.Children.Add(MakeEditorLabel("DISPLAY TYPE"));
             DetachFromParent(_scDisplayTypePicker);
-            _scDisplayTypePicker.Margin = new Thickness(0, 0, 0, 10);
+            _scDisplayTypePicker.Margin = new Thickness(0, 0, 0, 14);
             _scDisplayTypePicker.Visibility = Visibility.Visible;
             _v2CommonFieldsPanel.Children.Add(_scDisplayTypePicker);
         }
 
-        // TITLE
-        _v2CommonFieldsPanel.Children.Add(MakeEditorLabel("TITLE"));
-        if (_scTitleBox == null) _scTitleBox = MakeEditorTextBox("Display title");
-        DetachFromParent(_scTitleBox);
-        _scTitleBox.Visibility = Visibility.Visible;
-        _v2CommonFieldsPanel.Children.Add(_scTitleBox);
+        // ── ICON card ───────────────────────────────────────────────────
+        var iconCardContent = new StackPanel();
 
-        // ICON (field + Choose Icon button)
-        _v2CommonFieldsPanel.Children.Add(MakeEditorLabel("ICON"));
+        iconCardContent.Children.Add(MakeEditorLabel("ICON"));
         if (_scIconBox == null)
         {
             _scIconBox = MakeEditorTextBox("No icon selected");
@@ -122,14 +116,32 @@ public partial class ButtonsView
         }
         DetachFromParent(_scIconBox);
         _scIconBox.Visibility = Visibility.Visible;
-        _v2CommonFieldsPanel.Children.Add(_scIconBox);
+        iconCardContent.Children.Add(_scIconBox);
 
         var chooseIconBtn = MakeEditorButton("Choose Icon", (_, _) => ChooseStreamControllerIcon());
-        chooseIconBtn.Margin = new Thickness(0, 6, 0, 10);
-        _v2CommonFieldsPanel.Children.Add(chooseIconBtn);
+        chooseIconBtn.Margin = new Thickness(0, 6, 0, 0);
+        iconCardContent.Children.Add(chooseIconBtn);
 
-        // TEXT POSITION
-        _v2CommonFieldsPanel.Children.Add(MakeEditorLabel("TEXT POSITION"));
+        // Dynamic state lives in the icon card (active icon swap signal).
+        if (_scDynamicPanel != null)
+        {
+            DetachFromParent(_scDynamicPanel);
+            _scDynamicPanel.Margin = new Thickness(0, 10, 0, 0);
+            iconCardContent.Children.Add(_scDynamicPanel);
+        }
+
+        _v2CommonFieldsPanel.Children.Add(MakeV2CommonFieldCard("ICON", iconCardContent));
+
+        // ── TEXT card ───────────────────────────────────────────────────
+        var textCardContent = new StackPanel();
+
+        textCardContent.Children.Add(MakeEditorLabel("TITLE"));
+        if (_scTitleBox == null) _scTitleBox = MakeEditorTextBox("Display title");
+        DetachFromParent(_scTitleBox);
+        _scTitleBox.Visibility = Visibility.Visible;
+        textCardContent.Children.Add(_scTitleBox);
+
+        textCardContent.Children.Add(MakeEditorLabel("TEXT POSITION"));
         if (_scTextPositionPicker == null)
         {
             _scTextPositionPicker = new SegmentedControl { HorizontalAlignment = HorizontalAlignment.Left };
@@ -145,9 +157,8 @@ public partial class ButtonsView
         DetachFromParent(_scTextPositionPicker);
         _scTextPositionPicker.Margin = new Thickness(0, 0, 0, 10);
         _scTextPositionPicker.Visibility = Visibility.Visible;
-        _v2CommonFieldsPanel.Children.Add(_scTextPositionPicker);
+        textCardContent.Children.Add(_scTextPositionPicker);
 
-        // TEXT SIZE
         if (_scTextSizeSlider != null)
         {
             if (_scTextSizeLabel == null)
@@ -163,35 +174,78 @@ public partial class ButtonsView
             }
             DetachFromParent(_scTextSizeLabel);
             _scTextSizeLabel.Visibility = Visibility.Visible;
-            _v2CommonFieldsPanel.Children.Add(_scTextSizeLabel);
+            textCardContent.Children.Add(_scTextSizeLabel);
 
             DetachFromParent(_scTextSizeSlider);
             _scTextSizeSlider.Margin = new Thickness(0, 0, 0, 10);
             _scTextSizeSlider.Visibility = Visibility.Visible;
-            _v2CommonFieldsPanel.Children.Add(_scTextSizeSlider);
+            textCardContent.Children.Add(_scTextSizeSlider);
         }
 
-        // TEXT COLOR (palette swatches)
-        _v2CommonFieldsPanel.Children.Add(MakeEditorLabel("TEXT COLOR"));
+        textCardContent.Children.Add(MakeEditorLabel("TEXT COLOR"));
         if (_scTextColorSwatchPanel == null) _scTextColorSwatchPanel = new WrapPanel();
         DetachFromParent(_scTextColorSwatchPanel);
-        _scTextColorSwatchPanel.Margin = new Thickness(0, 0, 0, 10);
+        _scTextColorSwatchPanel.Margin = new Thickness(0, 0, 0, 0);
         _scTextColorSwatchPanel.Visibility = Visibility.Visible;
-        _v2CommonFieldsPanel.Children.Add(_scTextColorSwatchPanel);
+        textCardContent.Children.Add(_scTextColorSwatchPanel);
 
-        // CLOCK FORMAT + DYNAMIC (re-host so user can configure Clock/Dynamic in V2)
+        // Clock format is text-related — lives in the text card.
         if (_scClockPanel != null)
         {
             DetachFromParent(_scClockPanel);
-            _v2CommonFieldsPanel.Children.Add(_scClockPanel);
-        }
-        if (_scDynamicPanel != null)
-        {
-            DetachFromParent(_scDynamicPanel);
-            _v2CommonFieldsPanel.Children.Add(_scDynamicPanel);
+            _scClockPanel.Margin = new Thickness(0, 10, 0, 0);
+            textCardContent.Children.Add(_scClockPanel);
         }
 
+        _v2CommonFieldsPanel.Children.Add(MakeV2CommonFieldCard("TEXT", textCardContent));
+
         _v2PreviewPanel.Children.Add(_v2CommonFieldsPanel);
+    }
+
+    /// <summary>
+    /// Section card for the Preview panel with the shared V2 chrome (accent
+    /// bar + uppercase header, CardBgBrush, rounded border, 14px inner padding).
+    /// </summary>
+    private Border MakeV2CommonFieldCard(string label, UIElement content)
+    {
+        var stack = new StackPanel();
+
+        var barLabelRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+        var bar = new Border
+        {
+            Width = 3,
+            CornerRadius = new CornerRadius(2),
+            Margin = new Thickness(0, 0, 8, 0),
+            Background = new SolidColorBrush(ThemeManager.Accent),
+        };
+        var text = new TextBlock
+        {
+            Text = label,
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        barLabelRow.Children.Add(bar);
+        barLabelRow.Children.Add(text);
+        stack.Children.Add(barLabelRow);
+        stack.Children.Add(content);
+
+        var card = new Border
+        {
+            CornerRadius = new CornerRadius(10),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(14),
+            Margin = new Thickness(0, 0, 0, 12),
+            Child = stack,
+        };
+        card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        return card;
     }
 
     partial void FillV2ActionPanel()
