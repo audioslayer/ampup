@@ -3196,14 +3196,20 @@ public partial class RoomView : UserControl
         statusTimer.Start();
 
         // Preview capture timer — low-FPS screen capture when sync isn't actively running
-        // so the user always sees a live preview of the selected monitor
+        // so the user always sees a live preview of the selected monitor.
+        //
+        // IsVisible is used instead of .Visibility because .Visibility on
+        // _screenSyncSettingsPanel stays Visible when the user navigates to
+        // another tab (only the outer RoomView control gets hidden). IsVisible
+        // walks the ancestor chain and returns false the moment the RoomView
+        // tab isn't active — which stops the expensive GDI screen capture
+        // from running 5x per second on a hidden tab.
         var previewTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) }; // ~5 FPS
         previewTimer.Tick += (_, _) =>
         {
-            // Skip when sync is running (DreamSync already feeds the preview via OnZoneGrid)
             if (_dreamSync == null || _dreamSync.IsRunning) return;
-            // Skip when the card isn't visible
-            if (_screenSyncSettingsPanel?.Visibility != Visibility.Visible) return;
+            if (!this.IsVisible) return;
+            if (_screenSyncSettingsPanel == null || !_screenSyncSettingsPanel.IsVisible) return;
 
             try
             {
