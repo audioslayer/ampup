@@ -56,6 +56,7 @@ public sealed class N3Controller : IDisposable
     public const int UsagePage = 0xFFA0; // 65440 decimal
     public const int UsageId = 0x0001;
     public const int ProtocolVersion = 3; // confirmed upstream for TreasLin N3
+    public const int DisplayKeyCount = 6;
 
     private const int DefaultPacketSize = 1024;
     private const int ReadTimeoutMs = 500;
@@ -229,6 +230,89 @@ public sealed class N3Controller : IDisposable
         catch (Exception ex)
         {
             Logger.Log($"N3: clear displays failed - {ex.Message}");
+        }
+    }
+
+    public bool ClearDisplay(int keyIndex, bool commit = true)
+    {
+        if (!EnsureInitialized()) return false;
+        if (keyIndex < 0 || keyIndex >= DisplayKeyCount)
+        {
+            Logger.Log($"N3: clear display skipped because key index {keyIndex} is out of range");
+            return false;
+        }
+
+        try
+        {
+            WriteExtendedReport(0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x43, 0x4C, 0x45, 0x00, 0x00, 0x00, (byte)(keyIndex + 1));
+            if (commit)
+            {
+                CommitDisplayChanges();
+            }
+
+            Logger.Log($"N3: cleared display key {keyIndex + 1}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"N3: clear display {keyIndex + 1} failed - {ex.Message}");
+            return false;
+        }
+    }
+
+    public bool SendDisplayImage(int keyIndex, byte[] imageData, bool commit = true)
+    {
+        if (!EnsureInitialized()) return false;
+        if (keyIndex < 0 || keyIndex >= DisplayKeyCount)
+        {
+            Logger.Log($"N3: send display image skipped because key index {keyIndex} is out of range");
+            return false;
+        }
+
+        if (imageData == null || imageData.Length == 0)
+        {
+            Logger.Log($"N3: send display image skipped because key {keyIndex + 1} has no image data");
+            return false;
+        }
+
+        try
+        {
+            WriteExtendedReport(
+                0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x42, 0x41, 0x54, 0x00, 0x00,
+                (byte)(imageData.Length >> 8),
+                (byte)imageData.Length,
+                (byte)(keyIndex + 1));
+            WriteImageDataReports(imageData);
+
+            if (commit)
+            {
+                CommitDisplayChanges();
+            }
+
+            Logger.Log($"N3: sent image to display key {keyIndex + 1} ({imageData.Length} bytes)");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"N3: send display image {keyIndex + 1} failed - {ex.Message}");
+            return false;
+        }
+    }
+
+    public bool CommitDisplayChanges()
+    {
+        if (!EnsureInitialized()) return false;
+
+        try
+        {
+            WriteExtendedReport(0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x53, 0x54, 0x50);
+            Logger.Log("N3: display commit sent (CRT STP)");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"N3: display commit failed - {ex.Message}");
+            return false;
         }
     }
 
@@ -473,6 +557,27 @@ public sealed class N3Controller : IDisposable
         catch
         {
             // Keepalive is best-effort during bring-up.
+        }
+    }
+
+    private void WriteImageDataReports(ReadOnlySpan<byte> imageData)
+    {
+        int reportLength = Math.Max(OutputReportLength, DefaultPacketSize + 1);
+        int payloadLength = Math.Max(1, reportLength - 1);
+        int offset = 0;
+
+        while (offset < imageData.Length)
+        {
+            int chunkLength = Math.Min(payloadLength, imageData.Length - offset);
+            var report = new byte[reportLength];
+            imageData.Slice(offset, chunkLength).CopyTo(report.AsSpan(1, chunkLength));
+
+            lock (_streamLock)
+            {
+                _stream?.Write(report, 0, report.Length);
+            }
+
+            offset += chunkLength;
         }
     }
 
