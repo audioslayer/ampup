@@ -1922,6 +1922,10 @@ public partial class App : Application
         // Save current profile before switching so changes aren't lost
         ConfigManager.SaveProfile(_config, _config.ActiveProfile);
 
+        // Leaving a folder when profile changes keeps behavior predictable —
+        // different profile = different folder set.
+        _currentN3Folder = "";
+
         // Preserve global settings that shouldn't change per-profile
         var osd = _config.Osd;
         var serial = _config.Serial;

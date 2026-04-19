@@ -288,12 +288,18 @@ public partial class ButtonsView
             };
             card.MouseEnter += (_, _) =>
             {
-                if (_scSelectedButtonIdx != PagedDisplayKeyBase + localIdx)
+                if (InFolderContext && localIdx == 0) return;
+                int folderSlotOffset = InFolderContext ? -1 : 0;
+                int targetButtonIdx = PagedDisplayKeyBase + localIdx + folderSlotOffset;
+                if (_scSelectedButtonIdx != targetButtonIdx)
                     card.BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
             };
             card.MouseLeave += (_, _) =>
             {
-                if (_scSelectedButtonIdx != PagedDisplayKeyBase + localIdx)
+                if (InFolderContext && localIdx == 0) return;
+                int folderSlotOffset = InFolderContext ? -1 : 0;
+                int targetButtonIdx = PagedDisplayKeyBase + localIdx + folderSlotOffset;
+                if (_scSelectedButtonIdx != targetButtonIdx)
                     card.BorderBrush = FindBrush("CardBorderBrush");
             };
 
@@ -1277,6 +1283,12 @@ public partial class ButtonsView
         if (_config != null) _config.N3.CurrentPage = 0;
         _scSelectedButtonIdx = StreamControllerDisplayKeyBase;
         UpdateFolderBanner();
+
+        // Ensure the active folder has slot configs for the first page so the
+        // editor save flow has ButtonConfig/DisplayKeyConfig objects to mutate.
+        if (_config != null && InFolderContext)
+            EnsureStreamControllerPageConfigs(0);
+
         LoadStreamControllerConfig();
     }
 
@@ -1524,8 +1536,14 @@ public partial class ButtonsView
                 var backKey = App.BuildBackKeyDisplay();
                 _scDisplayImages[i].Source = StreamControllerDisplayRenderer.CreateHardwarePreview(backKey);
                 _scDisplayCaptions[i].Text = "Back (auto)";
+                _scDisplayCards[i].Opacity = 0.6;
+                _scDisplayCards[i].Cursor = Cursors.Arrow;
+                _scDisplayCards[i].ToolTip = "Automatic Back key — returns to root folder on press.";
                 continue;
             }
+            _scDisplayCards[i].Opacity = 1.0;
+            _scDisplayCards[i].Cursor = Cursors.Hand;
+            _scDisplayCards[i].ToolTip = null;
 
             int folderSlotOffset = InFolderContext ? -1 : 0;
             int globalIdx = _scCurrentPage * StreamControllerKeysPerPage + i + folderSlotOffset;
@@ -1582,20 +1600,9 @@ public partial class ButtonsView
         if (_scTogglePathABox != null) SetTextBoxValue(_scTogglePathABox, button.TogglePathA);
         if (_scTogglePathBBox != null) SetTextBoxValue(_scTogglePathBBox, button.TogglePathB);
 
-        // Load folder selection for open_folder action
-        if (_scFolderPicker != null && button.Action == "open_folder")
-        {
-            int foundIdx = -1;
-            for (int i = 0; i < _scFolderPicker.ItemCount; i++)
-            {
-                if (_scFolderPicker.GetTagAt(i) as string == button.FolderName)
-                {
-                    foundIdx = i;
-                    break;
-                }
-            }
-            _scFolderPicker.SelectedIndex = foundIdx;
-        }
+        // Folder picker selection happens after UpdateStreamControllerActionVisibility
+        // below, once RefreshFolderPickerItems has populated it.
+        string? pendingFolderName = button.Action == "open_folder" ? button.FolderName : null;
 
         if (selection.DisplayIdx.HasValue)
         {
@@ -1674,6 +1681,22 @@ public partial class ButtonsView
         }
 
         UpdateStreamControllerActionVisibility();
+
+        // Apply pending folder selection now that the picker is populated.
+        if (_scFolderPicker != null && pendingFolderName != null)
+        {
+            int foundIdx = -1;
+            for (int i = 0; i < _scFolderPicker.ItemCount; i++)
+            {
+                if (_scFolderPicker.GetTagAt(i) as string == pendingFolderName)
+                {
+                    foundIdx = i;
+                    break;
+                }
+            }
+            _scFolderPicker.SelectedIndex = foundIdx;
+        }
+
         RefreshStreamControllerSelectionVisuals();
     }
 
@@ -1830,9 +1853,12 @@ public partial class ButtonsView
         }
         if (!anyLive) return;
 
+        int folderSlotOffset = InFolderContext ? -1 : 0;
         for (int i = 0; i < 6; i++)
         {
-            int globalIdx = _scCurrentPage * StreamControllerKeysPerPage + i;
+            // Slot 0 is the static Back tile inside folders — skip the live redraw.
+            if (InFolderContext && i == 0) continue;
+            int globalIdx = _scCurrentPage * StreamControllerKeysPerPage + i + folderSlotOffset;
             var key = activeKeys.FirstOrDefault(k => k.Idx == globalIdx);
             if (key == null) continue;
             if (key.DisplayType == DisplayKeyType.Normal) continue;
