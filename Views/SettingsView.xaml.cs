@@ -86,7 +86,8 @@ public partial class SettingsView : UserControl
 
         SldN3IdleSleep.ValueChanged += (_, _) =>
         {
-            int secs = SnapN3IdleSeconds((int)Math.Round(SldN3IdleSleep.Value));
+            int idx = Math.Clamp((int)Math.Round(SldN3IdleSleep.Value), 0, N3IdleStops.Length - 1);
+            int secs = N3IdleStops[idx];
             TxtN3IdleSleepLabel.Text = $"Stream Controller Screen Sleep: {FormatN3IdleDuration(secs)}";
             if (!_loading && _config != null)
             {
@@ -199,10 +200,10 @@ public partial class SettingsView : UserControl
             _ => 0,
         };
         RefreshActiveSurfaceVisibility();
-        SldN3IdleSleep.Value = Math.Clamp(config.N3.IdleSleepSeconds, 0, 3600);
         {
-            int secs = SnapN3IdleSeconds((int)Math.Round(SldN3IdleSleep.Value));
-            TxtN3IdleSleepLabel.Text = $"Stream Controller Screen Sleep: {FormatN3IdleDuration(secs)}";
+            int idx = NearestN3IdleStopIndex(config.N3.IdleSleepSeconds);
+            SldN3IdleSleep.Value = idx;
+            TxtN3IdleSleepLabel.Text = $"Stream Controller Screen Sleep: {FormatN3IdleDuration(N3IdleStops[idx])}";
         }
         RefreshPortList(selectPort: config.Serial.Port);
         ChkStartWithWindows.IsChecked = config.StartWithWindows;
@@ -682,19 +683,20 @@ public partial class SettingsView : UserControl
     }
 
     /// <summary>
-    /// Snap a raw second value from the slider to a natural stop:
-    /// 0 (never), 5/10/15/30s, 1m/2m/5m/10m/15m/30m/60m. Lets users pick
-    /// short test durations (10s) but doesn't offer meaningless granularity.
+    /// Discrete time stops for the idle-sleep slider. The slider's value is
+    /// the index into this array — each stop gets equal slider real estate
+    /// so short durations aren't cramped against 0 like a linear 0..3600 range.
     /// </summary>
-    private static int SnapN3IdleSeconds(int raw)
+    private static readonly int[] N3IdleStops = { 0, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600 };
+
+    private static int NearestN3IdleStopIndex(int seconds)
     {
-        int[] stops = { 0, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600 };
-        int best = stops[0];
+        int best = 0;
         int bestDist = int.MaxValue;
-        foreach (var s in stops)
+        for (int i = 0; i < N3IdleStops.Length; i++)
         {
-            int d = Math.Abs(raw - s);
-            if (d < bestDist) { bestDist = d; best = s; }
+            int d = Math.Abs(seconds - N3IdleStops[i]);
+            if (d < bestDist) { bestDist = d; best = i; }
         }
         return best;
     }
