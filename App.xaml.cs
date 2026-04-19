@@ -1977,9 +1977,10 @@ public partial class App : Application
                 }
 
                 bool hasImage = !string.IsNullOrWhiteSpace(key.ImagePath) && File.Exists(key.ImagePath);
+                bool hasPreset = !string.IsNullOrWhiteSpace(key.PresetIconKind);
                 bool hasText = !string.IsNullOrWhiteSpace(key.Title) || !string.IsNullOrWhiteSpace(key.Subtitle);
 
-                if (!hasImage && !hasText)
+                if (!hasImage && !hasPreset && !hasText)
                 {
                     _n3.ClearDisplay(i, commit: false);
                     continue;

@@ -206,53 +206,42 @@ internal static class StreamControllerDisplayRenderer
 
         var accentGlow = new Border
         {
-            Width = size * 0.68,
-            Height = size * 0.68,
+            Width = size * 0.72,
+            Height = size * 0.72,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            CornerRadius = new CornerRadius(size * 0.34),
+            CornerRadius = new CornerRadius(size * 0.36),
             Background = new RadialGradientBrush(
-                System.Windows.Media.Color.FromArgb(0x50, accent.R, accent.G, accent.B),
+                System.Windows.Media.Color.FromArgb(0x64, accent.R, accent.G, accent.B),
                 System.Windows.Media.Color.FromArgb(0x00, accent.R, accent.G, accent.B))
         };
         root.Children.Add(accentGlow);
 
-        var frame = new Border
+        var surface = new Border
         {
-            Width = size * 0.82,
-            Height = size * 0.82,
+            Width = size * 0.76,
+            Height = size * 0.76,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            CornerRadius = new CornerRadius(size * 0.18),
-            BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x66, accent.R, accent.G, accent.B)),
-            BorderThickness = new Thickness(Math.Max(2, size * 0.014)),
+            CornerRadius = new CornerRadius(size * 0.16),
+            BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x42, accent.R, accent.G, accent.B)),
+            BorderThickness = new Thickness(Math.Max(2, size * 0.011)),
             Background = new System.Windows.Media.LinearGradientBrush(
-                System.Windows.Media.Color.FromArgb(0x26, 255, 255, 255),
-                System.Windows.Media.Color.FromArgb(0x08, 255, 255, 255),
+                System.Windows.Media.Color.FromArgb(0x16, 255, 255, 255),
+                System.Windows.Media.Color.FromArgb(0x04, 255, 255, 255),
                 90)
         };
-        root.Children.Add(frame);
-
-        root.Children.Add(new Border
-        {
-            Width = size * 0.82,
-            Height = size * 0.10,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(0, size * 0.09, 0, 0),
-            Background = new SolidColorBrush(accent),
-            CornerRadius = new CornerRadius(size * 0.12, size * 0.12, 0, 0)
-        });
+        root.Children.Add(surface);
 
         var icon = new MaterialIcon
         {
             Kind = presetKind,
-            Width = size * 0.42,
-            Height = size * 0.42,
+            Width = size * 0.34,
+            Height = size * 0.34,
             Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xF7, 0xF7, 0xF7)),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, size * (hasText ? -0.06 : -0.02), 0, 0)
+            Margin = new Thickness(0, size * (hasText ? -0.08 : 0), 0, 0)
         };
         root.Children.Add(icon);
 
