@@ -91,8 +91,9 @@ public class StreamControllerTile : Border
         switch (Kind)
         {
             case TileKind.LcdKey:
-                Height = 140;
-                MinWidth = 140;
+                // Square tile — matches the aspect of a real N3 LCD key.
+                Height = 160;
+                MinWidth = 160;
                 Padding = new Thickness(0);
                 Child = BuildLcdKeyContent();
                 break;
@@ -119,16 +120,13 @@ public class StreamControllerTile : Border
 
     private UIElement BuildLcdKeyContent()
     {
-        var root = new Grid();
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(2, GridUnitType.Star) });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-
-        // Preview area — rounded-top image or placeholder icon.
+        // LCD tile is just the hardware screen render — no caption. The
+        // tile's own rounded border + accent ring conveys selection.
         var previewHost = new Border
         {
-            CornerRadius = new CornerRadius(13, 13, 0, 0),
+            CornerRadius = new CornerRadius(13),
             ClipToBounds = true,
-            Margin = new Thickness(1, 1, 1, 0),
+            Margin = new Thickness(1),
         };
         previewHost.SetResourceReference(BackgroundProperty, "BgDarkBrush");
 
@@ -137,7 +135,7 @@ public class StreamControllerTile : Border
             previewHost.Child = new Image
             {
                 Source = PreviewImage,
-                Stretch = Stretch.UniformToFill,
+                Stretch = Stretch.Uniform,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 VerticalAlignment = VerticalAlignment.Stretch,
                 SnapsToDevicePixels = true,
@@ -146,50 +144,11 @@ public class StreamControllerTile : Border
         }
         else
         {
-            previewHost.Child = BuildPlaceholderIcon(36);
+            previewHost.Child = BuildPlaceholderIcon(40);
         }
 
-        Grid.SetRow(previewHost, 0);
+        var root = new Grid();
         root.Children.Add(previewHost);
-
-        // Caption area — title + subtitle.
-        var caption = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(8, 0, 8, 4),
-        };
-
-        var titleText = new TextBlock
-        {
-            Text = string.IsNullOrEmpty(Title) ? "—" : Title,
-            FontSize = 12,
-            FontWeight = FontWeights.SemiBold,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            TextAlignment = TextAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-        };
-        titleText.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
-        caption.Children.Add(titleText);
-
-        if (!string.IsNullOrEmpty(Subtitle))
-        {
-            var subText = new TextBlock
-            {
-                Text = Subtitle,
-                FontSize = 10,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                TextAlignment = TextAlignment.Center,
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                Margin = new Thickness(0, 2, 0, 0),
-            };
-            subText.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-            caption.Children.Add(subText);
-        }
-
-        Grid.SetRow(caption, 1);
-        root.Children.Add(caption);
 
         return root;
     }

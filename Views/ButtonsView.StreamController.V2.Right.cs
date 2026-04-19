@@ -83,15 +83,27 @@ public partial class ButtonsView
         _v2PreviewPanel.Children.Add(_v2PreviewCard);
 
         // ── 3. Common fields (LCD-only) ──────────────────────────────────
+        // Re-host the existing _sc* widgets so their handlers and state stay
+        // live. The legacy "Normal-only" visibility toggle can leave some
+        // inputs collapsed from an earlier Clock/Dynamic selection — force
+        // Visible here since V2 surfaces the Display Type picker separately.
         _v2CommonFieldsPanel = new StackPanel();
+
+        // DISPLAY TYPE (Normal / Clock / Dynamic) — key driver of layout.
+        if (_scDisplayTypePicker != null)
+        {
+            _v2CommonFieldsPanel.Children.Add(MakeEditorLabel("DISPLAY TYPE"));
+            DetachFromParent(_scDisplayTypePicker);
+            _scDisplayTypePicker.Margin = new Thickness(0, 0, 0, 10);
+            _scDisplayTypePicker.Visibility = Visibility.Visible;
+            _v2CommonFieldsPanel.Children.Add(_scDisplayTypePicker);
+        }
 
         // TITLE
         _v2CommonFieldsPanel.Children.Add(MakeEditorLabel("TITLE"));
-        if (_scTitleBox == null)
-        {
-            _scTitleBox = MakeEditorTextBox("Display title");
-        }
+        if (_scTitleBox == null) _scTitleBox = MakeEditorTextBox("Display title");
         DetachFromParent(_scTitleBox);
+        _scTitleBox.Visibility = Visibility.Visible;
         _v2CommonFieldsPanel.Children.Add(_scTitleBox);
 
         // ICON (field + Choose Icon button)
@@ -102,6 +114,7 @@ public partial class ButtonsView
             _scIconBox.IsReadOnly = true;
         }
         DetachFromParent(_scIconBox);
+        _scIconBox.Visibility = Visibility.Visible;
         _v2CommonFieldsPanel.Children.Add(_scIconBox);
 
         var chooseIconBtn = MakeEditorButton("Choose Icon", (_, _) => ChooseStreamControllerIcon());
@@ -112,10 +125,7 @@ public partial class ButtonsView
         _v2CommonFieldsPanel.Children.Add(MakeEditorLabel("TEXT POSITION"));
         if (_scTextPositionPicker == null)
         {
-            _scTextPositionPicker = new SegmentedControl
-            {
-                HorizontalAlignment = HorizontalAlignment.Left,
-            };
+            _scTextPositionPicker = new SegmentedControl { HorizontalAlignment = HorizontalAlignment.Left };
             _scTextPositionPicker.AddSegment("Top", DisplayTextPosition.Top);
             _scTextPositionPicker.AddSegment("Middle", DisplayTextPosition.Middle);
             _scTextPositionPicker.AddSegment("Bottom", DisplayTextPosition.Bottom);
@@ -127,17 +137,52 @@ public partial class ButtonsView
         }
         DetachFromParent(_scTextPositionPicker);
         _scTextPositionPicker.Margin = new Thickness(0, 0, 0, 10);
+        _scTextPositionPicker.Visibility = Visibility.Visible;
         _v2CommonFieldsPanel.Children.Add(_scTextPositionPicker);
+
+        // TEXT SIZE
+        if (_scTextSizeSlider != null)
+        {
+            if (_scTextSizeLabel == null)
+            {
+                _scTextSizeLabel = new TextBlock
+                {
+                    Text = "Font Size: 14",
+                    FontSize = 10,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = FindBrush("TextDimBrush"),
+                    Margin = new Thickness(0, 0, 0, 4),
+                };
+            }
+            DetachFromParent(_scTextSizeLabel);
+            _scTextSizeLabel.Visibility = Visibility.Visible;
+            _v2CommonFieldsPanel.Children.Add(_scTextSizeLabel);
+
+            DetachFromParent(_scTextSizeSlider);
+            _scTextSizeSlider.Margin = new Thickness(0, 0, 0, 10);
+            _scTextSizeSlider.Visibility = Visibility.Visible;
+            _v2CommonFieldsPanel.Children.Add(_scTextSizeSlider);
+        }
 
         // TEXT COLOR (palette swatches)
         _v2CommonFieldsPanel.Children.Add(MakeEditorLabel("TEXT COLOR"));
-        if (_scTextColorSwatchPanel == null)
-        {
-            _scTextColorSwatchPanel = new WrapPanel();
-        }
+        if (_scTextColorSwatchPanel == null) _scTextColorSwatchPanel = new WrapPanel();
         DetachFromParent(_scTextColorSwatchPanel);
         _scTextColorSwatchPanel.Margin = new Thickness(0, 0, 0, 10);
+        _scTextColorSwatchPanel.Visibility = Visibility.Visible;
         _v2CommonFieldsPanel.Children.Add(_scTextColorSwatchPanel);
+
+        // CLOCK FORMAT + DYNAMIC (re-host so user can configure Clock/Dynamic in V2)
+        if (_scClockPanel != null)
+        {
+            DetachFromParent(_scClockPanel);
+            _v2CommonFieldsPanel.Children.Add(_scClockPanel);
+        }
+        if (_scDynamicPanel != null)
+        {
+            DetachFromParent(_scDynamicPanel);
+            _v2CommonFieldsPanel.Children.Add(_scDynamicPanel);
+        }
 
         _v2PreviewPanel.Children.Add(_v2CommonFieldsPanel);
     }
@@ -191,7 +236,8 @@ public partial class ButtonsView
         };
 
         // Selection changed — persist to the selected button + refresh
-        // conditional sub-panels (owned by the other agent).
+        // conditional sub-panels so Multi-Action / Toggle / Folder / etc.
+        // show/hide for the new action.
         _v2ActionPicker.SelectionChanged += (_, _) =>
         {
             if (_loading || _config == null || _v2ActionPicker == null) return;
@@ -204,7 +250,8 @@ public partial class ButtonsView
             }
 
             QueueSave();
-            RefreshV2RightPanel();
+            RefreshV2ActionFieldsVisibility();
+            RefreshV2LeftPanel();
         };
 
         _v2ActionPanel.Children.Add(_v2ActionPicker);
@@ -298,6 +345,22 @@ public partial class ButtonsView
         bool isLcd = selection.DisplayIdx.HasValue;
         if (_v2CommonFieldsPanel != null)
             _v2CommonFieldsPanel.Visibility = isLcd ? Visibility.Visible : Visibility.Collapsed;
+
+        // Legacy UpdateDisplayTypeVisibility may have collapsed the Normal-only
+        // rows based on the key's DisplayType. In V2 we surface the Display
+        // Type picker separately and always want the editable rows visible
+        // regardless of Normal/Clock/Dynamic — the preview itself renders
+        // the current effect, the editor keeps them available for tweaking.
+        if (isLcd)
+        {
+            if (_scTitleBox != null) _scTitleBox.Visibility = Visibility.Visible;
+            if (_scIconBox != null) _scIconBox.Visibility = Visibility.Visible;
+            if (_scTextPositionPicker != null) _scTextPositionPicker.Visibility = Visibility.Visible;
+            if (_scTextSizeSlider != null) _scTextSizeSlider.Visibility = Visibility.Visible;
+            if (_scTextSizeLabel != null) _scTextSizeLabel.Visibility = Visibility.Visible;
+            if (_scTextColorSwatchPanel != null) _scTextColorSwatchPanel.Visibility = Visibility.Visible;
+            if (_scDisplayTypePicker != null) _scDisplayTypePicker.Visibility = Visibility.Visible;
+        }
 
         // ── Preview ─────────────────────────────────────────────────────
         if (isLcd)
