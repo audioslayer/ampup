@@ -12,6 +12,7 @@ using DrawingPen = System.Drawing.Pen;
 using DrawingRectangleF = System.Drawing.RectangleF;
 using DrawingStringAlignment = System.Drawing.StringAlignment;
 using DrawingStringFormat = System.Drawing.StringFormat;
+using DrawingLinearGradientBrush = System.Drawing.Drawing2D.LinearGradientBrush;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Drawing.Text;
@@ -20,9 +21,11 @@ namespace AmpUp;
 
 internal static class StreamControllerDisplayRenderer
 {
-    public static BitmapSource CreatePreview(StreamControllerDisplayKeyConfig key)
+    internal readonly record struct StreamControllerEffectFrame(int Tick, float[]? AudioBands);
+
+    public static BitmapSource CreatePreview(StreamControllerDisplayKeyConfig key, N3Config? n3 = null, StreamControllerEffectFrame? frame = null)
     {
-        using var bitmap = ComposeImage(key);
+        using var bitmap = ComposeImage(key, n3, frame);
         using var stream = new MemoryStream();
         bitmap.Save(stream, ImageFormat.Png);
         stream.Position = 0;
@@ -36,9 +39,9 @@ internal static class StreamControllerDisplayRenderer
         return image;
     }
 
-    public static byte[] CreateDeviceJpeg(StreamControllerDisplayKeyConfig key)
+    public static byte[] CreateDeviceJpeg(StreamControllerDisplayKeyConfig key, N3Config? n3 = null, StreamControllerEffectFrame? frame = null)
     {
-        using var bitmap = ComposeImage(key);
+        using var bitmap = ComposeImage(key, n3, frame);
         return EncodeForDevice(bitmap);
     }
 
@@ -62,7 +65,7 @@ internal static class StreamControllerDisplayRenderer
         return EncodeForDevice(canvas);
     }
 
-    private static DrawingBitmap ComposeImage(StreamControllerDisplayKeyConfig key)
+    private static DrawingBitmap ComposeImage(StreamControllerDisplayKeyConfig key, N3Config? n3, StreamControllerEffectFrame? frame)
     {
         if (!string.IsNullOrWhiteSpace(key.ImagePath) && File.Exists(key.ImagePath))
         {
@@ -80,6 +83,7 @@ internal static class StreamControllerDisplayRenderer
             float x = (60f - drawWidth) / 2f;
             float y = (60f - drawHeight) / 2f;
             graphics.DrawImage(source, x, y, drawWidth, drawHeight);
+            ApplyEffectOverlay(loaded, n3, frame);
             return loaded;
         }
 
@@ -120,7 +124,99 @@ internal static class StreamControllerDisplayRenderer
             graphicsCard.DrawString(subtitle, subFont, whiteBrush, new DrawingRectangleF(4, 44, 52, 10), center);
         }
 
+        ApplyEffectOverlay(bitmap, n3, frame);
+
         return bitmap;
+    }
+
+    private static void ApplyEffectOverlay(DrawingBitmap bitmap, N3Config? n3, StreamControllerEffectFrame? frame)
+    {
+        if (n3 == null || !n3.ScreensaverEnabled)
+            return;
+
+        int opacity = Math.Clamp(n3.ScreensaverOpacity, 0, 100);
+        if (opacity <= 0)
+            return;
+
+        int tick = frame?.Tick ?? Environment.TickCount;
+        var audioBands = frame?.AudioBands ?? Array.Empty<float>();
+
+        using var graphics = DrawingGraphics.FromImage(bitmap);
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+        graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+        switch (n3.ScreensaverEffect)
+        {
+            case StreamControllerScreensaverEffect.Fire:
+                DrawFireOverlay(graphics, tick, opacity, n3.ScreensaverSpeed);
+                break;
+            case StreamControllerScreensaverEffect.MusicBounce:
+                DrawMusicBounceOverlay(graphics, tick, opacity, n3.ScreensaverSpeed, audioBands);
+                break;
+            default:
+                DrawRainbowOverlay(graphics, tick, opacity, n3.ScreensaverSpeed);
+                break;
+        }
+    }
+
+    private static void DrawRainbowOverlay(DrawingGraphics graphics, int tick, int opacity, int speed)
+    {
+        float shift = (tick / 1000f) * (0.7f + (speed / 70f));
+        for (int i = -1; i < 5; i++)
+        {
+            float start = i * 18f + ((shift * 18f) % 18f);
+            var c1 = FromHsv((i * 68 + tick / 18) % 360, 0.82, 1.0, opacity / 100f * 0.75f);
+            var c2 = FromHsv((i * 68 + 48 + tick / 18) % 360, 0.9, 1.0, opacity / 100f * 0.15f);
+            using var brush = new DrawingLinearGradientBrush(
+                new System.Drawing.PointF(start, 0),
+                new System.Drawing.PointF(start + 18, 60),
+                c1,
+                c2);
+            graphics.FillRectangle(brush, start, 0, 18, 60);
+        }
+    }
+
+    private static void DrawFireOverlay(DrawingGraphics graphics, int tick, int opacity, int speed)
+    {
+        float alpha = opacity / 100f;
+        for (int x = 0; x < 60; x += 6)
+        {
+            double wave = (Math.Sin((tick / (120.0 - speed)) + x * 0.35) + 1.0) * 0.5;
+            double wave2 = (Math.Sin((tick / (85.0 - speed * 0.5)) + x * 0.18 + 1.5) + 1.0) * 0.5;
+            float height = 16f + (float)((wave * 18f) + (wave2 * 10f));
+            int y = (int)(60 - height);
+
+            using var glow = new DrawingLinearGradientBrush(
+                new System.Drawing.PointF(x, 60),
+                new System.Drawing.PointF(x, y),
+                DrawingColor.FromArgb((int)(160 * alpha), 255, 210, 70),
+                DrawingColor.FromArgb(0, 255, 80, 20));
+            graphics.FillEllipse(glow, x - 4, y - 8, 14, height + 12);
+
+            using var coreBrush = new DrawingBrush(DrawingColor.FromArgb((int)(110 * alpha), 255, 120, 20));
+            graphics.FillRectangle(coreBrush, x, y + 8, 6, height - 6);
+        }
+    }
+
+    private static void DrawMusicBounceOverlay(DrawingGraphics graphics, int tick, int opacity, int speed, float[] audioBands)
+    {
+        float alpha = opacity / 100f;
+        float[] bands = audioBands.Length >= 5 ? audioBands : new float[] { 0.1f, 0.2f, 0.15f, 0.1f, 0.08f };
+        int[] bandMap = { 0, 1, 2, 3, 4, 3 };
+        for (int i = 0; i < 6; i++)
+        {
+            float band = bands[bandMap[i]];
+            float pulse = 0.4f + 0.6f * band;
+            float bob = (float)Math.Sin((tick / (140.0 - speed)) + i * 0.9) * 4f;
+            float height = 12f + band * 32f;
+            float x = 4 + i * 9;
+            float y = 44 - height - bob;
+            var color = FromHsv((120 + i * 22 + tick / 25) % 360, 0.7, 1.0, alpha * (0.35f + pulse * 0.45f));
+            using var brush = new DrawingBrush(color);
+            using var path = CreateRoundedRectPath(x, y, 6, height, 3);
+            graphics.FillPath(brush, path);
+        }
     }
 
     private static byte[] EncodeForDevice(DrawingImage image)
@@ -146,5 +242,36 @@ internal static class StreamControllerDisplayRenderer
         {
             return fallback;
         }
+    }
+
+    private static DrawingColor FromHsv(int hue, double saturation, double value, float alpha = 1f)
+    {
+        double c = value * saturation;
+        double x = c * (1 - Math.Abs((hue / 60d % 2) - 1));
+        double m = value - c;
+        double r, g, b;
+        if (hue < 60) (r, g, b) = (c, x, 0);
+        else if (hue < 120) (r, g, b) = (x, c, 0);
+        else if (hue < 180) (r, g, b) = (0, c, x);
+        else if (hue < 240) (r, g, b) = (0, x, c);
+        else if (hue < 300) (r, g, b) = (x, 0, c);
+        else (r, g, b) = (c, 0, x);
+        return DrawingColor.FromArgb(
+            (int)(Math.Clamp(alpha, 0f, 1f) * 255),
+            (int)((r + m) * 255),
+            (int)((g + m) * 255),
+            (int)((b + m) * 255));
+    }
+
+    private static GraphicsPath CreateRoundedRectPath(float x, float y, float width, float height, float radius)
+    {
+        float diameter = radius * 2;
+        var path = new GraphicsPath();
+        path.AddArc(x, y, diameter, diameter, 180, 90);
+        path.AddArc(x + width - diameter, y, diameter, diameter, 270, 90);
+        path.AddArc(x + width - diameter, y + height - diameter, diameter, diameter, 0, 90);
+        path.AddArc(x, y + height - diameter, diameter, diameter, 90, 90);
+        path.CloseFigure();
+        return path;
     }
 }

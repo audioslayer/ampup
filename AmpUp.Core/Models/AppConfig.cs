@@ -240,6 +240,11 @@ public class N3Config
     public List<ButtonConfig> Buttons { get; set; } = new();
     public List<StreamControllerDisplayKeyConfig> DisplayKeys { get; set; } = new();
     public int DisplayBrightness { get; set; } = 100;
+    public bool ScreensaverEnabled { get; set; } = false;
+    [JsonConverter(typeof(StringEnumConverter))]
+    public StreamControllerScreensaverEffect ScreensaverEffect { get; set; } = StreamControllerScreensaverEffect.Rainbow;
+    public int ScreensaverOpacity { get; set; } = 55;
+    public int ScreensaverSpeed { get; set; } = 50;
 }
 
 public class HardwareTabSelection
@@ -275,6 +280,13 @@ public enum DeviceSurface
     TurnUp,
     StreamController,
     Both,
+}
+
+public enum StreamControllerScreensaverEffect
+{
+    Rainbow,
+    Fire,
+    MusicBounce,
 }
 
 public enum ReactiveMode
