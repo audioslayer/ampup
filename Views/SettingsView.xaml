@@ -68,6 +68,16 @@
                                                        HorizontalAlignment="Left"
                                                        MinWidth="360" />
                         </StackPanel>
+
+                        <StackPanel Margin="0,4,0,10">
+                            <TextBlock x:Name="TxtN3IdleSleepLabel" Text="Stream Controller Screen Sleep: 10 minutes"
+                                       Style="{StaticResource SecondaryText}" Margin="0,0,0,6"
+                                       ToolTip="Blank the N3 LCD screens after this many minutes of no keyboard/mouse activity. Drag to 0 to keep them lit." />
+                            <controls:StyledSlider x:Name="SldN3IdleSleep"
+                                                   Minimum="0" Maximum="60"
+                                                   Width="360"
+                                                   HorizontalAlignment="Left" />
+                        </StackPanel>
                         <TextBlock Text="Device Port" Style="{StaticResource SecondaryText}" Margin="0,0,0,6"
                                    ToolTip="Select the COM port for your AmpUp hardware" />
                         <StackPanel Orientation="Horizontal">

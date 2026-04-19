@@ -4,6 +4,26 @@ namespace AmpUp;
 
 internal static class NativeMethods
 {
+    // user32.dll — GetLastInputInfo for system-wide keyboard/mouse idle detection.
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct LASTINPUTINFO
+    {
+        public uint cbSize;
+        public uint dwTime;
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+
+    /// <summary>Returns milliseconds since the last keyboard/mouse input at the system level.</summary>
+    internal static uint GetIdleMilliseconds()
+    {
+        var info = new LASTINPUTINFO { cbSize = (uint)Marshal.SizeOf<LASTINPUTINFO>() };
+        if (!GetLastInputInfo(ref info)) return 0;
+        return (uint)Environment.TickCount - info.dwTime;
+    }
+
     // dwmapi.dll — DWM window attributes (border color, corner preference)
     [DllImport("dwmapi.dll", PreserveSig = true)]
     internal static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);

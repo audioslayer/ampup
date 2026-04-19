@@ -279,6 +279,11 @@ public class N3Config
     public List<ButtonConfig> Buttons { get; set; } = new();
     public List<StreamControllerDisplayKeyConfig> DisplayKeys { get; set; } = new();
     public int DisplayBrightness { get; set; } = 100;
+    /// <summary>
+    /// Blank the N3 LCD screens after this many minutes of no keyboard/mouse
+    /// input. 0 = never sleep. Any input wakes the screens back up.
+    /// </summary>
+    public int IdleSleepMinutes { get; set; } = 10;
     public int CurrentPage { get; set; } = 0;
     public int PageCount { get; set; } = 1;
     /// <summary>Named folders for `open_folder` action — each holds its own keys/buttons/pages.</summary>

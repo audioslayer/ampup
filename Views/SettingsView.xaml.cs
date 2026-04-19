@@ -83,6 +83,19 @@ public partial class SettingsView : UserControl
         SegActiveSurface.AddSegment("Stream Controller", DeviceSurface.StreamController);
         SegActiveSurface.AddSegment("Both", DeviceSurface.Both);
         SegActiveSurface.SelectionChanged += OnActiveSurfaceChanged;
+
+        SldN3IdleSleep.ValueChanged += (_, _) =>
+        {
+            int mins = (int)Math.Round(SldN3IdleSleep.Value);
+            TxtN3IdleSleepLabel.Text = mins == 0
+                ? "Stream Controller Screen Sleep: Never"
+                : $"Stream Controller Screen Sleep: {mins} minute{(mins == 1 ? "" : "s")}";
+            if (!_loading && _config != null)
+            {
+                _config.N3.IdleSleepMinutes = mins;
+                OnValueChanged(null, EventArgs.Empty);
+            }
+        };
         CmbSerialPort.SelectionChanged += OnPortComboSelectionChanged;
         BtnRefreshPorts.Click += (_, _) => RefreshPortList();
         BtnAutoDetect.Click += OnAutoDetect;
@@ -187,6 +200,13 @@ public partial class SettingsView : UserControl
             _ => 0,
         };
         RefreshActiveSurfaceVisibility();
+        SldN3IdleSleep.Value = Math.Clamp(config.N3.IdleSleepMinutes, 0, 60);
+        {
+            int mins = (int)Math.Round(SldN3IdleSleep.Value);
+            TxtN3IdleSleepLabel.Text = mins == 0
+                ? "Stream Controller Screen Sleep: Never"
+                : $"Stream Controller Screen Sleep: {mins} minute{(mins == 1 ? "" : "s")}";
+        }
         RefreshPortList(selectPort: config.Serial.Port);
         ChkStartWithWindows.IsChecked = config.StartWithWindows;
         ChkAutoSuggestLayout.IsChecked = config.AutoSuggestLayout;

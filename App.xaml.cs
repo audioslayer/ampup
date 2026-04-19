@@ -2037,11 +2037,46 @@ public partial class App : Application
         _streamControllerRefreshTimer.Start();
     }
 
+    // True once the N3 brightness was dropped to 0 by the idle-sleep code.
+    // Used so we only restore brightness on wake, not on every tick.
+    private bool _n3AsleepFromIdle;
+
     private void OnStreamControllerRefreshTick()
     {
         try
         {
-            if (_config?.N3?.DisplayKeys == null) return;
+            if (_config == null) return;
+
+            // ── N3 idle sleep ─────────────────────────────────────────────
+            if (_n3 != null && _isN3Connected)
+            {
+                int thresholdMin = Math.Max(0, _config.N3.IdleSleepMinutes);
+                if (thresholdMin > 0)
+                {
+                    uint idleMs = NativeMethods.GetIdleMilliseconds();
+                    bool shouldSleep = idleMs >= (uint)thresholdMin * 60_000u;
+                    if (shouldSleep && !_n3AsleepFromIdle)
+                    {
+                        _n3.SetBrightness(0);
+                        _n3AsleepFromIdle = true;
+                    }
+                    else if (!shouldSleep && _n3AsleepFromIdle)
+                    {
+                        _n3.SetBrightness((byte)Math.Clamp(_config.N3.DisplayBrightness, 0, 100));
+                        SyncStreamControllerDisplays();
+                        _n3AsleepFromIdle = false;
+                    }
+                }
+                else if (_n3AsleepFromIdle)
+                {
+                    // Feature disabled while asleep — wake up.
+                    _n3.SetBrightness((byte)Math.Clamp(_config.N3.DisplayBrightness, 0, 100));
+                    SyncStreamControllerDisplays();
+                    _n3AsleepFromIdle = false;
+                }
+            }
+
+            if (_config.N3?.DisplayKeys == null) return;
 
             bool hasDynamic = false;
             bool hasClock = false;
