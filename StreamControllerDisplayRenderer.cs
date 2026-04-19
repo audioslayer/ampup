@@ -75,8 +75,7 @@ internal static class StreamControllerDisplayRenderer
     private static DrawingBitmap ComposeImage(StreamControllerDisplayKeyConfig key)
     {
         string title = key.Title?.Trim() ?? "";
-        string subtitle = key.Subtitle?.Trim() ?? "";
-        bool hasText = !string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(subtitle);
+        bool hasText = !string.IsNullOrWhiteSpace(title);
 
         DrawingBitmap bitmap;
 
@@ -87,7 +86,7 @@ internal static class StreamControllerDisplayRenderer
         }
         else if (TryParseMaterialIconKind(key.PresetIconKind, out var presetKind))
         {
-            bitmap = RenderPresetIconCanvas(key, presetKind, RenderCanvasSize, title, subtitle);
+            bitmap = RenderPresetIconCanvas(key, presetKind, RenderCanvasSize, title);
         }
         else
         {
@@ -99,7 +98,7 @@ internal static class StreamControllerDisplayRenderer
 
         // Draw text overlay on all key types
         if (hasText && key.TextPosition != DisplayTextPosition.Hidden)
-            DrawTextOverlay(bitmap, key, RenderCanvasSize, title, subtitle);
+            DrawTextOverlay(bitmap, key, RenderCanvasSize, title);
 
         return bitmap;
     }
@@ -140,11 +139,9 @@ internal static class StreamControllerDisplayRenderer
         StreamControllerDisplayKeyConfig key,
         MaterialIconKind presetKind,
         int size,
-        string title,
-        string subtitle)
+        string title)
     {
-        bool hasText = !string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(subtitle);
-        bool showText = hasText && key.TextPosition != DisplayTextPosition.Hidden;
+        bool showText = !string.IsNullOrWhiteSpace(title) && key.TextPosition != DisplayTextPosition.Hidden;
         var accent = TryParseMediaColor(key.AccentColor, System.Windows.Media.Color.FromRgb(0x00, 0xE6, 0x76));
         var bg = TryParseMediaColor(key.BackgroundColor, System.Windows.Media.Color.FromRgb(0x12, 0x12, 0x12));
         var bg2 = System.Windows.Media.Color.FromRgb(
@@ -214,7 +211,7 @@ internal static class StreamControllerDisplayRenderer
         return RenderElementToDrawingBitmap(root, size, size);
     }
 
-    private static void DrawTextOverlay(DrawingBitmap bitmap, StreamControllerDisplayKeyConfig key, int size, string title, string subtitle)
+    private static void DrawTextOverlay(DrawingBitmap bitmap, StreamControllerDisplayKeyConfig key, int size, string title)
     {
         using var graphics = DrawingGraphics.FromImage(bitmap);
         ConfigureGraphics(graphics);
@@ -224,9 +221,7 @@ internal static class StreamControllerDisplayRenderer
         float baseFontSize = Math.Clamp(key.TextSize, 6, 28);
 
         using var titleFont = new DrawingFont("Segoe UI", baseFontSize * scale, System.Drawing.FontStyle.Bold, DrawingGraphicsUnit.Pixel);
-        using var subFont = new DrawingFont("Segoe UI", (baseFontSize - 3) * scale, System.Drawing.FontStyle.Regular, DrawingGraphicsUnit.Pixel);
         using var textBrush = new DrawingBrush(textColor);
-        using var subBrush = new DrawingBrush(DrawingColor.FromArgb((int)(textColor.A * 0.75), textColor.R, textColor.G, textColor.B));
 
         var format = new DrawingStringFormat
         {
@@ -236,11 +231,8 @@ internal static class StreamControllerDisplayRenderer
             FormatFlags = System.Drawing.StringFormatFlags.NoWrap
         };
 
-        bool hasTitle = !string.IsNullOrWhiteSpace(title);
-        bool hasSub = !string.IsNullOrWhiteSpace(subtitle);
-        float titleH = hasTitle ? graphics.MeasureString(title, titleFont).Height : 0;
-        float subH = hasSub ? graphics.MeasureString(subtitle, subFont).Height : 0;
-        float totalH = titleH + subH + (hasTitle && hasSub ? 1f * scale : 0);
+        float titleH = graphics.MeasureString(title, titleFont).Height;
+        float totalH = titleH;
         float pad = 4f * scale;
 
         float textY;
@@ -284,16 +276,7 @@ internal static class StreamControllerDisplayRenderer
                 break;
         }
 
-        float curY = textY;
-        if (hasTitle)
-        {
-            graphics.DrawString(title, titleFont, textBrush, new DrawingRectangleF(2 * scale, curY, (size - 4 * scale), titleH), format);
-            curY += titleH + 1f * scale;
-        }
-        if (hasSub)
-        {
-            graphics.DrawString(subtitle, subFont, subBrush, new DrawingRectangleF(2 * scale, curY, (size - 4 * scale), subH), format);
-        }
+        graphics.DrawString(title, titleFont, textBrush, new DrawingRectangleF(2 * scale, textY, (size - 4 * scale), titleH), format);
     }
 
     private static byte[] EncodeForDevice(DrawingImage image)

@@ -32,11 +32,10 @@ public partial class ButtonsView
     private TextBlock? _scEditorTitle;
     private Image? _scEditorPreview;
     private TextBox? _scTitleBox;
-    private TextBox? _scSubtitleBox;
     private SegmentedControl? _scTextPositionPicker;
     private StyledSlider? _scTextSizeSlider;
     private TextBlock? _scTextSizeLabel;
-    private TextBox? _scTextColorBox;
+    private Border? _scTextColorSwatch;
     private TextBox? _scImagePathBox;
     private Button? _scBrowseImageButton;
     private Button? _scClearImageButton;
@@ -368,8 +367,6 @@ public partial class ButtonsView
 
         _scTitleBox = MakeEditorTextBox("Display title");
         _scTitleBox.TextChanged += (_, _) => { if (!_loading) { UpdateEditorPreviewOnly(); QueueSave(); } };
-        _scSubtitleBox = MakeEditorTextBox("Display subtitle");
-        _scSubtitleBox.TextChanged += (_, _) => { if (!_loading) { UpdateEditorPreviewOnly(); QueueSave(); } };
         _scImagePathBox = MakeEditorTextBox("No image selected");
         _scImagePathBox.IsReadOnly = true;
         _scBrowseImageButton = MakeEditorButton("Browse Image", (_, _) => BrowseStreamControllerImage());
@@ -397,9 +394,6 @@ public partial class ButtonsView
 
         _scDisplayTabContent.Children.Add(MakeEditorLabel("TITLE"));
         _scDisplayTabContent.Children.Add(_scTitleBox);
-        _scDisplayTabContent.Children.Add(MakeEditorLabel("SUBTITLE"));
-        _scDisplayTabContent.Children.Add(_scSubtitleBox);
-
         // Text position picker
         _scDisplayTabContent.Children.Add(MakeEditorLabel("TEXT POSITION"));
         _scTextPositionPicker = new SegmentedControl
@@ -444,10 +438,25 @@ public partial class ButtonsView
 
         // Text color
         _scDisplayTabContent.Children.Add(MakeEditorLabel("TEXT COLOR"));
-        _scTextColorBox = MakeEditorTextBox("#FFFFFF");
-        _scTextColorBox.MaxLength = 7;
-        _scTextColorBox.TextChanged += (_, _) => { if (!_loading) { UpdateEditorPreviewOnly(); QueueSave(); } };
-        _scDisplayTabContent.Children.Add(_scTextColorBox);
+        var textColorRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+        _scTextColorSwatch = new Border
+        {
+            Width = 32,
+            Height = 32,
+            CornerRadius = new CornerRadius(6),
+            Background = Brushes.White,
+            BorderBrush = FindBrush("CardBorderBrush"),
+            BorderThickness = new Thickness(1),
+            Cursor = Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        _scTextColorSwatch.MouseLeftButtonUp += (_, _) => OpenTextColorPicker();
+        textColorRow.Children.Add(_scTextColorSwatch);
+        var pickColorBtn = MakeEditorButton("Change Color", (_, _) => OpenTextColorPicker());
+        pickColorBtn.Margin = new Thickness(8, 0, 0, 0);
+        pickColorBtn.VerticalAlignment = VerticalAlignment.Center;
+        textColorRow.Children.Add(pickColorBtn);
+        _scDisplayTabContent.Children.Add(textColorRow);
 
         _scDisplayTabContent.Children.Add(MakeEditorLabel("IMAGE"));
         _scDisplayTabContent.Children.Add(_scImagePathBox);
@@ -921,7 +930,7 @@ public partial class ButtonsView
     private void LoadStreamControllerSelection()
     {
         if (_config == null || _scActionPicker == null || _scPathBox == null || _scMacroBox == null || _scDevicePicker == null || _scKnobPicker == null
-            || _scEditorTitle == null || _scEditorPreview == null || _scTitleBox == null || _scSubtitleBox == null || _scImagePathBox == null || _scPresetIconBox == null)
+            || _scEditorTitle == null || _scEditorPreview == null || _scTitleBox == null || _scImagePathBox == null || _scPresetIconBox == null)
             return;
 
         var button = _config.N3.Buttons.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx) ?? new ButtonConfig { Idx = _scSelectedButtonIdx };
@@ -943,7 +952,6 @@ public partial class ButtonsView
         {
             var key = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == selection.DisplayIdx.Value) ?? new StreamControllerDisplayKeyConfig { Idx = selection.DisplayIdx.Value };
             _scTitleBox.Text = key.Title;
-            _scSubtitleBox.Text = key.Subtitle;
             _scImagePathBox.Text = string.IsNullOrWhiteSpace(key.ImagePath) ? "No image selected" : key.ImagePath;
             _scPresetIconBox.Text = string.IsNullOrWhiteSpace(key.PresetIconKind) ? "No preset icon selected" : key.PresetIconKind;
             if (_scTextPositionPicker != null)
@@ -959,7 +967,11 @@ public partial class ButtonsView
             }
             if (_scTextSizeSlider != null) _scTextSizeSlider.Value = Math.Clamp(key.TextSize, 6, 28);
             if (_scTextSizeLabel != null) _scTextSizeLabel.Text = $"Font Size: {Math.Clamp(key.TextSize, 6, 28)}";
-            if (_scTextColorBox != null) _scTextColorBox.Text = string.IsNullOrWhiteSpace(key.TextColor) ? "#FFFFFF" : key.TextColor;
+            if (_scTextColorSwatch != null)
+            {
+                try { _scTextColorSwatch.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(key.TextColor ?? "#FFFFFF")); }
+                catch { _scTextColorSwatch.Background = Brushes.White; }
+            }
             _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateHardwarePreview(key);
             _scDisplayDesignPanel!.Visibility = Visibility.Visible;
 
@@ -971,7 +983,6 @@ public partial class ButtonsView
         else
         {
             _scTitleBox.Text = "";
-            _scSubtitleBox.Text = "";
             _scImagePathBox.Text = "";
             _scPresetIconBox.Text = "";
             _scEditorPreview.Source = null;
@@ -1033,17 +1044,14 @@ public partial class ButtonsView
         button.LinkedKnobIdx = int.TryParse(_scKnobPicker.SelectedTag as string, out var linked) ? linked : -1;
 
         var display = GetSelectedDisplayKeyConfig();
-        if (display != null && _scTitleBox != null && _scSubtitleBox != null)
+        if (display != null && _scTitleBox != null)
         {
             display.Title = _scTitleBox.Text.Trim();
-            display.Subtitle = _scSubtitleBox.Text.Trim();
             if (_scTextPositionPicker?.SelectedTag is DisplayTextPosition textPos)
                 display.TextPosition = textPos;
             if (_scTextSizeSlider != null)
                 display.TextSize = (int)Math.Round(_scTextSizeSlider.Value);
-            if (_scTextColorBox != null && !string.IsNullOrWhiteSpace(_scTextColorBox.Text))
-                display.TextColor = _scTextColorBox.Text.Trim();
-        }
+            }
 
         LoadStreamControllerConfig();
     }
@@ -1080,16 +1088,13 @@ public partial class ButtonsView
     private void UpdateEditorPreviewOnly()
     {
         var display = GetSelectedDisplayKeyConfig();
-        if (display == null || _scEditorPreview == null || _scTitleBox == null || _scSubtitleBox == null) return;
+        if (display == null || _scEditorPreview == null || _scTitleBox == null) return;
 
         display.Title = _scTitleBox.Text.Trim();
-        display.Subtitle = _scSubtitleBox.Text.Trim();
         if (_scTextPositionPicker?.SelectedTag is DisplayTextPosition pos)
             display.TextPosition = pos;
         if (_scTextSizeSlider != null)
             display.TextSize = (int)Math.Round(_scTextSizeSlider.Value);
-        if (_scTextColorBox != null && !string.IsNullOrWhiteSpace(_scTextColorBox.Text))
-            display.TextColor = _scTextColorBox.Text.Trim();
         _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateHardwarePreview(display);
 
         int localIdx = display.Idx - (_scCurrentPage * StreamControllerKeysPerPage);
@@ -1140,6 +1145,29 @@ public partial class ButtonsView
         return Actions.FirstOrDefault(a => a.Value == action).Display ?? action;
     }
 
+    private void OpenTextColorPicker()
+    {
+        if (_config == null) return;
+        var display = GetSelectedDisplayKeyConfig();
+        if (display == null) return;
+
+        var currentHex = string.IsNullOrWhiteSpace(display.TextColor) ? "#FFFFFF" : display.TextColor;
+        Color current;
+        try { current = (Color)ColorConverter.ConvertFromString(currentHex); }
+        catch { current = Colors.White; }
+
+        var dialog = new ColorPickerDialog(current) { Owner = Window.GetWindow(this) };
+        dialog.ColorChanged += c =>
+        {
+            display.TextColor = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+            if (_scTextColorSwatch != null)
+                _scTextColorSwatch.Background = new SolidColorBrush(c);
+            UpdateEditorPreviewOnly();
+        };
+        dialog.ShowDialog();
+        QueueSave();
+    }
+
     // ── Context menu ─────────────────────────────────────────────────────
 
     private void ShowKeyContextMenu(Border card, int globalIdx)
@@ -1163,7 +1191,7 @@ public partial class ButtonsView
             _scClipboardKey = srcKey == null ? null : new StreamControllerDisplayKeyConfig
             {
                 ImagePath = srcKey.ImagePath, PresetIconKind = srcKey.PresetIconKind,
-                Title = srcKey.Title, Subtitle = srcKey.Subtitle,
+                Title = srcKey.Title,
                 BackgroundColor = srcKey.BackgroundColor, AccentColor = srcKey.AccentColor,
                 TextPosition = srcKey.TextPosition, TextSize = srcKey.TextSize, TextColor = srcKey.TextColor,
             };
@@ -1186,7 +1214,6 @@ public partial class ButtonsView
                 target.ImagePath = _scClipboardKey.ImagePath;
                 target.PresetIconKind = _scClipboardKey.PresetIconKind;
                 target.Title = _scClipboardKey.Title;
-                target.Subtitle = _scClipboardKey.Subtitle;
                 target.BackgroundColor = _scClipboardKey.BackgroundColor;
                 target.AccentColor = _scClipboardKey.AccentColor;
                 target.TextPosition = _scClipboardKey.TextPosition;
@@ -1227,7 +1254,6 @@ public partial class ButtonsView
             key.ImagePath = "";
             key.PresetIconKind = "";
             key.Title = "";
-            key.Subtitle = "";
             key.BackgroundColor = "#1C1C1C";
             key.AccentColor = "#00E676";
             key.TextPosition = DisplayTextPosition.Bottom;
