@@ -37,6 +37,12 @@ public partial class ButtonsView
     private Border? _v2PreviewCard;
     private StackPanel? _v2PreviewRow;
 
+    // Inline-editable header that mirrors the Mixer tab's channel label:
+    // always-editable TextBox with transparent chrome until focus reveals an
+    // accent underline. On blur the rename is persisted back to the selected
+    // key/button config.
+    private TextBox? _v2HeaderBox;
+
     // Cache key for the action picker item set. Repopulate only when any
     // integration-enabled flag flips — otherwise every RefreshV2RightPanel
     // (fired per config save, debounced 300 ms) would churn 40+ AddItem
@@ -51,18 +57,47 @@ public partial class ButtonsView
         // ── 1. Header row ("Key 3" / "Button 1" / ...) ───────────────────
         // Re-host the shared title TextBlock from the V1 designer. If V1
         // already mounted it, detach first.
-        if (_scEditorTitle == null)
+        // Matches the Mixer tab's channel-label pattern: invisible TextBox
+        // that turns into an input with an accent underline on focus.
+        // Clicking the header text edits it directly — no separate pencil
+        // affordance needed, consistent with the rest of the app.
+        _v2HeaderBox = new TextBox
         {
-            _scEditorTitle = new TextBlock
+            FontSize = 16,
+            FontWeight = FontWeights.Bold,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            CaretBrush = FindBrush("AccentBrush"),
+            SelectionBrush = FindBrush("AccentDimBrush"),
+            Background = System.Windows.Media.Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(4, 2, 4, 2),
+            Margin = new Thickness(0, 0, 0, 12),
+            MaxLength = 30,
+            Cursor = System.Windows.Input.Cursors.IBeam,
+            ToolTip = "Click to rename",
+        };
+        _v2HeaderBox.GotFocus += (_, _) =>
+        {
+            _v2HeaderBox.Background = FindBrush("InputBgBrush");
+            _v2HeaderBox.BorderThickness = new Thickness(0, 0, 0, 1);
+            _v2HeaderBox.BorderBrush = FindBrush("AccentBrush");
+            _v2HeaderBox.SelectAll();
+        };
+        _v2HeaderBox.LostFocus += (_, _) =>
+        {
+            _v2HeaderBox.Background = System.Windows.Media.Brushes.Transparent;
+            _v2HeaderBox.BorderThickness = new Thickness(0);
+            if (!_loading) CommitV2HeaderRename();
+        };
+        _v2HeaderBox.KeyDown += (_, e) =>
+        {
+            if (e.Key == System.Windows.Input.Key.Enter)
             {
-                Foreground = FindBrush("TextPrimaryBrush"),
-            };
-        }
-        DetachFromParent(_scEditorTitle);
-        _scEditorTitle.FontSize = 16;
-        _scEditorTitle.FontWeight = FontWeights.Bold;
-        _scEditorTitle.Margin = new Thickness(0, 0, 0, 12);
-        _v2PreviewPanel.Children.Add(_scEditorTitle);
+                System.Windows.Input.Keyboard.ClearFocus();
+                e.Handled = true;
+            }
+        };
+        _v2PreviewPanel.Children.Add(_v2HeaderBox);
 
         // ── 2. Preview + Choose Icon row ─────────────────────────────────
         _v2PreviewCard = new Border
@@ -411,6 +446,25 @@ public partial class ButtonsView
         var selection = DescribeSelection(_scSelectedButtonIdx);
 
         // ── Header label ────────────────────────────────────────────────
+        // Prefer the user's custom label if set, otherwise fall back to the
+        // default "Key N" / "Button N" / "Encoder Press N".
+        if (_v2HeaderBox != null)
+        {
+            string headerText = selection.Label;
+            if (IsN3PagedKeySelection() && selection.DisplayIdx.HasValue)
+            {
+                var key = GetActiveN3DisplayKeys().FirstOrDefault(k => k.Idx == selection.DisplayIdx.Value);
+                if (key != null && !string.IsNullOrWhiteSpace(key.Title))
+                    headerText = key.Title;
+            }
+            else
+            {
+                var btn = _config.N3.Buttons.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
+                if (btn != null && !string.IsNullOrWhiteSpace(btn.Label))
+                    headerText = btn.Label;
+            }
+            _v2HeaderBox.Text = headerText;
+        }
         if (_scEditorTitle != null)
             _scEditorTitle.Text = selection.Label;
 
@@ -519,6 +573,40 @@ public partial class ButtonsView
     {
         return _scSelectedButtonIdx >= StreamControllerDisplayKeyBase
                && _scSelectedButtonIdx < StreamControllerSideButtonBase;
+    }
+
+    // ── Header rename (Mixer-style inline textbox) ───────────────────────────
+
+    /// <summary>Persist the currently-typed header text back to the selected
+    /// config — ButtonConfig.Label for hardware, StreamControllerDisplayKeyConfig.Title
+    /// for LCD keys. Called by _v2HeaderBox.LostFocus.</summary>
+    private void CommitV2HeaderRename()
+    {
+        if (_v2HeaderBox == null || _config == null) return;
+        var newLabel = _v2HeaderBox.Text.Trim();
+
+        if (IsN3PagedKeySelection())
+        {
+            int globalIdx = _scSelectedButtonIdx - StreamControllerDisplayKeyBase;
+            var keys = GetActiveN3DisplayKeys();
+            var key = keys.FirstOrDefault(k => k.Idx == globalIdx);
+            if (key == null)
+            {
+                key = new StreamControllerDisplayKeyConfig { Idx = globalIdx };
+                keys.Add(key);
+            }
+            key.Title = newLabel;
+            if (_scTitleBox != null) _scTitleBox.Text = newLabel;
+            UpdateEditorPreviewOnly();
+        }
+        else
+        {
+            var btn = GetOrCreateSelectedV2Button();
+            if (btn != null) btn.Label = newLabel;
+        }
+
+        QueueSave();
+        RefreshV2LeftPanel();
     }
 
     /// <summary>
