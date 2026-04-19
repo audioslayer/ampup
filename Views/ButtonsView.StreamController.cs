@@ -1142,6 +1142,150 @@ public partial class ButtonsView
         return (panel, picker);
     }
 
+    // ── Folder picker row (for open_folder action) ─────────────────────
+    private (StackPanel panel, ListPicker picker, Button newButton) MakeStreamFolderRow()
+    {
+        var panel = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 10, 0, 0) };
+        panel.Children.Add(MakeEditorLabel("FOLDER"));
+
+        var picker = new ListPicker();
+        picker.SelectionChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            var btn = GetActiveN3ButtonList().FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
+            if (btn == null) return;
+            btn.FolderName = picker.SelectedTag as string ?? "";
+            QueueSave();
+        };
+        panel.Children.Add(picker);
+
+        var buttonRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+        var newBtn = MakeEditorButton("+ New Folder", (_, _) => CreateNewFolderForCurrentKey());
+        var editBtn = MakeEditorButton("Edit Folder", (_, _) =>
+        {
+            if (picker.SelectedTag is string name && !string.IsNullOrEmpty(name))
+                NavigateToFolderInEditor(name);
+        });
+        editBtn.Margin = new Thickness(8, 0, 0, 0);
+        buttonRow.Children.Add(newBtn);
+        buttonRow.Children.Add(editBtn);
+        panel.Children.Add(buttonRow);
+
+        return (panel, picker, newBtn);
+    }
+
+    private void RefreshFolderPickerItems()
+    {
+        if (_scFolderPicker == null || _config == null) return;
+        _scFolderPicker.ClearItems();
+        foreach (var folder in _config.N3.Folders)
+        {
+            if (!string.IsNullOrEmpty(folder.Name))
+                _scFolderPicker.AddItem(folder.Name, folder.Name);
+        }
+    }
+
+    private void CreateNewFolderForCurrentKey()
+    {
+        if (_config == null) return;
+
+        string? name = GlassDialog.Prompt(
+            "Enter a name for the new folder:",
+            "New Folder",
+            Window.GetWindow(this));
+        if (string.IsNullOrWhiteSpace(name)) return;
+        name = name.Trim();
+
+        // Dedup — append (2), (3), ... if the name already exists.
+        if (_config.N3.Folders.Any(f => f.Name == name))
+        {
+            int counter = 2;
+            string candidate;
+            do
+            {
+                candidate = $"{name} ({counter++})";
+            } while (_config.N3.Folders.Any(f => f.Name == candidate));
+            name = candidate;
+        }
+
+        var folder = new ButtonFolderConfig { Name = name, PageCount = 1 };
+        // Pre-seed first page with empty display key + button slots so the UI
+        // is immediately functional when we navigate in.
+        for (int i = 0; i < StreamControllerKeysPerPage; i++)
+        {
+            folder.DisplayKeys.Add(new StreamControllerDisplayKeyConfig { Idx = i });
+            folder.Buttons.Add(new ButtonConfig { Idx = StreamControllerDisplayKeyBase + i });
+        }
+        _config.N3.Folders.Add(folder);
+
+        // Assign the new folder to the currently-selected button.
+        var btn = GetActiveN3ButtonList().FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
+        if (btn != null)
+        {
+            btn.Action = "open_folder";
+            btn.FolderName = name;
+        }
+
+        RefreshFolderPickerItems();
+        if (_scFolderPicker != null)
+        {
+            for (int i = 0; i < _scFolderPicker.ItemCount; i++)
+            {
+                if (_scFolderPicker.GetTagAt(i) as string == name)
+                {
+                    _scFolderPicker.SelectedIndex = i;
+                    break;
+                }
+            }
+        }
+
+        QueueSave();
+        // Refresh the editor so the action picker shows open_folder + folder chip.
+        LoadStreamControllerSelection();
+    }
+
+    /// <summary>
+    /// Programmatic navigation for the editor — changes which folder's contents
+    /// are being edited, updates the banner, resets page to 0, and reloads the UI.
+    /// Matches what App.NavigateToN3Folder does for the hardware, plus UI refresh.
+    /// </summary>
+    public void NavigateToFolderInEditor(string folderName)
+    {
+        folderName ??= "";
+        if (_config != null && folderName.Length > 0
+            && _config.N3.Folders.All(f => f.Name != folderName))
+        {
+            folderName = ""; // fallback if we were handed a bad name
+        }
+        _scActiveFolder = folderName;
+        _scCurrentPage = 0;
+        if (_config != null) _config.N3.CurrentPage = 0;
+        _scSelectedButtonIdx = StreamControllerDisplayKeyBase;
+        UpdateFolderBanner();
+        LoadStreamControllerConfig();
+    }
+
+    /// <summary>Public entry point used by App when the physical device opens a folder.</summary>
+    public void SetActiveN3Folder(string folderName)
+    {
+        // Keep editor in sync without saving (App already navigated hardware).
+        NavigateToFolderInEditor(folderName);
+    }
+
+    private void UpdateFolderBanner()
+    {
+        if (_scFolderBanner == null || _scFolderBannerLabel == null) return;
+        if (InFolderContext)
+        {
+            _scFolderBanner.Visibility = Visibility.Visible;
+            _scFolderBannerLabel.Text = $"Editing folder: {_scActiveFolder}";
+        }
+        else
+        {
+            _scFolderBanner.Visibility = Visibility.Collapsed;
+        }
+    }
+
     // Actions that cannot be chosen for Toggle A/B (prevent recursion / unsupported)
     private static readonly HashSet<string> ToggleSubActionBlocklist = new()
     {
@@ -1325,8 +1469,18 @@ public partial class ButtonsView
     {
         if (_config == null || _scActionPicker == null || _scDevicePicker == null || _scKnobPicker == null) return;
 
-        _scCurrentPage = Math.Clamp(_config.N3.CurrentPage, 0, Math.Max(0, _config.N3.PageCount - 1));
-        _scPageCount = Math.Max(1, _config.N3.PageCount);
+        // Ensure the folder we think we're editing still exists.
+        if (InFolderContext && _config.N3.Folders.All(f => f.Name != _scActiveFolder))
+            _scActiveFolder = "";
+        UpdateFolderBanner();
+
+        int activePageCount = GetActiveN3PageCount();
+        int currentPage = Math.Clamp(_config.N3.CurrentPage, 0, Math.Max(0, activePageCount - 1));
+        _scCurrentPage = currentPage;
+        _config.N3.CurrentPage = currentPage;
+        _scPageCount = activePageCount;
+
+        var activeKeys = GetActiveN3DisplayKeys();
 
         PopulateActionPicker(
             _scActionPicker,
@@ -1344,15 +1498,18 @@ public partial class ButtonsView
 
         PopulateDevicePicker(_scDevicePicker);
         PopulateKnobPicker(_scKnobPicker, _config);
+        RefreshFolderPickerItems();
 
         for (int i = 0; i < 6; i++)
         {
             int globalIdx = _scCurrentPage * StreamControllerKeysPerPage + i;
-            var key = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == globalIdx) ?? new StreamControllerDisplayKeyConfig { Idx = globalIdx };
+            var key = activeKeys.FirstOrDefault(k => k.Idx == globalIdx) ?? new StreamControllerDisplayKeyConfig { Idx = globalIdx };
             _scDisplayImages[i].Source = StreamControllerDisplayRenderer.CreateHardwarePreview(key);
             _scDisplayCaptions[i].Text = string.IsNullOrWhiteSpace(key.Title) ? $"Key {globalIdx + 1}" : key.Title;
         }
 
+        // Side buttons + encoder presses stay root-scoped — they aren't paginated
+        // into folders (the physical side buttons are always global quick controls).
         for (int i = 0; i < 3; i++)
         {
             var side = _config.N3.Buttons.FirstOrDefault(b => b.Idx == StreamControllerSideButtonBase + i);
@@ -1371,7 +1528,13 @@ public partial class ButtonsView
             || _scEditorTitle == null || _scEditorPreview == null || _scTitleBox == null || _scIconBox == null)
             return;
 
-        var button = _config.N3.Buttons.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx) ?? new ButtonConfig { Idx = _scSelectedButtonIdx };
+        // Side button / encoder press edits always target the root N3 list — they
+        // aren't paginated into folders. Main display keys go through the folder-
+        // aware active list.
+        bool isN3PagedKey = _scSelectedButtonIdx >= StreamControllerDisplayKeyBase
+                            && _scSelectedButtonIdx < StreamControllerSideButtonBase;
+        var buttonList = isN3PagedKey ? GetActiveN3ButtonList() : _config.N3.Buttons;
+        var button = buttonList.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx) ?? new ButtonConfig { Idx = _scSelectedButtonIdx };
         var selection = DescribeSelection(_scSelectedButtonIdx);
         _scEditorTitle.Text = selection.Label;
 
@@ -1393,9 +1556,25 @@ public partial class ButtonsView
         if (_scTogglePathABox != null) SetTextBoxValue(_scTogglePathABox, button.TogglePathA);
         if (_scTogglePathBBox != null) SetTextBoxValue(_scTogglePathBBox, button.TogglePathB);
 
+        // Load folder selection for open_folder action
+        if (_scFolderPicker != null && button.Action == "open_folder")
+        {
+            int foundIdx = -1;
+            for (int i = 0; i < _scFolderPicker.ItemCount; i++)
+            {
+                if (_scFolderPicker.GetTagAt(i) as string == button.FolderName)
+                {
+                    foundIdx = i;
+                    break;
+                }
+            }
+            _scFolderPicker.SelectedIndex = foundIdx;
+        }
+
         if (selection.DisplayIdx.HasValue)
         {
-            var key = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == selection.DisplayIdx.Value) ?? new StreamControllerDisplayKeyConfig { Idx = selection.DisplayIdx.Value };
+            var activeKeys = GetActiveN3DisplayKeys();
+            var key = activeKeys.FirstOrDefault(k => k.Idx == selection.DisplayIdx.Value) ?? new StreamControllerDisplayKeyConfig { Idx = selection.DisplayIdx.Value };
             _scTitleBox.Text = key.Title;
             _scIconBox.Text = !string.IsNullOrWhiteSpace(key.ImagePath)
                 ? System.IO.Path.GetFileName(key.ImagePath)
@@ -1494,6 +1673,12 @@ public partial class ButtonsView
             if (action == "toggle_action")
                 UpdateStreamControllerToggleVisibility();
         }
+        if (_scFolderPanel != null)
+        {
+            _scFolderPanel.Visibility = action == "open_folder" ? Visibility.Visible : Visibility.Collapsed;
+            if (action == "open_folder")
+                RefreshFolderPickerItems();
+        }
 
         if (_scPathPanel.Visibility == Visibility.Visible)
         {
@@ -1529,7 +1714,12 @@ public partial class ButtonsView
         if (_config == null || _scActionPicker == null || _scPathBox == null || _scMacroBox == null || _scDevicePicker == null || _scKnobPicker == null)
             return;
 
-        var button = _config.N3.Buttons.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
+        // Route through the folder-aware list for display keys; side buttons /
+        // encoder presses stay rooted.
+        bool isN3PagedKey = _scSelectedButtonIdx >= StreamControllerDisplayKeyBase
+                            && _scSelectedButtonIdx < StreamControllerSideButtonBase;
+        var buttonList = isN3PagedKey ? GetActiveN3ButtonList() : _config.N3.Buttons;
+        var button = buttonList.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
         if (button == null) return;
 
         button.Action = GetComboActionValue(_scActionPicker);
@@ -1538,6 +1728,9 @@ public partial class ButtonsView
         button.DeviceId = GetDeviceIdForAction(button.Action, _scActionPicker, _scDevicePicker);
         button.ProfileName = button.Action == "switch_profile" ? (_scActionPicker.SelectedSubTag ?? "") : "";
         button.LinkedKnobIdx = int.TryParse(_scKnobPicker.SelectedTag as string, out var linked) ? linked : -1;
+        // Preserve folder linkage for open_folder
+        if (button.Action == "open_folder" && _scFolderPicker != null)
+            button.FolderName = _scFolderPicker.SelectedTag as string ?? button.FolderName;
 
         var display = GetSelectedDisplayKeyConfig();
         if (display != null && _scTitleBox != null)
@@ -2012,15 +2205,5 @@ public partial class ButtonsView
     private StackPanel MakeStreamMultiActionPanel()
     {
         return new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 10, 0, 0) };
-    }
-
-    /// <summary>
-    /// Called from App when the hardware opens/closes a folder. Currently a stub —
-    /// full folder-aware UI update will arrive with the folder feature rollout.
-    /// </summary>
-    public void SetActiveN3Folder(string folderName)
-    {
-        // TODO: switch the editor/grid to the folder's ButtonConfig list.
-        LoadStreamControllerConfig();
     }
 }
