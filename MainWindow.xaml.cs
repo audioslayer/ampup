@@ -653,6 +653,7 @@ public partial class MainWindow : FluentWindow
         _config.TabSelection.Buttons = surface;
         _config.TabSelection.Lights = surface;
         UpdateDeviceButton();
+        UpdateNavLightsVisibility(surface);
 
         if (persist)
         {
@@ -668,9 +669,20 @@ public partial class MainWindow : FluentWindow
         _config.TabSelection.Buttons = surface;
         _config.TabSelection.Lights = surface;
         UpdateDeviceButton();
+        UpdateNavLightsVisibility(surface);
 
         if (persist)
             _onConfigChanged?.Invoke(_config);
+    }
+
+    private void UpdateNavLightsVisibility(DeviceSurface surface)
+    {
+        bool showLights = surface is not DeviceSurface.StreamController;
+        NavLights.Visibility = showLights ? Visibility.Visible : Visibility.Collapsed;
+
+        // If Lights tab is active and now hidden, navigate away
+        if (!showLights && ContentArea.Content == _lightsView)
+            NavigateTo(_mixerView, NavMixer);
     }
 
     private void ProfileButton_Click(object sender, MouseButtonEventArgs e)
