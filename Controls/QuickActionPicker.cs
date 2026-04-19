@@ -113,7 +113,7 @@ public class QuickActionPicker : Border
 
         var selectedLabel = new TextBlock
         {
-            Text = "CURRENT",
+            Text = "SELECTED",
             FontSize = 9,
             FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center,
@@ -121,10 +121,19 @@ public class QuickActionPicker : Border
         };
         selectedLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
 
-        var selectedRow = new StackPanel { Orientation = Orientation.Horizontal };
+        var selectedRow = new Grid();
+        selectedRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        selectedRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        selectedRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var iconNameStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        iconNameStack.Children.Add(_selectedIcon);
+        iconNameStack.Children.Add(_selectedName);
+
+        Grid.SetColumn(selectedLabel, 0);
+        Grid.SetColumn(iconNameStack, 1);
         selectedRow.Children.Add(selectedLabel);
-        selectedRow.Children.Add(_selectedIcon);
-        selectedRow.Children.Add(_selectedName);
+        selectedRow.Children.Add(iconNameStack);
 
         _selectedDisplay = new Border
         {
@@ -215,7 +224,7 @@ public class QuickActionPicker : Border
         _categoryChipBar = new WrapPanel { Margin = new Thickness(0, 0, 0, 8) };
         _expandedItemsPanel = new WrapPanel();
 
-        var catsHeader = BuildSectionHeader("CATEGORIES", MaterialIconKind.FormatListBulletedSquare);
+        var catsHeader = BuildSectionHeader("BROWSE BY CATEGORY", MaterialIconKind.FormatListBulletedSquare);
         var catsInner = new StackPanel { Orientation = Orientation.Vertical };
         catsInner.Children.Add(catsHeader);
         catsInner.Children.Add(_categoryChipBar);
@@ -395,6 +404,14 @@ public class QuickActionPicker : Border
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        // Auto-select the first category so items are always visible by
+        // default — no "click to expand" discovery problem.
+        if (string.IsNullOrEmpty(_expandedCategory)
+            || !categories.Any(c => string.Equals(c, _expandedCategory, StringComparison.OrdinalIgnoreCase)))
+        {
+            _expandedCategory = categories.FirstOrDefault();
+        }
+
         foreach (var cat in categories)
         {
             _categoryChipBar.Children.Add(BuildCategoryPill(cat));
@@ -547,12 +564,15 @@ public class QuickActionPicker : Border
         };
         border.MouseLeftButtonUp += (_, e) =>
         {
-            if (string.Equals(_expandedCategory, category, StringComparison.OrdinalIgnoreCase))
-                _expandedCategory = null;
-            else
+            // Categories act as filter tabs — clicking switches the list to
+            // that category, never collapses. Keeps one category always
+            // active so the items below never disappear unexpectedly.
+            if (!string.Equals(_expandedCategory, category, StringComparison.OrdinalIgnoreCase))
+            {
                 _expandedCategory = category;
-            RebuildCategoryBar();
-            RebuildExpandedItems();
+                RebuildCategoryBar();
+                RebuildExpandedItems();
+            }
             e.Handled = true;
         };
 
