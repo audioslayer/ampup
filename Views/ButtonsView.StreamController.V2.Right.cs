@@ -36,6 +36,13 @@ public partial class ButtonsView
     private StackPanel? _v2CommonFieldsPanel;
     private Border? _v2PreviewCard;
 
+    // Cache key for the action picker item set. Repopulate only when any
+    // integration-enabled flag flips — otherwise every RefreshV2RightPanel
+    // (fired per config save, debounced 300 ms) would churn 40+ AddItem
+    // calls plus 3 full RebuildAll passes, which is the biggest
+    // contributor to the tab feeling sluggish.
+    private string? _v2ActionItemCacheKey;
+
     partial void FillV2PreviewPanel()
     {
         if (_v2PreviewPanel == null) return;
@@ -417,10 +424,16 @@ public partial class ButtonsView
         if (_v2ActionPicker != null)
         {
             // FillV2ActionPanel runs before config loads (ctor time), so the
-            // picker starts empty. Re-populate once config is in hand.
-            PopulateV2ActionPickerItems();
-            _v2ActionPicker.SetFavorites(_config.N3.FavoriteActions);
-            _v2ActionPicker.SetRecents(_config.N3.RecentActions);
+            // picker starts empty. Repopulate only when a visibility-affecting
+            // flag changes — not every refresh.
+            var cacheKey = $"{_config.HomeAssistant.Enabled}|{_config.Ambience.GoveeEnabled}|{_config.Obs.Enabled}|{_config.VoiceMeeter.Enabled}|{_config.Groups.Count}|{_config.N3.FavoriteActions.Count}|{string.Join(",", _config.N3.FavoriteActions)}|{string.Join(",", _config.N3.RecentActions)}";
+            if (_v2ActionItemCacheKey != cacheKey)
+            {
+                PopulateV2ActionPickerItems();
+                _v2ActionPicker.SetFavorites(_config.N3.FavoriteActions);
+                _v2ActionPicker.SetRecents(_config.N3.RecentActions);
+                _v2ActionItemCacheKey = cacheKey;
+            }
 
             var buttonList = IsN3PagedKeySelection() ? GetActiveN3ButtonList() : _config.N3.Buttons;
             var button = buttonList.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx)
