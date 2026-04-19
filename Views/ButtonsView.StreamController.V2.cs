@@ -18,8 +18,9 @@ namespace AmpUp.Views;
 ///   - Right action-specific sub-panels       => FillV2ActionFieldsPanel
 ///   - Styling polish                         => ApplyV2Styling
 ///
-/// The old <c>BuildStreamControllerDesigner</c> remains in place until
-/// <see cref="SwitchToV2"/> flips the feature flag.
+/// <c>BuildStreamControllerDesigner</c> creates all <c>_sc*</c> widgets via
+/// <c>BuildStreamControllerWidgetFactory</c>, then composes this V2 layout
+/// and swaps the StreamControllerRoot content to <c>_v2Root</c>.
 /// </summary>
 public partial class ButtonsView
 {
@@ -37,10 +38,6 @@ public partial class ButtonsView
     private readonly List<StreamControllerTile> _v2KeyTiles = new();
     private readonly List<StreamControllerTile> _v2ButtonTiles = new();
     private readonly List<StreamControllerTile> _v2EncoderTiles = new();
-
-    // Feature flag — flipped on once all V2 regions are implemented and
-    // BuildStreamControllerDesigner routes through BuildStreamControllerDesignerV2.
-    private const bool UseV2Designer = true;
 
     /// <summary>
     /// Entry point: compose the V2 designer. Parallel agents fill individual

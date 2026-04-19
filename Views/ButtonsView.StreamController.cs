@@ -206,29 +206,25 @@ public partial class ButtonsView
             _scPreviewRefreshTimer.Start();
         }
 
-        // V2 redesign — route through the new Stream Deck-style canvas when
-        // the feature flag is on. The legacy builder below still runs so all
-        // of the _sc* widgets exist (the V2 right-panel agents re-host them);
-        // V2 overlay is applied once the legacy tree is in place.
-        if (UseV2Designer)
-        {
-            // Legacy build first to materialise all _sc* fields the V2 panels
-            // re-host. After this returns we'll swap StreamControllerRoot's
-            // content for the V2 layout.
-            BuildLegacyStreamControllerDesignerCore();
-            BuildStreamControllerDesignerV2();
-            StreamControllerRoot.Children.Clear();
-            if (_v2Root != null)
-                StreamControllerRoot.Children.Add(_v2Root);
-            return;
-        }
-
-#pragma warning disable CS0162 // const feature flag — unreachable when V2 is on
-        BuildLegacyStreamControllerDesignerCore();
-#pragma warning restore CS0162
+        // Build the _sc* widgets (TextBox, SegmentedControl, handlers, etc.)
+        // then compose the Stream Deck-inspired V2 canvas. The widget factory
+        // assembles a throwaway panel tree so each widget has a parent during
+        // construction; V2 detaches them and re-hosts them under _v2Root.
+        BuildStreamControllerWidgetFactory();
+        BuildStreamControllerDesignerV2();
+        StreamControllerRoot.Children.Clear();
+        if (_v2Root != null)
+            StreamControllerRoot.Children.Add(_v2Root);
     }
 
-    private void BuildLegacyStreamControllerDesignerCore()
+    /// <summary>
+    /// Creates every <c>_sc*</c> widget (TextBoxes, SegmentedControls, pickers,
+    /// sliders) with their event handlers wired up, and assembles them into a
+    /// temporary panel tree so they have valid parents during construction.
+    /// The V2 designer then detaches each widget and hosts it in the new
+    /// layout — so this tree itself is discarded but the widgets live on.
+    /// </summary>
+    private void BuildStreamControllerWidgetFactory()
     {
 
         var root = new Grid();
@@ -1806,12 +1802,9 @@ public partial class ButtonsView
         RefreshStreamControllerSelectionVisuals();
 
         // V2 panels (owned by parallel-agent files) mirror the selection + visibility state.
-        if (UseV2Designer)
-        {
-            RefreshV2LeftPanel();
-            RefreshV2RightPanel();
-            RefreshV2ActionFieldsVisibility();
-        }
+        RefreshV2LeftPanel();
+        RefreshV2RightPanel();
+        RefreshV2ActionFieldsVisibility();
     }
 
     private void UpdateStreamControllerActionVisibility()
