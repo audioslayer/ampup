@@ -180,7 +180,7 @@ public partial class SettingsView : UserControl
             HardwareMode.DualMode => 3,
             _ => 0,
         };
-        SegActiveSurface.SelectedIndex = config.TabSelection.Buttons switch
+        SegActiveSurface.SelectedIndex = config.TabSelection.PreferredSurface switch
         {
             DeviceSurface.StreamController => 1,
             DeviceSurface.Both => 2,
@@ -685,6 +685,10 @@ public partial class SettingsView : UserControl
         if (_loading || _config == null || _onSave == null || !_configLoaded) return;
         if (SegActiveSurface.SelectedTag is not DeviceSurface surface) return;
 
+        // Persist the user's choice in PreferredSurface so the auto-detect
+        // pathway (which rewrites Mixer/Buttons/Lights) doesn't clobber it
+        // when Turn Up connects before the Stream Controller at startup.
+        _config.TabSelection.PreferredSurface = surface;
         _config.TabSelection.Mixer = surface;
         _config.TabSelection.Buttons = surface;
         _config.TabSelection.Lights = surface;

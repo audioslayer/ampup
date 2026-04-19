@@ -204,6 +204,16 @@ public static class ConfigManager
 
     private static void NormalizeDeviceSurfaceSelections(AppConfig config)
     {
+        // One-time migration: configs saved before PreferredSurface existed
+        // will have its default (TurnUp) while Buttons may already reflect
+        // the user's chosen surface. Copy it over so the Active Surface
+        // picker shows the right state after upgrade.
+        if (config.TabSelection.PreferredSurface == DeviceSurface.TurnUp
+            && config.TabSelection.Buttons != DeviceSurface.TurnUp)
+        {
+            config.TabSelection.PreferredSurface = config.TabSelection.Buttons;
+        }
+
         switch (config.HardwareMode)
         {
             case HardwareMode.TurnUpOnly:

@@ -567,13 +567,11 @@ public partial class MainWindow : FluentWindow
 
     private DeviceSurface GetPreferredSurface()
     {
-        var preferred = _config.TabSelection.Buttons;
-        return preferred switch
-        {
-            DeviceSurface.StreamController => DeviceSurface.StreamController,
-            DeviceSurface.Both => DeviceSurface.Both,
-            _ => DeviceSurface.TurnUp,
-        };
+        // Read from the dedicated PreferredSurface field — this is the user's
+        // choice that survives device-connect events at startup. Buttons /
+        // Mixer / Lights on TabSelection reflect the currently-applied
+        // effective surface and get rewritten by the auto-detect pathway.
+        return _config.TabSelection.PreferredSurface;
     }
 
     private DeviceSurface GetEffectiveDeviceSurface()

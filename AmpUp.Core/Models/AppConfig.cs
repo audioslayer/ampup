@@ -297,6 +297,14 @@ public class HardwareTabSelection
     public DeviceSurface Buttons { get; set; } = DeviceSurface.TurnUp;
     [JsonConverter(typeof(StringEnumConverter))]
     public DeviceSurface Lights { get; set; } = DeviceSurface.TurnUp;
+    /// <summary>
+    /// The user's chosen surface when both devices are available — survives
+    /// device-connect events so the auto-detected effective surface can flip
+    /// between TurnUp and StreamController at startup without clobbering the
+    /// user's preference. Only written by the Active Surface picker.
+    /// </summary>
+    [JsonConverter(typeof(StringEnumConverter))]
+    public DeviceSurface PreferredSurface { get; set; } = DeviceSurface.TurnUp;
 }
 
 public class StreamControllerDisplayKeyConfig
