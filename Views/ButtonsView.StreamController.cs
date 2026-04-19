@@ -50,10 +50,43 @@ public partial class ButtonsView
     private Border? _scAppChip;
     private TextBox? _scMacroBox;
     private StackPanel? _scMacroPanel;
+    private TextBox? _scTextSnippetBox;
+    private StackPanel? _scTextSnippetPanel;
+    private Border? _scScreenshotInfoPanel;
     private ListPicker? _scDevicePicker;
     private StackPanel? _scDevicePanel;
     private ListPicker? _scKnobPicker;
     private StackPanel? _scKnobPanel;
+
+    // Toggle (A/B) editor
+    private StackPanel? _scTogglePanel;
+    private ActionPicker? _scToggleActionAPicker;
+    private ActionPicker? _scToggleActionBPicker;
+    private TextBox? _scTogglePathABox;
+    private TextBox? _scTogglePathBBox;
+    private StackPanel? _scTogglePathAPanel;
+    private StackPanel? _scTogglePathBPanel;
+    private TextBlock? _scTogglePathALabel;
+    private TextBlock? _scTogglePathBLabel;
+
+    // Multi-Action sequence editor
+    private StackPanel? _scMultiActionPanel;
+    private StackPanel? _scMultiActionList;
+    private Button? _scMultiActionAddButton;
+    private TextBlock? _scMultiActionEmptyHint;
+
+    // Actions disallowed inside a multi-action step (no nesting)
+    private static readonly HashSet<string> MultiActionExcluded = new()
+    {
+        "multi_action", "toggle_action", "open_folder"
+    };
+
+    // Which actions require a path-ish text field when used as a multi-action step
+    private static readonly HashSet<string> MultiActionStepPathActions = new()
+    {
+        "launch_exe", "close_program", "mute_program", "open_url", "sc_go_to_page",
+        "ha_service", "govee_color", "obs_scene", "obs_mute", "vm_mute_strip", "vm_mute_bus"
+    };
 
     // Sidebar tabs
     private StackPanel? _scDisplayTabContent;
@@ -455,13 +488,19 @@ public partial class ButtonsView
 
         (_scPathPanel, _scPathBox, _scPathLabel, _scBrowsePathButton, _scPickPathButton, _scAppChip) = MakeStreamPathRow();
         (_scMacroPanel, _scMacroBox) = MakeStreamMacroRow();
+        (_scTextSnippetPanel, _scTextSnippetBox) = MakeStreamTextSnippetRow();
+        _scScreenshotInfoPanel = MakeStreamScreenshotInfo();
         (_scDevicePanel, _scDevicePicker) = MakeStreamDeviceRow();
         (_scKnobPanel, _scKnobPicker) = MakeStreamKnobRow();
+        _scTogglePanel = MakeStreamToggleRow();
 
         _scActionTabContent.Children.Add(_scPathPanel);
         _scActionTabContent.Children.Add(_scMacroPanel);
+        _scActionTabContent.Children.Add(_scTextSnippetPanel);
+        _scActionTabContent.Children.Add(_scScreenshotInfoPanel);
         _scActionTabContent.Children.Add(_scDevicePanel);
         _scActionTabContent.Children.Add(_scKnobPanel);
+        _scActionTabContent.Children.Add(_scTogglePanel);
 
         right.Children.Add(_scActionTabContent);
 
@@ -826,6 +865,50 @@ public partial class ButtonsView
         return (panel, box);
     }
 
+    private (StackPanel panel, TextBox box) MakeStreamTextSnippetRow()
+    {
+        var panel = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 10, 0, 0) };
+        panel.Children.Add(MakeEditorLabel("TEXT TO TYPE"));
+        var box = MakeEditorTextBox("Text to type (use line breaks for Enter)");
+        box.AcceptsReturn = true;
+        box.TextWrapping = TextWrapping.Wrap;
+        box.MinHeight = 60;
+        box.VerticalContentAlignment = VerticalAlignment.Top;
+        box.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
+        box.TextChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            var button = _config.N3.Buttons.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
+            if (button == null) return;
+            button.TextSnippet = box.Text;
+            QueueSave();
+        };
+        panel.Children.Add(box);
+        return (panel, box);
+    }
+
+    private Border MakeStreamScreenshotInfo()
+    {
+        var card = new Border
+        {
+            Visibility = Visibility.Collapsed,
+            Margin = new Thickness(0, 10, 0, 0),
+            Padding = new Thickness(12, 10, 12, 10),
+            CornerRadius = new CornerRadius(8),
+            Background = new SolidColorBrush(Color.FromArgb(0x1F, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x44, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
+            BorderThickness = new Thickness(1),
+            Child = new TextBlock
+            {
+                Text = "Captures the primary screen to clipboard on press.",
+                FontSize = 12,
+                Foreground = FindBrush("TextPrimaryBrush"),
+                TextWrapping = TextWrapping.Wrap,
+            },
+        };
+        return card;
+    }
+
     private (StackPanel panel, ListPicker picker) MakeStreamDeviceRow()
     {
         var panel = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 10, 0, 0) };
@@ -844,6 +927,183 @@ public partial class ButtonsView
         picker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
         panel.Children.Add(picker);
         return (panel, picker);
+    }
+
+    // Actions that cannot be chosen for Toggle A/B (prevent recursion / unsupported)
+    private static readonly HashSet<string> ToggleSubActionBlocklist = new()
+    {
+        "toggle_action", "multi_action", "open_folder",
+    };
+
+    // Actions that require a path textbox inside Toggle A/B (same set as main picker)
+    private static bool ToggleSubActionNeedsPath(string action) =>
+        PathActions.Contains(action) || action is "ha_service" or "govee_color" or "obs_scene" or "obs_mute" or "vm_mute_strip" or "vm_mute_bus";
+
+    private ActionPicker MakeFilteredActionCombo(HashSet<string> blocklist)
+    {
+        var picker = new ActionPicker
+        {
+            Margin = new Thickness(0, 0, 0, 6),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+
+        foreach (var (category, values) in ActionCategories)
+        {
+            bool anyAdded = false;
+            foreach (var value in values)
+            {
+                if (blocklist.Contains(value)) continue;
+                if (!ActionLookup.TryGetValue(value, out var action)) continue;
+                if (!anyAdded) { picker.AddCategory(category); anyAdded = true; }
+                var icon = ActionIcons.GetValueOrDefault(value, "—");
+                var color = ActionColors.GetValueOrDefault(value, Color.FromRgb(0x88, 0x88, 0x88));
+                var tooltip = ActionTooltips.GetValueOrDefault(value, action.Display);
+                picker.AddItem(action.Display, value, icon, color, tooltip);
+            }
+        }
+
+        picker.BuildPopup();
+        picker.Select("none");
+        return picker;
+    }
+
+    private (StackPanel panel, TextBlock label, TextBox box) MakeStreamToggleInnerPath(string initialLabel)
+    {
+        var panel = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 4, 0, 0) };
+        var label = MakeEditorLabel(initialLabel);
+        panel.Children.Add(label);
+        var box = MakeEditorTextBox("Path or process");
+        panel.Children.Add(box);
+        return (panel, label, box);
+    }
+
+    private StackPanel MakeStreamToggleRow()
+    {
+        var panel = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 10, 0, 0) };
+
+        // ── Action A ────────────────────────────────────────────────
+        var headerA = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(0x22, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 4, 8, 4),
+            Margin = new Thickness(0, 0, 0, 6),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Child = new TextBlock
+            {
+                Text = "A",
+                FontSize = 12,
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(ThemeManager.Accent),
+            },
+        };
+        panel.Children.Add(headerA);
+
+        panel.Children.Add(MakeEditorLabel("ACTION A"));
+        _scToggleActionAPicker = MakeFilteredActionCombo(ToggleSubActionBlocklist);
+        _scToggleActionAPicker.SelectionChanged += (_, _) =>
+        {
+            if (_loading) return;
+            UpdateStreamControllerToggleVisibility();
+            SaveStreamControllerToggleToConfig();
+        };
+        panel.Children.Add(_scToggleActionAPicker);
+
+        (_scTogglePathAPanel, _scTogglePathALabel, _scTogglePathABox) = MakeStreamToggleInnerPath("PATH A");
+        _scTogglePathABox.TextChanged += (_, _) =>
+        {
+            if (_loading) return;
+            SaveStreamControllerToggleToConfig();
+        };
+        panel.Children.Add(_scTogglePathAPanel);
+
+        // ── Action B ────────────────────────────────────────────────
+        var headerB = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(0x22, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 4, 8, 4),
+            Margin = new Thickness(0, 12, 0, 6),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Child = new TextBlock
+            {
+                Text = "B",
+                FontSize = 12,
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(ThemeManager.Accent),
+            },
+        };
+        panel.Children.Add(headerB);
+
+        panel.Children.Add(MakeEditorLabel("ACTION B"));
+        _scToggleActionBPicker = MakeFilteredActionCombo(ToggleSubActionBlocklist);
+        _scToggleActionBPicker.SelectionChanged += (_, _) =>
+        {
+            if (_loading) return;
+            UpdateStreamControllerToggleVisibility();
+            SaveStreamControllerToggleToConfig();
+        };
+        panel.Children.Add(_scToggleActionBPicker);
+
+        (_scTogglePathBPanel, _scTogglePathBLabel, _scTogglePathBBox) = MakeStreamToggleInnerPath("PATH B");
+        _scTogglePathBBox.TextChanged += (_, _) =>
+        {
+            if (_loading) return;
+            SaveStreamControllerToggleToConfig();
+        };
+        panel.Children.Add(_scTogglePathBPanel);
+
+        return panel;
+    }
+
+    private void UpdateStreamControllerToggleVisibility()
+    {
+        if (_scToggleActionAPicker == null || _scToggleActionBPicker == null
+            || _scTogglePathAPanel == null || _scTogglePathBPanel == null
+            || _scTogglePathALabel == null || _scTogglePathBLabel == null)
+            return;
+
+        var aAction = GetComboActionValue(_scToggleActionAPicker);
+        var bAction = GetComboActionValue(_scToggleActionBPicker);
+        _scTogglePathAPanel.Visibility = ToggleSubActionNeedsPath(aAction) ? Visibility.Visible : Visibility.Collapsed;
+        _scTogglePathBPanel.Visibility = ToggleSubActionNeedsPath(bAction) ? Visibility.Visible : Visibility.Collapsed;
+        _scTogglePathALabel.Text = GetTogglePathLabelText(aAction);
+        _scTogglePathBLabel.Text = GetTogglePathLabelText(bAction);
+    }
+
+    private static string GetTogglePathLabelText(string action) => action switch
+    {
+        "mute_program" or "close_program" => "PROCESS NAME",
+        "launch_exe" => "APP PATH",
+        "sc_go_to_page" => "PAGE NUMBER",
+        "open_url" => "URL",
+        "ha_service" => "SERVICE CALL",
+        "govee_color" => "HEX COLOR",
+        "obs_scene" => "SCENE NAME",
+        "obs_mute" => "SOURCE NAME",
+        "vm_mute_strip" => "STRIP INDEX",
+        "vm_mute_bus" => "BUS INDEX",
+        _ => "PATH",
+    };
+
+    private void SaveStreamControllerToggleToConfig()
+    {
+        if (_config == null || _scToggleActionAPicker == null || _scToggleActionBPicker == null
+            || _scTogglePathABox == null || _scTogglePathBBox == null)
+            return;
+
+        var button = _config.N3.Buttons.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
+        if (button == null) return;
+
+        button.ToggleActionA = GetComboActionValue(_scToggleActionAPicker);
+        button.ToggleActionB = GetComboActionValue(_scToggleActionBPicker);
+        button.TogglePathA = ToggleSubActionNeedsPath(button.ToggleActionA) ? GetTextBoxValue(_scTogglePathABox) : "";
+        button.TogglePathB = ToggleSubActionNeedsPath(button.ToggleActionB) ? GetTextBoxValue(_scTogglePathBBox) : "";
+        QueueSave();
     }
 
     // ── Config load/save ────────────────────────────────────────────────
@@ -905,6 +1165,7 @@ public partial class ButtonsView
         SelectCombo(_scActionPicker, button.Action);
         SetTextBoxValue(_scPathBox, ExtractPathBoxValue(button.Action, button.Path));
         SetTextBoxValue(_scMacroBox, button.MacroKeys);
+        if (_scTextSnippetBox != null) _scTextSnippetBox.Text = button.TextSnippet ?? "";
         SelectDevicePicker(_scDevicePicker, button.DeviceId);
         SelectKnobPicker(_scKnobPicker, button.LinkedKnobIdx);
         SelectHaSubTag(_scActionPicker, button.Action, button.Path);
@@ -912,6 +1173,12 @@ public partial class ButtonsView
         SelectProfileSubTag(_scActionPicker, button.Action, button.ProfileName);
         SelectGroupSubTag(_scActionPicker, button.Action, button.Path);
         SelectGoveeSubTag(_scActionPicker, button.Action, button.Path);
+
+        // Load Toggle (A/B) sub-actions
+        if (_scToggleActionAPicker != null) SelectCombo(_scToggleActionAPicker, button.ToggleActionA);
+        if (_scToggleActionBPicker != null) SelectCombo(_scToggleActionBPicker, button.ToggleActionB);
+        if (_scTogglePathABox != null) SetTextBoxValue(_scTogglePathABox, button.TogglePathA);
+        if (_scTogglePathBBox != null) SetTextBoxValue(_scTogglePathBBox, button.TogglePathB);
 
         if (selection.DisplayIdx.HasValue)
         {
@@ -970,8 +1237,18 @@ public partial class ButtonsView
         bool needsPath = PathActions.Contains(action) || action is "ha_service" or "govee_color" or "obs_scene" or "obs_mute" or "vm_mute_strip" or "vm_mute_bus";
         _scPathPanel.Visibility = needsPath ? Visibility.Visible : Visibility.Collapsed;
         _scMacroPanel.Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
+        if (_scTextSnippetPanel != null)
+            _scTextSnippetPanel.Visibility = action == "type_text" ? Visibility.Visible : Visibility.Collapsed;
+        if (_scScreenshotInfoPanel != null)
+            _scScreenshotInfoPanel.Visibility = action == "screenshot" ? Visibility.Visible : Visibility.Collapsed;
         _scDevicePanel.Visibility = action is "select_output" or "select_input" or "mute_device" ? Visibility.Visible : Visibility.Collapsed;
         _scKnobPanel.Visibility = action == "mute_app_group" ? Visibility.Visible : Visibility.Collapsed;
+        if (_scTogglePanel != null)
+        {
+            _scTogglePanel.Visibility = action == "toggle_action" ? Visibility.Visible : Visibility.Collapsed;
+            if (action == "toggle_action")
+                UpdateStreamControllerToggleVisibility();
+        }
 
         if (_scPathPanel.Visibility == Visibility.Visible)
         {
@@ -981,6 +1258,17 @@ public partial class ButtonsView
                 _scPathBox.Tag = "Page number (1-based)";
                 _scBrowsePathButton.Visibility = Visibility.Collapsed;
                 _scPickPathButton.Visibility = Visibility.Collapsed;
+            }
+            else if (action == "open_url")
+            {
+                _scPathLabel.Text = "URL";
+                _scPathBox.Tag = "https://example.com";
+                _scPathBox.ToolTip = "URL to open in the default browser";
+                _scBrowsePathButton.Visibility = Visibility.Collapsed;
+                _scPickPathButton.Visibility = Visibility.Collapsed;
+                // open_url doesn't use the app chip — ensure the text input is visible
+                if (_scPathBox.Parent is System.Windows.Controls.Border inputBorder)
+                    inputBorder.Visibility = Visibility.Visible;
             }
             else
             {
