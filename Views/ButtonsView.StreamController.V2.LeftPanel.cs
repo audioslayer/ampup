@@ -82,12 +82,11 @@ public partial class ButtonsView
         // ── Page navigation toolbar (flat) ──────────────────────────────────
         _v2LeftPanel.Children.Add(BuildV2PageToolbar());
 
-        // ── HARDWARE section ────────────────────────────────────────────────
-        var hardwareHeader = BuildV2SectionHeader("HARDWARE");
-        hardwareHeader.Margin = new Thickness(0, 20, 0, 10);
-        _v2LeftPanel.Children.Add(hardwareHeader);
-
-        _v2LeftPanel.Children.Add(BuildV2HardwareGrid());
+        // ── HARDWARE device body ────────────────────────────────────────────
+        // Skeuomorphic panel evoking the TreasLin N3's actual layout: a dark
+        // rounded "device" chassis with three physical push-buttons on the
+        // left and three rotary encoders on the right.
+        _v2LeftPanel.Children.Add(BuildV2HardwareDeviceBody());
 
         // Initial population of visuals.
         RefreshV2LeftPanel();
@@ -267,59 +266,267 @@ public partial class ButtonsView
         return btn;
     }
 
-    private Grid BuildV2HardwareGrid()
+    // Device-body control refs — kept so RefreshV2ButtonHardware can update labels.
+    private readonly List<Border> _v2HwButtonCaps = new();
+    private readonly List<TextBlock> _v2HwButtonSubs = new();
+    private readonly List<Border> _v2HwEncoderRings = new();
+    private readonly List<TextBlock> _v2HwEncoderSubs = new();
+
+    private Border BuildV2HardwareDeviceBody()
     {
-        // Buttons + encoders in a single row of 6 equal-width tiles so the
-        // hardware strip reads as one cohesive unit under the keys.
+        // Outer chassis — rounded dark body with subtle bevel.
+        var chassis = new Border
+        {
+            Margin = new Thickness(0, 22, 0, 0),
+            Padding = new Thickness(28, 22, 28, 22),
+            CornerRadius = new CornerRadius(20),
+            BorderThickness = new Thickness(1),
+            Background = new LinearGradientBrush(
+                Color.FromRgb(0x14, 0x17, 0x1C),
+                Color.FromRgb(0x0A, 0x0C, 0x10),
+                new Point(0.5, 0), new Point(0.5, 1)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = Colors.Black,
+                BlurRadius = 20,
+                ShadowDepth = 0,
+                Opacity = 0.55,
+            },
+        };
+
         var grid = new Grid();
-        for (int c = 0; c < 6; c++)
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        // ── Left bank: 3 push-buttons ────────────────────────────────────────
+        var buttonBank = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
 
         _v2ButtonTiles.Clear();
+        _v2HwButtonCaps.Clear();
+        _v2HwButtonSubs.Clear();
         for (int i = 0; i < 3; i++)
         {
             int captureI = i;
-            var tile = new StreamControllerTile
-            {
-                Kind = StreamControllerTile.TileKind.SideButton,
-                Title = $"Btn {i + 1}",
-                Subtitle = "None",
-                IconKind = "GestureTap",
-                Margin = new Thickness(i == 0 ? 0 : 4, 0, 4, 0),
-            };
-            tile.OnClick += () => SelectStreamControllerItem(
-                new StreamControllerSelection(
-                    StreamControllerSideButtonBase + captureI,
-                    $"Button {captureI + 1}",
-                    null));
-            Grid.SetColumn(tile, i);
-            grid.Children.Add(tile);
-            _v2ButtonTiles.Add(tile);
+            int buttonIdx = StreamControllerSideButtonBase + i;
+            var col = BuildV2PushButton(i + 1, buttonIdx, out var cap, out var sub);
+            _v2HwButtonCaps.Add(cap);
+            _v2HwButtonSubs.Add(sub);
+            col.Margin = new Thickness(i == 0 ? 0 : 18, 0, 0, 0);
+            buttonBank.Children.Add(col);
         }
+        Grid.SetColumn(buttonBank, 0);
+        grid.Children.Add(buttonBank);
+
+        // ── Divider ──────────────────────────────────────────────────────────
+        var divider = new Border
+        {
+            Width = 1,
+            Margin = new Thickness(28, 6, 28, 6),
+            Background = new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF)),
+        };
+        Grid.SetColumn(divider, 1);
+        grid.Children.Add(divider);
+
+        // ── Right bank: 3 encoders ───────────────────────────────────────────
+        var encoderBank = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
 
         _v2EncoderTiles.Clear();
+        _v2HwEncoderRings.Clear();
+        _v2HwEncoderSubs.Clear();
         for (int i = 0; i < 3; i++)
         {
             int captureI = i;
-            var tile = new StreamControllerTile
-            {
-                Kind = StreamControllerTile.TileKind.Encoder,
-                Title = $"Knob {i + 1}",
-                Subtitle = "None",
-                IconKind = i == 0 ? "KnobLeft" : "Knob",
-                Margin = new Thickness(4, 0, i == 2 ? 0 : 4, 0),
-            };
-            tile.OnClick += () => SelectStreamControllerItem(
-                new StreamControllerSelection(
-                    StreamControllerEncoderPressBase + captureI,
-                    $"Encoder Press {captureI + 1}",
-                    null));
-            Grid.SetColumn(tile, 3 + i);
-            grid.Children.Add(tile);
-            _v2EncoderTiles.Add(tile);
+            int encoderIdx = StreamControllerEncoderPressBase + i;
+            var col = BuildV2Encoder(i + 1, encoderIdx, out var ring, out var sub);
+            _v2HwEncoderRings.Add(ring);
+            _v2HwEncoderSubs.Add(sub);
+            col.Margin = new Thickness(i == 0 ? 0 : 18, 0, 0, 0);
+            encoderBank.Children.Add(col);
         }
+        Grid.SetColumn(encoderBank, 2);
+        grid.Children.Add(encoderBank);
 
-        return grid;
+        chassis.Child = grid;
+        return chassis;
+    }
+
+    private StackPanel BuildV2PushButton(int oneBasedLabel, int buttonIdx, out Border capOut, out TextBlock subOut)
+    {
+        var col = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+
+        // Rim — outer bezel for depth.
+        var rim = new Border
+        {
+            Width = 58, Height = 58,
+            CornerRadius = new CornerRadius(14),
+            Background = new LinearGradientBrush(
+                Color.FromRgb(0x22, 0x24, 0x2A),
+                Color.FromRgb(0x0E, 0x0F, 0x12),
+                new Point(0.5, 0), new Point(0.5, 1)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, 0xFF, 0xFF, 0xFF)),
+            BorderThickness = new Thickness(1),
+            Cursor = Cursors.Hand,
+        };
+
+        // Cap — actual pressable plastic surface.
+        var cap = new Border
+        {
+            Width = 44, Height = 44,
+            CornerRadius = new CornerRadius(10),
+            Margin = new Thickness(0),
+            Background = new LinearGradientBrush(
+                Color.FromRgb(0x1E, 0x21, 0x28),
+                Color.FromRgb(0x11, 0x13, 0x18),
+                new Point(0.5, 0), new Point(0.5, 1)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF)),
+            BorderThickness = new Thickness(1),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = Colors.Black,
+                BlurRadius = 6,
+                ShadowDepth = 2,
+                Opacity = 0.6,
+            },
+        };
+        var number = new TextBlock
+        {
+            Text = oneBasedLabel.ToString(),
+            FontSize = 18,
+            FontWeight = FontWeights.Bold,
+            Foreground = FindBrush("TextDimBrush"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        cap.Child = number;
+        rim.Child = cap;
+
+        rim.MouseEnter += (_, _) => cap.BorderBrush = new SolidColorBrush(ThemeManager.Accent);
+        rim.MouseLeave += (_, _) => cap.BorderBrush = new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
+        rim.MouseLeftButtonUp += (_, _) =>
+            SelectStreamControllerItem(new StreamControllerSelection(buttonIdx, $"Button {oneBasedLabel}", null));
+
+        col.Children.Add(rim);
+
+        col.Children.Add(new TextBlock
+        {
+            Text = $"Button {oneBasedLabel}",
+            FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 8, 0, 0),
+        });
+        var sub = new TextBlock
+        {
+            Text = "None",
+            FontSize = 10,
+            Foreground = FindBrush("TextDimBrush"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 2, 0, 0),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxWidth = 90,
+        };
+        col.Children.Add(sub);
+
+        capOut = cap;
+        subOut = sub;
+        return col;
+    }
+
+    private StackPanel BuildV2Encoder(int oneBasedLabel, int encoderIdx, out Border ringOut, out TextBlock subOut)
+    {
+        var col = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+
+        // Outer rim — metallic ring.
+        var rim = new Border
+        {
+            Width = 62, Height = 62,
+            CornerRadius = new CornerRadius(31),
+            Background = new LinearGradientBrush(
+                Color.FromRgb(0x26, 0x28, 0x2E),
+                Color.FromRgb(0x0E, 0x0F, 0x12),
+                new Point(0.5, 0), new Point(0.5, 1)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x77, 0xFF, 0xFF, 0xFF)),
+            BorderThickness = new Thickness(1),
+            Cursor = Cursors.Hand,
+        };
+        // Inner knob cap.
+        var cap = new Border
+        {
+            Width = 48, Height = 48,
+            CornerRadius = new CornerRadius(24),
+            Background = new LinearGradientBrush(
+                Color.FromRgb(0x1A, 0x1C, 0x22),
+                Color.FromRgb(0x0C, 0x0D, 0x11),
+                new Point(0.5, 0), new Point(0.5, 1)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)),
+            BorderThickness = new Thickness(1),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = Colors.Black,
+                BlurRadius = 6,
+                ShadowDepth = 2,
+                Opacity = 0.6,
+            },
+        };
+        // Indicator dot at top (like a real knob's position mark).
+        var dotWrap = new Grid();
+        var dot = new Border
+        {
+            Width = 4, Height = 10,
+            CornerRadius = new CornerRadius(2),
+            Background = new SolidColorBrush(ThemeManager.Accent),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 6, 0, 0),
+        };
+        dotWrap.Children.Add(dot);
+        cap.Child = dotWrap;
+        rim.Child = cap;
+
+        rim.MouseEnter += (_, _) => cap.BorderBrush = new SolidColorBrush(ThemeManager.Accent);
+        rim.MouseLeave += (_, _) => cap.BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF));
+        rim.MouseLeftButtonUp += (_, _) =>
+            SelectStreamControllerItem(new StreamControllerSelection(encoderIdx, $"Encoder Press {oneBasedLabel}", null));
+
+        col.Children.Add(rim);
+
+        col.Children.Add(new TextBlock
+        {
+            Text = $"Knob {oneBasedLabel}",
+            FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 8, 0, 0),
+        });
+        var sub = new TextBlock
+        {
+            Text = "None",
+            FontSize = 10,
+            Foreground = FindBrush("TextDimBrush"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 2, 0, 0),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxWidth = 90,
+        };
+        col.Children.Add(sub);
+
+        ringOut = cap;
+        subOut = sub;
+        return col;
     }
 
     // ────────────────────────────────────────────────────────────────────────
@@ -486,26 +693,34 @@ public partial class ButtonsView
     {
         if (_config == null) return;
 
-        for (int i = 0; i < _v2ButtonTiles.Count; i++)
+        var accent = new SolidColorBrush(ThemeManager.Accent);
+        var idleBorder = new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
+        var idleRingBorder = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF));
+
+        for (int i = 0; i < _v2HwButtonCaps.Count; i++)
         {
-            var tile = _v2ButtonTiles[i];
             int buttonIdx = StreamControllerSideButtonBase + i;
             var btn = _config.N3.Buttons.FirstOrDefault(b => b.Idx == buttonIdx);
-            tile.Title = $"Btn {i + 1}";
-            tile.Subtitle = GetStreamActionDisplay(btn?.Action);
-            tile.IsSelected = _scSelectedButtonIdx == buttonIdx;
-            tile.Refresh();
+            bool selected = _scSelectedButtonIdx == buttonIdx;
+
+            if (i < _v2HwButtonSubs.Count)
+                _v2HwButtonSubs[i].Text = GetStreamActionDisplay(btn?.Action);
+            var cap = _v2HwButtonCaps[i];
+            cap.BorderBrush = selected ? accent : idleBorder;
+            cap.BorderThickness = new Thickness(selected ? 2 : 1);
         }
 
-        for (int i = 0; i < _v2EncoderTiles.Count; i++)
+        for (int i = 0; i < _v2HwEncoderRings.Count; i++)
         {
-            var tile = _v2EncoderTiles[i];
             int buttonIdx = StreamControllerEncoderPressBase + i;
             var press = _config.N3.Buttons.FirstOrDefault(b => b.Idx == buttonIdx);
-            tile.Title = $"Knob {i + 1}";
-            tile.Subtitle = GetStreamActionDisplay(press?.Action);
-            tile.IsSelected = _scSelectedButtonIdx == buttonIdx;
-            tile.Refresh();
+            bool selected = _scSelectedButtonIdx == buttonIdx;
+
+            if (i < _v2HwEncoderSubs.Count)
+                _v2HwEncoderSubs[i].Text = GetStreamActionDisplay(press?.Action);
+            var ring = _v2HwEncoderRings[i];
+            ring.BorderBrush = selected ? accent : idleRingBorder;
+            ring.BorderThickness = new Thickness(selected ? 2 : 1);
         }
     }
 }
