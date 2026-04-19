@@ -291,6 +291,14 @@ public enum StreamControllerScreensaverEffect
     Prism,
     MusicBounce,
     ScreenSync,
+    Ocean,
+    Matrix,
+    Plasma,
+    Nebula,
+    Starfield,
+    Lightning,
+    Cyber,
+    GradientFlow,
 }
 
 public enum ReactiveMode

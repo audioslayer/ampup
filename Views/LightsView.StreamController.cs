@@ -12,7 +12,8 @@ public partial class LightsView
     private TextBlock? _scBrightnessValueLabel;
     private StyledSlider? _scBrightnessSlider;
     private CheckBox? _scScreensaverEnabled;
-    private SegmentedControl? _scScreensaverEffect;
+    private SegmentedControl? _scScreensaverEffectRow1;
+    private SegmentedControl? _scScreensaverEffectRow2;
     private StyledSlider? _scScreensaverOpacitySlider;
     private StyledSlider? _scScreensaverSpeedSlider;
     private TextBlock? _scScreensaverOpacityLabel;
@@ -156,23 +157,47 @@ public partial class LightsView
         _scScreensaverEnabled.Unchecked += (_, _) => { UpdateStreamControllerScreensaverControls(); if (!_loading) QueueSave(); };
         stack.Children.Add(_scScreensaverEnabled);
 
-        _scScreensaverEffect = new SegmentedControl
+        _scScreensaverEffectRow1 = new SegmentedControl
+        {
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 0, 0, 4)
+        };
+        _scScreensaverEffectRow1.AddSegment("Rainbow", StreamControllerScreensaverEffect.Rainbow);
+        _scScreensaverEffectRow1.AddSegment("Aurora", StreamControllerScreensaverEffect.Aurora);
+        _scScreensaverEffectRow1.AddSegment("Lava", StreamControllerScreensaverEffect.Fire);
+        _scScreensaverEffectRow1.AddSegment("Ocean", StreamControllerScreensaverEffect.Ocean);
+        _scScreensaverEffectRow1.AddSegment("Nebula", StreamControllerScreensaverEffect.Nebula);
+        _scScreensaverEffectRow1.AddSegment("Starfield", StreamControllerScreensaverEffect.Starfield);
+        _scScreensaverEffectRow1.AddSegment("Plasma", StreamControllerScreensaverEffect.Plasma);
+        _scScreensaverEffectRow1.SelectionChanged += (_, _) =>
+        {
+            if (_scScreensaverEffectRow1.SelectedIndex >= 0 && _scScreensaverEffectRow2?.SelectedIndex >= 0)
+                _scScreensaverEffectRow2.SelectedIndex = -1;
+            RefreshStreamControllerScreensaverPreview();
+            if (!_loading) QueueSave();
+        };
+        stack.Children.Add(_scScreensaverEffectRow1);
+
+        _scScreensaverEffectRow2 = new SegmentedControl
         {
             HorizontalAlignment = HorizontalAlignment.Left,
             Margin = new Thickness(0, 0, 0, 10)
         };
-        _scScreensaverEffect.AddSegment("Rainbow", StreamControllerScreensaverEffect.Rainbow);
-        _scScreensaverEffect.AddSegment("Aurora", StreamControllerScreensaverEffect.Aurora);
-        _scScreensaverEffect.AddSegment("Lava", StreamControllerScreensaverEffect.Fire);
-        _scScreensaverEffect.AddSegment("Prism", StreamControllerScreensaverEffect.Prism);
-        _scScreensaverEffect.AddSegment("Music", StreamControllerScreensaverEffect.MusicBounce);
-        _scScreensaverEffect.AddSegment("Screen", StreamControllerScreensaverEffect.ScreenSync);
-        _scScreensaverEffect.SelectionChanged += (_, _) =>
+        _scScreensaverEffectRow2.AddSegment("Prism", StreamControllerScreensaverEffect.Prism);
+        _scScreensaverEffectRow2.AddSegment("Lightning", StreamControllerScreensaverEffect.Lightning);
+        _scScreensaverEffectRow2.AddSegment("Cyber", StreamControllerScreensaverEffect.Cyber);
+        _scScreensaverEffectRow2.AddSegment("Gradient", StreamControllerScreensaverEffect.GradientFlow);
+        _scScreensaverEffectRow2.AddSegment("Matrix", StreamControllerScreensaverEffect.Matrix);
+        _scScreensaverEffectRow2.AddSegment("Music", StreamControllerScreensaverEffect.MusicBounce);
+        _scScreensaverEffectRow2.AddSegment("Screen", StreamControllerScreensaverEffect.ScreenSync);
+        _scScreensaverEffectRow2.SelectionChanged += (_, _) =>
         {
+            if (_scScreensaverEffectRow2.SelectedIndex >= 0 && _scScreensaverEffectRow1?.SelectedIndex >= 0)
+                _scScreensaverEffectRow1.SelectedIndex = -1;
             RefreshStreamControllerScreensaverPreview();
             if (!_loading) QueueSave();
         };
-        stack.Children.Add(_scScreensaverEffect);
+        stack.Children.Add(_scScreensaverEffectRow2);
 
         _scScreensaverOpacityLabel = new TextBlock
         {
@@ -282,16 +307,7 @@ public partial class LightsView
             _scBrightnessValueLabel.Text = $"{Math.Clamp(config.N3.DisplayBrightness, 0, 100)}%";
         if (_scScreensaverEnabled != null)
             _scScreensaverEnabled.IsChecked = config.N3.ScreensaverEnabled;
-        if (_scScreensaverEffect != null)
-            _scScreensaverEffect.SelectedIndex = config.N3.ScreensaverEffect switch
-            {
-                StreamControllerScreensaverEffect.Aurora => 1,
-                StreamControllerScreensaverEffect.Fire => 2,
-                StreamControllerScreensaverEffect.Prism => 3,
-                StreamControllerScreensaverEffect.MusicBounce => 4,
-                StreamControllerScreensaverEffect.ScreenSync => 5,
-                _ => 0
-            };
+        SetSelectedScreensaverEffect(config.N3.ScreensaverEffect);
         if (_scScreensaverOpacitySlider != null)
             _scScreensaverOpacitySlider.Value = Math.Clamp(config.N3.ScreensaverOpacity, 0, 100);
         if (_scScreensaverSpeedSlider != null)
@@ -311,8 +327,7 @@ public partial class LightsView
             _config.TabSelection.Lights = surface;
         _config.N3.DisplayBrightness = (int)Math.Round(_scBrightnessSlider.Value);
         _config.N3.ScreensaverEnabled = _scScreensaverEnabled?.IsChecked == true;
-        if (_scScreensaverEffect?.SelectedTag is StreamControllerScreensaverEffect effect)
-            _config.N3.ScreensaverEffect = effect;
+        _config.N3.ScreensaverEffect = GetSelectedScreensaverEffect();
         if (_scScreensaverOpacitySlider != null)
             _config.N3.ScreensaverOpacity = (int)Math.Round(_scScreensaverOpacitySlider.Value);
         if (_scScreensaverSpeedSlider != null)
@@ -329,10 +344,51 @@ public partial class LightsView
             : Visibility.Collapsed;
     }
 
+    private StreamControllerScreensaverEffect GetSelectedScreensaverEffect()
+    {
+        if (_scScreensaverEffectRow1?.SelectedTag is StreamControllerScreensaverEffect e1) return e1;
+        if (_scScreensaverEffectRow2?.SelectedTag is StreamControllerScreensaverEffect e2) return e2;
+        return StreamControllerScreensaverEffect.Rainbow;
+    }
+
+    private void SetSelectedScreensaverEffect(StreamControllerScreensaverEffect effect)
+    {
+        // Try row 1 first
+        if (_scScreensaverEffectRow1 != null)
+        {
+            for (int i = 0; i < _scScreensaverEffectRow1.SegmentCount; i++)
+            {
+                if (_scScreensaverEffectRow1.GetTagAt(i) is StreamControllerScreensaverEffect e && e == effect)
+                {
+                    _scScreensaverEffectRow1.SelectedIndex = i;
+                    if (_scScreensaverEffectRow2 != null) _scScreensaverEffectRow2.SelectedIndex = -1;
+                    return;
+                }
+            }
+        }
+        // Try row 2
+        if (_scScreensaverEffectRow2 != null)
+        {
+            for (int i = 0; i < _scScreensaverEffectRow2.SegmentCount; i++)
+            {
+                if (_scScreensaverEffectRow2.GetTagAt(i) is StreamControllerScreensaverEffect e && e == effect)
+                {
+                    _scScreensaverEffectRow2.SelectedIndex = i;
+                    if (_scScreensaverEffectRow1 != null) _scScreensaverEffectRow1.SelectedIndex = -1;
+                    return;
+                }
+            }
+        }
+        // Fallback: select Rainbow (row1 index 0)
+        if (_scScreensaverEffectRow1 != null) _scScreensaverEffectRow1.SelectedIndex = 0;
+        if (_scScreensaverEffectRow2 != null) _scScreensaverEffectRow2.SelectedIndex = -1;
+    }
+
     private void UpdateStreamControllerScreensaverControls()
     {
         bool enabled = _scScreensaverEnabled?.IsChecked == true;
-        if (_scScreensaverEffect != null) _scScreensaverEffect.IsEnabled = enabled;
+        if (_scScreensaverEffectRow1 != null) _scScreensaverEffectRow1.IsEnabled = enabled;
+        if (_scScreensaverEffectRow2 != null) _scScreensaverEffectRow2.IsEnabled = enabled;
         if (_scScreensaverOpacitySlider != null) _scScreensaverOpacitySlider.IsEnabled = enabled;
         if (_scScreensaverSpeedSlider != null) _scScreensaverSpeedSlider.IsEnabled = enabled;
         RefreshStreamControllerScreensaverPreview();
@@ -345,9 +401,7 @@ public partial class LightsView
         var previewConfig = new N3Config
         {
             ScreensaverEnabled = _scScreensaverEnabled?.IsChecked == true,
-            ScreensaverEffect = _scScreensaverEffect?.SelectedTag is StreamControllerScreensaverEffect effect
-                ? effect
-                : StreamControllerScreensaverEffect.Rainbow,
+            ScreensaverEffect = GetSelectedScreensaverEffect(),
             ScreensaverOpacity = _scScreensaverOpacitySlider != null ? (int)Math.Round(_scScreensaverOpacitySlider.Value) : 55,
             ScreensaverSpeed = _scScreensaverSpeedSlider != null ? (int)Math.Round(_scScreensaverSpeedSlider.Value) : 50
         };

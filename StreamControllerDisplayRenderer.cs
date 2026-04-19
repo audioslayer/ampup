@@ -368,6 +368,30 @@ internal static class StreamControllerDisplayRenderer
             case StreamControllerScreensaverEffect.ScreenSync:
                 DrawScreenSyncOverlay(graphics, bitmap.Width, bitmap.Height, opacity, frame?.EffectStrip);
                 break;
+            case StreamControllerScreensaverEffect.Ocean:
+                DrawOceanOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
+                break;
+            case StreamControllerScreensaverEffect.Matrix:
+                DrawMatrixOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
+                break;
+            case StreamControllerScreensaverEffect.Plasma:
+                DrawPlasmaOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
+                break;
+            case StreamControllerScreensaverEffect.Nebula:
+                DrawNebulaOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
+                break;
+            case StreamControllerScreensaverEffect.Starfield:
+                DrawStarfieldOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
+                break;
+            case StreamControllerScreensaverEffect.Lightning:
+                DrawLightningOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
+                break;
+            case StreamControllerScreensaverEffect.Cyber:
+                DrawCyberOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
+                break;
+            case StreamControllerScreensaverEffect.GradientFlow:
+                DrawGradientFlowOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
+                break;
             default:
                 DrawRainbowOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
                 break;
@@ -397,6 +421,30 @@ internal static class StreamControllerDisplayRenderer
                 break;
             case StreamControllerScreensaverEffect.MusicBounce:
                 DrawMusicOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed, bands);
+                break;
+            case StreamControllerScreensaverEffect.Ocean:
+                DrawOceanOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
+                break;
+            case StreamControllerScreensaverEffect.Matrix:
+                DrawMatrixOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
+                break;
+            case StreamControllerScreensaverEffect.Plasma:
+                DrawPlasmaOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
+                break;
+            case StreamControllerScreensaverEffect.Nebula:
+                DrawNebulaOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
+                break;
+            case StreamControllerScreensaverEffect.Starfield:
+                DrawStarfieldOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
+                break;
+            case StreamControllerScreensaverEffect.Lightning:
+                DrawLightningOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
+                break;
+            case StreamControllerScreensaverEffect.Cyber:
+                DrawCyberOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
+                break;
+            case StreamControllerScreensaverEffect.GradientFlow:
+                DrawGradientFlowOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
                 break;
             default:
                 DrawRainbowOverlay(graphics, bitmap.Width, bitmap.Height, tick, opacity, n3.ScreensaverSpeed);
@@ -676,6 +724,356 @@ internal static class StreamControllerDisplayRenderer
 
         using var borderPen = new DrawingPen(DrawingColor.FromArgb((int)(opacity * 1.5), 255, 255, 255), Math.Max(2f, width * 0.012f));
         graphics.DrawRectangle(borderPen, width * 0.02f, height * 0.02f, width * 0.96f, height * 0.96f);
+    }
+
+    private static void DrawOceanOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed)
+    {
+        float alpha = opacity / 100f;
+        float time = tick / 1000f * (0.25f + speed / 80f);
+
+        using var bg = new DrawingLinearGradientBrush(
+            new DrawingPointF(0, 0),
+            new DrawingPointF(0, height),
+            DrawingColor.FromArgb((int)(90 * alpha), 2, 12, 28),
+            DrawingColor.FromArgb((int)(110 * alpha), 4, 38, 58));
+        graphics.FillRectangle(bg, 0, 0, width, height);
+
+        for (int wave = 0; wave < 5; wave++)
+        {
+            float waveY = height * (0.30f + wave * 0.14f);
+            float amp = height * (0.06f + wave * 0.018f);
+            float freq = 0.008f + wave * 0.003f;
+            float phase = time * (1.2f + wave * 0.4f);
+            int hue = 185 + wave * 12;
+            var waveColor = FromHsv(hue, 0.72, 0.95, alpha * (0.35f - wave * 0.04f));
+            using var pen = new DrawingPen(waveColor, Math.Max(6f, height * 0.04f));
+
+            var points = new DrawingPointF[(int)(width / 4f) + 2];
+            for (int p = 0; p < points.Length; p++)
+            {
+                float px = p * 4f;
+                float py = waveY + amp * (float)(Math.Sin(px * freq + phase) + 0.5 * Math.Sin(px * freq * 2.1 + phase * 1.3));
+                points[p] = new DrawingPointF(px, py);
+            }
+            if (points.Length > 1)
+                graphics.DrawCurve(pen, points, 0.5f);
+        }
+
+        for (int foam = 0; foam < 8; foam++)
+        {
+            float fx = width * (float)Rand(foam * 29 + 7);
+            float baseY = height * (0.32f + 0.12f * (float)Rand(foam * 13 + 3));
+            float fy = baseY + height * 0.04f * (float)Math.Sin(time * 2.2f + foam * 1.1f);
+            float radius = Math.Max(3f, width * 0.015f * (1f + (float)Rand(foam * 47)));
+            float foamPhase = (time * 1.5f + foam * 0.3f) % 3f;
+            float foamAlpha = foamPhase < 1f ? foamPhase : foamPhase < 2f ? 1f : 3f - foamPhase;
+            using var brush = new DrawingBrush(DrawingColor.FromArgb((int)(alpha * 180 * foamAlpha), 220, 245, 255));
+            graphics.FillEllipse(brush, fx - radius, fy - radius, radius * 2, radius * 2);
+        }
+
+        FillGlow(graphics, width * 0.1f, height * 0.55f, width * 0.8f, height * 0.5f, DrawingColor.FromArgb((int)(alpha * 50), 20, 140, 200));
+    }
+
+    private static void DrawMatrixOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed)
+    {
+        float alpha = opacity / 100f;
+        float time = tick / 1000f * (0.4f + speed / 65f);
+
+        using var bg = new DrawingLinearGradientBrush(
+            new DrawingPointF(0, 0),
+            new DrawingPointF(0, height),
+            DrawingColor.FromArgb((int)(95 * alpha), 0, 4, 0),
+            DrawingColor.FromArgb((int)(60 * alpha), 0, 8, 2));
+        graphics.FillRectangle(bg, 0, 0, width, height);
+
+        int columns = Math.Max(8, width / 28);
+        float colWidth = width / (float)columns;
+
+        for (int col = 0; col < columns; col++)
+        {
+            float colSpeed = 0.6f + 1.4f * (float)Rand(col * 37 + 11);
+            float dropLen = 4f + 8f * (float)Rand(col * 53 + 19);
+            float phase = (time * colSpeed + (float)Rand(col * 71) * 20f) % (height * 0.08f + dropLen);
+            float headY = phase / (height * 0.08f + dropLen) * (height + dropLen * height * 0.05f);
+            float x = col * colWidth + colWidth * 0.5f;
+
+            for (int cell = 0; cell < (int)dropLen; cell++)
+            {
+                float cellY = headY - cell * height * 0.05f;
+                if (cellY < -height * 0.05f || cellY > height * 1.05f) continue;
+
+                float fade = cell == 0 ? 1f : Math.Max(0f, 1f - cell / dropLen);
+                int g = cell == 0 ? 255 : (int)(180 * fade + 40);
+                int r = cell == 0 ? 200 : 0;
+                int b = cell == 0 ? 200 : (int)(30 * fade);
+                using var brush = new DrawingBrush(DrawingColor.FromArgb((int)(alpha * 230 * fade), r, g, b));
+                float charSize = Math.Max(4f, colWidth * 0.65f);
+                graphics.FillRectangle(brush, x - charSize * 0.4f, cellY - charSize * 0.4f, charSize * 0.8f, charSize * 0.6f);
+            }
+
+            if (headY >= 0 && headY <= height)
+                FillGlow(graphics, x - colWidth * 1.2f, headY - colWidth * 1.5f, colWidth * 2.4f, colWidth * 3f, DrawingColor.FromArgb((int)(alpha * 60), 100, 255, 100));
+        }
+    }
+
+    private static void DrawPlasmaOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed)
+    {
+        float alpha = opacity / 100f;
+        float time = tick / 1000f * (0.22f + speed / 90f);
+
+        int step = Math.Max(6, width / 40);
+        for (int py = 0; py < height; py += step)
+        {
+            for (int px = 0; px < width; px += step)
+            {
+                float nx = px / (float)width;
+                float ny = py / (float)height;
+                float v1 = (float)Math.Sin(nx * 6f + time * 1.3f);
+                float v2 = (float)Math.Sin(ny * 5f + time * 1.1f);
+                float v3 = (float)Math.Sin((nx + ny) * 4f + time * 0.9f);
+                float v4 = (float)Math.Sin(Math.Sqrt(nx * nx + ny * ny) * 8f - time * 1.5f);
+                float v = (v1 + v2 + v3 + v4) * 0.25f;
+
+                int hue = (int)((v + 1f) * 180f + time * 40f) % 360;
+                var color = FromHsv(hue, 0.82, 0.95, alpha * 0.88f);
+                using var brush = new DrawingBrush(color);
+                graphics.FillRectangle(brush, px, py, step, step);
+            }
+        }
+
+        FillGlow(graphics, width * 0.2f, height * 0.2f, width * 0.6f, height * 0.6f, DrawingColor.FromArgb((int)(alpha * 30), 255, 255, 255));
+    }
+
+    private static void DrawNebulaOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed)
+    {
+        float alpha = opacity / 100f;
+        float time = tick / 1000f * (0.18f + speed / 100f);
+
+        using var bg = new DrawingLinearGradientBrush(
+            new DrawingPointF(0, 0),
+            new DrawingPointF(width, height),
+            DrawingColor.FromArgb((int)(80 * alpha), 4, 2, 14),
+            DrawingColor.FromArgb((int)(60 * alpha), 2, 4, 18));
+        graphics.FillRectangle(bg, 0, 0, width, height);
+
+        DrawingColor[] nebColors =
+        {
+            DrawingColor.FromArgb((int)(alpha * 80), 120, 40, 220),
+            DrawingColor.FromArgb((int)(alpha * 70), 40, 100, 255),
+            DrawingColor.FromArgb((int)(alpha * 75), 220, 50, 180),
+            DrawingColor.FromArgb((int)(alpha * 65), 60, 200, 220),
+            DrawingColor.FromArgb((int)(alpha * 55), 255, 120, 60),
+            DrawingColor.FromArgb((int)(alpha * 60), 100, 255, 140),
+        };
+
+        for (int i = 0; i < nebColors.Length; i++)
+        {
+            float cx = width * (0.15f + 0.14f * i + 0.12f * (float)Math.Sin(time * 0.7f + i * 1.2f));
+            float cy = height * (0.35f + 0.18f * (float)Math.Sin(time * 0.5f + i * 0.9f));
+            float sx = width * (0.35f + 0.08f * (float)Math.Sin(time * 0.4f + i));
+            float sy = height * (0.45f + 0.10f * (float)Math.Sin(time * 0.6f + i * 0.7f));
+            FillGlow(graphics, cx - sx * 0.5f, cy - sy * 0.5f, sx, sy, nebColors[i]);
+        }
+
+        for (int s = 0; s < 20; s++)
+        {
+            float sx = width * (float)Rand(s * 23 + 5);
+            float sy = height * (float)Rand(s * 37 + 11);
+            float twinkle = 0.4f + 0.6f * (float)(0.5 + 0.5 * Math.Sin(time * 3f + s * 2.1f));
+            float radius = Math.Max(1.5f, width * 0.005f * (1f + (float)Rand(s * 59)));
+            using var brush = new DrawingBrush(DrawingColor.FromArgb((int)(alpha * 200 * twinkle), 255, 255, 255));
+            graphics.FillEllipse(brush, sx - radius, sy - radius, radius * 2, radius * 2);
+        }
+    }
+
+    private static void DrawStarfieldOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed)
+    {
+        float alpha = opacity / 100f;
+        float time = tick / 1000f * (0.3f + speed / 85f);
+
+        using var bg = new DrawingLinearGradientBrush(
+            new DrawingPointF(0, 0),
+            new DrawingPointF(width, height),
+            DrawingColor.FromArgb((int)(90 * alpha), 3, 3, 12),
+            DrawingColor.FromArgb((int)(75 * alpha), 8, 4, 18));
+        graphics.FillRectangle(bg, 0, 0, width, height);
+
+        FillGlow(graphics, width * -0.1f, height * 0.5f, width * 0.5f, height * 0.6f, DrawingColor.FromArgb((int)(alpha * 18), 80, 60, 160));
+        FillGlow(graphics, width * 0.6f, height * -0.1f, width * 0.5f, height * 0.5f, DrawingColor.FromArgb((int)(alpha * 14), 40, 80, 140));
+
+        int starCount = 35;
+        for (int s = 0; s < starCount; s++)
+        {
+            float sx = width * (float)Rand(s * 31 + 7);
+            float sy = height * (float)Rand(s * 47 + 13);
+            float twinkleSpeed = 1.5f + 3f * (float)Rand(s * 61 + 19);
+            float twinkle = 0.2f + 0.8f * (float)(0.5 + 0.5 * Math.Sin(time * twinkleSpeed + s * 1.7f));
+            float size = Math.Max(1f, width * (0.003f + 0.008f * (float)Rand(s * 73)));
+
+            bool warm = Rand(s * 83) > 0.5;
+            int r = warm ? 255 : (int)(200 + 55 * Rand(s * 91));
+            int g = warm ? (int)(220 + 35 * Rand(s * 97)) : (int)(220 + 35 * Rand(s * 97));
+            int b = warm ? (int)(180 + 40 * Rand(s * 101)) : 255;
+
+            using var brush = new DrawingBrush(DrawingColor.FromArgb((int)(alpha * 240 * twinkle), r, g, b));
+            graphics.FillEllipse(brush, sx - size, sy - size, size * 2, size * 2);
+
+            if (size > width * 0.006f)
+            {
+                using var glowBrush = new DrawingBrush(DrawingColor.FromArgb((int)(alpha * 50 * twinkle), r, g, b));
+                float gs = size * 3f;
+                graphics.FillEllipse(glowBrush, sx - gs, sy - gs, gs * 2, gs * 2);
+            }
+        }
+    }
+
+    private static void DrawLightningOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed)
+    {
+        float alpha = opacity / 100f;
+        float time = tick / 1000f * (0.5f + speed / 60f);
+
+        using var bg = new DrawingLinearGradientBrush(
+            new DrawingPointF(0, 0),
+            new DrawingPointF(0, height),
+            DrawingColor.FromArgb((int)(85 * alpha), 6, 4, 18),
+            DrawingColor.FromArgb((int)(70 * alpha), 12, 8, 28));
+        graphics.FillRectangle(bg, 0, 0, width, height);
+
+        for (int cloud = 0; cloud < 4; cloud++)
+        {
+            float cx = width * (0.1f + cloud * 0.22f + 0.05f * (float)Math.Sin(time * 0.3f + cloud));
+            float cy = height * (0.08f + 0.06f * (float)Math.Sin(time * 0.4f + cloud * 1.3f));
+            FillGlow(graphics, cx - width * 0.18f, cy - height * 0.12f, width * 0.36f, height * 0.24f,
+                DrawingColor.FromArgb((int)(alpha * 35), 100, 100, 140));
+        }
+
+        for (int bolt = 0; bolt < 3; bolt++)
+        {
+            float boltCycle = (time * (0.8f + bolt * 0.3f) + bolt * 3.7f) % 4f;
+            if (boltCycle > 0.6f) continue;
+
+            float flashAlpha = boltCycle < 0.1f ? boltCycle * 10f : Math.Max(0f, 1f - (boltCycle - 0.1f) / 0.5f);
+            float startX = width * (0.2f + 0.6f * (float)Rand(bolt * 113 + (int)(time * 0.8f) * 7));
+
+            float bx = startX;
+            float by = 0f;
+            int segments = 6 + (int)(4 * Rand(bolt * 67));
+
+            for (int seg = 0; seg < segments; seg++)
+            {
+                float nextX = bx + width * 0.04f * (float)(Rand((int)(bolt * 200 + seg * 31 + time * 2)) - 0.5) * 2f;
+                float nextY = by + height / (float)segments;
+                nextX = Math.Clamp(nextX, width * 0.05f, width * 0.95f);
+
+                int boltR = 180 + (int)(75 * flashAlpha);
+                int boltG = 180 + (int)(75 * flashAlpha);
+                int boltB = 255;
+                using var pen = new DrawingPen(DrawingColor.FromArgb((int)(alpha * 230 * flashAlpha), boltR, boltG, boltB), Math.Max(2f, width * 0.012f));
+                graphics.DrawLine(pen, bx, by, nextX, nextY);
+
+                using var corePen = new DrawingPen(DrawingColor.FromArgb((int)(alpha * 180 * flashAlpha), 255, 255, 255), Math.Max(1f, width * 0.005f));
+                graphics.DrawLine(corePen, bx, by, nextX, nextY);
+
+                bx = nextX;
+                by = nextY;
+            }
+
+            FillGlow(graphics, startX - width * 0.2f, -height * 0.1f, width * 0.4f, height * 0.5f,
+                DrawingColor.FromArgb((int)(alpha * 70 * flashAlpha), 160, 170, 255));
+        }
+    }
+
+    private static void DrawCyberOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed)
+    {
+        float alpha = opacity / 100f;
+        float time = tick / 1000f * (0.30f + speed / 80f);
+
+        using var bg = new DrawingLinearGradientBrush(
+            new DrawingPointF(0, 0),
+            new DrawingPointF(width, height),
+            DrawingColor.FromArgb((int)(90 * alpha), 8, 2, 16),
+            DrawingColor.FromArgb((int)(80 * alpha), 4, 4, 22));
+        graphics.FillRectangle(bg, 0, 0, width, height);
+
+        DrawingColor[] neonColors =
+        {
+            DrawingColor.FromArgb((int)(alpha * 100), 255, 40, 200),
+            DrawingColor.FromArgb((int)(alpha * 90), 0, 220, 255),
+            DrawingColor.FromArgb((int)(alpha * 80), 180, 60, 255),
+            DrawingColor.FromArgb((int)(alpha * 70), 255, 100, 60),
+        };
+
+        for (int i = 0; i < neonColors.Length; i++)
+        {
+            float cx = width * (0.15f + i * 0.22f + 0.08f * (float)Math.Sin(time * 1.0f + i * 1.5f));
+            float cy = height * (0.4f + 0.15f * (float)Math.Sin(time * 0.8f + i * 1.1f));
+            FillGlow(graphics, cx - width * 0.22f, cy - height * 0.35f, width * 0.44f, height * 0.7f, neonColors[i]);
+        }
+
+        int lineCount = 6;
+        for (int line = 0; line < lineCount; line++)
+        {
+            float ly = height * (0.15f + line * 0.14f);
+            float scanX = (time * width * (0.3f + 0.15f * (float)Rand(line * 41))) % (width * 1.4f) - width * 0.2f;
+            int hue = (int)(300 + line * 28 + time * 50) % 360;
+            var lineColor = FromHsv(hue, 0.9, 1.0, alpha * 0.45f);
+            using var pen = new DrawingPen(lineColor, Math.Max(1.5f, height * 0.008f));
+            graphics.DrawLine(pen, 0, ly, width, ly);
+
+            FillGlow(graphics, scanX - width * 0.08f, ly - height * 0.06f, width * 0.16f, height * 0.12f,
+                DrawingColor.FromArgb((int)(alpha * 140), 255, 255, 255));
+        }
+
+        for (int hex = 0; hex < 5; hex++)
+        {
+            float hx = width * (float)Rand(hex * 43 + 9);
+            float hy = height * (float)Rand(hex * 59 + 17);
+            float phase = (time * 2f + hex * 1.3f) % 3f;
+            float hexAlpha = phase < 0.5f ? phase * 2f : phase < 1.5f ? 1f : Math.Max(0f, (3f - phase) / 1.5f);
+            float size = Math.Max(4f, width * 0.025f);
+            using var brush = new DrawingBrush(DrawingColor.FromArgb((int)(alpha * 120 * hexAlpha), 0, 255, 220));
+            graphics.FillEllipse(brush, hx - size, hy - size, size * 2, size * 2);
+        }
+    }
+
+    private static void DrawGradientFlowOverlay(DrawingGraphics graphics, int width, int height, int tick, int opacity, int speed)
+    {
+        float alpha = opacity / 100f;
+        float time = tick / 1000f * (0.20f + speed / 75f);
+
+        int step = Math.Max(4, width / 60);
+        for (int px = 0; px < width; px += step)
+        {
+            float nx = px / (float)width;
+            float wave1 = (float)Math.Sin(nx * 3f + time * 0.8f) * 0.5f + 0.5f;
+            float wave2 = (float)Math.Sin(nx * 5f - time * 1.2f) * 0.5f + 0.5f;
+            float blend = (wave1 + wave2) * 0.5f;
+
+            int hue1 = (int)(time * 30f) % 360;
+            int hue2 = (hue1 + 120) % 360;
+            int hue3 = (hue1 + 240) % 360;
+            int hue = blend < 0.5f
+                ? (int)(hue1 + (hue2 - hue1 + 360) % 360 * (blend * 2f)) % 360
+                : (int)(hue2 + (hue3 - hue2 + 360) % 360 * ((blend - 0.5f) * 2f)) % 360;
+
+            var topColor = FromHsv(hue, 0.75, 1.0, alpha * 0.9f);
+            var bottomColor = FromHsv((hue + 40) % 360, 0.85, 0.7, alpha * 0.9f);
+
+            using var brush = new DrawingLinearGradientBrush(
+                new DrawingPointF(px, 0),
+                new DrawingPointF(px, height),
+                topColor,
+                bottomColor);
+            graphics.FillRectangle(brush, px, 0, step, height);
+        }
+
+        float glossY = height * 0.15f * (float)(0.5 + 0.5 * Math.Sin(time * 0.6f));
+        using var gloss = new DrawingLinearGradientBrush(
+            new DrawingPointF(0, glossY),
+            new DrawingPointF(0, glossY + height * 0.3f),
+            DrawingColor.FromArgb((int)(alpha * 40), 255, 255, 255),
+            DrawingColor.FromArgb(0, 255, 255, 255));
+        graphics.FillRectangle(gloss, 0, glossY, width, height * 0.3f);
     }
 
     private static byte[] EncodeForDevice(DrawingImage image)
