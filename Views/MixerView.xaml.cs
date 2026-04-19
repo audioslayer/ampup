@@ -426,17 +426,7 @@ public partial class MixerView : UserControl
                         SelectTarget(_targetPickers[i], knob.Target);
                 }
 
-                for (int i = 0; i < 3; i++)
-                {
-                    var knob = _config.N3.Knobs.FirstOrDefault(k => k.Idx == i);
-                    if (knob == null) continue;
-                    var baseTarget = knob.Target.Contains(':') ? knob.Target.Split(':')[0] : knob.Target;
-                    if (HATargetDomains.ContainsKey(baseTarget))
-                    {
-                        SelectTarget(_scMixerTargetPickers[i], knob.Target);
-                        UpdateStreamControllerTargetDisplay(i);
-                    }
-                }
+                // SC mixer panel removed — no target pickers to update
             });
         }
         catch (Exception ex)
@@ -1431,8 +1421,6 @@ public partial class MixerView : UserControl
             _targetPickers[i].RefreshAccent();
             _rangeSliders[i].AccentColor = accent;
         }
-
-        RefreshStreamControllerAccentColors();
 
         // Re-apply LED/accent colors to knobs, VU meters, and glow
         if (_config != null)

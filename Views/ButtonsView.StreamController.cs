@@ -570,14 +570,22 @@ public partial class ButtonsView
         _scPageDots.Clear();
         for (int i = 0; i < _scPageCount; i++)
         {
+            int targetPage = i;
             var dot = new Ellipse
             {
-                Width = 8,
-                Height = 8,
+                Width = i == _scCurrentPage ? 10 : 8,
+                Height = i == _scCurrentPage ? 10 : 8,
                 Margin = new Thickness(3, 0, 3, 0),
                 Fill = i == _scCurrentPage
                     ? new SolidColorBrush(ThemeManager.Accent)
-                    : FindBrush("CardBorderBrush")
+                    : FindBrush("TextDimBrush"),
+                Cursor = Cursors.Hand,
+                ToolTip = $"Page {i + 1}"
+            };
+            dot.MouseLeftButtonUp += (_, _) =>
+            {
+                if (targetPage != _scCurrentPage)
+                    NavigateStreamControllerPage(targetPage - _scCurrentPage);
             };
             _scPageDots.Add(dot);
             _scPageDotsPanel?.Children.Add(dot);
