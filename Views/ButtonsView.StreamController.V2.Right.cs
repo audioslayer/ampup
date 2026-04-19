@@ -63,7 +63,7 @@ public partial class ButtonsView
         _scEditorTitle.Margin = new Thickness(0, 0, 0, 12);
         _v2PreviewPanel.Children.Add(_scEditorTitle);
 
-        // ── 2. Live preview card (280 × 160) ─────────────────────────────
+        // ── 2. Preview + Choose Icon row ─────────────────────────────────
         _v2PreviewCard = new Border
         {
             Background = new SolidColorBrush(Color.FromRgb(0x0A, 0x0A, 0x0A)),
@@ -71,10 +71,9 @@ public partial class ButtonsView
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(14),
             Padding = new Thickness(10),
-            Margin = new Thickness(0, 0, 0, 14),
-            Width = 220,
-            Height = 220,
-            HorizontalAlignment = HorizontalAlignment.Center,
+            Width = 180,
+            Height = 180,
+            VerticalAlignment = VerticalAlignment.Center,
         };
 
         if (_scEditorPreview == null)
@@ -87,61 +86,57 @@ public partial class ButtonsView
         DetachFromParent(_scEditorPreview);
         _scEditorPreview.Stretch = Stretch.Uniform;
         _v2PreviewCard.Child = _scEditorPreview;
-        _v2PreviewPanel.Children.Add(_v2PreviewCard);
+
+        var previewRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 14),
+        };
+        previewRow.Children.Add(_v2PreviewCard);
+
+        var chooseIconInlineBtn = MakeEditorButton("Choose Icon", (_, _) => ChooseStreamControllerIcon());
+        chooseIconInlineBtn.Margin = new Thickness(14, 0, 0, 0);
+        chooseIconInlineBtn.VerticalAlignment = VerticalAlignment.Center;
+        previewRow.Children.Add(chooseIconInlineBtn);
+
+        _v2PreviewPanel.Children.Add(previewRow);
 
         // ── 3. Common fields (LCD-only) ──────────────────────────────────
-        // Split into two section cards — ICON (preview type, icon, dynamic
-        // state source) and TEXT (title, position, size, color) — so the
-        // editor reads as distinct sections instead of one long stack.
+        // One DESIGN card containing display type, title, text layout +
+        // color, clock format, and dynamic state — "icon" is now just the
+        // Choose Icon button next to the preview above.
         _v2CommonFieldsPanel = new StackPanel();
 
-        // DISPLAY TYPE sits above both cards since it drives what's visible.
-        if (_scDisplayTypePicker != null)
-        {
-            _v2CommonFieldsPanel.Children.Add(MakeEditorLabel("DISPLAY TYPE"));
-            DetachFromParent(_scDisplayTypePicker);
-            _scDisplayTypePicker.Margin = new Thickness(0, 0, 0, 14);
-            _scDisplayTypePicker.Visibility = Visibility.Visible;
-            _v2CommonFieldsPanel.Children.Add(_scDisplayTypePicker);
-        }
-
-        // ── ICON card ───────────────────────────────────────────────────
-        var iconCardContent = new StackPanel();
-
-        iconCardContent.Children.Add(MakeEditorLabel("ICON"));
+        // Keep _scIconBox in the tree (visibility Collapsed) — existing
+        // load/save code references it. We just don't show it.
         if (_scIconBox == null)
         {
             _scIconBox = MakeEditorTextBox("No icon selected");
             _scIconBox.IsReadOnly = true;
         }
         DetachFromParent(_scIconBox);
-        _scIconBox.Visibility = Visibility.Visible;
-        iconCardContent.Children.Add(_scIconBox);
+        _scIconBox.Visibility = Visibility.Collapsed;
+        _v2CommonFieldsPanel.Children.Add(_scIconBox);
 
-        var chooseIconBtn = MakeEditorButton("Choose Icon", (_, _) => ChooseStreamControllerIcon());
-        chooseIconBtn.Margin = new Thickness(0, 6, 0, 0);
-        iconCardContent.Children.Add(chooseIconBtn);
+        var designContent = new StackPanel();
 
-        // Dynamic state lives in the icon card (active icon swap signal).
-        if (_scDynamicPanel != null)
+        if (_scDisplayTypePicker != null)
         {
-            DetachFromParent(_scDynamicPanel);
-            _scDynamicPanel.Margin = new Thickness(0, 10, 0, 0);
-            iconCardContent.Children.Add(_scDynamicPanel);
+            designContent.Children.Add(MakeEditorLabel("DISPLAY TYPE"));
+            DetachFromParent(_scDisplayTypePicker);
+            _scDisplayTypePicker.Margin = new Thickness(0, 0, 0, 12);
+            _scDisplayTypePicker.Visibility = Visibility.Visible;
+            designContent.Children.Add(_scDisplayTypePicker);
         }
 
-        _v2CommonFieldsPanel.Children.Add(MakeV2CommonFieldCard("ICON", iconCardContent));
-
-        // ── TEXT card ───────────────────────────────────────────────────
-        var textCardContent = new StackPanel();
-
-        textCardContent.Children.Add(MakeEditorLabel("TITLE"));
+        designContent.Children.Add(MakeEditorLabel("TITLE"));
         if (_scTitleBox == null) _scTitleBox = MakeEditorTextBox("Display title");
         DetachFromParent(_scTitleBox);
         _scTitleBox.Visibility = Visibility.Visible;
-        textCardContent.Children.Add(_scTitleBox);
+        designContent.Children.Add(_scTitleBox);
 
-        textCardContent.Children.Add(MakeEditorLabel("TEXT POSITION"));
+        designContent.Children.Add(MakeEditorLabel("TEXT POSITION"));
         if (_scTextPositionPicker == null)
         {
             _scTextPositionPicker = new SegmentedControl { HorizontalAlignment = HorizontalAlignment.Left };
@@ -157,7 +152,7 @@ public partial class ButtonsView
         DetachFromParent(_scTextPositionPicker);
         _scTextPositionPicker.Margin = new Thickness(0, 0, 0, 10);
         _scTextPositionPicker.Visibility = Visibility.Visible;
-        textCardContent.Children.Add(_scTextPositionPicker);
+        designContent.Children.Add(_scTextPositionPicker);
 
         if (_scTextSizeSlider != null)
         {
@@ -174,30 +169,35 @@ public partial class ButtonsView
             }
             DetachFromParent(_scTextSizeLabel);
             _scTextSizeLabel.Visibility = Visibility.Visible;
-            textCardContent.Children.Add(_scTextSizeLabel);
+            designContent.Children.Add(_scTextSizeLabel);
 
             DetachFromParent(_scTextSizeSlider);
             _scTextSizeSlider.Margin = new Thickness(0, 0, 0, 10);
             _scTextSizeSlider.Visibility = Visibility.Visible;
-            textCardContent.Children.Add(_scTextSizeSlider);
+            designContent.Children.Add(_scTextSizeSlider);
         }
 
-        textCardContent.Children.Add(MakeEditorLabel("TEXT COLOR"));
+        designContent.Children.Add(MakeEditorLabel("TEXT COLOR"));
         if (_scTextColorSwatchPanel == null) _scTextColorSwatchPanel = new WrapPanel();
         DetachFromParent(_scTextColorSwatchPanel);
         _scTextColorSwatchPanel.Margin = new Thickness(0, 0, 0, 0);
         _scTextColorSwatchPanel.Visibility = Visibility.Visible;
-        textCardContent.Children.Add(_scTextColorSwatchPanel);
+        designContent.Children.Add(_scTextColorSwatchPanel);
 
-        // Clock format is text-related — lives in the text card.
         if (_scClockPanel != null)
         {
             DetachFromParent(_scClockPanel);
             _scClockPanel.Margin = new Thickness(0, 10, 0, 0);
-            textCardContent.Children.Add(_scClockPanel);
+            designContent.Children.Add(_scClockPanel);
+        }
+        if (_scDynamicPanel != null)
+        {
+            DetachFromParent(_scDynamicPanel);
+            _scDynamicPanel.Margin = new Thickness(0, 10, 0, 0);
+            designContent.Children.Add(_scDynamicPanel);
         }
 
-        _v2CommonFieldsPanel.Children.Add(MakeV2CommonFieldCard("TEXT", textCardContent));
+        _v2CommonFieldsPanel.Children.Add(MakeV2CommonFieldCard("DESIGN", designContent));
 
         _v2PreviewPanel.Children.Add(_v2CommonFieldsPanel);
     }
