@@ -25,36 +25,6 @@ public class StreamControllerIconPickerDialog : Window
     private static readonly HttpClient _http = CreateHttpClient();
     private static readonly string[] OnlinePrefixes =
     {
-        "material-symbols",
-        "material-symbols-light",
-        "ic",
-        "mdi",
-        "mdi-light",
-        "line-md",
-        "solar",
-        "ph",
-        "tabler",
-        "fluent",
-        "fluent-color",
-        "boxicons",
-        "mingcute",
-        "ri",
-        "mynaui",
-        "iconoir",
-        "lucide",
-        "uil",
-        "tdesign",
-        "majesticons",
-        "bi",
-        "carbon",
-        "simple-icons",
-        "logos",
-        "streamline-logos",
-        "devicon",
-        "devicon-plain",
-        "skill-icons",
-        "vscode-icons",
-        "catppuccin",
         "streamline-color",
         "streamline-plump-color",
         "streamline-cyber-color",
@@ -64,17 +34,17 @@ public class StreamControllerIconPickerDialog : Window
         "streamline-sharp-color",
         "streamline-stickies-color",
         "streamline-ultimate-color",
-        "fluent-emoji-flat",
+        "fluent-color",
+        "logos",
+        "skill-icons",
+        "devicon",
+        "vscode-icons",
+        "catppuccin",
         "twemoji",
-        "emojione",
-        "noto",
+        "fluent-emoji-flat",
         "cryptocurrency-color",
         "token-branded",
-        "token",
-        "unjs",
-        "cib",
-        "bxl",
-        "fa7-brands"
+        "simple-icons"
     };
 
     private readonly List<IconPresetEntry> _entries = BuildEntries();
@@ -162,7 +132,7 @@ public class StreamControllerIconPickerDialog : Window
         {
             Foreground = (Brush)Application.Current.FindResource("TextDimBrush"),
             Margin = new Thickness(0, 6, 0, 0),
-            Text = "Showing built-in quick icons. Search to pull in logos, brand marks, dev icons, emoji, and multicolor packs."
+            Text = "Showing built-in quick icons. Search to pull in colorful app logos, emoji, and bright icon packs."
         };
 
         _searchChrome = new Border
@@ -177,7 +147,7 @@ public class StreamControllerIconPickerDialog : Window
 
         _searchPlaceholder = new TextBlock
         {
-            Text = "Search play, mute, spotify, obs, mic...",
+            Text = "Search colorful icons like play, spotify, camera, game, fire...",
             Foreground = (Brush)Application.Current.FindResource("TextDimBrush"),
             IsHitTestVisible = false,
             VerticalAlignment = VerticalAlignment.Center,
@@ -326,7 +296,7 @@ public class StreamControllerIconPickerDialog : Window
         };
         Closed += (_, _) => _searchCts?.Cancel();
         UpdateSearchChrome();
-        _subtitle.Text = "Browse built-in icons instantly, then search to blend in online logos, dev icons, emoji, and multicolor packs without leaving the same picker.";
+        _subtitle.Text = "Browse built-in icons instantly, then search a curated library of free colorful icon packs, logos, and emoji without leaving the same picker.";
     }
 
     private void OnSearchTextChanged(object? sender, TextChangedEventArgs e)
@@ -338,11 +308,11 @@ public class StreamControllerIconPickerDialog : Window
         if (string.IsNullOrWhiteSpace(_searchBox.Text))
         {
             _searchCts?.Cancel();
-            _resultStatus.Text = $"Showing {_resultsGrid.Children.Count} built-in quick icons. Search to pull in online results.";
+            _resultStatus.Text = $"Showing {_resultsGrid.Children.Count} built-in quick icons. Search to pull in colorful online results.";
             return;
         }
 
-        _resultStatus.Text = $"Showing {_resultsGrid.Children.Count} built-in matches. Searching online...";
+        _resultStatus.Text = $"Showing {_resultsGrid.Children.Count} built-in matches. Searching colorful packs...";
         _searchDebounce.Start();
     }
 
@@ -378,8 +348,8 @@ public class StreamControllerIconPickerDialog : Window
             _resultsGrid.Children.Add(BuildLocalTile(entry));
 
         _resultStatus.Text = string.IsNullOrWhiteSpace(query)
-            ? $"Showing {filtered.Count} built-in quick icons. Search to pull in online results."
-            : $"Showing {filtered.Count} built-in matches. Searching online...";
+            ? $"Showing {filtered.Count} built-in quick icons. Search to pull in colorful online results."
+            : $"Showing {filtered.Count} built-in matches. Searching colorful packs...";
     }
 
     private async Task SearchOnlineAsync(string query)
@@ -392,7 +362,7 @@ public class StreamControllerIconPickerDialog : Window
         try
         {
             int localCount = _resultsGrid.Children.Count;
-            _resultStatus.Text = $"Showing {localCount} built-in matches. Searching online for \"{query}\"...";
+            _resultStatus.Text = $"Showing {localCount} built-in matches. Searching colorful packs for \"{query}\"...";
 
             string prefixes = string.Join(",", OnlinePrefixes);
             string url = $"https://api.iconify.design/search?query={Uri.EscapeDataString(query)}&limit=120&prefixes={Uri.EscapeDataString(prefixes)}";
@@ -409,7 +379,7 @@ public class StreamControllerIconPickerDialog : Window
             {
                 _resultStatus.Text = localCount > 0
                     ? $"Showing {localCount} built-in matches. No extra online icons found for \"{query}\"."
-                    : $"No icons found yet. Try a broader search like play, mic, app, folder, game, or browser.";
+                    : $"No icons found yet. Try a broader search like play, spotify, camera, game, emoji, or browser.";
                 return;
             }
 
@@ -434,7 +404,7 @@ public class StreamControllerIconPickerDialog : Window
         catch
         {
             if (!token.IsCancellationRequested)
-                _resultStatus.Text = "Online icon search hit a snag. Check your connection and try again.";
+                    _resultStatus.Text = "Colorful icon search hit a snag. Check your connection and try again.";
         }
     }
 
@@ -827,16 +797,21 @@ public class StreamControllerIconPickerDialog : Window
     {
         return prefix switch
         {
-            "simple-icons" => 0,
-            "logos" => 1,
-            "skill-icons" => 2,
-            "devicon" => 3,
-            "streamline-color" => 4,
-            "streamline-plump-color" => 5,
-            "fluent-color" => 6,
-            "material-symbols" => 7,
-            "mdi" => 8,
-            "ph" => 9,
+            "streamline-color" => 0,
+            "streamline-plump-color" => 1,
+            "fluent-color" => 2,
+            "streamline-kameleon-color" => 3,
+            "streamline-ultimate-color" => 4,
+            "streamline-flex-color" => 5,
+            "streamline-cyber-color" => 6,
+            "skill-icons" => 7,
+            "logos" => 8,
+            "vscode-icons" => 9,
+            "catppuccin" => 10,
+            "devicon" => 11,
+            "twemoji" => 12,
+            "fluent-emoji-flat" => 13,
+            "simple-icons" => 14,
             _ => 20
         };
     }
