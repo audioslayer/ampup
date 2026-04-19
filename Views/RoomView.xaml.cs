@@ -3184,11 +3184,15 @@ public partial class RoomView : UserControl
 
         stack.Children.Add(leftCol);
 
-        // Status update timer — updates status label and Game Mode badge
+        // Status update timer — updates status label and Game Mode badge.
+        // When sync isn't running the preview timer owns the status label
+        // (sets it to "Preview"), so only write _dreamSync.Status here when
+        // sync is actually running, otherwise the two timers fight and the
+        // label flashes between "Preview" and "Stopped" every second.
         var statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         statusTimer.Tick += (_, _) =>
         {
-            if (_dreamStatusLabel != null && _dreamSync != null)
+            if (_dreamStatusLabel != null && _dreamSync != null && _dreamSync.IsRunning)
                 _dreamStatusLabel.Text = _dreamSync.Status;
             bool active = _config?.Ambience.ScreenSync.Enabled == true;
             statusTileUpdater(active ? "ACTIVE" : "STANDBY", active);
