@@ -325,14 +325,25 @@ public partial class ButtonsView
             card.Child = stack;
             card.MouseLeftButtonUp += (_, _) =>
             {
+                // In a folder, slot 0 is the reserved Back key — clicking it
+                // doesn't select anything (it's a read-only visual on hardware).
+                if (InFolderContext && localIdx == 0) return;
+
+                int folderSlotOffset = InFolderContext ? -1 : 0;
+                int targetLocalIdx = localIdx + folderSlotOffset;
+                int globalIdx = _scCurrentPage * StreamControllerKeysPerPage + targetLocalIdx;
+                int buttonIdx = StreamControllerDisplayKeyBase + globalIdx;
                 SelectStreamControllerItem(new StreamControllerSelection(
-                    PagedDisplayKeyBase + localIdx,
-                    $"Key {_scCurrentPage * StreamControllerKeysPerPage + localIdx + 1}",
-                    _scCurrentPage * StreamControllerKeysPerPage + localIdx));
+                    buttonIdx,
+                    $"Key {globalIdx + 1}",
+                    globalIdx));
             };
             card.MouseRightButtonUp += (_, e) =>
             {
-                ShowKeyContextMenu(card, _scCurrentPage * StreamControllerKeysPerPage + localIdx);
+                if (InFolderContext && localIdx == 0) { e.Handled = true; return; }
+                int folderSlotOffset = InFolderContext ? -1 : 0;
+                int targetLocalIdx = localIdx + folderSlotOffset;
+                ShowKeyContextMenu(card, _scCurrentPage * StreamControllerKeysPerPage + targetLocalIdx);
                 e.Handled = true;
             };
 
@@ -852,7 +863,7 @@ public partial class ButtonsView
     {
         if (_config == null) return;
         _scPageCount++;
-        _config.N3.PageCount = _scPageCount;
+        SetActiveN3PageCount(_scPageCount);
         EnsureStreamControllerPageConfigs(_scPageCount - 1);
         NavigateStreamControllerPage(_scPageCount - 1 - _scCurrentPage);
     }
@@ -862,14 +873,16 @@ public partial class ButtonsView
         if (_config == null || _scPageCount <= 1) return;
         int removedPage = _scPageCount - 1;
 
-        // Remove configs for the last page
+        // Remove configs for the last page — folder-aware.
+        var keys = GetActiveN3DisplayKeys();
+        var btns = GetActiveN3ButtonList();
         int startIdx = removedPage * StreamControllerKeysPerPage;
-        _config.N3.DisplayKeys.RemoveAll(k => k.Idx >= startIdx && k.Idx < startIdx + StreamControllerKeysPerPage);
+        keys.RemoveAll(k => k.Idx >= startIdx && k.Idx < startIdx + StreamControllerKeysPerPage);
         int btnStart = StreamControllerDisplayKeyBase + startIdx;
-        _config.N3.Buttons.RemoveAll(b => b.Idx >= btnStart && b.Idx < btnStart + StreamControllerKeysPerPage);
+        btns.RemoveAll(b => b.Idx >= btnStart && b.Idx < btnStart + StreamControllerKeysPerPage);
 
         _scPageCount--;
-        _config.N3.PageCount = _scPageCount;
+        SetActiveN3PageCount(_scPageCount);
         if (_scCurrentPage >= _scPageCount)
             _scCurrentPage = _scPageCount - 1;
         _config.N3.CurrentPage = _scCurrentPage;
@@ -882,14 +895,16 @@ public partial class ButtonsView
     private void EnsureStreamControllerPageConfigs(int page)
     {
         if (_config == null) return;
+        var keys = GetActiveN3DisplayKeys();
+        var btns = GetActiveN3ButtonList();
         for (int i = 0; i < StreamControllerKeysPerPage; i++)
         {
             int globalIdx = page * StreamControllerKeysPerPage + i;
-            if (!_config.N3.DisplayKeys.Any(k => k.Idx == globalIdx))
-                _config.N3.DisplayKeys.Add(new StreamControllerDisplayKeyConfig { Idx = globalIdx });
+            if (!keys.Any(k => k.Idx == globalIdx))
+                keys.Add(new StreamControllerDisplayKeyConfig { Idx = globalIdx });
             int buttonIdx = StreamControllerDisplayKeyBase + globalIdx;
-            if (!_config.N3.Buttons.Any(b => b.Idx == buttonIdx))
-                _config.N3.Buttons.Add(new ButtonConfig { Idx = buttonIdx });
+            if (!btns.Any(b => b.Idx == buttonIdx))
+                btns.Add(new ButtonConfig { Idx = buttonIdx });
         }
     }
 
@@ -1091,7 +1106,7 @@ public partial class ButtonsView
         box.TextChanged += (_, _) =>
         {
             if (_loading || _config == null) return;
-            var button = _config.N3.Buttons.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
+            var button = GetActiveN3ButtonList().FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
             if (button == null) return;
             button.TextSnippet = box.Text;
             QueueSave();
@@ -1453,7 +1468,7 @@ public partial class ButtonsView
             || _scTogglePathABox == null || _scTogglePathBBox == null)
             return;
 
-        var button = _config.N3.Buttons.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
+        var button = GetActiveN3ButtonList().FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
         if (button == null) return;
 
         button.ToggleActionA = GetComboActionValue(_scToggleActionAPicker);
@@ -1502,7 +1517,18 @@ public partial class ButtonsView
 
         for (int i = 0; i < 6; i++)
         {
-            int globalIdx = _scCurrentPage * StreamControllerKeysPerPage + i;
+            // In a folder, editor slot 0 previews the auto Back key (read-only)
+            // and slots 1-5 map to folder keys 0-4 for that page.
+            if (InFolderContext && i == 0)
+            {
+                var backKey = App.BuildBackKeyDisplay();
+                _scDisplayImages[i].Source = StreamControllerDisplayRenderer.CreateHardwarePreview(backKey);
+                _scDisplayCaptions[i].Text = "Back (auto)";
+                continue;
+            }
+
+            int folderSlotOffset = InFolderContext ? -1 : 0;
+            int globalIdx = _scCurrentPage * StreamControllerKeysPerPage + i + folderSlotOffset;
             var key = activeKeys.FirstOrDefault(k => k.Idx == globalIdx) ?? new StreamControllerDisplayKeyConfig { Idx = globalIdx };
             _scDisplayImages[i].Source = StreamControllerDisplayRenderer.CreateHardwarePreview(key);
             _scDisplayCaptions[i].Text = string.IsNullOrWhiteSpace(key.Title) ? $"Key {globalIdx + 1}" : key.Title;
@@ -1679,6 +1705,12 @@ public partial class ButtonsView
             if (action == "open_folder")
                 RefreshFolderPickerItems();
         }
+        if (_scMultiActionPanel != null)
+        {
+            _scMultiActionPanel.Visibility = action == "multi_action" ? Visibility.Visible : Visibility.Collapsed;
+            if (action == "multi_action")
+                RebuildMultiActionList();
+        }
 
         if (_scPathPanel.Visibility == Visibility.Visible)
         {
@@ -1768,10 +1800,13 @@ public partial class ButtonsView
         if (_config == null) return null;
         if (_scSelectedButtonIdx < StreamControllerDisplayKeyBase)
             return null;
+        // Side buttons / encoder presses don't have LCD display keys.
+        if (_scSelectedButtonIdx >= StreamControllerSideButtonBase)
+            return null;
         int globalIdx = _scSelectedButtonIdx - StreamControllerDisplayKeyBase;
         if (globalIdx >= _scPageCount * StreamControllerKeysPerPage)
             return null;
-        return _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == globalIdx);
+        return GetActiveN3DisplayKeys().FirstOrDefault(k => k.Idx == globalIdx);
     }
 
     /// <summary>
@@ -1782,8 +1817,10 @@ public partial class ButtonsView
     {
         if (_config == null) return;
 
+        var activeKeys = GetActiveN3DisplayKeys();
+
         bool anyLive = false;
-        foreach (var k in _config.N3.DisplayKeys)
+        foreach (var k in activeKeys)
         {
             if (k.DisplayType == DisplayKeyType.Clock || k.DisplayType == DisplayKeyType.DynamicState)
             {
@@ -1796,7 +1833,7 @@ public partial class ButtonsView
         for (int i = 0; i < 6; i++)
         {
             int globalIdx = _scCurrentPage * StreamControllerKeysPerPage + i;
-            var key = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == globalIdx);
+            var key = activeKeys.FirstOrDefault(k => k.Idx == globalIdx);
             if (key == null) continue;
             if (key.DisplayType == DisplayKeyType.Normal) continue;
             _scDisplayImages[i].Source = StreamControllerDisplayRenderer.CreateHardwarePreview(key);
@@ -1822,7 +1859,10 @@ public partial class ButtonsView
             display.TextSize = (int)Math.Round(_scTextSizeSlider.Value);
         _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateHardwarePreview(display);
 
-        int localIdx = display.Idx - (_scCurrentPage * StreamControllerKeysPerPage);
+        // In root the folder key Idx == local slot. In a folder, local slot = Idx + 1
+        // (slot 0 is the Back key).
+        int folderSlotOffset = InFolderContext ? 1 : 0;
+        int localIdx = display.Idx - (_scCurrentPage * StreamControllerKeysPerPage) + folderSlotOffset;
         if (localIdx >= 0 && localIdx < 6)
         {
             _scDisplayImages[localIdx].Source = StreamControllerDisplayRenderer.CreateHardwarePreview(display);
@@ -1832,9 +1872,13 @@ public partial class ButtonsView
 
     private void RefreshStreamControllerSelectionVisuals()
     {
+        int folderSlotOffset = InFolderContext ? 1 : 0;
         for (int i = 0; i < 6; i++)
         {
-            bool active = _scSelectedButtonIdx == PagedDisplayKeyBase + i;
+            int targetButtonIdx = PagedDisplayKeyBase + (i - folderSlotOffset);
+            // In a folder, slot 0 is the Back key and can never be "selected".
+            bool isBackSlot = InFolderContext && i == 0;
+            bool active = !isBackSlot && _scSelectedButtonIdx == targetButtonIdx;
             ApplySelectionState(_scDisplayCards[i], active);
         }
         for (int i = 0; i < 3; i++)
@@ -1987,7 +2031,7 @@ public partial class ButtonsView
         copyItem.Click += (_, _) =>
         {
             if (_config == null) return;
-            var srcKey = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == globalIdx);
+            var srcKey = GetActiveN3DisplayKeys().FirstOrDefault(k => k.Idx == globalIdx);
             _scClipboardKey = srcKey == null ? null : new StreamControllerDisplayKeyConfig
             {
                 ImagePath = srcKey.ImagePath, PresetIconKind = srcKey.PresetIconKind,
@@ -1995,11 +2039,12 @@ public partial class ButtonsView
                 BackgroundColor = srcKey.BackgroundColor, AccentColor = srcKey.AccentColor,
                 TextPosition = srcKey.TextPosition, TextSize = srcKey.TextSize, TextColor = srcKey.TextColor,
             };
-            var srcBtn = _config.N3.Buttons.FirstOrDefault(b => b.Idx == StreamControllerDisplayKeyBase + globalIdx);
+            var srcBtn = GetActiveN3ButtonList().FirstOrDefault(b => b.Idx == StreamControllerDisplayKeyBase + globalIdx);
             _scClipboardButton = srcBtn == null ? null : new ButtonConfig
             {
                 Action = srcBtn.Action, Path = srcBtn.Path, MacroKeys = srcBtn.MacroKeys,
                 DeviceId = srcBtn.DeviceId, ProfileName = srcBtn.ProfileName, LinkedKnobIdx = srcBtn.LinkedKnobIdx,
+                FolderName = srcBtn.FolderName,
             };
         };
         menu.Items.Add(copyItem);
@@ -2008,7 +2053,7 @@ public partial class ButtonsView
         pasteItem.Click += (_, _) =>
         {
             if (_config == null || _scClipboardKey == null) return;
-            var target = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == globalIdx);
+            var target = GetActiveN3DisplayKeys().FirstOrDefault(k => k.Idx == globalIdx);
             if (target != null)
             {
                 target.ImagePath = _scClipboardKey.ImagePath;
@@ -2022,7 +2067,7 @@ public partial class ButtonsView
             }
             if (_scClipboardButton != null)
             {
-                var btnTarget = _config.N3.Buttons.FirstOrDefault(b => b.Idx == StreamControllerDisplayKeyBase + globalIdx);
+                var btnTarget = GetActiveN3ButtonList().FirstOrDefault(b => b.Idx == StreamControllerDisplayKeyBase + globalIdx);
                 if (btnTarget != null)
                 {
                     btnTarget.Action = _scClipboardButton.Action;
@@ -2031,6 +2076,7 @@ public partial class ButtonsView
                     btnTarget.DeviceId = _scClipboardButton.DeviceId;
                     btnTarget.ProfileName = _scClipboardButton.ProfileName;
                     btnTarget.LinkedKnobIdx = _scClipboardButton.LinkedKnobIdx;
+                    btnTarget.FolderName = _scClipboardButton.FolderName;
                 }
             }
             LoadStreamControllerConfig();
@@ -2048,7 +2094,7 @@ public partial class ButtonsView
     private void ClearDisplayKey(int globalIdx)
     {
         if (_config == null) return;
-        var key = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == globalIdx);
+        var key = GetActiveN3DisplayKeys().FirstOrDefault(k => k.Idx == globalIdx);
         if (key != null)
         {
             key.ImagePath = "";
@@ -2060,7 +2106,7 @@ public partial class ButtonsView
             key.TextSize = 14;
             key.TextColor = "#FFFFFF";
         }
-        var btn = _config.N3.Buttons.FirstOrDefault(b => b.Idx == StreamControllerDisplayKeyBase + globalIdx);
+        var btn = GetActiveN3ButtonList().FirstOrDefault(b => b.Idx == StreamControllerDisplayKeyBase + globalIdx);
         if (btn != null)
         {
             btn.Action = "none";
@@ -2068,6 +2114,7 @@ public partial class ButtonsView
             btn.MacroKeys = "";
             btn.DeviceId = "";
             btn.ProfileName = "";
+            btn.FolderName = "";
             btn.LinkedKnobIdx = -1;
         }
         LoadStreamControllerConfig();
@@ -2200,10 +2247,358 @@ public partial class ButtonsView
         }
     }
 
-    // ── Scaffolding stub (TODO: flesh out as part of multi-action rollout) ───
+        // ── Multi-Action sequence editor ────────────────────
 
     private StackPanel MakeStreamMultiActionPanel()
     {
-        return new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 10, 0, 0) };
+        var panel = new StackPanel
+        {
+            Visibility = Visibility.Collapsed,
+            Margin = new Thickness(0, 10, 0, 0)
+        };
+
+        panel.Children.Add(MakeEditorLabel("SEQUENCE"));
+
+        _scMultiActionEmptyHint = new TextBlock
+        {
+            Text = "No steps yet. Add one below.",
+            FontSize = 11,
+            FontStyle = FontStyles.Italic,
+            Foreground = FindBrush("TextDimBrush"),
+            Margin = new Thickness(0, 2, 0, 8)
+        };
+        panel.Children.Add(_scMultiActionEmptyHint);
+
+        _scMultiActionList = new StackPanel { Margin = new Thickness(0, 0, 0, 6) };
+        panel.Children.Add(_scMultiActionList);
+
+        _scMultiActionAddButton = new Button
+        {
+            Content = "+  Add Step",
+            MinHeight = 34,
+            Padding = new Thickness(12, 6, 12, 6),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Background = FindBrush("InputBgBrush"),
+            BorderBrush = FindBrush("InputBorderBrush"),
+            BorderThickness = new Thickness(1.5),
+            Foreground = new SolidColorBrush(ThemeManager.Accent),
+            FontWeight = FontWeights.SemiBold,
+            Cursor = Cursors.Hand,
+            Margin = new Thickness(0, 2, 0, 0)
+        };
+        _scMultiActionAddButton.Click += (_, _) => AddMultiActionStep();
+        panel.Children.Add(_scMultiActionAddButton);
+
+        return panel;
+    }
+
+    private ButtonConfig? GetSelectedStreamButton()
+    {
+        if (_config == null) return null;
+        return _config.N3.Buttons.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
+    }
+
+    private void AddMultiActionStep()
+    {
+        var button = GetSelectedStreamButton();
+        if (button == null) return;
+        button.ActionSequence.Add(new MultiActionStep { Action = "none", DelayMs = 0, Path = "" });
+        RebuildMultiActionList();
+        QueueSave();
+    }
+
+    private void RemoveMultiActionStep(int idx)
+    {
+        var button = GetSelectedStreamButton();
+        if (button == null) return;
+        if (idx < 0 || idx >= button.ActionSequence.Count) return;
+        button.ActionSequence.RemoveAt(idx);
+        RebuildMultiActionList();
+        QueueSave();
+    }
+
+    private void MoveMultiActionStep(int idx, int delta)
+    {
+        var button = GetSelectedStreamButton();
+        if (button == null) return;
+        int newIdx = idx + delta;
+        if (idx < 0 || idx >= button.ActionSequence.Count) return;
+        if (newIdx < 0 || newIdx >= button.ActionSequence.Count) return;
+        var step = button.ActionSequence[idx];
+        button.ActionSequence.RemoveAt(idx);
+        button.ActionSequence.Insert(newIdx, step);
+        RebuildMultiActionList();
+        QueueSave();
+    }
+
+    private void RebuildMultiActionList()
+    {
+        if (_scMultiActionList == null) return;
+        _scMultiActionList.Children.Clear();
+
+        var button = GetSelectedStreamButton();
+        var steps = button?.ActionSequence ?? new List<MultiActionStep>();
+
+        if (_scMultiActionEmptyHint != null)
+            _scMultiActionEmptyHint.Visibility = steps.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        for (int i = 0; i < steps.Count; i++)
+        {
+            int capturedIdx = i;
+            _scMultiActionList.Children.Add(BuildMultiActionRow(steps[i], capturedIdx, steps.Count));
+        }
+    }
+
+    private Border BuildMultiActionRow(MultiActionStep step, int idx, int total)
+    {
+        var row = new Border
+        {
+            Background = FindBrush("BgDarkBrush"),
+            BorderBrush = FindBrush("CardBorderBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(8, 8, 8, 8),
+            Margin = new Thickness(0, 0, 0, 6)
+        };
+
+        var content = new StackPanel();
+
+        var headerGrid = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var stepLabel = new TextBlock
+        {
+            Text = $"STEP {idx + 1}",
+            FontSize = 10,
+            FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(ThemeManager.Accent),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(stepLabel, 0);
+        headerGrid.Children.Add(stepLabel);
+
+        var upBtn = MakeMultiActionIconButton("▲", "Move up");
+        upBtn.IsEnabled = idx > 0;
+        upBtn.Opacity = idx > 0 ? 1.0 : 0.35;
+        upBtn.Click += (_, _) => MoveMultiActionStep(idx, -1);
+        Grid.SetColumn(upBtn, 1);
+        headerGrid.Children.Add(upBtn);
+
+        var downBtn = MakeMultiActionIconButton("▼", "Move down");
+        downBtn.IsEnabled = idx < total - 1;
+        downBtn.Opacity = idx < total - 1 ? 1.0 : 0.35;
+        downBtn.Click += (_, _) => MoveMultiActionStep(idx, 1);
+        Grid.SetColumn(downBtn, 2);
+        headerGrid.Children.Add(downBtn);
+
+        var removeBtn = MakeMultiActionIconButton("✕", "Remove step");
+        removeBtn.Foreground = new SolidColorBrush(Color.FromRgb(0xEF, 0x53, 0x50));
+        removeBtn.Click += (_, _) => RemoveMultiActionStep(idx);
+        Grid.SetColumn(removeBtn, 3);
+        headerGrid.Children.Add(removeBtn);
+
+        content.Children.Add(headerGrid);
+
+        var delayActionGrid = new Grid();
+        delayActionGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        delayActionGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var delayStack = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Margin = new Thickness(0, 0, 8, 0),
+            VerticalAlignment = VerticalAlignment.Top
+        };
+        delayStack.Children.Add(new TextBlock
+        {
+            Text = "DELAY (ms)",
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextDimBrush"),
+            Margin = new Thickness(0, 0, 0, 4)
+        });
+        var delayBox = new TextBox
+        {
+            Text = step.DelayMs.ToString(),
+            Width = 68,
+            MinHeight = 34,
+            Background = FindBrush("InputBgBrush"),
+            Foreground = FindBrush("TextPrimaryBrush"),
+            BorderBrush = FindBrush("InputBorderBrush"),
+            BorderThickness = new Thickness(1.5),
+            Padding = new Thickness(8, 6, 8, 6),
+            FontSize = 12,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            CaretBrush = new SolidColorBrush(ThemeManager.Accent),
+            ToolTip = "Delay in milliseconds before running this step (0 = immediate)"
+        };
+        delayBox.PreviewTextInput += (_, e) =>
+        {
+            foreach (var ch in e.Text)
+            {
+                if (!char.IsDigit(ch)) { e.Handled = true; return; }
+            }
+        };
+        delayBox.TextChanged += (_, _) =>
+        {
+            if (_loading) return;
+            var btn = GetSelectedStreamButton();
+            if (btn == null || idx >= btn.ActionSequence.Count) return;
+            if (int.TryParse(delayBox.Text, out var ms) && ms >= 0)
+                btn.ActionSequence[idx].DelayMs = ms;
+            else
+                btn.ActionSequence[idx].DelayMs = 0;
+            QueueSave();
+        };
+        delayStack.Children.Add(delayBox);
+        Grid.SetColumn(delayStack, 0);
+        delayActionGrid.Children.Add(delayStack);
+
+        var actionStack = new StackPanel { Orientation = Orientation.Vertical };
+        actionStack.Children.Add(new TextBlock
+        {
+            Text = "ACTION",
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextDimBrush"),
+            Margin = new Thickness(0, 0, 0, 4)
+        });
+
+        var actionPicker = MakeFilteredActionCombo(MultiActionExcluded);
+        actionPicker.Margin = new Thickness(0);
+        actionPicker.Select(string.IsNullOrWhiteSpace(step.Action) ? "none" : step.Action);
+
+        var pathPanel = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
+        var pathLabel = new TextBlock
+        {
+            Text = "PATH",
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextDimBrush"),
+            Margin = new Thickness(0, 0, 0, 4)
+        };
+        pathPanel.Children.Add(pathLabel);
+        var pathBox = new TextBox
+        {
+            Text = step.Path ?? "",
+            MinHeight = 32,
+            Background = FindBrush("InputBgBrush"),
+            Foreground = FindBrush("TextPrimaryBrush"),
+            BorderBrush = FindBrush("InputBorderBrush"),
+            BorderThickness = new Thickness(1.5),
+            Padding = new Thickness(8, 6, 8, 6),
+            FontSize = 12,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            CaretBrush = new SolidColorBrush(ThemeManager.Accent)
+        };
+        pathBox.TextChanged += (_, _) =>
+        {
+            if (_loading) return;
+            var btn = GetSelectedStreamButton();
+            if (btn == null || idx >= btn.ActionSequence.Count) return;
+            btn.ActionSequence[idx].Path = pathBox.Text;
+            QueueSave();
+        };
+        pathPanel.Children.Add(pathBox);
+
+        var macroPanel = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
+        macroPanel.Children.Add(new TextBlock
+        {
+            Text = "MACRO",
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextDimBrush"),
+            Margin = new Thickness(0, 0, 0, 4)
+        });
+        var macroBox = new TextBox
+        {
+            Text = step.MacroKeys ?? "",
+            MinHeight = 32,
+            Background = FindBrush("InputBgBrush"),
+            Foreground = FindBrush("TextPrimaryBrush"),
+            BorderBrush = FindBrush("InputBorderBrush"),
+            BorderThickness = new Thickness(1.5),
+            Padding = new Thickness(8, 6, 8, 6),
+            FontSize = 12,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            CaretBrush = new SolidColorBrush(ThemeManager.Accent),
+            ToolTip = "Keyboard shortcut, e.g. ctrl+shift+m"
+        };
+        macroBox.TextChanged += (_, _) =>
+        {
+            if (_loading) return;
+            var btn = GetSelectedStreamButton();
+            if (btn == null || idx >= btn.ActionSequence.Count) return;
+            btn.ActionSequence[idx].MacroKeys = macroBox.Text;
+            QueueSave();
+        };
+        macroPanel.Children.Add(macroBox);
+
+        void RefreshOptionalRows()
+        {
+            var currentAction = actionPicker.SelectedValue;
+            pathPanel.Visibility = MultiActionStepPathActions.Contains(currentAction) ? Visibility.Visible : Visibility.Collapsed;
+            pathLabel.Text = currentAction switch
+            {
+                "launch_exe" => "APP PATH",
+                "close_program" or "mute_program" => "PROCESS NAME",
+                "open_url" => "URL",
+                "sc_go_to_page" => "PAGE NUMBER",
+                "ha_service" => "ENTITY ID",
+                "govee_color" => "DEVICE IP / NAME",
+                "obs_scene" => "SCENE NAME",
+                "obs_mute" => "SOURCE NAME",
+                "vm_mute_strip" or "vm_mute_bus" => "INDEX",
+                _ => "PATH"
+            };
+            macroPanel.Visibility = currentAction == "macro" ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        actionPicker.SelectionChanged += (_, _) =>
+        {
+            if (_loading) return;
+            var btn = GetSelectedStreamButton();
+            if (btn == null || idx >= btn.ActionSequence.Count) return;
+            btn.ActionSequence[idx].Action = actionPicker.SelectedValue;
+            RefreshOptionalRows();
+            QueueSave();
+        };
+
+        actionStack.Children.Add(actionPicker);
+        actionStack.Children.Add(pathPanel);
+        actionStack.Children.Add(macroPanel);
+
+        Grid.SetColumn(actionStack, 1);
+        delayActionGrid.Children.Add(actionStack);
+
+        content.Children.Add(delayActionGrid);
+        row.Child = content;
+
+        RefreshOptionalRows();
+
+        return row;
+    }
+
+    private Button MakeMultiActionIconButton(string glyph, string tooltip)
+    {
+        return new Button
+        {
+            Content = glyph,
+            ToolTip = tooltip,
+            Width = 26,
+            Height = 26,
+            Margin = new Thickness(2, 0, 0, 0),
+            Padding = new Thickness(0),
+            FontSize = 11,
+            Background = FindBrush("InputBgBrush"),
+            BorderBrush = FindBrush("InputBorderBrush"),
+            BorderThickness = new Thickness(1),
+            Foreground = FindBrush("TextSecBrush"),
+            Cursor = Cursors.Hand
+        };
     }
 }
