@@ -1266,6 +1266,79 @@ public partial class ButtonsView
     }
 
     /// <summary>
+    /// Adds folder-related items to a right-click context menu on a key card:
+    /// "Open as Folder ▸ New Folder / [existing folders]" and, when the key already
+    /// opens a folder, "Edit Folder" / "Unlink from Folder" shortcuts.
+    /// </summary>
+    private void BuildFolderContextMenuItems(ContextMenu menu, int globalIdx)
+    {
+        if (_config == null) return;
+
+        int buttonIdx = StreamControllerDisplayKeyBase + globalIdx;
+        var btn = GetActiveN3ButtonList().FirstOrDefault(b => b.Idx == buttonIdx);
+        bool isFolderKey = btn != null && btn.Action == "open_folder" && !string.IsNullOrEmpty(btn.FolderName);
+
+        var folderSubmenu = new MenuItem { Header = isFolderKey ? "Change Folder" : "Open as Folder" };
+
+        var newFolderItem = new MenuItem { Header = "+ New Folder..." };
+        newFolderItem.Click += (_, _) =>
+        {
+            // Swap selection to the right-clicked key so CreateNewFolderForCurrentKey
+            // assigns the folder to the correct button.
+            _scSelectedButtonIdx = buttonIdx;
+            CreateNewFolderForCurrentKey();
+        };
+        folderSubmenu.Items.Add(newFolderItem);
+
+        if (_config.N3.Folders.Count > 0)
+        {
+            folderSubmenu.Items.Add(new Separator());
+            foreach (var folder in _config.N3.Folders)
+            {
+                if (string.IsNullOrEmpty(folder.Name)) continue;
+                var folderName = folder.Name;
+                var item = new MenuItem
+                {
+                    Header = folderName,
+                    IsCheckable = true,
+                    IsChecked = isFolderKey && btn!.FolderName == folderName,
+                };
+                item.Click += (_, _) =>
+                {
+                    var target = GetActiveN3ButtonList().FirstOrDefault(b => b.Idx == buttonIdx);
+                    if (target == null) return;
+                    target.Action = "open_folder";
+                    target.FolderName = folderName;
+                    QueueSave();
+                    LoadStreamControllerConfig();
+                };
+                folderSubmenu.Items.Add(item);
+            }
+        }
+
+        menu.Items.Add(folderSubmenu);
+
+        if (isFolderKey)
+        {
+            var editItem = new MenuItem { Header = "Edit Folder Contents..." };
+            editItem.Click += (_, _) => NavigateToFolderInEditor(btn!.FolderName);
+            menu.Items.Add(editItem);
+
+            var unlinkItem = new MenuItem { Header = "Unlink from Folder" };
+            unlinkItem.Click += (_, _) =>
+            {
+                var target = GetActiveN3ButtonList().FirstOrDefault(b => b.Idx == buttonIdx);
+                if (target == null) return;
+                target.Action = "none";
+                target.FolderName = "";
+                QueueSave();
+                LoadStreamControllerConfig();
+            };
+            menu.Items.Add(unlinkItem);
+        }
+    }
+
+    /// <summary>
     /// Programmatic navigation for the editor — changes which folder's contents
     /// are being edited, updates the banner, resets page to 0, and reloads the UI.
     /// Matches what App.NavigateToN3Folder does for the hardware, plus UI refresh.
@@ -2050,6 +2123,10 @@ public partial class ButtonsView
         var deleteItem = new MenuItem { Header = "Delete Key Content" };
         deleteItem.Click += (_, _) => ClearDisplayKey(globalIdx);
         menu.Items.Add(deleteItem);
+
+        menu.Items.Add(new Separator());
+
+        BuildFolderContextMenuItems(menu, globalIdx);
 
         menu.Items.Add(new Separator());
 
