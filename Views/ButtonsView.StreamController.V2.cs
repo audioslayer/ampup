@@ -38,9 +38,9 @@ public partial class ButtonsView
     private readonly List<StreamControllerTile> _v2ButtonTiles = new();
     private readonly List<StreamControllerTile> _v2EncoderTiles = new();
 
-    // Feature flag — set to true once all V2 regions are implemented and
-    // BuildStreamControllerDesignerV2 is called from the ctor.
-    private const bool UseV2Designer = false;
+    // Feature flag — flipped on once all V2 regions are implemented and
+    // BuildStreamControllerDesigner routes through BuildStreamControllerDesignerV2.
+    private const bool UseV2Designer = true;
 
     /// <summary>
     /// Entry point: compose the V2 designer. Parallel agents fill individual
