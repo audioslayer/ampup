@@ -78,26 +78,28 @@ internal static class StreamControllerDisplayRenderer
         string subtitle = key.Subtitle?.Trim() ?? "";
         bool hasText = !string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(subtitle);
 
+        DrawingBitmap bitmap;
+
         if (!string.IsNullOrWhiteSpace(key.ImagePath) && File.Exists(key.ImagePath))
         {
             using var source = DrawingImage.FromFile(key.ImagePath);
-            return RenderSourceToCanvasCover(source, RenderCanvasSize);
+            bitmap = RenderSourceToCanvasCover(source, RenderCanvasSize);
         }
-
-        if (TryParseMaterialIconKind(key.PresetIconKind, out var presetKind))
+        else if (TryParseMaterialIconKind(key.PresetIconKind, out var presetKind))
         {
-            return RenderPresetIconCanvas(key, presetKind, RenderCanvasSize, title, subtitle);
+            bitmap = RenderPresetIconCanvas(key, presetKind, RenderCanvasSize, title, subtitle);
+        }
+        else
+        {
+            bitmap = new DrawingBitmap(RenderCanvasSize, RenderCanvasSize);
+            using var graphics = DrawingGraphics.FromImage(bitmap);
+            ConfigureGraphics(graphics);
+            graphics.Clear(ParseColor(key.BackgroundColor, DrawingColor.FromArgb(0x1C, 0x1C, 0x1C)));
         }
 
-        var bitmap = new DrawingBitmap(RenderCanvasSize, RenderCanvasSize);
-        using var graphics = DrawingGraphics.FromImage(bitmap);
-        ConfigureGraphics(graphics);
-        graphics.Clear(hasText
-            ? ParseColor(key.BackgroundColor, DrawingColor.FromArgb(0x1C, 0x1C, 0x1C))
-            : DrawingColor.Black);
-
-        if (hasText)
-            DrawKeyCard(graphics, key, RenderCanvasSize, title, subtitle);
+        // Draw text overlay on all key types
+        if (hasText && key.TextPosition != DisplayTextPosition.Hidden)
+            DrawTextOverlay(bitmap, key, RenderCanvasSize, title, subtitle);
 
         return bitmap;
     }
@@ -142,6 +144,7 @@ internal static class StreamControllerDisplayRenderer
         string subtitle)
     {
         bool hasText = !string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(subtitle);
+        bool showText = hasText && key.TextPosition != DisplayTextPosition.Hidden;
         var accent = TryParseMediaColor(key.AccentColor, System.Windows.Media.Color.FromRgb(0x00, 0xE6, 0x76));
         var bg = TryParseMediaColor(key.BackgroundColor, System.Windows.Media.Color.FromRgb(0x12, 0x12, 0x12));
         var bg2 = System.Windows.Media.Color.FromRgb(
@@ -192,100 +195,105 @@ internal static class StreamControllerDisplayRenderer
         };
         root.Children.Add(edgeGlow);
 
-        if (hasText)
-        {
-            root.Children.Add(new Border
-            {
-                VerticalAlignment = VerticalAlignment.Bottom,
-                Height = size * 0.34,
-                Background = new System.Windows.Media.LinearGradientBrush(
-                    System.Windows.Media.Color.FromArgb(0x00, 0, 0, 0),
-                    System.Windows.Media.Color.FromArgb(0xAA, 0, 0, 0),
-                    90)
-            });
-        }
-
         var icon = new MaterialIcon
         {
             Kind = presetKind,
-            Width = size * (hasText ? 0.56 : 0.68),
-            Height = size * (hasText ? 0.56 : 0.68),
+            Width = size * (showText ? 0.52 : 0.68),
+            Height = size * (showText ? 0.52 : 0.68),
             Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xF7, 0xF7, 0xF7)),
             HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, size * (hasText ? -0.12 : 0), 0, 0)
+            VerticalAlignment = VerticalAlignment.Center
         };
+        // Shift icon up if text at bottom, down if text at top
+        if (showText && key.TextPosition == DisplayTextPosition.Bottom)
+            icon.Margin = new Thickness(0, size * -0.12, 0, 0);
+        else if (showText && key.TextPosition == DisplayTextPosition.Top)
+            icon.Margin = new Thickness(0, size * 0.12, 0, 0);
         root.Children.Add(icon);
-
-        if (hasText)
-        {
-            var textStack = new StackPanel
-            {
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Bottom,
-                Margin = new Thickness(size * 0.08, 0, size * 0.08, size * 0.07)
-            };
-
-            if (!string.IsNullOrWhiteSpace(title))
-            {
-                textStack.Children.Add(new TextBlock
-                {
-                    Text = title,
-                    Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xF5, 0xF5, 0xF5)),
-                    FontFamily = new FontFamily("Segoe UI Semibold"),
-                    FontSize = size * 0.085,
-                    TextAlignment = TextAlignment.Center,
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                });
-            }
-            if (!string.IsNullOrWhiteSpace(subtitle))
-            {
-                textStack.Children.Add(new TextBlock
-                {
-                    Text = subtitle,
-                    Foreground = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xCC, 0xE8, 0xE8, 0xE8)),
-                    FontFamily = new FontFamily("Segoe UI"),
-                    FontSize = size * 0.06,
-                    TextAlignment = TextAlignment.Center,
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                });
-            }
-
-            root.Children.Add(textStack);
-        }
 
         return RenderElementToDrawingBitmap(root, size, size);
     }
 
-    private static void DrawKeyCard(DrawingGraphics graphics, StreamControllerDisplayKeyConfig key, int size, string title, string subtitle)
+    private static void DrawTextOverlay(DrawingBitmap bitmap, StreamControllerDisplayKeyConfig key, int size, string title, string subtitle)
     {
+        using var graphics = DrawingGraphics.FromImage(bitmap);
+        ConfigureGraphics(graphics);
+
         float scale = size / 60f;
-        var accent = ParseColor(key.AccentColor, DrawingColor.FromArgb(0x00, 0xE6, 0x76));
+        var textColor = ParseColor(key.TextColor, DrawingColor.White);
+        float baseFontSize = Math.Clamp(key.TextSize, 6, 28);
 
-        using var accentBrush = new DrawingBrush(accent);
-        using var shadowBrush = new DrawingBrush(DrawingColor.FromArgb(120, 0, 0, 0));
-        using var whiteBrush = new DrawingBrush(DrawingColor.White);
-        using var borderPen = new DrawingPen(DrawingColor.FromArgb(180, accent.R, accent.G, accent.B), 2f * scale);
+        using var titleFont = new DrawingFont("Segoe UI", baseFontSize * scale, System.Drawing.FontStyle.Bold, DrawingGraphicsUnit.Pixel);
+        using var subFont = new DrawingFont("Segoe UI", (baseFontSize - 3) * scale, System.Drawing.FontStyle.Regular, DrawingGraphicsUnit.Pixel);
+        using var textBrush = new DrawingBrush(textColor);
+        using var subBrush = new DrawingBrush(DrawingColor.FromArgb((int)(textColor.A * 0.75), textColor.R, textColor.G, textColor.B));
 
-        graphics.FillRectangle(shadowBrush, 0, 38f * scale, size, 22f * scale);
-        graphics.FillRectangle(accentBrush, 0, 0, size, 10f * scale);
-        graphics.DrawRectangle(borderPen, 1f * scale, 1f * scale, size - (3f * scale), size - (3f * scale));
-
-        using var titleFont = new DrawingFont("Segoe UI", 10f * scale, System.Drawing.FontStyle.Bold, DrawingGraphicsUnit.Pixel);
-        using var subFont = new DrawingFont("Segoe UI", 8f * scale, System.Drawing.FontStyle.Regular, DrawingGraphicsUnit.Pixel);
-        using var badgeFont = new DrawingFont("Segoe UI", 18f * scale, System.Drawing.FontStyle.Bold, DrawingGraphicsUnit.Pixel);
-
-        var center = new DrawingStringFormat
+        var format = new DrawingStringFormat
         {
             Alignment = DrawingStringAlignment.Center,
-            LineAlignment = DrawingStringAlignment.Center
+            LineAlignment = DrawingStringAlignment.Center,
+            Trimming = System.Drawing.StringTrimming.EllipsisCharacter,
+            FormatFlags = System.Drawing.StringFormatFlags.NoWrap
         };
 
-        graphics.DrawString((key.Idx + 1).ToString(), badgeFont, whiteBrush, new DrawingRectangleF(0, 8f * scale, size, 22f * scale), center);
-        if (!string.IsNullOrWhiteSpace(title))
-            graphics.DrawString(title, titleFont, whiteBrush, new DrawingRectangleF(4f * scale, 30f * scale, 52f * scale, 14f * scale), center);
-        if (!string.IsNullOrWhiteSpace(subtitle))
-            graphics.DrawString(subtitle, subFont, whiteBrush, new DrawingRectangleF(4f * scale, 44f * scale, 52f * scale, 10f * scale), center);
+        bool hasTitle = !string.IsNullOrWhiteSpace(title);
+        bool hasSub = !string.IsNullOrWhiteSpace(subtitle);
+        float titleH = hasTitle ? graphics.MeasureString(title, titleFont).Height : 0;
+        float subH = hasSub ? graphics.MeasureString(subtitle, subFont).Height : 0;
+        float totalH = titleH + subH + (hasTitle && hasSub ? 1f * scale : 0);
+        float pad = 4f * scale;
+
+        float textY;
+        switch (key.TextPosition)
+        {
+            case DisplayTextPosition.Top:
+                textY = pad;
+                // Dark gradient at top for readability
+                using (var grad = new System.Drawing.Drawing2D.LinearGradientBrush(
+                    new System.Drawing.PointF(0, 0),
+                    new System.Drawing.PointF(0, totalH + pad * 3),
+                    DrawingColor.FromArgb(180, 0, 0, 0),
+                    DrawingColor.FromArgb(0, 0, 0, 0)))
+                    graphics.FillRectangle(grad, 0, 0, size, totalH + pad * 3);
+                break;
+            case DisplayTextPosition.Middle:
+                textY = (size - totalH) * 0.5f;
+                // Subtle center darkening
+                using (var grad = new System.Drawing.Drawing2D.LinearGradientBrush(
+                    new System.Drawing.PointF(0, textY - pad * 2),
+                    new System.Drawing.PointF(0, textY + totalH + pad * 2),
+                    DrawingColor.FromArgb(0, 0, 0, 0),
+                    DrawingColor.FromArgb(120, 0, 0, 0)))
+                    graphics.FillRectangle(grad, 0, textY - pad * 2, size, pad * 2);
+                using (var grad = new System.Drawing.Drawing2D.LinearGradientBrush(
+                    new System.Drawing.PointF(0, textY),
+                    new System.Drawing.PointF(0, textY + totalH + pad * 2),
+                    DrawingColor.FromArgb(120, 0, 0, 0),
+                    DrawingColor.FromArgb(0, 0, 0, 0)))
+                    graphics.FillRectangle(grad, 0, textY, size, totalH + pad * 2);
+                break;
+            default: // Bottom
+                textY = size - totalH - pad;
+                // Dark gradient at bottom for readability
+                using (var grad = new System.Drawing.Drawing2D.LinearGradientBrush(
+                    new System.Drawing.PointF(0, textY - pad * 3),
+                    new System.Drawing.PointF(0, size),
+                    DrawingColor.FromArgb(0, 0, 0, 0),
+                    DrawingColor.FromArgb(180, 0, 0, 0)))
+                    graphics.FillRectangle(grad, 0, textY - pad * 3, size, size - textY + pad * 3);
+                break;
+        }
+
+        float curY = textY;
+        if (hasTitle)
+        {
+            graphics.DrawString(title, titleFont, textBrush, new DrawingRectangleF(2 * scale, curY, (size - 4 * scale), titleH), format);
+            curY += titleH + 1f * scale;
+        }
+        if (hasSub)
+        {
+            graphics.DrawString(subtitle, subFont, subBrush, new DrawingRectangleF(2 * scale, curY, (size - 4 * scale), subH), format);
+        }
     }
 
     private static byte[] EncodeForDevice(DrawingImage image)

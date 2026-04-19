@@ -263,6 +263,18 @@ public class StreamControllerDisplayKeyConfig
     public string Subtitle { get; set; } = "";
     public string BackgroundColor { get; set; } = "#1C1C1C";
     public string AccentColor { get; set; } = "#00E676";
+    [JsonConverter(typeof(StringEnumConverter))]
+    public DisplayTextPosition TextPosition { get; set; } = DisplayTextPosition.Bottom;
+    public int TextSize { get; set; } = 14;
+    public string TextColor { get; set; } = "#FFFFFF";
+}
+
+public enum DisplayTextPosition
+{
+    Top,
+    Middle,
+    Bottom,
+    Hidden,
 }
 
 public enum HardwareMode

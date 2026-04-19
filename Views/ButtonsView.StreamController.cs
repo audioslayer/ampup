@@ -33,6 +33,10 @@ public partial class ButtonsView
     private Image? _scEditorPreview;
     private TextBox? _scTitleBox;
     private TextBox? _scSubtitleBox;
+    private SegmentedControl? _scTextPositionPicker;
+    private StyledSlider? _scTextSizeSlider;
+    private TextBlock? _scTextSizeLabel;
+    private TextBox? _scTextColorBox;
     private TextBox? _scImagePathBox;
     private Button? _scBrowseImageButton;
     private Button? _scClearImageButton;
@@ -184,6 +188,11 @@ public partial class ButtonsView
                     PagedDisplayKeyBase + localIdx,
                     $"Key {_scCurrentPage * StreamControllerKeysPerPage + localIdx + 1}",
                     _scCurrentPage * StreamControllerKeysPerPage + localIdx));
+            };
+            card.MouseRightButtonUp += (_, e) =>
+            {
+                ShowKeyContextMenu(card, _scCurrentPage * StreamControllerKeysPerPage + localIdx);
+                e.Handled = true;
             };
 
             _scDisplayCards[i] = card;
@@ -390,6 +399,56 @@ public partial class ButtonsView
         _scDisplayTabContent.Children.Add(_scTitleBox);
         _scDisplayTabContent.Children.Add(MakeEditorLabel("SUBTITLE"));
         _scDisplayTabContent.Children.Add(_scSubtitleBox);
+
+        // Text position picker
+        _scDisplayTabContent.Children.Add(MakeEditorLabel("TEXT POSITION"));
+        _scTextPositionPicker = new SegmentedControl
+        {
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 0, 0, 10)
+        };
+        _scTextPositionPicker.AddSegment("Top", DisplayTextPosition.Top);
+        _scTextPositionPicker.AddSegment("Middle", DisplayTextPosition.Middle);
+        _scTextPositionPicker.AddSegment("Bottom", DisplayTextPosition.Bottom);
+        _scTextPositionPicker.AddSegment("Hidden", DisplayTextPosition.Hidden);
+        _scTextPositionPicker.SelectionChanged += (_, _) => { if (!_loading) { UpdateEditorPreviewOnly(); QueueSave(); } };
+        _scDisplayTabContent.Children.Add(_scTextPositionPicker);
+
+        // Text size slider
+        _scTextSizeLabel = new TextBlock
+        {
+            Text = "Font Size: 14",
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextDimBrush"),
+            Margin = new Thickness(0, 0, 0, 4)
+        };
+        _scDisplayTabContent.Children.Add(_scTextSizeLabel);
+        _scTextSizeSlider = new StyledSlider
+        {
+            Minimum = 6,
+            Maximum = 28,
+            Value = 14,
+            Step = 1,
+            ShowLabel = false,
+            AccentColor = ThemeManager.Accent,
+            Margin = new Thickness(0, 0, 0, 10)
+        };
+        _scTextSizeSlider.ValueChanged += (_, _) =>
+        {
+            if (_scTextSizeLabel != null)
+                _scTextSizeLabel.Text = $"Font Size: {(int)Math.Round(_scTextSizeSlider.Value)}";
+            if (!_loading) { UpdateEditorPreviewOnly(); QueueSave(); }
+        };
+        _scDisplayTabContent.Children.Add(_scTextSizeSlider);
+
+        // Text color
+        _scDisplayTabContent.Children.Add(MakeEditorLabel("TEXT COLOR"));
+        _scTextColorBox = MakeEditorTextBox("#FFFFFF");
+        _scTextColorBox.MaxLength = 7;
+        _scTextColorBox.TextChanged += (_, _) => { if (!_loading) { UpdateEditorPreviewOnly(); QueueSave(); } };
+        _scDisplayTabContent.Children.Add(_scTextColorBox);
+
         _scDisplayTabContent.Children.Add(MakeEditorLabel("IMAGE"));
         _scDisplayTabContent.Children.Add(_scImagePathBox);
         var imageButtonRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 12) };
@@ -887,6 +946,20 @@ public partial class ButtonsView
             _scSubtitleBox.Text = key.Subtitle;
             _scImagePathBox.Text = string.IsNullOrWhiteSpace(key.ImagePath) ? "No image selected" : key.ImagePath;
             _scPresetIconBox.Text = string.IsNullOrWhiteSpace(key.PresetIconKind) ? "No preset icon selected" : key.PresetIconKind;
+            if (_scTextPositionPicker != null)
+            {
+                _scTextPositionPicker.SelectedIndex = key.TextPosition switch
+                {
+                    DisplayTextPosition.Top => 0,
+                    DisplayTextPosition.Middle => 1,
+                    DisplayTextPosition.Bottom => 2,
+                    DisplayTextPosition.Hidden => 3,
+                    _ => 2
+                };
+            }
+            if (_scTextSizeSlider != null) _scTextSizeSlider.Value = Math.Clamp(key.TextSize, 6, 28);
+            if (_scTextSizeLabel != null) _scTextSizeLabel.Text = $"Font Size: {Math.Clamp(key.TextSize, 6, 28)}";
+            if (_scTextColorBox != null) _scTextColorBox.Text = string.IsNullOrWhiteSpace(key.TextColor) ? "#FFFFFF" : key.TextColor;
             _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateHardwarePreview(key);
             _scDisplayDesignPanel!.Visibility = Visibility.Visible;
 
@@ -964,6 +1037,12 @@ public partial class ButtonsView
         {
             display.Title = _scTitleBox.Text.Trim();
             display.Subtitle = _scSubtitleBox.Text.Trim();
+            if (_scTextPositionPicker?.SelectedTag is DisplayTextPosition textPos)
+                display.TextPosition = textPos;
+            if (_scTextSizeSlider != null)
+                display.TextSize = (int)Math.Round(_scTextSizeSlider.Value);
+            if (_scTextColorBox != null && !string.IsNullOrWhiteSpace(_scTextColorBox.Text))
+                display.TextColor = _scTextColorBox.Text.Trim();
         }
 
         LoadStreamControllerConfig();
@@ -1005,6 +1084,12 @@ public partial class ButtonsView
 
         display.Title = _scTitleBox.Text.Trim();
         display.Subtitle = _scSubtitleBox.Text.Trim();
+        if (_scTextPositionPicker?.SelectedTag is DisplayTextPosition pos)
+            display.TextPosition = pos;
+        if (_scTextSizeSlider != null)
+            display.TextSize = (int)Math.Round(_scTextSizeSlider.Value);
+        if (_scTextColorBox != null && !string.IsNullOrWhiteSpace(_scTextColorBox.Text))
+            display.TextColor = _scTextColorBox.Text.Trim();
         _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateHardwarePreview(display);
 
         int localIdx = display.Idx - (_scCurrentPage * StreamControllerKeysPerPage);
@@ -1053,6 +1138,114 @@ public partial class ButtonsView
     {
         if (string.IsNullOrWhiteSpace(action) || action == "none") return "None";
         return Actions.FirstOrDefault(a => a.Value == action).Display ?? action;
+    }
+
+    // ── Context menu ─────────────────────────────────────────────────────
+
+    private void ShowKeyContextMenu(Border card, int globalIdx)
+    {
+        var menu = new ContextMenu();
+        var clearItem = new MenuItem { Header = "Clear Key" };
+        clearItem.Click += (_, _) => ClearDisplayKey(globalIdx);
+        menu.Items.Add(clearItem);
+
+        var deleteItem = new MenuItem { Header = "Delete Key Content" };
+        deleteItem.Click += (_, _) => ClearDisplayKey(globalIdx);
+        menu.Items.Add(deleteItem);
+
+        menu.Items.Add(new Separator());
+
+        var copyItem = new MenuItem { Header = "Copy" };
+        copyItem.Click += (_, _) =>
+        {
+            if (_config == null) return;
+            var srcKey = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == globalIdx);
+            _scClipboardKey = srcKey == null ? null : new StreamControllerDisplayKeyConfig
+            {
+                ImagePath = srcKey.ImagePath, PresetIconKind = srcKey.PresetIconKind,
+                Title = srcKey.Title, Subtitle = srcKey.Subtitle,
+                BackgroundColor = srcKey.BackgroundColor, AccentColor = srcKey.AccentColor,
+                TextPosition = srcKey.TextPosition, TextSize = srcKey.TextSize, TextColor = srcKey.TextColor,
+            };
+            var srcBtn = _config.N3.Buttons.FirstOrDefault(b => b.Idx == StreamControllerDisplayKeyBase + globalIdx);
+            _scClipboardButton = srcBtn == null ? null : new ButtonConfig
+            {
+                Action = srcBtn.Action, Path = srcBtn.Path, MacroKeys = srcBtn.MacroKeys,
+                DeviceId = srcBtn.DeviceId, ProfileName = srcBtn.ProfileName, LinkedKnobIdx = srcBtn.LinkedKnobIdx,
+            };
+        };
+        menu.Items.Add(copyItem);
+
+        var pasteItem = new MenuItem { Header = "Paste", IsEnabled = _scClipboardKey != null };
+        pasteItem.Click += (_, _) =>
+        {
+            if (_config == null || _scClipboardKey == null) return;
+            var target = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == globalIdx);
+            if (target != null)
+            {
+                target.ImagePath = _scClipboardKey.ImagePath;
+                target.PresetIconKind = _scClipboardKey.PresetIconKind;
+                target.Title = _scClipboardKey.Title;
+                target.Subtitle = _scClipboardKey.Subtitle;
+                target.BackgroundColor = _scClipboardKey.BackgroundColor;
+                target.AccentColor = _scClipboardKey.AccentColor;
+                target.TextPosition = _scClipboardKey.TextPosition;
+                target.TextSize = _scClipboardKey.TextSize;
+                target.TextColor = _scClipboardKey.TextColor;
+            }
+            if (_scClipboardButton != null)
+            {
+                var btnTarget = _config.N3.Buttons.FirstOrDefault(b => b.Idx == StreamControllerDisplayKeyBase + globalIdx);
+                if (btnTarget != null)
+                {
+                    btnTarget.Action = _scClipboardButton.Action;
+                    btnTarget.Path = _scClipboardButton.Path;
+                    btnTarget.MacroKeys = _scClipboardButton.MacroKeys;
+                    btnTarget.DeviceId = _scClipboardButton.DeviceId;
+                    btnTarget.ProfileName = _scClipboardButton.ProfileName;
+                    btnTarget.LinkedKnobIdx = _scClipboardButton.LinkedKnobIdx;
+                }
+            }
+            LoadStreamControllerConfig();
+            QueueSave();
+        };
+        menu.Items.Add(pasteItem);
+
+        card.ContextMenu = menu;
+        menu.IsOpen = true;
+    }
+
+    private StreamControllerDisplayKeyConfig? _scClipboardKey;
+    private ButtonConfig? _scClipboardButton;
+
+    private void ClearDisplayKey(int globalIdx)
+    {
+        if (_config == null) return;
+        var key = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == globalIdx);
+        if (key != null)
+        {
+            key.ImagePath = "";
+            key.PresetIconKind = "";
+            key.Title = "";
+            key.Subtitle = "";
+            key.BackgroundColor = "#1C1C1C";
+            key.AccentColor = "#00E676";
+            key.TextPosition = DisplayTextPosition.Bottom;
+            key.TextSize = 14;
+            key.TextColor = "#FFFFFF";
+        }
+        var btn = _config.N3.Buttons.FirstOrDefault(b => b.Idx == StreamControllerDisplayKeyBase + globalIdx);
+        if (btn != null)
+        {
+            btn.Action = "none";
+            btn.Path = "";
+            btn.MacroKeys = "";
+            btn.DeviceId = "";
+            btn.ProfileName = "";
+            btn.LinkedKnobIdx = -1;
+        }
+        LoadStreamControllerConfig();
+        QueueSave();
     }
 
     // ── Image / Icon pickers ────────────────────────────────────────────
