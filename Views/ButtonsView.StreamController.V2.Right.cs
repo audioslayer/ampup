@@ -35,6 +35,7 @@ public partial class ButtonsView
     // Grouped so we can collapse them together for hardware selections.
     private StackPanel? _v2CommonFieldsPanel;
     private Border? _v2PreviewCard;
+    private StackPanel? _v2PreviewRow;
 
     // Cache key for the action picker item set. Repopulate only when any
     // integration-enabled flag flips — otherwise every RefreshV2RightPanel
@@ -87,20 +88,20 @@ public partial class ButtonsView
         _scEditorPreview.Stretch = Stretch.Uniform;
         _v2PreviewCard.Child = _scEditorPreview;
 
-        var previewRow = new StackPanel
+        _v2PreviewRow = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 0, 0, 14),
         };
-        previewRow.Children.Add(_v2PreviewCard);
+        _v2PreviewRow.Children.Add(_v2PreviewCard);
 
         var chooseIconInlineBtn = MakeEditorButton("Choose Icon", (_, _) => ChooseStreamControllerIcon());
         chooseIconInlineBtn.Margin = new Thickness(14, 0, 0, 0);
         chooseIconInlineBtn.VerticalAlignment = VerticalAlignment.Center;
-        previewRow.Children.Add(chooseIconInlineBtn);
+        _v2PreviewRow.Children.Add(chooseIconInlineBtn);
 
-        _v2PreviewPanel.Children.Add(previewRow);
+        _v2PreviewPanel.Children.Add(_v2PreviewRow);
 
         // ── 3. Common fields (LCD-only) ──────────────────────────────────
         // One DESIGN card containing display type, title, text layout +
@@ -417,6 +418,12 @@ public partial class ButtonsView
         bool isLcd = selection.DisplayIdx.HasValue;
         if (_v2CommonFieldsPanel != null)
             _v2CommonFieldsPanel.Visibility = isLcd ? Visibility.Visible : Visibility.Collapsed;
+        // Preview card + Choose Icon live above the common fields. Hardware
+        // controls (encoders / side buttons) have no LCD, so hide the whole
+        // row for them — just the title "Encoder Press N" / "Button N" stays
+        // as the header above the action picker.
+        if (_v2PreviewRow != null)
+            _v2PreviewRow.Visibility = isLcd ? Visibility.Visible : Visibility.Collapsed;
 
         // Legacy UpdateDisplayTypeVisibility may have collapsed the Normal-only
         // rows based on the key's DisplayType. In V2 we surface the Display
