@@ -43,9 +43,11 @@ public partial class ButtonsView : UserControl
         ("OBS: Record", "obs_record"), ("OBS: Stream", "obs_stream"),
         ("OBS: Scene", "obs_scene"), ("OBS: Mute", "obs_mute"),
         ("VM: Mute Strip", "vm_mute_strip"), ("VM: Mute Bus", "vm_mute_bus"),
+        ("SC: Next Page", "sc_page_next"), ("SC: Prev Page", "sc_page_prev"),
+        ("SC: Home Page", "sc_page_home"), ("SC: Go To Page", "sc_go_to_page"),
     };
 
-    private static readonly string[] PathActions = { "mute_program", "launch_exe", "close_program" };
+    private static readonly string[] PathActions = { "mute_program", "launch_exe", "close_program", "sc_go_to_page" };
 
     private static readonly (string Display, string Value)[] PowerOptions =
     {
@@ -71,6 +73,8 @@ public partial class ButtonsView : UserControl
         { "obs_record", "●" }, { "obs_stream", "◉" },
         { "obs_scene", "🎬" }, { "obs_mute", "🔇" },
         { "vm_mute_strip", "🔇" }, { "vm_mute_bus", "🔇" },
+        { "sc_page_next", "▶" }, { "sc_page_prev", "◀" },
+        { "sc_page_home", "⌂" }, { "sc_go_to_page", "▦" },
     };
 
     private static readonly Dictionary<string, Color> ActionColors = new()
@@ -116,6 +120,10 @@ public partial class ButtonsView : UserControl
         { "obs_mute",           Color.FromRgb(0xEF, 0x53, 0x50) },
         { "vm_mute_strip",      Color.FromRgb(0xFF, 0x8F, 0x00) },
         { "vm_mute_bus",        Color.FromRgb(0xFF, 0x8F, 0x00) },
+        { "sc_page_next",       Color.FromRgb(0x26, 0xC6, 0xDA) },
+        { "sc_page_prev",       Color.FromRgb(0x26, 0xC6, 0xDA) },
+        { "sc_page_home",       Color.FromRgb(0x00, 0xE6, 0x76) },
+        { "sc_go_to_page",      Color.FromRgb(0x29, 0xB6, 0xF6) },
     };
 
     // Clipboard for button copy/paste
@@ -1229,6 +1237,10 @@ public partial class ButtonsView : UserControl
         { "obs_mute",           "Toggle mute on an OBS audio source (enter source name in path)" },
         { "vm_mute_strip",      "Toggle mute on a VoiceMeeter strip (enter strip index 0-4 in path)" },
         { "vm_mute_bus",        "Toggle mute on a VoiceMeeter bus (enter bus index 0-2 in path)" },
+        { "sc_page_next",       "Navigate to the next Stream Controller page" },
+        { "sc_page_prev",       "Navigate to the previous Stream Controller page" },
+        { "sc_page_home",       "Jump back to page 1 (home page)" },
+        { "sc_go_to_page",      "Jump to a specific page number (enter page number in path)" },
     };
 
     private void RebuildActionPickers(AppConfig config)
@@ -1320,12 +1332,16 @@ public partial class ButtonsView : UserControl
         ("System",          new[] { "macro", "switch_profile", "cycle_profile", "cycle_brightness", "quick_wheel" }),
         ("Power",           new[] { "power_sleep", "power_lock", "power_off", "power_restart", "power_logoff", "power_hibernate" }),
         ("Integrations",    new[] { "group_toggle", "room_toggle", "ha_toggle", "ha_scene", "ha_service", "govee_toggle", "govee_color", "govee_white_toggle", "obs_record", "obs_stream", "obs_scene", "obs_mute", "vm_mute_strip", "vm_mute_bus" }),
+        ("Stream Controller", new[] { "sc_page_next", "sc_page_prev", "sc_page_home", "sc_go_to_page" }),
     };
 
     private static readonly Dictionary<string, (string Display, string Value)> ActionLookup =
         Actions.ToDictionary(a => a.Value, a => a);
 
-    private void PopulateActionPicker(ActionPicker picker, bool haEnabled, bool anyHaConfigured, bool goveeEnabled, bool anyGoveeConfigured, bool obsEnabled = false, bool anyObsConfigured = false, bool vmEnabled = false, bool anyVmConfigured = false, bool groupsExist = false, bool anyGroupConfigured = false)
+    private static bool IsScPageAction(string? action)
+        => action is "sc_page_next" or "sc_page_prev" or "sc_page_home" or "sc_go_to_page";
+
+    private void PopulateActionPicker(ActionPicker picker, bool haEnabled, bool anyHaConfigured, bool goveeEnabled, bool anyGoveeConfigured, bool obsEnabled = false, bool anyObsConfigured = false, bool vmEnabled = false, bool anyVmConfigured = false, bool groupsExist = false, bool anyGroupConfigured = false, bool showScPageActions = false)
     {
         picker.ClearItems();
 
@@ -1343,12 +1359,14 @@ public partial class ButtonsView : UserControl
                 bool isObs = IsObsAction(value);
                 bool isVm = IsVmAction(value);
                 bool isGroup = value == "group_toggle";
+                bool isScPage = IsScPageAction(value);
 
                 if (isHa && !haEnabled && !anyHaConfigured) continue;
                 if (isGovee && !goveeEnabled && !anyGoveeConfigured) continue;
                 if (isObs && !obsEnabled && !anyObsConfigured) continue;
                 if (isVm && !vmEnabled && !anyVmConfigured) continue;
                 if (isGroup && !groupsExist && !anyGroupConfigured) continue;
+                if (isScPage && !showScPageActions) continue;
 
                 if (!anyAdded) { picker.AddCategory(category); anyAdded = true; }
 

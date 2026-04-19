@@ -71,6 +71,8 @@ public class ButtonHandler : IDisposable
     public event Action<int>? OnQuickWheelOpen;
     /// <summary>Fires with button index when the quick_wheel button is released.</summary>
     public event Action<int>? OnQuickWheelClose;
+    /// <summary>Fires with page delta (-1, +1) or absolute page (0-based) for SC page nav.</summary>
+    public event Action<int, bool>? OnScPageChange;
 
     // Track which button opened the wheel (for release detection)
     private int _quickWheelActiveButton = -1;
@@ -339,6 +341,19 @@ public class ButtonHandler : IDisposable
                     // path = device IP — toggles between white and previous color
                     if (!string.IsNullOrEmpty(path))
                         _ = GoveeWhiteToggleAsync(path);
+                    break;
+                case "sc_page_next":
+                    OnScPageChange?.Invoke(1, false);
+                    break;
+                case "sc_page_prev":
+                    OnScPageChange?.Invoke(-1, false);
+                    break;
+                case "sc_page_home":
+                    OnScPageChange?.Invoke(0, true);
+                    break;
+                case "sc_go_to_page":
+                    if (int.TryParse(path, out int targetPage))
+                        OnScPageChange?.Invoke(targetPage - 1, true); // path is 1-based
                     break;
             }
         }

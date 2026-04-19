@@ -240,6 +240,8 @@ public class N3Config
     public List<ButtonConfig> Buttons { get; set; } = new();
     public List<StreamControllerDisplayKeyConfig> DisplayKeys { get; set; } = new();
     public int DisplayBrightness { get; set; } = 100;
+    public int CurrentPage { get; set; } = 0;
+    public int PageCount { get; set; } = 1;
 }
 
 public class HardwareTabSelection

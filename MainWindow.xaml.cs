@@ -1672,6 +1672,7 @@ public partial class MainWindow : FluentWindow
     }
 
     public RoomView? GetRoomView() => _ambienceView;
+    public ButtonsView? GetButtonsView() => _buttonsView;
 
     public void SetHAIntegration(HAIntegration? ha)
     {

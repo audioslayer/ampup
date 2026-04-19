@@ -215,6 +215,7 @@ public partial class App : Application
         _buttons.OnQuickWheelClose += HandleQuickWheelClose;
         _buttons.OnRoomToggle += HandleRoomToggle;
         _buttons.OnGroupToggle += HandleGroupToggle;
+        _buttons.OnScPageChange += HandleScPageChange;
 
         // Start Home Assistant integration
         _ha = new HAIntegration(_config.HomeAssistant);
@@ -1669,7 +1670,8 @@ public partial class App : Application
                 break;
 
             case N3InputKind.DisplayKey:
-                HandleN3VirtualButton(N3DisplayKeyBase + e.Index, e.IsPressed == true);
+                int pagedIdx = N3DisplayKeyBase + (_config.N3.CurrentPage * 6) + e.Index;
+                HandleN3VirtualButton(pagedIdx, e.IsPressed == true);
                 break;
 
             case N3InputKind.SideButton:
@@ -1941,9 +1943,10 @@ public partial class App : Application
 
         try
         {
+            int pageOffset = _config.N3.CurrentPage * 6;
             for (int i = 0; i < N3Controller.DisplayKeyCount; i++)
             {
-                var key = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == i);
+                var key = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == pageOffset + i);
                 if (key == null)
                 {
                     _n3.ClearDisplay(i, commit: false);
@@ -2060,6 +2063,28 @@ public partial class App : Application
             Task.Delay(800).ContinueWith(_ =>
                 _mainWindow?.GetRoomView()?.ResumeRoomEffect());
         }
+    }
+
+    private void HandleScPageChange(int value, bool absolute)
+    {
+        int maxPage = Math.Max(1, _config.N3.PageCount) - 1;
+        int newPage = absolute
+            ? Math.Clamp(value, 0, maxPage)
+            : Math.Clamp(_config.N3.CurrentPage + value, 0, maxPage);
+
+        if (newPage == _config.N3.CurrentPage) return;
+
+        _config.N3.CurrentPage = newPage;
+        ConfigManager.Save(_config);
+
+        // Re-sync LCD displays to the new page
+        SyncStreamControllerDisplays();
+
+        // Update the UI if the Buttons tab is visible
+        Dispatcher.BeginInvoke(() =>
+        {
+            _mainWindow?.GetButtonsView()?.SetStreamControllerPage(newPage);
+        });
     }
 
     private void HandleBrightnessCycle(int pct)

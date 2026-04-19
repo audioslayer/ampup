@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 using AmpUp.Controls;
 
 namespace AmpUp.Views;
@@ -14,15 +15,20 @@ public partial class ButtonsView
     private const int StreamControllerDisplayKeyBase = 100;
     private const int StreamControllerSideButtonBase = 106;
     private const int StreamControllerEncoderPressBase = 109;
+    private const int StreamControllerKeysPerPage = 6;
 
+    // Key grid
     private readonly Border[] _scDisplayCards = new Border[6];
     private readonly Image[] _scDisplayImages = new Image[6];
     private readonly TextBlock[] _scDisplayCaptions = new TextBlock[6];
+
+    // Quick controls
     private readonly Border[] _scSideCards = new Border[3];
     private readonly Border[] _scPressCards = new Border[3];
     private readonly TextBlock[] _scSideLabels = new TextBlock[3];
     private readonly TextBlock[] _scPressLabels = new TextBlock[3];
 
+    // Right sidebar — editor
     private TextBlock? _scEditorTitle;
     private Image? _scEditorPreview;
     private TextBox? _scTitleBox;
@@ -47,11 +53,29 @@ public partial class ButtonsView
     private StackPanel? _scDevicePanel;
     private ListPicker? _scKnobPicker;
     private StackPanel? _scKnobPanel;
-    private Border? _scTurnUpHint;
+
+    // Sidebar tabs
+    private StackPanel? _scDisplayTabContent;
+    private StackPanel? _scActionTabContent;
+    private Border? _scDisplayTabBtn;
+    private Border? _scActionTabBtn;
+    private bool _scShowingDisplayTab = true;
+
+    // Paging
+    private int _scCurrentPage;
+    private int _scPageCount = 1;
+    private readonly List<Ellipse> _scPageDots = new();
+    private TextBlock? _scPageLabel;
+    private StackPanel? _scPageDotsPanel;
+    private Button? _scPageLeft;
+    private Button? _scPageRight;
+    private Button? _scAddPageButton;
 
     private int _scSelectedButtonIdx = StreamControllerDisplayKeyBase;
 
     private sealed record StreamControllerSelection(int ButtonIdx, string Label, int? DisplayIdx);
+
+    private int PagedDisplayKeyBase => StreamControllerDisplayKeyBase + (_scCurrentPage * StreamControllerKeysPerPage);
 
     private void InitializeDeviceSelector()
     {
@@ -80,40 +104,63 @@ public partial class ButtonsView
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.15, GridUnitType.Star) });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.85, GridUnitType.Star) });
 
+        // ── LEFT: Center Stage ──────────────────────────────────────────
         var left = new StackPanel();
-        var right = new StackPanel { Margin = new Thickness(20, 0, 0, 0) };
 
-        left.Children.Add(MakeStreamHeader("LCD KEYS", "6 visual keys with image + action binding"));
+        // Key grid with nav arrows
+        var gridArea = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+        gridArea.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        gridArea.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        gridArea.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        _scPageLeft = MakeNavArrow("\u276E", () => NavigateStreamControllerPage(-1));
+        _scPageRight = MakeNavArrow("\u276F", () => NavigateStreamControllerPage(1));
+        Grid.SetColumn(_scPageLeft, 0);
+        Grid.SetColumn(_scPageRight, 2);
+        gridArea.Children.Add(_scPageLeft);
+        gridArea.Children.Add(_scPageRight);
+
         var keyGrid = new UniformGrid
         {
             Columns = 3,
             Rows = 2,
-            Margin = new Thickness(0, 8, 0, 16)
+            Margin = new Thickness(8, 0, 8, 0)
         };
+        Grid.SetColumn(keyGrid, 1);
 
         for (int i = 0; i < 6; i++)
         {
-            int displayIdx = i;
+            int localIdx = i;
             var card = new Border
             {
                 Background = FindBrush("BgDarkBrush"),
                 BorderBrush = FindBrush("CardBorderBrush"),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(12),
-                Margin = new Thickness(i % 3 == 0 ? 0 : 6, i < 3 ? 0 : 6, i % 3 == 2 ? 0 : 6, 0),
-                Padding = new Thickness(10),
+                BorderThickness = new Thickness(1.5),
+                CornerRadius = new CornerRadius(14),
+                Margin = new Thickness(4),
+                Padding = new Thickness(8),
                 Cursor = Cursors.Hand
+            };
+            card.MouseEnter += (_, _) =>
+            {
+                if (_scSelectedButtonIdx != PagedDisplayKeyBase + localIdx)
+                    card.BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
+            };
+            card.MouseLeave += (_, _) =>
+            {
+                if (_scSelectedButtonIdx != PagedDisplayKeyBase + localIdx)
+                    card.BorderBrush = FindBrush("CardBorderBrush");
             };
 
             var stack = new StackPanel();
             var imageBorder = new Border
             {
-                Height = 110,
+                Height = 120,
                 CornerRadius = new CornerRadius(10),
-                Background = new SolidColorBrush(Color.FromRgb(0x12, 0x12, 0x12)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E)),
+                Background = new SolidColorBrush(Color.FromRgb(0x0A, 0x0A, 0x0A)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)),
                 BorderThickness = new Thickness(1),
-                Padding = new Thickness(8),
+                Padding = new Thickness(6),
                 Margin = new Thickness(0, 0, 0, 8)
             };
             var previewImage = new Image { Stretch = Stretch.Uniform };
@@ -121,18 +168,23 @@ public partial class ButtonsView
             var caption = new TextBlock
             {
                 Text = $"Key {i + 1}",
+                FontSize = 11,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = FindBrush("TextPrimaryBrush"),
-                HorizontalAlignment = HorizontalAlignment.Center
+                HorizontalAlignment = HorizontalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis
             };
 
             stack.Children.Add(imageBorder);
             stack.Children.Add(caption);
             card.Child = stack;
-            card.MouseLeftButtonUp += (_, _) => SelectStreamControllerItem(new StreamControllerSelection(
-                StreamControllerDisplayKeyBase + displayIdx,
-                $"Display Key {displayIdx + 1}",
-                displayIdx));
+            card.MouseLeftButtonUp += (_, _) =>
+            {
+                SelectStreamControllerItem(new StreamControllerSelection(
+                    PagedDisplayKeyBase + localIdx,
+                    $"Key {_scCurrentPage * StreamControllerKeysPerPage + localIdx + 1}",
+                    _scCurrentPage * StreamControllerKeysPerPage + localIdx));
+            };
 
             _scDisplayCards[i] = card;
             _scDisplayImages[i] = previewImage;
@@ -140,63 +192,126 @@ public partial class ButtonsView
             keyGrid.Children.Add(card);
         }
 
-        left.Children.Add(keyGrid);
-        left.Children.Add(MakeStreamHeader("QUICK CONTROLS", "3 side buttons and 3 encoder presses"));
+        gridArea.Children.Add(keyGrid);
+        left.Children.Add(gridArea);
 
-        var sideWrap = new UniformGrid { Columns = 3, Margin = new Thickness(0, 8, 0, 10) };
+        // Page indicator row
+        var pageRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 4, 0, 16)
+        };
+        _scPageDotsPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0)
+        };
+        pageRow.Children.Add(_scPageDotsPanel);
+        _scPageLabel = new TextBlock
+        {
+            Text = "Page 1 of 1",
+            FontSize = 11,
+            Foreground = FindBrush("TextDimBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 10, 0)
+        };
+        pageRow.Children.Add(_scPageLabel);
+        _scAddPageButton = MakeSmallButton("+", () => AddStreamControllerPage());
+        _scAddPageButton.ToolTip = "Add page";
+        pageRow.Children.Add(_scAddPageButton);
+        var removePageButton = MakeSmallButton("−", () => RemoveStreamControllerPage());
+        removePageButton.ToolTip = "Remove last page";
+        removePageButton.Margin = new Thickness(4, 0, 0, 0);
+        pageRow.Children.Add(removePageButton);
+        left.Children.Add(pageRow);
+
+        // Quick controls section
+        left.Children.Add(MakeStreamHeader("QUICK CONTROLS", "Side buttons and encoder presses"));
+        var controlGrid = new UniformGrid { Columns = 3, Margin = new Thickness(0, 8, 0, 0) };
         for (int i = 0; i < 3; i++)
         {
             int buttonIdx = StreamControllerSideButtonBase + i;
+            int captureI = i;
             var card = MakeSmallControlCard($"Side {i + 1}", out var label);
-            card.Margin = new Thickness(i == 0 ? 0 : 6, 0, i == 2 ? 0 : 6, 0);
-            card.MouseLeftButtonUp += (_, _) => SelectStreamControllerItem(new StreamControllerSelection(buttonIdx, $"Side Button {i + 1}", null));
+            card.Margin = new Thickness(i == 0 ? 0 : 4, 0, i == 2 ? 0 : 4, 0);
+            card.MouseLeftButtonUp += (_, _) => SelectStreamControllerItem(new StreamControllerSelection(buttonIdx, $"Side Button {captureI + 1}", null));
             _scSideCards[i] = card;
             _scSideLabels[i] = label;
-            sideWrap.Children.Add(card);
+            controlGrid.Children.Add(card);
         }
-        left.Children.Add(sideWrap);
+        left.Children.Add(controlGrid);
 
-        var pressWrap = new UniformGrid { Columns = 3 };
+        var pressGrid = new UniformGrid { Columns = 3, Margin = new Thickness(0, 6, 0, 0) };
         for (int i = 0; i < 3; i++)
         {
             int buttonIdx = StreamControllerEncoderPressBase + i;
+            int captureI = i;
             var card = MakeSmallControlCard($"Knob {i + 1}", out var label);
-            card.Margin = new Thickness(i == 0 ? 0 : 6, 0, i == 2 ? 0 : 6, 0);
-            card.MouseLeftButtonUp += (_, _) => SelectStreamControllerItem(new StreamControllerSelection(buttonIdx, $"Encoder Press {i + 1}", null));
+            card.Margin = new Thickness(i == 0 ? 0 : 4, 0, i == 2 ? 0 : 4, 0);
+            card.MouseLeftButtonUp += (_, _) => SelectStreamControllerItem(new StreamControllerSelection(buttonIdx, $"Encoder Press {captureI + 1}", null));
             _scPressCards[i] = card;
             _scPressLabels[i] = label;
-            pressWrap.Children.Add(card);
+            pressGrid.Children.Add(card);
         }
-        left.Children.Add(pressWrap);
+        left.Children.Add(pressGrid);
+
+        // ── RIGHT: Sidebar Editor ───────────────────────────────────────
+        var rightScroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Margin = new Thickness(16, 0, 0, 0)
+        };
+        var right = new StackPanel();
 
         _scEditorTitle = new TextBlock
         {
-            Text = "Display Key 1",
-            FontSize = 16,
+            Text = "Key 1",
+            FontSize = 17,
             FontWeight = FontWeights.Bold,
             Foreground = FindBrush("TextPrimaryBrush"),
-            Margin = new Thickness(0, 0, 0, 10)
+            Margin = new Thickness(0, 0, 0, 12)
         };
         right.Children.Add(_scEditorTitle);
 
+        // Tab bar
+        var tabBar = new Grid { Margin = new Thickness(0, 0, 0, 12) };
+        tabBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        tabBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        _scDisplayTabBtn = MakeTabButton("Display", true);
+        _scActionTabBtn = MakeTabButton("Action", false);
+        _scDisplayTabBtn.MouseLeftButtonUp += (_, _) => SwitchStreamControllerEditorTab(showDisplay: true);
+        _scActionTabBtn.MouseLeftButtonUp += (_, _) => SwitchStreamControllerEditorTab(showDisplay: false);
+        Grid.SetColumn(_scDisplayTabBtn, 0);
+        Grid.SetColumn(_scActionTabBtn, 1);
+        tabBar.Children.Add(_scDisplayTabBtn);
+        tabBar.Children.Add(_scActionTabBtn);
+        right.Children.Add(tabBar);
+
+        // ── Display tab content ─────────────────────────────────────────
+        _scDisplayTabContent = new StackPanel();
+        _scDisplayDesignPanel = _scDisplayTabContent;
+
         var previewCard = new Border
         {
-            Background = FindBrush("BgDarkBrush"),
+            Background = new SolidColorBrush(Color.FromRgb(0x0A, 0x0A, 0x0A)),
             BorderBrush = FindBrush("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(14),
-            Padding = new Thickness(12),
-            Margin = new Thickness(0, 0, 0, 12)
+            Padding = new Thickness(10),
+            Margin = new Thickness(0, 0, 0, 14)
         };
         _scEditorPreview = new Image
         {
-            Height = 180,
+            Height = 160,
             Stretch = Stretch.Uniform
         };
         previewCard.Child = _scEditorPreview;
-        right.Children.Add(previewCard);
+        _scDisplayTabContent.Children.Add(previewCard);
 
-        _scDisplayDesignPanel = new StackPanel();
         _scTitleBox = MakeEditorTextBox("Display title");
         _scTitleBox.TextChanged += (_, _) => { if (!_loading) { UpdateEditorPreviewOnly(); QueueSave(); } };
         _scSubtitleBox = MakeEditorTextBox("Display subtitle");
@@ -226,27 +341,31 @@ public partial class ButtonsView
             QueueSave();
         });
 
-        _scDisplayDesignPanel.Children.Add(MakeEditorLabel("DISPLAY TITLE"));
-        _scDisplayDesignPanel.Children.Add(_scTitleBox);
-        _scDisplayDesignPanel.Children.Add(MakeEditorLabel("DISPLAY SUBTITLE"));
-        _scDisplayDesignPanel.Children.Add(_scSubtitleBox);
-        _scDisplayDesignPanel.Children.Add(MakeEditorLabel("IMAGE"));
-        _scDisplayDesignPanel.Children.Add(_scImagePathBox);
-        var imageButtonRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 14) };
+        _scDisplayTabContent.Children.Add(MakeEditorLabel("TITLE"));
+        _scDisplayTabContent.Children.Add(_scTitleBox);
+        _scDisplayTabContent.Children.Add(MakeEditorLabel("SUBTITLE"));
+        _scDisplayTabContent.Children.Add(_scSubtitleBox);
+        _scDisplayTabContent.Children.Add(MakeEditorLabel("IMAGE"));
+        _scDisplayTabContent.Children.Add(_scImagePathBox);
+        var imageButtonRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 12) };
         imageButtonRow.Children.Add(_scBrowseImageButton);
         _scClearImageButton.Margin = new Thickness(8, 0, 0, 0);
         imageButtonRow.Children.Add(_scClearImageButton);
-        _scDisplayDesignPanel.Children.Add(imageButtonRow);
-        _scDisplayDesignPanel.Children.Add(MakeEditorLabel("PRESET ICON"));
-        _scDisplayDesignPanel.Children.Add(_scPresetIconBox);
-        var presetButtonRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 14) };
+        _scDisplayTabContent.Children.Add(imageButtonRow);
+        _scDisplayTabContent.Children.Add(MakeEditorLabel("PRESET ICON"));
+        _scDisplayTabContent.Children.Add(_scPresetIconBox);
+        var presetButtonRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
         presetButtonRow.Children.Add(_scChoosePresetButton);
         _scClearPresetButton.Margin = new Thickness(8, 0, 0, 0);
         presetButtonRow.Children.Add(_scClearPresetButton);
-        _scDisplayDesignPanel.Children.Add(presetButtonRow);
-        right.Children.Add(_scDisplayDesignPanel);
+        _scDisplayTabContent.Children.Add(presetButtonRow);
 
-        right.Children.Add(MakeStreamHeader("ACTION", "Choose what this control does when pressed"));
+        right.Children.Add(_scDisplayTabContent);
+
+        // ── Action tab content ──────────────────────────────────────────
+        _scActionTabContent = new StackPanel { Visibility = Visibility.Collapsed };
+
+        _scActionTabContent.Children.Add(MakeEditorLabel("ACTION"));
         _scActionPicker = MakeActionCombo();
         _scActionPicker.SelectionChanged += (_, _) =>
         {
@@ -254,42 +373,227 @@ public partial class ButtonsView
             UpdateStreamControllerActionVisibility();
             QueueSave();
         };
-        right.Children.Add(_scActionPicker);
+        _scActionTabContent.Children.Add(_scActionPicker);
 
         (_scPathPanel, _scPathBox, _scPathLabel, _scBrowsePathButton, _scPickPathButton, _scAppChip) = MakeStreamPathRow();
         (_scMacroPanel, _scMacroBox) = MakeStreamMacroRow();
         (_scDevicePanel, _scDevicePicker) = MakeStreamDeviceRow();
         (_scKnobPanel, _scKnobPicker) = MakeStreamKnobRow();
 
-        right.Children.Add(_scPathPanel);
-        right.Children.Add(_scMacroPanel);
-        right.Children.Add(_scDevicePanel);
-        right.Children.Add(_scKnobPanel);
+        _scActionTabContent.Children.Add(_scPathPanel);
+        _scActionTabContent.Children.Add(_scMacroPanel);
+        _scActionTabContent.Children.Add(_scDevicePanel);
+        _scActionTabContent.Children.Add(_scKnobPanel);
 
-        _scTurnUpHint = new Border
-        {
-            Background = new SolidColorBrush(Color.FromArgb(0x18, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(12),
-            Margin = new Thickness(0, 14, 0, 0),
-            Child = new TextBlock
-            {
-                Text = "Encoder turns still mirror the first three Amp Up knobs. This editor is for LCD keys, side buttons, and encoder presses.",
-                Foreground = FindBrush("TextSecBrush"),
-                TextWrapping = TextWrapping.Wrap
-            }
-        };
-        right.Children.Add(_scTurnUpHint);
+        right.Children.Add(_scActionTabContent);
+
+        rightScroll.Content = right;
 
         Grid.SetColumn(left, 0);
-        Grid.SetColumn(right, 1);
+        Grid.SetColumn(rightScroll, 1);
         root.Children.Add(left);
-        root.Children.Add(right);
+        root.Children.Add(rightScroll);
 
         StreamControllerRoot.Children.Add(root);
     }
+
+    // ── Navigation helpers ──────────────────────────────────────────────
+
+    private Button MakeNavArrow(string glyph, Action onClick)
+    {
+        var btn = new Button
+        {
+            Content = new TextBlock
+            {
+                Text = glyph,
+                FontSize = 20,
+                Foreground = FindBrush("TextDimBrush"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            },
+            Width = 36,
+            Height = 80,
+            VerticalAlignment = VerticalAlignment.Center,
+            Background = Brushes.Transparent,
+            BorderBrush = Brushes.Transparent,
+            Cursor = Cursors.Hand,
+            Padding = new Thickness(0)
+        };
+        btn.MouseEnter += (_, _) => { if (btn.Content is TextBlock t) t.Foreground = new SolidColorBrush(ThemeManager.Accent); };
+        btn.MouseLeave += (_, _) => { if (btn.Content is TextBlock t) t.Foreground = FindBrush("TextDimBrush"); };
+        btn.Click += (_, _) => onClick();
+        return btn;
+    }
+
+    private Button MakeSmallButton(string text, Action onClick)
+    {
+        var btn = new Button
+        {
+            Content = text,
+            MinWidth = 28,
+            MinHeight = 26,
+            Padding = new Thickness(6, 2, 6, 2),
+            FontSize = 14,
+            FontWeight = FontWeights.Bold,
+            Cursor = Cursors.Hand
+        };
+        btn.Click += (_, _) => onClick();
+        return btn;
+    }
+
+    private Border MakeTabButton(string text, bool active)
+    {
+        var border = new Border
+        {
+            Padding = new Thickness(0, 8, 0, 8),
+            Cursor = Cursors.Hand,
+            BorderThickness = new Thickness(0, 0, 0, 2),
+            BorderBrush = active ? new SolidColorBrush(ThemeManager.Accent) : Brushes.Transparent,
+            Background = Brushes.Transparent
+        };
+        border.Child = new TextBlock
+        {
+            Text = text,
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = active ? new SolidColorBrush(ThemeManager.Accent) : FindBrush("TextDimBrush"),
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+        return border;
+    }
+
+    private void SwitchStreamControllerEditorTab(bool showDisplay)
+    {
+        _scShowingDisplayTab = showDisplay;
+        if (_scDisplayTabContent != null)
+            _scDisplayTabContent.Visibility = showDisplay ? Visibility.Visible : Visibility.Collapsed;
+        if (_scActionTabContent != null)
+            _scActionTabContent.Visibility = showDisplay ? Visibility.Collapsed : Visibility.Visible;
+
+        // Update tab visuals
+        if (_scDisplayTabBtn != null)
+        {
+            _scDisplayTabBtn.BorderBrush = showDisplay ? new SolidColorBrush(ThemeManager.Accent) : Brushes.Transparent;
+            if (_scDisplayTabBtn.Child is TextBlock dt)
+                dt.Foreground = showDisplay ? new SolidColorBrush(ThemeManager.Accent) : FindBrush("TextDimBrush");
+        }
+        if (_scActionTabBtn != null)
+        {
+            _scActionTabBtn.BorderBrush = !showDisplay ? new SolidColorBrush(ThemeManager.Accent) : Brushes.Transparent;
+            if (_scActionTabBtn.Child is TextBlock at)
+                at.Foreground = !showDisplay ? new SolidColorBrush(ThemeManager.Accent) : FindBrush("TextDimBrush");
+        }
+    }
+
+    // ── Paging ───────────────────────────────────────────────────────────
+
+    private void NavigateStreamControllerPage(int delta)
+    {
+        if (_config == null) return;
+        int newPage = Math.Clamp(_scCurrentPage + delta, 0, _scPageCount - 1);
+        if (newPage == _scCurrentPage) return;
+        _scCurrentPage = newPage;
+        _config.N3.CurrentPage = newPage;
+
+        // Auto-select first key on the new page
+        _scSelectedButtonIdx = PagedDisplayKeyBase;
+        RefreshStreamControllerPageUI();
+        LoadStreamControllerConfig();
+        QueueSave();
+    }
+
+    public void SetStreamControllerPage(int page)
+    {
+        if (_config == null) return;
+        int newPage = Math.Clamp(page, 0, _scPageCount - 1);
+        if (newPage == _scCurrentPage) return;
+        _scCurrentPage = newPage;
+        _config.N3.CurrentPage = newPage;
+        _scSelectedButtonIdx = PagedDisplayKeyBase;
+        RefreshStreamControllerPageUI();
+        LoadStreamControllerConfig();
+        QueueSave();
+
+        // Trigger hardware display re-sync via save
+        _onSave?.Invoke(_config);
+    }
+
+    private void AddStreamControllerPage()
+    {
+        if (_config == null) return;
+        _scPageCount++;
+        _config.N3.PageCount = _scPageCount;
+        EnsureStreamControllerPageConfigs(_scPageCount - 1);
+        NavigateStreamControllerPage(_scPageCount - 1 - _scCurrentPage);
+    }
+
+    private void RemoveStreamControllerPage()
+    {
+        if (_config == null || _scPageCount <= 1) return;
+        int removedPage = _scPageCount - 1;
+
+        // Remove configs for the last page
+        int startIdx = removedPage * StreamControllerKeysPerPage;
+        _config.N3.DisplayKeys.RemoveAll(k => k.Idx >= startIdx && k.Idx < startIdx + StreamControllerKeysPerPage);
+        int btnStart = StreamControllerDisplayKeyBase + startIdx;
+        _config.N3.Buttons.RemoveAll(b => b.Idx >= btnStart && b.Idx < btnStart + StreamControllerKeysPerPage);
+
+        _scPageCount--;
+        _config.N3.PageCount = _scPageCount;
+        if (_scCurrentPage >= _scPageCount)
+            _scCurrentPage = _scPageCount - 1;
+        _config.N3.CurrentPage = _scCurrentPage;
+        _scSelectedButtonIdx = PagedDisplayKeyBase;
+        RefreshStreamControllerPageUI();
+        LoadStreamControllerConfig();
+        QueueSave();
+    }
+
+    private void EnsureStreamControllerPageConfigs(int page)
+    {
+        if (_config == null) return;
+        for (int i = 0; i < StreamControllerKeysPerPage; i++)
+        {
+            int globalIdx = page * StreamControllerKeysPerPage + i;
+            if (!_config.N3.DisplayKeys.Any(k => k.Idx == globalIdx))
+                _config.N3.DisplayKeys.Add(new StreamControllerDisplayKeyConfig { Idx = globalIdx });
+            int buttonIdx = StreamControllerDisplayKeyBase + globalIdx;
+            if (!_config.N3.Buttons.Any(b => b.Idx == buttonIdx))
+                _config.N3.Buttons.Add(new ButtonConfig { Idx = buttonIdx });
+        }
+    }
+
+    private void RefreshStreamControllerPageUI()
+    {
+        // Rebuild dots
+        _scPageDotsPanel?.Children.Clear();
+        _scPageDots.Clear();
+        for (int i = 0; i < _scPageCount; i++)
+        {
+            var dot = new Ellipse
+            {
+                Width = 8,
+                Height = 8,
+                Margin = new Thickness(3, 0, 3, 0),
+                Fill = i == _scCurrentPage
+                    ? new SolidColorBrush(ThemeManager.Accent)
+                    : FindBrush("CardBorderBrush")
+            };
+            _scPageDots.Add(dot);
+            _scPageDotsPanel?.Children.Add(dot);
+        }
+
+        if (_scPageLabel != null)
+            _scPageLabel.Text = $"Page {_scCurrentPage + 1} of {_scPageCount}";
+
+        // Dim arrows at bounds
+        if (_scPageLeft?.Content is TextBlock lt)
+            lt.Foreground = _scCurrentPage > 0 ? FindBrush("TextSecBrush") : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+        if (_scPageRight?.Content is TextBlock rt)
+            rt.Foreground = _scCurrentPage < _scPageCount - 1 ? FindBrush("TextSecBrush") : new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+    }
+
+    // ── Existing helpers (preserved) ────────────────────────────────────
 
     private Border MakeSmallControlCard(string title, out TextBlock actionLabel)
     {
@@ -330,12 +634,12 @@ public partial class ButtonsView
         return new TextBox
         {
             Margin = new Thickness(0, 0, 0, 8),
-            MinHeight = 38,
+            MinHeight = 36,
             Background = (Brush)Application.Current.FindResource("InputBgBrush"),
             Foreground = (Brush)Application.Current.FindResource("TextPrimaryBrush"),
             BorderBrush = (Brush)Application.Current.FindResource("InputBorderBrush"),
             BorderThickness = new Thickness(1.5),
-            Padding = new Thickness(12, 8, 12, 8),
+            Padding = new Thickness(10, 7, 10, 7),
             FontSize = 12,
             VerticalContentAlignment = VerticalAlignment.Center,
             CaretBrush = new SolidColorBrush(ThemeManager.Accent),
@@ -350,8 +654,8 @@ public partial class ButtonsView
         var button = new Button
         {
             Content = text,
-            MinHeight = 34,
-            Padding = new Thickness(14, 6, 14, 6)
+            MinHeight = 32,
+            Padding = new Thickness(12, 5, 12, 5)
         };
         button.Click += onClick;
         return button;
@@ -359,7 +663,7 @@ public partial class ButtonsView
 
     private StackPanel MakeStreamHeader(string title, string subtitle)
     {
-        var stack = new StackPanel();
+        var stack = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
         stack.Children.Add(new TextBlock
         {
             Text = title,
@@ -456,9 +760,14 @@ public partial class ButtonsView
         return (panel, picker);
     }
 
+    // ── Config load/save ────────────────────────────────────────────────
+
     private void LoadStreamControllerConfig()
     {
         if (_config == null || _scActionPicker == null || _scDevicePicker == null || _scKnobPicker == null) return;
+
+        _scCurrentPage = Math.Clamp(_config.N3.CurrentPage, 0, Math.Max(0, _config.N3.PageCount - 1));
+        _scPageCount = Math.Max(1, _config.N3.PageCount);
 
         PopulateActionPicker(
             _scActionPicker,
@@ -471,16 +780,18 @@ public partial class ButtonsView
             _config.VoiceMeeter.Enabled,
             _config.Buttons.Concat(_config.N3.Buttons).Any(b => IsVmAction(b.Action) || IsVmAction(b.DoublePressAction) || IsVmAction(b.HoldAction)),
             _config.Groups.Count > 0,
-            _config.Buttons.Concat(_config.N3.Buttons).Any(b => b.Action == "group_toggle" || b.DoublePressAction == "group_toggle" || b.HoldAction == "group_toggle"));
+            _config.Buttons.Concat(_config.N3.Buttons).Any(b => b.Action == "group_toggle" || b.DoublePressAction == "group_toggle" || b.HoldAction == "group_toggle"),
+            showScPageActions: true);
 
         PopulateDevicePicker(_scDevicePicker);
         PopulateKnobPicker(_scKnobPicker, _config);
 
         for (int i = 0; i < 6; i++)
         {
-            var key = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == i) ?? new StreamControllerDisplayKeyConfig { Idx = i };
+            int globalIdx = _scCurrentPage * StreamControllerKeysPerPage + i;
+            var key = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == globalIdx) ?? new StreamControllerDisplayKeyConfig { Idx = globalIdx };
             _scDisplayImages[i].Source = StreamControllerDisplayRenderer.CreateHardwarePreview(key);
-            _scDisplayCaptions[i].Text = string.IsNullOrWhiteSpace(key.Title) ? $"Key {i + 1}" : key.Title;
+            _scDisplayCaptions[i].Text = string.IsNullOrWhiteSpace(key.Title) ? $"Key {globalIdx + 1}" : key.Title;
         }
 
         for (int i = 0; i < 3; i++)
@@ -491,6 +802,7 @@ public partial class ButtonsView
             _scPressLabels[i].Text = GetStreamActionDisplay(press?.Action);
         }
 
+        RefreshStreamControllerPageUI();
         LoadStreamControllerSelection();
     }
 
@@ -524,15 +836,24 @@ public partial class ButtonsView
             _scPresetIconBox.Text = string.IsNullOrWhiteSpace(key.PresetIconKind) ? "No preset icon selected" : key.PresetIconKind;
             _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateHardwarePreview(key);
             _scDisplayDesignPanel!.Visibility = Visibility.Visible;
+
+            // Show Display tab for LCD keys, show tab bar
+            if (_scDisplayTabBtn != null) _scDisplayTabBtn.Visibility = Visibility.Visible;
+            if (_scShowingDisplayTab)
+                SwitchStreamControllerEditorTab(showDisplay: true);
         }
         else
         {
             _scTitleBox.Text = "";
             _scSubtitleBox.Text = "";
-            _scImagePathBox.Text = "Display designer is only available for LCD keys";
+            _scImagePathBox.Text = "";
             _scPresetIconBox.Text = "";
             _scEditorPreview.Source = null;
             _scDisplayDesignPanel!.Visibility = Visibility.Collapsed;
+
+            // Non-LCD controls: force Action tab, hide Display tab
+            if (_scDisplayTabBtn != null) _scDisplayTabBtn.Visibility = Visibility.Collapsed;
+            SwitchStreamControllerEditorTab(showDisplay: false);
         }
 
         UpdateStreamControllerActionVisibility();
@@ -546,15 +867,26 @@ public partial class ButtonsView
             return;
 
         var action = GetComboActionValue(_scActionPicker);
-        _scPathPanel.Visibility = PathActions.Contains(action) || action is "ha_service" or "govee_color" or "obs_scene" or "obs_mute" or "vm_mute_strip" or "vm_mute_bus"
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+        bool needsPath = PathActions.Contains(action) || action is "ha_service" or "govee_color" or "obs_scene" or "obs_mute" or "vm_mute_strip" or "vm_mute_bus";
+        _scPathPanel.Visibility = needsPath ? Visibility.Visible : Visibility.Collapsed;
         _scMacroPanel.Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
         _scDevicePanel.Visibility = action is "select_output" or "select_input" or "mute_device" ? Visibility.Visible : Visibility.Collapsed;
         _scKnobPanel.Visibility = action == "mute_app_group" ? Visibility.Visible : Visibility.Collapsed;
 
         if (_scPathPanel.Visibility == Visibility.Visible)
-            ApplyPathLabelAndButtons(_scPathLabel, _scPathBox, _scBrowsePathButton, _scPickPathButton, action, _scAppChip);
+        {
+            if (action == "sc_go_to_page")
+            {
+                _scPathLabel.Text = "PAGE NUMBER";
+                _scPathBox.Tag = "Page number (1-based)";
+                _scBrowsePathButton.Visibility = Visibility.Collapsed;
+                _scPickPathButton.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                ApplyPathLabelAndButtons(_scPathLabel, _scPathBox, _scBrowsePathButton, _scPickPathButton, action, _scAppChip);
+            }
+        }
 
         _scAppChip.Visibility = action is "close_program" or "mute_program" ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -592,10 +924,10 @@ public partial class ButtonsView
 
     private StreamControllerSelection DescribeSelection(int buttonIdx)
     {
-        if (buttonIdx >= StreamControllerDisplayKeyBase && buttonIdx < StreamControllerDisplayKeyBase + 6)
+        if (buttonIdx >= StreamControllerDisplayKeyBase && buttonIdx < StreamControllerDisplayKeyBase + (_scPageCount * StreamControllerKeysPerPage))
         {
-            int displayIdx = buttonIdx - StreamControllerDisplayKeyBase;
-            return new StreamControllerSelection(buttonIdx, $"Display Key {displayIdx + 1}", displayIdx);
+            int globalIdx = buttonIdx - StreamControllerDisplayKeyBase;
+            return new StreamControllerSelection(buttonIdx, $"Key {globalIdx + 1}", globalIdx);
         }
         if (buttonIdx >= StreamControllerSideButtonBase && buttonIdx < StreamControllerSideButtonBase + 3)
             return new StreamControllerSelection(buttonIdx, $"Side Button {buttonIdx - StreamControllerSideButtonBase + 1}", null);
@@ -605,10 +937,12 @@ public partial class ButtonsView
     private StreamControllerDisplayKeyConfig? GetSelectedDisplayKeyConfig()
     {
         if (_config == null) return null;
-        if (_scSelectedButtonIdx < StreamControllerDisplayKeyBase || _scSelectedButtonIdx >= StreamControllerDisplayKeyBase + 6)
+        if (_scSelectedButtonIdx < StreamControllerDisplayKeyBase)
             return null;
-        int displayIdx = _scSelectedButtonIdx - StreamControllerDisplayKeyBase;
-        return _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == displayIdx);
+        int globalIdx = _scSelectedButtonIdx - StreamControllerDisplayKeyBase;
+        if (globalIdx >= _scPageCount * StreamControllerKeysPerPage)
+            return null;
+        return _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == globalIdx);
     }
 
     private void UpdateEditorPreviewOnly()
@@ -619,16 +953,20 @@ public partial class ButtonsView
         display.Title = _scTitleBox.Text.Trim();
         display.Subtitle = _scSubtitleBox.Text.Trim();
         _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateHardwarePreview(display);
-        int idx = display.Idx;
-        _scDisplayImages[idx].Source = StreamControllerDisplayRenderer.CreateHardwarePreview(display);
-        _scDisplayCaptions[idx].Text = string.IsNullOrWhiteSpace(display.Title) ? $"Key {idx + 1}" : display.Title;
+
+        int localIdx = display.Idx - (_scCurrentPage * StreamControllerKeysPerPage);
+        if (localIdx >= 0 && localIdx < 6)
+        {
+            _scDisplayImages[localIdx].Source = StreamControllerDisplayRenderer.CreateHardwarePreview(display);
+            _scDisplayCaptions[localIdx].Text = string.IsNullOrWhiteSpace(display.Title) ? $"Key {display.Idx + 1}" : display.Title;
+        }
     }
 
     private void RefreshStreamControllerSelectionVisuals()
     {
         for (int i = 0; i < 6; i++)
         {
-            bool active = _scSelectedButtonIdx == StreamControllerDisplayKeyBase + i;
+            bool active = _scSelectedButtonIdx == PagedDisplayKeyBase + i;
             ApplySelectionState(_scDisplayCards[i], active);
         }
         for (int i = 0; i < 3; i++)
@@ -663,6 +1001,8 @@ public partial class ButtonsView
         if (string.IsNullOrWhiteSpace(action) || action == "none") return "None";
         return Actions.FirstOrDefault(a => a.Value == action).Display ?? action;
     }
+
+    // ── Image / Icon pickers ────────────────────────────────────────────
 
     private void BrowseStreamControllerImage()
     {
