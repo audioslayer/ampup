@@ -26,13 +26,55 @@ public class StreamControllerIconPickerDialog : Window
     private static readonly string[] OnlinePrefixes =
     {
         "material-symbols",
+        "material-symbols-light",
+        "ic",
         "mdi",
+        "mdi-light",
+        "line-md",
+        "solar",
         "ph",
         "tabler",
         "fluent",
+        "fluent-color",
+        "boxicons",
+        "mingcute",
+        "ri",
+        "mynaui",
+        "iconoir",
+        "lucide",
+        "uil",
+        "tdesign",
+        "majesticons",
         "bi",
         "carbon",
-        "simple-icons"
+        "simple-icons",
+        "logos",
+        "streamline-logos",
+        "devicon",
+        "devicon-plain",
+        "skill-icons",
+        "vscode-icons",
+        "catppuccin",
+        "streamline-color",
+        "streamline-plump-color",
+        "streamline-cyber-color",
+        "streamline-flex-color",
+        "streamline-freehand-color",
+        "streamline-kameleon-color",
+        "streamline-sharp-color",
+        "streamline-stickies-color",
+        "streamline-ultimate-color",
+        "fluent-emoji-flat",
+        "twemoji",
+        "emojione",
+        "noto",
+        "cryptocurrency-color",
+        "token-branded",
+        "token",
+        "unjs",
+        "cib",
+        "bxl",
+        "fa7-brands"
     };
 
     private readonly List<IconPresetEntry> _entries = BuildEntries();
@@ -64,6 +106,7 @@ public class StreamControllerIconPickerDialog : Window
         public required string Prefix { get; init; }
         public required string Name { get; init; }
         public required string Label { get; init; }
+        public required bool Palette { get; init; }
         public required Border Card { get; init; }
         public required Image PreviewImage { get; init; }
     }
@@ -134,7 +177,7 @@ public class StreamControllerIconPickerDialog : Window
         {
             Foreground = (Brush)Application.Current.FindResource("TextDimBrush"),
             Margin = new Thickness(0, 6, 0, 0),
-            Text = "Search thousands of icons and only cache the one you pick."
+            Text = "Search thousands of icons, including logos, brand marks, dev icons, emoji, and multicolor packs."
         };
 
         _searchChrome = new Border
@@ -324,7 +367,7 @@ public class StreamControllerIconPickerDialog : Window
         _localPanel.Visibility = online ? Visibility.Collapsed : Visibility.Visible;
         _onlinePanel.Visibility = online ? Visibility.Visible : Visibility.Collapsed;
         _subtitle.Text = online
-            ? "Browse a huge online icon library without shipping thousands of assets in Amp Up. Only the icon you pick gets cached locally."
+            ? "Browse a huge online icon library with logos, dev icons, emoji, and multicolor packs. Only the icon you pick gets cached locally."
             : "Use the built-in icon set that already ships with Amp Up for quick offline picks.";
 
         if (online)
@@ -332,7 +375,7 @@ public class StreamControllerIconPickerDialog : Window
             if (string.IsNullOrWhiteSpace(_searchBox.Text))
             {
                 _onlineGrid.Children.Clear();
-                _onlineStatus.Text = "Search thousands of icons and only cache the one you pick.";
+                _onlineStatus.Text = "Search thousands of icons, including logos, brand marks, dev icons, emoji, and multicolor packs.";
             }
             else
             {
@@ -363,7 +406,7 @@ public class StreamControllerIconPickerDialog : Window
         {
             _searchCts?.Cancel();
             _onlineGrid.Children.Clear();
-            _onlineStatus.Text = "Search thousands of icons and only cache the one you pick.";
+            _onlineStatus.Text = "Search thousands of icons, including logos, brand marks, dev icons, emoji, and multicolor packs.";
             return;
         }
 
@@ -419,12 +462,13 @@ public class StreamControllerIconPickerDialog : Window
             _onlineStatus.Text = $"Searching for \"{query}\"...";
 
             string prefixes = string.Join(",", OnlinePrefixes);
-            string url = $"https://api.iconify.design/search?query={Uri.EscapeDataString(query)}&limit=72&prefixes={Uri.EscapeDataString(prefixes)}";
+            string url = $"https://api.iconify.design/search?query={Uri.EscapeDataString(query)}&limit=120&prefixes={Uri.EscapeDataString(prefixes)}";
             using var response = await _http.GetAsync(url, token);
             response.EnsureSuccessStatusCode();
 
             var json = JObject.Parse(await response.Content.ReadAsStringAsync(token));
             var icons = json["icons"]?.Values<string?>().Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!).ToList() ?? new List<string>();
+            var paletteMap = BuildPaletteMap(json["collections"] as JObject);
             if (token.IsCancellationRequested)
                 return;
 
@@ -435,9 +479,12 @@ public class StreamControllerIconPickerDialog : Window
             }
 
             var entries = icons
-                .Select(BuildOnlineEntry)
+                .Select(iconId => BuildOnlineEntry(iconId, paletteMap))
                 .Where(e => e != null)
                 .Cast<OnlineIconEntry>()
+                .OrderByDescending(e => e.Palette)
+                .ThenBy(e => GetPrefixPriority(e.Prefix))
+                .ThenBy(e => e.Label, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             foreach (var entry in entries)
@@ -456,7 +503,7 @@ public class StreamControllerIconPickerDialog : Window
         }
     }
 
-    private OnlineIconEntry? BuildOnlineEntry(string? iconId)
+    private OnlineIconEntry? BuildOnlineEntry(string? iconId, IReadOnlyDictionary<string, bool> paletteMap)
     {
         if (string.IsNullOrWhiteSpace(iconId))
             return null;
@@ -535,6 +582,7 @@ public class StreamControllerIconPickerDialog : Window
             Prefix = parts[0],
             Name = parts[1],
             Label = ToLabel(parts[1]),
+            Palette = paletteMap.TryGetValue(parts[0], out var palette) && palette,
             Card = card,
             PreviewImage = image
         };
@@ -570,7 +618,7 @@ public class StreamControllerIconPickerDialog : Window
                     if (iconsObject[entry.Name] is not JObject iconData)
                         continue;
 
-                    string svgMarkup = BuildSvgMarkup(iconData, defaultWidth, defaultHeight);
+                    string svgMarkup = BuildSvgMarkup(iconData, defaultWidth, defaultHeight, entry.Palette);
                     _onlineSvgCache[entry.IconId] = svgMarkup;
 
                     var source = await Task.Run(() => RenderSvgToBitmapSource(svgMarkup, 72), token);
@@ -637,16 +685,17 @@ public class StreamControllerIconPickerDialog : Window
         return filePath;
     }
 
-    private static string BuildSvgMarkup(JObject iconData, int defaultWidth, int defaultHeight)
+    private static string BuildSvgMarkup(JObject iconData, int defaultWidth, int defaultHeight, bool preservePalette)
     {
         int left = (int?)iconData["left"] ?? 0;
         int top = (int?)iconData["top"] ?? 0;
         int width = (int?)iconData["width"] ?? defaultWidth;
         int height = (int?)iconData["height"] ?? defaultHeight;
         string body = (string?)iconData["body"] ?? "";
+        string colorAttribute = preservePalette ? "" : " color=\"#F5F5F5\"";
 
         return $"""
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="{left} {top} {width} {height}" color="#F5F5F5">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="{left} {top} {width} {height}"{colorAttribute}>
             {body}
             </svg>
             """;
@@ -669,7 +718,8 @@ public class StreamControllerIconPickerDialog : Window
 
         int defaultWidth = (int?)json["width"] ?? 24;
         int defaultHeight = (int?)json["height"] ?? 24;
-        return BuildSvgMarkup(iconData, defaultWidth, defaultHeight);
+        bool preservePalette = IsLikelyPalettePrefix(parts[0]);
+        return BuildSvgMarkup(iconData, defaultWidth, defaultHeight, preservePalette);
     }
 
     private static BitmapSource? RenderSvgToBitmapSource(string svgMarkup, int size)
@@ -824,6 +874,67 @@ public class StreamControllerIconPickerDialog : Window
         foreach (char ch in name)
             builder.Append(invalid.Contains(ch) ? '_' : ch);
         return builder.ToString();
+    }
+
+    private static Dictionary<string, bool> BuildPaletteMap(JObject? collections)
+    {
+        var map = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        if (collections == null)
+            return map;
+
+        foreach (var property in collections.Properties())
+            map[property.Name] = property.Value["palette"]?.Value<bool>() ?? false;
+
+        return map;
+    }
+
+    private static int GetPrefixPriority(string prefix)
+    {
+        return prefix switch
+        {
+            "simple-icons" => 0,
+            "logos" => 1,
+            "skill-icons" => 2,
+            "devicon" => 3,
+            "streamline-color" => 4,
+            "streamline-plump-color" => 5,
+            "fluent-color" => 6,
+            "material-symbols" => 7,
+            "mdi" => 8,
+            "ph" => 9,
+            _ => 20
+        };
+    }
+
+    private static bool IsLikelyPalettePrefix(string prefix)
+    {
+        return prefix switch
+        {
+            "logos" => true,
+            "simple-icons" => true,
+            "skill-icons" => true,
+            "devicon" => true,
+            "vscode-icons" => true,
+            "catppuccin" => true,
+            "streamline-color" => true,
+            "streamline-plump-color" => true,
+            "streamline-cyber-color" => true,
+            "streamline-flex-color" => true,
+            "streamline-freehand-color" => true,
+            "streamline-kameleon-color" => true,
+            "streamline-sharp-color" => true,
+            "streamline-stickies-color" => true,
+            "streamline-ultimate-color" => true,
+            "fluent-color" => true,
+            "fluent-emoji-flat" => true,
+            "twemoji" => true,
+            "emojione" => true,
+            "noto" => true,
+            "cryptocurrency-color" => true,
+            "token-branded" => true,
+            "unjs" => true,
+            _ => false
+        };
     }
 
     private static List<IconPresetEntry> BuildEntries()
