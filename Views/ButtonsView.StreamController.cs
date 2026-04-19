@@ -30,6 +30,9 @@ public partial class ButtonsView
     private TextBox? _scImagePathBox;
     private Button? _scBrowseImageButton;
     private Button? _scClearImageButton;
+    private TextBox? _scPresetIconBox;
+    private Button? _scChoosePresetButton;
+    private Button? _scClearPresetButton;
     private StackPanel? _scDisplayDesignPanel;
     private ActionPicker? _scActionPicker;
     private TextBox? _scPathBox;
@@ -210,6 +213,18 @@ public partial class ButtonsView
             LoadStreamControllerSelection();
             QueueSave();
         });
+        _scPresetIconBox = MakeEditorTextBox("No preset icon selected");
+        _scPresetIconBox.IsReadOnly = true;
+        _scChoosePresetButton = MakeEditorButton("Choose Preset", (_, _) => ChooseStreamControllerPresetIcon());
+        _scClearPresetButton = MakeEditorButton("Clear Preset", (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            var key = GetSelectedDisplayKeyConfig();
+            if (key == null) return;
+            key.PresetIconKind = "";
+            LoadStreamControllerSelection();
+            QueueSave();
+        });
 
         _scDisplayDesignPanel.Children.Add(MakeEditorLabel("DISPLAY TITLE"));
         _scDisplayDesignPanel.Children.Add(_scTitleBox);
@@ -222,6 +237,13 @@ public partial class ButtonsView
         _scClearImageButton.Margin = new Thickness(8, 0, 0, 0);
         imageButtonRow.Children.Add(_scClearImageButton);
         _scDisplayDesignPanel.Children.Add(imageButtonRow);
+        _scDisplayDesignPanel.Children.Add(MakeEditorLabel("PRESET ICON"));
+        _scDisplayDesignPanel.Children.Add(_scPresetIconBox);
+        var presetButtonRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 14) };
+        presetButtonRow.Children.Add(_scChoosePresetButton);
+        _scClearPresetButton.Margin = new Thickness(8, 0, 0, 0);
+        presetButtonRow.Children.Add(_scClearPresetButton);
+        _scDisplayDesignPanel.Children.Add(presetButtonRow);
         right.Children.Add(_scDisplayDesignPanel);
 
         right.Children.Add(MakeStreamHeader("ACTION", "Choose what this control does when pressed"));
@@ -466,7 +488,7 @@ public partial class ButtonsView
     private void LoadStreamControllerSelection()
     {
         if (_config == null || _scActionPicker == null || _scPathBox == null || _scMacroBox == null || _scDevicePicker == null || _scKnobPicker == null
-            || _scEditorTitle == null || _scEditorPreview == null || _scTitleBox == null || _scSubtitleBox == null || _scImagePathBox == null)
+            || _scEditorTitle == null || _scEditorPreview == null || _scTitleBox == null || _scSubtitleBox == null || _scImagePathBox == null || _scPresetIconBox == null)
             return;
 
         var button = _config.N3.Buttons.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx) ?? new ButtonConfig { Idx = _scSelectedButtonIdx };
@@ -490,6 +512,7 @@ public partial class ButtonsView
             _scTitleBox.Text = key.Title;
             _scSubtitleBox.Text = key.Subtitle;
             _scImagePathBox.Text = string.IsNullOrWhiteSpace(key.ImagePath) ? "No image selected" : key.ImagePath;
+            _scPresetIconBox.Text = string.IsNullOrWhiteSpace(key.PresetIconKind) ? "No preset icon selected" : key.PresetIconKind;
             _scEditorPreview.Source = StreamControllerDisplayRenderer.CreatePreview(key);
             _scDisplayDesignPanel!.Visibility = Visibility.Visible;
         }
@@ -498,6 +521,7 @@ public partial class ButtonsView
             _scTitleBox.Text = "";
             _scSubtitleBox.Text = "";
             _scImagePathBox.Text = "Display designer is only available for LCD keys";
+            _scPresetIconBox.Text = "";
             _scEditorPreview.Source = null;
             _scDisplayDesignPanel!.Visibility = Visibility.Collapsed;
         }
@@ -646,6 +670,23 @@ public partial class ButtonsView
         if (dialog.ShowDialog() == true)
         {
             display.ImagePath = dialog.FileName;
+            display.PresetIconKind = "";
+            LoadStreamControllerSelection();
+            QueueSave();
+        }
+    }
+
+    private void ChooseStreamControllerPresetIcon()
+    {
+        if (_config == null) return;
+        var display = GetSelectedDisplayKeyConfig();
+        if (display == null) return;
+
+        var dialog = new StreamControllerIconPickerDialog { Owner = Window.GetWindow(this) };
+        if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.SelectedIconKind))
+        {
+            display.PresetIconKind = dialog.SelectedIconKind!;
+            display.ImagePath = "";
             LoadStreamControllerSelection();
             QueueSave();
         }

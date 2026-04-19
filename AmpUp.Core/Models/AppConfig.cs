@@ -261,6 +261,7 @@ public class StreamControllerDisplayKeyConfig
 {
     public int Idx { get; set; }
     public string ImagePath { get; set; } = "";
+    public string PresetIconKind { get; set; } = "";
     public string Title { get; set; } = "";
     public string Subtitle { get; set; } = "";
     public string BackgroundColor { get; set; } = "#1C1C1C";
