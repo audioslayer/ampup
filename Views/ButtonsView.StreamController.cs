@@ -1173,8 +1173,16 @@ public partial class ButtonsView
         picker.SelectionChanged += (_, _) =>
         {
             if (_loading || _config == null) return;
-            var btn = GetActiveN3ButtonList().FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
+            // Side buttons / encoder presses live on the root list even when the
+            // editor is navigated inside a folder — GetActiveN3ButtonList returns
+            // the folder's list there and would miss them. Select the right list
+            // based on the selected button's idx range.
+            bool isN3PagedKey = _scSelectedButtonIdx >= StreamControllerDisplayKeyBase
+                                && _scSelectedButtonIdx < StreamControllerSideButtonBase;
+            var list = isN3PagedKey ? GetActiveN3ButtonList() : _config.N3.Buttons;
+            var btn = list.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
             if (btn == null) return;
+            btn.Action = "open_folder";
             btn.FolderName = picker.SelectedTag as string ?? "";
             QueueSave();
         };
@@ -1887,7 +1895,7 @@ public partial class ButtonsView
             return new StreamControllerSelection(buttonIdx, $"Key {globalIdx + 1}", globalIdx);
         }
         if (buttonIdx >= StreamControllerSideButtonBase && buttonIdx < StreamControllerSideButtonBase + 3)
-            return new StreamControllerSelection(buttonIdx, $"Side Button {buttonIdx - StreamControllerSideButtonBase + 1}", null);
+            return new StreamControllerSelection(buttonIdx, $"Button {buttonIdx - StreamControllerSideButtonBase + 1}", null);
         return new StreamControllerSelection(buttonIdx, $"Encoder Press {buttonIdx - StreamControllerEncoderPressBase + 1}", null);
     }
 
