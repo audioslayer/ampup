@@ -1,0 +1,286 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using AmpUp.Controls;
+
+namespace AmpUp.Views;
+
+/// <summary>
+/// V2 Stream Controller — action-specific sub-panel wrappers.
+///
+/// This file owns ONLY the V2 section-card chrome around the existing
+/// legacy sub-panels (path, macro, text snippet, screenshot, device,
+/// knob, toggle, multi-action, folder). The legacy widgets themselves
+/// are re-hosted, not rebuilt — their internal wiring and field references
+/// (_scPathBox, _scBrowsePathButton, _scAppChip, etc.) stay intact.
+/// </summary>
+public partial class ButtonsView
+{
+    // ── V2 section-card wrappers (one per action-specific sub-panel) ────
+    private Border? _v2PathCard;
+    private TextBlock? _v2PathCardLabel;
+    private Border? _v2MacroCard;
+    private Border? _v2TextSnippetCard;
+    private Border? _v2ScreenshotCard;
+    private Border? _v2DeviceCard;
+    private Border? _v2KnobCard;
+    private Border? _v2ToggleCard;
+    private Border? _v2MultiActionCard;
+    private Border? _v2FolderCard;
+
+    // Track the accent-colored header parts so theme changes can refresh them.
+    private readonly List<(Border bar, TextBlock label)> _v2SectionHeaders = new();
+
+    /// <summary>
+    /// [Agent D] Wrap each legacy action sub-panel in a consistent V2 section card
+    /// and add them (collapsed) to <see cref="_v2ActionFieldsPanel"/>.
+    /// </summary>
+    partial void FillV2ActionFieldsPanel()
+    {
+        if (_v2ActionFieldsPanel == null) return;
+        _v2ActionFieldsPanel.Children.Clear();
+
+        // 1. Path / URL / keystroke-chain card — dynamic label, default "PATH".
+        _v2PathCard = MakeV2SectionCard("PATH", out _v2PathCardLabel, _scPathPanel);
+        _v2ActionFieldsPanel.Children.Add(_v2PathCard);
+
+        // 2. Macro keys textbox.
+        _v2MacroCard = MakeV2SectionCard("MACRO", out _, _scMacroPanel);
+        _v2ActionFieldsPanel.Children.Add(_v2MacroCard);
+
+        // 3. Text snippet (multi-line type-text).
+        _v2TextSnippetCard = MakeV2SectionCard("TEXT TO TYPE", out _, _scTextSnippetPanel);
+        _v2ActionFieldsPanel.Children.Add(_v2TextSnippetCard);
+
+        // 4. Screenshot info blurb.
+        _v2ScreenshotCard = MakeV2SectionCard("SCREENSHOT", out _, _scScreenshotInfoPanel);
+        _v2ActionFieldsPanel.Children.Add(_v2ScreenshotCard);
+
+        // 5. Device picker (select_output / select_input / mute_device).
+        _v2DeviceCard = MakeV2SectionCard("DEVICE", out _, _scDevicePanel);
+        _v2ActionFieldsPanel.Children.Add(_v2DeviceCard);
+
+        // 6. Linked Turn Up knob (mute_app_group).
+        _v2KnobCard = MakeV2SectionCard("LINKED TURN UP KNOB", out _, _scKnobPanel);
+        _v2ActionFieldsPanel.Children.Add(_v2KnobCard);
+
+        // 7. A / B toggle editor.
+        _v2ToggleCard = MakeV2SectionCard("A / B TOGGLE", out _, _scTogglePanel);
+        _v2ActionFieldsPanel.Children.Add(_v2ToggleCard);
+
+        // 8. Multi-action sequence editor.
+        _v2MultiActionCard = MakeV2SectionCard("MULTI-ACTION", out _, _scMultiActionPanel);
+        _v2ActionFieldsPanel.Children.Add(_v2MultiActionCard);
+
+        // 9. Folder picker (open_folder).
+        _v2FolderCard = MakeV2SectionCard("FOLDER", out _, _scFolderPanel);
+        _v2ActionFieldsPanel.Children.Add(_v2FolderCard);
+
+        // Start everything hidden — visibility gets driven by the action picker.
+        foreach (var child in _v2ActionFieldsPanel.Children)
+        {
+            if (child is UIElement el)
+                el.Visibility = Visibility.Collapsed;
+        }
+
+        RefreshV2ActionFieldsVisibility();
+    }
+
+    /// <summary>
+    /// V2 analogue of <c>UpdateStreamControllerActionVisibility</c>. Toggles the
+    /// V2 wrapper cards (not the inner legacy panels) based on the currently
+    /// selected action. Also drives the dynamic label on the path card and
+    /// delegates to the legacy helpers that re-configure the inner widgets
+    /// (<c>ApplyPathLabelAndButtons</c>, <c>RefreshFolderPickerItems</c>, etc.).
+    /// </summary>
+    public void RefreshV2ActionFieldsVisibility()
+    {
+        if (_v2ActionFieldsPanel == null || _scActionPicker == null) return;
+
+        // Make sure the legacy inner panels are *visible* — the V2 wrappers
+        // now own the show/hide decision. If they were left Collapsed from
+        // an earlier legacy render pass, the wrapper would show an empty card.
+        ShowInner(_scPathPanel);
+        ShowInner(_scMacroPanel);
+        ShowInner(_scTextSnippetPanel);
+        ShowInner(_scScreenshotInfoPanel);
+        ShowInner(_scDevicePanel);
+        ShowInner(_scKnobPanel);
+        ShowInner(_scTogglePanel);
+        ShowInner(_scMultiActionPanel);
+        ShowInner(_scFolderPanel);
+
+        var action = GetComboActionValue(_scActionPicker);
+
+        bool needsPath = PathActions.Contains(action)
+            || action is "ha_service" or "govee_color" or "obs_scene" or "obs_mute"
+                      or "vm_mute_strip" or "vm_mute_bus";
+
+        SetCardVisible(_v2PathCard, needsPath);
+        SetCardVisible(_v2MacroCard, action == "macro");
+        SetCardVisible(_v2TextSnippetCard, action == "type_text");
+        SetCardVisible(_v2ScreenshotCard, action == "screenshot");
+        SetCardVisible(_v2DeviceCard, action is "select_output" or "select_input" or "mute_device");
+        SetCardVisible(_v2KnobCard, action == "mute_app_group");
+        SetCardVisible(_v2ToggleCard, action == "toggle_action");
+        SetCardVisible(_v2MultiActionCard, action == "multi_action");
+        SetCardVisible(_v2FolderCard, action == "open_folder");
+
+        // Delegate inner-widget reconfig to the legacy helpers so we don't
+        // duplicate URL / page-number / app-chip / folder / toggle wiring.
+        if (needsPath && _scPathLabel != null && _scPathBox != null
+            && _scBrowsePathButton != null && _scPickPathButton != null && _scAppChip != null)
+        {
+            if (action == "sc_go_to_page")
+            {
+                _scPathLabel.Text = "PAGE NUMBER";
+                _scPathBox.Tag = "Page number (1-based)";
+                _scBrowsePathButton.Visibility = Visibility.Collapsed;
+                _scPickPathButton.Visibility = Visibility.Collapsed;
+                SetPathHeader("PAGE NUMBER");
+            }
+            else if (action == "open_url")
+            {
+                _scPathLabel.Text = "URL";
+                _scPathBox.Tag = "https://example.com";
+                _scPathBox.ToolTip = "URL to open in the default browser";
+                _scBrowsePathButton.Visibility = Visibility.Collapsed;
+                _scPickPathButton.Visibility = Visibility.Collapsed;
+                if (_scPathBox.Parent is Border inputBorder)
+                    inputBorder.Visibility = Visibility.Visible;
+                SetPathHeader("URL");
+            }
+            else
+            {
+                ApplyPathLabelAndButtons(_scPathLabel, _scPathBox, _scBrowsePathButton, _scPickPathButton, action, _scAppChip);
+                SetPathHeader(HeaderTextForAction(action, _scPathLabel.Text));
+            }
+
+            _scAppChip.Visibility = action is "close_program" or "mute_program"
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
+        if (action == "toggle_action")
+            UpdateStreamControllerToggleVisibility();
+        if (action == "open_folder")
+            RefreshFolderPickerItems();
+        if (action == "multi_action")
+            RebuildMultiActionList();
+    }
+
+    // ── V2 section-card helpers ─────────────────────────────────────────
+
+    /// <summary>
+    /// Builds a V2 section card (accent-bar header + content area) and re-hosts
+    /// <paramref name="content"/> inside it. If <paramref name="content"/> is
+    /// null or already Collapsed from legacy state, the caller should ensure
+    /// visibility — this helper only owns the wrapper chrome.
+    /// </summary>
+    private Border MakeV2SectionCard(string label, out TextBlock headerLabel, UIElement? content)
+    {
+        var stack = new StackPanel();
+        var (bar, text) = MakeV2SectionLabel(label);
+        headerLabel = text;
+
+        var headerRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+        headerRow.Children.Add(bar);
+        headerRow.Children.Add(text);
+        stack.Children.Add(headerRow);
+
+        if (content != null)
+        {
+            // Re-parent from wherever the legacy designer put it.
+            if (content is FrameworkElement fe && fe.Parent is Panel oldParent)
+                oldParent.Children.Remove(fe);
+
+            // Strip the top-margin the legacy panels use for their inline
+            // spacing — the V2 card supplies its own padding.
+            if (content is FrameworkElement feChild)
+                feChild.Margin = new Thickness(0);
+
+            stack.Children.Add(content);
+        }
+
+        var card = new Border
+        {
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(14),
+            Margin = new Thickness(0, 0, 0, 12),
+            Child = stack,
+        };
+        card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        return card;
+    }
+
+    /// <summary>
+    /// Small accent-colored header pair (3px vertical accent bar + uppercase
+    /// SemiBold label) used across all V2 section cards. Matches Room tab.
+    /// </summary>
+    private (Border bar, TextBlock label) MakeV2SectionLabel(string text)
+    {
+        var bar = new Border
+        {
+            Width = 3,
+            CornerRadius = new CornerRadius(2),
+            Background = new SolidColorBrush(ThemeManager.Accent),
+            Margin = new Thickness(0, 0, 10, 0),
+        };
+        var label = new TextBlock
+        {
+            Text = text,
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(ThemeManager.Accent),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        _v2SectionHeaders.Add((bar, label));
+        return (bar, label);
+    }
+
+    // ── Local helpers ───────────────────────────────────────────────────
+
+    private static void SetCardVisible(UIElement? card, bool visible)
+    {
+        if (card != null)
+            card.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private static void ShowInner(UIElement? inner)
+    {
+        if (inner != null)
+            inner.Visibility = Visibility.Visible;
+    }
+
+    private void SetPathHeader(string header)
+    {
+        if (_v2PathCardLabel != null)
+            _v2PathCardLabel.Text = header.ToUpperInvariant();
+    }
+
+    /// <summary>
+    /// Map a selected action to the card header text. Falls back to the
+    /// legacy inline label when no specific mapping exists.
+    /// </summary>
+    private static string HeaderTextForAction(string action, string fallback) => action switch
+    {
+        "open_url"       => "URL",
+        "sc_go_to_page"  => "PAGE NUMBER",
+        "ha_service"     => "SERVICE CALL",
+        "govee_color"    => "DEVICE / COLOR",
+        "obs_scene"      => "OBS SCENE",
+        "obs_mute"       => "OBS SOURCE",
+        "vm_mute_strip"  => "VOICEMEETER STRIP",
+        "vm_mute_bus"    => "VOICEMEETER BUS",
+        "launch_exe"     => "PATH",
+        "close_program"  => "PROCESS NAME",
+        "mute_program"   => "PROCESS NAME",
+        _                => fallback,
+    };
+}
