@@ -52,8 +52,6 @@ public partial class App : Application
     private RadialWheelOverlay? _radialWheel;
     private bool _wheelVisible;
     private System.Windows.Threading.DispatcherTimer? _wheelDismissTimer;
-    private System.Windows.Threading.DispatcherTimer? _streamControllerOverlayTimer;
-    private int _streamControllerOverlayTick;
     private readonly int[] _lastKnobRaw = new int[5];
     private const int N3DisplayKeyBase = 100;
     private const int N3SideButtonBase = 106;
@@ -177,7 +175,6 @@ public partial class App : Application
             _n3.SetBrightness((byte)Math.Clamp(_config.N3.DisplayBrightness, 0, 100));
             SyncStreamControllerDisplays();
         }
-        UpdateStreamControllerOverlayTimer();
 
         // DreamView / Screen Sync
         _dreamSync = new DreamSyncController(_config.Ambience.ScreenSync, _config.Ambience, new WindowsScreenCapture());
@@ -994,7 +991,6 @@ public partial class App : Application
             _n3.SetBrightness((byte)Math.Clamp(_config.N3.DisplayBrightness, 0, 100));
             SyncStreamControllerDisplays();
         }
-        UpdateStreamControllerOverlayTimer();
     }
 
     private void HandleKnob(KnobEvent e)
@@ -1914,7 +1910,6 @@ public partial class App : Application
             _n3.SetBrightness((byte)Math.Clamp(_config.N3.DisplayBrightness, 0, 100));
             SyncStreamControllerDisplays();
         }
-        UpdateStreamControllerOverlayTimer();
 
         // Use the profile's icon color for the transition
         var transIconCfg = _config.ProfileIcons.GetValueOrDefault(profileName) ?? new ProfileIconConfig();
@@ -1946,30 +1941,9 @@ public partial class App : Application
 
         try
         {
-            using var frame = _config.N3.ScreensaverEnabled
-                ? StreamControllerDisplayRenderer.CreateFrame(
-                    _config.N3,
-                    _streamControllerOverlayTick == 0 ? Environment.TickCount : _streamControllerOverlayTick,
-                    AudioAnalyzer?.SmoothedBands,
-                    _config.Ambience.ScreenSync.MonitorIndex)
-                : null;
-
             for (int i = 0; i < N3Controller.DisplayKeyCount; i++)
             {
                 var key = _config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == i);
-                if (_config.N3.ScreensaverEnabled)
-                {
-                    var effectKey = new StreamControllerDisplayKeyConfig
-                    {
-                        Idx = i,
-                        BackgroundColor = "#000000",
-                        AccentColor = key?.AccentColor ?? "#00E676"
-                    };
-                    byte[] effectJpeg = StreamControllerDisplayRenderer.CreateDeviceJpeg(effectKey, _config.N3, frame);
-                    _n3.SendDisplayImage(i, effectJpeg, commit: false);
-                    continue;
-                }
-
                 if (key == null)
                 {
                     _n3.ClearDisplay(i, commit: false);
@@ -1986,8 +1960,7 @@ public partial class App : Application
                     continue;
                 }
 
-                byte[] jpeg = StreamControllerDisplayRenderer.CreateDeviceJpeg(key, _config.N3, frame);
-
+                byte[] jpeg = StreamControllerDisplayRenderer.CreateDeviceJpeg(key);
                 _n3.SendDisplayImage(i, jpeg, commit: false);
             }
 
@@ -2512,42 +2485,12 @@ public partial class App : Application
     {
         bool needsAudio = _config.Lights.Any(l => l.Effect == LightEffect.AudioReactive || l.Effect == LightEffect.AudioPositionBlend)
             || (_config.GlobalLight.Enabled && (_config.GlobalLight.Effect == LightEffect.AudioReactive || _config.GlobalLight.Effect == LightEffect.AudioPositionBlend));
-        if (_config.N3.ScreensaverEnabled && _config.N3.ScreensaverEffect == StreamControllerScreensaverEffect.MusicBounce)
-            needsAudio = true;
         if (_mainWindow?.GetRoomView()?.IsMusicReactiveActive == true)
             needsAudio = true;
         if (needsAudio)
             _audioAnalyzer?.Start();
         else
             _audioAnalyzer?.Stop();
-    }
-
-    private void UpdateStreamControllerOverlayTimer()
-    {
-        bool enabled = _config.N3.ScreensaverEnabled
-            && _isN3Connected
-            && _config.HardwareMode != HardwareMode.TurnUpOnly;
-
-        if (!enabled)
-        {
-            _streamControllerOverlayTimer?.Stop();
-            return;
-        }
-
-        if (_streamControllerOverlayTimer == null)
-        {
-            _streamControllerOverlayTimer = new System.Windows.Threading.DispatcherTimer();
-            _streamControllerOverlayTimer.Tick += (_, _) =>
-            {
-                _streamControllerOverlayTick += 40 + (_config.N3.ScreensaverSpeed * 3);
-                SyncStreamControllerDisplays();
-            };
-        }
-
-        int intervalMs = Math.Clamp(320 - (_config.N3.ScreensaverSpeed * 2), 90, 320);
-        _streamControllerOverlayTimer.Interval = TimeSpan.FromMilliseconds(intervalMs);
-        if (!_streamControllerOverlayTimer.IsEnabled)
-            _streamControllerOverlayTimer.Start();
     }
 
     private void ApplyStartupSetting()
