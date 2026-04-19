@@ -206,6 +206,11 @@ public class StreamControllerIconPickerDialog : Window
         DockPanel.SetDock(close, Dock.Right);
         titleRow.Children.Add(close);
         titleRow.Children.Add(title);
+        titleRow.MouseLeftButtonDown += (_, e) =>
+        {
+            if (e.ChangedButton == MouseButton.Left)
+                DragMove();
+        };
         header.Children.Add(titleRow);
         header.Children.Add(_subtitle);
         header.Children.Add(_sourcePicker);
@@ -249,11 +254,6 @@ public class StreamControllerIconPickerDialog : Window
 
         Content = outer;
 
-        MouseLeftButtonDown += (_, e) =>
-        {
-            if (e.ChangedButton == MouseButton.Left)
-                DragMove();
-        };
         KeyDown += (_, e) =>
         {
             if (e.Key == Key.Escape)
