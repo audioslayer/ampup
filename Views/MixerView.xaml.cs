@@ -425,6 +425,18 @@ public partial class MixerView : UserControl
                     if (HATargetDomains.ContainsKey(baseTarget))
                         SelectTarget(_targetPickers[i], knob.Target);
                 }
+
+                for (int i = 0; i < 3; i++)
+                {
+                    var knob = _config.Knobs.FirstOrDefault(k => k.Idx == i);
+                    if (knob == null) continue;
+                    var baseTarget = knob.Target.Contains(':') ? knob.Target.Split(':')[0] : knob.Target;
+                    if (HATargetDomains.ContainsKey(baseTarget))
+                    {
+                        SelectTarget(_scMixerTargetPickers[i], knob.Target);
+                        UpdateStreamControllerTargetDisplay(i);
+                    }
+                }
             });
         }
         catch (Exception ex)
@@ -516,6 +528,8 @@ public partial class MixerView : UserControl
                 Logger.Log($"LiveTimer ch{i}: {ex.Message}");
             }
         }
+
+        UpdateStreamControllerMixerLiveState();
     }
 
     private void BuildChannelControls()
@@ -1417,6 +1431,8 @@ public partial class MixerView : UserControl
             _targetPickers[i].RefreshAccent();
             _rangeSliders[i].AccentColor = accent;
         }
+
+        RefreshStreamControllerAccentColors();
 
         // Re-apply LED/accent colors to knobs, VU meters, and glow
         if (_config != null)
