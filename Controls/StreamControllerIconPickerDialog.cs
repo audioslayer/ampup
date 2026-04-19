@@ -79,15 +79,11 @@ public class StreamControllerIconPickerDialog : Window
 
     private readonly List<IconPresetEntry> _entries = BuildEntries();
     private readonly Dictionary<string, string> _onlineSvgCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly WrapPanel _localGrid = new() { Margin = new Thickness(0, 8, 0, 0) };
-    private readonly WrapPanel _onlineGrid = new() { Margin = new Thickness(0, 8, 0, 0) };
+    private readonly WrapPanel _resultsGrid = new() { Margin = new Thickness(0, 8, 0, 0) };
     private readonly TextBox _searchBox;
     private readonly SegmentedControl _categoryPicker;
-    private readonly SegmentedControl _sourcePicker;
-    private readonly Border _localPanel;
-    private readonly Border _onlinePanel;
     private readonly TextBlock _subtitle;
-    private readonly TextBlock _onlineStatus;
+    private readonly TextBlock _resultStatus;
     private readonly DispatcherTimer _searchDebounce;
     private readonly Border _searchChrome;
     private readonly TextBlock _searchPlaceholder;
@@ -139,17 +135,6 @@ public class StreamControllerIconPickerDialog : Window
         _searchBox.GotKeyboardFocus += (_, _) => UpdateSearchChrome();
         _searchBox.LostKeyboardFocus += (_, _) => UpdateSearchChrome();
 
-        _sourcePicker = new SegmentedControl
-        {
-            HorizontalAlignment = HorizontalAlignment.Left,
-            AccentColor = ThemeManager.Accent,
-            Margin = new Thickness(0, 0, 0, 10)
-        };
-        _sourcePicker.AddSegment("Built-In", "Local");
-        _sourcePicker.AddSegment("Online", "Online");
-        _sourcePicker.SelectedIndex = 0;
-        _sourcePicker.SelectionChanged += (_, _) => UpdateSourceMode();
-
         _categoryPicker = new SegmentedControl
         {
             HorizontalAlignment = HorizontalAlignment.Left,
@@ -173,11 +158,11 @@ public class StreamControllerIconPickerDialog : Window
             Margin = new Thickness(0, 0, 0, 12)
         };
 
-        _onlineStatus = new TextBlock
+        _resultStatus = new TextBlock
         {
             Foreground = (Brush)Application.Current.FindResource("TextDimBrush"),
             Margin = new Thickness(0, 6, 0, 0),
-            Text = "Search thousands of icons, including logos, brand marks, dev icons, emoji, and multicolor packs."
+            Text = "Showing built-in quick icons. Search to pull in logos, brand marks, dev icons, emoji, and multicolor packs."
         };
 
         _searchChrome = new Border
@@ -224,33 +209,6 @@ public class StreamControllerIconPickerDialog : Window
             _searchBox.Focus();
         };
 
-        _localPanel = new Border
-        {
-            Child = new ScrollViewer
-            {
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                Content = _localGrid
-            }
-        };
-
-        _onlinePanel = new Border
-        {
-            Visibility = Visibility.Collapsed,
-            Child = new StackPanel
-            {
-                Children =
-                {
-                    _onlineStatus,
-                    new ScrollViewer
-                    {
-                        VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                        Margin = new Thickness(0, 6, 0, 0),
-                        Content = _onlineGrid
-                    }
-                }
-            }
-        };
-
         _searchDebounce = new DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(320)
@@ -263,7 +221,6 @@ public class StreamControllerIconPickerDialog : Window
 
         BuildUi();
         RefreshLocalGrid();
-        UpdateSourceMode();
     }
 
     private void BuildUi()
@@ -308,7 +265,6 @@ public class StreamControllerIconPickerDialog : Window
         };
         header.Children.Add(titleRow);
         header.Children.Add(_subtitle);
-        header.Children.Add(_sourcePicker);
 
         var searchGrid = new Grid();
         searchGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -345,8 +301,20 @@ public class StreamControllerIconPickerDialog : Window
         {
             Margin = new Thickness(18, 0, 18, 18)
         };
-        content.Children.Add(_localPanel);
-        content.Children.Add(_onlinePanel);
+        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        Grid.SetRow(_resultStatus, 0);
+        content.Children.Add(_resultStatus);
+        var scroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Margin = new Thickness(0, 6, 0, 0),
+            Content = _resultsGrid,
+            CanContentScroll = false
+        };
+        Grid.SetRow(scroll, 1);
+        content.Children.Add(scroll);
         main.Children.Add(content);
 
         Content = outer;
@@ -358,59 +326,23 @@ public class StreamControllerIconPickerDialog : Window
         };
         Closed += (_, _) => _searchCts?.Cancel();
         UpdateSearchChrome();
+        _subtitle.Text = "Browse built-in icons instantly, then search to blend in online logos, dev icons, emoji, and multicolor packs without leaving the same picker.";
     }
-
-    private void UpdateSourceMode()
-    {
-        bool online = IsOnlineMode;
-        _categoryPicker.Visibility = online ? Visibility.Collapsed : Visibility.Visible;
-        _localPanel.Visibility = online ? Visibility.Collapsed : Visibility.Visible;
-        _onlinePanel.Visibility = online ? Visibility.Visible : Visibility.Collapsed;
-        _subtitle.Text = online
-            ? "Browse a huge online icon library with logos, dev icons, emoji, and multicolor packs. Only the icon you pick gets cached locally."
-            : "Use the built-in icon set that already ships with Amp Up for quick offline picks.";
-
-        if (online)
-        {
-            if (string.IsNullOrWhiteSpace(_searchBox.Text))
-            {
-                _onlineGrid.Children.Clear();
-                _onlineStatus.Text = "Search thousands of icons, including logos, brand marks, dev icons, emoji, and multicolor packs.";
-            }
-            else
-            {
-                _ = SearchOnlineAsync(_searchBox.Text.Trim());
-            }
-        }
-        else
-        {
-            _searchDebounce.Stop();
-            _searchCts?.Cancel();
-            RefreshLocalGrid();
-        }
-    }
-
-    private bool IsOnlineMode => string.Equals(_sourcePicker.SelectedTag as string, "Online", StringComparison.Ordinal);
 
     private void OnSearchTextChanged(object? sender, TextChangedEventArgs e)
     {
         UpdateSearchChrome();
-        if (!IsOnlineMode)
-        {
-            RefreshLocalGrid();
-            return;
-        }
+        RefreshLocalGrid();
 
         _searchDebounce.Stop();
         if (string.IsNullOrWhiteSpace(_searchBox.Text))
         {
             _searchCts?.Cancel();
-            _onlineGrid.Children.Clear();
-            _onlineStatus.Text = "Search thousands of icons, including logos, brand marks, dev icons, emoji, and multicolor packs.";
+            _resultStatus.Text = $"Showing {_resultsGrid.Children.Count} built-in quick icons. Search to pull in online results.";
             return;
         }
 
-        _onlineStatus.Text = "Searching...";
+        _resultStatus.Text = $"Showing {_resultsGrid.Children.Count} built-in matches. Searching online...";
         _searchDebounce.Start();
     }
 
@@ -431,7 +363,7 @@ public class StreamControllerIconPickerDialog : Window
 
     private void RefreshLocalGrid()
     {
-        _localGrid.Children.Clear();
+        _resultsGrid.Children.Clear();
         string category = _categoryPicker.SelectedTag as string ?? "All";
         string query = _searchBox.Text.Trim();
 
@@ -443,14 +375,15 @@ public class StreamControllerIconPickerDialog : Window
             .ToList();
 
         foreach (var entry in filtered)
-            _localGrid.Children.Add(BuildLocalTile(entry));
+            _resultsGrid.Children.Add(BuildLocalTile(entry));
+
+        _resultStatus.Text = string.IsNullOrWhiteSpace(query)
+            ? $"Showing {filtered.Count} built-in quick icons. Search to pull in online results."
+            : $"Showing {filtered.Count} built-in matches. Searching online...";
     }
 
     private async Task SearchOnlineAsync(string query)
     {
-        if (!IsOnlineMode)
-            return;
-
         _searchCts?.Cancel();
         var cts = new CancellationTokenSource();
         _searchCts = cts;
@@ -458,8 +391,8 @@ public class StreamControllerIconPickerDialog : Window
 
         try
         {
-            _onlineGrid.Children.Clear();
-            _onlineStatus.Text = $"Searching for \"{query}\"...";
+            int localCount = _resultsGrid.Children.Count;
+            _resultStatus.Text = $"Showing {localCount} built-in matches. Searching online for \"{query}\"...";
 
             string prefixes = string.Join(",", OnlinePrefixes);
             string url = $"https://api.iconify.design/search?query={Uri.EscapeDataString(query)}&limit=120&prefixes={Uri.EscapeDataString(prefixes)}";
@@ -474,7 +407,9 @@ public class StreamControllerIconPickerDialog : Window
 
             if (icons.Count == 0)
             {
-                _onlineStatus.Text = "No icons found yet. Try a broader search like play, mic, app, folder, game, or browser.";
+                _resultStatus.Text = localCount > 0
+                    ? $"Showing {localCount} built-in matches. No extra online icons found for \"{query}\"."
+                    : $"No icons found yet. Try a broader search like play, mic, app, folder, game, or browser.";
                 return;
             }
 
@@ -488,9 +423,9 @@ public class StreamControllerIconPickerDialog : Window
                 .ToList();
 
             foreach (var entry in entries)
-                _onlineGrid.Children.Add(entry.Card);
+                _resultsGrid.Children.Add(entry.Card);
 
-            _onlineStatus.Text = $"Showing {entries.Count} icons";
+            _resultStatus.Text = $"Showing {localCount} built-in matches and {entries.Count} online icons.";
             await LoadOnlinePreviewMarkupAsync(entries, token);
         }
         catch (OperationCanceledException)
@@ -499,7 +434,7 @@ public class StreamControllerIconPickerDialog : Window
         catch
         {
             if (!token.IsCancellationRequested)
-                _onlineStatus.Text = "Online icon search hit a snag. Check your connection and try again.";
+                _resultStatus.Text = "Online icon search hit a snag. Check your connection and try again.";
         }
     }
 
@@ -645,18 +580,18 @@ public class StreamControllerIconPickerDialog : Window
 
         if (!_onlineSvgCache.TryGetValue(iconId, out var svgMarkup))
         {
-            _onlineStatus.Text = "Finishing icon download...";
+            _resultStatus.Text = "Finishing icon download...";
             svgMarkup = await FetchSingleSvgMarkupAsync(iconId, CancellationToken.None);
             if (string.IsNullOrWhiteSpace(svgMarkup))
             {
-                _onlineStatus.Text = "That icon could not be loaded.";
+                _resultStatus.Text = "That icon could not be loaded.";
                 return;
             }
 
             _onlineSvgCache[iconId] = svgMarkup;
         }
 
-        _onlineStatus.Text = "Caching selected icon...";
+        _resultStatus.Text = "Caching selected icon...";
         try
         {
             string filePath = await Task.Run(() => CacheSelectedIcon(iconId, svgMarkup));
@@ -666,7 +601,7 @@ public class StreamControllerIconPickerDialog : Window
         }
         catch
         {
-            _onlineStatus.Text = "The icon preview loaded, but saving it failed.";
+            _resultStatus.Text = "The icon preview loaded, but saving it failed.";
         }
     }
 
