@@ -253,14 +253,14 @@ public partial class MixerView
         });
         left.Children.Add(new TextBlock
         {
-            Text = "When enabled, encoder turns drive mixer channels 1-3. If you disable it, the Stream Controller can still use its button side independently.",
+            Text = "When enabled, encoder turns drive the Stream Controller's own three mixer channels. If you disable it, the Stream Controller can still use its buttons and displays independently.",
             Margin = new Thickness(0, 5, 0, 10),
             Foreground = FindBrush("TextSecBrush"),
             TextWrapping = TextWrapping.Wrap
         });
         _scMirrorToggle = new CheckBox
         {
-            Content = "Mirror the first three mixer channels",
+            Content = "Enable Stream Controller encoder mixer control",
             FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextPrimaryBrush"),
             IsChecked = true
@@ -534,8 +534,8 @@ public partial class MixerView
 
         for (int i = 0; i < 3; i++)
         {
-            var knob = config.Knobs.FirstOrDefault(k => k.Idx == i) ?? new KnobConfig { Idx = i };
-            _scMixerLabels[i].Text = string.IsNullOrWhiteSpace(knob.Label) ? $"Knob {i + 1}" : knob.Label;
+            var knob = config.N3.Knobs.FirstOrDefault(k => k.Idx == i) ?? new KnobConfig { Idx = i };
+            _scMixerLabels[i].Text = string.IsNullOrWhiteSpace(knob.Label) ? $"Encoder {i + 1}" : knob.Label;
             SelectTarget(_scMixerTargetPickers[i], knob.Target, knob.DeviceId);
             SelectCurve(_scMixerCurvePickers[i], knob.Curve);
             _scMixerRangeSliders[i].LowerValue = Math.Clamp(knob.MinVolume, 0, 100);
@@ -565,7 +565,7 @@ public partial class MixerView
 
         for (int i = 0; i < 3; i++)
         {
-            var knob = _config.Knobs.FirstOrDefault(k => k.Idx == i);
+            var knob = _config.N3.Knobs.FirstOrDefault(k => k.Idx == i);
             if (knob == null) continue;
 
             var baseTarget = knob.Target.Contains(':') ? knob.Target.Split(':')[0] : knob.Target;
@@ -575,14 +575,14 @@ public partial class MixerView
             float peak;
             if (isNonAudio)
             {
-                vol = App.KnobPositions[i];
+                vol = App.StreamControllerKnobPositions[i];
                 peak = 0f;
             }
             else
             {
                 vol = _mixer.GetVolume(knob);
                 if (vol <= 0f)
-                    vol = App.KnobPositions[i];
+                    vol = App.StreamControllerKnobPositions[i];
                 peak = Math.Min(_mixer.GetPeakLevel(knob) * 2.3f, 1f);
             }
 
@@ -757,7 +757,7 @@ public partial class MixerView
         panel.Children.Clear();
 
         if (_config == null || _mixer == null) return;
-        var knob = _config.Knobs.FirstOrDefault(k => k.Idx == idx);
+        var knob = _config.N3.Knobs.FirstOrDefault(k => k.Idx == idx);
         if (knob == null) return;
 
         var allApps = new List<string>(knob.Apps);
@@ -831,15 +831,15 @@ public partial class MixerView
             ? selectedCurve
             : ResponseCurve.Linear;
 
-        _loading = true;
-        _channelLabels[idx].Text = _scMixerLabels[idx].Text.Trim();
-        SelectTarget(_targetPickers[idx], resolvedTarget, deviceId);
-        SelectCurve(_curvePickers[idx], curve);
-        _rangeSliders[idx].LowerValue = _scMixerRangeSliders[idx].LowerValue;
-        _rangeSliders[idx].UpperValue = _scMixerRangeSliders[idx].UpperValue;
-        UpdatePickerVisibility(idx, GetSelectedTarget(_targetPickers[idx]));
-        UpdateTargetDisplay(idx);
-        _loading = false;
+        var knob = _config?.N3.Knobs.FirstOrDefault(k => k.Idx == idx);
+        if (knob == null) return;
+
+        knob.Label = _scMixerLabels[idx].Text.Trim();
+        knob.Target = resolvedTarget;
+        knob.DeviceId = deviceId;
+        knob.Curve = curve;
+        knob.MinVolume = (int)_scMixerRangeSliders[idx].LowerValue;
+        knob.MaxVolume = (int)_scMixerRangeSliders[idx].UpperValue;
     }
 
     private string ResolveStreamControllerKnobTarget(int idx)
@@ -895,8 +895,8 @@ public partial class MixerView
         if (_scHeroSummary != null)
         {
             _scHeroSummary.Text = mirroring
-                ? $"Encoders 1-3 are currently mapped to mixer channels 1-3. Each detent moves {_config.N3.EncoderStep} raw points."
-                : "Mixer mirroring is paused. Your button and display bindings still work, but encoder turns will not drive the first three mixer lanes until mirroring is re-enabled.";
+                ? $"Encoders 1-3 are currently mapped to the Stream Controller's own three mixer channels. Each detent moves {_config.N3.EncoderStep} raw points."
+                : "Encoder mixer control is paused. Your button and display bindings still work, but encoder turns will not drive the Stream Controller mixer until this is re-enabled.";
         }
         if (_scEncoderStepValue != null)
             _scEncoderStepValue.Text = $"Current step: {_config.N3.EncoderStep} per detent";

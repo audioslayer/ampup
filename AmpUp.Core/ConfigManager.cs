@@ -94,6 +94,8 @@ public static class ConfigManager
         (4, "Key 5", "", "#1C1C1C", "#FFD740"),
         (5, "Key 6", "", "#1C1C1C", "#FF4081"),
     };
+    private static readonly string[] DefaultStreamControllerKnobLabels = { "Encoder 1", "Encoder 2", "Encoder 3" };
+    private static readonly string[] DefaultStreamControllerKnobTargets = { "none", "none", "none" };
 
     private static void EnsureDefaults(AppConfig config)
     {
@@ -111,6 +113,29 @@ public static class ConfigManager
         {
             if (!config.Buttons.Any(b => b.Idx == i))
                 config.Buttons.Add(new ButtonConfig { Idx = i });
+        }
+        for (int i = 0; i < 3; i++)
+        {
+            if (!config.N3.Knobs.Any(k => k.Idx == i))
+            {
+                var migrated = config.Knobs.FirstOrDefault(k => k.Idx == i);
+                if (migrated != null && config.N3.Knobs.Count == 0)
+                {
+                    var json = JsonConvert.SerializeObject(migrated);
+                    var copy = JsonConvert.DeserializeObject<KnobConfig>(json) ?? new KnobConfig();
+                    copy.Idx = i;
+                    config.N3.Knobs.Add(copy);
+                }
+                else
+                {
+                    config.N3.Knobs.Add(new KnobConfig
+                    {
+                        Idx = i,
+                        Label = DefaultStreamControllerKnobLabels[i],
+                        Target = DefaultStreamControllerKnobTargets[i]
+                    });
+                }
+            }
         }
         foreach (var (idx, label, action) in DefaultN3Buttons)
         {

@@ -38,8 +38,8 @@ public partial class App : Application
     private HAIntegration? _ha;
     private ObsIntegration? _obs;
     private VoiceMeeterIntegration? _vm;
-    private readonly (string target, float value)[] _haLastValues = new (string, float)[5];
-    private readonly bool[] _haThrottleActive = new bool[5];
+    private readonly (string target, float value)[] _haLastValues = new (string, float)[8];
+    private readonly bool[] _haThrottleActive = new bool[8];
     private DuckingEngine? _duckingEngine;
     private AutoProfileSwitcher? _autoSwitcher;
     private TrayMixerPopup? _trayMixerPopup;
@@ -56,19 +56,21 @@ public partial class App : Application
     private const int N3DisplayKeyBase = 100;
     private const int N3SideButtonBase = 106;
     private const int N3EncoderPressBase = 109;
+    private const int N3KnobStateBase = 5;
 
     /// <summary>
     /// Last hardware knob positions (0-1), updated on every knob event.
     /// Used by MixerView to display position for non-audio targets.
     /// </summary>
     public static readonly float[] KnobPositions = { 1f, 1f, 1f, 1f, 1f };
+    public static readonly float[] StreamControllerKnobPositions = { 1f, 1f, 1f };
     public static RgbController? Rgb { get; private set; }
     public static AudioAnalyzer? AudioAnalyzer { get; private set; }
-    private readonly long[] _lastKnobUiTick = new long[5]; // throttle UI updates
-    private readonly long[] _lastOsdTick = new long[5]; // throttle OSD updates
-    private readonly int[] _lastOsdValue = { -1, -1, -1, -1, -1 }; // suppress OSD if value unchanged
-    private readonly int[] _pendingOsdValue = { -1, -1, -1, -1, -1 }; // pending final OSD update
-    private readonly System.Threading.Timer[] _osdFinalTimers = new System.Threading.Timer[5]; // delayed final OSD update
+    private readonly long[] _lastKnobUiTick = new long[8]; // throttle UI updates
+    private readonly long[] _lastOsdTick = new long[8]; // throttle OSD updates
+    private readonly int[] _lastOsdValue = { -1, -1, -1, -1, -1, -1, -1, -1 }; // suppress OSD if value unchanged
+    private readonly int[] _pendingOsdValue = { -1, -1, -1, -1, -1, -1, -1, -1 }; // pending final OSD update
+    private readonly System.Threading.Timer[] _osdFinalTimers = new System.Threading.Timer[8]; // delayed final OSD update
     private long _startupTick = Environment.TickCount64; // suppress OSD on launch
     private uint _wmTaskbarCreated; // registered window message ID for WM_TASKBARCREATED
     private bool _rawInputRegistered;
@@ -243,6 +245,14 @@ public partial class App : Application
                 KnobPositions[knob.Idx] = knob.LastRawValue / 1023f;
                 // Apply the saved volume to WASAPI
                 HandleKnob(new KnobEvent { Idx = knob.Idx, Value = knob.LastRawValue });
+            }
+        }
+        foreach (var knob in _config.N3.Knobs)
+        {
+            if (knob.Idx >= 0 && knob.Idx < 3 && knob.LastRawValue >= 0)
+            {
+                StreamControllerKnobPositions[knob.Idx] = knob.LastRawValue / 1023f;
+                ApplyKnobConfig(knob, knob.LastRawValue, N3KnobStateBase + knob.Idx, false);
             }
         }
 
@@ -1303,6 +1313,265 @@ public partial class App : Application
         }
     }
 
+    private void ApplyKnobConfig(KnobConfig knob, int rawValue, int stateIdx, bool isBatch)
+    {
+        knob.LastRawValue = rawValue;
+
+        if (knob.Target.StartsWith("ha_", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_ha != null && _ha.IsAvailable
+                && Environment.TickCount64 - _startupTick >= 8000
+                && (DateTime.UtcNow - _connectedAt).TotalMilliseconds >= 2000)
+            {
+                float vol = rawValue / 1023f;
+                _haLastValues[stateIdx] = (knob.Target, vol);
+                if (!_haThrottleActive[stateIdx])
+                {
+                    _haThrottleActive[stateIdx] = true;
+                    _ = SendHaThrottledAsync(stateIdx);
+                }
+            }
+        }
+        else if (knob.Target.Equals("monitor", StringComparison.OrdinalIgnoreCase))
+        {
+            if (Environment.TickCount64 - _startupTick >= 8000)
+            {
+                float vol = rawValue / 1023f;
+                if (string.IsNullOrEmpty(knob.DeviceId))
+                {
+                    MonitorBrightness.SetThrottled(vol);
+                }
+                else
+                {
+                    foreach (var devName in knob.DeviceId.Split(';', StringSplitOptions.RemoveEmptyEntries))
+                        MonitorBrightness.SetThrottled(vol, devName);
+                }
+            }
+        }
+        else if (knob.Target.Equals("led_brightness", StringComparison.OrdinalIgnoreCase))
+        {
+            int pct = (int)Math.Round(rawValue / 1023.0 * 100);
+            _config.LedBrightness = pct;
+            _rgb.SetBrightness(pct);
+        }
+        else if (knob.Target.Equals("room_lights", StringComparison.OrdinalIgnoreCase))
+        {
+            if (Environment.TickCount64 - _startupTick >= 8000
+                && (DateTime.UtcNow - _connectedAt).TotalMilliseconds >= 2000)
+            {
+                float norm = rawValue / 1023f;
+                int pctRoom = (int)Math.Round(norm * 100);
+
+                if (pctRoom == 0)
+                {
+                    foreach (var dev in _config.Ambience.GoveeDevices)
+                    {
+                        if (string.IsNullOrWhiteSpace(dev.Ip)) continue;
+                        dev.PoweredOn = false;
+                        _ = AmbienceSync.SendTurnAsync(dev.Ip, false);
+                    }
+                    if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
+                        _ = _corsairSync.SetStaticColorAllAsync(0, 0, 0);
+                }
+                else
+                {
+                    _ambienceSync?.EnsureDevicesPoweredOn();
+                    _ambienceSync?.SetBrightness(norm);
+
+                    if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
+                        _config.Corsair.LightBrightness = (int)(pctRoom * 2.0);
+                }
+                _config.Ambience.BrightnessScale = Math.Max(pctRoom, 1);
+                Dispatcher.BeginInvoke(() => _mainWindow?.UpdateGoveeDeviceBrightness(null, norm, pctRoom > 0));
+            }
+        }
+        else if (knob.Target.StartsWith("group:", StringComparison.OrdinalIgnoreCase))
+        {
+            if (Environment.TickCount64 - _startupTick >= 8000
+                && (DateTime.UtcNow - _connectedAt).TotalMilliseconds >= 2000)
+            {
+                var groupName = knob.Target.Substring(6);
+                var group = _config.Groups.FirstOrDefault(g => g.Name == groupName);
+                if (group != null)
+                {
+                    float norm = rawValue / 1023f;
+                    int pct = (int)Math.Round(norm * 100);
+                    foreach (var dev in group.Devices)
+                    {
+                        switch (dev.Type)
+                        {
+                            case "govee":
+                                if (pct == 0)
+                                {
+                                    var gc = _config.Ambience.GoveeDevices.FirstOrDefault(d => d.Ip == dev.DeviceId);
+                                    if (gc != null) gc.PoweredOn = false;
+                                    _ = AmbienceSync.SendTurnAsync(dev.DeviceId, false);
+                                }
+                                else
+                                {
+                                    var gc = _config.Ambience.GoveeDevices.FirstOrDefault(d => d.Ip == dev.DeviceId);
+                                    bool wasOff = gc != null && !gc.PoweredOn;
+                                    if (gc != null) gc.PoweredOn = true;
+
+                                    var ip = dev.DeviceId;
+                                    var bright = pct;
+                                    if (wasOff)
+                                    {
+                                        _ = Task.Run(async () =>
+                                        {
+                                            await AmbienceSync.SendTurnAsync(ip, true);
+                                            await Task.Delay(150);
+                                            await AmbienceSync.SendBrightnessAsync(ip, bright);
+                                        });
+                                    }
+                                    else
+                                    {
+                                        _ = AmbienceSync.SendBrightnessAsync(ip, bright);
+                                    }
+                                }
+                                break;
+                            case "corsair":
+                                if (_corsairSync?.IsAvailable == true)
+                                    _config.Corsair.LightBrightness = (int)(pct * 2.0);
+                                break;
+                            case "ha":
+                                if (_ha != null && _ha.IsAvailable)
+                                {
+                                    float haVal = norm;
+                                    _haLastValues[stateIdx] = ($"ha_light:{dev.DeviceId}", haVal);
+                                    if (!_haThrottleActive[stateIdx])
+                                    {
+                                        _haThrottleActive[stateIdx] = true;
+                                        _ = SendHaThrottledAsync(stateIdx);
+                                    }
+                                }
+                                break;
+                            case "audio_output":
+                                _mixer?.SetOutputDeviceVolume(dev.DeviceId, norm);
+                                break;
+                        }
+                    }
+                }
+            }
+        }
+        else if (knob.Target.Equals("govee", StringComparison.OrdinalIgnoreCase))
+        {
+            if (Environment.TickCount64 - _startupTick >= 8000)
+            {
+                float norm = rawValue / 1023f;
+                _ambienceSync?.EnsureDevicesPoweredOn();
+                _ambienceSync?.SetBrightness(norm);
+                Dispatcher.BeginInvoke(() => _mainWindow?.UpdateGoveeDeviceBrightness(null, norm, true));
+            }
+        }
+        else if (knob.Target.StartsWith("govee:", StringComparison.OrdinalIgnoreCase))
+        {
+            if (Environment.TickCount64 - _startupTick >= 8000)
+            {
+                var ip = knob.Target.Substring(6);
+                float norm = rawValue / 1023f;
+                _ambienceSync?.EnsureDevicePoweredOn(ip);
+                _ambienceSync?.SetBrightnessForDevice(ip, norm);
+                Dispatcher.BeginInvoke(() => _mainWindow?.UpdateGoveeDeviceBrightness(ip, norm, true));
+            }
+        }
+        else if (knob.Target.StartsWith("vm_strip:", StringComparison.OrdinalIgnoreCase)
+              || knob.Target.StartsWith("vm_bus:", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_vm != null && _vm.IsAvailable && _config.VoiceMeeter.Enabled
+                && Environment.TickCount64 - _startupTick >= 8000)
+            {
+                float norm = rawValue / 1023f;
+                float db = VoiceMeeterIntegration.NormalizedToGain(norm);
+                var parts = knob.Target.Split(':', 2);
+                if (parts.Length == 2 && int.TryParse(parts[1], out int vmIdx))
+                {
+                    if (parts[0] == "vm_strip")
+                        _vm.SetStripGain(vmIdx, db);
+                    else
+                        _vm.SetBusGain(vmIdx, db);
+                }
+            }
+        }
+        else if (knob.Target.Equals("corsair_pump_fan", StringComparison.OrdinalIgnoreCase)
+              || knob.Target.Equals("corsair_case_fan", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_corsairSync != null && _corsairSync.IsAvailable && _config.Corsair.Enabled
+                && _config.Corsair.FanEnabled
+                && Environment.TickCount64 - _startupTick >= 8000)
+            {
+                int percent = (int)Math.Round(rawValue / 1023.0 * 100);
+                bool isPump = knob.Target.Equals("corsair_pump_fan", StringComparison.OrdinalIgnoreCase);
+                if (isPump)
+                    _config.Corsair.PumpFanSpeed = percent;
+                else
+                    _config.Corsair.CaseFanSpeed = percent;
+
+                string typeFilter = isPump ? "pump" : "fan";
+                foreach (var device in _corsairSync.Devices)
+                {
+                    bool matches = device.Type.Contains(typeFilter, StringComparison.OrdinalIgnoreCase)
+                        || (isPump && device.Type.Contains("cooler", StringComparison.OrdinalIgnoreCase));
+                    if (matches)
+                        _ = _corsairSync.SetFanSpeedAsync(device.Id, percent);
+                }
+            }
+        }
+        else
+        {
+            _mixer.SetVolume(knob, rawValue);
+        }
+
+        long osdNow = Environment.TickCount64;
+        bool osdTimeSuppressed = osdNow - _startupTick < 10000
+            || (DateTime.UtcNow - _connectedAt).TotalMilliseconds < 3000;
+        bool osdValueSuppressed = _lastOsdValue[stateIdx] >= 0 && Math.Abs(rawValue - _lastOsdValue[stateIdx]) < 15;
+        if (isBatch)
+            _lastOsdValue[stateIdx] = rawValue;
+
+        if (_config.Osd.ShowVolume && !isBatch
+            && !knob.Target.Equals("none", StringComparison.OrdinalIgnoreCase)
+            && !osdTimeSuppressed)
+        {
+            if (osdNow - _lastOsdTick[stateIdx] >= 100 && !osdValueSuppressed)
+            {
+                _lastOsdTick[stateIdx] = osdNow;
+                _lastOsdValue[stateIdx] = rawValue;
+                Dispatcher.BeginInvoke(() => ShowKnobOsd(knob, rawValue));
+                _osdFinalTimers[stateIdx]?.Change(Timeout.Infinite, Timeout.Infinite);
+            }
+
+            _pendingOsdValue[stateIdx] = rawValue;
+            if (_osdFinalTimers[stateIdx] == null)
+            {
+                int idxCapture = stateIdx;
+                _osdFinalTimers[idxCapture] = new System.Threading.Timer(_ =>
+                {
+                    int val = _pendingOsdValue[idxCapture];
+                    if (val >= 0 && val != _lastOsdValue[idxCapture])
+                    {
+                        _lastOsdValue[idxCapture] = val;
+                        _lastOsdTick[idxCapture] = Environment.TickCount64;
+                        var k = GetKnobConfigByStateIndex(idxCapture);
+                        if (k != null)
+                            Dispatcher.BeginInvoke(() => ShowKnobOsd(k, val));
+                    }
+                }, null, 200, Timeout.Infinite);
+            }
+            else
+            {
+                _osdFinalTimers[stateIdx].Change(200, Timeout.Infinite);
+            }
+        }
+    }
+
+    private KnobConfig? GetKnobConfigByStateIndex(int stateIdx)
+    {
+        if (stateIdx >= N3KnobStateBase)
+            return _config.N3.Knobs.FirstOrDefault(k => k.Idx == stateIdx - N3KnobStateBase);
+        return _config.Knobs.FirstOrDefault(k => k.Idx == stateIdx);
+    }
+
     private async Task SendHaThrottledAsync(int idx)
     {
         while (true)
@@ -1418,16 +1687,17 @@ public partial class App : Application
         if (!_config.N3.MirrorFirstThreeKnobs) return;
         if (e.Index < 0 || e.Index > 2) return;
 
-        var knob = _config.Knobs.FirstOrDefault(k => k.Idx == e.Index);
+        var knob = _config.N3.Knobs.FirstOrDefault(k => k.Idx == e.Index);
         if (knob == null) return;
 
         int current = knob.LastRawValue >= 0
             ? knob.LastRawValue
-            : (int)Math.Round(KnobPositions[e.Index] * 1023f);
+            : (int)Math.Round(StreamControllerKnobPositions[e.Index] * 1023f);
 
         int step = Math.Clamp(_config.N3.EncoderStep, 1, 128);
         int next = Math.Clamp(current + (e.Delta * step), 0, 1023);
-        HandleKnob(new KnobEvent { Idx = e.Index, Value = next });
+        StreamControllerKnobPositions[e.Index] = next / 1023f;
+        ApplyKnobConfig(knob, next, N3KnobStateBase + e.Index, false);
     }
 
     private void HandleN3VirtualButton(int idx, bool isDown)

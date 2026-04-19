@@ -236,6 +236,7 @@ public class N3Config
     public bool Enabled { get; set; } = true;
     public bool MirrorFirstThreeKnobs { get; set; } = true;
     public int EncoderStep { get; set; } = 32;
+    public List<KnobConfig> Knobs { get; set; } = new();
     public List<ButtonConfig> Buttons { get; set; } = new();
     public List<StreamControllerDisplayKeyConfig> DisplayKeys { get; set; } = new();
     public int DisplayBrightness { get; set; } = 100;

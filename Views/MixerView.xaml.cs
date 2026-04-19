@@ -428,7 +428,7 @@ public partial class MixerView : UserControl
 
                 for (int i = 0; i < 3; i++)
                 {
-                    var knob = _config.Knobs.FirstOrDefault(k => k.Idx == i);
+                    var knob = _config.N3.Knobs.FirstOrDefault(k => k.Idx == i);
                     if (knob == null) continue;
                     var baseTarget = knob.Target.Contains(':') ? knob.Target.Split(':')[0] : knob.Target;
                     if (HATargetDomains.ContainsKey(baseTarget))
