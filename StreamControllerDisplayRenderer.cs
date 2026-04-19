@@ -99,7 +99,7 @@ internal static class StreamControllerDisplayRenderer
     public static byte[] CreateDeviceJpegFromPath(string imagePath)
     {
         using var source = DrawingImage.FromFile(imagePath);
-        using var canvas = RenderSourceToCanvas(source, RenderCanvasSize);
+        using var canvas = RenderSourceToCanvasCover(source, RenderCanvasSize);
         return EncodeForDevice(canvas);
     }
 
@@ -120,7 +120,7 @@ internal static class StreamControllerDisplayRenderer
         if (!string.IsNullOrWhiteSpace(key.ImagePath) && File.Exists(key.ImagePath))
         {
             using var source = DrawingImage.FromFile(key.ImagePath);
-            var loaded = RenderSourceToCanvas(source, RenderCanvasSize);
+            var loaded = RenderSourceToCanvasCover(source, RenderCanvasSize);
             ApplyEffectOverlay(loaded, key.Idx, n3, frame);
             return loaded;
         }
@@ -147,6 +147,22 @@ internal static class StreamControllerDisplayRenderer
         graphics.Clear(DrawingColor.Black);
 
         float scale = Math.Min(size / (float)source.Width, size / (float)source.Height);
+        float drawWidth = source.Width * scale;
+        float drawHeight = source.Height * scale;
+        float x = (size - drawWidth) * 0.5f;
+        float y = (size - drawHeight) * 0.5f;
+        graphics.DrawImage(source, x, y, drawWidth, drawHeight);
+        return canvas;
+    }
+
+    private static DrawingBitmap RenderSourceToCanvasCover(DrawingImage source, int size)
+    {
+        var canvas = new DrawingBitmap(size, size);
+        using var graphics = DrawingGraphics.FromImage(canvas);
+        ConfigureGraphics(graphics);
+        graphics.Clear(DrawingColor.Black);
+
+        float scale = Math.Max(size / (float)source.Width, size / (float)source.Height);
         float drawWidth = source.Width * scale;
         float drawHeight = source.Height * scale;
         float x = (size - drawWidth) * 0.5f;
