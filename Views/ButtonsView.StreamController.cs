@@ -36,6 +36,7 @@ public partial class ButtonsView
     private StyledSlider? _scTextSizeSlider;
     private TextBlock? _scTextSizeLabel;
     private Border? _scTextColorSwatch;
+    private WrapPanel? _scTextColorSwatchPanel;
     private TextBox? _scImagePathBox;
     private Button? _scBrowseImageButton;
     private Button? _scClearImageButton;
@@ -436,27 +437,12 @@ public partial class ButtonsView
         };
         _scDisplayTabContent.Children.Add(_scTextSizeSlider);
 
-        // Text color
+        // Text color palette
         _scDisplayTabContent.Children.Add(MakeEditorLabel("TEXT COLOR"));
-        var textColorRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
-        _scTextColorSwatch = new Border
-        {
-            Width = 32,
-            Height = 32,
-            CornerRadius = new CornerRadius(6),
-            Background = Brushes.White,
-            BorderBrush = FindBrush("CardBorderBrush"),
-            BorderThickness = new Thickness(1),
-            Cursor = Cursors.Hand,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        _scTextColorSwatch.MouseLeftButtonUp += (_, _) => OpenTextColorPicker();
-        textColorRow.Children.Add(_scTextColorSwatch);
-        var pickColorBtn = MakeEditorButton("Change Color", (_, _) => OpenTextColorPicker());
-        pickColorBtn.Margin = new Thickness(8, 0, 0, 0);
-        pickColorBtn.VerticalAlignment = VerticalAlignment.Center;
-        textColorRow.Children.Add(pickColorBtn);
-        _scDisplayTabContent.Children.Add(textColorRow);
+        _scTextColorSwatch = new Border(); // placeholder for tracking
+        var textColorWrap = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
+        _scTextColorSwatchPanel = textColorWrap;
+        _scDisplayTabContent.Children.Add(textColorWrap);
 
         _scDisplayTabContent.Children.Add(MakeEditorLabel("IMAGE"));
         _scDisplayTabContent.Children.Add(_scImagePathBox);
@@ -967,11 +953,7 @@ public partial class ButtonsView
             }
             if (_scTextSizeSlider != null) _scTextSizeSlider.Value = Math.Clamp(key.TextSize, 6, 28);
             if (_scTextSizeLabel != null) _scTextSizeLabel.Text = $"Font Size: {Math.Clamp(key.TextSize, 6, 28)}";
-            if (_scTextColorSwatch != null)
-            {
-                try { _scTextColorSwatch.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(key.TextColor ?? "#FFFFFF")); }
-                catch { _scTextColorSwatch.Background = Brushes.White; }
-            }
+            BuildTextColorSwatches();
             _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateHardwarePreview(key);
             _scDisplayDesignPanel!.Visibility = Visibility.Visible;
 
@@ -1145,27 +1127,102 @@ public partial class ButtonsView
         return Actions.FirstOrDefault(a => a.Value == action).Display ?? action;
     }
 
-    private void OpenTextColorPicker()
+    private static readonly (string Name, string Hex)[] TextColorPresets =
     {
-        if (_config == null) return;
+        ("White",   "#FFFFFF"),
+        ("Light",   "#E0E0E0"),
+        ("Grey",    "#9E9E9E"),
+        ("Green",   "#00E676"),
+        ("Cyan",    "#00B4D8"),
+        ("Blue",    "#448AFF"),
+        ("Purple",  "#B388FF"),
+        ("Pink",    "#FF4081"),
+        ("Red",     "#FF5252"),
+        ("Orange",  "#FF6E40"),
+        ("Gold",    "#FFD740"),
+        ("Lime",    "#C6FF00"),
+        ("Black",   "#1A1A1A"),
+    };
+
+    private void BuildTextColorSwatches()
+    {
+        if (_scTextColorSwatchPanel == null) return;
+        _scTextColorSwatchPanel.Children.Clear();
+
         var display = GetSelectedDisplayKeyConfig();
-        if (display == null) return;
+        string currentHex = display?.TextColor ?? "#FFFFFF";
 
-        var currentHex = string.IsNullOrWhiteSpace(display.TextColor) ? "#FFFFFF" : display.TextColor;
-        Color current;
-        try { current = (Color)ColorConverter.ConvertFromString(currentHex); }
-        catch { current = Colors.White; }
-
-        var dialog = new ColorPickerDialog(current) { Owner = Window.GetWindow(this) };
-        dialog.ColorChanged += c =>
+        foreach (var (name, hex) in TextColorPresets)
         {
-            display.TextColor = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
-            if (_scTextColorSwatch != null)
-                _scTextColorSwatch.Background = new SolidColorBrush(c);
-            UpdateEditorPreviewOnly();
+            var color = (Color)ColorConverter.ConvertFromString(hex);
+            bool selected = hex.Equals(currentHex, StringComparison.OrdinalIgnoreCase);
+            var swatch = new Border
+            {
+                Width = 26, Height = 26,
+                CornerRadius = new CornerRadius(13),
+                Background = new SolidColorBrush(color),
+                BorderThickness = new Thickness(2),
+                BorderBrush = selected ? new SolidColorBrush(Colors.White) : Brushes.Transparent,
+                Margin = new Thickness(0, 0, 6, 6),
+                Cursor = Cursors.Hand,
+                ToolTip = name,
+            };
+            string capturedHex = hex;
+            swatch.MouseLeftButtonDown += (_, _) =>
+            {
+                if (display == null) return;
+                display.TextColor = capturedHex;
+                BuildTextColorSwatches();
+                UpdateEditorPreviewOnly();
+                QueueSave();
+            };
+            _scTextColorSwatchPanel.Children.Add(swatch);
+        }
+
+        // Custom color picker (rainbow swatch with +)
+        bool isCustom = display?.TextColor != null
+            && !TextColorPresets.Any(p => p.Hex.Equals(display.TextColor, StringComparison.OrdinalIgnoreCase));
+        var customSwatch = new Border
+        {
+            Width = 26, Height = 26,
+            CornerRadius = new CornerRadius(13),
+            Background = new LinearGradientBrush(
+                new GradientStopCollection
+                {
+                    new(Colors.Red, 0.0), new(Colors.Yellow, 0.17), new(Colors.Lime, 0.33),
+                    new(Colors.Cyan, 0.5), new(Colors.Blue, 0.67), new(Colors.Magenta, 0.83), new(Colors.Red, 1.0),
+                }, new Point(0, 0), new Point(1, 1)),
+            BorderThickness = new Thickness(2),
+            BorderBrush = isCustom ? new SolidColorBrush(Colors.White) : Brushes.Transparent,
+            Margin = new Thickness(0, 0, 6, 6),
+            Cursor = Cursors.Hand,
+            ToolTip = "Custom color",
+            Child = new TextBlock
+            {
+                Text = "+", FontSize = 13, FontWeight = FontWeights.Bold,
+                Foreground = Brushes.White,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            },
         };
-        dialog.ShowDialog();
-        QueueSave();
+        customSwatch.MouseLeftButtonDown += (_, _) =>
+        {
+            if (display == null) return;
+            Color initial;
+            try { initial = (Color)ColorConverter.ConvertFromString(display.TextColor ?? "#FFFFFF"); }
+            catch { initial = Colors.White; }
+            var dialog = new ColorPickerDialog(initial) { Owner = Window.GetWindow(this) };
+            dialog.ColorChanged += c =>
+            {
+                display.TextColor = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+                UpdateEditorPreviewOnly();
+            };
+            dialog.ShowDialog();
+            display.TextColor = $"#{dialog.SelectedColor.R:X2}{dialog.SelectedColor.G:X2}{dialog.SelectedColor.B:X2}";
+            BuildTextColorSwatches();
+            QueueSave();
+        };
+        _scTextColorSwatchPanel.Children.Add(customSwatch);
     }
 
     // ── Context menu ─────────────────────────────────────────────────────
