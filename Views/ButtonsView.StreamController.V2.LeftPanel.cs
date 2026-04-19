@@ -50,10 +50,8 @@ public partial class ButtonsView
         _v2FolderBanner = BuildV2FolderBanner();
         _v2LeftPanel.Children.Add(_v2FolderBanner);
 
-        // ── KEYS section ────────────────────────────────────────────────────
-        _v2LeftPanel.Children.Add(BuildV2SectionHeader("KEYS"));
-
-        _v2KeyGrid = new Grid { Margin = new Thickness(0, 0, 0, 10) };
+        // ── Build the 6 LCD tiles (hosted inside the chassis) ──────────────
+        _v2KeyGrid = new Grid();
         for (int c = 0; c < 3; c++)
             _v2KeyGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         for (int r = 0; r < 2; r++)
@@ -77,15 +75,8 @@ public partial class ButtonsView
             _v2KeyGrid.Children.Add(tile);
             _v2KeyTiles.Add(tile);
         }
-        _v2LeftPanel.Children.Add(_v2KeyGrid);
 
-        // ── Page navigation toolbar (flat) ──────────────────────────────────
-        _v2LeftPanel.Children.Add(BuildV2PageToolbar());
-
-        // ── HARDWARE device body ────────────────────────────────────────────
-        // Skeuomorphic panel evoking the TreasLin N3's actual layout: a dark
-        // rounded "device" chassis with three physical push-buttons on the
-        // left and three rotary encoders on the right.
+        // ── HARDWARE device chassis — holds LCDs, page toolbar, buttons, encoders ──
         _v2LeftPanel.Children.Add(BuildV2HardwareDeviceBody());
 
         // Initial population of visuals.
@@ -274,12 +265,14 @@ public partial class ButtonsView
 
     private Border BuildV2HardwareDeviceBody()
     {
-        // Outer chassis — rounded dark body with subtle bevel.
+        // Outer chassis — rounded dark body with subtle bevel. Hosts every
+        // interactive part of the N3 so the whole device reads as one unit:
+        // screens on top, page toolbar underneath, then physical controls.
         var chassis = new Border
         {
-            Margin = new Thickness(0, 22, 0, 0),
-            Padding = new Thickness(28, 22, 28, 22),
-            CornerRadius = new CornerRadius(20),
+            Margin = new Thickness(0, 0, 0, 0),
+            Padding = new Thickness(28, 24, 28, 24),
+            CornerRadius = new CornerRadius(22),
             BorderThickness = new Thickness(1),
             Background = new LinearGradientBrush(
                 Color.FromRgb(0x14, 0x17, 0x1C),
@@ -289,11 +282,45 @@ public partial class ButtonsView
             Effect = new System.Windows.Media.Effects.DropShadowEffect
             {
                 Color = Colors.Black,
-                BlurRadius = 20,
+                BlurRadius = 24,
                 ShadowDepth = 0,
-                Opacity = 0.55,
+                Opacity = 0.6,
             },
         };
+
+        var body = new StackPanel();
+
+        // Screens (2x3 LCD grid). _v2KeyGrid was assembled in FillV2LeftPanel.
+        if (_v2KeyGrid != null)
+        {
+            _v2KeyGrid.Margin = new Thickness(0, 0, 0, 14);
+            body.Children.Add(_v2KeyGrid);
+        }
+
+        // Page toolbar — tucked under the screens inside the chassis.
+        var pageBar = BuildV2PageToolbar();
+        pageBar.Margin = new Thickness(0, 0, 0, 16);
+        body.Children.Add(pageBar);
+
+        // Horizontal divider between the screen section and the physical controls.
+        var divider = new Border
+        {
+            Height = 1,
+            Margin = new Thickness(0, 0, 0, 18),
+            Background = new LinearGradientBrush(
+                Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF),
+                Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF),
+                new Point(0, 0), new Point(0.5, 0))
+            {
+                GradientStops = new GradientStopCollection
+                {
+                    new GradientStop(Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 0),
+                    new GradientStop(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF), 0.5),
+                    new GradientStop(Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 1),
+                },
+            },
+        };
+        body.Children.Add(divider);
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -324,15 +351,15 @@ public partial class ButtonsView
         Grid.SetColumn(buttonBank, 0);
         grid.Children.Add(buttonBank);
 
-        // ── Divider ──────────────────────────────────────────────────────────
-        var divider = new Border
+        // ── Vertical divider between buttons and encoders ────────────────────
+        var vDivider = new Border
         {
             Width = 1,
             Margin = new Thickness(28, 6, 28, 6),
             Background = new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF)),
         };
-        Grid.SetColumn(divider, 1);
-        grid.Children.Add(divider);
+        Grid.SetColumn(vDivider, 1);
+        grid.Children.Add(vDivider);
 
         // ── Right bank: 3 encoders ───────────────────────────────────────────
         var encoderBank = new StackPanel
@@ -358,7 +385,8 @@ public partial class ButtonsView
         Grid.SetColumn(encoderBank, 2);
         grid.Children.Add(encoderBank);
 
-        chassis.Child = grid;
+        body.Children.Add(grid);
+        chassis.Child = body;
         return chassis;
     }
 

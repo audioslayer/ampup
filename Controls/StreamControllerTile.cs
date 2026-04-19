@@ -92,8 +92,10 @@ public class StreamControllerTile : Border
         {
             case TileKind.LcdKey:
                 // Square tile — matches the aspect of a real N3 LCD key.
-                Height = 160;
-                MinWidth = 160;
+                // Smaller now that the keys live inside the chassis so the
+                // icon inside doesn't look stretched at full-screen width.
+                Height = 120;
+                MinWidth = 120;
                 Padding = new Thickness(0);
                 Child = BuildLcdKeyContent();
                 break;
