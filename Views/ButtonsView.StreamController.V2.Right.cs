@@ -249,6 +249,17 @@ public partial class ButtonsView
                 button.Action = value;
             }
 
+            // Keep the legacy _scActionPicker in sync — CollectAndSave →
+            // UpdateStreamControllerSelection reads button.Action from it
+            // and would otherwise revert our write on the debounced save.
+            if (_scActionPicker != null)
+            {
+                bool prev = _loading;
+                _loading = true;
+                try { SelectCombo(_scActionPicker, value); }
+                finally { _loading = prev; }
+            }
+
             QueueSave();
             RefreshV2ActionFieldsVisibility();
             RefreshV2LeftPanel();
