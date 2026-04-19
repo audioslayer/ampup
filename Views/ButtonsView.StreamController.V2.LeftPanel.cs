@@ -364,60 +364,115 @@ public partial class ButtonsView
 
     private StackPanel BuildV2PushButton(int oneBasedLabel, int buttonIdx, out Border capOut, out TextBlock subOut)
     {
-        var col = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
-
-        // Rim — outer bezel for depth.
-        var rim = new Border
+        var col = new StackPanel
         {
-            Width = 58, Height = 58,
-            CornerRadius = new CornerRadius(14),
-            Background = new LinearGradientBrush(
-                Color.FromRgb(0x22, 0x24, 0x2A),
-                Color.FromRgb(0x0E, 0x0F, 0x12),
-                new Point(0.5, 0), new Point(0.5, 1)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, 0xFF, 0xFF, 0xFF)),
-            BorderThickness = new Thickness(1),
-            Cursor = Cursors.Hand,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            UseLayoutRounding = true,
+            SnapsToDevicePixels = true,
         };
 
-        // Cap — actual pressable plastic surface.
+        // Socket (recessed well for the cap to sit in) — uses an inset
+        // darker radial gradient to simulate depth.
+        var socket = new Border
+        {
+            Width = 62, Height = 62,
+            CornerRadius = new CornerRadius(16),
+            Cursor = Cursors.Hand,
+            UseLayoutRounding = true,
+            SnapsToDevicePixels = true,
+            Background = new RadialGradientBrush(
+                Color.FromRgb(0x0A, 0x0B, 0x0F),
+                Color.FromRgb(0x16, 0x18, 0x1E))
+            {
+                GradientOrigin = new Point(0.5, 0.5),
+                Center = new Point(0.5, 0.5),
+                RadiusX = 0.6, RadiusY = 0.6,
+            },
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x2A, 0x00, 0x00, 0x00)),
+            BorderThickness = new Thickness(1),
+        };
+
+        // Cap — plastic button surface. Uses a composite of a base linear
+        // gradient + a translucent radial highlight overlay so the cap
+        // reads as a slightly domed plastic key.
         var cap = new Border
         {
-            Width = 44, Height = 44,
-            CornerRadius = new CornerRadius(10),
-            Margin = new Thickness(0),
+            Width = 48, Height = 48,
+            CornerRadius = new CornerRadius(12),
+            UseLayoutRounding = true,
+            SnapsToDevicePixels = true,
             Background = new LinearGradientBrush(
-                Color.FromRgb(0x1E, 0x21, 0x28),
+                Color.FromRgb(0x25, 0x28, 0x30),
                 Color.FromRgb(0x11, 0x13, 0x18),
                 new Point(0.5, 0), new Point(0.5, 1)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x44, 0xFF, 0xFF, 0xFF)),
             BorderThickness = new Thickness(1),
             Effect = new System.Windows.Media.Effects.DropShadowEffect
             {
                 Color = Colors.Black,
-                BlurRadius = 6,
+                BlurRadius = 8,
                 ShadowDepth = 2,
-                Opacity = 0.6,
+                Opacity = 0.7,
             },
         };
+
+        var capContents = new Grid();
+
+        // Specular highlight — subtle light blob near top of cap.
+        var specular = new Border
+        {
+            Width = 38, Height = 16,
+            CornerRadius = new CornerRadius(10),
+            Margin = new Thickness(0, 3, 0, 0),
+            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            IsHitTestVisible = false,
+            Background = new LinearGradientBrush(
+                Color.FromArgb(0x2E, 0xFF, 0xFF, 0xFF),
+                Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF),
+                new Point(0.5, 0), new Point(0.5, 1)),
+        };
+        capContents.Children.Add(specular);
+
         var number = new TextBlock
         {
             Text = oneBasedLabel.ToString(),
-            FontSize = 18,
+            FontSize = 19,
             FontWeight = FontWeights.Bold,
-            Foreground = FindBrush("TextDimBrush"),
+            Foreground = new SolidColorBrush(Color.FromRgb(0xD8, 0xDC, 0xE2)),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
+            Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = Colors.Black,
+                BlurRadius = 3,
+                ShadowDepth = 1,
+                Opacity = 0.55,
+            },
         };
-        cap.Child = number;
-        rim.Child = cap;
+        capContents.Children.Add(number);
 
-        rim.MouseEnter += (_, _) => cap.BorderBrush = new SolidColorBrush(ThemeManager.Accent);
-        rim.MouseLeave += (_, _) => cap.BorderBrush = new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
-        rim.MouseLeftButtonUp += (_, _) =>
+        cap.Child = capContents;
+        socket.Child = cap;
+
+        socket.MouseEnter += (_, _) =>
+        {
+            cap.BorderBrush = new SolidColorBrush(ThemeManager.Accent);
+            cap.BorderThickness = new Thickness(1.5);
+        };
+        socket.MouseLeave += (_, _) =>
+        {
+            bool stillSelected = _scSelectedButtonIdx == buttonIdx;
+            if (!stillSelected)
+            {
+                cap.BorderBrush = new SolidColorBrush(Color.FromArgb(0x44, 0xFF, 0xFF, 0xFF));
+                cap.BorderThickness = new Thickness(1);
+            }
+        };
+        socket.MouseLeftButtonUp += (_, _) =>
             SelectStreamControllerItem(new StreamControllerSelection(buttonIdx, $"Button {oneBasedLabel}", null));
 
-        col.Children.Add(rim);
+        col.Children.Add(socket);
 
         col.Children.Add(new TextBlock
         {
@@ -447,61 +502,154 @@ public partial class ButtonsView
 
     private StackPanel BuildV2Encoder(int oneBasedLabel, int encoderIdx, out Border ringOut, out TextBlock subOut)
     {
-        var col = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
-
-        // Outer rim — metallic ring.
-        var rim = new Border
+        var col = new StackPanel
         {
-            Width = 62, Height = 62,
-            CornerRadius = new CornerRadius(31),
-            Background = new LinearGradientBrush(
-                Color.FromRgb(0x26, 0x28, 0x2E),
-                Color.FromRgb(0x0E, 0x0F, 0x12),
-                new Point(0.5, 0), new Point(0.5, 1)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x77, 0xFF, 0xFF, 0xFF)),
-            BorderThickness = new Thickness(1),
-            Cursor = Cursors.Hand,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            UseLayoutRounding = true,
+            SnapsToDevicePixels = true,
         };
-        // Inner knob cap.
-        var cap = new Border
+
+        // Round root — one Grid so we can stack concentric ellipses cleanly.
+        var stack = new Grid
         {
-            Width = 48, Height = 48,
-            CornerRadius = new CornerRadius(24),
-            Background = new LinearGradientBrush(
-                Color.FromRgb(0x1A, 0x1C, 0x22),
-                Color.FromRgb(0x0C, 0x0D, 0x11),
-                new Point(0.5, 0), new Point(0.5, 1)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)),
-            BorderThickness = new Thickness(1),
+            Width = 68, Height = 68,
+            Cursor = Cursors.Hand,
+            UseLayoutRounding = true,
+            SnapsToDevicePixels = true,
             Effect = new System.Windows.Media.Effects.DropShadowEffect
             {
                 Color = Colors.Black,
-                BlurRadius = 6,
-                ShadowDepth = 2,
-                Opacity = 0.6,
+                BlurRadius = 10,
+                ShadowDepth = 3,
+                Opacity = 0.75,
             },
         };
-        // Indicator dot at top (like a real knob's position mark).
-        var dotWrap = new Grid();
-        var dot = new Border
+
+        // Recessed socket (outermost) — radial gradient to fake depth.
+        var socket = new Ellipse
         {
-            Width = 4, Height = 10,
+            Fill = new RadialGradientBrush(
+                Color.FromRgb(0x08, 0x09, 0x0C),
+                Color.FromRgb(0x16, 0x18, 0x1E))
+            {
+                GradientOrigin = new Point(0.5, 0.4),
+                Center = new Point(0.5, 0.5),
+                RadiusX = 0.55, RadiusY = 0.55,
+            },
+            Stroke = new SolidColorBrush(Color.FromArgb(0x22, 0x00, 0x00, 0x00)),
+            StrokeThickness = 1,
+        };
+        stack.Children.Add(socket);
+
+        // Metallic outer rim.
+        var outerRim = new Ellipse
+        {
+            Width = 60, Height = 60,
+            Fill = new LinearGradientBrush(
+                Color.FromRgb(0x3A, 0x3C, 0x42),
+                Color.FromRgb(0x0E, 0x0F, 0x13),
+                new Point(0.5, 0), new Point(0.5, 1)),
+            Stroke = new SolidColorBrush(Color.FromArgb(0x88, 0xFF, 0xFF, 0xFF)),
+            StrokeThickness = 1,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        stack.Children.Add(outerRim);
+
+        // Inner dark groove — simulates the space between rim and knob cap.
+        var groove = new Ellipse
+        {
+            Width = 52, Height = 52,
+            Fill = new SolidColorBrush(Color.FromRgb(0x05, 0x06, 0x08)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        stack.Children.Add(groove);
+
+        // Knob cap — spherical look via radial gradient.
+        var cap = new Ellipse
+        {
+            Width = 48, Height = 48,
+            Fill = new RadialGradientBrush(
+                Color.FromRgb(0x38, 0x3B, 0x42),
+                Color.FromRgb(0x0D, 0x0E, 0x12))
+            {
+                GradientOrigin = new Point(0.35, 0.25),
+                Center = new Point(0.5, 0.5),
+                RadiusX = 0.75, RadiusY = 0.75,
+            },
+            Stroke = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)),
+            StrokeThickness = 1,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        stack.Children.Add(cap);
+
+        // Specular highlight — small bright crescent in upper-left for glossy plastic.
+        var specular = new Ellipse
+        {
+            Width = 22, Height = 10,
+            Fill = new LinearGradientBrush(
+                Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF),
+                Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF),
+                new Point(0.5, 0), new Point(0.5, 1)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 13, 0, 0),
+            IsHitTestVisible = false,
+            RenderTransform = new RotateTransform(-10),
+            RenderTransformOrigin = new Point(0.5, 0.5),
+        };
+        stack.Children.Add(specular);
+
+        // Indicator tick at top — accent-colored, glowing.
+        var tick = new Border
+        {
+            Width = 4, Height = 11,
             CornerRadius = new CornerRadius(2),
             Background = new SolidColorBrush(ThemeManager.Accent),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(0, 6, 0, 0),
+            Margin = new Thickness(0, 13, 0, 0),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = ThemeManager.Accent,
+                BlurRadius = 8,
+                ShadowDepth = 0,
+                Opacity = 0.9,
+            },
         };
-        dotWrap.Children.Add(dot);
-        cap.Child = dotWrap;
-        rim.Child = cap;
+        stack.Children.Add(tick);
 
-        rim.MouseEnter += (_, _) => cap.BorderBrush = new SolidColorBrush(ThemeManager.Accent);
-        rim.MouseLeave += (_, _) => cap.BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF));
-        rim.MouseLeftButtonUp += (_, _) =>
+        // Hover/selection tracking wraps the whole stack, ring border is
+        // the outerRim Stroke (updated later).
+        stack.MouseEnter += (_, _) =>
+        {
+            outerRim.Stroke = new SolidColorBrush(ThemeManager.Accent);
+            outerRim.StrokeThickness = 1.5;
+        };
+        stack.MouseLeave += (_, _) =>
+        {
+            bool stillSelected = _scSelectedButtonIdx == encoderIdx;
+            if (!stillSelected)
+            {
+                outerRim.Stroke = new SolidColorBrush(Color.FromArgb(0x88, 0xFF, 0xFF, 0xFF));
+                outerRim.StrokeThickness = 1;
+            }
+        };
+        stack.MouseLeftButtonUp += (_, _) =>
             SelectStreamControllerItem(new StreamControllerSelection(encoderIdx, $"Encoder Press {oneBasedLabel}", null));
 
-        col.Children.Add(rim);
+        // Wrap stack in a Border so downstream code can update the selection
+        // indicator via a Border reference.
+        var ringProxy = new Border
+        {
+            Child = stack,
+            Tag = outerRim, // ref used by RefreshV2HardwareTiles
+            Background = Brushes.Transparent,
+        };
+
+        col.Children.Add(ringProxy);
 
         col.Children.Add(new TextBlock
         {
@@ -524,7 +672,7 @@ public partial class ButtonsView
         };
         col.Children.Add(sub);
 
-        ringOut = cap;
+        ringOut = ringProxy;
         subOut = sub;
         return col;
     }
@@ -718,9 +866,13 @@ public partial class ButtonsView
 
             if (i < _v2HwEncoderSubs.Count)
                 _v2HwEncoderSubs[i].Text = GetStreamActionDisplay(press?.Action);
-            var ring = _v2HwEncoderRings[i];
-            ring.BorderBrush = selected ? accent : idleRingBorder;
-            ring.BorderThickness = new Thickness(selected ? 2 : 1);
+            // Tag holds the outerRim Ellipse — drive its Stroke for selection
+            // instead of the wrapping Border (which is transparent chrome).
+            if (_v2HwEncoderRings[i].Tag is Ellipse rim)
+            {
+                rim.Stroke = selected ? accent : idleRingBorder;
+                rim.StrokeThickness = selected ? 2 : 1;
+            }
         }
     }
 }
