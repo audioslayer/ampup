@@ -258,14 +258,17 @@ public partial class ButtonsView
         });
         labelStack.Children.Add(nameRow);
         // A slot counts as "assigned" if the user put ANY content on it —
-        // title, icon, or action. Counting only buttons with a non-none
-        // action missed keys that had display content but no action yet.
+        // title, subtitle, icon, action, or a non-default display type
+        // (Clock / DynamicState render without a title, so they'd
+        // otherwise be missed). Dedup slot indices across both lists.
         var assignedSlots = new HashSet<int>();
         foreach (var k in folder.DisplayKeys)
         {
-            if (!string.IsNullOrEmpty(k.Title) ||
-                !string.IsNullOrEmpty(k.ImagePath) ||
-                !string.IsNullOrEmpty(k.PresetIconKind))
+            if (!string.IsNullOrEmpty(k.Title)
+                || !string.IsNullOrEmpty(k.Subtitle)
+                || !string.IsNullOrEmpty(k.ImagePath)
+                || !string.IsNullOrEmpty(k.PresetIconKind)
+                || k.DisplayType != DisplayKeyType.Normal)
                 assignedSlots.Add(k.Idx);
         }
         foreach (var b in folder.Buttons)
