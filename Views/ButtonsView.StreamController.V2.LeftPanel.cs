@@ -492,6 +492,9 @@ public partial class ButtonsView
 
     private StackPanel BuildV2PageToolbar()
     {
+        // Bottom toolbar now owns only navigation (prev / dots / label /
+        // next). The add/remove buttons moved to BuildV2PageAddRemoveRow
+        // which sits above the key grid.
         var toolbar = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -525,17 +528,44 @@ public partial class ButtonsView
             () => NavigateStreamControllerPage(1));
         toolbar.Children.Add(_v2PageNextButton);
 
+        return toolbar;
+    }
+
+    /// <summary>
+    /// Compact "PAGES  + -" row that sits above the key grid so the
+    /// add/remove affordances are easy to reach without scrolling past
+    /// the nav controls below.
+    /// </summary>
+    private StackPanel BuildV2PageAddRemoveRow()
+    {
+        var row = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 8),
+        };
+
+        row.Children.Add(new TextBlock
+        {
+            Text = "PAGES",
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextDimBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0),
+        });
+
         _v2PageAddButton = MakeV2ToolbarTextButton("+", "Add page",
             () => AddStreamControllerPage());
-        _v2PageAddButton.Margin = new Thickness(10, 0, 0, 0);
-        toolbar.Children.Add(_v2PageAddButton);
+        row.Children.Add(_v2PageAddButton);
 
         _v2PageRemoveButton = MakeV2ToolbarTextButton("\u2212", "Remove last page",
             () => RemoveStreamControllerPage());
         _v2PageRemoveButton.Margin = new Thickness(4, 0, 0, 0);
-        toolbar.Children.Add(_v2PageRemoveButton);
+        row.Children.Add(_v2PageRemoveButton);
 
-        return toolbar;
+        return row;
     }
 
     private Button MakeV2ToolbarGlyphButton(string glyph, string tooltip, Action onClick)
@@ -619,6 +649,10 @@ public partial class ButtonsView
         };
 
         var body = new StackPanel();
+
+        // Add / remove page row — sits above the grid so the primary
+        // affordance for growing a Space is in the user's sight line.
+        body.Children.Add(BuildV2PageAddRemoveRow());
 
         // Screens (2x3 LCD grid). _v2KeyGrid was assembled in FillV2LeftPanel.
         if (_v2KeyGrid != null)
