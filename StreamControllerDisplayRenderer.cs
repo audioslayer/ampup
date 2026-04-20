@@ -85,6 +85,21 @@ internal static class StreamControllerDisplayRenderer
     }
 
     /// <summary>
+    /// UI-thread-only step: compose the RAW device-resolution bitmap for a
+    /// key. The caller is responsible for disposing the returned bitmap.
+    /// Split out from <see cref="CreateDeviceJpeg"/> so the slow JPEG
+    /// encode + HID send can run on a background task — the WPF render
+    /// must stay on the UI thread, but the encode/send doesn't.
+    /// </summary>
+    public static DrawingBitmap ComposeDeviceBitmap(StreamControllerDisplayKeyConfig key)
+    {
+        return ComposeImage(ResolveEffectiveKey(key));
+    }
+
+    /// <summary>Thread-safe: encode a composed device bitmap to the wire JPEG.</summary>
+    public static byte[] EncodeDeviceBitmap(DrawingBitmap bitmap) => EncodeForDevice(bitmap);
+
+    /// <summary>
     /// Returns a key config with DisplayType-specific overrides baked in:
     ///   Clock        — title becomes the current time, images/icons are cleared.
     ///   DynamicState — when active, swap icon + title to the configured active values.

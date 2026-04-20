@@ -2208,21 +2208,28 @@ public partial class App : Application
         if (_n3 == null || !_isN3Connected) return;
         if (_config.HardwareMode == HardwareMode.TurnUpOnly) return;
 
-        try
-        {
-            bool inFolder = IsInFolder;
-            int pageOffset = _config.N3.CurrentPage * 6;
-            var activeKeys = GetActiveDisplayKeys();
+        // Split the work into two halves:
+        //   1. UI thread (here): compose each key's bitmap — WPF render is
+        //      required to run on a Dispatcher thread, and the preset-icon
+        //      code path builds a Grid/MaterialIcon tree.
+        //   2. Background task: encode each bitmap to the wire JPEG and
+        //      blast it out via HID. Both of these are slow (~20ms encode
+        //      + 30-50ms HID write per key) and were freezing the UI for
+        //      ~500ms every time the user navigated between folders/pages.
+        bool inFolder = IsInFolder;
+        int pageOffset = _config.N3.CurrentPage * 6;
+        var activeKeys = GetActiveDisplayKeys();
 
-            for (int i = 0; i < N3Controller.DisplayKeyCount; i++)
+        var ops = new List<(int slot, System.Drawing.Bitmap? bitmap)>(N3Controller.DisplayKeyCount);
+
+        for (int i = 0; i < N3Controller.DisplayKeyCount; i++)
+        {
+            try
             {
-                // While inside a folder, key slot 0 is a virtual "Back" key — other
-                // slots render folder keys shifted by 1 so everything lines up.
                 if (inFolder && i == 0)
                 {
                     var backKey = BuildBackKeyDisplay();
-                    byte[] backJpeg = StreamControllerDisplayRenderer.CreateDeviceJpeg(backKey);
-                    _n3.SendDisplayImage(i, backJpeg, commit: false);
+                    ops.Add((i, StreamControllerDisplayRenderer.ComposeDeviceBitmap(backKey)));
                     continue;
                 }
 
@@ -2230,7 +2237,7 @@ public partial class App : Application
                 var key = activeKeys.FirstOrDefault(k => k.Idx == folderLocalIdx);
                 if (key == null)
                 {
-                    _n3.ClearDisplay(i, commit: false);
+                    ops.Add((i, null));
                     continue;
                 }
 
@@ -2240,20 +2247,48 @@ public partial class App : Application
 
                 if (!hasImage && !hasPreset && !hasText)
                 {
-                    _n3.ClearDisplay(i, commit: false);
+                    ops.Add((i, null));
                     continue;
                 }
 
-                byte[] jpeg = StreamControllerDisplayRenderer.CreateDeviceJpeg(key);
-                _n3.SendDisplayImage(i, jpeg, commit: false);
+                ops.Add((i, StreamControllerDisplayRenderer.ComposeDeviceBitmap(key)));
             }
+            catch (Exception ex)
+            {
+                Logger.Log($"Stream Controller compose failed for slot {i}: {ex.Message}");
+                ops.Add((i, null));
+            }
+        }
 
-            _n3.CommitDisplayChanges();
-        }
-        catch (Exception ex)
+        var n3 = _n3;
+        _ = Task.Run(() =>
         {
-            Logger.Log($"Stream Controller display sync failed: {ex.Message}");
-        }
+            try
+            {
+                foreach (var (slot, bitmap) in ops)
+                {
+                    if (bitmap == null)
+                    {
+                        n3.ClearDisplay(slot, commit: false);
+                        continue;
+                    }
+
+                    byte[] jpeg;
+                    try { jpeg = StreamControllerDisplayRenderer.EncodeDeviceBitmap(bitmap); }
+                    finally { bitmap.Dispose(); }
+
+                    n3.SendDisplayImage(slot, jpeg, commit: false);
+                }
+                n3.CommitDisplayChanges();
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Stream Controller display sync failed: {ex.Message}");
+                // Ensure bitmaps don't leak if we bail mid-loop.
+                foreach (var (_, bitmap) in ops)
+                    bitmap?.Dispose();
+            }
+        });
     }
 
     /// <summary>Build a virtual "Back" display key used when inside a folder.</summary>
