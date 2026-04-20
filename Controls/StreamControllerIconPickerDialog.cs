@@ -896,6 +896,14 @@ public class StreamControllerIconPickerDialog : Window
                 "material_restart" => "material_restart.jpg",
                 "material_network" => "material_network.jpg",
                 "material_bluetooth" => "material_bluetooth.jpg",
+                "neon_brightness_down" => "neon_brightness_down.jpg",
+                "material_brightness_down" => "material_brightness_down.jpg",
+                "retro_brightness_down" => "retro_brightness_down.jpg",
+                "neon_camera" => "neon_camera.jpg",
+                "material_camera" => "material_camera.jpg",
+                "retro_camera" => "retro_camera.jpg",
+                "neon_copy" => "neon_copy.jpg",
+                "material_copy" => "material_copy.jpg",
                 _ => ""
             };
 
@@ -1096,6 +1104,14 @@ public class StreamControllerIconPickerDialog : Window
                     "material_restart" => "material_restart.jpg",
                     "material_network" => "material_network.jpg",
                     "material_bluetooth" => "material_bluetooth.jpg",
+                    "neon_brightness_down" => "neon_brightness_down.jpg",
+                    "material_brightness_down" => "material_brightness_down.jpg",
+                    "retro_brightness_down" => "retro_brightness_down.jpg",
+                    "neon_camera" => "neon_camera.jpg",
+                    "material_camera" => "material_camera.jpg",
+                    "retro_camera" => "retro_camera.jpg",
+                    "neon_copy" => "neon_copy.jpg",
+                    "material_copy" => "material_copy.jpg",
                     _ => ""
                 };
                 
@@ -1409,6 +1425,14 @@ public class StreamControllerIconPickerDialog : Window
             new("3D Network", "material_network", "System", Color.FromRgb(0x26, 0xC6, 0xDA)),
             new("3D Bluetooth", "material_bluetooth", "System", Color.FromRgb(0x5C, 0xD7, 0xFF)),
 
+            new("Neon Brightness Down", "neon_brightness_down", "System", Color.FromRgb(0x00, 0xE6, 0x76)),
+            new("3D Brightness Down", "material_brightness_down", "System", Color.FromRgb(0x00, 0xE6, 0x76)),
+            new("Retro Brightness Down", "retro_brightness_down", "System", Color.FromRgb(0xFF, 0xD7, 0x40)),
+            new("Neon Camera", "neon_camera", "Streaming", Color.FromRgb(0x00, 0xD0, 0xFF)),
+            new("3D Camera", "material_camera", "Streaming", Color.FromRgb(0x00, 0xD0, 0xFF)),
+            new("Retro Camera", "retro_camera", "Streaming", Color.FromRgb(0xFF, 0xD7, 0x40)),
+            new("Neon Copy", "neon_copy", "System", Color.FromRgb(0xFF, 0xC1, 0x07)),
+            new("3D Copy", "material_copy", "System", Color.FromRgb(0xFF, 0xC1, 0x07)),
             new("Play", "Play", "Media", Color.FromRgb(0x00, 0xE6, 0x76)),
             new("Pause", "Pause", "Media", Color.FromRgb(0x00, 0xC8, 0xFF)),
             new("Stop", "Stop", "Media", Color.FromRgb(0xFF, 0x5C, 0x5C)),
