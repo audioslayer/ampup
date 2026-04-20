@@ -53,6 +53,7 @@ public class StreamControllerIconPickerDialog : Window
     private readonly WrapPanel _resultsGrid = new() { Margin = new Thickness(0, 8, 0, 0) };
     private readonly TextBox _searchBox;
     private readonly SegmentedControl _categoryPicker;
+    private readonly SegmentedControl _packPicker;
     private readonly TextBlock _subtitle;
     private readonly TextBlock _resultStatus;
     private readonly DispatcherTimer _searchDebounce;
@@ -129,6 +130,19 @@ public class StreamControllerIconPickerDialog : Window
         _categoryPicker.AddSegment("Streaming", "Streaming");
         _categoryPicker.SelectedIndex = 0;
         _categoryPicker.SelectionChanged += (_, _) => RefreshLocalGrid();
+
+        _packPicker = new SegmentedControl
+        {
+            HorizontalAlignment = HorizontalAlignment.Left,
+            AccentColor = ThemeManager.Accent,
+            Margin = new Thickness(10, 0, 0, 10)
+        };
+        _packPicker.AddSegment("All Packs", "All");
+        _packPicker.AddSegment("Neon Pack", "Neon");
+        _packPicker.AddSegment("3D Material", "Material3D");
+        _packPicker.AddSegment("Built-in", "BuiltIn");
+        _packPicker.SelectedIndex = 0;
+        _packPicker.SelectionChanged += (_, _) => RefreshLocalGrid();
 
         _subtitle = new TextBlock
         {
@@ -278,8 +292,13 @@ public class StreamControllerIconPickerDialog : Window
         var uploadButton = BuildUploadButton();
         DockPanel.SetDock(uploadButton, Dock.Right);
         categoryRow.Children.Add(uploadButton);
+        
+        var pickersPanel = new StackPanel { Orientation = Orientation.Horizontal };
         _categoryPicker.Margin = new Thickness(0);
-        categoryRow.Children.Add(_categoryPicker);
+        pickersPanel.Children.Add(_categoryPicker);
+        pickersPanel.Children.Add(_packPicker);
+        
+        categoryRow.Children.Add(pickersPanel);
         header.Children.Add(categoryRow);
 
         main.Children.Add(header);
@@ -352,10 +371,15 @@ public class StreamControllerIconPickerDialog : Window
     {
         _resultsGrid.Children.Clear();
         string category = _categoryPicker.SelectedTag as string ?? "All";
+        string pack = _packPicker.SelectedTag as string ?? "All";
         string query = _searchBox.Text.Trim();
 
         var filtered = _entries.Where(e =>
                 (category == "All" || e.Category == category) &&
+                (pack == "All" || 
+                 (pack == "Neon" && e.Kind.StartsWith("neon_")) || 
+                 (pack == "Material3D" && e.Kind.StartsWith("material_")) || 
+                 (pack == "BuiltIn" && !e.Kind.StartsWith("neon_") && !e.Kind.StartsWith("material_"))) &&
                 (string.IsNullOrWhiteSpace(query)
                     || e.Label.Contains(query, StringComparison.OrdinalIgnoreCase)
                     || e.Kind.Contains(query, StringComparison.OrdinalIgnoreCase)))
