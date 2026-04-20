@@ -728,7 +728,7 @@ public class StreamControllerIconPickerDialog : Window
                 VerticalAlignment = VerticalAlignment.Center
             };
         }
-        else if (entry.Kind.StartsWith("neon_"))
+        else if (entry.Kind.StartsWith("neon_") || entry.Kind.StartsWith("material_"))
         {
             string filename = entry.Kind switch
             {
@@ -737,12 +737,20 @@ public class StreamControllerIconPickerDialog : Window
                 "neon_next" => "next_track_neon.jpg",
                 "neon_spotify" => "spotify_neon.jpg",
                 "neon_discord" => "discord_neon.jpg",
+                "neon_chrome" => "neon_chrome.jpg",
                 "neon_mic" => "mic_active_neon.jpg",
                 "neon_mic_mute" => "mic_mute_neon.jpg",
                 "neon_volume" => "speaker_volume_neon.jpg",
                 "neon_panels" => "light_panel_white_cyan.jpg",
                 "neon_geometric" => "light_geometric_cyan_purple.jpg",
                 "neon_lightbulb" => "lightbulb_hightech_neon.jpg",
+                "neon_monitor" => "neon_monitor.jpg",
+                "material_playpause" => "material_playpause.jpg",
+                "material_home" => "material_home.jpg",
+                "material_settings" => "material_settings.jpg",
+                "material_gamepad" => "material_gamepad.jpg",
+                "material_power" => "material_power.jpg",
+                "material_webcam" => "material_webcam.jpg",
                 _ => ""
             };
 
@@ -801,7 +809,7 @@ public class StreamControllerIconPickerDialog : Window
         };
         card.MouseLeftButtonUp += (_, _) =>
         {
-            if (entry.Kind.StartsWith("neon_"))
+            if (entry.Kind.StartsWith("neon_") || entry.Kind.StartsWith("material_"))
             {
                 string filename = entry.Kind switch
                 {
@@ -810,12 +818,20 @@ public class StreamControllerIconPickerDialog : Window
                     "neon_next" => "next_track_neon.jpg",
                     "neon_spotify" => "spotify_neon.jpg",
                     "neon_discord" => "discord_neon.jpg",
+                    "neon_chrome" => "neon_chrome.jpg",
                     "neon_mic" => "mic_active_neon.jpg",
                     "neon_mic_mute" => "mic_mute_neon.jpg",
                     "neon_volume" => "speaker_volume_neon.jpg",
                     "neon_panels" => "light_panel_white_cyan.jpg",
                     "neon_geometric" => "light_geometric_cyan_purple.jpg",
                     "neon_lightbulb" => "lightbulb_hightech_neon.jpg",
+                    "neon_monitor" => "neon_monitor.jpg",
+                    "material_playpause" => "material_playpause.jpg",
+                    "material_home" => "material_home.jpg",
+                    "material_settings" => "material_settings.jpg",
+                    "material_gamepad" => "material_gamepad.jpg",
+                    "material_power" => "material_power.jpg",
+                    "material_webcam" => "material_webcam.jpg",
                     _ => ""
                 };
                 
@@ -999,12 +1015,22 @@ public class StreamControllerIconPickerDialog : Window
             new("Neon Next", "neon_next", "Media", Color.FromRgb(0x73, 0xA5, 0xFF)),
             new("Neon Spotify", "neon_spotify", "Apps", Color.FromRgb(0x1D, 0xB9, 0x54)),
             new("Neon Discord", "neon_discord", "Apps", Color.FromRgb(0x72, 0x89, 0xDA)),
+            new("Neon Chrome", "neon_chrome", "Apps", Color.FromRgb(0x00, 0xE6, 0x76)),
             new("Neon Mic", "neon_mic", "Audio", Color.FromRgb(0x00, 0xE6, 0x76)),
             new("Neon Mic Mute", "neon_mic_mute", "Audio", Color.FromRgb(0xFF, 0x5C, 0x5C)),
             new("Neon Volume", "neon_volume", "Audio", Color.FromRgb(0x00, 0xE6, 0x76)),
             new("Neon Panels", "neon_panels", "Creative", Color.FromRgb(0x00, 0xD0, 0xFF)),
             new("Neon Geometric", "neon_geometric", "Creative", Color.FromRgb(0xC5, 0x5D, 0xFF)),
             new("Neon Lightbulb", "neon_lightbulb", "Creative", Color.FromRgb(0xFF, 0xD7, 0x40)),
+            new("Neon Monitor", "neon_monitor", "System", Color.FromRgb(0x4D, 0xD0, 0xE1)),
+
+            // Custom Material 3D Pack
+            new("3D Play/Pause", "material_playpause", "Media", Color.FromRgb(0x00, 0xC8, 0xFF)),
+            new("3D Home", "material_home", "System", Color.FromRgb(0x00, 0xB4, 0xD8)),
+            new("3D Settings", "material_settings", "System", Color.FromRgb(0x7A, 0x87, 0xFF)),
+            new("3D Gamepad", "material_gamepad", "Creative", Color.FromRgb(0x69, 0xF0, 0xAE)),
+            new("3D Power", "material_power", "System", Color.FromRgb(0xFF, 0x7B, 0x39)),
+            new("3D Webcam", "material_webcam", "Streaming", Color.FromRgb(0x5C, 0xD7, 0xFF)),
 
             new("Play", "Play", "Media", Color.FromRgb(0x00, 0xE6, 0x76)),
             new("Pause", "Pause", "Media", Color.FromRgb(0x00, 0xC8, 0xFF)),
