@@ -60,8 +60,29 @@ public class StreamControllerTile : Border
     public event Action? OnClick;
     public event Action<MouseButtonEventArgs>? OnRightClick;
 
+    /// <summary>
+    /// Raised when another tile is dropped onto this one. Consumer swaps
+    /// the configuration between the source and target slots.
+    /// </summary>
+    public event Action<StreamControllerTile>? OnTileDropped;
+
+    /// <summary>
+    /// Opaque payload the host can attach to a tile so the DnD handler
+    /// can identify it on drop. Typically the slot/key index.
+    /// </summary>
+    public object? DragPayload { get; set; }
+
+    /// <summary>
+    /// Gate to disable drag-and-drop per-instance — the folder "Back"
+    /// slot, side buttons, and encoders opt out.
+    /// </summary>
+    public bool AllowDragDrop { get; set; } = false;
+
     // Cached so hover/selection updates don't rebuild the whole tree.
     private bool _isHovered;
+    private Point _dragStart;
+    private bool _dragArmed;
+    private bool _dragHover;
 
     public StreamControllerTile()
     {
@@ -81,8 +102,28 @@ public class StreamControllerTile : Border
         MouseEnter += (_, _) => { _isHovered = true; ApplyVisualState(); };
         MouseLeave += (_, _) => { _isHovered = false; ApplyVisualState(); };
 
+        MouseLeftButtonDown += (_, e) =>
+        {
+            if (!AllowDragDrop) return;
+            _dragStart = e.GetPosition(this);
+            _dragArmed = true;
+        };
+        MouseMove += (_, e) =>
+        {
+            if (!_dragArmed || !AllowDragDrop) return;
+            if (e.LeftButton != MouseButtonState.Pressed) { _dragArmed = false; return; }
+            var pos = e.GetPosition(this);
+            if (Math.Abs(pos.X - _dragStart.X) < SystemParameters.MinimumHorizontalDragDistance
+                && Math.Abs(pos.Y - _dragStart.Y) < SystemParameters.MinimumVerticalDragDistance)
+                return;
+            _dragArmed = false;
+            var data = new DataObject("AmpUp.StreamControllerTile", this);
+            try { DragDrop.DoDragDrop(this, data, DragDropEffects.Move); }
+            catch { /* host may have unloaded */ }
+        };
         MouseLeftButtonUp += (_, e) =>
         {
+            _dragArmed = false;
             OnClick?.Invoke();
             e.Handled = true;
         };
@@ -90,6 +131,42 @@ public class StreamControllerTile : Border
         {
             OnRightClick?.Invoke(e);
             // Don't mark handled — consumer chooses
+        };
+
+        // Drop target wiring — AllowDrop is toggled by the AllowDragDrop
+        // flag at Refresh() time so empty/virtual tiles don't accept drops.
+        DragEnter += (_, e) =>
+        {
+            if (!AllowDragDrop || !e.Data.GetDataPresent("AmpUp.StreamControllerTile"))
+            {
+                e.Effects = DragDropEffects.None;
+                return;
+            }
+            var source = e.Data.GetData("AmpUp.StreamControllerTile") as StreamControllerTile;
+            if (ReferenceEquals(source, this))
+            {
+                e.Effects = DragDropEffects.None;
+                return;
+            }
+            e.Effects = DragDropEffects.Move;
+            _dragHover = true;
+            ApplyVisualState();
+        };
+        DragLeave += (_, _) =>
+        {
+            if (!_dragHover) return;
+            _dragHover = false;
+            ApplyVisualState();
+        };
+        Drop += (_, e) =>
+        {
+            _dragHover = false;
+            ApplyVisualState();
+            if (!AllowDragDrop) return;
+            if (e.Data.GetData("AmpUp.StreamControllerTile") is not StreamControllerTile source) return;
+            if (ReferenceEquals(source, this)) return;
+            OnTileDropped?.Invoke(source);
+            e.Handled = true;
         };
 
         // Track theme/accent so selected tiles re-colour live when the
@@ -113,6 +190,10 @@ public class StreamControllerTile : Border
         ClearValue(HeightProperty);
         ClearValue(MinHeightProperty);
         ClearValue(MinWidthProperty);
+
+        // Only LCD-key tiles that opt-in accept drops — side buttons /
+        // encoders / the virtual Back slot keep AllowDrop=false.
+        AllowDrop = AllowDragDrop;
 
         switch (Kind)
         {
@@ -383,6 +464,22 @@ public class StreamControllerTile : Border
         // BorderThickness is fixed at 2 so the inner preview never shifts
         // between states — only the brush changes. Also keeps the rounded
         // corners pixel-aligned against the inner preview's corner radius.
+        // Drag-hover state takes over when a tile is being dragged over us
+        // so the user sees a clear drop target, regardless of selection.
+        if (_dragHover)
+        {
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0xFF, accent.R, accent.G, accent.B));
+            Effect = new DropShadowEffect
+            {
+                Color = accent,
+                BlurRadius = 24,
+                ShadowDepth = 0,
+                Opacity = 0.85,
+            };
+            Background = new SolidColorBrush(Color.FromArgb(0x33, accent.R, accent.G, accent.B));
+            return;
+        }
+
         if (IsSelected)
         {
             // Shimmery diagonal gradient border — bright at the top-left

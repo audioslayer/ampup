@@ -331,7 +331,17 @@ internal static class StreamControllerDisplayRenderer
         var textColor = ParseColor(key.TextColor, DrawingColor.White);
         float baseFontSize = Math.Clamp(key.TextSize, 6, 28);
 
-        using var titleFont = new DrawingFont("Segoe UI", baseFontSize * scale, System.Drawing.FontStyle.Bold, DrawingGraphicsUnit.Pixel);
+        var fontName = string.IsNullOrWhiteSpace(key.FontFamily) ? "Segoe UI" : key.FontFamily;
+        DrawingFont titleFont;
+        try
+        {
+            titleFont = new DrawingFont(fontName, baseFontSize * scale, System.Drawing.FontStyle.Bold, DrawingGraphicsUnit.Pixel);
+        }
+        catch
+        {
+            titleFont = new DrawingFont("Segoe UI", baseFontSize * scale, System.Drawing.FontStyle.Bold, DrawingGraphicsUnit.Pixel);
+        }
+        using var _ = titleFont;
         using var textBrush = new DrawingBrush(textColor);
 
         var format = new DrawingStringFormat

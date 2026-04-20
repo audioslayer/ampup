@@ -334,6 +334,8 @@ public class StreamControllerDisplayKeyConfig
     public string TextColor { get; set; } = "#FFFFFF";
     /// <summary>Tint applied to preset vector icons. Ignored for user-supplied bitmap ImagePath.</summary>
     public string IconColor { get; set; } = "#F7F7F7";
+    /// <summary>Font family name used for the key's title overlay. Falls back to Segoe UI if unavailable.</summary>
+    public string FontFamily { get; set; } = "Segoe UI";
 
     /// <summary>Key render type — Normal shows title+icon, Clock renders live time, DynamicState follows an external state source.</summary>
     [JsonConverter(typeof(StringEnumConverter))]

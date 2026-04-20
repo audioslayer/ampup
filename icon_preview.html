@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AmpUp Icon Style Sandbox</title>
+    <style>
+        body { 
+            background: #0f1115; 
+            color: #fff; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            padding: 40px; 
+        }
+        h1 { 
+            color: #00d0ff; 
+            margin-bottom: 10px; 
+            font-weight: 600;
+        }
+        p {
+            color: #a0a5b5;
+            margin-bottom: 40px;
+        }
+        .section { 
+            margin-bottom: 60px; 
+            background: #14171d;
+            padding: 25px;
+            border-radius: 20px;
+            border: 1px solid #232730;
+        }
+        h2 {
+            margin-top: 0;
+            color: #e0e4eb;
+            font-size: 20px;
+            border-bottom: 1px solid #2a2d35;
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+        }
+        .grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); 
+            gap: 20px; 
+        }
+        .icon-card { 
+            background: #1a1d24; 
+            padding: 12px; 
+            border-radius: 16px; 
+            text-align: center; 
+            border: 1px solid #2a2d35; 
+            transition: all 0.2s ease; 
+            cursor: pointer;
+        }
+        .icon-card:hover { 
+            transform: translateY(-4px) scale(1.02); 
+            border-color: #00d0ff; 
+            box-shadow: 0 8px 20px rgba(0, 208, 255, 0.15);
+        }
+        .icon-image { 
+            width: 86px; 
+            height: 86px; 
+            border-radius: 14px; 
+            object-fit: cover; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4); 
+        }
+        .icon-label { 
+            margin-top: 12px; 
+            font-size: 13px; 
+            color: #a0a5b5; 
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <h1>AmpUp Icon Sandbox</h1>
+    <p>Double-click icons to test styles or compare visual themes.</p>
+
+    <div class="section">
+        <h2>3D Material / Glassmorphism Style</h2>
+        <div class="grid">
+            <div class="icon-card">
+                <img src="Icons/material_playpause.jpg" class="icon-image">
+                <div class="icon-label">Play / Pause</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/material_next.jpg" class="icon-image">
+                <div class="icon-label">Next Track</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/material_prev.jpg" class="icon-image">
+                <div class="icon-label">Prev Track</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/material_fastforward.jpg" class="icon-image">
+                <div class="icon-label">Fast Forward</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/material_rewind.jpg" class="icon-image">
+                <div class="icon-label">Rewind</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/material_shuffle.jpg" class="icon-image">
+                <div class="icon-label">Shuffle</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/material_repeat.jpg" class="icon-image">
+                <div class="icon-label">Repeat</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/material_home.jpg" class="icon-image">
+                <div class="icon-label">Home</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/material_settings.jpg" class="icon-image">
+                <div class="icon-label">Settings</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/material_gamepad.jpg" class="icon-image">
+                <div class="icon-label">Gamepad</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/material_power.jpg" class="icon-image">
+                <div class="icon-label">Power</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/material_webcam.jpg" class="icon-image">
+                <div class="icon-label">Webcam</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/material_mic.jpg" class="icon-image">
+                <div class="icon-label">Mic On</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/material_mic_mute.jpg" class="icon-image">
+                <div class="icon-label">Mic Mute</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/material_volume.jpg" class="icon-image">
+                <div class="icon-label">Volume</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/material_volume_mute.jpg" class="icon-image">
+                <div class="icon-label">Muted</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Smart Home / Lights (ON & OFF states)</h2>
+        <div class="grid">
+            <div class="icon-card">
+                <img src="Icons/neon_wall_light_on.jpg" class="icon-image">
+                <div class="icon-label" style="color: #00d0ff;">Wall Light ON</div>
+            </div>
+            <div class="icon-card" style="opacity: 0.6;">
+                <img src="Icons/neon_wall_light_off.jpg" class="icon-image">
+                <div class="icon-label">Wall Light OFF</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_case_light_on.jpg" class="icon-image">
+                <div class="icon-label" style="color: #c55dff;">Case RGB ON</div>
+            </div>
+            <div class="icon-card" style="opacity: 0.6;">
+                <img src="Icons/neon_case_light_off.jpg" class="icon-image">
+                <div class="icon-label">Case RGB OFF</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_bulb_on.jpg" class="icon-image">
+                <div class="icon-label" style="color: #ffd740;">Bulb ON</div>
+            </div>
+            <div class="icon-card" style="opacity: 0.6;">
+                <img src="Icons/neon_bulb_off.jpg" class="icon-image">
+                <div class="icon-label">Bulb OFF</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_led_strip.jpg" class="icon-image">
+                <div class="icon-label" style="color: #c55dff;">Neon LED Strip</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/material_led_strip.jpg" class="icon-image">
+                <div class="icon-label" style="color: #c55dff;">3D LED Strip</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/material_desk_lamp.jpg" class="icon-image">
+                <div class="icon-label" style="color: #ffd740;">3D Desk Lamp</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/material_ceiling_fan.jpg" class="icon-image">
+                <div class="icon-label" style="color: #ffd740;">3D Ceiling Fan</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/material_triangles.jpg" class="icon-image">
+                <div class="icon-label" style="color: #00d0ff;">3D Triangles</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_light_group.jpg" class="icon-image">
+                <div class="icon-label">Light Group</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Smart Home / Rooms</h2>
+        <div class="grid">
+            <div class="icon-card">
+                <img src="Icons/neon_room_office.jpg" class="icon-image">
+                <div class="icon-label">Office</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_room_bedroom.jpg" class="icon-image">
+                <div class="icon-label">Bedroom</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_room_living.jpg" class="icon-image">
+                <div class="icon-label">Living Room</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_room_kitchen.jpg" class="icon-image">
+                <div class="icon-label">Kitchen</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_room_arcade.jpg" class="icon-image">
+                <div class="icon-label">Arcade</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_room_bathroom.jpg" class="icon-image">
+                <div class="icon-label">Bathroom</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_room_exterior.jpg" class="icon-image">
+                <div class="icon-label">Exterior</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_desk_lamp.jpg" class="icon-image">
+                <div class="icon-label">Desk Lamp</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_ceiling_fan.jpg" class="icon-image">
+                <div class="icon-label">Ceiling Fan</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_triangles.jpg" class="icon-image">
+                <div class="icon-label">Triangles</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Flat Neon Vector Style</h2>
+        <div class="grid">
+            <div class="icon-card">
+                <img src="Icons/spotify_neon.jpg" class="icon-image">
+                <div class="icon-label">Spotify</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/discord_neon.jpg" class="icon-image">
+                <div class="icon-label">Discord</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_obs.jpg" class="icon-image">
+                <div class="icon-label">OBS Studio</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_youtube.jpg" class="icon-image">
+                <div class="icon-label">YouTube</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_chrome.jpg" class="icon-image">
+                <div class="icon-label">Chrome</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/play_button_neon.jpg" class="icon-image">
+                <div class="icon-label">Play</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/pause_button_neon.jpg" class="icon-image">
+                <div class="icon-label">Pause</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/next_track_neon.jpg" class="icon-image">
+                <div class="icon-label">Next</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_fastforward.jpg" class="icon-image">
+                <div class="icon-label">Fast Fwd</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_rewind.jpg" class="icon-image">
+                <div class="icon-label">Rewind</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_shuffle.jpg" class="icon-image">
+                <div class="icon-label">Shuffle</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_repeat.jpg" class="icon-image">
+                <div class="icon-label">Repeat</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/speaker_volume_neon.jpg" class="icon-image">
+                <div class="icon-label">Volume</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/mic_active_neon.jpg" class="icon-image">
+                <div class="icon-label">Mic On</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/mic_mute_neon.jpg" class="icon-image">
+                <div class="icon-label">Mic Mute</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_monitor.jpg" class="icon-image">
+                <div class="icon-label">Monitor</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_folder.jpg" class="icon-image">
+                <div class="icon-label">Folder</div>
+            </div>
+            <div class="icon-card">
+                <img src="Icons/neon_power.jpg" class="icon-image">
+                <div class="icon-label">Power</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -47,6 +47,7 @@ public partial class ButtonsView
     // preset vector icon (bitmap images cannot be tinted).
     private TextBlock? _v2IconColorLabel;
     private TextBlock? _v2GlowColorLabel;
+    private ListPicker? _v2FontPicker;
 
     // Cache key for the action picker item set. Repopulate only when any
     // integration-enabled flag flips — otherwise every RefreshV2RightPanel
@@ -176,6 +177,32 @@ public partial class ButtonsView
         DetachFromParent(_scTitleBox);
         _scTitleBox.Visibility = Visibility.Visible;
         designContent.Children.Add(_scTitleBox);
+
+        // Font picker — writes to key.FontFamily so the device-JPEG renderer
+        // can switch typeface per key. Populated with a curated list of
+        // fonts that ship on Windows + a few stylistic extras.
+        var fontLabel = MakeEditorLabel("FONT");
+        fontLabel.Margin = new Thickness(0, 10, 0, 4);
+        designContent.Children.Add(fontLabel);
+        if (_v2FontPicker == null)
+        {
+            _v2FontPicker = new ListPicker();
+            foreach (var name in StreamControllerFontPresets)
+                _v2FontPicker.AddItem(name, name);
+            _v2FontPicker.SelectionChanged += (_, _) =>
+            {
+                if (_loading) return;
+                var display = GetSelectedDisplayKeyConfig();
+                if (display == null || _v2FontPicker == null) return;
+                var fontName = _v2FontPicker.SelectedTag as string ?? "Segoe UI";
+                display.FontFamily = fontName;
+                UpdateEditorPreviewOnly();
+                QueueSave();
+            };
+        }
+        DetachFromParent(_v2FontPicker);
+        _v2FontPicker.Margin = new Thickness(0, 0, 0, 4);
+        designContent.Children.Add(_v2FontPicker);
 
         designContent.Children.Add(MakeEditorLabel("TEXT POSITION"));
         if (_scTextPositionPicker == null)
@@ -547,6 +574,18 @@ public partial class ButtonsView
                     DisplayTextPosition.Hidden => 3,
                     _ => 2,
                 };
+            }
+            if (_v2FontPicker != null)
+            {
+                var currentFont = string.IsNullOrWhiteSpace(key.FontFamily) ? "Segoe UI" : key.FontFamily;
+                int fontIdx = -1;
+                for (int i = 0; i < _v2FontPicker.ItemCount; i++)
+                {
+                    if (string.Equals(_v2FontPicker.GetTagAt(i) as string, currentFont, StringComparison.OrdinalIgnoreCase))
+                    { fontIdx = i; break; }
+                }
+                if (fontIdx < 0) fontIdx = 0; // fall back to Segoe UI
+                _v2FontPicker.SelectedIndex = fontIdx;
             }
             BuildTextColorSwatches();
 

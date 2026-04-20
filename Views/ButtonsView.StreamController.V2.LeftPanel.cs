@@ -72,9 +72,12 @@ public partial class ButtonsView
                 Kind = StreamControllerTile.TileKind.LcdKey,
                 Title = $"Key {i + 1}",
                 Margin = new Thickness(i % 3 == 0 ? 0 : 6, i >= 3 ? 6 : 0, i % 3 == 2 ? 0 : 6, 0),
+                AllowDragDrop = true,
+                DragPayload = localIdx,
             };
             tile.OnClick += () => OnV2KeyTileClick(localIdx);
             tile.OnRightClick += e => OnV2KeyTileRightClick(tile, localIdx, e);
+            tile.OnTileDropped += source => OnV2KeyTileDrop(source, tile);
 
             Grid.SetColumn(tile, i % 3);
             Grid.SetRow(tile, i / 3);
@@ -1223,6 +1226,67 @@ public partial class ButtonsView
         e.Handled = true;
     }
 
+    /// <summary>
+    /// Drag-and-drop handler: swap the display-key + button config between
+    /// the source tile and the target tile. Blocked for the folder Back
+    /// slot (index 0 inside a Space) since it's virtual/read-only. Both
+    /// tiles must be on the current page since the `localIdx` payload is
+    /// relative to what's on screen.
+    /// </summary>
+    private void OnV2KeyTileDrop(StreamControllerTile source, StreamControllerTile target)
+    {
+        if (_config == null) return;
+        if (source.DragPayload is not int srcLocalIdx) return;
+        if (target.DragPayload is not int dstLocalIdx) return;
+        if (srcLocalIdx == dstLocalIdx) return;
+
+        // Block the auto Back key on either end.
+        if (InFolderContext && (srcLocalIdx == 0 || dstLocalIdx == 0)) return;
+
+        int folderSlotOffset = InFolderContext ? -1 : 0;
+        int srcGlobal = _scCurrentPage * StreamControllerKeysPerPage + srcLocalIdx + folderSlotOffset;
+        int dstGlobal = _scCurrentPage * StreamControllerKeysPerPage + dstLocalIdx + folderSlotOffset;
+
+        SwapV2DisplayKey(srcGlobal, dstGlobal);
+
+        // Keep the user's focus on whichever tile they dropped on —
+        // usually they want to edit the newly-arrived content next.
+        _scSelectedButtonIdx = StreamControllerDisplayKeyBase + dstGlobal;
+        LoadStreamControllerConfig();
+        RefreshV2LeftPanel();
+        RefreshV2RightPanel();
+        QueueSave();
+    }
+
+    /// <summary>
+    /// Swap display-key + button configs between two slots in the active
+    /// Space. Works by rewriting the Idx fields on the underlying records
+    /// so references from anywhere else stay consistent and the re-sync
+    /// to the device re-draws both slots.
+    /// </summary>
+    private void SwapV2DisplayKey(int srcGlobalIdx, int dstGlobalIdx)
+    {
+        if (_config == null) return;
+        var keys = GetActiveN3DisplayKeys();
+        var btns = GetActiveN3ButtonList();
+
+        var srcKey = keys.FirstOrDefault(k => k.Idx == srcGlobalIdx);
+        var dstKey = keys.FirstOrDefault(k => k.Idx == dstGlobalIdx);
+        var srcBtn = btns.FirstOrDefault(b => b.Idx == StreamControllerDisplayKeyBase + srcGlobalIdx);
+        var dstBtn = btns.FirstOrDefault(b => b.Idx == StreamControllerDisplayKeyBase + dstGlobalIdx);
+
+        // Ensure both slots have entries so the swap is symmetric.
+        if (srcKey == null) { srcKey = new StreamControllerDisplayKeyConfig { Idx = srcGlobalIdx }; keys.Add(srcKey); }
+        if (dstKey == null) { dstKey = new StreamControllerDisplayKeyConfig { Idx = dstGlobalIdx }; keys.Add(dstKey); }
+        if (srcBtn == null) { srcBtn = new ButtonConfig { Idx = StreamControllerDisplayKeyBase + srcGlobalIdx }; btns.Add(srcBtn); }
+        if (dstBtn == null) { dstBtn = new ButtonConfig { Idx = StreamControllerDisplayKeyBase + dstGlobalIdx }; btns.Add(dstBtn); }
+
+        srcKey.Idx = dstGlobalIdx;
+        dstKey.Idx = srcGlobalIdx;
+        srcBtn.Idx = StreamControllerDisplayKeyBase + dstGlobalIdx;
+        dstBtn.Idx = StreamControllerDisplayKeyBase + srcGlobalIdx;
+    }
+
     // ────────────────────────────────────────────────────────────────────────
     // Refresh — re-reads config and repaints all tiles.
     // ────────────────────────────────────────────────────────────────────────
@@ -1298,7 +1362,7 @@ public partial class ButtonsView
 
             // Compose a hash from fields the tile actually renders — skip
             // CreateHardwarePreview + tile.Refresh() when nothing changed.
-            string hash = $"{key.Title}|{key.ImagePath}|{key.PresetIconKind}|{key.TextPosition}|{key.TextSize}|{key.TextColor}|{key.IconColor}|{key.BackgroundColor}|{key.AccentColor}|{key.DisplayType}|{key.ClockFormat}|{key.DynamicStateSource}|{key.DynamicStateActiveIcon}|{key.DynamicStateActiveTitle}|{button?.Action}|{isSelected}";
+            string hash = $"{key.Title}|{key.ImagePath}|{key.PresetIconKind}|{key.TextPosition}|{key.TextSize}|{key.TextColor}|{key.IconColor}|{key.FontFamily}|{key.BackgroundColor}|{key.AccentColor}|{key.DisplayType}|{key.ClockFormat}|{key.DynamicStateSource}|{key.DynamicStateActiveIcon}|{key.DynamicStateActiveTitle}|{button?.Action}|{isSelected}";
             if (_v2KeyTileStateHash.TryGetValue(i, out var lastHash) && lastHash == hash)
                 continue;
 

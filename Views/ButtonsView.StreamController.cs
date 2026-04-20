@@ -2075,6 +2075,30 @@ public partial class ButtonsView
         return Actions.FirstOrDefault(a => a.Value == action).Display ?? action;
     }
 
+    /// <summary>
+    /// Curated list of font families the FONT picker offers for LCD key
+    /// titles. All are shipped with Windows 10/11 out of the box. Segoe
+    /// UI stays the default because it's what the rest of the app uses.
+    /// </summary>
+    private static readonly string[] StreamControllerFontPresets =
+    {
+        "Segoe UI",
+        "Segoe UI Semibold",
+        "Arial",
+        "Arial Black",
+        "Verdana",
+        "Tahoma",
+        "Calibri",
+        "Cambria",
+        "Consolas",
+        "Courier New",
+        "Georgia",
+        "Times New Roman",
+        "Trebuchet MS",
+        "Impact",
+        "Comic Sans MS",
+    };
+
     private static readonly (string Name, string Hex)[] TextColorPresets =
     {
         ("White",   "#FFFFFF"),
