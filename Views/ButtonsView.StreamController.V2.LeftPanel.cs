@@ -257,7 +257,23 @@ public partial class ButtonsView
             VerticalAlignment = VerticalAlignment.Center,
         });
         labelStack.Children.Add(nameRow);
-        int keyCount = folder.Buttons.Count(b => !string.IsNullOrEmpty(b.Action) && b.Action != "none");
+        // A slot counts as "assigned" if the user put ANY content on it —
+        // title, icon, or action. Counting only buttons with a non-none
+        // action missed keys that had display content but no action yet.
+        var assignedSlots = new HashSet<int>();
+        foreach (var k in folder.DisplayKeys)
+        {
+            if (!string.IsNullOrEmpty(k.Title) ||
+                !string.IsNullOrEmpty(k.ImagePath) ||
+                !string.IsNullOrEmpty(k.PresetIconKind))
+                assignedSlots.Add(k.Idx);
+        }
+        foreach (var b in folder.Buttons)
+        {
+            if (!string.IsNullOrEmpty(b.Action) && b.Action != "none")
+                assignedSlots.Add(b.Idx - StreamControllerDisplayKeyBase);
+        }
+        int keyCount = assignedSlots.Count;
         labelStack.Children.Add(new TextBlock
         {
             Text = $"{folder.PageCount} page{(folder.PageCount == 1 ? "" : "s")} · {keyCount} key{(keyCount == 1 ? "" : "s")} assigned",

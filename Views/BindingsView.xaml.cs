@@ -181,9 +181,17 @@ public class BindingsView : UserControl
         });
         _root.Children.Add(headerPanel);
 
-        // Interactive hardware device visualization
-        _hardwareWidget.LoadConfig(_config);
-        _root.Children.Add(_hardwareWidget);
+        // Interactive hardware device visualization — the widget only
+        // renders the 5-knob Turn Up device, so hide it entirely when
+        // the user has only the Stream Controller selected.
+        bool showTurnUpWidget = _config.HardwareMode is HardwareMode.TurnUpOnly
+                                                     or HardwareMode.DualMode
+                                                     or HardwareMode.Auto;
+        if (showTurnUpWidget)
+        {
+            _hardwareWidget.LoadConfig(_config);
+            _root.Children.Add(_hardwareWidget);
+        }
 
         // Render current profile first, then other profiles
         var profiles = new List<string> { _config.ActiveProfile };
@@ -356,40 +364,42 @@ public class BindingsView : UserControl
         headerGrid.Children.Add(actionRow);
         sectionContent.Children.Add(headerGrid);
 
-        // Knobs subsection label
-        sectionContent.Children.Add(MakeSectionLabel("KNOBS"));
-
-        // Knobs row
-        var knobsRow = new UniformGrid
+        // Turn Up rows (KNOBS + BUTTONS) only render when a Turn Up is
+        // part of the user's hardware mode — hidden for SC-only setups.
+        bool showTurnUpRows = _config?.HardwareMode is HardwareMode.TurnUpOnly
+                                                   or HardwareMode.DualMode
+                                                   or HardwareMode.Auto;
+        if (showTurnUpRows)
         {
-            Columns = 5,
-            Margin = new Thickness(0, 6, 0, 14)
-        };
+            sectionContent.Children.Add(MakeSectionLabel("KNOBS"));
 
-        for (int i = 0; i < 5; i++)
-        {
-            var knob = config.Knobs.FirstOrDefault(k => k.Idx == i) ?? new KnobConfig { Idx = i };
-            var light = config.Lights.FirstOrDefault(l => l.Idx == i);
-            knobsRow.Children.Add(BuildKnobCard(i, knob, capturedName, light));
+            var knobsRow = new UniformGrid
+            {
+                Columns = 5,
+                Margin = new Thickness(0, 6, 0, 14)
+            };
+            for (int i = 0; i < 5; i++)
+            {
+                var knob = config.Knobs.FirstOrDefault(k => k.Idx == i) ?? new KnobConfig { Idx = i };
+                var light = config.Lights.FirstOrDefault(l => l.Idx == i);
+                knobsRow.Children.Add(BuildKnobCard(i, knob, capturedName, light));
+            }
+            sectionContent.Children.Add(knobsRow);
+
+            sectionContent.Children.Add(MakeSectionLabel("BUTTONS"));
+
+            var buttonsRow = new UniformGrid
+            {
+                Columns = 5,
+                Margin = new Thickness(0, 6, 0, 0)
+            };
+            for (int i = 0; i < 5; i++)
+            {
+                var btn = config.Buttons.FirstOrDefault(b => b.Idx == i) ?? new ButtonConfig { Idx = i };
+                buttonsRow.Children.Add(BuildButtonCard(i, btn, capturedName));
+            }
+            sectionContent.Children.Add(buttonsRow);
         }
-        sectionContent.Children.Add(knobsRow);
-
-        // Buttons subsection label
-        sectionContent.Children.Add(MakeSectionLabel("BUTTONS"));
-
-        // Buttons row
-        var buttonsRow = new UniformGrid
-        {
-            Columns = 5,
-            Margin = new Thickness(0, 6, 0, 0)
-        };
-
-        for (int i = 0; i < 5; i++)
-        {
-            var btn = config.Buttons.FirstOrDefault(b => b.Idx == i) ?? new ButtonConfig { Idx = i };
-            buttonsRow.Children.Add(BuildButtonCard(i, btn, capturedName));
-        }
-        sectionContent.Children.Add(buttonsRow);
 
         // Stream Controller block — 2x3 LCD preview grid + 3 side buttons
         // + 3 encoder-press cards. Only rendered when the user has the
@@ -405,8 +415,7 @@ public class BindingsView : UserControl
     {
         if (_config == null) return false;
         return _config.HardwareMode is HardwareMode.StreamControllerOnly
-                                    or HardwareMode.DualMode
-                                    or HardwareMode.Auto;
+                                    or HardwareMode.DualMode;
     }
 
     /// <summary>
