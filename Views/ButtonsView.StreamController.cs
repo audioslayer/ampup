@@ -267,7 +267,7 @@ public partial class ButtonsView
         bannerRow.Children.Add(_scFolderBannerLabel);
         _scFolderBackToRootButton = new Button
         {
-            Content = "← Back to Root",
+            Content = "← Back to Home",
             Padding = new Thickness(10, 4, 10, 4),
             FontSize = 11,
             Cursor = Cursors.Hand,
@@ -1667,7 +1667,7 @@ public partial class ButtonsView
                 _scDisplayCaptions[i].Text = "Back (auto)";
                 _scDisplayCards[i].Opacity = 0.6;
                 _scDisplayCards[i].Cursor = Cursors.Arrow;
-                _scDisplayCards[i].ToolTip = "Automatic Back key — returns to root folder on press.";
+                _scDisplayCards[i].ToolTip = "Automatic Back key — returns to Home on press.";
                 continue;
             }
             _scDisplayCards[i].Opacity = 1.0;

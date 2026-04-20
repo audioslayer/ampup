@@ -371,7 +371,7 @@ public partial class ButtonsView
 
         var rootLabel = new TextBlock
         {
-            Text = "ROOT",
+            Text = "HOME",
             FontSize = 11,
             FontWeight = FontWeights.SemiBold,
             Margin = new Thickness(4, 0, 0, 0),
@@ -390,7 +390,7 @@ public partial class ButtonsView
             Cursor = Cursors.Hand,
             Background = System.Windows.Media.Brushes.Transparent,
             Child = rootContent,
-            ToolTip = "Back to root",
+            ToolTip = "Back to Home",
         };
         rootBtn.MouseEnter += (_, _) =>
         {
@@ -1108,7 +1108,7 @@ public partial class ButtonsView
                     tile.IsSelected = false;
                     tile.Opacity = 0.6;
                     tile.Cursor = Cursors.Arrow;
-                    tile.ToolTip = "Automatic Back key \u2014 returns to root folder on press.";
+                    tile.ToolTip = "Automatic Back key \u2014 returns to Home on press.";
                     tile.Refresh();
                     _v2KeyTileStateHash[i] = backHash;
                 }
