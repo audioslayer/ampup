@@ -313,39 +313,9 @@ public partial class ButtonsView
 
         PopulateV2ActionPickerItems();
 
-        // Seed favorites + recents from config.
-        if (_config != null)
-        {
-            _v2ActionPicker.SetFavorites(_config.N3.FavoriteActions);
-            _v2ActionPicker.SetRecents(_config.N3.RecentActions);
-        }
-
         // ── Event wiring ─────────────────────────────────────────────────
-
-        // User star-toggled an action — flip the entry in FavoriteActions.
-        _v2ActionPicker.OnToggleFavorite += (value) =>
-        {
-            if (_config == null || string.IsNullOrEmpty(value)) return;
-            var favs = _config.N3.FavoriteActions;
-            if (favs.Contains(value))
-                favs.Remove(value);
-            else
-                favs.Add(value);
-            _v2ActionPicker?.SetFavorites(favs);
-            QueueSave();
-        };
-
-        // User picked an action — push to front of recents (deduped, cap 8).
-        _v2ActionPicker.OnActionChosen += (value) =>
-        {
-            if (_config == null || string.IsNullOrEmpty(value)) return;
-            var recents = _config.N3.RecentActions;
-            recents.Remove(value);
-            recents.Insert(0, value);
-            while (recents.Count > 8) recents.RemoveAt(recents.Count - 1);
-            _v2ActionPicker?.SetRecents(recents);
-            QueueSave();
-        };
+        // Favorites + recents are intentionally removed from the picker UI
+        // so there is no per-action star toggle or recents row to wire up.
 
         // Selection changed — persist to the selected button + refresh
         // conditional sub-panels so Multi-Action / Toggle / Folder / etc.
@@ -566,12 +536,10 @@ public partial class ButtonsView
             // FillV2ActionPanel runs before config loads (ctor time), so the
             // picker starts empty. Repopulate only when a visibility-affecting
             // flag changes — not every refresh.
-            var cacheKey = $"{_config.HomeAssistant.Enabled}|{_config.Ambience.GoveeEnabled}|{_config.Obs.Enabled}|{_config.VoiceMeeter.Enabled}|{_config.Groups.Count}|{_config.N3.FavoriteActions.Count}|{string.Join(",", _config.N3.FavoriteActions)}|{string.Join(",", _config.N3.RecentActions)}";
+            var cacheKey = $"{_config.HomeAssistant.Enabled}|{_config.Ambience.GoveeEnabled}|{_config.Obs.Enabled}|{_config.VoiceMeeter.Enabled}|{_config.Groups.Count}";
             if (_v2ActionItemCacheKey != cacheKey)
             {
                 PopulateV2ActionPickerItems();
-                _v2ActionPicker.SetFavorites(_config.N3.FavoriteActions);
-                _v2ActionPicker.SetRecents(_config.N3.RecentActions);
                 _v2ActionItemCacheKey = cacheKey;
             }
 
