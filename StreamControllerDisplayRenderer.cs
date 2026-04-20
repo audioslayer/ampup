@@ -207,6 +207,11 @@ internal static class StreamControllerDisplayRenderer
             using var source = DrawingImage.FromFile(key.ImagePath);
             bitmap = RenderSourceToCanvasCover(source, canvas);
         }
+        else if (TryResolveCustomPackImagePath(key.PresetIconKind, out var customPackImagePath))
+        {
+            using var source = DrawingImage.FromFile(customPackImagePath);
+            bitmap = RenderSourceToCanvasCover(source, canvas);
+        }
         else if (TryParseMaterialIconKind(key.PresetIconKind, out var presetKind))
         {
             bitmap = RenderPresetIconCanvas(key, presetKind, canvas, title);
@@ -229,6 +234,29 @@ internal static class StreamControllerDisplayRenderer
             ApplyBrightness(bitmap, brightness);
 
         return bitmap;
+    }
+
+    private static bool TryResolveCustomPackImagePath(string? kind, out string imagePath)
+    {
+        imagePath = string.Empty;
+        if (string.IsNullOrWhiteSpace(kind))
+            return false;
+
+        if (!(kind.StartsWith("neon_", StringComparison.OrdinalIgnoreCase)
+            || kind.StartsWith("material_", StringComparison.OrdinalIgnoreCase)
+            || kind.StartsWith("retro_", StringComparison.OrdinalIgnoreCase)
+            || kind.StartsWith("synthwave_", StringComparison.OrdinalIgnoreCase)
+            || kind.StartsWith("cyber_", StringComparison.OrdinalIgnoreCase)))
+            return false;
+
+        var candidate = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Icons", kind + ".jpg");
+        if (File.Exists(candidate))
+        {
+            imagePath = candidate;
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>
