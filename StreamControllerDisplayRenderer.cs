@@ -419,6 +419,17 @@ internal static class StreamControllerDisplayRenderer
         using var _ = titleFont;
         using var textBrush = new DrawingBrush(textColor);
 
+        // Split on both Windows and Unix newlines; cap at 3 lines so long
+        // paragraphs don't run off the tile. Extra lines past 3 are joined
+        // onto the third line with an ellipsis suffix.
+        var lines = title.Replace("\r\n", "\n").Split('\n');
+        if (lines.Length > 3)
+        {
+            var truncated = new string[3];
+            Array.Copy(lines, 0, truncated, 0, 3);
+            lines = truncated;
+        }
+
         var format = new DrawingStringFormat
         {
             Alignment = DrawingStringAlignment.Center,
@@ -427,8 +438,9 @@ internal static class StreamControllerDisplayRenderer
             FormatFlags = System.Drawing.StringFormatFlags.NoWrap
         };
 
-        float titleH = graphics.MeasureString(title, titleFont).Height;
-        float totalH = titleH;
+        float lineH = graphics.MeasureString("Ag", titleFont).Height; // ascender+descender sample
+        float lineSpacing = 2f * scale;
+        float totalH = (lineH * lines.Length) + lineSpacing * Math.Max(0, lines.Length - 1);
         float pad = 4f * scale;
 
         float textY;
@@ -472,7 +484,14 @@ internal static class StreamControllerDisplayRenderer
                 break;
         }
 
-        graphics.DrawString(title, titleFont, textBrush, new DrawingRectangleF(2 * scale, textY, (size - 4 * scale), titleH), format);
+        // Draw each line centered horizontally, stacked vertically.
+        for (int li = 0; li < lines.Length; li++)
+        {
+            float lineY = textY + li * (lineH + lineSpacing);
+            graphics.DrawString(lines[li], titleFont, textBrush,
+                new DrawingRectangleF(2 * scale, lineY, size - 4 * scale, lineH),
+                format);
+        }
     }
 
     private static byte[] EncodeForDevice(DrawingImage image)

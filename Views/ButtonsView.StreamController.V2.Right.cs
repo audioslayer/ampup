@@ -175,7 +175,20 @@ public partial class ButtonsView
         }
 
         designContent.Children.Add(MakeEditorLabel("TITLE"));
-        if (_scTitleBox == null) _scTitleBox = MakeEditorTextBox("Display title");
+        if (_scTitleBox == null)
+        {
+            _scTitleBox = MakeEditorTextBox("Display title");
+            // Allow up to 3 lines of title text so users can break labels
+            // over multiple rows. Enter inserts a newline; the renderer
+            // splits on newline and stacks the lines vertically.
+            _scTitleBox.AcceptsReturn = true;
+            _scTitleBox.MaxLines = 3;
+            _scTitleBox.TextWrapping = TextWrapping.Wrap;
+            _scTitleBox.VerticalContentAlignment = VerticalAlignment.Top;
+            _scTitleBox.MinHeight = 36;
+            _scTitleBox.MaxLength = 120;
+            _scTitleBox.ToolTip = "Press Enter for a new line (up to 3 lines)";
+        }
         DetachFromParent(_scTitleBox);
         _scTitleBox.Visibility = Visibility.Visible;
         designContent.Children.Add(_scTitleBox);
