@@ -1757,6 +1757,20 @@ public partial class App : Application
         var knob = _config.N3.Knobs.FirstOrDefault(k => k.Idx == e.Index);
         if (knob == null) return;
 
+        // Stream Controller navigation targets — twist the encoder to
+        // cycle Spaces or pages. Discrete: one detent = one step, sign
+        // of the delta gives the direction.
+        if (knob.Target == "sc_space_cycle")
+        {
+            CycleN3Space(Math.Sign(e.Delta));
+            return;
+        }
+        if (knob.Target == "sc_page_cycle")
+        {
+            CycleN3Page(Math.Sign(e.Delta));
+            return;
+        }
+
         int current = knob.LastRawValue >= 0
             ? knob.LastRawValue
             : (int)Math.Round(StreamControllerKnobPositions[e.Index] * 1023f);
@@ -1765,6 +1779,49 @@ public partial class App : Application
         int next = Math.Clamp(current + (e.Delta * step), 0, 1023);
         StreamControllerKnobPositions[e.Index] = next / 1023f;
         ApplyKnobConfig(knob, next, N3KnobStateBase + e.Index, false);
+    }
+
+    /// <summary>
+    /// Step the active Space forward (+1) or back (-1). Order is:
+    /// Home → Folders[0] → Folders[1] → … → Home (wraps).
+    /// </summary>
+    private void CycleN3Space(int direction)
+    {
+        if (direction == 0 || _config == null) return;
+
+        // Build the ordered space list: Home sentinel + each folder.
+        var spaces = new List<string> { "" };
+        foreach (var f in _config.N3.Folders)
+            if (!string.IsNullOrEmpty(f.Name))
+                spaces.Add(f.Name);
+
+        if (spaces.Count <= 1) return; // no folders to cycle through
+
+        int currentIdx = spaces.IndexOf(_currentN3Folder ?? "");
+        if (currentIdx < 0) currentIdx = 0;
+        int nextIdx = ((currentIdx + direction) % spaces.Count + spaces.Count) % spaces.Count;
+
+        NavigateToN3Folder(spaces[nextIdx]);
+    }
+
+    /// <summary>
+    /// Step the current page forward (+1) or back (-1) within the active
+    /// Space. Wraps around at the ends.
+    /// </summary>
+    private void CycleN3Page(int direction)
+    {
+        if (direction == 0 || _config == null) return;
+
+        int pageCount = GetActivePageCount();
+        if (pageCount <= 1) return;
+
+        int current = _config.N3.CurrentPage;
+        int next = ((current + direction) % pageCount + pageCount) % pageCount;
+        if (next == current) return;
+
+        // Reuse HandleScPageChange so the page state + UI sync follow the
+        // same path as the button-driven sc_page_next / sc_page_prev flow.
+        HandleScPageChange(direction, absolute: false);
     }
 
     private void HandleN3VirtualButton(int idx, bool isDown)

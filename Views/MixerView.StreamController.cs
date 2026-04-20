@@ -263,6 +263,12 @@ public partial class MixerView
         picker.AddItem("Discord", "discord", "◉", Color.FromRgb(0x58, 0x65, 0xF2));
         picker.AddItem("Spotify", "spotify", "♪", Color.FromRgb(0x1D, 0xB9, 0x54));
         picker.AddItem("Chrome",  "chrome",  "◆", clrBlue);
+
+        // N3-only navigation targets — turning the knob cycles Spaces or
+        // pages instead of adjusting volume. Discrete: one detent = one step.
+        picker.AddCategory("Stream Controller");
+        picker.AddItem("Cycle Spaces", "sc_space_cycle", "⊞", clrTeal);
+        picker.AddItem("Cycle Pages",  "sc_page_cycle",  "▤", clrOrange);
     }
 
     private void LoadStreamControllerMixerConfig(AppConfig config)
