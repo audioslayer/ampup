@@ -144,16 +144,16 @@ public partial class ButtonsView
         // Choose Icon button next to the preview above.
         _v2CommonFieldsPanel = new StackPanel();
 
-        // Keep _scIconBox in the tree (visibility Collapsed) — existing
-        // load/save code references it. We just don't show it.
+        // _scIconBox still exists as a field because legacy load/save code
+        // writes its .Text property. It is NOT parented to any visible
+        // container — the preview image at the top of the panel already
+        // shows the icon, so the filename readout would just be noise.
         if (_scIconBox == null)
         {
             _scIconBox = MakeEditorTextBox("No icon selected");
             _scIconBox.IsReadOnly = true;
         }
         DetachFromParent(_scIconBox);
-        _scIconBox.Visibility = Visibility.Collapsed;
-        _v2CommonFieldsPanel.Children.Add(_scIconBox);
 
         var designContent = new StackPanel();
 
@@ -509,7 +509,7 @@ public partial class ButtonsView
         if (isLcd)
         {
             if (_scTitleBox != null) _scTitleBox.Visibility = Visibility.Visible;
-            if (_scIconBox != null) _scIconBox.Visibility = Visibility.Visible;
+            // _scIconBox intentionally stays hidden — see FillV2PreviewPanel.
             if (_scTextPositionPicker != null) _scTextPositionPicker.Visibility = Visibility.Visible;
             if (_scTextSizeSlider != null) _scTextSizeSlider.Visibility = Visibility.Visible;
             if (_scTextSizeLabel != null) _scTextSizeLabel.Visibility = Visibility.Visible;
