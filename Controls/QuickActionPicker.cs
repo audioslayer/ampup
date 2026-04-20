@@ -57,15 +57,17 @@ public class QuickActionPicker : Border
     private readonly Border _recentsSection;
     private readonly WrapPanel _recentsPanel;
     private readonly Border _categoriesSection;
-    private readonly WrapPanel _categoryChipBar;
-    private readonly WrapPanel _expandedItemsPanel;
+    private readonly StackPanel _categoryAccordion;
     private readonly Border _searchResultsSection;
     private readonly WrapPanel _searchResultsPanel;
     private readonly TextBlock _searchEmptyText;
 
-    private string? _expandedCategory;
+    // Per-category expanded state. Survives rebuilds so the user's open/closed
+    // choices stick while they're navigating the picker.
+    private readonly Dictionary<string, bool> _categoryExpanded = new(StringComparer.OrdinalIgnoreCase);
     private string _searchText = "";
     private bool _built;
+    private bool _firstCategoryAutoExpanded;
 
     // Category "palette" — icons + accent colors to make the chip bar feel lively
     private static readonly Dictionary<string, (MaterialIconKind? Icon, string Fallback, Color Color)> CategoryStyles = new(StringComparer.OrdinalIgnoreCase)
@@ -220,15 +222,13 @@ public class QuickActionPicker : Border
         (_recentsSection, _recentsPanel) = BuildSection("RECENT", MaterialIconKind.History);
         _root.Children.Add(_recentsSection);
 
-        // ── Categories ────────────────────────────────────────────
-        _categoryChipBar = new WrapPanel { Margin = new Thickness(0, 0, 0, 8) };
-        _expandedItemsPanel = new WrapPanel();
+        // ── Categories (accordion) ────────────────────────────────
+        _categoryAccordion = new StackPanel { Orientation = Orientation.Vertical };
 
         var catsHeader = BuildSectionHeader("BROWSE BY CATEGORY", MaterialIconKind.FormatListBulletedSquare);
         var catsInner = new StackPanel { Orientation = Orientation.Vertical };
         catsInner.Children.Add(catsHeader);
-        catsInner.Children.Add(_categoryChipBar);
-        catsInner.Children.Add(_expandedItemsPanel);
+        catsInner.Children.Add(_categoryAccordion);
 
         _categoriesSection = new Border
         {
@@ -311,7 +311,6 @@ public class QuickActionPicker : Border
     public virtual void ClearItems()
     {
         _items.Clear();
-        _expandedCategory = null;
         SelectedValue = "none";
         if (_built) RebuildAll();
     }
@@ -331,8 +330,7 @@ public class QuickActionPicker : Border
         UpdateSelectedDisplay();
         RebuildFavorites();
         RebuildRecents();
-        RebuildCategoryBar();
-        RebuildExpandedItems();
+        RebuildCategoryAccordion();
         RebuildVisibility();
     }
 
@@ -396,37 +394,284 @@ public class QuickActionPicker : Border
         }
     }
 
-    private void RebuildCategoryBar()
+    /// <summary>
+    /// Rebuild the accordion of collapsible category panels. Each panel has
+    /// a clickable header (icon + category name + chevron) that toggles
+    /// visibility of the action rows below. One category auto-expands on
+    /// first render so the picker isn't a wall of closed sections on load.
+    /// </summary>
+    private void RebuildCategoryAccordion()
     {
-        _categoryChipBar.Children.Clear();
+        _categoryAccordion.Children.Clear();
+
         var categories = _items.Select(i => i.Category)
             .Where(c => !string.IsNullOrEmpty(c))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        // Auto-select the first category so items are always visible by
-        // default — no "click to expand" discovery problem.
-        if (string.IsNullOrEmpty(_expandedCategory)
-            || !categories.Any(c => string.Equals(c, _expandedCategory, StringComparison.OrdinalIgnoreCase)))
+        // Auto-expand first category on first build so users see items
+        // without having to hunt for a disclosure.
+        if (!_firstCategoryAutoExpanded && categories.Count > 0)
         {
-            _expandedCategory = categories.FirstOrDefault();
+            _categoryExpanded[categories[0]] = true;
+            _firstCategoryAutoExpanded = true;
         }
 
         foreach (var cat in categories)
         {
-            _categoryChipBar.Children.Add(BuildCategoryPill(cat));
+            _categoryAccordion.Children.Add(BuildCategorySection(cat));
         }
     }
 
-    private void RebuildExpandedItems()
+    private Border BuildCategorySection(string category)
     {
-        _expandedItemsPanel.Children.Clear();
-        if (string.IsNullOrEmpty(_expandedCategory)) return;
+        bool expanded = _categoryExpanded.TryGetValue(category, out var e) && e;
 
-        foreach (var item in _items.Where(i => string.Equals(i.Category, _expandedCategory, StringComparison.OrdinalIgnoreCase)))
+        var headerStack = new StackPanel { Orientation = Orientation.Horizontal };
+        if (CategoryStyles.TryGetValue(category, out var style) && style.Icon is { } kind)
         {
-            _expandedItemsPanel.Children.Add(BuildChip(item, fromUserAction: true));
+            var badge = new Border
+            {
+                Width = 22, Height = 22,
+                CornerRadius = new CornerRadius(5),
+                Margin = new Thickness(0, 0, 10, 0),
+                Background = new SolidColorBrush(Color.FromArgb(0x22, style.Color.R, style.Color.G, style.Color.B)),
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = new MaterialIcon
+                {
+                    Kind = kind,
+                    Width = 14, Height = 14,
+                    Foreground = new SolidColorBrush(style.Color),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
+            };
+            headerStack.Children.Add(badge);
         }
+
+        var nameText = new TextBlock
+        {
+            Text = category,
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        nameText.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        headerStack.Children.Add(nameText);
+
+        var countText = new TextBlock
+        {
+            Text = $"  ({_items.Count(i => string.Equals(i.Category, category, StringComparison.OrdinalIgnoreCase))})",
+            FontSize = 10,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        countText.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        headerStack.Children.Add(countText);
+
+        var chevron = new TextBlock
+        {
+            Text = expanded ? "\u25BC" : "\u25B6",
+            FontSize = 9,
+            Margin = new Thickness(10, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        chevron.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+
+        var headerGrid = new Grid();
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(headerStack, 0);
+        Grid.SetColumn(chevron, 1);
+        headerGrid.Children.Add(headerStack);
+        headerGrid.Children.Add(chevron);
+
+        var headerRow = new Border
+        {
+            Padding = new Thickness(12, 10, 12, 10),
+            CornerRadius = new CornerRadius(8),
+            Cursor = Cursors.Hand,
+            Background = System.Windows.Media.Brushes.Transparent,
+            Child = headerGrid,
+        };
+        headerRow.MouseEnter += (_, _) => headerRow.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+        headerRow.MouseLeave += (_, _) => headerRow.Background = System.Windows.Media.Brushes.Transparent;
+
+        var itemsPanel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Margin = new Thickness(8, 4, 0, 6),
+            Visibility = expanded ? Visibility.Visible : Visibility.Collapsed,
+        };
+        foreach (var item in _items.Where(i => string.Equals(i.Category, category, StringComparison.OrdinalIgnoreCase)))
+        {
+            itemsPanel.Children.Add(BuildActionRow(item));
+        }
+
+        headerRow.MouseLeftButtonUp += (_, e) =>
+        {
+            bool current = _categoryExpanded.TryGetValue(category, out var v) && v;
+            _categoryExpanded[category] = !current;
+            itemsPanel.Visibility = !current ? Visibility.Visible : Visibility.Collapsed;
+            chevron.Text = !current ? "\u25BC" : "\u25B6";
+            e.Handled = true;
+        };
+
+        var sectionStack = new StackPanel { Orientation = Orientation.Vertical };
+        sectionStack.Children.Add(headerRow);
+        sectionStack.Children.Add(itemsPanel);
+
+        var section = new Border
+        {
+            Margin = new Thickness(0, 0, 0, 4),
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(1),
+            Child = sectionStack,
+        };
+        section.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+        section.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        return section;
+    }
+
+    /// <summary>
+    /// Wide row for an action inside an expanded category — icon + name +
+    /// star toggle + click to select. Replaces the old chip pill visually.
+    /// </summary>
+    private Border BuildActionRow(PickerItem item)
+    {
+        bool isSelected = string.Equals(item.Value, SelectedValue, StringComparison.Ordinal);
+        bool isFav = _favorites.Contains(item.Value);
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        // Colored icon badge.
+        var iconBadge = new Border
+        {
+            Width = 26, Height = 26,
+            CornerRadius = new CornerRadius(6),
+            Margin = new Thickness(0, 0, 10, 0),
+            Background = new SolidColorBrush(Color.FromArgb(0x22, item.Color.R, item.Color.G, item.Color.B)),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x44, item.Color.R, item.Color.G, item.Color.B)),
+        };
+        iconBadge.Child = BuildIconVisual(item.Icon, 14, new SolidColorBrush(item.Color));
+        Grid.SetColumn(iconBadge, 0);
+        grid.Children.Add(iconBadge);
+
+        // Name (+ tooltip as subtitle).
+        var textStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var nameText = new TextBlock
+        {
+            Text = item.Display,
+            FontSize = 12,
+            FontWeight = isSelected ? FontWeights.SemiBold : FontWeights.Normal,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        nameText.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        textStack.Children.Add(nameText);
+        if (!string.IsNullOrWhiteSpace(item.Tooltip) && item.Tooltip != item.Display)
+        {
+            var subText = new TextBlock
+            {
+                Text = item.Tooltip,
+                FontSize = 10,
+                Margin = new Thickness(0, 2, 0, 0),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            };
+            subText.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+            textStack.Children.Add(subText);
+        }
+        Grid.SetColumn(textStack, 1);
+        grid.Children.Add(textStack);
+
+        // Star toggle.
+        var star = new Button
+        {
+            Content = new MaterialIcon
+            {
+                Kind = isFav ? MaterialIconKind.Star : MaterialIconKind.StarOutline,
+                Width = 16, Height = 16,
+                Foreground = isFav
+                    ? new SolidColorBrush(ThemeManager.Accent)
+                    : (Brush)Application.Current.FindResource("TextDimBrush"),
+            },
+            Width = 30, Height = 30,
+            Padding = new Thickness(0),
+            Background = System.Windows.Media.Brushes.Transparent,
+            BorderBrush = System.Windows.Media.Brushes.Transparent,
+            Cursor = Cursors.Hand,
+            ToolTip = isFav ? "Unfavorite" : "Favorite",
+        };
+        star.Click += (_, e) =>
+        {
+            OnToggleFavorite?.Invoke(item.Value);
+            e.Handled = true;
+        };
+        Grid.SetColumn(star, 2);
+        grid.Children.Add(star);
+
+        var row = new Border
+        {
+            Padding = new Thickness(10, 8, 6, 8),
+            CornerRadius = new CornerRadius(6),
+            Cursor = Cursors.Hand,
+            Background = isSelected
+                ? new SolidColorBrush(Color.FromArgb(0x22, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B))
+                : System.Windows.Media.Brushes.Transparent,
+            BorderThickness = new Thickness(1),
+            BorderBrush = isSelected
+                ? new SolidColorBrush(ThemeManager.Accent)
+                : System.Windows.Media.Brushes.Transparent,
+            Margin = new Thickness(0, 0, 0, 2),
+            Child = grid,
+        };
+        row.MouseEnter += (_, _) =>
+        {
+            if (!isSelected)
+                row.Background = new SolidColorBrush(Color.FromArgb(0x14, item.Color.R, item.Color.G, item.Color.B));
+        };
+        row.MouseLeave += (_, _) =>
+        {
+            if (!isSelected)
+                row.Background = System.Windows.Media.Brushes.Transparent;
+        };
+        row.MouseLeftButtonUp += (_, e) =>
+        {
+            if (e.Handled) return;
+            SelectedValue = item.Value;
+            UpdateSelectedDisplay();
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+            OnActionChosen?.Invoke(item.Value);
+            RebuildAll();
+            e.Handled = true;
+        };
+        return row;
+    }
+
+    /// <summary>Render an icon string as either a MaterialIcon (if enum-parseable) or a TextBlock glyph.</summary>
+    private static UIElement BuildIconVisual(string icon, double size, Brush foreground)
+    {
+        if (!string.IsNullOrEmpty(icon) && Enum.TryParse<MaterialIconKind>(icon, out var kind))
+        {
+            return new MaterialIcon
+            {
+                Kind = kind,
+                Width = size, Height = size,
+                Foreground = foreground,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+        }
+        return new TextBlock
+        {
+            Text = string.IsNullOrEmpty(icon) ? "\u2022" : icon,
+            FontSize = size,
+            Foreground = foreground,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
     }
 
     private void RebuildSearchResults()
@@ -497,86 +742,6 @@ public class QuickActionPicker : Border
         header.Children.Add(lbl);
 
         return header;
-    }
-
-    private Border BuildCategoryPill(string category)
-    {
-        bool expanded = string.Equals(_expandedCategory, category, StringComparison.OrdinalIgnoreCase);
-        var style = CategoryStyles.GetValueOrDefault(category.ToUpperInvariant());
-        var accent = style.Icon.HasValue ? style.Color : ThemeManager.Accent;
-
-        var row = new StackPanel { Orientation = Orientation.Horizontal };
-
-        if (style.Icon.HasValue)
-        {
-            var ic = new MaterialIcon
-            {
-                Kind = style.Icon.Value,
-                Width = 12,
-                Height = 12,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 6, 0),
-                Foreground = new SolidColorBrush(accent),
-            };
-            row.Children.Add(ic);
-        }
-
-        var text = new TextBlock
-        {
-            Text = category.ToUpperInvariant(),
-            FontSize = 10,
-            FontWeight = FontWeights.SemiBold,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        text.SetResourceReference(TextBlock.ForegroundProperty, expanded ? "TextPrimaryBrush" : "TextSecBrush");
-        row.Children.Add(text);
-
-        var border = new Border
-        {
-            CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(10, 5, 10, 5),
-            Margin = new Thickness(0, 0, 6, 6),
-            BorderThickness = new Thickness(1),
-            Cursor = Cursors.Hand,
-            Child = row,
-        };
-
-        if (expanded)
-        {
-            border.Background = new SolidColorBrush(Color.FromArgb(0x24, accent.R, accent.G, accent.B));
-            border.BorderBrush = new SolidColorBrush(Color.FromArgb(0xC8, accent.R, accent.G, accent.B));
-        }
-        else
-        {
-            border.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
-            border.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-        }
-
-        border.MouseEnter += (_, _) =>
-        {
-            if (!string.Equals(_expandedCategory, category, StringComparison.OrdinalIgnoreCase))
-                border.BorderBrush = new SolidColorBrush(Color.FromArgb(0xA0, accent.R, accent.G, accent.B));
-        };
-        border.MouseLeave += (_, _) =>
-        {
-            if (!string.Equals(_expandedCategory, category, StringComparison.OrdinalIgnoreCase))
-                border.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-        };
-        border.MouseLeftButtonUp += (_, e) =>
-        {
-            // Categories act as filter tabs — clicking switches the list to
-            // that category, never collapses. Keeps one category always
-            // active so the items below never disappear unexpectedly.
-            if (!string.Equals(_expandedCategory, category, StringComparison.OrdinalIgnoreCase))
-            {
-                _expandedCategory = category;
-                RebuildCategoryBar();
-                RebuildExpandedItems();
-            }
-            e.Handled = true;
-        };
-
-        return border;
     }
 
     private Border BuildChip(PickerItem item, bool fromUserAction)
