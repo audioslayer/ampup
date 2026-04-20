@@ -183,11 +183,8 @@ public class BindingsView : UserControl
 
         // Interactive hardware device visualization — the widget only
         // renders the 5-knob Turn Up device, so hide it entirely when
-        // the user has only the Stream Controller selected.
-        bool showTurnUpWidget = _config.HardwareMode is HardwareMode.TurnUpOnly
-                                                     or HardwareMode.DualMode
-                                                     or HardwareMode.Auto;
-        if (showTurnUpWidget)
+        // the user's Active Surface isn't showing Turn Up.
+        if (ShouldShowTurnUpOverview())
         {
             _hardwareWidget.LoadConfig(_config);
             _root.Children.Add(_hardwareWidget);
@@ -364,12 +361,10 @@ public class BindingsView : UserControl
         headerGrid.Children.Add(actionRow);
         sectionContent.Children.Add(headerGrid);
 
-        // Turn Up rows (KNOBS + BUTTONS) only render when a Turn Up is
-        // part of the user's hardware mode — hidden for SC-only setups.
-        bool showTurnUpRows = _config?.HardwareMode is HardwareMode.TurnUpOnly
-                                                   or HardwareMode.DualMode
-                                                   or HardwareMode.Auto;
-        if (showTurnUpRows)
+        // Turn Up rows (KNOBS + BUTTONS) follow the Active Surface toggle
+        // — hidden when the user has picked Stream Controller as their
+        // surface, even if a Turn Up is physically connected.
+        if (ShouldShowTurnUpOverview())
         {
             sectionContent.Children.Add(MakeSectionLabel("KNOBS"));
 
@@ -411,11 +406,30 @@ public class BindingsView : UserControl
         return section;
     }
 
+    /// <summary>
+    /// Which surfaces to render on the Overview. Driven by:
+    ///   1. HardwareMode (hard gates — SC-only never shows Turn Up, etc.)
+    ///   2. Active Surface selection (PreferredSurface) when HardwareMode
+    ///      permits multiple devices.
+    /// </summary>
+    private bool ShouldShowTurnUpOverview()
+    {
+        if (_config == null) return false;
+        if (_config.HardwareMode == HardwareMode.StreamControllerOnly) return false;
+        if (_config.HardwareMode == HardwareMode.TurnUpOnly) return true;
+        // Auto / DualMode — follow the user's Active Surface preference.
+        var surface = _config.TabSelection.PreferredSurface;
+        return surface == DeviceSurface.TurnUp || surface == DeviceSurface.Both;
+    }
+
     private bool ShouldShowStreamControllerOverview()
     {
         if (_config == null) return false;
-        return _config.HardwareMode is HardwareMode.StreamControllerOnly
-                                    or HardwareMode.DualMode;
+        if (_config.HardwareMode == HardwareMode.TurnUpOnly) return false;
+        if (_config.HardwareMode == HardwareMode.StreamControllerOnly) return true;
+        // Auto / DualMode — follow the user's Active Surface preference.
+        var surface = _config.TabSelection.PreferredSurface;
+        return surface == DeviceSurface.StreamController || surface == DeviceSurface.Both;
     }
 
     /// <summary>
