@@ -78,19 +78,6 @@ public class StreamControllerTile : Border
             // Don't mark handled — consumer chooses
         };
 
-        // LCD tiles sit in a star-width Grid column so their width stretches
-        // with the chassis. Snap height to match the width so the tile is
-        // always a true square, letting the LCD preview fill the frame
-        // instead of floating in a wide rectangle with black side bars.
-        SizeChanged += (_, e) =>
-        {
-            if (Kind == TileKind.LcdKey && e.NewSize.Width > 0
-                && Math.Abs(Height - e.NewSize.Width) > 0.5)
-            {
-                Height = e.NewSize.Width;
-            }
-        };
-
         Refresh();
     }
 
@@ -104,12 +91,13 @@ public class StreamControllerTile : Border
         switch (Kind)
         {
             case TileKind.LcdKey:
-                // Tile is a true square — SizeChanged in the ctor binds
-                // Height to ActualWidth so the aspect matches a real N3 LCD
-                // no matter how wide the star-column parent stretches it.
-                // Seed with a reasonable minimum; the size handler takes over.
-                MinWidth = 120;
-                MinHeight = 120;
+                // Fixed square size — a real N3 LCD is ~60px so keep the
+                // on-screen mockup at a readable but hardware-proportional
+                // ~120px. Centered in star-width columns rather than stretched.
+                Width = 120;
+                Height = 120;
+                HorizontalAlignment = HorizontalAlignment.Center;
+                VerticalAlignment = VerticalAlignment.Center;
                 Padding = new Thickness(0);
                 Child = BuildLcdKeyContent();
                 break;
