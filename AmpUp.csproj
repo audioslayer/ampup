@@ -56,6 +56,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="Icons\*.jpg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="x64\iCUESDK.x64_2019.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>x64\iCUESDK.x64_2019.dll</Link>
