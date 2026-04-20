@@ -249,29 +249,21 @@ public partial class ButtonsView
     }
 
     /// <summary>
-    /// Builds an inline labeled options section (small uppercase header +
-    /// content) and re-hosts <paramref name="content"/> inside it. No card
-    /// chrome — these panels live inside the picker's OptionsHost so they
-    /// feel like they belong to the currently selected action.
+    /// Builds an inline wrapper around a legacy action-specific panel. No
+    /// outer label or card chrome — legacy panels already own their own
+    /// labels (DEVICE / PATH / MACRO / etc.), so adding a second label
+    /// above them would duplicate the header. The <paramref name="label"/>
+    /// parameter and <paramref name="headerLabel"/> out-value are kept for
+    /// API compatibility with callers that still call SetPathHeader; the
+    /// returned TextBlock is unparented and harmless.
     /// </summary>
     private Border MakeV2SectionCard(string label, out TextBlock headerLabel, UIElement? content)
     {
-        var stack = new StackPanel { Margin = new Thickness(0, 8, 0, 6) };
+        // Detached placeholder — preserves the out-param contract for
+        // legacy call sites (SetPathHeader) without rendering anything.
+        headerLabel = new TextBlock { Text = label };
 
-        var lbl = new TextBlock
-        {
-            Text = label.ToUpperInvariant(),
-            FontSize = 10,
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(2, 0, 0, 6),
-        };
-        lbl.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-        headerLabel = lbl;
-        stack.Children.Add(lbl);
-        // Track so theme-change refresh can still find it (MakeV2SectionLabel
-        // previously registered the accent-bar pair; we now register just the
-        // label with a null bar placeholder).
-        _v2SectionHeaders.Add((new Border(), lbl));
+        var stack = new StackPanel { Margin = new Thickness(0, 6, 0, 4) };
 
         if (content != null)
         {
@@ -284,10 +276,8 @@ public partial class ButtonsView
             stack.Children.Add(content);
         }
 
-        // Return a Border so the caller-visible API (`Border?`) doesn't
-        // change. The border itself is invisible — no bg, no border brush,
-        // no padding — it's just a thin wrapper around the stack so the
-        // existing SetCardVisible calls keep working.
+        // Invisible wrapper border keeps the `Border?` return type stable
+        // so existing SetCardVisible calls keep working.
         return new Border
         {
             BorderThickness = new Thickness(0),

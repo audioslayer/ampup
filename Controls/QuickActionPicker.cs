@@ -147,20 +147,10 @@ public class QuickActionPicker : Border
         _selectedDisplay.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
         _selectedDisplay.BorderThickness = new Thickness(1);
 
-        _root.Children.Add(_selectedDisplay);
-
-        // ── Action-specific options slot ───────────────────────────
-        // The tab-bar search icon toggles the search box below; the host
-        // for action-specific controls (device dropdown, macro textbox,
-        // path textbox etc.) lives right here so options feel attached to
-        // the currently selected action rather than floating below the
-        // picker as separate cards.
-        _optionsHost = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Margin = new Thickness(0, 0, 0, 10),
-        };
-        _root.Children.Add(_optionsHost);
+        // Build order below adds: [search box (collapsed)] → SELECTED →
+        // options host → (categories / search results). The tab-bar search
+        // icon flips the search box visible so it appears at the very top,
+        // right under the tab bar — before the SELECTED row.
 
         // ── Search box (collapsed by default) ─────────────────────
         _searchBoxHost = new Border
@@ -251,6 +241,18 @@ public class QuickActionPicker : Border
 
         _searchBoxHost.Child = searchGrid;
         _root.Children.Add(_searchBoxHost);
+
+        // SELECTED row under the search box.
+        _root.Children.Add(_selectedDisplay);
+
+        // Action-specific options slot — attached directly to the
+        // currently-selected action, no separate card chrome.
+        _optionsHost = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+        _root.Children.Add(_optionsHost);
 
         _searchBox.TextChanged += (_, _) =>
         {
