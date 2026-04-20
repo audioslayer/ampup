@@ -198,11 +198,15 @@ public partial class ButtonsView
         newBtn.Margin = new Thickness(0, 0, 0, 8);
         _v2FolderSectionContent.Children.Add(newBtn);
 
+        // Home always appears at the top — it's the default Space and is
+        // always present. Rename/Delete are hidden since it's permanent.
+        _v2FolderSectionContent.Children.Add(BuildV2HomeRow());
+
         if (_config.N3.Folders.Count == 0)
         {
             _v2FolderSectionContent.Children.Add(new TextBlock
             {
-                Text = "No Spaces yet. Create one above or right-click any key → Open as Space.",
+                Text = "No extra Spaces yet. Create one above or right-click any key → Open as Space.",
                 FontSize = 11,
                 Foreground = FindBrush("TextDimBrush"),
                 TextWrapping = TextWrapping.Wrap,
@@ -215,6 +219,110 @@ public partial class ButtonsView
         {
             _v2FolderSectionContent.Children.Add(BuildV2FolderRow(folder));
         }
+    }
+
+    /// <summary>
+    /// Row for the default "Home" Space — always present, can't be
+    /// renamed or deleted. Reads the root _config.N3 DisplayKeys/Buttons
+    /// for its count so it mirrors what's really there.
+    /// </summary>
+    private Border BuildV2HomeRow()
+    {
+        var row = new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12, 10, 12, 10),
+            Margin = new Thickness(0, 0, 0, 6),
+            BorderThickness = new Thickness(1),
+        };
+        row.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+        row.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+
+        // Active tint when the user is currently editing Home.
+        bool isActive = string.IsNullOrEmpty(_scActiveFolder);
+        if (isActive)
+        {
+            row.BorderBrush = new SolidColorBrush(Color.FromArgb(
+                0x88, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
+        }
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        // Name + key-count subtitle.
+        var labelStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var nameRow = new StackPanel { Orientation = Orientation.Horizontal };
+        nameRow.Children.Add(new MaterialIcon
+        {
+            Kind = MaterialIconKind.Home,
+            Width = 14, Height = 14,
+            Foreground = new SolidColorBrush(ThemeManager.Accent),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0),
+        });
+        nameRow.Children.Add(new TextBlock
+        {
+            Text = "Home",
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        if (isActive)
+        {
+            nameRow.Children.Add(new TextBlock
+            {
+                Text = "  ACTIVE",
+                FontSize = 9,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(ThemeManager.Accent),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(6, 1, 0, 0),
+            });
+        }
+        labelStack.Children.Add(nameRow);
+
+        var assignedSlots = new HashSet<int>();
+        foreach (var k in _config!.N3.DisplayKeys)
+        {
+            if (!string.IsNullOrEmpty(k.Title)
+                || !string.IsNullOrEmpty(k.Subtitle)
+                || !string.IsNullOrEmpty(k.ImagePath)
+                || !string.IsNullOrEmpty(k.PresetIconKind)
+                || k.DisplayType != DisplayKeyType.Normal)
+                assignedSlots.Add(k.Idx);
+        }
+        foreach (var b in _config.N3.Buttons)
+        {
+            if (b.Idx < StreamControllerDisplayKeyBase) continue;
+            if (b.Idx >= StreamControllerSideButtonBase) continue;
+            if (!string.IsNullOrEmpty(b.Action) && b.Action != "none")
+                assignedSlots.Add(b.Idx - StreamControllerDisplayKeyBase);
+        }
+        int keyCount = assignedSlots.Count;
+        int pageCount = Math.Max(1, _config.N3.PageCount);
+
+        labelStack.Children.Add(new TextBlock
+        {
+            Text = $"{pageCount} page{(pageCount == 1 ? "" : "s")} · {keyCount} key{(keyCount == 1 ? "" : "s")} assigned",
+            FontSize = 10,
+            Foreground = FindBrush("TextDimBrush"),
+            Margin = new Thickness(22, 2, 0, 0),
+        });
+        Grid.SetColumn(labelStack, 0);
+        grid.Children.Add(labelStack);
+
+        // Only Open — Home can't be renamed or deleted.
+        if (!isActive)
+        {
+            var openBtn = MakeEditorButton("Open", (_, _) => NavigateToFolderInEditor(""));
+            Grid.SetColumn(openBtn, 1);
+            grid.Children.Add(openBtn);
+        }
+
+        row.Child = grid;
+        return row;
     }
 
     private Border BuildV2FolderRow(ButtonFolderConfig folder)
