@@ -639,24 +639,27 @@ public partial class ButtonsView
             }
             BuildTextColorSwatches();
 
-            // ICON COLOR + GLOW COLOR rows only meaningful when a preset
-            // vector icon is in use — user bitmaps can't be tinted and the
-            // glow only renders on the preset-icon code path.
+            // ICON COLOR only matters for preset vector icons. The glow row
+            // also doubles as the fill picker for Solid display type so users
+            // keep one familiar color control instead of a separate concept.
             bool hasPresetIcon = !string.IsNullOrWhiteSpace(key.PresetIconKind)
                                  && string.IsNullOrWhiteSpace(key.ImagePath);
+            bool showGlowRow = hasPresetIcon || key.DisplayType == DisplayKeyType.Solid;
             if (_v2IconColorLabel != null)
                 _v2IconColorLabel.Visibility = hasPresetIcon ? Visibility.Visible : Visibility.Collapsed;
             if (_scIconColorSwatchPanel != null)
                 _scIconColorSwatchPanel.Visibility = hasPresetIcon ? Visibility.Visible : Visibility.Collapsed;
             if (_v2GlowColorLabel != null)
-                _v2GlowColorLabel.Visibility = hasPresetIcon ? Visibility.Visible : Visibility.Collapsed;
-            if (_scGlowColorSwatchPanel != null)
-                _scGlowColorSwatchPanel.Visibility = hasPresetIcon ? Visibility.Visible : Visibility.Collapsed;
-            if (hasPresetIcon)
             {
-                BuildIconColorSwatches();
-                BuildGlowColorSwatches();
+                _v2GlowColorLabel.Text = key.DisplayType == DisplayKeyType.Solid ? "SOLID COLOR" : "GLOW COLOR";
+                _v2GlowColorLabel.Visibility = showGlowRow ? Visibility.Visible : Visibility.Collapsed;
             }
+            if (_scGlowColorSwatchPanel != null)
+                _scGlowColorSwatchPanel.Visibility = showGlowRow ? Visibility.Visible : Visibility.Collapsed;
+            if (hasPresetIcon)
+                BuildIconColorSwatches();
+            if (showGlowRow)
+                BuildGlowColorSwatches();
         }
         else
         {

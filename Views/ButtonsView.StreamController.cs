@@ -584,8 +584,13 @@ public partial class ButtonsView
             if (_loading || _config == null) return;
             var key = GetSelectedDisplayKeyConfig();
             if (key != null && _scDisplayTypePicker.SelectedTag is DisplayKeyType dt)
+            {
                 key.DisplayType = dt;
+                if (dt == DisplayKeyType.Solid && !string.IsNullOrWhiteSpace(key.AccentColor))
+                    key.BackgroundColor = key.AccentColor;
+            }
             UpdateDisplayTypeVisibility();
+            BuildGlowColorSwatches();
             UpdateEditorPreviewOnly();
             QueueSave();
         };
@@ -2129,7 +2134,10 @@ public partial class ButtonsView
         _scGlowColorSwatchPanel.Children.Clear();
 
         var display = GetSelectedDisplayKeyConfig();
-        string currentHex = display?.AccentColor ?? "#00E676";
+        bool isSolid = display?.DisplayType == DisplayKeyType.Solid;
+        string currentHex = isSolid
+            ? (display?.BackgroundColor ?? display?.AccentColor ?? "#00E676")
+            : (display?.AccentColor ?? "#00E676");
 
         foreach (var (name, hex) in TextColorPresets)
         {
@@ -2150,7 +2158,10 @@ public partial class ButtonsView
             swatch.MouseLeftButtonDown += (_, _) =>
             {
                 if (display == null) return;
-                display.AccentColor = capturedHex;
+                if (isSolid)
+                    display.BackgroundColor = capturedHex;
+                else
+                    display.AccentColor = capturedHex;
                 BuildGlowColorSwatches();
                 UpdateEditorPreviewOnly();
                 QueueSave();
@@ -2158,8 +2169,11 @@ public partial class ButtonsView
             _scGlowColorSwatchPanel.Children.Add(swatch);
         }
 
-        bool isCustom = display?.AccentColor != null
-            && !TextColorPresets.Any(p => p.Hex.Equals(display.AccentColor, StringComparison.OrdinalIgnoreCase));
+        string activeHex = isSolid
+            ? (display?.BackgroundColor ?? "")
+            : (display?.AccentColor ?? "");
+        bool isCustom = !string.IsNullOrWhiteSpace(activeHex)
+            && !TextColorPresets.Any(p => p.Hex.Equals(activeHex, StringComparison.OrdinalIgnoreCase));
         var customSwatch = new Border
         {
             Width = 26, Height = 26,
@@ -2187,16 +2201,27 @@ public partial class ButtonsView
         {
             if (display == null) return;
             Color initial;
-            try { initial = (Color)ColorConverter.ConvertFromString(display.AccentColor ?? "#00E676"); }
+            try
+            {
+                initial = (Color)ColorConverter.ConvertFromString(
+                    isSolid ? (display.BackgroundColor ?? display.AccentColor ?? "#00E676")
+                            : (display.AccentColor ?? "#00E676"));
+            }
             catch { initial = Colors.Lime; }
             var dialog = new ColorPickerDialog(initial) { Owner = Window.GetWindow(this) };
             dialog.ColorChanged += c =>
             {
-                display.AccentColor = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+                if (isSolid)
+                    display.BackgroundColor = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+                else
+                    display.AccentColor = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
                 UpdateEditorPreviewOnly();
             };
             dialog.ShowDialog();
-            display.AccentColor = $"#{dialog.SelectedColor.R:X2}{dialog.SelectedColor.G:X2}{dialog.SelectedColor.B:X2}";
+            if (isSolid)
+                display.BackgroundColor = $"#{dialog.SelectedColor.R:X2}{dialog.SelectedColor.G:X2}{dialog.SelectedColor.B:X2}";
+            else
+                display.AccentColor = $"#{dialog.SelectedColor.R:X2}{dialog.SelectedColor.G:X2}{dialog.SelectedColor.B:X2}";
             BuildGlowColorSwatches();
             QueueSave();
         };
