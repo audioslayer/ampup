@@ -249,21 +249,42 @@ public partial class ButtonsView
     }
 
     /// <summary>
-    /// Builds an inline wrapper around a legacy action-specific panel. No
-    /// outer label or card chrome — legacy panels already own their own
-    /// labels (DEVICE / PATH / MACRO / etc.), so adding a second label
-    /// above them would duplicate the header. The <paramref name="label"/>
-    /// parameter and <paramref name="headerLabel"/> out-value are kept for
-    /// API compatibility with callers that still call SetPathHeader; the
-    /// returned TextBlock is unparented and harmless.
+    /// Inline wrapper around a legacy action-specific panel. Renders a
+    /// FOLDERS-style sub-header (accent bar + bold label) at the top, then
+    /// re-hosts the legacy content. The legacy panels bake their own small
+    /// "DEVICE" / "PATH" / etc. label as their first child, so we suppress
+    /// that first label when it matches our outer header to avoid a doubled
+    /// heading like "DEVICE / DEVICE".
     /// </summary>
     private Border MakeV2SectionCard(string label, out TextBlock headerLabel, UIElement? content)
     {
-        // Detached placeholder — preserves the out-param contract for
-        // legacy call sites (SetPathHeader) without rendering anything.
-        headerLabel = new TextBlock { Text = label };
+        var stack = new StackPanel { Margin = new Thickness(0, 10, 0, 4) };
 
-        var stack = new StackPanel { Margin = new Thickness(0, 6, 0, 4) };
+        // FOLDERS-style header — 3px accent bar + bold label.
+        var headerRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 0, 0, 8),
+        };
+        var bar = new Border
+        {
+            Width = 3,
+            CornerRadius = new CornerRadius(2),
+            Margin = new Thickness(0, 2, 10, 2),
+            Background = new SolidColorBrush(ThemeManager.Accent),
+        };
+        headerLabel = new TextBlock
+        {
+            Text = label.ToUpperInvariant(),
+            FontSize = 12,
+            FontWeight = FontWeights.Bold,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        headerLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        headerRow.Children.Add(bar);
+        headerRow.Children.Add(headerLabel);
+        stack.Children.Add(headerRow);
+        _v2SectionHeaders.Add((bar, headerLabel));
 
         if (content != null)
         {
@@ -273,17 +294,51 @@ public partial class ButtonsView
             if (content is FrameworkElement feChild)
                 feChild.Margin = new Thickness(0);
 
+            // Legacy panels prepend their own small uppercase label as the
+            // first TextBlock child. Hide it when it matches our outer
+            // header so we don't render the same word twice.
+            if (content is Panel innerPanel)
+                SuppressDuplicateLegacyLabel(innerPanel, label);
+
             stack.Children.Add(content);
         }
 
-        // Invisible wrapper border keeps the `Border?` return type stable
-        // so existing SetCardVisible calls keep working.
         return new Border
         {
             BorderThickness = new Thickness(0),
             Margin = new Thickness(0),
             Child = stack,
         };
+    }
+
+    /// <summary>
+    /// Collapse the first TextBlock child of <paramref name="panel"/> if its
+    /// text (case/whitespace insensitive) matches <paramref name="outerLabel"/>
+    /// or a small set of legacy aliases. Keeps the field alive so its
+    /// consumers (e.g. ApplyPathLabelAndButtons) can still mutate it.
+    /// </summary>
+    private static void SuppressDuplicateLegacyLabel(Panel panel, string outerLabel)
+    {
+        string norm(string s) => new string(s.Where(c => !char.IsWhiteSpace(c)).ToArray()).ToUpperInvariant();
+        string want = norm(outerLabel);
+
+        foreach (var child in panel.Children)
+        {
+            if (child is TextBlock tb)
+            {
+                var got = norm(tb.Text ?? "");
+                if (got == want
+                    || (want == "PATH" && (got == "FILE" || got == "APPLICATION" || got == "URL" || got == "PAGENUMBER"
+                                           || got == "PROCESSNAME" || got == "SERVICECALL" || got == "DEVICE/COLOR"
+                                           || got == "OBSSCENE" || got == "OBSSOURCE"
+                                           || got == "VOICEMEETERSTRIP" || got == "VOICEMEETERBUS")))
+                {
+                    tb.Visibility = Visibility.Collapsed;
+                }
+                // Only the very first TextBlock is the built-in header; stop after that.
+                return;
+            }
+        }
     }
 
     /// <summary>
