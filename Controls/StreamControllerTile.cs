@@ -155,11 +155,23 @@ public class StreamControllerTile : Border
         // Inner corner = outer(14) - border(2) = 12. Zero margin so the
         // inner edge is flush against the 2px border, keeping corners
         // visually aligned whether the border is transparent or accent.
+        //
+        // WPF's Border.ClipToBounds only clips to the rectangular bounds,
+        // not to CornerRadius — the child Image would otherwise render
+        // square edges that poke past the rounded corners. We set an
+        // explicit RectangleGeometry clip that tracks the preview's size
+        // so the image is actually rounded at the corners.
         var previewHost = new Border
         {
             CornerRadius = new CornerRadius(12),
             ClipToBounds = true,
             Margin = new Thickness(0),
+        };
+        previewHost.SizeChanged += (_, e) =>
+        {
+            previewHost.Clip = new RectangleGeometry(
+                new Rect(0, 0, e.NewSize.Width, e.NewSize.Height),
+                12, 12);
         };
         previewHost.SetResourceReference(BackgroundProperty, "BgDarkBrush");
 
