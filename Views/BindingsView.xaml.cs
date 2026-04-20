@@ -391,8 +391,195 @@ public class BindingsView : UserControl
         }
         sectionContent.Children.Add(buttonsRow);
 
+        // Stream Controller block — 2x3 LCD preview grid + 3 side buttons
+        // + 3 encoder-press cards. Only rendered when the user has the
+        // N3 enabled; hidden for pure Turn Up setups.
+        if (ShouldShowStreamControllerOverview())
+            sectionContent.Children.Add(BuildStreamControllerSection(config, capturedName));
+
         section.Child = sectionContent;
         return section;
+    }
+
+    private bool ShouldShowStreamControllerOverview()
+    {
+        if (_config == null) return false;
+        return _config.HardwareMode is HardwareMode.StreamControllerOnly
+                                    or HardwareMode.DualMode
+                                    or HardwareMode.Auto;
+    }
+
+    /// <summary>
+    /// Stream Controller (N3) overview — 6 LCD preview tiles in a 2×3
+    /// grid, then a row of 3 side buttons + 3 encoder-press cards. Uses
+    /// <see cref="StreamControllerDisplayRenderer.CreateEditorPreview"/>
+    /// so tiles get the crisp vector render, not the 60×60 device JPEG.
+    /// </summary>
+    private UIElement BuildStreamControllerSection(AppConfig config, string profileName)
+    {
+        var stack = new StackPanel { Margin = new Thickness(0, 14, 0, 0) };
+
+        stack.Children.Add(MakeSectionLabel("STREAM CONTROLLER KEYS"));
+
+        // LCD grid (2 rows × 3 cols) — iterate root-folder display keys.
+        var lcdGrid = new UniformGrid
+        {
+            Columns = 3, Rows = 2,
+            Margin = new Thickness(0, 6, 0, 14),
+        };
+        for (int i = 0; i < 6; i++)
+        {
+            var key = config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == i)
+                      ?? new StreamControllerDisplayKeyConfig { Idx = i };
+            var btnIdx = 100 + i; // StreamControllerDisplayKeyBase
+            var btn = config.N3.Buttons.FirstOrDefault(b => b.Idx == btnIdx);
+            lcdGrid.Children.Add(BuildStreamControllerLcdTile(i, key, btn, profileName));
+        }
+        stack.Children.Add(lcdGrid);
+
+        stack.Children.Add(MakeSectionLabel("STREAM CONTROLLER CONTROLS"));
+
+        // Side buttons (106-108) + encoder presses (109-111) in a single row.
+        var controlsRow = new UniformGrid
+        {
+            Columns = 6,
+            Margin = new Thickness(0, 6, 0, 0),
+        };
+        for (int i = 0; i < 3; i++)
+        {
+            int btnIdx = 106 + i; // N3SideButtonBase
+            var btn = config.N3.Buttons.FirstOrDefault(b => b.Idx == btnIdx)
+                      ?? new ButtonConfig { Idx = btnIdx };
+            var card = BuildButtonCard(i, btn, profileName);
+            // Swap the card's default "B{n}" label for something meaningful.
+            RelabelOverviewButtonCard(card, $"SB{i + 1}");
+            controlsRow.Children.Add(card);
+        }
+        for (int i = 0; i < 3; i++)
+        {
+            int btnIdx = 109 + i; // N3EncoderPressBase
+            var btn = config.N3.Buttons.FirstOrDefault(b => b.Idx == btnIdx)
+                      ?? new ButtonConfig { Idx = btnIdx };
+            var card = BuildButtonCard(i + 3, btn, profileName);
+            RelabelOverviewButtonCard(card, $"E{i + 1}");
+            controlsRow.Children.Add(card);
+        }
+        stack.Children.Add(controlsRow);
+
+        return stack;
+    }
+
+    /// <summary>
+    /// Small preview tile for one N3 LCD key in the overview. Renders the
+    /// configured design via the high-quality editor preview path, plus a
+    /// small action badge underneath (same style as the Turn Up button card).
+    /// </summary>
+    private UIElement BuildStreamControllerLcdTile(int slot,
+                                                    StreamControllerDisplayKeyConfig key,
+                                                    ButtonConfig? btn,
+                                                    string profileName)
+    {
+        bool hasContent = !string.IsNullOrWhiteSpace(key.Title)
+                          || !string.IsNullOrWhiteSpace(key.ImagePath)
+                          || !string.IsNullOrWhiteSpace(key.PresetIconKind);
+
+        var card = new Border
+        {
+            Background = (SolidColorBrush)FindResource("BgDarkBrush"),
+            BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(8),
+            Margin = new Thickness(4),
+            Cursor = Cursors.Hand,
+            Opacity = hasContent ? 1.0 : 0.5,
+        };
+        card.MouseEnter += (_, _) =>
+            card.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x80));
+        card.MouseLeave += (_, _) =>
+            card.BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush");
+        card.MouseLeftButtonDown += (_, _) => _onNavigateToButtons?.Invoke(profileName);
+
+        var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Stretch };
+
+        // Preview bitmap — clipped to a rounded rect to match the tile shape.
+        var previewHost = new Border
+        {
+            Height = 80,
+            Width = 80,
+            CornerRadius = new CornerRadius(8),
+            Margin = new Thickness(0, 0, 0, 6),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Background = new SolidColorBrush(Color.FromRgb(0x0A, 0x0A, 0x0A)),
+            ClipToBounds = true,
+        };
+        previewHost.SizeChanged += (_, e) =>
+            previewHost.Clip = new RectangleGeometry(new Rect(0, 0, e.NewSize.Width, e.NewSize.Height), 8, 8);
+
+        if (hasContent)
+        {
+            try
+            {
+                var img = new Image
+                {
+                    Source = StreamControllerDisplayRenderer.CreateEditorPreview(key, 160),
+                    Stretch = System.Windows.Media.Stretch.Uniform,
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    VerticalAlignment = VerticalAlignment.Stretch,
+                };
+                previewHost.Child = img;
+            }
+            catch { /* preview renderer failed — leave empty slot */ }
+        }
+        stack.Children.Add(previewHost);
+
+        // Slot label ("K1", "K2", ...).
+        stack.Children.Add(new TextBlock
+        {
+            Text = $"K{slot + 1}",
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Foreground = (SolidColorBrush)FindResource("TextDimBrush"),
+        });
+
+        // Action summary.
+        string actionKey = btn?.Action ?? "none";
+        string actionLabel = ActionDisplayNames.TryGetValue(actionKey, out var d) ? d : actionKey;
+        stack.Children.Add(new TextBlock
+        {
+            Text = hasContent ? actionLabel : "Empty",
+            FontSize = 10,
+            Margin = new Thickness(0, 2, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxWidth = 90,
+            Foreground = (SolidColorBrush)FindResource(hasContent ? "TextSecBrush" : "TextDimBrush"),
+        });
+
+        card.Child = stack;
+        return card;
+    }
+
+    /// <summary>
+    /// BuildButtonCard hard-codes a "B{idx+1}" label for Turn Up buttons.
+    /// For the N3 overview we want "SB1"/"E1" labels instead — swap the
+    /// first TextBlock in the first row's StackPanel after the card is built.
+    /// </summary>
+    private static void RelabelOverviewButtonCard(UIElement cardElement, string newLabel)
+    {
+        if (cardElement is not Border card) return;
+        if (card.Child is not StackPanel content) return;
+        if (content.Children.Count == 0) return;
+        if (content.Children[0] is not StackPanel titleRow) return;
+        foreach (var child in titleRow.Children)
+        {
+            if (child is TextBlock tb)
+            {
+                tb.Text = newLabel;
+                return;
+            }
+        }
     }
 
     private static Border MakeAccentButton(string text, string tooltip, Color accent)
