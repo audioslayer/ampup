@@ -197,6 +197,14 @@ public class ButtonFolderConfig
     public List<ButtonConfig> Buttons { get; set; } = new();
     /// <summary>Pages inside this folder (0-based, default 1 page).</summary>
     public int PageCount { get; set; } = 1;
+    /// <summary>
+    /// When true (default), page 0 reserves slot 0 for an auto-generated
+    /// Back key — pressing it returns to Home. When false, no Back key is
+    /// rendered and all 6 slots show the user's own keys; the user can
+    /// wire any key's action to "sc_page_home" or similar for their own
+    /// back behavior.
+    /// </summary>
+    public bool BackKeyEnabled { get; set; } = true;
 }
 
 public class DeviceColorEntry

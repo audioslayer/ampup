@@ -1661,9 +1661,10 @@ public partial class ButtonsView
 
         for (int i = 0; i < 6; i++)
         {
-            // In a folder, editor slot 0 previews the auto Back key (read-only)
-            // and slots 1-5 map to folder keys 0-4 for that page.
-            if (InFolderContext && i == 0)
+            // When BackKeyEnabled, slot 0 on page 0 previews the auto Back
+            // key and slots 1-5 map to folder keys 0-4. When disabled, all
+            // 6 slots map straight to folder keys 0-5.
+            if (IsBackKeyShown && i == 0)
             {
                 var backKey = App.BuildBackKeyDisplay();
                 _scDisplayImages[i].Source = StreamControllerDisplayRenderer.CreateHardwarePreview(backKey);
@@ -1677,7 +1678,7 @@ public partial class ButtonsView
             _scDisplayCards[i].Cursor = Cursors.Hand;
             _scDisplayCards[i].ToolTip = null;
 
-            int folderSlotOffset = InFolderContext ? -1 : 0;
+            int folderSlotOffset = IsBackKeyShown ? -1 : 0;
             int globalIdx = _scCurrentPage * StreamControllerKeysPerPage + i + folderSlotOffset;
             var key = activeKeys.FirstOrDefault(k => k.Idx == globalIdx) ?? new StreamControllerDisplayKeyConfig { Idx = globalIdx };
             _scDisplayImages[i].Source = StreamControllerDisplayRenderer.CreateHardwarePreview(key);

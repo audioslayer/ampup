@@ -2292,6 +2292,12 @@ public partial class App : Application
 
     private bool IsInFolder => !string.IsNullOrEmpty(_currentN3Folder);
 
+    private ButtonFolderConfig? GetActiveFolder()
+    {
+        if (_config == null || string.IsNullOrEmpty(_currentN3Folder)) return null;
+        return _config.N3.Folders.FirstOrDefault(f => f.Name == _currentN3Folder);
+    }
+
     /// <summary>
     /// Navigate into a named folder. Empty string returns to root. Resets page
     /// to 0 and re-syncs the LCD displays.
@@ -2357,20 +2363,26 @@ public partial class App : Application
         int pageOffset = _config.N3.CurrentPage * 6;
         var activeKeys = GetActiveDisplayKeys();
 
+        // Respect the folder's BackKeyEnabled flag — when disabled, skip the
+        // virtual Back render on page 0 slot 0 and fall through to normal
+        // key mapping (slot i -> idx i on page 0).
+        bool showBackKey = inFolder && (GetActiveFolder()?.BackKeyEnabled ?? true)
+                           && _config.N3.CurrentPage == 0;
+
         var ops = new List<(int slot, System.Drawing.Bitmap? bitmap)>(N3Controller.DisplayKeyCount);
 
         for (int i = 0; i < N3Controller.DisplayKeyCount; i++)
         {
             try
             {
-                if (inFolder && i == 0)
+                if (showBackKey && i == 0)
                 {
                     var backKey = BuildBackKeyDisplay();
                     ops.Add((i, StreamControllerDisplayRenderer.ComposeDeviceBitmap(backKey)));
                     continue;
                 }
 
-                int folderLocalIdx = inFolder ? pageOffset + (i - 1) : pageOffset + i;
+                int folderLocalIdx = showBackKey ? pageOffset + (i - 1) : pageOffset + i;
                 var key = activeKeys.FirstOrDefault(k => k.Idx == folderLocalIdx);
                 if (key == null)
                 {

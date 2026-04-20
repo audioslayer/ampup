@@ -1206,9 +1206,9 @@ public partial class ButtonsView
     private void OnV2KeyTileClick(int localIdx)
     {
         // In folder context, slot 0 is the reserved (auto) Back key — read-only.
-        if (InFolderContext && localIdx == 0) return;
+        if (IsBackKeyShown && localIdx == 0) return;
 
-        int folderSlotOffset = InFolderContext ? -1 : 0;
+        int folderSlotOffset = IsBackKeyShown ? -1 : 0;
         int globalIdx = _scCurrentPage * StreamControllerKeysPerPage + localIdx + folderSlotOffset;
         int buttonIdx = StreamControllerDisplayKeyBase + globalIdx;
         SelectStreamControllerItem(new StreamControllerSelection(
@@ -1219,12 +1219,48 @@ public partial class ButtonsView
 
     private void OnV2KeyTileRightClick(StreamControllerTile tile, int localIdx, MouseButtonEventArgs e)
     {
-        if (InFolderContext && localIdx == 0) { e.Handled = true; return; }
-        int folderSlotOffset = InFolderContext ? -1 : 0;
+        if (IsBackKeyShown && localIdx == 0)
+        {
+            ShowBackKeyContextMenu(tile);
+            e.Handled = true;
+            return;
+        }
+        int folderSlotOffset = IsBackKeyShown ? -1 : 0;
         int globalIdx = _scCurrentPage * StreamControllerKeysPerPage + localIdx + folderSlotOffset;
         ShowKeyContextMenu(tile, globalIdx);
         e.Handled = true;
     }
+
+    /// <summary>
+    /// Right-click menu for the auto Back key. Only offers "Remove Back
+    /// Key" — positioning Back at other slots isn't supported; the key
+    /// always renders at slot 0 of page 0 when enabled.
+    /// </summary>
+    private void ShowBackKeyContextMenu(StreamControllerTile tile)
+    {
+        var folder = ActiveFolder;
+        if (folder == null) return;
+
+        var items = new List<GlassMenuItem>
+        {
+            new("Remove Back Key",
+                Material.Icons.MaterialIconKind.TrashCanOutline,
+                () =>
+                {
+                    folder.BackKeyEnabled = false;
+                    _v2KeyTileStateHash.Clear();
+                    RefreshV2LeftPanel();
+                    QueueSave();
+                    (Application.Current as App)?.NavigateToN3Folder(_scActiveFolder);
+                },
+                IsDanger: true),
+        };
+        GlassContextMenuHost.Show(tile, items);
+    }
+
+    /// <summary>Accessors for the page layout — respect BackKeyEnabled for the active folder.</summary>
+    private bool IsBackKeyShown
+        => InFolderContext && _scCurrentPage == 0 && (ActiveFolder?.BackKeyEnabled ?? true);
 
     /// <summary>
     /// Drag-and-drop handler: swap the display-key + button config between
@@ -1241,9 +1277,9 @@ public partial class ButtonsView
         if (srcLocalIdx == dstLocalIdx) return;
 
         // Block the auto Back key on either end.
-        if (InFolderContext && (srcLocalIdx == 0 || dstLocalIdx == 0)) return;
+        if (IsBackKeyShown && (srcLocalIdx == 0 || dstLocalIdx == 0)) return;
 
-        int folderSlotOffset = InFolderContext ? -1 : 0;
+        int folderSlotOffset = IsBackKeyShown ? -1 : 0;
         int srcGlobal = _scCurrentPage * StreamControllerKeysPerPage + srcLocalIdx + folderSlotOffset;
         int dstGlobal = _scCurrentPage * StreamControllerKeysPerPage + dstLocalIdx + folderSlotOffset;
 
@@ -1326,14 +1362,15 @@ public partial class ButtonsView
 
         var activeKeys = GetActiveN3DisplayKeys();
         var activeButtons = GetActiveN3ButtonList();
-        int folderSlotOffset = InFolderContext ? -1 : 0;
+        int folderSlotOffset = IsBackKeyShown ? -1 : 0;
 
         for (int i = 0; i < _v2KeyTiles.Count; i++)
         {
             var tile = _v2KeyTiles[i];
 
-            // In a folder, slot 0 previews the auto Back key (read-only).
-            if (InFolderContext && i == 0)
+            // When Back is enabled in the active Space, slot 0 on page 0
+            // previews the auto Back key (right-click to remove it).
+            if (IsBackKeyShown && i == 0)
             {
                 string backHash = "back|selected=false";
                 if (!_v2KeyTileStateHash.TryGetValue(i, out var prevHash) || prevHash != backHash)
@@ -1343,9 +1380,9 @@ public partial class ButtonsView
                     tile.Title = "Back";
                     tile.Subtitle = "Auto";
                     tile.IsSelected = false;
-                    tile.Opacity = 0.6;
-                    tile.Cursor = Cursors.Arrow;
-                    tile.ToolTip = "Automatic Back key \u2014 returns to Home on press.";
+                    tile.Opacity = 0.85;
+                    tile.Cursor = Cursors.Hand;
+                    tile.ToolTip = "Automatic Back key \u2014 right-click to remove.";
                     tile.Refresh();
                     _v2KeyTileStateHash[i] = backHash;
                 }
