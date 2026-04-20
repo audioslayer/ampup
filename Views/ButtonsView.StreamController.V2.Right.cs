@@ -233,7 +233,40 @@ public partial class ButtonsView
             designContent.Children.Add(_scDynamicPanel);
         }
 
-        _v2CommonFieldsPanel.Children.Add(MakeV2CommonFieldCard("DESIGN", designContent));
+        // Standalone DESIGN header above the card (mirrors ACTION below).
+        var designHeaderRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+        designHeaderRow.Children.Add(new Border
+        {
+            Width = 3,
+            CornerRadius = new CornerRadius(2),
+            Margin = new Thickness(0, 0, 8, 0),
+            Background = new SolidColorBrush(ThemeManager.Accent),
+        });
+        designHeaderRow.Children.Add(new TextBlock
+        {
+            Text = "DESIGN",
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        _v2CommonFieldsPanel.Children.Add(designHeaderRow);
+
+        var designCard = new Border
+        {
+            CornerRadius = new CornerRadius(10),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(14),
+            Margin = new Thickness(0, 0, 0, 12),
+            Child = designContent,
+        };
+        designCard.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        designCard.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        _v2CommonFieldsPanel.Children.Add(designCard);
 
         _v2PreviewPanel.Children.Add(_v2CommonFieldsPanel);
     }
