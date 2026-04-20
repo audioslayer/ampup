@@ -153,42 +153,28 @@ public partial class App : Application
             if (mode != "static" && mode != "dreamview")
                 _corsairSync.SyncColors(frame);
         };
-        if (_config.Corsair.Enabled)
-            _corsairSync.Start();
-
-        // LG UltraGear monitor LED sync
+        // Corsair SDK init moved to InitializeHardwareDeferred — it can
+        // block for hundreds of ms hunting for the iCUE service.
+        // Corsair / LG / N3 hardware probes all do blocking HID enumeration
+        // or SDK init that can take several hundred ms. Create the backend
+        // objects synchronously (fast — just `new`) and defer the actual
+        // device-finding to InitializeHardwareDeferred() which runs after
+        // the main window shows so startup feels instant.
         _lgMonitor = new LgMonitorSync();
-        if (_lgMonitor.TryConnect())
+        _rgb.OnFrameReady += frame =>
         {
-            Logger.Log($"LG Monitor: {_lgMonitor.DeviceName} — {_lgMonitor.LedCountValue} LEDs");
-            // Sync Turn Up knob LED frames to LG monitor
-            // Only when "Link to Room" is active (knob LEDs → room devices)
-            // Otherwise, room effects send via OnRoomFrame in RoomView
-            _rgb.OnFrameReady += frame =>
-            {
-                if (_lgMonitor?.IsAvailable != true) return;
-                if (!_config.Ambience.LinkToLights) return;
-                _lgMonitor.SyncFromRoomEffect(frame);
-            };
-        }
+            if (_lgMonitor?.IsAvailable != true) return;
+            if (!_config.Ambience.LinkToLights) return;
+            _lgMonitor.SyncFromRoomEffect(frame);
+        };
 
-        // TreasLin / VSDinside N3 HID bring-up
         _n3 = new N3Controller();
         _n3.OnInput += HandleN3Input;
-        _isN3Connected = _n3.TryConnect();
-        _n3DeviceName = _isN3Connected ? _n3.DeviceName : null;
 
         // Let the display renderer resolve dynamic-state sources without
         // taking a hard dependency on OBS / AudioMixer.
         StreamControllerDisplayRenderer.DynamicStateResolver =
             source => DynamicKeyStateProvider.IsActive(source, _obs, _mixer);
-
-        if (_isN3Connected)
-        {
-            Logger.Log("N3: native HID bring-up active");
-            _n3.SetBrightness((byte)Math.Clamp(_config.N3.DisplayBrightness, 0, 100));
-            SyncStreamControllerDisplays();
-        }
 
         StartStreamControllerRefreshTimer();
 
@@ -221,8 +207,8 @@ public partial class App : Application
                 _corsairSync.SyncColors(boosted);
             }
         };
-        if (_config.Ambience.ScreenSync.Enabled)
-            _dreamSync.Start();
+        // Screen Sync init is deferred too — it grabs screen buffers and
+        // kicks off a capture thread, which can stall the UI on first run.
 
         _buttons.OnProfileSwitch += HandleProfileSwitch;
         _buttons.OnDeviceSwitched += HandleDeviceSwitched;
@@ -385,6 +371,14 @@ public partial class App : Application
             _mainWindow.SetConnectionStatus(true, _serial.Port?.PortName);
         _mainWindow.SetN3ConnectionStatus(_isN3Connected, _n3DeviceName);
         UpdateAggregateTrayStatus();
+
+        // Hardware device probes (Corsair / LG / N3 / Screen Sync) run here
+        // at the lowest dispatcher priority so the main window finishes its
+        // first layout + render pass before we burn any cycles on HID
+        // enumeration or SDK init. Keeps the launch feel instant.
+        Dispatcher.BeginInvoke(
+            new Action(InitializeHardwareDeferred),
+            System.Windows.Threading.DispatcherPriority.ApplicationIdle);
 
         // Welcome dialog — show on first run OR when version changes (update)
         var currentVersion = UpdateChecker.CurrentVersion;
@@ -2026,6 +2020,80 @@ public partial class App : Application
     /// need a redraw at least once per minute; DynamicState keys benefit from ~5s polling
     /// for OBS recording/streaming and mute states.
     /// </summary>
+    /// <summary>
+    /// Runs post-show at ApplicationIdle priority so the main window has
+    /// rendered before we touch slow hardware-probing work. Handles
+    /// Corsair iCUE connect, LG monitor HID open, N3 HID open + initial
+    /// display sync, and Screen Sync capture start. Each step runs on a
+    /// background task where possible; UI-thread-only work (LCD display
+    /// render) dispatches back for just that step.
+    /// </summary>
+    private void InitializeHardwareDeferred()
+    {
+        // Corsair — SDK init can stall for a few hundred ms if iCUE is
+        // sleeping. Run it on a background thread so we don't block.
+        if (_config.Corsair.Enabled)
+        {
+            _ = Task.Run(() =>
+            {
+                try { _corsairSync?.Start(); }
+                catch (Exception ex) { Logger.Log($"CorsairSync start failed: {ex.Message}"); }
+            });
+        }
+
+        // LG UltraGear monitor — HID enumeration on a background thread.
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                if (_lgMonitor != null && _lgMonitor.TryConnect())
+                    Logger.Log($"LG Monitor: {_lgMonitor.DeviceName} — {_lgMonitor.LedCountValue} LEDs");
+            }
+            catch (Exception ex) { Logger.Log($"LgMonitor TryConnect failed: {ex.Message}"); }
+        });
+
+        // N3 stream controller — HID enumeration + device init. After a
+        // successful connect, dispatch the initial display sync back to
+        // the UI thread (SyncStreamControllerDisplays already moves the
+        // JPEG encode + HID writes to a Task internally).
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                bool ok = _n3 != null && _n3.TryConnect();
+                if (!ok) return;
+
+                _isN3Connected = true;
+                _n3DeviceName = _n3!.DeviceName;
+                Logger.Log("N3: native HID bring-up active");
+                _n3.SetBrightness((byte)Math.Clamp(_config.N3.DisplayBrightness, 0, 100));
+
+                Dispatcher.BeginInvoke(() =>
+                {
+                    try
+                    {
+                        _mainWindow?.SetN3ConnectionStatus(true, _n3DeviceName);
+                        UpdateAggregateTrayStatus();
+                        SyncStreamControllerDisplays();
+                    }
+                    catch (Exception ex) { Logger.Log($"N3 post-connect UI update failed: {ex.Message}"); }
+                });
+            }
+            catch (Exception ex) { Logger.Log($"N3 TryConnect failed: {ex.Message}"); }
+        });
+
+        // Screen Sync — defer capture-thread kickoff (it grabs monitor
+        // buffers on first frame which can briefly block).
+        if (_config.Ambience.ScreenSync.Enabled)
+        {
+            _ = Task.Run(() =>
+            {
+                try { _dreamSync?.Start(); }
+                catch (Exception ex) { Logger.Log($"DreamSync start failed: {ex.Message}"); }
+            });
+        }
+    }
+
     private void StartStreamControllerRefreshTimer()
     {
         if (_streamControllerRefreshTimer != null) return;
