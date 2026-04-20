@@ -43,6 +43,10 @@ public partial class ButtonsView
     // key/button config.
     private TextBox? _v2HeaderBox;
 
+    // ICON COLOR label tracker — shown only when the selected key uses a
+    // preset vector icon (bitmap images cannot be tinted).
+    private TextBlock? _v2IconColorLabel;
+
     // Cache key for the action picker item set. Repopulate only when any
     // integration-enabled flag flips — otherwise every RefreshV2RightPanel
     // (fired per config save, debounced 300 ms) would churn 40+ AddItem
@@ -219,6 +223,20 @@ public partial class ButtonsView
         _scTextColorSwatchPanel.Margin = new Thickness(0, 0, 0, 0);
         _scTextColorSwatchPanel.Visibility = Visibility.Visible;
         designContent.Children.Add(_scTextColorSwatchPanel);
+
+        // ICON COLOR swatches — only meaningful when a preset vector icon
+        // is in use. Hidden at build time; RefreshV2RightPanel shows it
+        // when the selected key has a PresetIconKind (not a user bitmap).
+        var iconColorLabel = MakeEditorLabel("ICON COLOR");
+        iconColorLabel.Margin = new Thickness(0, 10, 0, 4);
+        designContent.Children.Add(iconColorLabel);
+        if (_scIconColorSwatchPanel == null) _scIconColorSwatchPanel = new WrapPanel();
+        DetachFromParent(_scIconColorSwatchPanel);
+        _scIconColorSwatchPanel.Margin = new Thickness(0, 0, 0, 0);
+        designContent.Children.Add(_scIconColorSwatchPanel);
+        // Track the label alongside the swatch panel so RefreshV2RightPanel
+        // can toggle both together.
+        _v2IconColorLabel = iconColorLabel;
 
         if (_scClockPanel != null)
         {
@@ -496,7 +514,7 @@ public partial class ButtonsView
             var key = GetSelectedDisplayKeyConfig()
                       ?? new StreamControllerDisplayKeyConfig { Idx = selection.DisplayIdx!.Value };
             if (_scEditorPreview != null)
-                _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateHardwarePreview(key);
+                _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateEditorPreview(key, 360);
 
             if (_scTitleBox != null)
                 _scTitleBox.Text = key.Title;
@@ -520,6 +538,16 @@ public partial class ButtonsView
                 };
             }
             BuildTextColorSwatches();
+
+            // ICON COLOR row visible only when a preset vector icon is in
+            // use — user bitmaps can't be tinted so the row would do nothing.
+            bool hasPresetIcon = !string.IsNullOrWhiteSpace(key.PresetIconKind)
+                                 && string.IsNullOrWhiteSpace(key.ImagePath);
+            if (_v2IconColorLabel != null)
+                _v2IconColorLabel.Visibility = hasPresetIcon ? Visibility.Visible : Visibility.Collapsed;
+            if (_scIconColorSwatchPanel != null)
+                _scIconColorSwatchPanel.Visibility = hasPresetIcon ? Visibility.Visible : Visibility.Collapsed;
+            if (hasPresetIcon) BuildIconColorSwatches();
         }
         else
         {

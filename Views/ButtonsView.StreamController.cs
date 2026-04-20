@@ -49,6 +49,7 @@ public partial class ButtonsView
     private TextBlock? _scTextSizeLabel;
     private Border? _scTextColorSwatch;
     private WrapPanel? _scTextColorSwatchPanel;
+    private WrapPanel? _scIconColorSwatchPanel;
     private TextBox? _scIconBox;
     private Button? _scChooseIconButton;
     private Button? _scClearIconButton;
@@ -2007,7 +2008,7 @@ public partial class ButtonsView
             display.TextPosition = pos;
         if (_scTextSizeSlider != null)
             display.TextSize = (int)Math.Round(_scTextSizeSlider.Value);
-        _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateHardwarePreview(display);
+        _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateEditorPreview(display, 360);
 
         // In root the folder key Idx == local slot. In a folder, local slot = Idx + 1
         // (slot 0 is the Back key).
@@ -2015,9 +2016,13 @@ public partial class ButtonsView
         int localIdx = display.Idx - (_scCurrentPage * StreamControllerKeysPerPage) + folderSlotOffset;
         if (localIdx >= 0 && localIdx < 6)
         {
-            _scDisplayImages[localIdx].Source = StreamControllerDisplayRenderer.CreateHardwarePreview(display);
+            _scDisplayImages[localIdx].Source = StreamControllerDisplayRenderer.CreateEditorPreview(display, 240);
             _scDisplayCaptions[localIdx].Text = string.IsNullOrWhiteSpace(display.Title) ? $"Key {display.Idx + 1}" : display.Title;
         }
+
+        // Also refresh the V2 left-panel tile (for live updates when
+        // editing title/icon/color — the per-tile cache checks IconColor).
+        RefreshV2LeftPanel();
     }
 
     private void RefreshStreamControllerSelectionVisuals()
@@ -2080,6 +2085,91 @@ public partial class ButtonsView
         ("Lime",    "#C6FF00"),
         ("Black",   "#1A1A1A"),
     };
+
+    /// <summary>
+    /// Build the ICON COLOR swatch row — mirrors the TEXT COLOR palette
+    /// but writes to <c>StreamControllerDisplayKeyConfig.IconColor</c>
+    /// so preset vector icons tint live. Inactive for user bitmap icons.
+    /// </summary>
+    private void BuildIconColorSwatches()
+    {
+        if (_scIconColorSwatchPanel == null) return;
+        _scIconColorSwatchPanel.Children.Clear();
+
+        var display = GetSelectedDisplayKeyConfig();
+        string currentHex = display?.IconColor ?? "#F7F7F7";
+
+        foreach (var (name, hex) in TextColorPresets)
+        {
+            var color = (Color)ColorConverter.ConvertFromString(hex);
+            bool selected = hex.Equals(currentHex, StringComparison.OrdinalIgnoreCase);
+            var swatch = new Border
+            {
+                Width = 26, Height = 26,
+                CornerRadius = new CornerRadius(13),
+                Background = new SolidColorBrush(color),
+                BorderThickness = new Thickness(2),
+                BorderBrush = selected ? new SolidColorBrush(Colors.White) : Brushes.Transparent,
+                Margin = new Thickness(0, 0, 6, 6),
+                Cursor = Cursors.Hand,
+                ToolTip = name,
+            };
+            string capturedHex = hex;
+            swatch.MouseLeftButtonDown += (_, _) =>
+            {
+                if (display == null) return;
+                display.IconColor = capturedHex;
+                BuildIconColorSwatches();
+                UpdateEditorPreviewOnly();
+                QueueSave();
+            };
+            _scIconColorSwatchPanel.Children.Add(swatch);
+        }
+
+        bool isCustom = display?.IconColor != null
+            && !TextColorPresets.Any(p => p.Hex.Equals(display.IconColor, StringComparison.OrdinalIgnoreCase));
+        var customSwatch = new Border
+        {
+            Width = 26, Height = 26,
+            CornerRadius = new CornerRadius(13),
+            Background = new LinearGradientBrush(
+                new GradientStopCollection
+                {
+                    new(Colors.Red, 0.0), new(Colors.Yellow, 0.17), new(Colors.Lime, 0.33),
+                    new(Colors.Cyan, 0.5), new(Colors.Blue, 0.67), new(Colors.Magenta, 0.83), new(Colors.Red, 1.0),
+                }, new Point(0, 0), new Point(1, 1)),
+            BorderThickness = new Thickness(2),
+            BorderBrush = isCustom ? new SolidColorBrush(Colors.White) : Brushes.Transparent,
+            Margin = new Thickness(0, 0, 6, 6),
+            Cursor = Cursors.Hand,
+            ToolTip = "Custom color",
+            Child = new TextBlock
+            {
+                Text = "+", FontSize = 13, FontWeight = FontWeights.Bold,
+                Foreground = Brushes.White,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            },
+        };
+        customSwatch.MouseLeftButtonDown += (_, _) =>
+        {
+            if (display == null) return;
+            Color initial;
+            try { initial = (Color)ColorConverter.ConvertFromString(display.IconColor ?? "#F7F7F7"); }
+            catch { initial = Colors.White; }
+            var dialog = new ColorPickerDialog(initial) { Owner = Window.GetWindow(this) };
+            dialog.ColorChanged += c =>
+            {
+                display.IconColor = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+                UpdateEditorPreviewOnly();
+            };
+            dialog.ShowDialog();
+            display.IconColor = $"#{dialog.SelectedColor.R:X2}{dialog.SelectedColor.G:X2}{dialog.SelectedColor.B:X2}";
+            BuildIconColorSwatches();
+            QueueSave();
+        };
+        _scIconColorSwatchPanel.Children.Add(customSwatch);
+    }
 
     private void BuildTextColorSwatches()
     {

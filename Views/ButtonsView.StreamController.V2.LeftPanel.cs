@@ -1030,7 +1030,7 @@ public partial class ButtonsView
                 if (!_v2KeyTileStateHash.TryGetValue(i, out var prevHash) || prevHash != backHash)
                 {
                     var backKey = App.BuildBackKeyDisplay();
-                    tile.PreviewImage = StreamControllerDisplayRenderer.CreateHardwarePreview(backKey);
+                    tile.PreviewImage = StreamControllerDisplayRenderer.CreateEditorPreview(backKey, 240);
                     tile.Title = "Back";
                     tile.Subtitle = "Auto";
                     tile.IsSelected = false;
@@ -1053,14 +1053,14 @@ public partial class ButtonsView
 
             // Compose a hash from fields the tile actually renders — skip
             // CreateHardwarePreview + tile.Refresh() when nothing changed.
-            string hash = $"{key.Title}|{key.ImagePath}|{key.PresetIconKind}|{key.TextPosition}|{key.TextSize}|{key.TextColor}|{key.BackgroundColor}|{key.AccentColor}|{key.DisplayType}|{key.ClockFormat}|{key.DynamicStateSource}|{key.DynamicStateActiveIcon}|{key.DynamicStateActiveTitle}|{button?.Action}|{isSelected}";
+            string hash = $"{key.Title}|{key.ImagePath}|{key.PresetIconKind}|{key.TextPosition}|{key.TextSize}|{key.TextColor}|{key.IconColor}|{key.BackgroundColor}|{key.AccentColor}|{key.DisplayType}|{key.ClockFormat}|{key.DynamicStateSource}|{key.DynamicStateActiveIcon}|{key.DynamicStateActiveTitle}|{button?.Action}|{isSelected}";
             if (_v2KeyTileStateHash.TryGetValue(i, out var lastHash) && lastHash == hash)
                 continue;
 
             tile.Opacity = 1.0;
             tile.Cursor = Cursors.Hand;
             tile.ToolTip = null;
-            tile.PreviewImage = StreamControllerDisplayRenderer.CreateHardwarePreview(key);
+            tile.PreviewImage = StreamControllerDisplayRenderer.CreateEditorPreview(key, 240);
             tile.Title = string.IsNullOrWhiteSpace(key.Title) ? $"Key {globalIdx + 1}" : key.Title;
             tile.Subtitle = GetStreamActionDisplay(button?.Action);
             tile.IsSelected = isSelected;

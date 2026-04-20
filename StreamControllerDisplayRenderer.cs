@@ -42,6 +42,18 @@ internal static class StreamControllerDisplayRenderer
         return ToBitmapSource(bitmap);
     }
 
+    /// <summary>
+    /// Render a high-resolution preview for in-app UI at the requested
+    /// <paramref name="size"/>. Skips the 60x60 JPEG round-trip that
+    /// <see cref="CreateHardwarePreview"/> uses, so vector icons render
+    /// crisply at any size and bitmap sources aren't downscaled first.
+    /// </summary>
+    public static BitmapSource CreateEditorPreview(StreamControllerDisplayKeyConfig key, int size = 256)
+    {
+        using var bitmap = ComposeImage(ResolveEffectiveKey(key), size);
+        return ToBitmapSource(bitmap);
+    }
+
     public static BitmapSource CreateHardwarePreview(StreamControllerDisplayKeyConfig key)
     {
         var jpeg = CreateDeviceJpeg(key);
@@ -154,8 +166,9 @@ internal static class StreamControllerDisplayRenderer
         return EncodeForDevice(canvas);
     }
 
-    private static DrawingBitmap ComposeImage(StreamControllerDisplayKeyConfig key)
+    private static DrawingBitmap ComposeImage(StreamControllerDisplayKeyConfig key, int? size = null)
     {
+        int canvas = size ?? RenderCanvasSize;
         string title = key.Title?.Trim() ?? "";
         bool hasText = !string.IsNullOrWhiteSpace(title);
 
@@ -164,15 +177,15 @@ internal static class StreamControllerDisplayRenderer
         if (!string.IsNullOrWhiteSpace(key.ImagePath) && File.Exists(key.ImagePath))
         {
             using var source = DrawingImage.FromFile(key.ImagePath);
-            bitmap = RenderSourceToCanvasCover(source, RenderCanvasSize);
+            bitmap = RenderSourceToCanvasCover(source, canvas);
         }
         else if (TryParseMaterialIconKind(key.PresetIconKind, out var presetKind))
         {
-            bitmap = RenderPresetIconCanvas(key, presetKind, RenderCanvasSize, title);
+            bitmap = RenderPresetIconCanvas(key, presetKind, canvas, title);
         }
         else
         {
-            bitmap = new DrawingBitmap(RenderCanvasSize, RenderCanvasSize);
+            bitmap = new DrawingBitmap(canvas, canvas);
             using var graphics = DrawingGraphics.FromImage(bitmap);
             ConfigureGraphics(graphics);
             graphics.Clear(ParseColor(key.BackgroundColor, DrawingColor.FromArgb(0x1C, 0x1C, 0x1C)));
@@ -180,7 +193,7 @@ internal static class StreamControllerDisplayRenderer
 
         // Draw text overlay on all key types
         if (hasText && key.TextPosition != DisplayTextPosition.Hidden)
-            DrawTextOverlay(bitmap, key, RenderCanvasSize, title);
+            DrawTextOverlay(bitmap, key, canvas, title);
 
         return bitmap;
     }
@@ -274,12 +287,13 @@ internal static class StreamControllerDisplayRenderer
         };
         root.Children.Add(edgeGlow);
 
+        var iconTint = TryParseMediaColor(key.IconColor, System.Windows.Media.Color.FromRgb(0xF7, 0xF7, 0xF7));
         var icon = new MaterialIcon
         {
             Kind = presetKind,
             Width = size * (showText ? 0.52 : 0.68),
             Height = size * (showText ? 0.52 : 0.68),
-            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xF7, 0xF7, 0xF7)),
+            Foreground = new SolidColorBrush(iconTint),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
