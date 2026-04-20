@@ -74,6 +74,7 @@ public class QuickActionPicker : Border
         { "POWER",             (MaterialIconKind.Power,          "\u23FB", Color.FromRgb(0xFF, 0x52, 0x52)) },
         { "INTEGRATIONS",      (MaterialIconKind.FlashOutline,   "\u26A1", Color.FromRgb(0x26, 0xC6, 0xDA)) },
         { "STREAM CONTROLLER", (MaterialIconKind.ViewGrid,       "\u25A6", Color.FromRgb(0xFF, 0x9E, 0x55)) },
+        { "ADVANCED",          (MaterialIconKind.Tune,           "\u2699", Color.FromRgb(0x9C, 0x8C, 0xFF)) },
     };
 
     public QuickActionPicker()
