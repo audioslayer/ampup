@@ -1388,6 +1388,14 @@ public partial class ButtonsView
         {
             folderName = ""; // fallback if we were handed a bad name
         }
+
+        // Idempotency guard — prevents the dispatcher feedback loop where
+        // App.NavigateToN3Folder BeginInvoke's a callback that calls
+        // SetActiveN3Folder → us again. The _v2FolderSyncing flag is
+        // synchronous and has already been cleared by the time that
+        // queued callback fires, so we need a "nothing to do" check here.
+        if (_scActiveFolder == folderName) return;
+
         _scActiveFolder = folderName;
         _scCurrentPage = 0;
         if (_config != null) _config.N3.CurrentPage = 0;
