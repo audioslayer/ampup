@@ -4,7 +4,7 @@ AmpUp is a C# .NET 8 WPF app that replaces the "Turn Up" USB volume mixer app.
 It reads serial events from the Turn Up hardware and maps them to Windows per-app audio volume control.
 Uses WPF-UI (FluentWindow, Mica backdrop) with a glassmorphism dark theme, sidebar navigation, and code-behind pattern (no MVVM).
 
-**macOS port: v0.1.0-alpha released** — see [Codex-MAC.md](Codex-MAC.md) for Mac-specific docs, SSH access, and architecture plan.
+**macOS port: v0.1.0-alpha released** — see [CLAUDE-MAC.md](CLAUDE-MAC.md) for Mac-specific docs, SSH access, and architecture plan.
 **Shared library:** `AmpUp.Core/` contains platform-agnostic code (models, serial, RGB, config, integrations).
 **Official Turn Up source:** We have admin access to `JaredWF/TurnUpCustomizer` — protocol fully confirmed, see memory for analysis.
 
@@ -80,7 +80,28 @@ Theme.xaml                 Glassmorphism color palette, card/text styles, custom
 Views/
   MixerView.xaml / .cs     5 channel strips — knob, VU meter, volume %, target/curve/range controls (sidebar label: "Mixer")
                            App group uses chip/pill tags. Smart Mix (Voice Ducking + App Profiles) built in code-behind.
-  ButtonsView.xaml / .cs   5 button columns — 3 gesture rows (tap/double/hold), categorized action picker with sub-flyouts
+  ButtonsView.xaml / .cs   5 Turn Up button columns (tap/double/hold gesture rows).
+                           Stream Controller V2 designer is the active code path for N3:
+                             - Two-column split. LEFT = skeuomorphic chassis with 6 LCD tiles (120x120),
+                               page dots + nav arrows below, add/remove-page buttons above, 3 side-buttons
+                               and 3 encoder cards at the bottom. Breadcrumb banner on top when inside a
+                               Space: [← HOME] › 📐 <space name>.
+                             - RIGHT = inline-editable "Play"-style header, preview card + Choose Icon,
+                               Material-style underline tab bar (DESIGN / ACTION) with a slim magnifier
+                               icon next to ACTION that pops the search box above SELECTED.
+                             - DESIGN tab: Display Type pills (Normal/Clock/Dynamic), Title, Text Position,
+                               Font Size, TEXT COLOR / ICON COLOR / GLOW COLOR swatch rows (14 presets +
+                               rainbow custom picker). ICON + GLOW rows hide when the key uses a bitmap
+                               instead of a preset icon.
+                             - ACTION tab: QuickActionPicker (accordion categories with Material icons +
+                               category badges). Selecting an action with options (Device, Macro, Path,
+                               Folder, Toggle, Multi-Action, etc.) renders the option controls INSIDE the
+                               picker via OptionsHost — no separate card floating below. Sub-section
+                               headers use the FOLDERS style (accent bar + bold label) and legacy inner
+                               labels are auto-suppressed so the header never duplicates.
+                             - Spaces (formerly "Folders") management below the chassis: "Home" always
+                               pinned at the top as the default Space, followed by user-created Spaces.
+                               "ACTIVE" pill shows the current Space; Home can't be renamed or deleted.
   LightsView.xaml / .cs    Global lighting card + 5 LED columns — effect picker (hover preview on hardware),
                            Custom/Presets color tabs (20 premium gradient palettes), speed slider.
                            Material-style underline tab bar (PER KNOB / GLOBAL).
@@ -107,6 +128,12 @@ Views/
                            Auto-syncs button HoldAction with Quick Wheel config.
   BindingsView.xaml.cs     Profile Overview — all knob/button assignments across profiles with Preview OSD button
                            (sidebar label: "Overview"). Cards tinted with LED colors. Click navigates to correct profile.
+                           Per-profile section now includes a STREAM CONTROLLER block when HardwareMode allows
+                           and the user's Active Surface picks SC: 2x3 LCD preview grid (via
+                           CreateEditorPreview) + 3 side buttons (SB1-SB3) + 3 encoder-press cards (E1-E3).
+                           ShouldShowTurnUpOverview / ShouldShowStreamControllerOverview follow the
+                           user's Active Surface dropdown so picking "Stream Controller" hides the
+                           Turn Up widget and knob/button rows entirely.
 
 Controls/
   AnimatedKnobControl.cs   WPF FrameworkElement — arc sweep knob, glow, frozen resources
@@ -124,6 +151,26 @@ Controls/
                            29 icons defined in Icons/PhosphorIcons.xaml ResourceDictionary.
                            Used for sidebar nav (Gear, SlidersHorizontal, Keyboard, Lightbulb, etc.).
   ActionPicker.cs          Categorized action dropdown with inline sub-panel for button actions
+  QuickActionPicker.cs     Search-first action picker for the Buttons V2 designer. Accordion of
+                           categories (Media / Mute / App Control / Device / System / Power /
+                           Integrations / Stream Controller / Advanced), each with a Material
+                           icon + accent badge. First category auto-expands; per-category open
+                           state persists across rebuilds. Public OptionsHost panel below the
+                           SELECTED row that the caller fills with action-specific option
+                           controls. ShowSearch() reveals the search box; the trigger lives
+                           outside the picker (in the right-pane tab bar).
+  StreamControllerTile.cs  Unified tile for the N3 key grid + side buttons + encoders. Live
+                           theme-aware AccentColor (reads ThemeManager.Accent at render time,
+                           subscribes to OnAccentChanged / OnCardThemeChanged). Selection ring
+                           is a diagonal gradient brush + big diffuse DropShadow that wraps
+                           the rounded corners. 120x120 fixed for LCD tiles. Inner preview
+                           uses explicit RectangleGeometry clip (WPF Border.CornerRadius
+                           doesn't auto-clip children even with ClipToBounds=true).
+  GlassContextMenu.cs      GlassContextMenuHost.Show(anchor, items) renders a modern glass-style
+                           context menu — rounded dark card, accent gradient hairline at top,
+                           Material icon per row (red for IsDanger), hover accent tint,
+                           cascading submenus, and a check glyph in place of the icon for
+                           IsChecked rows. Used for the N3 key right-click menu.
   GridPicker.cs            Categorized target dropdown with inline sub-panel for knob targets
                            Both use borderless Window flyout + inline sub-panel (single HWND, no cross-window issues).
                            Items support optional subtitle text. Sub-panel shows context header + highlights active parent.
@@ -151,6 +198,15 @@ Controls/
 AmbienceSync.cs            Govee LAN UDP sync engine — discovery, color mirroring, rate limiting
 GoveeCloudApi.cs           Govee Platform REST client — devices, scenes, segments, music mode
 AudioAnalyzer.cs           WASAPI loopback capture + FFT — 5 frequency bands for audio-reactive LEDs
+StreamControllerDisplayRenderer.cs
+                           Renders an N3 display key to a bitmap/JPEG. Two render paths:
+                             CreateEditorPreview(key, size=256) — high-quality PNG for in-app UI
+                             (skips the 60x60 device JPEG round-trip so vector icons stay crisp).
+                             CreateDeviceJpeg(key) / ComposeDeviceBitmap + EncodeDeviceBitmap — 60x60
+                             rotated JPEG for the hardware; the compose step is UI-thread-bound (WPF
+                             render) but encode+send are thread-safe so the caller can Task.Run them.
+                           Honors key.IconColor (tints MaterialIcon Foreground) and key.AccentColor
+                           (radial glow behind the icon). Clock keys overwrite title with formatted time.
 AmpUp.Core/
   Protocol/SerialReader.cs Reads COM port, parses fe/ff frames, fires OnKnob / OnButton events, ±5 jitter deadzone
                            Endpoint snap: raw >1000 → 1023. Deadzone on raw value before snap.
@@ -167,6 +223,11 @@ AmpUp.Core/
   Services/AmbienceSync.cs  Govee LAN UDP sync — discovery, color mirroring, per-segment frames
                            (SendSegmentFrame is public for VU Fill per-segment control). Multi-session
                            support per process (compound key name:pid) for Discord volume fix.
+  Services/N3Controller.cs Native HID driver for the TreasLin / VSDinside N3 stream controller
+                           (VID 0x5548 / PID 0x1001). TryConnect opens the vendor MI_00 interface,
+                           runs CRT DIS + CRT LIG init, starts read loop + keepalive. Sleep() sends
+                           the real firmware standby command (CRT HAN); Wake() re-inits. SendDisplayImage
+                           streams JPEGs wrapped in CRT BAT / CRT STP frames.
 AudioMixer.cs              WASAPI per-app volume + GetPeakLevel, response curves, volume range
                            Persistent _renderDevice for session COM objects; dedicated _masterPeakDevice for metering
                            Skips AmpUp's own PID for active_window target
@@ -296,6 +357,8 @@ installer/ampup-setup.iss  Inno Setup script (reads version from auto-generated 
 | `"spotify"` | Matches process name containing "spotify" |
 | `"chrome"` | Matches process name containing "chrome" |
 | `"game.exe"` | Any substring of the process name works |
+| `"sc_space_cycle"` | N3 encoder only — twist cycles Home + each Space (signed delta = direction) |
+| `"sc_page_cycle"` | N3 encoder only — twist cycles pages in the active Space |
 
 ### Button action values (25 actions)
 
@@ -348,6 +411,24 @@ installer/ampup-setup.iss  Inno Setup script (reads version from auto-generated 
 | `"power_logoff"` | Log off |
 | `"power_hibernate"` | Hibernate |
 | `"system_power"` | Legacy — uses `powerAction` sub-field |
+
+**Stream Controller (N3 only):**
+| Action | Behavior |
+|-|-|
+| `"sc_page_next"` | Advance to the next page within the active Space |
+| `"sc_page_prev"` | Back to the previous page |
+| `"sc_page_home"` | Jump to page 0 |
+| `"sc_go_to_page"` | Jump to a specific page (1-based) stored in `path` |
+| `"open_folder"` | Navigate into a named Space from `folderName` (+ auto-generated Back key) |
+
+**Advanced:**
+| Action | Behavior |
+|-|-|
+| `"multi_action"` | Run a sequence of actions from `actionChain` with optional delays |
+| `"toggle_action"` | Alternate between two actions each press (A / B / A / B…) |
+| `"open_url"` | Open `path` in the default browser |
+| `"type_text"` | Type the stored text snippet at the cursor |
+| `"screenshot"` | Save a screenshot to the user's Pictures folder |
 
 ### Button gesture types
 Each button supports 3 gestures (15 total bindings):
@@ -570,7 +651,7 @@ Two clones of the same repo:
 
 | Location | Purpose |
 |-|-|
-| `Z:\Projects\ampup\` | Code editing with Codex (this machine) |
+| `Z:\Projects\ampup\` | Code editing with Claude Code (this machine) |
 | `C:\Users\audio\Desktop\AmpUp\` | Build + test + run the live app (same Windows PC) |
 
 **Workflow:** Edit on Z: → `git push` → `deploy.bat` on Desktop → test → `release.bat` when ready.
@@ -647,6 +728,19 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - **VU Fill must StopRoomPattern before starting** — otherwise competing Govee segment frames fight at 20fps.
 - **ScreenCapture gamma** — sRGB pixels must be linearized before averaging, then re-encoded.
 
+### Stream Controller / N3
+- **"Folders" is dead user-facing terminology** — renamed to "Spaces" everywhere the user sees, but internal fields / method names (`_currentN3Folder`, `NavigateToN3Folder`, `folder.Buttons`, `open_folder` action, config `Folders` list) stay as-is for backwards compat. When writing UI strings or docs, say Space/Home, not Folder/Root.
+- **Border.CornerRadius does not clip children** — even with `ClipToBounds=true`, a Border's children render as rectangles. For rounded-image content like the LCD preview, set an explicit `RectangleGeometry` clip via SizeChanged. See `StreamControllerTile.BuildLcdKeyContent`.
+- **WPF render of N3 LCD keys must stay on UI thread** — `StreamControllerDisplayRenderer.ComposeImage` builds a Grid + MaterialIcon + renders via RenderTargetBitmap, all dispatcher-bound. JPEG encode + HID write (EncodeDeviceBitmap + SendDisplayImage) are thread-safe, so the SC pipeline composes on UI, then Task.Run's the encode + send. Keeps folder/page navigation from freezing the UI.
+- **N3 sleep must skip the display refresh** — while `_n3AsleepFromIdle` is true, SyncStreamControllerDisplays must NOT fire, since each HID frame visually wakes the LCDs. Also throttle the clock/dynamic refresh to 3s (was firing on every 1s idle-detection tick).
+- **Folder-nav feedback loop** — `App.NavigateToN3Folder` BeginInvoke's a callback that bounces back through `SetActiveN3Folder` → `NavigateToFolderInEditor`. The synchronous `_v2FolderSyncing` guard is cleared before the queued callback fires, so the chain used to loop through the dispatcher forever. Guard with an idempotency check (`_scActiveFolder == folderName` → return) at the top of `NavigateToFolderInEditor`.
+- **Hardware device probes are deferred post-show** — `InitializeHardwareDeferred` runs at `ApplicationIdle` priority after MainWindow.Show(). Corsair Start, LG monitor HID, N3 TryConnect, Screen Sync all run on their own `Task.Run` so window paints instantly; connection status updates are dispatched back when probes complete.
+- **Active Surface vs HardwareMode** — `HardwareMode` is the connection gate (TurnUpOnly / StreamControllerOnly / DualMode / Auto). `TabSelection.PreferredSurface` is the user's UI preference when both devices are connected. Overview + Buttons + Mixer all honor PreferredSurface when HardwareMode is permissive; HardwareMode hard-limits what's shown otherwise.
+- **SC knob encoders share the KnobConfig.Target pipeline** — `HandleN3EncoderTwist` calls `ApplyKnobConfig` same as Turn Up. New N3-only targets (`sc_space_cycle`, `sc_page_cycle`) short-circuit BEFORE the volume math and walk the Space / page list using `Math.Sign(e.Delta)` for direction.
+- **SC mixer TARGET picker is integration-aware** — both Turn Up and SC now route through `PopulateTargetPickerItems(picker, config, includeN3Nav)`. SC calls `RebuildScTargetPickerItems` on every config load so App Group, HA, Groups, Room Lights, Govee, VoiceMeeter, and Corsair stay in sync with the user's integration toggles.
+- **QuickActionPicker options live INSIDE the picker** — action-specific controls (DEVICE, PATH, MACRO, FOLDER, etc.) are parented into `_v2ActionPicker.OptionsHost`, right below SELECTED. `MakeV2SectionCard` auto-suppresses the legacy panel's first TextBlock label so the outer accent-bar header doesn't render the same word twice.
+- **CreateEditorPreview vs CreateHardwarePreview** — editor previews (tile grid, big preview card, overview LCD thumbnails) use `CreateEditorPreview(key, size)` for a high-quality PNG at the requested resolution. `CreateHardwarePreview` still round-trips through the 60x60 device JPEG and should only be used when simulating what the device actually renders.
+
 ---
 
 ## Version History
@@ -674,6 +768,21 @@ Both clones use the same GitHub origin (`audioslayer/ampup`). Git identity: Tyso
 - **v0.9.7-alpha** — Spatial Screen Sync, Room tab two-column redesign, 10 new spanning effects, 20 premium palettes, VU Fill 6 modes, critical Govee bug fixes.
 - **v0.9.8-alpha** — Animated effect preview tiles, Phosphor Duotone icons, section cards UI pattern, Mixer/Lights/Room tab redesigns.
 - **v0.9.9-alpha** — 12 card themes, 6 new room sweep effects (HSV-generated), label readability overhaul, Screen Sync redesign, HA searchable entity picker.
+- **v0.9.10-alpha** — Stream Controller (N3) V2 designer pass, big terminology + UX overhaul:
+  - **V2 Buttons tab:** skeuomorphic chassis with merged LCD grid + page dots + side buttons + encoders. Right pane is a Material underline tab bar (DESIGN / ACTION) with a slim magnifier icon next to ACTION that pops a search box above SELECTED. Inline-editable header matching the Mixer channel label pattern.
+  - **Spaces (formerly "Folders"):** user-facing rename from "Folder"/"Root" → "Space"/"Home". Breadcrumb nav banner (`← HOME › 📐 Space Name`) replaces the old banner. Home is a pinned row at the top of the SPACES list; current Space shows an ACTIVE accent pill. Legacy internals (NavigateToN3Folder, folder config class) kept intact for compat.
+  - **Glass context menu:** new `GlassContextMenuHost.Show()` renders a rounded dark card with accent gradient ribbon, per-row Material icons, hover accent tint, cascading submenus, and a check glyph for the active item. Replaces the default WPF ContextMenu on N3 key right-click.
+  - **QuickActionPicker accordion:** replaces the old pill-based filter bar. Categories collapse/expand with a chevron + icon badge (Media / Mute / App Control / Device / System / Power / Integrations / Stream Controller / Advanced). Action-specific options render INSIDE the picker via OptionsHost — no separate card below.
+  - **Design surface:** ICON COLOR + GLOW COLOR swatch rows in DESIGN (14 presets + rainbow custom picker). Icon picker now carries its accent forward to the key so the on-device glow matches the hue shown in the picker.
+  - **High-quality previews:** `CreateEditorPreview(key, size)` renders directly at the requested pixel size instead of round-tripping through the 60x60 device JPEG. Editor preview uses 360px, tile grid 240px. Vector icons stay crisp at any scale.
+  - **Stream Controller tile glow:** replaced flat hard 2px accent border with a shimmery diagonal gradient brush + beefy diffuse DropShadow. Theme-aware (live ThemeManager.Accent via OnAccentChanged). Inner preview clips to rounded corners via explicit RectangleGeometry so the selection ring wraps the corners cleanly.
+  - **Overview SC support:** per-profile block now includes a STREAM CONTROLLER section (2x3 LCD preview grid + 3 side buttons + 3 encoders) when the user's Active Surface includes SC. Turn Up widget + knob/button rows hide entirely for SC-only setups.
+  - **SC Mixer parity:** N3 encoders now get the full TARGET catalogue the Turn Up mixer has — App Group chip list, HA, Device Groups, Room Lights, Govee, VoiceMeeter, Corsair. Refactored via shared `PopulateTargetPickerItems` + `RebuildAppTogglesFor`.
+  - **Knob-twist nav:** two new N3-only targets, `sc_space_cycle` (twist cycles Home + each Space) and `sc_page_cycle` (twist cycles pages in the active Space). Discrete — one detent = one step.
+  - **Real N3 sleep command:** `CRT HAN` firmware standby (via N3Controller.Sleep / Wake) instead of brightness=0 dimming. System suspend + user-idle both put the N3 to sleep; wake re-inits and re-syncs displays. Display-refresh tick now skips while asleep so HID writes don't flicker the LCDs back on.
+  - **Startup freeze fix:** Corsair iCUE Start, LG monitor HID open, N3 TryConnect + initial display sync, Screen Sync start all moved into `InitializeHardwareDeferred()` which runs at ApplicationIdle priority post-Show() on Task.Run — window paints instantly.
+  - **Folder-nav freeze fix:** idempotency guard at the top of `NavigateToFolderInEditor` stops the dispatcher feedback loop that bounced back through `SetActiveN3Folder`.
+  - **Sync display task split:** JPEG encode + HID writes (~400ms) now run on a background Task instead of blocking the UI — WPF compose stays on the UI thread via `ComposeDeviceBitmap` + `EncodeDeviceBitmap` split.
 
 ---
 
