@@ -373,22 +373,57 @@ public class StreamControllerTile : Border
         // corners pixel-aligned against the inner preview's corner radius.
         if (IsSelected)
         {
-            BorderBrush = new SolidColorBrush(accent);
+            // Shimmery diagonal gradient border — bright at the top-left
+            // and bottom-right "catch-light" corners, slightly dimmer in
+            // the middle. Reads as a single continuous ring that wraps
+            // the rounded corners instead of a flat hard outline.
+            BorderBrush = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(1, 1),
+                GradientStops = new GradientStopCollection
+                {
+                    new GradientStop(Color.FromArgb(0xFF, accent.R, accent.G, accent.B), 0.0),
+                    new GradientStop(Color.FromArgb(0xC0, accent.R, accent.G, accent.B), 0.5),
+                    new GradientStop(Color.FromArgb(0xFF, accent.R, accent.G, accent.B), 1.0),
+                },
+            };
+
+            // Big, soft diffuse outer bloom — strong enough to read across
+            // the corners so the glow feels like it's emanating from the
+            // whole tile rather than four independent edges.
+            Effect = new DropShadowEffect
+            {
+                Color = accent,
+                BlurRadius = 28,
+                ShadowDepth = 0,
+                Opacity = 0.9,
+            };
+
+            // Subtle diagonal tinted fill so the inside catches some of
+            // the same glow colour rather than staying flat dark.
+            Background = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(1, 1),
+                GradientStops = new GradientStopCollection
+                {
+                    new GradientStop(Color.FromArgb(0x22, accent.R, accent.G, accent.B), 0.0),
+                    new GradientStop(Color.FromArgb(0x0C, accent.R, accent.G, accent.B), 1.0),
+                },
+            };
+        }
+        else if (_isHovered)
+        {
+            BorderBrush = new SolidColorBrush(Color.FromArgb(
+                0x99, accent.R, accent.G, accent.B));
             Effect = new DropShadowEffect
             {
                 Color = accent,
                 BlurRadius = 14,
                 ShadowDepth = 0,
-                Opacity = 0.55,
+                Opacity = 0.45,
             };
-            Background = new SolidColorBrush(Color.FromArgb(
-                0x10, accent.R, accent.G, accent.B));
-        }
-        else if (_isHovered)
-        {
-            BorderBrush = new SolidColorBrush(Color.FromArgb(
-                0xAA, accent.R, accent.G, accent.B));
-            Effect = null;
             Background = new SolidColorBrush(Color.FromArgb(
                 0x14, accent.R, accent.G, accent.B));
         }
