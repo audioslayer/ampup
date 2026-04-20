@@ -728,6 +728,51 @@ public class StreamControllerIconPickerDialog : Window
                 VerticalAlignment = VerticalAlignment.Center
             };
         }
+        else if (entry.Kind.StartsWith("neon_"))
+        {
+            string filename = entry.Kind switch
+            {
+                "neon_play" => "play_button_neon.jpg",
+                "neon_pause" => "pause_button_neon.jpg",
+                "neon_next" => "next_track_neon.jpg",
+                "neon_spotify" => "spotify_neon.jpg",
+                "neon_discord" => "discord_neon.jpg",
+                "neon_mic" => "mic_active_neon.jpg",
+                "neon_mic_mute" => "mic_mute_neon.jpg",
+                "neon_volume" => "speaker_volume_neon.jpg",
+                "neon_panels" => "light_panel_white_cyan.jpg",
+                "neon_geometric" => "light_geometric_cyan_purple.jpg",
+                "neon_lightbulb" => "lightbulb_hightech_neon.jpg",
+                _ => ""
+            };
+
+            if (!string.IsNullOrEmpty(filename))
+            {
+                try 
+                {
+                    string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Icons", filename);
+                    if (File.Exists(path))
+                    {
+                        var bmp = new BitmapImage();
+                        bmp.BeginInit();
+                        bmp.UriSource = new Uri(path, UriKind.Absolute);
+                        bmp.CacheOption = BitmapCacheOption.OnLoad;
+                        bmp.EndInit();
+                        
+                        iconWrap.Child = new Image
+                        {
+                            Source = bmp,
+                            Width = 42,
+                            Height = 42,
+                            Stretch = Stretch.Uniform,
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            VerticalAlignment = VerticalAlignment.Center
+                        };
+                    }
+                }
+                catch { }
+            }
+        }
 
         stack.Children.Add(iconWrap);
         stack.Children.Add(new TextBlock
@@ -756,9 +801,35 @@ public class StreamControllerIconPickerDialog : Window
         };
         card.MouseLeftButtonUp += (_, _) =>
         {
-            SelectedIconKind = entry.Kind;
+            if (entry.Kind.StartsWith("neon_"))
+            {
+                string filename = entry.Kind switch
+                {
+                    "neon_play" => "play_button_neon.jpg",
+                    "neon_pause" => "pause_button_neon.jpg",
+                    "neon_next" => "next_track_neon.jpg",
+                    "neon_spotify" => "spotify_neon.jpg",
+                    "neon_discord" => "discord_neon.jpg",
+                    "neon_mic" => "mic_active_neon.jpg",
+                    "neon_mic_mute" => "mic_mute_neon.jpg",
+                    "neon_volume" => "speaker_volume_neon.jpg",
+                    "neon_panels" => "light_panel_white_cyan.jpg",
+                    "neon_geometric" => "light_geometric_cyan_purple.jpg",
+                    "neon_lightbulb" => "lightbulb_hightech_neon.jpg",
+                    _ => ""
+                };
+                
+                string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Icons", filename);
+                SelectedIconKind = null;
+                SelectedDownloadedImagePath = path;
+            }
+            else
+            {
+                SelectedIconKind = entry.Kind;
+                SelectedDownloadedImagePath = null;
+            }
+
             SelectedAccent = entry.Accent;
-            SelectedDownloadedImagePath = null;
             CloseDialog(true);
         };
 
@@ -922,6 +993,19 @@ public class StreamControllerIconPickerDialog : Window
     {
         return new()
         {
+            // Custom Neon Pack
+            new("Neon Play", "neon_play", "Media", Color.FromRgb(0x00, 0xE6, 0x76)),
+            new("Neon Pause", "neon_pause", "Media", Color.FromRgb(0x00, 0xC8, 0xFF)),
+            new("Neon Next", "neon_next", "Media", Color.FromRgb(0x73, 0xA5, 0xFF)),
+            new("Neon Spotify", "neon_spotify", "Apps", Color.FromRgb(0x1D, 0xB9, 0x54)),
+            new("Neon Discord", "neon_discord", "Apps", Color.FromRgb(0x72, 0x89, 0xDA)),
+            new("Neon Mic", "neon_mic", "Audio", Color.FromRgb(0x00, 0xE6, 0x76)),
+            new("Neon Mic Mute", "neon_mic_mute", "Audio", Color.FromRgb(0xFF, 0x5C, 0x5C)),
+            new("Neon Volume", "neon_volume", "Audio", Color.FromRgb(0x00, 0xE6, 0x76)),
+            new("Neon Panels", "neon_panels", "Creative", Color.FromRgb(0x00, 0xD0, 0xFF)),
+            new("Neon Geometric", "neon_geometric", "Creative", Color.FromRgb(0xC5, 0x5D, 0xFF)),
+            new("Neon Lightbulb", "neon_lightbulb", "Creative", Color.FromRgb(0xFF, 0xD7, 0x40)),
+
             new("Play", "Play", "Media", Color.FromRgb(0x00, 0xE6, 0x76)),
             new("Pause", "Pause", "Media", Color.FromRgb(0x00, 0xC8, 0xFF)),
             new("Stop", "Stop", "Media", Color.FromRgb(0xFF, 0x5C, 0x5C)),
