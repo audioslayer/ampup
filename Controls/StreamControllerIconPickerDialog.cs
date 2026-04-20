@@ -140,6 +140,7 @@ public class StreamControllerIconPickerDialog : Window
         _packPicker.AddSegment("All Packs", "All");
         _packPicker.AddSegment("Neon Pack", "Neon");
         _packPicker.AddSegment("3D Material", "Material3D");
+        _packPicker.AddSegment("8-Bit Retro", "Retro");
         _packPicker.AddSegment("Built-in", "BuiltIn");
         _packPicker.SelectedIndex = 0;
         _packPicker.SelectionChanged += (_, _) => RefreshLocalGrid();
@@ -379,7 +380,8 @@ public class StreamControllerIconPickerDialog : Window
                 (pack == "All" || 
                  (pack == "Neon" && (e.Kind.StartsWith("neon_") || e.Kind.StartsWith("synthwave_") || e.Kind.StartsWith("cyber_"))) || 
                  (pack == "Material3D" && e.Kind.StartsWith("material_")) || 
-                 (pack == "BuiltIn" && !e.Kind.StartsWith("neon_") && !e.Kind.StartsWith("material_") && !e.Kind.StartsWith("synthwave_") && !e.Kind.StartsWith("cyber_"))) &&
+                 (pack == "Retro" && e.Kind.StartsWith("retro_")) ||
+                 (pack == "BuiltIn" && !e.Kind.StartsWith("neon_") && !e.Kind.StartsWith("material_") && !e.Kind.StartsWith("synthwave_") && !e.Kind.StartsWith("cyber_") && !e.Kind.StartsWith("retro_"))) &&
                 (string.IsNullOrWhiteSpace(query)
                     || e.Label.Contains(query, StringComparison.OrdinalIgnoreCase)
                     || e.Kind.Contains(query, StringComparison.OrdinalIgnoreCase)))
@@ -752,7 +754,7 @@ public class StreamControllerIconPickerDialog : Window
                 VerticalAlignment = VerticalAlignment.Center
             };
         }
-        else if (entry.Kind.StartsWith("neon_") || entry.Kind.StartsWith("material_") || entry.Kind.StartsWith("synthwave_") || entry.Kind.StartsWith("cyber_"))
+        else if (entry.Kind.StartsWith("neon_") || entry.Kind.StartsWith("material_") || entry.Kind.StartsWith("synthwave_") || entry.Kind.StartsWith("cyber_") || entry.Kind.StartsWith("retro_"))
         {
             string filename = entry.Kind switch
             {
@@ -803,6 +805,14 @@ public class StreamControllerIconPickerDialog : Window
                 "synthwave_pause" => "synthwave_pause.jpg",
                 "cyber_play" => "cyber_play.jpg",
                 "cyber_pause" => "cyber_pause.jpg",
+                "retro_play" => "retro_play.jpg",
+                "retro_pause" => "retro_pause.jpg",
+                "retro_gamepad" => "retro_gamepad.jpg",
+                "retro_home" => "retro_home.jpg",
+                "retro_volume" => "retro_volume.jpg",
+                "retro_mic" => "retro_mic.jpg",
+                "retro_monitor" => "retro_monitor.jpg",
+                "retro_lightbulb" => "retro_lightbulb.jpg",
                 "neon_mic" => "mic_active_neon.jpg",
                 "neon_mic_mute" => "mic_mute_neon.jpg",
                 "neon_game_mute" => "neon_game_mute.jpg",
@@ -979,6 +989,22 @@ public class StreamControllerIconPickerDialog : Window
                     "synthwave_pause" => "synthwave_pause.jpg",
                     "cyber_play" => "cyber_play.jpg",
                     "cyber_pause" => "cyber_pause.jpg",
+                    "retro_play" => "retro_play.jpg",
+                    "retro_pause" => "retro_pause.jpg",
+                    "retro_gamepad" => "retro_gamepad.jpg",
+                    "retro_home" => "retro_home.jpg",
+                    "retro_volume" => "retro_volume.jpg",
+                    "retro_mic" => "retro_mic.jpg",
+                    "retro_monitor" => "retro_monitor.jpg",
+                    "retro_lightbulb" => "retro_lightbulb.jpg",
+                "retro_play" => "retro_play.jpg",
+                "retro_pause" => "retro_pause.jpg",
+                "retro_gamepad" => "retro_gamepad.jpg",
+                "retro_home" => "retro_home.jpg",
+                "retro_volume" => "retro_volume.jpg",
+                "retro_mic" => "retro_mic.jpg",
+                "retro_monitor" => "retro_monitor.jpg",
+                "retro_lightbulb" => "retro_lightbulb.jpg",
                     "neon_mic" => "mic_active_neon.jpg",
                     "neon_mic_mute" => "mic_mute_neon.jpg",
                     "neon_game_mute" => "neon_game_mute.jpg",
@@ -1281,6 +1307,14 @@ public class StreamControllerIconPickerDialog : Window
             new("Synthwave Pause", "synthwave_pause", "Media", Color.FromRgb(0xFF, 0x00, 0x7A)),
             new("Cyber Play", "cyber_play", "Media", Color.FromRgb(0x00, 0xFF, 0x00)),
             new("Cyber Pause", "cyber_pause", "Media", Color.FromRgb(0x00, 0xFF, 0x00)),
+            new("Retro Play", "retro_play", "Media", Color.FromRgb(0xFF, 0xD7, 0x40)),
+            new("Retro Pause", "retro_pause", "Media", Color.FromRgb(0xFF, 0xD7, 0x40)),
+            new("Retro Gamepad", "retro_gamepad", "Creative", Color.FromRgb(0x72, 0x89, 0xDA)),
+            new("Retro Home", "retro_home", "System", Color.FromRgb(0x00, 0xE6, 0x76)),
+            new("Retro Volume", "retro_volume", "Audio", Color.FromRgb(0x00, 0xE6, 0x76)),
+            new("Retro Mic", "retro_mic", "Audio", Color.FromRgb(0x00, 0xE6, 0x76)),
+            new("Retro Monitor", "retro_monitor", "System", Color.FromRgb(0x4D, 0xD0, 0xE1)),
+            new("Retro Lightbulb", "retro_lightbulb", "Creative", Color.FromRgb(0xFF, 0xD7, 0x40)),
             new("Neon Office", "neon_room_office", "Creative", Color.FromRgb(0x4D, 0xD0, 0xE1)),
             new("Neon Bedroom", "neon_room_bedroom", "Creative", Color.FromRgb(0x9B, 0x8C, 0xFF)),
             new("Neon Living Room", "neon_room_living", "Creative", Color.FromRgb(0x00, 0xE6, 0x76)),
