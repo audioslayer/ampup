@@ -923,112 +923,126 @@ public partial class MixerView : UserControl
 
     private void RebuildTargetPickerItems(AppConfig config)
     {
-        bool haEnabled = config.HomeAssistant.Enabled;
-        bool goveeEnabled = config.Ambience.GoveeEnabled && config.Ambience.GoveeDevices.Count > 0;
-
         for (int i = 0; i < 5; i++)
         {
             var picker = _targetPickers[i];
             if (picker == null) continue;
+            PopulateTargetPickerItems(picker, config, includeN3Nav: false);
+        }
+    }
 
-            picker.ClearItems();
+    /// <summary>
+    /// Populate a single target picker with the full catalogue: Audio,
+    /// Devices, conditional Integrations (HA/Groups/Room Lights/Govee/VM/
+    /// Corsair), Apps (+ App Group), and optionally N3-only navigation
+    /// targets (Cycle Spaces / Cycle Pages). Shared between the Turn Up
+    /// mixer and the Stream Controller mixer so both surfaces stay in sync.
+    /// </summary>
+    internal void PopulateTargetPickerItems(GridPicker picker, AppConfig config, bool includeN3Nav)
+    {
+        picker.ClearItems();
 
-            var clrGreen  = Color.FromRgb(0x66, 0xBB, 0x6A);
-            var clrRed    = Color.FromRgb(0xEF, 0x53, 0x50);
-            var clrBlue   = Color.FromRgb(0x42, 0xA5, 0xF5);
-            var clrTeal   = Color.FromRgb(0x26, 0xC6, 0xDA);
-            var clrPurple = Color.FromRgb(0xAB, 0x47, 0xBC);
-            var clrOrange = Color.FromRgb(0xFF, 0xA7, 0x26);
-            var clrYellow = Color.FromRgb(0xFF, 0xD5, 0x4F);
-            var clrGovee  = Color.FromRgb(0xFF, 0x6F, 0x00);
-            var clrHA     = Color.FromRgb(0x26, 0xC6, 0xDA);
+        var clrGreen  = Color.FromRgb(0x66, 0xBB, 0x6A);
+        var clrRed    = Color.FromRgb(0xEF, 0x53, 0x50);
+        var clrBlue   = Color.FromRgb(0x42, 0xA5, 0xF5);
+        var clrTeal   = Color.FromRgb(0x26, 0xC6, 0xDA);
+        var clrPurple = Color.FromRgb(0xAB, 0x47, 0xBC);
+        var clrOrange = Color.FromRgb(0xFF, 0xA7, 0x26);
+        var clrYellow = Color.FromRgb(0xFF, 0xD5, 0x4F);
+        var clrGovee  = Color.FromRgb(0xFF, 0x6F, 0x00);
+        var clrHA     = Color.FromRgb(0x26, 0xC6, 0xDA);
 
-            picker.AddCategory("Audio");
-            picker.AddItem("Master",        "master",        "♪",  clrGreen);
-            picker.AddItem("Mic",           "mic",           "◎",  clrRed);
-            picker.AddItem("System",        "system",        "◆",  clrBlue);
-            picker.AddItem("Any",           "any",           "◈",  clrTeal);
-            picker.AddItem("Active Window", "active_window", "▣",  clrPurple);
+        bool haEnabled = config.HomeAssistant.Enabled;
+        bool goveeEnabled = config.Ambience.GoveeEnabled && config.Ambience.GoveeDevices.Count > 0;
+        bool vmEnabled = config.VoiceMeeter.Enabled;
+        bool corsairEnabled = config.Corsair.Enabled && config.Corsair.FanEnabled;
+        bool hasIntegrations = haEnabled || goveeEnabled || vmEnabled || corsairEnabled;
 
-            picker.AddCategory("Devices");
-            picker.AddItem("Output Device", "output_device", "▶",  clrPurple);
-            picker.AddItem("Input Device",  "input_device",  "◀",  clrRed);
-            picker.AddItem("Monitor",       "monitor",       "▭",  clrOrange);
-            picker.AddItem("LED Brightness","led_brightness","◉",  clrYellow);
+        picker.AddCategory("Audio");
+        picker.AddItem("Master",        "master",        "♪",  clrGreen);
+        picker.AddItem("Mic",           "mic",           "◎",  clrRed);
+        picker.AddItem("System",        "system",        "◆",  clrBlue);
+        picker.AddItem("Any",           "any",           "◈",  clrTeal);
+        picker.AddItem("Active Window", "active_window", "▣",  clrPurple);
 
-            // Register sub-flyout providers for device pickers
-            picker.RegisterSubMenu("output_device", () => GetDeviceSubItems(isOutput: true));
-            picker.RegisterSubMenu("input_device", () => GetDeviceSubItems(isOutput: false));
-            picker.RegisterMultiSelectSubMenu("monitor", () => GetMonitorSubItems());
+        picker.AddCategory("Devices");
+        picker.AddItem("Output Device", "output_device", "▶",  clrPurple);
+        picker.AddItem("Input Device",  "input_device",  "◀",  clrRed);
+        picker.AddItem("Monitor",       "monitor",       "▭",  clrOrange);
+        picker.AddItem("LED Brightness","led_brightness","◉",  clrYellow);
 
-            bool vmEnabled = config.VoiceMeeter.Enabled;
-            bool corsairEnabled = config.Corsair.Enabled && config.Corsair.FanEnabled;
-            bool hasIntegrations = haEnabled || goveeEnabled || vmEnabled || corsairEnabled;
-            if (hasIntegrations)
+        picker.RegisterSubMenu("output_device", () => GetDeviceSubItems(isOutput: true));
+        picker.RegisterSubMenu("input_device", () => GetDeviceSubItems(isOutput: false));
+        picker.RegisterMultiSelectSubMenu("monitor", () => GetMonitorSubItems());
+
+        if (hasIntegrations)
+        {
+            picker.AddCategory("Integrations");
+
+            if (haEnabled)
             {
-                picker.AddCategory("Integrations");
+                picker.AddItem("Home Assistant",  "ha_light",  "◈", clrHA, "Light");
+                picker.AddItem("Home Assistant",  "ha_media",  "♪", clrHA, "Media Player");
+                picker.AddItem("Home Assistant",  "ha_fan",    "◎", clrHA, "Fan");
+                picker.AddItem("Home Assistant",  "ha_cover",  "▭", clrHA, "Cover");
 
-                if (haEnabled)
+                foreach (var haKey in HATargetDomains.Keys)
                 {
-                    picker.AddItem("Home Assistant",  "ha_light",  "◈", clrHA, "Light");
-                    picker.AddItem("Home Assistant",  "ha_media",  "♪", clrHA, "Media Player");
-                    picker.AddItem("Home Assistant",  "ha_fan",    "◎", clrHA, "Fan");
-                    picker.AddItem("Home Assistant",  "ha_cover",  "▭", clrHA, "Cover");
-
-                    // Register sub-flyout providers for HA items
-                    foreach (var haKey in HATargetDomains.Keys)
-                    {
-                        var key = haKey; // capture for closure
-                        picker.RegisterSubMenu(key, () => GetHASubItems(key));
-                    }
-                }
-
-                // Device Groups
-                if (config.Groups.Count > 0)
-                {
-                    foreach (var group in config.Groups)
-                    {
-                        var groupColor = Color.FromRgb(0x69, 0xF0, 0xAE);
-                        try { groupColor = (Color)ColorConverter.ConvertFromString(group.Color); } catch { }
-                        picker.AddItem(group.Name, $"group:{group.Name}", "▣", groupColor, "Groups");
-                    }
-                }
-
-                // Room Lights (all Govee + Corsair together)
-                if (goveeEnabled || corsairEnabled)
-                {
-                    var clrRoom = Color.FromRgb(0x69, 0xF0, 0xAE);
-                    picker.AddItem("Room Lights", "room_lights", "💡", clrRoom, "Room Lighting");
-                }
-
-                if (goveeEnabled)
-                {
-                    picker.AddItem("Govee", "govee", "◈", clrGovee, "Room Lighting");
-                    picker.RegisterSubMenu("govee", () => GetGoveeSubItems(config));
-                }
-
-                if (vmEnabled)
-                {
-                    var clrVM = Color.FromRgb(0xFF, 0x8F, 0x00); // VoiceMeeter orange
-                    for (int s = 0; s <= 4; s++)
-                        picker.AddItem("VoiceMeeter", $"vm_strip:{s}", "♪", clrVM, $"Strip {s + 1}");
-                    for (int b = 0; b <= 2; b++)
-                        picker.AddItem("VoiceMeeter", $"vm_bus:{b}", "▶", clrVM, $"Bus {b + 1}");
-                }
-
-                if (corsairEnabled)
-                {
-                    var clrCorsair = Color.FromRgb(0xFF, 0xD3, 0x00); // Corsair yellow
-                    picker.AddItem("Corsair", "corsair_pump_fan", "◎", clrCorsair, "Pump Fan");
-                    picker.AddItem("Corsair", "corsair_case_fan", "◉", clrCorsair, "Case Fans");
+                    var key = haKey;
+                    picker.RegisterSubMenu(key, () => GetHASubItems(key));
                 }
             }
 
-            picker.AddCategory("Apps");
-            picker.AddItem("Discord",   "discord",  "◉", Color.FromRgb(0x58, 0x65, 0xF2));
-            picker.AddItem("Spotify",   "spotify",  "♪", Color.FromRgb(0x1D, 0xB9, 0x54));
-            picker.AddItem("Chrome",    "chrome",   "◆", Color.FromRgb(0x42, 0x85, 0xF4));
-            picker.AddItem("App Group", "apps",     "▣", clrTeal);
+            if (config.Groups.Count > 0)
+            {
+                foreach (var group in config.Groups)
+                {
+                    var groupColor = Color.FromRgb(0x69, 0xF0, 0xAE);
+                    try { groupColor = (Color)ColorConverter.ConvertFromString(group.Color); } catch { }
+                    picker.AddItem(group.Name, $"group:{group.Name}", "▣", groupColor, "Groups");
+                }
+            }
+
+            if (goveeEnabled || corsairEnabled)
+            {
+                var clrRoom = Color.FromRgb(0x69, 0xF0, 0xAE);
+                picker.AddItem("Room Lights", "room_lights", "💡", clrRoom, "Room Lighting");
+            }
+
+            if (goveeEnabled)
+            {
+                picker.AddItem("Govee", "govee", "◈", clrGovee, "Room Lighting");
+                picker.RegisterSubMenu("govee", () => GetGoveeSubItems(config));
+            }
+
+            if (vmEnabled)
+            {
+                var clrVM = Color.FromRgb(0xFF, 0x8F, 0x00);
+                for (int s = 0; s <= 4; s++)
+                    picker.AddItem("VoiceMeeter", $"vm_strip:{s}", "♪", clrVM, $"Strip {s + 1}");
+                for (int b = 0; b <= 2; b++)
+                    picker.AddItem("VoiceMeeter", $"vm_bus:{b}", "▶", clrVM, $"Bus {b + 1}");
+            }
+
+            if (corsairEnabled)
+            {
+                var clrCorsair = Color.FromRgb(0xFF, 0xD3, 0x00);
+                picker.AddItem("Corsair", "corsair_pump_fan", "◎", clrCorsair, "Pump Fan");
+                picker.AddItem("Corsair", "corsair_case_fan", "◉", clrCorsair, "Case Fans");
+            }
+        }
+
+        picker.AddCategory("Apps");
+        picker.AddItem("Discord",   "discord",  "◉", Color.FromRgb(0x58, 0x65, 0xF2));
+        picker.AddItem("Spotify",   "spotify",  "♪", Color.FromRgb(0x1D, 0xB9, 0x54));
+        picker.AddItem("Chrome",    "chrome",   "◆", Color.FromRgb(0x42, 0x85, 0xF4));
+        picker.AddItem("App Group", "apps",     "▣", clrTeal);
+
+        if (includeN3Nav)
+        {
+            picker.AddCategory("Stream Controller");
+            picker.AddItem("Cycle Spaces", "sc_space_cycle", "⊞", clrTeal);
+            picker.AddItem("Cycle Pages",  "sc_page_cycle",  "▤", clrOrange);
         }
     }
 
@@ -1146,12 +1160,23 @@ public partial class MixerView : UserControl
     /// </summary>
     private void RebuildAppToggles(int idx)
     {
-        var panel = _appsListPanels[idx];
-        panel.Children.Clear();
-
         if (_config == null || _mixer == null) return;
         var knob = _config.Knobs.FirstOrDefault(k => k.Idx == idx);
         if (knob == null) return;
+        RebuildAppTogglesFor(_appsListPanels[idx], knob, () => RebuildAppToggles(idx));
+    }
+
+    /// <summary>
+    /// Shared chip-list renderer used by both the Turn Up mixer and the
+    /// Stream Controller mixer. Writes directly to <paramref name="knob"/>.Apps
+    /// and calls <paramref name="rebuildCallback"/> so the caller can
+    /// re-render after a toggle.
+    /// </summary>
+    internal void RebuildAppTogglesFor(WrapPanel panel, KnobConfig knob, Action rebuildCallback)
+    {
+        panel.Children.Clear();
+
+        if (_config == null || _mixer == null) return;
 
         var accent = ThemeManager.Accent;
         var runningApps = _mixer.GetRunningAudioApps();
@@ -1272,7 +1297,7 @@ public partial class MixerView : UserControl
                 else
                     knob.Apps.Add(appCapture);
                 QueueSave();
-                RebuildAppToggles(idx);
+                rebuildCallback();
                 e.Handled = true;
             };
 

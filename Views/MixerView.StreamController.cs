@@ -15,6 +15,8 @@ public partial class MixerView
     private readonly TextBox[] _scChannelLabels = new TextBox[ScChannelCount];
     private readonly TextBlock[] _scTargetDisplays = new TextBlock[ScChannelCount];
     private readonly GridPicker[] _scTargetPickers = new GridPicker[ScChannelCount];
+    private readonly StackPanel[] _scAppsPanels = new StackPanel[ScChannelCount];
+    private readonly WrapPanel[] _scAppsListPanels = new WrapPanel[ScChannelCount];
     private readonly RangeSlider[] _scRangeSliders = new RangeSlider[ScChannelCount];
     private readonly Color[] _scDisplayedColors = new Color[ScChannelCount];
     private bool _scBuilt;
@@ -167,14 +169,34 @@ public partial class MixerView
                 ToolTip = "What this encoder controls",
                 Tag = targetDisplay,
             };
-            AddDefaultTargetItems(targetPicker);
+            // Picker items populated lazily once _config is bound — the
+            // full integration-aware catalogue requires knowing which
+            // integrations are enabled (see RebuildScTargetPickerItems).
             targetPicker.SelectionChanged += (_, _) =>
             {
                 if (_loading) return;
                 SaveScTargetSelection(idx);
+                UpdateScPickerVisibility(idx, GetSelectedTarget(_scTargetPickers[idx]));
             };
             _scTargetPickers[i] = targetPicker;
-            var targetCard = MakeSectionCard("TARGET", targetPicker);
+
+            // App Group chip list — mirrors the Turn Up mixer's setup.
+            var appsContainer = new StackPanel { Visibility = Visibility.Collapsed };
+            appsContainer.Children.Add(new TextBlock
+            {
+                Text = "APP GROUP",
+                FontSize = 9,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = FindBrush("TextDimBrush"),
+                Margin = new Thickness(0, 6, 0, 4),
+            });
+            appsContainer.ToolTip = "Click apps to add or remove from this group";
+            var appsListPanel = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
+            appsContainer.Children.Add(appsListPanel);
+            _scAppsPanels[i] = appsContainer;
+            _scAppsListPanels[i] = appsListPanel;
+
+            var targetCard = MakeSectionCard("TARGET", targetPicker, appsContainer);
             targetCard.Margin = new Thickness(i == 0 ? 0 : 4, 0, i == ScChannelCount - 1 ? 0 : 4, 10);
             Grid.SetRow(targetCard, 1);
             Grid.SetColumn(targetCard, i);
@@ -236,39 +258,40 @@ public partial class MixerView
         _scBuilt = true;
     }
 
-    private void AddDefaultTargetItems(GridPicker picker)
+    /// <summary>
+    /// Re-populate every SC target picker with the full integration-aware
+    /// catalogue, plus the N3-only Stream Controller navigation targets.
+    /// Must be called after _config is available and whenever an
+    /// integration flag or groups list changes.
+    /// </summary>
+    private void RebuildScTargetPickerItems(AppConfig config)
     {
-        var clrGreen  = Color.FromRgb(0x66, 0xBB, 0x6A);
-        var clrRed    = Color.FromRgb(0xEF, 0x53, 0x50);
-        var clrBlue   = Color.FromRgb(0x42, 0xA5, 0xF5);
-        var clrTeal   = Color.FromRgb(0x26, 0xC6, 0xDA);
-        var clrPurple = Color.FromRgb(0xAB, 0x47, 0xBC);
-        var clrOrange = Color.FromRgb(0xFF, 0xA7, 0x26);
-        var clrYellow = Color.FromRgb(0xFF, 0xD5, 0x4F);
+        for (int i = 0; i < ScChannelCount; i++)
+        {
+            var picker = _scTargetPickers[i];
+            if (picker == null) continue;
+            PopulateTargetPickerItems(picker, config, includeN3Nav: true);
+        }
+    }
 
-        picker.AddCategory("Audio");
-        picker.AddItem("Master",        "master",        "♪",  clrGreen);
-        picker.AddItem("Mic",           "mic",           "◎",  clrRed);
-        picker.AddItem("System",        "system",        "◆",  clrBlue);
-        picker.AddItem("Any",           "any",           "◈",  clrTeal);
-        picker.AddItem("Active Window", "active_window", "▣",  clrPurple);
+    /// <summary>Show/hide the SC strip's App Group chip list based on the selected target.</summary>
+    private void UpdateScPickerVisibility(int idx, string target)
+    {
+        var baseTarget = target.Contains(':') ? target.Split(':')[0] : target;
+        bool showApps = baseTarget == "apps";
+        if (_scAppsPanels[idx] != null)
+            _scAppsPanels[idx].Visibility = showApps ? Visibility.Visible : Visibility.Collapsed;
+        if (showApps)
+            RebuildScAppToggles(idx);
+    }
 
-        picker.AddCategory("Devices");
-        picker.AddItem("Output Device",  "output_device",  "▶",  clrPurple);
-        picker.AddItem("Input Device",   "input_device",   "◀",  clrRed);
-        picker.AddItem("Monitor",        "monitor",        "▭",  clrOrange);
-        picker.AddItem("LED Brightness", "led_brightness", "◉",  clrYellow);
-
-        picker.AddCategory("Apps");
-        picker.AddItem("Discord", "discord", "◉", Color.FromRgb(0x58, 0x65, 0xF2));
-        picker.AddItem("Spotify", "spotify", "♪", Color.FromRgb(0x1D, 0xB9, 0x54));
-        picker.AddItem("Chrome",  "chrome",  "◆", clrBlue);
-
-        // N3-only navigation targets — turning the knob cycles Spaces or
-        // pages instead of adjusting volume. Discrete: one detent = one step.
-        picker.AddCategory("Stream Controller");
-        picker.AddItem("Cycle Spaces", "sc_space_cycle", "⊞", clrTeal);
-        picker.AddItem("Cycle Pages",  "sc_page_cycle",  "▤", clrOrange);
+    /// <summary>SC-side chip rebuild — same logic as the Turn Up path, writes to N3 knobs.</summary>
+    private void RebuildScAppToggles(int idx)
+    {
+        if (_config == null || _mixer == null) return;
+        var knob = _config.N3.Knobs.FirstOrDefault(k => k.Idx == idx);
+        if (knob == null) return;
+        RebuildAppTogglesFor(_scAppsListPanels[idx], knob, () => RebuildScAppToggles(idx));
     }
 
     private void LoadStreamControllerMixerConfig(AppConfig config)
@@ -282,6 +305,12 @@ public partial class MixerView
 
         BuildStreamControllerMixerPanel();
 
+        // Populate every SC target picker with the full integration-aware
+        // catalogue (App Group, HA, Groups, Room Lights, Govee, VM,
+        // Corsair, Stream Controller nav). Runs every config load so the
+        // picker stays in sync when the user flips integration toggles.
+        RebuildScTargetPickerItems(config);
+
         for (int i = 0; i < ScChannelCount; i++)
         {
             var knob = config.N3.Knobs.FirstOrDefault(k => k.Idx == i);
@@ -293,6 +322,7 @@ public partial class MixerView
             _scRangeSliders[i].UpperValue = Math.Clamp(knob.MaxVolume, 0, 100);
 
             UpdateScTargetDisplay(i);
+            UpdateScPickerVisibility(i, knob.Target);
         }
 
         UpdateMixerSurfaceVisibility(config.TabSelection.Mixer);
