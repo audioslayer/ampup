@@ -50,6 +50,7 @@ public partial class ButtonsView
     private Border? _scTextColorSwatch;
     private WrapPanel? _scTextColorSwatchPanel;
     private WrapPanel? _scIconColorSwatchPanel;
+    private WrapPanel? _scGlowColorSwatchPanel;
     private TextBox? _scIconBox;
     private Button? _scChooseIconButton;
     private Button? _scClearIconButton;
@@ -2087,6 +2088,91 @@ public partial class ButtonsView
     };
 
     /// <summary>
+    /// Build the BACKGROUND / GLOW colour swatch row — writes to
+    /// <c>StreamControllerDisplayKeyConfig.AccentColor</c>, which the
+    /// renderer uses for the radial glow behind the icon.
+    /// </summary>
+    private void BuildGlowColorSwatches()
+    {
+        if (_scGlowColorSwatchPanel == null) return;
+        _scGlowColorSwatchPanel.Children.Clear();
+
+        var display = GetSelectedDisplayKeyConfig();
+        string currentHex = display?.AccentColor ?? "#00E676";
+
+        foreach (var (name, hex) in TextColorPresets)
+        {
+            var color = (Color)ColorConverter.ConvertFromString(hex);
+            bool selected = hex.Equals(currentHex, StringComparison.OrdinalIgnoreCase);
+            var swatch = new Border
+            {
+                Width = 26, Height = 26,
+                CornerRadius = new CornerRadius(13),
+                Background = new SolidColorBrush(color),
+                BorderThickness = new Thickness(2),
+                BorderBrush = selected ? new SolidColorBrush(Colors.White) : Brushes.Transparent,
+                Margin = new Thickness(0, 0, 6, 6),
+                Cursor = Cursors.Hand,
+                ToolTip = name,
+            };
+            string capturedHex = hex;
+            swatch.MouseLeftButtonDown += (_, _) =>
+            {
+                if (display == null) return;
+                display.AccentColor = capturedHex;
+                BuildGlowColorSwatches();
+                UpdateEditorPreviewOnly();
+                QueueSave();
+            };
+            _scGlowColorSwatchPanel.Children.Add(swatch);
+        }
+
+        bool isCustom = display?.AccentColor != null
+            && !TextColorPresets.Any(p => p.Hex.Equals(display.AccentColor, StringComparison.OrdinalIgnoreCase));
+        var customSwatch = new Border
+        {
+            Width = 26, Height = 26,
+            CornerRadius = new CornerRadius(13),
+            Background = new LinearGradientBrush(
+                new GradientStopCollection
+                {
+                    new(Colors.Red, 0.0), new(Colors.Yellow, 0.17), new(Colors.Lime, 0.33),
+                    new(Colors.Cyan, 0.5), new(Colors.Blue, 0.67), new(Colors.Magenta, 0.83), new(Colors.Red, 1.0),
+                }, new Point(0, 0), new Point(1, 1)),
+            BorderThickness = new Thickness(2),
+            BorderBrush = isCustom ? new SolidColorBrush(Colors.White) : Brushes.Transparent,
+            Margin = new Thickness(0, 0, 6, 6),
+            Cursor = Cursors.Hand,
+            ToolTip = "Custom color",
+            Child = new TextBlock
+            {
+                Text = "+", FontSize = 13, FontWeight = FontWeights.Bold,
+                Foreground = Brushes.White,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            },
+        };
+        customSwatch.MouseLeftButtonDown += (_, _) =>
+        {
+            if (display == null) return;
+            Color initial;
+            try { initial = (Color)ColorConverter.ConvertFromString(display.AccentColor ?? "#00E676"); }
+            catch { initial = Colors.Lime; }
+            var dialog = new ColorPickerDialog(initial) { Owner = Window.GetWindow(this) };
+            dialog.ColorChanged += c =>
+            {
+                display.AccentColor = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+                UpdateEditorPreviewOnly();
+            };
+            dialog.ShowDialog();
+            display.AccentColor = $"#{dialog.SelectedColor.R:X2}{dialog.SelectedColor.G:X2}{dialog.SelectedColor.B:X2}";
+            BuildGlowColorSwatches();
+            QueueSave();
+        };
+        _scGlowColorSwatchPanel.Children.Add(customSwatch);
+    }
+
+    /// <summary>
     /// Build the ICON COLOR swatch row — mirrors the TEXT COLOR palette
     /// but writes to <c>StreamControllerDisplayKeyConfig.IconColor</c>
     /// so preset vector icons tint live. Inactive for user bitmap icons.
@@ -2455,6 +2541,11 @@ public partial class ButtonsView
             {
                 display.PresetIconKind = dialog.SelectedIconKind!;
                 display.ImagePath = "";
+                // Carry the picker's per-icon accent forward as the glow
+                // colour so the key preview matches what the user saw in
+                // the picker instead of defaulting to green.
+                if (dialog.SelectedAccent is Color acc)
+                    display.AccentColor = $"#{acc.R:X2}{acc.G:X2}{acc.B:X2}";
                 LoadStreamControllerSelection();
                 QueueSave();
             }

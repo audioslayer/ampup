@@ -46,6 +46,7 @@ public partial class ButtonsView
     // ICON COLOR label tracker — shown only when the selected key uses a
     // preset vector icon (bitmap images cannot be tinted).
     private TextBlock? _v2IconColorLabel;
+    private TextBlock? _v2GlowColorLabel;
 
     // Cache key for the action picker item set. Repopulate only when any
     // integration-enabled flag flips — otherwise every RefreshV2RightPanel
@@ -234,9 +235,19 @@ public partial class ButtonsView
         DetachFromParent(_scIconColorSwatchPanel);
         _scIconColorSwatchPanel.Margin = new Thickness(0, 0, 0, 0);
         designContent.Children.Add(_scIconColorSwatchPanel);
-        // Track the label alongside the swatch panel so RefreshV2RightPanel
-        // can toggle both together.
         _v2IconColorLabel = iconColorLabel;
+
+        // GLOW COLOR swatches — drives the radial accent glow behind the
+        // icon. Same preset visibility rule as ICON COLOR (no meaning for
+        // bitmap images since the glow only renders for preset icons).
+        var glowColorLabel = MakeEditorLabel("GLOW COLOR");
+        glowColorLabel.Margin = new Thickness(0, 10, 0, 4);
+        designContent.Children.Add(glowColorLabel);
+        if (_scGlowColorSwatchPanel == null) _scGlowColorSwatchPanel = new WrapPanel();
+        DetachFromParent(_scGlowColorSwatchPanel);
+        _scGlowColorSwatchPanel.Margin = new Thickness(0, 0, 0, 0);
+        designContent.Children.Add(_scGlowColorSwatchPanel);
+        _v2GlowColorLabel = glowColorLabel;
 
         if (_scClockPanel != null)
         {
@@ -539,15 +550,24 @@ public partial class ButtonsView
             }
             BuildTextColorSwatches();
 
-            // ICON COLOR row visible only when a preset vector icon is in
-            // use — user bitmaps can't be tinted so the row would do nothing.
+            // ICON COLOR + GLOW COLOR rows only meaningful when a preset
+            // vector icon is in use — user bitmaps can't be tinted and the
+            // glow only renders on the preset-icon code path.
             bool hasPresetIcon = !string.IsNullOrWhiteSpace(key.PresetIconKind)
                                  && string.IsNullOrWhiteSpace(key.ImagePath);
             if (_v2IconColorLabel != null)
                 _v2IconColorLabel.Visibility = hasPresetIcon ? Visibility.Visible : Visibility.Collapsed;
             if (_scIconColorSwatchPanel != null)
                 _scIconColorSwatchPanel.Visibility = hasPresetIcon ? Visibility.Visible : Visibility.Collapsed;
-            if (hasPresetIcon) BuildIconColorSwatches();
+            if (_v2GlowColorLabel != null)
+                _v2GlowColorLabel.Visibility = hasPresetIcon ? Visibility.Visible : Visibility.Collapsed;
+            if (_scGlowColorSwatchPanel != null)
+                _scGlowColorSwatchPanel.Visibility = hasPresetIcon ? Visibility.Visible : Visibility.Collapsed;
+            if (hasPresetIcon)
+            {
+                BuildIconColorSwatches();
+                BuildGlowColorSwatches();
+            }
         }
         else
         {

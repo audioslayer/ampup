@@ -65,6 +65,14 @@ public class StreamControllerIconPickerDialog : Window
     public string? SelectedIconKind { get; private set; }
     public string? SelectedDownloadedImagePath { get; private set; }
 
+    /// <summary>
+    /// Accent colour associated with the icon the user picked. Caller
+    /// should apply this to the key's AccentColor so the on-device glow
+    /// matches the hue the user saw in the picker (e.g. orange for
+    /// VolumeHigh, cyan for Cloud, etc.) instead of resetting to green.
+    /// </summary>
+    public Color? SelectedAccent { get; private set; }
+
     private sealed record IconPresetEntry(string Label, string Kind, string Category, Color Accent);
 
     private sealed class OnlineIconEntry
@@ -749,6 +757,7 @@ public class StreamControllerIconPickerDialog : Window
         card.MouseLeftButtonUp += (_, _) =>
         {
             SelectedIconKind = entry.Kind;
+            SelectedAccent = entry.Accent;
             SelectedDownloadedImagePath = null;
             CloseDialog(true);
         };
