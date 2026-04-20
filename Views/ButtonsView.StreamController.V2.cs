@@ -54,33 +54,19 @@ public partial class ButtonsView
         Grid.SetColumn(_v2LeftPanel, 0);
         _v2Root.Children.Add(_v2LeftPanel);
 
-        var rightHost = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Margin = new Thickness(12, 0, 0, 0),
-        };
-        var rightStack = new StackPanel();
+        // No inner ScrollViewer — the outer page ScrollViewer in
+        // ButtonsView.xaml handles vertical scrolling. A nested ScrollViewer
+        // here grows unbounded inside the outer one and never actually
+        // scrolls, leaving a dead zone over the right pane.
+        var rightStack = new StackPanel { Margin = new Thickness(12, 0, 0, 0) };
         _v2PreviewPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 16) };
         _v2ActionPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
         _v2ActionFieldsPanel = new StackPanel();
         rightStack.Children.Add(_v2PreviewPanel);
         rightStack.Children.Add(_v2ActionPanel);
         rightStack.Children.Add(_v2ActionFieldsPanel);
-        rightHost.Content = rightStack;
-        Grid.SetColumn(rightHost, 1);
-        _v2Root.Children.Add(rightHost);
-
-        // WPF's default mousewheel bubbles to the outer ScrollViewer in
-        // ButtonsView.xaml, which steals the scroll from the right pane.
-        // Handle the wheel on the whole V2 root so hovering ANY part of the
-        // tab (left canvas, the column separator, or the right pane itself)
-        // scrolls the editor — no dead zone over the separator.
-        _v2Root.PreviewMouseWheel += (_, e) =>
-        {
-            rightHost.ScrollToVerticalOffset(rightHost.VerticalOffset - e.Delta);
-            e.Handled = true;
-        };
+        Grid.SetColumn(rightStack, 1);
+        _v2Root.Children.Add(rightStack);
 
         // Agents fill each region:
         FillV2LeftPanel();
