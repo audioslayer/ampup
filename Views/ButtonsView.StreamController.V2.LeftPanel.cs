@@ -122,7 +122,7 @@ public partial class ButtonsView
         });
         var headerLabel = new TextBlock
         {
-            Text = "FOLDERS",
+            Text = "SPACES",
             FontSize = 14,
             FontWeight = FontWeights.Bold,
             Foreground = FindBrush("TextPrimaryBrush"),
@@ -170,11 +170,11 @@ public partial class ButtonsView
         if (_v2FolderSectionContent == null || _config == null) return;
         _v2FolderSectionContent.Children.Clear();
 
-        // "+ New Folder" action row at the top.
-        var newBtn = MakeEditorButton("+ New Folder", (_, _) =>
+        // "+ New Space" action row at the top.
+        var newBtn = MakeEditorButton("+ New Space", (_, _) =>
         {
             if (_config == null) return;
-            string? name = GlassDialog.Prompt("Enter a name for the new folder:", "New Folder", Window.GetWindow(this));
+            string? name = GlassDialog.Prompt("Enter a name for the new Space:", "New Space", Window.GetWindow(this));
             if (string.IsNullOrWhiteSpace(name)) return;
             name = name.Trim();
             if (_config.N3.Folders.Any(f => f.Name == name))
@@ -202,7 +202,7 @@ public partial class ButtonsView
         {
             _v2FolderSectionContent.Children.Add(new TextBlock
             {
-                Text = "No folders yet. Create one above or right-click any key → Open as Folder.",
+                Text = "No Spaces yet. Create one above or right-click any key → Open as Space.",
                 FontSize = 11,
                 Foreground = FindBrush("TextDimBrush"),
                 TextWrapping = TextWrapping.Wrap,
@@ -235,23 +235,35 @@ public partial class ButtonsView
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        // Folder name + key-count subtitle.
+        // Space name + key-count subtitle. Dashboard icon + accent tint.
         var labelStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        labelStack.Children.Add(new TextBlock
+        var nameRow = new StackPanel { Orientation = Orientation.Horizontal };
+        var spaceIcon = new MaterialIcon
         {
-            Text = "\U0001F4C1  " + folder.Name,
+            Kind = MaterialIconKind.ViewDashboardOutline,
+            Width = 14, Height = 14,
+            Foreground = new SolidColorBrush(ThemeManager.Accent),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0),
+        };
+        nameRow.Children.Add(spaceIcon);
+        nameRow.Children.Add(new TextBlock
+        {
+            Text = folder.Name,
             FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextPrimaryBrush"),
             TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center,
         });
+        labelStack.Children.Add(nameRow);
         int keyCount = folder.Buttons.Count(b => !string.IsNullOrEmpty(b.Action) && b.Action != "none");
         labelStack.Children.Add(new TextBlock
         {
             Text = $"{folder.PageCount} page{(folder.PageCount == 1 ? "" : "s")} · {keyCount} key{(keyCount == 1 ? "" : "s")} assigned",
             FontSize = 10,
             Foreground = FindBrush("TextDimBrush"),
-            Margin = new Thickness(0, 2, 0, 0),
+            Margin = new Thickness(22, 2, 0, 0),
         });
         Grid.SetColumn(labelStack, 0);
         grid.Children.Add(labelStack);
@@ -266,7 +278,7 @@ public partial class ButtonsView
         var renameBtn = MakeEditorButton("Rename", (_, _) =>
         {
             if (_config == null) return;
-            string? newName = GlassDialog.Prompt("Rename folder:", folder.Name, Window.GetWindow(this));
+            string? newName = GlassDialog.Prompt("Rename Space:", folder.Name, Window.GetWindow(this));
             if (string.IsNullOrWhiteSpace(newName) || newName.Trim() == folder.Name) return;
             newName = newName.Trim();
             if (_config.N3.Folders.Any(f => f.Name == newName)) return;
@@ -295,7 +307,7 @@ public partial class ButtonsView
         var delBtn = MakeEditorButton("Delete", (_, _) =>
         {
             if (_config == null) return;
-            if (!GlassDialog.Confirm($"Delete folder \"{folder.Name}\" and all its keys?", "Delete Folder", dangerYes: true, owner: Window.GetWindow(this)))
+            if (!GlassDialog.Confirm($"Delete Space \"{folder.Name}\" and all its keys?", "Delete Space", dangerYes: true, owner: Window.GetWindow(this)))
                 return;
 
             _config.N3.Folders.Remove(folder);
@@ -423,10 +435,10 @@ public partial class ButtonsView
         sep.SetResourceReference(Control.ForegroundProperty, "TextDimBrush");
         row.Children.Add(sep);
 
-        // Current folder: accent folder icon + accent name (bold).
+        // Current Space: accent dashboard icon + accent name (bold).
         var folderIcon = new MaterialIcon
         {
-            Kind = MaterialIconKind.FolderOpen,
+            Kind = MaterialIconKind.ViewDashboardOutline,
             Width = 16,
             Height = 16,
             VerticalAlignment = VerticalAlignment.Center,

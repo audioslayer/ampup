@@ -75,7 +75,7 @@ public partial class ButtonsView
         _v2ActionFieldsPanel.Children.Add(_v2MultiActionCard);
 
         // 9. Folder picker (open_folder).
-        _v2FolderCard = MakeV2SectionCard("FOLDER", out _, _scFolderPanel);
+        _v2FolderCard = MakeV2SectionCard("SPACE", out _, _scFolderPanel);
         _v2ActionFieldsPanel.Children.Add(_v2FolderCard);
 
         // 10. Profile picker (switch_profile).

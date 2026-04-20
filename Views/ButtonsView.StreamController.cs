@@ -256,7 +256,7 @@ public partial class ButtonsView
         bannerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         _scFolderBannerLabel = new TextBlock
         {
-            Text = "Editing folder",
+            Text = "Editing Space",
             FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextPrimaryBrush"),
@@ -1194,7 +1194,7 @@ public partial class ButtonsView
     private (StackPanel panel, ListPicker picker, Button newButton) MakeStreamFolderRow()
     {
         var panel = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 10, 0, 0) };
-        panel.Children.Add(MakeEditorLabel("FOLDER"));
+        panel.Children.Add(MakeEditorLabel("SPACE"));
 
         var picker = new ListPicker();
         picker.SelectionChanged += (_, _) =>
@@ -1301,75 +1301,72 @@ public partial class ButtonsView
     }
 
     /// <summary>
-    /// Adds folder-related items to a right-click context menu on a key card:
-    /// "Open as Folder ▸ New Folder / [existing folders]" and, when the key already
-    /// opens a folder, "Edit Folder" / "Unlink from Folder" shortcuts.
+    /// Glass-style flattened menu items for the Spaces (folder) affordance
+    /// on a key right-click. When the key already opens a Space, adds
+    /// "Edit Space Contents" and "Unlink from Space" rows after the parent.
     /// </summary>
-    private void BuildFolderContextMenuItems(ContextMenu menu, int globalIdx)
+    private IEnumerable<GlassMenuItem> BuildFolderGlassMenuItems(int globalIdx)
     {
-        if (_config == null) return;
+        if (_config == null) yield break;
 
         int buttonIdx = StreamControllerDisplayKeyBase + globalIdx;
         var btn = GetActiveN3ButtonList().FirstOrDefault(b => b.Idx == buttonIdx);
         bool isFolderKey = btn != null && btn.Action == "open_folder" && !string.IsNullOrEmpty(btn.FolderName);
 
-        var folderSubmenu = new MenuItem { Header = isFolderKey ? "Change Folder" : "Open as Folder" };
-
-        var newFolderItem = new MenuItem { Header = "+ New Folder..." };
-        newFolderItem.Click += (_, _) =>
+        // Build the submenu list.
+        var sub = new List<GlassMenuItem>
         {
-            // Swap selection to the right-clicked key so CreateNewFolderForCurrentKey
-            // assigns the folder to the correct button.
-            _scSelectedButtonIdx = buttonIdx;
-            CreateNewFolderForCurrentKey();
+            new("+ New Space…", Material.Icons.MaterialIconKind.Plus, () =>
+            {
+                _scSelectedButtonIdx = buttonIdx;
+                CreateNewFolderForCurrentKey();
+            }),
         };
-        folderSubmenu.Items.Add(newFolderItem);
-
         if (_config.N3.Folders.Count > 0)
         {
-            folderSubmenu.Items.Add(new Separator());
+            sub.Add(GlassMenuItem.Sep);
             foreach (var folder in _config.N3.Folders)
             {
                 if (string.IsNullOrEmpty(folder.Name)) continue;
                 var folderName = folder.Name;
-                var item = new MenuItem
-                {
-                    Header = folderName,
-                    IsCheckable = true,
-                    IsChecked = isFolderKey && btn!.FolderName == folderName,
-                };
-                item.Click += (_, _) =>
-                {
-                    var target = GetActiveN3ButtonList().FirstOrDefault(b => b.Idx == buttonIdx);
-                    if (target == null) return;
-                    target.Action = "open_folder";
-                    target.FolderName = folderName;
-                    QueueSave();
-                    LoadStreamControllerConfig();
-                };
-                folderSubmenu.Items.Add(item);
+                bool isCurrent = isFolderKey && btn!.FolderName == folderName;
+                sub.Add(new(folderName,
+                    isCurrent ? Material.Icons.MaterialIconKind.Check : (Material.Icons.MaterialIconKind?)Material.Icons.MaterialIconKind.ViewDashboardOutline,
+                    () =>
+                    {
+                        var target = GetActiveN3ButtonList().FirstOrDefault(b => b.Idx == buttonIdx);
+                        if (target == null) return;
+                        target.Action = "open_folder";
+                        target.FolderName = folderName;
+                        QueueSave();
+                        LoadStreamControllerConfig();
+                    },
+                    IsChecked: isCurrent));
             }
         }
 
-        menu.Items.Add(folderSubmenu);
+        yield return new(
+            isFolderKey ? "Change Space" : "Open as Space",
+            Material.Icons.MaterialIconKind.ViewDashboardOutline,
+            null,
+            Submenu: sub);
 
         if (isFolderKey)
         {
-            var editItem = new MenuItem { Header = "Edit Folder Contents..." };
-            editItem.Click += (_, _) => NavigateToFolderInEditor(btn!.FolderName);
-            menu.Items.Add(editItem);
-
-            var unlinkItem = new MenuItem { Header = "Unlink from Folder" };
-            unlinkItem.Click += (_, _) =>
-            {
-                var target = GetActiveN3ButtonList().FirstOrDefault(b => b.Idx == buttonIdx);
-                if (target == null) return;
-                target.Action = "none";
-                target.FolderName = "";
-                QueueSave();
-                LoadStreamControllerConfig();
-            };
-            menu.Items.Add(unlinkItem);
+            yield return new("Edit Space Contents",
+                Material.Icons.MaterialIconKind.Pencil,
+                () => NavigateToFolderInEditor(btn!.FolderName));
+            yield return new("Unlink from Space",
+                Material.Icons.MaterialIconKind.LinkVariantOff,
+                () =>
+                {
+                    var target = GetActiveN3ButtonList().FirstOrDefault(b => b.Idx == buttonIdx);
+                    if (target == null) return;
+                    target.Action = "none";
+                    target.FolderName = "";
+                    QueueSave();
+                    LoadStreamControllerConfig();
+                });
         }
     }
 
@@ -2348,82 +2345,82 @@ public partial class ButtonsView
 
     // ── Context menu ─────────────────────────────────────────────────────
 
-    private void ShowKeyContextMenu(Border card, int globalIdx)
+    private void ShowGlassMenu(FrameworkElement anchor, List<GlassMenuItem> items)
+        => GlassContextMenuHost.Show(anchor, items);
+
+    private void ShowKeyContextMenu(FrameworkElement anchor, int globalIdx)
     {
-        var menu = new ContextMenu();
-        var clearItem = new MenuItem { Header = "Clear Key" };
-        clearItem.Click += (_, _) => ClearDisplayKey(globalIdx);
-        menu.Items.Add(clearItem);
-
-        var deleteItem = new MenuItem { Header = "Delete Key Content" };
-        deleteItem.Click += (_, _) => ClearDisplayKey(globalIdx);
-        menu.Items.Add(deleteItem);
-
-        menu.Items.Add(new Separator());
-
-        BuildFolderContextMenuItems(menu, globalIdx);
-
-        menu.Items.Add(new Separator());
-
-        var copyItem = new MenuItem { Header = "Copy" };
-        copyItem.Click += (_, _) =>
+        var items = new List<GlassMenuItem>
         {
-            if (_config == null) return;
-            var srcKey = GetActiveN3DisplayKeys().FirstOrDefault(k => k.Idx == globalIdx);
-            _scClipboardKey = srcKey == null ? null : new StreamControllerDisplayKeyConfig
-            {
-                ImagePath = srcKey.ImagePath, PresetIconKind = srcKey.PresetIconKind,
-                Title = srcKey.Title,
-                BackgroundColor = srcKey.BackgroundColor, AccentColor = srcKey.AccentColor,
-                TextPosition = srcKey.TextPosition, TextSize = srcKey.TextSize, TextColor = srcKey.TextColor,
-            };
-            var srcBtn = GetActiveN3ButtonList().FirstOrDefault(b => b.Idx == StreamControllerDisplayKeyBase + globalIdx);
-            _scClipboardButton = srcBtn == null ? null : new ButtonConfig
-            {
-                Action = srcBtn.Action, Path = srcBtn.Path, MacroKeys = srcBtn.MacroKeys,
-                DeviceId = srcBtn.DeviceId, ProfileName = srcBtn.ProfileName, LinkedKnobIdx = srcBtn.LinkedKnobIdx,
-                FolderName = srcBtn.FolderName,
-            };
+            new("Clear Key",         Material.Icons.MaterialIconKind.Eraser,       () => ClearDisplayKey(globalIdx)),
+            new("Delete Key Content",Material.Icons.MaterialIconKind.TrashCanOutline, () => ClearDisplayKey(globalIdx), IsDanger: true),
+            GlassMenuItem.Sep,
         };
-        menu.Items.Add(copyItem);
 
-        var pasteItem = new MenuItem { Header = "Paste", IsEnabled = _scClipboardKey != null };
-        pasteItem.Click += (_, _) =>
+        // Space (folder) submenu items — reuse existing builder which adds
+        // a MenuItem subtree; we'll flatten it into GlassMenuItems.
+        items.AddRange(BuildFolderGlassMenuItems(globalIdx));
+
+        items.Add(GlassMenuItem.Sep);
+        items.Add(new("Copy", Material.Icons.MaterialIconKind.ContentCopy, () => CopyDisplayKeyToClipboard(globalIdx)));
+        items.Add(new("Paste", Material.Icons.MaterialIconKind.ContentPaste,
+            () => PasteDisplayKeyFromClipboard(globalIdx),
+            IsEnabled: _scClipboardKey != null));
+
+        ShowGlassMenu(anchor, items);
+    }
+
+    private void CopyDisplayKeyToClipboard(int globalIdx)
+    {
+        if (_config == null) return;
+        var srcKey = GetActiveN3DisplayKeys().FirstOrDefault(k => k.Idx == globalIdx);
+        _scClipboardKey = srcKey == null ? null : new StreamControllerDisplayKeyConfig
         {
-            if (_config == null || _scClipboardKey == null) return;
-            var target = GetActiveN3DisplayKeys().FirstOrDefault(k => k.Idx == globalIdx);
-            if (target != null)
-            {
-                target.ImagePath = _scClipboardKey.ImagePath;
-                target.PresetIconKind = _scClipboardKey.PresetIconKind;
-                target.Title = _scClipboardKey.Title;
-                target.BackgroundColor = _scClipboardKey.BackgroundColor;
-                target.AccentColor = _scClipboardKey.AccentColor;
-                target.TextPosition = _scClipboardKey.TextPosition;
-                target.TextSize = _scClipboardKey.TextSize;
-                target.TextColor = _scClipboardKey.TextColor;
-            }
-            if (_scClipboardButton != null)
-            {
-                var btnTarget = GetActiveN3ButtonList().FirstOrDefault(b => b.Idx == StreamControllerDisplayKeyBase + globalIdx);
-                if (btnTarget != null)
-                {
-                    btnTarget.Action = _scClipboardButton.Action;
-                    btnTarget.Path = _scClipboardButton.Path;
-                    btnTarget.MacroKeys = _scClipboardButton.MacroKeys;
-                    btnTarget.DeviceId = _scClipboardButton.DeviceId;
-                    btnTarget.ProfileName = _scClipboardButton.ProfileName;
-                    btnTarget.LinkedKnobIdx = _scClipboardButton.LinkedKnobIdx;
-                    btnTarget.FolderName = _scClipboardButton.FolderName;
-                }
-            }
-            LoadStreamControllerConfig();
-            QueueSave();
+            ImagePath = srcKey.ImagePath, PresetIconKind = srcKey.PresetIconKind,
+            Title = srcKey.Title,
+            BackgroundColor = srcKey.BackgroundColor, AccentColor = srcKey.AccentColor,
+            TextPosition = srcKey.TextPosition, TextSize = srcKey.TextSize, TextColor = srcKey.TextColor,
         };
-        menu.Items.Add(pasteItem);
+        var srcBtn = GetActiveN3ButtonList().FirstOrDefault(b => b.Idx == StreamControllerDisplayKeyBase + globalIdx);
+        _scClipboardButton = srcBtn == null ? null : new ButtonConfig
+        {
+            Action = srcBtn.Action, Path = srcBtn.Path, MacroKeys = srcBtn.MacroKeys,
+            DeviceId = srcBtn.DeviceId, ProfileName = srcBtn.ProfileName, LinkedKnobIdx = srcBtn.LinkedKnobIdx,
+            FolderName = srcBtn.FolderName,
+        };
+    }
 
-        card.ContextMenu = menu;
-        menu.IsOpen = true;
+    private void PasteDisplayKeyFromClipboard(int globalIdx)
+    {
+        if (_config == null || _scClipboardKey == null) return;
+        var target = GetActiveN3DisplayKeys().FirstOrDefault(k => k.Idx == globalIdx);
+        if (target != null)
+        {
+            target.ImagePath = _scClipboardKey.ImagePath;
+            target.PresetIconKind = _scClipboardKey.PresetIconKind;
+            target.Title = _scClipboardKey.Title;
+            target.BackgroundColor = _scClipboardKey.BackgroundColor;
+            target.AccentColor = _scClipboardKey.AccentColor;
+            target.TextPosition = _scClipboardKey.TextPosition;
+            target.TextSize = _scClipboardKey.TextSize;
+            target.TextColor = _scClipboardKey.TextColor;
+        }
+        if (_scClipboardButton != null)
+        {
+            var btnTarget = GetActiveN3ButtonList().FirstOrDefault(b => b.Idx == StreamControllerDisplayKeyBase + globalIdx);
+            if (btnTarget != null)
+            {
+                btnTarget.Action = _scClipboardButton.Action;
+                btnTarget.Path = _scClipboardButton.Path;
+                btnTarget.MacroKeys = _scClipboardButton.MacroKeys;
+                btnTarget.DeviceId = _scClipboardButton.DeviceId;
+                btnTarget.ProfileName = _scClipboardButton.ProfileName;
+                btnTarget.LinkedKnobIdx = _scClipboardButton.LinkedKnobIdx;
+                btnTarget.FolderName = _scClipboardButton.FolderName;
+            }
+        }
+        LoadStreamControllerConfig();
+        QueueSave();
     }
 
     private StreamControllerDisplayKeyConfig? _scClipboardKey;
