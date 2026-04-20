@@ -289,18 +289,43 @@ using System;
                     _searchChrome.Child = searchGrid;
                     header.Children.Add(_searchChrome);
             
-                    var categoryRow = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
+                    // Two dedicated rows instead of stuffing both segmented
+                    // controls + upload button on one line. Each picker now
+                    // has full horizontal breathing room.
+                    //
+                    //   Row 1 — CATEGORY label + segmented control (full width)
+                    //   Row 2 — PACK label + segmented control + Upload button
+                    _categoryPicker.Margin = new Thickness(0);
+                    _packPicker.Margin = new Thickness(0);
+
+                    TextBlock MakeFilterLabel(string text) => new()
+                    {
+                        Text = text,
+                        FontSize = 10,
+                        FontWeight = FontWeights.SemiBold,
+                        Foreground = (Brush)Application.Current.FindResource("TextDimBrush"),
+                        Margin = new Thickness(2, 0, 0, 4),
+                    };
+
+                    var categoryRow = new StackPanel
+                    {
+                        Orientation = Orientation.Vertical,
+                        Margin = new Thickness(0, 0, 0, 10),
+                    };
+                    categoryRow.Children.Add(MakeFilterLabel("CATEGORY"));
+                    categoryRow.Children.Add(_categoryPicker);
+                    header.Children.Add(categoryRow);
+
+                    var packRow = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
                     var uploadButton = BuildUploadButton();
                     DockPanel.SetDock(uploadButton, Dock.Right);
-                    categoryRow.Children.Add(uploadButton);
-                    
-                    var pickersPanel = new StackPanel { Orientation = Orientation.Horizontal };
-                    _categoryPicker.Margin = new Thickness(0);
-                    pickersPanel.Children.Add(_categoryPicker);
-                    pickersPanel.Children.Add(_packPicker);
-                    
-                    categoryRow.Children.Add(pickersPanel);
-                    header.Children.Add(categoryRow);
+                    packRow.Children.Add(uploadButton);
+
+                    var packStack = new StackPanel { Orientation = Orientation.Vertical };
+                    packStack.Children.Add(MakeFilterLabel("ICON PACK"));
+                    packStack.Children.Add(_packPicker);
+                    packRow.Children.Add(packStack);
+                    header.Children.Add(packRow);
             
                     main.Children.Add(header);
             
