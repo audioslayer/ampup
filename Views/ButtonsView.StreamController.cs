@@ -578,6 +578,7 @@ public partial class ButtonsView
         _scDisplayTypePicker.AddSegment("Normal", DisplayKeyType.Normal);
         _scDisplayTypePicker.AddSegment("Clock", DisplayKeyType.Clock);
         _scDisplayTypePicker.AddSegment("Dynamic", DisplayKeyType.DynamicState);
+        _scDisplayTypePicker.AddSegment("Solid", DisplayKeyType.Solid);
         _scDisplayTypePicker.SelectionChanged += (_, _) =>
         {
             if (_loading || _config == null) return;
@@ -1762,6 +1763,7 @@ public partial class ButtonsView
                 {
                     DisplayKeyType.Clock => 1,
                     DisplayKeyType.DynamicState => 2,
+                    DisplayKeyType.Solid => 3,
                     _ => 0
                 };
             }

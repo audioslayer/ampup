@@ -123,12 +123,25 @@ internal static class StreamControllerDisplayRenderer
             TextPosition = key.TextPosition,
             TextSize = key.TextSize,
             TextColor = key.TextColor,
+            IconColor = key.IconColor,
+            FontFamily = key.FontFamily,
+            Brightness = key.Brightness,
             DisplayType = key.DisplayType,
             ClockFormat = key.ClockFormat,
             DynamicStateSource = key.DynamicStateSource,
             DynamicStateActiveIcon = key.DynamicStateActiveIcon,
             DynamicStateActiveTitle = key.DynamicStateActiveTitle,
         };
+
+        if (key.DisplayType == DisplayKeyType.Solid)
+        {
+            // Flat fill — strip every icon/image source so ComposeImage
+            // falls through to the solid-BackgroundColor branch. Title
+            // still overlays if the user left one set.
+            clone.ImagePath = "";
+            clone.PresetIconKind = "";
+            return clone;
+        }
 
         if (key.DisplayType == DisplayKeyType.Clock)
         {
@@ -210,7 +223,41 @@ internal static class StreamControllerDisplayRenderer
         if (hasText && key.TextPosition != DisplayTextPosition.Hidden)
             DrawTextOverlay(bitmap, key, canvas, title);
 
+        // Per-key brightness — final multiply pass. 100 = unchanged, 0 = black.
+        int brightness = Math.Clamp(key.Brightness, 0, 100);
+        if (brightness < 100)
+            ApplyBrightness(bitmap, brightness);
+
         return bitmap;
+    }
+
+    /// <summary>
+    /// Multiply every pixel's RGB by <paramref name="brightnessPct"/>/100.
+    /// Iterates a locked byte buffer for speed — avoids per-pixel GetPixel
+    /// which is ~100x slower on 126x126 images.
+    /// </summary>
+    private static void ApplyBrightness(DrawingBitmap bitmap, int brightnessPct)
+    {
+        var rect = new System.Drawing.Rectangle(0, 0, bitmap.Width, bitmap.Height);
+        var data = bitmap.LockBits(rect, ImageLockMode.ReadWrite, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        try
+        {
+            int bytes = Math.Abs(data.Stride) * data.Height;
+            var buffer = new byte[bytes];
+            System.Runtime.InteropServices.Marshal.Copy(data.Scan0, buffer, 0, bytes);
+
+            // Format32bppArgb is B, G, R, A in memory (little-endian).
+            for (int i = 0; i + 3 < bytes; i += 4)
+            {
+                buffer[i]     = (byte)((buffer[i]     * brightnessPct) / 100);
+                buffer[i + 1] = (byte)((buffer[i + 1] * brightnessPct) / 100);
+                buffer[i + 2] = (byte)((buffer[i + 2] * brightnessPct) / 100);
+                // leave alpha alone
+            }
+
+            System.Runtime.InteropServices.Marshal.Copy(buffer, 0, data.Scan0, bytes);
+        }
+        finally { bitmap.UnlockBits(data); }
     }
 
     private static DrawingBitmap RenderSourceToCanvas(DrawingImage source, int size)

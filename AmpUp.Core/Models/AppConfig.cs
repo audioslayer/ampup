@@ -336,6 +336,8 @@ public class StreamControllerDisplayKeyConfig
     public string IconColor { get; set; } = "#F7F7F7";
     /// <summary>Font family name used for the key's title overlay. Falls back to Segoe UI if unavailable.</summary>
     public string FontFamily { get; set; } = "Segoe UI";
+    /// <summary>Per-key brightness 0-100. Applied as a final multiply on the composed bitmap (100 = unchanged, 0 = black).</summary>
+    public int Brightness { get; set; } = 100;
 
     /// <summary>Key render type — Normal shows title+icon, Clock renders live time, DynamicState follows an external state source.</summary>
     [JsonConverter(typeof(StringEnumConverter))]
@@ -354,6 +356,8 @@ public enum DisplayKeyType
     Normal,
     Clock,
     DynamicState,
+    /// <summary>Flat solid-color fill — renders only BackgroundColor + optional Title, skips icon/glow.</summary>
+    Solid,
 }
 
 public enum DisplayTextPosition

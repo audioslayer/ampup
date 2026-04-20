@@ -48,6 +48,8 @@ public partial class ButtonsView
     private TextBlock? _v2IconColorLabel;
     private TextBlock? _v2GlowColorLabel;
     private ListPicker? _v2FontPicker;
+    private StyledSlider? _v2BrightnessSlider;
+    private TextBlock? _v2BrightnessLabel;
 
     // Cache key for the action picker item set. Repopulate only when any
     // integration-enabled flag flips — otherwise every RefreshV2RightPanel
@@ -203,6 +205,48 @@ public partial class ButtonsView
         DetachFromParent(_v2FontPicker);
         _v2FontPicker.Margin = new Thickness(0, 0, 0, 4);
         designContent.Children.Add(_v2FontPicker);
+
+        // Per-key BRIGHTNESS — final multiply pass on the composed bitmap.
+        // 100 = unchanged (default), 0 = black.
+        if (_v2BrightnessLabel == null)
+        {
+            _v2BrightnessLabel = new TextBlock
+            {
+                Text = "Brightness: 100%",
+                FontSize = 10,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = FindBrush("TextDimBrush"),
+                Margin = new Thickness(0, 12, 0, 4),
+            };
+        }
+        DetachFromParent(_v2BrightnessLabel);
+        designContent.Children.Add(_v2BrightnessLabel);
+
+        if (_v2BrightnessSlider == null)
+        {
+            _v2BrightnessSlider = new StyledSlider
+            {
+                Minimum = 0,
+                Maximum = 100,
+                Value = 100,
+                Height = 28,
+                ShowLabel = false,
+            };
+            _v2BrightnessSlider.ValueChanged += (_, _) =>
+            {
+                if (_v2BrightnessLabel != null)
+                    _v2BrightnessLabel.Text = $"Brightness: {(int)_v2BrightnessSlider.Value}%";
+                if (_loading) return;
+                var display = GetSelectedDisplayKeyConfig();
+                if (display == null) return;
+                display.Brightness = (int)Math.Round(_v2BrightnessSlider.Value);
+                UpdateEditorPreviewOnly();
+                QueueSave();
+            };
+        }
+        DetachFromParent(_v2BrightnessSlider);
+        _v2BrightnessSlider.Margin = new Thickness(0, 0, 0, 10);
+        designContent.Children.Add(_v2BrightnessSlider);
 
         designContent.Children.Add(MakeEditorLabel("TEXT POSITION"));
         if (_scTextPositionPicker == null)
@@ -586,6 +630,12 @@ public partial class ButtonsView
                 }
                 if (fontIdx < 0) fontIdx = 0; // fall back to Segoe UI
                 _v2FontPicker.SelectedIndex = fontIdx;
+            }
+            if (_v2BrightnessSlider != null)
+            {
+                _v2BrightnessSlider.Value = Math.Clamp(key.Brightness <= 0 ? 100 : key.Brightness, 0, 100);
+                if (_v2BrightnessLabel != null)
+                    _v2BrightnessLabel.Text = $"Brightness: {(int)_v2BrightnessSlider.Value}%";
             }
             BuildTextColorSwatches();
 
