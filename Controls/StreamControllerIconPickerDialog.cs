@@ -962,7 +962,7 @@ public class StreamControllerIconPickerDialog : Window
         };
         card.MouseLeftButtonUp += (_, _) =>
         {
-            if (entry.Kind.StartsWith("neon_") || entry.Kind.StartsWith("material_"))
+            if (entry.Kind.StartsWith("neon_") || entry.Kind.StartsWith("material_") || entry.Kind.StartsWith("synthwave_") || entry.Kind.StartsWith("cyber_") || entry.Kind.StartsWith("retro_"))
             {
                 string filename = entry.Kind switch
                 {
