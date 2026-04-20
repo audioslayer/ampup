@@ -1206,6 +1206,13 @@ public partial class ButtonsView
         picker.SelectionChanged += (_, _) =>
         {
             if (_loading || _config == null) return;
+            // Programmatic ClearItems fires SelectionChanged with
+            // SelectedIndex = -1 while the picker is being repopulated.
+            // Writing an empty FolderName here would wipe the user's
+            // previously saved folder — early-return so only real user
+            // picks (SelectedTag non-null) update the button config.
+            if (picker.SelectedIndex < 0 || picker.SelectedTag is not string folderName
+                || string.IsNullOrEmpty(folderName)) return;
             // Side buttons / encoder presses live on the root list even when the
             // editor is navigated inside a folder — GetActiveN3ButtonList returns
             // the folder's list there and would miss them. Select the right list
@@ -1216,7 +1223,7 @@ public partial class ButtonsView
             var btn = list.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
             if (btn == null) return;
             btn.Action = "open_folder";
-            btn.FolderName = picker.SelectedTag as string ?? "";
+            btn.FolderName = folderName;
             QueueSave();
         };
         panel.Children.Add(picker);
