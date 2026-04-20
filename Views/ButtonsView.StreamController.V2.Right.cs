@@ -288,7 +288,29 @@ public partial class ButtonsView
     {
         if (_v2ActionPanel == null) return;
 
-        _v2ActionPanel.Children.Add(MakeEditorLabel("ACTION"));
+        // Match the DESIGN / FOLDERS header style: accent bar + white SemiBold
+        // uppercase. Keeps all section headers in the tab visually consistent.
+        var actionHeaderRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+        actionHeaderRow.Children.Add(new Border
+        {
+            Width = 3,
+            CornerRadius = new CornerRadius(2),
+            Margin = new Thickness(0, 0, 8, 0),
+            Background = new SolidColorBrush(ThemeManager.Accent),
+        });
+        actionHeaderRow.Children.Add(new TextBlock
+        {
+            Text = "ACTION",
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        _v2ActionPanel.Children.Add(actionHeaderRow);
 
         _v2ActionPicker = new QuickActionPicker
         {
