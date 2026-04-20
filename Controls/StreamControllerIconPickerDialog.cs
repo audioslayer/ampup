@@ -738,6 +738,10 @@ public class StreamControllerIconPickerDialog : Window
                 "neon_spotify" => "spotify_neon.jpg",
                 "neon_discord" => "discord_neon.jpg",
                 "neon_chrome" => "neon_chrome.jpg",
+                "neon_obs" => "neon_obs.jpg",
+                "neon_youtube" => "neon_youtube.jpg",
+                "neon_folder" => "neon_folder.jpg",
+                "neon_power" => "neon_power.jpg",
                 "neon_mic" => "mic_active_neon.jpg",
                 "neon_mic_mute" => "mic_mute_neon.jpg",
                 "neon_volume" => "speaker_volume_neon.jpg",
@@ -751,6 +755,10 @@ public class StreamControllerIconPickerDialog : Window
                 "material_gamepad" => "material_gamepad.jpg",
                 "material_power" => "material_power.jpg",
                 "material_webcam" => "material_webcam.jpg",
+                "material_mic" => "material_mic.jpg",
+                "material_mic_mute" => "material_mic_mute.jpg",
+                "material_volume" => "material_volume.jpg",
+                "material_volume_mute" => "material_volume_mute.jpg",
                 _ => ""
             };
 
@@ -819,6 +827,10 @@ public class StreamControllerIconPickerDialog : Window
                     "neon_spotify" => "spotify_neon.jpg",
                     "neon_discord" => "discord_neon.jpg",
                     "neon_chrome" => "neon_chrome.jpg",
+                    "neon_obs" => "neon_obs.jpg",
+                    "neon_youtube" => "neon_youtube.jpg",
+                    "neon_folder" => "neon_folder.jpg",
+                    "neon_power" => "neon_power.jpg",
                     "neon_mic" => "mic_active_neon.jpg",
                     "neon_mic_mute" => "mic_mute_neon.jpg",
                     "neon_volume" => "speaker_volume_neon.jpg",
@@ -832,6 +844,10 @@ public class StreamControllerIconPickerDialog : Window
                     "material_gamepad" => "material_gamepad.jpg",
                     "material_power" => "material_power.jpg",
                     "material_webcam" => "material_webcam.jpg",
+                    "material_mic" => "material_mic.jpg",
+                    "material_mic_mute" => "material_mic_mute.jpg",
+                    "material_volume" => "material_volume.jpg",
+                    "material_volume_mute" => "material_volume_mute.jpg",
                     _ => ""
                 };
                 
@@ -1016,6 +1032,9 @@ public class StreamControllerIconPickerDialog : Window
             new("Neon Spotify", "neon_spotify", "Apps", Color.FromRgb(0x1D, 0xB9, 0x54)),
             new("Neon Discord", "neon_discord", "Apps", Color.FromRgb(0x72, 0x89, 0xDA)),
             new("Neon Chrome", "neon_chrome", "Apps", Color.FromRgb(0x00, 0xE6, 0x76)),
+            new("Neon OBS", "neon_obs", "Apps", Color.FromRgb(0x00, 0xE6, 0x76)),
+            new("Neon YouTube", "neon_youtube", "Apps", Color.FromRgb(0xFF, 0x3D, 0x3D)),
+            new("Neon Folder", "neon_folder", "Apps", Color.FromRgb(0xFF, 0xC1, 0x07)),
             new("Neon Mic", "neon_mic", "Audio", Color.FromRgb(0x00, 0xE6, 0x76)),
             new("Neon Mic Mute", "neon_mic_mute", "Audio", Color.FromRgb(0xFF, 0x5C, 0x5C)),
             new("Neon Volume", "neon_volume", "Audio", Color.FromRgb(0x00, 0xE6, 0x76)),
@@ -1023,6 +1042,7 @@ public class StreamControllerIconPickerDialog : Window
             new("Neon Geometric", "neon_geometric", "Creative", Color.FromRgb(0xC5, 0x5D, 0xFF)),
             new("Neon Lightbulb", "neon_lightbulb", "Creative", Color.FromRgb(0xFF, 0xD7, 0x40)),
             new("Neon Monitor", "neon_monitor", "System", Color.FromRgb(0x4D, 0xD0, 0xE1)),
+            new("Neon Power", "neon_power", "System", Color.FromRgb(0xFF, 0x7B, 0x39)),
 
             // Custom Material 3D Pack
             new("3D Play/Pause", "material_playpause", "Media", Color.FromRgb(0x00, 0xC8, 0xFF)),
@@ -1031,6 +1051,10 @@ public class StreamControllerIconPickerDialog : Window
             new("3D Gamepad", "material_gamepad", "Creative", Color.FromRgb(0x69, 0xF0, 0xAE)),
             new("3D Power", "material_power", "System", Color.FromRgb(0xFF, 0x7B, 0x39)),
             new("3D Webcam", "material_webcam", "Streaming", Color.FromRgb(0x5C, 0xD7, 0xFF)),
+            new("3D Mic", "material_mic", "Audio", Color.FromRgb(0x00, 0xE6, 0x76)),
+            new("3D Mic Mute", "material_mic_mute", "Audio", Color.FromRgb(0xFF, 0x5C, 0x5C)),
+            new("3D Volume", "material_volume", "Audio", Color.FromRgb(0x00, 0xE6, 0x76)),
+            new("3D Volume Mute", "material_volume_mute", "Audio", Color.FromRgb(0xFF, 0x6E, 0x6E)),
 
             new("Play", "Play", "Media", Color.FromRgb(0x00, 0xE6, 0x76)),
             new("Pause", "Pause", "Media", Color.FromRgb(0x00, 0xC8, 0xFF)),
