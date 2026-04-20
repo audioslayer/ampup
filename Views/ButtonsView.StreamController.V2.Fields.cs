@@ -249,51 +249,51 @@ public partial class ButtonsView
     }
 
     /// <summary>
-    /// Builds a V2 section card (accent-bar header + content area) and re-hosts
-    /// <paramref name="content"/> inside it. If <paramref name="content"/> is
-    /// null or already Collapsed from legacy state, the caller should ensure
-    /// visibility — this helper only owns the wrapper chrome.
+    /// Builds an inline labeled options section (small uppercase header +
+    /// content) and re-hosts <paramref name="content"/> inside it. No card
+    /// chrome — these panels live inside the picker's OptionsHost so they
+    /// feel like they belong to the currently selected action.
     /// </summary>
     private Border MakeV2SectionCard(string label, out TextBlock headerLabel, UIElement? content)
     {
-        var stack = new StackPanel();
-        var (bar, text) = MakeV2SectionLabel(label);
-        headerLabel = text;
+        var stack = new StackPanel { Margin = new Thickness(0, 8, 0, 6) };
 
-        var headerRow = new StackPanel
+        var lbl = new TextBlock
         {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 10),
+            Text = label.ToUpperInvariant(),
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(2, 0, 0, 6),
         };
-        headerRow.Children.Add(bar);
-        headerRow.Children.Add(text);
-        stack.Children.Add(headerRow);
+        lbl.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        headerLabel = lbl;
+        stack.Children.Add(lbl);
+        // Track so theme-change refresh can still find it (MakeV2SectionLabel
+        // previously registered the accent-bar pair; we now register just the
+        // label with a null bar placeholder).
+        _v2SectionHeaders.Add((new Border(), lbl));
 
         if (content != null)
         {
-            // Re-parent from wherever the legacy designer put it.
             if (content is FrameworkElement fe && fe.Parent is Panel oldParent)
                 oldParent.Children.Remove(fe);
 
-            // Strip the top-margin the legacy panels use for their inline
-            // spacing — the V2 card supplies its own padding.
             if (content is FrameworkElement feChild)
                 feChild.Margin = new Thickness(0);
 
             stack.Children.Add(content);
         }
 
-        var card = new Border
+        // Return a Border so the caller-visible API (`Border?`) doesn't
+        // change. The border itself is invisible — no bg, no border brush,
+        // no padding — it's just a thin wrapper around the stack so the
+        // existing SetCardVisible calls keep working.
+        return new Border
         {
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(14),
-            Margin = new Thickness(0, 0, 0, 12),
+            BorderThickness = new Thickness(0),
+            Margin = new Thickness(0),
             Child = stack,
         };
-        card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-        card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-        return card;
     }
 
     /// <summary>

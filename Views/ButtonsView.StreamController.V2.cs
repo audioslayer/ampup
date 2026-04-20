@@ -3,6 +3,8 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using AmpUp.Controls;
+using Material.Icons;
+using Material.Icons.WPF;
 
 namespace AmpUp.Views;
 
@@ -91,7 +93,10 @@ public partial class ButtonsView
         rightStack.Children.Add(_v2ActionTabContent);
 
         _v2ActionTabContent.Children.Add(_v2ActionPanel);
-        _v2ActionTabContent.Children.Add(_v2ActionFieldsPanel);
+        // _v2ActionFieldsPanel is parented INSIDE the picker's OptionsHost
+        // after the picker is built (see below), so action-specific option
+        // controls (device dropdown, macro textbox, etc.) attach directly
+        // below the SELECTED row instead of floating in a separate card.
 
         Grid.SetColumn(rightStack, 1);
         _v2Root.Children.Add(rightStack);
@@ -107,6 +112,11 @@ public partial class ButtonsView
         // it — we own the placement so it can live inside the DESIGN tab.
         if (_v2CommonFieldsPanel != null && _v2DesignTabContent != null)
             _v2DesignTabContent.Children.Add(_v2CommonFieldsPanel);
+
+        // Parent the action-specific fields panel inside the picker so
+        // option controls render directly under the SELECTED row.
+        if (_v2ActionFieldsPanel != null && _v2ActionPicker != null)
+            _v2ActionPicker.OptionsHost.Children.Add(_v2ActionFieldsPanel);
 
         ApplyV2RightTabSelection();
     }
@@ -134,8 +144,63 @@ public partial class ButtonsView
         _v2ActionTab = BuildV2RightTab("ACTION", 1);
         row.Children.Add(_v2DesignTab);
         row.Children.Add(_v2ActionTab);
+
+        // Slim search icon sits inline with the tabs, immediately after
+        // ACTION. Click switches to ACTION and pops the picker's search box.
+        row.Children.Add(BuildV2RightTabSearchIcon());
+
         host.Child = row;
         return host;
+    }
+
+    private Border BuildV2RightTabSearchIcon()
+    {
+        var glyph = new MaterialIcon
+        {
+            Kind = MaterialIconKind.Magnify,
+            Width = 14,
+            Height = 14,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        glyph.SetResourceReference(Control.ForegroundProperty, "TextSecBrush");
+
+        var btn = new Border
+        {
+            Width = 28,
+            Height = 28,
+            CornerRadius = new CornerRadius(14),
+            Cursor = Cursors.Hand,
+            Background = System.Windows.Media.Brushes.Transparent,
+            BorderThickness = new Thickness(0, 0, 0, 2),
+            BorderBrush = new SolidColorBrush(Colors.Transparent),
+            Margin = new Thickness(6, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = glyph,
+            ToolTip = "Search actions",
+        };
+        btn.MouseEnter += (_, _) =>
+        {
+            btn.Background = new SolidColorBrush(Color.FromArgb(
+                0x22, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
+            glyph.Foreground = new SolidColorBrush(ThemeManager.Accent);
+        };
+        btn.MouseLeave += (_, _) =>
+        {
+            btn.Background = System.Windows.Media.Brushes.Transparent;
+            glyph.SetResourceReference(Control.ForegroundProperty, "TextSecBrush");
+        };
+        btn.MouseLeftButtonUp += (_, e) =>
+        {
+            if (_v2RightTabIndex != 1)
+            {
+                _v2RightTabIndex = 1;
+                ApplyV2RightTabSelection();
+            }
+            _v2ActionPicker?.ShowSearch();
+            e.Handled = true;
+        };
+        return btn;
     }
 
     private Border BuildV2RightTab(string label, int idx)

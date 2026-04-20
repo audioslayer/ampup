@@ -45,7 +45,7 @@ public class QuickActionPicker : Border
     private readonly Border _selectedDisplay;
     private readonly TextBlock _selectedIcon;
     private readonly TextBlock _selectedName;
-    private readonly Border _searchIconBtn;
+    private readonly StackPanel _optionsHost;
     private readonly Border _searchBoxHost;
     private readonly TextBox _searchBox;
     private readonly TextBlock _searchPlaceholder;
@@ -88,7 +88,9 @@ public class QuickActionPicker : Border
 
         _root = new StackPanel { Orientation = Orientation.Vertical };
 
-        // ── Selected + collapsible search icon row ─────────────────
+        // ── Selected row (SELECTED <icon> <name>) ──────────────────
+        // Search trigger lives OUTSIDE the picker — it's rendered next to
+        // the ACTION tab in the right-pane tab bar and calls ShowSearch().
         _selectedIcon = new TextBlock
         {
             FontSize = 14,
@@ -126,63 +128,17 @@ public class QuickActionPicker : Border
         iconNameStack.Children.Add(_selectedIcon);
         iconNameStack.Children.Add(_selectedName);
 
-        // Slim search-icon button; expands into the search box when clicked.
-        var searchIconGlyph = new MaterialIcon
+        var selectedRow = new StackPanel
         {
-            Kind = MaterialIconKind.Magnify,
-            Width = 16,
-            Height = 16,
-            HorizontalAlignment = HorizontalAlignment.Center,
+            Orientation = Orientation.Horizontal,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        searchIconGlyph.SetResourceReference(Control.ForegroundProperty, "TextSecBrush");
-
-        _searchIconBtn = new Border
-        {
-            Width = 28,
-            Height = 28,
-            CornerRadius = new CornerRadius(14),
-            Cursor = Cursors.Hand,
-            Background = System.Windows.Media.Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Child = searchIconGlyph,
-            ToolTip = "Search actions",
-        };
-        _searchIconBtn.MouseEnter += (_, _) =>
-        {
-            _searchIconBtn.Background = new SolidColorBrush(Color.FromArgb(
-                0x22, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
-            searchIconGlyph.Foreground = new SolidColorBrush(ThemeManager.Accent);
-        };
-        _searchIconBtn.MouseLeave += (_, _) =>
-        {
-            _searchIconBtn.Background = System.Windows.Media.Brushes.Transparent;
-            searchIconGlyph.SetResourceReference(Control.ForegroundProperty, "TextSecBrush");
-        };
-        _searchIconBtn.MouseLeftButtonUp += (_, e) =>
-        {
-            ToggleSearch(true);
-            e.Handled = true;
-        };
-
-        var selectedRow = new Grid();
-        selectedRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        selectedRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        selectedRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        selectedRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        Grid.SetColumn(selectedLabel, 0);
-        Grid.SetColumn(iconNameStack, 1);
-        Grid.SetColumn(_searchIconBtn, 3);
         selectedRow.Children.Add(selectedLabel);
         selectedRow.Children.Add(iconNameStack);
-        selectedRow.Children.Add(_searchIconBtn);
 
         _selectedDisplay = new Border
         {
-            Padding = new Thickness(10, 6, 6, 6),
+            Padding = new Thickness(10, 6, 10, 6),
             CornerRadius = new CornerRadius(6),
             Margin = new Thickness(0, 0, 0, 10),
             Child = selectedRow,
@@ -192,6 +148,19 @@ public class QuickActionPicker : Border
         _selectedDisplay.BorderThickness = new Thickness(1);
 
         _root.Children.Add(_selectedDisplay);
+
+        // ── Action-specific options slot ───────────────────────────
+        // The tab-bar search icon toggles the search box below; the host
+        // for action-specific controls (device dropdown, macro textbox,
+        // path textbox etc.) lives right here so options feel attached to
+        // the currently selected action rather than floating below the
+        // picker as separate cards.
+        _optionsHost = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+        _root.Children.Add(_optionsHost);
 
         // ── Search box (collapsed by default) ─────────────────────
         _searchBoxHost = new Border
@@ -377,6 +346,14 @@ public class QuickActionPicker : Border
         if (_built) RebuildAll();
     }
 
+    /// <summary>
+    /// Panel for action-specific option controls (device pickers, macro
+    /// textboxes, path pickers, etc.). Rendered inside the picker right
+    /// below the SELECTED row so options feel like they belong to the
+    /// chosen action instead of floating below in a separate card.
+    /// </summary>
+    public StackPanel OptionsHost => _optionsHost;
+
     // ── Internal build ──────────────────────────────────────────────
 
     private void EnsureBuilt()
@@ -410,11 +387,17 @@ public class QuickActionPicker : Border
         }
     }
 
+    /// <summary>
+    /// Reveal the search box and focus it so the user can type immediately.
+    /// Called by the tab bar's search-icon button so the trigger can live
+    /// outside the picker's own chrome.
+    /// </summary>
+    public void ShowSearch() => ToggleSearch(true);
+
     private void ToggleSearch(bool show)
     {
         _searchExpanded = show;
         _searchBoxHost.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        _searchIconBtn.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
         if (show)
         {
             _searchBox.Focus();
@@ -422,6 +405,7 @@ public class QuickActionPicker : Border
         }
         else
         {
+            _searchBox.Text = "";
             _searchText = "";
             _searchPlaceholder.Visibility = Visibility.Visible;
             RebuildVisibility();
