@@ -4,6 +4,8 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using AmpUp.Controls;
+using Material.Icons;
+using Material.Icons.WPF;
 
 namespace AmpUp.Views;
 
@@ -25,7 +27,6 @@ public partial class ButtonsView
     // ── Navigation / container refs (owned by this file) ────────────────────
     private Border? _v2FolderBanner;
     private TextBlock? _v2FolderBannerLabel;
-    private Button? _v2FolderBackButton;
     private Grid? _v2KeyGrid;
     private StackPanel? _v2PageDotsPanel;
 
@@ -335,48 +336,119 @@ public partial class ButtonsView
 
     private Border BuildV2FolderBanner()
     {
+        // Breadcrumb-style banner — matches the app's Material underline
+        // tab pattern. Reads as: [← ROOT]  ›  📂 <folder name>
+        // with a hairline underline below. No card chrome, no coloured
+        // fill — just typography + a subtle accent line, same feel as
+        // the DESIGN / ACTION tab bar in the right pane.
         var banner = new Border
         {
             Visibility = Visibility.Collapsed,
             Margin = new Thickness(0, 0, 0, 12),
-            Padding = new Thickness(12, 8, 12, 8),
-            CornerRadius = new CornerRadius(8),
-            Background = new SolidColorBrush(Color.FromArgb(
-                0x22, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(
-                0x55, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
-            BorderThickness = new Thickness(1),
+            Padding = new Thickness(0),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+        };
+        banner.SetResourceReference(Border.BorderBrushProperty, "InputBgBrush");
+
+        var stack = new StackPanel();
+
+        var row = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 8),
         };
 
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        // Left breadcrumb crumb: "← ROOT" — clickable, hover brightens.
+        var rootChevron = new MaterialIcon
+        {
+            Kind = MaterialIconKind.ChevronLeft,
+            Width = 14,
+            Height = 14,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        rootChevron.SetResourceReference(Control.ForegroundProperty, "TextDimBrush");
+
+        var rootLabel = new TextBlock
+        {
+            Text = "ROOT",
+            FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(4, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        rootLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+
+        var rootContent = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        rootContent.Children.Add(rootChevron);
+        rootContent.Children.Add(rootLabel);
+
+        var rootBtn = new Border
+        {
+            Padding = new Thickness(8, 6, 10, 6),
+            CornerRadius = new CornerRadius(6),
+            Cursor = Cursors.Hand,
+            Background = System.Windows.Media.Brushes.Transparent,
+            Child = rootContent,
+            ToolTip = "Back to root",
+        };
+        rootBtn.MouseEnter += (_, _) =>
+        {
+            rootBtn.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+            rootLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+            rootChevron.SetResourceReference(Control.ForegroundProperty, "TextPrimaryBrush");
+        };
+        rootBtn.MouseLeave += (_, _) =>
+        {
+            rootBtn.Background = System.Windows.Media.Brushes.Transparent;
+            rootLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+            rootChevron.SetResourceReference(Control.ForegroundProperty, "TextDimBrush");
+        };
+        rootBtn.MouseLeftButtonUp += (_, e) =>
+        {
+            NavigateToFolderInEditor("");
+            e.Handled = true;
+        };
+        row.Children.Add(rootBtn);
+
+        // Separator chevron.
+        var sep = new MaterialIcon
+        {
+            Kind = MaterialIconKind.ChevronRight,
+            Width = 14,
+            Height = 14,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(2, 0, 2, 0),
+        };
+        sep.SetResourceReference(Control.ForegroundProperty, "TextDimBrush");
+        row.Children.Add(sep);
+
+        // Current folder: accent folder icon + accent name (bold).
+        var folderIcon = new MaterialIcon
+        {
+            Kind = MaterialIconKind.FolderOpen,
+            Width = 16,
+            Height = 16,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = new SolidColorBrush(ThemeManager.Accent),
+            Margin = new Thickness(4, 0, 0, 0),
+        };
+        row.Children.Add(folderIcon);
 
         _v2FolderBannerLabel = new TextBlock
         {
-            Text = "\U0001F4C1 Editing folder",
-            FontSize = 12,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = FindBrush("TextPrimaryBrush"),
+            Text = "",
+            FontSize = 13,
+            FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(ThemeManager.Accent),
+            Margin = new Thickness(8, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
-        Grid.SetColumn(_v2FolderBannerLabel, 0);
         row.Children.Add(_v2FolderBannerLabel);
 
-        _v2FolderBackButton = new Button
-        {
-            Content = "Back to Root",
-            Padding = new Thickness(10, 4, 10, 4),
-            FontSize = 11,
-            Cursor = Cursors.Hand,
-            Margin = new Thickness(8, 0, 0, 0),
-        };
-        _v2FolderBackButton.Click += (_, _) => NavigateToFolderInEditor("");
-        Grid.SetColumn(_v2FolderBackButton, 1);
-        row.Children.Add(_v2FolderBackButton);
-
-        banner.Child = row;
+        stack.Children.Add(row);
+        banner.Child = stack;
         return banner;
     }
 
@@ -1003,7 +1075,7 @@ public partial class ButtonsView
         if (InFolderContext)
         {
             _v2FolderBanner.Visibility = Visibility.Visible;
-            _v2FolderBannerLabel.Text = $"\U0001F4C1 Editing folder: {_scActiveFolder}";
+            _v2FolderBannerLabel.Text = _scActiveFolder ?? "";
         }
         else
         {
