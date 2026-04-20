@@ -2032,7 +2032,11 @@ public partial class App : Application
 
         _streamControllerRefreshTimer = new System.Windows.Threading.DispatcherTimer
         {
-            Interval = TimeSpan.FromSeconds(5),
+            // 1s interval so idle-sleep responds within a second of the
+            // threshold being crossed (was 5s — made short "5s"-style
+            // settings feel like they took up to 10s to trigger). Tick
+            // body short-circuits when nothing needs doing.
+            Interval = TimeSpan.FromSeconds(1),
         };
         _streamControllerRefreshTimer.Tick += (_, _) => OnStreamControllerRefreshTick();
         _streamControllerRefreshTimer.Start();
@@ -2041,6 +2045,7 @@ public partial class App : Application
     // True once the N3 brightness was dropped to 0 by the idle-sleep code.
     // Used so we only restore brightness on wake, not on every tick.
     private bool _n3AsleepFromIdle;
+    private int _n3IdleTickDebugCount;
 
     // One-shot — forces the next refresh tick to put the N3 to sleep even
     // if the idle threshold hasn't been crossed. Wired to the Settings
@@ -2070,6 +2075,13 @@ public partial class App : Application
                 uint idleMs = NativeMethods.GetIdleMilliseconds();
                 bool idleTriggered = thresholdSec > 0 && idleMs >= (uint)thresholdSec * 1000u;
                 bool shouldSleep = _forceN3Sleep || idleTriggered;
+
+                // Diagnostic: log every tick that actually could change state, or
+                // the first few to confirm the timer is firing and seeing the slider.
+                if (shouldSleep != _n3AsleepFromIdle || (++_n3IdleTickDebugCount <= 6))
+                {
+                    Logger.Log($"N3 idle tick: idleMs={idleMs} threshold={thresholdSec}s forced={_forceN3Sleep} asleep={_n3AsleepFromIdle} -> shouldSleep={shouldSleep}");
+                }
 
                 if (shouldSleep && !_n3AsleepFromIdle)
                 {
