@@ -2228,6 +2228,11 @@ public partial class App : Application
 
             if (_config.N3?.DisplayKeys == null) return;
 
+            // While the N3 is asleep, never re-sync LCD frames — each HID
+            // write would visually wake the screens and the whole point
+            // of sleep would be defeated. Resume refresh on wake.
+            if (_n3AsleepFromIdle) return;
+
             bool hasDynamic = false;
             bool hasClock = false;
             foreach (var k in _config.N3.DisplayKeys)
@@ -2238,6 +2243,13 @@ public partial class App : Application
             }
 
             if (!hasClock && !hasDynamic) return;
+
+            // Throttle the clock/dynamic refresh. The refresh timer ticks
+            // at 1s (for idle-sleep responsiveness) but redrawing all six
+            // LCDs every second is wasteful — clocks only change at minute
+            // boundaries and dynamic state updates every few seconds is
+            // plenty. 3s cadence cuts HID traffic and JPEG encode load.
+            if ((DateTime.Now - _lastDynamicStateTick).TotalMilliseconds < 3000) return;
 
             // Keep OBS state fresh so obs_recording / obs_streaming reflect reality.
             if (hasDynamic && _obs != null && _obs.IsAvailable)
