@@ -233,29 +233,8 @@ public partial class ButtonsView
             designContent.Children.Add(_scDynamicPanel);
         }
 
-        // Standalone DESIGN header above the card (mirrors ACTION below).
-        var designHeaderRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 10),
-        };
-        designHeaderRow.Children.Add(new Border
-        {
-            Width = 3,
-            CornerRadius = new CornerRadius(2),
-            Margin = new Thickness(0, 0, 8, 0),
-            Background = new SolidColorBrush(ThemeManager.Accent),
-        });
-        designHeaderRow.Children.Add(new TextBlock
-        {
-            Text = "DESIGN",
-            FontSize = 12,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-        _v2CommonFieldsPanel.Children.Add(designHeaderRow);
-
+        // The DESIGN tab itself is the section header now — drop the
+        // redundant in-card "DESIGN" accent-bar header.
         var designCard = new Border
         {
             CornerRadius = new CornerRadius(10),
@@ -268,7 +247,10 @@ public partial class ButtonsView
         designCard.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
         _v2CommonFieldsPanel.Children.Add(designCard);
 
-        _v2PreviewPanel.Children.Add(_v2CommonFieldsPanel);
+        // _v2CommonFieldsPanel is NOT added to _v2PreviewPanel — the
+        // V2 layout (BuildStreamControllerDesignerV2) places it inside
+        // the DESIGN tab content so the right pane can swap it for the
+        // ACTION tab via a tab bar.
     }
 
     /// <summary>
@@ -321,30 +303,8 @@ public partial class ButtonsView
     {
         if (_v2ActionPanel == null) return;
 
-        // Match the DESIGN / FOLDERS header style: accent bar + white SemiBold
-        // uppercase. Keeps all section headers in the tab visually consistent.
-        var actionHeaderRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 10),
-        };
-        actionHeaderRow.Children.Add(new Border
-        {
-            Width = 3,
-            CornerRadius = new CornerRadius(2),
-            Margin = new Thickness(0, 0, 8, 0),
-            Background = new SolidColorBrush(ThemeManager.Accent),
-        });
-        actionHeaderRow.Children.Add(new TextBlock
-        {
-            Text = "ACTION",
-            FontSize = 12,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-        _v2ActionPanel.Children.Add(actionHeaderRow);
-
+        // The ACTION tab itself is the section header now — drop the
+        // redundant in-panel "ACTION" accent-bar header.
         _v2ActionPicker = new QuickActionPicker
         {
             Margin = new Thickness(0, 0, 0, 4),
@@ -533,6 +493,16 @@ public partial class ButtonsView
         // as the header above the action picker.
         if (_v2PreviewRow != null)
             _v2PreviewRow.Visibility = isLcd ? Visibility.Visible : Visibility.Collapsed;
+
+        // DESIGN tab only applies to LCD keys. For side buttons / encoders,
+        // collapse the DESIGN tab entirely and force-select ACTION.
+        if (_v2DesignTab != null)
+            _v2DesignTab.Visibility = isLcd ? Visibility.Visible : Visibility.Collapsed;
+        if (!isLcd && _v2RightTabIndex != 1)
+        {
+            _v2RightTabIndex = 1;
+            ApplyV2RightTabSelection();
+        }
 
         // Legacy UpdateDisplayTypeVisibility may have collapsed the Normal-only
         // rows based on the key's DisplayType. In V2 we surface the Display

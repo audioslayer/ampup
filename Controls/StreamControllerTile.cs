@@ -44,8 +44,18 @@ public class StreamControllerTile : Border
     public string Subtitle { get; set; } = "";
     public System.Windows.Media.Imaging.BitmapSource? PreviewImage { get; set; }
     public string IconKind { get; set; } = "";
-    public Color AccentColor { get; set; } = ThemeManager.Accent;
     public bool IsSelected { get; set; }
+
+    // Null means "always track the active theme accent". Callers can still
+    // force a per-tile color by assigning AccentColor explicitly, but every
+    // caller today wants the live theme accent — so we read it lazily in
+    // ApplyVisualState instead of capturing it at construction time.
+    private Color? _accentOverride;
+    public Color AccentColor
+    {
+        get => _accentOverride ?? ThemeManager.Accent;
+        set => _accentOverride = value;
+    }
 
     public event Action? OnClick;
     public event Action<MouseButtonEventArgs>? OnRightClick;
@@ -56,7 +66,11 @@ public class StreamControllerTile : Border
     public StreamControllerTile()
     {
         CornerRadius = new CornerRadius(14);
-        BorderThickness = new Thickness(1);
+        // Constant 2px border — layout never shifts between states. When
+        // not selected we paint the border transparent/subtle, when selected
+        // we paint it in the accent color. This keeps the rounded corners
+        // aligned with the inner preview and stops the corners "cutting off".
+        BorderThickness = new Thickness(2);
         Cursor = Cursors.Hand;
         SnapsToDevicePixels = true;
         UseLayoutRounding = true;
@@ -76,6 +90,18 @@ public class StreamControllerTile : Border
         {
             OnRightClick?.Invoke(e);
             // Don't mark handled — consumer chooses
+        };
+
+        // Track theme/accent so selected tiles re-colour live when the
+        // user swaps theme in Settings instead of being stuck on the
+        // accent that was active when this tile was built.
+        void OnThemeChanged() => Dispatcher.BeginInvoke((Action)ApplyVisualState);
+        ThemeManager.OnAccentChanged += OnThemeChanged;
+        ThemeManager.OnCardThemeChanged += OnThemeChanged;
+        Unloaded += (_, _) =>
+        {
+            ThemeManager.OnAccentChanged -= OnThemeChanged;
+            ThemeManager.OnCardThemeChanged -= OnThemeChanged;
         };
 
         Refresh();
@@ -126,11 +152,14 @@ public class StreamControllerTile : Border
     {
         // LCD tile is just the hardware screen render — no caption. The
         // tile's own rounded border + accent ring conveys selection.
+        // Inner corner = outer(14) - border(2) = 12. Zero margin so the
+        // inner edge is flush against the 2px border, keeping corners
+        // visually aligned whether the border is transparent or accent.
         var previewHost = new Border
         {
-            CornerRadius = new CornerRadius(13),
+            CornerRadius = new CornerRadius(12),
             ClipToBounds = true,
-            Margin = new Thickness(1),
+            Margin = new Thickness(0),
         };
         previewHost.SetResourceReference(BackgroundProperty, "BgDarkBrush");
 
@@ -334,37 +363,37 @@ public class StreamControllerTile : Border
     private void ApplyVisualState()
     {
         bool empty = IsEmpty();
+        var accent = AccentColor; // live theme lookup
 
         // Opacity: dim empties unless hovered/selected.
         Opacity = empty && !_isHovered && !IsSelected ? 0.7 : 1.0;
 
-        // Border + glow priority: Selected > Hover > Default.
+        // BorderThickness is fixed at 2 so the inner preview never shifts
+        // between states — only the brush changes. Also keeps the rounded
+        // corners pixel-aligned against the inner preview's corner radius.
         if (IsSelected)
         {
-            BorderThickness = new Thickness(2);
-            BorderBrush = new SolidColorBrush(AccentColor);
+            BorderBrush = new SolidColorBrush(accent);
             Effect = new DropShadowEffect
             {
-                Color = AccentColor,
+                Color = accent,
                 BlurRadius = 14,
                 ShadowDepth = 0,
                 Opacity = 0.55,
             };
             Background = new SolidColorBrush(Color.FromArgb(
-                0x10, AccentColor.R, AccentColor.G, AccentColor.B));
+                0x10, accent.R, accent.G, accent.B));
         }
         else if (_isHovered)
         {
-            BorderThickness = new Thickness(1);
             BorderBrush = new SolidColorBrush(Color.FromArgb(
-                0xAA, AccentColor.R, AccentColor.G, AccentColor.B));
+                0xAA, accent.R, accent.G, accent.B));
             Effect = null;
             Background = new SolidColorBrush(Color.FromArgb(
-                0x14, AccentColor.R, AccentColor.G, AccentColor.B));
+                0x14, accent.R, accent.G, accent.B));
         }
         else
         {
-            BorderThickness = new Thickness(1);
             SetResourceReference(BorderBrushProperty, "CardBorderBrush");
             Effect = null;
             SetResourceReference(BackgroundProperty, "CardBgBrush");
