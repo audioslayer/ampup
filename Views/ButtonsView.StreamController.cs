@@ -920,12 +920,38 @@ public partial class ButtonsView
         if (_config == null || _scPageCount <= 1) return;
         int removedPage = _scPageCount - 1;
 
-        // Remove configs for the last page — folder-aware.
+        // Confirm — count any keys or buttons on the last page that have
+        // user content so the warning can actually name the stakes.
         var keys = GetActiveN3DisplayKeys();
         var btns = GetActiveN3ButtonList();
         int startIdx = removedPage * StreamControllerKeysPerPage;
-        keys.RemoveAll(k => k.Idx >= startIdx && k.Idx < startIdx + StreamControllerKeysPerPage);
         int btnStart = StreamControllerDisplayKeyBase + startIdx;
+        int filledSlots = 0;
+        foreach (var k in keys)
+        {
+            if (k.Idx < startIdx || k.Idx >= startIdx + StreamControllerKeysPerPage) continue;
+            if (!string.IsNullOrEmpty(k.Title) || !string.IsNullOrEmpty(k.Subtitle)
+                || !string.IsNullOrEmpty(k.ImagePath) || !string.IsNullOrEmpty(k.PresetIconKind)
+                || k.DisplayType != DisplayKeyType.Normal)
+                filledSlots++;
+        }
+        foreach (var b in btns)
+        {
+            if (b.Idx < btnStart || b.Idx >= btnStart + StreamControllerKeysPerPage) continue;
+            if (!string.IsNullOrEmpty(b.Action) && b.Action != "none")
+                filledSlots++;
+        }
+
+        string spaceLabel = string.IsNullOrEmpty(_scActiveFolder) ? "Home" : _scActiveFolder;
+        string message = filledSlots > 0
+            ? $"Remove page {_scPageCount} from \"{spaceLabel}\"?\n\nThis will delete {filledSlots} configured key binding{(filledSlots == 1 ? "" : "s")} on that page. This can't be undone."
+            : $"Remove page {_scPageCount} from \"{spaceLabel}\"?";
+
+        bool ok = GlassDialog.Confirm(message, "Remove page", dangerYes: filledSlots > 0, owner: Window.GetWindow(this));
+        if (!ok) return;
+
+        // Remove configs for the last page — folder-aware.
+        keys.RemoveAll(k => k.Idx >= startIdx && k.Idx < startIdx + StreamControllerKeysPerPage);
         btns.RemoveAll(b => b.Idx >= btnStart && b.Idx < btnStart + StreamControllerKeysPerPage);
 
         _scPageCount--;
