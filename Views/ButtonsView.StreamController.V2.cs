@@ -56,6 +56,13 @@ public partial class ButtonsView
     private V2Gesture _v2Gesture = V2Gesture.Tap;
     private Border? _v2GestureBar;
     private readonly Dictionary<V2Gesture, Border> _v2GestureTabs = new();
+
+    // Kind of the currently-selected item. Stamped at click time so we
+    // can tell apart folder page-1+ LCD keys (idx 106-117) from side
+    // buttons / encoder presses (same idx range) — the idx alone is
+    // ambiguous. Writing-time truth, not inferred from config.
+    private enum V2SelectionKind { LcdKey, SideButton, EncoderPress }
+    private V2SelectionKind _v2SelectionKind = V2SelectionKind.LcdKey;
     private readonly List<StreamControllerTile> _v2KeyTiles = new();
     private readonly List<StreamControllerTile> _v2ButtonTiles = new();
     private readonly List<StreamControllerTile> _v2EncoderTiles = new();

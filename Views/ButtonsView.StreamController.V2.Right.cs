@@ -727,28 +727,11 @@ public partial class ButtonsView
 
     /// <summary>
     /// True when the current selection is an LCD key (as opposed to a
-    /// physical side button or encoder press). Page 1+ folder LCD keys
-    /// (idx 106-117) overlap the root side/encoder idx range, so we can't
-    /// decide by idx alone — check whether the active folder owns a
-    /// DisplayKey for this selection's page slot before falling back to
-    /// the range check.
+    /// physical side button or encoder press). Reads the kind stamped at
+    /// click time — idx alone is ambiguous for folder page 1+ LCDs.
     /// </summary>
-    private bool IsN3PagedKeySelection()
-    {
-        int local = _scSelectedButtonIdx - StreamControllerDisplayKeyBase;
-        if (local < 0) return false;
-        // Home (page 0) always — idx 100-105.
-        if (_scSelectedButtonIdx < StreamControllerSideButtonBase) return true;
-        // Inside a folder, page 1+ LCD keys live at local idx 6..N-1; treat
-        // them as LCD keys when the folder has that DisplayKey slot.
-        if (InFolderContext)
-        {
-            var folder = _config?.N3.Folders.FirstOrDefault(f => f.Name == _scActiveFolder);
-            if (folder != null && folder.DisplayKeys.Any(k => k.Idx == local))
-                return true;
-        }
-        return false;
-    }
+    private bool IsN3PagedKeySelection() => _v2SelectionKind == V2SelectionKind.LcdKey
+                                             && _scSelectedButtonIdx >= StreamControllerDisplayKeyBase;
 
     // ── Header rename (Mixer-style inline textbox) ───────────────────────────
 
@@ -831,16 +814,13 @@ public partial class ButtonsView
     // ── Gesture support (side buttons + encoder presses) ───────────────
 
     /// <summary>
-    /// True when the current selection is a physical button that supports
-    /// tap/double/hold gestures (side buttons 106-108, encoder presses
-    /// 109-111). LCD keys always edit the tap fields.
+    /// True when the current selection is a physical button (side button
+    /// or encoder press) that supports tap/double/hold gestures. LCD keys
+    /// always edit the tap fields.
     /// </summary>
     private bool SelectionSupportsGestures()
-    {
-        if (IsN3PagedKeySelection()) return false;
-        return _scSelectedButtonIdx >= StreamControllerSideButtonBase
-               && _scSelectedButtonIdx < StreamControllerEncoderPressBase + 3;
-    }
+        => _v2SelectionKind == V2SelectionKind.SideButton
+            || _v2SelectionKind == V2SelectionKind.EncoderPress;
 
     /// <summary>Build the TAP | DOUBLE | HOLD segmented selector.</summary>
     private Border BuildV2GestureBar()

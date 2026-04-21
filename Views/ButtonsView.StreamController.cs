@@ -1062,21 +1062,17 @@ public partial class ButtonsView
     }
 
     /// <summary>
-    /// Which button list owns the currently-selected item. Inside a folder,
-    /// page 1+ LCD keys (idx 106-117) overlap the root side-button/encoder
-    /// idx range, so we can't tell them apart by idx alone — we use
-    /// InFolderContext instead and fall back to root only for idx not in
-    /// the folder (e.g. physical side button while a folder is open).
+    /// Which button list owns the currently-selected item. Uses the
+    /// click-time-stamped selection kind to disambiguate folder page 1+
+    /// LCD keys (idx 106-117) from physical side buttons / encoder
+    /// presses (same idx range). Side/encoder items always live in the
+    /// root N3.Buttons list regardless of folder context.
     /// </summary>
     private List<ButtonConfig> GetOwningButtonList()
     {
         if (_config == null) return new List<ButtonConfig>();
-        if (InFolderContext)
-        {
-            var folderList = GetActiveN3ButtonList();
-            if (folderList.Any(b => b.Idx == _scSelectedButtonIdx))
-                return folderList;
-        }
+        if (_v2SelectionKind == V2SelectionKind.LcdKey && InFolderContext)
+            return GetActiveN3ButtonList();
         return _config.N3.Buttons;
     }
 
@@ -2167,6 +2163,22 @@ public partial class ButtonsView
     private void SelectStreamControllerItem(StreamControllerSelection selection)
     {
         _scSelectedButtonIdx = selection.ButtonIdx;
+
+        // Stamp selection kind at click time — idx alone is ambiguous
+        // inside folders on page 1+ where LCD keys collide with side /
+        // encoder idx (106-117). DisplayIdx.HasValue is the authoritative
+        // bit set by LCD tile clicks.
+        if (selection.DisplayIdx.HasValue)
+            _v2SelectionKind = V2SelectionKind.LcdKey;
+        else if (selection.ButtonIdx >= StreamControllerEncoderPressBase
+                 && selection.ButtonIdx < StreamControllerEncoderPressBase + 3)
+            _v2SelectionKind = V2SelectionKind.EncoderPress;
+        else if (selection.ButtonIdx >= StreamControllerSideButtonBase
+                 && selection.ButtonIdx < StreamControllerSideButtonBase + 3)
+            _v2SelectionKind = V2SelectionKind.SideButton;
+        else
+            _v2SelectionKind = V2SelectionKind.LcdKey;
+
         SyncV2GestureBarForSelection();
         LoadStreamControllerSelection();
     }
