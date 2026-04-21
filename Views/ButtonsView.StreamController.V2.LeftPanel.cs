@@ -91,6 +91,9 @@ public partial class ButtonsView
         // ── FOLDERS (collapsible) — styled like the Mixer's Audio Sessions card ──
         _v2LeftPanel.Children.Add(BuildV2FoldersSection());
 
+        // ── TEMPLATES (collapsible) — pre-built Space layouts the user can add ──
+        _v2LeftPanel.Children.Add(BuildV2TemplatesSection());
+
         // Initial population of visuals.
         RefreshV2LeftPanel();
     }
