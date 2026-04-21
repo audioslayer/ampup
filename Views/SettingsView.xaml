@@ -86,6 +86,16 @@
                                            VerticalAlignment="Center"
                                            ToolTip="Blank the N3 screens right now. Any keyboard/mouse input wakes them back up." />
                             </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <ui:Button x:Name="BtnExportFxPreviews" Content="Export FX Space Icons"
+                                           Appearance="Secondary" Height="34"
+                                           VerticalAlignment="Center"
+                                           ToolTip="Render a PNG snapshot of each room effect and wire the FX Space LCD keys to those images." />
+                                <TextBlock x:Name="TxtExportFxPreviewsStatus"
+                                           Style="{StaticResource SecondaryText}"
+                                           Margin="12,0,0,0"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
                         </StackPanel>
                         <TextBlock Text="Device Port" Style="{StaticResource SecondaryText}" Margin="0,0,0,6"
                                    ToolTip="Select the COM port for your AmpUp hardware" />

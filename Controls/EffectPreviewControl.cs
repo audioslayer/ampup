@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
 namespace AmpUp.Controls
@@ -157,6 +158,36 @@ namespace AmpUp.Controls
             }
 
             dc.Pop();
+        }
+
+        /// <summary>
+        /// Render a snapshot of this effect to a bitmap without needing the
+        /// control to be in a visual tree. Used by the Settings "Export Effect
+        /// Previews" button to produce static PNGs for N3 LCD keys.
+        /// </summary>
+        public RenderTargetBitmap RenderToBitmap(int pixelW, int pixelH, int frame)
+        {
+            var visual = new DrawingVisual();
+            using (var dc = visual.RenderOpen())
+            {
+                var ctx = new Ctx
+                {
+                    Dc = dc,
+                    W = pixelW,
+                    H = pixelH,
+                    Frame = frame,
+                    T = frame / 30.0,
+                    Color = TileColor,
+                    Color2 = AccentColor,
+                };
+                dc.PushClip(new RectangleGeometry(new Rect(0, 0, pixelW, pixelH)));
+                try { Dispatch(ctx); }
+                catch { RenderFallback(ctx); }
+                dc.Pop();
+            }
+            var bmp = new RenderTargetBitmap(pixelW, pixelH, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+            bmp.Render(visual);
+            return bmp;
         }
 
         /// <summary>Shared drawing context for all render methods.</summary>

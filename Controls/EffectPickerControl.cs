@@ -594,7 +594,7 @@ namespace AmpUp.Controls
 
         // Companion (secondary) color used for effects that blend between two colors.
         // Falls back to a warm pink so gradient effects still read as intentional.
-        private static Color GetCompanionColor(LightEffect effect, Color primary)
+        public static Color GetCompanionColor(LightEffect effect, Color primary)
         {
             return effect switch
             {

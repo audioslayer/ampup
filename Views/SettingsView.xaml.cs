@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using AmpUp.Core.Services;
+using AmpUp.Services;
 
 namespace AmpUp.Views;
 
@@ -96,6 +97,7 @@ public partial class SettingsView : UserControl
             }
         };
         BtnN3SleepNow.Click += (_, _) => (Application.Current as App)?.ForceN3Sleep();
+        BtnExportFxPreviews.Click += OnExportFxPreviews;
         CmbSerialPort.SelectionChanged += OnPortComboSelectionChanged;
         BtnRefreshPorts.Click += (_, _) => RefreshPortList();
         BtnAutoDetect.Click += OnAutoDetect;
@@ -423,6 +425,29 @@ public partial class SettingsView : UserControl
         if (_loading) return;
         _debounceTimer.Stop();
         _debounceTimer.Start();
+    }
+
+    private void OnExportFxPreviews(object? sender, RoutedEventArgs e)
+    {
+        if (_config == null) return;
+        BtnExportFxPreviews.IsEnabled = false;
+        TxtExportFxPreviewsStatus.Text = "Rendering...";
+
+        // Render on the UI thread — WPF RenderTargetBitmap requires it.
+        var result = EffectPreviewExporter.ExportFxSpaceIcons(_config);
+        _onSave?.Invoke(_config); // persists config + triggers N3 display sync
+
+        if (result.Exported > 0 && result.Failed == 0)
+            TxtExportFxPreviewsStatus.Text = $"Exported {result.Exported} → {EffectPreviewExporter.ExportDirectory}";
+        else if (result.Exported > 0)
+            TxtExportFxPreviewsStatus.Text = $"Exported {result.Exported}, {result.Failed} failed — check log";
+        else
+            TxtExportFxPreviewsStatus.Text = "Nothing to export — create the FX Space first.";
+
+        foreach (var err in result.Errors)
+            Logger.Log($"EffectPreviewExporter: {err}");
+
+        BtnExportFxPreviews.IsEnabled = true;
     }
 
     private void OnPasswordChanged(object sender, RoutedEventArgs e)
