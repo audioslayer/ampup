@@ -491,10 +491,6 @@ public partial class ButtonsView
         bool anyGroupConfigured = _config.Buttons.Concat(_config.N3.Buttons).Any(b =>
             b.Action == "group_toggle" || b.DoublePressAction == "group_toggle" || b.HoldAction == "group_toggle");
 
-        bool corsairEnabled = _config.Corsair.Enabled;
-        bool anyCorsairConfigured = _config.Buttons.Concat(_config.N3.Buttons).Any(b =>
-            IsCorsairAction(b.Action) || IsCorsairAction(b.DoublePressAction) || IsCorsairAction(b.HoldAction));
-
         // Always show Stream Controller page actions inside the N3 designer.
         const bool showScPageActions = true;
 
@@ -508,7 +504,6 @@ public partial class ButtonsView
                 bool isGovee = IsGoveeAction(value);
                 bool isObs = IsObsAction(value);
                 bool isVm = IsVmAction(value);
-                bool isCorsair = IsCorsairAction(value);
                 bool isGroup = value == "group_toggle";
                 bool isScPage = IsScPageAction(value);
 
@@ -516,7 +511,6 @@ public partial class ButtonsView
                 if (isGovee && !goveeEnabled && !anyGoveeConfigured) continue;
                 if (isObs && !obsEnabled && !anyObsConfigured) continue;
                 if (isVm && !vmEnabled && !anyVmConfigured) continue;
-                if (isCorsair && !corsairEnabled && !anyCorsairConfigured) continue;
                 if (isGroup && !groupsExist && !anyGroupConfigured) continue;
                 if (isScPage && !showScPageActions) continue;
 
@@ -525,10 +519,9 @@ public partial class ButtonsView
                 if (isGovee && !goveeEnabled) displayName = $"{action.Display} (Govee disabled)";
                 if (isObs && !obsEnabled) displayName = $"{action.Display} (OBS disabled)";
                 if (isVm && !vmEnabled) displayName = $"{action.Display} (VM disabled)";
-                if (isCorsair && !corsairEnabled) displayName = $"{action.Display} (iCUE disabled)";
 
                 var icon = ActionIcons.GetValueOrDefault(value, "—");
-                var color = (isHa && !haEnabled) || (isGovee && !goveeEnabled) || (isObs && !obsEnabled) || (isVm && !vmEnabled) || (isCorsair && !corsairEnabled)
+                var color = (isHa && !haEnabled) || (isGovee && !goveeEnabled) || (isObs && !obsEnabled) || (isVm && !vmEnabled)
                     ? Color.FromRgb(0x55, 0x55, 0x55)
                     : ActionColors.GetValueOrDefault(value, Color.FromRgb(0x88, 0x88, 0x88));
                 var tooltip = ActionTooltips.GetValueOrDefault(value, action.Display);

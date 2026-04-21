@@ -1296,15 +1296,11 @@ public partial class ButtonsView : UserControl
         bool anyGroupConfigured = config.Buttons.Any(b =>
             b.Action == "group_toggle" || b.DoublePressAction == "group_toggle" || b.HoldAction == "group_toggle");
 
-        bool corsairEnabled = config.Corsair.Enabled;
-        bool anyCorsairConfigured = config.Buttons.Concat(config.N3.Buttons).Any(b =>
-            IsCorsairAction(b.Action) || IsCorsairAction(b.DoublePressAction) || IsCorsairAction(b.HoldAction));
-
         for (int i = 0; i < 5; i++)
         {
-            PopulateActionPicker(_tapCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured, obsEnabled, anyObsConfigured, vmEnabled, anyVmConfigured, groupsExist, anyGroupConfigured, corsairEnabled: corsairEnabled, anyCorsairConfigured: anyCorsairConfigured);
-            PopulateActionPicker(_dblCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured, obsEnabled, anyObsConfigured, vmEnabled, anyVmConfigured, groupsExist, anyGroupConfigured, corsairEnabled: corsairEnabled, anyCorsairConfigured: anyCorsairConfigured);
-            PopulateActionPicker(_holdCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured, obsEnabled, anyObsConfigured, vmEnabled, anyVmConfigured, groupsExist, anyGroupConfigured, corsairEnabled: corsairEnabled, anyCorsairConfigured: anyCorsairConfigured);
+            PopulateActionPicker(_tapCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured, obsEnabled, anyObsConfigured, vmEnabled, anyVmConfigured, groupsExist, anyGroupConfigured);
+            PopulateActionPicker(_dblCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured, obsEnabled, anyObsConfigured, vmEnabled, anyVmConfigured, groupsExist, anyGroupConfigured);
+            PopulateActionPicker(_holdCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured, obsEnabled, anyObsConfigured, vmEnabled, anyVmConfigured, groupsExist, anyGroupConfigured);
         }
 
         // Register sub-flyout providers
@@ -1378,7 +1374,7 @@ public partial class ButtonsView : UserControl
     private static bool IsScPageAction(string? action)
         => action is "sc_page_next" or "sc_page_prev" or "sc_page_home" or "sc_go_to_page";
 
-    private void PopulateActionPicker(ActionPicker picker, bool haEnabled, bool anyHaConfigured, bool goveeEnabled, bool anyGoveeConfigured, bool obsEnabled = false, bool anyObsConfigured = false, bool vmEnabled = false, bool anyVmConfigured = false, bool groupsExist = false, bool anyGroupConfigured = false, bool showScPageActions = false, bool corsairEnabled = false, bool anyCorsairConfigured = false)
+    private void PopulateActionPicker(ActionPicker picker, bool haEnabled, bool anyHaConfigured, bool goveeEnabled, bool anyGoveeConfigured, bool obsEnabled = false, bool anyObsConfigured = false, bool vmEnabled = false, bool anyVmConfigured = false, bool groupsExist = false, bool anyGroupConfigured = false, bool showScPageActions = false)
     {
         picker.ClearItems();
 
@@ -1395,7 +1391,6 @@ public partial class ButtonsView : UserControl
                 bool isGovee = IsGoveeAction(value);
                 bool isObs = IsObsAction(value);
                 bool isVm = IsVmAction(value);
-                bool isCorsair = IsCorsairAction(value);
                 bool isGroup = value == "group_toggle";
                 bool isScPage = IsScPageAction(value);
 
@@ -1403,7 +1398,6 @@ public partial class ButtonsView : UserControl
                 if (isGovee && !goveeEnabled && !anyGoveeConfigured) continue;
                 if (isObs && !obsEnabled && !anyObsConfigured) continue;
                 if (isVm && !vmEnabled && !anyVmConfigured) continue;
-                if (isCorsair && !corsairEnabled && !anyCorsairConfigured) continue;
                 if (isGroup && !groupsExist && !anyGroupConfigured) continue;
                 if (isScPage && !showScPageActions) continue;
 
@@ -1414,10 +1408,9 @@ public partial class ButtonsView : UserControl
                 if (isGovee && !goveeEnabled) displayName = $"{action.Display} (Govee disabled)";
                 if (isObs && !obsEnabled) displayName = $"{action.Display} (OBS disabled)";
                 if (isVm && !vmEnabled) displayName = $"{action.Display} (VM disabled)";
-                if (isCorsair && !corsairEnabled) displayName = $"{action.Display} (iCUE disabled)";
 
                 var icon = ActionIcons.GetValueOrDefault(value, "—");
-                var color = (isHa && !haEnabled) || (isGovee && !goveeEnabled) || (isObs && !obsEnabled) || (isVm && !vmEnabled) || (isCorsair && !corsairEnabled)
+                var color = (isHa && !haEnabled) || (isGovee && !goveeEnabled) || (isObs && !obsEnabled) || (isVm && !vmEnabled)
                     ? Color.FromRgb(0x55, 0x55, 0x55)
                     : ActionColors.GetValueOrDefault(value, Color.FromRgb(0x88, 0x88, 0x88));
                 var tooltip = ActionTooltips.GetValueOrDefault(value, action.Display);
