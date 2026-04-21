@@ -1333,7 +1333,10 @@ public partial class ButtonsView
             var list = GetOwningButtonList();
             var btn = list.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
             if (btn == null) return;
-            btn.Action = "open_folder";
+            // Route action write through the gesture-aware setter — on
+            // Double/Hold this writes DoublePressAction / HoldAction so we
+            // don't clobber Tap's binding.
+            SetGestureAction(btn, "open_folder");
             btn.FolderName = folderName;
             QueueSave();
         };

@@ -150,11 +150,18 @@ public partial class ButtonsView
         ShowInner(_scMultiActionPanel);
         ShowInner(_scFolderPanel);
 
-        // Prefer the V2 picker — it's the source of truth for whichever
-        // gesture is currently being edited. The legacy _scActionPicker is
-        // only synced on the Tap gesture, so reading it on Double/Hold
-        // would show the wrong sub-option cards (path / folder / etc.).
-        var action = _v2ActionPicker?.SelectedValue;
+        // Read the action from the ButtonConfig's gesture-specific field,
+        // not the picker UI — the picker's SelectedValue can become empty
+        // while it's losing focus (e.g. when the user clicks into a
+        // sub-option picker), which would hide the very card they're
+        // trying to interact with.
+        string action = "none";
+        if (_config != null)
+        {
+            var buttonList = GetOwningButtonList();
+            var btn = buttonList.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
+            if (btn != null) action = GetGestureAction(btn);
+        }
         if (string.IsNullOrEmpty(action)) action = GetComboActionValue(_scActionPicker);
 
         bool needsPath = PathActions.Contains(action)
