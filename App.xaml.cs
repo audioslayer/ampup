@@ -2662,8 +2662,7 @@ public partial class App : Application
             }
             else if (dev.Type == "corsair")
             {
-                bool corsairOn = _config.Corsair.Enabled && _config.Corsair.LightSyncMode != "static";
-                if (corsairOn) { inferred = true; break; }
+                if (_config.Corsair.Enabled) { inferred = true; break; }
                 inferred = false;
             }
         }
@@ -2689,14 +2688,16 @@ public partial class App : Application
                     }
                     break;
                 case "corsair":
-                    // Don't gate on IsAvailable — that's false while paused, which
-                    // would block us from resuming on the next press. Mirror the
-                    // HandleCorsairToggle pattern: Stop()/Resume() the sync so the
-                    // room effect loop can't overwrite our black frame.
-                    if (_corsairSync != null && _config.Corsair.Enabled)
+                    // Full parity with HandleCorsairToggle — flipping
+                    // Corsair.Enabled is what keeps it off. Otherwise a
+                    // subsequent config save re-runs the Start()/Stop()
+                    // callback (App.xaml.cs:1033) and unpauses the sync,
+                    // letting the music-reactive timer repaint the LEDs.
+                    if (_corsairSync != null)
                     {
                         if (newState)
                         {
+                            _config.Corsair.Enabled = true;
                             _corsairSync.Resume();
                             if (_config.Corsair.LightSyncMode == "static" || string.IsNullOrEmpty(_config.Corsair.LightSyncMode))
                                 _config.Corsair.LightSyncMode = "vu_reactive";
@@ -2705,6 +2706,7 @@ public partial class App : Application
                         {
                             _ = _corsairSync.SetStaticColorAllAsync(0, 0, 0);
                             _config.Corsair.LightSyncMode = "static";
+                            _config.Corsair.Enabled = false;
                             _corsairSync.Stop();
                         }
                     }
