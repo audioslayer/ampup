@@ -2642,7 +2642,33 @@ public partial class App : Application
         var group = _config.Groups.FirstOrDefault(g => g.Name == groupName);
         if (group == null) return;
 
-        bool currentlyOn = _groupStates.GetValueOrDefault(groupName, true);
+        // Infer current on/off from actual device state where possible so the first
+        // press after startup always does the right thing (Govee PoweredOn is
+        // tracked reliably). Fall back to the cached toggle state for groups
+        // made up only of device types we can't query cheaply (HA, audio_output).
+        bool? inferred = null;
+        foreach (var dev in group.Devices)
+        {
+            if (dev.Type == "govee")
+            {
+                var gc = _config.Ambience.GoveeDevices.FirstOrDefault(d =>
+                    (!string.IsNullOrEmpty(d.Ip) && d.Ip == dev.DeviceId) ||
+                    (!string.IsNullOrEmpty(d.DeviceId) && d.DeviceId == dev.DeviceId));
+                if (gc != null)
+                {
+                    if (gc.PoweredOn) { inferred = true; break; }
+                    inferred = false;
+                }
+            }
+            else if (dev.Type == "corsair")
+            {
+                bool corsairOn = _config.Corsair.Enabled && _config.Corsair.LightSyncMode != "static";
+                if (corsairOn) { inferred = true; break; }
+                inferred = false;
+            }
+        }
+
+        bool currentlyOn = inferred ?? _groupStates.GetValueOrDefault(groupName, false);
         bool newState = !currentlyOn;
         _groupStates[groupName] = newState;
 
@@ -2663,14 +2689,23 @@ public partial class App : Application
                     }
                     break;
                 case "corsair":
-                    if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
+                    // Don't gate on IsAvailable — that's false while paused, which
+                    // would block us from resuming on the next press. Mirror the
+                    // HandleCorsairToggle pattern: Stop()/Resume() the sync so the
+                    // room effect loop can't overwrite our black frame.
+                    if (_corsairSync != null && _config.Corsair.Enabled)
                     {
                         if (newState)
-                            _config.Corsair.LightSyncMode = "vu_reactive";
+                        {
+                            _corsairSync.Resume();
+                            if (_config.Corsair.LightSyncMode == "static" || string.IsNullOrEmpty(_config.Corsair.LightSyncMode))
+                                _config.Corsair.LightSyncMode = "vu_reactive";
+                        }
                         else
                         {
-                            _config.Corsair.LightSyncMode = "static";
                             _ = _corsairSync.SetStaticColorAllAsync(0, 0, 0);
+                            _config.Corsair.LightSyncMode = "static";
+                            _corsairSync.Stop();
                         }
                     }
                     break;
