@@ -491,6 +491,35 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Spotify -->
+                    <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0"
+                            Margin="0,14,0,0" Padding="0,14,0,0">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="Spotify" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
+                                <Ellipse x:Name="SpotifyStatusDot" Width="8" Height="8"
+                                         Fill="#555555" VerticalAlignment="Center" Margin="12,0,6,0" />
+                                <TextBlock x:Name="TxtSpotifyStatus" Text="Not connected"
+                                           Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Text="Create a Spotify app at developer.spotify.com, set Redirect URI to http://127.0.0.1:5543/callback, then paste your Client ID below and click Connect."
+                                       Style="{StaticResource SecondaryText}" FontSize="11"
+                                       TextWrapping="Wrap" Margin="0,0,0,6" />
+                            <TextBlock Text="Client ID" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
+                            <TextBox x:Name="TxtSpotifyClientId"
+                                     Background="{DynamicResource InputBgBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
+                                     BorderBrush="{DynamicResource InputBorderBrush}"
+                                     Padding="8,4" Margin="0,0,0,8" />
+                            <StackPanel Orientation="Horizontal">
+                                <ui:Button x:Name="BtnSpotifyConnect" Content="Connect"
+                                           Appearance="Primary" Margin="0,0,8,0" />
+                                <ui:Button x:Name="BtnSpotifyDisconnect" Content="Disconnect"
+                                           Appearance="Secondary" IsEnabled="False" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
                 </StackPanel>
             </Border>
 

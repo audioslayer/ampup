@@ -9,5 +9,7 @@
     <PackageReference Include="HidSharp" Version="2.6.4" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="System.IO.Ports" Version="8.0.0" />
+    <PackageReference Include="SpotifyAPI.Web" Version="7.*" />
+    <PackageReference Include="SpotifyAPI.Web.Auth" Version="7.*" />
   </ItemGroup>
 </Project>

@@ -48,6 +48,7 @@ public class AppConfig
     public bool AutoCheckUpdates { get; set; } = true;
     public bool HasShownAudioGuide { get; set; } = false;
     public CorsairConfig Corsair { get; set; } = new();
+    public SpotifyConfig Spotify { get; set; } = new();
     public List<DeviceGroup> Groups { get; set; } = new();
     public RoomLayout RoomLayout { get; set; } = new();
     public List<ColorPalette> CustomPalettes { get; set; } = new();
@@ -84,6 +85,22 @@ public class CorsairConfig
     public string StaticColor { get; set; } = "#00E676";
     public string SelectedMural { get; set; } = "";
     public bool SyncToGlobal { get; set; } = true; // Corsair follows Global tab effects
+}
+
+public class SpotifyConfig
+{
+    /// <summary>User's Spotify app Client ID from developer.spotify.com.
+    /// Each user needs their own until AmpUp gets extended quota mode.</summary>
+    public string ClientId { get; set; } = "";
+    /// <summary>Live cache of the last refresh token. Access tokens are
+    /// refreshed every ~60 min and kept in memory only.</summary>
+    public string RefreshToken { get; set; } = "";
+    /// <summary>Display name of the connected Spotify account (shown in
+    /// Settings so the user knows who's logged in).</summary>
+    public string ConnectedUser { get; set; } = "";
+    /// <summary>Local loopback port the PKCE callback listens on. Must
+    /// match the Redirect URI registered in the Spotify dashboard.</summary>
+    public int CallbackPort { get; set; } = 5543;
 }
 
 public class SerialConfig

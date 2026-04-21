@@ -161,6 +161,11 @@ public partial class SettingsView : UserControl
         ChkCorsairEnabled.Checked += OnCorsairEnabledChanged;
         ChkCorsairEnabled.Unchecked += OnCorsairEnabledChanged;
 
+        // Spotify
+        TxtSpotifyClientId.TextChanged += OnValueChanged;
+        BtnSpotifyConnect.Click += OnSpotifyConnect;
+        BtnSpotifyDisconnect.Click += OnSpotifyDisconnect;
+
         // About
         TxtVersion.Text = $"Amp Up v{UpdateChecker.CurrentVersion}";
         BtnCheckUpdate.Click += OnCheckUpdate;
@@ -244,6 +249,10 @@ public partial class SettingsView : UserControl
         // Integrations — Corsair iCUE
         ChkCorsairEnabled.IsChecked = config.Corsair.Enabled;
         RefreshCorsairStatus();
+
+        // Integrations — Spotify
+        TxtSpotifyClientId.Text = config.Spotify.ClientId;
+        RefreshSpotifyStatus();
 
         // Integrations — Govee
         ChkGoveeEnabled.IsChecked = config.Ambience.GoveeEnabled;
@@ -771,6 +780,7 @@ public partial class SettingsView : UserControl
         _config.Ambience.GoveeEnabled = ChkGoveeEnabled.IsChecked == true;
         _config.Ambience.GoveeCloudEnabled = ChkGoveeCloudEnabled.IsChecked == true;
         _config.Ambience.GoveeApiKey = TxtGoveeApiKey.Password;
+        _config.Spotify.ClientId = TxtSpotifyClientId.Text.Trim();
 
         // VoiceMeeter
         _config.VoiceMeeter.Enabled = ChkVmEnabled.IsChecked == true;
@@ -1204,6 +1214,70 @@ public partial class SettingsView : UserControl
             PopulateCorsairDeviceList();
         else
             Loaded += (_, _) => PopulateCorsairDeviceList();
+    }
+
+    // ── Spotify ────────────────────────────────────────────────────────
+
+    private async void OnSpotifyConnect(object sender, RoutedEventArgs e)
+    {
+        if (_config == null) return;
+        _config.Spotify.ClientId = TxtSpotifyClientId.Text.Trim();
+        _onSave?.Invoke(_config);
+
+        var sp = App.Spotify;
+        if (sp == null)
+        {
+            GlassDialog.ShowInfo("Spotify service is not available.", owner: Window.GetWindow(this));
+            return;
+        }
+
+        TxtSpotifyStatus.Text = "Opening browser...";
+        BtnSpotifyConnect.IsEnabled = false;
+        try
+        {
+            await sp.ConnectAsync();
+            RefreshSpotifyStatus();
+            GlassDialog.ShowInfo($"Connected to Spotify as {_config.Spotify.ConnectedUser}.", owner: Window.GetWindow(this));
+        }
+        catch (Exception ex)
+        {
+            TxtSpotifyStatus.Text = "Error";
+            GlassDialog.ShowWarning($"Spotify connect failed:\n{ex.Message}", owner: Window.GetWindow(this));
+        }
+        finally
+        {
+            BtnSpotifyConnect.IsEnabled = true;
+            RefreshSpotifyStatus();
+        }
+    }
+
+    private void OnSpotifyDisconnect(object sender, RoutedEventArgs e)
+    {
+        var sp = App.Spotify;
+        sp?.Disconnect();
+        RefreshSpotifyStatus();
+    }
+
+    private void RefreshSpotifyStatus()
+    {
+        if (_config == null) return;
+        bool connected = !string.IsNullOrWhiteSpace(_config.Spotify.RefreshToken);
+        if (connected)
+        {
+            SpotifyStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1DB954"));
+            TxtSpotifyStatus.Text = string.IsNullOrEmpty(_config.Spotify.ConnectedUser)
+                ? "Connected"
+                : $"Connected as {_config.Spotify.ConnectedUser}";
+            BtnSpotifyConnect.Content = "Reconnect";
+            BtnSpotifyDisconnect.IsEnabled = true;
+        }
+        else
+        {
+            SpotifyStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#555555"));
+            TxtSpotifyStatus.Text = "Not connected";
+            BtnSpotifyConnect.Content = "Connect";
+            BtnSpotifyDisconnect.IsEnabled = false;
+        }
     }
 
     private void PopulateCorsairDeviceList()

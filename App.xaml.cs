@@ -49,6 +49,8 @@ public partial class App : Application
     private CorsairSync? _corsairSync;
     private LgMonitorSync? _lgMonitor;
     private N3Controller? _n3;
+    private SpotifyIntegration? _spotify;
+    public static SpotifyIntegration? Spotify => (Current as App)?._spotify;
     private RadialWheelOverlay? _radialWheel;
     private bool _wheelVisible;
     private System.Windows.Threading.DispatcherTimer? _wheelDismissTimer;
@@ -255,6 +257,17 @@ public partial class App : Application
         _buttons.SetVoiceMeeterIntegration(_vm);
         if (_config.VoiceMeeter.Enabled && _vm.IsAvailable)
             _vm.Connect();
+
+        // Spotify integration — tries to restore a prior session silently
+        // using the stored refresh token. User-facing Connect button lives
+        // in Settings for first-time auth.
+        _spotify = new SpotifyIntegration(_config.Spotify, _ => ConfigManager.Save(_config));
+        _spotify.OnStateChanged += HandleSpotifyStateChanged;
+        _ = Task.Run(async () =>
+        {
+            try { await _spotify.TryRestoreAsync(); }
+            catch (Exception ex) { Logger.Log($"Spotify auto-restore failed: {ex.Message}"); }
+        });
 
         // Start audio mixer
         _mixer.Start();
@@ -2669,6 +2682,20 @@ public partial class App : Application
     private bool _roomForcedWhite;
 
     /// <summary>
+    /// Spotify poll fires this whenever the now-playing track, play/pause,
+    /// shuffle, repeat, or like state changes. Triggers an N3 display
+    /// refresh so any Spotify-now-playing dynamic keys repaint.
+    /// </summary>
+    private void HandleSpotifyStateChanged()
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_n3 != null && _isN3Connected)
+                SyncStreamControllerDisplays();
+        });
+    }
+
+    /// <summary>
     /// Room-wide white/off toggle. Press once → every Govee device ON at
     /// 100% white, Corsair driven to white, room effect paused. Press
     /// again → everything off. Wired to the govee_white_toggle action.
@@ -3794,6 +3821,7 @@ public partial class App : Application
         _corsairSync?.Dispose();
         _lgMonitor?.Dispose();
         _n3?.Dispose();
+        _spotify?.Dispose();
         _cachedMic?.Dispose();
         _cachedMaster?.Dispose();
         lock (_notifyLock)
