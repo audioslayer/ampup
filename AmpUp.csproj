@@ -49,10 +49,6 @@
     <None Remove="AmpUp.Mac\**" />
     <Content Remove="AmpUp.Mac\**" />
     <EmbeddedResource Remove="AmpUp.Mac\**" />
-    <Compile Remove="AsRockBridge\**" />
-    <None Remove="AsRockBridge\**" />
-    <Content Remove="AsRockBridge\**" />
-    <EmbeddedResource Remove="AsRockBridge\**" />
   </ItemGroup>
 
   <ItemGroup>

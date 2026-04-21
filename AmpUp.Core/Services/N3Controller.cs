@@ -290,8 +290,6 @@ public sealed class N3Controller : IDisposable
             {
                 CommitDisplayChanges();
             }
-
-            Logger.Log($"N3: cleared display key {keyIndex + 1}");
             return true;
         }
         catch (Exception ex)
@@ -329,8 +327,6 @@ public sealed class N3Controller : IDisposable
             {
                 CommitDisplayChanges();
             }
-
-            Logger.Log($"N3: sent image to display key {keyIndex + 1} ({imageData.Length} bytes)");
             return true;
         }
         catch (Exception ex)
@@ -347,7 +343,6 @@ public sealed class N3Controller : IDisposable
         try
         {
             WriteExtendedReport(0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x53, 0x54, 0x50);
-            Logger.Log("N3: display commit sent (CRT STP)");
             return true;
         }
         catch (Exception ex)
@@ -442,11 +437,14 @@ public sealed class N3Controller : IDisposable
 
                 if (parseKnownProtocol && TryParseInput(report, out var parsed))
                 {
-                    Logger.Log($"N3 input [{channelName}]: {parsed.Describe()} raw={ToHex(report)}");
+                    // Verbose raw-hex dump suppressed — each press was ~500
+                    // bytes of mostly-zero bytes. Keep the structured input
+                    // event on OnInput for the app to act on.
                     OnInput?.Invoke(parsed);
                 }
                 else
                 {
+                    // Only log unknown frames (they're rare and interesting).
                     Logger.Log($"N3 raw [{channelName}]: {ToHex(report)}");
                 }
             }
