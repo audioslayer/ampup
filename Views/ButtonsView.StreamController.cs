@@ -2112,7 +2112,12 @@ public partial class ButtonsView
         // Route Action / Path / MacroKeys to the gesture-specific fields
         // for side buttons + encoder presses. For LCD keys _v2Gesture is
         // always Tap so these still write to .Action/.Path/.MacroKeys.
-        string uiAction = GetComboActionValue(_scActionPicker);
+        //
+        // Prefer the V2 picker for action — the legacy _scActionPicker is
+        // only synced on Tap, so on Double/Hold it still holds the Tap
+        // binding and would overwrite the user's gesture-specific pick.
+        string uiAction = _v2ActionPicker?.SelectedValue ?? "";
+        if (string.IsNullOrEmpty(uiAction)) uiAction = GetComboActionValue(_scActionPicker);
         string uiPath = GetActionPath(_scActionPicker, _scPathBox);
         SetGestureAction(button, uiAction);
         SetGesturePath(button, uiPath);
