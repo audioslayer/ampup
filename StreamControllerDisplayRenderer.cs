@@ -509,17 +509,11 @@ internal static class StreamControllerDisplayRenderer
             graphics.Clear(DrawingColor.Black);
             graphics.DrawImage(image, 0, 0, DeviceCanvasSize, DeviceCanvasSize);
 
-            // Zero out the extreme corners before encoding. Small sparkle /
-            // glow detail in icon art produces visible JPEG blocking on the
-            // dark corners once the tile is shown with a rounded-corner
-            // clip — the artifacts appeared as little white squares at the
-            // edges. Clearing the pixels the UI mask will hide anyway gives
-            // the encoder clean uniform black in those 8x8 blocks.
-            using var cornerBrush = new DrawingBrush(DrawingColor.Black);
-            graphics.FillRectangle(cornerBrush, 0, 0, 4, 4);
-            graphics.FillRectangle(cornerBrush, DeviceCanvasSize - 4, 0, 4, 4);
-            graphics.FillRectangle(cornerBrush, 0, DeviceCanvasSize - 4, 4, 4);
-            graphics.FillRectangle(cornerBrush, DeviceCanvasSize - 4, DeviceCanvasSize - 4, 4, 4);
+            // Note: earlier versions zeroed the four 4x4 corners on the
+            // assumption a rounded-corner UI mask would hide them. The N3
+            // LCD shows the full pixel rectangle with no hardware mask, so
+            // those fills appear as visible black boxes in the corners —
+            // kept disabled here.
         }
 
         deviceSized.RotateFlip(System.Drawing.RotateFlipType.Rotate90FlipNone);
