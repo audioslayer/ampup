@@ -1121,39 +1121,12 @@ public partial class App : Application
             }
             else if (knob.Target.Equals("room_lights", StringComparison.OrdinalIgnoreCase))
             {
-                // Room Lights — unified brightness for Govee + Corsair
                 if (Environment.TickCount64 - _startupTick >= 8000
                     && (DateTime.UtcNow - _connectedAt).TotalMilliseconds >= 2000)
                 {
                     float norm = e.Value / 1023f;
                     int pctRoom = (int)Math.Round(norm * 100);
-
-                    if (pctRoom == 0)
-                    {
-                        // Turn off all room lights
-                        foreach (var dev in _config.Ambience.GoveeDevices)
-                        {
-                            if (string.IsNullOrWhiteSpace(dev.Ip)) continue;
-                            dev.PoweredOn = false;
-                            _ = AmbienceSync.SendTurnAsync(dev.Ip, false);
-                        }
-                        if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
-                            _ = _corsairSync.SetStaticColorAllAsync(0, 0, 0);
-                    }
-                    else
-                    {
-                        // Set brightness on all Govee devices (turn on if needed)
-                        _ambienceSync?.EnsureDevicesPoweredOn();
-                        _ambienceSync?.SetBrightness(norm);
-
-                        // Scale Corsair brightness
-                        if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
-                        {
-                            _config.Corsair.LightBrightness = (int)(pctRoom * 2.0);
-                        }
-                    }
-                    _config.Ambience.BrightnessScale = Math.Max(pctRoom, 1);
-                    Dispatcher.BeginInvoke(() => _mainWindow?.UpdateGoveeDeviceBrightness(null, norm, pctRoom > 0));
+                    ApplyRoomLightsBrightness(norm, pctRoom);
                 }
             }
             else if (knob.Target.StartsWith("group:", StringComparison.OrdinalIgnoreCase))
@@ -1412,28 +1385,7 @@ public partial class App : Application
             {
                 float norm = rawValue / 1023f;
                 int pctRoom = (int)Math.Round(norm * 100);
-
-                if (pctRoom == 0)
-                {
-                    foreach (var dev in _config.Ambience.GoveeDevices)
-                    {
-                        if (string.IsNullOrWhiteSpace(dev.Ip)) continue;
-                        dev.PoweredOn = false;
-                        _ = AmbienceSync.SendTurnAsync(dev.Ip, false);
-                    }
-                    if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
-                        _ = _corsairSync.SetStaticColorAllAsync(0, 0, 0);
-                }
-                else
-                {
-                    _ambienceSync?.EnsureDevicesPoweredOn();
-                    _ambienceSync?.SetBrightness(norm);
-
-                    if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
-                        _config.Corsair.LightBrightness = (int)(pctRoom * 2.0);
-                }
-                _config.Ambience.BrightnessScale = Math.Max(pctRoom, 1);
-                Dispatcher.BeginInvoke(() => _mainWindow?.UpdateGoveeDeviceBrightness(null, norm, pctRoom > 0));
+                ApplyRoomLightsBrightness(norm, pctRoom);
             }
         }
         else if (knob.Target.StartsWith("group:", StringComparison.OrdinalIgnoreCase))
@@ -2578,6 +2530,87 @@ public partial class App : Application
                 Logger.Log($"SetGoveePower cloud error for {dev.Name}: {ex.Message}");
             }
         });
+    }
+
+    // Per-device throttle for Govee Cloud brightness/power. The cloud API is
+    // rate-limited (~100 req/min) and knobs fire many times a second, so we
+    // coalesce aggressively — 1.5 s between cloud calls per device.
+    private readonly Dictionary<string, DateTime> _lastCloudBrightnessSend = new();
+    private const int CloudBrightnessMinIntervalMs = 1500;
+
+    /// <summary>
+    /// Apply a room-lights brightness update to every Govee device (LAN + Cloud)
+    /// and scale Corsair. Called from the room_lights knob target. pct=0 turns
+    /// devices off; pct>0 ensures power-on and sets brightness.
+    /// </summary>
+    private void ApplyRoomLightsBrightness(float norm, int pctRoom)
+    {
+        if (pctRoom == 0)
+        {
+            // Off — route every device through SetGoveePower so cloud-only
+            // devices (G1S Pro etc.) actually turn off instead of being skipped.
+            foreach (var dev in _config.Ambience.GoveeDevices)
+            {
+                bool hasLan = !string.IsNullOrWhiteSpace(dev.Ip);
+                bool hasCloud = !hasLan
+                                && !string.IsNullOrWhiteSpace(dev.DeviceId)
+                                && !string.IsNullOrWhiteSpace(dev.Sku);
+                if (!hasLan && !hasCloud) continue;
+                SetGoveePower(dev, false);
+            }
+            if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
+                _ = _corsairSync.SetStaticColorAllAsync(0, 0, 0);
+        }
+        else
+        {
+            // LAN path — existing behavior (covers every device with an IP)
+            _ambienceSync?.EnsureDevicesPoweredOn();
+            _ambienceSync?.SetBrightness(norm);
+
+            // Cloud path — cloud-only devices (no IP) don't go through
+            // AmbienceSync. Throttle to 1.5 s/device so the knob doesn't burn
+            // the daily API quota.
+            var apiKey = _config.Ambience.GoveeApiKey;
+            if (!string.IsNullOrWhiteSpace(apiKey))
+            {
+                foreach (var dev in _config.Ambience.GoveeDevices)
+                {
+                    if (!string.IsNullOrWhiteSpace(dev.Ip)) continue;
+                    if (string.IsNullOrWhiteSpace(dev.DeviceId) || string.IsNullOrWhiteSpace(dev.Sku)) continue;
+
+                    var now = DateTime.UtcNow;
+                    if (_lastCloudBrightnessSend.TryGetValue(dev.DeviceId, out var last)
+                        && (now - last).TotalMilliseconds < CloudBrightnessMinIntervalMs)
+                        continue;
+                    _lastCloudBrightnessSend[dev.DeviceId] = now;
+
+                    // Power-on + brightness in one background task
+                    bool needsOn = !dev.PoweredOn;
+                    dev.PoweredOn = true;
+                    string id = dev.DeviceId, sku = dev.Sku, name = dev.Name;
+                    int b = pctRoom;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            using var api = new GoveeCloudApi(apiKey);
+                            if (needsOn)
+                                await api.ControlDeviceAsync(id, sku, GoveeCloudApi.TurnOnOff(true));
+                            await api.ControlDeviceAsync(id, sku, GoveeCloudApi.SetBrightness(b));
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Log($"ApplyRoomLightsBrightness cloud error for {name}: {ex.Message}");
+                        }
+                    });
+                }
+            }
+
+            if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
+                _config.Corsair.LightBrightness = (int)(pctRoom * 2.0);
+        }
+        _config.Ambience.BrightnessScale = Math.Max(pctRoom, 1);
+        Dispatcher.BeginInvoke(() => _mainWindow?.UpdateGoveeDeviceBrightness(null, norm, pctRoom > 0));
     }
 
     // Remember Corsair state across a room-toggle off/on cycle so we can
