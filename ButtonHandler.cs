@@ -68,6 +68,13 @@ public class ButtonHandler : IDisposable
     /// room between "forced white at 100%" and "all off". Any other room-
     /// control path (room_toggle / group_toggle) clears the forced state.</summary>
     public event Action? OnRoomWhiteToggle;
+    /// <summary>Spotify control events — the handler in App forwards to the
+    /// SpotifyIntegration service.</summary>
+    public event Action? OnSpotifyPlayPause;
+    public event Action? OnSpotifyNext;
+    public event Action? OnSpotifyPrev;
+    public event Action? OnSpotifyShuffleToggle;
+    public event Action? OnSpotifyLikeToggle;
     /// <summary>Fires when room_effect action is triggered — set the active room effect by name (LightEffect enum string).</summary>
     public event Action<string>? OnRoomEffectSet;
     /// <summary>Fires with group name when group_toggle action is triggered — toggle a device group.</summary>
@@ -359,6 +366,11 @@ public class ButtonHandler : IDisposable
                     // the forced-white state so the room effect resumes.
                     OnRoomWhiteToggle?.Invoke();
                     break;
+                case "spotify_play_pause": OnSpotifyPlayPause?.Invoke(); break;
+                case "spotify_next":       OnSpotifyNext?.Invoke();       break;
+                case "spotify_prev":       OnSpotifyPrev?.Invoke();       break;
+                case "spotify_shuffle":    OnSpotifyShuffleToggle?.Invoke(); break;
+                case "spotify_like":       OnSpotifyLikeToggle?.Invoke(); break;
                 case "sc_page_next":
                     OnScPageChange?.Invoke(1, false);
                     break;

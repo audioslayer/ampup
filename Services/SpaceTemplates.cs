@@ -168,18 +168,29 @@ public static class SpaceTemplates
 
     private static ButtonFolderConfig BuildSpotify()
     {
-        return SinglePage("Spotify", new[]
+        // Uses the native Spotify integration actions — they call the Web
+        // API directly (requires Connect in Settings). Slot 0 is the live
+        // now-playing LCD key with album art + scrolling title / artist.
+        var folder = SinglePage("Spotify", new[]
         {
-            ("Prev",        "#1DB954", "",      "media_prev",       ""),
-            ("Play/Pause",  "#1DB954", "", "media_play_pause", ""),
-            ("Next",        "#1DB954", "",      "media_next",       ""),
-            ("Open",        "#1DB954", "",   "launch_exe",       "spotify.exe"),
-            ("Mute Spotify","#FF5252", "neon_volume_mute",   "mute_program",     "spotify"),
-            ("Shuffle",     "#E040FB", "neon_shuffle",       "macro",            ""),
-        }, configure: btns =>
-        {
-            btns[5].MacroKeys = "ctrl+s"; // Spotify default shuffle toggle
+            ("",            "#1DB954", "",             "spotify_play_pause", ""),
+            ("Prev",        "#1DB954", "",             "spotify_prev",       ""),
+            ("Play/Pause",  "#1DB954", "",             "spotify_play_pause", ""),
+            ("Next",        "#1DB954", "",             "spotify_next",       ""),
+            ("Shuffle",     "#E040FB", "neon_shuffle", "spotify_shuffle",    ""),
+            ("Like",        "#FF4081", "",             "spotify_like",       ""),
         });
+        // Slot 0 uses the Spotify now-playing DisplayType so it renders
+        // the live album art + track title / artist overlay.
+        var np = folder.DisplayKeys.Find(d => d.Idx == 0);
+        if (np != null)
+        {
+            np.DisplayType = DisplayKeyType.SpotifyNowPlaying;
+            np.Title = "Spotify";
+            np.TextPosition = DisplayTextPosition.Bottom;
+            np.TextSize = 10;
+        }
+        return folder;
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────

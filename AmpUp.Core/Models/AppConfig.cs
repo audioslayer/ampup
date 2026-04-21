@@ -391,6 +391,10 @@ public enum DisplayKeyType
     DynamicState,
     /// <summary>Flat solid-color fill — renders only BackgroundColor + optional Title, skips icon/glow.</summary>
     Solid,
+    /// <summary>Live Spotify now-playing art. Renderer reads the cached
+    /// album JPG (AmpUp writes it on every track change) and composites
+    /// a dim title/artist strip over the bottom 30% of the LCD.</summary>
+    SpotifyNowPlaying,
 }
 
 public enum DisplayTextPosition

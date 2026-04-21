@@ -36,6 +36,15 @@ internal static class StreamControllerDisplayRenderer
     /// </summary>
     public static Func<string, bool>? DynamicStateResolver { get; set; }
 
+    /// <summary>Path to the cached Spotify album-art JPG. Set by the app
+    /// when Spotify is connected; read by SpotifyNowPlaying DisplayType.</summary>
+    public static string? SpotifyNowPlayingImagePath { get; set; }
+
+    /// <summary>Live title + artist for the current Spotify track. Set by
+    /// the app; called by the renderer on every compose of a SpotifyNowPlaying
+    /// key so the overlay reflects the latest poll.</summary>
+    public static Func<(string Title, string Subtitle)>? SpotifyNowPlayingTitleProvider { get; set; }
+
     public static BitmapSource CreatePreview(StreamControllerDisplayKeyConfig key)
     {
         using var bitmap = ComposeImage(ResolveEffectiveKey(key));
@@ -140,6 +149,26 @@ internal static class StreamControllerDisplayRenderer
             // still overlays if the user left one set.
             clone.ImagePath = "";
             clone.PresetIconKind = "";
+            return clone;
+        }
+
+        if (key.DisplayType == DisplayKeyType.SpotifyNowPlaying)
+        {
+            // Swap ImagePath to the cached Spotify album art. Title /
+            // subtitle resolution lives in SpotifyNowPlayingTitle so the
+            // app can inject the currently-playing track + artist.
+            clone.PresetIconKind = "";
+            clone.ImagePath = SpotifyNowPlayingImagePath ?? "";
+            if (SpotifyNowPlayingTitleProvider != null)
+            {
+                var info = SpotifyNowPlayingTitleProvider();
+                if (!string.IsNullOrEmpty(info.Title)) clone.Title = info.Title;
+                if (!string.IsNullOrEmpty(info.Subtitle)) clone.Subtitle = info.Subtitle;
+            }
+            // Title position + size defaults for the "card" look.
+            if (clone.TextPosition == DisplayTextPosition.Top || clone.TextPosition == DisplayTextPosition.Middle)
+                clone.TextPosition = DisplayTextPosition.Bottom;
+            if (clone.TextSize < 9) clone.TextSize = 10;
             return clone;
         }
 

@@ -42,6 +42,8 @@ public partial class ButtonsView : UserControl
         ("Group: Toggle", "group_toggle"),
         ("iCUE: Toggle Lights", "corsair_toggle"),
         ("Govee: Toggle", "govee_toggle"), ("Govee: Color", "govee_color"), ("Room: White Toggle", "govee_white_toggle"),
+        ("Spotify: Play/Pause", "spotify_play_pause"), ("Spotify: Next", "spotify_next"), ("Spotify: Prev", "spotify_prev"),
+        ("Spotify: Shuffle", "spotify_shuffle"), ("Spotify: Like Track", "spotify_like"),
         ("OBS: Record", "obs_record"), ("OBS: Stream", "obs_stream"),
         ("OBS: Scene", "obs_scene"), ("OBS: Mute", "obs_mute"),
         ("VM: Mute Strip", "vm_mute_strip"), ("VM: Mute Bus", "vm_mute_bus"),
@@ -87,6 +89,8 @@ public partial class ButtonsView : UserControl
         { "multi_action", "≡" }, { "open_folder", "▤" },
         { "toggle_action", "⇄" }, { "open_url", "🌐" },
         { "type_text", "✎" }, { "screenshot", "📷" },
+        { "spotify_play_pause", "▶" }, { "spotify_next", "⏭" }, { "spotify_prev", "⏮" },
+        { "spotify_shuffle", "⇌" }, { "spotify_like", "♥" },
     };
 
     private static readonly Dictionary<string, Color> ActionColors = new()
@@ -1259,6 +1263,11 @@ public partial class ButtonsView : UserControl
         { "obs_mute",           "Toggle mute on an OBS audio source (enter source name in path)" },
         { "vm_mute_strip",      "Toggle mute on a VoiceMeeter strip (enter strip index 0-4 in path)" },
         { "vm_mute_bus",        "Toggle mute on a VoiceMeeter bus (enter bus index 0-2 in path)" },
+        { "spotify_play_pause", "Play / pause Spotify playback (requires Spotify connected in Settings)" },
+        { "spotify_next",       "Skip to the next Spotify track" },
+        { "spotify_prev",       "Go to the previous Spotify track" },
+        { "spotify_shuffle",    "Toggle Spotify shuffle mode" },
+        { "spotify_like",       "Like / unlike the currently-playing Spotify track" },
         { "sc_page_next",       "Navigate to the next Stream Controller page" },
         { "sc_page_prev",       "Navigate to the previous Stream Controller page" },
         { "sc_page_home",       "Jump back to page 1 (home page)" },
@@ -1364,7 +1373,7 @@ public partial class ButtonsView : UserControl
         ("Advanced",        new[] { "multi_action", "toggle_action", "open_folder" }),
         ("Power",           new[] { "power_sleep", "power_lock", "power_off", "power_restart", "power_logoff", "power_hibernate" }),
         ("Room",            new[] { "room_toggle", "room_effect" }),
-        ("Integrations",    new[] { "group_toggle", "ha_toggle", "ha_scene", "ha_service", "corsair_toggle", "govee_toggle", "govee_color", "govee_white_toggle", "obs_record", "obs_stream", "obs_scene", "obs_mute", "vm_mute_strip", "vm_mute_bus" }),
+        ("Integrations",    new[] { "group_toggle", "ha_toggle", "ha_scene", "ha_service", "corsair_toggle", "govee_toggle", "govee_color", "govee_white_toggle", "obs_record", "obs_stream", "obs_scene", "obs_mute", "vm_mute_strip", "vm_mute_bus", "spotify_play_pause", "spotify_next", "spotify_prev", "spotify_shuffle", "spotify_like" }),
         ("Stream Controller", new[] { "sc_page_next", "sc_page_prev", "sc_page_home", "sc_go_to_page" }),
     };
 

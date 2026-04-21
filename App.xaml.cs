@@ -189,6 +189,17 @@ public partial class App : Application
         StreamControllerDisplayRenderer.DynamicStateResolver =
             source => DynamicKeyStateProvider.IsActive(source, _obs, _mixer);
 
+        // Spotify hooks for the SpotifyNowPlaying DisplayType.
+        StreamControllerDisplayRenderer.SpotifyNowPlayingImagePath =
+            SpotifyIntegration.AlbumArtCachePath;
+        StreamControllerDisplayRenderer.SpotifyNowPlayingTitleProvider = () =>
+        {
+            var t = _spotify?.CurrentTrack;
+            if (t == null || string.IsNullOrEmpty(t.TrackId))
+                return ("Spotify", "— nothing playing —");
+            return (t.Title, t.Artists);
+        };
+
         StartStreamControllerRefreshTimer();
 
         // DreamView / Screen Sync
@@ -231,6 +242,11 @@ public partial class App : Application
         _buttons.OnRoomToggle += HandleRoomToggle;
         _buttons.OnCorsairToggle += HandleCorsairToggle;
         _buttons.OnRoomWhiteToggle += HandleRoomWhiteToggle;
+        _buttons.OnSpotifyPlayPause    += () => { _ = _spotify?.PlayPauseAsync(); };
+        _buttons.OnSpotifyNext         += () => { _ = _spotify?.NextAsync(); };
+        _buttons.OnSpotifyPrev         += () => { _ = _spotify?.PreviousAsync(); };
+        _buttons.OnSpotifyShuffleToggle+= () => { _ = _spotify?.ToggleShuffleAsync(); };
+        _buttons.OnSpotifyLikeToggle   += () => { _ = _spotify?.ToggleLikeAsync(); };
         _buttons.OnRoomEffectSet += HandleRoomEffectSet;
         _buttons.OnGroupToggle += HandleGroupToggle;
         _buttons.OnScPageChange += HandleScPageChange;
