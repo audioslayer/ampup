@@ -2000,6 +2000,25 @@ public partial class ButtonsView
 
         button.Action = GetComboActionValue(_scActionPicker);
         button.Path = GetActionPath(_scActionPicker, _scPathBox);
+        // V2 designer uses a dedicated Govee device picker instead of the
+        // legacy ActionPicker sub-flyout. GetActionPath reads the legacy
+        // SubTag which is empty when picked via V2 — fall back to the
+        // V2 Govee picker's IP so the save doesn't wipe the user's choice.
+        if (button.Action is "govee_toggle" or "govee_white_toggle" or "govee_color"
+            && _scGoveePicker != null
+            && _scGoveePicker.SelectedTag is string goveeIp && !string.IsNullOrEmpty(goveeIp))
+        {
+            if (button.Action == "govee_color")
+            {
+                // govee_color path is "ip|hex" — preserve existing hex suffix.
+                var existingHex = button.Path.Contains('|') ? button.Path.Split('|', 2)[1] : "";
+                button.Path = string.IsNullOrEmpty(existingHex) ? goveeIp : $"{goveeIp}|{existingHex}";
+            }
+            else
+            {
+                button.Path = goveeIp;
+            }
+        }
         button.MacroKeys = GetTextBoxValue(_scMacroBox);
         button.DeviceId = GetDeviceIdForAction(button.Action, _scActionPicker, _scDevicePicker);
         button.ProfileName = button.Action == "switch_profile" ? (_scActionPicker.SelectedSubTag ?? "") : "";
