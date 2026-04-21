@@ -457,24 +457,37 @@ public partial class GroupsView : UserControl
 
             foreach (var gd in _config.Ambience.GoveeDevices)
             {
-                // Skip if already in this group
+                bool hasLan = !string.IsNullOrWhiteSpace(gd.Ip);
+                bool hasCloud = !hasLan
+                                && !string.IsNullOrWhiteSpace(gd.DeviceId)
+                                && !string.IsNullOrWhiteSpace(gd.Sku);
+                if (!hasLan && !hasCloud) continue;
+
+                // Group stores the LAN IP (preferred) or the Cloud DeviceId as
+                // the identifier. HandleGroupToggle matches on either field.
+                string deviceKey = hasLan ? gd.Ip : gd.DeviceId;
+
                 var group = _config.Groups[groupIndex];
-                if (group.Devices.Any(d => d.Type == "govee" && d.DeviceId == gd.Ip))
+                if (group.Devices.Any(d => d.Type == "govee" && d.DeviceId == deviceKey))
                     continue;
+
+                string headerText = !string.IsNullOrWhiteSpace(gd.Name)
+                    ? (hasLan ? $"{gd.Name} ({gd.Ip})" : $"{gd.Name} (API)")
+                    : (hasLan ? gd.Ip : gd.DeviceId);
 
                 var item = new MenuItem
                 {
-                    Header = string.IsNullOrEmpty(gd.Name) ? gd.Ip : $"{gd.Name} ({gd.Ip})",
+                    Header = headerText,
                     Foreground = FindBrush("TextPrimaryBrush"),
                 };
-                string ip = gd.Ip;
-                string name = string.IsNullOrEmpty(gd.Name) ? gd.Ip : gd.Name;
+                string name = !string.IsNullOrWhiteSpace(gd.Name) ? gd.Name : deviceKey;
+                string capturedKey = deviceKey;
                 item.Click += (_, _) =>
                 {
                     _config.Groups[groupIndex].Devices.Add(new GroupDevice
                     {
                         Type = "govee",
-                        DeviceId = ip,
+                        DeviceId = capturedKey,
                         Name = name,
                     });
                     Save();

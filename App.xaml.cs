@@ -2538,16 +2538,55 @@ public partial class App : Application
         });
     }
 
+    /// <summary>
+    /// Set a Govee device on/off, routing through LAN UDP or the Cloud REST
+    /// API depending on whether the config entry has an IP. Also flips the
+    /// persisted PoweredOn flag so the Room/Settings UI stays truthful.
+    /// Group and room-wide toggles all route through here so cloud-only
+    /// devices (e.g. H604C G1S Pro) aren't silently skipped.
+    /// </summary>
+    private void SetGoveePower(GoveeDeviceConfig dev, bool on)
+    {
+        if (dev == null) return;
+        dev.PoweredOn = on;
+
+        if (!string.IsNullOrWhiteSpace(dev.Ip))
+        {
+            _ = AmbienceSync.SendTurnAsync(dev.Ip, on);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(dev.DeviceId) || string.IsNullOrWhiteSpace(dev.Sku)) return;
+        var apiKey = _config.Ambience.GoveeApiKey;
+        if (string.IsNullOrWhiteSpace(apiKey)) return;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var api = new GoveeCloudApi(apiKey);
+                await api.ControlDeviceAsync(dev.DeviceId, dev.Sku, GoveeCloudApi.TurnOnOff(on));
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"SetGoveePower cloud error for {dev.Name}: {ex.Message}");
+            }
+        });
+    }
+
     private void HandleRoomToggle()
     {
         _roomLightsOn = !_roomLightsOn;
 
-        // Toggle all Govee devices
+        // Toggle all Govee devices (LAN + Cloud-only like the H604C G1S Pro)
         foreach (var dev in _config.Ambience.GoveeDevices)
         {
-            if (string.IsNullOrWhiteSpace(dev.Ip)) continue;
-            dev.PoweredOn = _roomLightsOn;
-            _ = AmbienceSync.SendTurnAsync(dev.Ip, _roomLightsOn);
+            bool hasLan = !string.IsNullOrWhiteSpace(dev.Ip);
+            bool hasCloud = !hasLan
+                            && !string.IsNullOrWhiteSpace(dev.DeviceId)
+                            && !string.IsNullOrWhiteSpace(dev.Sku);
+            if (!hasLan && !hasCloud) continue;
+            SetGoveePower(dev, _roomLightsOn);
         }
 
         // Toggle Corsair (black = off, restore last color = on)
@@ -2613,10 +2652,15 @@ public partial class App : Application
             switch (dev.Type)
             {
                 case "govee":
-                    var gc = _config.Ambience.GoveeDevices.FirstOrDefault(d => d.Ip == dev.DeviceId);
-                    if (gc != null) gc.PoweredOn = newState;
-                    _ = AmbienceSync.SendTurnAsync(dev.DeviceId, newState);
-                    if (newState) anyGoveeOn = true;
+                    // Group stores either the LAN IP or the Cloud DeviceId — try both.
+                    var gc = _config.Ambience.GoveeDevices.FirstOrDefault(d =>
+                        (!string.IsNullOrEmpty(d.Ip) && d.Ip == dev.DeviceId) ||
+                        (!string.IsNullOrEmpty(d.DeviceId) && d.DeviceId == dev.DeviceId));
+                    if (gc != null)
+                    {
+                        SetGoveePower(gc, newState);
+                        if (newState) anyGoveeOn = true;
+                    }
                     break;
                 case "corsair":
                     if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
