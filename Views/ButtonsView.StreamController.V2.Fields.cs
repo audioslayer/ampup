@@ -23,6 +23,7 @@ public partial class ButtonsView
     private Border? _v2TextSnippetCard;
     private Border? _v2ScreenshotCard;
     private Border? _v2DeviceCard;
+    private Border? _v2GoveeCard;
     private Border? _v2KnobCard;
     private Border? _v2ToggleCard;
     private Border? _v2MultiActionCard;
@@ -61,6 +62,10 @@ public partial class ButtonsView
         // 5. Device picker (select_output / select_input / mute_device).
         _v2DeviceCard = MakeV2SectionCard("DEVICE", out _, _scDevicePanel);
         _v2ActionFieldsPanel.Children.Add(_v2DeviceCard);
+
+        // Govee device picker (govee_toggle / govee_white_toggle / govee_color)
+        _v2GoveeCard = MakeV2SectionCard("GOVEE DEVICE", out _, _scGoveePanel);
+        _v2ActionFieldsPanel.Children.Add(_v2GoveeCard);
 
         // 6. Linked Turn Up knob (mute_app_group).
         _v2KnobCard = MakeV2SectionCard("LINKED TURN UP KNOB", out _, _scKnobPanel);
@@ -136,6 +141,7 @@ public partial class ButtonsView
         ShowInner(_scTextSnippetPanel);
         ShowInner(_scScreenshotInfoPanel);
         ShowInner(_scDevicePanel);
+        ShowInner(_scGoveePanel);
         ShowInner(_scKnobPanel);
         ShowInner(_scTogglePanel);
         ShowInner(_scMultiActionPanel);
@@ -152,6 +158,9 @@ public partial class ButtonsView
         SetCardVisible(_v2TextSnippetCard, action == "type_text");
         SetCardVisible(_v2ScreenshotCard, action == "screenshot");
         SetCardVisible(_v2DeviceCard, action is "select_output" or "select_input" or "mute_device");
+        SetCardVisible(_v2GoveeCard, action is "govee_toggle" or "govee_white_toggle" or "govee_color");
+        if (action is "govee_toggle" or "govee_white_toggle" or "govee_color")
+            RefreshGoveePickerItems();
         SetCardVisible(_v2KnobCard, action == "mute_app_group");
         SetCardVisible(_v2ToggleCard, action == "toggle_action");
         SetCardVisible(_v2MultiActionCard, action == "multi_action");

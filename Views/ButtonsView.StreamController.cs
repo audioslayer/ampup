@@ -68,6 +68,8 @@ public partial class ButtonsView
     private StackPanel? _scTextSnippetPanel;
     private Border? _scScreenshotInfoPanel;
     private ListPicker? _scDevicePicker;
+    private StackPanel? _scGoveePanel;
+    private ListPicker? _scGoveePicker;
     private StackPanel? _scDevicePanel;
     private ListPicker? _scKnobPicker;
     private StackPanel? _scKnobPanel;
@@ -750,6 +752,7 @@ public partial class ButtonsView
         (_scTextSnippetPanel, _scTextSnippetBox) = MakeStreamTextSnippetRow();
         _scScreenshotInfoPanel = MakeStreamScreenshotInfo();
         (_scDevicePanel, _scDevicePicker) = MakeStreamDeviceRow();
+        (_scGoveePanel, _scGoveePicker) = MakeStreamGoveeRow();
         (_scKnobPanel, _scKnobPicker) = MakeStreamKnobRow();
         _scTogglePanel = MakeStreamToggleRow();
         _scMultiActionPanel = MakeStreamMultiActionPanel();
@@ -760,6 +763,7 @@ public partial class ButtonsView
         _scActionTabContent.Children.Add(_scTextSnippetPanel);
         _scActionTabContent.Children.Add(_scScreenshotInfoPanel);
         _scActionTabContent.Children.Add(_scDevicePanel);
+        _scActionTabContent.Children.Add(_scGoveePanel);
         _scActionTabContent.Children.Add(_scKnobPanel);
         _scActionTabContent.Children.Add(_scTogglePanel);
         _scActionTabContent.Children.Add(_scMultiActionPanel);
@@ -1184,6 +1188,55 @@ public partial class ButtonsView
         picker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
         panel.Children.Add(picker);
         return (panel, picker);
+    }
+
+    /// <summary>
+    /// Govee device picker for govee_toggle / govee_white_toggle actions.
+    /// Selection saves the device IP into <c>ButtonConfig.Path</c>.
+    /// </summary>
+    private (StackPanel panel, ListPicker picker) MakeStreamGoveeRow()
+    {
+        var panel = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 10, 0, 0) };
+        panel.Children.Add(MakeEditorLabel("GOVEE DEVICE"));
+        var picker = new ListPicker();
+        picker.SelectionChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            // Ignore programmatic ClearItems — only react to real user picks.
+            if (picker.SelectedIndex < 0 || picker.SelectedTag is not string ip
+                || string.IsNullOrEmpty(ip)) return;
+            bool isN3PagedKey = _scSelectedButtonIdx >= StreamControllerDisplayKeyBase
+                                && _scSelectedButtonIdx < StreamControllerSideButtonBase;
+            var list = isN3PagedKey ? GetActiveN3ButtonList() : _config.N3.Buttons;
+            var btn = list.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
+            if (btn == null) return;
+            // For govee_color the path is "ip|hex" — preserve any existing hex suffix.
+            if (btn.Action == "govee_color" && !string.IsNullOrEmpty(btn.Path) && btn.Path.Contains('|'))
+            {
+                var hex = btn.Path.Split('|', 2)[1];
+                btn.Path = $"{ip}|{hex}";
+            }
+            else
+            {
+                btn.Path = ip;
+            }
+            QueueSave();
+        };
+        panel.Children.Add(picker);
+        return (panel, picker);
+    }
+
+    /// <summary>Re-populate the Govee picker from the current config.</summary>
+    private void RefreshGoveePickerItems()
+    {
+        if (_scGoveePicker == null || _config == null) return;
+        _scGoveePicker.ClearItems();
+        foreach (var dev in _config.Ambience.GoveeDevices)
+        {
+            if (string.IsNullOrWhiteSpace(dev.Ip)) continue;
+            var label = string.IsNullOrWhiteSpace(dev.Name) ? dev.Ip : $"{dev.Name} ({dev.Ip})";
+            _scGoveePicker.AddItem(label, dev.Ip);
+        }
     }
 
     private (StackPanel panel, ListPicker picker) MakeStreamKnobRow()
@@ -1734,6 +1787,22 @@ public partial class ButtonsView
         SelectGroupSubTag(_scActionPicker, button.Action, button.Path);
         SelectGoveeSubTag(_scActionPicker, button.Action, button.Path);
 
+        // Pre-select the Govee picker if the action is a govee_* one.
+        if (_scGoveePicker != null && button.Action is "govee_toggle" or "govee_white_toggle" or "govee_color"
+            && !string.IsNullOrEmpty(button.Path))
+        {
+            var ip = button.Path.Contains('|') ? button.Path.Split('|')[0] : button.Path;
+            RefreshGoveePickerItems();
+            for (int i = 0; i < _scGoveePicker.ItemCount; i++)
+            {
+                if (string.Equals(_scGoveePicker.GetTagAt(i) as string, ip, StringComparison.OrdinalIgnoreCase))
+                {
+                    _scGoveePicker.SelectedIndex = i;
+                    break;
+                }
+            }
+        }
+
         // Load Toggle (A/B) sub-actions
         if (_scToggleActionAPicker != null) SelectCombo(_scToggleActionAPicker, button.ToggleActionA);
         if (_scToggleActionBPicker != null) SelectCombo(_scToggleActionBPicker, button.ToggleActionB);
@@ -1861,6 +1930,12 @@ public partial class ButtonsView
         if (_scScreenshotInfoPanel != null)
             _scScreenshotInfoPanel.Visibility = action == "screenshot" ? Visibility.Visible : Visibility.Collapsed;
         _scDevicePanel.Visibility = action is "select_output" or "select_input" or "mute_device" ? Visibility.Visible : Visibility.Collapsed;
+        if (_scGoveePanel != null)
+        {
+            bool showGovee = action is "govee_toggle" or "govee_white_toggle" or "govee_color";
+            _scGoveePanel.Visibility = showGovee ? Visibility.Visible : Visibility.Collapsed;
+            if (showGovee) RefreshGoveePickerItems();
+        }
         _scKnobPanel.Visibility = action == "mute_app_group" ? Visibility.Visible : Visibility.Collapsed;
         if (_scTogglePanel != null)
         {
