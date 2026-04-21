@@ -2337,6 +2337,17 @@ public partial class App : Application
     /// </summary>
     private ButtonConfig? ResolveN3ButtonForGestureEngine(int idx)
     {
+        // Side buttons (106-108) and encoder presses (109-111) are always
+        // global — their idx range collides with page-1 LCD keys in a
+        // folder (100 + 1*6 + 0..5 = 106-111), and since the gesture engine
+        // gets a bare idx with no "kind" tag we'd otherwise grab the wrong
+        // button config while inside a folder. This breaks page-1 LCD keys
+        // inside multi-page folders (they silently run the side-button
+        // config) — tracked as a known limitation; proper fix is a
+        // dedicated idx range for side/encoder buttons.
+        if (idx >= N3SideButtonBase && idx <= N3EncoderPressBase + 2)
+            return _config?.N3.Buttons.FirstOrDefault(b => b.Idx == idx);
+
         if (!IsInFolder) return null; // fall through to default resolver
 
         // Only N3 idx ranges get folder-scoped resolution. Turn Up buttons (0-4)
