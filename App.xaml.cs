@@ -2553,6 +2553,12 @@ public partial class App : Application
         if (!string.IsNullOrWhiteSpace(dev.Ip))
         {
             _ = AmbienceSync.SendTurnAsync(dev.Ip, on);
+            // Power-cycling segment devices loses segment mode on the device
+            // but our _segmentEnabled cache still thinks it's active, so the
+            // next frame gets skipped and the device sits at its default
+            // (often white) until the 25 s keep-alive fires. Clear the cache
+            // so the next frame re-enables segment mode immediately.
+            if (on) _ambienceSync?.ClearAllSegmentTracking();
             return;
         }
 
