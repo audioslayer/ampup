@@ -36,7 +36,14 @@ public class QuickActionPicker : Border
     public string SelectedValue { get; protected set; } = "none";
 
     // ── Item record ─────────────────────────────────────────────────
-    private record PickerItem(string Value, string Display, string Icon, Color Color, string Category, string Tooltip);
+    // ParentValue != null marks this as a sub-item hidden from the main
+    // category list. The parent row has HasChildren = true and renders a
+    // right-chevron affordance. Click pops a flyout listing its children.
+    private record PickerItem(string Value, string Display, string Icon, Color Color, string Category, string Tooltip)
+    {
+        public string? ParentValue { get; init; }
+        public bool HasChildren { get; init; }
+    }
 
     private readonly List<PickerItem> _items = new();
 
@@ -334,6 +341,29 @@ public class QuickActionPicker : Border
         // defer UI build — RebuildAll triggered later by Select/Loaded
     }
 
+    /// <summary>
+    /// Add a parent row that owns sub-items. Click shows a flyout listing
+    /// the children. The parent's <paramref name="value"/> is a
+    /// synthetic group id ("group_spotify" etc.) and is never selected
+    /// directly — picking a child sets SelectedValue to the child's value.
+    /// </summary>
+    public virtual void AddGroupItem(string value, string display, string icon, Color color, string category, string tooltip = "")
+    {
+        _items.Add(new PickerItem(value, display, icon ?? "", color, category ?? "", tooltip ?? "")
+        {
+            HasChildren = true,
+        });
+    }
+
+    /// <summary>Adds a sub-item parented to a previously added group.</summary>
+    public virtual void AddSubItem(string parentValue, string value, string display, string icon, Color color, string tooltip = "")
+    {
+        _items.Add(new PickerItem(value, display, icon ?? "", color, "", tooltip ?? "")
+        {
+            ParentValue = parentValue,
+        });
+    }
+
     public virtual void Select(string value)
     {
         SelectedValue = value;
@@ -541,7 +571,11 @@ public class QuickActionPicker : Border
             Margin = new Thickness(8, 4, 0, 6),
             Visibility = expanded ? Visibility.Visible : Visibility.Collapsed,
         };
-        foreach (var item in _items.Where(i => string.Equals(i.Category, category, StringComparison.OrdinalIgnoreCase)))
+        // Hide sub-items from the main category list — they surface inside
+        // their group's flyout instead.
+        foreach (var item in _items.Where(i =>
+                     string.Equals(i.Category, category, StringComparison.OrdinalIgnoreCase)
+                     && i.ParentValue == null))
         {
             itemsPanel.Children.Add(BuildActionRow(item));
         }
@@ -623,16 +657,39 @@ public class QuickActionPicker : Border
         Grid.SetColumn(textStack, 1);
         grid.Children.Add(textStack);
 
+        // Group rows show a right-chevron so the user knows a flyout is
+        // coming. Selected state reflects when any CHILD of the group is
+        // currently active too.
+        bool childSelected = item.HasChildren
+            && _items.Any(c => c.ParentValue == item.Value
+                               && string.Equals(c.Value, SelectedValue, StringComparison.Ordinal));
+        if (item.HasChildren)
+        {
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var chev = new TextBlock
+            {
+                Text = "›", // ›
+                FontSize = 16,
+                FontWeight = FontWeights.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(10, 0, 0, 0),
+            };
+            chev.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+            Grid.SetColumn(chev, 2);
+            grid.Children.Add(chev);
+        }
+
+        bool rowHighlight = isSelected || childSelected;
         var row = new Border
         {
             Padding = new Thickness(10, 8, 10, 8),
             CornerRadius = new CornerRadius(6),
             Cursor = Cursors.Hand,
-            Background = isSelected
+            Background = rowHighlight
                 ? new SolidColorBrush(Color.FromArgb(0x22, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B))
                 : System.Windows.Media.Brushes.Transparent,
             BorderThickness = new Thickness(1),
-            BorderBrush = isSelected
+            BorderBrush = rowHighlight
                 ? new SolidColorBrush(ThemeManager.Accent)
                 : System.Windows.Media.Brushes.Transparent,
             Margin = new Thickness(0, 0, 0, 2),
@@ -640,17 +697,23 @@ public class QuickActionPicker : Border
         };
         row.MouseEnter += (_, _) =>
         {
-            if (!isSelected)
+            if (!rowHighlight)
                 row.Background = new SolidColorBrush(Color.FromArgb(0x14, item.Color.R, item.Color.G, item.Color.B));
         };
         row.MouseLeave += (_, _) =>
         {
-            if (!isSelected)
+            if (!rowHighlight)
                 row.Background = System.Windows.Media.Brushes.Transparent;
         };
         row.MouseLeftButtonUp += (_, e) =>
         {
             if (e.Handled) return;
+            if (item.HasChildren)
+            {
+                ShowGroupFlyout(row, item);
+                e.Handled = true;
+                return;
+            }
             SelectedValue = item.Value;
             UpdateSelectedDisplay();
             SelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -659,6 +722,41 @@ public class QuickActionPicker : Border
             e.Handled = true;
         };
         return row;
+    }
+
+    /// <summary>Render a group parent's children in a GlassContextMenu
+    /// anchored to the row. Picking a child commits it as the selection.</summary>
+    private void ShowGroupFlyout(FrameworkElement anchor, PickerItem parent)
+    {
+        var children = _items.Where(i => i.ParentValue == parent.Value).ToList();
+        if (children.Count == 0) return;
+
+        var menuItems = new List<GlassMenuItem>();
+        foreach (var c in children)
+        {
+            var child = c; // capture
+            // Map MaterialIconKind if the stored icon is enum-parseable;
+            // otherwise the menu row just renders without an icon (still
+            // has a left color-badge area via label formatting).
+            MaterialIconKind? icon = null;
+            if (!string.IsNullOrEmpty(child.Icon) && Enum.TryParse<MaterialIconKind>(child.Icon, out var parsed))
+                icon = parsed;
+
+            bool selected = string.Equals(child.Value, SelectedValue, StringComparison.Ordinal);
+            menuItems.Add(new GlassMenuItem(
+                Label: child.Display,
+                Icon: icon,
+                OnClick: () =>
+                {
+                    SelectedValue = child.Value;
+                    UpdateSelectedDisplay();
+                    SelectionChanged?.Invoke(this, EventArgs.Empty);
+                    OnActionChosen?.Invoke(child.Value);
+                    RebuildAll();
+                },
+                IsChecked: selected));
+        }
+        GlassContextMenuHost.Show(anchor, menuItems);
     }
 
     /// <summary>Render an icon string as either a MaterialIcon (if enum-parseable) or a TextBlock glyph.</summary>
@@ -695,9 +793,13 @@ public class QuickActionPicker : Border
             return;
         }
 
+        // Search matches include sub-items directly (so typing "Next"
+        // finds "Spotify: Next" even though it's tucked into a flyout).
+        // Group parents are skipped — their value is a synthetic id.
         var matches = _items.Where(i =>
-            i.Display.Contains(needle, StringComparison.OrdinalIgnoreCase)
-            || i.Value.Contains(needle, StringComparison.OrdinalIgnoreCase))
+            !i.HasChildren &&
+            (i.Display.Contains(needle, StringComparison.OrdinalIgnoreCase)
+             || i.Value.Contains(needle, StringComparison.OrdinalIgnoreCase)))
             .ToList();
 
         foreach (var item in matches)

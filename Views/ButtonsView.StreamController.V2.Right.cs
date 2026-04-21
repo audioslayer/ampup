@@ -502,10 +502,20 @@ public partial class ButtonsView
         // Always show Stream Controller page actions inside the N3 designer.
         const bool showScPageActions = true;
 
+        // Integration groups — fold multi-action integrations into a single
+        // parent row (HA / Govee / Spotify) whose flyout lists the variants.
+        // Keeps the Integrations accordion scannable instead of showing 5+
+        // rows for one service.
+        var spotifyChildren = new[] { "spotify_play_pause", "spotify_next", "spotify_prev", "spotify_shuffle", "spotify_like" };
+        var haChildren      = new[] { "ha_toggle", "ha_scene", "ha_service" };
+        var goveeChildren   = new[] { "govee_toggle", "govee_color", "govee_white_toggle" };
+        var foldedChildren = new HashSet<string>(spotifyChildren.Concat(haChildren).Concat(goveeChildren));
+
         foreach (var (category, values) in ActionCategories)
         {
             foreach (var value in values)
             {
+                if (foldedChildren.Contains(value)) continue; // emitted as sub-items below
                 if (!ActionLookup.TryGetValue(value, out var action)) continue;
 
                 bool isHa = IsHaAction(value);
@@ -536,6 +546,41 @@ public partial class ButtonsView
 
                 _v2ActionPicker.AddItem(value, displayName, icon, color, category, tooltip);
             }
+        }
+
+        // ── Integration group parents + children ───────────────────────
+        AddIntegrationGroup("group_spotify", "Spotify", "♫",
+            Color.FromRgb(0x1D, 0xB9, 0x54), "Integrations",
+            "Play / pause, skip, shuffle, like — requires Spotify connected in Settings",
+            spotifyChildren, enabled: true);
+
+        AddIntegrationGroup("group_ha", "Home Assistant", "⚡",
+            Color.FromRgb(0x26, 0xC6, 0xDA), "Integrations",
+            "Toggle entities, trigger scenes, call services",
+            haChildren, enabled: haEnabled || anyHaConfigured);
+
+        AddIntegrationGroup("group_govee", "Govee", "◈",
+            Color.FromRgb(0x66, 0xBB, 0x6A), "Integrations",
+            "Toggle a Govee device, set a specific color, or flip a single device between white + last color",
+            goveeChildren, enabled: goveeEnabled || anyGoveeConfigured);
+    }
+
+    private void AddIntegrationGroup(string groupValue, string groupDisplay, string groupIcon,
+        Color groupColor, string category, string groupTooltip, string[] childValues, bool enabled)
+    {
+        if (_v2ActionPicker == null) return;
+        // Drop the whole group if the integration is disabled + unused —
+        // matches the per-row gating above.
+        if (!enabled) return;
+
+        _v2ActionPicker.AddGroupItem(groupValue, groupDisplay, groupIcon, groupColor, category, groupTooltip);
+        foreach (var v in childValues)
+        {
+            if (!ActionLookup.TryGetValue(v, out var action)) continue;
+            var icon = ActionIcons.GetValueOrDefault(v, "—");
+            var color = ActionColors.GetValueOrDefault(v, Color.FromRgb(0x88, 0x88, 0x88));
+            var tooltip = ActionTooltips.GetValueOrDefault(v, action.Display);
+            _v2ActionPicker.AddSubItem(groupValue, v, action.Display, icon, color, tooltip);
         }
     }
 
