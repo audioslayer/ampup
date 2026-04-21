@@ -1427,6 +1427,19 @@ public partial class ButtonsView : UserControl
             }
         }
 
+        // Fold multi-variant integrations into a single parent row with a
+        // flyout — matches the V2 designer's grouping and keeps the
+        // Integrations section scannable.
+        picker.AddActionGroup("group_ha", "Home Assistant", "⚡",
+            Color.FromRgb(0x26, 0xC6, 0xDA),
+            new[] { "ha_toggle", "ha_scene", "ha_service" });
+        picker.AddActionGroup("group_govee", "Govee", "◈",
+            Color.FromRgb(0x66, 0xBB, 0x6A),
+            new[] { "govee_toggle", "govee_color", "govee_white_toggle" });
+        picker.AddActionGroup("group_spotify", "Spotify", "♪",
+            Color.FromRgb(0x1D, 0xB9, 0x54),
+            new[] { "spotify_play_pause", "spotify_next", "spotify_prev", "spotify_shuffle", "spotify_like" });
+
         picker.BuildPopup();
     }
 

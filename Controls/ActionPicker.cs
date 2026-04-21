@@ -63,6 +63,17 @@ public class ActionPicker : Border
     // Sub-menu providers: keyed by action value
     private readonly Dictionary<string, Func<List<SubItem>>> _subMenuProviders = new();
 
+    // Action groups — parent rows with synthetic values ("group_spotify")
+    // that hide a set of child action values behind a flyout. The children
+    // remain in _items (so SelectedValue / rendering still work) but are
+    // omitted from the main popup list and shown in the group's flyout
+    // instead. Picking a child commits it as the selection, which then
+    // triggers any existing sub-menu the child has registered (e.g. HA
+    // entity picker).
+    private readonly Dictionary<string, (string Display, string Icon, Color Color, List<string> Children)> _actionGroups = new();
+    private readonly HashSet<string> _actionGroupChildren = new();
+    private readonly HashSet<string> _actionGroupParents = new();
+
     public event EventHandler? SelectionChanged;
 
     /// <summary>
@@ -400,6 +411,26 @@ public class ActionPicker : Border
     }
 
     /// <summary>
+    /// Mark a set of existing action values as members of a group. The
+    /// main popup will hide the children and render a single parent row
+    /// with a right-chevron; clicking it opens a flyout listing the
+    /// children. Pick one of those and the picker commits it as the real
+    /// action selection (including any sub-menu that action may have
+    /// already registered — e.g. HA entity picker).
+    /// </summary>
+    public void AddActionGroup(string groupValue, string display, string icon, Color color, IEnumerable<string> childValues)
+    {
+        var children = childValues?.Where(v => !string.IsNullOrEmpty(v)).ToList() ?? new List<string>();
+        if (children.Count == 0) return;
+        _actionGroups[groupValue] = (display, icon, color, children);
+        foreach (var c in children) _actionGroupChildren.Add(c);
+        _actionGroupParents.Add(groupValue);
+        // Insert as an _items row so category layout + BuildPopupItem work;
+        // a custom click handler (see BuildPopupItem) will open the flyout.
+        _items.Add((display, groupValue, icon, color, $"{display} — pick a specific action"));
+    }
+
+    /// <summary>
     /// Rebuild the popup after all items and categories have been added.
     /// Must be called after AddItem/AddCategory to display items.
     /// </summary>
@@ -643,10 +674,19 @@ public class ActionPicker : Border
     {
         var item = _items[idx];
         bool selected = idx == _selectedIndex;
-        bool hasSubMenu = _subMenuProviders.TryGetValue(item.Value, out var subProvider)
+        bool isActionGroup = _actionGroupParents.Contains(item.Value);
+        bool hasSubMenu = !isActionGroup
+            && _subMenuProviders.TryGetValue(item.Value, out var subProvider)
             && subProvider().Count > 0;
         bool isActiveSubParent = hasSubMenu && _subPanelBorder.Visibility == Visibility.Visible
             && item.Value == _activeSubParentValue;
+        // Show the chevron for both legacy sub-menus AND action-group parents.
+        bool showChevron = hasSubMenu || isActionGroup;
+        // Highlight a group parent when any of its children is the
+        // currently-selected action.
+        bool groupChildSelected = isActionGroup && _selectedIndex >= 0
+            && _actionGroups.TryGetValue(item.Value, out var groupInfo)
+            && groupInfo.Children.Contains(_items[_selectedIndex].Value);
 
         var accentBar = new Border
         {
@@ -689,15 +729,16 @@ public class ActionPicker : Border
         rowGrid.Children.Add(iconText);
         rowGrid.Children.Add(nameText);
 
-        // Sub-menu arrow
-        if (hasSubMenu)
+        // Sub-menu arrow (shown for legacy sub-menus + action-group parents)
+        if (showChevron)
         {
+            bool highlight = isActiveSubParent || groupChildSelected;
             rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var arrow = new TextBlock
             {
                 Text = "\u203A",
                 FontSize = 14,
-                Foreground = new SolidColorBrush(isActiveSubParent ? ThemeManager.Accent : Color.FromRgb(0x66, 0x66, 0x66)),
+                Foreground = new SolidColorBrush(highlight ? ThemeManager.Accent : Color.FromRgb(0x66, 0x66, 0x66)),
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(8, 0, 4, 0),
                 FontWeight = FontWeights.Bold
@@ -741,7 +782,8 @@ public class ActionPicker : Border
                 _subOpenTimer.Stop();
                 _hoveredSubMenuIdx = -1;
                 // Don't close sub-panel here -- prevents premature close during
-                // diagonal mouse movement between main item and sub-panel
+                // diagonal mouse movement between main item and sub-panel.
+                // Action-group parents open their flyout on click, not hover.
             }
         };
         row.MouseLeave += (_, _) =>
@@ -758,6 +800,13 @@ public class ActionPicker : Border
 
         row.MouseLeftButtonUp += (_, e) =>
         {
+            if (isActionGroup)
+            {
+                ShowActionGroupFlyout(row, item.Value);
+                e.Handled = true;
+                return;
+            }
+
             if (hasSubMenu)
             {
                 _subOpenTimer.Stop();
@@ -788,6 +837,39 @@ public class ActionPicker : Border
         return map;
     }
 
+    /// <summary>
+    /// Render the action-group flyout as a GlassContextMenu. Picking a
+    /// child commits it as the real selection (SetSelectedIndex →
+    /// SelectionChanged), which triggers any sub-menu that child already
+    /// has registered.
+    /// </summary>
+    private void ShowActionGroupFlyout(FrameworkElement anchor, string groupValue)
+    {
+        if (!_actionGroups.TryGetValue(groupValue, out var group)) return;
+
+        var menuItems = new List<GlassMenuItem>();
+        foreach (var childValue in group.Children)
+        {
+            int childIdx = _items.FindIndex(i => i.Value == childValue);
+            if (childIdx < 0) continue;
+            var child = _items[childIdx];
+            bool checkedNow = childIdx == _selectedIndex;
+            int capturedChildIdx = childIdx;
+            menuItems.Add(new GlassMenuItem(
+                Label: child.Display,
+                Icon: null, // legacy picker items use glyph strings; menu renders label only
+                OnClick: () =>
+                {
+                    _selectedSubTag = null;
+                    CloseFlyout();
+                    SetSelectedIndex(capturedChildIdx, fireEvent: true);
+                },
+                IsChecked: checkedNow));
+        }
+        if (menuItems.Count == 0) return;
+        GlassContextMenuHost.Show(anchor, menuItems);
+    }
+
     private void RebuildAllPopupItems()
     {
         _itemsPanel.Children.Clear();
@@ -797,6 +879,10 @@ public class ActionPicker : Border
 
         for (int i = 0; i < _items.Count; i++)
         {
+            // Skip children of an action group — they only appear in the
+            // group's flyout, not the main popup list.
+            if (_actionGroupChildren.Contains(_items[i].Value)) continue;
+
             int cat = categoryMap.GetValueOrDefault(i, -1);
 
             // Category header
