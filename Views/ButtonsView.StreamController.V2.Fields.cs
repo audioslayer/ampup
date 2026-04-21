@@ -173,8 +173,10 @@ public partial class ButtonsView
         SetCardVisible(_v2TextSnippetCard, action == "type_text");
         SetCardVisible(_v2ScreenshotCard, action == "screenshot");
         SetCardVisible(_v2DeviceCard, action is "select_output" or "select_input" or "mute_device");
-        SetCardVisible(_v2GoveeCard, action is "govee_toggle" or "govee_white_toggle" or "govee_color");
-        if (action is "govee_toggle" or "govee_white_toggle" or "govee_color")
+        // govee_white_toggle used to pick a single device but is now room-wide,
+        // so it no longer shows the device picker card.
+        SetCardVisible(_v2GoveeCard, action is "govee_toggle" or "govee_color");
+        if (action is "govee_toggle" or "govee_color")
             RefreshGoveePickerItems();
         SetCardVisible(_v2RoomEffectCard, action == "room_effect");
         if (action == "room_effect") RefreshRoomEffectPickerItems();

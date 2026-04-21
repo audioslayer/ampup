@@ -228,6 +228,7 @@ public partial class App : Application
         _buttons.OnQuickWheelClose += HandleQuickWheelClose;
         _buttons.OnRoomToggle += HandleRoomToggle;
         _buttons.OnCorsairToggle += HandleCorsairToggle;
+        _buttons.OnRoomWhiteToggle += HandleRoomWhiteToggle;
         _buttons.OnRoomEffectSet += HandleRoomEffectSet;
         _buttons.OnGroupToggle += HandleGroupToggle;
         _buttons.OnScPageChange += HandleScPageChange;
@@ -2661,8 +2662,93 @@ public partial class App : Application
     // restore the exact same mode instead of forcing "vu_reactive".
     private string? _roomToggleSavedCorsairMode;
 
+    // Sticky state for the govee_white_toggle action. When true, the next
+    // press flips the room to "all off" instead of "all white". Any other
+    // room-control path (room_toggle / group_toggle) clears this so the
+    // normal effect resumes and the next white-toggle press starts over.
+    private bool _roomForcedWhite;
+
+    /// <summary>
+    /// Room-wide white/off toggle. Press once → every Govee device ON at
+    /// 100% white, Corsair driven to white, room effect paused. Press
+    /// again → everything off. Wired to the govee_white_toggle action.
+    /// </summary>
+    private void HandleRoomWhiteToggle()
+    {
+        if (_roomForcedWhite)
+        {
+            // Turn off — reuse the room_toggle off path so we share the
+            // Corsair + Govee shutdown + state preservation logic.
+            _roomForcedWhite = false;
+            _roomLightsOn = true;            // HandleRoomToggle flips, ensure we land on off
+            HandleRoomToggle();
+            return;
+        }
+
+        // Turn on + force white at 100% across every device type.
+        _roomForcedWhite = true;
+        _roomLightsOn = true;
+
+        const byte W = 255;
+        foreach (var dev in _config.Ambience.GoveeDevices)
+        {
+            bool hasLan = !string.IsNullOrWhiteSpace(dev.Ip);
+            bool hasCloud = !hasLan
+                            && !string.IsNullOrWhiteSpace(dev.DeviceId)
+                            && !string.IsNullOrWhiteSpace(dev.Sku);
+            if (!hasLan && !hasCloud) continue;
+
+            // Flip PoweredOn so the AmbienceSync frame loop will stop
+            // overwriting us (it skips powered-off devices) and the room
+            // effect resume code sees the correct state later.
+            dev.PoweredOn = true;
+
+            if (hasLan)
+            {
+                _ = AmbienceSync.SendTurnAsync(dev.Ip, true);
+                _ = AmbienceSync.SendColorAsync(dev.Ip, W, W, W);
+            }
+            else
+            {
+                string id = dev.DeviceId, sku = dev.Sku, name = dev.Name;
+                var apiKey = _config.Ambience.GoveeApiKey;
+                if (string.IsNullOrWhiteSpace(apiKey)) continue;
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        using var api = new GoveeCloudApi(apiKey);
+                        await api.ControlDeviceAsync(id, sku, GoveeCloudApi.TurnOnOff(true));
+                        await api.ControlDeviceAsync(id, sku, GoveeCloudApi.SetBrightness(100));
+                        await api.ControlDeviceAsync(id, sku, GoveeCloudApi.SetColor(W, W, W));
+                    }
+                    catch (Exception ex) { Logger.Log($"HandleRoomWhiteToggle cloud error ({name}): {ex.Message}"); }
+                });
+            }
+        }
+
+        // Pause the room effect pattern engine so it doesn't overwrite the
+        // white frames we just pushed. The next room_toggle / group_toggle
+        // press will resume the configured effect.
+        _mainWindow?.GetRoomView()?.StopRoomPatternForScreenSync();
+
+        // Clear any Govee segment-mode cache so the white frames take
+        // effect immediately on segment devices.
+        _ambienceSync?.ClearAllSegmentTracking();
+
+        // Corsair: park it on static white.
+        if (_corsairSync != null)
+        {
+            _config.Corsair.Enabled = true;
+            _config.Corsair.LightSyncMode = "static";
+            _corsairSync.Resume();
+            _ = _corsairSync.SetStaticColorAllAsync(W, W, W);
+        }
+    }
+
     private void HandleRoomToggle()
     {
+        _roomForcedWhite = false; // any normal room toggle exits forced-white mode
         _roomLightsOn = !_roomLightsOn;
 
         // Toggle all Govee devices (LAN + Cloud-only like the H604C G1S Pro)
@@ -2745,6 +2831,7 @@ public partial class App : Application
 
     private void HandleGroupToggle(string groupName)
     {
+        _roomForcedWhite = false; // exit forced-white mode on any group toggle
         var group = _config.Groups.FirstOrDefault(g => g.Name == groupName);
         if (group == null) return;
 

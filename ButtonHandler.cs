@@ -54,9 +54,6 @@ public class ButtonHandler : IDisposable
     // Cycle state: tracks current index per button for cycle_output / cycle_input
     private readonly Dictionary<int, int> _cycleIndex = new();
 
-    // Govee white toggle: stores previous color per device IP so we can restore it
-    private static readonly Dictionary<string, (byte R, byte G, byte B)> _goveeWhiteSavedColors = new();
-
     // ── Events (forwarded from gesture engine) ──────────────────────
 
     public void SetHAIntegration(HAIntegration? ha) => _ha = ha;
@@ -67,6 +64,10 @@ public class ButtonHandler : IDisposable
     public event Action? OnRoomToggle;
     /// <summary>Fires when corsair_toggle action is triggered — toggle Corsair iCUE lights on/off.</summary>
     public event Action? OnCorsairToggle;
+    /// <summary>Fires when govee_white_toggle action is triggered — flips the
+    /// room between "forced white at 100%" and "all off". Any other room-
+    /// control path (room_toggle / group_toggle) clears the forced state.</summary>
+    public event Action? OnRoomWhiteToggle;
     /// <summary>Fires when room_effect action is triggered — set the active room effect by name (LightEffect enum string).</summary>
     public event Action<string>? OnRoomEffectSet;
     /// <summary>Fires with group name when group_toggle action is triggered — toggle a device group.</summary>
@@ -352,9 +353,11 @@ public class ButtonHandler : IDisposable
                     }
                     break;
                 case "govee_white_toggle":
-                    // path = device IP — toggles between white and previous color
-                    if (!string.IsNullOrEmpty(path))
-                        _ = GoveeWhiteToggleAsync(path);
+                    // Now a room-wide toggle: press 1 = all room lights on at
+                    // 100% white, press 2 = all room lights off. Any other
+                    // room-control path (room_toggle / group_toggle) clears
+                    // the forced-white state so the room effect resumes.
+                    OnRoomWhiteToggle?.Invoke();
                     break;
                 case "sc_page_next":
                     OnScPageChange?.Invoke(1, false);
@@ -526,45 +529,6 @@ public class ButtonHandler : IDisposable
         catch (Exception ex)
         {
             Logger.Log($"govee_toggle error: {ex.Message}");
-        }
-    }
-
-    // ── Govee white toggle ─────────────────────────────────────────────
-
-    private static async Task GoveeWhiteToggleAsync(string ip)
-    {
-        try
-        {
-            var status = await AmbienceSync.GetDeviceStatusAsync(ip);
-            if (status == null)
-            {
-                // Can't query state — just send white
-                await AmbienceSync.SendColorAsync(ip, 255, 255, 255);
-                return;
-            }
-
-            var (on, brightness, r, g, b, colorTempK) = status.Value;
-
-            // Check if currently white (or very close)
-            bool isWhite = r >= 250 && g >= 250 && b >= 250;
-
-            if (isWhite && _goveeWhiteSavedColors.TryGetValue(ip, out var saved))
-            {
-                // Restore saved color
-                await AmbienceSync.SendColorAsync(ip, saved.R, saved.G, saved.B);
-                _goveeWhiteSavedColors.Remove(ip);
-            }
-            else
-            {
-                // Save current color and set white
-                if (!isWhite)
-                    _goveeWhiteSavedColors[ip] = ((byte)r, (byte)g, (byte)b);
-                await AmbienceSync.SendColorAsync(ip, 255, 255, 255);
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"govee_white_toggle error: {ex.Message}");
         }
     }
 
