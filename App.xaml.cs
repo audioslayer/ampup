@@ -2566,7 +2566,6 @@ public partial class App : Application
     /// </summary>
     private void HandleCorsairToggle()
     {
-        Logger.Log($"HandleCorsairToggle fired. Current Enabled={_config.Corsair.Enabled}, SyncAvailable={_corsairSync?.IsAvailable ?? false}");
         if (_corsairSync == null) return;
 
         bool turningOn = !_config.Corsair.Enabled;

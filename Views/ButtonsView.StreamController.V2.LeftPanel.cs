@@ -1269,9 +1269,11 @@ public partial class ButtonsView
         int folderSlotOffset = IsBackKeyShown ? -1 : 0;
         int globalIdx = _scCurrentPage * StreamControllerKeysPerPage + localIdx + folderSlotOffset;
         int buttonIdx = StreamControllerDisplayKeyBase + globalIdx;
+        // Display name follows physical slot (1-6) — matches the tile label
+        // and what the user sees on the device.
         SelectStreamControllerItem(new StreamControllerSelection(
             buttonIdx,
-            $"Key {globalIdx + 1}",
+            $"Key {localIdx + 1}",
             globalIdx));
     }
 
@@ -1468,7 +1470,11 @@ public partial class ButtonsView
             tile.Cursor = Cursors.Hand;
             tile.ToolTip = null;
             tile.PreviewImage = StreamControllerDisplayRenderer.CreateEditorPreview(key, 240);
-            tile.Title = string.IsNullOrWhiteSpace(key.Title) ? $"Key {globalIdx + 1}" : key.Title;
+            // Label by physical slot (1-6, top-left → bot-right) so the user's
+            // "top-right = Key 3" mental model holds regardless of whether the
+            // Back key is shown. globalIdx+1 leaked the storage index into the
+            // UI and made unbound keys land on the wrong physical button.
+            tile.Title = string.IsNullOrWhiteSpace(key.Title) ? $"Key {i + 1}" : key.Title;
             tile.Subtitle = GetStreamActionDisplay(button?.Action);
             tile.IsSelected = isSelected;
             tile.Refresh();

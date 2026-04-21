@@ -190,7 +190,6 @@ public class ButtonHandler : IDisposable
     {
         try
         {
-            Logger.Log($"ExecuteAction: action='{action}' path='{path}' btnIdx={btn?.Idx ?? -1}");
             switch (action.ToLowerInvariant())
             {
                 case "media_play_pause":
