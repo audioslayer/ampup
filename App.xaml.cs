@@ -2386,7 +2386,14 @@ public partial class App : Application
         if (idx < N3DisplayKeyBase) return null;
 
         var folder = _config.N3.Folders.FirstOrDefault(f => f.Name == _currentN3Folder);
-        return folder?.Buttons.FirstOrDefault(b => b.Idx == idx);
+        var btn = folder?.Buttons.FirstOrDefault(b => b.Idx == idx);
+        if (btn != null) return btn;
+
+        // Hard-stop the fallback: inside a Space, an unbound LCD key must be
+        // a no-op — never inherit Home's binding. Returning null here would
+        // let the default resolver walk into _config.N3.Buttons and fire the
+        // Home-level action for this idx.
+        return new ButtonConfig { Idx = idx, Action = "none" };
     }
 
     private void SyncStreamControllerDisplays()
