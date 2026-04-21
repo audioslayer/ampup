@@ -2404,7 +2404,10 @@ public partial class App : Application
 
                 bool hasImage = !string.IsNullOrWhiteSpace(key.ImagePath) && File.Exists(key.ImagePath);
                 bool hasPreset = !string.IsNullOrWhiteSpace(key.PresetIconKind);
-                bool hasText = !string.IsNullOrWhiteSpace(key.Title) || !string.IsNullOrWhiteSpace(key.Subtitle);
+                // Subtitle is intentionally excluded — the renderer (ComposeImage) only paints
+                // Title, so a Subtitle-only key would otherwise render as a blank tinted square
+                // on the device while the editor shows it as empty.
+                bool hasText = !string.IsNullOrWhiteSpace(key.Title);
 
                 if (!hasImage && !hasPreset && !hasText)
                 {

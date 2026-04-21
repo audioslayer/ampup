@@ -18,6 +18,7 @@ public partial class MixerView
     private readonly StackPanel[] _scAppsPanels = new StackPanel[ScChannelCount];
     private readonly WrapPanel[] _scAppsListPanels = new WrapPanel[ScChannelCount];
     private readonly RangeSlider[] _scRangeSliders = new RangeSlider[ScChannelCount];
+    private readonly CurvePickerControl[] _scCurvePickers = new CurvePickerControl[ScChannelCount];
     private readonly Color[] _scDisplayedColors = new Color[ScChannelCount];
     private bool _scBuilt;
 
@@ -50,7 +51,7 @@ public partial class MixerView
         var grid = new Grid { Margin = new Thickness(0) };
         for (int c = 0; c < ScChannelCount; c++)
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        for (int r = 0; r < 3; r++)
+        for (int r = 0; r < 4; r++)
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
         for (int i = 0; i < ScChannelCount; i++)
@@ -202,6 +203,24 @@ public partial class MixerView
             Grid.SetColumn(targetCard, i);
             grid.Children.Add(targetCard);
 
+            // ── Curve picker card ──────────────────────────────────────
+            var curvePicker = new CurvePickerControl
+            {
+                Margin = new Thickness(0, 0, 0, 6),
+                ToolTip = "Linear: even response. Log: more sensitive at low volumes. Exp: more sensitive at high volumes",
+            };
+            curvePicker.SelectionChanged += (_, _) =>
+            {
+                if (!_loading) SaveScCurve(idx);
+            };
+            _scCurvePickers[i] = curvePicker;
+
+            var curveCard = MakeSectionCard("CURVE", curvePicker);
+            curveCard.Margin = new Thickness(i == 0 ? 0 : 4, 0, i == ScChannelCount - 1 ? 0 : 4, 10);
+            Grid.SetRow(curveCard, 2);
+            Grid.SetColumn(curveCard, i);
+            grid.Children.Add(curveCard);
+
             // ── Range slider row ───────────────────────────────────────
             var range = new RangeSlider
             {
@@ -249,7 +268,7 @@ public partial class MixerView
                 Margin = new Thickness(i == 0 ? 0 : 4, 0, i == ScChannelCount - 1 ? 0 : 4, 8),
                 Child = rangeStack,
             };
-            Grid.SetRow(rangeHost, 2);
+            Grid.SetRow(rangeHost, 3);
             Grid.SetColumn(rangeHost, i);
             grid.Children.Add(rangeHost);
         }
@@ -318,6 +337,7 @@ public partial class MixerView
 
             _scChannelLabels[i].Text = GetDisplayLabel(knob);
             SelectTarget(_scTargetPickers[i], knob.Target, knob.DeviceId);
+            SelectCurve(_scCurvePickers[i], knob.Curve);
             _scRangeSliders[i].LowerValue = Math.Clamp(knob.MinVolume, 0, 100);
             _scRangeSliders[i].UpperValue = Math.Clamp(knob.MaxVolume, 0, 100);
 
@@ -403,6 +423,16 @@ public partial class MixerView
         if (knob == null) return;
         knob.MinVolume = (int)Math.Round(_scRangeSliders[idx].LowerValue);
         knob.MaxVolume = (int)Math.Round(_scRangeSliders[idx].UpperValue);
+        QueueSave();
+    }
+
+    private void SaveScCurve(int idx)
+    {
+        if (_config == null) return;
+        var knob = _config.N3.Knobs.FirstOrDefault(k => k.Idx == idx);
+        if (knob == null) return;
+        if (_scCurvePickers[idx].SelectedTag is ResponseCurve curve)
+            knob.Curve = curve;
         QueueSave();
     }
 
