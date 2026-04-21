@@ -31,8 +31,6 @@
     <Resource Include="Fonts\MaterialSymbolsOutlined.ttf" />
     <Resource Include="Fonts\SpaceGrotesk-VariableFont_wght.ttf" />
     <Resource Include="Fonts\DMSans-Variable.ttf" />
-    <Resource Include="Fonts\Inter-Variable.ttf" />
-    <Resource Include="Fonts\Syne-Variable.ttf" />
   </ItemGroup>
 
   <ItemGroup>
