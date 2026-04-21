@@ -246,14 +246,20 @@ internal static class StreamControllerDisplayRenderer
             || kind.StartsWith("material_", StringComparison.OrdinalIgnoreCase)
             || kind.StartsWith("retro_", StringComparison.OrdinalIgnoreCase)
             || kind.StartsWith("synthwave_", StringComparison.OrdinalIgnoreCase)
-            || kind.StartsWith("cyber_", StringComparison.OrdinalIgnoreCase)))
+            || kind.StartsWith("cyber_", StringComparison.OrdinalIgnoreCase)
+            || kind.StartsWith("fx_", StringComparison.OrdinalIgnoreCase)))
             return false;
 
-        var candidate = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Icons", kind + ".jpg");
-        if (File.Exists(candidate))
+        // Check both extensions — existing packs ship as .jpg, the FX pack
+        // is PNG so alpha-punched shapes render without a blocky background.
+        foreach (var ext in new[] { ".png", ".jpg" })
         {
-            imagePath = candidate;
-            return true;
+            var candidate = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Icons", kind + ext);
+            if (File.Exists(candidate))
+            {
+                imagePath = candidate;
+                return true;
+            }
         }
 
         return false;

@@ -87,6 +87,17 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // Hidden dev CLI: export FX Space icon pack and exit. Run from the
+        // build output dir — writes to ../../../Icons so the PNGs end up in
+        // the source tree ready to commit. Skips mutex + window startup.
+        if (e.Args.Length > 0 && e.Args[0] == "--export-fx-icons")
+        {
+            try { ExportFxIconsAndExit(); }
+            catch (Exception ex) { Console.Error.WriteLine(ex); }
+            Shutdown();
+            return;
+        }
+
         // Global crash handlers — wire up before anything else
         DispatcherUnhandledException += (_, ex) =>
         {
@@ -3544,6 +3555,91 @@ public partial class App : Application
     {
         _isShuttingDown = true;
         Application.Current.Shutdown();
+    }
+
+    /// <summary>
+    /// Hidden dev CLI — render every LightEffect used in the FX Space to
+    /// a JPG in the source Icons/ folder so they can be shipped as part of
+    /// the app. Invoked via `AmpUp.exe --export-fx-icons`.
+    /// </summary>
+    private void ExportFxIconsAndExit()
+    {
+        // 18 effects matching the FX Space pages, paired with the filename
+        // stub (minus "fx_") the PresetIconKind resolver will look up.
+        (AmpUp.Core.Models.LightEffect Effect, string Stub)[] effects =
+        {
+            (AmpUp.Core.Models.LightEffect.Aurora,        "aurora"),
+            (AmpUp.Core.Models.LightEffect.Ocean,         "ocean"),
+            (AmpUp.Core.Models.LightEffect.Starfield,     "starfield"),
+            (AmpUp.Core.Models.LightEffect.Plasma,        "plasma"),
+            (AmpUp.Core.Models.LightEffect.NebulaDrift,   "nebuladrift"),
+            (AmpUp.Core.Models.LightEffect.BreathingSync, "breathingsync"),
+            (AmpUp.Core.Models.LightEffect.Fire,          "fire"),
+            (AmpUp.Core.Models.LightEffect.Lava,          "lava"),
+            (AmpUp.Core.Models.LightEffect.Lightning,     "lightning"),
+            (AmpUp.Core.Models.LightEffect.PoliceLights,  "police"),
+            (AmpUp.Core.Models.LightEffect.Scanner,       "scanner"),
+            (AmpUp.Core.Models.LightEffect.Matrix,        "matrix"),
+            (AmpUp.Core.Models.LightEffect.ColorWave,     "colorwave"),
+            (AmpUp.Core.Models.LightEffect.Rainfall,      "rainfall"),
+            (AmpUp.Core.Models.LightEffect.Waterfall,     "waterfall"),
+            (AmpUp.Core.Models.LightEffect.RainbowWave,   "rainbow"),
+            (AmpUp.Core.Models.LightEffect.MeteorRain,    "meteor"),
+            (AmpUp.Core.Models.LightEffect.Heartbeat,     "heartbeat"),
+        };
+
+        // Walk up from bin\Debug\net8.0-windows\ to the source Icons\ folder.
+        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        string sourceRoot = baseDir;
+        for (int i = 0; i < 4 && !System.IO.File.Exists(System.IO.Path.Combine(sourceRoot, "AmpUp.csproj")); i++)
+            sourceRoot = System.IO.Path.GetFullPath(System.IO.Path.Combine(sourceRoot, ".."));
+        string outDir = System.IO.File.Exists(System.IO.Path.Combine(sourceRoot, "AmpUp.csproj"))
+            ? System.IO.Path.Combine(sourceRoot, "Icons")
+            : System.IO.Path.Combine(baseDir, "Icons");
+        System.IO.Directory.CreateDirectory(outDir);
+
+        const int size = 512;
+        const int frame = 60; // ~2s into the animation
+
+        int ok = 0;
+        foreach (var (effect, stub) in effects)
+        {
+            try
+            {
+                var tileColor = AmpUp.Controls.EffectPickerControl.EffectColors
+                    .GetValueOrDefault(effect, System.Windows.Media.Colors.White);
+                var accent = AmpUp.Controls.EffectPickerControl.GetCompanionColor(effect, tileColor);
+
+                var preview = new AmpUp.Controls.EffectPreviewControl
+                {
+                    EffectKind = effect,
+                    TileColor = tileColor,
+                    AccentColor = accent,
+                    Width = size,
+                    Height = size,
+                };
+                preview.Measure(new System.Windows.Size(size, size));
+                preview.Arrange(new System.Windows.Rect(0, 0, size, size));
+
+                var bmp = preview.RenderToBitmap(size, size, frame);
+
+                // JPG to match the rest of the shipped pack — small files,
+                // fine on a 60x60 LCD, picked up automatically by the .jpg
+                // branch of TryResolveCustomPackImagePath.
+                var outPath = System.IO.Path.Combine(outDir, $"fx_{stub}.jpg");
+                using var fs = new System.IO.FileStream(outPath, System.IO.FileMode.Create, System.IO.FileAccess.Write);
+                var encoder = new System.Windows.Media.Imaging.JpegBitmapEncoder { QualityLevel = 92 };
+                encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bmp));
+                encoder.Save(fs);
+                ok++;
+                Console.WriteLine($"Wrote {outPath}");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Failed {stub}: {ex.Message}");
+            }
+        }
+        Console.WriteLine($"Exported {ok}/{effects.Length} FX icons to {outDir}");
     }
 
     protected override void OnExit(ExitEventArgs e)
