@@ -356,6 +356,9 @@ public class CorsairSync : IDisposable
     public async Task SetStaticColorAllAsync(byte r, byte g, byte b)
     {
         if (_disposed || !_connected || !_dllLoaded) return;
+        // Respect pause — otherwise background timers (music reactive, VU fill)
+        // keep overwriting a "black + Stop()" shutoff via this path.
+        if (_paused) return;
         // Auto-discover if device list is empty
         if (Devices.Count == 0)
         {
