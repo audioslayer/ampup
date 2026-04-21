@@ -357,6 +357,8 @@ public partial class ButtonsView
 
     private Border BuildV2FolderRow(ButtonFolderConfig folder)
     {
+        bool isActive = string.Equals(_scActiveFolder, folder.Name, StringComparison.Ordinal);
+
         var row = new Border
         {
             CornerRadius = new CornerRadius(8),
@@ -365,7 +367,15 @@ public partial class ButtonsView
             BorderThickness = new Thickness(1),
         };
         row.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-        row.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        if (isActive)
+        {
+            row.BorderBrush = new SolidColorBrush(Color.FromArgb(
+                0x88, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
+        }
+        else
+        {
+            row.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        }
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -394,6 +404,18 @@ public partial class ButtonsView
             TextTrimming = TextTrimming.CharacterEllipsis,
             VerticalAlignment = VerticalAlignment.Center,
         });
+        if (isActive)
+        {
+            nameRow.Children.Add(new TextBlock
+            {
+                Text = "  ACTIVE",
+                FontSize = 9,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(ThemeManager.Accent),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(6, 1, 0, 0),
+            });
+        }
         labelStack.Children.Add(nameRow);
         // A slot counts as "assigned" if the user put ANY content on it —
         // title, subtitle, icon, action, or a non-default display type
@@ -426,8 +448,17 @@ public partial class ButtonsView
         grid.Children.Add(labelStack);
 
         // Open button.
-        var openBtn = MakeEditorButton("Open", (_, _) => NavigateToFolderInEditor(folder.Name));
+        var openBtn = MakeEditorButton("Open", (_, _) =>
+        {
+            if (!isActive) NavigateToFolderInEditor(folder.Name);
+        });
         openBtn.Margin = new Thickness(6, 0, 0, 0);
+        if (isActive)
+        {
+            openBtn.IsEnabled = false;
+            openBtn.Opacity = 0.5;
+            openBtn.ToolTip = $"You're already in {folder.Name}";
+        }
         Grid.SetColumn(openBtn, 1);
         grid.Children.Add(openBtn);
 
@@ -1367,6 +1398,9 @@ public partial class ButtonsView
         RefreshV2KeyTiles();
         RefreshV2PageToolbar();
         RefreshV2HardwareTiles();
+        // Rebuild the Spaces list so the ACTIVE pill / accent border
+        // follow _scActiveFolder as the user navigates between Spaces.
+        if (_v2FoldersExpanded) RefreshV2FoldersList();
     }
 
     private void RefreshV2FolderBanner()
