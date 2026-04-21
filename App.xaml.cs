@@ -2589,17 +2589,25 @@ public partial class App : Application
             SetGoveePower(dev, _roomLightsOn);
         }
 
-        // Toggle Corsair (black = off, restore last color = on)
-        if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
+        // Toggle Corsair — mirror HandleCorsairToggle so the pause actually
+        // sticks. Without flipping Corsair.Enabled, the Turn Up frame ticker
+        // (App.xaml.cs:145) and room effect loop can repaint Corsair frame
+        // after frame, causing rapid on/off flashing.
+        if (_corsairSync != null)
         {
             if (_roomLightsOn)
             {
-                // Re-send Turn Up frames or static color will resume naturally
+                _config.Corsair.Enabled = true;
+                _corsairSync.Resume();
+                if (_config.Corsair.LightSyncMode == "static" || string.IsNullOrEmpty(_config.Corsair.LightSyncMode))
+                    _config.Corsair.LightSyncMode = "vu_reactive";
             }
             else
             {
                 _ = _corsairSync.SetStaticColorAllAsync(0, 0, 0);
-                _config.Corsair.LightSyncMode = "static"; // prevent frames overwriting black
+                _config.Corsair.LightSyncMode = "static";
+                _config.Corsair.Enabled = false;
+                _corsairSync.Stop();
             }
         }
     }
