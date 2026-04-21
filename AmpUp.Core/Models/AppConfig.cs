@@ -177,6 +177,10 @@ public class ButtonConfig
     public bool ToggleStateIsB { get; set; } = false;
     /// <summary>For `open_folder`: folder name to navigate into on press.</summary>
     public string FolderName { get; set; } = "";
+    /// <summary>For `open_folder` on double-press / hold — lets the same
+    /// button route to different Spaces for different gestures.</summary>
+    public string DoublePressFolderName { get; set; } = "";
+    public string HoldFolderName { get; set; } = "";
 }
 
 public class MultiActionStep

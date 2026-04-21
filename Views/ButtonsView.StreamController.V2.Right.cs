@@ -979,4 +979,21 @@ public partial class ButtonsView
             default: btn.MacroKeys = value; break;
         }
     }
+
+    private string GetGestureFolderName(ButtonConfig btn) => _v2Gesture switch
+    {
+        V2Gesture.Double => btn.DoublePressFolderName ?? "",
+        V2Gesture.Hold => btn.HoldFolderName ?? "",
+        _ => btn.FolderName ?? "",
+    };
+
+    private void SetGestureFolderName(ButtonConfig btn, string value)
+    {
+        switch (_v2Gesture)
+        {
+            case V2Gesture.Double: btn.DoublePressFolderName = value; break;
+            case V2Gesture.Hold: btn.HoldFolderName = value; break;
+            default: btn.FolderName = value; break;
+        }
+    }
 }

@@ -1333,11 +1333,10 @@ public partial class ButtonsView
             var list = GetOwningButtonList();
             var btn = list.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
             if (btn == null) return;
-            // Route action write through the gesture-aware setter — on
-            // Double/Hold this writes DoublePressAction / HoldAction so we
-            // don't clobber Tap's binding.
+            // Route action + folder name through gesture-aware setters so
+            // Double/Hold folder picks don't clobber Tap's binding.
             SetGestureAction(btn, "open_folder");
-            btn.FolderName = folderName;
+            SetGestureFolderName(btn, folderName);
             QueueSave();
         };
         panel.Children.Add(picker);
@@ -1886,7 +1885,7 @@ public partial class ButtonsView
 
         // Folder picker selection happens after UpdateStreamControllerActionVisibility
         // below, once RefreshFolderPickerItems has populated it.
-        string? pendingFolderName = gAction == "open_folder" ? button.FolderName : null;
+        string? pendingFolderName = gAction == "open_folder" ? GetGestureFolderName(button) : null;
 
         if (selection.DisplayIdx.HasValue)
         {
@@ -2154,11 +2153,14 @@ public partial class ButtonsView
         button.DeviceId = GetDeviceIdForAction(uiAction, _scActionPicker, _scDevicePicker);
         button.ProfileName = uiAction == "switch_profile" ? (_scActionPicker.SelectedSubTag ?? "") : "";
         button.LinkedKnobIdx = int.TryParse(_scKnobPicker.SelectedTag as string, out var linked) ? linked : -1;
-        // Preserve folder linkage for open_folder. FolderName is a single
-        // field shared across gestures — setting it from any gesture's
-        // UI overwrites; acceptable limitation for the first pass.
+        // Preserve folder linkage for open_folder — routed through the
+        // gesture-aware setter so Tap / Double / Hold each remember their
+        // own Space target.
         if (uiAction == "open_folder" && _scFolderPicker != null)
-            button.FolderName = _scFolderPicker.SelectedTag as string ?? button.FolderName;
+        {
+            var folderName = _scFolderPicker.SelectedTag as string ?? GetGestureFolderName(button);
+            SetGestureFolderName(button, folderName);
+        }
 
         var display = GetSelectedDisplayKeyConfig();
         if (display != null && _scTitleBox != null)

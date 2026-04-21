@@ -125,7 +125,10 @@ public class ButtonGestureEngine : IDisposable
                         ProfileNames = btn.HoldProfileNames,
                         PowerAction = btn.HoldPowerAction,
                         LinkedKnobIdx = btn.HoldLinkedKnobIdx,
-                        CycleDeviceType = btn.HoldCycleDeviceType
+                        CycleDeviceType = btn.HoldCycleDeviceType,
+                        // Fall back to the tap FolderName if the hold-specific one is empty
+                        // so upgrades from earlier builds don't lose their binding.
+                        FolderName = !string.IsNullOrEmpty(btn.HoldFolderName) ? btn.HoldFolderName : btn.FolderName,
                     };
                 }
             }
@@ -172,7 +175,8 @@ public class ButtonGestureEngine : IDisposable
                             ProfileNames = btn.DoublePressProfileNames,
                             PowerAction = btn.DoublePressPowerAction,
                             LinkedKnobIdx = btn.DoublePressLinkedKnobIdx,
-                            CycleDeviceType = btn.DoublePressCycleDeviceType
+                            CycleDeviceType = btn.DoublePressCycleDeviceType,
+                            FolderName = !string.IsNullOrEmpty(btn.DoublePressFolderName) ? btn.DoublePressFolderName : btn.FolderName,
                         };
                     }
                 }
