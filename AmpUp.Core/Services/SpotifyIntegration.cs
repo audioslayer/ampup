@@ -234,7 +234,7 @@ public sealed class SpotifyIntegration : IDisposable
         {
             try
             {
-                var liked = await _client.Library.CheckTracks(new LibraryCheckTracksRequest(new[] { next.TrackId }));
+                var liked = await _client.Library.CheckItems(new LibraryCheckItemsRequest(new[] { next.TrackId }));
                 if (liked?.Count > 0) next = next with { Liked = liked[0] };
             }
             catch { /* best-effort */ }
@@ -321,9 +321,9 @@ public sealed class SpotifyIntegration : IDisposable
         {
             bool liked = CurrentTrack?.Liked ?? false;
             if (liked)
-                await _client.Library.RemoveTracks(new LibraryRemoveTracksRequest(new[] { CurrentTrack!.TrackId }));
+                await _client.Library.RemoveItems(new LibraryRemoveItemsRequest(new[] { CurrentTrack!.TrackId }));
             else
-                await _client.Library.SaveTracks(new LibrarySaveTracksRequest(new[] { CurrentTrack!.TrackId }));
+                await _client.Library.SaveItems(new LibrarySaveItemsRequest(new[] { CurrentTrack!.TrackId }));
         }
         catch (Exception ex) { Logger.Log($"Spotify like toggle failed: {ex.Message}"); }
         _ = Task.Run(async () => { await Task.Delay(350); try { await PollOnceAsync(default); } catch { } });
