@@ -2581,6 +2581,16 @@ public partial class App : Application
     {
         int pageCount = GetActivePageCount();
         int maxPage = pageCount - 1;
+
+        // Clamp CurrentPage before doing the math — stale configs can
+        // persist an out-of-range page (e.g. page 1 saved while at a
+        // folder, then back at Home which has 1 page). If we don't
+        // normalize, the wrap arithmetic does one real move and then
+        // looks broken on every subsequent press.
+        int current = Math.Clamp(_config.N3.CurrentPage, 0, maxPage);
+        if (current != _config.N3.CurrentPage)
+            _config.N3.CurrentPage = current;
+
         int newPage;
         if (absolute)
         {
@@ -2591,7 +2601,7 @@ public partial class App : Application
             // Relative navigation wraps so hitting "next" on the last page
             // goes back to page 0 (and prev on page 0 goes to the last) —
             // otherwise the button feels broken when the user is at an end.
-            newPage = ((_config.N3.CurrentPage + value) % pageCount + pageCount) % pageCount;
+            newPage = ((current + value) % pageCount + pageCount) % pageCount;
         }
 
         if (newPage == _config.N3.CurrentPage) return;
