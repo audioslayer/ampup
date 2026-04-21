@@ -197,5 +197,9 @@ public partial class ButtonsView
         // can Open it immediately.
         RefreshV2FoldersList();
         RefreshV2TemplatesList();
+
+        // Drop the user straight into the new Space so they see their add
+        // reflected on the device chassis.
+        NavigateToFolderInEditor(folder.Name);
     }
 }
