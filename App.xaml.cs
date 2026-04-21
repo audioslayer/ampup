@@ -2568,10 +2568,20 @@ public partial class App : Application
 
     private void HandleScPageChange(int value, bool absolute)
     {
-        int maxPage = GetActivePageCount() - 1;
-        int newPage = absolute
-            ? Math.Clamp(value, 0, maxPage)
-            : Math.Clamp(_config.N3.CurrentPage + value, 0, maxPage);
+        int pageCount = GetActivePageCount();
+        int maxPage = pageCount - 1;
+        int newPage;
+        if (absolute)
+        {
+            newPage = Math.Clamp(value, 0, maxPage);
+        }
+        else
+        {
+            // Relative navigation wraps so hitting "next" on the last page
+            // goes back to page 0 (and prev on page 0 goes to the last) —
+            // otherwise the button feels broken when the user is at an end.
+            newPage = ((_config.N3.CurrentPage + value) % pageCount + pageCount) % pageCount;
+        }
 
         if (newPage == _config.N3.CurrentPage) return;
 
