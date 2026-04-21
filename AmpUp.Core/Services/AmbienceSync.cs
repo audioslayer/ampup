@@ -675,26 +675,20 @@ public class AmbienceSync : IDisposable
     }
 
     /// <summary>
-    /// Toggles a Govee device on/off via LAN UDP. Queries real state first, falls back to cached state.
+    /// Toggles a Govee device on/off via LAN UDP. Uses cached power state
+    /// and flips immediately — Govee's devStatus query waits up to 2s for
+    /// a response that often arrives on a different socket, adding several
+    /// seconds of perceived latency between button press and light change.
+    /// The turn command is idempotent (firmware no-ops if already in the
+    /// requested state) so a drifted cache just costs one extra press to
+    /// resync in the worst case.
     /// </summary>
     public static async Task SendToggleAsync(string ip)
     {
         if (string.IsNullOrWhiteSpace(ip)) return;
         try
         {
-            // Try to get real state first
-            var status = await GetDeviceStatusAsync(ip);
-            bool currentlyOn;
-            if (status.HasValue)
-            {
-                currentlyOn = status.Value.On;
-            }
-            else
-            {
-                // Fallback to cached state; assume ON if unknown
-                currentlyOn = _devicePowerState.TryGetValue(ip, out bool last) ? last : true;
-            }
-
+            bool currentlyOn = _devicePowerState.TryGetValue(ip, out bool last) ? last : true;
             bool newState = !currentlyOn;
             _devicePowerState[ip] = newState;
             await SendTurnAsync(ip, newState);
