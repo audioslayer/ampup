@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using AmpUp.Controls;
 
@@ -416,6 +417,10 @@ public partial class ButtonsView
     {
         if (_v2ActionPanel == null) return;
 
+        // Gesture bar for side buttons + encoder presses — hidden for LCD keys.
+        _v2GestureBar = BuildV2GestureBar();
+        _v2ActionPanel.Children.Add(_v2GestureBar);
+
         // The ACTION tab itself is the section header now — drop the
         // redundant in-panel "ACTION" accent-bar header.
         _v2ActionPicker = new QuickActionPicker
@@ -441,13 +446,16 @@ public partial class ButtonsView
             var button = GetOrCreateSelectedV2Button();
             if (button != null)
             {
-                button.Action = value;
+                // Route to the right Action field based on the current gesture
+                // (Tap / Double / Hold). LCD keys always stay on Tap since
+                // their gesture bar is hidden.
+                SetGestureAction(button, value);
             }
 
-            // Keep the legacy _scActionPicker in sync — CollectAndSave →
-            // UpdateStreamControllerSelection reads button.Action from it
-            // and would otherwise revert our write on the debounced save.
-            if (_scActionPicker != null)
+            // Keep the legacy _scActionPicker in sync ONLY on Tap — the
+            // CollectAndSave path uses _scActionPicker to write .Action,
+            // which we don't want touching .DoublePressAction / .HoldAction.
+            if (_v2Gesture == V2Gesture.Tap && _scActionPicker != null)
             {
                 bool prev = _loading;
                 _loading = true;
@@ -704,7 +712,9 @@ public partial class ButtonsView
             _loading = true;
             try
             {
-                _v2ActionPicker.Select(string.IsNullOrEmpty(button.Action) ? "none" : button.Action);
+                // Read the Action field that matches the current gesture
+                // (Tap / Double / Hold). LCD keys stay on Tap.
+                _v2ActionPicker.Select(GetGestureAction(button));
             }
             finally
             {
@@ -815,6 +825,178 @@ public partial class ButtonsView
             case ItemsControl ic:
                 ic.Items.Remove(element);
                 break;
+        }
+    }
+
+    // ── Gesture support (side buttons + encoder presses) ───────────────
+
+    /// <summary>
+    /// True when the current selection is a physical button that supports
+    /// tap/double/hold gestures (side buttons 106-108, encoder presses
+    /// 109-111). LCD keys always edit the tap fields.
+    /// </summary>
+    private bool SelectionSupportsGestures()
+    {
+        if (IsN3PagedKeySelection()) return false;
+        return _scSelectedButtonIdx >= StreamControllerSideButtonBase
+               && _scSelectedButtonIdx < StreamControllerEncoderPressBase + 3;
+    }
+
+    /// <summary>Build the TAP | DOUBLE | HOLD segmented selector.</summary>
+    private Border BuildV2GestureBar()
+    {
+        var container = new Border
+        {
+            Margin = new Thickness(0, 0, 0, 10),
+            Padding = new Thickness(4),
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(1),
+            Visibility = Visibility.Collapsed,
+        };
+        container.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+        container.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        _v2GestureTabs.Clear();
+        int col = 0;
+        foreach (var g in new[] { V2Gesture.Tap, V2Gesture.Double, V2Gesture.Hold })
+        {
+            var tab = BuildV2GestureTab(g);
+            Grid.SetColumn(tab, col++);
+            grid.Children.Add(tab);
+            _v2GestureTabs[g] = tab;
+        }
+        container.Child = grid;
+        return container;
+    }
+
+    private Border BuildV2GestureTab(V2Gesture gesture)
+    {
+        var labelMap = new Dictionary<V2Gesture, string>
+        {
+            { V2Gesture.Tap, "TAP" },
+            { V2Gesture.Double, "DOUBLE" },
+            { V2Gesture.Hold, "HOLD" },
+        };
+
+        var tab = new Border
+        {
+            Padding = new Thickness(8, 6, 8, 6),
+            CornerRadius = new CornerRadius(6),
+            Margin = new Thickness(2, 0, 2, 0),
+            Cursor = Cursors.Hand,
+            Background = System.Windows.Media.Brushes.Transparent,
+        };
+        var text = new TextBlock
+        {
+            Text = labelMap[gesture],
+            FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
+            TextAlignment = TextAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        text.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+        tab.Child = text;
+
+        tab.MouseLeftButtonUp += (_, _) => SwitchV2Gesture(gesture);
+        return tab;
+    }
+
+    private void RefreshV2GestureTabVisuals()
+    {
+        foreach (var kv in _v2GestureTabs)
+        {
+            bool active = kv.Key == _v2Gesture;
+            kv.Value.Background = active
+                ? new SolidColorBrush(Color.FromArgb(0x33, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B))
+                : System.Windows.Media.Brushes.Transparent;
+            if (kv.Value.Child is TextBlock t)
+            {
+                t.Foreground = active
+                    ? new SolidColorBrush(ThemeManager.Accent)
+                    : FindBrush("TextSecBrush");
+            }
+        }
+    }
+
+    private void SwitchV2Gesture(V2Gesture gesture)
+    {
+        if (_v2Gesture == gesture) return;
+        _v2Gesture = gesture;
+        RefreshV2GestureTabVisuals();
+        // Re-load the action picker + sub-fields from the new gesture's
+        // fields on the selected button.
+        LoadStreamControllerSelection();
+    }
+
+    /// <summary>Reset gesture to Tap and update the bar visibility
+    /// based on whether the selection supports gestures.</summary>
+    private void SyncV2GestureBarForSelection()
+    {
+        _v2Gesture = V2Gesture.Tap;
+        if (_v2GestureBar != null)
+            _v2GestureBar.Visibility = SelectionSupportsGestures() ? Visibility.Visible : Visibility.Collapsed;
+        RefreshV2GestureTabVisuals();
+    }
+
+    // ── Gesture-aware accessors ────────────────────────────────────────
+    // These read/write the right Action/Path fields on a ButtonConfig
+    // based on the currently-selected gesture. LCD keys always resolve
+    // to the tap fields since SelectionSupportsGestures is false for them
+    // and _v2Gesture stays at Tap.
+
+    private string GetGestureAction(ButtonConfig btn) => _v2Gesture switch
+    {
+        V2Gesture.Double => string.IsNullOrEmpty(btn.DoublePressAction) ? "none" : btn.DoublePressAction,
+        V2Gesture.Hold => string.IsNullOrEmpty(btn.HoldAction) ? "none" : btn.HoldAction,
+        _ => string.IsNullOrEmpty(btn.Action) ? "none" : btn.Action,
+    };
+
+    private void SetGestureAction(ButtonConfig btn, string value)
+    {
+        switch (_v2Gesture)
+        {
+            case V2Gesture.Double: btn.DoublePressAction = value; break;
+            case V2Gesture.Hold: btn.HoldAction = value; break;
+            default: btn.Action = value; break;
+        }
+    }
+
+    private string GetGesturePath(ButtonConfig btn) => _v2Gesture switch
+    {
+        V2Gesture.Double => btn.DoublePressPath ?? "",
+        V2Gesture.Hold => btn.HoldPath ?? "",
+        _ => btn.Path ?? "",
+    };
+
+    private void SetGesturePath(ButtonConfig btn, string value)
+    {
+        switch (_v2Gesture)
+        {
+            case V2Gesture.Double: btn.DoublePressPath = value; break;
+            case V2Gesture.Hold: btn.HoldPath = value; break;
+            default: btn.Path = value; break;
+        }
+    }
+
+    private string GetGestureMacroKeys(ButtonConfig btn) => _v2Gesture switch
+    {
+        V2Gesture.Double => btn.DoublePressMacroKeys ?? "",
+        V2Gesture.Hold => btn.HoldMacroKeys ?? "",
+        _ => btn.MacroKeys ?? "",
+    };
+
+    private void SetGestureMacroKeys(ButtonConfig btn, string value)
+    {
+        switch (_v2Gesture)
+        {
+            case V2Gesture.Double: btn.DoublePressMacroKeys = value; break;
+            case V2Gesture.Hold: btn.HoldMacroKeys = value; break;
+            default: btn.MacroKeys = value; break;
         }
     }
 }

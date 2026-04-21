@@ -1845,17 +1845,28 @@ public partial class ButtonsView
         var selection = DescribeSelection(_scSelectedButtonIdx);
         _scEditorTitle.Text = selection.Label;
 
-        SelectCombo(_scActionPicker, button.Action);
-        SetTextBoxValue(_scPathBox, ExtractPathBoxValue(button.Action, button.Path));
-        SetTextBoxValue(_scMacroBox, button.MacroKeys);
+        // Gesture-aware loads for physical buttons (side/encoder) — reads
+        // the DoublePress*/Hold* fields when those gestures are selected.
+        // For LCD keys, _v2Gesture is always Tap so these resolve to
+        // .Action/.Path/.MacroKeys just like before.
+        string gAction = GetGestureAction(button);
+        string gPath = GetGesturePath(button);
+        string gMacro = GetGestureMacroKeys(button);
+
+        SelectCombo(_scActionPicker, gAction);
+        SetTextBoxValue(_scPathBox, ExtractPathBoxValue(gAction, gPath));
+        SetTextBoxValue(_scMacroBox, gMacro);
         if (_scTextSnippetBox != null) _scTextSnippetBox.Text = button.TextSnippet ?? "";
         SelectDevicePicker(_scDevicePicker, button.DeviceId);
         SelectKnobPicker(_scKnobPicker, button.LinkedKnobIdx);
-        SelectHaSubTag(_scActionPicker, button.Action, button.Path);
-        SelectDeviceSubTag(_scActionPicker, button.Action, button.DeviceId);
-        SelectProfileSubTag(_scActionPicker, button.Action, button.ProfileName);
-        SelectGroupSubTag(_scActionPicker, button.Action, button.Path);
-        SelectGoveeSubTag(_scActionPicker, button.Action, button.Path);
+        // Sub-tag selections use the gesture-resolved action/path so Double
+        // and Hold modes show their own integration sub-menus (HA entity,
+        // Govee device, group name, etc.) not the Tap binding's.
+        SelectHaSubTag(_scActionPicker, gAction, gPath);
+        SelectDeviceSubTag(_scActionPicker, gAction, button.DeviceId);
+        SelectProfileSubTag(_scActionPicker, gAction, button.ProfileName);
+        SelectGroupSubTag(_scActionPicker, gAction, gPath);
+        SelectGoveeSubTag(_scActionPicker, gAction, gPath);
 
         // Govee picker selection happens AFTER UpdateStreamControllerActionVisibility
         // below — that method calls RefreshGoveePickerItems which clears + refills
@@ -2099,35 +2110,40 @@ public partial class ButtonsView
         var button = buttonList.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
         if (button == null) return;
 
-        button.Action = GetComboActionValue(_scActionPicker);
-        button.Path = GetActionPath(_scActionPicker, _scPathBox);
+        // Route Action / Path / MacroKeys to the gesture-specific fields
+        // for side buttons + encoder presses. For LCD keys _v2Gesture is
+        // always Tap so these still write to .Action/.Path/.MacroKeys.
+        string uiAction = GetComboActionValue(_scActionPicker);
+        string uiPath = GetActionPath(_scActionPicker, _scPathBox);
+        SetGestureAction(button, uiAction);
+        SetGesturePath(button, uiPath);
         // V2 designer uses dedicated sub-pickers instead of the legacy
         // ActionPicker sub-flyout. GetActionPath reads the legacy SubTag
         // which is empty when picked via V2 — fall back to the V2
         // picker's value so the debounced save doesn't wipe the user's
-        // choice. Keep this in sync with every V2 options card that
-        // writes to button.Path.
-        if (button.Action is "govee_toggle" or "govee_white_toggle" or "govee_color"
+        // choice.
+        if (uiAction is "govee_toggle" or "govee_white_toggle" or "govee_color"
             && _scGoveePicker != null
             && _scGoveePicker.SelectedTag is string goveeIp && !string.IsNullOrEmpty(goveeIp))
         {
-            if (button.Action == "govee_color")
+            string current = GetGesturePath(button);
+            if (uiAction == "govee_color")
             {
-                var existingHex = button.Path.Contains('|') ? button.Path.Split('|', 2)[1] : "";
-                button.Path = string.IsNullOrEmpty(existingHex) ? goveeIp : $"{goveeIp}|{existingHex}";
+                var existingHex = current.Contains('|') ? current.Split('|', 2)[1] : "";
+                SetGesturePath(button, string.IsNullOrEmpty(existingHex) ? goveeIp : $"{goveeIp}|{existingHex}");
             }
             else
             {
-                button.Path = goveeIp;
+                SetGesturePath(button, goveeIp);
             }
         }
-        else if (button.Action == "room_effect"
+        else if (uiAction == "room_effect"
                  && _scRoomEffectPicker != null
                  && _scRoomEffectPicker.SelectedTag is string roomEffect && !string.IsNullOrEmpty(roomEffect))
         {
-            button.Path = roomEffect;
+            SetGesturePath(button, roomEffect);
         }
-        button.MacroKeys = GetTextBoxValue(_scMacroBox);
+        SetGestureMacroKeys(button, GetTextBoxValue(_scMacroBox));
         button.DeviceId = GetDeviceIdForAction(button.Action, _scActionPicker, _scDevicePicker);
         button.ProfileName = button.Action == "switch_profile" ? (_scActionPicker.SelectedSubTag ?? "") : "";
         button.LinkedKnobIdx = int.TryParse(_scKnobPicker.SelectedTag as string, out var linked) ? linked : -1;
@@ -2151,6 +2167,7 @@ public partial class ButtonsView
     private void SelectStreamControllerItem(StreamControllerSelection selection)
     {
         _scSelectedButtonIdx = selection.ButtonIdx;
+        SyncV2GestureBarForSelection();
         LoadStreamControllerSelection();
     }
 

@@ -48,6 +48,14 @@ public partial class ButtonsView
     // These are created in BuildStreamControllerDesignerV2 and wired by
     // the relevant agents. Nullable until that build step completes.
     private QuickActionPicker? _v2ActionPicker;
+
+    // Gesture state for the action picker — only relevant when the
+    // selection is a physical side button or encoder press. LCD keys
+    // always edit the tap-press fields.
+    private enum V2Gesture { Tap, Double, Hold }
+    private V2Gesture _v2Gesture = V2Gesture.Tap;
+    private Border? _v2GestureBar;
+    private readonly Dictionary<V2Gesture, Border> _v2GestureTabs = new();
     private readonly List<StreamControllerTile> _v2KeyTiles = new();
     private readonly List<StreamControllerTile> _v2ButtonTiles = new();
     private readonly List<StreamControllerTile> _v2EncoderTiles = new();
