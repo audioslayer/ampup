@@ -4841,8 +4841,14 @@ public partial class RoomView : UserControl
     {
         Dispatcher.BeginInvoke(() =>
         {
-            if (_activePattern != null && _activePattern != "__sync__")
-                StartRoomPattern(_activePattern);
+            // Prefer the live pattern; fall back to the persisted RoomEffect
+            // so room_toggle/group_toggle on-press restores color even when
+            // the user hasn't opened the Room tab this session.
+            var pattern = _activePattern != null && _activePattern != "__sync__"
+                ? _activePattern
+                : _config?.Ambience.RoomEffect;
+            if (!string.IsNullOrWhiteSpace(pattern) && pattern != "__sync__")
+                StartRoomPattern(pattern);
         });
     }
 

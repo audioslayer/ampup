@@ -2619,14 +2619,12 @@ public partial class App : Application
             }
         }
 
-        // Restart the room effect so Govee devices resume the configured
-        // pattern (Aurora, etc.) instead of just powering on to a solid color.
-        // Delay a bit so the Govee devices actually finish powering up.
+        // Restart the room effect immediately so Govee devices jump straight
+        // to the configured pattern instead of sitting at their power-on
+        // default (often white) for several seconds. The 20 FPS frame loop
+        // will catch any frames the device drops while finishing power-up.
         if (anyGoveeOn)
-        {
-            Task.Delay(800).ContinueWith(_ =>
-                _mainWindow?.GetRoomView()?.ResumeRoomEffect());
-        }
+            _mainWindow?.GetRoomView()?.ResumeRoomEffect();
     }
 
     /// <summary>
