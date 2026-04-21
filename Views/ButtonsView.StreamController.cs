@@ -1061,6 +1061,25 @@ public partial class ButtonsView
         return button;
     }
 
+    /// <summary>
+    /// Which button list owns the currently-selected item. Inside a folder,
+    /// page 1+ LCD keys (idx 106-117) overlap the root side-button/encoder
+    /// idx range, so we can't tell them apart by idx alone — we use
+    /// InFolderContext instead and fall back to root only for idx not in
+    /// the folder (e.g. physical side button while a folder is open).
+    /// </summary>
+    private List<ButtonConfig> GetOwningButtonList()
+    {
+        if (_config == null) return new List<ButtonConfig>();
+        if (InFolderContext)
+        {
+            var folderList = GetActiveN3ButtonList();
+            if (folderList.Any(b => b.Idx == _scSelectedButtonIdx))
+                return folderList;
+        }
+        return _config.N3.Buttons;
+    }
+
     private StackPanel MakeStreamHeader(string title, string subtitle)
     {
         var stack = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
@@ -1209,9 +1228,7 @@ public partial class ButtonsView
             // Ignore programmatic ClearItems — only react to real user picks.
             if (picker.SelectedIndex < 0 || picker.SelectedTag is not string ip
                 || string.IsNullOrEmpty(ip)) return;
-            bool isN3PagedKey = _scSelectedButtonIdx >= StreamControllerDisplayKeyBase
-                                && _scSelectedButtonIdx < StreamControllerSideButtonBase;
-            var list = isN3PagedKey ? GetActiveN3ButtonList() : _config.N3.Buttons;
+            var list = GetOwningButtonList();
             var btn = list.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
             if (btn == null) return;
             // For govee_color the path is "ip|hex" — preserve any existing hex suffix.
@@ -1269,9 +1286,7 @@ public partial class ButtonsView
             if (_loading || _config == null) return;
             if (picker.SelectedIndex < 0 || picker.SelectedTag is not string effect
                 || string.IsNullOrEmpty(effect)) return;
-            bool isN3PagedKey = _scSelectedButtonIdx >= StreamControllerDisplayKeyBase
-                                && _scSelectedButtonIdx < StreamControllerSideButtonBase;
-            var list = isN3PagedKey ? GetActiveN3ButtonList() : _config.N3.Buttons;
+            var list = GetOwningButtonList();
             var btn = list.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
             if (btn == null) return;
             btn.Path = effect;
@@ -1319,9 +1334,7 @@ public partial class ButtonsView
             // editor is navigated inside a folder — GetActiveN3ButtonList returns
             // the folder's list there and would miss them. Select the right list
             // based on the selected button's idx range.
-            bool isN3PagedKey = _scSelectedButtonIdx >= StreamControllerDisplayKeyBase
-                                && _scSelectedButtonIdx < StreamControllerSideButtonBase;
-            var list = isN3PagedKey ? GetActiveN3ButtonList() : _config.N3.Buttons;
+            var list = GetOwningButtonList();
             var btn = list.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
             if (btn == null) return;
             btn.Action = "open_folder";
@@ -1818,13 +1831,17 @@ public partial class ButtonsView
             || _scEditorTitle == null || _scEditorPreview == null || _scTitleBox == null || _scIconBox == null)
             return;
 
-        // Side button / encoder press edits always target the root N3 list — they
-        // aren't paginated into folders. Main display keys go through the folder-
-        // aware active list.
-        bool isN3PagedKey = _scSelectedButtonIdx >= StreamControllerDisplayKeyBase
-                            && _scSelectedButtonIdx < StreamControllerSideButtonBase;
-        var buttonList = isN3PagedKey ? GetActiveN3ButtonList() : _config.N3.Buttons;
-        var button = buttonList.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx) ?? new ButtonConfig { Idx = _scSelectedButtonIdx };
+        // Resolve the button config. Folder page 1+ LCD keys overlap the
+        // root side/encoder idx range (106-111), so a naive "idx < 106 =
+        // folder / else = root" split loads the wrong config for those
+        // keys. Prefer the folder list first when we're inside a folder,
+        // then fall back to root — that way an LCD click on idx 106 inside
+        // "Room Effects" loads the folder's Fire key, while a Home-level
+        // side-button click still loads the root binding.
+        var buttonList = InFolderContext ? GetActiveN3ButtonList() : _config.N3.Buttons;
+        var button = buttonList.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx)
+                     ?? _config.N3.Buttons.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx)
+                     ?? new ButtonConfig { Idx = _scSelectedButtonIdx };
         var selection = DescribeSelection(_scSelectedButtonIdx);
         _scEditorTitle.Text = selection.Label;
 
@@ -2075,11 +2092,10 @@ public partial class ButtonsView
         if (_config == null || _scActionPicker == null || _scPathBox == null || _scMacroBox == null || _scDevicePicker == null || _scKnobPicker == null)
             return;
 
-        // Route through the folder-aware list for display keys; side buttons /
-        // encoder presses stay rooted.
-        bool isN3PagedKey = _scSelectedButtonIdx >= StreamControllerDisplayKeyBase
-                            && _scSelectedButtonIdx < StreamControllerSideButtonBase;
-        var buttonList = isN3PagedKey ? GetActiveN3ButtonList() : _config.N3.Buttons;
+        // Prefer folder list first — page 1+ LCD keys (idx 106-117) live
+        // there and would otherwise resolve to the root side/encoder list
+        // by idx range.
+        var buttonList = GetOwningButtonList();
         var button = buttonList.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
         if (button == null) return;
 

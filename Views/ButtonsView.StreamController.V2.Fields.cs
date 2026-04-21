@@ -93,9 +93,7 @@ public partial class ButtonsView
         {
             if (_loading || _config == null || _v2ProfilePicker == null) return;
             var profileName = _v2ProfilePicker.SelectedTag as string ?? "";
-            bool isN3Paged = _scSelectedButtonIdx >= StreamControllerDisplayKeyBase
-                             && _scSelectedButtonIdx < StreamControllerSideButtonBase;
-            var list = isN3Paged ? GetActiveN3ButtonList() : _config.N3.Buttons;
+            var list = GetOwningButtonList();
             var btn = list.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
             if (btn == null) return;
             btn.Action = "switch_profile";
@@ -241,9 +239,7 @@ public partial class ButtonsView
                     _v2ProfilePicker.AddItem(name, name);
             }
 
-            bool isN3Paged = _scSelectedButtonIdx >= StreamControllerDisplayKeyBase
-                             && _scSelectedButtonIdx < StreamControllerSideButtonBase;
-            var list = isN3Paged ? GetActiveN3ButtonList() : _config.N3.Buttons;
+            var list = GetOwningButtonList();
             var btn = list.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
             var current = btn?.ProfileName ?? "";
 

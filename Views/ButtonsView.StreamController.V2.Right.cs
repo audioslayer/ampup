@@ -715,10 +715,29 @@ public partial class ButtonsView
 
     // ── Helpers ─────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// True when the current selection is an LCD key (as opposed to a
+    /// physical side button or encoder press). Page 1+ folder LCD keys
+    /// (idx 106-117) overlap the root side/encoder idx range, so we can't
+    /// decide by idx alone — check whether the active folder owns a
+    /// DisplayKey for this selection's page slot before falling back to
+    /// the range check.
+    /// </summary>
     private bool IsN3PagedKeySelection()
     {
-        return _scSelectedButtonIdx >= StreamControllerDisplayKeyBase
-               && _scSelectedButtonIdx < StreamControllerSideButtonBase;
+        int local = _scSelectedButtonIdx - StreamControllerDisplayKeyBase;
+        if (local < 0) return false;
+        // Home (page 0) always — idx 100-105.
+        if (_scSelectedButtonIdx < StreamControllerSideButtonBase) return true;
+        // Inside a folder, page 1+ LCD keys live at local idx 6..N-1; treat
+        // them as LCD keys when the folder has that DisplayKey slot.
+        if (InFolderContext)
+        {
+            var folder = _config?.N3.Folders.FirstOrDefault(f => f.Name == _scActiveFolder);
+            if (folder != null && folder.DisplayKeys.Any(k => k.Idx == local))
+                return true;
+        }
+        return false;
     }
 
     // ── Header rename (Mixer-style inline textbox) ───────────────────────────
