@@ -1764,6 +1764,20 @@ public partial class App : Application
         if (!_config.N3.MirrorFirstThreeKnobs) return;
         if (e.Index < 0 || e.Index > 2) return;
 
+        // Wheel nav takes priority — any encoder twist while the radial
+        // wheel is open steps the highlight by sign(delta), no volume.
+        if (_wheelVisible && _radialWheel != null)
+        {
+            int direction = Math.Sign(e.Delta);
+            if (direction != 0)
+            {
+                int totalSlots = _radialWheel.GetTotalSlots();
+                int nextSlot = ((_radialWheel.GetSelectedIndex() + direction) % totalSlots + totalSlots) % totalSlots;
+                Dispatcher.BeginInvoke(() => _radialWheel?.Highlight(nextSlot));
+            }
+            return;
+        }
+
         var knob = _config.N3.Knobs.FirstOrDefault(k => k.Idx == e.Index);
         if (knob == null) return;
 

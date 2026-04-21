@@ -150,18 +150,26 @@ public partial class OsdView : UserControl
         _config.Osd.WheelDuration = Math.Round(SldOsdWheelDur.Value, 1);
         _config.Osd.HideInFullscreen = ChkHideInFullscreen.IsChecked == true;
 
-        // Collect quick wheels from dynamic rows
-        var oldButtons = new HashSet<int>(_config.Osd.QuickWheels.Where(w => w.Enabled).Select(w => w.TriggerButton));
+        // Collect quick wheels from dynamic rows — key each trigger by
+        // (Device, LocalIdx) so a Turn Up Button 0 and an SC Side Button 0
+        // don't collide in the diff below.
+        var oldBindings = CollectTriggerBindings(_config.Osd.QuickWheels);
         _config.Osd.QuickWheels = CollectWheelConfigs();
-        var newButtons = new HashSet<int>(_config.Osd.QuickWheels.Where(w => w.Enabled).Select(w => w.TriggerButton));
+        var newBindings = CollectTriggerBindings(_config.Osd.QuickWheels);
 
-        // Sync button hold actions
-        SyncWheelButtonActions(oldButtons, newButtons);
+        SyncWheelButtonActions(oldBindings, newBindings);
 
         _onSave(_config);
 
-        // Refresh Buttons tab if wheel bindings changed
-        if (!oldButtons.SetEquals(newButtons)) OnRequestRefresh?.Invoke();
+        if (!oldBindings.SetEquals(newBindings)) OnRequestRefresh?.Invoke();
+    }
+
+    private static HashSet<(QuickWheelDevice Device, int LocalIdx)> CollectTriggerBindings(List<QuickWheelConfig> wheels)
+    {
+        var set = new HashSet<(QuickWheelDevice, int)>();
+        foreach (var w in wheels)
+            if (w.Enabled) set.Add((w.Device, w.TriggerButton));
+        return set;
     }
 
     // ── Quick Wheel dynamic rows ──────────────────────────────────────
@@ -184,6 +192,81 @@ public partial class OsdView : UserControl
         ("macro", "Macro"),
     };
 
+    /// <summary>
+    /// Populate the trigger dropdown with inputs appropriate to the user's
+    /// active hardware (mirrors the Buttons/Mixer tab surface gating via
+    /// HardwareMode). Each item's Tag is a (QuickWheelDevice, int) tuple
+    /// that CollectWheelConfigs reads back.
+    /// </summary>
+    private void PopulateTriggerCombo(ComboBox combo, QuickWheelDevice selectedDevice, int selectedIdx)
+    {
+        combo.Items.Clear();
+
+        var mode = _config?.HardwareMode ?? HardwareMode.Auto;
+        bool showTurnUp = mode != HardwareMode.StreamControllerOnly;
+        bool showSc = mode != HardwareMode.TurnUpOnly;
+
+        int selectIndex = 0;
+        int itemCount = 0;
+
+        if (showTurnUp)
+        {
+            for (int i = 0; i < 5; i++)
+            {
+                var item = new ComboBoxItem
+                {
+                    Content = $"Turn Up: Button {i + 1}",
+                    Tag = (QuickWheelDevice.TurnUp, i),
+                };
+                combo.Items.Add(item);
+                if (selectedDevice == QuickWheelDevice.TurnUp && selectedIdx == i)
+                    selectIndex = itemCount;
+                itemCount++;
+            }
+        }
+
+        if (showSc)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                var item = new ComboBoxItem
+                {
+                    Content = $"SC: Side Button {i + 1}",
+                    Tag = (QuickWheelDevice.ScSideButton, i),
+                };
+                combo.Items.Add(item);
+                if (selectedDevice == QuickWheelDevice.ScSideButton && selectedIdx == i)
+                    selectIndex = itemCount;
+                itemCount++;
+            }
+            for (int i = 0; i < 3; i++)
+            {
+                var item = new ComboBoxItem
+                {
+                    Content = $"SC: Encoder {i + 1} Press",
+                    Tag = (QuickWheelDevice.ScEncoderPress, i),
+                };
+                combo.Items.Add(item);
+                if (selectedDevice == QuickWheelDevice.ScEncoderPress && selectedIdx == i)
+                    selectIndex = itemCount;
+                itemCount++;
+            }
+        }
+
+        if (combo.Items.Count == 0)
+        {
+            // Shouldn't happen (HardwareMode guarantees at least one), but
+            // keep the dropdown non-empty so layout doesn't collapse.
+            combo.Items.Add(new ComboBoxItem
+            {
+                Content = "Turn Up: Button 1",
+                Tag = (QuickWheelDevice.TurnUp, 0),
+            });
+        }
+
+        combo.SelectedIndex = Math.Clamp(selectIndex, 0, combo.Items.Count - 1);
+    }
+
     private void AddWheelRow(QuickWheelConfig qw)
     {
         // Wrapper StackPanel holds the header row + custom slots panel
@@ -192,7 +275,7 @@ public partial class OsdView : UserControl
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(185) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
@@ -214,14 +297,13 @@ public partial class OsdView : UserControl
 
         var btnCombo = new ComboBox
         {
-            Width = 135,
+            Width = 180,
             Background = (System.Windows.Media.Brush)FindResource("BgBaseBrush"),
             BorderBrush = (System.Windows.Media.Brush)FindResource("BgDarkBrush"),
             Foreground = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"),
-            ToolTip = "Which button to hold",
+            ToolTip = "Which hardware input opens this wheel",
         };
-        for (int i = 1; i <= 5; i++) btnCombo.Items.Add(new ComboBoxItem { Content = $"Button {i}" });
-        btnCombo.SelectedIndex = Math.Clamp(qw.TriggerButton, 0, 4);
+        PopulateTriggerCombo(btnCombo, qw.Device, qw.TriggerButton);
         btnCombo.SelectionChanged += (_, _) => { if (!_loading) { _debounceTimer.Stop(); _debounceTimer.Start(); } };
         Grid.SetColumn(btnCombo, 2);
         row.Children.Add(btnCombo);
@@ -395,11 +477,23 @@ public partial class OsdView : UserControl
                 var modeCombo = row.Children[0] as ComboBox;
                 var btnCombo = row.Children[1] as ComboBox;
                 int modeIdx = modeCombo?.SelectedIndex ?? 0;
+
+                // Trigger device + local index live in the selected item's Tag,
+                // set up by PopulateTriggerCombo. Fall back to Turn Up button 0.
+                var device = QuickWheelDevice.TurnUp;
+                int triggerIdx = 0;
+                if (btnCombo?.SelectedItem is ComboBoxItem trigCi && trigCi.Tag is ValueTuple<QuickWheelDevice, int> tag)
+                {
+                    device = tag.Item1;
+                    triggerIdx = tag.Item2;
+                }
+
                 var cfg = new QuickWheelConfig
                 {
                     Enabled = true,
                     Mode = (QuickWheelMode)Math.Clamp(modeIdx, 0, 3),
-                    TriggerButton = btnCombo?.SelectedIndex ?? 0,
+                    Device = device,
+                    TriggerButton = triggerIdx,
                     TriggerGesture = "hold",
                 };
 
@@ -433,26 +527,74 @@ public partial class OsdView : UserControl
     }
 
     /// <summary>
-    /// Sync button HoldActions with wheel configs. Clear old, set new.
+    /// Sync HoldAction="quick_wheel" across the Turn Up + N3 button lists.
+    /// Routes each binding to the right config slot based on Device.
     /// </summary>
-    private void SyncWheelButtonActions(HashSet<int> oldButtons, HashSet<int> newButtons)
+    private void SyncWheelButtonActions(
+        HashSet<(QuickWheelDevice Device, int LocalIdx)> oldBindings,
+        HashSet<(QuickWheelDevice Device, int LocalIdx)> newBindings)
     {
         if (_config == null) return;
-        var buttons = _config.Buttons;
-        if (buttons == null) return;
 
-        // Clear buttons that are no longer wheel triggers
-        foreach (var idx in oldButtons.Except(newButtons))
+        foreach (var b in oldBindings.Except(newBindings))
+            SetQuickWheelHoldAction(b.Device, b.LocalIdx, clear: true);
+
+        foreach (var b in newBindings)
+            SetQuickWheelHoldAction(b.Device, b.LocalIdx, clear: false);
+    }
+
+    /// <summary>
+    /// Set or clear HoldAction="quick_wheel" on the right ButtonConfig.
+    /// Turn Up uses position-indexed _config.Buttons; N3 uses sparse
+    /// _config.N3.Buttons keyed by virtual Idx (find-or-create on set).
+    /// Clears only stomp our own action so user edits survive.
+    /// </summary>
+    private void SetQuickWheelHoldAction(QuickWheelDevice device, int localIdx, bool clear)
+    {
+        if (_config == null) return;
+
+        if (device == QuickWheelDevice.TurnUp)
         {
-            if (idx >= 0 && idx < buttons.Count && buttons[idx].HoldAction == "quick_wheel")
-                buttons[idx].HoldAction = "none";
+            var buttons = _config.Buttons;
+            if (localIdx < 0 || localIdx >= buttons.Count) return;
+            if (clear)
+            {
+                if (buttons[localIdx].HoldAction == "quick_wheel")
+                    buttons[localIdx].HoldAction = "none";
+            }
+            else
+            {
+                buttons[localIdx].HoldAction = "quick_wheel";
+            }
+            return;
         }
 
-        // Set new wheel trigger buttons
-        foreach (var idx in newButtons)
+        int virtualIdx = device switch
         {
-            if (idx >= 0 && idx < buttons.Count)
-                buttons[idx].HoldAction = "quick_wheel";
+            QuickWheelDevice.ScSideButton    => 106 + localIdx,
+            QuickWheelDevice.ScEncoderPress  => 109 + localIdx,
+            _                                => -1,
+        };
+        if (virtualIdx < 0) return;
+
+        var list = _config.N3.Buttons;
+        var btn = list.FirstOrDefault(b => b.Idx == virtualIdx);
+
+        if (clear)
+        {
+            if (btn != null && btn.HoldAction == "quick_wheel")
+                btn.HoldAction = "none";
+            return;
+        }
+
+        if (btn == null)
+        {
+            btn = new ButtonConfig { Idx = virtualIdx, Action = "none", HoldAction = "quick_wheel" };
+            list.Add(btn);
+        }
+        else
+        {
+            btn.HoldAction = "quick_wheel";
         }
     }
 

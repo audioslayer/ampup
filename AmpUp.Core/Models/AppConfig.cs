@@ -437,6 +437,11 @@ public class OsdConfig
 public class QuickWheelConfig
 {
     public bool Enabled { get; set; } = false;
+
+    [JsonConverter(typeof(StringEnumConverter))]
+    public QuickWheelDevice Device { get; set; } = QuickWheelDevice.TurnUp;
+
+    /// <summary>0-based trigger index within the chosen device (Turn Up 0-4, SC Side 0-2, SC Encoder Press 0-2).</summary>
     public int TriggerButton { get; set; } = 0;
     public string TriggerGesture { get; set; } = "hold";
     public int NavigationKnob { get; set; } = 0;
@@ -445,6 +450,25 @@ public class QuickWheelConfig
     public QuickWheelMode Mode { get; set; } = QuickWheelMode.Profile;
 
     public List<CustomWheelSlot> CustomSlots { get; set; } = new();
+
+    /// <summary>
+    /// Resolve (Device, TriggerButton) to the virtual button index the
+    /// gesture engine sees. Turn Up buttons keep their 0-4 range; N3
+    /// inputs map into the 106+ / 109+ virtual ranges defined by App.
+    /// </summary>
+    public int GetVirtualButtonIdx() => Device switch
+    {
+        QuickWheelDevice.ScSideButton    => 106 + TriggerButton,
+        QuickWheelDevice.ScEncoderPress  => 109 + TriggerButton,
+        _                                => TriggerButton,
+    };
+}
+
+public enum QuickWheelDevice
+{
+    TurnUp,
+    ScSideButton,
+    ScEncoderPress,
 }
 
 public enum QuickWheelMode

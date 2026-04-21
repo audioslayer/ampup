@@ -164,7 +164,7 @@ public class ButtonHandler : IDisposable
         {
             foreach (var qw in _lastConfig.Osd.QuickWheels)
             {
-                if (qw.Enabled && idx == qw.TriggerButton)
+                if (qw.Enabled && idx == qw.GetVirtualButtonIdx())
                 {
                     _quickWheelActiveButton = idx;
                     OnQuickWheelOpen?.Invoke(idx);
