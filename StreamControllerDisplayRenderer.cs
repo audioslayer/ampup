@@ -502,6 +502,18 @@ internal static class StreamControllerDisplayRenderer
             ConfigureGraphics(graphics);
             graphics.Clear(DrawingColor.Black);
             graphics.DrawImage(image, 0, 0, DeviceCanvasSize, DeviceCanvasSize);
+
+            // Zero out the extreme corners before encoding. Small sparkle /
+            // glow detail in icon art produces visible JPEG blocking on the
+            // dark corners once the tile is shown with a rounded-corner
+            // clip — the artifacts appeared as little white squares at the
+            // edges. Clearing the pixels the UI mask will hide anyway gives
+            // the encoder clean uniform black in those 8x8 blocks.
+            using var cornerBrush = new DrawingBrush(DrawingColor.Black);
+            graphics.FillRectangle(cornerBrush, 0, 0, 4, 4);
+            graphics.FillRectangle(cornerBrush, DeviceCanvasSize - 4, 0, 4, 4);
+            graphics.FillRectangle(cornerBrush, 0, DeviceCanvasSize - 4, 4, 4);
+            graphics.FillRectangle(cornerBrush, DeviceCanvasSize - 4, DeviceCanvasSize - 4, 4, 4);
         }
 
         deviceSized.RotateFlip(System.Drawing.RotateFlipType.Rotate90FlipNone);
@@ -509,7 +521,10 @@ internal static class StreamControllerDisplayRenderer
         using var stream = new MemoryStream();
         var codec = ImageCodecInfo.GetImageEncoders().First(x => x.FormatID == ImageFormat.Jpeg.Guid);
         using var encoderParams = new EncoderParameters(1);
-        encoderParams.Param[0] = new EncoderParameter(Encoder.Quality, 92L);
+        // Quality 98 gives cleaner sharp edges on icon art at the 60x60
+        // device resolution — output is still only ~4-6 KB vs ~3-4 KB at
+        // q92, well within HID bandwidth.
+        encoderParams.Param[0] = new EncoderParameter(Encoder.Quality, 98L);
         deviceSized.Save(stream, codec, encoderParams);
         return stream.ToArray();
     }
