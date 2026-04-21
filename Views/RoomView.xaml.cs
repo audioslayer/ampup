@@ -3798,6 +3798,9 @@ public partial class RoomView : UserControl
         {
             var bands = App.AudioAnalyzer?.SmoothedBands;
             if (bands == null || _corsairSync == null) return;
+            // Respect Corsair.Enabled — group/iCUE toggle flips it off and we
+            // must not repaint through the music-reactive path.
+            if (_config == null || !_config.Corsair.Enabled || !_corsairSync.IsAvailable) return;
 
             // Map 5 frequency bands to RGB color
             float bass = bands[0] + bands[1];     // sub-bass + bass → warm/red
