@@ -1734,9 +1734,16 @@ public partial class App : Application
                 break;
 
             case N3InputKind.DisplayKey:
-                // When inside a folder, LCD slot 0 is the virtual "Back" key and
-                // slots 1-5 shift to folder keys 0-4.
-                if (IsInFolder)
+                // When inside a folder with the auto-Back key shown, LCD slot 0 is
+                // the virtual Back nav and slots 1-5 shift to folder keys 0-4. If
+                // Back is disabled (or we're on a page > 0), all 6 slots map
+                // directly — must mirror the display-render side's gating in
+                // SyncStreamControllerDisplays so input + visuals agree.
+                bool backShown = IsInFolder
+                                 && (GetActiveFolder()?.BackKeyEnabled ?? true)
+                                 && _config.N3.CurrentPage == 0;
+
+                if (backShown)
                 {
                     if (e.Index == 0)
                     {
