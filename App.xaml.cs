@@ -1647,7 +1647,12 @@ public partial class App : Application
         // Use the full volume pipeline (curve + range) so OSD matches actual volume
         float vol = VolumePipeline.ComputeVolume(rawValue, knob);
         int displayPct = (int)Math.Round(vol * 100);
-        string label = !string.IsNullOrEmpty(knob.Label) ? knob.Label : knob.Target switch
+        // active_window always resolves to the actual foreground app at OSD-fire time.
+        // Skips the knob.Label fallback because the Mixer's save path auto-bakes
+        // "Active Window" into Label, which would otherwise hide the live app name.
+        string label = knob.Target == "active_window"
+            ? ResolveActiveWindowOsdLabel()
+            : !string.IsNullOrEmpty(knob.Label) ? knob.Label : knob.Target switch
         {
             "master" => "Master",
             "mic" => "Microphone",

@@ -747,6 +747,11 @@ public class AudioMixer : IDisposable
             NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
             if (pid == 0) return "";
 
+            // Skip AmpUp — matches GetActiveWindowVolume's behavior so the
+            // OSD doesn't helpfully announce "AmpUp" when the user is just
+            // testing a knob from inside the config UI.
+            if (pid == Environment.ProcessId) return "";
+
             AudioSessionControl? session = null;
             lock (_lock)
             {
