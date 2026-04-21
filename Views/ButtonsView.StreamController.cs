@@ -1787,21 +1787,13 @@ public partial class ButtonsView
         SelectGroupSubTag(_scActionPicker, button.Action, button.Path);
         SelectGoveeSubTag(_scActionPicker, button.Action, button.Path);
 
-        // Pre-select the Govee picker if the action is a govee_* one.
-        if (_scGoveePicker != null && button.Action is "govee_toggle" or "govee_white_toggle" or "govee_color"
-            && !string.IsNullOrEmpty(button.Path))
-        {
-            var ip = button.Path.Contains('|') ? button.Path.Split('|')[0] : button.Path;
-            RefreshGoveePickerItems();
-            for (int i = 0; i < _scGoveePicker.ItemCount; i++)
-            {
-                if (string.Equals(_scGoveePicker.GetTagAt(i) as string, ip, StringComparison.OrdinalIgnoreCase))
-                {
-                    _scGoveePicker.SelectedIndex = i;
-                    break;
-                }
-            }
-        }
+        // Govee picker selection happens AFTER UpdateStreamControllerActionVisibility
+        // below — that method calls RefreshGoveePickerItems which clears + refills
+        // the picker and would otherwise wipe a selection we set here.
+        string? pendingGoveeIp = (button.Action is "govee_toggle" or "govee_white_toggle" or "govee_color"
+                                   && !string.IsNullOrEmpty(button.Path))
+            ? (button.Path.Contains('|') ? button.Path.Split('|')[0] : button.Path)
+            : null;
 
         // Load Toggle (A/B) sub-actions
         if (_scToggleActionAPicker != null) SelectCombo(_scToggleActionAPicker, button.ToggleActionA);
@@ -1905,6 +1897,21 @@ public partial class ButtonsView
                 }
             }
             _scFolderPicker.SelectedIndex = foundIdx;
+        }
+
+        // Apply pending Govee device selection (same pattern as folder picker).
+        if (_scGoveePicker != null && pendingGoveeIp != null)
+        {
+            int foundIdx = -1;
+            for (int i = 0; i < _scGoveePicker.ItemCount; i++)
+            {
+                if (string.Equals(_scGoveePicker.GetTagAt(i) as string, pendingGoveeIp, StringComparison.OrdinalIgnoreCase))
+                {
+                    foundIdx = i;
+                    break;
+                }
+            }
+            _scGoveePicker.SelectedIndex = foundIdx;
         }
 
         RefreshStreamControllerSelectionVisuals();
