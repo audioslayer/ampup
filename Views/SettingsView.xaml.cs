@@ -1343,6 +1343,15 @@ public partial class SettingsView : UserControl
         {
             var found = await _ambienceSync.ScanDevicesAsync();
 
+            // Drop anything the user has explicitly removed — otherwise deleted
+            // devices (e.g. a "Test" one still registered in the Govee account)
+            // silently reappear on every rescan.
+            var hidden = _config.Ambience.HiddenGoveeDeviceIds
+                ?? new List<string>();
+            found.RemoveAll(d =>
+                (!string.IsNullOrEmpty(d.Ip) && hidden.Contains(d.Ip)) ||
+                (!string.IsNullOrEmpty(d.DeviceId) && hidden.Contains(d.DeviceId)));
+
             // If Cloud API is available, enrich names AND merge devices not found via LAN
             if (!string.IsNullOrEmpty(_config.Ambience.GoveeApiKey))
             {
@@ -1357,6 +1366,7 @@ public partial class SettingsView : UserControl
                     foreach (var cloud in cloudDevices)
                     {
                         if (string.IsNullOrEmpty(cloud.Device)) continue;
+                        if (hidden.Contains(cloud.Device)) continue;
                         bool alreadyFound = found.Any(f =>
                             !string.IsNullOrEmpty(f.DeviceId) && f.DeviceId == cloud.Device);
                         if (!alreadyFound)
@@ -1498,23 +1508,88 @@ public partial class SettingsView : UserControl
 
         foreach (var dev in _config.Ambience.GoveeDevices)
         {
-            // Resolve a friendly name: use Name if it's not just the IP, otherwise look up SKU
+            var devRef = dev; // captured for the remove closure
+
             string friendlyName = dev.Name;
             bool nameIsIp = friendlyName == dev.Ip || System.Net.IPAddress.TryParse(friendlyName, out _);
             if (string.IsNullOrWhiteSpace(friendlyName) || nameIsIp)
                 friendlyName = !string.IsNullOrEmpty(dev.Sku) ? AmbienceSync.GetProductName(dev.Sku) : "";
 
+            bool hasLan = !string.IsNullOrWhiteSpace(dev.Ip);
             string display = !string.IsNullOrWhiteSpace(friendlyName)
-                ? $"{friendlyName}  —  {dev.Ip}"
-                : dev.Ip;
+                ? (hasLan ? $"{friendlyName}  \u2014  {dev.Ip}" : friendlyName)
+                : (hasLan ? dev.Ip : dev.DeviceId);
 
-            var row = new TextBlock
+            var row = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var label = new TextBlock
             {
                 Text = display,
                 Style = FindResource("SecondaryText") as Style,
-                Margin = new Thickness(0, 0, 0, 4),
-                ToolTip = dev.Ip,
+                VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = hasLan ? dev.Ip : dev.DeviceId,
             };
+            Grid.SetColumn(label, 0);
+            row.Children.Add(label);
+
+            if (!hasLan)
+            {
+                var badge = new Border
+                {
+                    Background = new SolidColorBrush(Color.FromArgb(0x33, 0x42, 0xA5, 0xF5)),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(0x42, 0xA5, 0xF5)),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(4),
+                    Padding = new Thickness(6, 1, 6, 1),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(6, 0, 0, 0),
+                    Child = new TextBlock
+                    {
+                        Text = "API",
+                        FontSize = 9,
+                        FontWeight = FontWeights.Bold,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0x42, 0xA5, 0xF5)),
+                    },
+                };
+                Grid.SetColumn(badge, 1);
+                row.Children.Add(badge);
+            }
+
+            var remove = new System.Windows.Controls.Button
+            {
+                Content = "\u2715",
+                Width = 20,
+                Height = 20,
+                Padding = new Thickness(0),
+                FontSize = 10,
+                Background = System.Windows.Media.Brushes.Transparent,
+                BorderBrush = System.Windows.Media.Brushes.Transparent,
+                Foreground = (System.Windows.Media.SolidColorBrush)FindResource("TextDimBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(6, 0, 0, 0),
+                Cursor = System.Windows.Input.Cursors.Hand,
+                ToolTip = "Remove this device (won't reappear on rescan)",
+            };
+            remove.Click += (_, _) =>
+            {
+                if (_config == null) return;
+                if (!string.IsNullOrWhiteSpace(devRef.DeviceId)
+                    && !_config.Ambience.HiddenGoveeDeviceIds.Contains(devRef.DeviceId))
+                    _config.Ambience.HiddenGoveeDeviceIds.Add(devRef.DeviceId);
+                if (!string.IsNullOrWhiteSpace(devRef.Ip)
+                    && !_config.Ambience.HiddenGoveeDeviceIds.Contains(devRef.Ip))
+                    _config.Ambience.HiddenGoveeDeviceIds.Add(devRef.Ip);
+                _config.Ambience.GoveeDevices.Remove(devRef);
+                RefreshGoveeDeviceList();
+                _debounceTimer.Stop();
+                _debounceTimer.Start();
+            };
+            Grid.SetColumn(remove, 2);
+            row.Children.Add(remove);
+
             GoveeDeviceList.Children.Add(row);
         }
     }

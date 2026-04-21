@@ -508,6 +508,9 @@ public class AmbienceConfig
     public bool GoveeEnabled { get; set; } = false;
     public bool GoveeCloudEnabled { get; set; } = false;
     public List<GoveeDeviceConfig> GoveeDevices { get; set; } = new();
+    /// <summary>Device IDs (Cloud) or IPs (LAN) the user removed. Scans will skip them
+    /// so deleted devices don't silently reappear.</summary>
+    public List<string> HiddenGoveeDeviceIds { get; set; } = new();
     public bool LinkToLights { get; set; } = false;
     public bool SyncRoomToTurnUp { get; set; } = false;
     public int MusicSensitivity { get; set; } = 50; // 1-100, controls music reactive intensity

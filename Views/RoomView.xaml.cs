@@ -1367,6 +1367,49 @@ public partial class RoomView : UserControl
 
     // ── DEVICES TAB (per-device power/brightness controls) ──
 
+    /// <summary>
+    /// Build a small ✕ button that hides a Govee device and persists its ID
+    /// to HiddenGoveeDeviceIds so future Settings scans won't re-add it.
+    /// Used from both the Room DEVICES tab and the Settings device list.
+    /// </summary>
+    private FrameworkElement BuildGoveeRemoveButton(GoveeDeviceConfig devConfig)
+    {
+        var btn = new System.Windows.Controls.Button
+        {
+            Content = "\u2715",
+            Width = 22,
+            Height = 22,
+            Padding = new Thickness(0),
+            FontSize = 11,
+            Background = System.Windows.Media.Brushes.Transparent,
+            BorderBrush = System.Windows.Media.Brushes.Transparent,
+            Foreground = FindBrush("TextDimBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+            Cursor = System.Windows.Input.Cursors.Hand,
+            ToolTip = "Remove this device (won't reappear on rescan)",
+        };
+        btn.Click += (_, _) =>
+        {
+            if (_config == null) return;
+
+            // Tag both DeviceId and Ip so future scans can't sneak it back
+            // via either path. Ignore blank strings so we don't poison the
+            // hidden list with empty keys.
+            if (!string.IsNullOrWhiteSpace(devConfig.DeviceId)
+                && !_config.Ambience.HiddenGoveeDeviceIds.Contains(devConfig.DeviceId))
+                _config.Ambience.HiddenGoveeDeviceIds.Add(devConfig.DeviceId);
+            if (!string.IsNullOrWhiteSpace(devConfig.Ip)
+                && !_config.Ambience.HiddenGoveeDeviceIds.Contains(devConfig.Ip))
+                _config.Ambience.HiddenGoveeDeviceIds.Add(devConfig.Ip);
+
+            _config.Ambience.GoveeDevices.Remove(devConfig);
+            QueueSave();
+            RebuildRoomTabContent();
+        };
+        return btn;
+    }
+
     private void BuildDevicesTab(StackPanel stack)
     {
         if (_config == null) return;
@@ -1475,6 +1518,7 @@ public partial class RoomView : UserControl
                 // viable via the REST API (100 req/min cap).
                 if (!hasLan)
                 {
+                    devRow.Children.Add(BuildGoveeRemoveButton(devConfig));
                     goveeChildren.Add(devRow);
                     continue;
                 }
@@ -1519,6 +1563,7 @@ public partial class RoomView : UserControl
                     });
                 }
 
+                devRow.Children.Add(BuildGoveeRemoveButton(devConfig));
                 goveeChildren.Add(devRow);
             }
 
