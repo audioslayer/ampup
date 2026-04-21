@@ -730,6 +730,53 @@ public class AudioMixer : IDisposable
     }
 
     /// <summary>
+    /// Friendly name of the foreground window's audio session — WASAPI
+    /// DisplayName when available (e.g. "Apple Music" instead of the
+    /// helper process "AMPLibraryAgent"), falling back to ProcessName.
+    /// Returns "" if no session resolves. Mirrors the lookup path used
+    /// by SetActiveWindowVolume so the OSD label reflects what's actually
+    /// being controlled.
+    /// </summary>
+    public string GetActiveWindowDisplayName()
+    {
+        try
+        {
+            IntPtr hwnd = NativeMethods.GetForegroundWindow();
+            if (hwnd == IntPtr.Zero) return "";
+
+            NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
+            if (pid == 0) return "";
+
+            AudioSessionControl? session = null;
+            lock (_lock)
+            {
+                _sessionsByPid.TryGetValue(pid, out session);
+            }
+
+            if (session != null)
+            {
+                try
+                {
+                    var dn = session.DisplayName;
+                    if (!string.IsNullOrWhiteSpace(dn)) return dn;
+                }
+                catch { }
+            }
+
+            try
+            {
+                var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                return proc.ProcessName;
+            }
+            catch { return ""; }
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    /// <summary>
     /// Returns the raw AudioSessionControl for a given process name (case-insensitive).
     /// Used by AudioDashView to hold session references for live peak polling.
     /// </summary>

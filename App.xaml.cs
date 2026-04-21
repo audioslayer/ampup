@@ -1651,7 +1651,7 @@ public partial class App : Application
         {
             "master" => "Master",
             "mic" => "Microphone",
-            "active_window" => "Active Window",
+            "active_window" => ResolveActiveWindowOsdLabel(),
             "system" => "System Sounds",
             "any" => "Auto",
             "apps" => "App Group",
@@ -1688,6 +1688,15 @@ public partial class App : Application
         };
         if (!EnsureOsd()) return;
         _osdOverlay!.ShowVolume(label, displayPct, symbol);
+    }
+
+    /// <summary>OSD label for the active_window target — resolves to the app actually
+    /// being controlled (e.g. "Spotify") instead of the generic "Active Window".
+    /// Falls back to "Active Window" when no session can be resolved.</summary>
+    private string ResolveActiveWindowOsdLabel()
+    {
+        var app = _mixer?.GetActiveWindowDisplayName();
+        return string.IsNullOrWhiteSpace(app) ? "Active Window" : app!;
     }
 
     private void HandleButton(ButtonEvent e)
