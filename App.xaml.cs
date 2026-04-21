@@ -2591,18 +2591,12 @@ public partial class App : Application
         if (current != _config.N3.CurrentPage)
             _config.N3.CurrentPage = current;
 
-        int newPage;
-        if (absolute)
-        {
-            newPage = Math.Clamp(value, 0, maxPage);
-        }
-        else
-        {
-            // Relative navigation wraps so hitting "next" on the last page
-            // goes back to page 0 (and prev on page 0 goes to the last) —
-            // otherwise the button feels broken when the user is at an end.
-            newPage = ((current + value) % pageCount + pageCount) % pageCount;
-        }
+        // Clamp — user feedback: wrap behavior makes next/prev feel
+        // mixed up ("next took me to previous page"). Stick at ends
+        // instead; button simply no-ops on the last page of forward nav.
+        int newPage = absolute
+            ? Math.Clamp(value, 0, maxPage)
+            : Math.Clamp(current + value, 0, maxPage);
 
         if (newPage == _config.N3.CurrentPage) return;
 
