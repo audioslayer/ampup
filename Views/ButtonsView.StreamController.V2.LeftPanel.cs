@@ -316,13 +316,38 @@ public partial class ButtonsView
         Grid.SetColumn(labelStack, 0);
         grid.Children.Add(labelStack);
 
-        // Only Open — Home can't be renamed or deleted.
-        if (!isActive)
+        // Mirror the Space-row button layout: Open + Rename + Delete.
+        // Rename and Delete are disabled for Home (it's the permanent
+        // default Space), but rendered at the same size so the rows line
+        // up visually with the user-created Spaces below.
+        var openBtn = MakeEditorButton("Open", (_, _) =>
         {
-            var openBtn = MakeEditorButton("Open", (_, _) => NavigateToFolderInEditor(""));
-            Grid.SetColumn(openBtn, 1);
-            grid.Children.Add(openBtn);
+            if (!isActive) NavigateToFolderInEditor("");
+        });
+        if (isActive)
+        {
+            openBtn.IsEnabled = false;
+            openBtn.Opacity = 0.5;
+            openBtn.ToolTip = "You're already at Home";
         }
+        Grid.SetColumn(openBtn, 1);
+        grid.Children.Add(openBtn);
+
+        var renameBtn = MakeEditorButton("Rename", (_, _) => { });
+        renameBtn.Margin = new Thickness(6, 0, 0, 0);
+        renameBtn.IsEnabled = false;
+        renameBtn.Opacity = 0.4;
+        renameBtn.ToolTip = "Home is the default Space and cannot be renamed";
+        Grid.SetColumn(renameBtn, 2);
+        grid.Children.Add(renameBtn);
+
+        var delBtn = MakeEditorButton("Delete", (_, _) => { });
+        delBtn.Margin = new Thickness(6, 0, 0, 0);
+        delBtn.IsEnabled = false;
+        delBtn.Opacity = 0.4;
+        delBtn.ToolTip = "Home is the default Space and cannot be deleted";
+        Grid.SetColumn(delBtn, 3);
+        grid.Children.Add(delBtn);
 
         row.Child = grid;
         return row;
