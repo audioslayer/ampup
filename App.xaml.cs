@@ -1717,19 +1717,25 @@ public partial class App : Application
                     }
 
                     int folderLocalIdx = N3DisplayKeyBase + (_config.N3.CurrentPage * 6) + (e.Index - 1);
+                    PreresolveLcdButton(folderLocalIdx);
                     HandleN3VirtualButton(folderLocalIdx, e.IsPressed == true);
                     break;
                 }
 
                 int pagedIdx = N3DisplayKeyBase + (_config.N3.CurrentPage * 6) + e.Index;
+                PreresolveLcdButton(pagedIdx);
                 HandleN3VirtualButton(pagedIdx, e.IsPressed == true);
                 break;
 
             case N3InputKind.SideButton:
+                // Drop any stale LCD pre-resolution at this idx so the gesture
+                // engine's timers for side-button presses resolve globally.
+                _n3ButtonOverride.Remove(N3SideButtonBase + e.Index);
                 HandleN3VirtualButton(N3SideButtonBase + e.Index, e.IsPressed == true);
                 break;
 
             case N3InputKind.EncoderPress:
+                _n3ButtonOverride.Remove(N3EncoderPressBase + e.Index);
                 HandleN3VirtualButton(N3EncoderPressBase + e.Index, e.IsPressed == true);
                 break;
         }
@@ -2337,16 +2343,44 @@ public partial class App : Application
     /// Folder-aware button resolver for the gesture engine. When inside a
     /// folder, any N3 button idx resolves to the folder's own ButtonConfig list.
     /// </summary>
+    // Idx-collision workaround: LCD keys on page 1 of a folder produce idx
+    // 106-111, which also belongs to the physical side buttons + encoder
+    // presses. Dispatch knows which kind fired; the gesture engine's async
+    // timers don't. So the dispatcher pre-resolves the ButtonConfig for LCD
+    // presses and stashes it here — the resolver uses the stash when
+    // present, side/encoder paths clear it before firing so they fall
+    // through to the global root bindings.
+    private readonly Dictionary<int, ButtonConfig> _n3ButtonOverride = new();
+
+    private void PreresolveLcdButton(int idx)
+    {
+        if (_config == null) return;
+        ButtonConfig? btn;
+        if (IsInFolder)
+        {
+            var folder = _config.N3.Folders.FirstOrDefault(f => f.Name == _currentN3Folder);
+            btn = folder?.Buttons.FirstOrDefault(b => b.Idx == idx);
+        }
+        else
+        {
+            btn = _config.N3.Buttons.FirstOrDefault(b => b.Idx == idx);
+        }
+        if (btn != null) _n3ButtonOverride[idx] = btn;
+        else _n3ButtonOverride.Remove(idx);
+    }
+
     private ButtonConfig? ResolveN3ButtonForGestureEngine(int idx)
     {
-        // Side buttons (106-108) and encoder presses (109-111) are always
-        // global — their idx range collides with page-1 LCD keys in a
-        // folder (100 + 1*6 + 0..5 = 106-111), and since the gesture engine
-        // gets a bare idx with no "kind" tag we'd otherwise grab the wrong
-        // button config while inside a folder. This breaks page-1 LCD keys
-        // inside multi-page folders (they silently run the side-button
-        // config) — tracked as a known limitation; proper fix is a
-        // dedicated idx range for side/encoder buttons.
+        // Prefer the dispatcher's pre-resolved config — it knew the input kind.
+        // Cleared/overwritten on every new press at this idx so stale entries
+        // don't leak into a side/encoder press that follows.
+        if (_n3ButtonOverride.TryGetValue(idx, out var pre))
+            return pre;
+
+        // Side buttons (106-108) and encoder presses (109-111) fall through
+        // to the root bindings when no LCD pre-resolution is present for
+        // their idx. Pre-resolution is what fixes the page-1 folder LCD
+        // collision without breaking global side/encoder behavior.
         if (idx >= N3SideButtonBase && idx <= N3EncoderPressBase + 2)
             return _config?.N3.Buttons.FirstOrDefault(b => b.Idx == idx);
 
