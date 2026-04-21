@@ -150,7 +150,12 @@ public partial class ButtonsView
         ShowInner(_scMultiActionPanel);
         ShowInner(_scFolderPanel);
 
-        var action = GetComboActionValue(_scActionPicker);
+        // Prefer the V2 picker — it's the source of truth for whichever
+        // gesture is currently being edited. The legacy _scActionPicker is
+        // only synced on the Tap gesture, so reading it on Double/Hold
+        // would show the wrong sub-option cards (path / folder / etc.).
+        var action = _v2ActionPicker?.SelectedValue;
+        if (string.IsNullOrEmpty(action)) action = GetComboActionValue(_scActionPicker);
 
         bool needsPath = PathActions.Contains(action)
             || action is "ha_service" or "govee_color" or "obs_scene" or "obs_mute"

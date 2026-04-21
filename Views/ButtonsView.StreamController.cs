@@ -1867,13 +1867,13 @@ public partial class ButtonsView
         // Govee picker selection happens AFTER UpdateStreamControllerActionVisibility
         // below — that method calls RefreshGoveePickerItems which clears + refills
         // the picker and would otherwise wipe a selection we set here.
-        string? pendingGoveeIp = (button.Action is "govee_toggle" or "govee_white_toggle" or "govee_color"
-                                   && !string.IsNullOrEmpty(button.Path))
-            ? (button.Path.Contains('|') ? button.Path.Split('|')[0] : button.Path)
+        string? pendingGoveeIp = (gAction is "govee_toggle" or "govee_white_toggle" or "govee_color"
+                                   && !string.IsNullOrEmpty(gPath))
+            ? (gPath.Contains('|') ? gPath.Split('|')[0] : gPath)
             : null;
 
-        string? pendingRoomEffect = (button.Action == "room_effect" && !string.IsNullOrEmpty(button.Path))
-            ? button.Path : null;
+        string? pendingRoomEffect = (gAction == "room_effect" && !string.IsNullOrEmpty(gPath))
+            ? gPath : null;
 
         // Load Toggle (A/B) sub-actions
         if (_scToggleActionAPicker != null) SelectCombo(_scToggleActionAPicker, button.ToggleActionA);
@@ -1883,7 +1883,7 @@ public partial class ButtonsView
 
         // Folder picker selection happens after UpdateStreamControllerActionVisibility
         // below, once RefreshFolderPickerItems has populated it.
-        string? pendingFolderName = button.Action == "open_folder" ? button.FolderName : null;
+        string? pendingFolderName = gAction == "open_folder" ? button.FolderName : null;
 
         if (selection.DisplayIdx.HasValue)
         {
@@ -2140,11 +2140,16 @@ public partial class ButtonsView
             SetGesturePath(button, roomEffect);
         }
         SetGestureMacroKeys(button, GetTextBoxValue(_scMacroBox));
-        button.DeviceId = GetDeviceIdForAction(button.Action, _scActionPicker, _scDevicePicker);
-        button.ProfileName = button.Action == "switch_profile" ? (_scActionPicker.SelectedSubTag ?? "") : "";
+        // Checks against uiAction (the gesture-selected action) so options
+        // that feed sub-pickers save correctly whether the user is on
+        // Tap / Double / Hold.
+        button.DeviceId = GetDeviceIdForAction(uiAction, _scActionPicker, _scDevicePicker);
+        button.ProfileName = uiAction == "switch_profile" ? (_scActionPicker.SelectedSubTag ?? "") : "";
         button.LinkedKnobIdx = int.TryParse(_scKnobPicker.SelectedTag as string, out var linked) ? linked : -1;
-        // Preserve folder linkage for open_folder
-        if (button.Action == "open_folder" && _scFolderPicker != null)
+        // Preserve folder linkage for open_folder. FolderName is a single
+        // field shared across gestures — setting it from any gesture's
+        // UI overwrites; acceptable limitation for the first pass.
+        if (uiAction == "open_folder" && _scFolderPicker != null)
             button.FolderName = _scFolderPicker.SelectedTag as string ?? button.FolderName;
 
         var display = GetSelectedDisplayKeyConfig();
