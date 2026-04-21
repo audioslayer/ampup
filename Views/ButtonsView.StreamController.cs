@@ -1884,7 +1884,17 @@ public partial class ButtonsView
 
         UpdateStreamControllerActionVisibility();
 
-        // Apply pending folder selection now that the picker is populated.
+        RefreshStreamControllerSelectionVisuals();
+
+        // V2 panels (owned by parallel-agent files) mirror the selection + visibility state.
+        RefreshV2LeftPanel();
+        RefreshV2RightPanel();
+        RefreshV2ActionFieldsVisibility();
+
+        // Pending selections must be applied AFTER every refresh call that
+        // might Clear+AddItem the pickers. Both UpdateStreamControllerActionVisibility
+        // and RefreshV2ActionFieldsVisibility call RefreshFolderPickerItems /
+        // RefreshGoveePickerItems, so applying earlier loses the selection.
         if (_scFolderPicker != null && pendingFolderName != null)
         {
             int foundIdx = -1;
@@ -1899,7 +1909,6 @@ public partial class ButtonsView
             _scFolderPicker.SelectedIndex = foundIdx;
         }
 
-        // Apply pending Govee device selection (same pattern as folder picker).
         if (_scGoveePicker != null && pendingGoveeIp != null)
         {
             int foundIdx = -1;
@@ -1913,13 +1922,6 @@ public partial class ButtonsView
             }
             _scGoveePicker.SelectedIndex = foundIdx;
         }
-
-        RefreshStreamControllerSelectionVisuals();
-
-        // V2 panels (owned by parallel-agent files) mirror the selection + visibility state.
-        RefreshV2LeftPanel();
-        RefreshV2RightPanel();
-        RefreshV2ActionFieldsVisibility();
     }
 
     private void UpdateStreamControllerActionVisibility()
