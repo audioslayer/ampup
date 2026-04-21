@@ -163,6 +163,7 @@ public partial class SettingsView : UserControl
 
         // Spotify
         TxtSpotifyClientId.TextChanged += OnValueChanged;
+        BtnSpotifySetupGuide.Click += OnSpotifySetupGuide;
         BtnSpotifyConnect.Click += OnSpotifyConnect;
         BtnSpotifyDisconnect.Click += OnSpotifyDisconnect;
 
@@ -1217,6 +1218,25 @@ public partial class SettingsView : UserControl
     }
 
     // ── Spotify ────────────────────────────────────────────────────────
+
+    private async void OnSpotifySetupGuide(object sender, RoutedEventArgs e)
+    {
+        if (_config == null) return;
+        var guide = new AmpUp.Controls.SpotifySetupGuide
+        {
+            Owner = Window.GetWindow(this),
+        };
+        var ok = guide.ShowDialog();
+        if (ok != true || !guide.WasSuccessful) return;
+
+        // Push the pasted Client ID into the field + config, then kick
+        // straight into Connect so the user doesn't have to press another
+        // button. Most of the time the guide is the Connect flow.
+        TxtSpotifyClientId.Text = guide.ClientId;
+        _config.Spotify.ClientId = guide.ClientId;
+        _onSave?.Invoke(_config);
+        OnSpotifyConnect(this, e);
+    }
 
     private async void OnSpotifyConnect(object sender, RoutedEventArgs e)
     {

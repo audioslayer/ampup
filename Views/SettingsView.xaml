@@ -502,21 +502,29 @@
                                 <TextBlock x:Name="TxtSpotifyStatus" Text="Not connected"
                                            Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
                             </StackPanel>
-                            <TextBlock Text="Create a Spotify app at developer.spotify.com, set Redirect URI to http://127.0.0.1:5543/callback, then paste your Client ID below and click Connect."
+                            <TextBlock Text="Control playback, show the album art on an LCD key, like tracks, shuffle — all powered by your own Spotify app."
                                        Style="{StaticResource SecondaryText}" FontSize="11"
-                                       TextWrapping="Wrap" Margin="0,0,0,6" />
-                            <TextBlock Text="Client ID" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
-                            <TextBox x:Name="TxtSpotifyClientId"
-                                     Background="{DynamicResource InputBgBrush}"
-                                     Foreground="{DynamicResource TextPrimaryBrush}"
-                                     BorderBrush="{DynamicResource InputBorderBrush}"
-                                     Padding="8,4" Margin="0,0,0,8" />
-                            <StackPanel Orientation="Horizontal">
-                                <ui:Button x:Name="BtnSpotifyConnect" Content="Connect"
+                                       TextWrapping="Wrap" Margin="0,0,0,10" />
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <ui:Button x:Name="BtnSpotifySetupGuide" Content="Setup Guide"
                                            Appearance="Primary" Margin="0,0,8,0" />
+                                <ui:Button x:Name="BtnSpotifyConnect" Content="Connect"
+                                           Appearance="Secondary" Margin="0,0,8,0" />
                                 <ui:Button x:Name="BtnSpotifyDisconnect" Content="Disconnect"
                                            Appearance="Secondary" IsEnabled="False" />
                             </StackPanel>
+                            <Expander Header="Advanced — paste a Client ID directly"
+                                      Foreground="{DynamicResource TextDimBrush}"
+                                      Margin="0,4,0,0" FontSize="11">
+                                <StackPanel Margin="0,8,0,0">
+                                    <TextBlock Text="Client ID" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
+                                    <TextBox x:Name="TxtSpotifyClientId"
+                                             Background="{DynamicResource InputBgBrush}"
+                                             Foreground="{DynamicResource TextPrimaryBrush}"
+                                             BorderBrush="{DynamicResource InputBorderBrush}"
+                                             Padding="8,4" />
+                                </StackPanel>
+                            </Expander>
                         </StackPanel>
                     </Border>
 
