@@ -19,6 +19,7 @@ public partial class MixerView
     private readonly WrapPanel[] _scAppsListPanels = new WrapPanel[ScChannelCount];
     private readonly RangeSlider[] _scRangeSliders = new RangeSlider[ScChannelCount];
     private readonly StyledSlider[] _scSensitivitySliders = new StyledSlider[ScChannelCount];
+    private readonly ChannelGlowControl[] _scGlows = new ChannelGlowControl[ScChannelCount];
     private readonly Color[] _scDisplayedColors = new Color[ScChannelCount];
     private bool _scBuilt;
 
@@ -59,17 +60,28 @@ public partial class MixerView
             int idx = i;
 
             // ── Strip card (knob, label, vol%) ─────────────────────────
+            // ClipToBounds keeps the radial glow inside the rounded card;
+            // padding moves to the inner StackPanel so the glow can fill edge-to-edge.
             var stripCard = new Border
             {
                 CornerRadius = new CornerRadius(10),
                 BorderThickness = new Thickness(1),
-                Padding = new Thickness(10, 12, 10, 12),
+                Padding = new Thickness(0),
                 Margin = new Thickness(i == 0 ? 0 : 4, 0, i == ScChannelCount - 1 ? 0 : 4, 10),
+                ClipToBounds = true,
             };
             stripCard.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
             stripCard.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
-            var stripStack = new StackPanel();
+            // Ambient audio-reactive glow layered behind the strip content.
+            // Mirrors the Turn Up mixer — tinted to the LED color, pulses on peak.
+            var stripLayers = new Grid();
+            var glow = new ChannelGlowControl();
+            stripLayers.Children.Add(glow);
+            _scGlows[i] = glow;
+
+            var stripStack = new StackPanel { Margin = new Thickness(10, 12, 10, 12) };
+            stripLayers.Children.Add(stripStack);
 
             var label = new TextBox
             {
@@ -158,7 +170,7 @@ public partial class MixerView
             _scTargetDisplays[i] = targetDisplay;
             stripStack.Children.Add(targetDisplay);
 
-            stripCard.Child = stripStack;
+            stripCard.Child = stripLayers;
             Grid.SetRow(stripCard, 0);
             Grid.SetColumn(stripCard, i);
             grid.Children.Add(stripCard);
@@ -488,6 +500,10 @@ public partial class MixerView
                 _scVuMeters[i].Level = peak;
                 _scVuMeters[i].Tick();
 
+                // Ambient glow pulse — same audio-reactive effect as Turn Up mixer.
+                _scGlows[i]?.SetLevel(peak);
+                _scGlows[i]?.Tick();
+
                 // Tint to match Light color for the corresponding index
                 var light = _config.Lights.FirstOrDefault(l => l.Idx == i);
                 if (light != null)
@@ -507,6 +523,7 @@ public partial class MixerView
                         _scDisplayedColors[i] = color;
                         _scKnobs[i].ArcColor = color;
                         _scVuMeters[i].BarColor = color;
+                        if (_scGlows[i] != null) _scGlows[i].GlowColor = color;
                         var brush = new SolidColorBrush(color);
                         brush.Freeze();
                         _scVolLabels[i].Foreground = brush;
