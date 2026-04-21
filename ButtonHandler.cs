@@ -289,9 +289,10 @@ public class ButtonHandler : IDisposable
                         OnGroupToggle?.Invoke(path);
                     break;
                 case "govee_toggle":
-                    // path = device IP
+                    // path = device IP (LAN) OR "cloud:<deviceId>" for cloud-only
+                    // devices that Govee doesn't expose on LAN (e.g. H604C G1S Pro).
                     if (!string.IsNullOrEmpty(path))
-                        _ = AmbienceSync.SendToggleAsync(path);
+                        _ = GoveeToggleAsync(path);
                     break;
                 case "quick_wheel":
                     // Fired by gesture engine (hold gesture) — open the radial wheel
@@ -486,6 +487,46 @@ public class ButtonHandler : IDisposable
             System.Windows.Forms.Clipboard.SetImage(bmp);
         }
         catch (Exception ex) { Logger.Log($"screenshot error: {ex.Message}"); }
+    }
+
+    // ── Govee on/off toggle (LAN or Cloud) ─────────────────────────────
+
+    /// <summary>
+    /// Toggle a Govee device on/off. Path is either a raw IP (LAN sync) or
+    /// "cloud:&lt;deviceId&gt;" for devices Govee blocks from LAN control (e.g.
+    /// DreamView G1S Pro / H604C — confirmed by Govee support). Cloud path
+    /// looks up the matching config entry for SKU + current PoweredOn
+    /// state, flips it via the REST API, and persists the new state.
+    /// </summary>
+    private async Task GoveeToggleAsync(string path)
+    {
+        try
+        {
+            if (path.StartsWith("cloud:", StringComparison.OrdinalIgnoreCase))
+            {
+                if (_lastConfig == null) return;
+                var apiKey = _lastConfig.Ambience.GoveeApiKey;
+                if (string.IsNullOrWhiteSpace(apiKey)) return;
+
+                var deviceId = path.Substring("cloud:".Length);
+                var dev = _lastConfig.Ambience.GoveeDevices
+                    .FirstOrDefault(d => d.DeviceId == deviceId);
+                if (dev == null || string.IsNullOrEmpty(dev.Sku)) return;
+
+                bool newState = !dev.PoweredOn;
+                using var api = new GoveeCloudApi(apiKey);
+                await api.ControlDeviceAsync(deviceId, dev.Sku,
+                    GoveeCloudApi.TurnOnOff(newState));
+                dev.PoweredOn = newState;
+                return;
+            }
+
+            await AmbienceSync.SendToggleAsync(path);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"govee_toggle error: {ex.Message}");
+        }
     }
 
     // ── Govee white toggle ─────────────────────────────────────────────

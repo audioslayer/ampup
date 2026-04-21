@@ -1380,13 +1380,18 @@ public partial class RoomView : UserControl
             foreach (var govDev in _config.Ambience.GoveeDevices)
             {
                 bool hasLan = !string.IsNullOrWhiteSpace(govDev.Ip);
-                if (!hasLan) continue;
+                bool hasCloud = !hasLan
+                                && !string.IsNullOrWhiteSpace(govDev.DeviceId)
+                                && !string.IsNullOrWhiteSpace(govDev.Sku);
+                if (!hasLan && !hasCloud) continue;
                 var devConfig = govDev;
 
                 var devRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
 
                 // Device name
-                var displayName = !string.IsNullOrWhiteSpace(govDev.Name) ? govDev.Name : govDev.Ip;
+                var displayName = !string.IsNullOrWhiteSpace(govDev.Name)
+                    ? govDev.Name
+                    : (hasLan ? govDev.Ip : govDev.DeviceId);
                 devRow.Children.Add(new TextBlock
                 {
                     Text = displayName,
@@ -1397,7 +1402,30 @@ public partial class RoomView : UserControl
                     Margin = new Thickness(0, 0, 12, 0),
                 });
 
-                // On/Off
+                // "API" badge for cloud-only devices (H604C G1S Pro etc. — Govee
+                // blocks LAN control on camera-equipped SKUs).
+                if (hasCloud)
+                {
+                    devRow.Children.Add(new Border
+                    {
+                        Background = new SolidColorBrush(Color.FromArgb(0x33, 0x42, 0xA5, 0xF5)),
+                        BorderBrush = new SolidColorBrush(Color.FromRgb(0x42, 0xA5, 0xF5)),
+                        BorderThickness = new Thickness(1),
+                        CornerRadius = new CornerRadius(4),
+                        Padding = new Thickness(6, 1, 6, 1),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(0, 0, 10, 0),
+                        Child = new TextBlock
+                        {
+                            Text = "API",
+                            FontSize = 9,
+                            FontWeight = FontWeights.Bold,
+                            Foreground = new SolidColorBrush(Color.FromRgb(0x42, 0xA5, 0xF5)),
+                        },
+                    });
+                }
+
+                // On/Off — LAN uses AmbienceSync, cloud-only falls back to Cloud API.
                 var onOff = new CheckBox
                 {
                     Content = "On", FontSize = 11,
@@ -1412,22 +1440,46 @@ public partial class RoomView : UserControl
                 {
                     if (_loading || _config == null) return;
                     capturedDev.PoweredOn = true;
-                    AmbienceSync.PauseSync(capturedIp, 5);
-                    await AmbienceSync.SendTurnAsync(capturedIp, true);
-                    await Task.Delay(150);
+                    if (hasLan)
+                    {
+                        AmbienceSync.PauseSync(capturedIp, 5);
+                        await AmbienceSync.SendTurnAsync(capturedIp, true);
+                        await Task.Delay(150);
+                    }
+                    else if (_cloudApi != null)
+                    {
+                        await _cloudApi.ControlDeviceAsync(capturedDev.DeviceId, capturedDev.Sku,
+                            GoveeCloudApi.TurnOnOff(true));
+                    }
                     QueueSave();
                 };
                 onOff.Unchecked += async (_, _) =>
                 {
                     if (_loading || _config == null) return;
                     capturedDev.PoweredOn = false;
-                    AmbienceSync.PauseSync(capturedIp, 5);
-                    await AmbienceSync.SendTurnAsync(capturedIp, false);
+                    if (hasLan)
+                    {
+                        AmbienceSync.PauseSync(capturedIp, 5);
+                        await AmbienceSync.SendTurnAsync(capturedIp, false);
+                    }
+                    else if (_cloudApi != null)
+                    {
+                        await _cloudApi.ControlDeviceAsync(capturedDev.DeviceId, capturedDev.Sku,
+                            GoveeCloudApi.TurnOnOff(false));
+                    }
                     QueueSave();
                 };
                 devRow.Children.Add(onOff);
 
-                // Brightness slider
+                // Cloud-only rows stop here — brightness/segment streaming isn't
+                // viable via the REST API (100 req/min cap).
+                if (!hasLan)
+                {
+                    goveeChildren.Add(devRow);
+                    continue;
+                }
+
+                // Brightness slider (LAN only)
                 var brightSlider = new StyledSlider
                 {
                     Minimum = 1, Maximum = 100,

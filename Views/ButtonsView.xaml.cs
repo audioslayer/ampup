@@ -2153,26 +2153,45 @@ public partial class ButtonsView : UserControl
     private List<ActionPicker.SubItem> GetGoveeSubItems()
     {
         if (_config == null || !_config.Ambience.GoveeEnabled) return new();
-        return _config.Ambience.GoveeDevices
-            .Where(d => !string.IsNullOrWhiteSpace(d.Ip))
-            .Select(d =>
+
+        var items = new List<ActionPicker.SubItem>();
+
+        foreach (var d in _config.Ambience.GoveeDevices)
+        {
+            bool hasLan = !string.IsNullOrWhiteSpace(d.Ip);
+            bool hasCloud = !hasLan && !string.IsNullOrWhiteSpace(d.DeviceId) && !string.IsNullOrWhiteSpace(d.Sku);
+            if (!hasLan && !hasCloud) continue;
+
+            var nameIsIp = d.Name == d.Ip || System.Net.IPAddress.TryParse(d.Name, out _);
+            var displayName = !string.IsNullOrWhiteSpace(d.Name) && !nameIsIp ? d.Name
+                : !string.IsNullOrEmpty(d.Sku) ? AmbienceSync.GetProductName(d.Sku)
+                : (hasLan ? d.Ip : d.DeviceId);
+
+            if (hasLan)
             {
-                var nameIsIp = d.Name == d.Ip || System.Net.IPAddress.TryParse(d.Name, out _);
-                var displayName = !string.IsNullOrWhiteSpace(d.Name) && !nameIsIp ? d.Name
-                    : !string.IsNullOrEmpty(d.Sku) ? AmbienceSync.GetProductName(d.Sku)
-                    : d.Ip;
-                return new ActionPicker.SubItem($"{displayName} ({d.Ip})", d.Ip, "◈", Color.FromRgb(0x66, 0xBB, 0x6A));
-            })
-            .ToList();
+                items.Add(new ActionPicker.SubItem($"{displayName} ({d.Ip})", d.Ip, "\u25C8", Color.FromRgb(0x66, 0xBB, 0x6A)));
+            }
+            else
+            {
+                // Cloud-only devices (e.g. H604C G1S Pro) — tag with cloud: prefix
+                // so ButtonHandler routes through the Cloud API instead of LAN UDP.
+                items.Add(new ActionPicker.SubItem($"{displayName} (API)", $"cloud:{d.DeviceId}", "\u25C8", Color.FromRgb(0x42, 0xA5, 0xF5)));
+            }
+        }
+
+        return items;
     }
 
     private void SelectGoveeSubTag(ActionPicker picker, string action, string path)
     {
         if (action is not ("govee_toggle" or "govee_color" or "govee_white_toggle") || string.IsNullOrEmpty(path))
             return;
-        // path may be "ip" or "ip|hexcolor" — extract IP
-        var ip = path.Contains('|') ? path.Split('|')[0] : path;
-        picker.SelectWithSub(action, ip);
+        // path variants:
+        //   "ip"           LAN
+        //   "ip|hexcolor"  LAN (govee_color)
+        //   "cloud:<id>"   Cloud API
+        string tag = path.Contains('|') ? path.Split('|')[0] : path;
+        picker.SelectWithSub(action, tag);
     }
 
     private void SelectGroupSubTag(ActionPicker picker, string action, string path)

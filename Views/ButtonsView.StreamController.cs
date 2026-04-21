@@ -1237,9 +1237,21 @@ public partial class ButtonsView
         _scGoveePicker.ClearItems();
         foreach (var dev in _config.Ambience.GoveeDevices)
         {
-            if (string.IsNullOrWhiteSpace(dev.Ip)) continue;
-            var label = string.IsNullOrWhiteSpace(dev.Name) ? dev.Ip : $"{dev.Name} ({dev.Ip})";
-            _scGoveePicker.AddItem(label, dev.Ip);
+            bool hasLan = !string.IsNullOrWhiteSpace(dev.Ip);
+            bool hasCloud = !hasLan && !string.IsNullOrWhiteSpace(dev.DeviceId) && !string.IsNullOrWhiteSpace(dev.Sku);
+            if (!hasLan && !hasCloud) continue;
+
+            if (hasLan)
+            {
+                var label = string.IsNullOrWhiteSpace(dev.Name) ? dev.Ip : $"{dev.Name} ({dev.Ip})";
+                _scGoveePicker.AddItem(label, dev.Ip);
+            }
+            else
+            {
+                // Cloud-only (e.g. H604C) — tag stored as cloud:<deviceId>.
+                var friendly = !string.IsNullOrWhiteSpace(dev.Name) ? dev.Name : dev.DeviceId;
+                _scGoveePicker.AddItem($"{friendly} (API)", $"cloud:{dev.DeviceId}");
+            }
         }
     }
 
