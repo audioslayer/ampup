@@ -65,6 +65,8 @@ public class ButtonHandler : IDisposable
 
     /// <summary>Fires when room_toggle action is triggered — toggle all room lights.</summary>
     public event Action? OnRoomToggle;
+    /// <summary>Fires when room_effect action is triggered — set the active room effect by name (LightEffect enum string).</summary>
+    public event Action<string>? OnRoomEffectSet;
     /// <summary>Fires with group name when group_toggle action is triggered — toggle a device group.</summary>
     public event Action<string>? OnGroupToggle;
     /// <summary>Fires with button index when quick_wheel is triggered.</summary>
@@ -266,6 +268,11 @@ public class ButtonHandler : IDisposable
                         }
                     }
                     break;
+                case "room_effect":
+                    // path = LightEffect name (e.g. "Fire", "Ocean", "Aurora")
+                    if (!string.IsNullOrEmpty(path))
+                        OnRoomEffectSet?.Invoke(path);
+                    break;
                 case "room_toggle":
                     // Toggle ALL room lights (Govee + Corsair) on/off
                     OnRoomToggle?.Invoke();
@@ -364,8 +371,11 @@ public class ButtonHandler : IDisposable
                         RunToggleAction(btn);
                     break;
                 case "open_folder":
-                    if (!string.IsNullOrEmpty(btn?.FolderName))
-                        OnOpenFolder?.Invoke(btn.FolderName);
+                    // Empty FolderName is a valid target — means "go Home".
+                    // The user can explicitly bind a key to return to Home
+                    // after removing the auto Back key via the Spaces list.
+                    if (btn != null)
+                        OnOpenFolder?.Invoke(btn.FolderName ?? "");
                     break;
                 case "open_url":
                     OpenUrl(path);

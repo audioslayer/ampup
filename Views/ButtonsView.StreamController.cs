@@ -70,6 +70,8 @@ public partial class ButtonsView
     private ListPicker? _scDevicePicker;
     private StackPanel? _scGoveePanel;
     private ListPicker? _scGoveePicker;
+    private StackPanel? _scRoomEffectPanel;
+    private ListPicker? _scRoomEffectPicker;
     private StackPanel? _scDevicePanel;
     private ListPicker? _scKnobPicker;
     private StackPanel? _scKnobPanel;
@@ -753,6 +755,7 @@ public partial class ButtonsView
         _scScreenshotInfoPanel = MakeStreamScreenshotInfo();
         (_scDevicePanel, _scDevicePicker) = MakeStreamDeviceRow();
         (_scGoveePanel, _scGoveePicker) = MakeStreamGoveeRow();
+        (_scRoomEffectPanel, _scRoomEffectPicker) = MakeStreamRoomEffectRow();
         (_scKnobPanel, _scKnobPicker) = MakeStreamKnobRow();
         _scTogglePanel = MakeStreamToggleRow();
         _scMultiActionPanel = MakeStreamMultiActionPanel();
@@ -764,6 +767,7 @@ public partial class ButtonsView
         _scActionTabContent.Children.Add(_scScreenshotInfoPanel);
         _scActionTabContent.Children.Add(_scDevicePanel);
         _scActionTabContent.Children.Add(_scGoveePanel);
+        _scActionTabContent.Children.Add(_scRoomEffectPanel);
         _scActionTabContent.Children.Add(_scKnobPanel);
         _scActionTabContent.Children.Add(_scTogglePanel);
         _scActionTabContent.Children.Add(_scMultiActionPanel);
@@ -1239,6 +1243,41 @@ public partial class ButtonsView
         }
     }
 
+    /// <summary>
+    /// Room effect picker for the "room_effect" action. Selection saves
+    /// the LightEffect enum name into <c>ButtonConfig.Path</c>.
+    /// </summary>
+    private (StackPanel panel, ListPicker picker) MakeStreamRoomEffectRow()
+    {
+        var panel = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 10, 0, 0) };
+        panel.Children.Add(MakeEditorLabel("ROOM EFFECT"));
+        var picker = new ListPicker();
+        picker.SelectionChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            if (picker.SelectedIndex < 0 || picker.SelectedTag is not string effect
+                || string.IsNullOrEmpty(effect)) return;
+            bool isN3PagedKey = _scSelectedButtonIdx >= StreamControllerDisplayKeyBase
+                                && _scSelectedButtonIdx < StreamControllerSideButtonBase;
+            var list = isN3PagedKey ? GetActiveN3ButtonList() : _config.N3.Buttons;
+            var btn = list.FirstOrDefault(b => b.Idx == _scSelectedButtonIdx);
+            if (btn == null) return;
+            btn.Path = effect;
+            QueueSave();
+        };
+        panel.Children.Add(picker);
+        return (panel, picker);
+    }
+
+    /// <summary>Re-populate the Room Effect picker with every LightEffect.</summary>
+    private void RefreshRoomEffectPickerItems()
+    {
+        if (_scRoomEffectPicker == null) return;
+        _scRoomEffectPicker.ClearItems();
+        foreach (var val in Enum.GetValues<LightEffect>())
+            _scRoomEffectPicker.AddItem(val.ToString(), val.ToString());
+    }
+
     private (StackPanel panel, ListPicker picker) MakeStreamKnobRow()
     {
         var panel = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 10, 0, 0) };
@@ -1260,12 +1299,10 @@ public partial class ButtonsView
         {
             if (_loading || _config == null) return;
             // Programmatic ClearItems fires SelectionChanged with
-            // SelectedIndex = -1 while the picker is being repopulated.
-            // Writing an empty FolderName here would wipe the user's
-            // previously saved folder — early-return so only real user
-            // picks (SelectedTag non-null) update the button config.
-            if (picker.SelectedIndex < 0 || picker.SelectedTag is not string folderName
-                || string.IsNullOrEmpty(folderName)) return;
+            // SelectedIndex = -1 while the picker is being repopulated —
+            // early-return so the reload doesn't wipe the user's folder.
+            // Empty SelectedTag IS a valid choice (== Home sentinel).
+            if (picker.SelectedIndex < 0 || picker.SelectedTag is not string folderName) return;
             // Side buttons / encoder presses live on the root list even when the
             // editor is navigated inside a folder — GetActiveN3ButtonList returns
             // the folder's list there and would miss them. Select the right list
@@ -1300,6 +1337,10 @@ public partial class ButtonsView
     {
         if (_scFolderPicker == null || _config == null) return;
         _scFolderPicker.ClearItems();
+        // Home sentinel — empty-string tag. Users removing the auto Back
+        // key still need a way to return Home, so Home is always first in
+        // the picker.
+        _scFolderPicker.AddItem("\uD83C\uDFE0  Home", "");
         foreach (var folder in _config.N3.Folders)
         {
             if (!string.IsNullOrEmpty(folder.Name))
@@ -1795,6 +1836,9 @@ public partial class ButtonsView
             ? (button.Path.Contains('|') ? button.Path.Split('|')[0] : button.Path)
             : null;
 
+        string? pendingRoomEffect = (button.Action == "room_effect" && !string.IsNullOrEmpty(button.Path))
+            ? button.Path : null;
+
         // Load Toggle (A/B) sub-actions
         if (_scToggleActionAPicker != null) SelectCombo(_scToggleActionAPicker, button.ToggleActionA);
         if (_scToggleActionBPicker != null) SelectCombo(_scToggleActionBPicker, button.ToggleActionB);
@@ -1922,6 +1966,20 @@ public partial class ButtonsView
             }
             _scGoveePicker.SelectedIndex = foundIdx;
         }
+
+        if (_scRoomEffectPicker != null && pendingRoomEffect != null)
+        {
+            int foundIdx = -1;
+            for (int i = 0; i < _scRoomEffectPicker.ItemCount; i++)
+            {
+                if (string.Equals(_scRoomEffectPicker.GetTagAt(i) as string, pendingRoomEffect, StringComparison.OrdinalIgnoreCase))
+                {
+                    foundIdx = i;
+                    break;
+                }
+            }
+            _scRoomEffectPicker.SelectedIndex = foundIdx;
+        }
     }
 
     private void UpdateStreamControllerActionVisibility()
@@ -1944,6 +2002,12 @@ public partial class ButtonsView
             bool showGovee = action is "govee_toggle" or "govee_white_toggle" or "govee_color";
             _scGoveePanel.Visibility = showGovee ? Visibility.Visible : Visibility.Collapsed;
             if (showGovee) RefreshGoveePickerItems();
+        }
+        if (_scRoomEffectPanel != null)
+        {
+            bool showRoom = action == "room_effect";
+            _scRoomEffectPanel.Visibility = showRoom ? Visibility.Visible : Visibility.Collapsed;
+            if (showRoom) RefreshRoomEffectPickerItems();
         }
         _scKnobPanel.Visibility = action == "mute_app_group" ? Visibility.Visible : Visibility.Collapsed;
         if (_scTogglePanel != null)

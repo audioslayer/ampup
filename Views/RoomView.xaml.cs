@@ -4723,6 +4723,20 @@ public partial class RoomView : UserControl
     /// Called when a device group is turned back on — restart room effect so lights resume
     /// the running effect instead of going to solid color.
     /// </summary>
+    /// <summary>
+    /// Public entry point used by button actions to set the active room
+    /// effect by name (LightEffect enum value as string). Persists the
+    /// choice to config.Ambience.RoomEffect so it survives restart.
+    /// </summary>
+    public void ApplyRoomEffect(string effectName)
+    {
+        if (_config == null || string.IsNullOrEmpty(effectName)) return;
+        _config.Ambience.RoomEffect = effectName;
+        _activePattern = effectName;
+        StartRoomPattern(effectName);
+        QueueSave();
+    }
+
     public void ResumeRoomEffect()
     {
         Dispatcher.BeginInvoke(() =>

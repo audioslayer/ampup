@@ -216,6 +216,7 @@ public partial class App : Application
         _buttons.OnQuickWheelOpen += HandleQuickWheelOpen;
         _buttons.OnQuickWheelClose += HandleQuickWheelClose;
         _buttons.OnRoomToggle += HandleRoomToggle;
+        _buttons.OnRoomEffectSet += HandleRoomEffectSet;
         _buttons.OnGroupToggle += HandleGroupToggle;
         _buttons.OnScPageChange += HandleScPageChange;
         _buttons.OnOpenFolder += NavigateToN3Folder;
@@ -2457,6 +2458,25 @@ public partial class App : Application
     }
 
     private bool _roomLightsOn = true;
+
+    /// <summary>
+    /// Button-fired "room_effect" action — switch the active room pattern
+    /// to the named LightEffect (e.g. "Fire", "Ocean"). Routes through the
+    /// Room view so the pattern engine + save path are identical to the
+    /// user clicking an effect tile there.
+    /// </summary>
+    private void HandleRoomEffectSet(string effectName)
+    {
+        if (string.IsNullOrEmpty(effectName) || _config == null) return;
+        Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                _mainWindow?.GetRoomView()?.ApplyRoomEffect(effectName);
+            }
+            catch (Exception ex) { Logger.Log($"HandleRoomEffectSet failed: {ex.Message}"); }
+        });
+    }
 
     private void HandleRoomToggle()
     {

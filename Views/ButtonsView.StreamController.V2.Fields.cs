@@ -24,6 +24,7 @@ public partial class ButtonsView
     private Border? _v2ScreenshotCard;
     private Border? _v2DeviceCard;
     private Border? _v2GoveeCard;
+    private Border? _v2RoomEffectCard;
     private Border? _v2KnobCard;
     private Border? _v2ToggleCard;
     private Border? _v2MultiActionCard;
@@ -66,6 +67,9 @@ public partial class ButtonsView
         // Govee device picker (govee_toggle / govee_white_toggle / govee_color)
         _v2GoveeCard = MakeV2SectionCard("GOVEE DEVICE", out _, _scGoveePanel);
         _v2ActionFieldsPanel.Children.Add(_v2GoveeCard);
+
+        _v2RoomEffectCard = MakeV2SectionCard("ROOM EFFECT", out _, _scRoomEffectPanel);
+        _v2ActionFieldsPanel.Children.Add(_v2RoomEffectCard);
 
         // 6. Linked Turn Up knob (mute_app_group).
         _v2KnobCard = MakeV2SectionCard("LINKED TURN UP KNOB", out _, _scKnobPanel);
@@ -142,6 +146,7 @@ public partial class ButtonsView
         ShowInner(_scScreenshotInfoPanel);
         ShowInner(_scDevicePanel);
         ShowInner(_scGoveePanel);
+        ShowInner(_scRoomEffectPanel);
         ShowInner(_scKnobPanel);
         ShowInner(_scTogglePanel);
         ShowInner(_scMultiActionPanel);
@@ -161,6 +166,8 @@ public partial class ButtonsView
         SetCardVisible(_v2GoveeCard, action is "govee_toggle" or "govee_white_toggle" or "govee_color");
         if (action is "govee_toggle" or "govee_white_toggle" or "govee_color")
             RefreshGoveePickerItems();
+        SetCardVisible(_v2RoomEffectCard, action == "room_effect");
+        if (action == "room_effect") RefreshRoomEffectPickerItems();
         SetCardVisible(_v2KnobCard, action == "mute_app_group");
         SetCardVisible(_v2ToggleCard, action == "toggle_action");
         SetCardVisible(_v2MultiActionCard, action == "multi_action");
