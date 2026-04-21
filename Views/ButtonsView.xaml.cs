@@ -40,6 +40,7 @@ public partial class ButtonsView : UserControl
         ("Room: Toggle All", "room_toggle"),
         ("Room: Set Effect", "room_effect"),
         ("Group: Toggle", "group_toggle"),
+        ("iCUE: Toggle Lights", "corsair_toggle"),
         ("Govee: Toggle", "govee_toggle"), ("Govee: Color", "govee_color"), ("Govee: White Toggle", "govee_white_toggle"),
         ("OBS: Record", "obs_record"), ("OBS: Stream", "obs_stream"),
         ("OBS: Scene", "obs_scene"), ("OBS: Mute", "obs_mute"),
@@ -76,6 +77,7 @@ public partial class ButtonsView : UserControl
         { "ha_toggle", "⚡" }, { "ha_scene", "🎬" }, { "ha_service", "⚙" },
         { "room_toggle", "💡" }, { "room_effect", "🎨" },
         { "group_toggle", "▣" },
+        { "corsair_toggle", "✦" },
         { "govee_toggle", "◈" }, { "govee_color", "◉" }, { "govee_white_toggle", "◇" },
         { "obs_record", "●" }, { "obs_stream", "◉" },
         { "obs_scene", "🎬" }, { "obs_mute", "🔇" },
@@ -122,6 +124,7 @@ public partial class ButtonsView : UserControl
         { "room_toggle",        Color.FromRgb(0x69, 0xF0, 0xAE) },
         { "room_effect",        Color.FromRgb(0xE8, 0x6F, 0xFF) },
         { "group_toggle",      Color.FromRgb(0x69, 0xF0, 0xAE) },
+        { "corsair_toggle",     Color.FromRgb(0xFF, 0xD5, 0x4F) },
         { "govee_toggle",       Color.FromRgb(0x66, 0xBB, 0x6A) },
         { "govee_color",        Color.FromRgb(0xAB, 0x47, 0xBC) },
         { "govee_white_toggle", Color.FromRgb(0xEE, 0xEE, 0xEE) },
@@ -1246,6 +1249,7 @@ public partial class ButtonsView : UserControl
         { "room_toggle",        "Toggle all room lights on/off (Govee + Corsair)" },
         { "room_effect",        "Switch the active room effect (Fire, Ocean, Aurora, etc.)" },
         { "group_toggle",      "Toggle a device group on/off" },
+        { "corsair_toggle",     "Toggle Corsair iCUE lights on/off (drives LEDs black when off)" },
         { "govee_toggle",       "Toggle a Govee device on/off via LAN" },
         { "govee_color",        "Set a Govee device to a specific color (enter hex in path, e.g. FF0080)" },
         { "govee_white_toggle", "Toggle white on/off — saves current color first, restores it on second press" },
@@ -1292,11 +1296,15 @@ public partial class ButtonsView : UserControl
         bool anyGroupConfigured = config.Buttons.Any(b =>
             b.Action == "group_toggle" || b.DoublePressAction == "group_toggle" || b.HoldAction == "group_toggle");
 
+        bool corsairEnabled = config.Corsair.Enabled;
+        bool anyCorsairConfigured = config.Buttons.Concat(config.N3.Buttons).Any(b =>
+            IsCorsairAction(b.Action) || IsCorsairAction(b.DoublePressAction) || IsCorsairAction(b.HoldAction));
+
         for (int i = 0; i < 5; i++)
         {
-            PopulateActionPicker(_tapCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured, obsEnabled, anyObsConfigured, vmEnabled, anyVmConfigured, groupsExist, anyGroupConfigured);
-            PopulateActionPicker(_dblCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured, obsEnabled, anyObsConfigured, vmEnabled, anyVmConfigured, groupsExist, anyGroupConfigured);
-            PopulateActionPicker(_holdCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured, obsEnabled, anyObsConfigured, vmEnabled, anyVmConfigured, groupsExist, anyGroupConfigured);
+            PopulateActionPicker(_tapCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured, obsEnabled, anyObsConfigured, vmEnabled, anyVmConfigured, groupsExist, anyGroupConfigured, corsairEnabled: corsairEnabled, anyCorsairConfigured: anyCorsairConfigured);
+            PopulateActionPicker(_dblCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured, obsEnabled, anyObsConfigured, vmEnabled, anyVmConfigured, groupsExist, anyGroupConfigured, corsairEnabled: corsairEnabled, anyCorsairConfigured: anyCorsairConfigured);
+            PopulateActionPicker(_holdCombos[i], haEnabled, anyHaConfigured, goveeEnabled, anyGoveeConfigured, obsEnabled, anyObsConfigured, vmEnabled, anyVmConfigured, groupsExist, anyGroupConfigured, corsairEnabled: corsairEnabled, anyCorsairConfigured: anyCorsairConfigured);
         }
 
         // Register sub-flyout providers
@@ -1346,6 +1354,9 @@ public partial class ButtonsView : UserControl
     private static bool IsVmAction(string? action)
         => action is "vm_mute_strip" or "vm_mute_bus";
 
+    private static bool IsCorsairAction(string? action)
+        => action is "corsair_toggle";
+
     // Category groupings for the action picker
     private static readonly (string Category, string[] Values)[] ActionCategories =
     {
@@ -1357,7 +1368,7 @@ public partial class ButtonsView : UserControl
         ("Advanced",        new[] { "multi_action", "toggle_action", "open_folder" }),
         ("Power",           new[] { "power_sleep", "power_lock", "power_off", "power_restart", "power_logoff", "power_hibernate" }),
         ("Room",            new[] { "room_toggle", "room_effect" }),
-        ("Integrations",    new[] { "group_toggle", "ha_toggle", "ha_scene", "ha_service", "govee_toggle", "govee_color", "govee_white_toggle", "obs_record", "obs_stream", "obs_scene", "obs_mute", "vm_mute_strip", "vm_mute_bus" }),
+        ("Integrations",    new[] { "group_toggle", "ha_toggle", "ha_scene", "ha_service", "corsair_toggle", "govee_toggle", "govee_color", "govee_white_toggle", "obs_record", "obs_stream", "obs_scene", "obs_mute", "vm_mute_strip", "vm_mute_bus" }),
         ("Stream Controller", new[] { "sc_page_next", "sc_page_prev", "sc_page_home", "sc_go_to_page" }),
     };
 
@@ -1367,7 +1378,7 @@ public partial class ButtonsView : UserControl
     private static bool IsScPageAction(string? action)
         => action is "sc_page_next" or "sc_page_prev" or "sc_page_home" or "sc_go_to_page";
 
-    private void PopulateActionPicker(ActionPicker picker, bool haEnabled, bool anyHaConfigured, bool goveeEnabled, bool anyGoveeConfigured, bool obsEnabled = false, bool anyObsConfigured = false, bool vmEnabled = false, bool anyVmConfigured = false, bool groupsExist = false, bool anyGroupConfigured = false, bool showScPageActions = false)
+    private void PopulateActionPicker(ActionPicker picker, bool haEnabled, bool anyHaConfigured, bool goveeEnabled, bool anyGoveeConfigured, bool obsEnabled = false, bool anyObsConfigured = false, bool vmEnabled = false, bool anyVmConfigured = false, bool groupsExist = false, bool anyGroupConfigured = false, bool showScPageActions = false, bool corsairEnabled = false, bool anyCorsairConfigured = false)
     {
         picker.ClearItems();
 
@@ -1384,6 +1395,7 @@ public partial class ButtonsView : UserControl
                 bool isGovee = IsGoveeAction(value);
                 bool isObs = IsObsAction(value);
                 bool isVm = IsVmAction(value);
+                bool isCorsair = IsCorsairAction(value);
                 bool isGroup = value == "group_toggle";
                 bool isScPage = IsScPageAction(value);
 
@@ -1391,6 +1403,7 @@ public partial class ButtonsView : UserControl
                 if (isGovee && !goveeEnabled && !anyGoveeConfigured) continue;
                 if (isObs && !obsEnabled && !anyObsConfigured) continue;
                 if (isVm && !vmEnabled && !anyVmConfigured) continue;
+                if (isCorsair && !corsairEnabled && !anyCorsairConfigured) continue;
                 if (isGroup && !groupsExist && !anyGroupConfigured) continue;
                 if (isScPage && !showScPageActions) continue;
 
@@ -1401,9 +1414,10 @@ public partial class ButtonsView : UserControl
                 if (isGovee && !goveeEnabled) displayName = $"{action.Display} (Govee disabled)";
                 if (isObs && !obsEnabled) displayName = $"{action.Display} (OBS disabled)";
                 if (isVm && !vmEnabled) displayName = $"{action.Display} (VM disabled)";
+                if (isCorsair && !corsairEnabled) displayName = $"{action.Display} (iCUE disabled)";
 
                 var icon = ActionIcons.GetValueOrDefault(value, "—");
-                var color = (isHa && !haEnabled) || (isGovee && !goveeEnabled) || (isObs && !obsEnabled) || (isVm && !vmEnabled)
+                var color = (isHa && !haEnabled) || (isGovee && !goveeEnabled) || (isObs && !obsEnabled) || (isVm && !vmEnabled) || (isCorsair && !corsairEnabled)
                     ? Color.FromRgb(0x55, 0x55, 0x55)
                     : ActionColors.GetValueOrDefault(value, Color.FromRgb(0x88, 0x88, 0x88));
                 var tooltip = ActionTooltips.GetValueOrDefault(value, action.Display);

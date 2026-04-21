@@ -216,6 +216,7 @@ public partial class App : Application
         _buttons.OnQuickWheelOpen += HandleQuickWheelOpen;
         _buttons.OnQuickWheelClose += HandleQuickWheelClose;
         _buttons.OnRoomToggle += HandleRoomToggle;
+        _buttons.OnCorsairToggle += HandleCorsairToggle;
         _buttons.OnRoomEffectSet += HandleRoomEffectSet;
         _buttons.OnGroupToggle += HandleGroupToggle;
         _buttons.OnScPageChange += HandleScPageChange;
@@ -2555,6 +2556,37 @@ public partial class App : Application
                 _config.Corsair.LightSyncMode = "static"; // prevent frames overwriting black
             }
         }
+    }
+
+    /// <summary>
+    /// Flip Corsair iCUE lights on/off. Mirrors the Corsair half of
+    /// room_toggle but standalone — drives LEDs to black on first press
+    /// and lets the normal sync frames resume on the next press. Also
+    /// flips config.Corsair.Enabled so the Settings UI stays truthful.
+    /// </summary>
+    private void HandleCorsairToggle()
+    {
+        if (_corsairSync == null) return;
+
+        bool turningOn = !_config.Corsair.Enabled;
+        _config.Corsair.Enabled = turningOn;
+
+        if (turningOn)
+        {
+            _corsairSync.Resume();
+            // Restore the last meaningful sync mode; "off" would silently
+            // keep the LEDs dark, which defeats the toggle.
+            if (_config.Corsair.LightSyncMode == "off" || string.IsNullOrEmpty(_config.Corsair.LightSyncMode))
+                _config.Corsair.LightSyncMode = "vu_reactive";
+        }
+        else
+        {
+            _ = _corsairSync.SetStaticColorAllAsync(0, 0, 0);
+            _config.Corsair.LightSyncMode = "static"; // prevent frames overwriting black
+            _corsairSync.Stop();
+        }
+
+        ConfigManager.Save(_config);
     }
 
     private readonly Dictionary<string, bool> _groupStates = new();

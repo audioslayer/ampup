@@ -29,6 +29,7 @@ public class BindingsView : UserControl
         { "power_restart", "🔄" }, { "power_logoff", "🚪" }, { "power_hibernate", "❄" },
         { "ha_toggle", "⚡" }, { "ha_scene", "🎬" }, { "ha_service", "⚙" },
         { "group_toggle", "▣" },
+        { "corsair_toggle", "✦" },
         { "vm_mute_strip", "🔇" }, { "vm_mute_bus", "🔇" },
     };
 
@@ -63,6 +64,7 @@ public class BindingsView : UserControl
         { "ha_scene",           Color.FromRgb(0xFF, 0xA7, 0x26) },
         { "ha_service",         Color.FromRgb(0xAB, 0x47, 0xBC) },
         { "group_toggle",      Color.FromRgb(0x69, 0xF0, 0xAE) },
+        { "corsair_toggle",     Color.FromRgb(0xFF, 0xD5, 0x4F) },
         { "vm_mute_strip",      Color.FromRgb(0xFF, 0x8F, 0x00) },
         { "vm_mute_bus",        Color.FromRgb(0xFF, 0x8F, 0x00) },
     };
@@ -81,6 +83,7 @@ public class BindingsView : UserControl
         { "power_sleep", "Sleep" }, { "power_lock", "Lock" }, { "power_off", "Off" },
         { "power_restart", "Restart" }, { "power_logoff", "Logoff" }, { "power_hibernate", "Hibernate" },
         { "ha_toggle", "HA Toggle" }, { "ha_scene", "HA Scene" }, { "ha_service", "HA Service" },
+        { "corsair_toggle", "iCUE Toggle" },
         { "vm_mute_strip", "VM Mute Strip" }, { "vm_mute_bus", "VM Mute Bus" },
     };
 

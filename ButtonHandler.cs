@@ -65,6 +65,8 @@ public class ButtonHandler : IDisposable
 
     /// <summary>Fires when room_toggle action is triggered — toggle all room lights.</summary>
     public event Action? OnRoomToggle;
+    /// <summary>Fires when corsair_toggle action is triggered — toggle Corsair iCUE lights on/off.</summary>
+    public event Action? OnCorsairToggle;
     /// <summary>Fires when room_effect action is triggered — set the active room effect by name (LightEffect enum string).</summary>
     public event Action<string>? OnRoomEffectSet;
     /// <summary>Fires with group name when group_toggle action is triggered — toggle a device group.</summary>
@@ -276,6 +278,10 @@ public class ButtonHandler : IDisposable
                 case "room_toggle":
                     // Toggle ALL room lights (Govee + Corsair) on/off
                     OnRoomToggle?.Invoke();
+                    break;
+                case "corsair_toggle":
+                    // Toggle Corsair iCUE lights on/off (flips config.Corsair.Enabled)
+                    OnCorsairToggle?.Invoke();
                     break;
                 case "group_toggle":
                     // path = group name
