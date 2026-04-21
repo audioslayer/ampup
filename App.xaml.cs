@@ -1776,7 +1776,10 @@ public partial class App : Application
             ? knob.LastRawValue
             : (int)Math.Round(StreamControllerKnobPositions[e.Index] * 1023f);
 
-        int step = Math.Clamp(_config.N3.EncoderStep, 1, 128);
+        // Per-encoder step (digital wheel). Falls back to the legacy global EncoderStep
+        // if the per-encoder field is somehow zero/negative (e.g. malformed config).
+        int step = knob.EncoderStep > 0 ? knob.EncoderStep : _config.N3.EncoderStep;
+        step = Math.Clamp(step, 1, 128);
         int next = Math.Clamp(current + (e.Delta * step), 0, 1023);
         StreamControllerKnobPositions[e.Index] = next / 1023f;
         ApplyKnobConfig(knob, next, N3KnobStateBase + e.Index, false);

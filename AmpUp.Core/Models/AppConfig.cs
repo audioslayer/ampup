@@ -104,6 +104,10 @@ public class KnobConfig
     public ResponseCurve Curve { get; set; } = ResponseCurve.Linear;
     public List<string> Apps { get; set; } = new();
     public int LastRawValue { get; set; } = -1; // -1 = never saved, skip startup restore
+    // Per-encoder step for digital infinite encoders (N3). Raw value change per detent
+    // out of 1023. Defaults to 32 (~3% per click) to match the legacy global default.
+    // Ignored for analog Turn Up knobs which always sweep the full ADC range.
+    public int EncoderStep { get; set; } = 32;
 }
 
 public enum ResponseCurve

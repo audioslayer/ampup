@@ -18,7 +18,7 @@ public partial class MixerView
     private readonly StackPanel[] _scAppsPanels = new StackPanel[ScChannelCount];
     private readonly WrapPanel[] _scAppsListPanels = new WrapPanel[ScChannelCount];
     private readonly RangeSlider[] _scRangeSliders = new RangeSlider[ScChannelCount];
-    private readonly CurvePickerControl[] _scCurvePickers = new CurvePickerControl[ScChannelCount];
+    private readonly StyledSlider[] _scSensitivitySliders = new StyledSlider[ScChannelCount];
     private readonly Color[] _scDisplayedColors = new Color[ScChannelCount];
     private bool _scBuilt;
 
@@ -203,23 +203,33 @@ public partial class MixerView
             Grid.SetColumn(targetCard, i);
             grid.Children.Add(targetCard);
 
-            // ── Curve picker card ──────────────────────────────────────
-            var curvePicker = new CurvePickerControl
+            // ── Sensitivity slider card ────────────────────────────────
+            // N3 encoders are digital infinite scrollers — what matters is
+            // how much volume change one detent produces. Slider value is
+            // displayed as "% per click" (1-13%) and stored as raw step
+            // (×10, clamped to 128). 3% per click ≈ legacy default.
+            var sensitivity = new StyledSlider
             {
-                Margin = new Thickness(0, 0, 0, 6),
-                ToolTip = "Linear: even response. Log: more sensitive at low volumes. Exp: more sensitive at high volumes",
+                Minimum = 1,
+                Maximum = 13,
+                Value = 3,
+                Step = 1,
+                LabelFormat = "F0",
+                Suffix = "% per click",
+                Height = 28,
+                ToolTip = "How much the volume changes with each click of the wheel. Lower = finer control.",
             };
-            curvePicker.SelectionChanged += (_, _) =>
+            sensitivity.ValueChanged += (_, _) =>
             {
-                if (!_loading) SaveScCurve(idx);
+                if (!_loading) SaveScSensitivity(idx);
             };
-            _scCurvePickers[i] = curvePicker;
+            _scSensitivitySliders[i] = sensitivity;
 
-            var curveCard = MakeSectionCard("CURVE", curvePicker);
-            curveCard.Margin = new Thickness(i == 0 ? 0 : 4, 0, i == ScChannelCount - 1 ? 0 : 4, 10);
-            Grid.SetRow(curveCard, 2);
-            Grid.SetColumn(curveCard, i);
-            grid.Children.Add(curveCard);
+            var sensCard = MakeSectionCard("SENSITIVITY", sensitivity);
+            sensCard.Margin = new Thickness(i == 0 ? 0 : 4, 0, i == ScChannelCount - 1 ? 0 : 4, 10);
+            Grid.SetRow(sensCard, 2);
+            Grid.SetColumn(sensCard, i);
+            grid.Children.Add(sensCard);
 
             // ── Range slider row ───────────────────────────────────────
             var range = new RangeSlider
@@ -337,7 +347,9 @@ public partial class MixerView
 
             _scChannelLabels[i].Text = GetDisplayLabel(knob);
             SelectTarget(_scTargetPickers[i], knob.Target, knob.DeviceId);
-            SelectCurve(_scCurvePickers[i], knob.Curve);
+            // Encoder step → "% per click" display (round-trip via /10).
+            int stepRaw = knob.EncoderStep > 0 ? knob.EncoderStep : 32;
+            _scSensitivitySliders[i].Value = Math.Clamp((int)Math.Round(stepRaw / 10.0), 1, 13);
             _scRangeSliders[i].LowerValue = Math.Clamp(knob.MinVolume, 0, 100);
             _scRangeSliders[i].UpperValue = Math.Clamp(knob.MaxVolume, 0, 100);
 
@@ -426,13 +438,14 @@ public partial class MixerView
         QueueSave();
     }
 
-    private void SaveScCurve(int idx)
+    private void SaveScSensitivity(int idx)
     {
         if (_config == null) return;
         var knob = _config.N3.Knobs.FirstOrDefault(k => k.Idx == idx);
         if (knob == null) return;
-        if (_scCurvePickers[idx].SelectedTag is ResponseCurve curve)
-            knob.Curve = curve;
+        // UI value is "% per click" (1-13). Stored as raw step = ×10, clamped 1-128.
+        int pct = (int)Math.Round(_scSensitivitySliders[idx].Value);
+        knob.EncoderStep = Math.Clamp(pct * 10, 1, 128);
         QueueSave();
     }
 
