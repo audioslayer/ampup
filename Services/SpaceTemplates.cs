@@ -29,9 +29,9 @@ public static class SpaceTemplates
         new Template("Room Effects",  "18 room lighting patterns across 3 pages (Aurora, Ocean, Fire, Lightning, Matrix …).",
             "#69F0AE", "neon_lava_lamp", BuildRoomEffects),
         new Template("Media",         "Prev / Play-Pause / Next, mute master + mic, screenshot.",
-            "#448AFF", "material_playpause", BuildMedia),
+            "#448AFF", "", BuildMedia),
         new Template("Discord Quick", "System mic mute + Discord shortcuts (Mute, Deafen, Quick Switcher).",
-            "#7289DA", "material_discord", BuildDiscord),
+            "#7289DA", "", BuildDiscord),
         new Template("System",        "Lock, Sleep, Restart, Screenshot, Task Manager, Explorer.",
             "#FF5252", "neon_lock", BuildSystem),
         new Template("Apps",          "6 common app launchers — Chrome, Spotify, Discord, OBS, Terminal, Explorer.",
@@ -39,7 +39,7 @@ public static class SpaceTemplates
         new Template("Audio Profiles", "Cycle output / input devices, mute master / mic, switch AmpUp profile.",
             "#E040FB", "neon_mixer", BuildAudioProfiles),
         new Template("Spotify",       "Spotify transport + launch / mute / shuffle.",
-            "#1DB954", "material_spotify", BuildSpotify),
+            "#1DB954", "", BuildSpotify),
     };
 
     // ── Builders ────────────────────────────────────────────────────────
@@ -93,11 +93,11 @@ public static class SpaceTemplates
     {
         return SinglePage("Media", new[]
         {
-            ("Prev",        "#448AFF", "material_prev",        "media_prev",       ""),
-            ("Play/Pause",  "#448AFF", "material_playpause",   "media_play_pause", ""),
-            ("Next",        "#448AFF", "material_next",        "media_next",       ""),
+            ("Prev",        "#448AFF", "",        "media_prev",       ""),
+            ("Play/Pause",  "#448AFF", "",   "media_play_pause", ""),
+            ("Next",        "#448AFF", "",        "media_next",       ""),
             ("Mute",        "#FF5252", "neon_volume_mute",     "mute_master",      ""),
-            ("Mic Mute",    "#FFD740", "material_mic_mute",    "mute_mic",         ""),
+            ("Mic Mute",    "#FFD740", "",    "mute_mic",         ""),
             ("Screenshot",  "#69F0AE", "neon_screenshot",      "screenshot",       ""),
         });
     }
@@ -106,12 +106,12 @@ public static class SpaceTemplates
     {
         return SinglePage("Discord", new[]
         {
-            ("Open",        "#7289DA", "material_discord",     "launch_exe",   ""), // user fills path
+            ("Open",        "#7289DA", "",     "launch_exe",   ""), // user fills path
             ("Discord Mute","#FF5252", "neon_discord_mute",    "macro",        ""), // macroKeys set below
-            ("Deafen",      "#FFD740", "material_discord_mute","macro",        ""),
-            ("Mic Mute",    "#FFD740", "material_mic_mute",    "mute_mic",     ""),
+            ("Deafen",      "#FFD740", "","macro",        ""),
+            ("Mic Mute",    "#FFD740", "",    "mute_mic",     ""),
             ("Quick Search","#00ACC1", "neon_search",          "macro",        ""),
-            ("Close",       "#FF5252", "material_discord",     "close_program","discord"),
+            ("Close",       "#FF5252", "",     "close_program","discord"),
         }, configure: btns =>
         {
             // Discord in-app shortcuts — users can change Discord's keybind
@@ -140,8 +140,8 @@ public static class SpaceTemplates
         return SinglePage("Apps", new[]
         {
             ("Chrome",   "#448AFF", "neon_chrome",     "launch_exe", "chrome.exe"),
-            ("Spotify",  "#1DB954", "material_spotify","launch_exe", "spotify.exe"),
-            ("Discord",  "#7289DA", "material_discord","launch_exe", "discord.exe"),
+            ("Spotify",  "#1DB954", "","launch_exe", "spotify.exe"),
+            ("Discord",  "#7289DA", "","launch_exe", "discord.exe"),
             ("OBS",      "#E040FB", "neon_obs",        "launch_exe", "obs64.exe"),
             ("Terminal", "#69F0AE", "neon_terminal",   "launch_exe", "wt.exe"),
             ("Explorer", "#FFD740", "neon_explorer",   "launch_exe", "explorer.exe"),
@@ -153,9 +153,9 @@ public static class SpaceTemplates
         return SinglePage("Audio Profiles", new[]
         {
             ("Output",       "#448AFF", "neon_headphones",    "cycle_output",   ""),
-            ("Input",        "#00ACC1", "material_mic",       "cycle_input",    ""),
+            ("Input",        "#00ACC1", "",       "cycle_input",    ""),
             ("Mute",         "#FF5252", "neon_volume_mute",   "mute_master",    ""),
-            ("Mic Mute",     "#FFD740", "material_mic_mute",  "mute_mic",       ""),
+            ("Mic Mute",     "#FFD740", "",  "mute_mic",       ""),
             ("Profile Def",  "#69F0AE", "neon_mixer",         "switch_profile", "Default"),
             ("Profile Alt",  "#E040FB", "neon_mixer",         "switch_profile", "Lights"),
         }, configure: btns =>
@@ -170,10 +170,10 @@ public static class SpaceTemplates
     {
         return SinglePage("Spotify", new[]
         {
-            ("Prev",        "#1DB954", "material_prev",      "media_prev",       ""),
-            ("Play/Pause",  "#1DB954", "material_playpause", "media_play_pause", ""),
-            ("Next",        "#1DB954", "material_next",      "media_next",       ""),
-            ("Open",        "#1DB954", "material_spotify",   "launch_exe",       "spotify.exe"),
+            ("Prev",        "#1DB954", "",      "media_prev",       ""),
+            ("Play/Pause",  "#1DB954", "", "media_play_pause", ""),
+            ("Next",        "#1DB954", "",      "media_next",       ""),
+            ("Open",        "#1DB954", "",   "launch_exe",       "spotify.exe"),
             ("Mute Spotify","#FF5252", "neon_volume_mute",   "mute_program",     "spotify"),
             ("Shuffle",     "#E040FB", "neon_shuffle",       "macro",            ""),
         }, configure: btns =>
