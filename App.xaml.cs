@@ -2574,11 +2574,16 @@ public partial class App : Application
         });
     }
 
+    // Remember Corsair state across a room-toggle off/on cycle so we can
+    // restore the exact same mode instead of forcing "vu_reactive".
+    private string? _roomToggleSavedCorsairMode;
+
     private void HandleRoomToggle()
     {
         _roomLightsOn = !_roomLightsOn;
 
         // Toggle all Govee devices (LAN + Cloud-only like the H604C G1S Pro)
+        bool anyGoveeOn = false;
         foreach (var dev in _config.Ambience.GoveeDevices)
         {
             bool hasLan = !string.IsNullOrWhiteSpace(dev.Ip);
@@ -2587,28 +2592,40 @@ public partial class App : Application
                             && !string.IsNullOrWhiteSpace(dev.Sku);
             if (!hasLan && !hasCloud) continue;
             SetGoveePower(dev, _roomLightsOn);
+            if (_roomLightsOn) anyGoveeOn = true;
         }
 
-        // Toggle Corsair — mirror HandleCorsairToggle so the pause actually
-        // sticks. Without flipping Corsair.Enabled, the Turn Up frame ticker
-        // (App.xaml.cs:145) and room effect loop can repaint Corsair frame
-        // after frame, causing rapid on/off flashing.
+        // Toggle Corsair — mirror HandleCorsairToggle so the pause sticks.
+        // _paused + Enabled=false together block every painter (OnFrameReady,
+        // OnRoomFrame, music timer). Preserve the prior LightSyncMode so the
+        // on-press restores the exact mode the user had before.
         if (_corsairSync != null)
         {
             if (_roomLightsOn)
             {
                 _config.Corsair.Enabled = true;
+                if (!string.IsNullOrEmpty(_roomToggleSavedCorsairMode))
+                    _config.Corsair.LightSyncMode = _roomToggleSavedCorsairMode!;
+                _roomToggleSavedCorsairMode = null;
                 _corsairSync.Resume();
-                if (_config.Corsair.LightSyncMode == "static" || string.IsNullOrEmpty(_config.Corsair.LightSyncMode))
-                    _config.Corsair.LightSyncMode = "vu_reactive";
             }
             else
             {
+                _roomToggleSavedCorsairMode = _config.Corsair.LightSyncMode;
                 _ = _corsairSync.SetStaticColorAllAsync(0, 0, 0);
                 _config.Corsair.LightSyncMode = "static";
                 _config.Corsair.Enabled = false;
                 _corsairSync.Stop();
             }
+        }
+
+        // Restart the room effect so Govee devices resume the configured
+        // pattern (Aurora, etc.) instead of just powering on to a solid color.
+        // Delay a bit so the Govee devices actually finish powering up.
+        if (anyGoveeOn)
+        {
+            Task.Delay(800).ContinueWith(_ =>
+                _mainWindow?.GetRoomView()?.ResumeRoomEffect());
         }
     }
 
