@@ -1365,7 +1365,7 @@ public partial class ButtonsView : UserControl
     // Category groupings for the action picker
     private static readonly (string Category, string[] Values)[] ActionCategories =
     {
-        ("Media",           new[] { "none", "media_play_pause", "media_next", "media_prev" }),
+        ("Media",           new[] { "media_play_pause", "media_next", "media_prev" }),
         ("Mute",            new[] { "mute_master", "mute_mic", "mute_program", "mute_active_window", "mute_app_group", "mute_device" }),
         ("App Control",     new[] { "launch_exe", "close_program", "open_url", "type_text", "screenshot" }),
         ("Device",          new[] { "cycle_output", "cycle_input", "select_output", "select_input" }),
