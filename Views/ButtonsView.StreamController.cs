@@ -2516,7 +2516,6 @@ public partial class ButtonsView
         ("Orange",  "#FF6E40"),
         ("Gold",    "#FFD740"),
         ("Lime",    "#C6FF00"),
-        ("Black",   "#1A1A1A"),
     };
 
     /// <summary>
