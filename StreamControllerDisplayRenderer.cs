@@ -566,9 +566,63 @@ internal static class StreamControllerDisplayRenderer
         if (drawSpanTitle
             && !string.IsNullOrWhiteSpace(title)
             && effectiveKey.TextPosition != DisplayTextPosition.Hidden)
-            DrawTextOverlay(bitmap, effectiveKey, width, height, title);
+        {
+            var titleKey = new StreamControllerDisplayKeyConfig
+            {
+                Idx = effectiveKey.Idx,
+                ImagePath = effectiveKey.ImagePath ?? "",
+                PresetIconKind = effectiveKey.PresetIconKind ?? "",
+                Title = effectiveKey.Title ?? "",
+                Subtitle = effectiveKey.Subtitle ?? "",
+                BackgroundColor = effectiveKey.BackgroundColor ?? "",
+                AccentColor = effectiveKey.AccentColor ?? "",
+                TextPosition = DisplayTextPosition.Top,
+                TextSize = effectiveKey.TextSize,
+                TextColor = effectiveKey.TextColor ?? "",
+                IconColor = effectiveKey.IconColor ?? "",
+                FontFamily = effectiveKey.FontFamily ?? "",
+                Brightness = effectiveKey.Brightness,
+                DisplayType = effectiveKey.DisplayType,
+                ClockFormat = effectiveKey.ClockFormat ?? "",
+                DynamicStateSource = effectiveKey.DynamicStateSource ?? "",
+                DynamicStateActiveIcon = effectiveKey.DynamicStateActiveIcon ?? "",
+                DynamicStateActiveTitle = effectiveKey.DynamicStateActiveTitle ?? "",
+                DynamicStateInactiveBrightness = effectiveKey.DynamicStateInactiveBrightness,
+                DynamicStateDimWhenActive = effectiveKey.DynamicStateDimWhenActive,
+                DynamicStateGlowColor = effectiveKey.DynamicStateGlowColor ?? "",
+                SpotifyAlbumArtLayout = effectiveKey.SpotifyAlbumArtLayout,
+            };
+            DrawTextOverlayInRegion(bitmap, titleKey, 0, 0, width, tileSize, title);
+        }
 
         return bitmap;
+    }
+
+    private static void DrawTextOverlayInRegion(
+        DrawingBitmap bitmap,
+        StreamControllerDisplayKeyConfig key,
+        int x,
+        int y,
+        int width,
+        int height,
+        string title)
+    {
+        using var region = new DrawingBitmap(width, height);
+        using (var regionGraphics = DrawingGraphics.FromImage(region))
+        {
+            ConfigureGraphics(regionGraphics);
+            regionGraphics.DrawImage(
+                bitmap,
+                new System.Drawing.Rectangle(0, 0, width, height),
+                new System.Drawing.Rectangle(x, y, width, height),
+                DrawingGraphicsUnit.Pixel);
+        }
+
+        DrawTextOverlay(region, key, width, height, title);
+
+        using var graphics = DrawingGraphics.FromImage(bitmap);
+        ConfigureGraphics(graphics);
+        graphics.DrawImage(region, x, y, width, height);
     }
 
     private static void GetSpotifyAlbumArtDimensions(SpotifyAlbumArtLayout layout, out int cols, out int rows)
