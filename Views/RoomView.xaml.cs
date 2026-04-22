@@ -1514,6 +1514,30 @@ public partial class RoomView : UserControl
                 };
                 devRow.Children.Add(onOff);
 
+                var ampUpSync = new CheckBox
+                {
+                    Content = "Sync",
+                    FontSize = 11,
+                    IsChecked = devConfig.SyncWithAmpUp,
+                    Foreground = FindBrush("TextPrimaryBrush"),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 12, 0),
+                    ToolTip = "When off, AmpUp won't push room effects or DreamView/screen sync to this device.",
+                };
+                ampUpSync.Checked += (_, _) =>
+                {
+                    if (_loading || _config == null) return;
+                    capturedDev.SyncWithAmpUp = true;
+                    QueueSave();
+                };
+                ampUpSync.Unchecked += (_, _) =>
+                {
+                    if (_loading || _config == null) return;
+                    capturedDev.SyncWithAmpUp = false;
+                    QueueSave();
+                };
+                devRow.Children.Add(ampUpSync);
+
                 // Cloud-only rows stop here — brightness/segment streaming isn't
                 // viable via the REST API (100 req/min cap).
                 if (!hasLan)
