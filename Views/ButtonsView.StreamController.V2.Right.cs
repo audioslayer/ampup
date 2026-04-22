@@ -662,7 +662,19 @@ public partial class ButtonsView
             var key = GetSelectedDisplayKeyConfig()
                       ?? new StreamControllerDisplayKeyConfig { Idx = selection.DisplayIdx!.Value };
             if (_scEditorPreview != null)
+            {
                 _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateEditorPreview(key, 360);
+                var anim = StreamControllerDisplayRenderer.CreateEditorPreviewAnimation(key, 360);
+                if (anim != null)
+                {
+                    var sig = $"{key.Idx}|{key.ImagePath}|{key.PresetIconKind}|360";
+                    AnimatedImageDriver.Register(_scEditorPreview, anim, sig);
+                }
+                else
+                {
+                    AnimatedImageDriver.Unregister(_scEditorPreview);
+                }
+            }
 
             if (_scTitleBox != null)
                 _scTitleBox.Text = key.Title;

@@ -30,6 +30,17 @@ internal sealed class StreamControllerDeviceAnimation
     public required int[] FrameDelaysMs { get; init; }
 }
 
+/// <summary>
+/// GIF-backed editor preview — per-frame BitmapSources at the editor's
+/// render resolution (not the 60x60 device resolution). Both the chassis
+/// LCD tile and the right-pane preview card consume this to animate.
+/// </summary>
+public sealed class StreamControllerEditorAnimation
+{
+    public required BitmapSource[] Frames { get; init; }
+    public required int[] FrameDelaysMs { get; init; }
+}
+
 internal static class StreamControllerDisplayRenderer
 {
     private const int RenderCanvasSize = 126;
@@ -68,6 +79,54 @@ internal static class StreamControllerDisplayRenderer
     {
         using var bitmap = ComposeImage(ResolveEffectiveKey(key), size);
         return ToBitmapSource(bitmap);
+    }
+
+    /// <summary>
+    /// Return editor-resolution animation frames for a GIF-backed key, or
+    /// null if the key isn't animated. Same compose pipeline as
+    /// CreateEditorPreview so overlays (title, glow, brightness) match.
+    /// </summary>
+    public static StreamControllerEditorAnimation? CreateEditorPreviewAnimation(
+        StreamControllerDisplayKeyConfig key, int size = 256)
+    {
+        var effectiveKey = ResolveEffectiveKey(key);
+
+        // Source file: explicit ImagePath wins, otherwise resolve via the
+        // PresetIconKind custom-pack mapping (fx_, neon_, retro_, etc.).
+        string sourcePath = effectiveKey.ImagePath;
+        if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
+        {
+            if (!TryResolveCustomPackImagePath(effectiveKey.PresetIconKind, out sourcePath))
+                return null;
+        }
+        if (!string.Equals(Path.GetExtension(sourcePath), ".gif", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        using var source = DrawingImage.FromFile(sourcePath);
+        if (source.FrameDimensionsList.Length == 0) return null;
+
+        var dimension = new FrameDimension(source.FrameDimensionsList[0]);
+        int frameCount = source.GetFrameCount(dimension);
+        if (frameCount <= 1) return null;
+
+        var delays = GetGifFrameDelaysMs(source, frameCount);
+        var frames = new BitmapSource[frameCount];
+        string title = effectiveKey.Title?.Trim() ?? "";
+
+        for (int i = 0; i < frameCount; i++)
+        {
+            source.SelectActiveFrame(dimension, i);
+            using var frameBitmap = new DrawingBitmap(source);
+            using var canvas = RenderSourceToCanvasCover(frameBitmap, size);
+            FinalizeComposedBitmap(canvas, effectiveKey, size, title);
+            frames[i] = ToBitmapSource(canvas);
+        }
+
+        return new StreamControllerEditorAnimation
+        {
+            Frames = frames,
+            FrameDelaysMs = delays,
+        };
     }
 
     public static BitmapSource CreateHardwarePreview(StreamControllerDisplayKeyConfig key)

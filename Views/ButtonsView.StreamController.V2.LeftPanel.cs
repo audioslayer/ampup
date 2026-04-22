@@ -1473,6 +1473,8 @@ public partial class ButtonsView
             tile.Cursor = Cursors.Hand;
             tile.ToolTip = null;
             tile.PreviewImage = StreamControllerDisplayRenderer.CreateEditorPreview(key, 240);
+            tile.PreviewAnimation = StreamControllerDisplayRenderer.CreateEditorPreviewAnimation(key, 240);
+            tile.PreviewAnimationSignature = $"{key.Idx}|{key.ImagePath}|{key.PresetIconKind}|240";
             // Label by physical slot (1-6, top-left → bot-right) so the user's
             // "top-right = Key 3" mental model holds regardless of whether the
             // Back key is shown. globalIdx+1 leaked the storage index into the

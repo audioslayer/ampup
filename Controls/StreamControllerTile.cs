@@ -43,6 +43,11 @@ public class StreamControllerTile : Border
     public string Title { get; set; } = "";
     public string Subtitle { get; set; } = "";
     public System.Windows.Media.Imaging.BitmapSource? PreviewImage { get; set; }
+    /// <summary>Optional animated frames for GIF-backed LCD keys. When
+    /// set, the tile's preview Image is driven by AnimatedImageDriver
+    /// instead of the static PreviewImage source.</summary>
+    public StreamControllerEditorAnimation? PreviewAnimation { get; set; }
+    public string PreviewAnimationSignature { get; set; } = "";
     public string IconKind { get; set; } = "";
     public bool IsSelected { get; set; }
 
@@ -256,9 +261,9 @@ public class StreamControllerTile : Border
         };
         previewHost.SetResourceReference(BackgroundProperty, "BgDarkBrush");
 
-        if (PreviewImage != null)
+        if (PreviewImage != null || PreviewAnimation != null)
         {
-            previewHost.Child = new Image
+            var img = new Image
             {
                 Source = PreviewImage,
                 Stretch = Stretch.Uniform,
@@ -266,7 +271,11 @@ public class StreamControllerTile : Border
                 VerticalAlignment = VerticalAlignment.Stretch,
                 SnapsToDevicePixels = true,
             };
+            previewHost.Child = img;
             RenderOptions.SetBitmapScalingMode(previewHost, BitmapScalingMode.HighQuality);
+
+            if (PreviewAnimation != null)
+                AnimatedImageDriver.Register(img, PreviewAnimation, PreviewAnimationSignature);
         }
         else
         {
