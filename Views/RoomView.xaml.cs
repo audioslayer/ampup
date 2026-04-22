@@ -3674,7 +3674,7 @@ public partial class RoomView : UserControl
         });
 
         string? lanIp = overrideIp ?? FindLanIp(device);
-        var devConfig = FindGoveeDeviceConfig(device, lanIp);
+        var devConfig = EnsureGoveeDeviceConfig(device, lanIp);
 
         // Power toggle
         var onOffCheck = new CheckBox
@@ -3710,9 +3710,9 @@ public partial class RoomView : UserControl
 
         var ampUpSyncCheck = new CheckBox
         {
-            Content = "AmpUp Sync",
-            IsChecked = devConfig?.SyncWithAmpUp ?? true,
-            IsEnabled = devConfig != null,
+            Content = "Sync",
+            IsChecked = devConfig.SyncWithAmpUp,
+            IsEnabled = true,
             Foreground = FindBrush("TextPrimaryBrush"),
             FontSize = 12,
             VerticalAlignment = VerticalAlignment.Center,
@@ -3721,13 +3721,13 @@ public partial class RoomView : UserControl
         };
         ampUpSyncCheck.Checked += (_, _) =>
         {
-            if (_loading || devConfig == null) return;
+            if (_loading) return;
             devConfig.SyncWithAmpUp = true;
             _onSave?.Invoke(_config!);
         };
         ampUpSyncCheck.Unchecked += (_, _) =>
         {
-            if (_loading || devConfig == null) return;
+            if (_loading) return;
             devConfig.SyncWithAmpUp = false;
             _onSave?.Invoke(_config!);
         };
@@ -3774,6 +3774,33 @@ public partial class RoomView : UserControl
 
         row.Child = content;
         return row;
+    }
+
+    private GoveeDeviceConfig EnsureGoveeDeviceConfig(GoveeDeviceInfo device, string? overrideIp = null)
+    {
+        if (_config == null)
+            return new GoveeDeviceConfig();
+
+        var existing = FindGoveeDeviceConfig(device, overrideIp);
+        if (existing != null)
+            return existing;
+
+        var created = new GoveeDeviceConfig
+        {
+            Ip = overrideIp ?? FindLanIp(device) ?? "",
+            Name = !string.IsNullOrWhiteSpace(device.DeviceName)
+                ? device.DeviceName
+                : (!string.IsNullOrWhiteSpace(device.Sku) ? AmbienceSync.GetProductName(device.Sku) : "Govee Device"),
+            Sku = device.Sku ?? "",
+            DeviceId = device.Device ?? "",
+            SyncMode = "off",
+            SyncWithAmpUp = true,
+            PoweredOn = true,
+        };
+
+        _config.Ambience.GoveeDevices.Add(created);
+        _onSave?.Invoke(_config);
+        return created;
     }
 
     private Border BuildCorsairDeviceRow(CorsairDevice dev)
