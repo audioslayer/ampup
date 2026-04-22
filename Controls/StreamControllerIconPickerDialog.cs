@@ -1,5 +1,6 @@
 using System;
             using System.Collections.Generic;
+            using System.Diagnostics;
             using System.IO;
             using System.Linq;
             using System.Net.Http;
@@ -24,28 +25,52 @@ using System;
             public class StreamControllerIconPickerDialog : Window
             {
                 private static readonly HttpClient _http = CreateHttpClient();
-                private static readonly string[] OnlinePrefixes =
+                private static readonly OnlinePackDefinition[] OnlinePacks =
                 {
-                    "streamline-color",
-                    "streamline-plump-color",
-                    "streamline-cyber-color",
-                    "streamline-flex-color",
-                    "streamline-freehand-color",
-                    "streamline-kameleon-color",
-                    "streamline-sharp-color",
-                    "streamline-stickies-color",
-                    "streamline-ultimate-color",
-                    "fluent-color",
-                    "logos",
-                    "skill-icons",
-                    "devicon",
-                    "vscode-icons",
-                    "catppuccin",
-                    "twemoji",
-                    "fluent-emoji-flat",
-                    "cryptocurrency-color",
-                    "token-branded",
-                    "simple-icons"
+                    new("streamline-color", "Streamline", "general colorful UI", "https://icon-sets.iconify.design/streamline-color/", 0),
+                    new("fluent-color", "Fluent Color", "Windows-style apps and system glyphs", "https://icon-sets.iconify.design/fluent-color/", 1),
+                    new("logos", "Logos", "brand marks and app logos", "https://icon-sets.iconify.design/logos/", 2),
+                    new("skill-icons", "Skill Icons", "developer tools and services", "https://icon-sets.iconify.design/skill-icons/", 3),
+                    new("devicon", "Devicon", "languages, frameworks, IDEs", "https://icon-sets.iconify.design/devicon/", 4),
+                    new("vscode-icons", "VS Code Icons", "files, folders, editors", "https://icon-sets.iconify.design/vscode-icons/", 5),
+                    new("catppuccin", "Catppuccin", "soft pastel app icons", "https://icon-sets.iconify.design/catppuccin/", 6),
+                    new("simple-icons", "Simple Icons", "huge open brand catalog", "https://icon-sets.iconify.design/simple-icons/", 7),
+                    new("twemoji", "Twemoji", "friendly emoji set", "https://icon-sets.iconify.design/twemoji/", 8),
+                    new("fluent-emoji-flat", "Fluent Emoji", "flat emoji and symbols", "https://icon-sets.iconify.design/fluent-emoji-flat/", 9),
+                    new("streamline-plump-color", "Streamline Plump", "chunky playful controls", "https://icon-sets.iconify.design/streamline-plump-color/", 10),
+                    new("streamline-cyber-color", "Streamline Cyber", "futuristic colorful controls", "https://icon-sets.iconify.design/streamline-cyber-color/", 11),
+                    new("streamline-flex-color", "Streamline Flex", "rounded modern essentials", "https://icon-sets.iconify.design/streamline-flex-color/", 12),
+                    new("streamline-freehand-color", "Streamline Freehand", "hand-drawn colorful icons", "https://icon-sets.iconify.design/streamline-freehand-color/", 13),
+                    new("streamline-kameleon-color", "Streamline Kameleon", "bold gradient illustrations", "https://icon-sets.iconify.design/streamline-kameleon-color/", 14),
+                    new("streamline-sharp-color", "Streamline Sharp", "angular colorful icons", "https://icon-sets.iconify.design/streamline-sharp-color/", 15),
+                    new("streamline-stickies-color", "Streamline Stickies", "sticker-like accents", "https://icon-sets.iconify.design/streamline-stickies-color/", 16),
+                    new("streamline-ultimate-color", "Streamline Ultimate", "large mixed colorful library", "https://icon-sets.iconify.design/streamline-ultimate-color/", 17),
+                    new("cryptocurrency-color", "Crypto Color", "coin and token marks", "https://icon-sets.iconify.design/cryptocurrency-color/", 18),
+                    new("token-branded", "Token Branded", "web3 token logos", "https://icon-sets.iconify.design/token-branded/", 19)
+                };
+                private static readonly FeaturedPackDefinition[] FeaturedGitHubPacks =
+                {
+                    new("Simple Icons Stream Deck", "https://github.com/mackenly/simple-icons-stream-deck", "big free brand and app pack"),
+                    new("Pixel Art Icon Pack", "https://github.com/Nasc/Stream-Deck-Pixel-Art-icon-pack", "retro pixel icons with more personality"),
+                    new("Fluent UI System Icons", "https://github.com/czottmann/streamdeck-iconpack-fluentui-system-icons", "clean system buttons and controls"),
+                    new("System UIcons", "https://github.com/czottmann/streamdeck-iconpack-system-uicons", "minimal free utility pack"),
+                    new("rcliftonharvey pack", "https://github.com/rcliftonharvey/stream-deck-icons", "solid general-purpose community pack"),
+                    new("Stream Deck pack index", "https://github.com/topics/streamdeck-iconpack", "browse more free packs on GitHub")
+                };
+                private static readonly string[] OnlinePrefixes = OnlinePacks.Select(pack => pack.Prefix).ToArray();
+                private static readonly Dictionary<string, OnlinePackDefinition> OnlinePackMap = OnlinePacks.ToDictionary(pack => pack.Prefix, StringComparer.OrdinalIgnoreCase);
+                private static readonly Dictionary<string, string> CustomIconAliases = new(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["neon_play"] = "play_button_neon.jpg",
+                    ["neon_pause"] = "pause_button_neon.jpg",
+                    ["neon_next"] = "next_track_neon.jpg",
+                    ["neon_spotify"] = "spotify_neon.jpg",
+                    ["neon_discord"] = "discord_neon.jpg",
+                    ["neon_mic"] = "mic_active_neon.jpg",
+                    ["neon_mic_mute"] = "mic_mute_neon.jpg",
+                    ["neon_volume"] = "speaker_volume_neon.jpg",
+                    ["neon_panels"] = "light_panel_white_cyan.jpg",
+                    ["neon_geometric"] = "light_geometric_cyan_purple.jpg"
                 };
             
                 private readonly List<IconPresetEntry> _entries = BuildEntries();
@@ -75,6 +100,8 @@ using System;
                 public Color? SelectedAccent { get; private set; }
             
                 private sealed record IconPresetEntry(string Label, string Kind, string Category, Color Accent);
+                private sealed record OnlinePackDefinition(string Prefix, string Name, string Description, string Url, int Priority);
+                private sealed record FeaturedPackDefinition(string Name, string Url, string Description);
             
                 private sealed class OnlineIconEntry
                 {
@@ -326,6 +353,7 @@ using System;
                     packStack.Children.Add(_packPicker);
                     packRow.Children.Add(packStack);
                     header.Children.Add(packRow);
+                    header.Children.Add(BuildOnlinePackGuide());
             
                     main.Children.Add(header);
             
@@ -495,7 +523,7 @@ using System;
                     var card = new Border
                     {
                         Width = 116,
-                        Height = 118,
+                        Height = 132,
                         Margin = new Thickness(0, 0, 10, 10),
                         CornerRadius = new CornerRadius(12),
                         Background = (Brush)Application.Current.FindResource("CardBgBrush"),
@@ -535,6 +563,19 @@ using System;
                         Margin = new Thickness(8, 0, 8, 0),
                         MaxHeight = 30
                     });
+                    if (OnlinePackMap.TryGetValue(parts[0], out var pack))
+                    {
+                        stack.Children.Add(new TextBlock
+                        {
+                            Text = pack.Name,
+                            Foreground = (Brush)Application.Current.FindResource("TextDimBrush"),
+                            FontSize = 10,
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            TextAlignment = TextAlignment.Center,
+                            Margin = new Thickness(8, 2, 8, 0)
+                        });
+                        card.ToolTip = $"{pack.Name} • {pack.Description}\n{pack.Url}";
+                    }
             
                     card.Child = stack;
                     card.MouseEnter += (_, _) =>
@@ -779,232 +820,9 @@ using System;
                             VerticalAlignment = VerticalAlignment.Center
                         };
                     }
-                    else if (entry.Kind.StartsWith("neon_") || entry.Kind.StartsWith("material_") || entry.Kind.StartsWith("synthwave_") || entry.Kind.StartsWith("cyber_") || entry.Kind.StartsWith("retro_") || entry.Kind.StartsWith("fx_"))
+                    else if (TryCreateCustomIconImage(entry.Kind, out var customIcon))
                     {
-                        string filename = entry.Kind switch
-                        {
-                            "neon_play" => "play_button_neon.jpg",
-                            "neon_pause" => "pause_button_neon.jpg",
-                            "neon_next" => "next_track_neon.jpg",
-                            "neon_spotify" => "spotify_neon.jpg",
-                            "neon_discord" => "discord_neon.jpg",
-                            "neon_discord_mute" => "neon_discord_mute.jpg",
-                            "neon_chrome" => "neon_chrome.jpg",
-                            "neon_obs" => "neon_obs.jpg",
-                            "neon_youtube" => "neon_youtube.jpg",
-                            "neon_folder" => "neon_folder.jpg",
-                            "neon_twitch" => "neon_twitch.jpg",
-                            "neon_brightness_up" => "neon_brightness_up.jpg",
-                            "retro_twitch" => "retro_twitch.jpg",
-                            "retro_discord" => "retro_discord.jpg",
-                            "retro_spotify" => "retro_spotify.jpg",
-                            "retro_brightness_up" => "retro_brightness_up.jpg",
-                            "retro_snes_coin" => "retro_snes_coin.gif",
-                            "neon_power" => "neon_power.jpg",
-                            "neon_fastforward" => "neon_fastforward.jpg",
-                            "neon_rewind" => "neon_rewind.jpg",
-                            "neon_shuffle" => "neon_shuffle.jpg",
-                            "neon_repeat" => "neon_repeat.jpg",
-                            "neon_record" => "neon_record.jpg",
-                            "neon_stop" => "neon_stop.jpg",
-                            "neon_eject" => "neon_eject.jpg",
-                            "neon_led_strip" => "neon_led_strip.jpg",
-                            "neon_desk_lamp" => "neon_desk_lamp.jpg",
-                            "neon_floor_lamp" => "neon_floor_lamp.jpg",
-                            "neon_light_bars" => "neon_light_bars.jpg",
-                            "neon_sconces" => "neon_sconces.jpg",
-                            "neon_table_lamp" => "neon_table_lamp.jpg",
-                            "neon_pc_fan" => "neon_pc_fan.jpg",
-                            "neon_lava_lamp" => "neon_lava_lamp.jpg",
-                            "neon_ring_light" => "neon_ring_light.jpg",
-                            "neon_tv_backlight" => "neon_tv_backlight.jpg",
-                            "neon_neon_sign" => "neon_neon_sign.jpg",
-                            "neon_ceiling_fan" => "neon_ceiling_fan.jpg",
-                            "neon_triangles" => "neon_triangles.jpg",
-                            "neon_lock" => "neon_lock.jpg",
-                            "neon_sleep" => "neon_sleep.jpg",
-                            "neon_taskmgr" => "neon_taskmgr.jpg",
-                            "neon_terminal" => "neon_terminal.jpg",
-                            "neon_calculator" => "neon_calculator.jpg",
-                            "neon_restart" => "neon_restart.jpg",
-                            "neon_network" => "neon_network.jpg",
-                            "neon_bluetooth" => "neon_bluetooth.jpg",
-                            "neon_space_1" => "neon_space_1.jpg",
-                            "neon_space_2" => "neon_space_2.jpg",
-                            "neon_space_3" => "neon_space_3.jpg",
-                            "neon_space_4" => "neon_space_4.jpg",
-                            "synthwave_play" => "synthwave_play.jpg",
-                            "synthwave_pause" => "synthwave_pause.jpg",
-                            "cyber_play" => "cyber_play.jpg",
-                            "cyber_pause" => "cyber_pause.jpg",
-                            "retro_play" => "retro_play.jpg",
-                            "retro_pause" => "retro_pause.jpg",
-                            "retro_gamepad" => "retro_gamepad.jpg",
-                            "retro_home" => "retro_home.jpg",
-                            "retro_volume" => "retro_volume.jpg",
-                            "retro_mic" => "retro_mic.jpg",
-                            "retro_monitor" => "retro_monitor.jpg",
-                            "retro_lightbulb" => "retro_lightbulb.jpg",
-                            "retro_next" => "retro_next.jpg",
-                            "retro_prev" => "retro_prev.jpg",
-                            "retro_stop" => "retro_stop.jpg",
-                            "retro_power" => "retro_power.jpg",
-                            "retro_settings" => "retro_settings.jpg",
-                            "retro_folder" => "retro_folder.jpg",
-                            "retro_lock" => "retro_lock.jpg",
-                            "retro_sleep" => "retro_sleep.jpg",
-                            "neon_mic" => "mic_active_neon.jpg",
-                            "neon_mic_mute" => "mic_mute_neon.jpg",
-                            "neon_game_mute" => "neon_game_mute.jpg",
-                            "neon_volume" => "speaker_volume_neon.jpg",
-                            "neon_volume_up" => "neon_volume_up.jpg",
-                            "neon_volume_down" => "neon_volume_down.jpg",
-                            "neon_panels" => "light_panel_white_cyan.jpg",
-                            "neon_geometric" => "light_geometric_cyan_purple.jpg",
-                            "neon_wall_light_on" => "neon_wall_light_on.jpg",
-                            "neon_wall_light_off" => "neon_wall_light_off.jpg",
-                            "neon_case_light_on" => "neon_case_light_on.jpg",
-                            "neon_case_light_off" => "neon_case_light_off.jpg",
-                            "neon_bulb_on" => "neon_bulb_on.jpg",
-                            "neon_bulb_off" => "neon_bulb_off.jpg",
-                            "neon_light_group" => "neon_light_group.jpg",
-                            "neon_room_office" => "neon_room_office.jpg",
-                            "neon_room_bedroom" => "neon_room_bedroom.jpg",
-                            "neon_room_living" => "neon_room_living.jpg",
-                            "neon_room_kitchen" => "neon_room_kitchen.jpg",
-                            "neon_room_arcade" => "neon_room_arcade.jpg",
-                            "neon_room_bathroom" => "neon_room_bathroom.jpg",
-                            "neon_room_exterior" => "neon_room_exterior.jpg",
-                            "neon_monitor" => "neon_monitor.jpg",
-                            "neon_brightness_down" => "neon_brightness_down.jpg",
-                            "retro_brightness_down" => "retro_brightness_down.jpg",
-                            "neon_camera" => "neon_camera.jpg",
-                            "retro_camera" => "retro_camera.jpg",
-                            "neon_copy" => "neon_copy.jpg",
-                            "neon_paste" => "neon_paste.jpg",
-                            "retro_paste" => "retro_paste.jpg",
-                            "neon_mixer" => "neon_mixer.jpg",
-                            "retro_mixer" => "retro_mixer.jpg",
-                            "neon_clapper" => "neon_clapper.jpg",
-                            "retro_clapper" => "retro_clapper.jpg",
-                            "neon_photoshop" => "neon_photoshop.jpg",
-                            "retro_photoshop" => "retro_photoshop.jpg",
-                            "neon_steam" => "neon_steam.jpg",
-                            "retro_steam" => "retro_steam.jpg",
-                            "neon_premiere" => "neon_premiere.jpg",
-                            "retro_premiere" => "retro_premiere.jpg",
-                            "retro_chrome" => "retro_chrome.jpg",
-                            "neon_camera_off" => "neon_camera_off.jpg",
-                            "retro_camera_off" => "retro_camera_off.jpg",
-                            "retro_copy" => "retro_copy.jpg",
-                            "retro_volume_mute" => "retro_volume_mute.jpg",
-                            "retro_browser" => "retro_browser.jpg",
-                            "retro_mail" => "retro_mail.jpg",
-                            "retro_edit" => "retro_edit.jpg",
-                            "retro_cut" => "retro_cut.jpg",
-                            "retro_undo" => "retro_undo.jpg",
-                            "retro_redo" => "retro_redo.jpg",
-                            "retro_save" => "retro_save.jpg",
-                            "retro_search" => "retro_search.jpg",
-                            "retro_fullscreen" => "retro_fullscreen.jpg",
-                            "retro_minimize" => "retro_minimize.jpg",
-                            "retro_maximize" => "retro_maximize.jpg",
-                            "retro_logout" => "retro_logout.jpg",
-                            "retro_shutdown" => "retro_shutdown.jpg",
-                            "retro_reboot" => "retro_reboot.jpg",
-                            "retro_folder_open" => "retro_folder_open.jpg",
-                            "retro_file" => "retro_file.jpg",
-                            "retro_terminal" => "retro_terminal.jpg",
-                            "retro_chat" => "retro_chat.jpg",
-                            "retro_teams" => "retro_teams.jpg",
-                            "retro_zoom" => "retro_zoom.jpg",
-                            "retro_vlc" => "retro_vlc.jpg",
-                            "retro_netflix" => "retro_netflix.jpg",
-                            "retro_screenshot" => "retro_screenshot.jpg",
-                            "retro_stream_start" => "retro_stream_start.jpg",
-                            "neon_browser" => "neon_browser.jpg",
-                            "neon_mail" => "neon_mail.jpg",
-                            "neon_save" => "neon_save.jpg",
-                            "neon_search" => "neon_search.jpg",
-                            "neon_volume_mute" => "neon_volume_mute.jpg",
-                            "neon_chat" => "neon_chat.jpg",
-                            "neon_terminal_window" => "neon_terminal_window.jpg",
-                            "neon_teams" => "neon_teams.jpg",
-                            "neon_zoom" => "neon_zoom.jpg",
-                            "neon_slack" => "neon_slack.jpg",
-                            "retro_slack" => "retro_slack.jpg",
-                            "neon_github" => "neon_github.jpg",
-                            "retro_github" => "retro_github.jpg",
-                            "neon_notion" => "neon_notion.jpg",
-                            "neon_obsidian" => "neon_obsidian.jpg",
-                            "neon_meet" => "neon_meet.jpg",
-                            "neon_edge" => "neon_edge.jpg",
-                            "neon_firefox" => "neon_firefox.jpg",
-                            "neon_brave" => "neon_brave.jpg",
-                            "neon_files" => "neon_files.jpg",
-                            "retro_files" => "retro_files.jpg",
-                            "neon_vlc" => "neon_vlc.jpg",
-                            "neon_netflix" => "neon_netflix.jpg",
-                            "neon_screenshot" => "neon_screenshot.jpg",
-                            "neon_vscode" => "neon_vscode.jpg",
-                            "retro_vscode" => "retro_vscode.jpg",
-                            "neon_playnite" => "neon_playnite.jpg",
-                            "retro_playnite" => "retro_playnite.jpg",
-                            "neon_gemini" => "neon_gemini.jpg",
-                            "retro_gemini" => "retro_gemini.jpg",
-                            "neon_explorer" => "neon_explorer.jpg",
-                            "retro_explorer" => "retro_explorer.jpg",
-                            "neon_phone_link" => "neon_phone_link.jpg",
-                            "retro_phone_link" => "retro_phone_link.jpg",
-                            "neon_dude" => "neon_dude.jpg",
-                            "retro_dude" => "retro_dude.jpg",
-                            "neon_outlook" => "neon_outlook.jpg",
-                            "retro_outlook" => "retro_outlook.jpg",
-                            "neon_gmail" => "neon_gmail.jpg",
-                            "retro_gmail" => "retro_gmail.jpg",
-                            "neon_wolfden" => "neon_wolfden.jpg",
-                            "retro_wolfden" => "retro_wolfden.jpg",
-                            "neon_wolfbyte" => "neon_wolfbyte.jpg",
-                            "retro_wolfbyte" => "retro_wolfbyte.jpg",
-                            "neon_wolfvault" => "neon_wolfvault.jpg",
-                            "retro_wolfvault" => "retro_wolfvault.jpg",
-                            "neon_wolfhome" => "neon_wolfhome.jpg",
-                            "retro_wolfhome" => "retro_wolfhome.jpg",
-                            "neon_mission_control" => "neon_mission_control.jpg",
-                            "retro_mission_control" => "retro_mission_control.jpg",
-                            "neon_nanoarcade" => "neon_nanoarcade.jpg",
-                            "retro_nanoarcade" => "retro_nanoarcade.jpg",
-                            "neon_churchportals" => "neon_churchportals.jpg",
-                            "retro_churchportals" => "retro_churchportals.jpg",
-                            _ => entry.Kind.StartsWith("fx_") ? entry.Kind + ".jpg" : ""
-                        };
-
-                        if (!string.IsNullOrEmpty(filename))
-                        {
-                            try 
-                            {
-                                string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Icons", filename);
-                                if (File.Exists(path))
-                                {
-                                    var bmp = new BitmapImage();
-                                    bmp.BeginInit();
-                                    bmp.UriSource = new Uri(path, UriKind.Absolute);
-                                    bmp.CacheOption = BitmapCacheOption.OnLoad;
-                                    bmp.EndInit();
-                                    
-                                    iconWrap.Child = new Image
-                                    {
-                                        Source = bmp,
-                                        Width = 42,
-                                        Height = 42,
-                                        Stretch = Stretch.Uniform,
-                                        HorizontalAlignment = HorizontalAlignment.Center,
-                                        VerticalAlignment = VerticalAlignment.Center
-                                    };
-                                }
-                            }
-                            catch { }
-                        }
+                        iconWrap.Child = customIcon;
                     }
             
                     stack.Children.Add(iconWrap);
@@ -1034,183 +852,8 @@ using System;
                     };
                     card.MouseLeftButtonUp += (_, _) =>
                     {
-                        if (entry.Kind.StartsWith("neon_") || entry.Kind.StartsWith("material_") || entry.Kind.StartsWith("synthwave_") || entry.Kind.StartsWith("cyber_") || entry.Kind.StartsWith("retro_"))
+                        if (ResolveCustomIconPath(entry.Kind) is string path)
                         {
-                            string filename = entry.Kind switch
-                            {
-                                "neon_play" => "play_button_neon.jpg",
-                                "neon_pause" => "pause_button_neon.jpg",
-                                "neon_next" => "next_track_neon.jpg",
-                                "neon_spotify" => "spotify_neon.jpg",
-                                "neon_discord" => "discord_neon.jpg",
-                                "neon_discord_mute" => "neon_discord_mute.jpg",
-                                "neon_chrome" => "neon_chrome.jpg",
-                                "neon_obs" => "neon_obs.jpg",
-                                "neon_youtube" => "neon_youtube.jpg",
-                                "neon_folder" => "neon_folder.jpg",
-                            "neon_twitch" => "neon_twitch.jpg",
-                            "neon_brightness_up" => "neon_brightness_up.jpg",
-                            "retro_twitch" => "retro_twitch.jpg",
-                            "retro_discord" => "retro_discord.jpg",
-                            "retro_spotify" => "retro_spotify.jpg",
-                            "retro_brightness_up" => "retro_brightness_up.jpg",
-                            "retro_snes_coin" => "retro_snes_coin.gif",
-                                "neon_power" => "neon_power.jpg",
-                                "neon_fastforward" => "neon_fastforward.jpg",
-                                "neon_rewind" => "neon_rewind.jpg",
-                                "neon_shuffle" => "neon_shuffle.jpg",
-                                "neon_repeat" => "neon_repeat.jpg",
-                                "neon_record" => "neon_record.jpg",
-                                "neon_stop" => "neon_stop.jpg",
-                                "neon_eject" => "neon_eject.jpg",
-                                "neon_led_strip" => "neon_led_strip.jpg",
-                                "neon_desk_lamp" => "neon_desk_lamp.jpg",
-                                "neon_floor_lamp" => "neon_floor_lamp.jpg",
-                                "neon_light_bars" => "neon_light_bars.jpg",
-                                "neon_sconces" => "neon_sconces.jpg",
-                                "neon_table_lamp" => "neon_table_lamp.jpg",
-                                "neon_pc_fan" => "neon_pc_fan.jpg",
-                                "neon_lava_lamp" => "neon_lava_lamp.jpg",
-                                "neon_ring_light" => "neon_ring_light.jpg",
-                                "neon_tv_backlight" => "neon_tv_backlight.jpg",
-                                "neon_neon_sign" => "neon_neon_sign.jpg",
-                                "neon_ceiling_fan" => "neon_ceiling_fan.jpg",
-                                "neon_triangles" => "neon_triangles.jpg",
-                                "neon_lock" => "neon_lock.jpg",
-                                "neon_sleep" => "neon_sleep.jpg",
-                                "neon_taskmgr" => "neon_taskmgr.jpg",
-                                "neon_terminal" => "neon_terminal.jpg",
-                                "neon_calculator" => "neon_calculator.jpg",
-                                "neon_restart" => "neon_restart.jpg",
-                                "neon_network" => "neon_network.jpg",
-                                "neon_bluetooth" => "neon_bluetooth.jpg",
-                                "neon_space_1" => "neon_space_1.jpg",
-                                "neon_space_2" => "neon_space_2.jpg",
-                                "neon_space_3" => "neon_space_3.jpg",
-                                "neon_space_4" => "neon_space_4.jpg",
-                                "synthwave_play" => "synthwave_play.jpg",
-                                "synthwave_pause" => "synthwave_pause.jpg",
-                                "cyber_play" => "cyber_play.jpg",
-                                "cyber_pause" => "cyber_pause.jpg",
-                                "retro_play" => "retro_play.jpg",
-                                "retro_pause" => "retro_pause.jpg",
-                                "retro_gamepad" => "retro_gamepad.jpg",
-                                "retro_home" => "retro_home.jpg",
-                                "retro_volume" => "retro_volume.jpg",
-                                "retro_mic" => "retro_mic.jpg",
-                                "retro_monitor" => "retro_monitor.jpg",
-                                "retro_lightbulb" => "retro_lightbulb.jpg",
-                            "retro_next" => "retro_next.jpg",
-                            "retro_prev" => "retro_prev.jpg",
-                            "retro_stop" => "retro_stop.jpg",
-                            "retro_power" => "retro_power.jpg",
-                            "retro_settings" => "retro_settings.jpg",
-                            "retro_folder" => "retro_folder.jpg",
-                            "retro_lock" => "retro_lock.jpg",
-                            "retro_sleep" => "retro_sleep.jpg",
-                                "neon_mic" => "mic_active_neon.jpg",
-                                "neon_mic_mute" => "mic_mute_neon.jpg",
-                                "neon_game_mute" => "neon_game_mute.jpg",
-                                "neon_volume" => "speaker_volume_neon.jpg",
-                                "neon_volume_up" => "neon_volume_up.jpg",
-                                "neon_volume_down" => "neon_volume_down.jpg",
-                                "neon_panels" => "light_panel_white_cyan.jpg",
-                                "neon_geometric" => "light_geometric_cyan_purple.jpg",
-                                "neon_wall_light_on" => "neon_wall_light_on.jpg",
-                                "neon_wall_light_off" => "neon_wall_light_off.jpg",
-                                "neon_case_light_on" => "neon_case_light_on.jpg",
-                                "neon_case_light_off" => "neon_case_light_off.jpg",
-                                "neon_bulb_on" => "neon_bulb_on.jpg",
-                                "neon_bulb_off" => "neon_bulb_off.jpg",
-                                "neon_light_group" => "neon_light_group.jpg",
-                                "neon_room_office" => "neon_room_office.jpg",
-                                "neon_room_bedroom" => "neon_room_bedroom.jpg",
-                                "neon_room_living" => "neon_room_living.jpg",
-                                "neon_room_kitchen" => "neon_room_kitchen.jpg",
-                                "neon_room_arcade" => "neon_room_arcade.jpg",
-                                "neon_room_bathroom" => "neon_room_bathroom.jpg",
-                                "neon_room_exterior" => "neon_room_exterior.jpg",
-                                "neon_monitor" => "neon_monitor.jpg",
-                                "neon_brightness_down" => "neon_brightness_down.jpg",
-                                "retro_brightness_down" => "retro_brightness_down.jpg",
-                                "neon_camera" => "neon_camera.jpg",
-                                "retro_camera" => "retro_camera.jpg",
-                                "neon_copy" => "neon_copy.jpg",
-                                "neon_paste" => "neon_paste.jpg",
-                                "retro_paste" => "retro_paste.jpg",
-                                "neon_mixer" => "neon_mixer.jpg",
-                                "retro_mixer" => "retro_mixer.jpg",
-                                "neon_clapper" => "neon_clapper.jpg",
-                                "retro_clapper" => "retro_clapper.jpg",
-                                "neon_photoshop" => "neon_photoshop.jpg",
-                                "retro_photoshop" => "retro_photoshop.jpg",
-                                "neon_steam" => "neon_steam.jpg",
-                                "retro_steam" => "retro_steam.jpg",
-                                "neon_premiere" => "neon_premiere.jpg",
-                                "retro_premiere" => "retro_premiere.jpg",
-                                "retro_chrome" => "retro_chrome.jpg",
-                                "neon_camera_off" => "neon_camera_off.jpg",
-                                "retro_camera_off" => "retro_camera_off.jpg",
-                                "retro_copy" => "retro_copy.jpg",
-                            "retro_volume_mute" => "retro_volume_mute.jpg",
-                            "retro_browser" => "retro_browser.jpg",
-                            "retro_mail" => "retro_mail.jpg",
-                            "retro_edit" => "retro_edit.jpg",
-                            "retro_cut" => "retro_cut.jpg",
-                            "retro_undo" => "retro_undo.jpg",
-                            "retro_redo" => "retro_redo.jpg",
-                            "retro_save" => "retro_save.jpg",
-                            "retro_search" => "retro_search.jpg",
-                            "retro_fullscreen" => "retro_fullscreen.jpg",
-                            "retro_minimize" => "retro_minimize.jpg",
-                            "retro_maximize" => "retro_maximize.jpg",
-                            "retro_logout" => "retro_logout.jpg",
-                            "retro_shutdown" => "retro_shutdown.jpg",
-                            "retro_reboot" => "retro_reboot.jpg",
-                            "retro_folder_open" => "retro_folder_open.jpg",
-                            "retro_file" => "retro_file.jpg",
-                            "retro_terminal" => "retro_terminal.jpg",
-                            "retro_chat" => "retro_chat.jpg",
-                            "retro_teams" => "retro_teams.jpg",
-                            "retro_zoom" => "retro_zoom.jpg",
-                            "retro_vlc" => "retro_vlc.jpg",
-                            "retro_netflix" => "retro_netflix.jpg",
-                            "retro_screenshot" => "retro_screenshot.jpg",
-                            "retro_stream_start" => "retro_stream_start.jpg",
-                            "neon_browser" => "neon_browser.jpg",
-                            "neon_mail" => "neon_mail.jpg",
-                            "neon_save" => "neon_save.jpg",
-                            "neon_search" => "neon_search.jpg",
-                            "neon_volume_mute" => "neon_volume_mute.jpg",
-                            "neon_chat" => "neon_chat.jpg",
-                            "neon_terminal_window" => "neon_terminal_window.jpg",
-                            "neon_teams" => "neon_teams.jpg",
-                            "neon_zoom" => "neon_zoom.jpg",
-                            "neon_slack" => "neon_slack.jpg",
-                            "retro_slack" => "retro_slack.jpg",
-                            "neon_gmail" => "neon_gmail.jpg",
-                            "retro_gmail" => "retro_gmail.jpg",
-                            "neon_outlook" => "neon_outlook.jpg",
-                            "retro_outlook" => "retro_outlook.jpg",
-                            "neon_vscode" => "neon_vscode.jpg",
-                            "retro_vscode" => "retro_vscode.jpg",
-                            "neon_github" => "neon_github.jpg",
-                            "retro_github" => "retro_github.jpg",
-                            "neon_notion" => "neon_notion.jpg",
-                            "neon_obsidian" => "neon_obsidian.jpg",
-                            "neon_meet" => "neon_meet.jpg",
-                            "neon_edge" => "neon_edge.jpg",
-                            "neon_firefox" => "neon_firefox.jpg",
-                            "neon_brave" => "neon_brave.jpg",
-                            "neon_files" => "neon_files.jpg",
-                            "retro_files" => "retro_files.jpg",
-                            "neon_vlc" => "neon_vlc.jpg",
-                            "neon_netflix" => "neon_netflix.jpg",
-                            "neon_screenshot" => "neon_screenshot.jpg",
-                                _ => entry.Kind.StartsWith("fx_") ? entry.Kind + ".jpg" : ""
-                            };
-                            
-                            string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Icons", filename);
                             SelectedIconKind = null;
                             SelectedDownloadedImagePath = path;
                         }
@@ -1328,25 +971,142 @@ using System;
             
                 private static int GetPrefixPriority(string prefix)
                 {
-                    return prefix switch
+                    return OnlinePackMap.TryGetValue(prefix, out var pack) ? pack.Priority : 20;
+                }
+
+                private static string? ResolveCustomIconPath(string kind)
+                {
+                    if (string.IsNullOrWhiteSpace(kind))
+                        return null;
+
+                    string iconsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Icons");
+                    if (CustomIconAliases.TryGetValue(kind, out string? alias))
                     {
-                        "streamline-color" => 0,
-                        "streamline-plump-color" => 1,
-                        "fluent-color" => 2,
-                        "streamline-kameleon-color" => 3,
-                        "streamline-ultimate-color" => 4,
-                        "streamline-flex-color" => 5,
-                        "streamline-cyber-color" => 6,
-                        "skill-icons" => 7,
-                        "logos" => 8,
-                        "vscode-icons" => 9,
-                        "catppuccin" => 10,
-                        "devicon" => 11,
-                        "twemoji" => 12,
-                        "fluent-emoji-flat" => 13,
-                        "simple-icons" => 14,
-                        _ => 20
-                    };
+                        string aliasedPath = Path.Combine(iconsDir, alias);
+                        if (File.Exists(aliasedPath))
+                            return aliasedPath;
+                    }
+
+                    foreach (string extension in new[] { ".jpg", ".png", ".gif", ".webp", ".jpeg" })
+                    {
+                        string candidate = Path.Combine(iconsDir, kind + extension);
+                        if (File.Exists(candidate))
+                            return candidate;
+                    }
+
+                    return null;
+                }
+
+                private static bool TryCreateCustomIconImage(string kind, out Image? image)
+                {
+                    image = null;
+                    if (ResolveCustomIconPath(kind) is not string path)
+                        return false;
+
+                    try
+                    {
+                        var bmp = new BitmapImage();
+                        bmp.BeginInit();
+                        bmp.UriSource = new Uri(path, UriKind.Absolute);
+                        bmp.CacheOption = BitmapCacheOption.OnLoad;
+                        bmp.EndInit();
+                        image = new Image
+                        {
+                            Source = bmp,
+                            Width = 42,
+                            Height = 42,
+                            Stretch = Stretch.Uniform,
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            VerticalAlignment = VerticalAlignment.Center
+                        };
+                        return true;
+                    }
+                    catch
+                    {
+                        return false;
+                    }
+                }
+
+                private UIElement BuildOnlinePackGuide()
+                {
+                    var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
+                    panel.Children.Add(new TextBlock
+                    {
+                        Text = "Featured free packs",
+                        FontSize = 11,
+                        FontWeight = FontWeights.SemiBold,
+                        Foreground = (Brush)Application.Current.FindResource("TextDimBrush"),
+                        Margin = new Thickness(2, 0, 0, 6)
+                    });
+                    panel.Children.Add(new TextBlock
+                    {
+                        Text = "Linked instead of bundled so AmpUp stays small. Search here, then jump out to GitHub for cooler full packs.",
+                        TextWrapping = TextWrapping.Wrap,
+                        FontSize = 10,
+                        Foreground = (Brush)Application.Current.FindResource("TextSecBrush"),
+                        Margin = new Thickness(2, 0, 0, 8)
+                    });
+
+                    var featuredWrap = new WrapPanel { Margin = new Thickness(0, 0, 0, 8) };
+                    foreach (var pack in FeaturedGitHubPacks)
+                    {
+                        var chip = new Border
+                        {
+                            Margin = new Thickness(0, 0, 8, 8),
+                            Padding = new Thickness(10, 6, 10, 6),
+                            CornerRadius = new CornerRadius(999),
+                            Cursor = Cursors.Hand,
+                            Background = new SolidColorBrush(Color.FromArgb(0x18, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
+                            BorderBrush = new SolidColorBrush(Color.FromArgb(0x36, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
+                            BorderThickness = new Thickness(1),
+                            ToolTip = $"{pack.Description}\n{pack.Url}"
+                        };
+                        chip.Child = new TextBlock
+                        {
+                            Text = $"{pack.Name} • {pack.Description}",
+                            FontSize = 10,
+                            Foreground = (Brush)Application.Current.FindResource("TextPrimaryBrush")
+                        };
+                        chip.MouseLeftButtonUp += (_, _) => OpenUrl(pack.Url);
+                        featuredWrap.Children.Add(chip);
+                    }
+                    panel.Children.Add(featuredWrap);
+
+                    var iconifyWrap = new WrapPanel { Margin = new Thickness(0, 0, 0, 0) };
+                    foreach (var pack in OnlinePacks.Take(8))
+                    {
+                        var chip = new Border
+                        {
+                            Margin = new Thickness(0, 0, 8, 8),
+                            Padding = new Thickness(10, 6, 10, 6),
+                            CornerRadius = new CornerRadius(999),
+                            Cursor = Cursors.Hand,
+                            Background = new SolidColorBrush(Color.FromArgb(0x12, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
+                            BorderBrush = new SolidColorBrush(Color.FromArgb(0x30, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
+                            BorderThickness = new Thickness(1),
+                            ToolTip = $"{pack.Description}\n{pack.Url}"
+                        };
+                        chip.Child = new TextBlock
+                        {
+                            Text = $"{pack.Name} • {pack.Description}",
+                            FontSize = 10,
+                            Foreground = (Brush)Application.Current.FindResource("TextSecBrush")
+                        };
+                        chip.MouseLeftButtonUp += (_, _) => OpenUrl(pack.Url);
+                        iconifyWrap.Children.Add(chip);
+                    }
+                    panel.Children.Add(iconifyWrap);
+
+                    return panel;
+                }
+
+                private static void OpenUrl(string url)
+                {
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+                    }
+                    catch { }
                 }
             
                 private static bool IsLikelyPalettePrefix(string prefix)
@@ -1459,6 +1219,10 @@ using System;
                         new("Retro Folder", "retro_folder", "System", Color.FromRgb(0xFF, 0xD7, 0x40)),
                         new("Retro Lock", "retro_lock", "System", Color.FromRgb(0xFF, 0xD7, 0x40)),
                         new("Retro Sleep", "retro_sleep", "System", Color.FromRgb(0xFF, 0xD7, 0x40)),
+                        new("Retro Wi-Fi", "retro_wifi", "System", Color.FromRgb(0x5C, 0xD7, 0xFF)),
+                        new("Retro VPN", "retro_vpn", "System", Color.FromRgb(0x4D, 0xD0, 0xE1)),
+                        new("Retro Headphones", "retro_headphones", "Audio", Color.FromRgb(0x72, 0x89, 0xDA)),
+                        new("Retro Restore", "retro_restore", "System", Color.FromRgb(0x4D, 0xD0, 0xE1)),
                         new("Retro Twitch", "retro_twitch", "Apps", Color.FromRgb(0x91, 0x46, 0xFF)),
                         new("Retro Discord", "retro_discord", "Apps", Color.FromRgb(0x72, 0x89, 0xDA)),
                         new("Retro Spotify", "retro_spotify", "Apps", Color.FromRgb(0x1D, 0xB9, 0x54)),
@@ -1578,7 +1342,7 @@ using System;
                         new("Neon ChurchPortals", "neon_churchportals", "Apps", Color.FromRgb(0x69, 0xF0, 0xAE)),
                         new("Retro ChurchPortals", "retro_churchportals", "Apps", Color.FromRgb(0x69, 0xF0, 0xAE)),
 
-                        // FX Pack — room-effect neon icons (PNG)
+                        // FX Pack, room-effect neon icons (PNG)
                         new("FX Aurora", "fx_aurora", "Creative", Color.FromRgb(0x69, 0xF0, 0xAE)),
                         new("FX Ocean", "fx_ocean", "Creative", Color.FromRgb(0x29, 0xB6, 0xF6)),
                         new("FX Starfield", "fx_starfield", "Creative", Color.FromRgb(0xB0, 0xBE, 0xC5)),
@@ -1598,6 +1362,35 @@ using System;
                         new("FX Meteor", "fx_meteor", "Creative", Color.FromRgb(0xFF, 0x98, 0x00)),
                         new("FX Heartbeat", "fx_heartbeat", "Creative", Color.FromRgb(0xE9, 0x1E, 0x63)),
 
+                        new("Retro Play/Pause", "retro_play_pause", "Media", Color.FromRgb(0xFF, 0xD7, 0x40)),
+                        new("Retro Wall Lights", "retro_wall_lights", "Creative", Color.FromRgb(0x5C, 0xD7, 0xFF)),
+                        new("Retro Groove Bars", "retro_groove_bars", "Audio", Color.FromRgb(0xFF, 0x66, 0xC4)),
+                        new("Retro Groove Ring", "retro_groove_ring", "Audio", Color.FromRgb(0x8A, 0x7C, 0xFF)),
+                        new("Retro Groove Wave", "retro_groove_wave", "Audio", Color.FromRgb(0x4D, 0xD0, 0xE1)),
+                        new("Retro YouTube", "retro_youtube", "Apps", Color.FromRgb(0xFF, 0x44, 0x44)),
+                        new("Retro OBS", "retro_obs", "Apps", Color.FromRgb(0xD6, 0xDA, 0xFF)),
+                        new("Retro Firefox", "retro_firefox", "Apps", Color.FromRgb(0xFF, 0x8A, 0x3D)),
+                        new("Retro Edge", "retro_edge", "Apps", Color.FromRgb(0x3C, 0xFF, 0xD2)),
+                        new("Retro WhatsApp", "retro_whatsapp", "Apps", Color.FromRgb(0x00, 0xE6, 0x76)),
+                        new("Retro Reddit", "retro_reddit", "Apps", Color.FromRgb(0xFF, 0x7B, 0x39)),
+                        new("Retro X", "retro_x", "Apps", Color.FromRgb(0xD6, 0xDA, 0xFF)),
+                        new("Retro Instagram", "retro_instagram", "Apps", Color.FromRgb(0xFF, 0x66, 0xC4)),
+                        new("Retro TikTok", "retro_tiktok", "Apps", Color.FromRgb(0x38, 0xD3, 0xFF)),
+                        new("Retro Figma", "retro_figma", "Apps", Color.FromRgb(0xC5, 0x5D, 0xFF)),
+                        new("Retro Blender", "retro_blender", "Apps", Color.FromRgb(0xFF, 0x9A, 0x3D)),
+                        new("Retro DaVinci Resolve", "retro_davinci", "Apps", Color.FromRgb(0x5C, 0xD7, 0xFF)),
+                        new("Retro After Effects", "retro_after_effects", "Apps", Color.FromRgb(0x9B, 0x8C, 0xFF)),
+                        new("Retro Illustrator", "retro_illustrator", "Apps", Color.FromRgb(0xFF, 0xB3, 0x5C)),
+                        new("Retro Word", "retro_word", "Apps", Color.FromRgb(0x5C, 0xD7, 0xFF)),
+                        new("Retro Excel", "retro_excel", "Apps", Color.FromRgb(0x00, 0xE6, 0x76)),
+                        new("Retro PowerPoint", "retro_powerpoint", "Apps", Color.FromRgb(0xFF, 0x8A, 0x3D)),
+                        new("Retro Notepad", "retro_notepad", "Apps", Color.FromRgb(0xD6, 0xDA, 0xFF)),
+                        new("Retro Calculator", "retro_calculator", "Apps", Color.FromRgb(0xFF, 0xD7, 0x40)),
+                        new("Retro Signal", "retro_signal", "Apps", Color.FromRgb(0x5C, 0xD7, 0xFF)),
+                        new("Retro Telegram", "retro_telegram", "Apps", Color.FromRgb(0x5C, 0xD7, 0xFF)),
+                        new("Retro ChatGPT", "retro_chatgpt", "Apps", Color.FromRgb(0x69, 0xF0, 0xAE)),
+                        new("Retro Claude", "retro_claude", "Apps", Color.FromRgb(0xFF, 0xA3, 0x73)),
+                        new("Retro LinkedIn", "retro_linkedin", "Apps", Color.FromRgb(0x4D, 0xD0, 0xE1)),
                         new("Play", "Play", "Media", Color.FromRgb(0x00, 0xE6, 0x76)),
                         new("Pause", "Pause", "Media", Color.FromRgb(0x00, 0xC8, 0xFF)),
                         new("Stop", "Stop", "Media", Color.FromRgb(0xFF, 0x5C, 0x5C)),
