@@ -2543,14 +2543,17 @@ public partial class App : Application
                     continue;
                 }
 
+                int folderLocalIdx = showBackKey ? pageOffset + (i - 1) : pageOffset + i;
+
                 if (spotifySpanMasters.TryGetValue(i, out var spotifySpanMaster))
                 {
+                    var overlayKey = activeKeys.FirstOrDefault(k => k.Idx == folderLocalIdx)
+                                     ?? new StreamControllerDisplayKeyConfig { Idx = folderLocalIdx };
                     RemoveAnimatedN3Slot(i);
-                    ops.Add((i, StreamControllerDisplayRenderer.ComposeSpotifyAlbumArtDeviceBitmap(spotifySpanMaster, i), null, false));
+                    ops.Add((i, StreamControllerDisplayRenderer.ComposeSpotifyAlbumArtDeviceBitmap(spotifySpanMaster, overlayKey, i), null, false));
                     continue;
                 }
 
-                int folderLocalIdx = showBackKey ? pageOffset + (i - 1) : pageOffset + i;
                 var key = activeKeys.FirstOrDefault(k => k.Idx == folderLocalIdx);
                 if (key == null)
                 {

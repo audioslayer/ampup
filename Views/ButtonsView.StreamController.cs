@@ -2392,19 +2392,32 @@ public partial class ButtonsView
             display.TextSize = (int)Math.Round(_scTextSizeSlider.Value);
 
         bool spotifySpan = StreamControllerDisplayRenderer.IsSpotifyAlbumArtSpanned(display);
-        _scEditorPreview.Source = spotifySpan
-            ? StreamControllerDisplayRenderer.CreateSpotifyAlbumArtCompositePreview(display, 120)
-            : StreamControllerDisplayRenderer.CreateEditorPreview(display, 360);
-
         // In root the folder key Idx == local slot. In a folder, local slot = Idx + 1
         // (slot 0 is the Back key).
         int folderSlotOffset = InFolderContext ? 1 : 0;
         int localIdx = display.Idx - (_scCurrentPage * StreamControllerKeysPerPage) + folderSlotOffset;
+        StreamControllerDisplayKeyConfig? spotifySpanMaster = null;
+        if (!InFolderContext && localIdx >= 0 && localIdx < StreamControllerKeysPerPage)
+        {
+            spotifySpanMaster = GetActiveN3DisplayKeys()
+                .Where(StreamControllerDisplayRenderer.IsSpotifyAlbumArtSpanned)
+                .OrderBy(k => k.Idx)
+                .FirstOrDefault(k => StreamControllerDisplayRenderer.CoversSpotifyAlbumArtSlot(k, localIdx));
+        }
+
+        _scEditorPreview.Source = spotifySpan
+            ? StreamControllerDisplayRenderer.CreateSpotifyAlbumArtCompositePreview(display, 120)
+            : spotifySpanMaster != null && localIdx >= 0
+                ? StreamControllerDisplayRenderer.CreateSpotifyAlbumArtTilePreview(spotifySpanMaster, display, localIdx, 360)
+                : StreamControllerDisplayRenderer.CreateEditorPreview(display, 360);
+
         if (localIdx >= 0 && localIdx < 6)
         {
             _scDisplayImages[localIdx].Source = spotifySpan
-                ? StreamControllerDisplayRenderer.CreateSpotifyAlbumArtTilePreview(display, localIdx, 240)
-                : StreamControllerDisplayRenderer.CreateEditorPreview(display, 240);
+                ? StreamControllerDisplayRenderer.CreateSpotifyAlbumArtTilePreview(display, display, localIdx, 240)
+                : spotifySpanMaster != null
+                    ? StreamControllerDisplayRenderer.CreateSpotifyAlbumArtTilePreview(spotifySpanMaster, display, localIdx, 240)
+                    : StreamControllerDisplayRenderer.CreateEditorPreview(display, 240);
             _scDisplayCaptions[localIdx].Text = string.IsNullOrWhiteSpace(display.Title) ? $"Key {display.Idx + 1}" : display.Title;
         }
 

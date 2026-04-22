@@ -1519,7 +1519,7 @@ public partial class ButtonsView
             if (visualKey.DisplayType == DisplayKeyType.SpotifyNowPlaying)
             {
                 var spotifyInfo = StreamControllerDisplayRenderer.SpotifyNowPlayingTitleProvider?.Invoke() ?? ("", "");
-                spotifyStateHash = $"{StreamControllerDisplayRenderer.SpotifyNowPlayingImagePath}|{spotifyInfo.Title}|{spotifyInfo.Subtitle}|{visualKey.SpotifyAlbumArtLayout}|{i}";
+                spotifyStateHash = $"{visualKey.Idx}|{StreamControllerDisplayRenderer.SpotifyNowPlayingImagePath}|{spotifyInfo.Title}|{spotifyInfo.Subtitle}|{visualKey.SpotifyAlbumArtLayout}|{visualKey.BackgroundColor}|{visualKey.Brightness}|{i}";
             }
 
             // Compose a hash from fields the tile actually renders — skip
@@ -1533,7 +1533,7 @@ public partial class ButtonsView
             tile.ToolTip = null;
             if (spotifySpanMaster != null)
             {
-                tile.PreviewImage = StreamControllerDisplayRenderer.CreateSpotifyAlbumArtTilePreview(spotifySpanMaster, i, 240);
+                tile.PreviewImage = StreamControllerDisplayRenderer.CreateSpotifyAlbumArtTilePreview(spotifySpanMaster, key, i, 240);
                 tile.PreviewAnimation = null;
                 tile.PreviewAnimationSignature = $"spotify-span|{spotifySpanMaster.Idx}|{spotifyStateHash}|240";
             }

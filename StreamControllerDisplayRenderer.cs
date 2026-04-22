@@ -370,7 +370,17 @@ internal static class StreamControllerDisplayRenderer
     public static BitmapSource CreateSpotifyAlbumArtTilePreview(
         StreamControllerDisplayKeyConfig key, int physicalSlot, int size = 256)
     {
-        using var bitmap = ComposeSpotifyAlbumArtTileBitmap(key, physicalSlot, size);
+        using var bitmap = ComposeSpotifyAlbumArtTileBitmap(key, key, physicalSlot, size);
+        return ToBitmapSource(bitmap);
+    }
+
+    public static BitmapSource CreateSpotifyAlbumArtTilePreview(
+        StreamControllerDisplayKeyConfig spanKey,
+        StreamControllerDisplayKeyConfig overlayKey,
+        int physicalSlot,
+        int size = 256)
+    {
+        using var bitmap = ComposeSpotifyAlbumArtTileBitmap(spanKey, overlayKey, physicalSlot, size);
         return ToBitmapSource(bitmap);
     }
 
@@ -384,7 +394,15 @@ internal static class StreamControllerDisplayRenderer
     public static DrawingBitmap ComposeSpotifyAlbumArtDeviceBitmap(
         StreamControllerDisplayKeyConfig key, int physicalSlot)
     {
-        return ComposeSpotifyAlbumArtTileBitmap(key, physicalSlot, DeviceCanvasSize);
+        return ComposeSpotifyAlbumArtTileBitmap(key, key, physicalSlot, DeviceCanvasSize);
+    }
+
+    public static DrawingBitmap ComposeSpotifyAlbumArtDeviceBitmap(
+        StreamControllerDisplayKeyConfig spanKey,
+        StreamControllerDisplayKeyConfig overlayKey,
+        int physicalSlot)
+    {
+        return ComposeSpotifyAlbumArtTileBitmap(spanKey, overlayKey, physicalSlot, DeviceCanvasSize);
     }
 
     private static DrawingBitmap ComposeImage(StreamControllerDisplayKeyConfig key, int? size = null)
@@ -440,31 +458,51 @@ internal static class StreamControllerDisplayRenderer
     }
 
     private static DrawingBitmap ComposeSpotifyAlbumArtTileBitmap(
-        StreamControllerDisplayKeyConfig key, int physicalSlot, int tileSize)
+        StreamControllerDisplayKeyConfig spanKey,
+        StreamControllerDisplayKeyConfig overlayKey,
+        int physicalSlot,
+        int tileSize)
     {
-        var effectiveKey = ResolveEffectiveKey(key);
-        if (!TryGetSpotifyAlbumArtCrop(effectiveKey.SpotifyAlbumArtLayout, physicalSlot, tileSize,
+        var effectiveSpanKey = ResolveEffectiveKey(spanKey);
+        var effectiveOverlayKey = ResolveTextOverlayKey(overlayKey);
+        if (!TryGetSpotifyAlbumArtCrop(effectiveSpanKey.SpotifyAlbumArtLayout, physicalSlot, tileSize,
                 out int compositeWidth, out int compositeHeight, out var sourceRect))
         {
-            return ComposeImage(effectiveKey, tileSize);
+            return ComposeImage(effectiveOverlayKey, tileSize);
         }
 
-        using var composite = ComposeSpotifyAlbumArtCompositeBitmap(effectiveKey, tileSize);
+        using var composite = ComposeSpotifyAlbumArtCompositeBitmap(effectiveSpanKey, tileSize);
         var tile = new DrawingBitmap(tileSize, tileSize);
         using var graphics = DrawingGraphics.FromImage(tile);
         ConfigureGraphics(graphics);
-        graphics.Clear(ParseColor(effectiveKey.BackgroundColor, DrawingColor.FromArgb(0x1C, 0x1C, 0x1C)));
+        graphics.Clear(ParseColor(effectiveSpanKey.BackgroundColor, DrawingColor.FromArgb(0x1C, 0x1C, 0x1C)));
         graphics.DrawImage(
             composite,
             new System.Drawing.Rectangle(0, 0, tileSize, tileSize),
             sourceRect,
             DrawingGraphicsUnit.Pixel);
 
-        int brightness = Math.Clamp(effectiveKey.Brightness, 0, 100);
+        string overlayTitle = effectiveOverlayKey.Title?.Trim() ?? "";
+        if (!string.IsNullOrWhiteSpace(overlayTitle)
+            && effectiveOverlayKey.TextPosition != DisplayTextPosition.Hidden)
+        {
+            DrawTextOverlay(tile, effectiveOverlayKey, tileSize, overlayTitle);
+        }
+
+        int brightness = Math.Clamp(effectiveSpanKey.Brightness, 0, 100);
         if (brightness < 100)
             ApplyBrightness(tile, brightness);
 
         return tile;
+    }
+
+    private static StreamControllerDisplayKeyConfig ResolveTextOverlayKey(StreamControllerDisplayKeyConfig key)
+    {
+        var overlay = ResolveEffectiveKey(key);
+        overlay.ImagePath = "";
+        overlay.PresetIconKind = "";
+        overlay.DynamicStateGlowColor = "";
+        return overlay;
     }
 
     private static DrawingBitmap ComposeSpotifyAlbumArtCompositeBitmap(

@@ -705,6 +705,19 @@ public partial class ButtonsView
             _v2DesignTab.Visibility = isLcd ? Visibility.Visible : Visibility.Collapsed;
         var spotifyKey = isLcd ? (GetSelectedDisplayKeyConfig()
                          ?? new StreamControllerDisplayKeyConfig { Idx = selection.DisplayIdx!.Value }) : null;
+        int selectedLocalSlot = -1;
+        StreamControllerDisplayKeyConfig? spotifySpanMaster = null;
+        if (isLcd && !IsBackKeyShown && selection.DisplayIdx.HasValue)
+        {
+            selectedLocalSlot = selection.DisplayIdx.Value - (_scCurrentPage * StreamControllerKeysPerPage);
+            if (selectedLocalSlot >= 0 && selectedLocalSlot < StreamControllerKeysPerPage)
+            {
+                spotifySpanMaster = GetActiveN3DisplayKeys()
+                    .Where(StreamControllerDisplayRenderer.IsSpotifyAlbumArtSpanned)
+                    .OrderBy(k => k.Idx)
+                    .FirstOrDefault(k => StreamControllerDisplayRenderer.CoversSpotifyAlbumArtSlot(k, selectedLocalSlot));
+            }
+        }
         bool showSpotifyTab = spotifyKey?.DisplayType == DisplayKeyType.SpotifyNowPlaying;
         if (_v2SpotifyTab != null)
             _v2SpotifyTab.Visibility = showSpotifyTab ? Visibility.Visible : Visibility.Collapsed;
@@ -744,6 +757,12 @@ public partial class ButtonsView
                 if (StreamControllerDisplayRenderer.IsSpotifyAlbumArtSpanned(key))
                 {
                     _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateSpotifyAlbumArtCompositePreview(key, 120);
+                    AnimatedImageDriver.Unregister(_scEditorPreview);
+                }
+                else if (spotifySpanMaster != null && selectedLocalSlot >= 0)
+                {
+                    _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateSpotifyAlbumArtTilePreview(
+                        spotifySpanMaster, key, selectedLocalSlot, 360);
                     AnimatedImageDriver.Unregister(_scEditorPreview);
                 }
                 else
