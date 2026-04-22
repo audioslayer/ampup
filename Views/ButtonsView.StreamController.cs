@@ -1991,7 +1991,15 @@ public partial class ButtonsView
         if (selection.DisplayIdx.HasValue)
         {
             var activeKeys = GetActiveN3DisplayKeys();
+            var activeButtons = GetActiveN3ButtonList();
             var key = activeKeys.FirstOrDefault(k => k.Idx == selection.DisplayIdx.Value) ?? new StreamControllerDisplayKeyConfig { Idx = selection.DisplayIdx.Value };
+            if (key.DisplayType == DisplayKeyType.DynamicState && string.IsNullOrWhiteSpace(key.DynamicStateSource))
+            {
+                var boundButton = activeButtons.FirstOrDefault(b => b.Idx == StreamControllerDisplayKeyBase + selection.DisplayIdx.Value);
+                string derived = DynamicKeyStateProvider.DeriveSourceFromAction(boundButton?.Action);
+                if (!string.IsNullOrWhiteSpace(derived))
+                    key.DynamicStateSource = derived;
+            }
             _scTitleBox.Text = key.Title;
             _scIconBox.Text = !string.IsNullOrWhiteSpace(key.ImagePath)
                 ? System.IO.Path.GetFileName(key.ImagePath)

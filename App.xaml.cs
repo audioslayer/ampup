@@ -2505,6 +2505,7 @@ public partial class App : Application
         bool inFolder = IsInFolder;
         int pageOffset = _config.N3.CurrentPage * 6;
         var activeKeys = GetActiveDisplayKeys();
+        var activeButtons = GetActiveN3Buttons();
 
         // Respect the folder's BackKeyEnabled flag — when disabled, skip the
         // virtual Back render on page 0 slot 0 and fall through to normal
@@ -2534,6 +2535,15 @@ public partial class App : Application
                     RemoveAnimatedN3Slot(i);
                     ops.Add((i, null, null, true));
                     continue;
+                }
+
+                if (key.DisplayType == DisplayKeyType.DynamicState
+                    && string.IsNullOrWhiteSpace(key.DynamicStateSource))
+                {
+                    var boundButton = activeButtons.FirstOrDefault(b => b.Idx == N3DisplayKeyBase + folderLocalIdx);
+                    string derived = DynamicKeyStateProvider.DeriveSourceFromAction(boundButton?.Action);
+                    if (!string.IsNullOrWhiteSpace(derived))
+                        key.DynamicStateSource = derived;
                 }
 
                 if (TryGetAnimatedN3State(i, key, out var animatedState))
@@ -2916,6 +2926,21 @@ public partial class App : Application
     }
 
     /// <summary>
+    /// Force an immediate re-render of Stream Controller dynamic-state keys
+    /// after an action changes the underlying tracked state.
+    /// </summary>
+    private void RefreshStreamControllerDynamicStateVisuals()
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            _lastDynamicStateTick = DateTime.Now;
+            if (_n3 != null && _isN3Connected)
+                SyncStreamControllerDisplays();
+            _mainWindow?.GetButtonsView()?.RefreshV2LeftPanel();
+        });
+    }
+
+    /// <summary>
     /// Room-wide white/off toggle. Press once → every Govee device ON at
     /// 100% white, Corsair driven to white, room effect paused. Press
     /// again → everything off. Wired to the govee_white_toggle action.
@@ -2991,6 +3016,9 @@ public partial class App : Application
             _corsairSync.Resume();
             _ = _corsairSync.SetStaticColorAllAsync(W, W, W);
         }
+
+        ConfigManager.Save(_config);
+        RefreshStreamControllerDynamicStateVisuals();
     }
 
     private void HandleRoomToggle()
@@ -3041,6 +3069,9 @@ public partial class App : Application
         // will catch any frames the device drops while finishing power-up.
         if (anyGoveeOn)
             _mainWindow?.GetRoomView()?.ResumeRoomEffect();
+
+        ConfigManager.Save(_config);
+        RefreshStreamControllerDynamicStateVisuals();
     }
 
     /// <summary>
@@ -3072,6 +3103,7 @@ public partial class App : Application
         }
 
         ConfigManager.Save(_config);
+        RefreshStreamControllerDynamicStateVisuals();
     }
 
     private readonly Dictionary<string, bool> _groupStates = new();
@@ -3176,6 +3208,9 @@ public partial class App : Application
             Task.Delay(800).ContinueWith(_ =>
                 _mainWindow?.GetRoomView()?.ResumeRoomEffect());
         }
+
+        ConfigManager.Save(_config);
+        RefreshStreamControllerDynamicStateVisuals();
     }
 
     private void HandleScPageChange(int value, bool absolute)

@@ -1478,10 +1478,30 @@ public partial class ButtonsView
                       ?? new StreamControllerDisplayKeyConfig { Idx = globalIdx };
             var button = activeButtons.FirstOrDefault(b => b.Idx == buttonIdx);
             bool isSelected = _scSelectedButtonIdx == buttonIdx;
+            if (key.DisplayType == DisplayKeyType.DynamicState
+                && string.IsNullOrWhiteSpace(key.DynamicStateSource))
+            {
+                string derived = DynamicKeyStateProvider.DeriveSourceFromAction(button?.Action);
+                if (!string.IsNullOrWhiteSpace(derived))
+                    key.DynamicStateSource = derived;
+            }
+            bool dynamicActive = false;
+            if (key.DisplayType == DisplayKeyType.DynamicState
+                && !string.IsNullOrWhiteSpace(key.DynamicStateSource))
+            {
+                try
+                {
+                    dynamicActive = StreamControllerDisplayRenderer.DynamicStateResolver?.Invoke(key.DynamicStateSource) ?? false;
+                }
+                catch
+                {
+                    dynamicActive = false;
+                }
+            }
 
             // Compose a hash from fields the tile actually renders — skip
             // CreateHardwarePreview + tile.Refresh() when nothing changed.
-            string hash = $"{key.Title}|{key.ImagePath}|{key.PresetIconKind}|{key.TextPosition}|{key.TextSize}|{key.TextColor}|{key.IconColor}|{key.FontFamily}|{key.Brightness}|{key.BackgroundColor}|{key.AccentColor}|{key.DisplayType}|{key.ClockFormat}|{key.DynamicStateSource}|{key.DynamicStateActiveIcon}|{key.DynamicStateActiveTitle}|{key.DynamicStateInactiveBrightness}|{key.DynamicStateDimWhenActive}|{key.DynamicStateGlowColor}|{button?.Action}|{isSelected}";
+            string hash = $"{key.Title}|{key.ImagePath}|{key.PresetIconKind}|{key.TextPosition}|{key.TextSize}|{key.TextColor}|{key.IconColor}|{key.FontFamily}|{key.Brightness}|{key.BackgroundColor}|{key.AccentColor}|{key.DisplayType}|{key.ClockFormat}|{key.DynamicStateSource}|{key.DynamicStateActiveIcon}|{key.DynamicStateActiveTitle}|{key.DynamicStateInactiveBrightness}|{key.DynamicStateDimWhenActive}|{key.DynamicStateGlowColor}|{dynamicActive}|{button?.Action}|{isSelected}";
             if (_v2KeyTileStateHash.TryGetValue(i, out var lastHash) && lastHash == hash)
                 continue;
 

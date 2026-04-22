@@ -3626,9 +3626,7 @@ public partial class RoomView : UserControl
         });
 
         string? lanIp = overrideIp ?? FindLanIp(device);
-        var devConfig = lanIp != null
-            ? _config?.Ambience.GoveeDevices.FirstOrDefault(d => d.Ip == lanIp)
-            : null;
+        var devConfig = FindGoveeDeviceConfig(device, lanIp);
 
         // Power toggle
         var onOffCheck = new CheckBox
@@ -3661,6 +3659,31 @@ public partial class RoomView : UserControl
                 await SafeCloudCall(() => _cloudApi.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.TurnOnOff(false)));
         };
         content.Children.Add(onOffCheck);
+
+        var ampUpSyncCheck = new CheckBox
+        {
+            Content = "AmpUp Sync",
+            IsChecked = devConfig?.SyncWithAmpUp ?? true,
+            IsEnabled = devConfig != null,
+            Foreground = FindBrush("TextPrimaryBrush"),
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 12, 0),
+            ToolTip = "When off, AmpUp won't push room effects or screen sync to this device.",
+        };
+        ampUpSyncCheck.Checked += (_, _) =>
+        {
+            if (_loading || devConfig == null) return;
+            devConfig.SyncWithAmpUp = true;
+            _onSave?.Invoke(_config!);
+        };
+        ampUpSyncCheck.Unchecked += (_, _) =>
+        {
+            if (_loading || devConfig == null) return;
+            devConfig.SyncWithAmpUp = false;
+            _onSave?.Invoke(_config!);
+        };
+        content.Children.Add(ampUpSyncCheck);
 
         // Brightness slider
         var brightnessSlider = new StyledSlider
@@ -4781,7 +4804,7 @@ public partial class RoomView : UserControl
         {
             foreach (var dev in _config.Ambience.GoveeDevices)
             {
-                if (string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn) continue;
+                if (string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn || !dev.SyncWithAmpUp) continue;
                 bool inSegmentMode = AmbienceSync.GetSegmentCount(dev) > 0;
                 string ip = dev.Ip;
                 _ = Task.Run(async () =>
@@ -4806,8 +4829,12 @@ public partial class RoomView : UserControl
         // Govee Cloud
         if (_cloudApi != null)
             foreach (var dev in _cloudDevices)
+            {
+                var devConfig = FindGoveeDeviceConfig(dev);
+                if (devConfig != null && !devConfig.SyncWithAmpUp) continue;
                 _ = SafeCloudCall(() => _cloudApi.ControlDeviceAsync(
                     dev.Device, dev.Sku, GoveeCloudApi.SetColor(r, g, b)));
+            }
     }
 
     // Saved state for game mode restore
@@ -5065,7 +5092,7 @@ public partial class RoomView : UserControl
                 _lastCloudRoomSend = DateTime.UtcNow;
                 foreach (var dev in config.Ambience.GoveeDevices)
                 {
-                    if (!string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn) continue;
+                    if (!string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn || !dev.SyncWithAmpUp) continue;
                     if (string.IsNullOrWhiteSpace(dev.DeviceId)) continue;
                     var cloud = _cloudDevices.FirstOrDefault(c => c.Device == dev.DeviceId);
                     if (cloud == null) continue;
@@ -5560,6 +5587,29 @@ public partial class RoomView : UserControl
             if (!string.IsNullOrWhiteSpace(lan.Sku) && lan.Sku == device.Sku)
                 return lan.Ip;
         }
+        return null;
+    }
+
+    private GoveeDeviceConfig? FindGoveeDeviceConfig(GoveeDeviceInfo device, string? overrideIp = null)
+    {
+        if (_config == null) return null;
+
+        string? lanIp = overrideIp ?? FindLanIp(device);
+        if (!string.IsNullOrWhiteSpace(lanIp))
+        {
+            var byIp = _config.Ambience.GoveeDevices.FirstOrDefault(d => d.Ip == lanIp);
+            if (byIp != null) return byIp;
+        }
+
+        if (!string.IsNullOrWhiteSpace(device.Device))
+        {
+            var byDeviceId = _config.Ambience.GoveeDevices.FirstOrDefault(d => d.DeviceId == device.Device);
+            if (byDeviceId != null) return byDeviceId;
+        }
+
+        if (!string.IsNullOrWhiteSpace(device.Sku))
+            return _config.Ambience.GoveeDevices.FirstOrDefault(d => d.Sku == device.Sku && d.Name == device.DeviceName);
+
         return null;
     }
 

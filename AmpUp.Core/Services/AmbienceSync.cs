@@ -117,7 +117,7 @@ public class AmbienceSync : IDisposable
         foreach (var device in cfg.GoveeDevices)
         {
             if (string.IsNullOrWhiteSpace(device.Ip)) continue;
-            if (!device.PoweredOn || device.SyncMode == "off" || IsSyncPaused(device.Ip)) continue;
+            if (!device.PoweredOn || !device.SyncWithAmpUp || device.SyncMode == "off" || IsSyncPaused(device.Ip)) continue;
 
             // Rate limit: skip if sent too recently
             int segCount = GetSegmentCount(device);
@@ -310,7 +310,7 @@ public class AmbienceSync : IDisposable
         var activeDevices = new List<(GoveeDeviceConfig Dev, int Zones)>();
         foreach (var device in cfg.GoveeDevices)
         {
-            if (string.IsNullOrWhiteSpace(device.Ip) || !device.PoweredOn || IsSyncPaused(device.Ip)) continue;
+            if (string.IsNullOrWhiteSpace(device.Ip) || !device.PoweredOn || !device.SyncWithAmpUp || IsSyncPaused(device.Ip)) continue;
             int segs = (GetSegmentCount(device) > 0 && device.UseSegmentProtocol)
                 ? GetSegmentCount(device) : 1;
             activeDevices.Add((device, segs));

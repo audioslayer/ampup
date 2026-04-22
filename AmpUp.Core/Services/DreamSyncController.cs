@@ -229,7 +229,7 @@ public class DreamSyncController : IDisposable
                             if (string.IsNullOrWhiteSpace(mapping.DeviceIp)) continue;
 
                             var dev = amb.GoveeDevices.FirstOrDefault(d => d.Ip == mapping.DeviceIp);
-                            if (dev == null || !dev.PoweredOn) continue;
+                            if (dev == null || !dev.PoweredOn || !dev.SyncWithAmpUp) continue;
 
                             int segCount = AmbienceSync.GetSegmentCount(dev);
                             bool useSegments = segCount > 0 && dev.UseSegmentProtocol;

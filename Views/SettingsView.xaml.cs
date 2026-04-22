@@ -1505,8 +1505,12 @@ public partial class SettingsView : UserControl
                     var prev = existing.FirstOrDefault(e =>
                         (!string.IsNullOrEmpty(e.Ip) && e.Ip == dev.Ip) ||
                         (!string.IsNullOrEmpty(e.DeviceId) && e.DeviceId == dev.DeviceId));
-                    if (prev != null && prev.SyncMode != "off")
-                        dev.SyncMode = prev.SyncMode;
+                    if (prev != null)
+                    {
+                        if (prev.SyncMode != "off")
+                            dev.SyncMode = prev.SyncMode;
+                        dev.SyncWithAmpUp = prev.SyncWithAmpUp;
+                    }
                 }
 
                 _config.Ambience.GoveeDevices = found;

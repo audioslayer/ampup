@@ -153,6 +153,8 @@ internal static class DynamicKeyStateProvider
             case "spotify_shuffle":
             case "spotify_like":
                 return "spotify_playing";
+            case "room_toggle":
+            case "corsair_toggle":
             case "govee_toggle":
             case "govee_white_toggle":
             case "govee_color":
@@ -188,9 +190,9 @@ internal static class DynamicKeyStateProvider
                 foreach (var dev in cfg.Ambience.GoveeDevices)
                     if (dev.PoweredOn) return true;
 
-                // Corsair enabled with a non-static mode = actively driving LEDs.
+                // Enabled Corsair lighting counts as "on" even in static mode
+                // (e.g. forced white). Only explicit "off" should read false.
                 if (cfg.Corsair.Enabled
-                    && !string.Equals(cfg.Corsair.LightSyncMode, "static", StringComparison.OrdinalIgnoreCase)
                     && !string.Equals(cfg.Corsair.LightSyncMode, "off", StringComparison.OrdinalIgnoreCase))
                     return true;
             }
