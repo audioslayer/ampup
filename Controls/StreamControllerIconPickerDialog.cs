@@ -976,7 +976,7 @@ using System;
                             "retro_nanoarcade" => "retro_nanoarcade.jpg",
                             "neon_churchportals" => "neon_churchportals.jpg",
                             "retro_churchportals" => "retro_churchportals.jpg",
-                            _ => entry.Kind.StartsWith("fx_") ? entry.Kind + ".png" : ""
+                            _ => entry.Kind.StartsWith("fx_") ? entry.Kind + ".jpg" : ""
                         };
 
                         if (!string.IsNullOrEmpty(filename))
@@ -1207,7 +1207,7 @@ using System;
                             "neon_vlc" => "neon_vlc.jpg",
                             "neon_netflix" => "neon_netflix.jpg",
                             "neon_screenshot" => "neon_screenshot.jpg",
-                                _ => entry.Kind.StartsWith("fx_") ? entry.Kind + ".png" : ""
+                                _ => entry.Kind.StartsWith("fx_") ? entry.Kind + ".jpg" : ""
                             };
                             
                             string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Icons", filename);
