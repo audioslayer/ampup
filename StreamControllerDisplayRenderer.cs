@@ -482,8 +482,10 @@ internal static class StreamControllerDisplayRenderer
             sourceRect,
             DrawingGraphicsUnit.Pixel);
 
+        bool overlayIsSpanMaster = overlayKey.Idx == spanKey.Idx;
         string overlayTitle = effectiveOverlayKey.Title?.Trim() ?? "";
-        if (!string.IsNullOrWhiteSpace(overlayTitle)
+        if (!overlayIsSpanMaster
+            && !string.IsNullOrWhiteSpace(overlayTitle)
             && effectiveOverlayKey.TextPosition != DisplayTextPosition.Hidden)
         {
             DrawTextOverlay(tile, effectiveOverlayKey, tileSize, overlayTitle);
@@ -532,6 +534,10 @@ internal static class StreamControllerDisplayRenderer
             ConfigureGraphics(graphics);
             graphics.Clear(ParseColor(effectiveKey.BackgroundColor, DrawingColor.FromArgb(0x1C, 0x1C, 0x1C)));
         }
+
+        string title = effectiveKey.Title?.Trim() ?? "";
+        if (!string.IsNullOrWhiteSpace(title) && effectiveKey.TextPosition != DisplayTextPosition.Hidden)
+            DrawTextOverlay(bitmap, effectiveKey, width, height, title);
 
         return bitmap;
     }
@@ -859,11 +865,19 @@ internal static class StreamControllerDisplayRenderer
     }
 
     private static void DrawTextOverlay(DrawingBitmap bitmap, StreamControllerDisplayKeyConfig key, int size, string title)
+        => DrawTextOverlay(bitmap, key, size, size, title);
+
+    private static void DrawTextOverlay(
+        DrawingBitmap bitmap,
+        StreamControllerDisplayKeyConfig key,
+        int width,
+        int height,
+        string title)
     {
         using var graphics = DrawingGraphics.FromImage(bitmap);
         ConfigureGraphics(graphics);
 
-        float scale = size / 60f;
+        float scale = height / 60f;
         var textColor = ParseColor(key.TextColor, DrawingColor.White);
         float baseFontSize = Math.Clamp(key.TextSize, 6, 28);
 
@@ -915,33 +929,33 @@ internal static class StreamControllerDisplayRenderer
                     new System.Drawing.PointF(0, totalH + pad * 3),
                     DrawingColor.FromArgb(180, 0, 0, 0),
                     DrawingColor.FromArgb(0, 0, 0, 0)))
-                    graphics.FillRectangle(grad, 0, 0, size, totalH + pad * 3);
+                    graphics.FillRectangle(grad, 0, 0, width, totalH + pad * 3);
                 break;
             case DisplayTextPosition.Middle:
-                textY = (size - totalH) * 0.5f;
+                textY = (height - totalH) * 0.5f;
                 // Subtle center darkening
                 using (var grad = new System.Drawing.Drawing2D.LinearGradientBrush(
                     new System.Drawing.PointF(0, textY - pad * 2),
                     new System.Drawing.PointF(0, textY + totalH + pad * 2),
                     DrawingColor.FromArgb(0, 0, 0, 0),
                     DrawingColor.FromArgb(120, 0, 0, 0)))
-                    graphics.FillRectangle(grad, 0, textY - pad * 2, size, pad * 2);
+                    graphics.FillRectangle(grad, 0, textY - pad * 2, width, pad * 2);
                 using (var grad = new System.Drawing.Drawing2D.LinearGradientBrush(
                     new System.Drawing.PointF(0, textY),
                     new System.Drawing.PointF(0, textY + totalH + pad * 2),
                     DrawingColor.FromArgb(120, 0, 0, 0),
                     DrawingColor.FromArgb(0, 0, 0, 0)))
-                    graphics.FillRectangle(grad, 0, textY, size, totalH + pad * 2);
+                    graphics.FillRectangle(grad, 0, textY, width, totalH + pad * 2);
                 break;
             default: // Bottom
-                textY = size - totalH - pad;
+                textY = height - totalH - pad;
                 // Dark gradient at bottom for readability
                 using (var grad = new System.Drawing.Drawing2D.LinearGradientBrush(
                     new System.Drawing.PointF(0, textY - pad * 3),
-                    new System.Drawing.PointF(0, size),
+                    new System.Drawing.PointF(0, height),
                     DrawingColor.FromArgb(0, 0, 0, 0),
                     DrawingColor.FromArgb(180, 0, 0, 0)))
-                    graphics.FillRectangle(grad, 0, textY - pad * 3, size, size - textY + pad * 3);
+                    graphics.FillRectangle(grad, 0, textY - pad * 3, width, height - textY + pad * 3);
                 break;
         }
 
@@ -950,7 +964,7 @@ internal static class StreamControllerDisplayRenderer
         {
             float lineY = textY + li * (lineH + lineSpacing);
             graphics.DrawString(lines[li], titleFont, textBrush,
-                new DrawingRectangleF(2 * scale, lineY, size - 4 * scale, lineH),
+                new DrawingRectangleF(2 * scale, lineY, width - 4 * scale, lineH),
                 format);
         }
     }
