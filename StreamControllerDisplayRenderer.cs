@@ -330,7 +330,7 @@ internal static class StreamControllerDisplayRenderer
 
         // Check both extensions — existing packs ship as .jpg, the FX pack
         // is PNG so alpha-punched shapes render without a blocky background.
-        foreach (var ext in new[] { ".png", ".jpg" })
+        foreach (var ext in new[] { ".gif", ".png", ".jpg" })
         {
             var candidate = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Icons", kind + ext);
             if (File.Exists(candidate))
