@@ -1,7 +1,17 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using HidSharp;
 
 namespace AmpUp.Core.Services;
+
+public enum N3FirmwareFamily
+{
+    Unknown,
+    TreasLinProtocolV3,
+    MiraboxV2,
+    MiraboxV25,
+    MiraboxV3,
+}
 
 public enum N3InputKind
 {
@@ -81,10 +91,17 @@ public sealed class N3Controller : IDisposable
     public bool IsAvailable => _stream != null && !_disposed;
     public string DeviceName { get; private set; } = "TreasLin N3";
     public string SerialNumber { get; private set; } = "";
+    public string FirmwareVersion { get; private set; } = "";
+    public string FirmwareProbeSource { get; private set; } = "Unavailable";
+    public N3FirmwareFamily FirmwareFamily { get; private set; } = N3FirmwareFamily.Unknown;
     public int InputReportLength { get; private set; }
     public int OutputReportLength { get; private set; }
+    public int FeatureReportLength { get; private set; }
+    public int ConnectedVendorId { get; private set; } = VendorId;
+    public int ConnectedProductId { get; private set; } = ProductId;
     public string DevicePath { get; private set; } = "";
     public string KeyboardPath { get; private set; } = "";
+    public bool SupportsDualDisplayProtocol => FirmwareFamily != N3FirmwareFamily.MiraboxV25;
 
     public bool TryConnect(bool initialize = true)
     {
@@ -142,13 +159,17 @@ public sealed class N3Controller : IDisposable
 
             InputReportLength = SafeGet(() => _device.GetMaxInputReportLength(), DefaultPacketSize + 1);
             OutputReportLength = SafeGet(() => _device.GetMaxOutputReportLength(), DefaultPacketSize + 1);
+            FeatureReportLength = SafeGet(() => _device.GetMaxFeatureReportLength(), 0);
+            ConnectedVendorId = SafeGet(() => _device.VendorID, VendorId);
+            ConnectedProductId = SafeGet(() => _device.ProductID, ProductId);
             DevicePath = _device.DevicePath ?? "";
             DeviceName = SafeGet(() => _device.GetProductName(), "TreasLin N3");
             SerialNumber = SafeGet(() => _device.GetSerialNumber(), "");
+            ProbeFirmwareIdentity();
 
             Logger.Log(
                 $"N3: connected to {DeviceName} " +
-                $"(vid=0x{VendorId:X4}, pid=0x{ProductId:X4}, in={InputReportLength}, out={OutputReportLength}, serial={SerialNumber}, path={DevicePath})");
+                $"(vid=0x{ConnectedVendorId:X4}, pid=0x{ConnectedProductId:X4}, in={InputReportLength}, out={OutputReportLength}, feature={FeatureReportLength}, serial={SerialNumber}, path={DevicePath})");
 
             if (initialize)
             {
@@ -175,11 +196,17 @@ public sealed class N3Controller : IDisposable
 
         try
         {
+            if (!SupportsDualDisplayProtocol)
+            {
+                Logger.Log($"N3: dual-display init skipped for firmware family {FirmwareFamily} (version='{FirmwareVersion}')");
+                return false;
+            }
+
             // Mirajazz initialization sequence for pv3 N3-family devices.
             WriteExtendedReport(0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x44, 0x49, 0x53); // CRT..DIS
             WriteExtendedReport(0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x4C, 0x49, 0x47, 0x00, 0x00, 0x00, 0x00); // CRT..LIG
             _initialized = true;
-            Logger.Log("N3: initialization sequence sent (CRT DIS, CRT LIG)");
+            Logger.Log($"N3: initialization sequence sent (CRT DIS, CRT LIG) for {FirmwareFamily} firmware");
             return true;
         }
         catch (Exception ex)
@@ -262,6 +289,7 @@ public sealed class N3Controller : IDisposable
     public void ClearAllDisplays()
     {
         if (!EnsureInitialized()) return;
+        if (!SupportsDualDisplayProtocol) return;
 
         try
         {
@@ -277,6 +305,7 @@ public sealed class N3Controller : IDisposable
     public bool ClearDisplay(int keyIndex, bool commit = true)
     {
         if (!EnsureInitialized()) return false;
+        if (!SupportsDualDisplayProtocol) return false;
         if (keyIndex < 0 || keyIndex >= DisplayKeyCount)
         {
             Logger.Log($"N3: clear display skipped because key index {keyIndex} is out of range");
@@ -302,6 +331,7 @@ public sealed class N3Controller : IDisposable
     public bool SendDisplayImage(int keyIndex, byte[] imageData, bool commit = true)
     {
         if (!EnsureInitialized()) return false;
+        if (!SupportsDualDisplayProtocol) return false;
         if (keyIndex < 0 || keyIndex >= DisplayKeyCount)
         {
             Logger.Log($"N3: send display image skipped because key index {keyIndex} is out of range");
@@ -339,6 +369,7 @@ public sealed class N3Controller : IDisposable
     public bool CommitDisplayChanges()
     {
         if (!EnsureInitialized()) return false;
+        if (!SupportsDualDisplayProtocol) return false;
 
         try
         {
@@ -675,9 +706,160 @@ public sealed class N3Controller : IDisposable
         catch { return fallback; }
     }
 
+    private void ProbeFirmwareIdentity()
+    {
+        string firmware = TryReadFirmwareVersionFromFeatureReports(out string source);
+        if (string.IsNullOrWhiteSpace(firmware))
+        {
+            firmware = TryExtractFirmwareToken($"{DeviceName} {SerialNumber} {DevicePath}");
+            if (!string.IsNullOrWhiteSpace(firmware))
+            {
+                source = "descriptor token";
+            }
+        }
+
+        FirmwareVersion = firmware;
+        FirmwareFamily = InferFirmwareFamily(firmware);
+        FirmwareProbeSource = source;
+
+        if (FirmwareFamily == N3FirmwareFamily.Unknown)
+        {
+            FirmwareFamily = InferFirmwareFamilyFromDescriptors();
+            if (FirmwareFamily != N3FirmwareFamily.Unknown)
+            {
+                FirmwareProbeSource = string.IsNullOrWhiteSpace(FirmwareVersion)
+                    ? "device heuristic"
+                    : $"{FirmwareProbeSource} + heuristic";
+            }
+        }
+
+        Logger.Log(
+            $"N3: firmware probe family={FirmwareFamily}, version='{FirmwareVersion}', source={FirmwareProbeSource}, featureLen={FeatureReportLength}");
+    }
+
+    private string TryReadFirmwareVersionFromFeatureReports(out string source)
+    {
+        source = "Unavailable";
+        if (_stream == null || FeatureReportLength <= 1) return "";
+
+        int requestLength = Math.Clamp(FeatureReportLength, 16, 256);
+        string fallbackText = "";
+
+        for (byte reportId = 0; reportId < 4; reportId++)
+        {
+            try
+            {
+                var buffer = new byte[requestLength];
+                buffer[0] = reportId;
+
+                lock (_streamLock)
+                {
+                    _stream?.GetFeature(buffer);
+                }
+
+                string printable = ExtractPrintableAscii(buffer);
+                if (string.IsNullOrWhiteSpace(printable)) continue;
+
+                string token = TryExtractFirmwareToken(printable);
+                if (!string.IsNullOrWhiteSpace(token))
+                {
+                    source = $"feature report 0x{reportId:X2}";
+                    return token;
+                }
+
+                if (string.IsNullOrWhiteSpace(fallbackText) && printable.Contains("N3", StringComparison.OrdinalIgnoreCase))
+                {
+                    fallbackText = printable;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"N3: feature report 0x{reportId:X2} probe failed - {ex.Message}");
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(fallbackText))
+        {
+            source = "feature report ascii";
+            return fallbackText;
+        }
+
+        return "";
+    }
+
+    private static string ExtractPrintableAscii(ReadOnlySpan<byte> data)
+    {
+        var sb = new StringBuilder(data.Length);
+        bool lastWasSpace = false;
+
+        foreach (byte value in data)
+        {
+            if (value >= 32 && value <= 126)
+            {
+                sb.Append((char)value);
+                lastWasSpace = false;
+            }
+            else if (!lastWasSpace)
+            {
+                sb.Append(' ');
+                lastWasSpace = true;
+            }
+        }
+
+        return Regex.Replace(sb.ToString(), @"\s+", " ").Trim();
+    }
+
+    private static string TryExtractFirmwareToken(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "";
+
+        var match = Regex.Match(
+            value,
+            @"(V25\.N3[^\s]*|V3\.N3[^\s]*|N3\.[A-Za-z0-9._-]+)",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        return match.Success ? match.Value.Trim() : "";
+    }
+
+    private N3FirmwareFamily InferFirmwareFamily(string firmwareToken)
+    {
+        if (!string.IsNullOrWhiteSpace(firmwareToken))
+        {
+            if (firmwareToken.Contains("V25.N3", StringComparison.OrdinalIgnoreCase)) return N3FirmwareFamily.MiraboxV25;
+            if (firmwareToken.Contains("V3.N3", StringComparison.OrdinalIgnoreCase)) return N3FirmwareFamily.MiraboxV3;
+        }
+
+        return N3FirmwareFamily.Unknown;
+    }
+
+    private N3FirmwareFamily InferFirmwareFamilyFromDescriptors()
+    {
+        if (ConnectedVendorId == 0x5548 && ConnectedProductId == 0x1001)
+        {
+            return N3FirmwareFamily.TreasLinProtocolV3;
+        }
+
+        if (ConnectedVendorId == 0x6602)
+        {
+            return N3FirmwareFamily.MiraboxV2;
+        }
+
+        if (ConnectedVendorId == 0x6603 && (ConnectedProductId == 0x1002 || ConnectedProductId == 0x1003))
+        {
+            return N3FirmwareFamily.MiraboxV3;
+        }
+
+        return N3FirmwareFamily.Unknown;
+    }
+
     private void DisposeConnection()
     {
         _initialized = false;
+        FirmwareVersion = "";
+        FirmwareProbeSource = "Unavailable";
+        FirmwareFamily = N3FirmwareFamily.Unknown;
+        FeatureReportLength = 0;
+        ConnectedVendorId = VendorId;
+        ConnectedProductId = ProductId;
 
         try
         {

@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows;
 using System.Windows.Interop;
 using Microsoft.Win32;
@@ -57,10 +58,55 @@ public partial class App : Application
     private System.Windows.Threading.DispatcherTimer? _streamControllerRefreshTimer;
     private DateTime _lastDynamicStateTick = DateTime.MinValue;
     private readonly int[] _lastKnobRaw = new int[5];
+    private readonly Dictionary<int, N3AnimatedKeyState> _n3AnimatedKeys = new();
+    private readonly SemaphoreSlim _n3DisplayWriteGate = new(1, 1);
     private const int N3DisplayKeyBase = 100;
     private const int N3SideButtonBase = 106;
     private const int N3EncoderPressBase = 109;
     private const int N3KnobStateBase = 5;
+    private const int StreamControllerRefreshIntervalMs = 250;
+    private const int StreamControllerDynamicRefreshMs = 3000;
+
+    private sealed class N3AnimatedKeyState
+    {
+        public required string Signature { get; init; }
+        public required byte[][] Frames { get; init; }
+        public required int[] FrameDelaysMs { get; init; }
+        public int FrameIndex { get; private set; }
+        public DateTime NextFrameAtUtc { get; private set; }
+
+        public byte[] CurrentFrame => Frames[Math.Clamp(FrameIndex, 0, Frames.Length - 1)];
+
+        public static N3AnimatedKeyState Create(string signature, StreamControllerDeviceAnimation animation)
+        {
+            return new N3AnimatedKeyState
+            {
+                Signature = signature,
+                Frames = animation.Frames,
+                FrameDelaysMs = animation.FrameDelaysMs,
+                FrameIndex = 0,
+                NextFrameAtUtc = DateTime.UtcNow.AddMilliseconds(animation.FrameDelaysMs.FirstOrDefault(100)),
+            };
+        }
+
+        public bool TryAdvance(DateTime nowUtc, out byte[]? nextFrame)
+        {
+            nextFrame = null;
+            if (Frames.Length <= 1) return false;
+            if (nowUtc < NextFrameAtUtc) return false;
+
+            do
+            {
+                FrameIndex = (FrameIndex + 1) % Frames.Length;
+                int delay = FrameDelaysMs[Math.Clamp(FrameIndex, 0, FrameDelaysMs.Length - 1)];
+                NextFrameAtUtc = NextFrameAtUtc.AddMilliseconds(Math.Max(80, delay));
+            }
+            while (nowUtc >= NextFrameAtUtc);
+
+            nextFrame = CurrentFrame;
+            return true;
+        }
+    }
 
     // ── Folder (sub-grid) navigation state ────────────────────────────
     // Empty string means we're at the root. Folder name matches ButtonFolderConfig.Name.
@@ -2200,7 +2246,7 @@ public partial class App : Application
             // threshold being crossed (was 5s — made short "5s"-style
             // settings feel like they took up to 10s to trigger). Tick
             // body short-circuits when nothing needs doing.
-            Interval = TimeSpan.FromSeconds(1),
+            Interval = TimeSpan.FromMilliseconds(StreamControllerRefreshIntervalMs),
         };
         _streamControllerRefreshTimer.Tick += (_, _) => OnStreamControllerRefreshTick();
         _streamControllerRefreshTimer.Start();
@@ -2273,28 +2319,40 @@ public partial class App : Application
 
             bool hasDynamic = false;
             bool hasClock = false;
-            foreach (var k in _config.N3.DisplayKeys)
+            var activeKeys = GetActiveDisplayKeys();
+            foreach (var k in activeKeys)
             {
                 if (k.DisplayType == DisplayKeyType.Clock) hasClock = true;
                 else if (k.DisplayType == DisplayKeyType.DynamicState) hasDynamic = true;
                 if (hasClock && hasDynamic) break;
             }
 
-            if (!hasClock && !hasDynamic) return;
+            bool hasAnimation = _n3AnimatedKeys.Count > 0;
+            if (!hasClock && !hasDynamic && !hasAnimation) return;
 
             // Throttle the clock/dynamic refresh. The refresh timer ticks
             // at 1s (for idle-sleep responsiveness) but redrawing all six
             // LCDs every second is wasteful — clocks only change at minute
             // boundaries and dynamic state updates every few seconds is
             // plenty. 3s cadence cuts HID traffic and JPEG encode load.
-            if ((DateTime.Now - _lastDynamicStateTick).TotalMilliseconds < 3000) return;
+            bool fullRefreshDue = (hasClock || hasDynamic)
+                && (DateTime.Now - _lastDynamicStateTick).TotalMilliseconds >= StreamControllerDynamicRefreshMs;
 
-            // Keep OBS state fresh so obs_recording / obs_streaming reflect reality.
-            if (hasDynamic && _obs != null && _obs.IsAvailable)
-                _ = _obs.RefreshStatusAsync();
+            if (fullRefreshDue)
+            {
+                // Keep OBS state fresh so obs_recording / obs_streaming reflect reality.
+                if (hasDynamic && _obs != null && _obs.IsAvailable)
+                    _ = _obs.RefreshStatusAsync();
 
-            SyncStreamControllerDisplays();
-            _lastDynamicStateTick = DateTime.Now;
+                SyncStreamControllerDisplays();
+                _lastDynamicStateTick = DateTime.Now;
+                return;
+            }
+
+            if (hasAnimation)
+            {
+                TrySyncAnimatedN3Displays();
+            }
         }
         catch (Exception ex)
         {
@@ -2453,7 +2511,8 @@ public partial class App : Application
         bool showBackKey = inFolder && (GetActiveFolder()?.BackKeyEnabled ?? true)
                            && _config.N3.CurrentPage == 0;
 
-        var ops = new List<(int slot, System.Drawing.Bitmap? bitmap)>(N3Controller.DisplayKeyCount);
+        var ops = new List<(int slot, System.Drawing.Bitmap? bitmap, byte[]? encodedFrame, bool clear)>(N3Controller.DisplayKeyCount);
+        var activeAnimatedSlots = new HashSet<int>();
 
         for (int i = 0; i < N3Controller.DisplayKeyCount; i++)
         {
@@ -2461,8 +2520,9 @@ public partial class App : Application
             {
                 if (showBackKey && i == 0)
                 {
+                    RemoveAnimatedN3Slot(i);
                     var backKey = BuildBackKeyDisplay();
-                    ops.Add((i, StreamControllerDisplayRenderer.ComposeDeviceBitmap(backKey)));
+                    ops.Add((i, StreamControllerDisplayRenderer.ComposeDeviceBitmap(backKey), null, false));
                     continue;
                 }
 
@@ -2470,9 +2530,19 @@ public partial class App : Application
                 var key = activeKeys.FirstOrDefault(k => k.Idx == folderLocalIdx);
                 if (key == null)
                 {
-                    ops.Add((i, null));
+                    RemoveAnimatedN3Slot(i);
+                    ops.Add((i, null, null, true));
                     continue;
                 }
+
+                if (TryGetAnimatedN3State(i, key, out var animatedState))
+                {
+                    activeAnimatedSlots.Add(i);
+                    ops.Add((i, null, animatedState.CurrentFrame, false));
+                    continue;
+                }
+
+                RemoveAnimatedN3Slot(i);
 
                 bool hasImage = !string.IsNullOrWhiteSpace(key.ImagePath) && File.Exists(key.ImagePath);
                 bool hasPreset = !string.IsNullOrWhiteSpace(key.PresetIconKind);
@@ -2483,37 +2553,51 @@ public partial class App : Application
 
                 if (!hasImage && !hasPreset && !hasText)
                 {
-                    ops.Add((i, null));
+                    ops.Add((i, null, null, true));
                     continue;
                 }
 
-                ops.Add((i, StreamControllerDisplayRenderer.ComposeDeviceBitmap(key)));
+                ops.Add((i, StreamControllerDisplayRenderer.ComposeDeviceBitmap(key), null, false));
             }
             catch (Exception ex)
             {
                 Logger.Log($"Stream Controller compose failed for slot {i}: {ex.Message}");
-                ops.Add((i, null));
+                RemoveAnimatedN3Slot(i);
+                ops.Add((i, null, null, true));
             }
         }
 
+        RemoveStaleAnimatedN3Slots(activeAnimatedSlots);
+
         var n3 = _n3;
-        _ = Task.Run(() =>
+        _ = Task.Run(async () =>
         {
             try
             {
-                foreach (var (slot, bitmap) in ops)
+                await _n3DisplayWriteGate.WaitAsync().ConfigureAwait(false);
+
+                foreach (var (slot, bitmap, encodedFrame, clear) in ops)
                 {
-                    if (bitmap == null)
+                    if (clear)
                     {
                         n3.ClearDisplay(slot, commit: false);
                         continue;
                     }
 
-                    byte[] jpeg;
-                    try { jpeg = StreamControllerDisplayRenderer.EncodeDeviceBitmap(bitmap); }
-                    finally { bitmap.Dispose(); }
+                    if (encodedFrame != null)
+                    {
+                        n3.SendDisplayImage(slot, encodedFrame, commit: false);
+                        continue;
+                    }
 
-                    n3.SendDisplayImage(slot, jpeg, commit: false);
+                    if (bitmap != null)
+                    {
+                        byte[] jpeg;
+                        try { jpeg = StreamControllerDisplayRenderer.EncodeDeviceBitmap(bitmap); }
+                        finally { bitmap.Dispose(); }
+
+                        n3.SendDisplayImage(slot, jpeg, commit: false);
+                    }
                 }
                 n3.CommitDisplayChanges();
             }
@@ -2521,10 +2605,129 @@ public partial class App : Application
             {
                 Logger.Log($"Stream Controller display sync failed: {ex.Message}");
                 // Ensure bitmaps don't leak if we bail mid-loop.
-                foreach (var (_, bitmap) in ops)
+                foreach (var (_, bitmap, _, _) in ops)
                     bitmap?.Dispose();
             }
+            finally
+            {
+                if (_n3DisplayWriteGate.CurrentCount == 0)
+                    _n3DisplayWriteGate.Release();
+            }
         });
+    }
+
+    private bool TrySyncAnimatedN3Displays()
+    {
+        if (_n3 == null || !_isN3Connected || _n3AnimatedKeys.Count == 0) return false;
+        if (!_n3DisplayWriteGate.Wait(0)) return false;
+
+        try
+        {
+            var dueFrames = new List<(int slot, byte[] frame)>();
+            var nowUtc = DateTime.UtcNow;
+
+            foreach (var kvp in _n3AnimatedKeys.OrderBy(k => k.Key))
+            {
+                if (kvp.Value.TryAdvance(nowUtc, out var nextFrame) && nextFrame != null)
+                {
+                    dueFrames.Add((kvp.Key, nextFrame));
+                }
+            }
+
+            if (dueFrames.Count == 0)
+            {
+                _n3DisplayWriteGate.Release();
+                return false;
+            }
+
+            var n3 = _n3;
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    foreach (var (slot, frame) in dueFrames)
+                    {
+                        n3.SendDisplayImage(slot, frame, commit: false);
+                    }
+
+                    n3.CommitDisplayChanges();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"Stream Controller animated frame sync failed: {ex.Message}");
+                }
+                finally
+                {
+                    _n3DisplayWriteGate.Release();
+                }
+            });
+
+            return true;
+        }
+        catch
+        {
+            _n3DisplayWriteGate.Release();
+            throw;
+        }
+    }
+
+    private bool TryGetAnimatedN3State(int slot, StreamControllerDisplayKeyConfig key, out N3AnimatedKeyState state)
+    {
+        state = null!;
+        if (string.IsNullOrWhiteSpace(key.ImagePath)
+            || !File.Exists(key.ImagePath)
+            || !string.Equals(Path.GetExtension(key.ImagePath), ".gif", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        string signature = BuildAnimatedN3Signature(key);
+        if (_n3AnimatedKeys.TryGetValue(slot, out var existing) && existing.Signature == signature)
+        {
+            state = existing;
+            return true;
+        }
+
+        var animation = StreamControllerDisplayRenderer.CreateDeviceAnimation(key);
+        if (animation == null || animation.Frames.Length == 0) return false;
+
+        state = N3AnimatedKeyState.Create(signature, animation);
+        _n3AnimatedKeys[slot] = state;
+        return true;
+    }
+
+    private void RemoveStaleAnimatedN3Slots(HashSet<int> activeAnimatedSlots)
+    {
+        var staleSlots = _n3AnimatedKeys.Keys.Where(slot => !activeAnimatedSlots.Contains(slot)).ToArray();
+        foreach (int slot in staleSlots)
+        {
+            _n3AnimatedKeys.Remove(slot);
+        }
+    }
+
+    private void RemoveAnimatedN3Slot(int slot)
+    {
+        _n3AnimatedKeys.Remove(slot);
+    }
+
+    private static string BuildAnimatedN3Signature(StreamControllerDisplayKeyConfig key)
+    {
+        long lastWriteTicks = 0;
+        if (!string.IsNullOrWhiteSpace(key.ImagePath) && File.Exists(key.ImagePath))
+        {
+            lastWriteTicks = File.GetLastWriteTimeUtc(key.ImagePath).Ticks;
+        }
+
+        var sb = new StringBuilder(256);
+        sb.Append(key.ImagePath).Append('|')
+          .Append(lastWriteTicks).Append('|')
+          .Append(key.Title).Append('|')
+          .Append(key.TextPosition).Append('|')
+          .Append(key.TextSize).Append('|')
+          .Append(key.TextColor).Append('|')
+          .Append(key.FontFamily).Append('|')
+          .Append(key.Brightness);
+        return sb.ToString();
     }
 
     /// <summary>Build a virtual "Back" display key used when inside a folder.</summary>

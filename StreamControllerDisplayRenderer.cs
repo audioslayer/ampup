@@ -24,10 +24,17 @@ using System.Drawing.Text;
 
 namespace AmpUp;
 
+internal sealed class StreamControllerDeviceAnimation
+{
+    public required byte[][] Frames { get; init; }
+    public required int[] FrameDelaysMs { get; init; }
+}
+
 internal static class StreamControllerDisplayRenderer
 {
     private const int RenderCanvasSize = 126;
     private const int DeviceCanvasSize = 60;
+    private const int GifFrameDelayPropertyTag = 0x5100;
 
     /// <summary>
     /// Optional state resolver used by <see cref="DisplayKeyType.DynamicState"/> keys.
@@ -91,6 +98,48 @@ internal static class StreamControllerDisplayRenderer
     {
         using var bitmap = ComposeImage(ResolveEffectiveKey(key));
         return EncodeForDevice(bitmap);
+    }
+
+    /// <summary>
+    /// Build a device-ready animation from a GIF-backed key.
+    /// Frames are rendered through the same overlay/brightness path as static
+    /// keys and encoded once up-front to reduce per-tick work.
+    /// </summary>
+    public static StreamControllerDeviceAnimation? CreateDeviceAnimation(StreamControllerDisplayKeyConfig key)
+    {
+        var effectiveKey = ResolveEffectiveKey(key);
+        if (string.IsNullOrWhiteSpace(effectiveKey.ImagePath)
+            || !File.Exists(effectiveKey.ImagePath)
+            || !string.Equals(Path.GetExtension(effectiveKey.ImagePath), ".gif", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        using var source = DrawingImage.FromFile(effectiveKey.ImagePath);
+        if (source.FrameDimensionsList.Length == 0) return null;
+
+        var dimension = new FrameDimension(source.FrameDimensionsList[0]);
+        int frameCount = source.GetFrameCount(dimension);
+        if (frameCount <= 1) return null;
+
+        var delays = GetGifFrameDelaysMs(source, frameCount);
+        var frames = new byte[frameCount][];
+        string title = effectiveKey.Title?.Trim() ?? "";
+
+        for (int i = 0; i < frameCount; i++)
+        {
+            source.SelectActiveFrame(dimension, i);
+            using var frameBitmap = new DrawingBitmap(source);
+            using var canvas = RenderSourceToCanvasCover(frameBitmap, RenderCanvasSize);
+            FinalizeComposedBitmap(canvas, effectiveKey, RenderCanvasSize, title);
+            frames[i] = EncodeForDevice(canvas);
+        }
+
+        return new StreamControllerDeviceAnimation
+        {
+            Frames = frames,
+            FrameDelaysMs = delays,
+        };
     }
 
     /// <summary>
@@ -294,6 +343,16 @@ internal static class StreamControllerDisplayRenderer
         return false;
     }
 
+    private static void FinalizeComposedBitmap(DrawingBitmap bitmap, StreamControllerDisplayKeyConfig key, int canvasSize, string title)
+    {
+        if (!string.IsNullOrWhiteSpace(title) && key.TextPosition != DisplayTextPosition.Hidden)
+            DrawTextOverlay(bitmap, key, canvasSize, title);
+
+        int brightness = Math.Clamp(key.Brightness, 0, 100);
+        if (brightness < 100)
+            ApplyBrightness(bitmap, brightness);
+    }
+
     /// <summary>
     /// Multiply every pixel's RGB by <paramref name="brightnessPct"/>/100.
     /// Iterates a locked byte buffer for speed — avoids per-pixel GetPixel
@@ -353,6 +412,31 @@ internal static class StreamControllerDisplayRenderer
         float y = (size - drawHeight) * 0.5f;
         graphics.DrawImage(source, x, y, drawWidth, drawHeight);
         return canvas;
+    }
+
+    private static int[] GetGifFrameDelaysMs(DrawingImage source, int frameCount)
+    {
+        var delays = Enumerable.Repeat(100, frameCount).ToArray();
+        if (!source.PropertyIdList.Contains(GifFrameDelayPropertyTag)) return delays;
+
+        try
+        {
+            var property = source.GetPropertyItem(GifFrameDelayPropertyTag);
+            if (property?.Value == null) return delays;
+            int availableFrames = Math.Min(frameCount, property.Len / 4);
+            for (int i = 0; i < availableFrames; i++)
+            {
+                int centiseconds = BitConverter.ToInt32(property.Value, i * 4);
+                delays[i] = Math.Clamp(centiseconds * 10, 80, 5000);
+            }
+        }
+        catch
+        {
+            // Fall back to the default 100 ms delay when the GIF metadata is missing
+            // or malformed.
+        }
+
+        return delays;
     }
 
     private static DrawingBitmap RenderPresetIconCanvas(
