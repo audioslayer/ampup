@@ -1369,7 +1369,7 @@ public partial class ButtonsView : UserControl
         ("Mute",            new[] { "mute_master", "mute_mic", "mute_program", "mute_active_window", "mute_app_group", "mute_device" }),
         ("App Control",     new[] { "launch_exe", "close_program", "open_url", "type_text", "screenshot" }),
         ("Device",          new[] { "cycle_output", "cycle_input", "select_output", "select_input" }),
-        ("System",          new[] { "macro", "switch_profile", "cycle_profile", "cycle_brightness", "quick_wheel" }),
+        ("System",          new[] { "none", "macro", "switch_profile", "cycle_profile", "cycle_brightness", "quick_wheel" }),
         ("Advanced",        new[] { "multi_action", "toggle_action", "open_folder" }),
         ("Power",           new[] { "power_sleep", "power_lock", "power_off", "power_restart", "power_logoff", "power_hibernate" }),
         ("Room",            new[] { "room_toggle", "room_effect" }),
