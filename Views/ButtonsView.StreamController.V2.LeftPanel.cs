@@ -234,62 +234,7 @@ public partial class ButtonsView
     /// </summary>
     private Border BuildV2HomeRow()
     {
-        var row = new Border
-        {
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(12, 10, 12, 10),
-            Margin = new Thickness(0, 0, 0, 6),
-            BorderThickness = new Thickness(1),
-        };
-        row.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-        row.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-
-        // Active tint when the user is currently editing Home.
         bool isActive = string.IsNullOrEmpty(_scActiveFolder);
-        if (isActive)
-        {
-            row.BorderBrush = new SolidColorBrush(Color.FromArgb(
-                0x88, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
-        }
-
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        // Name + key-count subtitle.
-        var labelStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        var nameRow = new StackPanel { Orientation = Orientation.Horizontal };
-        nameRow.Children.Add(new MaterialIcon
-        {
-            Kind = MaterialIconKind.Home,
-            Width = 14, Height = 14,
-            Foreground = new SolidColorBrush(ThemeManager.Accent),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 8, 0),
-        });
-        nameRow.Children.Add(new TextBlock
-        {
-            Text = "Home",
-            FontSize = 12,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-        if (isActive)
-        {
-            nameRow.Children.Add(new TextBlock
-            {
-                Text = "  ACTIVE",
-                FontSize = 9,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(ThemeManager.Accent),
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(6, 1, 0, 0),
-            });
-        }
-        labelStack.Children.Add(nameRow);
 
         var assignedSlots = new HashSet<int>();
         foreach (var k in _config!.N3.DisplayKeys)
@@ -311,119 +256,21 @@ public partial class ButtonsView
         int keyCount = assignedSlots.Count;
         int pageCount = Math.Max(1, _config.N3.PageCount);
 
-        labelStack.Children.Add(new TextBlock
-        {
-            Text = $"{pageCount} page{(pageCount == 1 ? "" : "s")} · {keyCount} key{(keyCount == 1 ? "" : "s")} assigned",
-            FontSize = 10,
-            Foreground = FindBrush("TextDimBrush"),
-            Margin = new Thickness(22, 2, 0, 0),
-        });
-        Grid.SetColumn(labelStack, 0);
-        grid.Children.Add(labelStack);
-
-        // Mirror the Space-row button layout: Open + Rename + Delete.
-        // Rename and Delete are disabled for Home (it's the permanent
-        // default Space), but rendered at the same size so the rows line
-        // up visually with the user-created Spaces below.
-        var openBtn = MakeEditorButton("Open", (_, _) =>
-        {
-            if (!isActive) NavigateToFolderInEditor("");
-        });
-        if (isActive)
-        {
-            openBtn.IsEnabled = false;
-            openBtn.Opacity = 0.5;
-            openBtn.ToolTip = "You're already at Home";
-        }
-        Grid.SetColumn(openBtn, 1);
-        grid.Children.Add(openBtn);
-
-        var renameBtn = MakeEditorButton("Rename", (_, _) => { });
-        renameBtn.Margin = new Thickness(6, 0, 0, 0);
-        renameBtn.IsEnabled = false;
-        renameBtn.Opacity = 0.4;
-        renameBtn.ToolTip = "Home is the default Space and cannot be renamed";
-        Grid.SetColumn(renameBtn, 2);
-        grid.Children.Add(renameBtn);
-
-        var delBtn = MakeEditorButton("Delete", (_, _) => { });
-        delBtn.Margin = new Thickness(6, 0, 0, 0);
-        delBtn.IsEnabled = false;
-        delBtn.Opacity = 0.4;
-        delBtn.ToolTip = "Home is the default Space and cannot be deleted";
-        Grid.SetColumn(delBtn, 3);
-        grid.Children.Add(delBtn);
-
-        row.Child = grid;
-        return row;
+        return BuildV2SpaceRow(
+            folder: null,
+            isActive: isActive,
+            iconKind: MaterialIconKind.Home,
+            pageCount: pageCount,
+            keyCount: keyCount,
+            onActivate: () => NavigateToFolderInEditor(""));
     }
 
     private Border BuildV2FolderRow(ButtonFolderConfig folder)
     {
         bool isActive = string.Equals(_scActiveFolder, folder.Name, StringComparison.Ordinal);
 
-        var row = new Border
-        {
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(12, 10, 12, 10),
-            Margin = new Thickness(0, 0, 0, 6),
-            BorderThickness = new Thickness(1),
-        };
-        row.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-        if (isActive)
-        {
-            row.BorderBrush = new SolidColorBrush(Color.FromArgb(
-                0x88, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
-        }
-        else
-        {
-            row.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-        }
-
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        // Space name + key-count subtitle. Dashboard icon + accent tint.
-        var labelStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        var nameRow = new StackPanel { Orientation = Orientation.Horizontal };
-        var spaceIcon = new MaterialIcon
-        {
-            Kind = MaterialIconKind.ViewDashboardOutline,
-            Width = 14, Height = 14,
-            Foreground = new SolidColorBrush(ThemeManager.Accent),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 8, 0),
-        };
-        nameRow.Children.Add(spaceIcon);
-        nameRow.Children.Add(new TextBlock
-        {
-            Text = folder.Name,
-            FontSize = 12,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-        if (isActive)
-        {
-            nameRow.Children.Add(new TextBlock
-            {
-                Text = "  ACTIVE",
-                FontSize = 9,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(ThemeManager.Accent),
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(6, 1, 0, 0),
-            });
-        }
-        labelStack.Children.Add(nameRow);
-        // A slot counts as "assigned" if the user put ANY content on it —
-        // title, subtitle, icon, action, or a non-default display type
-        // (Clock / DynamicState render without a title, so they'd
-        // otherwise be missed). Dedup slot indices across both lists.
+        // Dedup assigned-slot counting — a slot counts if it has any title /
+        // subtitle / icon / action / non-default display type.
         var assignedSlots = new HashSet<int>();
         foreach (var k in folder.DisplayKeys)
         {
@@ -439,10 +286,143 @@ public partial class ButtonsView
             if (!string.IsNullOrEmpty(b.Action) && b.Action != "none")
                 assignedSlots.Add(b.Idx - StreamControllerDisplayKeyBase);
         }
-        int keyCount = assignedSlots.Count;
+
+        return BuildV2SpaceRow(
+            folder: folder,
+            isActive: isActive,
+            iconKind: MaterialIconKind.ViewDashboardOutline,
+            pageCount: folder.PageCount,
+            keyCount: assignedSlots.Count,
+            onActivate: () => NavigateToFolderInEditor(folder.Name));
+    }
+
+    /// <summary>
+    /// Shared builder for Home + user-Space rows. The whole card is
+    /// clickable to activate; the name is an inline-editable TextBox
+    /// (matching the preview-header rename pattern), and delete is a
+    /// small icon button. Home passes folder=null and skips both.
+    /// </summary>
+    private Border BuildV2SpaceRow(
+        ButtonFolderConfig? folder,
+        bool isActive,
+        MaterialIconKind iconKind,
+        int pageCount,
+        int keyCount,
+        Action onActivate)
+    {
+        var row = new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12, 10, 12, 10),
+            Margin = new Thickness(0, 0, 0, 6),
+            BorderThickness = new Thickness(1),
+            Cursor = isActive ? Cursors.Arrow : Cursors.Hand,
+        };
+        row.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+        if (isActive)
+        {
+            row.BorderBrush = new SolidColorBrush(Color.FromArgb(
+                0x88, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
+        }
+        else
+        {
+            row.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        }
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var labelStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+
+        var nameRow = new StackPanel { Orientation = Orientation.Horizontal };
+        nameRow.Children.Add(new MaterialIcon
+        {
+            Kind = iconKind,
+            Width = 14, Height = 14,
+            Foreground = new SolidColorBrush(ThemeManager.Accent),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0),
+        });
+
+        // Home: non-editable bold label. User Space: inline-editable TextBox
+        // that mirrors the preview-header rename pattern.
+        if (folder == null)
+        {
+            nameRow.Children.Add(new TextBlock
+            {
+                Text = "Home",
+                FontSize = 12,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = FindBrush("TextPrimaryBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+        }
+        else
+        {
+            var nameBox = new TextBox
+            {
+                Text = folder.Name,
+                FontSize = 12,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = FindBrush("TextPrimaryBrush"),
+                CaretBrush = FindBrush("AccentBrush"),
+                SelectionBrush = FindBrush("AccentDimBrush"),
+                Background = System.Windows.Media.Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(0),
+                MaxLength = 30,
+                VerticalAlignment = VerticalAlignment.Center,
+                Cursor = Cursors.IBeam,
+                ToolTip = "Click to rename",
+            };
+            nameBox.GotFocus += (_, _) =>
+            {
+                nameBox.Background = FindBrush("InputBgBrush");
+                nameBox.BorderThickness = new Thickness(0, 0, 0, 1);
+                nameBox.BorderBrush = FindBrush("AccentBrush");
+                nameBox.SelectAll();
+            };
+            nameBox.LostFocus += (_, _) =>
+            {
+                nameBox.Background = System.Windows.Media.Brushes.Transparent;
+                nameBox.BorderThickness = new Thickness(0);
+                CommitV2SpaceRename(folder, nameBox.Text);
+            };
+            nameBox.KeyDown += (_, e) =>
+            {
+                if (e.Key == Key.Enter)
+                {
+                    Keyboard.ClearFocus();
+                    e.Handled = true;
+                }
+                else if (e.Key == Key.Escape)
+                {
+                    nameBox.Text = folder.Name;
+                    Keyboard.ClearFocus();
+                    e.Handled = true;
+                }
+            };
+            nameRow.Children.Add(nameBox);
+        }
+
+        if (isActive)
+        {
+            nameRow.Children.Add(new TextBlock
+            {
+                Text = "  ACTIVE",
+                FontSize = 9,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(ThemeManager.Accent),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(6, 1, 0, 0),
+            });
+        }
+        labelStack.Children.Add(nameRow);
+
         labelStack.Children.Add(new TextBlock
         {
-            Text = $"{folder.PageCount} page{(folder.PageCount == 1 ? "" : "s")} · {keyCount} key{(keyCount == 1 ? "" : "s")} assigned",
+            Text = $"{pageCount} page{(pageCount == 1 ? "" : "s")} · {keyCount} key{(keyCount == 1 ? "" : "s")} assigned",
             FontSize = 10,
             Foreground = FindBrush("TextDimBrush"),
             Margin = new Thickness(22, 2, 0, 0),
@@ -450,87 +430,123 @@ public partial class ButtonsView
         Grid.SetColumn(labelStack, 0);
         grid.Children.Add(labelStack);
 
-        // Open button.
-        var openBtn = MakeEditorButton("Open", (_, _) =>
+        // Delete — user Spaces only. Small icon button; no label chrome.
+        if (folder != null)
         {
-            if (!isActive) NavigateToFolderInEditor(folder.Name);
-        });
-        openBtn.Margin = new Thickness(6, 0, 0, 0);
-        if (isActive)
-        {
-            openBtn.IsEnabled = false;
-            openBtn.Opacity = 0.5;
-            openBtn.ToolTip = $"You're already in {folder.Name}";
+            var delIcon = new MaterialIcon
+            {
+                Kind = MaterialIconKind.TrashCanOutline,
+                Width = 16, Height = 16,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x6B)),
+            };
+            var delBtn = new Button
+            {
+                Content = delIcon,
+                Background = System.Windows.Media.Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(6),
+                Margin = new Thickness(6, 0, 0, 0),
+                Cursor = Cursors.Hand,
+                ToolTip = $"Delete {folder.Name}",
+                VerticalAlignment = VerticalAlignment.Center,
+                Focusable = false,
+            };
+            delBtn.MouseEnter += (_, _) => delIcon.Foreground =
+                new SolidColorBrush(Color.FromRgb(0xFF, 0x44, 0x44));
+            delBtn.MouseLeave += (_, _) => delIcon.Foreground =
+                new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x6B));
+            delBtn.Click += (_, e) =>
+            {
+                e.Handled = true;
+                DeleteV2Space(folder);
+            };
+            Grid.SetColumn(delBtn, 1);
+            grid.Children.Add(delBtn);
         }
-        Grid.SetColumn(openBtn, 1);
-        grid.Children.Add(openBtn);
 
-        // Rename button.
-        var renameBtn = MakeEditorButton("Rename", (_, _) =>
+        row.Child = grid;
+
+        // Click anywhere on the row (except the name editor or delete icon)
+        // activates the Space. Routed-event OriginalSource lets us skip
+        // clicks that originated in the name TextBox or the delete button.
+        row.MouseLeftButtonUp += (_, e) =>
         {
-            if (_config == null) return;
-            string? newName = GlassDialog.Prompt("Rename Space:", folder.Name, Window.GetWindow(this));
-            if (string.IsNullOrWhiteSpace(newName) || newName.Trim() == folder.Name) return;
-            newName = newName.Trim();
-            if (_config.N3.Folders.Any(f => f.Name == newName)) return;
+            if (e.Handled || isActive) return;
+            if (IsMouseEventFromEditableChild(e.OriginalSource as DependencyObject)) return;
+            onActivate();
+        };
 
-            // Update references on any button pointing at the old name.
-            var oldName = folder.Name;
-            folder.Name = newName;
-            foreach (var btn in _config.N3.Buttons)
+        return row;
+    }
+
+    private static bool IsMouseEventFromEditableChild(DependencyObject? source)
+    {
+        while (source != null)
+        {
+            if (source is TextBox || source is Button) return true;
+            source = VisualTreeHelper.GetParent(source) ?? (source is FrameworkElement fe ? fe.Parent : null);
+        }
+        return false;
+    }
+
+    private void CommitV2SpaceRename(ButtonFolderConfig folder, string? proposed)
+    {
+        if (_config == null) return;
+        var newName = (proposed ?? "").Trim();
+        if (string.IsNullOrEmpty(newName) || newName == folder.Name)
+        {
+            RefreshV2FoldersList();
+            return;
+        }
+        if (_config.N3.Folders.Any(f => f.Name == newName && f != folder))
+        {
+            RefreshV2FoldersList();
+            return;
+        }
+
+        var oldName = folder.Name;
+        folder.Name = newName;
+        foreach (var btn in _config.N3.Buttons)
+            if (btn.Action == "open_folder" && btn.FolderName == oldName)
+                btn.FolderName = newName;
+        foreach (var f in _config.N3.Folders)
+            foreach (var btn in f.Buttons)
                 if (btn.Action == "open_folder" && btn.FolderName == oldName)
                     btn.FolderName = newName;
-            foreach (var f in _config.N3.Folders)
-                foreach (var btn in f.Buttons)
-                    if (btn.Action == "open_folder" && btn.FolderName == oldName)
-                        btn.FolderName = newName;
-            if (_scActiveFolder == oldName) _scActiveFolder = newName;
+        if (_scActiveFolder == oldName) _scActiveFolder = newName;
 
-            QueueSave();
-            RefreshV2FoldersList();
-            RefreshV2LeftPanel();
-        });
-        renameBtn.Margin = new Thickness(6, 0, 0, 0);
-        Grid.SetColumn(renameBtn, 2);
-        grid.Children.Add(renameBtn);
+        QueueSave();
+        RefreshV2FoldersList();
+        RefreshV2LeftPanel();
+    }
 
-        // Delete button.
-        var delBtn = MakeEditorButton("Delete", (_, _) =>
-        {
-            if (_config == null) return;
-            if (!GlassDialog.Confirm($"Delete Space \"{folder.Name}\" and all its keys?", "Delete Space", dangerYes: true, owner: Window.GetWindow(this)))
-                return;
+    private void DeleteV2Space(ButtonFolderConfig folder)
+    {
+        if (_config == null) return;
+        if (!GlassDialog.Confirm($"Delete Space \"{folder.Name}\" and all its keys?", "Delete Space", dangerYes: true, owner: Window.GetWindow(this)))
+            return;
 
-            _config.N3.Folders.Remove(folder);
+        _config.N3.Folders.Remove(folder);
 
-            // Clear any open_folder references pointing at this folder.
-            foreach (var btn in _config.N3.Buttons)
+        foreach (var btn in _config.N3.Buttons)
+            if (btn.Action == "open_folder" && btn.FolderName == folder.Name)
+            {
+                btn.Action = "none";
+                btn.FolderName = "";
+            }
+        foreach (var f in _config.N3.Folders)
+            foreach (var btn in f.Buttons)
                 if (btn.Action == "open_folder" && btn.FolderName == folder.Name)
                 {
                     btn.Action = "none";
                     btn.FolderName = "";
                 }
-            foreach (var f in _config.N3.Folders)
-                foreach (var btn in f.Buttons)
-                    if (btn.Action == "open_folder" && btn.FolderName == folder.Name)
-                    {
-                        btn.Action = "none";
-                        btn.FolderName = "";
-                    }
-            if (_scActiveFolder == folder.Name)
-                NavigateToFolderInEditor("");
+        if (_scActiveFolder == folder.Name)
+            NavigateToFolderInEditor("");
 
-            QueueSave();
-            RefreshV2FoldersList();
-            RefreshV2LeftPanel();
-        });
-        delBtn.Margin = new Thickness(6, 0, 0, 0);
-        delBtn.Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x6B));
-        Grid.SetColumn(delBtn, 3);
-        grid.Children.Add(delBtn);
-
-        row.Child = grid;
-        return row;
+        QueueSave();
+        RefreshV2FoldersList();
+        RefreshV2LeftPanel();
     }
 
     // ────────────────────────────────────────────────────────────────────────

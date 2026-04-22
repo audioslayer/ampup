@@ -403,10 +403,10 @@ using System;
                     var filtered = _entries.Where(e =>
                             (category == "All" || e.Category == category) &&
                             (pack == "All" || 
-                             (pack == "Neon" && (e.Kind.StartsWith("neon_") || e.Kind.StartsWith("synthwave_") || e.Kind.StartsWith("cyber_"))) || 
+                             (pack == "Neon" && (e.Kind.StartsWith("neon_") || e.Kind.StartsWith("synthwave_") || e.Kind.StartsWith("cyber_") || e.Kind.StartsWith("fx_"))) ||
                              (pack == "Material3D" && e.Kind.StartsWith("material_")) || 
                              (pack == "Retro" && e.Kind.StartsWith("retro_")) ||
-                             (pack == "BuiltIn" && !e.Kind.StartsWith("neon_") && !e.Kind.StartsWith("material_") && !e.Kind.StartsWith("synthwave_") && !e.Kind.StartsWith("cyber_") && !e.Kind.StartsWith("retro_"))) &&
+                             (pack == "BuiltIn" && !e.Kind.StartsWith("neon_") && !e.Kind.StartsWith("material_") && !e.Kind.StartsWith("synthwave_") && !e.Kind.StartsWith("cyber_") && !e.Kind.StartsWith("retro_") && !e.Kind.StartsWith("fx_"))) &&
                             (string.IsNullOrWhiteSpace(query)
                                 || e.Label.Contains(query, StringComparison.OrdinalIgnoreCase)
                                 || e.Kind.Contains(query, StringComparison.OrdinalIgnoreCase)))
@@ -779,7 +779,7 @@ using System;
                             VerticalAlignment = VerticalAlignment.Center
                         };
                     }
-                    else if (entry.Kind.StartsWith("neon_") || entry.Kind.StartsWith("material_") || entry.Kind.StartsWith("synthwave_") || entry.Kind.StartsWith("cyber_") || entry.Kind.StartsWith("retro_"))
+                    else if (entry.Kind.StartsWith("neon_") || entry.Kind.StartsWith("material_") || entry.Kind.StartsWith("synthwave_") || entry.Kind.StartsWith("cyber_") || entry.Kind.StartsWith("retro_") || entry.Kind.StartsWith("fx_"))
                     {
                         string filename = entry.Kind switch
                         {
@@ -976,9 +976,9 @@ using System;
                             "retro_nanoarcade" => "retro_nanoarcade.jpg",
                             "neon_churchportals" => "neon_churchportals.jpg",
                             "retro_churchportals" => "retro_churchportals.jpg",
-                            _ => ""
+                            _ => entry.Kind.StartsWith("fx_") ? entry.Kind + ".png" : ""
                         };
-            
+
                         if (!string.IsNullOrEmpty(filename))
                         {
                             try 
@@ -1207,7 +1207,7 @@ using System;
                             "neon_vlc" => "neon_vlc.jpg",
                             "neon_netflix" => "neon_netflix.jpg",
                             "neon_screenshot" => "neon_screenshot.jpg",
-                                _ => ""
+                                _ => entry.Kind.StartsWith("fx_") ? entry.Kind + ".png" : ""
                             };
                             
                             string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Icons", filename);
@@ -1577,6 +1577,27 @@ using System;
                         new("Retro NanoArcade", "retro_nanoarcade", "Apps", Color.FromRgb(0xFF, 0x44, 0xAA)),
                         new("Neon ChurchPortals", "neon_churchportals", "Apps", Color.FromRgb(0x69, 0xF0, 0xAE)),
                         new("Retro ChurchPortals", "retro_churchportals", "Apps", Color.FromRgb(0x69, 0xF0, 0xAE)),
+
+                        // FX Pack — room-effect neon icons (PNG)
+                        new("FX Aurora", "fx_aurora", "Creative", Color.FromRgb(0x69, 0xF0, 0xAE)),
+                        new("FX Ocean", "fx_ocean", "Creative", Color.FromRgb(0x29, 0xB6, 0xF6)),
+                        new("FX Starfield", "fx_starfield", "Creative", Color.FromRgb(0xB0, 0xBE, 0xC5)),
+                        new("FX Plasma", "fx_plasma", "Creative", Color.FromRgb(0xE0, 0x40, 0xFB)),
+                        new("FX Nebula Drift", "fx_nebuladrift", "Creative", Color.FromRgb(0x7C, 0x4D, 0xFF)),
+                        new("FX Breathing Sync", "fx_breathingsync", "Creative", Color.FromRgb(0x90, 0xA4, 0xAE)),
+                        new("FX Fire", "fx_fire", "Creative", Color.FromRgb(0xFF, 0x57, 0x22)),
+                        new("FX Lava", "fx_lava", "Creative", Color.FromRgb(0xFF, 0x6B, 0x35)),
+                        new("FX Lightning", "fx_lightning", "Creative", Color.FromRgb(0xFF, 0xEB, 0x3B)),
+                        new("FX Police", "fx_police", "Creative", Color.FromRgb(0xF4, 0x43, 0x36)),
+                        new("FX Scanner", "fx_scanner", "Creative", Color.FromRgb(0xF4, 0x43, 0x36)),
+                        new("FX Matrix", "fx_matrix", "Creative", Color.FromRgb(0x00, 0xE6, 0x76)),
+                        new("FX Color Wave", "fx_colorwave", "Creative", Color.FromRgb(0x00, 0xAC, 0xC1)),
+                        new("FX Rainfall", "fx_rainfall", "Creative", Color.FromRgb(0x4F, 0xC3, 0xF7)),
+                        new("FX Waterfall", "fx_waterfall", "Creative", Color.FromRgb(0x4D, 0xD0, 0xE1)),
+                        new("FX Rainbow", "fx_rainbow", "Creative", Color.FromRgb(0xC5, 0x5D, 0xFF)),
+                        new("FX Meteor", "fx_meteor", "Creative", Color.FromRgb(0xFF, 0x98, 0x00)),
+                        new("FX Heartbeat", "fx_heartbeat", "Creative", Color.FromRgb(0xE9, 0x1E, 0x63)),
+
                         new("Play", "Play", "Media", Color.FromRgb(0x00, 0xE6, 0x76)),
                         new("Pause", "Pause", "Media", Color.FromRgb(0x00, 0xC8, 0xFF)),
                         new("Stop", "Stop", "Media", Color.FromRgb(0xFF, 0x5C, 0x5C)),
