@@ -718,6 +718,9 @@ public partial class ButtonsView
                     .FirstOrDefault(k => StreamControllerDisplayRenderer.CoversSpotifyAlbumArtSlot(k, selectedLocalSlot));
             }
         }
+        bool drawSpotifySpanTitle = spotifySpanMaster == null
+            || StreamControllerDisplayRenderer.ShouldDrawSpotifySpanTitle(
+                spotifySpanMaster, GetActiveN3DisplayKeys(), _scCurrentPage * StreamControllerKeysPerPage);
         bool showSpotifyTab = spotifyKey?.DisplayType == DisplayKeyType.SpotifyNowPlaying;
         if (_v2SpotifyTab != null)
             _v2SpotifyTab.Visibility = showSpotifyTab ? Visibility.Visible : Visibility.Collapsed;
@@ -756,13 +759,14 @@ public partial class ButtonsView
             {
                 if (StreamControllerDisplayRenderer.IsSpotifyAlbumArtSpanned(key))
                 {
-                    _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateSpotifyAlbumArtCompositePreview(key, 120);
+                    _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateSpotifyAlbumArtCompositePreview(
+                        key, 120, drawSpotifySpanTitle);
                     AnimatedImageDriver.Unregister(_scEditorPreview);
                 }
                 else if (spotifySpanMaster != null && selectedLocalSlot >= 0)
                 {
                     _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateSpotifyAlbumArtTilePreview(
-                        spotifySpanMaster, key, selectedLocalSlot, 360);
+                        spotifySpanMaster, key, selectedLocalSlot, 360, drawSpotifySpanTitle);
                     AnimatedImageDriver.Unregister(_scEditorPreview);
                 }
                 else

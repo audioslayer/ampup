@@ -367,10 +367,34 @@ internal static class StreamControllerDisplayRenderer
     public static bool CoversSpotifyAlbumArtSlot(StreamControllerDisplayKeyConfig key, int physicalSlot)
         => GetSpotifyAlbumArtCoveredSlots(key).Contains(physicalSlot);
 
-    public static BitmapSource CreateSpotifyAlbumArtTilePreview(
-        StreamControllerDisplayKeyConfig key, int physicalSlot, int size = 256)
+    public static bool ShouldDrawSpotifySpanTitle(
+        StreamControllerDisplayKeyConfig spanKey,
+        IEnumerable<StreamControllerDisplayKeyConfig> activeKeys,
+        int pageOffset)
     {
-        using var bitmap = ComposeSpotifyAlbumArtTileBitmap(key, key, physicalSlot, size);
+        if (!IsSpotifyAlbumArtSpanned(spanKey))
+            return true;
+
+        var keyed = activeKeys.ToDictionary(k => k.Idx, k => k);
+        foreach (int coveredSlot in GetSpotifyAlbumArtCoveredSlots(spanKey))
+        {
+            int coveredIdx = pageOffset + coveredSlot;
+            if (coveredIdx == spanKey.Idx)
+                continue;
+            if (keyed.TryGetValue(coveredIdx, out var coveredKey)
+                && !string.IsNullOrWhiteSpace(coveredKey.Title))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public static BitmapSource CreateSpotifyAlbumArtTilePreview(
+        StreamControllerDisplayKeyConfig key, int physicalSlot, int size = 256, bool drawSpanTitle = true)
+    {
+        using var bitmap = ComposeSpotifyAlbumArtTileBitmap(key, key, physicalSlot, size, drawSpanTitle);
         return ToBitmapSource(bitmap);
     }
 
@@ -378,31 +402,33 @@ internal static class StreamControllerDisplayRenderer
         StreamControllerDisplayKeyConfig spanKey,
         StreamControllerDisplayKeyConfig overlayKey,
         int physicalSlot,
-        int size = 256)
+        int size = 256,
+        bool drawSpanTitle = true)
     {
-        using var bitmap = ComposeSpotifyAlbumArtTileBitmap(spanKey, overlayKey, physicalSlot, size);
+        using var bitmap = ComposeSpotifyAlbumArtTileBitmap(spanKey, overlayKey, physicalSlot, size, drawSpanTitle);
         return ToBitmapSource(bitmap);
     }
 
     public static BitmapSource CreateSpotifyAlbumArtCompositePreview(
-        StreamControllerDisplayKeyConfig key, int tileSize = 120)
+        StreamControllerDisplayKeyConfig key, int tileSize = 120, bool drawSpanTitle = true)
     {
-        using var bitmap = ComposeSpotifyAlbumArtCompositeBitmap(key, tileSize);
+        using var bitmap = ComposeSpotifyAlbumArtCompositeBitmap(key, tileSize, drawSpanTitle);
         return ToBitmapSource(bitmap);
     }
 
     public static DrawingBitmap ComposeSpotifyAlbumArtDeviceBitmap(
-        StreamControllerDisplayKeyConfig key, int physicalSlot)
+        StreamControllerDisplayKeyConfig key, int physicalSlot, bool drawSpanTitle = true)
     {
-        return ComposeSpotifyAlbumArtTileBitmap(key, key, physicalSlot, DeviceCanvasSize);
+        return ComposeSpotifyAlbumArtTileBitmap(key, key, physicalSlot, DeviceCanvasSize, drawSpanTitle);
     }
 
     public static DrawingBitmap ComposeSpotifyAlbumArtDeviceBitmap(
         StreamControllerDisplayKeyConfig spanKey,
         StreamControllerDisplayKeyConfig overlayKey,
-        int physicalSlot)
+        int physicalSlot,
+        bool drawSpanTitle = true)
     {
-        return ComposeSpotifyAlbumArtTileBitmap(spanKey, overlayKey, physicalSlot, DeviceCanvasSize);
+        return ComposeSpotifyAlbumArtTileBitmap(spanKey, overlayKey, physicalSlot, DeviceCanvasSize, drawSpanTitle);
     }
 
     private static DrawingBitmap ComposeImage(StreamControllerDisplayKeyConfig key, int? size = null)
@@ -461,7 +487,8 @@ internal static class StreamControllerDisplayRenderer
         StreamControllerDisplayKeyConfig spanKey,
         StreamControllerDisplayKeyConfig overlayKey,
         int physicalSlot,
-        int tileSize)
+        int tileSize,
+        bool drawSpanTitle)
     {
         var effectiveSpanKey = ResolveEffectiveKey(spanKey);
         var effectiveOverlayKey = ResolveTextOverlayKey(overlayKey);
@@ -471,7 +498,7 @@ internal static class StreamControllerDisplayRenderer
             return ComposeImage(effectiveOverlayKey, tileSize);
         }
 
-        using var composite = ComposeSpotifyAlbumArtCompositeBitmap(effectiveSpanKey, tileSize);
+        using var composite = ComposeSpotifyAlbumArtCompositeBitmap(effectiveSpanKey, tileSize, drawSpanTitle);
         var tile = new DrawingBitmap(tileSize, tileSize);
         using var graphics = DrawingGraphics.FromImage(tile);
         ConfigureGraphics(graphics);
@@ -508,7 +535,7 @@ internal static class StreamControllerDisplayRenderer
     }
 
     private static DrawingBitmap ComposeSpotifyAlbumArtCompositeBitmap(
-        StreamControllerDisplayKeyConfig key, int tileSize)
+        StreamControllerDisplayKeyConfig key, int tileSize, bool drawSpanTitle)
     {
         var effectiveKey = ResolveEffectiveKey(key);
         GetSpotifyAlbumArtDimensions(effectiveKey.SpotifyAlbumArtLayout, out int cols, out int rows);
@@ -536,7 +563,9 @@ internal static class StreamControllerDisplayRenderer
         }
 
         string title = effectiveKey.Title?.Trim() ?? "";
-        if (!string.IsNullOrWhiteSpace(title) && effectiveKey.TextPosition != DisplayTextPosition.Hidden)
+        if (drawSpanTitle
+            && !string.IsNullOrWhiteSpace(title)
+            && effectiveKey.TextPosition != DisplayTextPosition.Hidden)
             DrawTextOverlay(bitmap, effectiveKey, width, height, title);
 
         return bitmap;

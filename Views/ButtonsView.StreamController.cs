@@ -2404,19 +2404,25 @@ public partial class ButtonsView
                 .OrderBy(k => k.Idx)
                 .FirstOrDefault(k => StreamControllerDisplayRenderer.CoversSpotifyAlbumArtSlot(k, localIdx));
         }
+        bool drawSpotifySpanTitle = spotifySpanMaster == null
+            || StreamControllerDisplayRenderer.ShouldDrawSpotifySpanTitle(
+                spotifySpanMaster, GetActiveN3DisplayKeys(), _scCurrentPage * StreamControllerKeysPerPage);
 
         _scEditorPreview.Source = spotifySpan
-            ? StreamControllerDisplayRenderer.CreateSpotifyAlbumArtCompositePreview(display, 120)
+            ? StreamControllerDisplayRenderer.CreateSpotifyAlbumArtCompositePreview(display, 120, drawSpotifySpanTitle)
             : spotifySpanMaster != null && localIdx >= 0
-                ? StreamControllerDisplayRenderer.CreateSpotifyAlbumArtTilePreview(spotifySpanMaster, display, localIdx, 360)
+                ? StreamControllerDisplayRenderer.CreateSpotifyAlbumArtTilePreview(
+                    spotifySpanMaster, display, localIdx, 360, drawSpotifySpanTitle)
                 : StreamControllerDisplayRenderer.CreateEditorPreview(display, 360);
 
         if (localIdx >= 0 && localIdx < 6)
         {
             _scDisplayImages[localIdx].Source = spotifySpan
-                ? StreamControllerDisplayRenderer.CreateSpotifyAlbumArtTilePreview(display, display, localIdx, 240)
+                ? StreamControllerDisplayRenderer.CreateSpotifyAlbumArtTilePreview(
+                    display, display, localIdx, 240, drawSpotifySpanTitle)
                 : spotifySpanMaster != null
-                    ? StreamControllerDisplayRenderer.CreateSpotifyAlbumArtTilePreview(spotifySpanMaster, display, localIdx, 240)
+                    ? StreamControllerDisplayRenderer.CreateSpotifyAlbumArtTilePreview(
+                        spotifySpanMaster, display, localIdx, 240, drawSpotifySpanTitle)
                     : StreamControllerDisplayRenderer.CreateEditorPreview(display, 240);
             _scDisplayCaptions[localIdx].Text = string.IsNullOrWhiteSpace(display.Title) ? $"Key {display.Idx + 1}" : display.Title;
         }

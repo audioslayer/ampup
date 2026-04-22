@@ -2549,8 +2549,11 @@ public partial class App : Application
                 {
                     var overlayKey = activeKeys.FirstOrDefault(k => k.Idx == folderLocalIdx)
                                      ?? new StreamControllerDisplayKeyConfig { Idx = folderLocalIdx };
+                    bool drawSpanTitle = StreamControllerDisplayRenderer.ShouldDrawSpotifySpanTitle(
+                        spotifySpanMaster, activeKeys, pageOffset);
                     RemoveAnimatedN3Slot(i);
-                    ops.Add((i, StreamControllerDisplayRenderer.ComposeSpotifyAlbumArtDeviceBitmap(spotifySpanMaster, overlayKey, i), null, false));
+                    ops.Add((i, StreamControllerDisplayRenderer.ComposeSpotifyAlbumArtDeviceBitmap(
+                        spotifySpanMaster, overlayKey, i, drawSpanTitle), null, false));
                     continue;
                 }
 
