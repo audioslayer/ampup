@@ -38,7 +38,7 @@ public partial class ButtonsView
     private StackPanel? _scClockPanel;
     private TextBox? _scClockFormatBox;
     private StackPanel? _scDynamicPanel;
-    private ListPicker? _scDynamicSourcePicker;
+    private TextBlock? _scDynamicSourceLabel;
     private TextBox? _scDynamicActiveIconBox;
     private Button? _scDynamicChooseIconButton;
     private TextBox? _scDynamicActiveTitleBox;
@@ -629,19 +629,17 @@ public partial class ButtonsView
         // Dynamic-type editors
         _scDynamicPanel = new StackPanel { Visibility = Visibility.Collapsed };
         _scDynamicPanel.Children.Add(MakeEditorLabel("STATE SOURCE"));
-        _scDynamicSourcePicker = new ListPicker { Margin = new Thickness(0, 0, 0, 10) };
-        foreach (var (src, label) in DynamicKeyStateProvider.Sources)
-            _scDynamicSourcePicker.AddItem(label, src);
-        _scDynamicSourcePicker.SelectionChanged += (_, _) =>
+        _scDynamicSourceLabel = new TextBlock
         {
-            if (_loading || _config == null) return;
-            var key = GetSelectedDisplayKeyConfig();
-            if (key != null)
-                key.DynamicStateSource = _scDynamicSourcePicker.SelectedTag as string ?? "";
-            UpdateEditorPreviewOnly();
-            QueueSave();
+            Text = "No source — pick an action",
+            FontSize = 12,
+            Margin = new Thickness(0, 0, 0, 10),
+            Padding = new Thickness(10, 8, 10, 8),
+            TextWrapping = TextWrapping.Wrap,
         };
-        _scDynamicPanel.Children.Add(_scDynamicSourcePicker);
+        _scDynamicSourceLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+        _scDynamicSourceLabel.SetResourceReference(TextBlock.BackgroundProperty, "InputBgBrush");
+        _scDynamicPanel.Children.Add(_scDynamicSourceLabel);
 
         _scDynamicPanel.Children.Add(MakeEditorLabel("ACTIVE ICON"));
         _scDynamicActiveIconBox = MakeEditorTextBox("No active icon");
@@ -806,6 +804,21 @@ public partial class ButtonsView
         _scActionPicker.SelectionChanged += (_, _) =>
         {
             if (_loading) return;
+            // Keep DynamicState source in sync with the bound action.
+            var key = GetSelectedDisplayKeyConfig();
+            if (key != null)
+            {
+                var derived = DynamicKeyStateProvider.DeriveSourceFromAction(_scActionPicker?.SelectedValue);
+                if (key.DynamicStateSource != derived)
+                    key.DynamicStateSource = derived;
+                if (_scDynamicSourceLabel != null)
+                {
+                    string lbl = DynamicKeyStateProvider.GetSourceLabel(derived);
+                    _scDynamicSourceLabel.Text = string.IsNullOrEmpty(lbl)
+                        ? "No source — pick an action with a trackable state"
+                        : $"Auto: {lbl}";
+                }
+            }
             UpdateStreamControllerActionVisibility();
             QueueSave();
         };
@@ -1902,9 +1915,9 @@ public partial class ButtonsView
         for (int i = 0; i < 3; i++)
         {
             var side = _config.N3.Buttons.FirstOrDefault(b => b.Idx == StreamControllerSideButtonBase + i);
-            _scSideLabels[i].Text = GetStreamActionDisplay(side?.Action);
+            _scSideLabels[i].Text = GetStreamActionDisplay(side);
             var press = _config.N3.Buttons.FirstOrDefault(b => b.Idx == StreamControllerEncoderPressBase + i);
-            _scPressLabels[i].Text = GetStreamActionDisplay(press?.Action);
+            _scPressLabels[i].Text = GetStreamActionDisplay(press);
         }
 
         RefreshStreamControllerPageUI();
@@ -2013,18 +2026,13 @@ public partial class ButtonsView
             }
             if (_scClockFormatBox != null)
                 _scClockFormatBox.Text = string.IsNullOrWhiteSpace(key.ClockFormat) ? "HH:mm" : key.ClockFormat;
-            if (_scDynamicSourcePicker != null)
+            if (_scDynamicSourceLabel != null)
             {
-                int srcIdx = -1;
-                for (int s = 0; s < DynamicKeyStateProvider.Sources.Length; s++)
-                {
-                    if (DynamicKeyStateProvider.Sources[s].Source == key.DynamicStateSource)
-                    {
-                        srcIdx = s;
-                        break;
-                    }
-                }
-                _scDynamicSourcePicker.SelectedIndex = srcIdx;
+                string src = key.DynamicStateSource ?? "";
+                string label = DynamicKeyStateProvider.GetSourceLabel(src);
+                _scDynamicSourceLabel.Text = string.IsNullOrEmpty(label)
+                    ? "No source — pick an action with a trackable state"
+                    : $"Auto: {label}";
             }
             if (_scDynamicActiveIconBox != null)
                 _scDynamicActiveIconBox.Text = string.IsNullOrWhiteSpace(key.DynamicStateActiveIcon) ? "No active icon" : key.DynamicStateActiveIcon;
@@ -2431,6 +2439,43 @@ public partial class ButtonsView
     {
         if (string.IsNullOrWhiteSpace(action) || action == "none") return "None";
         return Actions.FirstOrDefault(a => a.Value == action).Display ?? action;
+    }
+
+    /// <summary>
+    /// Action subtitle with the action-specific target appended when the
+    /// user has picked one — e.g. "Open Space › Lights" instead of bare
+    /// "Open Space". Falls back to the action name for cases that don't
+    /// carry a user-visible target.
+    /// </summary>
+    private string GetStreamActionDisplay(ButtonConfig? btn)
+    {
+        if (btn == null) return "None";
+        string baseLabel = GetStreamActionDisplay(btn.Action);
+        switch (btn.Action)
+        {
+            case "open_folder":
+                var folder = string.IsNullOrWhiteSpace(btn.FolderName) ? "Home" : btn.FolderName;
+                return $"{baseLabel} › {folder}";
+            case "switch_profile":
+                if (!string.IsNullOrWhiteSpace(btn.ProfileName))
+                    return $"{baseLabel} › {btn.ProfileName}";
+                break;
+            case "room_effect":
+                if (!string.IsNullOrWhiteSpace(btn.Path))
+                    return $"{baseLabel} › {btn.Path}";
+                break;
+            case "launch_exe":
+            case "close_program":
+            case "mute_program":
+                if (!string.IsNullOrWhiteSpace(btn.Path))
+                {
+                    var tail = System.IO.Path.GetFileNameWithoutExtension(btn.Path);
+                    if (string.IsNullOrWhiteSpace(tail)) tail = btn.Path;
+                    return $"{baseLabel} › {tail}";
+                }
+                break;
+        }
+        return baseLabel;
     }
 
     /// <summary>

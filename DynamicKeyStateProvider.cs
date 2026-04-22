@@ -130,6 +130,49 @@ internal static class DynamicKeyStateProvider
         ("room_lights_on",  "Room Lights On"),
     };
 
+    /// <summary>
+    /// Auto-derive the dynamic state source that matches a bound button action.
+    /// Returns empty string if the action has no meaningful on/off state to track.
+    /// </summary>
+    public static string DeriveSourceFromAction(string? action)
+    {
+        if (string.IsNullOrWhiteSpace(action)) return "";
+        switch (action)
+        {
+            case "mute_master":
+                return "mute_master";
+            case "mute_mic":
+                return "mute_mic";
+            case "obs_record":
+                return "obs_recording";
+            case "obs_stream":
+                return "obs_streaming";
+            case "spotify_play_pause":
+            case "spotify_next":
+            case "spotify_prev":
+            case "spotify_shuffle":
+            case "spotify_like":
+                return "spotify_playing";
+            case "govee_toggle":
+            case "govee_white_toggle":
+            case "govee_color":
+            case "govee_scene":
+            case "room_effect":
+            case "group_toggle":
+                return "room_lights_on";
+            default:
+                return "";
+        }
+    }
+
+    /// <summary>Human label for a source key, or empty string if unknown.</summary>
+    public static string GetSourceLabel(string source)
+    {
+        foreach (var (s, l) in Sources)
+            if (s == source) return l;
+        return "";
+    }
+
     /// <summary>True when any room light (Govee LAN/Cloud or Corsair)
     /// is currently in a powered-on state.</summary>
     private static bool AreRoomLightsOn()

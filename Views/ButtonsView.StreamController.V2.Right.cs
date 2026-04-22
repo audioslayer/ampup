@@ -452,6 +452,26 @@ public partial class ButtonsView
                 SetGestureAction(button, value);
             }
 
+            // Auto-derive DynamicState source from the Tap action, so the
+            // DYNAMIC tab's state source always matches what the key does.
+            if (_v2Gesture == V2Gesture.Tap)
+            {
+                var key = GetSelectedDisplayKeyConfig();
+                if (key != null)
+                {
+                    var derived = DynamicKeyStateProvider.DeriveSourceFromAction(value);
+                    if (key.DynamicStateSource != derived)
+                        key.DynamicStateSource = derived;
+                    if (_scDynamicSourceLabel != null)
+                    {
+                        string lbl = DynamicKeyStateProvider.GetSourceLabel(derived);
+                        _scDynamicSourceLabel.Text = string.IsNullOrEmpty(lbl)
+                            ? "No source — pick an action with a trackable state"
+                            : $"Auto: {lbl}";
+                    }
+                }
+            }
+
             // Keep the legacy _scActionPicker in sync ONLY on Tap — the
             // CollectAndSave path uses _scActionPicker to write .Action,
             // which we don't want touching .DoublePressAction / .HoldAction.

@@ -1480,7 +1480,7 @@ public partial class ButtonsView
             // Back key is shown. globalIdx+1 leaked the storage index into the
             // UI and made unbound keys land on the wrong physical button.
             tile.Title = string.IsNullOrWhiteSpace(key.Title) ? $"Key {i + 1}" : key.Title;
-            tile.Subtitle = GetStreamActionDisplay(button?.Action);
+            tile.Subtitle = GetStreamActionDisplay(button);
             tile.IsSelected = isSelected;
             tile.Refresh();
             _v2KeyTileStateHash[i] = hash;
@@ -1544,7 +1544,7 @@ public partial class ButtonsView
             bool selected = _scSelectedButtonIdx == buttonIdx;
 
             if (i < _v2HwButtonSubs.Count)
-                _v2HwButtonSubs[i].Text = GetStreamActionDisplay(btn?.Action);
+                _v2HwButtonSubs[i].Text = GetStreamActionDisplay(btn);
             var cap = _v2HwButtonCaps[i];
             cap.BorderBrush = selected ? accent : idleBorder;
             cap.BorderThickness = new Thickness(selected ? 2 : 1);
@@ -1557,7 +1557,7 @@ public partial class ButtonsView
             bool selected = _scSelectedButtonIdx == buttonIdx;
 
             if (i < _v2HwEncoderSubs.Count)
-                _v2HwEncoderSubs[i].Text = GetStreamActionDisplay(press?.Action);
+                _v2HwEncoderSubs[i].Text = GetStreamActionDisplay(press);
             // Tag holds the outerRim Ellipse — drive its Stroke for selection
             // instead of the wrapping Border (which is transparent chrome).
             if (_v2HwEncoderRings[i].Tag is Ellipse rim)
