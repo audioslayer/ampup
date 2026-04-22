@@ -31,13 +31,15 @@ public partial class ButtonsView
     // ── V2 hosts (populated by parallel agents) ─────────────────────────
     private Grid? _v2Root;
 
-    // Right-pane tab state (0 = DESIGN, 1 = ACTION). The Play header +
+    // Right-pane tab state (0 = DESIGN, 1 = SPOTIFY ART, 2 = ACTION). The Play header +
     // preview card sit ABOVE the tab bar (always visible); the tab bar
     // toggles visibility between the design content and the action content.
     private int _v2RightTabIndex;
     private StackPanel? _v2DesignTabContent;
+    private StackPanel? _v2SpotifyTabContent;
     private StackPanel? _v2ActionTabContent;
     private Border? _v2DesignTab;
+    private Border? _v2SpotifyTab;
     private Border? _v2ActionTab;
     private StackPanel? _v2LeftPanel;
     private StackPanel? _v2PreviewPanel;
@@ -103,8 +105,10 @@ public partial class ButtonsView
         rightStack.Children.Add(BuildV2RightTabBar());
 
         _v2DesignTabContent = new StackPanel();
+        _v2SpotifyTabContent = new StackPanel();
         _v2ActionTabContent = new StackPanel();
         rightStack.Children.Add(_v2DesignTabContent);
+        rightStack.Children.Add(_v2SpotifyTabContent);
         rightStack.Children.Add(_v2ActionTabContent);
 
         _v2ActionTabContent.Children.Add(_v2ActionPanel);
@@ -156,8 +160,10 @@ public partial class ButtonsView
         };
 
         _v2DesignTab = BuildV2RightTab("DESIGN", 0);
-        _v2ActionTab = BuildV2RightTab("ACTION", 1);
+        _v2SpotifyTab = BuildV2RightTab("SPOTIFY ART", 1);
+        _v2ActionTab = BuildV2RightTab("ACTION", 2);
         row.Children.Add(_v2DesignTab);
+        row.Children.Add(_v2SpotifyTab);
         row.Children.Add(_v2ActionTab);
 
         // Slim search icon sits inline with the tabs, immediately after
@@ -207,9 +213,9 @@ public partial class ButtonsView
         };
         btn.MouseLeftButtonUp += (_, e) =>
         {
-            if (_v2RightTabIndex != 1)
+            if (_v2RightTabIndex != 2)
             {
-                _v2RightTabIndex = 1;
+                _v2RightTabIndex = 2;
                 ApplyV2RightTabSelection();
             }
             _v2ActionPicker?.ShowSearch();
@@ -259,13 +265,17 @@ public partial class ButtonsView
     private void ApplyV2RightTabSelection()
     {
         SetV2RightTabActive(_v2DesignTab, _v2RightTabIndex == 0);
-        SetV2RightTabActive(_v2ActionTab, _v2RightTabIndex == 1);
+        SetV2RightTabActive(_v2SpotifyTab, _v2RightTabIndex == 1);
+        SetV2RightTabActive(_v2ActionTab, _v2RightTabIndex == 2);
 
         if (_v2DesignTabContent != null)
             _v2DesignTabContent.Visibility = _v2RightTabIndex == 0
                 ? Visibility.Visible : Visibility.Collapsed;
+        if (_v2SpotifyTabContent != null)
+            _v2SpotifyTabContent.Visibility = _v2RightTabIndex == 1
+                ? Visibility.Visible : Visibility.Collapsed;
         if (_v2ActionTabContent != null)
-            _v2ActionTabContent.Visibility = _v2RightTabIndex == 1
+            _v2ActionTabContent.Visibility = _v2RightTabIndex == 2
                 ? Visibility.Visible : Visibility.Collapsed;
     }
 

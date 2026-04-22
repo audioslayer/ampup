@@ -251,6 +251,7 @@ internal static class StreamControllerDisplayRenderer
             DynamicStateInactiveBrightness = key.DynamicStateInactiveBrightness,
             DynamicStateDimWhenActive = key.DynamicStateDimWhenActive,
             DynamicStateGlowColor = key.DynamicStateGlowColor,
+            SpotifyAlbumArtLayout = key.SpotifyAlbumArtLayout,
         };
 
         if (key.DisplayType == DisplayKeyType.Solid)
@@ -348,6 +349,44 @@ internal static class StreamControllerDisplayRenderer
         return EncodeForDevice(canvas);
     }
 
+    public static bool IsSpotifyAlbumArtSpanned(StreamControllerDisplayKeyConfig key)
+        => key.DisplayType == DisplayKeyType.SpotifyNowPlaying
+           && key.SpotifyAlbumArtLayout != SpotifyAlbumArtLayout.Single;
+
+    public static int[] GetSpotifyAlbumArtCoveredSlots(StreamControllerDisplayKeyConfig key)
+    {
+        return key.SpotifyAlbumArtLayout switch
+        {
+            SpotifyAlbumArtLayout.FourLeft => new[] { 0, 1, 3, 4 },
+            SpotifyAlbumArtLayout.FourRight => new[] { 1, 2, 4, 5 },
+            SpotifyAlbumArtLayout.SixFull => new[] { 0, 1, 2, 3, 4, 5 },
+            _ => Array.Empty<int>(),
+        };
+    }
+
+    public static bool CoversSpotifyAlbumArtSlot(StreamControllerDisplayKeyConfig key, int physicalSlot)
+        => GetSpotifyAlbumArtCoveredSlots(key).Contains(physicalSlot);
+
+    public static BitmapSource CreateSpotifyAlbumArtTilePreview(
+        StreamControllerDisplayKeyConfig key, int physicalSlot, int size = 256)
+    {
+        using var bitmap = ComposeSpotifyAlbumArtTileBitmap(key, physicalSlot, size);
+        return ToBitmapSource(bitmap);
+    }
+
+    public static BitmapSource CreateSpotifyAlbumArtCompositePreview(
+        StreamControllerDisplayKeyConfig key, int tileSize = 120)
+    {
+        using var bitmap = ComposeSpotifyAlbumArtCompositeBitmap(key, tileSize);
+        return ToBitmapSource(bitmap);
+    }
+
+    public static DrawingBitmap ComposeSpotifyAlbumArtDeviceBitmap(
+        StreamControllerDisplayKeyConfig key, int physicalSlot)
+    {
+        return ComposeSpotifyAlbumArtTileBitmap(key, physicalSlot, DeviceCanvasSize);
+    }
+
     private static DrawingBitmap ComposeImage(StreamControllerDisplayKeyConfig key, int? size = null)
     {
         int canvas = size ?? RenderCanvasSize;
@@ -398,6 +437,138 @@ internal static class StreamControllerDisplayRenderer
             ApplyBrightness(bitmap, brightness);
 
         return bitmap;
+    }
+
+    private static DrawingBitmap ComposeSpotifyAlbumArtTileBitmap(
+        StreamControllerDisplayKeyConfig key, int physicalSlot, int tileSize)
+    {
+        var effectiveKey = ResolveEffectiveKey(key);
+        if (!TryGetSpotifyAlbumArtCrop(effectiveKey.SpotifyAlbumArtLayout, physicalSlot, tileSize,
+                out int compositeWidth, out int compositeHeight, out var sourceRect))
+        {
+            return ComposeImage(effectiveKey, tileSize);
+        }
+
+        using var composite = ComposeSpotifyAlbumArtCompositeBitmap(effectiveKey, tileSize);
+        var tile = new DrawingBitmap(tileSize, tileSize);
+        using var graphics = DrawingGraphics.FromImage(tile);
+        ConfigureGraphics(graphics);
+        graphics.Clear(ParseColor(effectiveKey.BackgroundColor, DrawingColor.FromArgb(0x1C, 0x1C, 0x1C)));
+        graphics.DrawImage(
+            composite,
+            new System.Drawing.Rectangle(0, 0, tileSize, tileSize),
+            sourceRect,
+            DrawingGraphicsUnit.Pixel);
+
+        int brightness = Math.Clamp(effectiveKey.Brightness, 0, 100);
+        if (brightness < 100)
+            ApplyBrightness(tile, brightness);
+
+        return tile;
+    }
+
+    private static DrawingBitmap ComposeSpotifyAlbumArtCompositeBitmap(
+        StreamControllerDisplayKeyConfig key, int tileSize)
+    {
+        var effectiveKey = ResolveEffectiveKey(key);
+        GetSpotifyAlbumArtDimensions(effectiveKey.SpotifyAlbumArtLayout, out int cols, out int rows);
+        int width = Math.Max(cols, 1) * tileSize;
+        int height = Math.Max(rows, 1) * tileSize;
+
+        DrawingBitmap bitmap;
+
+        if (!string.IsNullOrWhiteSpace(effectiveKey.ImagePath) && File.Exists(effectiveKey.ImagePath))
+        {
+            using var source = DrawingImage.FromFile(effectiveKey.ImagePath);
+            bitmap = RenderSourceToCanvasCover(source, width, height);
+        }
+        else if (TryResolveCustomPackImagePath(effectiveKey.PresetIconKind, out var customPackImagePath))
+        {
+            using var source = DrawingImage.FromFile(customPackImagePath);
+            bitmap = RenderSourceToCanvasCover(source, width, height);
+        }
+        else
+        {
+            bitmap = new DrawingBitmap(width, height);
+            using var graphics = DrawingGraphics.FromImage(bitmap);
+            ConfigureGraphics(graphics);
+            graphics.Clear(ParseColor(effectiveKey.BackgroundColor, DrawingColor.FromArgb(0x1C, 0x1C, 0x1C)));
+        }
+
+        return bitmap;
+    }
+
+    private static void GetSpotifyAlbumArtDimensions(SpotifyAlbumArtLayout layout, out int cols, out int rows)
+    {
+        switch (layout)
+        {
+            case SpotifyAlbumArtLayout.FourLeft:
+            case SpotifyAlbumArtLayout.FourRight:
+                cols = 2;
+                rows = 2;
+                break;
+            case SpotifyAlbumArtLayout.SixFull:
+                cols = 3;
+                rows = 2;
+                break;
+            default:
+                cols = 1;
+                rows = 1;
+                break;
+        }
+    }
+
+    private static bool TryGetSpotifyAlbumArtCrop(
+        SpotifyAlbumArtLayout layout,
+        int physicalSlot,
+        int tileSize,
+        out int compositeWidth,
+        out int compositeHeight,
+        out System.Drawing.Rectangle sourceRect)
+    {
+        compositeWidth = tileSize;
+        compositeHeight = tileSize;
+        sourceRect = new System.Drawing.Rectangle(0, 0, tileSize, tileSize);
+
+        if (physicalSlot < 0 || physicalSlot >= 6)
+            return false;
+
+        int row = physicalSlot / 3;
+        int col = physicalSlot % 3;
+        int cols;
+        int rows;
+        int startCol;
+
+        switch (layout)
+        {
+            case SpotifyAlbumArtLayout.FourLeft:
+                cols = 2;
+                rows = 2;
+                startCol = 0;
+                break;
+            case SpotifyAlbumArtLayout.FourRight:
+                cols = 2;
+                rows = 2;
+                startCol = 1;
+                break;
+            case SpotifyAlbumArtLayout.SixFull:
+                cols = 3;
+                rows = 2;
+                startCol = 0;
+                break;
+            default:
+                return false;
+        }
+
+        if (row >= rows || col < startCol || col >= startCol + cols)
+            return false;
+
+        int localCol = col - startCol;
+        int localRow = row;
+        compositeWidth = cols * tileSize;
+        compositeHeight = rows * tileSize;
+        sourceRect = new System.Drawing.Rectangle(localCol * tileSize, localRow * tileSize, tileSize, tileSize);
+        return true;
     }
 
     /// <summary>Soft radial-ish glow inset from the edge — three
@@ -527,6 +698,22 @@ internal static class StreamControllerDisplayRenderer
         float drawHeight = source.Height * scale;
         float x = (size - drawWidth) * 0.5f;
         float y = (size - drawHeight) * 0.5f;
+        graphics.DrawImage(source, x, y, drawWidth, drawHeight);
+        return canvas;
+    }
+
+    private static DrawingBitmap RenderSourceToCanvasCover(DrawingImage source, int width, int height)
+    {
+        var canvas = new DrawingBitmap(width, height);
+        using var graphics = DrawingGraphics.FromImage(canvas);
+        ConfigureGraphics(graphics);
+        graphics.Clear(DrawingColor.Black);
+
+        float scale = Math.Max(width / (float)source.Width, height / (float)source.Height);
+        float drawWidth = source.Width * scale;
+        float drawHeight = source.Height * scale;
+        float x = (width - drawWidth) * 0.5f;
+        float y = (height - drawHeight) * 0.5f;
         graphics.DrawImage(source, x, y, drawWidth, drawHeight);
         return canvas;
     }

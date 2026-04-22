@@ -2513,6 +2513,21 @@ public partial class App : Application
         bool showBackKey = inFolder && (GetActiveFolder()?.BackKeyEnabled ?? true)
                            && _config.N3.CurrentPage == 0;
 
+        var spotifySpanMasters = new Dictionary<int, StreamControllerDisplayKeyConfig>();
+        if (!showBackKey)
+        {
+            foreach (var candidate in activeKeys
+                         .Where(StreamControllerDisplayRenderer.IsSpotifyAlbumArtSpanned)
+                         .OrderBy(k => k.Idx))
+            {
+                foreach (int coveredSlot in StreamControllerDisplayRenderer.GetSpotifyAlbumArtCoveredSlots(candidate))
+                {
+                    if (!spotifySpanMasters.ContainsKey(coveredSlot))
+                        spotifySpanMasters[coveredSlot] = candidate;
+                }
+            }
+        }
+
         var ops = new List<(int slot, System.Drawing.Bitmap? bitmap, byte[]? encodedFrame, bool clear)>(N3Controller.DisplayKeyCount);
         var activeAnimatedSlots = new HashSet<int>();
 
@@ -2525,6 +2540,13 @@ public partial class App : Application
                     RemoveAnimatedN3Slot(i);
                     var backKey = BuildBackKeyDisplay();
                     ops.Add((i, StreamControllerDisplayRenderer.ComposeDeviceBitmap(backKey), null, false));
+                    continue;
+                }
+
+                if (spotifySpanMasters.TryGetValue(i, out var spotifySpanMaster))
+                {
+                    RemoveAnimatedN3Slot(i);
+                    ops.Add((i, StreamControllerDisplayRenderer.ComposeSpotifyAlbumArtDeviceBitmap(spotifySpanMaster, i), null, false));
                     continue;
                 }
 
@@ -2922,6 +2944,8 @@ public partial class App : Application
         {
             if (_n3 != null && _isN3Connected)
                 SyncStreamControllerDisplays();
+            _mainWindow?.GetButtonsView()?.RefreshV2LeftPanel();
+            _mainWindow?.GetButtonsView()?.RefreshV2RightPanel();
         });
     }
 

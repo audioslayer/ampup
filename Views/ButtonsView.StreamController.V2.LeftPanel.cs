@@ -1445,6 +1445,20 @@ public partial class ButtonsView
         var activeKeys = GetActiveN3DisplayKeys();
         var activeButtons = GetActiveN3ButtonList();
         int folderSlotOffset = IsBackKeyShown ? -1 : 0;
+        var spotifySpanMasters = new Dictionary<int, StreamControllerDisplayKeyConfig>();
+        if (!IsBackKeyShown)
+        {
+            foreach (var candidate in activeKeys
+                         .Where(StreamControllerDisplayRenderer.IsSpotifyAlbumArtSpanned)
+                         .OrderBy(k => k.Idx))
+            {
+                foreach (int coveredSlot in StreamControllerDisplayRenderer.GetSpotifyAlbumArtCoveredSlots(candidate))
+                {
+                    if (!spotifySpanMasters.ContainsKey(coveredSlot))
+                        spotifySpanMasters[coveredSlot] = candidate;
+                }
+            }
+        }
 
         for (int i = 0; i < _v2KeyTiles.Count; i++)
         {
@@ -1477,6 +1491,7 @@ public partial class ButtonsView
             var key = activeKeys.FirstOrDefault(k => k.Idx == globalIdx)
                       ?? new StreamControllerDisplayKeyConfig { Idx = globalIdx };
             var button = activeButtons.FirstOrDefault(b => b.Idx == buttonIdx);
+            spotifySpanMasters.TryGetValue(i, out var spotifySpanMaster);
             bool isSelected = _scSelectedButtonIdx == buttonIdx;
             if (key.DisplayType == DisplayKeyType.DynamicState
                 && string.IsNullOrWhiteSpace(key.DynamicStateSource))
@@ -1499,18 +1514,35 @@ public partial class ButtonsView
                 }
             }
 
+            string spotifyStateHash = "";
+            var visualKey = spotifySpanMaster ?? key;
+            if (visualKey.DisplayType == DisplayKeyType.SpotifyNowPlaying)
+            {
+                var spotifyInfo = StreamControllerDisplayRenderer.SpotifyNowPlayingTitleProvider?.Invoke() ?? ("", "");
+                spotifyStateHash = $"{StreamControllerDisplayRenderer.SpotifyNowPlayingImagePath}|{spotifyInfo.Title}|{spotifyInfo.Subtitle}|{visualKey.SpotifyAlbumArtLayout}|{i}";
+            }
+
             // Compose a hash from fields the tile actually renders — skip
             // CreateHardwarePreview + tile.Refresh() when nothing changed.
-            string hash = $"{key.Title}|{key.ImagePath}|{key.PresetIconKind}|{key.TextPosition}|{key.TextSize}|{key.TextColor}|{key.IconColor}|{key.FontFamily}|{key.Brightness}|{key.BackgroundColor}|{key.AccentColor}|{key.DisplayType}|{key.ClockFormat}|{key.DynamicStateSource}|{key.DynamicStateActiveIcon}|{key.DynamicStateActiveTitle}|{key.DynamicStateInactiveBrightness}|{key.DynamicStateDimWhenActive}|{key.DynamicStateGlowColor}|{dynamicActive}|{button?.Action}|{isSelected}";
+            string hash = $"{key.Title}|{key.ImagePath}|{key.PresetIconKind}|{key.TextPosition}|{key.TextSize}|{key.TextColor}|{key.IconColor}|{key.FontFamily}|{key.Brightness}|{key.BackgroundColor}|{key.AccentColor}|{key.DisplayType}|{key.ClockFormat}|{key.DynamicStateSource}|{key.DynamicStateActiveIcon}|{key.DynamicStateActiveTitle}|{key.DynamicStateInactiveBrightness}|{key.DynamicStateDimWhenActive}|{key.DynamicStateGlowColor}|{key.SpotifyAlbumArtLayout}|{spotifyStateHash}|{dynamicActive}|{button?.Action}|{isSelected}";
             if (_v2KeyTileStateHash.TryGetValue(i, out var lastHash) && lastHash == hash)
                 continue;
 
             tile.Opacity = 1.0;
             tile.Cursor = Cursors.Hand;
             tile.ToolTip = null;
-            tile.PreviewImage = StreamControllerDisplayRenderer.CreateEditorPreview(key, 240);
-            tile.PreviewAnimation = StreamControllerDisplayRenderer.CreateEditorPreviewAnimation(key, 240);
-            tile.PreviewAnimationSignature = $"{key.Idx}|{key.ImagePath}|{key.PresetIconKind}|240";
+            if (spotifySpanMaster != null)
+            {
+                tile.PreviewImage = StreamControllerDisplayRenderer.CreateSpotifyAlbumArtTilePreview(spotifySpanMaster, i, 240);
+                tile.PreviewAnimation = null;
+                tile.PreviewAnimationSignature = $"spotify-span|{spotifySpanMaster.Idx}|{spotifyStateHash}|240";
+            }
+            else
+            {
+                tile.PreviewImage = StreamControllerDisplayRenderer.CreateEditorPreview(key, 240);
+                tile.PreviewAnimation = StreamControllerDisplayRenderer.CreateEditorPreviewAnimation(key, 240);
+                tile.PreviewAnimationSignature = $"{key.Idx}|{key.ImagePath}|{key.PresetIconKind}|{key.SpotifyAlbumArtLayout}|{spotifyStateHash}|240";
+            }
             // Label by physical slot (1-6, top-left → bot-right) so the user's
             // "top-right = Key 3" mental model holds regardless of whether the
             // Back key is shown. globalIdx+1 leaked the storage index into the

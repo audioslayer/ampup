@@ -395,6 +395,11 @@ public class StreamControllerDisplayKeyConfig
     /// when the key is in its "active" (undimmed) state. Empty = no
     /// glow. Visible in the editor preview + on the N3 LCD.</summary>
     public string DynamicStateGlowColor { get; set; } = "";
+
+    /// <summary>Spotify album-art layout for SpotifyNowPlaying keys.
+    /// Single = one key, FourLeft/FourRight = 2x2 span, SixFull = 3x2 page span.</summary>
+    [JsonConverter(typeof(StringEnumConverter))]
+    public SpotifyAlbumArtLayout SpotifyAlbumArtLayout { get; set; } = SpotifyAlbumArtLayout.Single;
 }
 
 public enum DisplayKeyType
@@ -416,6 +421,14 @@ public enum DisplayTextPosition
     Middle,
     Bottom,
     Hidden,
+}
+
+public enum SpotifyAlbumArtLayout
+{
+    Single,
+    FourLeft,
+    FourRight,
+    SixFull,
 }
 
 public enum HardwareMode

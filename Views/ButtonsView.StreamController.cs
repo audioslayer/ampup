@@ -33,7 +33,7 @@ public partial class ButtonsView
     private Image? _scEditorPreview;
     private TextBox? _scTitleBox;
 
-    // Display type (Normal / Clock / Dynamic) + related editors
+    // Display type (Normal / Clock / Dynamic / Solid / Spotify) + related editors
     private SegmentedControl? _scDisplayTypePicker;
     private StackPanel? _scClockPanel;
     private TextBox? _scClockFormatBox;
@@ -587,6 +587,7 @@ public partial class ButtonsView
         _scDisplayTypePicker.AddSegment("Clock", DisplayKeyType.Clock);
         _scDisplayTypePicker.AddSegment("Dynamic", DisplayKeyType.DynamicState);
         _scDisplayTypePicker.AddSegment("Solid", DisplayKeyType.Solid);
+        _scDisplayTypePicker.AddSegment("Spotify", DisplayKeyType.SpotifyNowPlaying);
         _scDisplayTypePicker.SelectionChanged += (_, _) =>
         {
             if (_loading || _config == null) return;
@@ -2029,6 +2030,7 @@ public partial class ButtonsView
                     DisplayKeyType.Clock => 1,
                     DisplayKeyType.DynamicState => 2,
                     DisplayKeyType.Solid => 3,
+                    DisplayKeyType.SpotifyNowPlaying => 4,
                     _ => 0
                 };
             }
@@ -2388,7 +2390,11 @@ public partial class ButtonsView
             display.TextPosition = pos;
         if (_scTextSizeSlider != null)
             display.TextSize = (int)Math.Round(_scTextSizeSlider.Value);
-        _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateEditorPreview(display, 360);
+
+        bool spotifySpan = StreamControllerDisplayRenderer.IsSpotifyAlbumArtSpanned(display);
+        _scEditorPreview.Source = spotifySpan
+            ? StreamControllerDisplayRenderer.CreateSpotifyAlbumArtCompositePreview(display, 120)
+            : StreamControllerDisplayRenderer.CreateEditorPreview(display, 360);
 
         // In root the folder key Idx == local slot. In a folder, local slot = Idx + 1
         // (slot 0 is the Back key).
@@ -2396,7 +2402,9 @@ public partial class ButtonsView
         int localIdx = display.Idx - (_scCurrentPage * StreamControllerKeysPerPage) + folderSlotOffset;
         if (localIdx >= 0 && localIdx < 6)
         {
-            _scDisplayImages[localIdx].Source = StreamControllerDisplayRenderer.CreateEditorPreview(display, 240);
+            _scDisplayImages[localIdx].Source = spotifySpan
+                ? StreamControllerDisplayRenderer.CreateSpotifyAlbumArtTilePreview(display, localIdx, 240)
+                : StreamControllerDisplayRenderer.CreateEditorPreview(display, 240);
             _scDisplayCaptions[localIdx].Text = string.IsNullOrWhiteSpace(display.Title) ? $"Key {display.Idx + 1}" : display.Title;
         }
 
@@ -3025,7 +3033,7 @@ public partial class ButtonsView
         if (_scDynamicPanel != null)
             _scDynamicPanel.Visibility = dt == DisplayKeyType.DynamicState ? Visibility.Visible : Visibility.Collapsed;
 
-        bool showNormal = dt == DisplayKeyType.Normal;
+        bool showNormal = dt == DisplayKeyType.Normal || dt == DisplayKeyType.SpotifyNowPlaying;
         foreach (var row in _scNormalOnlyRows)
             row.Visibility = showNormal ? Visibility.Visible : Visibility.Collapsed;
     }

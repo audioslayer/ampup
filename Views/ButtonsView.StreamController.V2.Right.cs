@@ -51,6 +51,8 @@ public partial class ButtonsView
     private ListPicker? _v2FontPicker;
     private StyledSlider? _v2BrightnessSlider;
     private TextBlock? _v2BrightnessLabel;
+    private SegmentedControl? _v2SpotifyArtLayoutPicker;
+    private TextBlock? _v2SpotifyArtHelpText;
 
     // Cache key for the action picker item set. Repopulate only when any
     // integration-enabled flag flips — otherwise every RefreshV2RightPanel
@@ -361,6 +363,53 @@ public partial class ButtonsView
         designCard.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
         _v2CommonFieldsPanel.Children.Add(designCard);
 
+        if (_v2SpotifyTabContent != null)
+        {
+            _v2SpotifyTabContent.Children.Clear();
+
+            var spotifyContent = new StackPanel();
+            spotifyContent.Children.Add(MakeEditorLabel("ALBUM ART SPAN"));
+            if (_v2SpotifyArtLayoutPicker == null)
+            {
+                _v2SpotifyArtLayoutPicker = new SegmentedControl
+                {
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                };
+                _v2SpotifyArtLayoutPicker.AddSegment("Single", SpotifyAlbumArtLayout.Single);
+                _v2SpotifyArtLayoutPicker.AddSegment("4 Left", SpotifyAlbumArtLayout.FourLeft);
+                _v2SpotifyArtLayoutPicker.AddSegment("4 Right", SpotifyAlbumArtLayout.FourRight);
+                _v2SpotifyArtLayoutPicker.AddSegment("6 Full", SpotifyAlbumArtLayout.SixFull);
+                _v2SpotifyArtLayoutPicker.SelectionChanged += (_, _) =>
+                {
+                    if (_loading) return;
+                    var display = GetSelectedDisplayKeyConfig();
+                    if (display == null || _v2SpotifyArtLayoutPicker?.SelectedTag is not SpotifyAlbumArtLayout layout)
+                        return;
+                    display.SpotifyAlbumArtLayout = layout;
+                    UpdateEditorPreviewOnly();
+                    RefreshV2LeftPanel();
+                    QueueSave();
+                };
+            }
+            DetachFromParent(_v2SpotifyArtLayoutPicker);
+            _v2SpotifyArtLayoutPicker.Margin = new Thickness(0, 0, 0, 10);
+            spotifyContent.Children.Add(_v2SpotifyArtLayoutPicker);
+
+            if (_v2SpotifyArtHelpText == null)
+            {
+                _v2SpotifyArtHelpText = new TextBlock
+                {
+                    FontSize = 11,
+                    Foreground = FindBrush("TextDimBrush"),
+                    TextWrapping = TextWrapping.Wrap,
+                };
+            }
+            DetachFromParent(_v2SpotifyArtHelpText);
+            spotifyContent.Children.Add(_v2SpotifyArtHelpText);
+
+            _v2SpotifyTabContent.Children.Add(MakeV2CommonFieldCard("SPOTIFY ALBUM ART", spotifyContent));
+        }
+
         // _v2CommonFieldsPanel is NOT added to _v2PreviewPanel — the
         // V2 layout (BuildStreamControllerDesignerV2) places it inside
         // the DESIGN tab content so the right pane can swap it for the
@@ -650,13 +699,23 @@ public partial class ButtonsView
         if (_v2PreviewRow != null)
             _v2PreviewRow.Visibility = isLcd ? Visibility.Visible : Visibility.Collapsed;
 
-        // DESIGN tab only applies to LCD keys. For side buttons / encoders,
-        // collapse the DESIGN tab entirely and force-select ACTION.
+        // DESIGN/SPOTIFY tabs only apply to LCD keys. For side buttons / encoders,
+        // collapse them entirely and force-select ACTION.
         if (_v2DesignTab != null)
             _v2DesignTab.Visibility = isLcd ? Visibility.Visible : Visibility.Collapsed;
-        if (!isLcd && _v2RightTabIndex != 1)
+        var spotifyKey = isLcd ? (GetSelectedDisplayKeyConfig()
+                         ?? new StreamControllerDisplayKeyConfig { Idx = selection.DisplayIdx!.Value }) : null;
+        bool showSpotifyTab = spotifyKey?.DisplayType == DisplayKeyType.SpotifyNowPlaying;
+        if (_v2SpotifyTab != null)
+            _v2SpotifyTab.Visibility = showSpotifyTab ? Visibility.Visible : Visibility.Collapsed;
+        if (!showSpotifyTab && _v2RightTabIndex == 1)
         {
-            _v2RightTabIndex = 1;
+            _v2RightTabIndex = 0;
+            ApplyV2RightTabSelection();
+        }
+        if (!isLcd && _v2RightTabIndex != 2)
+        {
+            _v2RightTabIndex = 2;
             ApplyV2RightTabSelection();
         }
 
@@ -679,20 +738,27 @@ public partial class ButtonsView
         // ── Preview ─────────────────────────────────────────────────────
         if (isLcd)
         {
-            var key = GetSelectedDisplayKeyConfig()
-                      ?? new StreamControllerDisplayKeyConfig { Idx = selection.DisplayIdx!.Value };
+            var key = spotifyKey ?? new StreamControllerDisplayKeyConfig { Idx = selection.DisplayIdx!.Value };
             if (_scEditorPreview != null)
             {
-                _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateEditorPreview(key, 360);
-                var anim = StreamControllerDisplayRenderer.CreateEditorPreviewAnimation(key, 360);
-                if (anim != null)
+                if (StreamControllerDisplayRenderer.IsSpotifyAlbumArtSpanned(key))
                 {
-                    var sig = $"{key.Idx}|{key.ImagePath}|{key.PresetIconKind}|360";
-                    AnimatedImageDriver.Register(_scEditorPreview, anim, sig);
+                    _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateSpotifyAlbumArtCompositePreview(key, 120);
+                    AnimatedImageDriver.Unregister(_scEditorPreview);
                 }
                 else
                 {
-                    AnimatedImageDriver.Unregister(_scEditorPreview);
+                    _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateEditorPreview(key, 360);
+                    var anim = StreamControllerDisplayRenderer.CreateEditorPreviewAnimation(key, 360);
+                    if (anim != null)
+                    {
+                        var sig = $"{key.Idx}|{key.ImagePath}|{key.PresetIconKind}|360";
+                        AnimatedImageDriver.Register(_scEditorPreview, anim, sig);
+                    }
+                    else
+                    {
+                        AnimatedImageDriver.Unregister(_scEditorPreview);
+                    }
                 }
             }
 
@@ -734,6 +800,26 @@ public partial class ButtonsView
                 _v2BrightnessSlider.Value = Math.Clamp(key.Brightness <= 0 ? 100 : key.Brightness, 0, 100);
                 if (_v2BrightnessLabel != null)
                     _v2BrightnessLabel.Text = $"Brightness: {(int)_v2BrightnessSlider.Value}%";
+            }
+            if (_v2SpotifyArtLayoutPicker != null)
+            {
+                _v2SpotifyArtLayoutPicker.SelectedIndex = key.SpotifyAlbumArtLayout switch
+                {
+                    SpotifyAlbumArtLayout.FourLeft => 1,
+                    SpotifyAlbumArtLayout.FourRight => 2,
+                    SpotifyAlbumArtLayout.SixFull => 3,
+                    _ => 0,
+                };
+            }
+            if (_v2SpotifyArtHelpText != null)
+            {
+                _v2SpotifyArtHelpText.Text = key.SpotifyAlbumArtLayout switch
+                {
+                    SpotifyAlbumArtLayout.FourLeft => "Stretch the current Spotify album art across the left 2x2 block of LCD keys.",
+                    SpotifyAlbumArtLayout.FourRight => "Stretch the current Spotify album art across the right 2x2 block of LCD keys.",
+                    SpotifyAlbumArtLayout.SixFull => "Stretch the current Spotify album art across all 6 LCD keys on the current page.",
+                    _ => "Render Spotify album art on just this key. Use 4 or 6 to crop one image across multiple LCDs.",
+                };
             }
             BuildTextColorSwatches();
 
