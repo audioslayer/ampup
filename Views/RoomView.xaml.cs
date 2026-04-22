@@ -2703,6 +2703,30 @@ public partial class RoomView : UserControl
             };
             devRow.Children.Add(onOff);
 
+            var ampUpSync = new CheckBox
+            {
+                Content = "AmpUp Sync",
+                FontSize = 12,
+                IsChecked = devConfig.SyncWithAmpUp,
+                Foreground = FindBrush("TextPrimaryBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 12, 0),
+                ToolTip = "When off, AmpUp won't push room effects or DreamView/screen sync to this device.",
+            };
+            ampUpSync.Checked += (_, _) =>
+            {
+                if (_loading) return;
+                devConfig.SyncWithAmpUp = true;
+                _onSave?.Invoke(_config!);
+            };
+            ampUpSync.Unchecked += (_, _) =>
+            {
+                if (_loading) return;
+                devConfig.SyncWithAmpUp = false;
+                _onSave?.Invoke(_config!);
+            };
+            devRow.Children.Add(ampUpSync);
+
             var brightSlider = new StyledSlider
             {
                 Minimum = 0, Maximum = 100, Value = 100,
