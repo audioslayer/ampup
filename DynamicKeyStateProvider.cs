@@ -49,6 +49,11 @@ internal static class DynamicKeyStateProvider
                     // TODO: no reliable public API for Discord mic mute — MVP returns false.
                     return false;
 
+                case "room_lights_on":
+                    // Any Govee device currently powered on, or Corsair
+                    // active in a non-off mode, counts as "lights on".
+                    return AreRoomLightsOn();
+
                 default:
                     return false;
             }
@@ -122,5 +127,32 @@ internal static class DynamicKeyStateProvider
         ("obs_streaming",   "OBS Streaming"),
         ("spotify_playing", "Spotify Playing"),
         ("discord_mic",     "Discord Mic Muted (coming soon)"),
+        ("room_lights_on",  "Room Lights On"),
     };
+
+    /// <summary>True when any room light (Govee LAN/Cloud or Corsair)
+    /// is currently in a powered-on state.</summary>
+    private static bool AreRoomLightsOn()
+    {
+        var app = System.Windows.Application.Current as App;
+        if (app == null) return false;
+        try
+        {
+            var cfg = App.Config;
+            if (cfg != null)
+            {
+                // Any Govee device reporting PoweredOn?
+                foreach (var dev in cfg.Ambience.GoveeDevices)
+                    if (dev.PoweredOn) return true;
+
+                // Corsair enabled with a non-static mode = actively driving LEDs.
+                if (cfg.Corsair.Enabled
+                    && !string.Equals(cfg.Corsair.LightSyncMode, "static", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(cfg.Corsair.LightSyncMode, "off", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+        }
+        catch { }
+        return false;
+    }
 }

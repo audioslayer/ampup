@@ -42,6 +42,10 @@ public partial class ButtonsView
     private TextBox? _scDynamicActiveIconBox;
     private Button? _scDynamicChooseIconButton;
     private TextBox? _scDynamicActiveTitleBox;
+    private SegmentedControl? _scDynamicDimWhenPicker;
+    private StyledSlider? _scDynamicDimSlider;
+    private TextBlock? _scDynamicDimLabel;
+    private WrapPanel? _scDynamicGlowSwatchPanel;
     // Panels that host the "Normal" editors — grouped so they can hide together.
     private readonly List<FrameworkElement> _scNormalOnlyRows = new();
     private SegmentedControl? _scTextPositionPicker;
@@ -658,6 +662,64 @@ public partial class ButtonsView
             QueueSave();
         };
         _scDynamicPanel.Children.Add(_scDynamicActiveTitleBox);
+
+        // Dim-state controls — when does the key render dimmed?
+        _scDynamicPanel.Children.Add(MakeEditorLabel("DIM WHEN"));
+        _scDynamicDimWhenPicker = new SegmentedControl
+        {
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+        _scDynamicDimWhenPicker.AddSegment("Off / Inactive", false);
+        _scDynamicDimWhenPicker.AddSegment("On / Active", true);
+        _scDynamicDimWhenPicker.SelectionChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            var k = GetSelectedDisplayKeyConfig();
+            if (k != null && _scDynamicDimWhenPicker.SelectedTag is bool b)
+                k.DynamicStateDimWhenActive = b;
+            UpdateEditorPreviewOnly();
+            QueueSave();
+        };
+        _scDynamicPanel.Children.Add(_scDynamicDimWhenPicker);
+
+        _scDynamicDimLabel = new TextBlock
+        {
+            FontSize = 11,
+            Margin = new Thickness(0, 0, 0, 4),
+            Text = "Dim level: 50%",
+        };
+        _scDynamicDimLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+        _scDynamicPanel.Children.Add(_scDynamicDimLabel);
+        _scDynamicDimSlider = new StyledSlider
+        {
+            Minimum = 0, Maximum = 100,
+            Width = 220,
+            Step = 5,
+            ShowLabel = false,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+        _scDynamicDimSlider.ValueChanged += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            int pct = (int)Math.Round(_scDynamicDimSlider.Value);
+            if (_scDynamicDimLabel != null) _scDynamicDimLabel.Text = $"Dim level: {pct}%";
+            var k = GetSelectedDisplayKeyConfig();
+            if (k != null) k.DynamicStateInactiveBrightness = pct;
+            UpdateEditorPreviewOnly();
+            QueueSave();
+        };
+        _scDynamicPanel.Children.Add(_scDynamicDimSlider);
+
+        _scDynamicPanel.Children.Add(MakeEditorLabel("GLOW COLOR (ACTIVE)"));
+        _scDynamicGlowSwatchPanel = new WrapPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+        _scDynamicPanel.Children.Add(_scDynamicGlowSwatchPanel);
+
         _scDisplayTabContent.Children.Add(_scDynamicPanel);
 
         var titleLabel = MakeEditorLabel("TITLE");
@@ -1968,6 +2030,15 @@ public partial class ButtonsView
                 _scDynamicActiveIconBox.Text = string.IsNullOrWhiteSpace(key.DynamicStateActiveIcon) ? "No active icon" : key.DynamicStateActiveIcon;
             if (_scDynamicActiveTitleBox != null)
                 _scDynamicActiveTitleBox.Text = key.DynamicStateActiveTitle;
+            if (_scDynamicDimWhenPicker != null)
+                _scDynamicDimWhenPicker.SelectedIndex = key.DynamicStateDimWhenActive ? 1 : 0;
+            if (_scDynamicDimSlider != null)
+            {
+                int pct = Math.Clamp(key.DynamicStateInactiveBrightness, 0, 100);
+                _scDynamicDimSlider.Value = pct;
+                if (_scDynamicDimLabel != null) _scDynamicDimLabel.Text = $"Dim level: {pct}%";
+            }
+            BuildDynamicGlowSwatches();
             UpdateDisplayTypeVisibility();
 
             _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateHardwarePreview(key);
@@ -2402,6 +2473,79 @@ public partial class ButtonsView
         ("Lime",    "#C6FF00"),
         ("Black",   "#1A1A1A"),
     };
+
+    /// <summary>
+    /// Dynamic-state "active" glow — writes to
+    /// <see cref="StreamControllerDisplayKeyConfig.DynamicStateGlowColor"/>.
+    /// An "Off" swatch clears the glow.
+    /// </summary>
+    private void BuildDynamicGlowSwatches()
+    {
+        if (_scDynamicGlowSwatchPanel == null) return;
+        _scDynamicGlowSwatchPanel.Children.Clear();
+
+        var display = GetSelectedDisplayKeyConfig();
+        string currentHex = display?.DynamicStateGlowColor ?? "";
+
+        // "Off" swatch — clears the glow.
+        var off = new Border
+        {
+            Width = 26, Height = 26,
+            CornerRadius = new CornerRadius(13),
+            Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
+            BorderThickness = new Thickness(2),
+            BorderBrush = string.IsNullOrEmpty(currentHex)
+                ? new SolidColorBrush(Colors.White)
+                : Brushes.Transparent,
+            Margin = new Thickness(0, 0, 6, 6),
+            Cursor = Cursors.Hand,
+            ToolTip = "No glow",
+        };
+        off.Child = new TextBlock
+        {
+            Text = "✕",
+            FontSize = 12,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        off.MouseLeftButtonDown += (_, _) =>
+        {
+            if (display == null) return;
+            display.DynamicStateGlowColor = "";
+            BuildDynamicGlowSwatches();
+            UpdateEditorPreviewOnly();
+            QueueSave();
+        };
+        _scDynamicGlowSwatchPanel.Children.Add(off);
+
+        foreach (var (name, hex) in TextColorPresets)
+        {
+            var color = (Color)ColorConverter.ConvertFromString(hex);
+            bool selected = hex.Equals(currentHex, StringComparison.OrdinalIgnoreCase);
+            var swatch = new Border
+            {
+                Width = 26, Height = 26,
+                CornerRadius = new CornerRadius(13),
+                Background = new SolidColorBrush(color),
+                BorderThickness = new Thickness(2),
+                BorderBrush = selected ? new SolidColorBrush(Colors.White) : Brushes.Transparent,
+                Margin = new Thickness(0, 0, 6, 6),
+                Cursor = Cursors.Hand,
+                ToolTip = name,
+            };
+            string captured = hex;
+            swatch.MouseLeftButtonDown += (_, _) =>
+            {
+                if (display == null) return;
+                display.DynamicStateGlowColor = captured;
+                BuildDynamicGlowSwatches();
+                UpdateEditorPreviewOnly();
+                QueueSave();
+            };
+            _scDynamicGlowSwatchPanel.Children.Add(swatch);
+        }
+    }
 
     /// <summary>
     /// Build the BACKGROUND / GLOW colour swatch row — writes to

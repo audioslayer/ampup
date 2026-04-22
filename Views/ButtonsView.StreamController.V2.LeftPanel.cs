@@ -1465,7 +1465,7 @@ public partial class ButtonsView
 
             // Compose a hash from fields the tile actually renders — skip
             // CreateHardwarePreview + tile.Refresh() when nothing changed.
-            string hash = $"{key.Title}|{key.ImagePath}|{key.PresetIconKind}|{key.TextPosition}|{key.TextSize}|{key.TextColor}|{key.IconColor}|{key.FontFamily}|{key.Brightness}|{key.BackgroundColor}|{key.AccentColor}|{key.DisplayType}|{key.ClockFormat}|{key.DynamicStateSource}|{key.DynamicStateActiveIcon}|{key.DynamicStateActiveTitle}|{button?.Action}|{isSelected}";
+            string hash = $"{key.Title}|{key.ImagePath}|{key.PresetIconKind}|{key.TextPosition}|{key.TextSize}|{key.TextColor}|{key.IconColor}|{key.FontFamily}|{key.Brightness}|{key.BackgroundColor}|{key.AccentColor}|{key.DisplayType}|{key.ClockFormat}|{key.DynamicStateSource}|{key.DynamicStateActiveIcon}|{key.DynamicStateActiveTitle}|{key.DynamicStateInactiveBrightness}|{key.DynamicStateDimWhenActive}|{key.DynamicStateGlowColor}|{button?.Action}|{isSelected}";
             if (_v2KeyTileStateHash.TryGetValue(i, out var lastHash) && lastHash == hash)
                 continue;
 

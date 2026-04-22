@@ -382,6 +382,19 @@ public class StreamControllerDisplayKeyConfig
     /// <summary>Icon/title override to render when the dynamic state is in its ACTIVE state (muted/recording/playing).</summary>
     public string DynamicStateActiveIcon { get; set; } = "";
     public string DynamicStateActiveTitle { get; set; } = "";
+    /// <summary>Brightness (0-100) to apply when the dynamic key is in
+    /// its "dimmed" state — whichever state DynamicStateDimWhenActive
+    /// points at. Default 50 gives a clear "off" look.</summary>
+    public int DynamicStateInactiveBrightness { get; set; } = 50;
+    /// <summary>When true, dim the key while the state is ACTIVE (e.g.
+    /// "Mic Muted" would be dim when muted). Default false, so the
+    /// Room-Lights-On source reads naturally — dim when OFF, bright
+    /// when ON.</summary>
+    public bool DynamicStateDimWhenActive { get; set; } = false;
+    /// <summary>Hex color to draw as a soft glow ring behind the icon
+    /// when the key is in its "active" (undimmed) state. Empty = no
+    /// glow. Visible in the editor preview + on the N3 LCD.</summary>
+    public string DynamicStateGlowColor { get; set; } = "";
 }
 
 public enum DisplayKeyType

@@ -248,6 +248,9 @@ internal static class StreamControllerDisplayRenderer
             DynamicStateSource = key.DynamicStateSource,
             DynamicStateActiveIcon = key.DynamicStateActiveIcon,
             DynamicStateActiveTitle = key.DynamicStateActiveTitle,
+            DynamicStateInactiveBrightness = key.DynamicStateInactiveBrightness,
+            DynamicStateDimWhenActive = key.DynamicStateDimWhenActive,
+            DynamicStateGlowColor = key.DynamicStateGlowColor,
         };
 
         if (key.DisplayType == DisplayKeyType.Solid)
@@ -318,6 +321,20 @@ internal static class StreamControllerDisplayRenderer
                 if (!string.IsNullOrWhiteSpace(key.DynamicStateActiveTitle))
                     clone.Title = key.DynamicStateActiveTitle;
             }
+
+            // Dim pass — DynamicStateDimWhenActive selects which half of
+            // the binary state is the "dim" side. Default = dim when
+            // INACTIVE (lights off / not muted / not recording / etc.).
+            bool shouldDim = key.DynamicStateDimWhenActive ? active : !active;
+            if (shouldDim)
+            {
+                int dim = Math.Clamp(key.DynamicStateInactiveBrightness, 0, 100);
+                // Multiply with any per-key brightness the user already set.
+                int combined = Math.Clamp((int)Math.Round(key.Brightness * (dim / 100.0)), 0, 100);
+                clone.Brightness = combined;
+                // Glow only applies in the "bright" state — clear it here.
+                clone.DynamicStateGlowColor = "";
+            }
             return clone;
         }
 
@@ -361,6 +378,16 @@ internal static class StreamControllerDisplayRenderer
             graphics.Clear(ParseColor(key.BackgroundColor, DrawingColor.FromArgb(0x1C, 0x1C, 0x1C)));
         }
 
+        // Glow ring — drawn BEHIND the final text overlay, in front of the
+        // icon/image. Only set by ResolveEffectiveKey when a DynamicState
+        // key is in its "active/bright" side AND DynamicStateGlowColor is
+        // non-empty. For static keys this is always empty (no-op).
+        if (!string.IsNullOrWhiteSpace(key.DynamicStateGlowColor))
+        {
+            var glowRgb = ParseColor(key.DynamicStateGlowColor, DrawingColor.FromArgb(0x00, 0xE6, 0x76));
+            DrawGlowRing(bitmap, canvas, glowRgb);
+        }
+
         // Draw text overlay on all key types
         if (hasText && key.TextPosition != DisplayTextPosition.Hidden)
             DrawTextOverlay(bitmap, key, canvas, title);
@@ -371,6 +398,37 @@ internal static class StreamControllerDisplayRenderer
             ApplyBrightness(bitmap, brightness);
 
         return bitmap;
+    }
+
+    /// <summary>Soft radial-ish glow inset from the edge — three
+    /// concentric rounded-rect strokes at decreasing alpha to fake a
+    /// blurred neon halo. Works on both the editor canvas (larger) and
+    /// the 60x60 device canvas.</summary>
+    private static void DrawGlowRing(DrawingBitmap bitmap, int canvas, DrawingColor glow)
+    {
+        using var g = DrawingGraphics.FromImage(bitmap);
+        ConfigureGraphics(g);
+        // Inset from the outer edge so the rings aren't clipped.
+        float inset = Math.Max(1f, canvas * 0.04f);
+        float cornerR = canvas * 0.22f;
+        float[] widths = { canvas * 0.06f, canvas * 0.04f, canvas * 0.025f };
+        int[] alphas   = { 60, 110, 180 };
+        for (int i = 0; i < widths.Length; i++)
+        {
+            using var pen = new DrawingPen(DrawingColor.FromArgb(alphas[i], glow), widths[i]);
+            using var path = new System.Drawing.Drawing2D.GraphicsPath();
+            float x = inset + widths[i] * 0.5f;
+            float y = inset + widths[i] * 0.5f;
+            float w = canvas - (inset * 2f) - widths[i];
+            float h = canvas - (inset * 2f) - widths[i];
+            float r = Math.Min(cornerR, Math.Min(w, h) * 0.5f);
+            path.AddArc(x, y, r * 2, r * 2, 180, 90);
+            path.AddArc(x + w - r * 2, y, r * 2, r * 2, 270, 90);
+            path.AddArc(x + w - r * 2, y + h - r * 2, r * 2, r * 2, 0, 90);
+            path.AddArc(x, y + h - r * 2, r * 2, r * 2, 90, 90);
+            path.CloseFigure();
+            g.DrawPath(pen, path);
+        }
     }
 
     private static bool TryResolveCustomPackImagePath(string? kind, out string imagePath)

@@ -122,6 +122,7 @@ public partial class App : Application
     public static readonly float[] StreamControllerKnobPositions = { 1f, 1f, 1f };
     public static RgbController? Rgb { get; private set; }
     public static AudioAnalyzer? AudioAnalyzer { get; private set; }
+    public static AppConfig? Config => (Current as App)?._config;
     private readonly long[] _lastKnobUiTick = new long[8]; // throttle UI updates
     private readonly long[] _lastOsdTick = new long[8]; // throttle OSD updates
     private readonly int[] _lastOsdValue = { -1, -1, -1, -1, -1, -1, -1, -1 }; // suppress OSD if value unchanged
