@@ -300,6 +300,21 @@ public class CorsairSync : IDisposable
     }
 
     /// <summary>
+    /// Refresh the cached iCUE device list without requiring the caller to
+    /// go through the UI-oriented IsAvailable gate. Toggle paths use this to
+    /// make sure "all devices" really means the current live SDK device set.
+    /// </summary>
+    public void RefreshDevices()
+    {
+        if (_disposed || !_connected || !_dllLoaded) return;
+        try { DiscoverDevices(); }
+        catch (Exception ex)
+        {
+            Logger.Log($"CorsairSync: RefreshDevices failed — {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// Send 15 RGB values (5 knobs × 3 LEDs) to all connected iCUE devices.
     /// Maps Turn Up's 15 LEDs across all device LEDs proportionally.
     /// </summary>

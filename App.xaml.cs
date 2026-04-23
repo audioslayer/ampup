@@ -3043,6 +3043,7 @@ public partial class App : Application
         {
             _config.Corsair.Enabled = true;
             _config.Corsair.LightSyncMode = "static";
+            _corsairSync.RefreshDevices();
             _corsairSync.Resume();
             _ = _corsairSync.SetStaticColorAllAsync(W, W, W);
         }
@@ -3075,6 +3076,7 @@ public partial class App : Application
         // on-press restores the exact mode the user had before.
         if (_corsairSync != null)
         {
+            _corsairSync.RefreshDevices();
             if (_roomLightsOn)
             {
                 _config.Corsair.Enabled = true;
@@ -3114,6 +3116,7 @@ public partial class App : Application
     {
         if (_corsairSync == null) return;
 
+        _corsairSync.RefreshDevices();
         bool turningOn = !_config.Corsair.Enabled;
         _config.Corsair.Enabled = turningOn;
 
@@ -3197,6 +3200,7 @@ public partial class App : Application
                     // letting the music-reactive timer repaint the LEDs.
                     if (_corsairSync != null)
                     {
+                        _corsairSync.RefreshDevices();
                         if (newState)
                         {
                             _config.Corsair.Enabled = true;
