@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Threading;
+using System.Runtime.Versioning;
 using Microsoft.Win32;
 using Material.Icons;
 using Material.Icons.WPF;
@@ -11,6 +12,7 @@ using AmpUp.Controls;
 
 namespace AmpUp.Views;
 
+[SupportedOSPlatform("windows7.0")]
 public partial class ButtonsView : UserControl
 {
     private AppConfig? _config;
