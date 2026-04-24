@@ -13,6 +13,8 @@
     <Version>1.0.0-beta</Version>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
     <!-- Trimming flags are passed via build-installer.bat, not here -->
     <!-- WPF doesn't support PublishTrimmed in the project file -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -47,6 +49,10 @@
     <None Remove="AmpUp.Mac\**" />
     <Content Remove="AmpUp.Mac\**" />
     <EmbeddedResource Remove="AmpUp.Mac\**" />
+    <Compile Remove="Tools\**" />
+    <None Remove="Tools\**" />
+    <Content Remove="Tools\**" />
+    <EmbeddedResource Remove="Tools\**" />
   </ItemGroup>
 
   <ItemGroup>
