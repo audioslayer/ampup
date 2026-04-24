@@ -245,34 +245,6 @@ public class GoveeCloudApi : IDisposable
         }
     }
 
-    public async Task<JObject?> GetDeviceStateRawAsync(string device, string sku)
-    {
-        try
-        {
-            await ThrottleAsync();
-            var body = new
-            {
-                requestId = Guid.NewGuid().ToString(),
-                payload = new { sku, device }
-            };
-            using var req = BuildRequest(HttpMethod.Post, "/router/api/v1/device/state", body);
-            using var resp = await _http.SendAsync(req);
-            if (!resp.IsSuccessStatusCode)
-            {
-                Logger.Log($"[Govee] GetDeviceStateRaw failed: {resp.StatusCode}");
-                return null;
-            }
-
-            var json = await resp.Content.ReadAsStringAsync();
-            return JObject.Parse(json);
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"[Govee] GetDeviceStateRawAsync exception: {ex.Message}");
-            return null;
-        }
-    }
-
     public async Task<List<GoveeScene>> GetDynamicScenesAsync(string device, string sku)
     {
         return await GetScenesInternalAsync(device, sku, "dynamic");

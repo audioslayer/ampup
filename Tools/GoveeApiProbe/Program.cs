@@ -53,14 +53,6 @@ internal static class Program
                         return 0;
                     }
 
-                case "raw-state":
-                    {
-                        var device = ResolveDevice(devices, RequireArg(argList, 1, "device"));
-                        if (device == null) return 1;
-                        await PrintRawStateAsync(api, device);
-                        return 0;
-                    }
-
                 case "on":
                 case "off":
                     {
@@ -238,18 +230,6 @@ internal static class Program
         }
 
         Console.WriteLine(JsonConvert.SerializeObject(state, Formatting.Indented));
-    }
-
-    private static async Task PrintRawStateAsync(GoveeCloudApi api, GoveeDeviceInfo device)
-    {
-        var state = await api.GetDeviceStateRawAsync(device.Device, device.Sku);
-        if (state == null)
-        {
-            Console.Error.WriteLine("No raw state returned.");
-            return;
-        }
-
-        Console.WriteLine(state.ToString(Formatting.Indented));
     }
 
     private static object BuildScenePayload(GoveeScene scene)
@@ -435,7 +415,6 @@ Usage:
   dotnet run --project Tools/GoveeApiProbe/GoveeApiProbe.csproj -- [--api-key KEY] list
   dotnet run --project Tools/GoveeApiProbe/GoveeApiProbe.csproj -- [--api-key KEY] inspect <device>
   dotnet run --project Tools/GoveeApiProbe/GoveeApiProbe.csproj -- [--api-key KEY] state <device>
-  dotnet run --project Tools/GoveeApiProbe/GoveeApiProbe.csproj -- [--api-key KEY] raw-state <device>
   dotnet run --project Tools/GoveeApiProbe/GoveeApiProbe.csproj -- [--api-key KEY] on <device>
   dotnet run --project Tools/GoveeApiProbe/GoveeApiProbe.csproj -- [--api-key KEY] off <device>
   dotnet run --project Tools/GoveeApiProbe/GoveeApiProbe.csproj -- [--api-key KEY] toggle <device> <instance> <on|off>
