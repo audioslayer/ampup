@@ -61,6 +61,17 @@ internal static class Program
                         return 0;
                     }
 
+                case "watch-state":
+                    {
+                        var device = ResolveDevice(devices, RequireArg(argList, 1, "device"));
+                        if (device == null) return 1;
+                        int intervalMs = argList.Count > 2 && int.TryParse(argList[2], out var parsedInterval)
+                            ? Math.Max(250, parsedInterval)
+                            : 1000;
+                        await WatchRawStateAsync(api, device, intervalMs);
+                        return 0;
+                    }
+
                 case "on":
                 case "off":
                     {
@@ -252,6 +263,42 @@ internal static class Program
         Console.WriteLine(state.ToString(Formatting.Indented));
     }
 
+    private static async Task WatchRawStateAsync(GoveeCloudApi api, GoveeDeviceInfo device, int intervalMs)
+    {
+        Console.WriteLine($"Watching raw state for {device.DeviceName} every {intervalMs}ms. Press Ctrl+C to stop.");
+        Console.WriteLine();
+
+        string? lastSnapshot = null;
+        bool cancelled = false;
+        Console.CancelKeyPress += (_, e) =>
+        {
+            e.Cancel = true;
+            cancelled = true;
+        };
+
+        while (!cancelled)
+        {
+            var state = await api.GetDeviceStateRawAsync(device.Device, device.Sku);
+            if (state == null)
+            {
+                Console.WriteLine($"{DateTime.Now:HH:mm:ss}  no raw state returned");
+            }
+            else
+            {
+                string snapshot = state.ToString(Formatting.None);
+                if (!string.Equals(snapshot, lastSnapshot, StringComparison.Ordinal))
+                {
+                    Console.WriteLine($"=== {DateTime.Now:yyyy-MM-dd HH:mm:ss} ===");
+                    Console.WriteLine(state.ToString(Formatting.Indented));
+                    Console.WriteLine();
+                    lastSnapshot = snapshot;
+                }
+            }
+
+            await Task.Delay(intervalMs);
+        }
+    }
+
     private static object BuildScenePayload(GoveeScene scene)
     {
         if (scene.RawValue != null)
@@ -436,6 +483,7 @@ Usage:
   dotnet run --project Tools/GoveeApiProbe/GoveeApiProbe.csproj -- [--api-key KEY] inspect <device>
   dotnet run --project Tools/GoveeApiProbe/GoveeApiProbe.csproj -- [--api-key KEY] state <device>
   dotnet run --project Tools/GoveeApiProbe/GoveeApiProbe.csproj -- [--api-key KEY] raw-state <device>
+  dotnet run --project Tools/GoveeApiProbe/GoveeApiProbe.csproj -- [--api-key KEY] watch-state <device> [intervalMs=1000]
   dotnet run --project Tools/GoveeApiProbe/GoveeApiProbe.csproj -- [--api-key KEY] on <device>
   dotnet run --project Tools/GoveeApiProbe/GoveeApiProbe.csproj -- [--api-key KEY] off <device>
   dotnet run --project Tools/GoveeApiProbe/GoveeApiProbe.csproj -- [--api-key KEY] toggle <device> <instance> <on|off>
