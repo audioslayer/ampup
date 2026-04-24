@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.Versioning;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -8,6 +9,7 @@ using AmpUp.Controls;
 
 namespace AmpUp.Views;
 
+[SupportedOSPlatform("windows7.0")]
 public partial class MixerView : UserControl
 {
     private AppConfig? _config;

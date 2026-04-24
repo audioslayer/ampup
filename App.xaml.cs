@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Text;
 using System.Windows;
 using System.Windows.Interop;
@@ -13,6 +14,7 @@ using Forms = System.Windows.Forms;
 
 namespace AmpUp;
 
+[SupportedOSPlatform("windows7.0")]
 public partial class App : Application
 {
     private Mutex? _mutex;

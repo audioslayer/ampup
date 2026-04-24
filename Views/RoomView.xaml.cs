@@ -1,3 +1,4 @@
+using System.Runtime.Versioning;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -8,6 +9,7 @@ using Newtonsoft.Json.Linq;
 
 namespace AmpUp.Views;
 
+[SupportedOSPlatform("windows7.0")]
 public partial class RoomView : UserControl
 {
     private AppConfig? _config;
