@@ -2787,45 +2787,35 @@ public partial class RoomView : UserControl
                 int pct = (int)brightSlider.Value;
                 devConfig.BrightnessScale = pct;
                 _onSave?.Invoke(_config!);
-                if (pct == 0)
+
+                if (!devConfig.PoweredOn)
                 {
-                    devConfig.PoweredOn = false;
+                    devConfig.PoweredOn = true;
                     if (hasLan)
-                        await AmbienceSync.SendTurnAsync(devConfig.Ip, false);
+                        await AmbienceSync.SendTurnAsync(devConfig.Ip, true);
                     else if (cloudDev != null)
                         await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
-                            cloudDev.Device, cloudDev.Sku, GoveeCloudApi.TurnOnOff(false)));
+                            cloudDev.Device, cloudDev.Sku, GoveeCloudApi.TurnOnOff(true)));
                 }
-                else
+
+                if (hasLan)
                 {
-                    if (!devConfig.PoweredOn)
+                    bool segmentSynced = AmbienceSync.GetSegmentCount(devConfig) > 0
+                        && devConfig.UseSegmentProtocol
+                        && devConfig.SyncWithAmpUp;
+                    if (segmentSynced)
                     {
-                        devConfig.PoweredOn = true;
-                        if (hasLan)
-                            await AmbienceSync.SendTurnAsync(devConfig.Ip, true);
-                        else if (cloudDev != null)
-                            await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
-                                cloudDev.Device, cloudDev.Sku, GoveeCloudApi.TurnOnOff(true)));
+                        AmbienceSync.ResumeSync(devConfig.Ip);
                     }
-                    if (hasLan)
+                    else
                     {
-                        bool segmentSynced = AmbienceSync.GetSegmentCount(devConfig) > 0
-                            && devConfig.UseSegmentProtocol
-                            && devConfig.SyncWithAmpUp;
-                        if (segmentSynced)
-                        {
-                            AmbienceSync.ResumeSync(devConfig.Ip);
-                        }
-                        else
-                        {
-                            AmbienceSync.PauseSync(devConfig.Ip, 2);
-                            await AmbienceSync.SendBrightnessAsync(devConfig.Ip, pct);
-                        }
+                        AmbienceSync.PauseSync(devConfig.Ip, 2);
+                        await AmbienceSync.SendBrightnessAsync(devConfig.Ip, pct);
                     }
-                    else if (cloudDev != null)
-                        await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
-                            cloudDev.Device, cloudDev.Sku, GoveeCloudApi.SetBrightness(pct)));
                 }
+                else if (cloudDev != null)
+                    await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
+                        cloudDev.Device, cloudDev.Sku, GoveeCloudApi.SetBrightness(pct)));
             };
             brightSlider.ValueChanged += (_, _) => { brightDebounce.Stop(); brightDebounce.Start(); };
             devRow.Children.Add(brightSlider);
