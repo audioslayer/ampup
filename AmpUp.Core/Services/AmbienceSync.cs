@@ -491,9 +491,17 @@ public class AmbienceSync : IDisposable
 
     private static (int R, int G, int B) SegmentAurora(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
     {
-        float ribbon = Wave(x * 2.4f - t * 0.28f + phase) * 0.6f + Wave(x * 5.2f + t * 0.18f) * 0.4f;
-        float glow = 0.42f + 0.58f * Smooth(ribbon);
-        return Scale(Lerp(c1, c2, Smooth(x + Wave(t * 0.19f + phase) * 0.25f)), glow);
+        float wave1 = Wave(x * 3.8f + t * 0.42f + phase);
+        float wave2 = Wave(x * 6.4f - t * 0.66f + phase + 0.25f);
+        float wave3 = Wave(x * 1.9f + t * 0.23f + phase + 0.55f);
+        float band = Smooth((wave1 + wave2 * 0.6f + wave3 * 0.3f) / 1.9f);
+
+        float hue = (120f + band * 180f + MathF.Sin((t * 0.18f + x * 2.6f + phase) * MathF.Tau) * 40f) / 360f;
+        var aurora = Hsv(hue, 0.82f, 0.18f + band * band * 0.92f);
+
+        // Keep a hint of the selected palette without collapsing Aurora into only two colors.
+        var tint = Lerp(c1, c2, Smooth(x + Wave(t * 0.12f + phase) * 0.25f));
+        return Lerp(aurora, tint, 0.18f);
     }
 
     private static (int R, int G, int B) SegmentNebula(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
