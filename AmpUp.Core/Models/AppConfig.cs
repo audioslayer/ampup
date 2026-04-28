@@ -579,9 +579,6 @@ public class AmbienceConfig
     public string RoomColor1 { get; set; } = "#00E676";
     public string RoomColor2 { get; set; } = "#FFFFFF";
     public int RoomEffectSpeed { get; set; } = 50;
-    /// <summary>Selected Govee Cloud native scene name for room-level native mode.</summary>
-    public string NativeGoveeSceneName { get; set; } = "";
-    public string NativeGoveeSceneCategory { get; set; } = "dynamic";
 }
 
 public class GoveeDeviceConfig
