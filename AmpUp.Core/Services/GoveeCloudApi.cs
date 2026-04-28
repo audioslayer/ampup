@@ -170,10 +170,22 @@ public class GoveeCloudApi : IDisposable
             };
             using var req = BuildRequest(HttpMethod.Post, "/router/api/v1/device/control", body);
             using var resp = await _http.SendAsync(req);
+            var json = await resp.Content.ReadAsStringAsync();
             if (!resp.IsSuccessStatusCode)
             {
-                Logger.Log($"[Govee] ControlDevice failed: {resp.StatusCode}");
+                Logger.Log($"[Govee] ControlDevice failed: {resp.StatusCode} {json}");
                 return false;
+            }
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                var root = JObject.Parse(json);
+                var code = root["code"]?.ToObject<int?>() ?? 200;
+                var stateStatus = root["capability"]?["state"]?["status"]?.ToString();
+                if (code >= 400 || string.Equals(stateStatus, "failure", StringComparison.OrdinalIgnoreCase))
+                {
+                    Logger.Log($"[Govee] ControlDevice rejected: {json}");
+                    return false;
+                }
             }
             return true;
         }

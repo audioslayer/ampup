@@ -13,6 +13,7 @@ namespace AmpUp.Views;
 public partial class RoomView : UserControl
 {
     private const string NativeGoveePatternId = "__govee_native__";
+    private const int NativeGoveeTabIndex = 5;
 
     private AppConfig? _config;
     private Action<AppConfig>? _onSave;
@@ -859,8 +860,9 @@ public partial class RoomView : UserControl
         var categoryTabBar = new StackPanel { Orientation = Orientation.Horizontal };
         // Tab index → visible-category index in EffectPickerControl:
         //   0 → 4 (favorites), 1 → 0 (static), 2 → 1 (anim), 3 → 2 (react), 4 → 3 (global)
-        var categoryNames = new[] { "FAVORITES", "STATIC", "ANIMATED", "REACTIVE", "GLOBAL SPAN" };
-        var categoryTabs = new Border[5];
+        var categoryNames = new[] { "FAVORITES", "STATIC", "ANIMATED", "REACTIVE", "GLOBAL SPAN", "GOVEE NATIVE" };
+        var categoryTabs = new Border[categoryNames.Length];
+        Border? paletteSection = null;
 
         var effectPicker = new Controls.EffectPickerControl(showGlobal: true)
         {
@@ -886,6 +888,9 @@ public partial class RoomView : UserControl
             QueueSave();
         };
 
+        if (IsNativeGoveePattern(_activePattern))
+            _effectCategory = NativeGoveeTabIndex;
+
         if (_activePattern != null && _activePattern != "__sync__" && !IsNativeGoveePattern(_activePattern))
             effectPicker.SelectedEffect = Enum.TryParse<LightEffect>(_activePattern, true, out var eff) ? eff : LightEffect.SingleColor;
 
@@ -896,6 +901,8 @@ public partial class RoomView : UserControl
             int detectedCat = GetEffectCategory(selEff);
             if (detectedCat >= 0) _effectCategory = detectedCat + 1;
         }
+
+        var nativeGoveePanel = BuildNativeGoveeScenePanel();
 
         for (int ci = 0; ci < categoryNames.Length; ci++)
         {
@@ -933,7 +940,13 @@ public partial class RoomView : UserControl
             tab.MouseLeftButtonUp += (_, _) =>
             {
                 _effectCategory = capturedCat;
-                effectPicker.SetVisibleCategory(TabIndexToPickerCategory(capturedCat));
+                bool nativeTab = capturedCat == NativeGoveeTabIndex;
+                if (!nativeTab)
+                    effectPicker.SetVisibleCategory(TabIndexToPickerCategory(capturedCat));
+                effectPicker.Visibility = nativeTab ? Visibility.Collapsed : Visibility.Visible;
+                nativeGoveePanel.Visibility = nativeTab ? Visibility.Visible : Visibility.Collapsed;
+                if (paletteSection != null)
+                    paletteSection.Visibility = nativeTab ? Visibility.Collapsed : Visibility.Visible;
                 // Update tab visuals
                 var ac = ThemeManager.Accent;
                 for (int j = 0; j < categoryTabs.Length; j++)
@@ -950,16 +963,18 @@ public partial class RoomView : UserControl
         categoryBarContainer.Child = categoryTabBar;
 
         // Set initial visible category
-        effectPicker.SetVisibleCategory(TabIndexToPickerCategory(_effectCategory));
+        if (_effectCategory == NativeGoveeTabIndex)
+        {
+            effectPicker.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            effectPicker.SetVisibleCategory(TabIndexToPickerCategory(_effectCategory));
+        }
 
-        stack.Children.Add(MakeSectionCard("EFFECT", categoryBarContainer, effectPicker));
+        nativeGoveePanel.Visibility = _effectCategory == NativeGoveeTabIndex ? Visibility.Visible : Visibility.Collapsed;
 
-        var nativeGoveeSection = BuildNativeGoveeSceneSection();
-        if (nativeGoveeSection != null)
-            stack.Children.Add(nativeGoveeSection);
-
-        // Forward-declared so the SelectionChanged closure can reference it; assigned below.
-        Border? paletteSection = null;
+        stack.Children.Add(MakeSectionCard("EFFECT", categoryBarContainer, effectPicker, nativeGoveePanel));
 
         // Forward-declared so SelectionChanged can toggle them without forward reference.
         PaletteEditorControl? paletteEditorRef = null;
@@ -4004,6 +4019,133 @@ public partial class RoomView : UserControl
     private static bool IsNativeGoveePattern(string? pattern)
         => string.Equals(pattern, NativeGoveePatternId, StringComparison.OrdinalIgnoreCase);
 
+    private StackPanel BuildNativeGoveeScenePanel()
+    {
+        var panel = new StackPanel();
+        var status = new TextBlock
+        {
+            Text = _cloudApi == null
+                ? "Enable Govee Cloud in Settings to use native scenes."
+                : "Loading native scenes from Govee...",
+            Style = FindStyle("SecondaryText"),
+            Margin = new Thickness(0, 0, 0, 8),
+        };
+        panel.Children.Add(status);
+
+        var wrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+        panel.Children.Add(wrap);
+
+        var catalog = GetNativeGoveeSceneCatalog();
+        RenderNativeSceneTiles(wrap, catalog);
+        if (_cloudApi != null)
+            _ = LoadNativeSceneTilesAsync(wrap, status);
+
+        return panel;
+    }
+
+    private async Task LoadNativeSceneTilesAsync(WrapPanel wrap, TextBlock status)
+    {
+        try
+        {
+            var catalog = await FetchNativeGoveeSceneCatalogAsync();
+            Dispatcher.Invoke(() =>
+            {
+                RenderNativeSceneTiles(wrap, catalog);
+                status.Text = catalog.Count > 0
+                    ? $"{catalog.Count} native scene(s) supported by every enabled Govee device."
+                    : "No shared native scenes found across the enabled Govee devices.";
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[Ambience] Native scene tile load failed: {ex.Message}");
+            Dispatcher.Invoke(() => status.Text = "Native scenes failed to load.");
+        }
+    }
+
+    private void RenderNativeSceneTiles(WrapPanel wrap, List<GoveeScene> scenes)
+    {
+        wrap.Children.Clear();
+        if (scenes.Count == 0)
+        {
+            wrap.Children.Add(new TextBlock
+            {
+                Text = "Loading...",
+                Style = FindStyle("SecondaryText"),
+                Margin = new Thickness(0, 4, 0, 0),
+            });
+            return;
+        }
+
+        foreach (var scene in scenes)
+        {
+            bool active = IsNativeGoveePattern(_activePattern)
+                && _config != null
+                && string.Equals(_config.Ambience.NativeGoveeSceneName, scene.Name, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(_config.Ambience.NativeGoveeSceneCategory, scene.Category, StringComparison.OrdinalIgnoreCase);
+            var tileColor = GetSceneTileColor(scene.Name);
+            var tile = new Border
+            {
+                Width = 116,
+                Height = 68,
+                CornerRadius = new CornerRadius(6),
+                BorderThickness = new Thickness(1),
+                Margin = new Thickness(0, 0, 8, 8),
+                Cursor = Cursors.Hand,
+                ToolTip = $"Run Govee native scene: {scene.Name}",
+                Background = active
+                    ? new SolidColorBrush(Color.FromArgb(0x30, tileColor.R, tileColor.G, tileColor.B))
+                    : FindBrush("BgDarkBrush"),
+                BorderBrush = active ? new SolidColorBrush(tileColor) : FindBrush("CardBorderBrush"),
+            };
+
+            var tileStack = new StackPanel
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            tileStack.Children.Add(new TextBlock
+            {
+                Text = GetSceneIcon(scene.Name),
+                FontSize = 19,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Foreground = new SolidColorBrush(tileColor),
+            });
+            tileStack.Children.Add(new TextBlock
+            {
+                Text = scene.Name,
+                FontSize = 10,
+                FontWeight = active ? FontWeights.Bold : FontWeights.SemiBold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                TextAlignment = TextAlignment.Center,
+                Foreground = active ? new SolidColorBrush(tileColor) : FindBrush("TextPrimaryBrush"),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = 102,
+                Margin = new Thickness(0, 2, 0, 0),
+            });
+            tile.Child = tileStack;
+
+            tile.MouseEnter += (_, _) =>
+            {
+                if (active) return;
+                tile.Background = new SolidColorBrush(Color.FromArgb(0x18, tileColor.R, tileColor.G, tileColor.B));
+                tile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, tileColor.R, tileColor.G, tileColor.B));
+            };
+            tile.MouseLeave += (_, _) =>
+            {
+                if (active) return;
+                tile.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+                tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+            };
+            tile.MouseLeftButtonUp += async (_, _) =>
+            {
+                await ApplyNativeGoveeSceneAsync(scene.Name, scene.Category);
+            };
+
+            wrap.Children.Add(tile);
+        }
+    }
+
     private Border? BuildNativeGoveeSceneSection()
     {
         if (_config == null || _cloudApi == null || _cloudDevices.Count == 0)
@@ -4114,38 +4256,71 @@ public partial class RoomView : UserControl
 
     private List<GoveeScene> GetNativeGoveeSceneCatalog()
     {
-        var byKey = new Dictionary<string, GoveeScene>(StringComparer.OrdinalIgnoreCase);
-        foreach (var device in _cloudDevices)
+        var perDevice = new List<List<GoveeScene>>();
+        foreach (var device in GetNativeSceneTargetDevices())
         {
-            foreach (var scene in GoveeCloudApi.ExtractScenesFromCapabilities(device.RawCapabilities, "dynamic"))
-                AddNativeScene(byKey, scene);
-            foreach (var scene in GoveeCloudApi.ExtractScenesFromCapabilities(device.RawCapabilities, "diy"))
-                AddNativeScene(byKey, scene);
+            var scenes = new List<GoveeScene>();
+            scenes.AddRange(GoveeCloudApi.ExtractScenesFromCapabilities(device.RawCapabilities, "dynamic"));
+            if (scenes.Count > 0)
+                perDevice.Add(scenes);
         }
 
-        return byKey.Values
-            .OrderBy(s => s.Category, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        return IntersectNativeScenes(perDevice);
     }
 
     private async Task<List<GoveeScene>> FetchNativeGoveeSceneCatalogAsync()
     {
         if (_cloudApi == null) return GetNativeGoveeSceneCatalog();
 
-        var byKey = new Dictionary<string, GoveeScene>(StringComparer.OrdinalIgnoreCase);
-        foreach (var scene in GetNativeGoveeSceneCatalog())
-            AddNativeScene(byKey, scene);
-
-        foreach (var device in _cloudDevices)
+        var perDevice = new List<List<GoveeScene>>();
+        foreach (var device in GetNativeSceneTargetDevices())
         {
-            foreach (var scene in await _cloudApi.GetDynamicScenesAsync(device.Device, device.Sku))
-                AddNativeScene(byKey, scene);
-            foreach (var scene in await _cloudApi.GetDiyScenesAsync(device.Device, device.Sku))
-                AddNativeScene(byKey, scene);
+            var scenes = new List<GoveeScene>();
+            scenes.AddRange(await _cloudApi.GetDynamicScenesAsync(device.Device, device.Sku));
+            if (scenes.Count > 0)
+                perDevice.Add(scenes);
         }
 
-        return byKey.Values
+        return IntersectNativeScenes(perDevice);
+    }
+
+    private List<GoveeDeviceInfo> GetNativeSceneTargetDevices()
+    {
+        if (_config == null) return new();
+        return _cloudDevices
+            .Where(device =>
+            {
+                var devConfig = FindGoveeDeviceConfig(device);
+                return devConfig != null
+                    && devConfig.PoweredOn
+                    && devConfig.SyncWithAmpUp
+                    && !string.IsNullOrWhiteSpace(device.Device)
+                    && !string.IsNullOrWhiteSpace(device.Sku);
+            })
+            .ToList();
+    }
+
+    private static List<GoveeScene> IntersectNativeScenes(List<List<GoveeScene>> perDevice)
+    {
+        if (perDevice.Count == 0) return new();
+
+        var common = new Dictionary<string, GoveeScene>(StringComparer.OrdinalIgnoreCase);
+        foreach (var scene in perDevice[0])
+            AddNativeScene(common, scene);
+
+        foreach (var scenes in perDevice.Skip(1))
+        {
+            var deviceKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var scene in scenes)
+                if (!string.IsNullOrWhiteSpace(scene.Name))
+                    deviceKeys.Add(SceneKey(scene));
+
+            foreach (var key in common.Keys.ToList())
+                if (!deviceKeys.Contains(key))
+                    common.Remove(key);
+        }
+
+        return common.Values
             .OrderBy(s => s.Category, StringComparer.OrdinalIgnoreCase)
             .ThenBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -4154,9 +4329,12 @@ public partial class RoomView : UserControl
     private static void AddNativeScene(Dictionary<string, GoveeScene> byKey, GoveeScene scene)
     {
         if (string.IsNullOrWhiteSpace(scene.Name)) return;
-        var category = string.IsNullOrWhiteSpace(scene.Category) ? "dynamic" : scene.Category;
-        byKey.TryAdd($"{category}:{scene.Name}", scene);
+        scene.Category = string.IsNullOrWhiteSpace(scene.Category) ? "dynamic" : scene.Category;
+        byKey.TryAdd(SceneKey(scene), scene);
     }
+
+    private static string SceneKey(GoveeScene scene)
+        => $"{(string.IsNullOrWhiteSpace(scene.Category) ? "dynamic" : scene.Category)}:{scene.Name}";
 
     private static void PopulateNativeSceneCombo(ComboBox combo, List<GoveeScene> catalog)
     {
@@ -4242,7 +4420,7 @@ public partial class RoomView : UserControl
 
         foreach (var lan in _config.Ambience.GoveeDevices)
             if (!string.IsNullOrWhiteSpace(lan.Ip))
-                AmbienceSync.PauseSync(lan.Ip, 300);
+                AmbienceSync.PauseSync(lan.Ip, 3600);
 
         if (persist)
             QueueSave();
@@ -4258,18 +4436,26 @@ public partial class RoomView : UserControl
             if (scene == null)
                 continue;
 
-            int brightness = Math.Clamp(devConfig?.BrightnessScale ?? _config.Ambience.BrightnessScale, 1, 100);
-            await SafeCloudCall(() => _cloudApi.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.TurnOnOff(true)));
-            await SafeCloudCall(() => _cloudApi.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.SetBrightness(brightness)));
+            if (devConfig != null
+                && !string.IsNullOrWhiteSpace(devConfig.Ip)
+                && AmbienceSync.GetSegmentCount(devConfig) > 0
+                && devConfig.UseSegmentProtocol)
+            {
+                await AmbienceSync.DisableSegmentMode(devConfig.Ip);
+                _sync?.ClearSegmentMode(devConfig.Ip);
+                await Task.Delay(90);
+            }
+
             var value = scene.RawValue ?? (object)new { id = scene.Id };
-            await SafeCloudCall(() => _cloudApi.ControlDeviceAsync(device.Device, device.Sku,
+            bool ok = await _cloudApi.ControlDeviceAsync(device.Device, device.Sku,
                 string.Equals(_config.Ambience.NativeGoveeSceneCategory, "diy", StringComparison.OrdinalIgnoreCase)
                     ? GoveeCloudApi.SetDiyScene(value)
-                    : GoveeCloudApi.SetScene(value)));
+                    : GoveeCloudApi.SetScene(value));
 
-            if (devConfig != null)
+            if (ok && devConfig != null)
                 devConfig.PoweredOn = true;
-            applied++;
+            if (ok)
+                applied++;
         }
 
         Logger.Log($"[Ambience] Applied native Govee scene '{sceneName}' to {applied} device(s).");
