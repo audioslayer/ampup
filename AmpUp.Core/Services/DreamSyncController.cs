@@ -44,8 +44,10 @@ public class DreamSyncController : IDisposable
     // Per-segment protocol state
     private readonly HashSet<string> _segmentEnabled = new();        // devices with segment mode active
     private readonly Dictionary<string, long> _segmentEnableTick = new(); // keepalive timer
+    private readonly Dictionary<string, long> _segmentBrightnessResetTick = new();
     private readonly Dictionary<string, (byte R, byte G, byte B)[]> _lastSegmentColors = new();
     private const long SegmentKeepaliveMs = 30_000; // re-send enable every 30s (device times out ~60s)
+    private const long SegmentBrightnessResetMs = 30_000;
 
     // Cap UDP send rate at 30fps (hardware can't transition faster — sending more causes flicker)
     private const int MaxSendFps = 30;
@@ -133,6 +135,7 @@ public class DreamSyncController : IDisposable
         // Segments auto-timeout on the device after ~60s without keepalive frames.
         _segmentEnabled.Clear();
         _segmentEnableTick.Clear();
+        _segmentBrightnessResetTick.Clear();
         _lastSegmentColors.Clear();
         Status = "Stopped";
         Logger.Log("DreamSync: stopped");
@@ -239,6 +242,7 @@ public class DreamSyncController : IDisposable
                                 // ── Per-segment path ──
                                 // Enable segment mode if not yet active or keepalive expired
                                 long nowMs = Environment.TickCount64;
+                                EnsureSegmentHardwareBrightness(mapping.DeviceIp, nowMs);
                                 if (!_segmentEnabled.Contains(mapping.DeviceIp) ||
                                     nowMs - (_segmentEnableTick.GetValueOrDefault(mapping.DeviceIp)) > SegmentKeepaliveMs)
                                 {
@@ -589,6 +593,32 @@ public class DreamSyncController : IDisposable
 
         // Fire and forget — don't await; capture loop shouldn't block on network I/O
         _ = udp.SendAsync(data, data.Length, ip, LanControlPort);
+    }
+
+    private void SendBrightnessFast(string ip, int brightness)
+    {
+        brightness = Math.Clamp(brightness, 0, 100);
+        string json = $"{{\"msg\":{{\"cmd\":\"brightness\",\"data\":{{\"value\":{brightness}}}}}}}";
+        byte[] data = Encoding.UTF8.GetBytes(json);
+
+        if (!_udpClients.TryGetValue(ip, out var udp))
+        {
+            udp = new UdpClient();
+            _udpClients[ip] = udp;
+        }
+
+        _ = udp.SendAsync(data, data.Length, ip, LanControlPort);
+    }
+
+    private void EnsureSegmentHardwareBrightness(string ip, long nowMs)
+    {
+        if (_segmentBrightnessResetTick.TryGetValue(ip, out long lastReset)
+            && nowMs - lastReset < SegmentBrightnessResetMs)
+            return;
+
+        _segmentBrightnessResetTick[ip] = nowMs;
+        SendBrightnessFast(ip, 100);
+        Task.Delay(35).ContinueWith(_ => SendSegmentEnable(ip, true), TaskScheduler.Default);
     }
 
     // ── Per-segment protocol (Govee "razer" command) ─────────────────────────
