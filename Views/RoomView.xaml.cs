@@ -1559,8 +1559,8 @@ public partial class RoomView : UserControl
                 // Brightness slider (LAN only)
                 var brightSlider = new StyledSlider
                 {
-                    Minimum = 1, Maximum = 100,
-                    Value = Math.Clamp(devConfig.BrightnessScale, 1, 100),
+                    Minimum = 0, Maximum = 100,
+                    Value = Math.Clamp(devConfig.BrightnessScale, 0, 100),
                     Width = 150, Height = 30,
                     AccentColor = ThemeManager.Accent,
                     ShowLabel = false,
@@ -3760,7 +3760,7 @@ public partial class RoomView : UserControl
         // Brightness slider
         var brightnessSlider = new StyledSlider
         {
-            Minimum = 1, Maximum = 100, Value = Math.Clamp(devConfig.BrightnessScale, 1, 100),
+            Minimum = 0, Maximum = 100, Value = Math.Clamp(devConfig.BrightnessScale, 0, 100),
             Width = 140, Height = 35,
             Suffix = "%",
             AccentColor = ThemeManager.Accent,
@@ -5687,7 +5687,7 @@ public partial class RoomView : UserControl
                     && AmbienceSync.GetSegmentCount(dev) > 0
                     && dev.UseSegmentProtocol;
                 brightnessSlider.Value = useConfiguredBrightness
-                    ? Math.Clamp(dev!.BrightnessScale, 1, 100)
+                    ? Math.Clamp(dev!.BrightnessScale, 0, 100)
                     : Math.Max(1, status.Value.Brightness);
                 _loading = false;
             });

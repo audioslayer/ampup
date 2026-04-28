@@ -305,8 +305,9 @@ public class DreamSyncController : IDisposable
                                     segColors = MapZonesToSegments(effectiveZones, segCount, mapping.Side);
                                 }
 
+                                int brightnessScale = CombinedBrightnessScale(amb.BrightnessScale, dev.BrightnessScale);
                                 for (int s = 0; s < segColors.Length; s++)
-                                    segColors[s] = ApplyBrightness(segColors[s], amb.BrightnessScale);
+                                    segColors[s] = ApplyBrightness(segColors[s], brightnessScale);
 
                                 // Delta check across all segments
                                 if (SegmentColorsChanged(mapping.DeviceIp, segColors, cfg.Sensitivity))
@@ -321,7 +322,7 @@ public class DreamSyncController : IDisposable
                                 var effectiveZones = (mapping.CropMode == DeviceCropMode.FullScreen && fullScreenZones != null)
                                     ? fullScreenZones : zones;
                                 var color = SampleColorForSide(effectiveZones, effectiveZones.Length, mapping.Side);
-                                color = ApplyBrightness(color, amb.BrightnessScale);
+                                color = ApplyBrightness(color, CombinedBrightnessScale(amb.BrightnessScale, dev.BrightnessScale));
 
                                 int sensitivity = cfg.Sensitivity;
                                 if (_lastSent.TryGetValue(mapping.DeviceIp, out var prev))
@@ -507,11 +508,17 @@ public class DreamSyncController : IDisposable
 
     private static (byte R, byte G, byte B) ApplyBrightness((byte R, byte G, byte B) c, int scale)
     {
+        scale = Math.Clamp(scale, 0, 100);
         return (
             (byte)(c.R * scale / 100),
             (byte)(c.G * scale / 100),
             (byte)(c.B * scale / 100)
         );
+    }
+
+    private static int CombinedBrightnessScale(int globalScale, int deviceScale)
+    {
+        return Math.Clamp(globalScale, 0, 100) * Math.Clamp(deviceScale, 0, 100) / 100;
     }
 
     /// <summary>
