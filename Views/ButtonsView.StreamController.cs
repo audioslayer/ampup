@@ -2315,28 +2315,53 @@ public partial class ButtonsView
 
     private StreamControllerSelection DescribeSelection(int buttonIdx)
     {
-        if (buttonIdx >= StreamControllerDisplayKeyBase && buttonIdx < StreamControllerDisplayKeyBase + (_scPageCount * StreamControllerKeysPerPage))
+        if (_v2SelectionKind == V2SelectionKind.SideButton)
+            return new StreamControllerSelection(buttonIdx, $"Button {buttonIdx - StreamControllerSideButtonBase + 1}", null);
+        if (_v2SelectionKind == V2SelectionKind.EncoderPress)
+            return new StreamControllerSelection(buttonIdx, $"Encoder Press {buttonIdx - StreamControllerEncoderPressBase + 1}", null);
+
+        var globalIdx = GetDisplayGlobalIdx(buttonIdx);
+        if (globalIdx.HasValue)
         {
-            int globalIdx = buttonIdx - StreamControllerDisplayKeyBase;
-            return new StreamControllerSelection(buttonIdx, $"Key {globalIdx + 1}", globalIdx);
+            int localIdx = globalIdx.Value % StreamControllerKeysPerPage;
+            return new StreamControllerSelection(buttonIdx, $"Key {localIdx + 1}", globalIdx.Value);
         }
         if (buttonIdx >= StreamControllerSideButtonBase && buttonIdx < StreamControllerSideButtonBase + 3)
             return new StreamControllerSelection(buttonIdx, $"Button {buttonIdx - StreamControllerSideButtonBase + 1}", null);
         return new StreamControllerSelection(buttonIdx, $"Encoder Press {buttonIdx - StreamControllerEncoderPressBase + 1}", null);
     }
 
+    private int? GetDisplayGlobalIdx(int buttonIdx)
+    {
+        if (buttonIdx < StreamControllerDisplayKeyBase)
+            return null;
+
+        int globalIdx = buttonIdx - StreamControllerDisplayKeyBase;
+        if (globalIdx < 0 || globalIdx >= _scPageCount * StreamControllerKeysPerPage)
+            return null;
+
+        return globalIdx;
+    }
+
     private StreamControllerDisplayKeyConfig? GetSelectedDisplayKeyConfig()
     {
         if (_config == null) return null;
-        if (_scSelectedButtonIdx < StreamControllerDisplayKeyBase)
+        if (_v2SelectionKind != V2SelectionKind.LcdKey)
             return null;
-        // Side buttons / encoder presses don't have LCD display keys.
-        if (_scSelectedButtonIdx >= StreamControllerSideButtonBase)
+
+        var globalIdx = GetDisplayGlobalIdx(_scSelectedButtonIdx);
+        if (!globalIdx.HasValue)
             return null;
-        int globalIdx = _scSelectedButtonIdx - StreamControllerDisplayKeyBase;
-        if (globalIdx >= _scPageCount * StreamControllerKeysPerPage)
-            return null;
-        return GetActiveN3DisplayKeys().FirstOrDefault(k => k.Idx == globalIdx);
+
+        var keys = GetActiveN3DisplayKeys();
+        var key = keys.FirstOrDefault(k => k.Idx == globalIdx.Value);
+        if (key == null)
+        {
+            key = new StreamControllerDisplayKeyConfig { Idx = globalIdx.Value };
+            keys.Add(key);
+        }
+
+        return key;
     }
 
     /// <summary>
