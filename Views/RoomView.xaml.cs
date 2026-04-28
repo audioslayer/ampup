@@ -4019,8 +4019,6 @@ public partial class RoomView : UserControl
             Margin = new Thickness(0, 0, 8, 0),
             VerticalAlignment = VerticalAlignment.Center,
         };
-        PopulateNativeSceneCombo(combo, GetNativeGoveeSceneCatalog());
-        SelectNativeSceneComboItem(combo, _config.Ambience.NativeGoveeSceneName, _config.Ambience.NativeGoveeSceneCategory);
         row.Children.Add(combo);
 
         var applyButton = new Button
@@ -4042,6 +4040,10 @@ public partial class RoomView : UserControl
             }
         };
         row.Children.Add(applyButton);
+        combo.SelectionChanged += (_, _) =>
+        {
+            applyButton.IsEnabled = combo.SelectedItem is ComboBoxItem item && item.Tag is ValueTuple<string, string>;
+        };
 
         var refreshButton = new Button
         {
@@ -4074,7 +4076,40 @@ public partial class RoomView : UserControl
         };
         inner.Children.Add(status);
 
+        var catalog = GetNativeGoveeSceneCatalog();
+        PopulateNativeSceneCombo(combo, catalog);
+        SelectNativeSceneComboItem(combo, _config.Ambience.NativeGoveeSceneName, _config.Ambience.NativeGoveeSceneCategory);
+        applyButton.IsEnabled = combo.SelectedItem is ComboBoxItem item && item.Tag is ValueTuple<string, string>;
+        _ = LoadNativeSceneComboAsync(combo, applyButton, status);
+
         return MakeSectionCard("GOVEE NATIVE", inner);
+    }
+
+    private async Task LoadNativeSceneComboAsync(ComboBox combo, Button applyButton, TextBlock status)
+    {
+        try
+        {
+            status.Text = "Loading native scenes from Govee...";
+            var catalog = await FetchNativeGoveeSceneCatalogAsync();
+            Dispatcher.Invoke(() =>
+            {
+                PopulateNativeSceneCombo(combo, catalog);
+                SelectNativeSceneComboItem(combo, _config?.Ambience.NativeGoveeSceneName, _config?.Ambience.NativeGoveeSceneCategory);
+                applyButton.IsEnabled = combo.SelectedItem is ComboBoxItem item && item.Tag is ValueTuple<string, string>;
+                status.Text = catalog.Count > 0
+                    ? $"Loaded {catalog.Count} native scene(s)."
+                    : "No native scenes returned by Govee Cloud.";
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[Ambience] Native scene load failed: {ex.Message}");
+            Dispatcher.Invoke(() =>
+            {
+                applyButton.IsEnabled = combo.SelectedItem is ComboBoxItem item && item.Tag is ValueTuple<string, string>;
+                status.Text = "Native scenes failed to load.";
+            });
+        }
     }
 
     private List<GoveeScene> GetNativeGoveeSceneCatalog()
@@ -4126,6 +4161,18 @@ public partial class RoomView : UserControl
     private static void PopulateNativeSceneCombo(ComboBox combo, List<GoveeScene> catalog)
     {
         combo.Items.Clear();
+        if (catalog.Count == 0)
+        {
+            combo.Items.Add(new ComboBoxItem
+            {
+                Content = "Loading native scenes...",
+                IsEnabled = false,
+            });
+            combo.SelectedIndex = 0;
+            combo.IsEnabled = false;
+            return;
+        }
+
         foreach (var scene in catalog)
         {
             var category = string.IsNullOrWhiteSpace(scene.Category) ? "dynamic" : scene.Category;
@@ -4135,9 +4182,8 @@ public partial class RoomView : UserControl
                 Tag = (scene.Name, category),
             });
         }
-        combo.IsEnabled = combo.Items.Count > 0;
-        if (combo.Items.Count > 0 && combo.SelectedIndex < 0)
-            combo.SelectedIndex = 0;
+        combo.IsEnabled = true;
+        combo.SelectedIndex = 0;
     }
 
     private static void SelectNativeSceneComboItem(ComboBox combo, string? sceneName, string? category)
