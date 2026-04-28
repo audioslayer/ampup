@@ -353,7 +353,6 @@ using System;
                     packStack.Children.Add(_packPicker);
                     packRow.Children.Add(packStack);
                     header.Children.Add(packRow);
-                    header.Children.Add(BuildOnlinePackGuide());
             
                     main.Children.Add(header);
             
