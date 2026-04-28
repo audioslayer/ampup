@@ -678,8 +678,15 @@ public partial class RoomView : UserControl
                 brightLabel.Text = $"{pct}%";
                 foreach (var dev in _config.Ambience.GoveeDevices)
                 {
+                    dev.BrightnessScale = pct;
                     if (!string.IsNullOrWhiteSpace(dev.Ip) && dev.PoweredOn)
-                        _ = AmbienceSync.SendBrightnessAsync(dev.Ip, pct);
+                    {
+                        bool segmentSynced = AmbienceSync.GetSegmentCount(dev) > 0
+                            && dev.UseSegmentProtocol
+                            && dev.SyncWithAmpUp;
+                        if (!segmentSynced)
+                            _ = AmbienceSync.SendBrightnessAsync(dev.Ip, pct);
+                    }
                 }
                 QueueSave();
             };
@@ -1553,7 +1560,7 @@ public partial class RoomView : UserControl
                 var brightSlider = new StyledSlider
                 {
                     Minimum = 1, Maximum = 100,
-                    Value = _config.Ambience.BrightnessScale,
+                    Value = Math.Clamp(devConfig.BrightnessScale, 1, 100),
                     Width = 150, Height = 30,
                     AccentColor = ThemeManager.Accent,
                     ShowLabel = false,
@@ -1570,8 +1577,21 @@ public partial class RoomView : UserControl
                     if (_loading) return;
                     int pct = (int)brightSlider.Value;
                     brightLabel.Text = $"{pct}%";
-                    AmbienceSync.PauseSync(devConfig.Ip, 5);
-                    _ = AmbienceSync.SendBrightnessAsync(devConfig.Ip, pct);
+                    devConfig.BrightnessScale = pct;
+                    QueueSave();
+
+                    bool segmentSynced = AmbienceSync.GetSegmentCount(devConfig) > 0
+                        && devConfig.UseSegmentProtocol
+                        && devConfig.SyncWithAmpUp;
+                    if (segmentSynced)
+                    {
+                        AmbienceSync.ResumeSync(devConfig.Ip);
+                    }
+                    else
+                    {
+                        AmbienceSync.PauseSync(devConfig.Ip, 2);
+                        _ = AmbienceSync.SendBrightnessAsync(devConfig.Ip, pct);
+                    }
                 };
                 devRow.Children.Add(brightSlider);
                 devRow.Children.Add(brightLabel);
@@ -2755,7 +2775,7 @@ public partial class RoomView : UserControl
 
             var brightSlider = new StyledSlider
             {
-                Minimum = 0, Maximum = 100, Value = 100,
+                Minimum = 0, Maximum = 100, Value = Math.Clamp(devConfig.BrightnessScale, 0, 100),
                 Width = 140, Height = 35, Suffix = "%",
                 AccentColor = ThemeManager.Accent,
                 VerticalAlignment = VerticalAlignment.Center,
@@ -2765,6 +2785,8 @@ public partial class RoomView : UserControl
             {
                 brightDebounce.Stop();
                 int pct = (int)brightSlider.Value;
+                devConfig.BrightnessScale = pct;
+                _onSave?.Invoke(_config!);
                 if (pct == 0)
                 {
                     devConfig.PoweredOn = false;
@@ -2787,8 +2809,18 @@ public partial class RoomView : UserControl
                     }
                     if (hasLan)
                     {
-                        AmbienceSync.PauseSync(devConfig.Ip, 5);
-                        await AmbienceSync.SendBrightnessAsync(devConfig.Ip, pct);
+                        bool segmentSynced = AmbienceSync.GetSegmentCount(devConfig) > 0
+                            && devConfig.UseSegmentProtocol
+                            && devConfig.SyncWithAmpUp;
+                        if (segmentSynced)
+                        {
+                            AmbienceSync.ResumeSync(devConfig.Ip);
+                        }
+                        else
+                        {
+                            AmbienceSync.PauseSync(devConfig.Ip, 2);
+                            await AmbienceSync.SendBrightnessAsync(devConfig.Ip, pct);
+                        }
                     }
                     else if (cloudDev != null)
                         await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
@@ -3738,7 +3770,7 @@ public partial class RoomView : UserControl
         // Brightness slider
         var brightnessSlider = new StyledSlider
         {
-            Minimum = 1, Maximum = 100, Value = 100,
+            Minimum = 1, Maximum = 100, Value = Math.Clamp(devConfig.BrightnessScale, 1, 100),
             Width = 140, Height = 35,
             Suffix = "%",
             AccentColor = ThemeManager.Accent,
@@ -3748,14 +3780,28 @@ public partial class RoomView : UserControl
         brightnessDebounce.Tick += async (_, _) =>
         {
             brightnessDebounce.Stop();
+            int pct = (int)brightnessSlider.Value;
+            devConfig.BrightnessScale = pct;
+            _onSave?.Invoke(_config!);
+
             if (lanIp != null)
             {
-                AmbienceSync.PauseSync(lanIp, 30);
-                await AmbienceSync.SendBrightnessAsync(lanIp, (int)brightnessSlider.Value);
+                bool segmentSynced = AmbienceSync.GetSegmentCount(devConfig) > 0
+                    && devConfig.UseSegmentProtocol
+                    && devConfig.SyncWithAmpUp;
+                if (!segmentSynced)
+                {
+                    AmbienceSync.PauseSync(lanIp, 2);
+                    await AmbienceSync.SendBrightnessAsync(lanIp, pct);
+                }
+                else
+                {
+                    AmbienceSync.ResumeSync(lanIp);
+                }
             }
             else if (_cloudApi != null)
                 await SafeCloudCall(() => _cloudApi.ControlDeviceAsync(
-                    device.Device, device.Sku, GoveeCloudApi.SetBrightness((int)brightnessSlider.Value)));
+                    device.Device, device.Sku, GoveeCloudApi.SetBrightness(pct)));
         };
         brightnessSlider.ValueChanged += (_, _) =>
         {
@@ -5636,13 +5682,23 @@ public partial class RoomView : UserControl
             if (status == null) return;
 
             var dev = _config?.Ambience.GoveeDevices.FirstOrDefault(d => d.Ip == ip);
-            if (dev != null) dev.PoweredOn = status.Value.On;
+            if (dev != null)
+            {
+                dev.PoweredOn = status.Value.On;
+                if (AmbienceSync.GetSegmentCount(dev) == 0 || !dev.UseSegmentProtocol)
+                    dev.BrightnessScale = Math.Clamp(status.Value.Brightness, 1, 100);
+            }
 
             Dispatcher.Invoke(() =>
             {
                 _loading = true;
                 onOffCheck.IsChecked = status.Value.On;
-                brightnessSlider.Value = Math.Max(1, status.Value.Brightness);
+                bool useConfiguredBrightness = dev != null
+                    && AmbienceSync.GetSegmentCount(dev) > 0
+                    && dev.UseSegmentProtocol;
+                brightnessSlider.Value = useConfiguredBrightness
+                    ? Math.Clamp(dev!.BrightnessScale, 1, 100)
+                    : Math.Max(1, status.Value.Brightness);
                 _loading = false;
             });
         }

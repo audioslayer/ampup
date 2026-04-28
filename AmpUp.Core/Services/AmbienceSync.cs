@@ -432,6 +432,20 @@ public class AmbienceSync : IDisposable
         if (_lastSendTick.TryGetValue(ip, out long lastTick) && now - lastTick < minTicks)
             return;
 
+        int deviceBrightness = Math.Clamp(device.BrightnessScale, 0, 100);
+        if (deviceBrightness != 100)
+        {
+            var scaled = new (int R, int G, int B)[colors.Length];
+            for (int i = 0; i < colors.Length; i++)
+            {
+                scaled[i] = (
+                    Math.Clamp(colors[i].R * deviceBrightness / 100, 0, 255),
+                    Math.Clamp(colors[i].G * deviceBrightness / 100, 0, 255),
+                    Math.Clamp(colors[i].B * deviceBrightness / 100, 0, 255));
+            }
+            colors = scaled;
+        }
+
         if (isSegment)
         {
             var segColors = new (byte R, byte G, byte B)[colors.Length];
@@ -527,9 +541,11 @@ public class AmbienceSync : IDisposable
         if (!cfg.GoveeEnabled || cfg.GoveeDevices.Count == 0) return;
 
         int value = (int)Math.Round(Math.Clamp(normalized, 0f, 1f) * 100);
+        cfg.BrightnessScale = value;
 
         foreach (var device in cfg.GoveeDevices)
         {
+            device.BrightnessScale = value;
             if (string.IsNullOrWhiteSpace(device.Ip) || !device.PoweredOn) continue;
             string ip = device.Ip;
             _ = Task.Run(() => SendGoveeBrightness(ip, value));
@@ -581,6 +597,8 @@ public class AmbienceSync : IDisposable
         if (device != null && !device.PoweredOn) return;
 
         int value = (int)Math.Round(Math.Clamp(normalized, 0f, 1f) * 100);
+        if (device != null)
+            device.BrightnessScale = value;
         _ = Task.Run(() => SendGoveeBrightness(ip, value));
     }
 

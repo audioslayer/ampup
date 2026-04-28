@@ -593,6 +593,8 @@ public class GoveeDeviceConfig
     public bool SyncWithAmpUp { get; set; } = true;
     /// <summary>Tracks user's on/off intent. When false, color sync won't send frames (which would turn device on).</summary>
     public bool PoweredOn { get; set; } = true;
+    /// <summary>Per-device brightness scale for AmpUp-driven room/effect frames.</summary>
+    public int BrightnessScale { get; set; } = 100;
 }
 
 public enum ZoneSide { Full, Left, Right, Top, Bottom, LeftVertical, RightVertical }

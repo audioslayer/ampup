@@ -1239,14 +1239,22 @@ public partial class App : Application
                                     if (pct == 0)
                                     {
                                         var gc = _config.Ambience.GoveeDevices.FirstOrDefault(d => d.Ip == dev.DeviceId);
-                                        if (gc != null) gc.PoweredOn = false;
+                                        if (gc != null)
+                                        {
+                                            gc.PoweredOn = false;
+                                            gc.BrightnessScale = 0;
+                                        }
                                         _ = AmbienceSync.SendTurnAsync(dev.DeviceId, false);
                                     }
                                     else
                                     {
                                         var gc = _config.Ambience.GoveeDevices.FirstOrDefault(d => d.Ip == dev.DeviceId);
                                         bool wasOff = gc != null && !gc.PoweredOn;
-                                        if (gc != null) gc.PoweredOn = true;
+                                        if (gc != null)
+                                        {
+                                            gc.PoweredOn = true;
+                                            gc.BrightnessScale = pct;
+                                        }
 
                                         // Send brightness command — the device applies this as a
                                         // multiplier on top of whatever colors are being sent via razer.
@@ -1497,14 +1505,22 @@ public partial class App : Application
                                 if (pct == 0)
                                 {
                                     var gc = _config.Ambience.GoveeDevices.FirstOrDefault(d => d.Ip == dev.DeviceId);
-                                    if (gc != null) gc.PoweredOn = false;
+                                    if (gc != null)
+                                    {
+                                        gc.PoweredOn = false;
+                                        gc.BrightnessScale = 0;
+                                    }
                                     _ = AmbienceSync.SendTurnAsync(dev.DeviceId, false);
                                 }
                                 else
                                 {
                                     var gc = _config.Ambience.GoveeDevices.FirstOrDefault(d => d.Ip == dev.DeviceId);
                                     bool wasOff = gc != null && !gc.PoweredOn;
-                                    if (gc != null) gc.PoweredOn = true;
+                                    if (gc != null)
+                                    {
+                                        gc.PoweredOn = true;
+                                        gc.BrightnessScale = pct;
+                                    }
 
                                     var ip = dev.DeviceId;
                                     var bright = pct;
