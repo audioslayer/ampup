@@ -362,6 +362,12 @@ public class AmbienceSync : IDisposable
                 bool isSeg = zones > 1 && device.UseSegmentProtocol;
                 if (isSeg)
                 {
+                    if (TryRenderNativeSegmentEffect(device, zones, cfg, out var nativeColors))
+                    {
+                        SendDeviceFrame(device, nativeColors, true);
+                        continue;
+                    }
+
                     // Segment devices: map 15 LEDs to device segments
                     var segColors = new (int R, int G, int B)[zones];
 
@@ -420,6 +426,257 @@ public class AmbienceSync : IDisposable
             colors[z] = (r, g, b);
         }
         return colors;
+    }
+
+    private static bool TryRenderNativeSegmentEffect(
+        GoveeDeviceConfig device,
+        int segmentCount,
+        AmbienceConfig cfg,
+        out (int R, int G, int B)[] colors)
+    {
+        colors = Array.Empty<(int R, int G, int B)>();
+        if (segmentCount <= 1 || string.IsNullOrWhiteSpace(cfg.RoomEffect))
+            return false;
+        if (!Enum.TryParse<LightEffect>(cfg.RoomEffect, true, out var effect))
+            return false;
+
+        bool supported = effect is LightEffect.Aurora or LightEffect.Ocean or LightEffect.NebulaDrift
+            or LightEffect.OpalWave or LightEffect.Prism or LightEffect.Tidal or LightEffect.Vortex
+            or LightEffect.Shockwave or LightEffect.Scanner or LightEffect.MeteorRain
+            or LightEffect.RainbowScanner or LightEffect.ColorWave or LightEffect.FireWall
+            or LightEffect.Lava or LightEffect.Waterfall or LightEffect.Matrix or LightEffect.Starfield
+            or LightEffect.ColorTwinkle or LightEffect.Bloom or LightEffect.Glitch or LightEffect.DNA;
+        if (!supported) return false;
+
+        var c1 = ParseHexColor(cfg.RoomColor1, (0, 230, 118));
+        var c2 = ParseHexColor(cfg.RoomColor2, (255, 255, 255));
+        float speed = 0.35f + Math.Clamp(cfg.RoomEffectSpeed, 1, 100) / 55f;
+        float t = Environment.TickCount64 / 1000f * speed;
+        float devicePhase = Math.Abs((device.Ip ?? device.DeviceId ?? device.Name ?? "").GetHashCode() % 997) / 997f;
+
+        colors = new (int R, int G, int B)[segmentCount];
+        for (int i = 0; i < segmentCount; i++)
+        {
+            float x = segmentCount == 1 ? 0f : i / (float)(segmentCount - 1);
+            var raw = effect switch
+            {
+                LightEffect.Aurora => SegmentAurora(x, t, devicePhase, c1, c2),
+                LightEffect.NebulaDrift => SegmentNebula(x, t, devicePhase, c1, c2),
+                LightEffect.OpalWave => SegmentOpal(x, t, devicePhase),
+                LightEffect.Ocean => SegmentOcean(x, t, devicePhase, c1, c2),
+                LightEffect.Prism => SegmentPrism(x, t, devicePhase),
+                LightEffect.Tidal => SegmentTidal(x, t, devicePhase, c1, c2),
+                LightEffect.Vortex => SegmentVortex(x, t, devicePhase),
+                LightEffect.Shockwave => SegmentShockwave(x, t, devicePhase, c1, c2),
+                LightEffect.Scanner => SegmentScanner(x, t, c1, c2, rainbow: false),
+                LightEffect.RainbowScanner => SegmentScanner(x, t, c1, c2, rainbow: true),
+                LightEffect.MeteorRain => SegmentMeteor(x, t, devicePhase, c1, c2),
+                LightEffect.ColorWave => SegmentColorWave(x, t, devicePhase, c1, c2),
+                LightEffect.FireWall => SegmentFire(x, t, devicePhase),
+                LightEffect.Lava => SegmentLava(x, t, devicePhase),
+                LightEffect.Waterfall => SegmentWaterfall(x, t, devicePhase),
+                LightEffect.Matrix => SegmentMatrix(x, t, devicePhase),
+                LightEffect.Starfield => SegmentStarfield(x, t, devicePhase),
+                LightEffect.ColorTwinkle => SegmentTwinkle(x, t, devicePhase, c1, c2),
+                LightEffect.Bloom => SegmentBloom(x, t, devicePhase, c1, c2),
+                LightEffect.Glitch => SegmentGlitch(x, t, devicePhase),
+                LightEffect.DNA => SegmentDna(x, t, devicePhase, c1, c2),
+                _ => (0, 0, 0),
+            };
+            colors[i] = ApplySettings(raw.Item1, raw.Item2, raw.Item3, cfg);
+        }
+
+        return true;
+    }
+
+    private static (int R, int G, int B) SegmentAurora(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        float ribbon = Wave(x * 2.4f - t * 0.28f + phase) * 0.6f + Wave(x * 5.2f + t * 0.18f) * 0.4f;
+        float glow = 0.42f + 0.58f * Smooth(ribbon);
+        return Scale(Lerp(c1, c2, Smooth(x + Wave(t * 0.19f + phase) * 0.25f)), glow);
+    }
+
+    private static (int R, int G, int B) SegmentNebula(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        float cloud = Smooth(Wave(x * 3.0f + t * 0.17f + phase) * 0.65f + Wave(x * 8.0f - t * 0.11f) * 0.35f);
+        var violet = Lerp((70, 20, 145), c1, 0.35f);
+        return Scale(Lerp(violet, c2, cloud), 0.45f + cloud * 0.75f);
+    }
+
+    private static (int R, int G, int B) SegmentOpal(float x, float t, float phase)
+    {
+        float hue = 0.47f + 0.22f * Wave(x * 2.2f - t * 0.18f + phase);
+        var rgb = Hsv(hue, 0.32f, 1f);
+        return Lerp((255, 210, 245), rgb, 0.65f + 0.25f * Wave(x * 6f + t));
+    }
+
+    private static (int R, int G, int B) SegmentOcean(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        float wave = Smooth(Wave(x * 4.5f - t * 0.5f + phase) * 0.7f + Wave(x * 11f + t * 0.2f) * 0.3f);
+        var baseColor = Lerp((0, 55, 160), (0, 230, 210), wave);
+        return Lerp(baseColor, Lerp(c1, c2, wave), 0.25f);
+    }
+
+    private static (int R, int G, int B) SegmentPrism(float x, float t, float phase)
+        => Hsv((x * 0.82f + t * 0.08f + phase) % 1f, 0.88f, 1f);
+
+    private static (int R, int G, int B) SegmentTidal(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        float crest = MathF.Pow(Smooth(Wave(x * 2.2f - t * 0.55f + phase)), 3.2f);
+        return Lerp(Scale(c1, 0.28f), c2, crest);
+    }
+
+    private static (int R, int G, int B) SegmentVortex(float x, float t, float phase)
+    {
+        float spin = MathF.Abs(MathF.Sin((x * 10.0f + t * 1.6f + phase) * MathF.PI));
+        return Hsv((0.72f + x * 0.25f + t * 0.04f) % 1f, 0.95f, 0.25f + spin * 0.9f);
+    }
+
+    private static (int R, int G, int B) SegmentShockwave(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        float center = (t * 0.35f + phase) % 1f;
+        float d = MathF.Abs(x - center);
+        d = MathF.Min(d, 1f - d);
+        float ring = MathF.Exp(-d * d * 95f);
+        return Lerp(Scale(c1, 0.18f), c2, ring);
+    }
+
+    private static (int R, int G, int B) SegmentScanner(float x, float t, (int R, int G, int B) c1, (int R, int G, int B) c2, bool rainbow)
+    {
+        float pos = PingPong(t * 0.32f);
+        float d = MathF.Abs(x - pos);
+        float tail = MathF.Exp(-d * d * 70f);
+        var color = rainbow ? Hsv((x + t * 0.08f) % 1f, 1f, 1f) : c1;
+        return Lerp(Scale(c2, 0.08f), color, tail);
+    }
+
+    private static (int R, int G, int B) SegmentMeteor(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        float head = (t * 0.42f + phase) % 1f;
+        float d = (x - head + 1f) % 1f;
+        float tail = d < 0.36f ? MathF.Pow(1f - d / 0.36f, 2.2f) : 0f;
+        return Lerp(Scale(c2, 0.05f), c1, tail);
+    }
+
+    private static (int R, int G, int B) SegmentColorWave(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+        => Lerp(c1, c2, Smooth(Wave(x * 3.8f - t * 0.62f + phase)));
+
+    private static (int R, int G, int B) SegmentFire(float x, float t, float phase)
+    {
+        float heat = Smooth(Wave(x * 8f + t * 1.8f + phase) * 0.5f + Wave(x * 19f - t * 1.1f) * 0.5f);
+        heat = MathF.Max(heat, 1f - x * 0.35f);
+        return Lerp((120, 10, 0), (255, 230, 80), heat);
+    }
+
+    private static (int R, int G, int B) SegmentLava(float x, float t, float phase)
+    {
+        float bubble = MathF.Pow(Smooth(Wave(x * 5.5f - t * 0.38f + phase)), 2.4f);
+        return Lerp((80, 0, 0), (255, 105, 20), bubble);
+    }
+
+    private static (int R, int G, int B) SegmentWaterfall(float x, float t, float phase)
+    {
+        float streak = MathF.Pow(Smooth(Wave(x * 14f + t * 1.1f + phase)), 5f);
+        return Lerp((0, 35, 95), (120, 235, 255), streak);
+    }
+
+    private static (int R, int G, int B) SegmentMatrix(float x, float t, float phase)
+    {
+        float cell = Frac(x * 23f - t * 2.1f + phase);
+        float drop = cell < 0.14f ? 1f - cell / 0.14f : 0.08f;
+        return Scale((0, 255, 105), drop);
+    }
+
+    private static (int R, int G, int B) SegmentStarfield(float x, float t, float phase)
+    {
+        float seed = Frac(MathF.Sin((x + phase) * 151.7f) * 43758.545f);
+        float tw = MathF.Pow(Smooth(Wave(t * (0.6f + seed) + seed * 7f)), 8f);
+        return Scale(Lerp((80, 90, 170), (255, 255, 255), tw), 0.18f + tw);
+    }
+
+    private static (int R, int G, int B) SegmentTwinkle(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        float seed = Frac(MathF.Sin((x + phase) * 331.3f) * 24634.634f);
+        float sparkle = MathF.Pow(Smooth(Wave(t * (0.9f + seed * 1.4f) + seed * 9f)), 10f);
+        return Lerp(Scale(c1, 0.18f), c2, sparkle);
+    }
+
+    private static (int R, int G, int B) SegmentBloom(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        float bloom = MathF.Pow(Smooth(Wave(x * 2.0f - t * 0.24f + phase)), 1.8f);
+        return Scale(Lerp(c1, c2, bloom), 0.35f + bloom * 0.8f);
+    }
+
+    private static (int R, int G, int B) SegmentGlitch(float x, float t, float phase)
+    {
+        float band = Frac(MathF.Floor(x * 18f) * 0.173f + MathF.Floor(t * 8f) * 0.071f + phase);
+        if (band < 0.18f) return (255, 0, 120);
+        if (band < 0.32f) return (0, 240, 255);
+        return Scale((80, 0, 160), 0.35f + 0.25f * Wave(x * 6f + t));
+    }
+
+    private static (int R, int G, int B) SegmentDna(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        float a = MathF.Pow(Smooth(Wave(x * 5.0f + t * 0.72f + phase)), 6f);
+        float b = MathF.Pow(Smooth(Wave(x * 5.0f + t * 0.72f + phase + 0.5f)), 6f);
+        return Lerp(Scale(c1, a), Scale(c2, b), b / Math.Max(a + b, 0.001f));
+    }
+
+    private static (int R, int G, int B) ParseHexColor(string? hex, (int R, int G, int B) fallback)
+    {
+        if (string.IsNullOrWhiteSpace(hex)) return fallback;
+        hex = hex.Trim().TrimStart('#');
+        if (hex.Length != 6) return fallback;
+        return int.TryParse(hex[..2], System.Globalization.NumberStyles.HexNumber, null, out int r)
+            && int.TryParse(hex.Substring(2, 2), System.Globalization.NumberStyles.HexNumber, null, out int g)
+            && int.TryParse(hex.Substring(4, 2), System.Globalization.NumberStyles.HexNumber, null, out int b)
+            ? (r, g, b)
+            : fallback;
+    }
+
+    private static (int R, int G, int B) Lerp((int R, int G, int B) a, (int R, int G, int B) b, float t)
+    {
+        t = Math.Clamp(t, 0f, 1f);
+        return (
+            (int)MathF.Round(a.R + (b.R - a.R) * t),
+            (int)MathF.Round(a.G + (b.G - a.G) * t),
+            (int)MathF.Round(a.B + (b.B - a.B) * t));
+    }
+
+    private static (int R, int G, int B) Scale((int R, int G, int B) c, float scale)
+        => (Math.Clamp((int)MathF.Round(c.R * scale), 0, 255),
+            Math.Clamp((int)MathF.Round(c.G * scale), 0, 255),
+            Math.Clamp((int)MathF.Round(c.B * scale), 0, 255));
+
+    private static float Wave(float x) => (MathF.Sin(x * MathF.Tau) + 1f) * 0.5f;
+    private static float Smooth(float x) { x = Math.Clamp(x, 0f, 1f); return x * x * (3f - 2f * x); }
+    private static float Frac(float x) => x - MathF.Floor(x);
+    private static float PingPong(float x) { x = Frac(x); return x < 0.5f ? x * 2f : 2f - x * 2f; }
+
+    private static (int R, int G, int B) Hsv(float h, float s, float v)
+    {
+        h = Frac(h);
+        s = Math.Clamp(s, 0f, 1f);
+        v = Math.Clamp(v, 0f, 1f);
+        float c = v * s;
+        float x = c * (1f - MathF.Abs((h * 6f % 2f) - 1f));
+        float m = v - c;
+        float r, g, b;
+        int sector = (int)(h * 6f);
+        switch (sector)
+        {
+            case 0: r = c; g = x; b = 0; break;
+            case 1: r = x; g = c; b = 0; break;
+            case 2: r = 0; g = c; b = x; break;
+            case 3: r = 0; g = x; b = c; break;
+            case 4: r = x; g = 0; b = c; break;
+            default: r = c; g = 0; b = x; break;
+        }
+
+        return (
+            Math.Clamp((int)MathF.Round((r + m) * 255f), 0, 255),
+            Math.Clamp((int)MathF.Round((g + m) * 255f), 0, 255),
+            Math.Clamp((int)MathF.Round((b + m) * 255f), 0, 255));
     }
 
     /// <summary>
