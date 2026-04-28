@@ -567,7 +567,7 @@ public class AmbienceConfig
     public int MusicSensitivity { get; set; } = 50; // 1-100, controls music reactive intensity
     [JsonConverter(typeof(StringEnumConverter))]
     public VuFillMode VuFillMode { get; set; } = VuFillMode.Classic;
-    public int BrightnessScale { get; set; } = 75;
+    public int BrightnessScale { get; set; } = 100;
     public bool WarmToneShift { get; set; } = false;
     public string GoveeApiKey { get; set; } = "";
     public ScreenSyncConfig ScreenSync { get; set; } = new();

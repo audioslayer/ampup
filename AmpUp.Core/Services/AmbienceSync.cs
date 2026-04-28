@@ -25,6 +25,7 @@ public class AmbienceSync : IDisposable
     private readonly ConcurrentDictionary<string, long> _segmentBrightnessResetTick = new();
     private const long SegmentKeepAliveInterval = TimeSpan.TicksPerSecond * 25; // re-enable every 25s
     private const long SegmentBrightnessResetInterval = TimeSpan.TicksPerSecond * 30;
+    private const float RoomEffectColorBoost = 1.55f;
 
     // Rate limiter: Govee LAN UDP per device
     // Razer binary protocol is lightweight — LedFx defaults to 40 FPS, 20 FPS is conservative and reliable.
@@ -514,6 +515,8 @@ public class AmbienceSync : IDisposable
 
     private static (int R, int G, int B) ApplySettings(int r, int g, int b, AmbienceConfig cfg)
     {
+        (r, g, b) = BoostEffectColor(r, g, b);
+
         // Brightness scale
         r = r * cfg.BrightnessScale / 100;
         g = g * cfg.BrightnessScale / 100;
@@ -527,6 +530,18 @@ public class AmbienceSync : IDisposable
         }
 
         return (Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
+    }
+
+    private static (int R, int G, int B) BoostEffectColor(int r, int g, int b)
+    {
+        int max = Math.Max(r, Math.Max(g, b));
+        if (max <= 0) return (0, 0, 0);
+
+        float boost = RoomEffectColorBoost;
+        return (
+            Math.Clamp((int)Math.Round(r * boost), 0, 255),
+            Math.Clamp((int)Math.Round(g * boost), 0, 255),
+            Math.Clamp((int)Math.Round(b * boost), 0, 255));
     }
 
     // ── Knob brightness control ─────────────────────────────────────
