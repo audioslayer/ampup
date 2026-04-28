@@ -25,6 +25,10 @@ public partial class RoomView : UserControl
     // Cloud API
     private GoveeCloudApi? _cloudApi;
     private List<GoveeDeviceInfo> _cloudDevices = new();
+    private readonly object _nativeSceneCacheLock = new();
+    private string _nativeSceneCacheKey = "";
+    private List<GoveeScene>? _nativeSceneCache;
+    private Task<List<GoveeScene>>? _nativeSceneLoadTask;
 
     // Section header elements (refreshed on accent change)
     private readonly List<(Border bar, TextBlock label)> _sectionHeaders = new();
@@ -283,6 +287,7 @@ public partial class RoomView : UserControl
             Dispatcher.Invoke(() =>
             {
                 _cloudDevices = devices;
+                InvalidateNativeSceneCache();
 
                 // Also enrich LAN devices with cloud names
                 if (_config != null)
@@ -4037,8 +4042,10 @@ public partial class RoomView : UserControl
 
         var catalog = GetNativeGoveeSceneCatalog();
         RenderNativeSceneTiles(wrap, catalog);
-        if (_cloudApi != null)
+        if (_cloudApi != null && !HasValidNativeSceneCache())
             _ = LoadNativeSceneTilesAsync(wrap, status);
+        else if (catalog.Count > 0)
+            status.Text = $"{catalog.Count} cached native scene(s) supported by every enabled Govee device.";
 
         return panel;
     }
@@ -4140,6 +4147,7 @@ public partial class RoomView : UserControl
             tile.MouseLeftButtonUp += async (_, _) =>
             {
                 await ApplyNativeGoveeSceneAsync(scene.Name, scene.Category);
+                RenderNativeSceneTiles(wrap, scenes);
             };
 
             wrap.Children.Add(tile);
@@ -4256,6 +4264,13 @@ public partial class RoomView : UserControl
 
     private List<GoveeScene> GetNativeGoveeSceneCatalog()
     {
+        var cacheKey = GetNativeSceneCacheKey();
+        lock (_nativeSceneCacheLock)
+        {
+            if (_nativeSceneCache != null && string.Equals(_nativeSceneCacheKey, cacheKey, StringComparison.Ordinal))
+                return _nativeSceneCache.ToList();
+        }
+
         var perDevice = new List<List<GoveeScene>>();
         foreach (var device in GetNativeSceneTargetDevices())
         {
@@ -4265,23 +4280,94 @@ public partial class RoomView : UserControl
                 perDevice.Add(scenes);
         }
 
-        return IntersectNativeScenes(perDevice);
+        var catalog = IntersectNativeScenes(perDevice);
+        if (catalog.Count > 0)
+            SetNativeSceneCache(cacheKey, catalog);
+        return catalog;
     }
 
     private async Task<List<GoveeScene>> FetchNativeGoveeSceneCatalogAsync()
     {
         if (_cloudApi == null) return GetNativeGoveeSceneCatalog();
+        var cacheKey = GetNativeSceneCacheKey();
+        Task<List<GoveeScene>> task;
+        lock (_nativeSceneCacheLock)
+        {
+            if (_nativeSceneCache != null && string.Equals(_nativeSceneCacheKey, cacheKey, StringComparison.Ordinal))
+                return _nativeSceneCache.ToList();
+            if (_nativeSceneLoadTask != null && string.Equals(_nativeSceneCacheKey, cacheKey, StringComparison.Ordinal))
+            {
+                task = _nativeSceneLoadTask;
+            }
+            else
+            {
+                _nativeSceneCacheKey = cacheKey;
+                _nativeSceneLoadTask = FetchNativeGoveeSceneCatalogUncachedAsync(cacheKey);
+                task = _nativeSceneLoadTask;
+            }
+        }
+
+        return await task;
+    }
+
+    private async Task<List<GoveeScene>> FetchNativeGoveeSceneCatalogUncachedAsync(string cacheKey)
+    {
+        var cloudApi = _cloudApi;
+        if (cloudApi == null) return GetNativeGoveeSceneCatalog();
 
         var perDevice = new List<List<GoveeScene>>();
         foreach (var device in GetNativeSceneTargetDevices())
         {
             var scenes = new List<GoveeScene>();
-            scenes.AddRange(await _cloudApi.GetDynamicScenesAsync(device.Device, device.Sku));
+            scenes.AddRange(await cloudApi.GetDynamicScenesAsync(device.Device, device.Sku));
             if (scenes.Count > 0)
                 perDevice.Add(scenes);
         }
 
-        return IntersectNativeScenes(perDevice);
+        var catalog = IntersectNativeScenes(perDevice);
+        lock (_nativeSceneCacheLock)
+        {
+            _nativeSceneCacheKey = cacheKey;
+            _nativeSceneCache = catalog.ToList();
+            _nativeSceneLoadTask = null;
+        }
+        return catalog;
+    }
+
+    private bool HasValidNativeSceneCache()
+    {
+        var cacheKey = GetNativeSceneCacheKey();
+        lock (_nativeSceneCacheLock)
+        {
+            return _nativeSceneCache != null && string.Equals(_nativeSceneCacheKey, cacheKey, StringComparison.Ordinal);
+        }
+    }
+
+    private void SetNativeSceneCache(string cacheKey, List<GoveeScene> catalog)
+    {
+        lock (_nativeSceneCacheLock)
+        {
+            _nativeSceneCacheKey = cacheKey;
+            _nativeSceneCache = catalog.ToList();
+            _nativeSceneLoadTask = null;
+        }
+    }
+
+    private void InvalidateNativeSceneCache()
+    {
+        lock (_nativeSceneCacheLock)
+        {
+            _nativeSceneCacheKey = "";
+            _nativeSceneCache = null;
+            _nativeSceneLoadTask = null;
+        }
+    }
+
+    private string GetNativeSceneCacheKey()
+    {
+        return string.Join("|", GetNativeSceneTargetDevices()
+            .Select(d => $"{d.Device}:{d.Sku}")
+            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase));
     }
 
     private List<GoveeDeviceInfo> GetNativeSceneTargetDevices()
@@ -4459,7 +4545,6 @@ public partial class RoomView : UserControl
         }
 
         Logger.Log($"[Ambience] Applied native Govee scene '{sceneName}' to {applied} device(s).");
-        RebuildRoomTabContent();
     }
 
     private Border BuildScenesCard()
