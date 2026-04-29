@@ -5219,7 +5219,9 @@ public partial class RoomView : UserControl
             && config.Corsair.LightSyncMode != "vu_reactive")
         {
             float boost = config.Corsair.LightBrightness / 100f;
-            if (!TrySyncCorsairSpatialFrame(frameForSync, boost))
+            float nativeBoost = boost * musicBrightness;
+            if (!TrySyncCorsairNativeRoomEffect(nativeBoost)
+                && !TrySyncCorsairSpatialFrame(frameForSync, boost))
             {
                 var boosted = new byte[45];
                 for (int i = 0; i < 45; i++)
@@ -5287,6 +5289,23 @@ public partial class RoomView : UserControl
     // ══════════════════════════════════════════════════════════════════
     // ██  COLORS (Solid + Scenes)
     // ══════════════════════════════════════════════════════════════════
+
+    private bool TrySyncCorsairNativeRoomEffect(float boost)
+    {
+        if (_corsairSync?.IsAvailable != true || string.IsNullOrWhiteSpace(_activePattern))
+            return false;
+        if (!Enum.TryParse<LightEffect>(_activePattern, true, out var effect))
+            return false;
+
+        var c1 = _roomPatternCorsairOnly ? _corsairColor1 : _roomColor1;
+        var c2 = _roomPatternCorsairOnly ? _corsairColor2 : _roomColor2;
+        return _corsairSync.SyncNativeRoomEffect(
+            effect,
+            (c1.R, c1.G, c1.B),
+            (c2.R, c2.G, c2.B),
+            _roomEffectSpeed,
+            boost);
+    }
 
     private bool TrySyncCorsairSpatialFrame(byte[] frameForSync, float boost)
     {

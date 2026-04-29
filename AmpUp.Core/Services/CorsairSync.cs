@@ -371,6 +371,40 @@ public class CorsairSync : IDisposable
         }
     }
 
+    public bool SyncNativeRoomEffect(
+        LightEffect effect,
+        (int R, int G, int B) color1,
+        (int R, int G, int B) color2,
+        int speed,
+        float brightnessScale = 1f)
+    {
+        if (!IsAvailable || !SupportsNativeRoomEffect(effect)) return false;
+        if (Devices.Count == 0)
+        {
+            try { DiscoverDevices(); } catch { }
+            if (Devices.Count == 0) return false;
+        }
+
+        brightnessScale = Math.Clamp(brightnessScale, 0f, 1f);
+        float t = Environment.TickCount64 / 1000f * (0.35f + Math.Clamp(speed, 1, 100) / 55f);
+        bool sentAny = false;
+
+        foreach (var device in Devices)
+        {
+            if (device.LedCount <= 0 || string.IsNullOrEmpty(device.Id)) continue;
+            try
+            {
+                sentAny |= SetNativeRoomEffect(device, effect, color1, color2, t, brightnessScale);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"CorsairSync: SyncNativeRoomEffect failed for {device.Name} — {ex.Message}");
+            }
+        }
+
+        return sentAny;
+    }
+
     private void SetDeviceColors(CorsairDevice device, byte[] rgbColors)
     {
         // Get LED positions/IDs for this device
@@ -395,6 +429,243 @@ public class CorsairSync : IDisposable
         }
 
         CorsairSetLedColors(device.Id, ledCount, colors);
+    }
+
+    private static bool SupportsNativeRoomEffect(LightEffect effect) => effect is
+        LightEffect.Aurora or LightEffect.NebulaDrift or LightEffect.OpalWave
+        or LightEffect.Ocean or LightEffect.Prism or LightEffect.Tidal
+        or LightEffect.Vortex or LightEffect.Shockwave or LightEffect.Scanner
+        or LightEffect.RainbowScanner or LightEffect.MeteorRain or LightEffect.ColorWave
+        or LightEffect.FireWall or LightEffect.Lava or LightEffect.Waterfall
+        or LightEffect.Matrix or LightEffect.Starfield or LightEffect.ColorTwinkle
+        or LightEffect.Bloom or LightEffect.Glitch or LightEffect.DNA;
+
+    private bool SetNativeRoomEffect(
+        CorsairDevice device,
+        LightEffect effect,
+        (int R, int G, int B) color1,
+        (int R, int G, int B) color2,
+        float t,
+        float brightnessScale)
+    {
+        var positions = new CorsairLedPosition[CORSAIR_DEVICE_LEDCOUNT_MAX];
+        int err = CorsairGetLedPositions(device.Id, CORSAIR_DEVICE_LEDCOUNT_MAX, positions, out int ledCount);
+        if (err != 0 || ledCount <= 0) return false;
+
+        var activePositions = positions.Take(ledCount).ToArray();
+        double minX = activePositions.Min(p => p.cx);
+        double maxX = activePositions.Max(p => p.cx);
+        double minY = activePositions.Min(p => p.cy);
+        double maxY = activePositions.Max(p => p.cy);
+        double width = Math.Max(maxX - minX, 0.001);
+        double height = Math.Max(maxY - minY, 0.001);
+        float phase = Math.Abs((device.Id ?? device.Name ?? "").GetHashCode() % 997) / 997f;
+
+        var colors = new CorsairLedColor[ledCount];
+        for (int i = 0; i < ledCount; i++)
+        {
+            float nx = (float)((positions[i].cx - minX) / width);
+            float ny = (float)((positions[i].cy - minY) / height);
+            float x = Math.Clamp(nx * 0.72f + ny * 0.28f, 0f, 1f);
+            var raw = RenderNativeRoomEffect(effect, x, nx, ny, t, phase, color1, color2);
+            raw = BoostEffectColor(raw);
+            colors[i] = new CorsairLedColor
+            {
+                id = positions[i].id,
+                r = (byte)Math.Clamp(raw.R * brightnessScale, 0, 255),
+                g = (byte)Math.Clamp(raw.G * brightnessScale, 0, 255),
+                b = (byte)Math.Clamp(raw.B * brightnessScale, 0, 255),
+                a = 255
+            };
+        }
+
+        CorsairSetLedColors(device.Id!, ledCount, colors);
+        return true;
+    }
+
+    private static (int R, int G, int B) RenderNativeRoomEffect(
+        LightEffect effect,
+        float x,
+        float nx,
+        float ny,
+        float t,
+        float phase,
+        (int R, int G, int B) c1,
+        (int R, int G, int B) c2)
+    {
+        float radial = MathF.Sqrt((nx - 0.5f) * (nx - 0.5f) + (ny - 0.5f) * (ny - 0.5f));
+        return effect switch
+        {
+            LightEffect.Aurora => NativeAurora(x, t, phase),
+            LightEffect.NebulaDrift => NativeNebula(x, t, phase, c1, c2),
+            LightEffect.OpalWave => NativeOpal(x, t, phase),
+            LightEffect.Ocean => NativeOcean(x, t, phase, c1, c2),
+            LightEffect.Prism => Hsv((x * 0.82f + t * 0.08f + phase) % 1f, 0.88f, 1f),
+            LightEffect.Tidal => Lerp(Scale(c1, 0.28f), c2, MathF.Pow(Smooth(Wave(x * 2.2f - t * 0.55f + phase)), 3.2f)),
+            LightEffect.Vortex => Hsv((0.72f + x * 0.25f + t * 0.04f) % 1f, 0.95f, 0.25f + MathF.Abs(MathF.Sin((x * 10.0f + t * 1.6f + phase) * MathF.PI)) * 0.9f),
+            LightEffect.Shockwave => NativeShockwave(x, t, phase, c1, c2),
+            LightEffect.Scanner => NativeScanner(nx, t, c1, c2, false),
+            LightEffect.RainbowScanner => NativeScanner(nx, t, c1, c2, true),
+            LightEffect.MeteorRain => NativeMeteor(x, t, phase, c1, c2),
+            LightEffect.ColorWave => Lerp(c1, c2, Smooth(Wave(x * 3.8f - t * 0.62f + phase))),
+            LightEffect.FireWall => NativeFire(x, t, phase),
+            LightEffect.Lava => Lerp((80, 0, 0), (255, 105, 20), MathF.Pow(Smooth(Wave(x * 5.5f - t * 0.38f + phase)), 2.4f)),
+            LightEffect.Waterfall => Lerp((0, 35, 95), (120, 235, 255), MathF.Pow(Smooth(Wave(x * 14f + t * 1.1f + phase)), 5f)),
+            LightEffect.Matrix => Scale((0, 255, 105), Frac(x * 23f - t * 2.1f + phase) < 0.14f ? 1f : 0.08f),
+            LightEffect.Starfield => NativeStarfield(x, t, phase),
+            LightEffect.ColorTwinkle => NativeTwinkle(x, t, phase, c1, c2),
+            LightEffect.Bloom => NativeBloom(x, t, phase, c1, c2),
+            LightEffect.Glitch => NativeGlitch(x, t, phase),
+            LightEffect.DNA => NativeDna(x, t, phase, c1, c2),
+            _ => c1,
+        };
+    }
+
+    private static (int R, int G, int B) NativeAurora(float x, float t, float phase)
+    {
+        float wave1 = MathF.Sin(t * 0.7f + x * 4f + phase * MathF.Tau) * 0.5f + 0.5f;
+        float wave2 = MathF.Sin(t * 1.1f + x * 6f + 1.5f + phase * MathF.Tau) * 0.5f + 0.5f;
+        float wave3 = MathF.Sin(t * 0.4f + x * 2f + 3f + phase * MathF.Tau) * 0.5f + 0.5f;
+        float combined = (wave1 + wave2 * 0.6f + wave3 * 0.3f) / 1.9f;
+        float hue = 120f + combined * 180f + MathF.Sin(t * 0.3f + x * 3f + phase * MathF.Tau) * 40f;
+        return Hsv(hue / 360f, 0.86f, Math.Clamp(MathF.Pow(0.15f + combined * 0.85f, 2f) * 1.15f, 0f, 1f));
+    }
+
+    private static (int R, int G, int B) NativeNebula(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        float cloud = Smooth(Wave(x * 3.0f + t * 0.17f + phase) * 0.65f + Wave(x * 8.0f - t * 0.11f) * 0.35f);
+        return Scale(Lerp(Lerp((70, 20, 145), c1, 0.35f), c2, cloud), 0.45f + cloud * 0.75f);
+    }
+
+    private static (int R, int G, int B) NativeOpal(float x, float t, float phase)
+    {
+        float hue = 0.47f + 0.22f * Wave(x * 2.2f - t * 0.18f + phase);
+        return Lerp((255, 210, 245), Hsv(hue, 0.32f, 1f), 0.65f + 0.25f * Wave(x * 6f + t));
+    }
+
+    private static (int R, int G, int B) NativeOcean(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        float wave = Smooth(Wave(x * 4.5f - t * 0.5f + phase) * 0.7f + Wave(x * 11f + t * 0.2f) * 0.3f);
+        return Lerp(Lerp((0, 55, 160), (0, 230, 210), wave), Lerp(c1, c2, wave), 0.25f);
+    }
+
+    private static (int R, int G, int B) NativeShockwave(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        float center = (t * 0.35f + phase) % 1f;
+        float d = MathF.Abs(x - center);
+        d = MathF.Min(d, 1f - d);
+        return Lerp(Scale(c1, 0.18f), c2, MathF.Exp(-d * d * 95f));
+    }
+
+    private static (int R, int G, int B) NativeScanner(float x, float t, (int R, int G, int B) c1, (int R, int G, int B) c2, bool rainbow)
+    {
+        float pos = PingPong(t * 0.32f);
+        float tail = MathF.Exp(-MathF.Abs(x - pos) * MathF.Abs(x - pos) * 70f);
+        return Lerp(Scale(c2, 0.08f), rainbow ? Hsv((x + t * 0.08f) % 1f, 1f, 1f) : c1, tail);
+    }
+
+    private static (int R, int G, int B) NativeMeteor(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        float head = (t * 0.42f + phase) % 1f;
+        float d = (x - head + 1f) % 1f;
+        float tail = d < 0.36f ? MathF.Pow(1f - d / 0.36f, 2.2f) : 0f;
+        return Lerp(Scale(c2, 0.05f), c1, tail);
+    }
+
+    private static (int R, int G, int B) NativeFire(float x, float t, float phase)
+    {
+        float heat = Smooth(Wave(x * 8f + t * 1.8f + phase) * 0.5f + Wave(x * 19f - t * 1.1f) * 0.5f);
+        heat = MathF.Max(heat, 1f - x * 0.35f);
+        return Lerp((120, 10, 0), (255, 230, 80), heat);
+    }
+
+    private static (int R, int G, int B) NativeStarfield(float x, float t, float phase)
+    {
+        float seed = Frac(MathF.Sin((x + phase) * 151.7f) * 43758.545f);
+        float tw = MathF.Pow(Smooth(Wave(t * (0.6f + seed) + seed * 7f)), 8f);
+        return Scale(Lerp((80, 90, 170), (255, 255, 255), tw), 0.18f + tw);
+    }
+
+    private static (int R, int G, int B) NativeTwinkle(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        float seed = Frac(MathF.Sin((x + phase) * 331.3f) * 24634.634f);
+        float sparkle = MathF.Pow(Smooth(Wave(t * (0.9f + seed * 1.4f) + seed * 9f)), 10f);
+        return Lerp(Scale(c1, 0.18f), c2, sparkle);
+    }
+
+    private static (int R, int G, int B) NativeBloom(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        float bloom = MathF.Pow(Smooth(Wave(x * 2.0f - t * 0.24f + phase)), 1.8f);
+        return Scale(Lerp(c1, c2, bloom), 0.35f + bloom * 0.8f);
+    }
+
+    private static (int R, int G, int B) NativeGlitch(float x, float t, float phase)
+    {
+        float band = Frac(MathF.Floor(x * 18f) * 0.173f + MathF.Floor(t * 8f) * 0.071f + phase);
+        if (band < 0.18f) return (255, 0, 120);
+        if (band < 0.32f) return (0, 240, 255);
+        return Scale((80, 0, 160), 0.35f + 0.25f * Wave(x * 6f + t));
+    }
+
+    private static (int R, int G, int B) NativeDna(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        float a = MathF.Pow(Smooth(Wave(x * 5.0f + t * 0.72f + phase)), 6f);
+        float b = MathF.Pow(Smooth(Wave(x * 5.0f + t * 0.72f + phase + 0.5f)), 6f);
+        return Lerp(Scale(c1, a), Scale(c2, b), b / Math.Max(a + b, 0.001f));
+    }
+
+    private static (int R, int G, int B) BoostEffectColor((int R, int G, int B) c)
+    {
+        const float boost = 1.55f;
+        return (
+            Math.Clamp((int)MathF.Round(c.R * boost), 0, 255),
+            Math.Clamp((int)MathF.Round(c.G * boost), 0, 255),
+            Math.Clamp((int)MathF.Round(c.B * boost), 0, 255));
+    }
+
+    private static (int R, int G, int B) Lerp((int R, int G, int B) a, (int R, int G, int B) b, float t)
+    {
+        t = Math.Clamp(t, 0f, 1f);
+        return (
+            (int)MathF.Round(a.R + (b.R - a.R) * t),
+            (int)MathF.Round(a.G + (b.G - a.G) * t),
+            (int)MathF.Round(a.B + (b.B - a.B) * t));
+    }
+
+    private static (int R, int G, int B) Scale((int R, int G, int B) c, float scale)
+        => (Math.Clamp((int)MathF.Round(c.R * scale), 0, 255),
+            Math.Clamp((int)MathF.Round(c.G * scale), 0, 255),
+            Math.Clamp((int)MathF.Round(c.B * scale), 0, 255));
+
+    private static float Wave(float x) => (MathF.Sin(x * MathF.Tau) + 1f) * 0.5f;
+    private static float Smooth(float x) { x = Math.Clamp(x, 0f, 1f); return x * x * (3f - 2f * x); }
+    private static float Frac(float x) => x - MathF.Floor(x);
+    private static float PingPong(float x) { x = Frac(x); return x < 0.5f ? x * 2f : 2f - x * 2f; }
+
+    private static (int R, int G, int B) Hsv(float h, float s, float v)
+    {
+        h = Frac(h);
+        s = Math.Clamp(s, 0f, 1f);
+        v = Math.Clamp(v, 0f, 1f);
+        float c = v * s;
+        float x = c * (1f - MathF.Abs((h * 6f % 2f) - 1f));
+        float m = v - c;
+        float r, g, b;
+        int sector = (int)(h * 6f);
+        switch (sector)
+        {
+            case 0: r = c; g = x; b = 0; break;
+            case 1: r = x; g = c; b = 0; break;
+            case 2: r = 0; g = c; b = x; break;
+            case 3: r = 0; g = x; b = c; break;
+            case 4: r = x; g = 0; b = c; break;
+            default: r = c; g = 0; b = x; break;
+        }
+
+        return (
+            Math.Clamp((int)MathF.Round((r + m) * 255f), 0, 255),
+            Math.Clamp((int)MathF.Round((g + m) * 255f), 0, 255),
+            Math.Clamp((int)MathF.Round((b + m) * 255f), 0, 255));
     }
 
     private void SetDeviceColors(CorsairDevice device, (int R, int G, int B)[] sampledColors, float brightnessScale)
