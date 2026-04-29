@@ -478,5 +478,128 @@ namespace AmpUp.Controls
                 Dot(c.Dc, x, y, 3.8 + glow * 2.0, col, glow * 0.12);
             }
         }
+
+        private void RenderAuroraVeil(Ctx c)
+        {
+            RenderAurora(c);
+            var veil = new LinearGradientBrush(Lerp(c.Color, Colors.White, 0.18), c.Color2, 0);
+            veil.Opacity = 0.24;
+            c.Dc.DrawRoundedRectangle(veil, null, new Rect(0, 0, c.W, c.H), 3, 3);
+        }
+
+        private void RenderSolarStorm(Ctx c)
+        {
+            RenderAurora(c);
+            double arc = Saw(c.T * 0.55) * c.W;
+            for (int i = 0; i < 5; i++)
+            {
+                double x = arc - i * c.W * 0.08;
+                double d = Math.Abs(x - c.Cx) / c.W;
+                double a = Math.Max(0, 0.85 - d * 1.8) * (1.0 - i * 0.13);
+                Dot(c.Dc, x, c.Cy + Math.Sin(c.T * 2 + i) * c.H * 0.18, 3.8 - i * 0.35, c.Color, a);
+            }
+        }
+
+        private void RenderStarlightCanopy(Ctx c)
+        {
+            RenderNebulaDrift(c);
+            for (int i = 0; i < 9; i++)
+            {
+                double seed = Rand(i + 911);
+                double tw = Math.Pow(Sin01(c.T * (0.8 + seed) + seed * 9.0), 8);
+                double x = c.W * (0.08 + 0.84 * Rand(i + 31));
+                double y = c.H * (0.18 + 0.64 * Rand(i + 73));
+                Dot(c.Dc, x, y, 1.0 + tw * 2.0, Colors.White, 0.12 + tw * 0.88);
+            }
+        }
+
+        private void RenderPlasmaBloom(Ctx c)
+        {
+            int bands = 8;
+            double w = c.W / bands;
+            for (int i = 0; i < bands; i++)
+            {
+                double x = i / (double)Math.Max(1, bands - 1);
+                double plasma = (Sin01(x * 17.5 + c.T * 1.4) + Sin01(x * 43.0 - c.T * 0.9)) * 0.5;
+                var col = Lerp(c.Color, c.Color2, plasma);
+                Rect(c.Dc, i * w, 0, w + 1, c.H, col, 0.35 + plasma * 0.6, 0);
+            }
+            Dot(c.Dc, c.Cx + Math.Sin(c.T) * c.W * 0.2, c.Cy, c.H * 0.32, Colors.White, 0.14);
+        }
+
+        private void RenderRippleRoom(Ctx c)
+        {
+            Rect(c.Dc, 0, 0, c.W, c.H, c.Color, 0.06, 3);
+            double center = c.Cx + Math.Sin(c.T * 0.7) * c.W * 0.18;
+            for (int r = 0; r < 4; r++)
+            {
+                double phase = Saw(c.T * 0.45 + r * 0.22);
+                double rr = phase * c.W * 0.58;
+                double a = (1 - phase) * 0.45;
+                c.Dc.DrawEllipse(null, Pen(Lerp(c.Color, c.Color2, r / 3.0), 1.5, a),
+                    new Point(center, c.Cy), rr, rr * 0.44);
+            }
+        }
+
+        private void RenderPrismDrift(Ctx c)
+        {
+            RenderPrism(c);
+            double shimmerX = Saw(c.T * 0.28) * c.W;
+            Rect(c.Dc, shimmerX - c.W * 0.08, 0, c.W * 0.16, c.H, Colors.White, 0.20, 2);
+        }
+
+        private void RenderNebulaRain(Ctx c)
+        {
+            RenderNebulaDrift(c);
+            int drops = 6;
+            for (int i = 0; i < drops; i++)
+            {
+                double phase = Saw(c.T * (0.55 + i * 0.05) + i * 0.17);
+                double x = c.W * (0.08 + i / (double)(drops - 1) * 0.84);
+                double y = phase * (c.H + 10) - 5;
+                Rect(c.Dc, x - 1, y - 4, 2, 8, Lerp(c.Color, c.Color2, i / (double)drops), 0.72 * (1 - phase * 0.35), 1);
+            }
+        }
+
+        private void RenderReactiveAurora(Ctx c)
+        {
+            RenderAurora(c);
+            int bars = 5;
+            double bw = c.W / (bars * 1.8);
+            for (int i = 0; i < bars; i++)
+            {
+                double e = Math.Pow(Sin01(c.T * (2.0 + i * 0.35) + i * 0.9), 2.4);
+                double h = c.H * (0.14 + e * 0.62);
+                double x = c.W * (0.12 + i * 0.19);
+                Rect(c.Dc, x, c.H - h, bw, h, Lerp(c.Color, Colors.White, e * 0.35), 0.55, 1.5);
+            }
+        }
+
+        private void RenderLiquidGlass(Ctx c)
+        {
+            var stops = new GradientStopCollection();
+            for (int i = 0; i <= 7; i++)
+            {
+                double p = i / 7.0;
+                double caustic = Math.Pow(Sin01(p * 21.0 - c.T * 1.1) * 0.65 + Sin01(p * 61.0 + c.T * 0.7) * 0.35, 2.0);
+                stops.Add(new GradientStop(Lerp(Lerp(c.Color, c.Color2, caustic), Colors.White, caustic * 0.22), p));
+            }
+            c.Dc.DrawRoundedRectangle(new LinearGradientBrush(stops, 0), null, new Rect(0, 0, c.W, c.H), 3, 3);
+            c.Dc.DrawLine(Pen(Colors.White, 1.2, 0.25), new Point(0, c.H * 0.32 + Math.Sin(c.T) * 3), new Point(c.W, c.H * 0.62 + Math.Cos(c.T * 0.7) * 3));
+        }
+
+        private void RenderChromaLayerStack(Ctx c)
+        {
+            RenderColorWave(c);
+            double scanner = Saw(c.T * 0.45);
+            scanner = scanner < 0.5 ? scanner * 2 : 2 - scanner * 2;
+            double x0 = scanner * c.W;
+            for (int i = 0; i < 5; i++)
+            {
+                double d = Math.Abs((i / 4.0) * c.W - x0) / c.W;
+                double a = Math.Exp(-d * d * 55) * 0.85;
+                Rect(c.Dc, i * c.W / 5.0, 0, c.W / 5.0 + 1, c.H, Hsv(i / 5.0 + c.T * 0.08), a, 0);
+            }
+        }
     }
 }

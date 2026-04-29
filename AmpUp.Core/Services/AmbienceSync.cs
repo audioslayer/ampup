@@ -446,7 +446,11 @@ public class AmbienceSync : IDisposable
             or LightEffect.Shockwave or LightEffect.Scanner or LightEffect.MeteorRain
             or LightEffect.RainbowScanner or LightEffect.ColorWave or LightEffect.FireWall
             or LightEffect.Lava or LightEffect.Waterfall or LightEffect.Matrix or LightEffect.Starfield
-            or LightEffect.ColorTwinkle or LightEffect.Bloom or LightEffect.Glitch or LightEffect.DNA;
+            or LightEffect.ColorTwinkle or LightEffect.Bloom or LightEffect.Glitch or LightEffect.DNA
+            or LightEffect.AuroraVeil or LightEffect.SolarStorm or LightEffect.StarlightCanopy
+            or LightEffect.PlasmaBloom or LightEffect.RippleRoom or LightEffect.PrismDrift
+            or LightEffect.NebulaRain or LightEffect.ReactiveAurora or LightEffect.LiquidGlass
+            or LightEffect.ChromaLayerStack;
         if (!supported) return false;
 
         var c1 = ParseHexColor(cfg.RoomColor1, (0, 230, 118));
@@ -482,6 +486,16 @@ public class AmbienceSync : IDisposable
                 LightEffect.Bloom => SegmentBloom(x, t, devicePhase, c1, c2),
                 LightEffect.Glitch => SegmentGlitch(x, t, devicePhase),
                 LightEffect.DNA => SegmentDna(x, t, devicePhase, c1, c2),
+                LightEffect.AuroraVeil => SegmentAuroraVeil(x, t, devicePhase, c1, c2),
+                LightEffect.SolarStorm => SegmentSolarStorm(x, t, devicePhase, c1, c2),
+                LightEffect.StarlightCanopy => SegmentStarlightCanopy(x, t, devicePhase, c1, c2),
+                LightEffect.PlasmaBloom => SegmentPlasmaBloom(x, t, devicePhase, c1, c2),
+                LightEffect.RippleRoom => SegmentRippleRoom(x, t, devicePhase, c1, c2),
+                LightEffect.PrismDrift => SegmentPrismDrift(x, t, devicePhase, c1, c2),
+                LightEffect.NebulaRain => SegmentNebulaRain(x, t, devicePhase, c1, c2),
+                LightEffect.ReactiveAurora => SegmentReactiveAurora(x, t, devicePhase, c1, c2),
+                LightEffect.LiquidGlass => SegmentLiquidGlass(x, t, devicePhase, c1, c2),
+                LightEffect.ChromaLayerStack => SegmentChromaLayerStack(x, t, devicePhase, c1, c2),
                 _ => (0, 0, 0),
             };
             colors[i] = ApplySettings(raw.Item1, raw.Item2, raw.Item3, cfg);
@@ -629,6 +643,85 @@ public class AmbienceSync : IDisposable
         float a = MathF.Pow(Smooth(Wave(x * 5.0f + t * 0.72f + phase)), 6f);
         float b = MathF.Pow(Smooth(Wave(x * 5.0f + t * 0.72f + phase + 0.5f)), 6f);
         return Lerp(Scale(c1, a), Scale(c2, b), b / Math.Max(a + b, 0.001f));
+    }
+
+    private static (int R, int G, int B) SegmentAuroraVeil(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        var aurora = SegmentAurora(x, t, phase, c1, c2);
+        float veil = 0.18f + 0.22f * Wave(x * 2.8f - t * 0.18f + phase);
+        return Lerp(aurora, Lerp(c1, c2, Wave(x + t * 0.05f)), veil);
+    }
+
+    private static (int R, int G, int B) SegmentSolarStorm(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        var baseColor = SegmentAurora(x, t * 0.7f, phase, c1, c2);
+        float arc = (t * 0.32f + phase) % 1f;
+        float d = MathF.Abs(x - arc);
+        d = MathF.Min(d, 1f - d);
+        float flare = MathF.Exp(-d * d * 90f);
+        return Lerp(baseColor, (255, 210, 60), flare);
+    }
+
+    private static (int R, int G, int B) SegmentStarlightCanopy(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        var nebula = SegmentNebula(x, t, phase, c1, c2);
+        float seed = Frac(MathF.Sin((x + phase) * 487.3f) * 37561.17f);
+        float star = MathF.Pow(Smooth(Wave(t * (0.55f + seed) + seed * 8.7f)), 9f);
+        return Lerp(Scale(nebula, 0.72f), (255, 245, 255), star);
+    }
+
+    private static (int R, int G, int B) SegmentPlasmaBloom(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        float plasma = Smooth((Wave(x * 2.8f + t * 0.32f + phase) + Wave(x * 7.5f - t * 0.2f) + Wave(x * 11.0f + t * 0.12f)) / 3f);
+        float bloom = 0.35f + MathF.Pow(plasma, 1.7f) * 0.85f;
+        return Scale(Lerp(c1, c2, plasma), bloom);
+    }
+
+    private static (int R, int G, int B) SegmentRippleRoom(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        float center = 0.5f + MathF.Sin(t * 0.24f + phase * MathF.Tau) * 0.18f;
+        float radius = (t * 0.42f + phase) % 1f;
+        float d = MathF.Abs(x - center);
+        float ring = MathF.Exp(-MathF.Pow(d - radius * 0.72f, 2f) * 85f);
+        float under = 0.12f + 0.2f * Wave(x * 2f - t * 0.12f);
+        return Scale(Lerp(c1, c2, x + ring * 0.25f), Math.Clamp(under + ring, 0f, 1f));
+    }
+
+    private static (int R, int G, int B) SegmentPrismDrift(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        var prism = SegmentPrism(x, t, phase);
+        float shimmer = MathF.Exp(-MathF.Pow(x - ((t * 0.18f + phase) % 1f), 2f) * 75f);
+        return Lerp(prism, (255, 255, 255), shimmer * 0.45f);
+    }
+
+    private static (int R, int G, int B) SegmentNebulaRain(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        var nebula = SegmentNebula(x, t, phase, c1, c2);
+        float streak = MathF.Pow(Smooth(Wave(x * 8.5f + t * 0.9f + phase)), 7f);
+        return Lerp(nebula, c2, streak * 0.85f);
+    }
+
+    private static (int R, int G, int B) SegmentReactiveAurora(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        var aurora = SegmentAurora(x, t, phase, c1, c2);
+        float shimmer = MathF.Pow(Wave(x * 3.2f + t * 1.1f + phase), 2f);
+        return Lerp(aurora, c2, shimmer * 0.45f);
+    }
+
+    private static (int R, int G, int B) SegmentLiquidGlass(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        float caustic = MathF.Pow(Smooth(Wave(x * 4.5f - t * 0.22f + phase) * 0.65f + Wave(x * 13f + t * 0.18f) * 0.35f), 2.2f);
+        var color = Lerp(c1, c2, x + caustic * 0.18f);
+        return Lerp(Scale(color, 0.35f + caustic * 0.85f), (255, 255, 255), caustic * 0.16f);
+    }
+
+    private static (int R, int G, int B) SegmentChromaLayerStack(float x, float t, float phase, (int R, int G, int B) c1, (int R, int G, int B) c2)
+    {
+        var wave = SegmentColorWave(x, t, phase, c1, c2);
+        float pos = PingPong(t * 0.28f + phase);
+        float d = MathF.Abs(x - pos);
+        float scanner = MathF.Exp(-d * d * 80f);
+        return Lerp(wave, Hsv((x + t * 0.08f) % 1f, 0.9f, 1f), scanner * 0.85f);
     }
 
     private static (int R, int G, int B) ParseHexColor(string? hex, (int R, int G, int B) fallback)

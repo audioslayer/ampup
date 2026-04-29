@@ -284,6 +284,16 @@ namespace AmpUp.Controls
                 case LightEffect.OpalWave:        RenderOpalWave(c);        break;
                 case LightEffect.Bloom:           RenderBloom(c);           break;
                 case LightEffect.ColorTwinkle:    RenderColorTwinkle(c);    break;
+                case LightEffect.AuroraVeil:       RenderAuroraVeil(c);       break;
+                case LightEffect.SolarStorm:       RenderSolarStorm(c);       break;
+                case LightEffect.StarlightCanopy:  RenderStarlightCanopy(c);  break;
+                case LightEffect.PlasmaBloom:      RenderPlasmaBloom(c);      break;
+                case LightEffect.RippleRoom:       RenderRippleRoom(c);       break;
+                case LightEffect.PrismDrift:       RenderPrismDrift(c);       break;
+                case LightEffect.NebulaRain:       RenderNebulaRain(c);       break;
+                case LightEffect.ReactiveAurora:   RenderReactiveAurora(c);   break;
+                case LightEffect.LiquidGlass:      RenderLiquidGlass(c);      break;
+                case LightEffect.ChromaLayerStack: RenderChromaLayerStack(c); break;
 
                 default: RenderFallback(c); break;
             }

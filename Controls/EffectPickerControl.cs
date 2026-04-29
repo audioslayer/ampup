@@ -232,6 +232,16 @@ namespace AmpUp.Controls
             { LightEffect.OpalWave,      Color.FromRgb(0xD1, 0xC4, 0xE9) }, // pearlescent lilac
             { LightEffect.Bloom,         Color.FromRgb(0xF4, 0x8F, 0xB1) }, // blooming pink
             { LightEffect.ColorTwinkle,  Color.FromRgb(0xFF, 0xF5, 0x9D) }, // pastel gold
+            { LightEffect.AuroraVeil,       Color.FromRgb(0x64, 0xFF, 0xDA) }, // mint aurora
+            { LightEffect.SolarStorm,       Color.FromRgb(0xFF, 0xB3, 0x00) }, // solar gold
+            { LightEffect.StarlightCanopy,  Color.FromRgb(0xD6, 0xCA, 0xFF) }, // violet starlight
+            { LightEffect.PlasmaBloom,      Color.FromRgb(0xFF, 0x4F, 0xC8) }, // hot plasma
+            { LightEffect.RippleRoom,       Color.FromRgb(0x40, 0xC4, 0xFF) }, // cyan ripple
+            { LightEffect.PrismDrift,       Color.FromRgb(0xFF, 0xF5, 0x9D) }, // prism white
+            { LightEffect.NebulaRain,       Color.FromRgb(0x9C, 0x7B, 0xFF) }, // nebula violet
+            { LightEffect.ReactiveAurora,   Color.FromRgb(0x00, 0xE6, 0x76) }, // reactive green
+            { LightEffect.LiquidGlass,      Color.FromRgb(0xB2, 0xEB, 0xF2) }, // glass aqua
+            { LightEffect.ChromaLayerStack, Color.FromRgb(0xFF, 0x40, 0x81) }, // chroma pink
         };
 
         // ── Constructor ──────────────────────────────────────────────────
@@ -361,6 +371,16 @@ namespace AmpUp.Controls
                     (LightEffect.OpalWave,       "≈",   "Opal",     false),
                     (LightEffect.Bloom,          "◌",   "Bloom",    false),
                     (LightEffect.ColorTwinkle,   "✦",   "Twinkle",  false),
+                    (LightEffect.AuroraVeil,       "AV", "A.Veil",   false),
+                    (LightEffect.SolarStorm,       "SS", "Solar",    false),
+                    (LightEffect.StarlightCanopy,  "SC", "Canopy",   false),
+                    (LightEffect.PlasmaBloom,      "PB", "P.Bloom",  false),
+                    (LightEffect.RippleRoom,       "RR", "Ripple",   false),
+                    (LightEffect.PrismDrift,       "PD", "P.Drift",  false),
+                    (LightEffect.NebulaRain,       "NR", "N.Rain",   false),
+                    (LightEffect.ReactiveAurora,   "RA", "R.Aurora", false),
+                    (LightEffect.LiquidGlass,      "LG", "Glass",    false),
+                    (LightEffect.ChromaLayerStack, "CL", "Chroma",   false),
                 });
             }
         }
@@ -623,6 +643,16 @@ namespace AmpUp.Controls
                 LightEffect.OpalWave         => Color.FromRgb(0xD1, 0xC4, 0xE9),
                 LightEffect.Bloom            => Color.FromRgb(0xF4, 0x8F, 0xB1),
                 LightEffect.ColorTwinkle     => Color.FromRgb(0xFF, 0xF5, 0x9D),
+                LightEffect.AuroraVeil       => Color.FromRgb(0x64, 0xFF, 0xDA),
+                LightEffect.SolarStorm       => Color.FromRgb(0xFF, 0xB3, 0x00),
+                LightEffect.StarlightCanopy  => Color.FromRgb(0xD6, 0xCA, 0xFF),
+                LightEffect.PlasmaBloom      => Color.FromRgb(0xFF, 0x4F, 0xC8),
+                LightEffect.RippleRoom       => Color.FromRgb(0x40, 0xC4, 0xFF),
+                LightEffect.PrismDrift       => Color.FromRgb(0xFF, 0xF5, 0x9D),
+                LightEffect.NebulaRain       => Color.FromRgb(0x9C, 0x7B, 0xFF),
+                LightEffect.ReactiveAurora   => Color.FromRgb(0x00, 0xE6, 0x76),
+                LightEffect.LiquidGlass      => Color.FromRgb(0xB2, 0xEB, 0xF2),
+                LightEffect.ChromaLayerStack => Color.FromRgb(0xFF, 0x40, 0x81),
                 _ => primary,
             };
         }

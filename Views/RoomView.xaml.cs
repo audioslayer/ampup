@@ -1367,7 +1367,11 @@ public partial class RoomView : UserControl
                 or LightEffect.NebulaDrift
                 or LightEffect.OpalWave or LightEffect.Bloom or LightEffect.ColorTwinkle
                 or LightEffect.Vortex or LightEffect.Shockwave or LightEffect.Tidal
-                or LightEffect.Prism or LightEffect.EmberDrift or LightEffect.Glitch => 3,
+                or LightEffect.Prism or LightEffect.EmberDrift or LightEffect.Glitch
+                or LightEffect.AuroraVeil or LightEffect.SolarStorm or LightEffect.StarlightCanopy
+                or LightEffect.PlasmaBloom or LightEffect.RippleRoom or LightEffect.PrismDrift
+                or LightEffect.NebulaRain or LightEffect.ReactiveAurora or LightEffect.LiquidGlass
+                or LightEffect.ChromaLayerStack => 3,
 
             _ => -1,
         };
