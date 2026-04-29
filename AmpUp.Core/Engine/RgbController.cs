@@ -197,15 +197,19 @@ public class RgbController : IDisposable
     }
 
     public void SetOutput(Action<byte[], int, int>? write, Func<bool>? isOpen)
+        => SetOutput(write, isOpen, 50);
+
+    public void SetOutput(Action<byte[], int, int>? write, Func<bool>? isOpen, int refreshMs)
     {
         _writeBytes = write;
         _isPortOpen = isOpen;
+        refreshMs = Math.Clamp(refreshMs, 16, 1000);
 
         // Start or stop the refresh timer based on connection state
         if (write != null && isOpen?.Invoke() == true)
         {
             _refreshTimer?.Dispose();
-            _refreshTimer = new System.Threading.Timer(_ => Tick(), null, 50, 50);
+            _refreshTimer = new System.Threading.Timer(_ => Tick(), null, refreshMs, refreshMs);
         }
         else
         {

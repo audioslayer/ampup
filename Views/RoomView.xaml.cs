@@ -5100,7 +5100,7 @@ public partial class RoomView : UserControl
         _roomRgb.OnFrameReady += OnRoomFrame;
 
         // Start with a dummy output (no serial port — just runs the timer for rendering)
-        _roomRgb.SetOutput((_, _, _) => { }, () => true);
+        _roomRgb.SetOutput((_, _, _) => { }, () => true, 30);
     }
 
     /// <summary>

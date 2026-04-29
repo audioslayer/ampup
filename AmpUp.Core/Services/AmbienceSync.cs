@@ -22,16 +22,14 @@ public class AmbienceSync : IDisposable
     private readonly ConcurrentDictionary<string, (byte R, byte G, byte B)> _lastSent = new();
     private readonly HashSet<string> _segmentEnabled = new();
     private readonly ConcurrentDictionary<string, long> _segmentKeepAliveTick = new();
-    private readonly ConcurrentDictionary<string, long> _segmentBrightnessResetTick = new();
     private const long SegmentKeepAliveInterval = TimeSpan.TicksPerSecond * 25; // re-enable every 25s
-    private const long SegmentBrightnessResetInterval = TimeSpan.TicksPerSecond * 30;
     private const float RoomEffectColorBoost = 1.55f;
 
     // Rate limiter: Govee LAN UDP per device
     // Razer binary protocol is lightweight — LedFx defaults to 40 FPS, 20 FPS is conservative and reliable.
     // colorwc JSON is heavier but 10 FPS is well within device capability.
     private readonly ConcurrentDictionary<string, long> _lastSendTick = new();
-    private const long MinTicksSegment = TimeSpan.TicksPerMillisecond * 50;   // 20 FPS for segment protocol (razer binary)
+    private const long MinTicksSegment = TimeSpan.TicksPerMillisecond * 33;   // ~30 FPS for segment protocol (razer binary)
     private const long MinTicksSingle  = TimeSpan.TicksPerMillisecond * 100;  // 10 FPS for colorwc (JSON)
 
     // Spatial mapper for room layout mode
@@ -155,12 +153,15 @@ public class AmbienceSync : IDisposable
                 {
                     _segmentEnabled.Add(ip);
                     _segmentKeepAliveTick[ip] = now;
-                    _ = Task.Run(() => SendSegmentEnable(ip, true));
-                    Thread.Sleep(20);
                 }
 
                 _lastSendTick[ip] = now;
-                _ = Task.Run(() => SendSegmentColors(ip, segColors));
+                _ = Task.Run(async () =>
+                {
+                    if (needEnable)
+                        await SendSegmentEnable(ip, true);
+                    await SendSegmentColors(ip, segColors);
+                });
             }
             else
             {
@@ -720,8 +721,6 @@ public class AmbienceSync : IDisposable
             for (int i = 0; i < colors.Length; i++)
                 segColors[i] = ((byte)colors[i].R, (byte)colors[i].G, (byte)colors[i].B);
 
-            EnsureSegmentHardwareBrightness(ip, now);
-
             bool needEnable = !_segmentEnabled.Contains(ip);
             if (!needEnable && _segmentKeepAliveTick.TryGetValue(ip, out long lastKa))
                 needEnable = now - lastKa > SegmentKeepAliveInterval;
@@ -729,11 +728,14 @@ public class AmbienceSync : IDisposable
             {
                 _segmentEnabled.Add(ip);
                 _segmentKeepAliveTick[ip] = now;
-                _ = Task.Run(() => SendSegmentEnable(ip, true));
-                Thread.Sleep(20);
             }
             _lastSendTick[ip] = now;
-            _ = Task.Run(() => SendSegmentColors(ip, segColors));
+            _ = Task.Run(async () =>
+            {
+                if (needEnable)
+                    await SendSegmentEnable(ip, true);
+                await SendSegmentColors(ip, segColors);
+            });
         }
         else
         {
@@ -1093,7 +1095,6 @@ public class AmbienceSync : IDisposable
     {
         _segmentEnabled.Remove(ip);
         _segmentKeepAliveTick.TryRemove(ip, out _);
-        _segmentBrightnessResetTick.TryRemove(ip, out _);
         _ = Task.Run(() => SendSegmentEnable(ip, false));
     }
 
@@ -1105,7 +1106,6 @@ public class AmbienceSync : IDisposable
     {
         _segmentEnabled.Clear();
         _segmentKeepAliveTick.Clear();
-        _segmentBrightnessResetTick.Clear();
     }
 
     public static async Task DisableSegmentMode(string ip)
@@ -1124,8 +1124,6 @@ public class AmbienceSync : IDisposable
         if (_lastSendTick.TryGetValue(ip, out long lastTick) && now - lastTick < MinTicksSegment)
             return;
 
-        EnsureSegmentHardwareBrightness(ip, now);
-
         bool needEnable = !_segmentEnabled.Contains(ip);
         if (!needEnable && _segmentKeepAliveTick.TryGetValue(ip, out long lastKa))
             needEnable = now - lastKa > SegmentKeepAliveInterval;
@@ -1133,25 +1131,13 @@ public class AmbienceSync : IDisposable
         {
             _segmentEnabled.Add(ip);
             _segmentKeepAliveTick[ip] = now;
-            _ = Task.Run(() => SendSegmentEnable(ip, true));
-            Thread.Sleep(20);
         }
         _lastSendTick[ip] = now;
-        _ = Task.Run(() => SendSegmentColors(ip, colors));
-    }
-
-    private void EnsureSegmentHardwareBrightness(string ip, long now)
-    {
-        if (_segmentBrightnessResetTick.TryGetValue(ip, out long lastReset)
-            && now - lastReset < SegmentBrightnessResetInterval)
-            return;
-
-        _segmentBrightnessResetTick[ip] = now;
         _ = Task.Run(async () =>
         {
-            await SendBrightnessAsync(ip, 100);
-            await Task.Delay(35);
-            await SendSegmentEnable(ip, true);
+            if (needEnable)
+                await SendSegmentEnable(ip, true);
+            await SendSegmentColors(ip, colors);
         });
     }
 
