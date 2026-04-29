@@ -460,6 +460,7 @@ public class CorsairSync : IDisposable
         double width = Math.Max(maxX - minX, 0.001);
         double height = Math.Max(maxY - minY, 0.001);
         float phase = Math.Abs((device.Id ?? device.Name ?? "").GetHashCode() % 997) / 997f;
+        var fanZones = InferFanZones(activePositions, device);
 
         var colors = new CorsairLedColor[ledCount];
         for (int i = 0; i < ledCount; i++)
@@ -468,6 +469,7 @@ public class CorsairSync : IDisposable
             float ny = (float)((positions[i].cy - minY) / height);
             float x = Math.Clamp(nx * 0.72f + ny * 0.28f, 0f, 1f);
             var raw = RenderNativeRoomEffect(effect, x, nx, ny, t, phase, color1, color2);
+            raw = ApplyFanRingAccent(raw, effect, x, nx, ny, positions[i], fanZones, t, phase, color1, color2);
             raw = BoostEffectColor(raw);
             colors[i] = new CorsairLedColor
             {
@@ -481,6 +483,169 @@ public class CorsairSync : IDisposable
 
         CorsairSetLedColors(device.Id!, ledCount, colors);
         return true;
+    }
+
+    private readonly record struct FanZone(double X, double Y, double Radius);
+
+    private static List<FanZone> InferFanZones(CorsairLedPosition[] positions, CorsairDevice device)
+    {
+        if (positions.Length < 24 || !LooksLikeFanDevice(device)) return new List<FanZone>();
+
+        int targetCount = Math.Clamp((int)MathF.Round(positions.Length / 34f), 1, 12);
+        double minX = positions.Min(p => p.cx);
+        double maxX = positions.Max(p => p.cx);
+        double minY = positions.Min(p => p.cy);
+        double maxY = positions.Max(p => p.cy);
+        double width = Math.Max(maxX - minX, 0.001);
+        double height = Math.Max(maxY - minY, 0.001);
+
+        var centers = new List<(double X, double Y)>();
+        if (targetCount == 1)
+        {
+            centers.Add(((minX + maxX) / 2, (minY + maxY) / 2));
+        }
+        else
+        {
+            for (int i = 0; i < targetCount; i++)
+            {
+                double f = targetCount == 1 ? 0.5 : i / (double)(targetCount - 1);
+                centers.Add(width >= height
+                    ? (minX + width * f, (minY + maxY) / 2)
+                    : ((minX + maxX) / 2, minY + height * f));
+            }
+
+            for (int pass = 0; pass < 8; pass++)
+            {
+                var sums = new (double X, double Y, int Count)[targetCount];
+                foreach (var p in positions)
+                {
+                    int nearest = 0;
+                    double best = double.MaxValue;
+                    for (int c = 0; c < centers.Count; c++)
+                    {
+                        double d = DistSq(p.cx, p.cy, centers[c].X, centers[c].Y);
+                        if (d < best) { best = d; nearest = c; }
+                    }
+                    sums[nearest].X += p.cx;
+                    sums[nearest].Y += p.cy;
+                    sums[nearest].Count++;
+                }
+
+                for (int c = 0; c < centers.Count; c++)
+                    if (sums[c].Count > 0)
+                        centers[c] = (sums[c].X / sums[c].Count, sums[c].Y / sums[c].Count);
+            }
+        }
+
+        var zones = new List<FanZone>();
+        for (int c = 0; c < centers.Count; c++)
+        {
+            double radius = 0;
+            int count = 0;
+            foreach (var p in positions)
+            {
+                int nearest = 0;
+                double best = double.MaxValue;
+                for (int i = 0; i < centers.Count; i++)
+                {
+                    double d = DistSq(p.cx, p.cy, centers[i].X, centers[i].Y);
+                    if (d < best) { best = d; nearest = i; }
+                }
+                if (nearest != c) continue;
+                radius = Math.Max(radius, Math.Sqrt(best));
+                count++;
+            }
+
+            if (count >= 8 && radius > 0)
+                zones.Add(new FanZone(centers[c].X, centers[c].Y, radius));
+        }
+
+        return zones;
+    }
+
+    private static bool LooksLikeFanDevice(CorsairDevice device)
+    {
+        string name = $"{device.Type} {device.Name}".ToLowerInvariant();
+        return name.Contains("fan")
+            || name.Contains("cooler")
+            || name.Contains("pump")
+            || name.Contains("commander")
+            || name.Contains("link");
+    }
+
+    private static (int R, int G, int B) ApplyFanRingAccent(
+        (int R, int G, int B) baseColor,
+        LightEffect effect,
+        float x,
+        float nx,
+        float ny,
+        CorsairLedPosition position,
+        List<FanZone> zones,
+        float t,
+        float phase,
+        (int R, int G, int B) c1,
+        (int R, int G, int B) c2)
+    {
+        if (zones.Count == 0) return baseColor;
+
+        FanZone zone = zones[0];
+        double best = double.MaxValue;
+        foreach (var candidate in zones)
+        {
+            double d = DistSq(position.cx, position.cy, candidate.X, candidate.Y);
+            if (d < best)
+            {
+                best = d;
+                zone = candidate;
+            }
+        }
+
+        float dist = zone.Radius > 0 ? (float)(Math.Sqrt(best) / zone.Radius) : 0f;
+        float ringMix = Smooth((dist - 0.58f) / 0.28f);
+        if (ringMix <= 0.02f) return baseColor;
+
+        float angle = MathF.Atan2((float)(position.cy - zone.Y), (float)(position.cx - zone.X)) / MathF.Tau;
+        angle = Frac(angle);
+        var ringColor = RenderRingAccent(effect, angle, x, nx, ny, t, phase, c1, c2);
+        ringColor = Scale(ringColor, 0.85f + 0.15f * Wave(angle * 3f + t * 0.5f));
+        return Lerp(baseColor, ringColor, ringMix * 0.82f);
+    }
+
+    private static (int R, int G, int B) RenderRingAccent(
+        LightEffect effect,
+        float angle,
+        float x,
+        float nx,
+        float ny,
+        float t,
+        float phase,
+        (int R, int G, int B) c1,
+        (int R, int G, int B) c2)
+    {
+        float ringX = Frac(angle + t * 0.08f + phase);
+        return effect switch
+        {
+            LightEffect.Aurora => Lerp(NativeAurora(x, t, phase), Lerp(c1, c2, Wave(ringX * 2.0f)), 0.45f),
+            LightEffect.Ocean => Lerp(NativeOcean(x, t, phase, c1, c2), c2, 0.38f + 0.25f * Wave(ringX * 2.0f)),
+            LightEffect.FireWall or LightEffect.Lava => Lerp(c1, (255, 230, 80), 0.55f + 0.25f * Wave(ringX * 4f)),
+            LightEffect.Waterfall => Lerp((0, 35, 95), (180, 245, 255), 0.65f + 0.25f * Wave(ringX * 5f)),
+            LightEffect.Matrix => Lerp((0, 90, 36), (80, 255, 145), Wave(ringX * 12f - t * 1.2f)),
+            LightEffect.Scanner => NativeScanner(ringX, t, c2, c1, false),
+            LightEffect.RainbowScanner or LightEffect.Prism => Hsv(ringX, 0.92f, 1f),
+            LightEffect.MeteorRain => NativeMeteor(ringX, t, phase, c2, c1),
+            LightEffect.ColorWave or LightEffect.Tidal or LightEffect.Bloom => Lerp(c2, c1, Smooth(Wave(ringX * 3f - t * 0.5f))),
+            LightEffect.DNA => NativeDna(ringX, t, phase + 0.18f, c2, c1),
+            LightEffect.Glitch => NativeGlitch(ringX, t, phase + 0.23f),
+            LightEffect.Starfield or LightEffect.ColorTwinkle => Lerp(c2, (255, 255, 255), MathF.Pow(Wave(ringX * 6f + t), 6f)),
+            _ => Lerp(c2, c1, 0.25f + 0.5f * Wave(ringX * 2f)),
+        };
+    }
+
+    private static double DistSq(double x1, double y1, double x2, double y2)
+    {
+        double dx = x1 - x2;
+        double dy = y1 - y2;
+        return dx * dx + dy * dy;
     }
 
     private static (int R, int G, int B) RenderNativeRoomEffect(
