@@ -3642,6 +3642,28 @@ public class RgbController : IDisposable
 
     // --- Helpers ---
 
+    private static float Frac(float value)
+    {
+        return value - MathF.Floor(value);
+    }
+
+    private static float Wave(float phase)
+    {
+        return MathF.Sin(phase * MathF.Tau) * 0.5f + 0.5f;
+    }
+
+    private static float Smooth(float value)
+    {
+        value = Math.Clamp(value, 0f, 1f);
+        return value * value * (3f - 2f * value);
+    }
+
+    private static float PingPong(float value)
+    {
+        float t = Frac(value);
+        return 1f - MathF.Abs(t * 2f - 1f);
+    }
+
     /// <summary>
     /// Convert HSV to RGB. H = 0-360, S = 0-1, V = 0-1. Returns (r, g, b) each 0-255.
     /// </summary>
