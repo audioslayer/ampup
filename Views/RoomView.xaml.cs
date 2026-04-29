@@ -1930,7 +1930,7 @@ public partial class RoomView : UserControl
                     X = layout.WidthFt / 2,
                     Y = 1.0, // near front (desk)
                     Z = 2.5,
-                    SegmentCount = Math.Max(dev.LedCount / 3, 1),
+                    SegmentCount = Math.Max(dev.LedCount, 1),
                     LengthFt = 0.5,
                 });
             }
@@ -5219,10 +5219,13 @@ public partial class RoomView : UserControl
             && config.Corsair.LightSyncMode != "vu_reactive")
         {
             float boost = config.Corsair.LightBrightness / 100f;
-            var boosted = new byte[45];
-            for (int i = 0; i < 45; i++)
-                boosted[i] = (byte)Math.Min(frameForSync[i] * boost, 255);
-            _corsairSync.SyncColors(boosted);
+            if (!TrySyncCorsairSpatialFrame(frameForSync, boost))
+            {
+                var boosted = new byte[45];
+                for (int i = 0; i < 45; i++)
+                    boosted[i] = (byte)Math.Min(frameForSync[i] * boost, 255);
+                _corsairSync.SyncColors(boosted);
+            }
         }
 
         // ── LG UltraGear monitor LEDs (48 LEDs, maps from 15-LED buffer) ──
@@ -5284,6 +5287,30 @@ public partial class RoomView : UserControl
     // ══════════════════════════════════════════════════════════════════
     // ██  COLORS (Solid + Scenes)
     // ══════════════════════════════════════════════════════════════════
+
+    private bool TrySyncCorsairSpatialFrame(byte[] frameForSync, float boost)
+    {
+        if (_corsairSync?.IsAvailable != true || _config == null || _spatialMapper?.HasLayout != true)
+            return false;
+
+        var colorsByDevice = new Dictionary<string, (int R, int G, int B)[]>();
+        foreach (var device in _corsairSync.Devices)
+        {
+            if (string.IsNullOrWhiteSpace(device.Id) || device.LedCount <= 0) continue;
+
+            bool hasPlacement = _config.RoomLayout.Devices.Any(d =>
+                d.DeviceType.Equals("corsair", StringComparison.OrdinalIgnoreCase)
+                && d.DeviceId == device.Id);
+
+            if (!hasPlacement) continue;
+
+            colorsByDevice[device.Id] = _spatialMapper.SampleForDevice(device.Id, frameForSync, device.LedCount);
+        }
+
+        if (colorsByDevice.Count == 0) return false;
+        _corsairSync.SyncDeviceColors(colorsByDevice, boost);
+        return true;
+    }
 
     private void BuildColorsSection(GoveeDeviceInfo device, StackPanel container, string? lanIp, CheckBox? powerCheck)
     {

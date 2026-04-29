@@ -341,6 +341,36 @@ public class CorsairSync : IDisposable
         }
     }
 
+    /// <summary>
+    /// Send already-sampled spatial colors to specific iCUE devices.
+    /// Each device color array is spread across that device's physical LEDs.
+    /// </summary>
+    public void SyncDeviceColors(IReadOnlyDictionary<string, (int R, int G, int B)[]> colorsByDevice, float brightnessScale = 1f)
+    {
+        if (!IsAvailable || colorsByDevice.Count == 0) return;
+        if (Devices.Count == 0)
+        {
+            try { DiscoverDevices(); } catch { }
+            if (Devices.Count == 0) return;
+        }
+
+        brightnessScale = Math.Clamp(brightnessScale, 0f, 1f);
+        foreach (var device in Devices)
+        {
+            if (device.LedCount <= 0 || string.IsNullOrEmpty(device.Id)) continue;
+            if (!colorsByDevice.TryGetValue(device.Id, out var sampledColors) || sampledColors.Length == 0) continue;
+
+            try
+            {
+                SetDeviceColors(device, sampledColors, brightnessScale);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"CorsairSync: SyncDeviceColors failed for {device.Name} — {ex.Message}");
+            }
+        }
+    }
+
     private void SetDeviceColors(CorsairDevice device, byte[] rgbColors)
     {
         // Get LED positions/IDs for this device
@@ -360,6 +390,31 @@ public class CorsairSync : IDisposable
                 r = rgbColors[offset],
                 g = rgbColors[offset + 1],
                 b = rgbColors[offset + 2],
+                a = 255
+            };
+        }
+
+        CorsairSetLedColors(device.Id, ledCount, colors);
+    }
+
+    private void SetDeviceColors(CorsairDevice device, (int R, int G, int B)[] sampledColors, float brightnessScale)
+    {
+        var positions = new CorsairLedPosition[CORSAIR_DEVICE_LEDCOUNT_MAX];
+        int err = CorsairGetLedPositions(device.Id, CORSAIR_DEVICE_LEDCOUNT_MAX, positions, out int ledCount);
+        if (err != 0 || ledCount <= 0) return;
+
+        var colors = new CorsairLedColor[ledCount];
+        int sourceCount = sampledColors.Length;
+        for (int i = 0; i < ledCount; i++)
+        {
+            int srcIdx = (i * sourceCount / ledCount) % sourceCount;
+            var src = sampledColors[srcIdx];
+            colors[i] = new CorsairLedColor
+            {
+                id = positions[i].id,
+                r = (byte)Math.Clamp(src.R * brightnessScale, 0, 255),
+                g = (byte)Math.Clamp(src.G * brightnessScale, 0, 255),
+                b = (byte)Math.Clamp(src.B * brightnessScale, 0, 255),
                 a = 255
             };
         }
