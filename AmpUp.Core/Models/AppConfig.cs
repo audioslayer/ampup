@@ -301,6 +301,8 @@ public enum LightEffect
     NebulaDrift,
     Vortex, Shockwave, Tidal, Prism, EmberDrift, Glitch,
     OpalWave, Bloom, ColorTwinkle,
+    AuroraVeil, SolarStorm, StarlightCanopy, PlasmaBloom, RippleRoom,
+    PrismDrift, NebulaRain, ReactiveAurora, LiquidGlass, ChromaLayerStack,
 }
 
 public class N3Config

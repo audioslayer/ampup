@@ -582,6 +582,10 @@ public class RgbController : IDisposable
         LightEffect.Vortex, LightEffect.Shockwave, LightEffect.Tidal,
         LightEffect.Prism, LightEffect.EmberDrift, LightEffect.Glitch,
         LightEffect.OpalWave, LightEffect.Bloom, LightEffect.ColorTwinkle,
+        LightEffect.AuroraVeil, LightEffect.SolarStorm, LightEffect.StarlightCanopy,
+        LightEffect.PlasmaBloom, LightEffect.RippleRoom, LightEffect.PrismDrift,
+        LightEffect.NebulaRain, LightEffect.ReactiveAurora, LightEffect.LiquidGlass,
+        LightEffect.ChromaLayerStack,
     };
 
     /// <summary>
@@ -1829,6 +1833,16 @@ public class RgbController : IDisposable
             case LightEffect.OpalWave:     GlobalOpalWave(gl); break;
             case LightEffect.Bloom:        GlobalBloom(gl); break;
             case LightEffect.ColorTwinkle: GlobalColorTwinkle(gl); break;
+            case LightEffect.AuroraVeil:       GlobalAuroraVeil(gl); break;
+            case LightEffect.SolarStorm:       GlobalSolarStorm(gl); break;
+            case LightEffect.StarlightCanopy:  GlobalStarlightCanopy(gl); break;
+            case LightEffect.PlasmaBloom:      GlobalPlasmaBloom(gl); break;
+            case LightEffect.RippleRoom:       GlobalRippleRoom(gl); break;
+            case LightEffect.PrismDrift:       GlobalPrismDrift(gl); break;
+            case LightEffect.NebulaRain:       GlobalNebulaRain(gl); break;
+            case LightEffect.ReactiveAurora:   GlobalReactiveAurora(gl); break;
+            case LightEffect.LiquidGlass:      GlobalLiquidGlass(gl); break;
+            case LightEffect.ChromaLayerStack: GlobalChromaLayerStack(gl); break;
         }
     }
 
@@ -3303,6 +3317,158 @@ public class RgbController : IDisposable
 
             SetGlobalLed(i, rr, gg, bb);
         }
+    }
+
+    private void GlobalAuroraVeil(GlobalLightConfig gl)
+    {
+        GlobalAurora(gl);
+        AddPaletteVeil(gl, 0.24f, 0.018f);
+    }
+
+    private void GlobalSolarStorm(GlobalLightConfig gl)
+    {
+        GlobalAurora(gl);
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.018f + speed / 100f * 0.09f);
+        float arc = (t * 1.7f) % 15f;
+        for (int i = 0; i < 15; i++)
+        {
+            float d = MathF.Abs(i - arc);
+            d = MathF.Min(d, 15f - d);
+            float pulse = MathF.Exp(-d * d * 0.75f);
+            var (sr, sg, sb) = GetGradientColor(gl, (i / 14f + 0.18f) % 1f);
+            AddToGlobalLed(i, (int)(sr * pulse * 0.75f), (int)(sg * pulse * 0.50f), (int)(sb * pulse * 0.25f));
+        }
+    }
+
+    private void GlobalStarlightCanopy(GlobalLightConfig gl)
+    {
+        GlobalNebulaDrift(gl);
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float chance = 0.03f + speed / 100f * 0.07f;
+        for (int i = 0; i < 15; i++)
+        {
+            float seed = Frac(MathF.Sin((i * 0.73f + _animTick * 0.006f) * 151.7f) * 43758.545f);
+            float star = seed > 1f - chance ? MathF.Pow((seed - (1f - chance)) / chance, 2f) : 0f;
+            if (star > 0f)
+                AddToGlobalLed(i, (int)(255 * star), (int)(245 * star), (int)(255 * star));
+        }
+    }
+
+    private void GlobalPlasmaBloom(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.012f + speed / 100f * 0.055f);
+        for (int i = 0; i < 15; i++)
+        {
+            float x = i / 14f;
+            float plasma = Smooth((Wave(x * 2.8f + t) + Wave(x * 7.5f - t * 0.63f) + Wave(x * 11.0f + t * 0.37f)) / 3f);
+            var (r, g, b) = GetGradientColor(gl, (plasma + t * 0.08f) % 1f);
+            float bloom = 0.28f + MathF.Pow(plasma, 1.7f) * 0.92f;
+            SetGlobalLed(i, (int)(r * bloom), (int)(g * bloom), (int)(b * bloom));
+        }
+    }
+
+    private void GlobalRippleRoom(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.018f + speed / 100f * 0.08f);
+        float center = 7f + MathF.Sin(t * 0.39f) * 2.5f;
+        float radius = (t * 5.2f) % 11f;
+        for (int i = 0; i < 15; i++)
+        {
+            float d = MathF.Abs(i - center);
+            float ring = MathF.Exp(-MathF.Pow(d - radius, 2f) * 0.7f);
+            float baseWave = 0.12f + 0.18f * Wave(i / 14f * 2f - t * 0.3f);
+            var (r, g, b) = GetGradientColor(gl, (i / 14f + ring * 0.25f) % 1f);
+            float a = Math.Clamp(baseWave + ring, 0f, 1f);
+            SetGlobalLed(i, (int)(r * a), (int)(g * a), (int)(b * a));
+        }
+    }
+
+    private void GlobalPrismDrift(GlobalLightConfig gl)
+    {
+        GlobalPrism(gl);
+        AddPaletteVeil(gl, 0.18f, 0.011f);
+    }
+
+    private void GlobalNebulaRain(GlobalLightConfig gl)
+    {
+        GlobalNebulaDrift(gl);
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.015f + speed / 100f * 0.06f);
+        for (int i = 0; i < 15; i++)
+        {
+            float streak = MathF.Pow(Smooth(Wave(i * 0.61f + t * 2.4f)), 7f);
+            var (r, g, b) = GetGradientColor(gl, (i / 14f + 0.4f) % 1f);
+            AddToGlobalLed(i, (int)(r * streak * 0.8f), (int)(g * streak * 0.8f), (int)(b * streak));
+        }
+    }
+
+    private void GlobalReactiveAurora(GlobalLightConfig gl)
+    {
+        GlobalAurora(gl);
+        var bands = _getAudioBands?.Invoke();
+        float energy = bands != null && bands.Length >= 5
+            ? Math.Clamp(bands[0] * 0.45f + bands[1] * 0.25f + bands[2] * 0.18f + bands[3] * 0.08f + bands[4] * 0.04f, 0f, 1f)
+            : 0.22f + 0.18f * Wave(_animTick * 0.015f);
+
+        for (int i = 0; i < 15; i++)
+        {
+            float shimmer = energy * MathF.Pow(Wave(i * 0.23f + _animTick * 0.07f), 2f);
+            var (r, g, b) = GetGradientColor(gl, (i / 14f + 0.22f) % 1f);
+            AddToGlobalLed(i, (int)(r * shimmer), (int)(g * shimmer), (int)(b * shimmer));
+        }
+    }
+
+    private void GlobalLiquidGlass(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.008f + speed / 100f * 0.035f);
+        for (int i = 0; i < 15; i++)
+        {
+            float x = i / 14f;
+            float caustic = MathF.Pow(Smooth(Wave(x * 4.5f - t) * 0.65f + Wave(x * 13f + t * 0.8f) * 0.35f), 2.2f);
+            var (r, g, b) = GetGradientColor(gl, (x + caustic * 0.18f + t * 0.04f) % 1f);
+            float glass = 0.30f + caustic * 0.85f;
+            SetGlobalLed(i,
+                Math.Clamp((int)((r + (255 - r) * caustic * 0.18f) * glass), 0, 255),
+                Math.Clamp((int)((g + (255 - g) * caustic * 0.18f) * glass), 0, 255),
+                Math.Clamp((int)((b + (255 - b) * caustic * 0.22f) * glass), 0, 255));
+        }
+    }
+
+    private void GlobalChromaLayerStack(GlobalLightConfig gl)
+    {
+        GlobalColorWave(gl);
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.02f + speed / 100f * 0.07f);
+        float scanner = PingPong(t) * 14f;
+        for (int i = 0; i < 15; i++)
+        {
+            float d = MathF.Abs(i - scanner);
+            float ripple = MathF.Exp(-d * d * 0.9f);
+            var (r, g, b) = HsvToRgb((i / 15f * 360f + _animTick * 2f) % 360f, 0.85f, ripple * 0.85f);
+            AddToGlobalLed(i, r, g, b);
+        }
+    }
+
+    private void AddPaletteVeil(GlobalLightConfig gl, float amount, float speed)
+    {
+        for (int i = 0; i < 15; i++)
+        {
+            var (r, g, b) = GetGradientColor(gl, (i / 14f + _animTick * speed) % 1f);
+            AddToGlobalLed(i, (int)(r * amount), (int)(g * amount), (int)(b * amount));
+        }
+    }
+
+    private void AddToGlobalLed(int globalIdx, int r, int g, int b)
+    {
+        int offset = globalIdx * 3;
+        SetGlobalLed(globalIdx,
+            Math.Clamp(_linearColors[offset] + r, 0, 255),
+            Math.Clamp(_linearColors[offset + 1] + g, 0, 255),
+            Math.Clamp(_linearColors[offset + 2] + b, 0, 255));
     }
 
     // --- Profile transition renderer ---
