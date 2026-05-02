@@ -2981,11 +2981,35 @@ public partial class App : Application
     {
         if (_roomForcedWhite)
         {
-            // Turn off — reuse the room_toggle off path so we share the
-            // Corsair + Govee shutdown + state preservation logic.
+            // Turn off only devices that forced-white was allowed to control.
+            // Govee devices with SyncWithAmpUp=false must stay untouched.
             _roomForcedWhite = false;
-            _roomLightsOn = true;            // HandleRoomToggle flips, ensure we land on off
-            HandleRoomToggle();
+            _roomLightsOn = false;
+
+            foreach (var dev in _config.Ambience.GoveeDevices)
+            {
+                if (!dev.SyncWithAmpUp) continue;
+
+                bool hasLan = !string.IsNullOrWhiteSpace(dev.Ip);
+                bool hasCloud = !hasLan
+                                && !string.IsNullOrWhiteSpace(dev.DeviceId)
+                                && !string.IsNullOrWhiteSpace(dev.Sku);
+                if (!hasLan && !hasCloud) continue;
+                SetGoveePower(dev, false);
+            }
+
+            if (_corsairSync != null)
+            {
+                _roomToggleSavedCorsairMode = _config.Corsair.LightSyncMode;
+                _corsairSync.RefreshDevices();
+                _ = _corsairSync.SetStaticColorAllAsync(0, 0, 0);
+                _config.Corsair.LightSyncMode = "static";
+                _config.Corsair.Enabled = false;
+                _corsairSync.Stop();
+            }
+
+            ConfigManager.Save(_config);
+            RefreshStreamControllerDynamicStateVisuals();
             return;
         }
 
@@ -2996,6 +3020,8 @@ public partial class App : Application
         const byte W = 255;
         foreach (var dev in _config.Ambience.GoveeDevices)
         {
+            if (!dev.SyncWithAmpUp) continue;
+
             bool hasLan = !string.IsNullOrWhiteSpace(dev.Ip);
             bool hasCloud = !hasLan
                             && !string.IsNullOrWhiteSpace(dev.DeviceId)

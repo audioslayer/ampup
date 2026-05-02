@@ -140,12 +140,13 @@ public partial class RoomView : UserControl
         // Restore active room effect on startup (deferred so sync/dreamSync are wired up first).
         // Skip if screen sync is enabled — it has exclusive control of room lights.
         if (!string.IsNullOrEmpty(config.Ambience.RoomEffect)
-            && config.Ambience.GoveeEnabled
+            && HasRoomEffectTarget(config)
             && !config.Ambience.ScreenSync.Enabled)
         {
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () =>
             {
-                if (_config?.Ambience.GoveeEnabled == true
+                if (_config != null
+                    && HasRoomEffectTarget(_config)
                     && !string.IsNullOrEmpty(_config.Ambience.RoomEffect)
                     && !_config.Ambience.ScreenSync.Enabled)
                 {
@@ -4971,12 +4972,64 @@ public partial class RoomView : UserControl
     /// effect by name (LightEffect enum value as string). Persists the
     /// choice to config.Ambience.RoomEffect so it survives restart.
     /// </summary>
+    private static bool HasRoomEffectTarget(AppConfig config)
+    {
+        return config.Ambience.GoveeEnabled
+            || config.Ambience.GoveeCloudEnabled
+            || config.Corsair.Enabled
+            || config.HomeAssistant.Enabled
+            || config.Ambience.SyncRoomToTurnUp;
+    }
+
+    private static string? NormalizeRoomEffectName(string effectName)
+    {
+        if (string.IsNullOrWhiteSpace(effectName)) return null;
+
+        var trimmed = effectName.Trim();
+        if (Enum.TryParse<LightEffect>(trimmed, true, out var direct))
+            return direct.ToString();
+
+        static string Key(string value) => new(value
+            .Where(char.IsLetterOrDigit)
+            .Select(char.ToLowerInvariant)
+            .ToArray());
+
+        var key = Key(trimmed);
+        var aliases = new Dictionary<string, LightEffect>
+        {
+            ["aura"] = LightEffect.Aurora,
+            ["auroraborealis"] = LightEffect.Aurora,
+            ["northernlights"] = LightEffect.Aurora,
+            ["fire"] = LightEffect.FireWall,
+            ["water"] = LightEffect.Waterfall,
+        };
+
+        if (aliases.TryGetValue(key, out var alias))
+            return alias.ToString();
+
+        foreach (LightEffect effect in Enum.GetValues<LightEffect>())
+        {
+            var effectKey = Key(effect.ToString());
+            if (effectKey == key || effectKey.Contains(key) || key.Contains(effectKey))
+                return effect.ToString();
+        }
+
+        return null;
+    }
+
     public void ApplyRoomEffect(string effectName)
     {
         if (_config == null || string.IsNullOrEmpty(effectName)) return;
-        _config.Ambience.RoomEffect = effectName;
-        _activePattern = effectName;
-        StartRoomPattern(effectName);
+        var normalized = NormalizeRoomEffectName(effectName);
+        if (normalized == null)
+        {
+            Logger.Log($"[Room] Unknown room effect '{effectName}'");
+            return;
+        }
+
+        _config.Ambience.RoomEffect = normalized;
+        _activePattern = normalized;
+        StartRoomPattern(normalized);
         QueueSave();
     }
 
@@ -5041,6 +5094,14 @@ public partial class RoomView : UserControl
 
     private void StartRoomPattern(string patternId, Color? c1 = null, Color? c2 = null, bool corsairOnly = false)
     {
+        var normalizedPattern = NormalizeRoomEffectName(patternId);
+        if (normalizedPattern == null)
+        {
+            Logger.Log($"[Room] Unknown room effect '{patternId}'");
+            return;
+        }
+        patternId = normalizedPattern;
+
         StopRoomPattern();
         _activePattern = patternId;
         _roomPatternCorsairOnly = corsairOnly;
