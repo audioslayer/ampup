@@ -14,6 +14,20 @@ namespace AmpUp.Controls;
 
 public class TrayMixerPopup : Window
 {
+    private const uint SwpNoSize = 0x0001;
+    private const uint SwpNoZOrder = 0x0004;
+    private const uint SwpNoActivate = 0x0010;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(
+        IntPtr hWnd,
+        IntPtr hWndInsertAfter,
+        int x,
+        int y,
+        int cx,
+        int cy,
+        uint flags);
+
     private StackPanel _sessionList = null!;
     private readonly MMDeviceEnumerator _enumerator = new();
     private readonly List<SessionRow> _rows = new();
@@ -2567,70 +2581,75 @@ public class TrayMixerPopup : Window
 
     private void PositionNearTray()
     {
-        // Find which monitor the cursor is on (taskbar/tray lives there)
+        // Use physical pixels for placement. WPF DIP window coordinates can drift
+        // badly on mixed-DPI / offset-monitor desktops and leave the tray popup
+        // partly off-screen.
         var cursorPos = System.Windows.Forms.Cursor.Position;
         var screen = System.Windows.Forms.Screen.FromPoint(cursorPos);
-        var wa = screen.WorkingArea; // physical pixel coords
+        var wa = screen.WorkingArea;
+        var bounds = screen.Bounds;
 
-        // Convert pixel coords to WPF DIPs (required for mixed-DPI multi-monitor setups)
-        // PresentationSource may be null before first Show(), so fall back to primary DPI
-        double dpiScale;
+        UpdateLayout();
+
+        double scaleX = 1.0;
+        double scaleY = 1.0;
         var source = PresentationSource.FromVisual(this);
         if (source?.CompositionTarget != null)
-            dpiScale = source.CompositionTarget.TransformFromDevice.M11;
-        else
         {
-            using var g = System.Drawing.Graphics.FromHwnd(IntPtr.Zero);
-            dpiScale = 96.0 / g.DpiX;
+            scaleX = source.CompositionTarget.TransformToDevice.M11;
+            scaleY = source.CompositionTarget.TransformToDevice.M22;
         }
-        double waLeft = wa.Left * dpiScale;
-        double waTop = wa.Top * dpiScale;
-        double waRight = wa.Right * dpiScale;
-        double waBottom = wa.Bottom * dpiScale;
 
-        // Measure popup height
         Measure(new Size(Width, double.PositiveInfinity));
-        double height = DesiredSize.Height > 0 ? DesiredSize.Height : 400;
+        double dipWidth = ActualWidth > 1 ? ActualWidth : Width;
+        double dipHeight = ActualHeight > 1 ? ActualHeight : (DesiredSize.Height > 0 ? DesiredSize.Height : 400);
+        int popupWidth = Math.Max(1, (int)Math.Ceiling(dipWidth * scaleX));
+        int popupHeight = Math.Max(1, (int)Math.Ceiling(dipHeight * scaleY));
 
-        // Detect taskbar position by comparing work area to full screen bounds
-        var bounds = screen.Bounds;
-        double bLeft = bounds.Left * dpiScale;
-        double bTop = bounds.Top * dpiScale;
-        double bRight = bounds.Right * dpiScale;
-        double bBottom = bounds.Bottom * dpiScale;
-
-        double x, y;
-        if (waRight < bRight - 10)
+        int x, y;
+        if (wa.Right < bounds.Right - 10)
         {
             // Taskbar on the right — position flush against the left edge of the taskbar
-            x = waRight - Width - 12;
-            y = waBottom - height - 12;
+            x = wa.Right - popupWidth - 12;
+            y = wa.Bottom - popupHeight - 12;
         }
-        else if (waLeft > bLeft + 10)
+        else if (wa.Left > bounds.Left + 10)
         {
             // Taskbar on the left — position at left edge of work area
-            x = waLeft + 12;
-            y = waBottom - height - 12;
+            x = wa.Left + 12;
+            y = wa.Bottom - popupHeight - 12;
         }
-        else if (waTop > bTop + 10)
+        else if (wa.Top > bounds.Top + 10)
         {
             // Taskbar on top — position at top of work area
-            x = waRight - Width - 12;
-            y = waTop + 12;
+            x = wa.Right - popupWidth - 12;
+            y = wa.Top + 12;
         }
         else
         {
             // Taskbar on bottom (default) — bottom-right corner
-            x = waRight - Width - 12;
-            y = waBottom - height - 12;
+            x = wa.Right - popupWidth - 12;
+            y = wa.Bottom - popupHeight - 12;
         }
 
-        // Clamp to work area
-        x = Math.Max(waLeft + 4, Math.Min(x, waRight - Width - 4));
-        y = Math.Max(waTop + 4, Math.Min(y, waBottom - height - 4));
+        int minX = wa.Left + 4;
+        int maxX = wa.Right - popupWidth - 4;
+        int minY = wa.Top + 4;
+        int maxY = wa.Bottom - popupHeight - 4;
 
-        Left = x;
-        Top = y;
+        x = maxX < minX ? minX : Math.Max(minX, Math.Min(x, maxX));
+        y = maxY < minY ? minY : Math.Max(minY, Math.Min(y, maxY));
+
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (hwnd != IntPtr.Zero)
+            SetWindowPos(hwnd, IntPtr.Zero, x, y, 0, 0, SwpNoSize | SwpNoZOrder | SwpNoActivate);
+
+        if (source?.CompositionTarget != null)
+        {
+            var dipPoint = source.CompositionTarget.TransformFromDevice.Transform(new Point(x, y));
+            Left = dipPoint.X;
+            Top = dipPoint.Y;
+        }
     }
 
     private void RepositionOnScreen()
