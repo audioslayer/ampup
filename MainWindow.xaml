@@ -6,6 +6,7 @@
         xmlns:views="clr-namespace:AmpUp.Views"
         xmlns:controls="clr-namespace:AmpUp.Controls"
         Title="Amp Up"
+        Icon="Assets/icon/ampup-48.png"
         Width="1600" Height="1000"
         MinWidth="900" MinHeight="600"
         WindowStartupLocation="CenterScreen"
