@@ -19,12 +19,12 @@ This is the big one: Amp Up graduates into a 1.0 beta for Windows with a polishe
 - **DreamView-style screen sync** — spatial screen color capture with device placement and per-device sync behavior.
 - **Unified tray mixer popup** — app volume sliders, live activity bars, output/input switching, app assignment, update banner, and DPI-aware taskbar positioning.
 - **Quick Wheel and OSD polish** — profile/device radial switching, configurable OSD monitor/position/durations, and cleaner profile/device notifications.
-- **Release automation** — GitHub release workflow, installer packaging, updater prerelease handling, and safer beta distribution defaults.
+- **Release packaging** — manual installer packaging, updater prerelease handling, and safer beta distribution defaults.
 
 ### ✨ Changed
 - **Hardware Mode now defaults to Turn Up** for new users, while still exposing Stream Controller and Both modes when users connect an N3.
 - **Active Surface controls the UI more clearly** so users with only a Turn Up mixer see Turn Up-first pages, and N3 controls appear when the stream controller is selected.
-- **Start with Windows is opt-in for new installs** instead of silently enabling itself.
+- **Start with Windows stays enabled by default** for new installs, with a Settings toggle for users who prefer to launch Amp Up manually.
 - **Room actions respect per-device sync toggles** so all-white and room effects do not hit Govee devices that users turned off in the Devices tab.
 - **Lighting effects are more complete** with 60+ effects, animated previews, premium palettes, gradient editing, gamma calibration, and hardware hover preview.
 - **README and release docs now present N3 as a supported beta device** with a clear setup story and hardware table.

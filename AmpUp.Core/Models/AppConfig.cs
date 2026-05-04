@@ -13,7 +13,7 @@ public class AppConfig
     public HardwareMode HardwareMode { get; set; } = HardwareMode.Auto;
     public HardwareTabSelection TabSelection { get; set; } = new();
     public List<LightConfig> Lights { get; set; } = new();
-    public bool StartWithWindows { get; set; } = false;
+    public bool StartWithWindows { get; set; } = true;
     public bool StartMinimized { get; set; } = false;
     public int LedBrightness { get; set; } = 100;
     public int MuteBrightness { get; set; } = 15; // 0-100, dim level for muted LEDs (Issue #9)

@@ -119,8 +119,8 @@ N3 support is designed to be self-contained, with no long-term dependency on VSD
 - Lower idle CPU and memory pressure from reduced polling and smarter timers.
 - Safer shutdown and update flow.
 - More resilient Govee, Corsair, audio-session, OSD, and N3 disconnect handling.
-- Start with Windows is opt-in for new installs.
-- GitHub release workflow and installer packaging are ready for beta distribution.
+- Start with Windows is enabled by default for new installs and can be changed in Settings.
+- Manual installer packaging and GitHub release notes are ready for beta distribution.
 
 ---
 
