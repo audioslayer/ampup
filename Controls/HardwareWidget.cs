@@ -134,7 +134,12 @@ namespace AmpUp.Controls
             {
                 Interval = TimeSpan.FromMilliseconds(100)
             };
-            _updateTimer.Tick += (_, _) => { if (IsVisible) UpdateLiveState(); };
+            _updateTimer.Tick += (_, _) =>
+            {
+                var window = Window.GetWindow(this);
+                if (IsVisible && window?.WindowState != WindowState.Minimized)
+                    UpdateLiveState();
+            };
 
             Loaded += (_, _) => _updateTimer.Start();
             Unloaded += (_, _) => _updateTimer.Stop();

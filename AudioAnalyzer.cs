@@ -15,7 +15,10 @@ public class AudioAnalyzer : IDisposable
     private WasapiLoopbackCapture? _capture;
     private readonly object _lock = new();
     private readonly float[] _sampleBuffer = new float[1024];
+    private readonly Complex[] _fftBuffer = new Complex[FftSize];
+    private readonly float[] _hannWindow = BuildHannWindow();
     private int _bufferPos;
+    private int _analysisHop;
     private bool _running;
     private bool _disposed;
 
@@ -32,6 +35,15 @@ public class AudioAnalyzer : IDisposable
     private const float NormRef = 0.005f; // reference amplitude for normalization (WASAPI loopback levels are very low)
     private const int FftSize = 1024;
     private const int FftLog2 = 10; // log2(1024)
+    private const int AnalysisHopBuffers = 2; // ~23Hz at 48kHz, enough for 20 FPS LEDs
+
+    private static float[] BuildHannWindow()
+    {
+        var window = new float[FftSize];
+        for (int i = 0; i < FftSize; i++)
+            window[i] = 0.5f * (1f - MathF.Cos(2f * MathF.PI * i / (FftSize - 1)));
+        return window;
+    }
 
     public void Start()
     {
@@ -47,6 +59,7 @@ public class AudioAnalyzer : IDisposable
                 capture.DataAvailable += OnDataAvailable;
                 capture.RecordingStopped += OnRecordingStopped;
                 _bufferPos = 0;
+                _analysisHop = 0;
                 _capture = capture;
                 _running = true;
             }
@@ -141,7 +154,12 @@ public class AudioAnalyzer : IDisposable
 
             if (_bufferPos >= FftSize)
             {
-                ProcessFft(format.SampleRate);
+                _analysisHop++;
+                if (_analysisHop >= AnalysisHopBuffers)
+                {
+                    _analysisHop = 0;
+                    ProcessFft(format.SampleRate);
+                }
                 _bufferPos = 0;
             }
         }
@@ -182,11 +200,10 @@ public class AudioAnalyzer : IDisposable
     private void ProcessFft(int sampleRate)
     {
         // Build complex buffer with Hann window applied
-        var complex = new Complex[FftSize];
+        var complex = _fftBuffer;
         for (int i = 0; i < FftSize; i++)
         {
-            float window = 0.5f * (1f - MathF.Cos(2f * MathF.PI * i / (FftSize - 1)));
-            complex[i].X = _sampleBuffer[i] * window; // real
+            complex[i].X = _sampleBuffer[i] * _hannWindow[i]; // real
             complex[i].Y = 0f;                         // imaginary
         }
 

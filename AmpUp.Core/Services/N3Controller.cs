@@ -85,6 +85,7 @@ public sealed class N3Controller : IDisposable
     private System.Threading.Timer? _keepAliveTimer;
     private volatile bool _disposed;
     private volatile bool _initialized;
+    private volatile bool _asleep;
 
     public event Action<N3InputEvent>? OnInput;
 
@@ -171,6 +172,7 @@ public sealed class N3Controller : IDisposable
                 $"N3: connected to {DeviceName} " +
                 $"(vid=0x{ConnectedVendorId:X4}, pid=0x{ConnectedProductId:X4}, in={InputReportLength}, out={OutputReportLength}, feature={FeatureReportLength}, serial={SerialNumber}, path={DevicePath})");
 
+            _asleep = false;
             if (initialize)
             {
                 TryInitialize();
@@ -244,6 +246,7 @@ public sealed class N3Controller : IDisposable
         {
             // CRT HAN — same packet mirajazz's sleep() sends.
             WriteExtendedReport(0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x48, 0x41, 0x4E);
+            _asleep = true;
             Logger.Log("N3: sleep (CRT HAN) sent");
         }
         catch (Exception ex)
@@ -262,6 +265,7 @@ public sealed class N3Controller : IDisposable
         try
         {
             // Re-run init — CRT DIS + CRT LIG — to power the screens back on.
+            _asleep = false;
             WriteExtendedReport(0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x44, 0x49, 0x53);
             WriteExtendedReport(0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x4C, 0x49, 0x47, 0x00, 0x00, 0x00, 0x00);
             Logger.Log("N3: wake (CRT DIS + CRT LIG) sent");
@@ -622,6 +626,7 @@ public sealed class N3Controller : IDisposable
     {
         try
         {
+            if (_asleep) return;
             KeepAlive();
         }
         catch

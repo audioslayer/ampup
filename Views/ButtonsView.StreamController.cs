@@ -204,6 +204,7 @@ public partial class ButtonsView
     }
 
     private System.Windows.Threading.DispatcherTimer? _scPreviewRefreshTimer;
+    private Window? _scPreviewTimerWindow;
 
     private void BuildStreamControllerDesigner()
     {
@@ -217,7 +218,18 @@ public partial class ButtonsView
                 Interval = TimeSpan.FromSeconds(15),
             };
             _scPreviewRefreshTimer.Tick += (_, _) => RefreshLiveDisplayPreviews();
-            _scPreviewRefreshTimer.Start();
+            Loaded += (_, _) => UpdateStreamControllerPreviewTimer();
+            IsVisibleChanged += (_, _) => UpdateStreamControllerPreviewTimer();
+            Unloaded += (_, _) =>
+            {
+                _scPreviewRefreshTimer?.Stop();
+                if (_scPreviewTimerWindow != null)
+                {
+                    _scPreviewTimerWindow.StateChanged -= ScPreviewWindow_StateChanged;
+                    _scPreviewTimerWindow = null;
+                }
+            };
+            UpdateStreamControllerPreviewTimer();
         }
 
         // Build the _sc* widgets (TextBox, SegmentedControl, handlers, etc.)
@@ -2371,6 +2383,7 @@ public partial class ButtonsView
     private void RefreshLiveDisplayPreviews()
     {
         if (_config == null) return;
+        if (!ShouldRunStreamControllerPreviewTimer()) return;
 
         var activeKeys = GetActiveN3DisplayKeys();
 
@@ -2404,6 +2417,35 @@ public partial class ButtonsView
             _scEditorPreview.Source = StreamControllerDisplayRenderer.CreateHardwarePreview(selected);
         }
     }
+
+    private bool ShouldRunStreamControllerPreviewTimer()
+    {
+        if (!IsVisible) return false;
+        var window = Window.GetWindow(this);
+        return window != null && window.IsVisible && window.WindowState != WindowState.Minimized;
+    }
+
+    private void UpdateStreamControllerPreviewTimer()
+    {
+        if (_scPreviewRefreshTimer == null) return;
+
+        var window = Window.GetWindow(this);
+        if (window != null && !ReferenceEquals(window, _scPreviewTimerWindow))
+        {
+            if (_scPreviewTimerWindow != null)
+                _scPreviewTimerWindow.StateChanged -= ScPreviewWindow_StateChanged;
+            _scPreviewTimerWindow = window;
+            _scPreviewTimerWindow.StateChanged += ScPreviewWindow_StateChanged;
+        }
+
+        if (ShouldRunStreamControllerPreviewTimer())
+            _scPreviewRefreshTimer.Start();
+        else
+            _scPreviewRefreshTimer.Stop();
+    }
+
+    private void ScPreviewWindow_StateChanged(object? sender, EventArgs e)
+        => UpdateStreamControllerPreviewTimer();
 
     private void UpdateEditorPreviewOnly()
     {

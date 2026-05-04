@@ -66,10 +66,12 @@ public partial class App : Application
     private const int N3SideButtonBase = 106;
     private const int N3EncoderPressBase = 109;
     private const int N3KnobStateBase = 5;
-    private const int StreamControllerRefreshIntervalMs = 250;
+    private const int StreamControllerRefreshIntervalMs = 1000;
+    private const int StreamControllerAnimatedRefreshIntervalMs = 250;
     private const int StreamControllerDynamicRefreshMs = 3000;
     private const int MutePollingIdleMs = 1000;
     private const int MutePollingDuckingMs = 500;
+    private const int MutePollingQuietMs = 5000;
 
     private sealed class N3AnimatedKeyState
     {
@@ -376,10 +378,12 @@ public partial class App : Application
         });
         _autoSwitcher.OnProfileSwitchRequested += profileName =>
             Dispatcher.Invoke(() => SwitchToProfile(profileName));
-        _autoSwitchTimer = new System.Threading.Timer(_ => _autoSwitcher?.Poll(), null, 2000, 1500);
+        _autoSwitchTimer = new System.Threading.Timer(_ => _autoSwitcher?.Poll(), null,
+            GetAutoSwitchDueMs(), GetAutoSwitchPeriodMs());
 
         // Game Mode — auto-enable screen sync when fullscreen game detected
-        _gameModeTimer = new System.Threading.Timer(_ => PollGameMode(), null, 2000, 1000);
+        _gameModeTimer = new System.Threading.Timer(_ => PollGameMode(), null,
+            GetGameModeDueMs(), GetGameModePeriodMs());
 
         // Start serial reader
         _serial = new SerialReader(_config.Serial.Port, _config.Serial.Baud);
@@ -396,7 +400,7 @@ public partial class App : Application
         // Poll mute states for LED status effects (fallback). Master/mic
         // mute use instant WASAPI notifications; the timer mostly covers
         // program/app-group effects and ducking, so it can idle slower when
-        // voice ducking is off.
+        // those features are not active.
         _mutePollingTimer = new System.Threading.Timer(_ => PollMuteStates(), null, 1000, GetMutePollingPeriodMs());
         // Subscribe to instant mute notifications so LEDs react within one frame (~50ms)
         SubscribeMuteNotifications();
@@ -1119,6 +1123,8 @@ public partial class App : Application
                 _vm.Disconnect();
         }
         _autoSwitcher?.UpdateConfig(_config.AutoSwitch);
+        ConfigureAutoSwitchTimer();
+        ConfigureGameModeTimer();
         _ambienceSync?.UpdateConfig(_config.Ambience);
         _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
         // Clear Turn Up screen sync override when neither screen sync nor room mixer is active
@@ -2261,6 +2267,16 @@ public partial class App : Application
         _streamControllerRefreshTimer.Start();
     }
 
+    private void UpdateStreamControllerRefreshCadence()
+    {
+        if (_streamControllerRefreshTimer == null) return;
+        int interval = _n3AnimatedKeys.Count > 0
+            ? StreamControllerAnimatedRefreshIntervalMs
+            : StreamControllerRefreshIntervalMs;
+        if ((int)_streamControllerRefreshTimer.Interval.TotalMilliseconds != interval)
+            _streamControllerRefreshTimer.Interval = TimeSpan.FromMilliseconds(interval);
+    }
+
     // True once the N3 brightness was dropped to 0 by the idle-sleep code.
     // Used so we only restore brightness on wake, not on every tick.
     private bool _n3AsleepFromIdle;
@@ -2741,6 +2757,7 @@ public partial class App : Application
 
         state = N3AnimatedKeyState.Create(signature, animation);
         _n3AnimatedKeys[slot] = state;
+        UpdateStreamControllerRefreshCadence();
         return true;
     }
 
@@ -2751,11 +2768,14 @@ public partial class App : Application
         {
             _n3AnimatedKeys.Remove(slot);
         }
+        if (staleSlots.Length > 0)
+            UpdateStreamControllerRefreshCadence();
     }
 
     private void RemoveAnimatedN3Slot(int slot)
     {
-        _n3AnimatedKeys.Remove(slot);
+        if (_n3AnimatedKeys.Remove(slot))
+            UpdateStreamControllerRefreshCadence();
     }
 
     private static string BuildAnimatedN3Signature(StreamControllerDisplayKeyConfig key)
@@ -3563,7 +3583,27 @@ public partial class App : Application
     }
 
     private int GetMutePollingPeriodMs()
-        => _config?.Ducking?.Enabled == true ? MutePollingDuckingMs : MutePollingIdleMs;
+    {
+        if (_config?.Ducking?.Enabled == true)
+            return MutePollingDuckingMs;
+
+        if (NeedsStatusEffectPolling())
+            return MutePollingIdleMs;
+
+        return MutePollingQuietMs;
+    }
+
+    private bool NeedsStatusEffectPolling()
+    {
+        if (_config == null) return true;
+        static bool NeedsPolling(LightEffect effect) =>
+            effect is LightEffect.ProgramMute or LightEffect.AppGroupMute or LightEffect.DeviceSelect;
+
+        if (_config.Lights.Any(l => NeedsPolling(l.Effect)))
+            return true;
+
+        return _config.GlobalLight.Enabled && NeedsPolling(_config.GlobalLight.Effect);
+    }
 
     private void ConfigureMutePollingTimer()
     {
@@ -3571,6 +3611,34 @@ public partial class App : Application
         if (timer == null || _isShuttingDown) return;
         int period = GetMutePollingPeriodMs();
         try { timer.Change(period, period); }
+        catch (ObjectDisposedException) { }
+    }
+
+    private int GetAutoSwitchDueMs()
+        => _config?.AutoSwitch?.Enabled == true ? 2000 : Timeout.Infinite;
+
+    private int GetAutoSwitchPeriodMs()
+        => _config?.AutoSwitch?.Enabled == true ? 1500 : Timeout.Infinite;
+
+    private void ConfigureAutoSwitchTimer()
+    {
+        var timer = _autoSwitchTimer;
+        if (timer == null || _isShuttingDown) return;
+        try { timer.Change(GetAutoSwitchDueMs(), GetAutoSwitchPeriodMs()); }
+        catch (ObjectDisposedException) { }
+    }
+
+    private int GetGameModeDueMs()
+        => _config?.Ambience?.GameModeEnabled == true ? 2000 : Timeout.Infinite;
+
+    private int GetGameModePeriodMs()
+        => _config?.Ambience?.GameModeEnabled == true ? 1000 : Timeout.Infinite;
+
+    private void ConfigureGameModeTimer()
+    {
+        var timer = _gameModeTimer;
+        if (timer == null || _isShuttingDown) return;
+        try { timer.Change(GetGameModeDueMs(), GetGameModePeriodMs()); }
         catch (ObjectDisposedException) { }
     }
 

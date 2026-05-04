@@ -114,11 +114,18 @@ namespace AmpUp.Controls
             // Copy to array — Invalidate() may trigger layout that mutates the set.
             var arr = new EffectPreviewControl[s_active.Count];
             s_active.CopyTo(arr);
+            bool anyRenderable = false;
             foreach (var c in arr)
             {
                 if (!c.IsVisible) continue;
+                var window = Window.GetWindow(c);
+                if (window == null || !window.IsVisible || window.WindowState == WindowState.Minimized)
+                    continue;
+                anyRenderable = true;
                 c.Invalidate();
             }
+            if (s_timer != null)
+                s_timer.Interval = TimeSpan.FromMilliseconds(anyRenderable ? 33 : 250);
         }
 
         private void Invalidate()

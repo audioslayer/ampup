@@ -309,6 +309,7 @@ public class TrayMixerPopup : Window
     private new void Hide()
     {
         _pollTimer.Stop();
+        ReleaseSessionRows();
         // Close quick assign panel when popup hides
         if (_quickAssignVisible)
         {
@@ -317,6 +318,17 @@ public class TrayMixerPopup : Window
             _quickAssignPanel.Visibility = Visibility.Collapsed;
         }
         base.Hide();
+    }
+
+    private void ReleaseSessionRows()
+    {
+        _rows.Clear();
+        _sessionList.Children.Clear();
+        try { _masterDevice?.Dispose(); } catch { }
+        _masterDevice = null;
+        _masterSlider = null;
+        _masterVolLabel = null;
+        _masterMuteBtn = null;
     }
 
     private void RefreshSessions()
@@ -2660,7 +2672,11 @@ public class TrayMixerPopup : Window
         // Stop debounce timer first so no refresh fires after dispose
         try { _deviceRefreshDebounce?.Dispose(); } catch { }
         _deviceRefreshDebounce = null;
-        // Notification client is cleaned up when enumerator is disposed
+        if (_deviceNotificationClient != null)
+        {
+            try { _enumerator.UnregisterEndpointNotificationCallback(_deviceNotificationClient); } catch { }
+            _deviceNotificationClient = null;
+        }
         try { _masterDevice?.Dispose(); } catch { }
         try { _enumerator.Dispose(); } catch { }
     }

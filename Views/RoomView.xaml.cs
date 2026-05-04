@@ -32,6 +32,9 @@ public partial class RoomView : UserControl
     // DreamView live preview swatches
     private readonly List<Border> _dreamZoneSwatches = new();
     private TextBlock? _dreamStatusLabel;
+    private DispatcherTimer? _screenSyncStatusTimer;
+    private DispatcherTimer? _screenSyncPreviewTimer;
+    private Action<(byte R, byte G, byte B)[,], int, int>? _screenSyncZoneGridHandler;
 
     // _devicesCard and _scenesCard removed — unified into single room card
 
@@ -91,6 +94,7 @@ public partial class RoomView : UserControl
         _debounce.Tick += (_, _) => { _debounce.Stop(); Save(); };
 
         ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshAccentColors);
+        Unloaded += (_, _) => StopScreenSyncPreviewTimers();
 
         BuildTopBar();
     }
@@ -102,11 +106,17 @@ public partial class RoomView : UserControl
 
     public void SetDreamSync(DreamSyncController dreamSync)
     {
+        if (_dreamSync != null && _screenSyncZoneGridHandler != null)
+            _dreamSync.OnZoneGrid -= _screenSyncZoneGridHandler;
+
         _dreamSync = dreamSync;
 
         // Wire zone color preview updates
         _dreamSync.OnZoneColors += colors =>
             Dispatcher.BeginInvoke(() => UpdateDreamZonePreview(colors));
+
+        if (_screenSyncZoneGridHandler != null)
+            _dreamSync.OnZoneGrid += _screenSyncZoneGridHandler;
     }
 
     public void SetCorsairSync(CorsairSync corsairSync)
@@ -3112,8 +3122,17 @@ public partial class RoomView : UserControl
     // ══════════════════════════════════════════════════════════════════
 
 
+    private void StopScreenSyncPreviewTimers()
+    {
+        _screenSyncStatusTimer?.Stop();
+        _screenSyncStatusTimer = null;
+        _screenSyncPreviewTimer?.Stop();
+        _screenSyncPreviewTimer = null;
+    }
+
     private void BuildScreenSyncSettings(StackPanel stack, Action<string, bool> statusTileUpdater)
     {
+        StopScreenSyncPreviewTimers();
         var cfg = _config!.Ambience.ScreenSync;
         var accent = ThemeManager.Accent;
         var dimBrush = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A));
@@ -3338,10 +3357,14 @@ public partial class RoomView : UserControl
         };
         if (_dreamSync != null)
         {
-            _dreamSync.OnZoneGrid += (grid2, cols, rows) =>
+            if (_screenSyncZoneGridHandler != null)
+                _dreamSync.OnZoneGrid -= _screenSyncZoneGridHandler;
+
+            _screenSyncZoneGridHandler = (grid2, cols, rows) =>
             {
                 Dispatcher.BeginInvoke(() => _screenEdgeControl?.UpdateZoneColors(grid2, cols, rows));
             };
+            _dreamSync.OnZoneGrid += _screenSyncZoneGridHandler;
         }
         leftCol.Children.Add(_screenEdgeControl);
 
@@ -3362,15 +3385,15 @@ public partial class RoomView : UserControl
         // (sets it to "Preview"), so only write _dreamSync.Status here when
         // sync is actually running, otherwise the two timers fight and the
         // label flashes between "Preview" and "Stopped" every second.
-        var statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        statusTimer.Tick += (_, _) =>
+        _screenSyncStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _screenSyncStatusTimer.Tick += (_, _) =>
         {
             if (_dreamStatusLabel != null && _dreamSync != null && _dreamSync.IsRunning)
                 _dreamStatusLabel.Text = _dreamSync.Status;
             bool active = _config?.Ambience.ScreenSync.Enabled == true;
             statusTileUpdater(active ? "ACTIVE" : "STANDBY", active);
         };
-        statusTimer.Start();
+        _screenSyncStatusTimer.Start();
 
         // Preview capture timer — low-FPS screen capture when sync isn't actively running
         // so the user always sees a live preview of the selected monitor.
@@ -3381,11 +3404,12 @@ public partial class RoomView : UserControl
         // walks the ancestor chain and returns false the moment the RoomView
         // tab isn't active — which stops the expensive GDI screen capture
         // from running 5x per second on a hidden tab.
-        var previewTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) }; // ~5 FPS
-        previewTimer.Tick += (_, _) =>
+        _screenSyncPreviewTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) }; // ~5 FPS
+        _screenSyncPreviewTimer.Tick += (_, _) =>
         {
             if (_dreamSync == null || _dreamSync.IsRunning) return;
             if (!this.IsVisible) return;
+            if (Window.GetWindow(this)?.WindowState == WindowState.Minimized) return;
             if (_screenSyncSettingsPanel == null || !_screenSyncSettingsPanel.IsVisible) return;
 
             try
@@ -3402,7 +3426,7 @@ public partial class RoomView : UserControl
             }
             catch { /* preview is best-effort */ }
         };
-        previewTimer.Start();
+        _screenSyncPreviewTimer.Start();
 
         // ── Device Zone Mapping ──
         if (_config!.Ambience.GoveeDevices.Count > 0)

@@ -116,7 +116,12 @@ public class BindingsView : UserControl
         {
             Interval = TimeSpan.FromMilliseconds(100)
         };
-        _colorTimer.Tick += (_, _) => { if (IsVisible) UpdateCardColors(); };
+        _colorTimer.Tick += (_, _) =>
+        {
+            var window = Window.GetWindow(this);
+            if (IsVisible && window?.WindowState != WindowState.Minimized)
+                UpdateCardColors();
+        };
 
         Loaded += (_, _) => _colorTimer.Start();
         Unloaded += (_, _) => _colorTimer.Stop();
