@@ -35,6 +35,7 @@ public partial class MainWindow : FluentWindow
 
     private System.Windows.Threading.DispatcherTimer? _hwPreviewTimer;
     private volatile bool _windowActive = true; // safe to read from any thread
+    private long _lastHwPreviewLedFrameTick;
 
     public MainWindow()
     {
@@ -200,6 +201,11 @@ public partial class MainWindow : FluentWindow
         // Called from RgbController thread — _windowActive is volatile, safe to read here.
         // Don't touch any WPF dependency properties (e.g. WindowState, IsVisible) from this thread.
         if (!_windowActive) return;
+        long now = Environment.TickCount64;
+        long last = Interlocked.Read(ref _lastHwPreviewLedFrameTick);
+        if (now - last < 100) return;
+        Interlocked.Exchange(ref _lastHwPreviewLedFrameTick, now);
+
         Dispatcher.BeginInvoke(() => HwPreview.SetLedFrame(frame));
     }
 
