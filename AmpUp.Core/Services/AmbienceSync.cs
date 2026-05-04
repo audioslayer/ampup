@@ -20,7 +20,7 @@ public class AmbienceSync : IDisposable
 
     // Per-device last-sent color for delta throttling
     private readonly ConcurrentDictionary<string, (byte R, byte G, byte B)> _lastSent = new();
-    private readonly HashSet<string> _segmentEnabled = new();
+    private readonly ConcurrentDictionary<string, byte> _segmentEnabled = new();
     private readonly ConcurrentDictionary<string, long> _segmentKeepAliveTick = new();
     private const long SegmentKeepAliveInterval = TimeSpan.TicksPerSecond * 25; // re-enable every 25s
     private const float RoomEffectColorBoost = 1.55f;
@@ -145,13 +145,13 @@ public class AmbienceSync : IDisposable
                 }
 
                 // Enable segment mode + keepalive every 25s (auto-disables after ~60s)
-                bool needEnable = !_segmentEnabled.Contains(ip);
+                bool needEnable = !_segmentEnabled.ContainsKey(ip);
                 if (!needEnable && _segmentKeepAliveTick.TryGetValue(ip, out long lastKa))
                     needEnable = now - lastKa > SegmentKeepAliveInterval;
 
                 if (needEnable)
                 {
-                    _segmentEnabled.Add(ip);
+                    _segmentEnabled.TryAdd(ip, 0);
                     _segmentKeepAliveTick[ip] = now;
                 }
 
@@ -814,12 +814,12 @@ public class AmbienceSync : IDisposable
             for (int i = 0; i < colors.Length; i++)
                 segColors[i] = ((byte)colors[i].R, (byte)colors[i].G, (byte)colors[i].B);
 
-            bool needEnable = !_segmentEnabled.Contains(ip);
+            bool needEnable = !_segmentEnabled.ContainsKey(ip);
             if (!needEnable && _segmentKeepAliveTick.TryGetValue(ip, out long lastKa))
                 needEnable = now - lastKa > SegmentKeepAliveInterval;
             if (needEnable)
             {
-                _segmentEnabled.Add(ip);
+                _segmentEnabled.TryAdd(ip, 0);
                 _segmentKeepAliveTick[ip] = now;
             }
             _lastSendTick[ip] = now;
@@ -1186,7 +1186,7 @@ public class AmbienceSync : IDisposable
     /// </summary>
     public void ClearSegmentMode(string ip)
     {
-        _segmentEnabled.Remove(ip);
+        _segmentEnabled.TryRemove(ip, out _);
         _segmentKeepAliveTick.TryRemove(ip, out _);
         _ = Task.Run(() => SendSegmentEnable(ip, false));
     }
@@ -1217,12 +1217,12 @@ public class AmbienceSync : IDisposable
         if (_lastSendTick.TryGetValue(ip, out long lastTick) && now - lastTick < MinTicksSegment)
             return;
 
-        bool needEnable = !_segmentEnabled.Contains(ip);
+        bool needEnable = !_segmentEnabled.ContainsKey(ip);
         if (!needEnable && _segmentKeepAliveTick.TryGetValue(ip, out long lastKa))
             needEnable = now - lastKa > SegmentKeepAliveInterval;
         if (needEnable)
         {
-            _segmentEnabled.Add(ip);
+            _segmentEnabled.TryAdd(ip, 0);
             _segmentKeepAliveTick[ip] = now;
         }
         _lastSendTick[ip] = now;

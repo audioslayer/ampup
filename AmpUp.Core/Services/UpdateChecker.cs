@@ -35,28 +35,32 @@ public static class UpdateChecker
         try
         {
             var json = await _http.GetStringAsync(
-                $"https://api.github.com/repos/{GitHubRepo}/releases/latest");
-            var release = JObject.Parse(json);
+                $"https://api.github.com/repos/{GitHubRepo}/releases?per_page=20");
+            var releases = JArray.Parse(json);
+            bool includePrereleases = IsPrerelease(CurrentVersion);
 
-            var tag = release["tag_name"]?.ToString() ?? "";
-            // Strip leading 'v' for comparison
-            var remoteVersion = tag.TrimStart('v');
-
-            if (!IsNewer(remoteVersion, CurrentVersion))
-                return null;
-
-            // Find the asset matching the preferred extension
-            var assets = release["assets"] as JArray;
-            if (assets == null) return null;
-
-            foreach (var asset in assets)
+            foreach (var release in releases)
             {
-                var name = asset["name"]?.ToString() ?? "";
-                if (name.EndsWith(preferredExtension, StringComparison.OrdinalIgnoreCase))
+                if (release["draft"]?.Value<bool>() == true) continue;
+                if (release["prerelease"]?.Value<bool>() == true && !includePrereleases) continue;
+
+                var tag = release["tag_name"]?.ToString() ?? "";
+                var remoteVersion = tag.TrimStart('v');
+                if (!IsNewer(remoteVersion, CurrentVersion))
+                    continue;
+
+                var assets = release["assets"] as JArray;
+                if (assets == null) continue;
+
+                foreach (var asset in assets)
                 {
-                    var url = asset["browser_download_url"]?.ToString() ?? "";
-                    if (!string.IsNullOrEmpty(url))
-                        return (tag, url);
+                    var name = asset["name"]?.ToString() ?? "";
+                    if (name.EndsWith(preferredExtension, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var url = asset["browser_download_url"]?.ToString() ?? "";
+                        if (!string.IsNullOrEmpty(url))
+                            return (tag, url);
+                    }
                 }
             }
         }
@@ -92,11 +96,21 @@ public static class UpdateChecker
         }
 
         // Same numeric version — release (no suffix) is newer than pre-release (has suffix)
-        bool remoteIsPreRelease = remoteParts.Length > 1;
-        bool localIsPreRelease = localParts.Length > 1;
-        if (!remoteIsPreRelease && localIsPreRelease) return true;
+        return PrereleaseRank(remoteParts) > PrereleaseRank(localParts);
+    }
 
-        return false;
+    private static bool IsPrerelease(string version)
+        => version.Contains('-', StringComparison.Ordinal);
+
+    private static int PrereleaseRank(string[] versionParts)
+    {
+        if (versionParts.Length == 1) return 100;
+        var label = versionParts[1].ToLowerInvariant();
+        if (label.StartsWith("alpha")) return 10;
+        if (label.StartsWith("beta")) return 20;
+        if (label.StartsWith("preview")) return 20;
+        if (label.StartsWith("rc")) return 30;
+        return 1;
     }
 
     /// <summary>

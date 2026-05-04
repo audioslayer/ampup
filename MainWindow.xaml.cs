@@ -451,6 +451,8 @@ public partial class MainWindow : FluentWindow
 
     private async Task CheckForUpdateOnStartup()
     {
+        if (_config.AutoCheckUpdates != true) return;
+
         try
         {
             var update = await UpdateChecker.CheckForUpdateAsync();

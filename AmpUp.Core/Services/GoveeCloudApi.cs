@@ -60,8 +60,8 @@ public class GoveeCloudApi : IDisposable
 
     private readonly HttpClient _http;
     private string _apiKey;
-    private DateTime _lastRequestTime = DateTime.MinValue;
-    private readonly SemaphoreSlim _rateLock = new(1, 1);
+    private static DateTime _lastRequestTime = DateTime.MinValue;
+    private static readonly SemaphoreSlim _rateLock = new(1, 1);
 
     public GoveeCloudApi(string apiKey)
     {
@@ -478,6 +478,5 @@ public class GoveeCloudApi : IDisposable
     public void Dispose()
     {
         _http.Dispose();
-        _rateLock.Dispose();
     }
 }

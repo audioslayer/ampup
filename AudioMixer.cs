@@ -12,6 +12,7 @@ public class AudioMixer : IDisposable
     private readonly object _lock = new();      // guards _sessions / _sessionsByPid dict access
     private readonly object _enumLock = new();  // guards _enumerator — accessed from multiple threads
     private System.Threading.Timer? _pollTimer;
+    private volatile bool _disposed;
 
     // Map of processName (lowercase) -> AudioSessionControl
     private Dictionary<string, AudioSessionControl> _sessions = new();
@@ -37,10 +38,16 @@ public class AudioMixer : IDisposable
 
     private void RefreshSessions()
     {
+        if (_disposed) return;
+
         try
         {
             MMDevice? device;
-            lock (_enumLock) device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            lock (_enumLock)
+            {
+                if (_disposed) return;
+                device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            }
 
             var newSessions = new Dictionary<string, AudioSessionControl>();
             var newPidSessions = new Dictionary<uint, AudioSessionControl>();
@@ -920,7 +927,21 @@ public class AudioMixer : IDisposable
 
     public void Dispose()
     {
+        _disposed = true;
         _pollTimer?.Dispose();
-        _enumerator.Dispose();
+        _pollTimer = null;
+        lock (_lock)
+        {
+            _sessions.Clear();
+            _sessionsByPid.Clear();
+        }
+        lock (_enumLock)
+        {
+            try { _renderDevice?.Dispose(); } catch { }
+            try { _masterPeakDevice?.Dispose(); } catch { }
+            _renderDevice = null;
+            _masterPeakDevice = null;
+            _enumerator.Dispose();
+        }
     }
 }

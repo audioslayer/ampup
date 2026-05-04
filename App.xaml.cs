@@ -236,6 +236,7 @@ public partial class App : Application
 
         _n3 = new N3Controller();
         _n3.OnInput += HandleN3Input;
+        _n3.OnConnectionChanged += HandleN3ConnectionChanged;
 
         // Let the display renderer resolve dynamic-state sources without
         // taking a hard dependency on OBS / AudioMixer.
@@ -967,6 +968,8 @@ public partial class App : Application
 
     private void ExitApp()
     {
+        _isShuttingDown = true;
+
         // Save last knob positions so they restore on next launch
         ConfigManager.Save(_config);
 
@@ -986,6 +989,8 @@ public partial class App : Application
         _mutePollingTimer?.Dispose();
         _autoSwitchTimer?.Dispose();
         _gameModeTimer?.Dispose();
+        foreach (var timer in _osdFinalTimers)
+            timer?.Dispose();
         _streamControllerRefreshTimer?.Stop();
         _duckingEngine?.Dispose();
         Dispatcher.Invoke(() => Shutdown());
@@ -993,6 +998,8 @@ public partial class App : Application
 
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
+        if (_isShuttingDown) return;
+
         // Close to tray instead of exiting
         e.Cancel = true;
         _mainWindow?.Hide();
@@ -1975,6 +1982,32 @@ public partial class App : Application
             catch (Exception ex)
             {
                 Logger.Log($"HandleConnection UI update error: {ex.Message}");
+            }
+        });
+    }
+
+    private void HandleN3ConnectionChanged(bool connected, string? deviceName)
+    {
+        _isN3Connected = connected;
+        _n3DeviceName = connected ? deviceName : null;
+
+        if (!connected)
+        {
+            _n3AnimatedKeys.Clear();
+            _n3AsleepFromIdle = false;
+            Logger.Log($"N3: disconnected{(string.IsNullOrWhiteSpace(deviceName) ? "" : $" ({deviceName})")}");
+        }
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                _mainWindow?.SetN3ConnectionStatus(connected, connected ? deviceName : null);
+                UpdateAggregateTrayStatus();
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"N3 connection UI update error: {ex.Message}");
             }
         });
     }
@@ -4208,6 +4241,8 @@ public partial class App : Application
         _mutePollingTimer?.Dispose();
         _autoSwitchTimer?.Dispose();
         _gameModeTimer?.Dispose();
+        foreach (var timer in _osdFinalTimers)
+            timer?.Dispose();
         _streamControllerRefreshTimer?.Stop();
         _duckingEngine?.Dispose();
         _osdOverlay?.Close();

@@ -14,6 +14,7 @@ public partial class OsdView : UserControl
     private readonly DispatcherTimer _debounceTimer;
     private bool _loading;
     private bool _configLoaded;
+    private bool _displaySettingsSubscribed;
 
     /// <summary>Set by MainWindow — called when Quick Wheel changes require a full view refresh.</summary>
     public Action? OnRequestRefresh;
@@ -64,9 +65,23 @@ public partial class OsdView : UserControl
         BtnAddWheel.Click += (_, _) => AddWheelRow(new QuickWheelConfig { Enabled = true });
 
         // Refresh monitor list when display config changes (monitors added/removed)
-        SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+        Loaded += (_, _) => SubscribeDisplaySettingsChanged();
         IsVisibleChanged += OnVisibilityChanged;
-        Unloaded += (_, _) => SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+        Unloaded += (_, _) => UnsubscribeDisplaySettingsChanged();
+    }
+
+    private void SubscribeDisplaySettingsChanged()
+    {
+        if (_displaySettingsSubscribed) return;
+        SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+        _displaySettingsSubscribed = true;
+    }
+
+    private void UnsubscribeDisplaySettingsChanged()
+    {
+        if (!_displaySettingsSubscribed) return;
+        SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+        _displaySettingsSubscribed = false;
     }
 
     private void OnDisplaySettingsChanged(object? sender, EventArgs e)

@@ -34,7 +34,6 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
-Name: "startupentry"; Description: "Start Amp Up with Windows"; GroupDescription: "Startup:"
 
 [Files]
 ; Include all published files from the self-contained publish output
@@ -47,10 +46,6 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\ampup.ico"; Tasks: desktopicon
 
-[Registry]
-; Optional startup entry
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "AmpUp"; ValueData: """{app}\{#MyAppExeName}"""; Flags: uninsdeletevalue; Tasks: startupentry
-
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
 
@@ -59,7 +54,9 @@ function InitializeSetup(): Boolean;
 var
   ResultCode: Integer;
 begin
-  // Kill running instances before install/upgrade
+  // Ask running instances to close before install/upgrade, then force only
+  // as a fallback so config/profile writes get a chance to finish.
+  Exec('taskkill', '/im "AmpUp.exe"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Exec('taskkill', '/f /im "AmpUp.exe"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Result := True;
 end;

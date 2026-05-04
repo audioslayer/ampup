@@ -86,8 +86,10 @@ public sealed class N3Controller : IDisposable
     private volatile bool _disposed;
     private volatile bool _initialized;
     private volatile bool _asleep;
+    private int _disconnectNotified = 1;
 
     public event Action<N3InputEvent>? OnInput;
+    public event Action<bool, string?>? OnConnectionChanged;
 
     public bool IsAvailable => _stream != null && !_disposed;
     public string DeviceName { get; private set; } = "TreasLin N3";
@@ -181,6 +183,8 @@ public sealed class N3Controller : IDisposable
             StartReadLoop();
             StartKeyboardReadLoop();
             _keepAliveTimer = new System.Threading.Timer(_ => SafeKeepAlive(), null, KeepAliveMs, KeepAliveMs);
+            Interlocked.Exchange(ref _disconnectNotified, 0);
+            OnConnectionChanged?.Invoke(true, DeviceName);
             return true;
         }
         catch (Exception ex)
@@ -493,10 +497,27 @@ public sealed class N3Controller : IDisposable
             }
             catch (Exception ex)
             {
-                Logger.Log($"N3: read loop stopped on {channelName} - {ex.Message}");
+                if (parseKnownProtocol && !_disposed && !ct.IsCancellationRequested)
+                    HandleReadLoopDisconnected(channelName, ex);
+                else
+                    Logger.Log($"N3: read loop stopped on {channelName} - {ex.Message}");
                 break;
             }
         }
+    }
+
+    private void HandleReadLoopDisconnected(string channelName, Exception ex)
+    {
+        Logger.Log($"N3: read loop stopped on {channelName} - {ex.Message}");
+        if (Interlocked.Exchange(ref _disconnectNotified, 1) != 0)
+            return;
+
+        var deviceName = DeviceName;
+        _ = Task.Run(() =>
+        {
+            DisposeConnection();
+            OnConnectionChanged?.Invoke(false, deviceName);
+        });
     }
 
     private static HidDevice? SelectPrimaryInterface(IEnumerable<HidDevice> devices)

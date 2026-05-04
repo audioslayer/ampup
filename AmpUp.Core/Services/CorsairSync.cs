@@ -215,6 +215,8 @@ public class CorsairSync : IDisposable
 
     private void OnSessionStateChanged(IntPtr context, ref CorsairSessionStateChanged eventData)
     {
+        try
+        {
         _sessionState = eventData.state;
         var sv = eventData.details.serverVersion;
         var hv = eventData.details.serverHostVersion;
@@ -237,6 +239,12 @@ public class CorsairSync : IDisposable
         else
         {
             _connected = false;
+        }
+        }
+        catch (Exception ex)
+        {
+            _connected = false;
+            Logger.Log($"CorsairSync: session callback failed - {ex.Message}");
         }
     }
 

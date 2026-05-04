@@ -34,6 +34,7 @@ public partial class RoomView : UserControl
     private TextBlock? _dreamStatusLabel;
     private DispatcherTimer? _screenSyncStatusTimer;
     private DispatcherTimer? _screenSyncPreviewTimer;
+    private Action<(byte R, byte G, byte B)[]>? _screenSyncZoneColorsHandler;
     private Action<(byte R, byte G, byte B)[,], int, int>? _screenSyncZoneGridHandler;
 
     // _devicesCard and _scenesCard removed — unified into single room card
@@ -106,14 +107,17 @@ public partial class RoomView : UserControl
 
     public void SetDreamSync(DreamSyncController dreamSync)
     {
+        if (_dreamSync != null && _screenSyncZoneColorsHandler != null)
+            _dreamSync.OnZoneColors -= _screenSyncZoneColorsHandler;
         if (_dreamSync != null && _screenSyncZoneGridHandler != null)
             _dreamSync.OnZoneGrid -= _screenSyncZoneGridHandler;
 
         _dreamSync = dreamSync;
 
         // Wire zone color preview updates
-        _dreamSync.OnZoneColors += colors =>
+        _screenSyncZoneColorsHandler = colors =>
             Dispatcher.BeginInvoke(() => UpdateDreamZonePreview(colors));
+        _dreamSync.OnZoneColors += _screenSyncZoneColorsHandler;
 
         if (_screenSyncZoneGridHandler != null)
             _dreamSync.OnZoneGrid += _screenSyncZoneGridHandler;
