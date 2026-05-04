@@ -39,7 +39,11 @@ The 1.0 beta also adds native support for the **TreasLin / VSDinside N3** stream
 
 ### 🍎 macOS
 
-The macOS port is available as an alpha build and shares the same core config and serial protocol work. See [CLAUDE-MAC.md](CLAUDE-MAC.md) for current architecture notes and build status.
+1. Download **`AmpUp-0.9.8-alpha.dmg`** from [Releases](https://github.com/audioslayer/ampup/releases).
+2. Open the DMG and drag Amp Up to Applications.
+3. Launch and grant audio permissions when prompted.
+
+> macOS is currently using the carried-forward 0.9.8 alpha build while the Windows app moves into 1.0 beta. See [CLAUDE-MAC.md](CLAUDE-MAC.md) for current architecture notes and build status.
 
 ---
 

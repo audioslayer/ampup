@@ -50,6 +50,7 @@ This is the big one: Amp Up graduates into a 1.0 beta for Windows with a polishe
 ### ⚠️ Beta Notes
 - N3 support is new and marked beta while more real-world hardware setups are tested.
 - The Windows installer is the primary 1.0 beta artifact. The macOS port remains alpha while the shared core continues to mature.
+- The 1.0 beta release page includes the carried-forward **AmpUp-0.9.8-alpha.dmg** for macOS until the Mac 1.0 build catches up.
 
 ---
 
