@@ -122,10 +122,10 @@ public partial class MixerView : UserControl
             CollectAndSave();
         };
 
-        _liveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+        _liveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(75) };
         _liveTimer.Tick += LiveTimer_Tick;
 
-        _peakTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+        _peakTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(75) };
         _peakTimer.Tick += (_, _) => UpdateSessionPeaks();
 
         _sessionRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };

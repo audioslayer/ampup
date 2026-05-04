@@ -153,10 +153,13 @@ public partial class MainWindow : FluentWindow
         // Wire click to navigate to Mixer tab
         HwPreview.OnKnobClicked = _ => NavigateTo(_mixerView, NavMixer);
 
-        // 50ms timer for VU smoothing + position updates
+        // 100ms timer for preview VU smoothing + position updates.
+        // The preview is small and always visible while the window is open,
+        // so avoiding 20 FPS WASAPI peak reads trims idle CPU without
+        // affecting actual knob/volume handling.
         _hwPreviewTimer = new System.Windows.Threading.DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(50)
+            Interval = TimeSpan.FromMilliseconds(100)
         };
         _hwPreviewTimer.Tick += HwPreviewTimer_Tick;
         _hwPreviewTimer.Start();
