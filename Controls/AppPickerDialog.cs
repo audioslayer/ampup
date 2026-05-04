@@ -95,7 +95,12 @@ public class AppPickerDialog : Window
             Cursor = Cursors.Hand,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        closeBtn.MouseLeftButtonDown += (_, _) => { DialogResult = false; Close(); };
+        closeBtn.MouseLeftButtonDown += (_, e) =>
+        {
+            e.Handled = true;
+            DialogResult = false;
+            Close();
+        };
         DockPanel.SetDock(closeBtn, Dock.Right);
         headerRow.Children.Add(closeBtn);
         headerRow.Children.Add(title);
@@ -156,7 +161,12 @@ public class AppPickerDialog : Window
         Content = root;
 
         // Drag to move
-        MouseLeftButtonDown += (_, e) => { if (e.ChangedButton == MouseButton.Left) DragMove(); };
+        MouseLeftButtonDown += (_, e) =>
+        {
+            if (e.Handled || e.ChangedButton != MouseButton.Left) return;
+            try { DragMove(); }
+            catch (InvalidOperationException) { }
+        };
 
         // Escape to close
         KeyDown += (_, e) => { if (e.Key == Key.Escape) { DialogResult = false; Close(); } };
@@ -207,7 +217,7 @@ public class AppPickerDialog : Window
         foreach (var (name, rawPath, matIcon) in CommonApps)
         {
             var expandedPath = Environment.ExpandEnvironmentVariables(rawPath);
-            var exePath = expandedPath.Contains(' ') ? expandedPath.Split(' ', 2)[0] : expandedPath;
+            var exePath = ExtractExecutablePath(expandedPath);
 
             // Skip if already shown as running
             if (runningApps.Keys.Any(k => k.Contains(name.Replace(" ", ""), StringComparison.OrdinalIgnoreCase)))
@@ -220,6 +230,25 @@ public class AppPickerDialog : Window
         }
 
         RenderEntries(_allEntries);
+    }
+
+    private static string ExtractExecutablePath(string command)
+    {
+        if (string.IsNullOrWhiteSpace(command)) return command;
+
+        command = command.Trim();
+        if (command.StartsWith('"'))
+        {
+            int closingQuote = command.IndexOf('"', 1);
+            if (closingQuote > 1)
+                return command[1..closingQuote];
+        }
+
+        int exeEnd = command.IndexOf(".exe", StringComparison.OrdinalIgnoreCase);
+        if (exeEnd >= 0)
+            return command[..(exeEnd + 4)];
+
+        return command.Split(' ', 2)[0];
     }
 
     private void FilterApps(string query)
@@ -367,8 +396,9 @@ public class AppPickerDialog : Window
         };
 
         // Click to select
-        row.MouseLeftButtonDown += (_, _) =>
+        row.MouseLeftButtonDown += (_, e) =>
         {
+            e.Handled = true;
             // Use unexpanded path with env vars for portability
             _selectedPath = entry.Path;
             DialogResult = true;

@@ -68,6 +68,8 @@ public partial class App : Application
     private const int N3KnobStateBase = 5;
     private const int StreamControllerRefreshIntervalMs = 250;
     private const int StreamControllerDynamicRefreshMs = 3000;
+    private const int MutePollingIdleMs = 1000;
+    private const int MutePollingDuckingMs = 500;
 
     private sealed class N3AnimatedKeyState
     {
@@ -391,8 +393,11 @@ public partial class App : Application
         ApplyRgbConfig();
         UpdateAudioAnalyzer();
 
-        // Poll mute states every 500ms for LED status effects (fallback)
-        _mutePollingTimer = new System.Threading.Timer(_ => PollMuteStates(), null, 1000, 500);
+        // Poll mute states for LED status effects (fallback). Master/mic
+        // mute use instant WASAPI notifications; the timer mostly covers
+        // program/app-group effects and ducking, so it can idle slower when
+        // voice ducking is off.
+        _mutePollingTimer = new System.Threading.Timer(_ => PollMuteStates(), null, 1000, GetMutePollingPeriodMs());
         // Subscribe to instant mute notifications so LEDs react within one frame (~50ms)
         SubscribeMuteNotifications();
 
@@ -1127,6 +1132,7 @@ public partial class App : Application
             else
                 _corsairSync.Stop();
         }
+        ConfigureMutePollingTimer();
         if (_n3 != null && _isN3Connected)
         {
             _n3.SetBrightness((byte)Math.Clamp(_config.N3.DisplayBrightness, 0, 100));
@@ -2276,6 +2282,7 @@ public partial class App : Application
         try
         {
             if (_config == null) return;
+            if (!_isN3Connected && !_forceN3Sleep) return;
 
             // ── N3 idle sleep ─────────────────────────────────────────────
             // Uses the real firmware standby command (CRT HAN) via N3Controller.Sleep —
@@ -3553,6 +3560,18 @@ public partial class App : Application
         {
             System.Threading.Interlocked.Exchange(ref _pollMuteRunning, 0);
         }
+    }
+
+    private int GetMutePollingPeriodMs()
+        => _config?.Ducking?.Enabled == true ? MutePollingDuckingMs : MutePollingIdleMs;
+
+    private void ConfigureMutePollingTimer()
+    {
+        var timer = _mutePollingTimer;
+        if (timer == null || _isShuttingDown) return;
+        int period = GetMutePollingPeriodMs();
+        try { timer.Change(period, period); }
+        catch (ObjectDisposedException) { }
     }
 
     private void PollProgramMuteStates()
