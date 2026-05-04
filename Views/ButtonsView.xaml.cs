@@ -1738,11 +1738,7 @@ public partial class ButtonsView : UserControl
     {
         try
         {
-            var expanded = Environment.ExpandEnvironmentVariables(path);
-            // Strip trailing args (first token before any space, respecting quoted paths)
-            var exe = expanded.StartsWith("\"")
-                ? expanded.Substring(1, Math.Max(0, expanded.IndexOf('"', 1) - 1))
-                : expanded.Split(' ')[0];
+            var exe = ExtractExecutablePath(Environment.ExpandEnvironmentVariables(path));
 
             if (!string.IsNullOrWhiteSpace(exe) && System.IO.File.Exists(exe))
             {
@@ -1760,14 +1756,30 @@ public partial class ButtonsView : UserControl
         }
     }
 
+    private static string ExtractExecutablePath(string command)
+    {
+        if (string.IsNullOrWhiteSpace(command)) return command;
+
+        command = command.Trim();
+        if (command.StartsWith('"'))
+        {
+            int closingQuote = command.IndexOf('"', 1);
+            if (closingQuote > 1)
+                return command[1..closingQuote];
+        }
+
+        int exeEnd = command.IndexOf(".exe", StringComparison.OrdinalIgnoreCase);
+        if (exeEnd >= 0)
+            return command[..(exeEnd + 4)];
+
+        return command.Split(' ', 2)[0];
+    }
+
     private static ImageSource? TryExtractIcon(string path)
     {
         try
         {
-            var expanded = Environment.ExpandEnvironmentVariables(path);
-            var exe = expanded.StartsWith("\"")
-                ? expanded.Substring(1, Math.Max(0, expanded.IndexOf('"', 1) - 1))
-                : expanded.Split(' ')[0];
+            var exe = ExtractExecutablePath(Environment.ExpandEnvironmentVariables(path));
 
             if (string.IsNullOrWhiteSpace(exe) || !System.IO.File.Exists(exe))
                 return null;
