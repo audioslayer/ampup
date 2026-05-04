@@ -73,7 +73,7 @@ public partial class SettingsView : UserControl
         CmbProfiles.SelectionChanged += OnProfileSelectionChanged;
 
         // Port selector
-        SegHardwareMode.AddSegment("Auto", HardwareMode.Auto);
+        SegHardwareMode.AddSegment("Default", HardwareMode.Auto);
         SegHardwareMode.AddSegment("Turn Up", HardwareMode.TurnUpOnly);
         SegHardwareMode.AddSegment("Stream Controller", HardwareMode.StreamControllerOnly);
         SegHardwareMode.AddSegment("Both", HardwareMode.DualMode);
@@ -687,8 +687,7 @@ public partial class SettingsView : UserControl
     public void RefreshActiveSurfaceVisibility()
     {
         if (_config == null) return;
-        bool show = _config.HardwareMode == HardwareMode.DualMode
-            || (_config.HardwareMode == HardwareMode.Auto && _turnUpConnected && _streamControllerConnected);
+        bool show = _config.HardwareMode == HardwareMode.DualMode;
         ActiveSurfacePanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
     }
 

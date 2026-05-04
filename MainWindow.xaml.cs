@@ -592,7 +592,7 @@ public partial class MainWindow : FluentWindow
             HardwareMode.DualMode => GetPreferredSurface(),
             HardwareMode.Auto when _turnUpConnected && !_streamControllerConnected => DeviceSurface.TurnUp,
             HardwareMode.Auto when !_turnUpConnected && _streamControllerConnected => DeviceSurface.StreamController,
-            HardwareMode.Auto when _turnUpConnected && _streamControllerConnected => GetPreferredSurface(),
+            HardwareMode.Auto when _turnUpConnected && _streamControllerConnected => DeviceSurface.TurnUp,
             _ => GetPreferredSurface(),
         };
     }

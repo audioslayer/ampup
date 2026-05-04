@@ -225,6 +225,11 @@ public static class ConfigManager
 
         switch (config.HardwareMode)
         {
+            case HardwareMode.Auto:
+                config.TabSelection.Mixer = DeviceSurface.TurnUp;
+                config.TabSelection.Buttons = DeviceSurface.TurnUp;
+                config.TabSelection.Lights = DeviceSurface.TurnUp;
+                break;
             case HardwareMode.TurnUpOnly:
                 config.TabSelection.Mixer = DeviceSurface.TurnUp;
                 config.TabSelection.Buttons = DeviceSurface.TurnUp;
