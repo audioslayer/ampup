@@ -5,217 +5,153 @@
 <h1 align="center">Amp Up</h1>
 
 <p align="center">
-  <strong>The ultimate replacement app for the Turn Up USB volume mixer.</strong><br/>
-  Per-app audio control, RGB lighting, smart automation, and a gorgeous dark UI.<br/>
-  <em>Now on Windows and macOS.</em>
+  <strong>A modern control center for Turn Up mixers and the TreasLin / VSDinside N3 stream controller.</strong><br/>
+  Per-app audio, profiles, RGB lighting, room sync, tray mixing, macros, and stream-controller workflows.
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.9.8--alpha-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.0.0--beta-00BFEF" alt="Version" />
   <img src="https://img.shields.io/badge/Windows%2010%2F11-0078D6?logo=windows&logoColor=white" alt="Windows" />
-  <img src="https://img.shields.io/badge/macOS%2014.2+-000000?logo=apple&logoColor=white" alt="macOS" />
+  <img src="https://img.shields.io/badge/macOS%20alpha-000000?logo=apple&logoColor=white" alt="macOS" />
   <img src="https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white" alt=".NET 8" />
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License" />
 </p>
 
 ---
 
-## 🎯 What is Amp Up?
+## 🎯 What Is Amp Up?
 
-Amp Up is a community-built, open-source replacement for the official Turn Up software. It takes the 5-knob USB mixer hardware and supercharges it with features the original app never had — per-app audio routing, 30+ LED effects, Home Assistant integration, Govee room lighting sync, macro buttons, response curves, and a sleek modern UI inspired by SteelSeries Sonar and Elgato Wave Link.
+Amp Up is an open-source replacement and upgrade path for the original Turn Up USB volume mixer app. It keeps the simple idea that made the hardware great, then adds the things power users kept wishing existed: per-app audio control, smart profiles, RGB effects, room lighting, Stream Deck-style actions, a fast tray mixer, and a modern dark UI.
 
-**Works on Windows and macOS.** Same hardware, same features, both platforms.
+The 1.0 beta also adds native support for the **TreasLin / VSDinside N3** stream controller, turning its LCD keys, side buttons, and rotary encoders into a second control surface inside Amp Up.
 
 ---
 
 ## 📥 Install
 
 ### 🪟 Windows
-1. Download **`AmpUp-Setup-0.9.8-alpha.exe`** from [Releases](https://github.com/audioslayer/ampup/releases)
-2. Run the installer (auto-installs .NET 8 if needed — one-time)
-3. Amp Up appears in your system tray ✨
+
+1. Download **`AmpUp-Setup-1.0.0-beta.exe`** from [Releases](https://github.com/audioslayer/ampup/releases).
+2. Run the installer.
+3. Launch Amp Up, then connect your Turn Up mixer or N3 controller.
+
+> Close the official Turn Up app first. Only one app can hold the Turn Up serial port at a time.
 
 ### 🍎 macOS
-1. Download **`AmpUp-0.9.8-alpha.dmg`** from [Releases](https://github.com/audioslayer/ampup/releases)
-2. Open the DMG → drag to Applications
-3. Launch and grant audio permission on first run 🎤
 
-> **Note:** Kill the official Turn Up app first — it holds the COM/serial port.
+The macOS port is available as an alpha build and shares the same core config and serial protocol work. See [CLAUDE-MAC.md](CLAUDE-MAC.md) for current architecture notes and build status.
 
 ---
 
-## ✨ Features
+## 🔌 Supported Hardware
 
-### 🎛️ Mixer — 5 Channel Strips
-- **Per-app volume control** — assign any knob to Spotify, Discord, Chrome, or any running app
-- **Master volume, mic input, monitor brightness** — all assignable to knobs
-- **App groups** — control multiple apps with a single knob
-- **Response curves** — Linear, Logarithmic, Exponential, or Exponential² per channel
-- **Volume range clamping** — restrict a knob to sweep only part of the range (e.g. 40–100%)
-- **Live VU meters** — real-time 16-segment audio level visualization
-- **Fuzzy matching** — "Apple Music" matches the `AppleMusic` process automatically
-
-### 🎮 Buttons — 15 Programmable Actions
-- **3 gestures per button** — tap, double-press, and hold (each independent)
-- **26 action types** including:
-  - 🎵 Media controls (play/pause, next, previous)
-  - 🔇 Mute toggles (master, mic, per-app, active window, app group, output device)
-  - 🚀 App launcher / process killer
-  - 🔊 Audio device switching (cycle, direct select, device subsets)
-  - ⌨️ Keyboard macros (any key combo)
-  - 💤 System power (sleep, lock, shutdown, restart, hibernate)
-  - 👤 Profile switching
-  - 💡 LED brightness cycling
-
-### 🌈 Lights — Full RGB Control
-- **60+ effects** with **57 animated tile previews** — live visualizations right in the effect picker so you can see what each effect looks like before selecting
-- **25 global-spanning effects** — Scanner, MeteorRain, FireWall, DNA, PoliceLights, Lightning, Ocean, Aurora, Matrix, Starfield, Equalizer, Waterfall, Lava, VU Wave, Nebula Drift...
-- **20 premium palettes** — Cyberpunk, Sakura, Aurora, Coral Reef, Lavender, Copper, Fire, Ocean, Neon, Galaxy, Mint, Storm, and more (6–7 color stops each)
-- **Multi-stop gradient editor** — drag to move stops, click to change color, right-click to delete
-- **Smart palette hiding** — auto-hides the palette editor for hardcoded-color effects (Aurora, Ocean, Plasma, Rainbows...)
-- **Speed & brightness control** — per-knob speed slider + global brightness
-- **LED calibration** — per-channel R/G/B gamma sliders with live hardware preview
-- **Copy/paste** — right-click any LED column to clone settings
-
-### 🎡 Quick Wheel — Radial Switcher
-- **Hold a button** → radial pie-menu appears on screen
-- **Spin any knob** or hover with mouse to navigate
-- **Release to confirm** — switches profile or output device instantly
-- **Two modes:** Profile (8 slots) or Output Device
-
-### 📊 Smart Mix — Automation
-- **Auto-Ducking** — automatically lower music when Discord/Zoom activates
-- **Auto-Profile Switching** — switch profiles when specific apps are focused
-- **Auto-Suggest Layout** — detects running apps and suggests knob assignments
-
-### 🏠 Smart Home & Room Lighting
-- **Home Assistant** — control lights, media players, fans, covers via button presses or knob turns
-- **Govee LAN sync** — mirror knob RGB colors to Govee room lights at 20 FPS
-- **Govee Cloud dashboard** — control on/off, brightness, color, scenes
-- **Corsair iCUE sync** — drive all iCUE RGB devices with room effects, fan/pump speed control
-- **Room Effect tab** — two-column layout with category tabs (⭐ Favorites / Static / Animated / Reactive / Global Span), gradient palette editor, and live settings panel
-- **⭐ Favorites** — right-click any effect to pin it to your Favorites tab for instant access
-- **Layout tab** — card-based room builder with labeled dimension inputs, projection mode (Mirror / Spatial), and device placement canvas
-- **🎨 Gradient palette editor** — multi-stop drag-to-move color stops, right-click to delete, 20 premium presets (Cyberpunk, Sakura, Aurora, Coral Reef...)
-- **Music Reactive** — bass + low-mid energy modulates room effect brightness, with sensitivity slider
-- **VU Fill modes** — 6 audio-reactive patterns: Classic / Split / Rainfall / Pulse / Spectrum / Drip
-- **Material-style tabs** — underline tab bar throughout (Room, Lights, category picker)
-- **DreamView screen sync** — capture screen zones and map colors to Govee + Corsair in real-time
-- **Device Groups** — group Govee, Corsair, HA, and audio devices together for unified toggle/brightness control via knob or button
-
-### 🎬 Streaming & Production
-- **OBS Studio** — WebSocket v5: scene switching, source gain/mute, streaming/recording toggle
-- **VoiceMeeter** — strip/bus gain control and mute toggle
-
-### 📺 OSD Overlay
-- **Glassmorphism notifications** — volume changes, profile switches, device changes
-- **Quick Wheel** — full-screen radial overlay
-- **6 screen positions** — configurable per your setup
-- **Per-type toggles & durations** — show/hide each OSD type independently
-
-### 🔊 System Tray — Quick Mixer
-- **Left-click** → compact per-app volume popup with live audio peak bars
-- **Scroll wheel on tray icon** → adjust master volume without opening anything
-- **Middle-click** → instant master mute toggle
-- **Search bar** — filter apps by name when the list gets long
-- **📌 Pin to top** — keep your most-used apps at the top
-- **Right-click any app** → assign to knob, move to device, hide from mixer
-- **⚡ Quick Assign** — visual app grid with inline knob picker
-- **Device dropdowns** — switch output/input devices from a proper list
-- **Tray icon** — shows current volume % (or "M" when muted)
-
-### 🎛️ Hardware Preview
-- **Always-visible status bar** at the bottom of the main window
-- Live LED colors, knob positions, audio levels for all 5 channels
-- Connection status at a glance
-
-### 📊 Audio Dashboard
-- **Activity tab** — see every app producing audio right now
-- Peak levels, volume %, knob assignments, mute status
-- Quick-assign unassigned apps to knobs with one click
-
-### 👤 Profiles
-- **Save & load** full configurations (knobs, buttons, lights)
-- **Switch via button press**, sidebar picker, Quick Wheel, or tray
-- **Export / Import** — share profiles as standalone JSON files
-- **40+ icons** with 10 color presets per profile
-- **Per-game / per-workflow** setups with auto-switching
-
-### ⚙️ Quality of Life
-- **Phosphor Duotone icons** — consistent, modern icon set throughout the UI
-- **Card-based section layout** — clean grouped sections with consistent hover animations
-- **Auto-update** — checks GitHub for new releases, one-click install
-- **Start with Windows** — launches silently to system tray
-- **Hot-reload config** — changes apply instantly, no restart needed
-- **Auto COM port detection** — friendly dropdown with auto-detect
-- **Framework-dependent builds** — ~5-8MB updates (not 55MB)
-- **Turn Up config import** — migrate your existing setup in one click
-
----
-
-## 🔌 Hardware
-
-Amp Up is designed for the **Turn Up** USB volume mixer:
-
-| Component | Spec |
-|-|-|
-| 🎛️ Knobs | 5 rotary encoders (10-bit, 0–1023) |
-| 🔘 Buttons | 5 push buttons (tap, double, hold) |
-| 💡 LEDs | 15 RGB LEDs (3 per knob) |
-| 🔗 USB | CH343 USB-to-serial (115200 baud) |
-
----
-
-## 🛠️ Tech Stack
-
-| | Windows | macOS |
+| Device | Support | What Works |
 |-|-|-|
-| **UI** | WPF + WPF-UI (Fluent/Mica) | Avalonia 11.2 |
-| **Audio** | NAudio (WASAPI) | CoreAudio Process Tap API |
-| **Framework** | .NET 8 | .NET 8 + Swift bridge |
-| **Serial** | System.IO.Ports | System.IO.Ports |
-| **Installer** | Inno Setup | DMG (drag to Applications) |
+| **Turn Up USB Volume Mixer** | Stable | 5 knobs, 5 buttons, 15 RGB LEDs, profiles, per-app volume, lighting, macros, tray mixer |
+| **TreasLin / VSDinside N3 Stream Controller** | Beta | 6 LCD keys, 3 tap buttons, 3 rotary encoders with press, pages, spaces, icons, actions, sleep/wake |
 
-**Architecture:** `AmpUp.Core` shared library (models, protocol, engine, services) + platform-specific UI.
+### 🎛️ Turn Up Mixer
+
+Amp Up speaks the Turn Up serial protocol directly over the CH343 USB-to-serial chip at 115200 baud. Knobs can control master volume, input gain, individual apps, app groups, device volume, active-window audio, monitor brightness, and more. Buttons support tap, double-press, and hold gestures.
+
+### 🧊 TreasLin / VSDinside N3
+
+Amp Up includes native beta support for the [TreasLin / VSDinside N3 stream controller](https://www.amazon.com/dp/B0FM3NP9ZB?ref=ppx_yo2ov_dt_b_fed_asin_title&th=1). The N3 has **6 visual LCD buttons, 3 tap buttons, and 3 rotary buttons**, making it a great compact companion surface for audio, macros, media, apps, and stream controls.
+
+N3 support is designed to be self-contained, with no long-term dependency on VSD Craft for day-to-day use.
 
 ---
 
-## 🏗️ Build from Source
+## ✨ Highlights
+
+### 🎚️ Mixer
+
+- Per-app volume control for Spotify, Discord, Chrome, games, browsers, UWP apps, and app groups.
+- Master output, microphone input, specific output/input devices, and monitor brightness targets.
+- Linear, logarithmic, exponential, and custom range behavior per knob.
+- Live VU meters and peak activity in the main mixer and tray popup.
+- Smart app matching, including display-name matching for apps whose process name is not user friendly.
+
+### 🎮 Buttons And Actions
+
+- 3 gestures per Turn Up button: tap, double-press, and hold.
+- Media controls, mute controls, app launch/close, device switching, keyboard macros, power actions, profiles, URLs, text snippets, screenshots, multi-actions, and toggles.
+- Quick Wheel overlay for profile switching and output-device switching.
+- Stream-controller actions for pages, spaces, folders, and navigation.
+
+### 🧊 N3 Stream Controller
+
+- Visual designer for 6 LCD keys with title, icon, colors, glow, and display type.
+- Spaces and pages for organizing actions.
+- Side buttons and encoder presses as first-class controls.
+- Encoder rotation actions for page/space cycling and knob-style assignments.
+- Native display rendering for device JPEGs plus crisp in-app previews.
+- Device sleep/wake controls and disconnect visibility.
+
+### 🌈 Lights
+
+- 60+ Turn Up RGB effects with animated previews.
+- Per-knob and global lighting modes.
+- Premium palettes, gradient editor, brightness, speed, gamma calibration, and hardware hover preview.
+- Audio-reactive, mute-aware, device-aware, position-fill, rainbow, fire, comet, plasma, heartbeat, scanner, meteor, matrix, aurora, and more.
+
+### 🏠 Room Lighting
+
+- Govee LAN sync and Govee Cloud controls.
+- Corsair iCUE room effects, device sync, and fan/pump controls.
+- Room layout canvas with device placement.
+- Music Reactive, VU Fill, Screen Sync, and Game Mode.
+- Per-device sync toggles so global actions respect devices you intentionally excluded.
+
+### 🔊 Tray Mixer
+
+- Left or right click opens the unified mixer popup.
+- Adjust master volume, app volumes, output/input devices, and assignments without opening the full window.
+- Live app activity bars, app filtering, pinned apps, and quick assignment.
+- DPI-aware placement for bottom, top, left, and right taskbars.
+
+### 🛡️ 1.0 Beta Polish
+
+- Lower idle CPU and memory pressure from reduced polling and smarter timers.
+- Safer shutdown and update flow.
+- More resilient Govee, Corsair, audio-session, OSD, and N3 disconnect handling.
+- Start with Windows is opt-in for new installs.
+- GitHub release workflow and installer packaging are ready for beta distribution.
+
+---
+
+## 🛠️ Build From Source
 
 ```bash
-# Windows
 git clone https://github.com/audioslayer/ampup.git
 cd ampup
 dotnet build
-
-# macOS (Apple Silicon, requires .NET 8 SDK + Swift 5.9+)
-cd AmpUp.Mac
-./build.sh    # dev build
-./bundle.sh   # full .app + .dmg
 ```
+
+To build the Windows installer locally:
+
+```powershell
+.\build-installer.bat
+```
+
+The Windows app is a .NET 8 WPF application using WPF-UI, NAudio, Newtonsoft.Json, System.IO.Ports, HidSharp, and Inno Setup.
 
 ---
 
-## 🗺️ Roadmap
+## 🧭 Roadmap
 
-- [x] Per-app audio control (Windows + macOS)
-- [x] 30+ LED effects + 17 global-spanning effects
-- [x] OBS Studio + VoiceMeeter integration
-- [x] Home Assistant + Govee smart home control
-- [x] DreamView screen-to-light sync
-- [x] Quick Wheel radial switcher
-- [x] Auto-Ducking + Auto-Profile Switching
-- [x] EarTrumpet-inspired tray mixer
-- [x] macOS Avalonia port (feature-complete)
-- [x] Framework-dependent builds (~5MB updates)
-- [x] Corsair iCUE RGB sync + fan/pump control
-- [x] Device Groups (Govee + Corsair + HA + Audio)
-- [x] Unified Room tab with per-device tabs
-- [ ] Multi-device support (multiple Turn Up units)
+- [x] Turn Up mixer support
+- [x] Per-app Windows audio control
+- [x] Profiles, buttons, actions, macros, and Quick Wheel
+- [x] Turn Up RGB effects and audio-reactive lighting
+- [x] Govee, Corsair iCUE, OBS, VoiceMeeter, and Home Assistant integrations
+- [x] TreasLin / VSDinside N3 native beta support
+- [x] Tray mixer and release-ready Windows installer
+- [ ] Broader N3 field testing
+- [ ] Multiple Turn Up units
+- [ ] More stream-controller plugin-style actions
+- [ ] Razer Chroma sync
 - [ ] Mobile companion app
-- [ ] GitHub Actions CI (auto-build both platforms)
-- [ ] Razer Chroma RGB sync
-- [ ] Advanced macro system
 
 ---
 
@@ -223,29 +159,24 @@ cd AmpUp.Mac
 
 | Version | Highlights |
 |-|-|
-| **v0.9.8** 🎨 | **UI polish release** — 57 animated effect tile previews (live visualizations in the picker), Phosphor Duotone icon set throughout, card-based section layout with consistent hover animations, refined visual hierarchy across all views. |
-| **v0.9.7** 🎨 | **Room Effect full redesign** — two-column layout with Material underline category tabs (⭐ Favorites / Static / Animated / Reactive / Global Span), gradient palette editor, Layout tab as its own card-based canvas. **⭐ Favorites** — right-click any effect to pin. **10 new effects** — Equalizer, Waterfall, Lava, VU Wave, Nebula Drift + Aurora-quality upgrades to Ocean / FireWall. **20 premium palettes** with 6–7 color stops. **6 VU Fill modes** (Classic/Split/Rainfall/Pulse/Spectrum/Drip). **Music Reactive sensitivity**. Fixes: Discord multi-session volume, DeviceSelect latency, palette drag, SingleColor turn-off, Govee LAN scan preserving devices. |
-| **v0.9.6** 🔥 | **Room tab redesign** — unified room card, pill tabs, dynamic per-tab toggle cards (Amp Up / Music / Screen Sync), Corsair color pickers + presets, Govee flyout sub-menus, music reactive keeps effect playing, Groups global across profiles, device Groups brightness control, Settings footer with Buy Me a Coffee, phantom OSD fix, LED toggle mini cards, AmbienceView → RoomView rename |
-| **v0.9.3** | LED effects overhaul (6 new, 5 improved), OSD curve-applied volume, color presets, hardware hover preview |
-| **v0.9.0** | Major UI overhaul, audio sessions in mixer, tray redesign, per-knob LED preview |
-| **v0.8.5** | Mac port complete, tray overhaul, user bug fixes, framework-dependent builds |
-| **v0.8.1** | Quick Wheel radial switcher, monitor brightness fix |
-| **v0.8.0** | Hardware widget, profile editor, AmpUp.Core extraction |
-| **v0.7.0** | Inline pickers, Smart Mix, DreamView, Profile Overview |
-| **v0.6.0** | Ambience tab (Govee LAN + Cloud), setup wizard |
-| **v0.5.0** | Auto-Ducking, auto-profile switching, tray quick mixer |
-| **v0.4.0** | Audio-reactive RGB, global lighting, dynamic theming |
-| **v0.3.1** | Renamed WolfMixer → AmpUp, auto-updater, GitHub releases |
+| **v1.0.0-beta** 🚀 | Production-readiness beta with N3 stream-controller support, major Room tab upgrades, Govee/Corsair/iCUE sync fixes, tray mixer polish, lower idle CPU/RAM pressure, release workflow, safer updates, and many crash fixes. |
+| **v0.9.8** 🎨 | Animated effect previews, Phosphor icon polish, card layout pass, and refined visual hierarchy. |
+| **v0.9.7** 🏠 | Room Effect redesign, Favorites, gradient palettes, VU Fill modes, Music Reactive sensitivity, and many lighting fixes. |
+| **v0.9.6** 🔥 | Unified Room tab, Corsair controls, Govee menus, groups, settings footer, and OSD fixes. |
+| **v0.9.x** ⚡ | Tray mixer, audio sessions, profile overview, Quick Wheel, DreamView sync, and smart automations. |
+| **v0.5.x** 🌱 | Auto-ducking, auto-profile switching, app groups, profile import/export, and first major UI polish. |
+
+See [CHANGELOG.md](CHANGELOG.md) for the full release notes.
 
 ---
 
 ## 📄 License
 
-MIT — see [LICENSE](LICENSE) for details.
+MIT. See [LICENSE](LICENSE) for details.
 
 ---
 
 <p align="center">
-  Built by <a href="https://github.com/audioslayer">Tyson Wolf</a> 🐺<br/>
+  Built by <a href="https://github.com/audioslayer">Tyson Wolf</a><br/>
   <a href="https://www.buymeacoffee.com/audioslayer">☕ Buy me a coffee</a>
 </p>
