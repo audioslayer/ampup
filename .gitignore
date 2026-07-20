@@ -13,5 +13,6 @@ installer/version.iss
 .claude/settings.local.json
 .howl-backups/
 *.howlbak
+*_wpftmp.csproj
 AGENTS.md
 CLAUDE.md

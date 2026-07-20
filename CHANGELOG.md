@@ -6,13 +6,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## Unreleased
+## [1.3] - 2026-07-20
 
 ### Added
 - Added a one-click in-app updater that downloads the matching GitHub release installer, verifies its size and SHA-256 digest, installs it after a normal Windows elevation prompt, and relaunches Amp Up.
+- Added live Windows audio-endpoint notifications so newly connected, removed, changed, and default Bluetooth or USB devices refresh without restarting Amp Up.
 
 ### Changed
 - The tray update banner now starts the in-app update flow instead of opening the GitHub releases page.
+- Turn Up and N3 events now use independent ordered input workers so slow actions cannot block hardware reads; high-frequency absolute knob positions are coalesced to the newest value.
+- Audio device cycling now uses a fresh Windows device enumerator, while device-dependent views refresh through a short debounce instead of rebuilding unrelated UI.
+- Runtime logging now rotates at 1 MB and rate-limits repeated missing-device and refresh failures.
+- Tightened resource ownership across Windows audio sessions, tray rows, HTTP integrations, Govee UDP writes, process handles, timers, and animated UI elements.
+
+### Fixed
+- Fixed issue #22: Bluetooth and other audio devices connected after startup now remain available to output cycling, selection lists, and device-color lighting.
+- Fixed issue #23: prevented stalled controls, multi-second hardware-input latency, and stale knob-event backlogs during slow actions or refresh work.
+- Added Turn Up serial read-stall detection and reconnect handling, stopped unnecessary COM scanning in Stream Controller-only mode, and made RGB refresh non-reentrant.
+- Preserved temporarily unavailable selected audio devices and disconnected-device color mappings instead of silently discarding them.
+- Stopped invalid Spotify refresh credentials from retrying continuously and cleared the stale saved session after the first failed restore.
+- Made audio-session refresh non-reentrant and cleaned up stale session wrappers after errors.
+- Hardened configuration and profile writes so the last known-good file remains available if replacement fails.
 
 ---
 
@@ -188,6 +202,7 @@ This is the big one: Amp Up graduates into a 1.0 beta for Windows with a polishe
 
 ---
 
+[1.3]: https://github.com/audioslayer/ampup/releases/tag/v1.3
 [1.0.3-beta]: https://github.com/audioslayer/ampup/releases/tag/v1.0.3-beta
 [1.0.2-beta]: https://github.com/audioslayer/ampup/releases/tag/v1.0.2-beta
 [1.0.1-beta]: https://github.com/audioslayer/ampup/releases/tag/v1.0.1-beta
