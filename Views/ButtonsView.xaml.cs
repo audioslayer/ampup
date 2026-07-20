@@ -663,6 +663,43 @@ public partial class ButtonsView : UserControl
             _ = _ha.RefreshEntitiesAsync();
     }
 
+    /// <summary>Refreshes cycle-device choices after a Windows endpoint change.</summary>
+    public void RefreshAudioDevices(AudioMixer mixer)
+    {
+        if (_config == null) return;
+
+        _loading = true;
+        try
+        {
+            _audioDevices = mixer.GetAudioDevices();
+            for (int i = 0; i < 5; i++)
+            {
+                var btn = _config.Buttons.FirstOrDefault(b => b.Idx == i);
+                if (btn == null) continue;
+
+                RefreshCycleDevicePicker(_tapCycleDevicePickers[i], btn.Action, btn.DeviceIds);
+                RefreshCycleDevicePicker(_dblCycleDevicePickers[i], btn.DoublePressAction, btn.DoublePressDeviceIds);
+                RefreshCycleDevicePicker(_holdCycleDevicePickers[i], btn.HoldAction, btn.HoldDeviceIds);
+            }
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void RefreshCycleDevicePicker(CheckListPicker picker, string action, List<string> selectedIds)
+    {
+        bool? outputOnly = action switch
+        {
+            "cycle_output" => true,
+            "cycle_input" => false,
+            _ => null,
+        };
+        PopulateCycleDevicePicker(picker, outputOnly);
+        picker.SetCheckedIds(selectedIds);
+    }
+
     // ── Build 5 columns ─────────────────────────────────────────────
     // Uses Grid rows with SharedSizeGroup so DOUBLE/HOLD align across columns
 
@@ -2064,12 +2101,20 @@ public partial class ButtonsView : UserControl
         else
         {
             // close_program: show all running processes (deduplicated, sorted)
-            processes = System.Diagnostics.Process.GetProcesses()
-                .Select(p => { try { return p.ProcessName; } catch { return null!; } })
-                .Where(n => !string.IsNullOrWhiteSpace(n))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            var running = System.Diagnostics.Process.GetProcesses();
+            try
+            {
+                processes = running
+                    .Select(p => { try { return p.ProcessName; } catch { return null!; } })
+                    .Where(n => !string.IsNullOrWhiteSpace(n))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+            finally
+            {
+                foreach (var process in running) process.Dispose();
+            }
         }
 
         if (processes.Count == 0)

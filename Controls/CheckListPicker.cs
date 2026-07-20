@@ -122,10 +122,25 @@ public class CheckListPicker : Border
         return result;
     }
 
-    /// <summary>Sets checked state by matching IDs. If ids is empty, unchecks all.</summary>
+    /// <summary>
+    /// Sets checked state by matching IDs. Selected devices that are currently
+    /// disconnected remain visible as unavailable entries so saving another
+    /// setting does not silently remove them from the cycle subset.
+    /// </summary>
     public void SetCheckedIds(List<string> ids)
     {
-        var idSet = new HashSet<string>(ids);
+        var idSet = new HashSet<string>(ids, StringComparer.OrdinalIgnoreCase);
+        var availableIds = new HashSet<string>(
+            _items.Select(item => item.Id),
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var id in idSet)
+        {
+            if (string.IsNullOrWhiteSpace(id) || availableIds.Contains(id)) continue;
+            string suffix = id.Length > 8 ? id[^8..] : id;
+            _items.Add(($"Unavailable device (…{suffix})", id, true));
+        }
+
         for (int i = 0; i < _items.Count; i++)
         {
             var (display, id, _) = _items[i];

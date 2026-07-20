@@ -67,7 +67,7 @@ public class HAIntegration : IDisposable
 
         try
         {
-            var resp = await _http.GetAsync("/api/");
+            using var resp = await _http.GetAsync("/api/");
             _available = resp.IsSuccessStatusCode;
             return _available;
         }
@@ -86,7 +86,7 @@ public class HAIntegration : IDisposable
 
         try
         {
-            var resp = await _http.GetAsync("/api/states");
+            using var resp = await _http.GetAsync("/api/states");
             if (!resp.IsSuccessStatusCode) return result;
 
             var json = await resp.Content.ReadAsStringAsync();
@@ -125,8 +125,8 @@ public class HAIntegration : IDisposable
         try
         {
             var json = JsonConvert.SerializeObject(data);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var resp = await _http.PostAsync($"/api/services/{domain}/{service}", content);
+            using var content = new StringContent(json, Encoding.UTF8, "application/json");
+            using var resp = await _http.PostAsync($"/api/services/{domain}/{service}", content);
 
             if (!resp.IsSuccessStatusCode)
             {
@@ -144,18 +144,19 @@ public class HAIntegration : IDisposable
     /// Used by knob controls where HA's slow device confirmation (2-10s) would block the throttle loop.
     /// </summary>
     private void CallServiceFireAndForget(string domain, string service, object data)
+        => _ = CallServiceFireAndForgetAsync(domain, service, data);
+
+    private async Task CallServiceFireAndForgetAsync(string domain, string service, object data)
     {
         if (_http == null) return;
         try
         {
             var json = JsonConvert.SerializeObject(data);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            using var content = new StringContent(json, Encoding.UTF8, "application/json");
             // Don't await — let it fly
-            _http.PostAsync($"/api/services/{domain}/{service}", content).ContinueWith(t =>
-            {
-                if (t.IsFaulted)
-                    Logger.Log($"HA fire-and-forget {domain}.{service} failed: {t.Exception?.InnerException?.Message}");
-            }, TaskContinuationOptions.OnlyOnFaulted);
+            using var response = await _http.PostAsync($"/api/services/{domain}/{service}", content);
+            if (!response.IsSuccessStatusCode)
+                Logger.Log($"HA fire-and-forget {domain}.{service} returned {response.StatusCode}");
         }
         catch (Exception ex)
         {

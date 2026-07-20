@@ -1,10 +1,15 @@
 using System.IO;
 using System.Reflection;
+using System.Text;
 
 namespace AmpUp.Core;
 
 public static class Logger
 {
+    private const long MaxLogBytes = 1_048_576;
+    private static readonly string PreviousLogPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "AmpUp", "ampup.previous.log");
     public static readonly string LogPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "AmpUp", "ampup.log");
@@ -17,6 +22,8 @@ public static class Logger
     // serial/N3/UI threads that call Log().
     private static StreamWriter? _writer;
     private static bool _writerFailed;
+    private static bool _processExitHooked;
+    private static long _bytesWritten;
     private static System.Threading.Timer? _flushTimer;
 
     static Logger()
@@ -26,9 +33,8 @@ public static class Logger
             var dir = Path.GetDirectoryName(LogPath)!;
             Directory.CreateDirectory(dir);
 
-            // Rotate: delete log if > 1MB
-            if (File.Exists(LogPath) && new FileInfo(LogPath).Length > 1_048_576)
-                File.Delete(LogPath);
+            if (File.Exists(LogPath) && new FileInfo(LogPath).Length >= MaxLogBytes)
+                RotateExistingLog();
 
             var version = (Assembly.GetEntryAssembly() ?? typeof(Logger).Assembly)
                 .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
@@ -51,7 +57,8 @@ public static class Logger
 #if DEBUG
         Console.WriteLine(line);
 #endif
-        OnLogMessage?.Invoke(line);
+        try { OnLogMessage?.Invoke(line); }
+        catch { /* a UI log subscriber must never break application logging */ }
         lock (_lock)
         {
             WriteLine(line);
@@ -63,8 +70,14 @@ public static class Logger
     {
         try
         {
+            long lineBytes = Encoding.UTF8.GetByteCount(line) + Environment.NewLine.Length;
+            if (_writer != null && _bytesWritten + lineBytes > MaxLogBytes)
+                RotateOpenLog();
+
             var writer = EnsureWriter();
             writer?.WriteLine(line);
+            if (writer != null)
+                _bytesWritten += lineBytes;
         }
         catch
         {
@@ -85,9 +98,14 @@ public static class Logger
 
             var stream = new FileStream(LogPath, FileMode.Append, FileAccess.Write, FileShare.Read);
             _writer = new StreamWriter(stream) { AutoFlush = false };
+            _bytesWritten = stream.Length;
 
             _flushTimer ??= new System.Threading.Timer(_ => FlushPending(), null, 1000, 1000);
-            AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
+            if (!_processExitHooked)
+            {
+                AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
+                _processExitHooked = true;
+            }
             return _writer;
         }
         catch
@@ -129,5 +147,30 @@ public static class Logger
         try { _writer?.Dispose(); } catch { }
         _writer = null;
         _writerFailed = true;
+    }
+
+    private static void RotateOpenLog()
+    {
+        try
+        {
+            _writer?.Flush();
+            _writer?.Dispose();
+            _writer = null;
+            RotateExistingLog();
+            _bytesWritten = 0;
+        }
+        catch
+        {
+            // If rotation fails, reopen the current file and keep logging.
+            _writer = null;
+            _bytesWritten = File.Exists(LogPath) ? new FileInfo(LogPath).Length : 0;
+        }
+    }
+
+    private static void RotateExistingLog()
+    {
+        if (!File.Exists(LogPath)) return;
+        if (File.Exists(PreviousLogPath)) File.Delete(PreviousLogPath);
+        File.Move(LogPath, PreviousLogPath);
     }
 }

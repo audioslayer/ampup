@@ -20,14 +20,16 @@ public class SerialReader : IDisposable
     private readonly byte[] _buf = new byte[BufOverflowCap + ReadChunkSize];
     private int _bufLen;
     private CancellationTokenSource _cts = new();
-    private bool _running;
+    private volatile bool _running;
     private int _connectionState;
     private int _reconnectRequested;
     private long _lastReadUtcTicks;
+    private long _lastNotFoundLogUtcTicks;
 
     // Jitter deadzone: only fire OnKnob if value changed by >= this many ADC counts
     private const int JitterDeadzone = 5;
     private static readonly TimeSpan ReadStallTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan MissingDeviceLogInterval = TimeSpan.FromMinutes(5);
     private readonly int[] _lastFiredValues = { -1, -1, -1, -1, -1 };
 
     public event Action<KnobEvent>? OnKnob;
@@ -53,11 +55,23 @@ public class SerialReader : IDisposable
 
     public void Start()
     {
+        if (_running) return;
         _running = true;
         var oldCts = _cts;
-        _cts = new CancellationTokenSource();
+        var newCts = new CancellationTokenSource();
+        _cts = newCts;
+        try { oldCts.Cancel(); } catch { }
         oldCts.Dispose();
-        Task.Run(() => ConnectLoop(_cts.Token));
+        Task.Run(() => ConnectLoop(newCts.Token));
+    }
+
+    public void Stop()
+    {
+        if (!_running) return;
+        _running = false;
+        try { _cts.Cancel(); } catch { }
+        NotifyConnectionChanged(false);
+        CloseCurrentPort();
     }
 
     /// <summary>
@@ -88,6 +102,8 @@ public class SerialReader : IDisposable
                         await Task.Delay(2000, ct).ContinueWith(_ => { });
                     continue;
                 }
+                if (!_running || ct.IsCancellationRequested)
+                    break;
 
                 System.Threading.Interlocked.Exchange(ref _reconnectRequested, 0);
                 var port = new SerialPort(portName, _baud)
@@ -108,6 +124,7 @@ public class SerialReader : IDisposable
                 }
 
                 _port = port;
+                System.Threading.Interlocked.Exchange(ref _lastNotFoundLogUtcTicks, 0);
                 MarkReadActivity();
                 Logger.Log($"Connected to {portName} @ {_baud} baud");
                 NotifyConnectionChanged(true);
@@ -117,9 +134,14 @@ public class SerialReader : IDisposable
                 TrySendInfoRequest(port);
 
                 await ReadLoop(ct);
+                ClosePortIfCurrent(port);
             }
             catch (Exception ex)
             {
+                if (!_running || ct.IsCancellationRequested)
+                {
+                    break;
+                }
                 bool requested = System.Threading.Interlocked.Exchange(ref _reconnectRequested, 0) == 1;
                 Logger.Log(requested
                     ? $"Serial reconnecting: {ex.Message}"
@@ -202,7 +224,13 @@ public class SerialReader : IDisposable
             catch { }
         }
 
-        Logger.Log("Turn Up device not found on any COM port");
+        long nowTicks = DateTime.UtcNow.Ticks;
+        long previousTicks = System.Threading.Interlocked.Read(ref _lastNotFoundLogUtcTicks);
+        if (previousTicks == 0 || nowTicks - previousTicks >= MissingDeviceLogInterval.Ticks)
+        {
+            System.Threading.Interlocked.Exchange(ref _lastNotFoundLogUtcTicks, nowTicks);
+            Logger.Log("Turn Up device not found on any COM port (retrying silently for 5 minutes)");
+        }
         return null;
     }
 
@@ -303,6 +331,15 @@ public class SerialReader : IDisposable
     {
         var port = System.Threading.Interlocked.Exchange(ref _port, null);
         if (port == null) return;
+
+        try { port.Close(); } catch { }
+        try { port.Dispose(); } catch { }
+    }
+
+    private void ClosePortIfCurrent(SerialPort port)
+    {
+        if (!ReferenceEquals(System.Threading.Interlocked.CompareExchange(ref _port, null, port), port))
+            return;
 
         try { port.Close(); } catch { }
         try { port.Dispose(); } catch { }
@@ -454,9 +491,7 @@ public class SerialReader : IDisposable
 
     public void Dispose()
     {
-        _running = false;
-        _cts.Cancel();
+        Stop();
         _cts.Dispose();
-        CloseCurrentPort();
     }
 }

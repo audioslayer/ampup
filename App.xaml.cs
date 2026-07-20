@@ -29,6 +29,7 @@ public partial class App : Application
     private System.Threading.Timer? _mutePollingTimer;
     private System.Threading.Timer? _autoSwitchTimer;
     private System.Threading.Timer? _gameModeTimer;
+    private System.Threading.Timer? _audioDeviceRefreshTimer;
     private bool _gameModeActive;
     private bool _gameModePreDreamView;        // was DreamView enabled before game mode?
     private string _gameModePrevCorsairMode = "off"; // Corsair LightSyncMode before game mode
@@ -57,6 +58,8 @@ public partial class App : Application
     private SpotifyIntegration? _spotify;
     public static SpotifyIntegration? Spotify => (Current as App)?._spotify;
     private DiscordRpcIntegration? _discordRpc;
+    private HardwareInputPump? _turnUpInputPump;
+    private HardwareInputPump? _n3InputPump;
     public static DiscordRpcIntegration? DiscordRpc => (Current as App)?._discordRpc;
     private RadialWheelOverlay? _radialWheel;
     private bool _wheelVisible;
@@ -230,7 +233,13 @@ public partial class App : Application
         ThemeManager.SetCardTheme(_config.CardTheme);
 
         _mixer = new AudioMixer();
+        _audioDeviceRefreshTimer = new System.Threading.Timer(
+            _ => RefreshAudioDevicesAfterChange(), null,
+            System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+        _mixer.AudioDevicesChanged += QueueAudioDeviceRefresh;
         _buttons = new ButtonHandler();
+        _turnUpInputPump = new HardwareInputPump(HardwareInputSlowLogMs);
+        _n3InputPump = new HardwareInputPump(HardwareInputSlowLogMs);
         _rgb = new RgbController();
         Rgb = _rgb;
         _audioAnalyzer = new AudioAnalyzer();
@@ -279,7 +288,7 @@ public partial class App : Application
         _signalRgbBridge.UpdateConfig(_config.SignalRgb);
 
         _n3 = new N3Controller();
-        _n3.OnInput += e => QueueHardwareInput(() => $"N3 {e.Describe()}", () => HandleN3Input(e));
+        _n3.OnInput += e => QueueN3HardwareInput(() => $"N3 {e.Describe()}", () => HandleN3Input(e));
         _n3.OnConnectionChanged += HandleN3ConnectionChanged;
 
         // Let the display renderer resolve dynamic-state sources without
@@ -430,7 +439,8 @@ public partial class App : Application
                 if (hwnd == IntPtr.Zero) return null;
                 NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
                 if (pid == 0) return null;
-                return System.Diagnostics.Process.GetProcessById((int)pid).ProcessName;
+                using var process = System.Diagnostics.Process.GetProcessById((int)pid);
+                return process.ProcessName;
             }
             catch { return null; }
         });
@@ -445,11 +455,14 @@ public partial class App : Application
 
         // Start serial reader
         _serial = new SerialReader(_config.Serial.Port, _config.Serial.Baud);
-        _serial.OnKnob += e => QueueHardwareInput(() => $"Turn Up knob {e.Idx}{(e.IsBatch ? " batch" : "")} value={e.Value}", () => HandleKnob(e));
-        _serial.OnButton += e => QueueHardwareInput(() => $"Turn Up button {e.Idx} {(e.IsDown ? "down" : "up")}", () => HandleButton(e));
+        _serial.OnKnob += e => QueueLatestTurnUpInput(
+            e.Idx,
+            () => $"Turn Up knob {e.Idx}{(e.IsBatch ? " batch" : "")} value={e.Value}",
+            () => HandleKnob(e));
+        _serial.OnButton += e => QueueTurnUpHardwareInput(() => $"Turn Up button {e.Idx} {(e.IsDown ? "down" : "up")}", () => HandleButton(e));
         _serial.OnConnectionChanged += HandleConnection;
         _startupTick = Environment.TickCount64; // reset just before serial starts
-        _serial.Start();
+        ConfigureTurnUpSerialForHardwareMode();
 
         // Apply RGB config
         ApplyRgbConfig();
@@ -1205,6 +1218,7 @@ public partial class App : Application
         _mutePollingTimer?.Dispose();
         _autoSwitchTimer?.Dispose();
         _gameModeTimer?.Dispose();
+        _audioDeviceRefreshTimer?.Dispose();
         try { _resumeRecoveryCts?.Cancel(); _resumeRecoveryCts?.Dispose(); } catch { }
         foreach (var timer in _osdFinalTimers)
             timer?.Dispose();
@@ -1407,6 +1421,7 @@ public partial class App : Application
     private void OnConfigChanged(AppConfig config)
     {
         _config = config;
+        ConfigureTurnUpSerialForHardwareMode();
         ConfigManager.Save(_config);
         ConfigManager.SaveProfile(_config, _config.ActiveProfile);
         ApplyRgbConfig();
@@ -1485,6 +1500,15 @@ public partial class App : Application
         }
     }
 
+    private void ConfigureTurnUpSerialForHardwareMode()
+    {
+        if (_serial == null) return;
+        if (_config.HardwareMode == HardwareMode.StreamControllerOnly)
+            _serial.Stop();
+        else
+            _serial.Start();
+    }
+
     /// <summary>
     /// Cheap change-detection signature for the N3-relevant config (keys,
     /// buttons, folders, paging, brightness) plus HardwareMode, which gates
@@ -1526,7 +1550,25 @@ public partial class App : Application
     // Takes a description FACTORY instead of a pre-built string — the
     // interpolated source text is only materialized in the sampled-log /
     // error / slow-handler branches, not on every knob tick.
-    private void QueueHardwareInput(Func<string> describeSource, Action action)
+    private void QueueTurnUpHardwareInput(Func<string> describeSource, Action action)
+    {
+        RecordHardwareInput(describeSource);
+        _turnUpInputPump?.Queue(describeSource, action);
+    }
+
+    private void QueueLatestTurnUpInput(int key, Func<string> describeSource, Action action)
+    {
+        RecordHardwareInput(describeSource);
+        _turnUpInputPump?.QueueLatest(key, describeSource, action);
+    }
+
+    private void QueueN3HardwareInput(Func<string> describeSource, Action action)
+    {
+        RecordHardwareInput(describeSource);
+        _n3InputPump?.Queue(describeSource, action);
+    }
+
+    private void RecordHardwareInput(Func<string> describeSource)
     {
         long now = Environment.TickCount64;
         Interlocked.Exchange(ref _lastHardwareActivityTick, now);
@@ -1537,23 +1579,46 @@ public partial class App : Application
         {
             Logger.Log($"Hardware input received: {describeSource()}");
         }
+    }
 
-        ThreadPool.QueueUserWorkItem(_ =>
+    private void QueueAudioDeviceRefresh()
+    {
+        if (_isShuttingDown) return;
+        try
         {
-            long startTick = Environment.TickCount64;
+            // Bluetooth endpoints commonly raise several add/state/default
+            // notifications in one burst. Refresh once after they settle.
+            _audioDeviceRefreshTimer?.Change(500, System.Threading.Timeout.Infinite);
+        }
+        catch (ObjectDisposedException) { }
+    }
+
+    private void RefreshAudioDevicesAfterChange()
+    {
+        if (_isShuttingDown) return;
+
+        try { _mixer?.RefreshNow(); }
+        catch (Exception ex) { Logger.Log($"Audio device session refresh failed: {ex.Message}"); }
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_isShuttingDown) return;
             try
             {
-                action();
+                _mainWindow?.RefreshAudioDeviceViews();
+
+                using var enumerator = new NAudio.CoreAudioApi.MMDeviceEnumerator();
+                using var current = enumerator.GetDefaultAudioEndpoint(
+                    NAudio.CoreAudioApi.DataFlow.Render,
+                    NAudio.CoreAudioApi.Role.Multimedia);
+                // Update device-aware lighting immediately. Leave
+                // _lastDefaultOutputDeviceId untouched so PollMuteStates sees
+                // the change and re-subscribes master mute/volume callbacks.
+                _rgb.SetDefaultOutputDevice(current.ID);
             }
             catch (Exception ex)
             {
-                Logger.Log($"Hardware input handler failed ({describeSource()}): {ex.Message}");
-            }
-            finally
-            {
-                long elapsedMs = Environment.TickCount64 - startTick;
-                if (elapsedMs >= HardwareInputSlowLogMs)
-                    Logger.Log($"Hardware input handler slow ({describeSource()}): {elapsedMs}ms");
+                Logger.Log($"Audio device UI refresh failed: {ex.Message}");
             }
         });
     }
@@ -2296,6 +2361,11 @@ public partial class App : Application
             RefreshTurnUpRgbOutput("serial connected");
             UpdateAudioAnalyzer();
         }
+        else
+        {
+            // Stop the 20 FPS effect timer while no Turn Up output exists.
+            _rgb.SetOutput(null, null);
+        }
 
         _isConnected = connected;
 
@@ -2400,7 +2470,7 @@ public partial class App : Application
                 {
                     try
                     {
-                        var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                        using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
                         var name = proc.ProcessName.ToLowerInvariant();
                         // Skip explorer (desktop), shell, and common non-game fullscreen apps
                         if (name != "explorer" && name != "shellexperiencehost"
@@ -2426,7 +2496,7 @@ public partial class App : Application
             {
                 var fgHwnd = NativeMethods.GetForegroundWindow();
                 NativeMethods.GetWindowThreadProcessId(fgHwnd, out uint fgPid);
-                var fgProc = System.Diagnostics.Process.GetProcessById((int)fgPid);
+                using var fgProc = System.Diagnostics.Process.GetProcessById((int)fgPid);
                 Logger.Log($"GameMode: fullscreen detected ({fgProc.ProcessName}) — enabling screen sync");
             }
             catch { Logger.Log("GameMode: fullscreen detected — enabling screen sync"); }
@@ -4309,7 +4379,7 @@ public partial class App : Application
             try
             {
                 using var enumerator = new NAudio.CoreAudioApi.MMDeviceEnumerator();
-                var defaultDev = enumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
+                using var defaultDev = enumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
                 _rgb.SetDefaultOutputDevice(defaultDev.ID);
             }
             catch { }
@@ -4887,7 +4957,8 @@ public partial class App : Application
 
             if (_config.StartWithWindows)
             {
-                var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? "";
+                using var currentProcess = System.Diagnostics.Process.GetCurrentProcess();
+                var exePath = currentProcess.MainModule?.FileName ?? "";
                 key.SetValue(valueName, $"\"{exePath}\" --minimized");
             }
             else
@@ -5256,6 +5327,7 @@ public partial class App : Application
         _mutePollingTimer?.Dispose();
         _autoSwitchTimer?.Dispose();
         _gameModeTimer?.Dispose();
+        _audioDeviceRefreshTimer?.Dispose();
         try { _resumeRecoveryCts?.Cancel(); _resumeRecoveryCts?.Dispose(); } catch { }
         foreach (var timer in _osdFinalTimers)
             timer?.Dispose();
@@ -5265,6 +5337,8 @@ public partial class App : Application
         _osdOverlay?.Close();
         _radialWheel?.Close();
         _serial?.Dispose();
+        _turnUpInputPump?.Dispose();
+        _n3InputPump?.Dispose();
         _buttons?.Dispose();
         _mixer?.Dispose();
         _audioAnalyzer?.Dispose();

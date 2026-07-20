@@ -299,6 +299,16 @@ public partial class MainWindow : FluentWindow
         }
     }
 
+    /// <summary>Refresh only controls whose choices depend on Windows audio endpoints.</summary>
+    public void RefreshAudioDeviceViews()
+    {
+        if (_mixer == null) return;
+
+        _buttonsView.RefreshAudioDevices(_mixer);
+        _mixerView.RefreshAudioDevices();
+        _lightsView.RefreshAudioDevices(_mixer);
+    }
+
     private void NavMixer_Click(object sender, RoutedEventArgs e) => NavigateTo(_mixerView, NavMixer);
     private void NavButtons_Click(object sender, RoutedEventArgs e) => NavigateTo(_buttonsView, NavButtons);
     private void NavLights_Click(object sender, RoutedEventArgs e)

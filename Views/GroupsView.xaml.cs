@@ -563,7 +563,7 @@ public partial class GroupsView : UserControl
                     NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.DeviceState.Active);
                 for (int i = 0; i < audioDevices.Count; i++)
                 {
-                    var audioDev = audioDevices[i];
+                    using var audioDev = audioDevices[i];
                     var group = _config.Groups[groupIndex];
                     if (group.Devices.Any(d => d.Type == "audio_output" && d.DeviceId == audioDev.ID))
                         continue;

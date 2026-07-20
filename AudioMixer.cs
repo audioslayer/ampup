@@ -1,5 +1,6 @@
 using AmpUp.Core.Engine;
 using NAudio.CoreAudioApi;
+using NAudio.CoreAudioApi.Interfaces;
 
 namespace AmpUp;
 
@@ -8,13 +9,46 @@ public class AudioMixer : IDisposable
     // P/Invoke declarations consolidated in NativeMethods.cs
 
     private readonly MMDeviceEnumerator _enumerator = new();
+    private readonly DeviceNotificationClient _deviceNotificationClient;
     private readonly Dictionary<int, int> _lastValues = new();
     private readonly object _lock = new();      // guards _sessions / _sessionsByPid dict access
     private readonly object _enumLock = new();  // guards _enumerator — accessed from multiple threads
     private readonly object _lastValuesLock = new();
     private System.Threading.Timer? _pollTimer;
+    private int _refreshInProgress;
+    private long _lastRefreshErrorLogTicks;
+    private string _lastRefreshError = "";
     private volatile bool _disposed;
     private const float NonZeroVolumeThreshold = 0.0001f;
+
+    /// <summary>Fires when Windows adds, removes, activates, or changes the default audio endpoint.</summary>
+    public event Action? AudioDevicesChanged;
+
+    public AudioMixer()
+    {
+        _deviceNotificationClient = new DeviceNotificationClient(this);
+        try { _enumerator.RegisterEndpointNotificationCallback(_deviceNotificationClient); }
+        catch (Exception ex) { Logger.Log($"Audio device watcher registration failed: {ex.Message}"); }
+    }
+
+    private sealed class DeviceNotificationClient : IMMNotificationClient
+    {
+        private readonly AudioMixer _owner;
+
+        public DeviceNotificationClient(AudioMixer owner) => _owner = owner;
+
+        private void Notify()
+        {
+            if (!_owner._disposed)
+                _owner.AudioDevicesChanged?.Invoke();
+        }
+
+        public void OnDeviceStateChanged(string deviceId, DeviceState newState) => Notify();
+        public void OnDeviceAdded(string pwstrDeviceId) => Notify();
+        public void OnDeviceRemoved(string deviceId) => Notify();
+        public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId) => Notify();
+        public void OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key) { }
+    }
 
     // Map of processName (lowercase) -> AudioSessionControl
     private Dictionary<string, AudioSessionControl> _sessions = new();
@@ -94,6 +128,10 @@ public class AudioMixer : IDisposable
     private void RefreshSessions()
     {
         if (_disposed) return;
+        if (Interlocked.Exchange(ref _refreshInProgress, 1) != 0) return;
+
+        MMDevice? pendingDevice = null;
+        List<AudioSessionControl>? pendingWrappers = null;
 
         try
         {
@@ -103,6 +141,7 @@ public class AudioMixer : IDisposable
                 if (_disposed) return;
                 device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
             }
+            pendingDevice = device;
 
             // Drop cached endpoint objects if the default device changed — otherwise
             // the master/mic knob + VU caches keep pointing at the old endpoint.
@@ -111,6 +150,7 @@ public class AudioMixer : IDisposable
             var newSessions = new Dictionary<string, AudioSessionControl>();
             var newPidSessions = new Dictionary<uint, AudioSessionControl>();
             var newWrappers = new List<AudioSessionControl>();
+            pendingWrappers = newWrappers;
             var seenPids = new HashSet<int>();
 
             var sessionMgr = device!.AudioSessionManager;
@@ -198,7 +238,9 @@ public class AudioMixer : IDisposable
                 _sessionWrappers = newWrappers;
                 var oldDevice = _renderDevice;
                 _renderDevice = device;
-                oldDevice?.Dispose();
+                pendingDevice = null;
+                pendingWrappers = null;
+                try { oldDevice?.Dispose(); } catch { }
                 // Sessions are re-enumerated fresh each refresh (the SessionCollection
                 // indexer creates a new wrapper per access), so nothing from the previous
                 // refresh is carried forward — every old wrapper is safe to dispose.
@@ -212,7 +254,31 @@ public class AudioMixer : IDisposable
         catch (Exception ex)
         {
             // Don't clear _sessions on failure — keep stale data rather than empty
-            Logger.Log($"Session refresh error: {ex.Message}");
+            LogRefreshError(ex.Message);
+        }
+        finally
+        {
+            if (pendingWrappers != null)
+            {
+                foreach (var wrapper in pendingWrappers)
+                    try { wrapper.Dispose(); } catch { }
+            }
+            try { pendingDevice?.Dispose(); } catch { }
+            Volatile.Write(ref _refreshInProgress, 0);
+        }
+    }
+
+    private void LogRefreshError(string message)
+    {
+        long nowTicks = DateTime.UtcNow.Ticks;
+        long lastTicks = Interlocked.Read(ref _lastRefreshErrorLogTicks);
+        if (!string.Equals(message, _lastRefreshError, StringComparison.Ordinal)
+            || lastTicks == 0
+            || nowTicks - lastTicks >= TimeSpan.FromMinutes(5).Ticks)
+        {
+            _lastRefreshError = message;
+            Interlocked.Exchange(ref _lastRefreshErrorLogTicks, nowTicks);
+            Logger.Log($"Session refresh error: {message} (identical errors suppressed for 5 minutes)");
         }
     }
 
@@ -548,7 +614,7 @@ public class AudioMixer : IDisposable
             // (some apps like Chrome have child processes)
             try
             {
-                var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
                 var name = proc.ProcessName.ToLowerInvariant();
                 lock (_lock)
                 {
@@ -711,7 +777,7 @@ public class AudioMixer : IDisposable
             // Fallback: match by process name
             try
             {
-                var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
                 var name = proc.ProcessName.ToLowerInvariant();
                 lock (_lock)
                 {
@@ -942,7 +1008,7 @@ public class AudioMixer : IDisposable
             // Fallback: match by process name
             try
             {
-                var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
                 var name = proc.ProcessName.ToLowerInvariant();
                 lock (_lock)
                 {
@@ -970,7 +1036,7 @@ public class AudioMixer : IDisposable
             {
                 for (int i = 0; i < renderDevices.Count; i++)
                 {
-                    var dev = renderDevices[i];
+                    using var dev = renderDevices[i];
                     result.Add((dev.ID, dev.FriendlyName, true));
                 }
             }
@@ -981,7 +1047,7 @@ public class AudioMixer : IDisposable
             {
                 for (int i = 0; i < captureDevices.Count; i++)
                 {
-                    var dev = captureDevices[i];
+                    using var dev = captureDevices[i];
                     result.Add((dev.ID, dev.FriendlyName, false));
                 }
             }
@@ -1006,7 +1072,7 @@ public class AudioMixer : IDisposable
             NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
             if (pid == 0) return "";
 
-            var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+            using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
             return proc.ProcessName;
         }
         catch
@@ -1056,7 +1122,7 @@ public class AudioMixer : IDisposable
 
             try
             {
-                var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
                 return proc.ProcessName;
             }
             catch { return ""; }
@@ -1156,16 +1222,14 @@ public class AudioMixer : IDisposable
         {
             MMDevice? dev;
             lock (_enumLock) dev = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-            output = dev?.FriendlyName ?? "Unknown";
-            dev?.Dispose();
+            using (dev) output = dev?.FriendlyName ?? "Unknown";
         }
         catch { }
         try
         {
             MMDevice? mic;
             lock (_enumLock) mic = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
-            input = mic?.FriendlyName ?? "Unknown";
-            mic?.Dispose();
+            using (mic) input = mic?.FriendlyName ?? "Unknown";
         }
         catch { }
         return (output, input);
@@ -1181,10 +1245,12 @@ public class AudioMixer : IDisposable
             MMDevice? dev;
             lock (_enumLock) dev = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
             if (dev == null) return (0f, false);
+            using (dev)
+            {
             float vol = dev.AudioEndpointVolume.MasterVolumeLevelScalar;
             bool muted = dev.AudioEndpointVolume.Mute;
-            dev.Dispose();
             return (vol, muted);
+            }
         }
         catch { return (0f, false); }
     }
@@ -1229,6 +1295,7 @@ public class AudioMixer : IDisposable
         }
         lock (_enumLock)
         {
+            try { _enumerator.UnregisterEndpointNotificationCallback(_deviceNotificationClient); } catch { }
             try { _renderDevice?.Dispose(); } catch { }
             try { _masterPeakDevice?.Dispose(); } catch { }
             try { _micPeakDevice?.Dispose(); } catch { }

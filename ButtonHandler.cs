@@ -732,12 +732,12 @@ public class ButtonHandler : IDisposable
             var sessions = device.AudioSessionManager.Sessions;
             for (int i = 0; i < sessions.Count; i++)
             {
-                var session = sessions[i];
+                using var session = sessions[i];
                 try
                 {
                     var pid = (int)session.GetProcessID;
                     if (pid == 0) continue;
-                    var proc = Process.GetProcessById(pid);
+                    using var proc = Process.GetProcessById(pid);
                     if (proc.ProcessName.Contains(processName, StringComparison.OrdinalIgnoreCase)
                         || proc.ProcessName.Replace(" ", "").Contains(processName.Replace(" ", ""), StringComparison.OrdinalIgnoreCase))
                     {
@@ -779,7 +779,7 @@ public class ButtonHandler : IDisposable
             var sessions = device.AudioSessionManager.Sessions;
             for (int i = 0; i < sessions.Count; i++)
             {
-                var session = sessions[i];
+                using var session = sessions[i];
                 if (session.GetProcessID == pid)
                 {
                     session.SimpleAudioVolume.Mute = !session.SimpleAudioVolume.Mute;
@@ -790,16 +790,16 @@ public class ButtonHandler : IDisposable
             // Some apps spawn child processes for audio — try matching by process name
             try
             {
-                var fgProc = Process.GetProcessById((int)pid);
+                using var fgProc = Process.GetProcessById((int)pid);
                 var fgName = fgProc.ProcessName;
                 for (int i = 0; i < sessions.Count; i++)
                 {
-                    var session = sessions[i];
+                    using var session = sessions[i];
                     try
                     {
                         var sPid = (int)session.GetProcessID;
                         if (sPid == 0) continue;
-                        var sProc = Process.GetProcessById(sPid);
+                        using var sProc = Process.GetProcessById(sPid);
                         if (sProc.ProcessName.Contains(fgName, StringComparison.OrdinalIgnoreCase))
                         {
                             session.SimpleAudioVolume.Mute = !session.SimpleAudioVolume.Mute;
@@ -847,11 +847,12 @@ public class ButtonHandler : IDisposable
             for (int i = 0; i < sessions.Count; i++)
             {
                 var session = sessions[i];
+                bool keepSession = false;
                 try
                 {
                     var pid = (int)session.GetProcessID;
                     if (pid == 0) continue;
-                    var proc = Process.GetProcessById(pid);
+                    using var proc = Process.GetProcessById(pid);
                     var procName = proc.ProcessName.ToLowerInvariant();
 
                     foreach (var appName in knob.Apps)
@@ -860,12 +861,18 @@ public class ButtonHandler : IDisposable
                         if (procName.Contains(appLower)
                             || procName.Replace(" ", "").Contains(appLower.Replace(" ", "")))
                         {
+                            keepSession = true;
                             matchingSessions.Add(session);
                             break;
                         }
                     }
                 }
                 catch { }
+                finally
+                {
+                    if (!keepSession)
+                        try { session.Dispose(); } catch { }
+                }
             }
 
             if (matchingSessions.Count == 0)
@@ -880,6 +887,7 @@ public class ButtonHandler : IDisposable
             foreach (var session in matchingSessions)
             {
                 try { session.SimpleAudioVolume.Mute = newMuteState; } catch { }
+                finally { try { session.Dispose(); } catch { } }
             }
 
         }
@@ -1017,7 +1025,7 @@ public class ButtonHandler : IDisposable
                     var devices = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
                     for (int i = 0; i < devices.Count; i++)
                     {
-                        var device = devices[i];
+                        using var device = devices[i];
                         if (device.ID == deviceId)
                         {
                             bool newMute = !device.AudioEndpointVolume.Mute;
@@ -1065,15 +1073,19 @@ public class ButtonHandler : IDisposable
 
     private void CycleDevice(DataFlow flow, List<string>? allowedIds, int buttonIdx, CycleDeviceType deviceType = CycleDeviceType.Both)
     {
+        // Use a fresh COM enumerator for every cycle. A process-lifetime
+        // enumerator can retain a stale endpoint view after Bluetooth devices
+        // connect or change state while AmpUp is running.
+        using var enumerator = new MMDeviceEnumerator();
         var role = flow == DataFlow.Render ? Role.Multimedia : Role.Communications;
-        using var currentDevice = _enumerator.GetDefaultAudioEndpoint(flow, role);
+        using var currentDevice = enumerator.GetDefaultAudioEndpoint(flow, role);
         var currentId = currentDevice.ID;
 
         List<string> deviceIds;
         if (allowedIds != null && allowedIds.Count > 0)
         {
             // Use only the specified subset, but verify they exist
-            var allDevices = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
+            var allDevices = enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
             var activeIds = new HashSet<string>();
             for (int i = 0; i < allDevices.Count; i++)
             {
@@ -1084,7 +1096,7 @@ public class ButtonHandler : IDisposable
         }
         else
         {
-            var allDevices = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
+            var allDevices = enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
             deviceIds = new List<string>();
             for (int i = 0; i < allDevices.Count; i++)
             {
@@ -1108,7 +1120,7 @@ public class ButtonHandler : IDisposable
         // Log friendly name and fire event
         try
         {
-            var allDevs = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
+            var allDevs = enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
             for (int i = 0; i < allDevs.Count; i++)
             {
                 using var d = allDevs[i];
@@ -1199,21 +1211,28 @@ public class ButtonHandler : IDisposable
                 : processName;
 
             var procs = Process.GetProcessesByName(name);
-            if (procs.Length == 0)
+            bool useSubstringMatch = procs.Length == 0;
+            if (useSubstringMatch)
             {
                 // Fallback: substring match across all processes
-                procs = Process.GetProcesses()
-                    .Where(p =>
+                procs = Process.GetProcesses();
+            }
+
+            try
+            {
+                var target = useSubstringMatch
+                    ? procs.FirstOrDefault(p =>
                     {
                         try { return p.ProcessName.Contains(processName, StringComparison.OrdinalIgnoreCase); }
                         catch { return false; }
                     })
-                    .ToArray();
+                    : procs.FirstOrDefault();
+                target?.Kill();
             }
-
-            if (procs.Length > 0)
+            finally
             {
-                procs[0].Kill();
+                foreach (var process in procs)
+                    process.Dispose();
             }
         }
         catch (Exception ex)

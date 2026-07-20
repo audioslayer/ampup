@@ -40,6 +40,10 @@ internal static class AnimatedImageDriver
         if (s_entries.TryGetValue(target, out var existing) && existing.Signature == signature)
             return;
 
+        // Re-registering with a new animation must not stack another copy of
+        // the same Unloaded handler on the Image.
+        target.Unloaded -= OnTargetUnloaded;
+
         int firstDelay = Math.Max(40, anim.FrameDelaysMs.Length > 0 ? anim.FrameDelaysMs[0] : 100);
         s_entries[target] = new Entry
         {

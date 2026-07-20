@@ -488,6 +488,29 @@ public partial class MixerView : UserControl
         StartTimersIfWindowActive();
     }
 
+    /// <summary>Refreshes endpoint-backed target choices without reloading the whole view.</summary>
+    public void RefreshAudioDevices()
+    {
+        if (_mixer == null || _config == null) return;
+
+        _loading = true;
+        try
+        {
+            _audioDevices = _mixer.GetAudioDevices();
+            RebuildTargetPickerItems(_config);
+            for (int i = 0; i < 5; i++)
+            {
+                var knob = _config.Knobs.FirstOrDefault(k => k.Idx == i);
+                if (knob != null)
+                    SelectTarget(_targetPickers[i], knob.Target, knob.DeviceId);
+            }
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
     private async Task FetchHAEntitiesAsync()
     {
         if (_ha == null) return;
@@ -1656,21 +1679,28 @@ public partial class MixerView : UserControl
         try
         {
             var procs = Process.GetProcessesByName(processName);
-            if (procs.Length > 0)
+            try
             {
-                var exePath = procs[0].MainModule?.FileName;
-                if (!string.IsNullOrEmpty(exePath))
+                if (procs.Length > 0)
                 {
-                    var sysIcon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
-                    if (sysIcon != null)
+                    var exePath = procs[0].MainModule?.FileName;
+                    if (!string.IsNullOrEmpty(exePath))
                     {
-                        icon = System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(
-                            sysIcon.Handle, Int32Rect.Empty,
-                            BitmapSizeOptions.FromEmptyOptions());
-                        icon.Freeze();
-                        sysIcon.Dispose();
+                        var sysIcon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
+                        if (sysIcon != null)
+                        {
+                            icon = System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(
+                                sysIcon.Handle, Int32Rect.Empty,
+                                BitmapSizeOptions.FromEmptyOptions());
+                            icon.Freeze();
+                            sysIcon.Dispose();
+                        }
                     }
                 }
+            }
+            finally
+            {
+                foreach (var process in procs) process.Dispose();
             }
         }
         catch { }

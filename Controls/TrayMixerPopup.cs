@@ -337,7 +337,7 @@ public class TrayMixerPopup : Window
 
     private void ReleaseSessionRows()
     {
-        _rows.Clear();
+        DisposeSessionRows();
         _sessionList.Children.Clear();
         try { _masterDevice?.Dispose(); } catch { }
         _masterDevice = null;
@@ -422,17 +422,22 @@ public class TrayMixerPopup : Window
             for (int i = 0; i < sessions.Count; i++)
             {
                 var s = sessions[i];
+                bool keepSession = false;
                 try
                 {
                     var pid = (int)s.GetProcessID;
                     if (pid == 0)
                     {
                         // System Sounds — keep first occurrence
-                        systemSoundsSession ??= s;
+                        if (systemSoundsSession == null)
+                        {
+                            systemSoundsSession = s;
+                            keepSession = true;
+                        }
                         continue;
                     }
 
-                    var proc = Process.GetProcessById(pid);
+                    using var proc = Process.GetProcessById(pid);
                     var name = proc.ProcessName;
 
                     // Prefer WASAPI DisplayName for UWP/packaged apps where audio runs
@@ -457,8 +462,14 @@ public class TrayMixerPopup : Window
                         continue;
 
                     appEntries.Add((displayName, s));
+                    keepSession = true;
                 }
                 catch { }
+                finally
+                {
+                    if (!keepSession)
+                        try { s.Dispose(); } catch { }
+                }
             }
 
             // Sort: pinned apps first (in pin order), then rest alphabetically
@@ -493,6 +504,10 @@ public class TrayMixerPopup : Window
                     firstApp = false;
                     _sessionList.Children.Add(row);
                 }
+                else
+                {
+                    try { s.Dispose(); } catch { }
+                }
             }
 
             // System Sounds row at the bottom
@@ -510,6 +525,8 @@ public class TrayMixerPopup : Window
                 var sysRow = BuildSystemSoundsRow(systemSoundsSession);
                 if (sysRow != null)
                     _sessionList.Children.Add(sysRow);
+                else
+                    try { systemSoundsSession.Dispose(); } catch { }
             }
 
             if (_sessionList.Children.Count <= 2) // only master + divider
@@ -1399,7 +1416,7 @@ public class TrayMixerPopup : Window
         var accent = GetAccentColor();
 
         // Build device list + find current default
-        var devices = new List<MMDevice>();
+        var devices = new List<(string Id, string Name)>();
         string currentId = "";
         string currentName = "No device";
         int currentIdx = 0;
@@ -1407,15 +1424,18 @@ public class TrayMixerPopup : Window
         {
             var role = flow == DataFlow.Capture ? Role.Communications : Role.Multimedia;
             var enumerated = _enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
-            foreach (var d in enumerated) devices.Add(d);
+            foreach (var d in enumerated)
+            {
+                using (d) devices.Add((d.ID, d.FriendlyName));
+            }
             using var def = _enumerator.GetDefaultAudioEndpoint(flow, role);
             currentId = def.ID;
             for (int i = 0; i < devices.Count; i++)
             {
-                if (devices[i].ID == currentId)
+                if (devices[i].Id == currentId)
                 {
                     currentIdx = i;
-                    currentName = devices[i].FriendlyName;
+                    currentName = devices[i].Name;
                     break;
                 }
             }
@@ -1509,14 +1529,14 @@ public class TrayMixerPopup : Window
 
         // If no subset configured, default all checked
         if (quickSwapIds.Count == 0)
-            foreach (var d in devices) quickSwapIds.Add(d.ID);
+            foreach (var d in devices) quickSwapIds.Add(d.Id);
 
         for (int i = 0; i < devices.Count; i++)
         {
             int idx = i;
             var dev = devices[i];
-            bool isDefault = dev.ID == currentId;
-            bool inSubset = quickSwapIds.Contains(dev.ID);
+            bool isDefault = dev.Id == currentId;
+            bool inSubset = quickSwapIds.Contains(dev.Id);
 
             var devRow = new Border
             {
@@ -1540,12 +1560,12 @@ public class TrayMixerPopup : Window
             };
             cb.Checked += (_, _) =>
             {
-                quickSwapIds.Add(dev.ID);
+                quickSwapIds.Add(dev.Id);
                 SaveQuickSwapSubset(configKey, quickSwapIds);
             };
             cb.Unchecked += (_, _) =>
             {
-                quickSwapIds.Remove(dev.ID);
+                quickSwapIds.Remove(dev.Id);
                 if (quickSwapIds.Count == 0) { cb.IsChecked = true; return; } // must have at least 1
                 SaveQuickSwapSubset(configKey, quickSwapIds);
             };
@@ -1568,7 +1588,7 @@ public class TrayMixerPopup : Window
 
             var devName = new TextBlock
             {
-                Text = dev.FriendlyName,
+                Text = dev.Name,
                 FontSize = 10.5,
                 Foreground = isDefault
                     ? new SolidColorBrush(accent)
@@ -1591,8 +1611,8 @@ public class TrayMixerPopup : Window
                 e.Handled = true;
                 try
                 {
-                    ButtonHandler.SetDefaultAudioDevice(dev.ID);
-                    nameText.Text = dev.FriendlyName;
+                    ButtonHandler.SetDefaultAudioDevice(dev.Id);
+                    nameText.Text = dev.Name;
                     if (nameText.Text.Length > 40) nameText.Text = nameText.Text[..38] + "...";
                     currentIdx = idx;
                     dropdown.Visibility = Visibility.Collapsed;
@@ -1643,7 +1663,7 @@ public class TrayMixerPopup : Window
             // Build cycle list from quick-swap subset
             var cycleDevices = new List<int>();
             for (int i = 0; i < devices.Count; i++)
-                if (quickSwapIds.Contains(devices[i].ID)) cycleDevices.Add(i);
+                if (quickSwapIds.Contains(devices[i].Id)) cycleDevices.Add(i);
 
             if (cycleDevices.Count < 2) return;
 
@@ -1654,8 +1674,8 @@ public class TrayMixerPopup : Window
 
             try
             {
-                ButtonHandler.SetDefaultAudioDevice(devices[nextIdx].ID);
-                nameText.Text = devices[nextIdx].FriendlyName;
+                ButtonHandler.SetDefaultAudioDevice(devices[nextIdx].Id);
+                nameText.Text = devices[nextIdx].Name;
                 if (nameText.Text.Length > 40) nameText.Text = nameText.Text[..38] + "...";
                 currentIdx = nextIdx;
             }
@@ -2250,19 +2270,22 @@ public class TrayMixerPopup : Window
 
         try
         {
-            var renderDevices = new List<MMDevice>();
+            var renderDevices = new List<(string Id, string Name)>();
             var enumerated = _enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
-            foreach (var d in enumerated) renderDevices.Add(d);
+            foreach (var d in enumerated)
+            {
+                using (d) renderDevices.Add((d.ID, d.FriendlyName));
+            }
 
             foreach (var dev in renderDevices)
             {
                 var devCapture = dev;
-                var devName = dev.FriendlyName.Length > 30 ? dev.FriendlyName[..28] + "…" : dev.FriendlyName;
+                var devName = dev.Name.Length > 30 ? dev.Name[..28] + "…" : dev.Name;
                 menuStack.Children.Add(MakeItem($"   {devName}",
                     new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
                     () =>
                     {
-                        try { ButtonHandler.SetDefaultAudioDevice(devCapture.ID); }
+                        try { ButtonHandler.SetDefaultAudioDevice(devCapture.Id); }
                         catch { }
                     }, isSub: true));
             }
@@ -2347,10 +2370,16 @@ public class TrayMixerPopup : Window
             {
                 try
                 {
-                    var proc = Process.GetProcessesByName(processName).FirstOrDefault();
-                    if (proc != null)
+                    var processes = Process.GetProcessesByName(processName);
+                    try
                     {
-                        NativeMethods.SetForegroundWindow(proc.MainWindowHandle);
+                        var proc = processes.FirstOrDefault();
+                        if (proc != null)
+                            NativeMethods.SetForegroundWindow(proc.MainWindowHandle);
+                    }
+                    finally
+                    {
+                        foreach (var proc in processes) proc.Dispose();
                     }
                 }
                 catch { }
@@ -2397,7 +2426,7 @@ public class TrayMixerPopup : Window
             var pid = (int)session.GetProcessID;
             if (pid == 0) return null;
 
-            var proc = Process.GetProcessById(pid);
+            using var proc = Process.GetProcessById(pid);
             var name = proc.ProcessName;
 
             if (_iconCache.TryGetValue(name, out var cached))
@@ -2709,7 +2738,15 @@ public class TrayMixerPopup : Window
             _deviceNotificationClient = null;
         }
         try { _masterDevice?.Dispose(); } catch { }
+        DisposeSessionRows();
         try { _enumerator.Dispose(); } catch { }
+    }
+
+    private void DisposeSessionRows()
+    {
+        foreach (var row in _rows)
+            try { row.Session.Dispose(); } catch { }
+        _rows.Clear();
     }
 
     /// <summary>

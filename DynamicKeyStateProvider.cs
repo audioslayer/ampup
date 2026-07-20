@@ -103,13 +103,14 @@ internal static class DynamicKeyStateProvider
                 var sessions = device.AudioSessionManager.Sessions;
                 for (int i = 0; i < sessions.Count; i++)
                 {
-                    var s = sessions[i];
+                    using var s = sessions[i];
                     try
                     {
                         if (s.State != AudioSessionState.AudioSessionStateActive) continue;
                         var pid = (int)s.GetProcessID;
                         if (pid == 0) continue;
-                        var procName = Process.GetProcessById(pid).ProcessName;
+                        using var process = Process.GetProcessById(pid);
+                        var procName = process.ProcessName;
                         if (procName.Contains(processNameFragment, StringComparison.OrdinalIgnoreCase))
                             return true;
                     }

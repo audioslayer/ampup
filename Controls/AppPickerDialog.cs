@@ -197,6 +197,7 @@ public class AppPickerDialog : Window
                 runningApps[name] = exePath ?? name;
             }
             catch { }
+            finally { proc.Dispose(); }
         }
 
         // Add running apps
@@ -207,7 +208,7 @@ public class AppPickerDialog : Window
             {
                 if (File.Exists(path))
                 {
-                    var sysIcon = System.Drawing.Icon.ExtractAssociatedIcon(path);
+                    using var sysIcon = System.Drawing.Icon.ExtractAssociatedIcon(path);
                     if (sysIcon != null)
                         icon = Imaging.CreateBitmapSourceFromHIcon(sysIcon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
                 }

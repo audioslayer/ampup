@@ -3033,10 +3033,9 @@ public partial class RoomView : UserControl
                     }
                 }
 
-                var syncRef = _sync;
-                var ipRef = dev.Ip;
-                var colorsRef = segColors;
-                _ = Task.Run(() => syncRef?.SendSegmentFrame(ipRef, colorsRef));
+                // SendSegmentFrame is non-blocking and already queues its UDP
+                // write. Avoid creating a ThreadPool task per device at 30 FPS.
+                _sync?.SendSegmentFrame(dev.Ip, segColors);
             }
             else
             {

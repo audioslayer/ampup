@@ -1210,11 +1210,19 @@ public class AmbienceSync : IDisposable
     /// </summary>
     private static UdpClient? _sharedUdp;
     private static readonly object _udpLock = new();
+    private static readonly SemaphoreSlim _udpSendGate = new(1, 1);
 
     private static Task SendLanCommand(string ip, string json)
         => SendLanCommandBytes(ip, Encoding.UTF8.GetBytes(json));
 
     private static async Task SendLanCommandBytes(string ip, byte[] data)
+    {
+        await _udpSendGate.WaitAsync();
+        try { await SendLanCommandBytesCore(ip, data); }
+        finally { _udpSendGate.Release(); }
+    }
+
+    private static async Task SendLanCommandBytesCore(string ip, byte[] data)
     {
         UdpClient udp;
         lock (_udpLock)

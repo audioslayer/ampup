@@ -282,7 +282,7 @@ public partial class AudioDashView : UserControl
     {
         try
         {
-            var proc = Process.GetProcessById(pid);
+            using var proc = Process.GetProcessById(pid);
             var exePath = proc.MainModule?.FileName;
             if (!string.IsNullOrEmpty(exePath))
             {

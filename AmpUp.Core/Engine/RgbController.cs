@@ -16,6 +16,7 @@ public class RgbController : IDisposable
     private readonly byte[] _colorMsg = new byte[48];
     private readonly byte[] _linearColors = new byte[45]; // pre-gamma, post-brightness — for external sync
     private System.Threading.Timer? _refreshTimer;
+    private int _tickInProgress;
 
     /// <summary>
     /// Called after each frame is computed with pre-gamma linear RGB for all 15 LEDs.
@@ -620,6 +621,9 @@ public class RgbController : IDisposable
     /// </summary>
     private void Tick()
     {
+        if (Interlocked.Exchange(ref _tickInProgress, 1) != 0) return;
+        try
+        {
         _animTick++;
 
         // Preview color override — used by color picker for live hardware preview
@@ -667,6 +671,11 @@ public class RgbController : IDisposable
 
         Send();
         OnFrameReady?.Invoke(_linearColors);
+        }
+        finally
+        {
+            Volatile.Write(ref _tickInProgress, 0);
+        }
     }
 
     /// <summary>

@@ -348,6 +348,36 @@ public partial class LightsView : UserControl
         _configLoaded = true;
     }
 
+    /// <summary>Refreshes Device Select choices after an endpoint is connected or removed.</summary>
+    public void RefreshAudioDevices(AudioMixer mixer)
+    {
+        if (_config == null) return;
+
+        _loading = true;
+        try
+        {
+            _audioDevices = mixer.GetAudioDevices();
+            int newRowCount = Math.Clamp(_audioDevices.Count(d => d.IsOutput), 3, 8);
+            if (newRowCount != _dsRowCount)
+            {
+                _dsRowCount = newRowCount;
+                RebuildDeviceSelectRows();
+            }
+
+            for (int i = 0; i < 5; i++)
+            {
+                PopulateDeviceSelectPickers(i);
+                var light = _config.Lights.FirstOrDefault(l => l.Idx == i);
+                if (light != null)
+                    LoadDeviceSelectColors(i, light);
+            }
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
     private void BuildPresetsSection()
     {
         var panel = PresetsPanel;
@@ -3026,6 +3056,7 @@ public partial class LightsView : UserControl
             // and the pickers are initialized, otherwise preserve existing config
             if (EffectsNeedingDeviceSelect.Contains(light.Effect) && _dsDevicePickers[i] != null)
             {
+                var previousMappings = light.DeviceColors ?? new List<DeviceColorEntry>();
                 light.DeviceColors = new List<DeviceColorEntry>();
                 for (int row = 0; row < _dsDevicePickers[i].Length; row++)
                 {
@@ -3040,6 +3071,31 @@ public partial class LightsView : UserControl
                             B = _dsColors[i][row].B,
                         });
                     }
+                }
+
+                // A Bluetooth endpoint that is disconnected while this view is
+                // loaded is absent from the active picker list. Keep its saved
+                // mapping so reconnecting it later restores the intended color.
+                var activeOutputIds = new HashSet<string>(
+                    _audioDevices.Where(d => d.IsOutput).Select(d => d.Id),
+                    StringComparer.OrdinalIgnoreCase);
+                var savedIds = new HashSet<string>(
+                    light.DeviceColors.Select(d => d.DeviceId),
+                    StringComparer.OrdinalIgnoreCase);
+                foreach (var previous in previousMappings)
+                {
+                    if (string.IsNullOrWhiteSpace(previous.DeviceId)
+                        || activeOutputIds.Contains(previous.DeviceId)
+                        || !savedIds.Add(previous.DeviceId))
+                        continue;
+
+                    light.DeviceColors.Add(new DeviceColorEntry
+                    {
+                        DeviceId = previous.DeviceId,
+                        R = previous.R,
+                        G = previous.G,
+                        B = previous.B,
+                    });
                 }
             }
         }

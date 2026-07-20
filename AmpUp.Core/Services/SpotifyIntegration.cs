@@ -82,6 +82,14 @@ public sealed class SpotifyIntegration : IDisposable
         catch (Exception ex)
         {
             Logger.Log($"Spotify restore failed: {ex.Message}");
+            if (IsInvalidGrant(ex))
+            {
+                // A revoked/expired refresh token can never recover by retrying.
+                // Clear it so subsequent launches do not keep attempting it.
+                _config.RefreshToken = "";
+                _config.ConnectedUser = "";
+                _persist(_config);
+            }
             return false;
         }
     }
@@ -179,8 +187,7 @@ public sealed class SpotifyIntegration : IDisposable
 
     public void Disconnect()
     {
-        _pollCts?.Cancel();
-        _pollCts = null;
+        StopPolling();
         _client = null;
         _authenticator = null;
         _tokenResponse = null;
@@ -193,7 +200,7 @@ public sealed class SpotifyIntegration : IDisposable
 
     private void StartPolling()
     {
-        _pollCts?.Cancel();
+        StopPolling();
         _pollCts = new CancellationTokenSource();
         var ct = _pollCts.Token;
         _ = Task.Run(async () =>
@@ -209,11 +216,38 @@ public sealed class SpotifyIntegration : IDisposable
                     try { await Task.Delay(TimeSpan.FromMilliseconds(wait), ct); } catch { }
                     continue;
                 }
-                catch (Exception ex) { Logger.Log($"Spotify poll error: {ex.Message}"); }
+                catch (Exception ex)
+                {
+                    if (IsInvalidGrant(ex))
+                    {
+                        Logger.Log("Spotify authorization expired or was revoked; reconnect Spotify in Settings");
+                        Disconnect();
+                        break;
+                    }
+                    Logger.Log($"Spotify poll error: {ex.Message}");
+                }
 
                 try { await Task.Delay(PollIntervalMs, ct); } catch { }
             }
         }, ct);
+    }
+
+    private void StopPolling()
+    {
+        var cts = Interlocked.Exchange(ref _pollCts, null);
+        if (cts == null) return;
+        try { cts.Cancel(); } catch { }
+        cts.Dispose();
+    }
+
+    private static bool IsInvalidGrant(Exception ex)
+    {
+        for (Exception? current = ex; current != null; current = current.InnerException)
+        {
+            if (current.Message.Contains("invalid_grant", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     private async Task PollOnceAsync(CancellationToken ct)
@@ -349,9 +383,7 @@ public sealed class SpotifyIntegration : IDisposable
 
     public void Dispose()
     {
-        _pollCts?.Cancel();
-        _pollCts?.Dispose();
-        _pollCts = null;
+        StopPolling();
         ShutdownServerAsync().GetAwaiter().GetResult();
     }
 }

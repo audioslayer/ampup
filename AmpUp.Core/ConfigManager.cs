@@ -323,7 +323,8 @@ public static class ConfigManager
 
     /// <summary>
     /// Atomic write: write to .tmp, then File.Replace to swap in the new file while keeping a .bak.
-    /// Falls back to File.Move if File.Replace fails (e.g. cross-volume).
+    /// Falls back to an overwrite move if File.Replace cannot be used (for
+    /// example, when the destination does not exist yet).
     /// </summary>
     private static void AtomicWrite(string destPath, string json)
     {
@@ -337,9 +338,9 @@ public static class ConfigManager
         catch
         {
             // Cross-volume or other edge case — fall back to overwrite move
-            if (File.Exists(destPath))
-                File.Delete(destPath);
-            File.Move(tmpPath, destPath);
+            // The temp file is next to the destination. Do not delete the
+            // last known-good file before its replacement is ready.
+            File.Move(tmpPath, destPath, overwrite: true);
         }
     }
 
@@ -418,9 +419,7 @@ public static class ConfigManager
                 writer.Write(JsonConvert.SerializeObject(manifest, Formatting.Indented));
             }
 
-            if (File.Exists(destinationPath))
-                File.Delete(destinationPath);
-            File.Move(tempPath, destinationPath);
+            File.Move(tempPath, destinationPath, overwrite: true);
         }
     }
 
