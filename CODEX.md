@@ -83,23 +83,25 @@
 - `StreamControllerDisplayRenderer.CreateDeviceJpeg(key)` / `ComposeDeviceBitmap` + `EncodeDeviceBitmap` — 60x60 rotated JPEG for the actual hardware. Compose is UI-thread-bound (WPF `RenderTargetBitmap`), encode + HID write are thread-safe, so the SC pipeline composes on UI then Task.Run's the I/O. Keeps folder/page navigation from freezing the UI for ~500ms.
 - Keys honor `IconColor` (MaterialIcon tint) and `AccentColor` (radial glow). Both are user-controllable via DESIGN tab swatches; the icon picker also carries its per-icon accent forward to the key so the on-device glow matches the hue the user saw in the picker.
 
-## Recent N3 scrolling / test-lane notes
+## N3 implementation gotchas
 - Long single-line N3 LCD titles auto-scroll when measured text width exceeds the display region. There is no user checkbox anymore; overflow detection is automatic in `ShouldScrollTitle`.
 - Smooth N3 title scrolling is image-frame based, not a device text primitive. `CreateScrollingTitleAnimation` builds editor/device frames; `App.StreamControllerAnimatedRefreshIntervalMs` is `80` ms so those frames are actually sent smoothly. Scroll step is `1.25f * scale`, capped at 128 moving frames.
 - Scroll loop wraparound draws a second copy of the title after the gap in `DrawScrollingTextOverlay`, avoiding the old blank pause when the first copy fully left the clipped text region.
-- v1.0.9.5 test builds include N3 page-2+ LCD binding fixes, font-size selection fixes, title text cursor/space fixes, clock display fixes, maximized-titlebar drag fix, Clear Icon button, and automatic long-title scrolling.
 - Side buttons and encoder presses now use high virtual ids (`10000+`) instead of colliding with page-2+ LCD ids (`106+`). Config migration in `AmpUp.Core/ConfigManager.cs` preserves old ambiguous bindings where possible.
+- Page-2+ LCD ids can still overlap legacy ids. `App.PreresolveLcdButton(idx)` stashes the active Space's binding in `_n3ButtonOverride`; physical side-button/encoder dispatch removes any stale override before resolving its global binding.
+- Side buttons and encoder presses support Tap / Double / Hold. LCD keys remain Tap-only. `DoublePressFolderName` and `HoldFolderName` fall back to `FolderName` for old configs.
 - `LoadStreamControllerSelection()` uses `_loading = true` during control population so selecting one key no longer writes the previous key's font size/action values into the new selection.
 - Live title saves no longer trim spaces, fixing cursor jumps when typing words followed by spaces.
 - `ClearSelectedStreamControllerIcon()` resets bitmap path, preset icon, accent/glow/icon color, dynamic glow color, and solid background defaults so "Clear Icon" does not leave the cyan/blue icon frame behind.
+- Device JPEG encoding must not blank the four 4x4 corners; the N3 LCDs are rectangular and those blocks are visibly black on hardware.
 
-## Test build lane
+## Release and build workflow
 - Manual installer builds still come from the separate checkout at `C:\Users\audio\Desktop\AmpUp`; always `git pull --ff-only` there before `build-installer.bat`.
-- Current test lane folder: `W:\wolfden\assets\ampup-test-builds`.
-- Stable latest installer URL: `https://plexwolf.duckdns.org/assets/ampup-test-builds/AmpUp-Test-Latest.exe`.
-- Latest uploaded test build in this memory pass: `AmpUp-Setup-1.0.9.5.exe` / `AmpUp-Test-Latest.exe`, built from commit `f54bd06` (`Smooth N3 scroll wraparound`) on 2026-06-08.
-- SHA256 for that uploaded installer: `fe1aa58a058094f9a2b3aa6215d6d555df86fc0b9f8c8d25a5d546fd8992a373`.
-- When updating the private test page, it is okay to update the hero summary/checksums, but do not change the "Test Flow" section unless Tyson explicitly asks.
+- `AmpUp.csproj` is the version source of truth. `build-installer.bat` generates `installer/version.iss`; do not hand-edit release metadata independently.
+- Release work is done directly on `master` unless Tyson explicitly asks for a branch.
+- Current public release (2026-07-20): [`v1.3`](https://github.com/audioslayer/ampup/releases/tag/v1.3), built from commit `75fd219c83f451c6a834061ded30c99af3bd1062`.
+- Release asset: `AmpUp-Setup-1.3.exe`, 67,661,070 bytes, SHA-256 `e76843f519d043726c4bbb4a78c518ab933102bf3c7a4f209af60c1291e9b7cd`. GitHub's asset digest was verified against the local installer before publishing.
+- The installer is currently unsigned, so release notes should retain the SmartScreen/checksum guidance until code signing is added.
 
 ## In-app self-updater
 - `AmpUp.Core/Services/UpdateChecker.cs` owns the complete update flow. It checks `audioslayer/ampup` releases using the running assembly's informational version and prerelease-aware semantic comparison.
@@ -110,55 +112,17 @@
 - If elevation is canceled or the installer fails, the helper relaunches the existing AmpUp installation and displays an update error. The helper records details in `%TEMP%\AmpUp\Updates\{version}\update-helper.log`.
 - Only one install handoff can run at a time. The MainWindow version label, Settings `Check for Updates`, and tray update banner all use the same `UpdateInfo`/`DownloadAndInstallAsync` path; the tray no longer opens a browser.
 - `App.NotifyUpdateAvailable(UpdateInfo)` retains the update even when the tray popup has not been created yet, so opening the tray later still shows the install banner.
-- The release metadata parser was validated on 2026-07-20 against real release `v1.1`: `AmpUp-Setup-1.1.exe`, 67,627,215 bytes, SHA-256 `49df5bc93d9e3ab7f63316b4fd86239f49938d045cbed77837f90679cfa261f6`. Debug and Release builds passed with zero warnings/errors.
-- Full install/relaunch testing needs a GitHub release newer than the locally running version. At implementation time the app was `1.3` while GitHub's latest release was `v1.1`, so deliberately do not use the older release for an end-to-end updater test.
+- The public `v1.3` release satisfies the updater's tag/filename/size/digest contract. A true production update/relaunch smoke test still needs a release newer than the installed updater-enabled build; test the `v1.3` → next-version path before publishing that next release broadly.
 
-## v1.0.0-beta additions
-### Space Templates
-- New TEMPLATES section in the Buttons tab — pre-built `ButtonFolderConfig` layouts the user adds with one click. Unique-name collision handling (Media → Media (2)); auto-navigates into the new Space after Add
-- Factories live in `Services/SpaceTemplates.cs`; each entry defines Name / Description / AccentHex / CardIconKind + a `Build()` that returns a fresh folder config. Ships with 7 starters: Room Effects, Media, Discord, System, Apps, Audio Profiles, Spotify
-- Pattern avoids the config-race problem of editing `config.json` directly while AmpUp is running — the app's own save path owns the result
+## v1.3 reliability state
+- Issue #22 is fixed and closed: Windows endpoint notifications refresh Bluetooth/USB device lists, output cycling, and device-color lighting without an app restart. Bluetooth connect/switch behavior was manually verified on the installed v1.3 build.
+- Issue #23 is fixed and closed: Turn Up and N3 inputs use separate `HardwareInputPump` workers; absolute knob events coalesce to the newest value; serial stalls trigger reconnect; refresh paths are non-reentrant; and stale resources/log floods are cleaned up.
+- Debug and Release builds completed with zero warnings/errors, the NuGet vulnerability audit was clean, and the installed build passed a runtime soak without delayed handlers, session-refresh failures, or serial stalls.
+- The old `HARDWARE_DISCONNECT_MEMORY.md` investigation was superseded by these fixes. If symptoms recur, collect `%APPDATA%\AmpUp\ampup.log` with the approximate failure time and reopen the relevant GitHub issue.
 
-### FX icon pack
-- `Icons/fx_*.jpg` — 18 bespoke neon-outlined icons for the room effects (Aurora, Ocean, Fire, Lava, Lightning, Police, Scanner, Matrix, Plasma, Nebula, Breathing, Starfield, ColorWave, Rainfall, Waterfall, Rainbow, Meteor, Heartbeat). Generated via Gemini 3 Pro image-gen, cropped to strip Gemini's default app-store-mockup white surround
-- `TryResolveCustomPackImagePath` now accepts `fx_` in addition to `neon_` / `material_` / `retro_` / `synthwave_` / `cyber_`, and checks both `.png` and `.jpg`. `PresetIconKind = "fx_aurora"` etc. wires a DisplayKey to the shipped image
-
-### Tap / Double / Hold gesture editor
-- Segmented bar at the top of the ACTION tab, shown only when the selection is a side button (idx 106-108) or encoder press (idx 109-111). LCD keys don't get the bar — their `_v2Gesture` stays pinned to Tap
-- `GetGestureAction / SetGestureAction`, `GetGesturePath / SetGesturePath`, `GetGestureMacroKeys / SetGestureMacroKeys`, `GetGestureFolderName / SetGestureFolderName` route reads/writes to `.Action / .Path / .MacroKeys / .FolderName` or their `DoublePress*` / `Hold*` variants based on the active gesture
-- `_v2SelectionKind` (LcdKey / SideButton / EncoderPress) is stamped at click time from the `StreamControllerSelection.DisplayIdx.HasValue` bit + idx range — resolves the idx 106-117 ambiguity without guessing from config state
-
-### Idx collision runtime fix
-- Page-1+ folder LCDs compute `idx = 100 + page*6 + slot` = 106-117, overlapping side buttons (106-108) + encoder presses (109-111). The gesture engine's hold/click timers resolve by bare idx so without help a page-1 LCD press fired the global side-button binding
-- `App.PreresolveLcdButton(idx)` runs before every LCD dispatch and stashes the folder ButtonConfig in `_n3ButtonOverride[idx]`. The resolver prefers the stash when present; side/encoder dispatches `.Remove(idx)` first so their global bindings still win when clicked physically
-
-### Per-gesture FolderName
-- `ButtonConfig` gained `DoublePressFolderName` / `HoldFolderName`. Empty values fall back to `.FolderName` so older configs keep working during upgrade
-- `ButtonGestureEngine` copies the right value into the cloned ButtonConfig it emits for hold/double presses so `open_folder` routes to the per-gesture Space at runtime
-
-### Govee
-- `AmbienceSync.ClearAllSegmentTracking()` is now called from `SetGoveePower(dev, true)` — segment devices lose segment mode on power-cycle and our `_segmentEnabled` cache would otherwise sit on stale true for up to 25 s (the keep-alive interval), during which the device ignores razer segment frames and shows its power-on default (often white)
-- `SetGoveePower` routes both LAN and Cloud devices — group toggles + room toggle use it so cloud-only devices like the G1S Pro aren't silently skipped
-- Room Lights knob (`room_lights` target) handles cloud devices via `GoveeCloudApi.SetBrightness`, throttled to 1.5 s per device to stay inside the ~100 req/min limit. `ApplyRoomLightsBrightness` helper in App.xaml.cs
-
-### Corsair
-- `SetStaticColorAllAsync` now respects `_paused` — music reactive + VU Fill timers were bypassing Stop()'s pause gate and repainting LEDs after toggles
-- Group toggle + room toggle both flip `Corsair.Enabled = false` on off (not just Stop()) — otherwise `OnConfigChanged` reads Enabled=true and Start()'s Corsair back up, undoing the pause
-- `HandleRoomToggle` saves the prior `Corsair.LightSyncMode` into `_roomToggleSavedCorsairMode` on off and restores it on on, so user's static-color choice survives the cycle
-- Music-reactive timer guards on `_config.Corsair.Enabled` up front — defense in depth with the SetStaticColorAllAsync pause check
-
-### Room effect resume
-- `RoomView.ResumeRoomEffect` falls back to `config.Ambience.RoomEffect` when `_activePattern` is null — otherwise Govee devices power on to white and stay there until the user opens the Room tab
-- `HandleRoomToggle` fires `ResumeRoomEffect` immediately (no 800 ms delay) — the 20 FPS frame loop catches dropped frames during device power-up and users don't sit staring at white for a full second
-
-### N3 device JPEG corners
-- `EncodeForDevice` no longer zeroes the four 4x4 corner blocks. The mitigation was for rounded-corner clip artifacts that never manifest on the N3's flat rectangular LCDs — those fills showed up as visible black boxes on device
-
-### Version
-- Bumped to `1.0.0-beta` in `AmpUp.csproj` and `installer/version.iss`
-
-## Remaining / next
-- Native SC support in the OSD overlay (currently still shows the Turn Up 5-knob layout when the Active Surface is SC)
-- Tighter throttle heuristics for clock/dynamic display refresh (currently 3s cadence with an early-return when asleep)
-- Multi-device support (multiple Turn Ups or multiple N3s) is tracked in the roadmap as a separate feature
-- Simpler / more streamlined icon pack for the non-FX templates (Media, Discord, System, Apps, Audio Profiles, Spotify) — user wants a flat/minimal aesthetic instead of the neon reuse
+## Durable integration notes
+- Space templates are created through `Services/SpaceTemplates.cs`; use the app's normal config save path instead of editing `config.json` while AmpUp is running.
+- `Icons/fx_*.jpg` is the room-effects pack. `TryResolveCustomPackImagePath` supports `fx_`, `neon_`, `material_`, `retro_`, `synthwave_`, and `cyber_` names with `.png` or `.jpg` files.
+- Govee segment tracking must be cleared after power-on because segment mode is lost across a device power cycle. Room/group power paths must support both LAN and cloud-only devices.
+- Corsair effect writers must honor `_paused` and `Corsair.Enabled`; room off/on preserves and restores the prior `LightSyncMode`.
+- `RoomView.ResumeRoomEffect` must fall back to the saved room effect when no in-memory active pattern exists, preventing devices from remaining at their power-on white state.
