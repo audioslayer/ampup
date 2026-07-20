@@ -2188,15 +2188,15 @@ public partial class SettingsView : UserControl
             }
             else
             {
-                var (tag, url) = update.Value;
-                TxtUpdateStatus.Text = $"New version available: {tag}";
+                TxtUpdateStatus.Text = $"New version available: {update.Tag}";
                 TxtUpdateStatus.Foreground = (System.Windows.Media.SolidColorBrush)FindResource("AccentBrush");
 
-                if (GlassDialog.Confirm($"A new version ({tag}) is available. Download and install?",
+                if (GlassDialog.Confirm(
+                    $"Amp Up {update.Tag} is available. Download it, install it, and restart Amp Up now?",
                     "UPDATE", owner: Window.GetWindow(this)))
                 {
                     TxtUpdateStatus.Text = "Downloading update...";
-                    await UpdateChecker.DownloadAndInstallAsync(url, progress =>
+                    await UpdateChecker.DownloadAndInstallAsync(update, progress =>
                     {
                         Dispatcher.Invoke(() => TxtUpdateStatus.Text = $"Downloading... {progress}%");
                     });
@@ -2206,7 +2206,7 @@ public partial class SettingsView : UserControl
         catch (Exception ex)
         {
             Logger.Log($"Update check error: {ex.Message}");
-            TxtUpdateStatus.Text = "Update check failed. Check your internet connection.";
+            TxtUpdateStatus.Text = $"Update failed: {ex.Message}";
             TxtUpdateStatus.Foreground = (System.Windows.Media.SolidColorBrush)FindResource("DangerRedBrush");
         }
         finally

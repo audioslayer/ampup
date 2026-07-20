@@ -101,6 +101,18 @@
 - SHA256 for that uploaded installer: `fe1aa58a058094f9a2b3aa6215d6d555df86fc0b9f8c8d25a5d546fd8992a373`.
 - When updating the private test page, it is okay to update the hero summary/checksums, but do not change the "Test Flow" section unless Tyson explicitly asks.
 
+## In-app self-updater
+- `AmpUp.Core/Services/UpdateChecker.cs` owns the complete update flow. It checks `audioslayer/ampup` releases using the running assembly's informational version and prerelease-aware semantic comparison.
+- An eligible release must contain an asset named exactly `AmpUp-Setup-{version}.exe` (for example, tag `v1.4` requires `AmpUp-Setup-1.4.exe`). Keep this naming contract when manually uploading release assets or the app will intentionally ignore the release.
+- The updater only accepts HTTPS download URLs under `github.com/audioslayer/ampup/releases/download/`. It requires GitHub release metadata to include a positive asset size and a valid `sha256:` digest.
+- Before execution, the download is written as a temporary `.download` file and checked for the Windows `MZ` header, exact GitHub-reported byte count, and exact SHA-256 digest. Invalid or partial downloads are deleted and never launched.
+- After verification, a hidden PowerShell helper waits for AmpUp to exit cleanly, starts the Inno Setup installer with the normal Windows UAC prompt plus silent-install switches, and relaunches the same AmpUp executable path after success.
+- If elevation is canceled or the installer fails, the helper relaunches the existing AmpUp installation and displays an update error. The helper records details in `%TEMP%\AmpUp\Updates\{version}\update-helper.log`.
+- Only one install handoff can run at a time. The MainWindow version label, Settings `Check for Updates`, and tray update banner all use the same `UpdateInfo`/`DownloadAndInstallAsync` path; the tray no longer opens a browser.
+- `App.NotifyUpdateAvailable(UpdateInfo)` retains the update even when the tray popup has not been created yet, so opening the tray later still shows the install banner.
+- The release metadata parser was validated on 2026-07-20 against real release `v1.1`: `AmpUp-Setup-1.1.exe`, 67,627,215 bytes, SHA-256 `49df5bc93d9e3ab7f63316b4fd86239f49938d045cbed77837f90679cfa261f6`. Debug and Release builds passed with zero warnings/errors.
+- Full install/relaunch testing needs a GitHub release newer than the locally running version. At implementation time the app was `1.3` while GitHub's latest release was `v1.1`, so deliberately do not use the older release for an end-to-end updater test.
+
 ## v1.0.0-beta additions
 ### Space Templates
 - New TEMPLATES section in the Buttons tab — pre-built `ButtonFolderConfig` layouts the user adds with one click. Unique-name collision handling (Media → Media (2)); auto-navigates into the new Space after Add

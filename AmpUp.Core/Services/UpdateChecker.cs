@@ -2,9 +2,19 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using Newtonsoft.Json.Linq;
 
 namespace AmpUp.Core.Services;
+
+public sealed record UpdateInfo(
+    string Tag,
+    string Version,
+    string AssetName,
+    string DownloadUrl,
+    long AssetSize,
+    string Sha256);
 
 public static class UpdateChecker
 {
@@ -14,6 +24,7 @@ public static class UpdateChecker
             ?.InformationalVersion?.Split('+')[0] ?? "0.0.0";
     private const string GitHubRepo = "audioslayer/ampup";
     private static readonly HttpClient _http = new();
+    private static readonly SemaphoreSlim _installLock = new(1, 1);
 
     /// <summary>
     /// Set by the platform host to handle clean shutdown when an update is ready to install.
@@ -24,18 +35,20 @@ public static class UpdateChecker
     static UpdateChecker()
     {
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("AmpUp/" + CurrentVersion);
+        _http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+        _http.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
     }
 
     /// <summary>
-    /// Checks GitHub for a newer release. Returns (tagName, downloadUrl) or null if up to date.
-    /// Pass preferredExtension (for example ".exe") to find the right release asset.
+    /// Checks GitHub for a newer release and its matching AmpUp installer asset.
     /// </summary>
-    public static async Task<(string Tag, string DownloadUrl)?> CheckForUpdateAsync(string preferredExtension = ".exe")
+    public static async Task<UpdateInfo?> CheckForUpdateAsync(CancellationToken cancellationToken = default)
     {
         try
         {
             var json = await _http.GetStringAsync(
-                $"https://api.github.com/repos/{GitHubRepo}/releases?per_page=20");
+                $"https://api.github.com/repos/{GitHubRepo}/releases?per_page=20",
+                cancellationToken);
             var releases = JArray.Parse(json);
             bool includePrereleases = IsPrerelease(CurrentVersion);
 
@@ -45,31 +58,68 @@ public static class UpdateChecker
                 if (release["prerelease"]?.Value<bool>() == true && !includePrereleases) continue;
 
                 var tag = release["tag_name"]?.ToString() ?? "";
-                var remoteVersion = tag.TrimStart('v');
+                var remoteVersion = tag.StartsWith('v') ? tag[1..] : tag;
                 if (!IsNewer(remoteVersion, CurrentVersion))
                     continue;
 
                 var assets = release["assets"] as JArray;
                 if (assets == null) continue;
 
-                foreach (var asset in assets)
+                // The release script always produces this exact name. Requiring it avoids
+                // ever executing an unrelated .exe that happens to be attached to a release.
+                var expectedName = $"AmpUp-Setup-{remoteVersion}.exe";
+                var asset = assets
+                    .OfType<JObject>()
+                    .FirstOrDefault(candidate => string.Equals(
+                        candidate["name"]?.ToString(), expectedName,
+                        StringComparison.OrdinalIgnoreCase));
+
+                if (asset == null)
                 {
-                    var name = asset["name"]?.ToString() ?? "";
-                    if (name.EndsWith(preferredExtension, StringComparison.OrdinalIgnoreCase))
-                    {
-                        var url = asset["browser_download_url"]?.ToString() ?? "";
-                        if (!string.IsNullOrEmpty(url))
-                            return (tag, url);
-                    }
+                    Logger.Log($"Update {tag} is newer, but release asset {expectedName} is missing");
+                    continue;
                 }
+
+                var url = asset["browser_download_url"]?.ToString() ?? "";
+                if (!IsTrustedReleaseUrl(url))
+                {
+                    Logger.Log($"Ignored untrusted update URL for {tag}");
+                    continue;
+                }
+
+                var digest = asset["digest"]?.ToString();
+                var sha256 = digest?.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase) == true
+                    ? digest[7..]
+                    : null;
+                if (!IsValidSha256(sha256))
+                {
+                    Logger.Log($"Update {tag} is missing a valid GitHub SHA-256 digest");
+                    continue;
+                }
+
+                var assetSize = asset["size"]?.Value<long>() ?? 0;
+                if (assetSize <= 0)
+                {
+                    Logger.Log($"Update {tag} has an invalid installer size");
+                    continue;
+                }
+
+                return new UpdateInfo(
+                    tag,
+                    remoteVersion,
+                    expectedName,
+                    url,
+                    assetSize,
+                    sha256!);
             }
+
+            return null;
         }
         catch (Exception ex)
         {
             Logger.Log($"Update check failed: {ex.Message}");
+            throw;
         }
-
-        return null;
     }
 
     /// <summary>
@@ -113,80 +163,209 @@ public static class UpdateChecker
         return 1;
     }
 
-    /// <summary>
-    /// Downloads the update asset to a temp file and returns the local path.
-    /// Platform-neutral — caller decides what to do with the file.
-    /// </summary>
-    public static async Task<string> DownloadUpdateAsync(string downloadUrl, string fileName, Action<int>? onProgress = null)
+    private static bool IsTrustedReleaseUrl(string url)
     {
-        var tempPath = Path.Combine(Path.GetTempPath(), fileName);
-
-        using var response = await _http.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
-        response.EnsureSuccessStatusCode();
-
-        var totalBytes = response.Content.Headers.ContentLength ?? -1;
-        long downloaded = 0;
-
-        using (var stream = await response.Content.ReadAsStreamAsync())
-        using (var file = File.Create(tempPath))
-        {
-            var buffer = new byte[81920];
-            int read;
-            while ((read = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
-            {
-                await file.WriteAsync(buffer, 0, read);
-                downloaded += read;
-                if (totalBytes > 0)
-                    onProgress?.Invoke((int)(downloaded * 100 / totalBytes));
-            }
-        }
-
-        Logger.Log($"Update downloaded to {tempPath}");
-        return tempPath;
+        return Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            && uri.Scheme == Uri.UriSchemeHttps
+            && uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase)
+            && uri.AbsolutePath.StartsWith(
+                $"/{GitHubRepo}/releases/download/",
+                StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool IsValidSha256(string? value)
+        => value is { Length: 64 } && value.All(Uri.IsHexDigit);
+
     /// <summary>
-    /// Downloads the installer to a temp file and launches it.
-    /// The bat-file launch logic is Windows-specific; on other platforms a different
-    /// update mechanism will be needed.
+    /// Downloads, verifies, and hands the installer off to a helper process. The helper
+    /// waits for AmpUp to exit, installs silently after the normal UAC prompt, and then
+    /// relaunches the updated executable.
     /// </summary>
-    public static async Task DownloadAndInstallAsync(string downloadUrl, Action<int>? onProgress = null)
+    public static async Task DownloadAndInstallAsync(
+        UpdateInfo update,
+        Action<int>? onProgress = null,
+        CancellationToken cancellationToken = default)
     {
-        var tempPath = Path.Combine(Path.GetTempPath(), "AmpUp-Update.exe");
+        if (!IsTrustedReleaseUrl(update.DownloadUrl))
+            throw new InvalidOperationException("The update download URL is not trusted.");
+        if (!string.Equals(update.AssetName, $"AmpUp-Setup-{update.Version}.exe", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("The release does not contain the expected AmpUp installer.");
+        if (!IsValidSha256(update.Sha256))
+            throw new InvalidOperationException("The release does not contain a valid SHA-256 digest.");
+        if (update.AssetSize <= 0)
+            throw new InvalidOperationException("The release does not contain a valid installer size.");
+        if (OnShutdownRequested == null)
+            throw new InvalidOperationException("The application did not configure update shutdown handling.");
+        if (!await _installLock.WaitAsync(0, cancellationToken))
+            throw new InvalidOperationException("An update is already being installed.");
 
-        using var response = await _http.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
-        response.EnsureSuccessStatusCode();
-
-        var totalBytes = response.Content.Headers.ContentLength ?? -1;
-        long downloaded = 0;
-
-        using (var stream = await response.Content.ReadAsStreamAsync())
-        using (var file = File.Create(tempPath))
+        bool handedOff = false;
+        string? partialPath = null;
+        try
         {
-            var buffer = new byte[81920];
-            int read;
-            while ((read = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+            var safeVersion = string.Concat(update.Version.Select(ch =>
+                char.IsLetterOrDigit(ch) || ch is '.' or '-' or '_' ? ch : '_'));
+            var updateDirectory = Path.Combine(Path.GetTempPath(), "AmpUp", "Updates", safeVersion);
+            Directory.CreateDirectory(updateDirectory);
+            var installerPath = Path.Combine(updateDirectory, update.AssetName);
+            partialPath = installerPath + ".download";
+
+            if (File.Exists(partialPath))
+                File.Delete(partialPath);
+
+            using var response = await _http.GetAsync(
+                update.DownloadUrl,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+            response.EnsureSuccessStatusCode();
+
+            var totalBytes = response.Content.Headers.ContentLength ?? update.AssetSize;
+            long downloaded = 0;
+            bool hasExecutableHeader = false;
+            using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+
+            await using (var stream = await response.Content.ReadAsStreamAsync(cancellationToken))
+            await using (var file = new FileStream(
+                partialPath, FileMode.Create, FileAccess.Write, FileShare.None,
+                81920, FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
-                await file.WriteAsync(buffer, 0, read);
-                downloaded += read;
-                if (totalBytes > 0)
-                    onProgress?.Invoke((int)(downloaded * 100 / totalBytes));
+                var buffer = new byte[81920];
+                int read;
+                while ((read = await stream.ReadAsync(buffer, cancellationToken)) > 0)
+                {
+                    if (downloaded == 0 && read >= 2)
+                        hasExecutableHeader = buffer[0] == (byte)'M' && buffer[1] == (byte)'Z';
+
+                    await file.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                    hasher.AppendData(buffer.AsSpan(0, read));
+                    downloaded += read;
+                    if (totalBytes > 0)
+                        onProgress?.Invoke((int)Math.Min(100, downloaded * 100 / totalBytes));
+                }
+
+                await file.FlushAsync(cancellationToken);
+            }
+
+            if (!hasExecutableHeader)
+                throw new InvalidDataException("The downloaded update is not a Windows installer.");
+            if (update.AssetSize > 0 && downloaded != update.AssetSize)
+                throw new InvalidDataException(
+                    $"The update download was incomplete ({downloaded} of {update.AssetSize} bytes).");
+
+            var actualSha256 = Convert.ToHexString(hasher.GetHashAndReset()).ToLowerInvariant();
+            if (!actualSha256.Equals(update.Sha256, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("The update failed its SHA-256 integrity check.");
+            }
+
+            File.Move(partialPath, installerPath, true);
+            onProgress?.Invoke(100);
+            Logger.Log(
+                $"Update {update.Tag} downloaded and verified: {installerPath} (SHA-256 {actualSha256})");
+
+            var helperProcess = LaunchInstallerHelper(installerPath);
+            try
+            {
+                OnShutdownRequested();
+                handedOff = true;
+            }
+            catch
+            {
+                try { helperProcess.Kill(true); } catch { }
+                throw;
             }
         }
-
-        Logger.Log($"Update downloaded to {tempPath}, launching installer...");
-
-        // Launch a helper script that waits for us to exit, then runs the installer
-        var batPath = Path.Combine(Path.GetTempPath(), "AmpUp-Update.bat");
-        File.WriteAllText(batPath, $"@echo off\ntimeout /t 3 /nobreak >nul\nstart \"\" \"{tempPath}\"\ndel \"%~f0\"\n");
-        Process.Start(new ProcessStartInfo
+        finally
         {
-            FileName = batPath,
-            UseShellExecute = true,
-            WindowStyle = ProcessWindowStyle.Hidden
-        });
+            if (!handedOff)
+            {
+                if (partialPath != null)
+                {
+                    try { File.Delete(partialPath); } catch { }
+                }
+                _installLock.Release();
+            }
+        }
+    }
 
-        // Shut down the app cleanly so the installer can replace files
-        OnShutdownRequested?.Invoke();
+    private static Process LaunchInstallerHelper(string installerPath)
+    {
+        var currentExe = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(currentExe) || !File.Exists(currentExe))
+            throw new InvalidOperationException("AmpUp could not determine its executable path for restart.");
+
+        var helperDirectory = Path.GetDirectoryName(installerPath)!;
+        var helperPath = Path.Combine(helperDirectory, $"install-{Guid.NewGuid():N}.ps1");
+        var helperLogPath = Path.Combine(helperDirectory, "update-helper.log");
+        var script = BuildInstallerHelperScript(
+            Environment.ProcessId,
+            installerPath,
+            currentExe,
+            helperLogPath);
+        File.WriteAllText(helperPath, script, new UTF8Encoding(false));
+
+        var powerShellPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.System),
+            "WindowsPowerShell", "v1.0", "powershell.exe");
+        if (!File.Exists(powerShellPath))
+            powerShellPath = "powershell.exe";
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = powerShellPath,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WindowStyle = ProcessWindowStyle.Hidden
+        };
+        startInfo.ArgumentList.Add("-NoLogo");
+        startInfo.ArgumentList.Add("-NoProfile");
+        startInfo.ArgumentList.Add("-NonInteractive");
+        startInfo.ArgumentList.Add("-ExecutionPolicy");
+        startInfo.ArgumentList.Add("Bypass");
+        startInfo.ArgumentList.Add("-WindowStyle");
+        startInfo.ArgumentList.Add("Hidden");
+        startInfo.ArgumentList.Add("-File");
+        startInfo.ArgumentList.Add(helperPath);
+
+        return Process.Start(startInfo)
+            ?? throw new InvalidOperationException("The update installer helper could not be started.");
+    }
+
+    private static string BuildInstallerHelperScript(
+        int processId,
+        string installerPath,
+        string currentExe,
+        string logPath)
+    {
+        static string PsQuote(string value) => "'" + value.Replace("'", "''") + "'";
+
+        return $$"""
+            $ErrorActionPreference = 'Stop'
+            $installer = {{PsQuote(installerPath)}}
+            $app = {{PsQuote(currentExe)}}
+            $log = {{PsQuote(logPath)}}
+            try {
+                Wait-Process -Id {{processId}} -ErrorAction SilentlyContinue
+                Add-Content -LiteralPath $log -Value "$(Get-Date -Format o) Starting installer $installer"
+                $setup = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS') -Verb RunAs -Wait -PassThru
+                if ($setup.ExitCode -ne 0) {
+                    throw "Installer exited with code $($setup.ExitCode)."
+                }
+                Add-Content -LiteralPath $log -Value "$(Get-Date -Format o) Update installed successfully"
+                Start-Process -FilePath $app
+            }
+            catch {
+                $message = "Amp Up could not install the update. Your existing installation was left in place.`n`n$($_.Exception.Message)"
+                try { Add-Content -LiteralPath $log -Value "$(Get-Date -Format o) $message" } catch {}
+                try { if (Test-Path -LiteralPath $app) { Start-Process -FilePath $app } } catch {}
+                try {
+                    Add-Type -AssemblyName PresentationFramework
+                    [System.Windows.MessageBox]::Show($message, 'Amp Up Update') | Out-Null
+                } catch {}
+            }
+            finally {
+                Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
+            }
+            """;
     }
 }

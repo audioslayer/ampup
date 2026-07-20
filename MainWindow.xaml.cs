@@ -510,7 +510,7 @@ public partial class MainWindow : FluentWindow
     }
 
     private bool _checkingUpdate;
-    private (string Tag, string Url)? _pendingUpdate;
+    private UpdateInfo? _pendingUpdate;
 
     private async Task CheckForUpdateOnStartup()
     {
@@ -522,11 +522,11 @@ public partial class MainWindow : FluentWindow
             if (update != null)
             {
                 _pendingUpdate = update;
-                VersionLabel.Text = $"Update available: {update.Value.Tag}";
+                VersionLabel.Text = $"Update available: {update.Tag}";
                 VersionLabel.Foreground = (SolidColorBrush)FindResource("AccentBrush");
                 // Notify tray popup
                 if (Application.Current is App app)
-                    app.NotifyUpdateAvailable();
+                    app.NotifyUpdateAvailable(update);
             }
         }
         catch (Exception ex)
@@ -537,16 +537,21 @@ public partial class MainWindow : FluentWindow
 
     private async void VersionLabel_Click(object sender, MouseButtonEventArgs e)
     {
+        await PromptToInstallUpdateAsync();
+    }
+
+    public async Task PromptToInstallUpdateAsync(UpdateInfo? knownUpdate = null)
+    {
         if (_checkingUpdate) return;
         _checkingUpdate = true;
 
-        VersionLabel.Text = "Checking...";
+        if (knownUpdate == null && _pendingUpdate == null)
+            VersionLabel.Text = "Checking...";
         VersionLabel.Foreground = (SolidColorBrush)FindResource("AccentBrush");
 
         try
         {
-            var update = _pendingUpdate ?? await UpdateChecker.CheckForUpdateAsync();
-            _pendingUpdate = null;
+            var update = knownUpdate ?? _pendingUpdate ?? await UpdateChecker.CheckForUpdateAsync();
             if (update == null)
             {
                 VersionLabel.Text = "Up to date!";
@@ -557,19 +562,23 @@ public partial class MainWindow : FluentWindow
             }
             else
             {
-                var (tag, url) = update.Value;
-                if (GlassDialog.Confirm($"A new version ({tag}) is available. Download and install?", "UPDATE", owner: this))
+                _pendingUpdate = update;
+                VersionLabel.Text = $"Update available: {update.Tag}";
+                if (GlassDialog.Confirm(
+                    $"Amp Up {update.Tag} is available. Download it, install it, and restart Amp Up now?",
+                    "UPDATE", owner: this))
                 {
                     VersionLabel.Text = "Downloading...";
-                    await UpdateChecker.DownloadAndInstallAsync(url, progress =>
+                    await UpdateChecker.DownloadAndInstallAsync(update, progress =>
                     {
                         Dispatcher.Invoke(() => VersionLabel.Text = $"Downloading {progress}%");
                     });
+                    _pendingUpdate = null;
                 }
                 else
                 {
-                    VersionLabel.Text = $"v{UpdateChecker.CurrentVersion}";
-                    VersionLabel.Foreground = (SolidColorBrush)FindResource("TextDimBrush");
+                    VersionLabel.Text = $"Update available: {update.Tag}";
+                    VersionLabel.Foreground = (SolidColorBrush)FindResource("AccentBrush");
                 }
             }
         }
@@ -579,8 +588,11 @@ public partial class MainWindow : FluentWindow
             VersionLabel.Text = "Update failed";
             VersionLabel.Foreground = (SolidColorBrush)FindResource("DangerRedBrush");
             await Task.Delay(2000);
-            VersionLabel.Text = $"v{UpdateChecker.CurrentVersion}";
-            VersionLabel.Foreground = (SolidColorBrush)FindResource("TextDimBrush");
+            VersionLabel.Text = _pendingUpdate != null
+                ? $"Update available: {_pendingUpdate.Tag}"
+                : $"v{UpdateChecker.CurrentVersion}";
+            VersionLabel.Foreground = (SolidColorBrush)FindResource(
+                _pendingUpdate != null ? "AccentBrush" : "TextDimBrush");
         }
         finally
         {

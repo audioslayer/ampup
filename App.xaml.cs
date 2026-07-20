@@ -48,6 +48,7 @@ public partial class App : Application
     private DuckingEngine? _duckingEngine;
     private AutoProfileSwitcher? _autoSwitcher;
     private TrayMixerPopup? _trayMixerPopup;
+    private UpdateInfo? _availableUpdate;
     private TrayContextMenu? _trayContextMenu;
     private AmbienceSync? _ambienceSync;
     private DreamSyncController? _dreamSync;
@@ -1104,14 +1105,26 @@ public partial class App : Application
             _trayMixerPopup.SetCallbacks(
                 onOpen: ShowMainWindow,
                 onExit: ExitApp,
+                onInstallUpdate: InstallAvailableUpdateFromTray,
                 mixer: _mixer,
                 config: _config,
                 onSave: cfg => { ConfigManager.Save(cfg); _mainWindow?.RefreshViews(); },
                 onRefresh: () => _mainWindow?.RefreshViews()
             );
+            if (_availableUpdate != null)
+                _trayMixerPopup.ShowUpdateAvailable(_availableUpdate.Tag);
             UpdateAggregateTrayStatus();
             _trayMixerPopup.ShowPopup();
         });
+    }
+
+    private async void InstallAvailableUpdateFromTray()
+    {
+        var update = _availableUpdate;
+        if (update == null || _mainWindow == null) return;
+
+        ShowMainWindow();
+        await _mainWindow.PromptToInstallUpdateAsync(update);
     }
 
     private void ShowTrayContextMenu()
@@ -4417,9 +4430,10 @@ public partial class App : Application
         return resolvedIndex;
     }
 
-    public void NotifyUpdateAvailable()
+    public void NotifyUpdateAvailable(UpdateInfo update)
     {
-        Dispatcher.Invoke(() => _trayMixerPopup?.ShowUpdateAvailable());
+        _availableUpdate = update;
+        Dispatcher.Invoke(() => _trayMixerPopup?.ShowUpdateAvailable(update.Tag));
     }
 
     /// <summary>

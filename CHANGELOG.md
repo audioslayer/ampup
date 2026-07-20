@@ -8,6 +8,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+### Added
+- Added a one-click in-app updater that downloads the matching GitHub release installer, verifies its size and SHA-256 digest, installs it after a normal Windows elevation prompt, and relaunches Amp Up.
+
+### Changed
+- The tray update banner now starts the in-app update flow instead of opening the GitHub releases page.
+
 ---
 
 ## [1.1] - 2026-06-18

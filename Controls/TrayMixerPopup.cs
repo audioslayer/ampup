@@ -45,6 +45,7 @@ public class TrayMixerPopup : Window
     // Context menu callbacks
     private Action? _onOpen;
     private Action? _onExit;
+    private Action? _onInstallUpdate;
     private AudioMixer? _mixer;
     private AppConfig? _config;
     private Action<AppConfig>? _onSave;
@@ -189,7 +190,7 @@ public class TrayMixerPopup : Window
         _updateBanner.MouseLeftButtonDown += (_, _) =>
         {
             Hide();
-            try { Process.Start(new ProcessStartInfo("https://github.com/audioslayer/ampup/releases/latest") { UseShellExecute = true }); } catch { }
+            _onInstallUpdate?.Invoke();
         };
         _updateBanner.MouseEnter += (_, _) => _updateBanner.Background = new SolidColorBrush(Color.FromArgb(50, 0xFF, 0xB8, 0x00));
         _updateBanner.MouseLeave += (_, _) => _updateBanner.Background = new SolidColorBrush(Color.FromArgb(30, 0xFF, 0xB8, 0x00));
@@ -228,11 +229,13 @@ public class TrayMixerPopup : Window
         return outer;
     }
 
-    public void SetCallbacks(Action onOpen, Action onExit, AudioMixer mixer, AppConfig config,
+    public void SetCallbacks(Action onOpen, Action onExit, Action onInstallUpdate,
+        AudioMixer mixer, AppConfig config,
         Action<AppConfig> onSave, Action onRefresh)
     {
         _onOpen = onOpen;
         _onExit = onExit;
+        _onInstallUpdate = onInstallUpdate;
         _mixer = mixer;
         _config = config;
         _onSave = onSave;
@@ -258,10 +261,14 @@ public class TrayMixerPopup : Window
         }
     }
 
-    public void ShowUpdateAvailable()
+    public void ShowUpdateAvailable(string tag)
     {
         if (_updateBanner != null)
+        {
+            if (_updateBanner.Child is TextBlock text)
+                text.Text = $"Amp Up {tag} available — click to install";
             _updateBanner.Visibility = Visibility.Visible;
+        }
     }
 
     /// <summary>
@@ -1134,7 +1141,7 @@ public class TrayMixerPopup : Window
         _updateBanner.MouseLeftButtonDown += (_, _) =>
         {
             Hide();
-            try { Process.Start(new ProcessStartInfo("https://github.com/audioslayer/ampup/releases/latest") { UseShellExecute = true }); } catch { }
+            _onInstallUpdate?.Invoke();
         };
         _updateBanner.MouseEnter += (_, _) => _updateBanner.Background = new SolidColorBrush(Color.FromArgb(50, 0xFF, 0xB8, 0x00));
         _updateBanner.MouseLeave += (_, _) => _updateBanner.Background = new SolidColorBrush(Color.FromArgb(30, 0xFF, 0xB8, 0x00));
