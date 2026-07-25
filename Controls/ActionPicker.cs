@@ -488,6 +488,14 @@ public class ActionPicker : Border
 
     public void Select(string value)
     {
+        SelectCore(value, clearSubTag: true);
+    }
+
+    private void SelectCore(string value, bool clearSubTag)
+    {
+        if (clearSubTag)
+            _selectedSubTag = null;
+
         for (int i = 0; i < _items.Count; i++)
         {
             if (_items[i].Value == value)
@@ -506,7 +514,7 @@ public class ActionPicker : Border
     public void SelectWithSub(string value, string? subTag)
     {
         _selectedSubTag = subTag;
-        Select(value);
+        SelectCore(value, clearSubTag: false);
 
         // If we have a sub-tag, try to resolve its display name
         if (!string.IsNullOrEmpty(subTag) && _subMenuProviders.TryGetValue(value, out var provider))

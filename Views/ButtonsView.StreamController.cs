@@ -2533,18 +2533,19 @@ public partial class ButtonsView
         string gAction = GetGestureAction(button);
         string gPath = GetGesturePath(button);
         string gMacro = GetGestureMacroKeys(button);
+        string gDeviceId = GetGestureDeviceId(button);
 
         SelectCombo(_scActionPicker, gAction);
         SetTextBoxValue(_scPathBox, ExtractPathBoxValue(gAction, gPath));
         SetTextBoxValue(_scMacroBox, gMacro);
         if (_scTextSnippetBox != null) _scTextSnippetBox.Text = button.TextSnippet ?? "";
-        SelectDevicePicker(_scDevicePicker, button.DeviceId);
+        SelectDevicePicker(_scDevicePicker, gDeviceId);
         SelectKnobPicker(_scKnobPicker, button.LinkedKnobIdx);
         // Sub-tag selections use the gesture-resolved action/path so Double
         // and Hold modes show their own integration sub-menus (HA entity,
         // Govee device, group name, etc.) not the Tap binding's.
         SelectHaSubTag(_scActionPicker, gAction, gPath);
-        SelectDeviceSubTag(_scActionPicker, gAction, button.DeviceId);
+        SelectDeviceSubTag(_scActionPicker, gAction, gDeviceId);
         SelectProfileSubTag(_scActionPicker, gAction, button.ProfileName);
         SelectGroupSubTag(_scActionPicker, gAction, gPath);
         SelectGoveeSubTag(_scActionPicker, gAction, gPath);
@@ -2998,7 +2999,17 @@ public partial class ButtonsView
         // Checks against uiAction (the gesture-selected action) so options
         // that feed sub-pickers save correctly whether the user is on
         // Tap / Double / Hold.
-        button.DeviceId = GetDeviceIdForAction(uiAction, _scActionPicker, _scDevicePicker);
+        if (uiAction is "select_output" or "select_input" or "mute_device")
+        {
+            // The V2 editor uses its dedicated device picker. Do not prefer
+            // the hidden legacy ActionPicker sub-tag here: that control is
+            // shared across N3 keys and can still describe the previously
+            // selected key. Preserve the configured ID when its endpoint is
+            // temporarily unavailable and therefore absent from the picker.
+            var selectedDeviceId = GetSelectedDeviceId(_scDevicePicker);
+            if (!string.IsNullOrEmpty(selectedDeviceId))
+                SetGestureDeviceId(button, selectedDeviceId);
+        }
         button.ProfileName = uiAction == "switch_profile" ? (_scActionPicker.SelectedSubTag ?? "") : "";
         button.LinkedKnobIdx = int.TryParse(_scKnobPicker.SelectedTag as string, out var linked) ? linked : -1;
         // Preserve folder linkage for open_folder — routed through the

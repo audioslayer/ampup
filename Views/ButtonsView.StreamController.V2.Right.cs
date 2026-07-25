@@ -1416,6 +1416,23 @@ public partial class ButtonsView
         }
     }
 
+    private string GetGestureDeviceId(ButtonConfig btn) => _v2Gesture switch
+    {
+        V2Gesture.Double => btn.DoublePressDeviceId ?? "",
+        V2Gesture.Hold => btn.HoldDeviceId ?? "",
+        _ => btn.DeviceId ?? "",
+    };
+
+    private void SetGestureDeviceId(ButtonConfig btn, string value)
+    {
+        switch (_v2Gesture)
+        {
+            case V2Gesture.Double: btn.DoublePressDeviceId = value; break;
+            case V2Gesture.Hold: btn.HoldDeviceId = value; break;
+            default: btn.DeviceId = value; break;
+        }
+    }
+
     private string GetGestureFolderName(ButtonConfig btn) => _v2Gesture switch
     {
         V2Gesture.Double => btn.DoublePressFolderName ?? "",
