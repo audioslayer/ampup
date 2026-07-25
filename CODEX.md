@@ -99,8 +99,8 @@
 - Manual installer builds still come from the separate checkout at `C:\Users\audio\Desktop\AmpUp`; always `git pull --ff-only` there before `build-installer.bat`.
 - `AmpUp.csproj` is the version source of truth. `build-installer.bat` generates `installer/version.iss`; do not hand-edit release metadata independently.
 - Release work is done directly on `master` unless Tyson explicitly asks for a branch.
-- Current public release (2026-07-20): [`v1.3`](https://github.com/audioslayer/ampup/releases/tag/v1.3), built from commit `75fd219c83f451c6a834061ded30c99af3bd1062`.
-- Release asset: `AmpUp-Setup-1.3.exe`, 67,661,070 bytes, SHA-256 `e76843f519d043726c4bbb4a78c518ab933102bf3c7a4f209af60c1291e9b7cd`. GitHub's asset digest was verified against the local installer before publishing.
+- Current public release (2026-07-25): [`v1.3.1`](https://github.com/audioslayer/ampup/releases/tag/v1.3.1), built from commit `17985650460ddf47441bf684681d2b95b6a94ce2`.
+- Release asset: `AmpUp-Setup-1.3.1.exe`, 67,657,749 bytes, SHA-256 `573437585eea06fb20f10bc3de79c666ee2498a0ab3b4a29c6b3dc797b349d2f`. GitHub's asset digest was verified against the local installer before publishing.
 - The installer is currently unsigned, so release notes should retain the SmartScreen/checksum guidance until code signing is added.
 
 ## In-app self-updater
@@ -112,9 +112,10 @@
 - If elevation is canceled or the installer fails, the helper relaunches the existing AmpUp installation and displays an update error. The helper records details in `%TEMP%\AmpUp\Updates\{version}\update-helper.log`.
 - Only one install handoff can run at a time. The MainWindow version label, Settings `Check for Updates`, and tray update banner all use the same `UpdateInfo`/`DownloadAndInstallAsync` path; the tray no longer opens a browser.
 - `App.NotifyUpdateAvailable(UpdateInfo)` retains the update even when the tray popup has not been created yet, so opening the tray later still shows the install banner.
-- The public `v1.3` release satisfies the updater's tag/filename/size/digest contract. A true production update/relaunch smoke test still needs a release newer than the installed updater-enabled build; test the `v1.3` → next-version path before publishing that next release broadly.
+- The public `v1.3.1` release satisfies the updater's tag/filename/size/digest contract.
 
-## v1.3 reliability state
+## v1.3.1 hotfix and reliability state
+- Issue #24 is fixed and closed: Turn Up and N3 buttons retain independent output-device assignments across buttons, profiles, and N3 tap/double/hold gestures. The fix was manually verified before the v1.3.1 release.
 - Issue #22 is fixed and closed: Windows endpoint notifications refresh Bluetooth/USB device lists, output cycling, and device-color lighting without an app restart. Bluetooth connect/switch behavior was manually verified on the installed v1.3 build.
 - Issue #23 is fixed and closed: Turn Up and N3 inputs use separate `HardwareInputPump` workers; absolute knob events coalesce to the newest value; serial stalls trigger reconnect; refresh paths are non-reentrant; and stale resources/log floods are cleaned up.
 - Debug and Release builds completed with zero warnings/errors, the NuGet vulnerability audit was clean, and the installed build passed a runtime soak without delayed handlers, session-refresh failures, or serial stalls.
