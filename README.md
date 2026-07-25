@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/source-1.3-00BFEF" alt="Source version 1.3" />
+  <img src="https://img.shields.io/badge/source-1.3.1-00BFEF" alt="Source version 1.3.1" />
   <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows&logoColor=white" alt="Windows 10 and 11" />
   <img src="https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white" alt=".NET 8" />
   <img src="https://img.shields.io/badge/Turn%20Up-stable-00B875" alt="Stable Turn Up support" />

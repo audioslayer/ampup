@@ -6,6 +6,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.1] - 2026-07-25
+
+### Fixed
+- Fixed issue #24: Turn Up and N3 buttons now retain independent output-device assignments across buttons, profiles, and N3 tap/double/hold gestures.
+
+---
+
 ## [1.3] - 2026-07-20
 
 ### Added
@@ -202,6 +209,7 @@ This is the big one: Amp Up graduates into a 1.0 beta for Windows with a polishe
 
 ---
 
+[1.3.1]: https://github.com/audioslayer/ampup/releases/tag/v1.3.1
 [1.3]: https://github.com/audioslayer/ampup/releases/tag/v1.3
 [1.0.3-beta]: https://github.com/audioslayer/ampup/releases/tag/v1.0.3-beta
 [1.0.2-beta]: https://github.com/audioslayer/ampup/releases/tag/v1.0.2-beta
