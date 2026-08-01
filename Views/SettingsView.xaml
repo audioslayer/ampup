@@ -614,16 +614,16 @@
                                 <TextBlock Text="Discord" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
                                 <Ellipse x:Name="DiscordStatusDot" Width="8" Height="8"
                                          Fill="#555555" VerticalAlignment="Center" Margin="12,0,6,0" />
-                                <TextBlock x:Name="TxtDiscordStatus" Text="Not connected"
+                                <TextBlock x:Name="TxtDiscordStatus" Text="Unavailable"
                                            Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal">
-                                <ui:Button x:Name="BtnDiscordConnect" Content="Connect"
-                                           Appearance="Secondary" Margin="0,0,8,0" />
+                                <ui:Button x:Name="BtnDiscordConnect" Content="Unavailable"
+                                           Appearance="Secondary" Margin="0,0,8,0" IsEnabled="False" />
                                 <ui:Button x:Name="BtnDiscordDisconnect" Content="Disconnect"
                                            Appearance="Secondary" IsEnabled="False" />
                             </StackPanel>
-                            <TextBlock Text="Discord must be running."
+                            <TextBlock Text="Voice actions are disabled: Discord restricts the required RPC voice scopes to approved partners. Existing bindings are preserved but safely do nothing."
                                        Style="{StaticResource SecondaryText}" FontSize="11"
                                        TextWrapping="Wrap" Margin="0,6,0,0" />
                         </StackPanel>

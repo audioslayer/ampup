@@ -660,8 +660,8 @@ public partial class ButtonsView
 
         AddIntegrationGroup("group_discord", "Discord", "D",
             Color.FromRgb(0x58, 0x65, 0xF2), "Integrations",
-            "Toggle Discord self mute or deafen through the local Discord desktop app",
-            discordChildren, enabled: true);
+            "Unavailable: Discord restricts RPC voice controls to approved partners",
+            discordChildren, enabled: false);
 
         AddIntegrationGroup("group_ha", "Home Assistant", "⚡",
             Color.FromRgb(0x26, 0xC6, 0xDA), "Integrations",

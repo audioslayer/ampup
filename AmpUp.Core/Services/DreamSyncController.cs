@@ -1,5 +1,6 @@
 using System.Net.Sockets;
 using System.Text;
+using System.Threading.Channels;
 using AmpUp.Core;
 using AmpUp.Core.Models;
 using AmpUp.Core.Interfaces;
@@ -15,7 +16,7 @@ namespace AmpUp.Core.Services;
 /// (Govee LED hardware can't transition faster — sending more causes flicker).
 ///
 /// Architecture:
-///   - One background thread runs the capture+send loop
+///   - One background task captures frames; a bounded worker owns UDP sends
 ///   - IScreenCapture handles platform-specific screen capture + zone sampling
 ///   - A persistent UdpClient per device avoids per-frame socket allocation
 ///   - Delta threshold suppresses sends when color hasn't changed enough
@@ -32,12 +33,24 @@ public class DreamSyncController : IDisposable
     // Running state
     private CancellationTokenSource? _cts;
     private Task? _loopTask;
-    private bool _running;
+    private volatile bool _running;
     private volatile bool _suspended;
 
     // Per-device persistent UDP sockets (avoids allocation per frame)
     private readonly Dictionary<string, UdpClient> _udpClients = new();
+    private readonly Channel<UdpSendRequest> _udpSendQueue = Channel.CreateBounded<UdpSendRequest>(
+        new BoundedChannelOptions(256)
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
+        });
+    private readonly CancellationTokenSource _udpSendCts = new();
+    private readonly Task _udpSendTask;
+    private readonly Dictionary<string, long> _udpErrorLogTick = new();
+    private long _udpSendGeneration;
     private const int LanControlPort = 4003;
+    private const long UdpErrorLogIntervalMs = 30_000;
 
     // Per-device last-sent color for delta suppression (single-color fallback)
     private readonly Dictionary<string, (byte R, byte G, byte B)> _lastSent = new();
@@ -111,6 +124,7 @@ public class DreamSyncController : IDisposable
         _config = config;
         _ambience = ambience;
         _capture = capture;
+        _udpSendTask = Task.Run(() => RunUdpSendLoopAsync(_udpSendCts.Token));
     }
 
     public void UpdateConfig(ScreenSyncConfig config, AmbienceConfig ambience)
@@ -157,6 +171,7 @@ public class DreamSyncController : IDisposable
     public void Start()
     {
         if (_disposed || _running) return;
+        Interlocked.Increment(ref _udpSendGeneration);
         _running = true;
         _cts = new CancellationTokenSource();
         _loopTask = Task.Run(() => RunLoop(_cts.Token));
@@ -167,6 +182,10 @@ public class DreamSyncController : IDisposable
     {
         if (!_running) return;
         _running = false;
+        // Invalidate queued frames from this run. The UDP worker may still be
+        // draining while a later Start begins, but stale screen colors must not
+        // leak into the stopped/new session.
+        Interlocked.Increment(ref _udpSendGeneration);
         _cts?.Cancel();
         try { _loopTask?.Wait(2000); } catch { }
         _loopTask = null;
@@ -655,7 +674,62 @@ public class DreamSyncController : IDisposable
         );
     }
 
-    // ── UDP send (persistent socket, fire-and-forget) ─────────────────────────
+    // ── UDP send (persistent socket, bounded single-writer loop) ──────────────
+
+    private readonly record struct UdpSendRequest(string Ip, byte[] Data, long Generation);
+
+    private void QueueUdpSend(string ip, byte[] data, long? generation = null)
+    {
+        if (_disposed || !_running || string.IsNullOrWhiteSpace(ip) || data.Length == 0)
+            return;
+
+        // Screen sync is latest-state data. A bounded queue prevents a slow or
+        // unavailable network from retaining an unbounded number of old frames.
+        _udpSendQueue.Writer.TryWrite(new UdpSendRequest(
+            ip, data, generation ?? Volatile.Read(ref _udpSendGeneration)));
+    }
+
+    private async Task RunUdpSendLoopAsync(CancellationToken ct)
+    {
+        try
+        {
+            await foreach (var request in _udpSendQueue.Reader.ReadAllAsync(ct))
+            {
+                if (request.Generation != Volatile.Read(ref _udpSendGeneration))
+                    continue;
+
+                try
+                {
+                    if (!_udpClients.TryGetValue(request.Ip, out var udp))
+                    {
+                        udp = new UdpClient();
+                        _udpClients[request.Ip] = udp;
+                    }
+
+                    await udp.SendAsync(request.Data.AsMemory(), request.Ip, LanControlPort, ct);
+                    _udpErrorLogTick.Remove(request.Ip);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    long nowMs = Environment.TickCount64;
+                    if (!_udpErrorLogTick.TryGetValue(request.Ip, out long lastLog)
+                        || nowMs - lastLog >= UdpErrorLogIntervalMs)
+                    {
+                        _udpErrorLogTick[request.Ip] = nowMs;
+                        Logger.Log($"DreamSync UDP send to {request.Ip} failed: {ex.Message}");
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Normal shutdown.
+        }
+    }
 
     private void SendColorFast(string ip, byte r, byte g, byte b)
     {
@@ -663,30 +737,16 @@ public class DreamSyncController : IDisposable
         string json = $"{{\"msg\":{{\"cmd\":\"colorwc\",\"data\":{{\"color\":{{\"r\":{r},\"g\":{g},\"b\":{b}}},\"colorTemInKelvin\":0}}}}}}";
         byte[] data = Encoding.UTF8.GetBytes(json);
 
-        // Get or create a persistent UDP socket for this device
-        if (!_udpClients.TryGetValue(ip, out var udp))
-        {
-            udp = new UdpClient();
-            _udpClients[ip] = udp;
-        }
-
-        // Fire and forget — don't await; capture loop shouldn't block on network I/O
-        _ = udp.SendAsync(data, data.Length, ip, LanControlPort);
+        QueueUdpSend(ip, data);
     }
 
-    private void SendBrightnessFast(string ip, int brightness)
+    private void SendBrightnessFast(string ip, int brightness, long? generation = null)
     {
         brightness = Math.Clamp(brightness, 0, 100);
         string json = $"{{\"msg\":{{\"cmd\":\"brightness\",\"data\":{{\"value\":{brightness}}}}}}}";
         byte[] data = Encoding.UTF8.GetBytes(json);
 
-        if (!_udpClients.TryGetValue(ip, out var udp))
-        {
-            udp = new UdpClient();
-            _udpClients[ip] = udp;
-        }
-
-        _ = udp.SendAsync(data, data.Length, ip, LanControlPort);
+        QueueUdpSend(ip, data, generation);
     }
 
     private void EnsureSegmentHardwareBrightness(string ip, long nowMs)
@@ -696,8 +756,22 @@ public class DreamSyncController : IDisposable
             return;
 
         _segmentBrightnessResetTick[ip] = nowMs;
-        SendBrightnessFast(ip, 100);
-        Task.Delay(35).ContinueWith(_ => SendSegmentEnable(ip, true), TaskScheduler.Default);
+        long generation = Volatile.Read(ref _udpSendGeneration);
+        SendBrightnessFast(ip, 100, generation);
+        _ = QueueSegmentEnableAfterDelayAsync(ip, generation);
+    }
+
+    private async Task QueueSegmentEnableAfterDelayAsync(string ip, long generation)
+    {
+        try
+        {
+            await Task.Delay(35, _udpSendCts.Token).ConfigureAwait(false);
+            SendSegmentEnable(ip, true, generation);
+        }
+        catch (OperationCanceledException) when (_udpSendCts.IsCancellationRequested)
+        {
+            // Normal shutdown.
+        }
     }
 
     // ── Per-segment protocol (Govee "razer" command) ─────────────────────────
@@ -709,7 +783,7 @@ public class DreamSyncController : IDisposable
         return xor;
     }
 
-    private void SendSegmentEnable(string ip, bool enable)
+    private void SendSegmentEnable(string ip, bool enable, long? generation = null)
     {
         // Binary: BB 00 01 B1 [01=enable/00=disable] [xor]
         var pkt = new byte[] { 0xBB, 0x00, 0x01, 0xB1, (byte)(enable ? 1 : 0), 0 };
@@ -719,12 +793,7 @@ public class DreamSyncController : IDisposable
         string json = $"{{\"msg\":{{\"cmd\":\"razer\",\"data\":{{\"pt\":\"{b64}\"}}}}}}";
         byte[] data = Encoding.UTF8.GetBytes(json);
 
-        if (!_udpClients.TryGetValue(ip, out var udp))
-        {
-            udp = new UdpClient();
-            _udpClients[ip] = udp;
-        }
-        _ = udp.SendAsync(data, data.Length, ip, LanControlPort);
+        QueueUdpSend(ip, data, generation);
     }
 
     private void SendSegmentColors(string ip, (byte R, byte G, byte B)[] colors)
@@ -754,12 +823,7 @@ public class DreamSyncController : IDisposable
         string json = $"{{\"msg\":{{\"cmd\":\"razer\",\"data\":{{\"pt\":\"{b64}\"}}}}}}";
         byte[] data = Encoding.UTF8.GetBytes(json);
 
-        if (!_udpClients.TryGetValue(ip, out var udp))
-        {
-            udp = new UdpClient();
-            _udpClients[ip] = udp;
-        }
-        _ = udp.SendAsync(data, data.Length, ip, LanControlPort);
+        QueueUdpSend(ip, data);
     }
 
     /// <summary>
@@ -889,10 +953,14 @@ public class DreamSyncController : IDisposable
         _disposed = true;
         Stop();
         _capture.Dispose();
+        _udpSendQueue.Writer.TryComplete();
+        _udpSendCts.Cancel();
+        try { _udpSendTask.Wait(2000); } catch { }
         foreach (var udp in _udpClients.Values)
         {
             try { udp.Dispose(); } catch { }
         }
         _udpClients.Clear();
+        _udpSendCts.Dispose();
     }
 }

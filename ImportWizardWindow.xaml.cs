@@ -9,6 +9,7 @@ namespace AmpUp;
 
 public partial class ImportWizardWindow : Window
 {
+    public IReadOnlyCollection<string> ExistingProfileNames { get; set; } = Array.Empty<string>();
     public string? ImportedProfileName { get; private set; }
 
     private int _currentStep = 1;
@@ -576,6 +577,8 @@ public partial class ImportWizardWindow : Window
             return;
         }
 
+        profileName = ConfigManager.GetUniqueProfileName(ExistingProfileNames, profileName);
+
         // Build the config
         var config = new AppConfig
         {
@@ -588,6 +591,7 @@ public partial class ImportWizardWindow : Window
         };
 
         // Save as a profile
+        ConfigManager.NormalizeAndValidate(config);
         ConfigManager.SaveProfile(config, profileName);
         ImportedProfileName = profileName;
 

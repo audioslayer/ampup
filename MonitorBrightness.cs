@@ -176,6 +176,7 @@ public static class MonitorBrightness
     // Per-device throttle: keyed by deviceName ("" = all monitors)
     private static readonly Dictionary<string, float> _pendingBrightness = new();
     private static readonly Dictionary<string, bool> _throttleRunning = new();
+    private static readonly Dictionary<string, long> _brightnessGeneration = new();
     private static readonly object _throttleLock = new();
 
     /// <summary>
@@ -190,38 +191,64 @@ public static class MonitorBrightness
         lock (_throttleLock)
         {
             _pendingBrightness[key] = brightness;
+            _brightnessGeneration[key] = _brightnessGeneration.GetValueOrDefault(key) + 1;
             if (_throttleRunning.TryGetValue(key, out bool running) && running) return;
             _throttleRunning[key] = true;
         }
 
-        _ = Task.Run(async () =>
+        _ = Task.Run(() => RunBrightnessThrottleAsync(key));
+    }
+
+    private static async Task RunBrightnessThrottleAsync(string key)
+    {
+        long generation = -1;
+        try
         {
-            try
+            while (true)
             {
-                while (true)
+                float target;
+                lock (_throttleLock)
                 {
-                    float target;
-                    lock (_throttleLock) { target = _pendingBrightness[key]; }
+                    target = _pendingBrightness[key];
+                    generation = _brightnessGeneration[key];
+                }
 
-                    if (string.IsNullOrEmpty(key))
-                        ApplyBrightnessAll(target);
-                    else
-                        ApplyBrightnessSingle(key, target);
+                if (string.IsNullOrEmpty(key))
+                    ApplyBrightnessAll(target);
+                else
+                    ApplyBrightnessSingle(key, target);
 
-                    await Task.Delay(60);
+                await Task.Delay(60);
 
-                    lock (_throttleLock)
-                    {
-                        if (Math.Abs(_pendingBrightness[key] - target) < 0.001f)
-                            break;
-                    }
+                lock (_throttleLock)
+                {
+                    if (_brightnessGeneration[key] != generation)
+                        continue;
+
+                    // The decision to stop and publishing the stopped state must
+                    // be atomic with SetThrottled. Otherwise a final knob update
+                    // can arrive after the decision but before the flag is cleared
+                    // and be left with no worker to apply it.
+                    _throttleRunning[key] = false;
+                    return;
                 }
             }
-            finally
+        }
+        catch
+        {
+            // ApplyBrightness* handles normal DDC/CI failures internally. Keep an
+            // unexpected worker failure from permanently wedging this monitor's
+            // throttle. If a newer value arrived while the worker was failing,
+            // hand it directly to a replacement worker under the same lock.
+            bool restart;
+            lock (_throttleLock)
             {
-                lock (_throttleLock) { _throttleRunning[key] = false; }
+                restart = generation >= 0 && _brightnessGeneration[key] != generation;
+                _throttleRunning[key] = restart;
             }
-        });
+            if (restart)
+                _ = Task.Run(() => RunBrightnessThrottleAsync(key));
+        }
     }
 
     private static void ApplyBrightnessAll(float brightness)

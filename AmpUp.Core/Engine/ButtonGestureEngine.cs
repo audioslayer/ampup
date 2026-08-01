@@ -13,7 +13,9 @@ public class ButtonGestureEngine : IDisposable
     private const int DoubleClickWindowMs = 300;
 
     private readonly object _stateLock = new();
-    private readonly Dictionary<int, DateTime> _downAt = new();
+    private readonly HashSet<int> _buttonsDown = new();
+    private readonly Dictionary<int, long> _pressGeneration = new();
+    private readonly Dictionary<int, long> _clickGeneration = new();
     private readonly Dictionary<int, int> _clickCount = new();
     private readonly HashSet<int> _held = new();
     private readonly Dictionary<int, System.Threading.Timer?> _holdTimers = new();
@@ -61,11 +63,14 @@ public class ButtonGestureEngine : IDisposable
         _lastConfig = config;
         lock (_stateLock)
         {
-            _downAt[idx] = DateTime.UtcNow;
+            long generation = _pressGeneration.GetValueOrDefault(idx) + 1;
+            _pressGeneration[idx] = generation;
+            _buttonsDown.Add(idx);
             _held.Remove(idx);
 
             DisposeTimer(_holdTimers, idx);
-            _holdTimers[idx] = new System.Threading.Timer(_ => OnHoldFired(idx), null, HoldThresholdMs, Timeout.Infinite);
+            _holdTimers[idx] = new System.Threading.Timer(
+                _ => OnHoldFired(idx, generation), null, HoldThresholdMs, Timeout.Infinite);
         }
     }
 
@@ -78,7 +83,13 @@ public class ButtonGestureEngine : IDisposable
         bool wasHeld;
         lock (_stateLock)
         {
+            // Mark the press released before disposing its timer. Timer.Dispose
+            // cannot retract a callback that is already queued, so the callback
+            // must also validate this down state and the press generation.
+            bool wasDown = _buttonsDown.Remove(idx);
             DisposeTimer(_holdTimers, idx);
+            if (!wasDown)
+                return;
 
             wasHeld = _held.Contains(idx);
             if (wasHeld)
@@ -90,21 +101,31 @@ public class ButtonGestureEngine : IDisposable
             _clickCount[idx] = _clickCount.GetValueOrDefault(idx) + 1;
 
             DisposeTimer(_clickTimers, idx);
-            _clickTimers[idx] = new System.Threading.Timer(_ => OnClickWindowExpired(idx), null, DoubleClickWindowMs, Timeout.Infinite);
+            long clickGeneration = _clickGeneration.GetValueOrDefault(idx) + 1;
+            _clickGeneration[idx] = clickGeneration;
+            _clickTimers[idx] = new System.Threading.Timer(
+                _ => OnClickWindowExpired(idx, clickGeneration), null, DoubleClickWindowMs, Timeout.Infinite);
         }
     }
 
-    private void OnHoldFired(int idx)
+    private void OnHoldFired(int idx, long generation)
     {
         ButtonConfig? holdBtn = null;
         string action = "none";
 
         lock (_stateLock)
         {
+            if (!_buttonsDown.Contains(idx) ||
+                _pressGeneration.GetValueOrDefault(idx) != generation)
+            {
+                return;
+            }
+
             DisposeTimer(_holdTimers, idx);
             _held.Add(idx);
 
             DisposeTimer(_clickTimers, idx);
+            _clickGeneration[idx] = _clickGeneration.GetValueOrDefault(idx) + 1;
             _clickCount[idx] = 0;
 
             var btn = ResolveButtonConfig(idx);
@@ -141,7 +162,7 @@ public class ButtonGestureEngine : IDisposable
         }
     }
 
-    private void OnClickWindowExpired(int idx)
+    private void OnClickWindowExpired(int idx, long generation)
     {
         int clicks;
         ButtonConfig? tapBtn = null;
@@ -151,6 +172,9 @@ public class ButtonGestureEngine : IDisposable
 
         lock (_stateLock)
         {
+            if (_clickGeneration.GetValueOrDefault(idx) != generation)
+                return;
+
             DisposeTimer(_clickTimers, idx);
 
             clicks = _clickCount.GetValueOrDefault(idx);
@@ -215,6 +239,11 @@ public class ButtonGestureEngine : IDisposable
             {
                 DisposeTimer(_clickTimers, idx);
             }
+            _buttonsDown.Clear();
+            _pressGeneration.Clear();
+            _clickGeneration.Clear();
+            _held.Clear();
+            _clickCount.Clear();
         }
     }
 

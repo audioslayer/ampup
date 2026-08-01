@@ -3,6 +3,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
+using System.Threading.Channels;
 using System.Windows;
 using System.Windows.Interop;
 using Microsoft.Win32;
@@ -53,6 +54,8 @@ public partial class App : Application
     private AmbienceSync? _ambienceSync;
     private DreamSyncController? _dreamSync;
     private CorsairSync? _corsairSync;
+    private Channel<byte[]>? _corsairFrameChannel;
+    private Task? _corsairFrameWorker;
     private SignalRgbBridgeService? _signalRgbBridge;
     private LgMonitorSync? _lgMonitor;
     private N3Controller? _n3;
@@ -76,6 +79,9 @@ public partial class App : Application
         Array.Empty<KeyValuePair<int, N3AnimatedKeyState>>();
     private HardwareMonitorService? _hardwareMonitor;
     private readonly SemaphoreSlim _n3DisplayWriteGate = new(1, 1);
+    private long _n3DisplayGeneration;
+    private long _n3AnimationBuildGeneration;
+    private int _n3DisplaySyncPending;
     // Per-slot content signature from the last display sync. A slot is only
     // re-composed/encoded/sent when its signature changes (clock string,
     // hardware metric value, dynamic state etc. are baked into the signature
@@ -259,17 +265,8 @@ public partial class App : Application
 
         // Corsair iCUE sync
         _corsairSync = new CorsairSync();
-        _rgb.OnFrameReady += frame =>
-        {
-            if (_corsairSync?.IsAvailable != true || !_config.Corsair.Enabled) return;
-            var mode = _config.Corsair.LightSyncMode;
-            if (mode == "off") return;
-            // In "static" mode, colors are set once via UI — don't overwrite with Turn Up frames
-            // In "dreamview" mode, colors come from DreamSyncController — don't overwrite
-            // Only sync Turn Up LED frames in default (Turn Up sync) or "vu_reactive" modes
-            if (mode != "static" && mode != "dreamview")
-                _corsairSync.SyncColors(frame);
-        };
+        StartCorsairFrameWorker();
+        _rgb.OnFrameReady += QueueCorsairFrame;
         // Corsair SDK init moved to InitializeHardwareDeferred — it can
         // block for hundreds of ms hunting for the iCUE service.
         // Corsair / LG / N3 hardware probes all do blocking HID enumeration
@@ -3095,6 +3092,81 @@ public partial class App : Application
         return new ButtonConfig { Idx = idx, Action = "none" };
     }
 
+    private void StartCorsairFrameWorker()
+    {
+        var channel = Channel.CreateBounded<byte[]>(new BoundedChannelOptions(1)
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
+            AllowSynchronousContinuations = false,
+        });
+
+        _corsairFrameChannel = channel;
+        _corsairFrameWorker = Task.Run(async () =>
+        {
+            await foreach (var frame in channel.Reader.ReadAllAsync().ConfigureAwait(false))
+            {
+                try
+                {
+                    var corsair = _corsairSync;
+                    if (corsair?.IsAvailable != true || !_config.Corsair.Enabled)
+                        continue;
+
+                    var mode = _config.Corsair.LightSyncMode;
+                    if (mode is "off" or "static" or "dreamview")
+                        continue;
+
+                    corsair.SyncColors(frame);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"Corsair frame sync failed: {ex.Message}");
+                }
+            }
+        });
+    }
+
+    private void QueueCorsairFrame(byte[] frame)
+    {
+        var corsair = _corsairSync;
+        if (corsair?.IsAvailable != true || !_config.Corsair.Enabled)
+            return;
+
+        var mode = _config.Corsair.LightSyncMode;
+        if (mode is "off" or "static" or "dreamview")
+            return;
+
+        // RgbController reuses its frame buffer. Give the asynchronous worker
+        // an immutable snapshot and retain only the newest waiting frame.
+        _corsairFrameChannel?.Writer.TryWrite((byte[])frame.Clone());
+    }
+
+    private bool StopCorsairFrameWorker()
+    {
+        var channel = Interlocked.Exchange(ref _corsairFrameChannel, null);
+        channel?.Writer.TryComplete();
+
+        var worker = Interlocked.Exchange(ref _corsairFrameWorker, null);
+        if (worker == null) return true;
+
+        try
+        {
+            if (!worker.Wait(TimeSpan.FromSeconds(2)))
+            {
+                Logger.Log("Corsair frame worker did not stop before shutdown timeout");
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Corsair frame worker shutdown failed: {ex.GetBaseException().Message}");
+            return false;
+        }
+
+        return true;
+    }
+
     private void SyncStreamControllerDisplays()
     {
         if (!Dispatcher.CheckAccess())
@@ -3105,6 +3177,15 @@ public partial class App : Application
 
         if (_n3 == null || !_isN3Connected) return;
         if (_config.HardwareMode == HardwareMode.TurnUpOnly) return;
+
+        long animationBuildGeneration = Interlocked.Increment(ref _n3AnimationBuildGeneration);
+
+        // The signature cache represents work already scheduled as well as
+        // work confirmed on the device. If an older batch is still pending,
+        // rebuild every slot so a newer generation is self-contained and can
+        // safely supersede that older batch without losing one of its deltas.
+        if (Volatile.Read(ref _n3DisplaySyncPending) > 0)
+            ResetN3SlotSignatureCache();
 
         // Split the work into two halves:
         //   1. UI thread (here): compose each key's bitmap — WPF render is
@@ -3258,11 +3339,25 @@ public partial class App : Application
         if (ops.Count > 0)
         {
             var n3 = _n3;
+            long generation = Interlocked.Increment(ref _n3DisplayGeneration);
+            Interlocked.Increment(ref _n3DisplaySyncPending);
             _ = Task.Run(async () =>
             {
+                bool gateHeld = false;
                 try
                 {
                     await _n3DisplayWriteGate.WaitAsync().ConfigureAwait(false);
+                    gateHeld = true;
+
+                    // Task scheduling is not FIFO. A newer, self-contained
+                    // generation may have reached the gate first; in that case
+                    // this batch must never overwrite it.
+                    if (generation != Volatile.Read(ref _n3DisplayGeneration))
+                    {
+                        foreach (var (_, staleBitmap, _, _) in ops)
+                            staleBitmap?.Dispose();
+                        return;
+                    }
 
                     foreach (var (slot, bitmap, encodedFrame, clear) in ops)
                     {
@@ -3301,8 +3396,9 @@ public partial class App : Application
                 }
                 finally
                 {
-                    if (_n3DisplayWriteGate.CurrentCount == 0)
+                    if (gateHeld)
                         _n3DisplayWriteGate.Release();
+                    Interlocked.Decrement(ref _n3DisplaySyncPending);
                 }
             });
         }
@@ -3310,7 +3406,11 @@ public partial class App : Application
         if (deferredAnimations.Count > 0)
         {
             Dispatcher.BeginInvoke(
-                new Action(() => BuildDeferredN3Animations(deferredAnimations)),
+                new Action(() =>
+                {
+                    if (animationBuildGeneration == Volatile.Read(ref _n3AnimationBuildGeneration))
+                        BuildDeferredN3Animations(deferredAnimations);
+                }),
                 System.Windows.Threading.DispatcherPriority.Background);
         }
     }
@@ -5407,6 +5507,8 @@ public partial class App : Application
         _mixer?.Dispose();
         _audioAnalyzer?.Dispose();
         _rgb?.Dispose();
+        if (!StopCorsairFrameWorker())
+            _corsairSync = null; // Avoid disposing the SDK under an in-flight native call.
         _ha?.Dispose();
         _obs?.Dispose();
         _vm?.Dispose();

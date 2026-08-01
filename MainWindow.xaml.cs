@@ -348,14 +348,18 @@ public partial class MainWindow : FluentWindow
 
     public void LaunchImportWizard()
     {
-        var wizard = new ImportWizardWindow { Owner = this };
+        var wizard = new ImportWizardWindow
+        {
+            Owner = this,
+            ExistingProfileNames = _config.Profiles.ToList()
+        };
         wizard.ShowDialog();
 
         if (wizard.ImportedProfileName != null)
         {
             var profileName = wizard.ImportedProfileName;
 
-            if (!_config.Profiles.Contains(profileName))
+            if (ConfigManager.IsProfileNameAvailable(_config.Profiles, profileName))
                 _config.Profiles.Add(profileName);
 
             var loaded = ConfigManager.LoadProfile(profileName);
@@ -878,7 +882,7 @@ public partial class MainWindow : FluentWindow
             actionPanel.Children.Add(editBtn);
 
             // Delete button (not for Default)
-            if (profile != "Default")
+            if (!string.Equals(profile, "Default", StringComparison.OrdinalIgnoreCase))
             {
                 var deleteBtn = new System.Windows.Controls.TextBlock
                 {
@@ -1013,8 +1017,8 @@ public partial class MainWindow : FluentWindow
         {
             if (string.IsNullOrWhiteSpace(newName) || newName == currentProfileName) return;
             newName = newName.Trim();
-            if (_config.Profiles.Contains(newName)) return;
-            RenameProfile(currentProfileName, newName);
+            if (!ConfigManager.IsProfileNameAvailable(_config.Profiles, newName, currentProfileName)) return;
+            if (!RenameProfile(currentProfileName, newName)) return;
             currentProfileName = newName;
             _onConfigChanged?.Invoke(_config);
             UpdateProfileButton();
@@ -1221,8 +1225,19 @@ public partial class MainWindow : FluentWindow
         nameBox.Focus();
     }
 
-    private void RenameProfile(string oldName, string newName)
+    private bool RenameProfile(string oldName, string newName)
     {
+        try
+        {
+            ConfigManager.RenameProfileFile(oldName, newName);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Failed to rename profile {oldName} to {newName}: {ex.Message}");
+            GlassDialog.ShowWarning($"Could not rename profile: {ex.Message}", owner: this);
+            return false;
+        }
+
         // Update profiles list
         int idx = _config.Profiles.IndexOf(oldName);
         if (idx >= 0) _config.Profiles[idx] = newName;
@@ -1238,22 +1253,7 @@ public partial class MainWindow : FluentWindow
         if (_config.ActiveProfile == oldName)
             _config.ActiveProfile = newName;
 
-        // Rename profile file
-        var configDir = System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AmpUp");
-
-        string SafeName(string n) => string.Concat(n.ToLowerInvariant()
-            .Select(c => char.IsLetterOrDigit(c) || c == '-' ? c : '_'));
-
-        var oldPath = System.IO.Path.Combine(configDir, $"profile_{SafeName(oldName)}.json");
-        var newPath = System.IO.Path.Combine(configDir, $"profile_{SafeName(newName)}.json");
-
-        try
-        {
-            if (System.IO.File.Exists(oldPath) && !System.IO.File.Exists(newPath))
-                System.IO.File.Move(oldPath, newPath);
-        }
-        catch { }
+        return true;
     }
 
     private void DuplicateProfile(string sourceProfileName)
@@ -1262,7 +1262,7 @@ public partial class MainWindow : FluentWindow
         string baseName = sourceProfileName + " Copy";
         string newName = baseName;
         int counter = 2;
-        while (_config.Profiles.Contains(newName))
+        while (!ConfigManager.IsProfileNameAvailable(_config.Profiles, newName))
         {
             newName = $"{baseName} {counter}";
             counter++;
@@ -1587,7 +1587,7 @@ public partial class MainWindow : FluentWindow
             name = name.Trim();
             if (string.IsNullOrEmpty(name)) return;
 
-            if (_config.Profiles.Contains(name))
+            if (!ConfigManager.IsProfileNameAvailable(_config.Profiles, name))
             {
                 GlassDialog.ShowWarning($"Profile \"{name}\" already exists.", owner: this);
                 return;
@@ -1610,25 +1610,43 @@ public partial class MainWindow : FluentWindow
         if (!GlassDialog.Confirm($"Delete profile \"{profileName}\"?", "DELETE PROFILE", dangerYes: true, owner: this))
             return;
 
+        var remainingProfiles = _config.Profiles.Where(name =>
+            !string.Equals(name, profileName, StringComparison.Ordinal)).ToList();
+        try
+        {
+            ConfigManager.DeleteProfileFiles(profileName, remainingProfiles);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Failed to delete profile {profileName}: {ex.Message}");
+            GlassDialog.ShowWarning($"Could not delete profile: {ex.Message}", owner: this);
+            return;
+        }
+
+        bool wasActive = string.Equals(_config.ActiveProfile, profileName, StringComparison.Ordinal);
         _config.Profiles.Remove(profileName);
         _config.ProfileIcons.Remove(profileName);
 
-        // Delete profile file
-        var configDir = System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AmpUp");
-        var safe = string.Concat(profileName.ToLowerInvariant()
-            .Select(c => char.IsLetterOrDigit(c) || c == '-' ? c : '_'));
-        var path = System.IO.Path.Combine(configDir, $"profile_{safe}.json");
-        try { if (System.IO.File.Exists(path)) System.IO.File.Delete(path); } catch { }
-
-        // Switch to Default if we deleted the active profile
-        if (_config.ActiveProfile == profileName)
-            SwitchToProfile("Default");
-        else
+        if (wasActive)
         {
-            _onConfigChanged?.Invoke(_config);
-            UpdateProfileButton();
+            // Do not call SwitchToProfile here: it saves the current profile first,
+            // which would recreate the file we just deleted.
+            var loaded = ConfigManager.LoadProfile("Default");
+            if (loaded != null)
+            {
+                loaded.ActiveProfile = "Default";
+                PreserveGlobalSettings(loaded);
+                _config = loaded;
+            }
+            else
+            {
+                _config.ActiveProfile = "Default";
+            }
         }
+
+        _onConfigChanged?.Invoke(_config);
+        UpdateProfileButton();
+        RefreshViews();
     }
 
     /// <summary>

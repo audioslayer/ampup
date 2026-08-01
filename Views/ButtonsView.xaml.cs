@@ -1601,6 +1601,7 @@ public partial class ButtonsView : UserControl
                 bool isGovee = IsGoveeAction(value);
                 bool isObs = IsObsAction(value);
                 bool isVm = IsVmAction(value);
+                bool isDiscord = IsDiscordAction(value);
                 bool isGroup = value == "group_toggle";
                 bool isScPage = IsScPageAction(value);
 
@@ -1608,6 +1609,7 @@ public partial class ButtonsView : UserControl
                 if (isGovee && !goveeEnabled && !anyGoveeConfigured) continue;
                 if (isObs && !obsEnabled && !anyObsConfigured) continue;
                 if (isVm && !vmEnabled && !anyVmConfigured) continue;
+                if (isDiscord) continue; // RPC voice scopes are partner-only.
                 if (isGroup && !groupsExist && !anyGroupConfigured) continue;
                 if (isScPage && !showScPageActions) continue;
 
@@ -1641,10 +1643,6 @@ public partial class ButtonsView : UserControl
             Color.FromRgb(0x1D, 0xB9, 0x54),
             new[] { "spotify_play_pause", "spotify_next", "spotify_prev", "spotify_shuffle", "spotify_like" });
 
-        picker.AddActionGroup("group_discord", "Discord", "D",
-            Color.FromRgb(0x58, 0x65, 0xF2),
-            DiscordActionValues);
-
         picker.BuildPopup();
     }
 
@@ -1661,6 +1659,7 @@ public partial class ButtonsView : UserControl
             picker.AddCategory(category);
             foreach (var value in values)
             {
+                if (IsDiscordAction(value)) continue;
                 if (!ActionLookup.TryGetValue(value, out var action)) continue;
                 var icon = ActionIcons.GetValueOrDefault(value, "—");
                 var color = ActionColors.GetValueOrDefault(value, Color.FromRgb(0x88, 0x88, 0x88));

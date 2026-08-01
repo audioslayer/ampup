@@ -891,7 +891,7 @@ public partial class SettingsView : UserControl
             name = name.Trim();
             if (string.IsNullOrEmpty(name)) return;
 
-            if (_config.Profiles.Contains(name))
+            if (!ConfigManager.IsProfileNameAvailable(_config.Profiles, name))
             {
                 GlassDialog.ShowWarning($"Profile \"{name}\" already exists.", owner: Window.GetWindow(this));
                 return;
@@ -914,7 +914,7 @@ public partial class SettingsView : UserControl
 
         var profileName = (CmbProfiles.SelectedTag as string) ?? CmbProfiles.SelectedDisplay;
         if (string.IsNullOrEmpty(profileName)) return;
-        if (profileName == "Default")
+        if (string.Equals(profileName, "Default", StringComparison.OrdinalIgnoreCase))
         {
             GlassDialog.ShowWarning("Cannot delete the Default profile.", owner: Window.GetWindow(this));
             return;
@@ -924,17 +924,36 @@ public partial class SettingsView : UserControl
             "DELETE PROFILE", dangerYes: true, owner: Window.GetWindow(this)))
             return;
 
-        _config.Profiles.Remove(profileName);
-        _config.ActiveProfile = "Default";
+        var remainingProfiles = _config.Profiles.Where(name =>
+            !string.Equals(name, profileName, StringComparison.Ordinal)).ToList();
+        try
+        {
+            ConfigManager.DeleteProfileFiles(profileName, remainingProfiles);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Failed to delete profile {profileName}: {ex.Message}");
+            GlassDialog.ShowWarning($"Could not delete profile: {ex.Message}", owner: Window.GetWindow(this));
+            return;
+        }
 
-        // Delete profile file from AppData
-        var configDir = System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AmpUp");
-        var safe = string.Concat(profileName.ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) || c == '-' ? c : '_'));
-        var path = System.IO.Path.Combine(configDir, $"profile_{safe}.json");
-        try { if (System.IO.File.Exists(path)) System.IO.File.Delete(path); } catch { }
+        _config.Profiles.Remove(profileName);
+        _config.ProfileIcons.Remove(profileName);
+
+        var loadedDefault = ConfigManager.LoadProfile("Default");
+        if (loadedDefault != null)
+        {
+            loadedDefault.ActiveProfile = "Default";
+            PreserveGlobalSettings(loadedDefault);
+            _config = loadedDefault;
+        }
+        else
+        {
+            _config.ActiveProfile = "Default";
+        }
 
         CollectAndSave();
+        LoadConfig(_config, _onSave!);
 
         // Refresh dropdowns
         RefreshProfileDropdown();
@@ -945,7 +964,11 @@ public partial class SettingsView : UserControl
     {
         if (_config == null) return;
 
-        var wizard = new ImportWizardWindow { Owner = Window.GetWindow(this) };
+        var wizard = new ImportWizardWindow
+        {
+            Owner = Window.GetWindow(this),
+            ExistingProfileNames = _config.Profiles.ToList()
+        };
         wizard.ShowDialog();
 
         if (wizard.ImportedProfileName != null)
@@ -953,7 +976,7 @@ public partial class SettingsView : UserControl
             var profileName = wizard.ImportedProfileName;
 
             // Add to profile list if not already there
-            if (!_config.Profiles.Contains(profileName))
+            if (ConfigManager.IsProfileNameAvailable(_config.Profiles, profileName))
                 _config.Profiles.Add(profileName);
 
             // Switch to the imported profile
@@ -1020,12 +1043,7 @@ public partial class SettingsView : UserControl
         try
         {
             var json = File.ReadAllText(dlg.FileName);
-            var imported = Newtonsoft.Json.JsonConvert.DeserializeObject<AppConfig>(json);
-            if (imported == null)
-            {
-                GlassDialog.ShowWarning("File does not appear to be a valid AmpUp profile.", owner: Window.GetWindow(this));
-                return;
-            }
+            var imported = ConfigManager.DeserializeAndNormalize(json);
 
             // Derive a profile name from the filename
             var baseName = Path.GetFileNameWithoutExtension(dlg.FileName);
@@ -1038,10 +1056,7 @@ public partial class SettingsView : UserControl
                 : "Imported";
 
             // Make unique if needed
-            var finalName = profileName;
-            int idx = 2;
-            while (_config.Profiles.Contains(finalName))
-                finalName = $"{profileName}{idx++}";
+            var finalName = ConfigManager.GetUniqueProfileName(_config.Profiles, profileName);
 
             _config.Profiles.Add(finalName);
             imported.ActiveProfile = finalName;
@@ -1593,6 +1608,13 @@ public partial class SettingsView : UserControl
     {
         if (_config == null) return;
 
+        if (!DiscordRpcIntegration.VoiceControlAvailable)
+        {
+            GlassDialog.ShowInfo(DiscordRpcIntegration.VoiceControlUnavailableReason,
+                owner: Window.GetWindow(this));
+            return;
+        }
+
         var discord = App.DiscordRpc;
         if (discord == null)
         {
@@ -1629,6 +1651,20 @@ public partial class SettingsView : UserControl
     private void RefreshDiscordStatus()
     {
         if (_config == null) return;
+
+        if (!DiscordRpcIntegration.VoiceControlAvailable)
+        {
+            DiscordStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#555555"));
+            TxtDiscordStatus.Text = "Unavailable";
+            BtnDiscordConnect.Content = "Unavailable";
+            BtnDiscordConnect.IsEnabled = false;
+            // Allow users to clear a token saved by an older AmpUp build even
+            // though starting a new partner-only OAuth flow is disabled.
+            BtnDiscordDisconnect.IsEnabled = !string.IsNullOrWhiteSpace(_config.DiscordRpc.AccessToken)
+                                               || !string.IsNullOrWhiteSpace(_config.DiscordRpc.RefreshToken);
+            return;
+        }
+
         bool connected = !string.IsNullOrWhiteSpace(_config.DiscordRpc.AccessToken);
         if (connected)
         {

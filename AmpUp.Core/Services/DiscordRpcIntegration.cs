@@ -15,6 +15,14 @@ namespace AmpUp.Core.Services;
 /// </summary>
 public sealed class DiscordRpcIntegration : IDisposable
 {
+    // Discord limits rpc.voice.read/rpc.voice.write to approved partners.
+    // AmpUp is a public client and must not start an OAuth flow that Discord
+    // will reject with invalid_scope. Keep the implementation/config model so
+    // existing profiles remain readable if Discord opens access in the future.
+    public static bool VoiceControlAvailable => false;
+    public const string VoiceControlUnavailableReason =
+        "Discord voice controls are unavailable because Discord restricts the required RPC voice scopes to approved partners.";
+
     private const int HandshakeOpcode = 0;
     private const int FrameOpcode = 1;
     private const int CloseOpcode = 2;
@@ -28,6 +36,7 @@ public sealed class DiscordRpcIntegration : IDisposable
     private NamedPipeClientStream? _pipe;
     private string? _pipeName;
     private bool _authenticated;
+    private int _unsupportedActionLogged;
 
     public DiscordRpcIntegration(DiscordRpcConfig config, Action<DiscordRpcConfig> persistConfig)
     {
@@ -41,6 +50,9 @@ public sealed class DiscordRpcIntegration : IDisposable
 
     public async Task ConnectAsync(CancellationToken ct = default)
     {
+        if (!VoiceControlAvailable)
+            throw new NotSupportedException(VoiceControlUnavailableReason);
+
         await _gate.WaitAsync(ct);
         try
         {
@@ -79,6 +91,12 @@ public sealed class DiscordRpcIntegration : IDisposable
 
     public async Task LeaveVoiceChannelAsync(CancellationToken ct = default)
     {
+        if (!VoiceControlAvailable)
+        {
+            ReportUnsupportedAction();
+            return;
+        }
+
         if (!_config.Enabled)
             return;
 
@@ -121,6 +139,12 @@ public sealed class DiscordRpcIntegration : IDisposable
 
     private async Task ToggleVoiceFlagAsync(string flag, CancellationToken ct)
     {
+        if (!VoiceControlAvailable)
+        {
+            ReportUnsupportedAction();
+            return;
+        }
+
         if (!_config.Enabled)
             return;
 
@@ -148,6 +172,12 @@ public sealed class DiscordRpcIntegration : IDisposable
 
     private async Task SetVoiceFlagAsync(string flag, bool value, CancellationToken ct)
     {
+        if (!VoiceControlAvailable)
+        {
+            ReportUnsupportedAction();
+            return;
+        }
+
         if (!_config.Enabled)
             return;
 
@@ -172,6 +202,12 @@ public sealed class DiscordRpcIntegration : IDisposable
 
     private async Task<bool?> GetVoiceFlagAsync(string flag, CancellationToken ct)
     {
+        if (!VoiceControlAvailable)
+        {
+            ReportUnsupportedAction();
+            return null;
+        }
+
         if (!_config.Enabled)
             return null;
 
@@ -488,6 +524,12 @@ public sealed class DiscordRpcIntegration : IDisposable
             LastKnownMute = mute.Value<bool>();
         if (settings.TryGetValue("deaf", out var deaf))
             LastKnownDeafen = deaf.Value<bool>();
+    }
+
+    private void ReportUnsupportedAction()
+    {
+        if (Interlocked.Exchange(ref _unsupportedActionLogged, 1) == 0)
+            Logger.Log($"Discord RPC action ignored: {VoiceControlUnavailableReason}");
     }
 
     private string ResolveClientId()

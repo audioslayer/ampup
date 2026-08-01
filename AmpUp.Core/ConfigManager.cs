@@ -1,5 +1,9 @@
+using System.Collections;
 using System.IO;
 using System.IO.Compression;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using AmpUp.Core.Models;
 using Newtonsoft.Json;
 
@@ -34,6 +38,11 @@ public static class ConfigManager
 
     private static string ProfilePath(string profileName)
     {
+        return Path.Combine(ConfigDir, $"profile_v2_{ProfileStorageKey(profileName)}.json");
+    }
+
+    private static string LegacyProfilePath(string profileName)
+    {
         var safe = string.Concat(profileName
             .ToLowerInvariant()
             .Select(c => char.IsLetterOrDigit(c) || c == '-' ? c : '_'));
@@ -41,12 +50,46 @@ public static class ConfigManager
         return Path.Combine(ConfigDir, $"profile_{safe}.json");
     }
 
+    private static string ProfileStorageKey(string profileName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(profileName);
+        var canonicalName = profileName.Trim().ToUpperInvariant();
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonicalName))).ToLowerInvariant();
+    }
+
+    public static bool IsProfileNameAvailable(IEnumerable<string> profileNames, string candidate, string? exceptName = null)
+    {
+        if (string.IsNullOrWhiteSpace(candidate)) return false;
+
+        var trimmed = candidate.Trim();
+        var candidateKey = ProfileStorageKey(trimmed);
+        foreach (var existing in profileNames.Where(name => !string.IsNullOrWhiteSpace(name)))
+        {
+            if (exceptName != null && string.Equals(existing, exceptName, StringComparison.Ordinal))
+                continue;
+            if (string.Equals(existing.Trim(), trimmed, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(ProfileStorageKey(existing), candidateKey, StringComparison.Ordinal))
+                return false;
+        }
+        return true;
+    }
+
+    public static string GetUniqueProfileName(IEnumerable<string> profileNames, string preferredName)
+    {
+        var baseName = string.IsNullOrWhiteSpace(preferredName) ? "Imported" : preferredName.Trim();
+        var candidate = baseName;
+        int suffix = 2;
+        while (!IsProfileNameAvailable(profileNames, candidate))
+            candidate = $"{baseName} {suffix++}";
+        return candidate;
+    }
+
     public static AppConfig Load()
     {
-        var config = LoadJsonFile<AppConfig>(ConfigPath, "config", cfg => { if (cfg != null) EnsureDefaults(cfg); });
+        var config = LoadJsonFile<AppConfig>(ConfigPath, "config", cfg => { if (cfg != null) NormalizeAndValidate(cfg); });
         if (config != null) return config;
         var defaults = new AppConfig();
-        EnsureDefaults(defaults);
+        NormalizeAndValidate(defaults);
         return defaults;
     }
 
@@ -105,8 +148,17 @@ public static class ConfigManager
     private static readonly string[] DefaultStreamControllerKnobLabels = { "Encoder 1", "Encoder 2", "Encoder 3" };
     private static readonly string[] DefaultStreamControllerKnobTargets = { "none", "none", "none" };
 
-    private static void EnsureDefaults(AppConfig config)
+    public static AppConfig DeserializeAndNormalize(string json)
     {
+        var config = JsonConvert.DeserializeObject<AppConfig>(json)
+            ?? throw new InvalidDataException("JSON does not contain a valid AmpUp configuration.");
+        return NormalizeAndValidate(config);
+    }
+
+    public static AppConfig NormalizeAndValidate(AppConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        NormalizeNullMembers(config, new AppConfig(), new HashSet<object>(ReferenceEqualityComparer.Instance));
         MigrateLegacyN3ControlButtonIds(config);
 
         for (int i = 0; i < 5; i++)
@@ -190,11 +242,13 @@ public static class ConfigManager
             if (!config.Lights.Any(l => l.Idx == i))
                 config.Lights.Add(new LightConfig { Idx = i, R = 0, G = 150, B = 255 });
         }
-        config.Profiles = config.Profiles.Distinct().ToList();
+        NormalizeProfileMetadata(config);
         if (config.Profiles.Count == 0)
             config.Profiles.Add("Default");
-        if (string.IsNullOrEmpty(config.ActiveProfile))
-            config.ActiveProfile = "Default";
+        if (string.IsNullOrEmpty(config.ActiveProfile)
+            || !config.Profiles.Any(name => string.Equals(name, config.ActiveProfile, StringComparison.OrdinalIgnoreCase)))
+            config.ActiveProfile = config.Profiles.FirstOrDefault(name =>
+                string.Equals(name, "Default", StringComparison.OrdinalIgnoreCase)) ?? config.Profiles[0];
         if (string.IsNullOrWhiteSpace(config.DiscordRpc.ClientId))
             config.DiscordRpc.ClientId = new DiscordRpcConfig().ClientId;
         foreach (var p in config.Profiles)
@@ -212,6 +266,171 @@ public static class ConfigManager
         }
 
         NormalizeDeviceSurfaceSelections(config);
+        MigrateLegacyProfileFiles(config.Profiles);
+        return config;
+    }
+
+    private static void NormalizeProfileMetadata(AppConfig config)
+    {
+        var normalized = new List<string>();
+        foreach (var rawName in config.Profiles)
+        {
+            var name = rawName?.Trim();
+            if (string.IsNullOrEmpty(name)) continue;
+            if (IsProfileNameAvailable(normalized, name))
+                normalized.Add(name);
+            else
+                Logger.Log($"Ignoring duplicate profile name/storage key: {name}");
+        }
+
+        var active = normalized.FirstOrDefault(name =>
+            string.Equals(name, config.ActiveProfile?.Trim(), StringComparison.OrdinalIgnoreCase));
+        config.ActiveProfile = active ?? config.ActiveProfile?.Trim() ?? "Default";
+        config.Profiles = normalized;
+
+        var icons = new Dictionary<string, ProfileIconConfig>(StringComparer.OrdinalIgnoreCase);
+        var emojis = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var name in normalized)
+        {
+            var icon = config.ProfileIcons.FirstOrDefault(pair =>
+                string.Equals(pair.Key, name, StringComparison.OrdinalIgnoreCase)).Value;
+            icons[name] = icon ?? new ProfileIconConfig();
+
+            var emoji = config.ProfileEmojis.FirstOrDefault(pair =>
+                string.Equals(pair.Key, name, StringComparison.OrdinalIgnoreCase)).Value;
+            if (emoji != null) emojis[name] = emoji;
+        }
+        config.ProfileIcons = icons;
+        config.ProfileEmojis = emojis;
+    }
+
+    private static void NormalizeNullMembers(object value, object? defaults, HashSet<object> visited)
+    {
+        if (!visited.Add(value)) return;
+
+        foreach (var property in value.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
+        {
+            if (!property.CanRead || !property.CanWrite || property.GetIndexParameters().Length != 0) continue;
+
+            var current = property.GetValue(value);
+            var defaultValue = defaults == null ? null : property.GetValue(defaults);
+            if (current == null)
+            {
+                if (defaultValue != null)
+                    property.SetValue(value, defaultValue);
+                continue;
+            }
+
+            if (current is string || property.PropertyType.IsValueType) continue;
+            if (current is IDictionary dictionary)
+            {
+                NormalizeDictionary(dictionary, property.PropertyType, visited);
+                continue;
+            }
+            if (current is IList list)
+            {
+                NormalizeList(list, visited);
+                continue;
+            }
+
+            object? childDefaults = defaultValue;
+            if (childDefaults == null && current.GetType().GetConstructor(Type.EmptyTypes) != null)
+                childDefaults = Activator.CreateInstance(current.GetType());
+            NormalizeNullMembers(current, childDefaults, visited);
+        }
+    }
+
+    private static void NormalizeList(IList list, HashSet<object> visited)
+    {
+        for (int i = list.Count - 1; i >= 0; i--)
+        {
+            var item = list[i];
+            if (item == null)
+            {
+                list.RemoveAt(i);
+                continue;
+            }
+            if (item is IDictionary nestedDictionary)
+            {
+                NormalizeDictionary(nestedDictionary, item.GetType(), visited);
+                continue;
+            }
+            if (item is IList nestedList)
+            {
+                NormalizeList(nestedList, visited);
+                continue;
+            }
+            if (item is not string && !item.GetType().IsValueType)
+            {
+                var defaults = item.GetType().GetConstructor(Type.EmptyTypes) == null
+                    ? null
+                    : Activator.CreateInstance(item.GetType());
+                NormalizeNullMembers(item, defaults, visited);
+            }
+        }
+    }
+
+    private static void NormalizeDictionary(IDictionary dictionary, Type dictionaryType, HashSet<object> visited)
+    {
+        var valueType = dictionaryType.IsGenericType ? dictionaryType.GetGenericArguments()[1] : typeof(object);
+        foreach (var key in dictionary.Keys.Cast<object>().ToArray())
+        {
+            var item = dictionary[key];
+            if (item == null)
+            {
+                if (valueType == typeof(string)) dictionary[key] = string.Empty;
+                else if (valueType.GetConstructor(Type.EmptyTypes) != null) dictionary[key] = Activator.CreateInstance(valueType);
+                else dictionary.Remove(key);
+                continue;
+            }
+            if (item is IDictionary nestedDictionary)
+            {
+                NormalizeDictionary(nestedDictionary, item.GetType(), visited);
+                continue;
+            }
+            if (item is IList nestedList)
+            {
+                NormalizeList(nestedList, visited);
+                continue;
+            }
+            if (item is not string && !item.GetType().IsValueType)
+            {
+                var defaults = item.GetType().GetConstructor(Type.EmptyTypes) == null
+                    ? null
+                    : Activator.CreateInstance(item.GetType());
+                NormalizeNullMembers(item, defaults, visited);
+            }
+        }
+    }
+
+    private static void MigrateLegacyProfileFiles(IEnumerable<string> profileNames)
+    {
+        lock (_saveLock)
+        {
+            foreach (var profileName in profileNames.Where(name => !string.IsNullOrWhiteSpace(name)))
+            {
+                var destination = ProfilePath(profileName);
+                var legacy = LegacyProfilePath(profileName);
+                bool migrated = CopyIfMissing(legacy, destination);
+                migrated |= CopyIfMissing(legacy + ".bak", destination + ".bak");
+                if (migrated)
+                    Logger.Log($"Migrated profile storage for {profileName}");
+            }
+        }
+    }
+
+    private static bool CopyIfMissing(string source, string destination)
+    {
+        if (!File.Exists(source) || File.Exists(destination)) return false;
+        try
+        {
+            File.Copy(source, destination, overwrite: false);
+            return true;
+        }
+        catch (IOException) when (File.Exists(destination))
+        {
+            return false;
+        }
     }
 
     private static void MigrateLegacyN3ControlButtonIds(AppConfig config)
@@ -378,8 +597,55 @@ public static class ConfigManager
 
     public static AppConfig? LoadProfile(string profileName)
     {
+        MigrateLegacyProfileFiles(new[] { profileName });
         var path = ProfilePath(profileName);
-        return LoadJsonFile<AppConfig>(path, $"profile {profileName}", cfg => { if (cfg != null) EnsureDefaults(cfg); });
+        return LoadJsonFile<AppConfig>(path, $"profile {profileName}", cfg => { if (cfg != null) NormalizeAndValidate(cfg); });
+    }
+
+    public static void RenameProfileFile(string oldName, string newName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(oldName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(newName);
+        lock (_saveLock)
+        {
+            MigrateLegacyProfileFiles(new[] { oldName });
+            var source = ProfilePath(oldName);
+            var destination = ProfilePath(newName);
+            var sourceBackup = source + ".bak";
+            var destinationBackup = destination + ".bak";
+            if (string.Equals(source, destination, StringComparison.OrdinalIgnoreCase)) return;
+            if (!File.Exists(source) && !File.Exists(sourceBackup)) return;
+            if (File.Exists(destination) || File.Exists(destinationBackup))
+                throw new IOException($"A profile file for '{newName}' already exists.");
+
+            if (File.Exists(source))
+                File.Move(source, destination);
+            if (File.Exists(sourceBackup))
+                File.Move(sourceBackup, destinationBackup);
+        }
+    }
+
+    public static void DeleteProfileFiles(string profileName, IEnumerable<string> remainingProfileNames)
+    {
+        lock (_saveLock)
+        {
+            DeleteFileIfExists(ProfilePath(profileName));
+            DeleteFileIfExists(ProfilePath(profileName) + ".bak");
+
+            var legacy = LegacyProfilePath(profileName);
+            bool legacyIsShared = remainingProfileNames.Any(other =>
+                string.Equals(LegacyProfilePath(other), legacy, StringComparison.OrdinalIgnoreCase));
+            if (!legacyIsShared)
+            {
+                DeleteFileIfExists(legacy);
+                DeleteFileIfExists(legacy + ".bak");
+            }
+        }
+    }
+
+    private static void DeleteFileIfExists(string path)
+    {
+        if (File.Exists(path)) File.Delete(path);
     }
 
     public static void CreateBackup(string destinationPath, AppConfig config)
@@ -445,9 +711,7 @@ public static class ConfigManager
             if (!restoredJson.TryGetValue("config.json", out var configJson))
                 throw new InvalidDataException("Backup does not contain config.json.");
 
-            var restoredConfig = JsonConvert.DeserializeObject<AppConfig>(configJson)
-                ?? throw new InvalidDataException("Backup config.json is not a valid AmpUp config.");
-            EnsureDefaults(restoredConfig);
+            var restoredConfig = DeserializeAndNormalize(configJson);
 
             foreach (var path in Directory.EnumerateFiles(ConfigDir, "profile_*.json"))
                 File.Delete(path);

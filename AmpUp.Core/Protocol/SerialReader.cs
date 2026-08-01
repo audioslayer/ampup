@@ -100,7 +100,7 @@ public class SerialReader : IDisposable
             {
                 // Try configured port first, then auto-scan all ports
                 bool preferredOnly = System.Threading.Interlocked.Exchange(ref _fastReconnectPending, 0) == 1;
-                SerialPort? port = await FindDevicePort(ct, preferredOnly);
+                SerialPort? port = FindDevicePort(ct, preferredOnly);
                 if (port == null)
                 {
                     if (_running && !ct.IsCancellationRequested)
@@ -164,7 +164,7 @@ public class SerialReader : IDisposable
     /// Tries the configured port first. If it fails, scans all available COM ports
     /// and probes each for Turn Up protocol frames (health ping, device ID, knob batch).
     /// </summary>
-    private async Task<SerialPort?> FindDevicePort(CancellationToken ct, bool preferredOnly)
+    private SerialPort? FindDevicePort(CancellationToken ct, bool preferredOnly)
     {
         // Always try configured port first even if GetPortNames() doesn't list it —
         // the registry-based enumeration can briefly miss a port after process restart
@@ -208,8 +208,12 @@ public class SerialReader : IDisposable
                 {
                     try
                     {
-                        int n = await probe.BaseStream.ReadAsync(probeBuf, 0, probeBuf.Length, ct)
-                            .WaitAsync(TimeSpan.FromMilliseconds(500), ct);
+                        // Discovery already runs on ConnectLoop's background task.
+                        // Use SerialPort's synchronous timeout so each probe read
+                        // is complete before the buffer and port are reused. A
+                        // WaitAsync timeout only abandons the await; it does not
+                        // cancel the underlying BaseStream read.
+                        int n = probe.Read(probeBuf, 0, probeBuf.Length);
                         for (int i = 0; i < n; i++) data.Add(probeBuf[i]);
 
                         if (ContainsTurnUpFrame(data))
