@@ -841,7 +841,8 @@ public partial class ButtonsView
                     var anim = StreamControllerDisplayRenderer.CreateEditorPreviewAnimation(key, 360);
                     if (anim != null)
                     {
-                        var sig = $"{key.Idx}|{key.ImagePath}|{key.PresetIconKind}|{key.Title}|{key.TextPosition}|{key.TextSize}|{key.TextColor}|{key.FontFamily}|360";
+                        var sig = StreamControllerDisplayRenderer
+                            .CreateEditorPreviewAnimationSignature(key, 360);
                         AnimatedImageDriver.Register(_scEditorPreview, anim, sig);
                     }
                     else

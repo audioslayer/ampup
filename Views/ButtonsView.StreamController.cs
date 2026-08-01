@@ -3331,7 +3331,8 @@ public partial class ButtonsView
             var anim = StreamControllerDisplayRenderer.CreateEditorPreviewAnimation(display, 360);
             if (anim != null)
             {
-                var sig = $"{display.Idx}|{display.ImagePath}|{display.PresetIconKind}|{display.Title}|{display.TextPosition}|{display.TextSize}|{display.TextColor}|{display.FontFamily}|{display.HardwareMetricSource}|{display.HardwareMetricLabel}|{display.HardwareMetricLabelSize}|{display.HardwareMetricLabelColor}|{display.HardwareMetricLayout}|360";
+                var sig = StreamControllerDisplayRenderer
+                    .CreateEditorPreviewAnimationSignature(display, 360);
                 AnimatedImageDriver.Register(_scEditorPreview, anim, sig);
             }
             else

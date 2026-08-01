@@ -20,14 +20,21 @@ internal static class AnimatedImageDriver
 {
     private sealed class Entry
     {
-        public required BitmapSource[] Frames;
-        public required int[] FrameDelaysMs;
+        public required WeakReference<Image> Target;
+        public required StreamControllerEditorAnimation Animation;
         public int Index;
         public DateTime NextAtUtc;
         public string Signature = ""; // frame identity (e.g. ImagePath + size)
+
+        public BitmapSource[] Frames => Animation.Frames;
+        public int[] FrameDelaysMs => Animation.FrameDelaysMs;
     }
 
-    private static readonly Dictionary<Image, Entry> s_entries = new();
+    // The animation clock must not own the visuals it drives. A dynamic tile
+    // can replace its Image before WPF raises Unloaded; a strong key would
+    // retain both that Image and every decoded animation frame behind it.
+    private static readonly List<Entry> s_entries = new();
+    private static readonly Dictionary<string, WeakReference<StreamControllerEditorAnimation>> s_sharedAnimations = new();
     private static DispatcherTimer? s_timer;
 
     public static void Register(Image target, StreamControllerEditorAnimation anim, string signature)
@@ -37,22 +44,45 @@ internal static class AnimatedImageDriver
         // If re-registering the same signature, leave the existing timer
         // state alone so the animation doesn't jerk back to frame 0 on
         // every config-refresh pass.
-        if (s_entries.TryGetValue(target, out var existing) && existing.Signature == signature)
-            return;
+        for (int i = s_entries.Count - 1; i >= 0; i--)
+        {
+            if (!s_entries[i].Target.TryGetTarget(out var registeredTarget))
+            {
+                s_entries.RemoveAt(i);
+                continue;
+            }
+
+            if (!ReferenceEquals(registeredTarget, target)) continue;
+            if (s_entries[i].Signature == signature) return;
+            s_entries.RemoveAt(i);
+        }
 
         // Re-registering with a new animation must not stack another copy of
         // the same Unloaded handler on the Image.
         target.Unloaded -= OnTargetUnloaded;
 
-        int firstDelay = Math.Max(40, anim.FrameDelaysMs.Length > 0 ? anim.FrameDelaysMs[0] : 100);
-        s_entries[target] = new Entry
+        // Identical keys can be visible in multiple editor surfaces. Their
+        // frozen frame arrays are immutable and safe to share.
+        if (!string.IsNullOrEmpty(signature)
+            && s_sharedAnimations.TryGetValue(signature, out var cached)
+            && cached.TryGetTarget(out var shared))
         {
-            Frames = anim.Frames,
-            FrameDelaysMs = anim.FrameDelaysMs,
+            anim = shared;
+        }
+        else if (!string.IsNullOrEmpty(signature))
+        {
+            s_sharedAnimations[signature] = new WeakReference<StreamControllerEditorAnimation>(anim);
+        }
+
+        int firstDelay = Math.Max(40, anim.FrameDelaysMs.Length > 0 ? anim.FrameDelaysMs[0] : 100);
+        s_entries.Add(new Entry
+        {
+            Target = new WeakReference<Image>(target),
+            Animation = anim,
             Index = 0,
             NextAtUtc = DateTime.UtcNow.AddMilliseconds(firstDelay),
             Signature = signature,
-        };
+        });
         target.Source = anim.Frames[0];
         target.Unloaded += OnTargetUnloaded;
         EnsureTimer();
@@ -61,14 +91,25 @@ internal static class AnimatedImageDriver
     public static void Unregister(Image target)
     {
         if (target == null) return;
-        if (s_entries.Remove(target))
+        bool removed = false;
+        for (int i = s_entries.Count - 1; i >= 0; i--)
         {
-            target.Unloaded -= OnTargetUnloaded;
+            if (!s_entries[i].Target.TryGetTarget(out var registeredTarget))
+            {
+                s_entries.RemoveAt(i);
+                continue;
+            }
+
+            if (!ReferenceEquals(registeredTarget, target)) continue;
+            s_entries.RemoveAt(i);
+            removed = true;
         }
+        if (removed) target.Unloaded -= OnTargetUnloaded;
         if (s_entries.Count == 0)
         {
             s_timer?.Stop();
             s_timer = null;
+            s_sharedAnimations.Clear();
         }
     }
 
@@ -95,15 +136,16 @@ internal static class AnimatedImageDriver
         if (s_entries.Count == 0) return;
         var now = DateTime.UtcNow;
 
-        // Copy keys — an Unregister during iteration is legal because the
-        // Image's Unloaded handler may fire synchronously.
-        var targets = new Image[s_entries.Count];
-        int i = 0;
-        foreach (var t in s_entries.Keys) targets[i++] = t;
-
-        foreach (var target in targets)
+        // Iterate backwards so dead weak registrations can be compacted in
+        // place without allocating a targets array on every 30 ms tick.
+        for (int i = s_entries.Count - 1; i >= 0; i--)
         {
-            if (!s_entries.TryGetValue(target, out var entry)) continue;
+            var entry = s_entries[i];
+            if (!entry.Target.TryGetTarget(out var target))
+            {
+                s_entries.RemoveAt(i);
+                continue;
+            }
             if (now < entry.NextAtUtc) continue;
 
             do
@@ -118,6 +160,13 @@ internal static class AnimatedImageDriver
             while (now >= entry.NextAtUtc);
 
             target.Source = entry.Frames[entry.Index];
+        }
+
+        if (s_entries.Count == 0)
+        {
+            s_timer?.Stop();
+            s_timer = null;
+            s_sharedAnimations.Clear();
         }
     }
 }

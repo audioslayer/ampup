@@ -1472,7 +1472,7 @@ public partial class ButtonsView
                 if (!_v2KeyTileStateHash.TryGetValue(i, out var prevHash) || prevHash != backHash)
                 {
                     var backKey = App.BuildBackKeyDisplay();
-                    tile.PreviewImage = StreamControllerDisplayRenderer.CreateEditorPreview(backKey, 240);
+                    tile.PreviewImage = StreamControllerDisplayRenderer.CreateEditorPreview(backKey, 160);
                     tile.Title = "Back";
                     tile.Subtitle = "Auto";
                     tile.IsSelected = false;
@@ -1543,15 +1543,16 @@ public partial class ButtonsView
             if (spotifySpanMaster != null)
             {
                 tile.PreviewImage = StreamControllerDisplayRenderer.CreateSpotifyAlbumArtTilePreview(
-                    spotifySpanMaster, key, i, 240, drawSpotifySpanTitle);
+                    spotifySpanMaster, key, i, 160, drawSpotifySpanTitle);
                 tile.PreviewAnimation = null;
-                tile.PreviewAnimationSignature = $"spotify-span|{spotifySpanMaster.Idx}|{spotifyStateHash}|240";
+                tile.PreviewAnimationSignature = $"spotify-span|{spotifySpanMaster.Idx}|{spotifyStateHash}|160";
             }
             else
             {
-                tile.PreviewImage = StreamControllerDisplayRenderer.CreateEditorPreview(key, 240);
-                tile.PreviewAnimation = StreamControllerDisplayRenderer.CreateEditorPreviewAnimation(key, 240);
-                tile.PreviewAnimationSignature = $"{key.Idx}|{key.ImagePath}|{key.PresetIconKind}|{key.Title}|{key.TextPosition}|{key.TextSize}|{key.TextColor}|{key.FontFamily}|{key.SpotifyAlbumArtLayout}|{spotifyStateHash}|240";
+                tile.PreviewImage = StreamControllerDisplayRenderer.CreateEditorPreview(key, 160);
+                tile.PreviewAnimation = StreamControllerDisplayRenderer.CreateEditorPreviewAnimation(key, 160);
+                tile.PreviewAnimationSignature = StreamControllerDisplayRenderer
+                    .CreateEditorPreviewAnimationSignature(key, 160);
             }
             // Label by physical slot (1-6, top-left → bot-right) so the user's
             // "top-right = Key 3" mental model holds regardless of whether the

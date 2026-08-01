@@ -88,6 +88,8 @@ public class StreamControllerTile : Border
     private Point _dragStart;
     private bool _dragArmed;
     private bool _dragHover;
+    private Image? _animatedPreviewImage;
+    private bool _themeEventsSubscribed;
 
     // Cached visual-state packages — hover/selection transitions reuse these
     // instead of allocating fresh brushes + DropShadowEffects every time.
@@ -192,16 +194,18 @@ public class StreamControllerTile : Border
             e.Handled = true;
         };
 
-        // Track theme/accent so selected tiles re-colour live when the
-        // user swaps theme in Settings instead of being stuck on the
-        // accent that was active when this tile was built.
-        void OnThemeChanged() => Dispatcher.BeginInvoke((Action)ApplyVisualState);
-        ThemeManager.OnAccentChanged += OnThemeChanged;
-        ThemeManager.OnCardThemeChanged += OnThemeChanged;
+        // Only subscribe while attached to a visual tree. ThemeManager owns
+        // static events, so subscribing in the constructor would otherwise
+        // root a tile that was created but never displayed.
+        Loaded += (_, _) =>
+        {
+            SubscribeThemeEvents();
+            ApplyVisualState();
+        };
         Unloaded += (_, _) =>
         {
-            ThemeManager.OnAccentChanged -= OnThemeChanged;
-            ThemeManager.OnCardThemeChanged -= OnThemeChanged;
+            ReleaseAnimatedPreview();
+            UnsubscribeThemeEvents();
         };
 
         Refresh();
@@ -210,6 +214,10 @@ public class StreamControllerTile : Border
     /// <summary>Rebuild visuals after any property changes.</summary>
     public virtual void Refresh()
     {
+        // Replacing Child does not reliably unload the old Image before the
+        // animation clock ticks again, so release its frame set explicitly.
+        ReleaseAnimatedPreview();
+
         ClearValue(HeightProperty);
         ClearValue(MinHeightProperty);
         ClearValue(MinWidthProperty);
@@ -293,7 +301,10 @@ public class StreamControllerTile : Border
             RenderOptions.SetBitmapScalingMode(previewHost, BitmapScalingMode.HighQuality);
 
             if (PreviewAnimation != null)
+            {
+                _animatedPreviewImage = img;
                 AnimatedImageDriver.Register(img, PreviewAnimation, PreviewAnimationSignature);
+            }
         }
         else
         {
@@ -304,6 +315,35 @@ public class StreamControllerTile : Border
         root.Children.Add(previewHost);
 
         return root;
+    }
+
+    private void ReleaseAnimatedPreview()
+    {
+        if (_animatedPreviewImage == null) return;
+        AnimatedImageDriver.Unregister(_animatedPreviewImage);
+        _animatedPreviewImage = null;
+    }
+
+    private void SubscribeThemeEvents()
+    {
+        if (_themeEventsSubscribed) return;
+        ThemeManager.OnAccentChanged += OnThemeChanged;
+        ThemeManager.OnCardThemeChanged += OnThemeChanged;
+        _themeEventsSubscribed = true;
+    }
+
+    private void UnsubscribeThemeEvents()
+    {
+        if (!_themeEventsSubscribed) return;
+        ThemeManager.OnAccentChanged -= OnThemeChanged;
+        ThemeManager.OnCardThemeChanged -= OnThemeChanged;
+        _themeEventsSubscribed = false;
+    }
+
+    private void OnThemeChanged()
+    {
+        if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return;
+        _ = Dispatcher.BeginInvoke((Action)ApplyVisualState);
     }
 
     private UIElement BuildSideButtonContent(bool isEncoder)

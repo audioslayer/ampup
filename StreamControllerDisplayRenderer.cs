@@ -21,6 +21,7 @@ using DrawingStringFormat = System.Drawing.StringFormat;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Drawing.Text;
+using Newtonsoft.Json;
 
 namespace AmpUp;
 
@@ -48,6 +49,7 @@ internal static class StreamControllerDisplayRenderer
     private const int RenderCanvasSize = 126;
     private const int DeviceCanvasSize = 60;
     private const int GifFrameDelayPropertyTag = 0x5100;
+    private const int MaxEditorScrollingFrames = 64;
 
     /// <summary>
     /// Optional state resolver used by <see cref="DisplayKeyType.DynamicState"/> keys.
@@ -148,6 +150,25 @@ internal static class StreamControllerDisplayRenderer
         };
     }
 
+    /// <summary>
+    /// Stable identity for sharing immutable editor animation frames. Use the
+    /// resolved key so live DynamicState and Spotify changes invalidate the
+    /// frame set even when the saved configuration itself did not change.
+    /// </summary>
+    public static string CreateEditorPreviewAnimationSignature(
+        StreamControllerDisplayKeyConfig key, int size)
+    {
+        var effectiveKey = ResolveEffectiveKey(key);
+        long sourceStamp = 0;
+        if (!string.IsNullOrWhiteSpace(effectiveKey.ImagePath)
+            && File.Exists(effectiveKey.ImagePath))
+        {
+            sourceStamp = File.GetLastWriteTimeUtc(effectiveKey.ImagePath).Ticks;
+        }
+
+        return $"{size}|{sourceStamp}|{JsonConvert.SerializeObject(effectiveKey, Formatting.None)}";
+    }
+
     public static BitmapSource CreateHardwarePreview(StreamControllerDisplayKeyConfig key)
     {
         var jpeg = CreateDeviceJpeg(key);
@@ -159,17 +180,38 @@ internal static class StreamControllerDisplayRenderer
 
     private static BitmapSource ToBitmapSource(DrawingBitmap bitmap)
     {
-        using var stream = new MemoryStream();
-        bitmap.Save(stream, ImageFormat.Png);
-        stream.Position = 0;
+        var rect = new System.Drawing.Rectangle(0, 0, bitmap.Width, bitmap.Height);
+        var data = bitmap.LockBits(
+            rect,
+            ImageLockMode.ReadOnly,
+            System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
+        try
+        {
+            int stride = data.Stride;
+            IntPtr scan0 = data.Scan0;
+            if (stride < 0)
+            {
+                scan0 = IntPtr.Add(scan0, stride * (bitmap.Height - 1));
+                stride = -stride;
+            }
 
-        var image = new BitmapImage();
-        image.BeginInit();
-        image.CacheOption = BitmapCacheOption.OnLoad;
-        image.StreamSource = stream;
-        image.EndInit();
-        image.Freeze();
-        return image;
+            var image = BitmapSource.Create(
+                bitmap.Width,
+                bitmap.Height,
+                96,
+                96,
+                PixelFormats.Pbgra32,
+                null,
+                scan0,
+                checked(stride * bitmap.Height),
+                stride);
+            image.Freeze();
+            return image;
+        }
+        finally
+        {
+            bitmap.UnlockBits(data);
+        }
     }
 
     public static byte[] CreateDeviceJpeg(StreamControllerDisplayKeyConfig key)
@@ -605,19 +647,31 @@ internal static class StreamControllerDisplayRenderer
         float titleWidth = probeGraphics.MeasureString(title, font, new System.Drawing.PointF(0, 0), format).Width;
         float gap = Math.Max(12f * scale, availableWidth * 0.35f);
         float step = Math.Max(1f, 1.25f * scale);
-        int movingFrames = Math.Clamp((int)Math.Ceiling((titleWidth + gap) / step), 20, 128);
+        int naturalMovingFrames = Math.Clamp((int)Math.Ceiling((titleWidth + gap) / step), 20, 128);
         int pauseFrames = 6;
+        int movingFrames = encodeDeviceFrames
+            ? naturalMovingFrames
+            : Math.Min(naturalMovingFrames, MaxEditorScrollingFrames - pauseFrames);
         int frameCount = pauseFrames + movingFrames;
-        var delays = Enumerable.Repeat(80, frameCount).ToArray();
+        int movingDelay = encodeDeviceFrames
+            ? 80
+            : Math.Max(80, (int)Math.Round(naturalMovingFrames * 80d / movingFrames));
+        var delays = Enumerable.Repeat(movingDelay, frameCount).ToArray();
         for (int i = 0; i < pauseFrames; i++)
             delays[i] = 180;
+
+        // Preserve the hardware animation exactly. Editor previews use fewer
+        // frames while covering the same distance over the same duration.
+        float editorStep = encodeDeviceFrames
+            ? step
+            : (titleWidth + gap) / movingFrames;
 
         byte[][]? deviceFrames = encodeDeviceFrames ? new byte[frameCount][] : null;
         BitmapSource[]? editorFrames = encodeDeviceFrames ? null : new BitmapSource[frameCount];
 
         for (int i = 0; i < frameCount; i++)
         {
-            float offset = i < pauseFrames ? 0f : (i - pauseFrames) * step;
+            float offset = i < pauseFrames ? 0f : (i - pauseFrames) * editorStep;
             using var frame = new DrawingBitmap(baseBitmap);
             DrawScrollingTextOverlay(frame, key, size, size, title, offset);
 
