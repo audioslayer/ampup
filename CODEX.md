@@ -96,11 +96,11 @@
 - Device JPEG encoding must not blank the four 4x4 corners; the N3 LCDs are rectangular and those blocks are visibly black on hardware.
 
 ## Release and build workflow
-- Manual installer builds still come from the separate checkout at `C:\Users\audio\Desktop\AmpUp`; always `git pull --ff-only` there before `build-installer.bat`.
+- Tyson often deploys/runs the separate checkout at `C:\Users\audio\Desktop\AmpUp`. Always verify that checkout has pulled the intended commit before treating its live process as release validation. Production installers may be built from either checkout, but the build path must be clean and at the exact release commit.
 - `AmpUp.csproj` is the version source of truth. `build-installer.bat` generates `installer/version.iss`; do not hand-edit release metadata independently.
 - Release work is done directly on `master` unless Tyson explicitly asks for a branch.
-- Current public release (2026-07-25): [`v1.3.1`](https://github.com/audioslayer/ampup/releases/tag/v1.3.1), built from commit `17985650460ddf47441bf684681d2b95b6a94ce2`.
-- Release asset: `AmpUp-Setup-1.3.1.exe`, 67,657,749 bytes, SHA-256 `573437585eea06fb20f10bc3de79c666ee2498a0ab3b4a29c6b3dc797b349d2f`. GitHub's asset digest was verified against the local installer before publishing.
+- Current public/latest release (2026-08-01): [`v1.3.2`](https://github.com/audioslayer/ampup/releases/tag/v1.3.2), built from commit `62f8a8b3c6f32adcbc9b7de5ee175769cbf80108`.
+- Release asset: `AmpUp-Setup-1.3.2.exe`, 65,857,870 bytes, SHA-256 `A38195EA6E7C0A835B60DE8624A354743C9DD2F49929CE3956587306AA5ADBB9`. GitHub's asset digest was verified against the local installer before publishing.
 - The installer is currently unsigned, so release notes should retain the SmartScreen/checksum guidance until code signing is added.
 
 ## In-app self-updater
@@ -112,13 +112,19 @@
 - If elevation is canceled or the installer fails, the helper relaunches the existing AmpUp installation and displays an update error. The helper records details in `%TEMP%\AmpUp\Updates\{version}\update-helper.log`.
 - Only one install handoff can run at a time. The MainWindow version label, Settings `Check for Updates`, and tray update banner all use the same `UpdateInfo`/`DownloadAndInstallAsync` path; the tray no longer opens a browser.
 - `App.NotifyUpdateAvailable(UpdateInfo)` retains the update even when the tray popup has not been created yet, so opening the tray later still shows the install banner.
-- The public `v1.3.1` release satisfies the updater's tag/filename/size/digest contract.
+- The public `v1.3.2` release satisfies the updater's tag/filename/size/digest contract and is marked as GitHub's latest stable release.
 
-## v1.3.1 hotfix and reliability state
+## v1.3.2 reliability/memory state and v1.3.3 hotfix
 - Issue #24 is fixed and closed: Turn Up and N3 buttons retain independent output-device assignments across buttons, profiles, and N3 tap/double/hold gestures. The fix was manually verified before the v1.3.1 release.
 - Issue #22 is fixed and closed: Windows endpoint notifications refresh Bluetooth/USB device lists, output cycling, and device-color lighting without an app restart. Bluetooth connect/switch behavior was manually verified on the installed v1.3 build.
-- Issue #23 is fixed and closed: Turn Up and N3 inputs use separate `HardwareInputPump` workers; absolute knob events coalesce to the newest value; serial stalls trigger reconnect; refresh paths are non-reentrant; and stale resources/log floods are cleaned up.
-- Debug and Release builds completed with zero warnings/errors, the NuGet vulnerability audit was clean, and the installed build passed a runtime soak without delayed handlers, session-refresh failures, or serial stalls.
+- Issue #23 is fixed and closed again after the reporter confirmed the problem still existed in v1.3/v1.3.1. The final root cause was not N3-specific: the visible Mixer's 75 ms live refresh repeatedly activated Windows Core Audio endpoints for master/mic and device-specific volume reads. Native MMDevices `...\Audio\Render|Capture\{id}\Properties` registry handles accumulated until long-running instances became delayed or unresponsive. This explains why master volume could sometimes keep working while app/button actions stalled and why idle/Bluetooth/default-output transitions appeared correlated. The fix applies to Turn Up-only systems; an N3 is not required.
+- `AudioMixer.GetVolume` now shares persistent endpoints with peak metering, and device-specific volume, peak, and write paths share `_devicePeakCache`. `IMMNotificationClient` only raises the app's debounced refresh event; endpoint disposal/invalidation happens after the native callback returns. `App.PollMuteStates` also keeps persistent master/mic endpoints, uses a dedicated lock and notification enumerator, and rebuilds caches/subscriptions after topology changes, session unlock, or resume instead of reopening the default endpoint each tick.
+- Diagnostic proof: the affected deployed build grew by roughly 1,480 native handles in 40 seconds (about 37/sec), with Sysinternals Handle showing thousands of MMDevices property keys and a render:capture growth ratio near 2:1. The final deployed `62f8a8b` build grew by only 12 handles over the same 40-second live sample, periodically released handles, showed zero MMDevices registry-key growth in a 10-second spot check, and its working/private memory decreased during the run.
+- N3 preview memory was also reduced in `6c04ccc`: animated preview targets use weak ownership and explicit unregistering, decoded animations are capped at 64 frames, chassis/overview tile previews render at 160 px, bitmap copies avoid redundant encode/decode work, and theme subscriptions are released with view lifecycle.
+- Turn Up and N3 inputs retain the v1.3 worker/recovery fixes: separate `HardwareInputPump` workers, newest-value coalescing for absolute knobs, serial stall reconnect, non-reentrant refresh paths, validated COM-port reuse, and faster recovery from transient CH343 failures.
+- Debug and Release builds completed with zero warnings/errors. The final installer was built successfully with Inno Setup, its GitHub digest matched the local SHA-256, and the installed build connected to Turn Up on COM3 plus N3 MI_00 while passing the live handle/memory check.
+- The issue #23 closing comment asks `@Zentriert` to test normal 24/7 use, monitor-off/idle periods, and Bluetooth off/on cycles; if symptoms recur, reopen the issue (or request reopening) and attach `%APPDATA%\AmpUp\ampup.log` with the approximate failure time.
+- Post-release v1.3.2 freeze diagnosis: a live `dotnet-stack` capture showed the UI blocked in `TrayMixerPopup` while registering an endpoint callback, both hardware workers blocked in `AudioMixer.SetVolume`, the session timer blocked in `RefreshSessions`, and the Windows notification thread blocked in `AudioEndpointVolume.Dispose` from `DeviceNotificationClient.OnDeviceStateChanged`. Synchronously calling `InvalidatePeakDevice()` inside `IMMNotificationClient` created the lock inversion. v1.3.3 moves that invalidation into `App.RefreshAudioDevicesAfterChange`, which already runs 500 ms after the callback burst.
 - The old `HARDWARE_DISCONNECT_MEMORY.md` investigation was superseded by these fixes. If symptoms recur, collect `%APPDATA%\AmpUp\ampup.log` with the approximate failure time and reopen the relevant GitHub issue.
 
 ## Durable integration notes

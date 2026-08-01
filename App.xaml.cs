@@ -1638,7 +1638,14 @@ public partial class App : Application
     {
         if (_isShuttingDown) return;
 
-        try { _mixer?.RefreshNow(); }
+        try
+        {
+            // This runs on the debounced timer after IMMNotificationClient has
+            // returned. Endpoint disposal inside the native callback can deadlock
+            // Core Audio and block the UI plus both hardware input workers.
+            _mixer?.InvalidatePeakDevice();
+            _mixer?.RefreshNow();
+        }
         catch (Exception ex) { Logger.Log($"Audio device session refresh failed: {ex.Message}"); }
 
         // Core Audio already told us the topology changed. Drop the polling

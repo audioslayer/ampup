@@ -43,16 +43,14 @@ public class AudioMixer : IDisposable
                 _owner.AudioDevicesChanged?.Invoke();
         }
 
-        private void InvalidateAndNotify()
-        {
-            _owner.InvalidatePeakDevice();
-            Notify();
-        }
-
-        public void OnDeviceStateChanged(string deviceId, DeviceState newState) => InvalidateAndNotify();
-        public void OnDeviceAdded(string pwstrDeviceId) => InvalidateAndNotify();
-        public void OnDeviceRemoved(string deviceId) => InvalidateAndNotify();
-        public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId) => InvalidateAndNotify();
+        // Never dispose Core Audio objects synchronously inside an IMMNotificationClient
+        // callback. Windows can be holding its endpoint-notification lock here; disposing
+        // an endpoint may then wait on that same lock and deadlock every AudioMixer caller.
+        // The app event is debounced and performs invalidation after this callback returns.
+        public void OnDeviceStateChanged(string deviceId, DeviceState newState) => Notify();
+        public void OnDeviceAdded(string pwstrDeviceId) => Notify();
+        public void OnDeviceRemoved(string deviceId) => Notify();
+        public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId) => Notify();
         public void OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key) { }
     }
 

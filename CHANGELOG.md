@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.3] - 2026-08-01
+
+### Fixed
+- Fixed a Core Audio deadlock introduced by v1.3.2 endpoint-cache invalidation. Windows audio-device callbacks now return immediately and schedule endpoint disposal through the existing debounced refresh instead of disposing native audio objects while Windows holds its notification lock.
+- Prevented the tray mixer UI, Turn Up worker, N3 worker, and audio-session refresh from becoming blocked behind the same Core Audio lock after a device-state notification.
+
+---
+
 ## [1.3.2] - 2026-08-01
 
 ### Fixed
@@ -219,6 +227,7 @@ This is the big one: Amp Up graduates into a 1.0 beta for Windows with a polishe
 
 ---
 
+[1.3.3]: https://github.com/audioslayer/ampup/releases/tag/v1.3.3
 [1.3.2]: https://github.com/audioslayer/ampup/releases/tag/v1.3.2
 [1.3.1]: https://github.com/audioslayer/ampup/releases/tag/v1.3.1
 [1.3]: https://github.com/audioslayer/ampup/releases/tag/v1.3
