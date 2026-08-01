@@ -43,10 +43,16 @@ public class AudioMixer : IDisposable
                 _owner.AudioDevicesChanged?.Invoke();
         }
 
-        public void OnDeviceStateChanged(string deviceId, DeviceState newState) => Notify();
-        public void OnDeviceAdded(string pwstrDeviceId) => Notify();
-        public void OnDeviceRemoved(string deviceId) => Notify();
-        public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId) => Notify();
+        private void InvalidateAndNotify()
+        {
+            _owner.InvalidatePeakDevice();
+            Notify();
+        }
+
+        public void OnDeviceStateChanged(string deviceId, DeviceState newState) => InvalidateAndNotify();
+        public void OnDeviceAdded(string pwstrDeviceId) => InvalidateAndNotify();
+        public void OnDeviceRemoved(string deviceId) => InvalidateAndNotify();
+        public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId) => InvalidateAndNotify();
         public void OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key) { }
     }
 
@@ -518,33 +524,29 @@ public class AudioMixer : IDisposable
             return;
         }
 
-        try
+        lock (_enumLock)
         {
-            MMDeviceCollection? devices;
-            lock (_enumLock) devices = _enumerator.EnumerateAudioEndPoints(dataFlow, DeviceState.Active);
-            if (devices != null)
+            try
             {
-                for (int i = 0; i < devices.Count; i++)
+                var device = GetOrCacheDeviceEndpoint(deviceId, dataFlow);
+                if (device == null) return;
+                if (dataFlow == DataFlow.Render)
                 {
-                    using var dev = devices[i];
-                    if (dev.ID == deviceId)
-                    {
-                        if (dataFlow == DataFlow.Render)
-                        {
-                            SetRenderEndpointVolume(dev.AudioEndpointVolume, vol);
-                        }
-                        else
-                        {
-                            dev.AudioEndpointVolume.MasterVolumeLevelScalar = vol;
-                        }
-                        return;
-                    }
+                    SetRenderEndpointVolume(device.AudioEndpointVolume, vol);
+                }
+                else
+                {
+                    device.AudioEndpointVolume.MasterVolumeLevelScalar = vol;
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"SetDeviceVolume error: {ex.Message}");
+            catch (Exception ex)
+            {
+                if (_devicePeakCache.Remove(deviceId, out var stale))
+                {
+                    try { stale.Dispose(); } catch { }
+                }
+                Logger.Log($"SetDeviceVolume error: {ex.Message}");
+            }
         }
     }
 
@@ -568,26 +570,22 @@ public class AudioMixer : IDisposable
             return;
         }
 
-        try
+        lock (_enumLock)
         {
-            MMDeviceCollection? devices;
-            lock (_enumLock) devices = _enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
-            if (devices != null)
+            try
             {
-                for (int i = 0; i < devices.Count; i++)
-                {
-                    using var dev = devices[i];
-                    if (dev.ID == deviceId)
-                    {
-                        dev.AudioEndpointVolume.Mute = !dev.AudioEndpointVolume.Mute;
-                        return;
-                    }
-                }
+                var device = GetOrCacheDeviceEndpoint(deviceId, DataFlow.Render);
+                if (device != null)
+                    device.AudioEndpointVolume.Mute = !device.AudioEndpointVolume.Mute;
             }
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"ToggleOutputDeviceMute error: {ex.Message}");
+            catch (Exception ex)
+            {
+                if (_devicePeakCache.Remove(deviceId, out var stale))
+                {
+                    try { stale.Dispose(); } catch { }
+                }
+                Logger.Log($"ToggleOutputDeviceMute error: {ex.Message}");
+            }
         }
     }
 
@@ -640,16 +638,42 @@ public class AudioMixer : IDisposable
 
             if (target == "master")
             {
-                MMDevice? device;
-                lock (_enumLock) device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                using (device) { return device!.AudioEndpointVolume.MasterVolumeLevelScalar; }
+                // MixerView reads volume every 75ms. Reuse the same endpoint as
+                // peak metering instead of activating a fresh MMDevice each tick;
+                // repeated activation leaks native MMDevices property-store handles
+                // until a GC finalizer pass and eventually stalls long-running apps.
+                lock (_enumLock)
+                {
+                    try
+                    {
+                        _masterPeakDevice ??= _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                        return _masterPeakDevice.AudioEndpointVolume.MasterVolumeLevelScalar;
+                    }
+                    catch
+                    {
+                        try { _masterPeakDevice?.Dispose(); } catch { }
+                        _masterPeakDevice = null;
+                        return 0f;
+                    }
+                }
             }
 
             if (target == "mic")
             {
-                MMDevice? mic;
-                lock (_enumLock) mic = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
-                using (mic) { return mic!.AudioEndpointVolume.MasterVolumeLevelScalar; }
+                lock (_enumLock)
+                {
+                    try
+                    {
+                        _micPeakDevice ??= _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
+                        return _micPeakDevice.AudioEndpointVolume.MasterVolumeLevelScalar;
+                    }
+                    catch
+                    {
+                        try { _micPeakDevice?.Dispose(); } catch { }
+                        _micPeakDevice = null;
+                        return 0f;
+                    }
+                }
             }
 
             if (target == "output_device")
@@ -736,22 +760,54 @@ public class AudioMixer : IDisposable
     private float GetDeviceVolume(string deviceId, DataFlow dataFlow)
     {
         if (string.IsNullOrEmpty(deviceId)) return 0f;
-        try
+        lock (_enumLock)
         {
-            MMDeviceCollection? devices;
-            lock (_enumLock) devices = _enumerator.EnumerateAudioEndPoints(dataFlow, DeviceState.Active);
-            if (devices != null)
+            try
             {
-                for (int i = 0; i < devices.Count; i++)
+                var device = GetOrCacheDeviceEndpoint(deviceId, dataFlow);
+                if (device == null) return 0f;
+                return device.AudioEndpointVolume.MasterVolumeLevelScalar;
+            }
+            catch
+            {
+                if (_devicePeakCache.Remove(deviceId, out var stale))
                 {
-                    using var dev = devices[i];
-                    if (dev.ID == deviceId)
-                        return dev.AudioEndpointVolume.MasterVolumeLevelScalar;
+                    try { stale.Dispose(); } catch { }
                 }
+                return 0f;
             }
         }
-        catch { }
-        return 0f;
+    }
+
+    /// <summary>
+    /// Returns a persistent endpoint for a specific device. Both volume and peak
+    /// reads share this cache because MixerView requests them back-to-back every
+    /// 75ms. Caller must hold <see cref="_enumLock"/>.
+    /// </summary>
+    private MMDevice? GetOrCacheDeviceEndpoint(string deviceId, DataFlow dataFlow)
+    {
+        if (_devicePeakCache.TryGetValue(deviceId, out var cached))
+            return cached;
+
+        var devices = _enumerator.EnumerateAudioEndPoints(dataFlow, DeviceState.Active);
+        MMDevice? match = null;
+        if (devices != null)
+        {
+            for (int i = 0; i < devices.Count; i++)
+            {
+                var device = devices[i];
+                bool isMatch = false;
+                try { isMatch = match == null && device.ID == deviceId; } catch { }
+                if (isMatch)
+                    match = device;
+                else
+                    try { device.Dispose(); } catch { }
+            }
+        }
+
+        if (match != null)
+            _devicePeakCache[deviceId] = match;
+        return match;
     }
 
     private float GetActiveWindowVolume()
@@ -960,26 +1016,9 @@ public class AudioMixer : IDisposable
 
             try
             {
-                var devices = _enumerator.EnumerateAudioEndPoints(dataFlow, DeviceState.Active);
-                MMDevice? match = null;
-                if (devices != null)
-                {
-                    for (int i = 0; i < devices.Count; i++)
-                    {
-                        var dev = devices[i];
-                        bool isMatch = false;
-                        try { isMatch = match == null && dev.ID == deviceId; } catch { }
-                        if (isMatch)
-                            match = dev;
-                        else
-                            try { dev.Dispose(); } catch { }
-                    }
-                }
+                var match = GetOrCacheDeviceEndpoint(deviceId, dataFlow);
                 if (match != null)
-                {
-                    _devicePeakCache[deviceId] = match;
                     return match.AudioMeterInformation.MasterPeakValue;
-                }
             }
             catch { }
             return 0f;

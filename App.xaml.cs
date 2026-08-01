@@ -781,6 +781,7 @@ public partial class App : Application
                 }
                 catch { }
             }
+            InvalidateMutePollingEndpoints();
             // Tell AudioMixer to drop its persistent peak device — it's invalid under lock
             _mixer?.InvalidatePeakDevice();
         }
@@ -794,6 +795,7 @@ public partial class App : Application
                 return;
             }
             Logger.Log("Session unlocked — re-subscribing mute notifications");
+            InvalidateMutePollingEndpoints();
             try { _mixer?.RefreshNow(); } catch { }
             try { SubscribeMuteNotifications(); } catch { }
         }
@@ -897,6 +899,7 @@ public partial class App : Application
             {
                 _mixer?.InvalidatePeakDevice();
                 _mixer?.RefreshNow();
+                InvalidateMutePollingEndpoints();
                 SubscribeMuteNotifications();
             }
             catch (Exception ex)
@@ -1638,6 +1641,13 @@ public partial class App : Application
         try { _mixer?.RefreshNow(); }
         catch (Exception ex) { Logger.Log($"Audio device session refresh failed: {ex.Message}"); }
 
+        // Core Audio already told us the topology changed. Drop the polling
+        // endpoints once here and re-subscribe once after the notification burst,
+        // rather than opening a fresh default endpoint on every mute-poll tick.
+        InvalidateMutePollingEndpoints();
+        try { SubscribeMuteNotifications(); }
+        catch (Exception ex) { Logger.Log($"Audio mute notification refresh failed: {ex.Message}"); }
+
         Dispatcher.BeginInvoke(() =>
         {
             if (_isShuttingDown) return;
@@ -1650,9 +1660,8 @@ public partial class App : Application
                     NAudio.CoreAudioApi.DataFlow.Render,
                     NAudio.CoreAudioApi.Role.Multimedia);
                 Logger.Log($"Audio devices changed — default output is {current.FriendlyName}");
-                // Update device-aware lighting immediately. Leave
-                // _lastDefaultOutputDeviceId untouched so PollMuteStates sees
-                // the change and re-subscribes master mute/volume callbacks.
+                // Update device-aware lighting immediately. The polling cache and
+                // notification subscriptions were already rebuilt above.
                 _rgb.SetDefaultOutputDevice(current.ID);
             }
             catch (Exception ex)
@@ -4613,9 +4622,10 @@ public partial class App : Application
 
     private string _lastDefaultOutputDeviceId = "";
 
-    // Cached enumerator for mute polling (created once, lives for the app lifetime)
+    // Cached enumerator/devices for mute polling. Core Audio topology callbacks
+    // invalidate these; normal timer ticks only read the persistent endpoints.
+    private readonly object _pollDeviceLock = new();
     private NAudio.CoreAudioApi.MMDeviceEnumerator? _pollEnumerator;
-    // Cached devices for mute polling — refreshed only when the default device changes
     private NAudio.CoreAudioApi.MMDevice? _cachedMic;
     private NAudio.CoreAudioApi.MMDevice? _cachedMaster;
     // Reentrancy guard: skip poll if the previous one hasn't finished yet
@@ -4626,8 +4636,21 @@ public partial class App : Application
     private readonly object _notifyLock = new();
 
     // Devices held open specifically for OnVolumeNotification subscriptions (instant mute feedback)
+    private NAudio.CoreAudioApi.MMDeviceEnumerator? _notifyEnumerator;
     private NAudio.CoreAudioApi.MMDevice? _notifyMaster;
     private NAudio.CoreAudioApi.MMDevice? _notifyMic;
+
+    private void InvalidateMutePollingEndpoints()
+    {
+        lock (_pollDeviceLock)
+        {
+            try { _cachedMic?.Dispose(); } catch { }
+            try { _cachedMaster?.Dispose(); } catch { }
+            _cachedMic = null;
+            _cachedMaster = null;
+            _lastDefaultOutputDeviceId = "";
+        }
+    }
 
     /// <summary>
     /// Subscribe to OnVolumeNotification on the default output and capture devices so that
@@ -4643,7 +4666,7 @@ public partial class App : Application
         {
             try
             {
-                _pollEnumerator ??= new NAudio.CoreAudioApi.MMDeviceEnumerator();
+                _notifyEnumerator ??= new NAudio.CoreAudioApi.MMDeviceEnumerator();
 
                 // --- Master output ---
                 try
@@ -4655,7 +4678,7 @@ public partial class App : Application
                         _notifyMaster.Dispose();
                         _notifyMaster = null;
                     }
-                    _notifyMaster = _pollEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
+                    _notifyMaster = _notifyEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
                     _notifyMaster.AudioEndpointVolume.OnVolumeNotification += OnMasterVolumeNotification;
                     // Seed current state immediately
                     _rgb.SetMasterMuted(_notifyMaster.AudioEndpointVolume.Mute);
@@ -4674,7 +4697,7 @@ public partial class App : Application
                         _notifyMic.Dispose();
                         _notifyMic = null;
                     }
-                    _notifyMic = _pollEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Capture, NAudio.CoreAudioApi.Role.Communications);
+                    _notifyMic = _notifyEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Capture, NAudio.CoreAudioApi.Role.Communications);
                     _notifyMic.AudioEndpointVolume.OnVolumeNotification += OnMicVolumeNotification;
                     // Seed current state immediately
                     _rgb.SetMicMuted(_notifyMic.AudioEndpointVolume.Mute);
@@ -4719,53 +4742,45 @@ public partial class App : Application
 
         try
         {
-            _pollEnumerator ??= new NAudio.CoreAudioApi.MMDeviceEnumerator();
-
-            try
+            lock (_pollDeviceLock)
             {
-                // Lazily cache the default mic; re-fetch only on failure
-                _cachedMic ??= _pollEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Capture, NAudio.CoreAudioApi.Role.Communications);
-                _rgb.SetMicMuted(_cachedMic.AudioEndpointVolume.Mute);
-            }
-            catch
-            {
-                // Device may have changed — clear cache so it's re-fetched next tick
-                _cachedMic?.Dispose();
-                _cachedMic = null;
-            }
+                _pollEnumerator ??= new NAudio.CoreAudioApi.MMDeviceEnumerator();
 
-            try
-            {
-                using var currentDefault = _pollEnumerator.GetDefaultAudioEndpoint(
-                    NAudio.CoreAudioApi.DataFlow.Render,
-                    NAudio.CoreAudioApi.Role.Multimedia);
-
-                // Notify RgbController when the default output device changes (for DeviceSelect effect)
-                string currentId = currentDefault.ID;
-                if (currentId != _lastDefaultOutputDeviceId)
+                try
                 {
-                    _lastDefaultOutputDeviceId = currentId;
-                    _rgb.SetDefaultOutputDevice(currentId);
-                    // Default device changed — clear master cache so next poll fetches the new default
-                    _cachedMaster?.Dispose();
-                    _cachedMaster = null;
-                    // Re-subscribe to the new default device for instant mute notifications
-                    SubscribeMuteNotifications();
+                    _cachedMic ??= _pollEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Capture, NAudio.CoreAudioApi.Role.Communications);
+                    _rgb.SetMicMuted(_cachedMic.AudioEndpointVolume.Mute);
+                }
+                catch
+                {
+                    try { _cachedMic?.Dispose(); } catch { }
+                    _cachedMic = null;
                 }
 
-                _cachedMaster ??= _pollEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
-                _rgb.SetMasterMuted(_cachedMaster.AudioEndpointVolume.Mute);
-            }
-            catch
-            {
-                _cachedMaster?.Dispose();
-                _cachedMaster = null;
-            }
+                try
+                {
+                    if (_cachedMaster == null)
+                    {
+                        _cachedMaster = _pollEnumerator.GetDefaultAudioEndpoint(
+                            NAudio.CoreAudioApi.DataFlow.Render,
+                            NAudio.CoreAudioApi.Role.Multimedia);
+                        _lastDefaultOutputDeviceId = _cachedMaster.ID;
+                        _rgb.SetDefaultOutputDevice(_lastDefaultOutputDeviceId);
+                    }
+                    _rgb.SetMasterMuted(_cachedMaster.AudioEndpointVolume.Mute);
+                }
+                catch
+                {
+                    try { _cachedMaster?.Dispose(); } catch { }
+                    _cachedMaster = null;
+                    _lastDefaultOutputDeviceId = "";
+                }
 
-            // Poll program status + app group mute states for app-aware LED
-            // effects — shares one process snapshot + one endpoint enumeration
-            // between both checks instead of re-snapshotting per session.
-            PollStatusEffectStates();
+                // Poll program status + app group mute states for app-aware LED
+                // effects — shares one process snapshot + one endpoint enumeration
+                // between both checks instead of re-snapshotting per session.
+                PollStatusEffectStates();
+            }
         }
         catch { }
         finally
@@ -5519,8 +5534,7 @@ public partial class App : Application
         _n3?.Dispose();
         _spotify?.Dispose();
         _discordRpc?.Dispose();
-        _cachedMic?.Dispose();
-        _cachedMaster?.Dispose();
+        InvalidateMutePollingEndpoints();
         lock (_notifyLock)
         {
         if (_notifyMaster != null)
@@ -5533,8 +5547,14 @@ public partial class App : Application
             try { _notifyMic.AudioEndpointVolume.OnVolumeNotification -= OnMicVolumeNotification; } catch { }
             _notifyMic.Dispose();
         }
+        _notifyEnumerator?.Dispose();
+        _notifyEnumerator = null;
         } // end lock (_notifyLock)
-        _pollEnumerator?.Dispose();
+        lock (_pollDeviceLock)
+        {
+            _pollEnumerator?.Dispose();
+            _pollEnumerator = null;
+        }
         MonitorBrightness.Dispose();
         _mutex?.Dispose();
         base.OnExit(e);
