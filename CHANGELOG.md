@@ -6,6 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.2] - 2026-08-01
+
+### Fixed
+- Reworked issue #23 recovery so a validated Turn Up COM handle is retained, the last working port gets a fast reconnect attempt, and transient CH343 failures no longer incur the old multi-second retry delay.
+- Refreshed cached DDC/CI monitor handles after display power/topology changes, checked native brightness-write failures, and retried per-monitor writes once with fresh handles.
+- Stopped absent N3 hardware from being probed and logged every five seconds: Auto mode now retries quietly at low frequency and USB arrival triggers immediate discovery.
+- Added live blocked-input-handler diagnostics and default-audio-device change logging for future hardware and Bluetooth troubleshooting.
+
+---
+
 ## [1.3.1] - 2026-07-25
 
 ### Fixed
@@ -209,6 +219,7 @@ This is the big one: Amp Up graduates into a 1.0 beta for Windows with a polishe
 
 ---
 
+[1.3.2]: https://github.com/audioslayer/ampup/releases/tag/v1.3.2
 [1.3.1]: https://github.com/audioslayer/ampup/releases/tag/v1.3.1
 [1.3]: https://github.com/audioslayer/ampup/releases/tag/v1.3
 [1.0.3-beta]: https://github.com/audioslayer/ampup/releases/tag/v1.0.3-beta

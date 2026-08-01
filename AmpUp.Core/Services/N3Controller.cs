@@ -113,7 +113,7 @@ public sealed class N3Controller : IDisposable
     public string KeyboardPath { get; private set; } = "";
     public bool SupportsDualDisplayProtocol => FirmwareFamily != N3FirmwareFamily.MiraboxV25;
 
-    public bool TryConnect(bool initialize = true)
+    public bool TryConnect(bool initialize = true, bool logIfMissing = true)
     {
         try
         {
@@ -122,7 +122,8 @@ public sealed class N3Controller : IDisposable
             var devices = DeviceList.Local.GetHidDevices(VendorId, ProductId).ToList();
             if (devices.Count == 0)
             {
-                Logger.Log("N3: no compatible HID device found");
+                if (logIfMissing)
+                    Logger.Log("N3: no compatible HID device found");
                 return false;
             }
 

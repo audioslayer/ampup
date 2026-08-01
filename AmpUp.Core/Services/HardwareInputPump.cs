@@ -23,7 +23,11 @@ public sealed class HardwareInputPump : IDisposable
     private readonly HashSet<int> _scheduledKeys = new();
     private readonly CancellationTokenSource _cts = new();
     private readonly Thread _worker;
+    private readonly System.Threading.Timer _watchdog;
     private readonly int _slowThresholdMs;
+    private WorkItem? _activeItem;
+    private long _activeStartedAtTick;
+    private long _lastBlockedLogTick;
     private int _disposed;
 
     public HardwareInputPump(int slowThresholdMs = 1000)
@@ -35,6 +39,9 @@ public sealed class HardwareInputPump : IDisposable
             Name = "AmpUp hardware input",
         };
         _worker.Start();
+        _watchdog = new System.Threading.Timer(
+            _ => CheckActiveHandler(), null,
+            _slowThresholdMs, Math.Max(500, _slowThresholdMs));
     }
 
     /// <summary>Queues a discrete event whose ordering must be preserved.</summary>
@@ -134,6 +141,10 @@ public sealed class HardwareInputPump : IDisposable
         if (queueDelayMs >= _slowThresholdMs)
             Logger.Log($"Hardware input delayed ({item.DescribeSource()}): queued {queueDelayMs}ms");
 
+        Interlocked.Exchange(ref _activeStartedAtTick, startedAt);
+        Interlocked.Exchange(ref _lastBlockedLogTick, 0);
+        Volatile.Write(ref _activeItem, item);
+
         try
         {
             item.Action();
@@ -144,10 +155,34 @@ public sealed class HardwareInputPump : IDisposable
         }
         finally
         {
+            Volatile.Write(ref _activeItem, null);
             long elapsedMs = Environment.TickCount64 - startedAt;
             if (elapsedMs >= _slowThresholdMs)
                 Logger.Log($"Hardware input handler slow ({item.DescribeSource()}): {elapsedMs}ms");
         }
+    }
+
+    private void CheckActiveHandler()
+    {
+        if (Volatile.Read(ref _disposed) != 0) return;
+
+        var item = Volatile.Read(ref _activeItem);
+        if (item == null) return;
+
+        long now = Environment.TickCount64;
+        long elapsedMs = now - Interlocked.Read(ref _activeStartedAtTick);
+        if (elapsedMs < _slowThresholdMs) return;
+
+        // Report while the call is still blocked. The prior diagnostic only
+        // ran in Execute's finally block, so a native call that never returned
+        // left no evidence in the log at all. Repeat at most every 30 seconds.
+        long lastLog = Interlocked.Read(ref _lastBlockedLogTick);
+        if (lastLog != 0 && now - lastLog < 30_000) return;
+        if (Interlocked.CompareExchange(ref _lastBlockedLogTick, now, lastLog) != lastLog) return;
+
+        Logger.Log(
+            $"Hardware input handler blocked ({item.DescribeSource()}): " +
+            $"running {elapsedMs}ms, queued={_queue.Count}");
     }
 
     public void Dispose()
@@ -160,6 +195,7 @@ public sealed class HardwareInputPump : IDisposable
             _scheduledKeys.Clear();
         }
 
+        _watchdog.Dispose();
         _cts.Cancel();
         _queue.CompleteAdding();
         bool stopped = Thread.CurrentThread != _worker

@@ -101,12 +101,18 @@ public partial class App : Application
     private const int ResumeSerialIdleMs = 6000;
     private const int HardwareInputSampleLogMs = 5000;
     private const int HardwareInputSlowLogMs = 1000;
+    private static readonly TimeSpan N3AutoMissingRetryInterval = TimeSpan.FromHours(1);
+    private static readonly TimeSpan N3ExpectedRetryInterval = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan N3DisconnectedRetryInterval = TimeSpan.FromSeconds(5);
+    private const int WmDeviceChange = 0x0219;
+    private const int DbtDeviceArrival = 0x8000;
     private long _lastHardwareInputLogTick;
     private long _lastHardwareActivityTick = Environment.TickCount64;
     private long _lastTurnUpRgbWriteErrorTick;
-    private DateTime _lastN3ReconnectAttemptUtc = DateTime.MinValue;
+    private long _nextN3ReconnectUtcTicks;
     private int _n3ReconnectInFlight;
     private volatile bool _n3InitialProbeComplete;
+    private volatile bool _n3EverConnected;
     private volatile bool _resumeSettling;
     private DateTime _resumeSettlingUntilUtc = DateTime.MinValue;
     private CancellationTokenSource? _resumeRecoveryCts;
@@ -734,7 +740,10 @@ public partial class App : Application
     /// </summary>
     private void OnDisplaySettingsChanged(object? sender, EventArgs e)
     {
-        Logger.Log("Display settings changed — recreating tray icon");
+        // DDC/CI physical-monitor handles become stale when a display powers
+        // off or the topology changes, even though the IntPtr remains non-zero.
+        MonitorBrightness.InvalidateCache();
+        Logger.Log("Display settings changed — refreshed monitor handles and tray icon");
         RecreateTrayIcon();
     }
 
@@ -798,6 +807,16 @@ public partial class App : Application
 
     private bool IsResumeSettling =>
         _resumeSettling || DateTime.UtcNow < _resumeSettlingUntilUtc;
+
+    private TimeSpan GetN3ReconnectInterval()
+    {
+        if (_n3EverConnected)
+            return N3DisconnectedRetryInterval;
+
+        return _config?.HardwareMode == HardwareMode.Auto
+            ? N3AutoMissingRetryInterval
+            : N3ExpectedRetryInterval;
+    }
 
     /// <summary>
     /// Blank the N3 screens when the system suspends so they don't sit lit
@@ -990,6 +1009,15 @@ public partial class App : Application
         {
             Logger.Log("WM_TASKBARCREATED received — recreating tray icon");
             RecreateTrayIcon();
+        }
+        else if (msg == WmDeviceChange && wParam.ToInt64() == DbtDeviceArrival)
+        {
+            // Auto mode probes once at startup and otherwise waits quietly.
+            // A USB arrival makes the next N3 probe immediate, so users can
+            // hot-plug one without continuous HID enumeration.
+            Interlocked.Exchange(ref _nextN3ReconnectUtcTicks, 0);
+            if (_n3InitialProbeComplete && !_isN3Connected)
+                Dispatcher.BeginInvoke(TryReconnectN3FromRefreshTick);
         }
         return IntPtr.Zero;
     }
@@ -1624,6 +1652,7 @@ public partial class App : Application
                 using var current = enumerator.GetDefaultAudioEndpoint(
                     NAudio.CoreAudioApi.DataFlow.Render,
                     NAudio.CoreAudioApi.Role.Multimedia);
+                Logger.Log($"Audio devices changed — default output is {current.FriendlyName}");
                 // Update device-aware lighting immediately. Leave
                 // _lastDefaultOutputDeviceId untouched so PollMuteStates sees
                 // the change and re-subscribes master mute/volume callbacks.
@@ -2406,8 +2435,17 @@ public partial class App : Application
         _isN3Connected = connected;
         _n3DeviceName = connected ? deviceName : null;
 
+        if (connected)
+        {
+            _n3EverConnected = true;
+            Interlocked.Exchange(ref _nextN3ReconnectUtcTicks, 0);
+        }
+
         if (!connected)
         {
+            Interlocked.Exchange(
+                ref _nextN3ReconnectUtcTicks,
+                DateTime.UtcNow.Add(GetN3ReconnectInterval()).Ticks);
             _n3AnimatedKeys.Clear();
             RebuildAnimatedN3Snapshot();
             _n3AsleepFromIdle = false;
@@ -2682,8 +2720,17 @@ public partial class App : Application
         {
             try
             {
+                if (!_config.N3.Enabled || _config.HardwareMode == HardwareMode.TurnUpOnly)
+                    return;
+
                 bool ok = _n3 != null && _n3.TryConnect();
-                if (!ok) return;
+                if (!ok)
+                {
+                    Interlocked.Exchange(
+                        ref _nextN3ReconnectUtcTicks,
+                        DateTime.UtcNow.Add(GetN3ReconnectInterval()).Ticks);
+                    return;
+                }
 
                 _isN3Connected = true;
                 _n3DeviceName = _n3!.DeviceName;
@@ -2880,16 +2927,19 @@ public partial class App : Application
         if (!_config.N3.Enabled || _config.HardwareMode == HardwareMode.TurnUpOnly) return;
 
         var now = DateTime.UtcNow;
-        if ((now - _lastN3ReconnectAttemptUtc).TotalSeconds < 5) return;
+        if (now.Ticks < Interlocked.Read(ref _nextN3ReconnectUtcTicks)) return;
         if (Interlocked.Exchange(ref _n3ReconnectInFlight, 1) != 0) return;
-        _lastN3ReconnectAttemptUtc = now;
+        Interlocked.Exchange(
+            ref _nextN3ReconnectUtcTicks,
+            now.Add(GetN3ReconnectInterval()).Ticks);
 
         _ = Task.Run(() =>
         {
             try
             {
-                Logger.Log("N3: reconnect attempt after disconnected state");
-                if (!_n3.TryConnect()) return;
+                if (_n3EverConnected)
+                    Logger.Log("N3: reconnect attempt after disconnected state");
+                if (!_n3.TryConnect(logIfMissing: false)) return;
 
                 _isN3Connected = true;
                 _n3DeviceName = _n3.DeviceName;

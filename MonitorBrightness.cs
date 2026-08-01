@@ -146,7 +146,7 @@ public static class MonitorBrightness
         return _cachedMonitors!;
     }
 
-    private static void InvalidateCache()
+    private static void InvalidateCacheLocked()
     {
         if (_cachedMonitors == null) return;
         foreach (var m in _cachedMonitors)
@@ -156,6 +156,19 @@ public static class MonitorBrightness
         _cachedMonitors = null;
         _cachedDeviceNames = null;
         _cachedRanges = null;
+    }
+
+    /// <summary>
+    /// Drops cached DDC/CI handles after a display topology or power-state change.
+    /// Physical-monitor handles can remain non-zero after a monitor powers off,
+    /// but calls through them simply return false until the handles are rebuilt.
+    /// </summary>
+    public static void InvalidateCache()
+    {
+        lock (_cacheLock)
+        {
+            InvalidateCacheLocked();
+        }
     }
 
     // ── Per-monitor throttled set (last-value-wins, 60ms interval) ──
@@ -227,15 +240,16 @@ public static class MonitorBrightness
                         if (TryGetRange(i, m.hPhysicalMonitor, out uint min, out uint max))
                         {
                             uint val = (uint)(min + (max - min) * brightness);
-                            SetMonitorBrightness(m.hPhysicalMonitor, val);
+                            if (!SetMonitorBrightness(m.hPhysicalMonitor, val))
+                                anyFailed = true;
                         }
                         else anyFailed = true;
                     }
                     catch { anyFailed = true; }
                 }
-                if (anyFailed) InvalidateCache();
+                if (anyFailed) InvalidateCacheLocked();
             }
-            catch { InvalidateCache(); }
+            catch { InvalidateCacheLocked(); }
         }
     }
 
@@ -243,29 +257,38 @@ public static class MonitorBrightness
     {
         lock (_cacheLock)
         {
-            try
+            // Retry once with freshly enumerated handles. A display can power
+            // back on between knob events, and requiring another movement
+            // would otherwise leave the requested value unapplied.
+            for (int attempt = 0; attempt < 2; attempt++)
             {
-                EnsureCache();
-                for (int i = 0; i < _cachedMonitors!.Count; i++)
+                try
                 {
-                    if (!string.Equals(_cachedDeviceNames![i], deviceName, StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    var m = _cachedMonitors[i];
-                    try
+                    EnsureCache();
+                    for (int i = 0; i < _cachedMonitors!.Count; i++)
                     {
+                        if (!string.Equals(_cachedDeviceNames![i], deviceName, StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        var m = _cachedMonitors[i];
                         if (TryGetRange(i, m.hPhysicalMonitor, out uint min, out uint max))
                         {
                             uint val = (uint)(min + (max - min) * brightness);
-                            SetMonitorBrightness(m.hPhysicalMonitor, val);
+                            if (SetMonitorBrightness(m.hPhysicalMonitor, val))
+                                return;
                         }
-                        else InvalidateCache();
+
+                        InvalidateCacheLocked();
+                        break;
                     }
-                    catch { InvalidateCache(); }
-                    return;
+
+                    // The configured GDI display name may have disappeared
+                    // while the monitor was powered off. Re-enumerate once.
+                    if (_cachedMonitors != null)
+                        InvalidateCacheLocked();
                 }
+                catch { InvalidateCacheLocked(); }
             }
-            catch { InvalidateCache(); }
         }
     }
 
@@ -289,7 +312,8 @@ public static class MonitorBrightness
                         if (TryGetRange(i, m.hPhysicalMonitor, out uint min, out uint max))
                         {
                             uint val = (uint)(min + (max - min) * brightness);
-                            SetMonitorBrightness(m.hPhysicalMonitor, val);
+                            if (!SetMonitorBrightness(m.hPhysicalMonitor, val))
+                                anyFailed = true;
                         }
                         else anyFailed = true;
                     }
@@ -298,7 +322,7 @@ public static class MonitorBrightness
             }
             catch { anyFailed = true; }
 
-            if (anyFailed) InvalidateCache();
+            if (anyFailed) InvalidateCacheLocked();
         }
     }
 
@@ -324,12 +348,12 @@ public static class MonitorBrightness
                     }
                     catch
                     {
-                        InvalidateCache();
+                        InvalidateCacheLocked();
                         return -1f;
                     }
                 }
             }
-            catch { InvalidateCache(); }
+            catch { InvalidateCacheLocked(); }
         }
         return -1f;
     }
@@ -402,7 +426,7 @@ public static class MonitorBrightness
     {
         lock (_cacheLock)
         {
-            InvalidateCache();
+            InvalidateCacheLocked();
         }
     }
 }

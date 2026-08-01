@@ -23,8 +23,10 @@ public class SerialReader : IDisposable
     private volatile bool _running;
     private int _connectionState;
     private int _reconnectRequested;
+    private int _fastReconnectPending;
     private long _lastReadUtcTicks;
     private long _lastNotFoundLogUtcTicks;
+    private string? _lastConnectedPortName;
 
     // Jitter deadzone: only fire OnKnob if value changed by >= this many ADC counts
     private const int JitterDeadzone = 5;
@@ -83,6 +85,8 @@ public class SerialReader : IDisposable
         if (!_running) return;
 
         System.Threading.Interlocked.Exchange(ref _reconnectRequested, 1);
+        if (!string.IsNullOrWhiteSpace(_lastConnectedPortName))
+            System.Threading.Interlocked.Exchange(ref _fastReconnectPending, 1);
         Logger.Log($"Serial reconnect requested: {reason}");
         NotifyConnectionChanged(false);
         CloseCurrentPort();
@@ -95,38 +99,26 @@ public class SerialReader : IDisposable
             try
             {
                 // Try configured port first, then auto-scan all ports
-                string? portName = await FindDevicePort(ct);
-                if (portName == null)
+                bool preferredOnly = System.Threading.Interlocked.Exchange(ref _fastReconnectPending, 0) == 1;
+                SerialPort? port = await FindDevicePort(ct, preferredOnly);
+                if (port == null)
                 {
                     if (_running && !ct.IsCancellationRequested)
-                        await Task.Delay(2000, ct).ContinueWith(_ => { });
+                        await Task.Delay(preferredOnly ? 250 : 2000, ct).ContinueWith(_ => { });
                     continue;
                 }
                 if (!_running || ct.IsCancellationRequested)
+                {
+                    try { port.Dispose(); } catch { }
                     break;
+                }
 
                 System.Threading.Interlocked.Exchange(ref _reconnectRequested, 0);
-                var port = new SerialPort(portName, _baud)
-                {
-                    ReadTimeout = 500,
-                    WriteTimeout = 500,
-                    DtrEnable = true,
-                    RtsEnable = true
-                };
-                try
-                {
-                    port.Open();
-                }
-                catch
-                {
-                    port.Dispose();
-                    throw;
-                }
-
                 _port = port;
+                _lastConnectedPortName = port.PortName;
                 System.Threading.Interlocked.Exchange(ref _lastNotFoundLogUtcTicks, 0);
                 MarkReadActivity();
-                Logger.Log($"Connected to {portName} @ {_baud} baud");
+                Logger.Log($"Connected to {port.PortName} @ {_baud} baud");
                 NotifyConnectionChanged(true);
                 _bufLen = 0;
 
@@ -148,10 +140,15 @@ public class SerialReader : IDisposable
                     : $"Serial error: {ex.Message}");
                 NotifyConnectionChanged(false);
                 CloseCurrentPort();
+                if (!string.IsNullOrWhiteSpace(_lastConnectedPortName))
+                    System.Threading.Interlocked.Exchange(ref _fastReconnectPending, 1);
 
                 if (_running && !ct.IsCancellationRequested)
                 {
-                    int delayMs = requested ? 250 : 5000;
+                    // A revoked CH343 handle normally becomes available again
+                    // quickly. The old five-second pause plus a probe/reopen
+                    // cycle produced ~20-second outages in issue #23.
+                    int delayMs = requested ? 250 : 750;
                     await Task.Delay(delayMs, ct).ContinueWith(_ => { });
                 }
             }
@@ -167,25 +164,32 @@ public class SerialReader : IDisposable
     /// Tries the configured port first. If it fails, scans all available COM ports
     /// and probes each for Turn Up protocol frames (health ping, device ID, knob batch).
     /// </summary>
-    private async Task<string?> FindDevicePort(CancellationToken ct)
+    private async Task<SerialPort?> FindDevicePort(CancellationToken ct, bool preferredOnly)
     {
         // Always try configured port first even if GetPortNames() doesn't list it —
         // the registry-based enumeration can briefly miss a port after process restart
-        var allPorts = SerialPort.GetPortNames();
-        var candidates = new List<string> { _portName };
-        foreach (var p in allPorts)
+        string preferredPort = _lastConnectedPortName ?? _portName;
+        var candidates = new List<string> { preferredPort };
+        if (!preferredOnly)
         {
-            if (p != _portName)
-                candidates.Add(p);
+            var allPorts = SerialPort.GetPortNames();
+            if (!string.Equals(preferredPort, _portName, StringComparison.OrdinalIgnoreCase))
+                candidates.Add(_portName);
+            foreach (var p in allPorts)
+            {
+                if (!candidates.Contains(p, StringComparer.OrdinalIgnoreCase))
+                    candidates.Add(p);
+            }
         }
 
         foreach (var portName in candidates)
         {
             if (ct.IsCancellationRequested) return null;
 
+            SerialPort? probe = null;
             try
             {
-                using var probe = new SerialPort(portName, _baud)
+                probe = new SerialPort(portName, _baud)
                 {
                     ReadTimeout = 500,
                     WriteTimeout = 500,
@@ -211,17 +215,26 @@ public class SerialReader : IDisposable
                         if (ContainsTurnUpFrame(data))
                         {
                             Logger.Log($"Turn Up device detected on {portName}");
-                            probe.Close();
-                            return portName;
+                            // Keep the validated handle. Closing the probe and
+                            // immediately reopening the same CH343 port can race
+                            // the driver and return AccessDenied.
+                            return probe;
                         }
                     }
                     catch (TimeoutException) { }
-                    catch (OperationCanceledException) { return null; }
+                    catch (OperationCanceledException)
+                    {
+                        probe.Dispose();
+                        return null;
+                    }
                 }
 
-                probe.Close();
+                probe.Dispose();
             }
-            catch { }
+            catch
+            {
+                try { probe?.Dispose(); } catch { }
+            }
         }
 
         long nowTicks = DateTime.UtcNow.Ticks;
