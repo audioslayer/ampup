@@ -99,8 +99,8 @@
 - Tyson often deploys/runs the separate checkout at `C:\Users\audio\Desktop\AmpUp`. Always verify that checkout has pulled the intended commit before treating its live process as release validation. Production installers may be built from either checkout, but the build path must be clean and at the exact release commit.
 - `AmpUp.csproj` is the version source of truth. `build-installer.bat` generates `installer/version.iss`; do not hand-edit release metadata independently.
 - Release work is done directly on `master` unless Tyson explicitly asks for a branch.
-- Current public/latest release (2026-08-01): [`v1.3.2`](https://github.com/audioslayer/ampup/releases/tag/v1.3.2), built from commit `62f8a8b3c6f32adcbc9b7de5ee175769cbf80108`.
-- Release asset: `AmpUp-Setup-1.3.2.exe`, 65,857,870 bytes, SHA-256 `A38195EA6E7C0A835B60DE8624A354743C9DD2F49929CE3956587306AA5ADBB9`. GitHub's asset digest was verified against the local installer before publishing.
+- Current public/latest release (2026-08-01): [`v1.3.3`](https://github.com/audioslayer/ampup/releases/tag/v1.3.3), built from hotfix commit `b81e2201e6ddc6e7bc1451bd69b07d008f0a70d9`.
+- Release asset: `AmpUp-Setup-1.3.3.exe`, 65,848,032 bytes, SHA-256 `1781A949EEDF1266A015FA9D9F0B8897387F52EF1EA70A93449EDDE9CE8572C0`. GitHub's asset digest was verified against the local installer before publishing.
 - The installer is currently unsigned, so release notes should retain the SmartScreen/checksum guidance until code signing is added.
 
 ## In-app self-updater
@@ -112,7 +112,7 @@
 - If elevation is canceled or the installer fails, the helper relaunches the existing AmpUp installation and displays an update error. The helper records details in `%TEMP%\AmpUp\Updates\{version}\update-helper.log`.
 - Only one install handoff can run at a time. The MainWindow version label, Settings `Check for Updates`, and tray update banner all use the same `UpdateInfo`/`DownloadAndInstallAsync` path; the tray no longer opens a browser.
 - `App.NotifyUpdateAvailable(UpdateInfo)` retains the update even when the tray popup has not been created yet, so opening the tray later still shows the install banner.
-- The public `v1.3.2` release satisfies the updater's tag/filename/size/digest contract and is marked as GitHub's latest stable release.
+- The public `v1.3.3` release satisfies the updater's tag/filename/size/digest contract and supersedes v1.3.2 as GitHub's latest stable release.
 
 ## v1.3.2 reliability/memory state and v1.3.3 hotfix
 - Issue #24 is fixed and closed: Turn Up and N3 buttons retain independent output-device assignments across buttons, profiles, and N3 tap/double/hold gestures. The fix was manually verified before the v1.3.1 release.
@@ -125,6 +125,7 @@
 - Debug and Release builds completed with zero warnings/errors. The final installer was built successfully with Inno Setup, its GitHub digest matched the local SHA-256, and the installed build connected to Turn Up on COM3 plus N3 MI_00 while passing the live handle/memory check.
 - The issue #23 closing comment asks `@Zentriert` to test normal 24/7 use, monitor-off/idle periods, and Bluetooth off/on cycles; if symptoms recur, reopen the issue (or request reopening) and attach `%APPDATA%\AmpUp\ampup.log` with the approximate failure time.
 - Post-release v1.3.2 freeze diagnosis: a live `dotnet-stack` capture showed the UI blocked in `TrayMixerPopup` while registering an endpoint callback, both hardware workers blocked in `AudioMixer.SetVolume`, the session timer blocked in `RefreshSessions`, and the Windows notification thread blocked in `AudioEndpointVolume.Dispose` from `DeviceNotificationClient.OnDeviceStateChanged`. Synchronously calling `InvalidatePeakDevice()` inside `IMMNotificationClient` created the lock inversion. v1.3.3 moves that invalidation into `App.RefreshAudioDevicesAfterChange`, which already runs 500 ms after the callback burst.
+- Live v1.3.3 validation exercised the exact failure sequence: tray mixer creation, a Windows default-output change to the FIIO K13, and N3 input immediately afterward. The process remained responsive with no blocked-handler log entries or deadlocked stacks; a follow-up 30-second sample added only eight handles and about 1 MB private memory.
 - The old `HARDWARE_DISCONNECT_MEMORY.md` investigation was superseded by these fixes. If symptoms recur, collect `%APPDATA%\AmpUp\ampup.log` with the approximate failure time and reopen the relevant GitHub issue.
 
 ## Durable integration notes
