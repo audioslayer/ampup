@@ -106,17 +106,18 @@ public partial class RoomView : UserControl
         _debounce.Tick += (_, _) => { _debounce.Stop(); Save(); };
 
         // Google Home and the Govee app can change a light behind AmpUp's
-        // back. Refresh only while the Room page is visible; the Devices tab
-        // also triggers an immediate query when it is opened.
+        // back. Refresh while the Room page is visible, regardless of which
+        // Room tab is selected. LoadConfig also performs one hidden startup
+        // refresh so opening Devices is never required for detection.
         _goveeStateRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
-        _goveeStateRefreshTimer.Tick += async (_, _) => await RefreshVisibleGoveeDeviceStatesAsync();
+        _goveeStateRefreshTimer.Tick += async (_, _) => await RefreshGoveeDeviceStatesAsync();
 
         ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshAccentColors);
         Loaded += (_, _) =>
         {
             HookOwnerWindow();
             _goveeStateRefreshTimer.Start();
-            _ = RefreshVisibleGoveeDeviceStatesAsync();
+            _ = RefreshGoveeDeviceStatesAsync();
         };
         Unloaded += (_, _) =>
         {
@@ -127,7 +128,7 @@ public partial class RoomView : UserControl
         IsVisibleChanged += (_, e) =>
         {
             if (e.NewValue is true)
-                _ = RefreshVisibleGoveeDeviceStatesAsync();
+                _ = RefreshGoveeDeviceStatesAsync();
         };
 
         BuildTopBar();
@@ -259,6 +260,13 @@ public partial class RoomView : UserControl
             _cloudDevices.Clear();
             RebuildDevicePanel();
         }
+
+        // Perform one state query after both config and the cloud fallback are
+        // ready. This intentionally runs even if the Room page is not visible:
+        // external power changes must be detected at app startup, not only
+        // after the user visits Room > Devices.
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+            _ = RefreshGoveeDeviceStatesAsync(allowHidden: true));
 
         // Always initialize spatial mapper when devices exist (spatial mode is the default)
         if (config.RoomLayout.Devices.Count > 0)
@@ -576,7 +584,7 @@ public partial class RoomView : UserControl
         _loading = false;
 
         if (_roomTabIndex == 2)
-            _ = RefreshVisibleGoveeDeviceStatesAsync();
+            _ = RefreshGoveeDeviceStatesAsync();
     }
 
     /// <summary>
@@ -6658,11 +6666,11 @@ public partial class RoomView : UserControl
     /// Google Home, Alexa, etc.). LAN is preferred and the cloud API is used
     /// as a fallback when it is configured.
     /// </summary>
-    private async Task RefreshVisibleGoveeDeviceStatesAsync()
+    private async Task RefreshGoveeDeviceStatesAsync(bool allowHidden = false)
     {
-        if (_goveeStateRefreshInProgress || _roomTabIndex != 2 || !IsVisible)
+        if (_goveeStateRefreshInProgress)
             return;
-        if (Window.GetWindow(this)?.WindowState == WindowState.Minimized)
+        if (!allowHidden && (!IsVisible || Window.GetWindow(this)?.WindowState == WindowState.Minimized))
             return;
 
         var config = _config;
@@ -6684,6 +6692,7 @@ public partial class RoomView : UserControl
             if (!ReferenceEquals(_config, config))
                 return;
 
+            bool detectedPoweredOn = false;
             _loading = true;
             try
             {
@@ -6695,6 +6704,7 @@ public partial class RoomView : UserControl
                     if (_goveeManualControlRevisions.GetValueOrDefault(device) != queryRevision)
                         continue;
 
+                    detectedPoweredOn |= on && !device.PoweredOn && device.SyncWithAmpUp;
                     device.PoweredOn = on;
 
                     bool reflectDeviceBrightness = brightness > 0
@@ -6716,6 +6726,23 @@ public partial class RoomView : UserControl
             finally
             {
                 _loading = false;
+            }
+
+            UpdateTopBarStatus();
+
+            // The saved effect may have been suppressed earlier in startup
+            // because every device still had a stale PoweredOn=false value.
+            // Once an external-on state is detected, start it immediately.
+            if (detectedPoweredOn
+                && _roomRgb == null
+                && !config.Ambience.ScreenSync.Enabled
+                && !string.IsNullOrWhiteSpace(config.Ambience.RoomEffect))
+            {
+                Logger.Log($"[Room] External Govee power-on detected; resuming {config.Ambience.RoomEffect}.");
+                if (string.Equals(config.Ambience.RoomEffect, RoomTemperaturePatternId, StringComparison.OrdinalIgnoreCase))
+                    SendRoomTemperature(config.Ambience.RoomTemperatureKelvin);
+                else
+                    StartRoomPattern(config.Ambience.RoomEffect);
             }
         }
         catch (Exception ex)
