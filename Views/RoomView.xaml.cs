@@ -29,6 +29,15 @@ public partial class RoomView : UserControl
     // Per-device UI references for live knob updates
     private readonly Dictionary<string, (CheckBox onOff, Controls.StyledSlider brightness)> _deviceControls = new();
 
+    // Live Govee state shown on Room > Devices.  These are keyed by the
+    // config object so LAN and cloud-only devices can share the same refresh
+    // path even when one of the identifiers is missing.
+    private readonly Dictionary<GoveeDeviceConfig, CheckBox> _goveePowerControls = new();
+    private readonly Dictionary<GoveeDeviceConfig, (Controls.StyledSlider Slider, TextBlock Label)> _goveeBrightnessControls = new();
+    private readonly Dictionary<GoveeDeviceConfig, int> _goveeManualControlRevisions = new();
+    private readonly DispatcherTimer _goveeStateRefreshTimer;
+    private bool _goveeStateRefreshInProgress;
+
     // DreamView live preview swatches
     private readonly List<Border> _dreamZoneSwatches = new();
     private TextBlock? _dreamStatusLabel;
@@ -96,9 +105,30 @@ public partial class RoomView : UserControl
         _debounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
         _debounce.Tick += (_, _) => { _debounce.Stop(); Save(); };
 
+        // Google Home and the Govee app can change a light behind AmpUp's
+        // back. Refresh only while the Room page is visible; the Devices tab
+        // also triggers an immediate query when it is opened.
+        _goveeStateRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
+        _goveeStateRefreshTimer.Tick += async (_, _) => await RefreshVisibleGoveeDeviceStatesAsync();
+
         ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshAccentColors);
-        Loaded += (_, _) => HookOwnerWindow();
-        Unloaded += (_, _) => { UnhookOwnerWindow(); StopScreenSyncPreviewTimers(); };
+        Loaded += (_, _) =>
+        {
+            HookOwnerWindow();
+            _goveeStateRefreshTimer.Start();
+            _ = RefreshVisibleGoveeDeviceStatesAsync();
+        };
+        Unloaded += (_, _) =>
+        {
+            _goveeStateRefreshTimer.Stop();
+            UnhookOwnerWindow();
+            StopScreenSyncPreviewTimers();
+        };
+        IsVisibleChanged += (_, e) =>
+        {
+            if (e.NewValue is true)
+                _ = RefreshVisibleGoveeDeviceStatesAsync();
+        };
 
         BuildTopBar();
     }
@@ -544,6 +574,9 @@ public partial class RoomView : UserControl
             case 2: BuildDevicesTab(_roomTabContent); break;
         }
         _loading = false;
+
+        if (_roomTabIndex == 2)
+            _ = RefreshVisibleGoveeDeviceStatesAsync();
     }
 
     /// <summary>
@@ -1824,6 +1857,10 @@ public partial class RoomView : UserControl
     {
         if (_config == null) return;
 
+        _goveePowerControls.Clear();
+        _goveeBrightnessControls.Clear();
+        _deviceControls.Clear();
+
         // ── Govee devices ──
         bool hasGovee = _config.Ambience.GoveeEnabled && _config.Ambience.GoveeDevices.Count > 0;
         if (hasGovee)
@@ -1892,6 +1929,7 @@ public partial class RoomView : UserControl
                 onOff.Checked += async (_, _) =>
                 {
                     if (_loading || _config == null) return;
+                    MarkGoveeManualControl(capturedDev);
                     capturedDev.PoweredOn = true;
                     if (hasLan)
                     {
@@ -1909,6 +1947,7 @@ public partial class RoomView : UserControl
                 onOff.Unchecked += async (_, _) =>
                 {
                     if (_loading || _config == null) return;
+                    MarkGoveeManualControl(capturedDev);
                     capturedDev.PoweredOn = false;
                     if (hasLan)
                     {
@@ -1923,6 +1962,7 @@ public partial class RoomView : UserControl
                     QueueSave();
                 };
                 devRow.Children.Add(onOff);
+                _goveePowerControls[devConfig] = onOff;
 
                 var ampUpSync = new CheckBox
                 {
@@ -1975,9 +2015,10 @@ public partial class RoomView : UserControl
                 };
                 brightSlider.ValueChanged += (_, _) =>
                 {
-                    if (_loading) return;
                     int pct = (int)brightSlider.Value;
                     brightLabel.Text = $"{pct}%";
+                    if (_loading) return;
+                    MarkGoveeManualControl(devConfig);
                     devConfig.BrightnessScale = pct;
                     QueueSave();
 
@@ -1996,6 +2037,8 @@ public partial class RoomView : UserControl
                 };
                 devRow.Children.Add(brightSlider);
                 devRow.Children.Add(brightLabel);
+                _goveeBrightnessControls[devConfig] = (brightSlider, brightLabel);
+                _deviceControls[devConfig.Ip] = (onOff, brightSlider);
 
                 // Segment count badge
                 int segs = AmbienceSync.GetSegmentCount(govDev);
@@ -6553,6 +6596,106 @@ public partial class RoomView : UserControl
     }
 
     // ── Device state & knob updates ──────────────────────────────────
+
+    /// <summary>
+    /// Refresh power state that may have changed outside AmpUp (Govee app,
+    /// Google Home, Alexa, etc.). LAN is preferred and the cloud API is used
+    /// as a fallback when it is configured.
+    /// </summary>
+    private async Task RefreshVisibleGoveeDeviceStatesAsync()
+    {
+        if (_goveeStateRefreshInProgress || _roomTabIndex != 2 || !IsVisible)
+            return;
+        if (Window.GetWindow(this)?.WindowState == WindowState.Minimized)
+            return;
+
+        var config = _config;
+        if (config == null || config.Ambience.GoveeDevices.Count == 0)
+            return;
+
+        _goveeStateRefreshInProgress = true;
+        try
+        {
+            var cloudApi = _cloudApi;
+            var devices = config.Ambience.GoveeDevices.ToArray();
+            var results = await Task.WhenAll(devices.Select(dev =>
+                QueryCurrentGoveeDeviceStateAsync(
+                    dev,
+                    cloudApi,
+                    _goveeManualControlRevisions.GetValueOrDefault(dev))));
+
+            // LoadConfig can replace the config while network queries are in flight.
+            if (!ReferenceEquals(_config, config))
+                return;
+
+            _loading = true;
+            try
+            {
+                foreach (var result in results)
+                {
+                    if (!result.HasValue) continue;
+
+                    var (device, on, brightness, queryRevision) = result.Value;
+                    if (_goveeManualControlRevisions.GetValueOrDefault(device) != queryRevision)
+                        continue;
+
+                    device.PoweredOn = on;
+
+                    bool reflectDeviceBrightness = brightness > 0
+                        && (AmbienceSync.GetSegmentCount(device) == 0 || !device.UseSegmentProtocol);
+                    if (reflectDeviceBrightness)
+                        device.BrightnessScale = Math.Clamp(brightness, 1, 100);
+
+                    if (_goveePowerControls.TryGetValue(device, out var powerControl))
+                        powerControl.IsChecked = on;
+
+                    if (reflectDeviceBrightness
+                        && _goveeBrightnessControls.TryGetValue(device, out var brightnessControls))
+                    {
+                        brightnessControls.Slider.Value = device.BrightnessScale;
+                        brightnessControls.Label.Text = $"{device.BrightnessScale}%";
+                    }
+                }
+            }
+            finally
+            {
+                _loading = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[Room] Govee state refresh failed: {ex.Message}");
+        }
+        finally
+        {
+            _goveeStateRefreshInProgress = false;
+        }
+    }
+
+    private void MarkGoveeManualControl(GoveeDeviceConfig device)
+        => _goveeManualControlRevisions[device] = _goveeManualControlRevisions.GetValueOrDefault(device) + 1;
+
+    private static async Task<(GoveeDeviceConfig Device, bool On, int Brightness, int Revision)?>
+        QueryCurrentGoveeDeviceStateAsync(GoveeDeviceConfig device, GoveeCloudApi? cloudApi, int revision)
+    {
+        if (!string.IsNullOrWhiteSpace(device.Ip))
+        {
+            var lanState = await AmbienceSync.GetDeviceStatusAsync(device.Ip);
+            if (lanState.HasValue)
+                return (device, lanState.Value.On, lanState.Value.Brightness, revision);
+        }
+
+        if (cloudApi != null
+            && !string.IsNullOrWhiteSpace(device.DeviceId)
+            && !string.IsNullOrWhiteSpace(device.Sku))
+        {
+            var cloudState = await cloudApi.GetDeviceStateAsync(device.DeviceId, device.Sku);
+            if (cloudState != null && cloudState.Online)
+                return (device, cloudState.On, cloudState.Brightness, revision);
+        }
+
+        return null;
+    }
 
     public void UpdateDeviceBrightness(string ip, float normalized, bool poweredOn)
     {
