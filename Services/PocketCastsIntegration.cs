@@ -57,6 +57,8 @@ public sealed class PocketCastsIntegration
 
             return await Task.Run(() =>
             {
+                IntPtr foregroundBefore = NativeMethods.GetForegroundWindow();
+                bool wasMinimized = NativeMethods.IsIconic(window);
                 var root = AutomationElement.FromHandle(window);
                 var buttons = root.FindAll(
                     TreeScope.Descendants,
@@ -72,6 +74,7 @@ public sealed class PocketCastsIntegration
                         && button.TryGetCurrentPattern(TogglePattern.Pattern, out object toggleObject))
                     {
                         ((TogglePattern)toggleObject).Toggle();
+                        RestorePreviousWindow(window, foregroundBefore, wasMinimized);
                         Logger.Log($"Pocket Casts: {actionName} invoked on its '{name}' control.");
                         return true;
                     }
@@ -80,6 +83,7 @@ public sealed class PocketCastsIntegration
                         && button.TryGetCurrentPattern(InvokePattern.Pattern, out object invokeObject))
                     {
                         ((InvokePattern)invokeObject).Invoke();
+                        RestorePreviousWindow(window, foregroundBefore, wasMinimized);
                         Logger.Log($"Pocket Casts: {actionName} invoked on its '{name}' control.");
                         return true;
                     }
@@ -94,6 +98,23 @@ public sealed class PocketCastsIntegration
             Logger.Log($"Pocket Casts: {actionName} failed - {ex.Message}");
             return false;
         }
+    }
+
+    private static void RestorePreviousWindow(
+        IntPtr pocketCastsWindow,
+        IntPtr foregroundBefore,
+        bool wasMinimized)
+    {
+        // Chromium's accessibility provider can activate its window while a
+        // player button is invoked. Give that activation time to settle, then
+        // put the user's original window back exactly where it was.
+        Thread.Sleep(100);
+
+        if (wasMinimized)
+            NativeMethods.ShowWindow(pocketCastsWindow, NativeMethods.SW_MINIMIZE);
+
+        if (foregroundBefore != IntPtr.Zero && foregroundBefore != pocketCastsWindow)
+            NativeMethods.SwitchToThisWindow(foregroundBefore, true);
     }
 
     private static async Task<IntPtr> FindOrStartWindowAsync()

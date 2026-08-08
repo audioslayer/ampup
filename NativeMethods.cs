@@ -54,6 +54,10 @@ internal static class NativeMethods
     internal static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     internal const int SW_RESTORE = 9;
+    internal const int SW_MINIMIZE = 6;
+
+    [DllImport("user32.dll")]
+    internal static extern bool IsIconic(IntPtr hWnd);
 
     [DllImport("user32.dll")]
     internal static extern void SwitchToThisWindow(IntPtr hWnd, bool turnOn);
