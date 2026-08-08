@@ -265,6 +265,7 @@ public partial class App : Application
 
         // Corsair iCUE sync
         _corsairSync = new CorsairSync();
+        _corsairSync.DevicesReady += RestoreCorsairLightingAfterDiscovery;
         StartCorsairFrameWorker();
         _rgb.OnFrameReady += QueueCorsairFrame;
         // Corsair SDK init moved to InitializeHardwareDeferred — it can
@@ -3106,6 +3107,38 @@ public partial class App : Application
         // let the default resolver walk into _config.N3.Buttons and fire the
         // Home-level action for this idx.
         return new ButtonConfig { Idx = idx, Action = "none" };
+    }
+
+    private async void RestoreCorsairLightingAfterDiscovery()
+    {
+        try
+        {
+            var corsair = _corsairSync;
+            var config = _config?.Corsair;
+            if (corsair?.IsAvailable != true || config?.Enabled != true)
+                return;
+
+            // Animated/global modes continuously send their own frames. Static
+            // mode does not, so re-apply its saved color after iCUE finishes
+            // connecting or re-enumerating hardware.
+            if (!string.Equals(config.LightSyncMode, "static", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            Color color;
+            try { color = ColorTranslator.FromHtml(config.StaticColor); }
+            catch { color = Color.FromArgb(0, 230, 118); }
+
+            float brightness = Math.Clamp(config.LightBrightness, 0, 200) / 100f;
+            byte r = (byte)Math.Clamp((int)Math.Round(color.R * brightness), 0, 255);
+            byte g = (byte)Math.Clamp((int)Math.Round(color.G * brightness), 0, 255);
+            byte b = (byte)Math.Clamp((int)Math.Round(color.B * brightness), 0, 255);
+            await corsair.SetStaticColorAllAsync(r, g, b);
+            Logger.Log($"CorsairSync: restored static color {config.StaticColor} at {config.LightBrightness}% brightness");
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"CorsairSync: failed to restore saved lighting: {ex.Message}");
+        }
     }
 
     private void StartCorsairFrameWorker()

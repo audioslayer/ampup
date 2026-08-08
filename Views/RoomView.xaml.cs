@@ -3464,6 +3464,11 @@ public partial class RoomView : UserControl
                     R = c1.R, G = c1.G, B = c1.B, R2 = c2.R, G2 = c2.G, B2 = c2.B, EffectSpeed = _roomEffectSpeed,
                 });
             }
+            else if (_config?.Corsair.Enabled == true)
+            {
+                _config.Corsair.LightSyncMode = "static";
+                ApplyCorsairStaticColor(c1, persistColor: true);
+            }
         }
 
         // PRESETS
@@ -4584,6 +4589,32 @@ public partial class RoomView : UserControl
         }
     }
 
+    private void ApplyCorsairStaticColor(Color color, bool persistColor)
+    {
+        if (_config == null) return;
+
+        if (persistColor)
+        {
+            _config.Corsair.StaticColor = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+            QueueSave();
+        }
+
+        if (_corsairSync?.IsAvailable != true || !_config.Corsair.Enabled)
+            return;
+
+        float brightness = Math.Clamp(_config.Corsair.LightBrightness, 0, 200) / 100f;
+        byte r = (byte)Math.Clamp((int)Math.Round(color.R * brightness), 0, 255);
+        byte g = (byte)Math.Clamp((int)Math.Round(color.G * brightness), 0, 255);
+        byte b = (byte)Math.Clamp((int)Math.Round(color.B * brightness), 0, 255);
+        _ = _corsairSync.SetStaticColorAllAsync(r, g, b);
+    }
+
+    private Color GetSavedCorsairStaticColor()
+    {
+        try { return (Color)ColorConverter.ConvertFromString(_config?.Corsair.StaticColor ?? "#00E676"); }
+        catch { return Color.FromRgb(0, 230, 118); }
+    }
+
     private void BuildCorsairTab()
     {
         if (_sceneContent == null) return;
@@ -4662,6 +4693,8 @@ public partial class RoomView : UserControl
             {
                 if (_config == null) return;
                 _config.Corsair.LightSyncMode = capturedMode;
+                if (capturedMode == "static")
+                    ApplyCorsairStaticColor(GetSavedCorsairStaticColor(), persistColor: false);
                 QueueSave();
                 RefreshSceneContent(); // rebuild to update active state
             };
@@ -4697,8 +4730,7 @@ public partial class RoomView : UserControl
                 };
                 swatch.MouseLeftButtonUp += (_, _) =>
                 {
-                    if (_corsairSync?.IsAvailable == true)
-                        _ = _corsairSync.SetStaticColorAllAsync(r, g, b);
+                    ApplyCorsairStaticColor(color, persistColor: true);
                 };
                 colorWrap.Children.Add(swatch);
             }
@@ -4727,6 +4759,8 @@ public partial class RoomView : UserControl
             if (_config == null) return;
             _config.Corsair.LightBrightness = (int)brightSlider.Value;
             brightLabel.Text = $"{(int)brightSlider.Value}%";
+            if (_config.Corsair.LightSyncMode == "static")
+                ApplyCorsairStaticColor(GetSavedCorsairStaticColor(), persistColor: false);
             QueueSave();
         };
         brightRow.Children.Add(brightSlider);
@@ -5433,7 +5467,7 @@ public partial class RoomView : UserControl
         if (_corsairSync?.IsAvailable == true && _config?.Corsair.Enabled == true)
         {
             _config!.Corsair.LightSyncMode = "static";
-            _ = _corsairSync.SetStaticColorAllAsync(r, g, b);
+            ApplyCorsairStaticColor(Color.FromRgb(r, g, b), persistColor: true);
         }
         // Govee Cloud
         if (_cloudApi != null)

@@ -41,9 +41,12 @@ public class CorsairSync : IDisposable
     private bool _disposed;
     private bool _dllLoaded;
     private int _sessionState; // CorsairSessionState
+    private bool _hasExclusiveLightingControl;
+    private readonly object _controlLock = new();
 
     public bool IsAvailable => _connected && !_disposed && _dllLoaded && !_paused;
     public List<CorsairDevice> Devices { get; private set; } = new();
+    public event Action? DevicesReady;
 
     // ── Native SDK P/Invoke ─────────────────────────────────────────
 
@@ -153,12 +156,10 @@ public class CorsairSync : IDisposable
         int size, [In] CorsairLedColor[] ledColors);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    private static extern int CorsairRequestControl(
-        [MarshalAs(UnmanagedType.LPStr)] string deviceId, int accessLevel);
+    private static extern int CorsairRequestControl(IntPtr deviceId, int accessLevel);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    private static extern int CorsairReleaseControl(
-        [MarshalAs(UnmanagedType.LPStr)] string deviceId);
+    private static extern int CorsairReleaseControl(IntPtr deviceId);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     private static extern int CorsairSetLayerPriority(uint priority);
@@ -185,6 +186,7 @@ public class CorsairSync : IDisposable
     }
 
     private readonly ConcurrentDictionary<string, LedGeometryCache> _ledCache = new();
+    private readonly ConcurrentDictionary<string, int> _lastWriteErrors = new();
 
     private LedGeometryCache? GetLedCache(CorsairDevice device)
     {
@@ -290,6 +292,8 @@ public class CorsairSync : IDisposable
             _connected = true;
             Logger.Log($"CorsairSync: connected to iCUE (SDK {sv.major}.{sv.minor}.{sv.patch}, iCUE {hv.major}.{hv.minor}.{hv.patch})");
 
+            AcquireLightingControl();
+
             // Set higher priority so our colors show on top of iCUE's own effects
             CorsairSetLayerPriority(200);
 
@@ -303,6 +307,7 @@ public class CorsairSync : IDisposable
         else
         {
             _connected = false;
+            _hasExclusiveLightingControl = false;
             _ledCache.Clear();
         }
         }
@@ -355,6 +360,9 @@ public class CorsairSync : IDisposable
         // so it is re-queried lazily on the next frame.
         _ledCache.Clear();
         Devices = list;
+        Logger.Log($"CorsairSync: discovered {list.Count} device(s): "
+            + string.Join(", ", list.Select(d => $"{d.Name} [{d.Type}, {d.LedCount} LEDs]")));
+        DevicesReady?.Invoke();
     }
 
     public Task<List<CorsairDevice>> GetDevicesAsync()
@@ -503,7 +511,7 @@ public class CorsairSync : IDisposable
                 colors[i].a = 255;
             }
 
-            CorsairSetLedColors(device.Id, ledCount, colors);
+            SetLedColorsChecked(device, ledCount, colors, "frame sync");
         }
     }
 
@@ -556,7 +564,7 @@ public class CorsairSync : IDisposable
                 colors[i].a = 255;
             }
 
-            CorsairSetLedColors(device.Id!, ledCount, colors);
+            SetLedColorsChecked(device, ledCount, colors, "room effect");
         }
         return true;
     }
@@ -930,7 +938,7 @@ public class CorsairSync : IDisposable
                 colors[i].a = 255;
             }
 
-            CorsairSetLedColors(device.Id, ledCount, colors);
+            SetLedColorsChecked(device, ledCount, colors, "spatial sync");
         }
     }
 
@@ -970,7 +978,7 @@ public class CorsairSync : IDisposable
                             colors[i].b = b;
                             colors[i].a = 255;
                         }
-                        CorsairSetLedColors(device.Id, count, colors);
+                        SetLedColorsChecked(device, count, colors, "static color");
                     }
                 }
                 catch (Exception ex)
@@ -982,6 +990,44 @@ public class CorsairSync : IDisposable
     }
 
     // ── Effects (iCUE SDK doesn't have an effects API — these are no-ops) ───
+
+    private void SetLedColorsChecked(CorsairDevice device, int count, CorsairLedColor[] colors, string operation)
+    {
+        int error = CorsairSetLedColors(device.Id, count, colors);
+        string key = $"{device.Id}:{operation}";
+        if (error == 0)
+        {
+            if (_lastWriteErrors.TryRemove(key, out int previousError))
+                Logger.Log($"CorsairSync: {operation} recovered for {device.Name} (previous error {DescribeError(previousError)})");
+            return;
+        }
+
+        bool shouldLog = false;
+        _lastWriteErrors.AddOrUpdate(
+            key,
+            _ => { shouldLog = true; return error; },
+            (_, previous) =>
+            {
+                if (previous != error) shouldLog = true;
+                return error;
+            });
+
+        if (shouldLog)
+            Logger.Log($"CorsairSync: {operation} rejected for {device.Name}: {DescribeError(error)}");
+    }
+
+    private static string DescribeError(int error) => error switch
+    {
+        0 => "success",
+        1 => "not connected / third-party control disabled",
+        2 => "another SDK client has exclusive control",
+        3 => "incompatible SDK protocol",
+        4 => "invalid arguments",
+        5 => "invalid operation",
+        6 => "device not found",
+        7 => "operation not allowed by iCUE",
+        _ => $"error {error}",
+    };
 
     public Task<List<string>> GetEffectsAsync()
     {
@@ -1011,15 +1057,45 @@ public class CorsairSync : IDisposable
 
     private bool _paused;
 
+    private void AcquireLightingControl()
+    {
+        lock (_controlLock)
+        {
+            if (_disposed || !_connected || _hasExclusiveLightingControl) return;
+
+            int error = CorsairRequestControl(IntPtr.Zero, CAL_ExclusiveLightingControl);
+            _hasExclusiveLightingControl = error == 0;
+            if (_hasExclusiveLightingControl)
+                Logger.Log("CorsairSync: exclusive lighting control acquired for all devices");
+            else
+                Logger.Log($"CorsairSync: exclusive lighting control unavailable: {DescribeError(error)}; using shared layer");
+        }
+    }
+
+    private void ReleaseLightingControl()
+    {
+        lock (_controlLock)
+        {
+            if (!_hasExclusiveLightingControl) return;
+
+            int error = CorsairReleaseControl(IntPtr.Zero);
+            if (error != 0 && error != 1)
+                Logger.Log($"CorsairSync: release lighting control failed: {DescribeError(error)}");
+            _hasExclusiveLightingControl = false;
+        }
+    }
+
     public void Stop()
     {
         // Pause syncing without disconnecting from iCUE
         _paused = true;
+        ReleaseLightingControl();
     }
 
     public void Resume()
     {
         _paused = false;
+        AcquireLightingControl();
     }
 
     public void Dispose()
