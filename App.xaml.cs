@@ -60,6 +60,7 @@ public partial class App : Application
     private LgMonitorSync? _lgMonitor;
     private N3Controller? _n3;
     private SpotifyIntegration? _spotify;
+    private PocketCastsIntegration? _pocketCasts;
     public static SpotifyIntegration? Spotify => (Current as App)?._spotify;
     private DiscordRpcIntegration? _discordRpc;
     private HardwareInputPump? _turnUpInputPump;
@@ -251,6 +252,8 @@ public partial class App : Application
             System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
         _mixer.AudioDevicesChanged += QueueAudioDeviceRefresh;
         _buttons = new ButtonHandler();
+        _pocketCasts = new PocketCastsIntegration();
+        _buttons.SetPocketCastsIntegration(_pocketCasts);
         _turnUpInputPump = new HardwareInputPump(HardwareInputSlowLogMs);
         _n3InputPump = new HardwareInputPump(HardwareInputSlowLogMs);
         _rgb = new RgbController();

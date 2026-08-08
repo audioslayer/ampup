@@ -47,6 +47,7 @@ public class ButtonHandler : IDisposable
     private ObsIntegration? _obs;
     private VoiceMeeterIntegration? _vm;
     private DiscordRpcIntegration? _discordRpc;
+    private PocketCastsIntegration? _pocketCasts;
     private readonly MMDeviceEnumerator _enumerator = new();
     private readonly ButtonGestureEngine _gestureEngine = new();
 
@@ -63,6 +64,7 @@ public class ButtonHandler : IDisposable
     public void SetObsIntegration(ObsIntegration? obs) => _obs = obs;
     public void SetVoiceMeeterIntegration(VoiceMeeterIntegration? vm) => _vm = vm;
     public void SetDiscordRpcIntegration(DiscordRpcIntegration? discordRpc) => _discordRpc = discordRpc;
+    public void SetPocketCastsIntegration(PocketCastsIntegration? pocketCasts) => _pocketCasts = pocketCasts;
 
     /// <summary>Fires when room_toggle action is triggered — toggle all room lights.</summary>
     public event Action? OnRoomToggle;
@@ -419,6 +421,18 @@ public class ButtonHandler : IDisposable
                 case "spotify_prev":       OnSpotifyPrev?.Invoke();       break;
                 case "spotify_shuffle":    OnSpotifyShuffleToggle?.Invoke(); break;
                 case "spotify_like":       OnSpotifyLikeToggle?.Invoke(); break;
+                case "pocketcasts_open":
+                    if (_pocketCasts != null) _ = _pocketCasts.OpenAsync();
+                    break;
+                case "pocketcasts_play_pause":
+                    if (_pocketCasts != null) _ = _pocketCasts.PlayPauseAsync();
+                    break;
+                case "pocketcasts_skip_back":
+                    if (_pocketCasts != null) _ = _pocketCasts.SkipBackAsync();
+                    break;
+                case "pocketcasts_skip_forward":
+                    if (_pocketCasts != null) _ = _pocketCasts.SkipForwardAsync();
+                    break;
                 case "signalrgb_effect":
                     SignalRgbEffectCatalog.ApplyEffect(path);
                     break;

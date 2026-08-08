@@ -610,10 +610,11 @@ public partial class ButtonsView
         // Keeps the Integrations accordion scannable instead of showing 5+
         // rows for one service.
         var spotifyChildren = new[] { "spotify_play_pause", "spotify_next", "spotify_prev", "spotify_shuffle", "spotify_like" };
+        var pocketCastsChildren = new[] { "pocketcasts_open", "pocketcasts_play_pause", "pocketcasts_skip_back", "pocketcasts_skip_forward" };
         var discordChildren = DiscordActionValues;
         var haChildren      = new[] { "ha_toggle", "ha_scene", "ha_color", "ha_color_temp", "ha_service" };
         var goveeChildren   = new[] { "govee_toggle", "govee_color", "govee_white_toggle" };
-        var foldedChildren = new HashSet<string>(spotifyChildren.Concat(discordChildren).Concat(haChildren).Concat(goveeChildren));
+        var foldedChildren = new HashSet<string>(spotifyChildren.Concat(pocketCastsChildren).Concat(discordChildren).Concat(haChildren).Concat(goveeChildren));
 
         foreach (var (category, values) in ActionCategories)
         {
@@ -657,6 +658,11 @@ public partial class ButtonsView
             Color.FromRgb(0x1D, 0xB9, 0x54), "Integrations",
             "Play / pause, skip, shuffle, like — requires Spotify connected in Settings",
             spotifyChildren, enabled: true);
+
+        AddIntegrationGroup("group_pocketcasts", "Pocket Casts", "P",
+            Color.FromRgb(0xF4, 0x3E, 0x37), "Integrations",
+            "Direct desktop controls: open, play/pause, and seek",
+            pocketCastsChildren, enabled: true);
 
         AddIntegrationGroup("group_discord", "Discord", "D",
             Color.FromRgb(0x58, 0x65, 0xF2), "Integrations",

@@ -50,6 +50,10 @@ public partial class ButtonsView : UserControl
         ("Govee: Toggle", "govee_toggle"), ("Govee: Color", "govee_color"), ("Room: White Toggle", "govee_white_toggle"),
         ("Spotify: Play/Pause", "spotify_play_pause"), ("Spotify: Next", "spotify_next"), ("Spotify: Prev", "spotify_prev"),
         ("Spotify: Shuffle", "spotify_shuffle"), ("Spotify: Like Track", "spotify_like"),
+        ("Pocket Casts: Open", "pocketcasts_open"),
+        ("Pocket Casts: Play/Pause", "pocketcasts_play_pause"),
+        ("Pocket Casts: Back 10s", "pocketcasts_skip_back"),
+        ("Pocket Casts: Forward 30s", "pocketcasts_skip_forward"),
         ("Discord: Toggle Mute", "discord_toggle_mute"), ("Discord: Toggle Deafen", "discord_toggle_deafen"),
         ("Discord: Mute On", "discord_mute_on"), ("Discord: Mute Off", "discord_mute_off"),
         ("Discord: Deafen On", "discord_deafen_on"), ("Discord: Deafen Off", "discord_deafen_off"),
@@ -110,6 +114,8 @@ public partial class ButtonsView : UserControl
         { "type_text", "✎" }, { "screenshot", "📷" },
         { "spotify_play_pause", "▶" }, { "spotify_next", "⏭" }, { "spotify_prev", "⏮" },
         { "spotify_shuffle", "⇌" }, { "spotify_like", "♥" },
+        { "pocketcasts_open", "P" }, { "pocketcasts_play_pause", "▶" },
+        { "pocketcasts_skip_back", "↶" }, { "pocketcasts_skip_forward", "↷" },
         { "discord_toggle_mute", "D" }, { "discord_toggle_deafen", "D" },
         { "discord_mute_on", "D" }, { "discord_mute_off", "D" },
         { "discord_deafen_on", "D" }, { "discord_deafen_off", "D" },
@@ -166,6 +172,10 @@ public partial class ButtonsView : UserControl
         { "obs_mute",           Color.FromRgb(0xEF, 0x53, 0x50) },
         { "vm_mute_strip",      Color.FromRgb(0xFF, 0x8F, 0x00) },
         { "vm_mute_bus",        Color.FromRgb(0xFF, 0x8F, 0x00) },
+        { "pocketcasts_open",         Color.FromRgb(0xF4, 0x3E, 0x37) },
+        { "pocketcasts_play_pause",   Color.FromRgb(0xF4, 0x3E, 0x37) },
+        { "pocketcasts_skip_back",    Color.FromRgb(0xFF, 0x70, 0x68) },
+        { "pocketcasts_skip_forward", Color.FromRgb(0xFF, 0x70, 0x68) },
         { "discord_toggle_mute", Color.FromRgb(0x58, 0x65, 0xF2) },
         { "discord_toggle_deafen", Color.FromRgb(0x58, 0x65, 0xF2) },
         { "discord_mute_on", Color.FromRgb(0x58, 0x65, 0xF2) },
@@ -1450,6 +1460,10 @@ public partial class ButtonsView : UserControl
         { "spotify_prev",       "Go to the previous Spotify track" },
         { "spotify_shuffle",    "Toggle Spotify shuffle mode" },
         { "spotify_like",       "Like / unlike the currently-playing Spotify track" },
+        { "pocketcasts_open",         "Open or focus the Pocket Casts desktop app" },
+        { "pocketcasts_play_pause",   "Play or pause Pocket Casts directly" },
+        { "pocketcasts_skip_back",    "Seek Pocket Casts backward 10 seconds" },
+        { "pocketcasts_skip_forward", "Seek Pocket Casts forward 30 seconds" },
         { "discord_toggle_mute", "Toggle Discord self mute through local Discord RPC" },
         { "discord_toggle_deafen", "Toggle Discord self deafen through local Discord RPC" },
         { "discord_mute_on", "Set Discord self mute on through local Discord RPC" },
@@ -1574,7 +1588,7 @@ public partial class ButtonsView : UserControl
         ("Advanced",        new[] { "multi_action", "toggle_action", "open_folder" }),
         ("Power",           new[] { "power_sleep", "power_lock", "power_off", "power_restart", "power_logoff", "power_hibernate" }),
         ("Room",            new[] { "room_toggle", "room_effect" }),
-        ("Integrations",    new[] { "group_toggle", "ha_toggle", "ha_scene", "ha_color", "ha_color_temp", "ha_service", "corsair_toggle", "govee_toggle", "govee_color", "govee_white_toggle", "obs_record", "obs_stream", "obs_scene", "obs_mute", "vm_mute_strip", "vm_mute_bus", "spotify_play_pause", "spotify_next", "spotify_prev", "spotify_shuffle", "spotify_like", "discord_toggle_mute", "discord_toggle_deafen", "discord_mute_on", "discord_mute_off", "discord_deafen_on", "discord_deafen_off", "discord_leave_voice", "discord_toggle_noise_suppression", "signalrgb_effect", "signalrgb_effect_cycle", "signalrgb_blackout", "signalrgb_restore" }),
+        ("Integrations",    new[] { "group_toggle", "ha_toggle", "ha_scene", "ha_color", "ha_color_temp", "ha_service", "corsair_toggle", "govee_toggle", "govee_color", "govee_white_toggle", "obs_record", "obs_stream", "obs_scene", "obs_mute", "vm_mute_strip", "vm_mute_bus", "spotify_play_pause", "spotify_next", "spotify_prev", "spotify_shuffle", "spotify_like", "pocketcasts_open", "pocketcasts_play_pause", "pocketcasts_skip_back", "pocketcasts_skip_forward", "discord_toggle_mute", "discord_toggle_deafen", "discord_mute_on", "discord_mute_off", "discord_deafen_on", "discord_deafen_off", "discord_leave_voice", "discord_toggle_noise_suppression", "signalrgb_effect", "signalrgb_effect_cycle", "signalrgb_blackout", "signalrgb_restore" }),
         ("Stream Controller", new[] { "sc_page_next", "sc_page_prev", "sc_page_home", "sc_go_to_page" }),
     };
 
@@ -1642,6 +1656,9 @@ public partial class ButtonsView : UserControl
         picker.AddActionGroup("group_spotify", "Spotify", "♪",
             Color.FromRgb(0x1D, 0xB9, 0x54),
             new[] { "spotify_play_pause", "spotify_next", "spotify_prev", "spotify_shuffle", "spotify_like" });
+        picker.AddActionGroup("group_pocketcasts", "Pocket Casts", "P",
+            Color.FromRgb(0xF4, 0x3E, 0x37),
+            new[] { "pocketcasts_open", "pocketcasts_play_pause", "pocketcasts_skip_back", "pocketcasts_skip_forward" });
 
         picker.BuildPopup();
     }
