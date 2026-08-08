@@ -4,6 +4,17 @@
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:controls="clr-namespace:AmpUp.Controls">
 
+    <UserControl.Resources>
+        <Style x:Key="SettingsSectionCard" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource InputBgBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Padding" Value="14" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+    </UserControl.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -291,7 +302,8 @@
                     </StackPanel>
 
                     <!-- Home Assistant -->
-                    <StackPanel x:Name="HomeAssistantIntegration" Margin="0,0,0,10">
+                    <Border x:Name="HomeAssistantIntegration" Style="{StaticResource SettingsSectionCard}">
+                    <StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                             <TextBlock Text="Home Assistant" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
                             <Ellipse x:Name="HaStatusDotHeader" Width="8" Height="8"
@@ -331,10 +343,10 @@
                                        Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
                         </StackPanel>
                     </StackPanel>
+                    </Border>
 
                     <!-- OBS Studio -->
-                    <Border x:Name="ObsIntegration" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0"
-                            Margin="0,10,0,0" Padding="0,10,0,0">
+                    <Border x:Name="ObsIntegration" Style="{StaticResource SettingsSectionCard}">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <TextBlock Text="OBS Studio" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
@@ -384,8 +396,7 @@
                     </Border>
 
                     <!-- Govee -->
-                    <Border x:Name="GoveeIntegration" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0"
-                            Margin="0,10,0,0" Padding="0,10,0,0">
+                    <Border x:Name="GoveeIntegration" Style="{StaticResource SettingsSectionCard}">
                         <StackPanel>
                             <TextBlock Text="Govee" Style="{StaticResource BodyText}" FontWeight="SemiBold" Margin="0,0,0,8" />
 
@@ -474,8 +485,7 @@
                     </Border>
 
                     <!-- VoiceMeeter -->
-                    <Border x:Name="VoiceMeeterIntegration" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0"
-                            Margin="0,10,0,0" Padding="0,10,0,0">
+                    <Border x:Name="VoiceMeeterIntegration" Style="{StaticResource SettingsSectionCard}">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <TextBlock Text="VoiceMeeter" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
@@ -492,8 +502,7 @@
                     </Border>
 
                     <!-- Corsair iCUE -->
-                    <Border x:Name="CorsairIntegration" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0"
-                            Margin="0,10,0,0" Padding="0,10,0,0">
+                    <Border x:Name="CorsairIntegration" Style="{StaticResource SettingsSectionCard}">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <TextBlock Text="Corsair iCUE" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
@@ -511,8 +520,7 @@
                     </Border>
 
                     <!-- SignalRGB -->
-                    <Border x:Name="SignalRgbIntegration" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0"
-                            Margin="0,10,0,0" Padding="0,10,0,0">
+                    <Border x:Name="SignalRgbIntegration" Style="{StaticResource SettingsSectionCard}">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <TextBlock Text="SignalRGB" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
@@ -616,8 +624,7 @@
                     </Border>
 
                     <!-- Discord -->
-                    <Border x:Name="DiscordIntegration" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0"
-                            Margin="0,10,0,0" Padding="0,10,0,0">
+                    <Border x:Name="DiscordIntegration" Style="{StaticResource SettingsSectionCard}">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <TextBlock Text="Discord" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
@@ -639,8 +646,7 @@
                     </Border>
 
                     <!-- Spotify -->
-                    <Border x:Name="SpotifyIntegration" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0"
-                            Margin="0,10,0,0" Padding="0,10,0,0">
+                    <Border x:Name="SpotifyIntegration" Style="{StaticResource SettingsSectionCard}">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <TextBlock Text="Spotify" Style="{StaticResource BodyText}" FontWeight="SemiBold" />

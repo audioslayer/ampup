@@ -276,7 +276,6 @@ public partial class SettingsView : UserControl
         GoveeIntegration.Visibility = showLighting ? Visibility.Visible : Visibility.Collapsed;
         CorsairIntegration.Visibility = showLighting ? Visibility.Visible : Visibility.Collapsed;
         SignalRgbIntegration.Visibility = showLighting ? Visibility.Visible : Visibility.Collapsed;
-        GoveeIntegration.BorderThickness = new Thickness(0);
 
         HomeAssistantIntegration.Visibility = showServices ? Visibility.Visible : Visibility.Collapsed;
         ObsIntegration.Visibility = showServices ? Visibility.Visible : Visibility.Collapsed;
