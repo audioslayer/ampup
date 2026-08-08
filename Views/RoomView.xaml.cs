@@ -6704,6 +6704,8 @@ public partial class RoomView : UserControl
                 return;
 
             bool detectedPoweredOn = false;
+            bool stateChanged = false;
+            var changedPowerStates = new List<string>();
             _loading = true;
             try
             {
@@ -6715,7 +6717,11 @@ public partial class RoomView : UserControl
                     if (_goveeManualControlRevisions.GetValueOrDefault(device) != queryRevision)
                         continue;
 
-                    detectedPoweredOn |= on && !device.PoweredOn && device.SyncWithAmpUp;
+                    bool powerChanged = device.PoweredOn != on;
+                    detectedPoweredOn |= on && powerChanged && device.SyncWithAmpUp;
+                    stateChanged |= powerChanged;
+                    if (powerChanged)
+                        changedPowerStates.Add($"{device.Name}={(on ? "on" : "off")}");
                     device.PoweredOn = on;
 
                     bool reflectDeviceBrightness = brightness > 0
@@ -6740,6 +6746,13 @@ public partial class RoomView : UserControl
             }
 
             UpdateTopBarStatus();
+
+            if (stateChanged)
+            {
+                _sync?.UpdateConfig(config.Ambience);
+                _onSave?.Invoke(config);
+                Logger.Log($"[Room] Govee power state updated: {string.Join(", ", changedPowerStates)}.");
+            }
 
             // The saved effect may have been suppressed earlier in startup
             // because every device still had a stale PoweredOn=false value.
