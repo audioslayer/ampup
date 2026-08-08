@@ -1,20 +1,17 @@
 using System.Diagnostics;
 using System.IO;
+using System.Windows.Automation;
 
 namespace AmpUp.Services;
 
 /// <summary>
 /// Direct controller for the Pocket Casts Windows desktop app. Playback
-/// commands are sent to Pocket Casts' own window with WM_APPCOMMAND, so they
-/// work in the background and cannot accidentally control another media app.
+/// commands invoke Pocket Casts' own accessible player buttons, so they work
+/// in the background and cannot accidentally control another media app.
 /// </summary>
 public sealed class PocketCastsIntegration
 {
     private const string ProcessName = "Pocket Casts";
-    private const uint WmAppCommand = 0x0319;
-    private const int AppCommandMediaNextTrack = 11;
-    private const int AppCommandMediaPreviousTrack = 12;
-    private const int AppCommandMediaPlayPause = 14;
 
     public async Task<bool> OpenAsync()
     {
@@ -31,16 +28,23 @@ public sealed class PocketCastsIntegration
         return true;
     }
 
-    public Task<bool> PlayPauseAsync() =>
-        SendAppCommandAsync("play/pause", AppCommandMediaPlayPause);
+    public Task<bool> PlayPauseAsync() => ExecutePlayerControlAsync(
+        "play/pause",
+        name => name is "Play" or "Pause",
+        useTogglePattern: true);
 
-    public Task<bool> SkipBackAsync() =>
-        SendAppCommandAsync("skip back", AppCommandMediaPreviousTrack);
+    public Task<bool> SkipBackAsync() => ExecutePlayerControlAsync(
+        "skip back",
+        name => name.StartsWith("Skip backwards", StringComparison.OrdinalIgnoreCase));
 
-    public Task<bool> SkipForwardAsync() =>
-        SendAppCommandAsync("skip forward", AppCommandMediaNextTrack);
+    public Task<bool> SkipForwardAsync() => ExecutePlayerControlAsync(
+        "skip forward",
+        name => name.StartsWith("Skip forwards", StringComparison.OrdinalIgnoreCase));
 
-    private static async Task<bool> SendAppCommandAsync(string actionName, int command)
+    private static async Task<bool> ExecutePlayerControlAsync(
+        string actionName,
+        Func<string, bool> nameMatches,
+        bool useTogglePattern = false)
     {
         try
         {
@@ -51,13 +55,39 @@ public sealed class PocketCastsIntegration
                 return false;
             }
 
-            NativeMethods.SendMessage(
-                window,
-                WmAppCommand,
-                window,
-                new IntPtr(command << 16));
-            Logger.Log($"Pocket Casts: {actionName} sent directly to the desktop app.");
-            return true;
+            return await Task.Run(() =>
+            {
+                var root = AutomationElement.FromHandle(window);
+                var buttons = root.FindAll(
+                    TreeScope.Descendants,
+                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button));
+
+                for (int i = 0; i < buttons.Count; i++)
+                {
+                    var button = buttons[i];
+                    string name = button.Current.Name ?? "";
+                    if (!nameMatches(name)) continue;
+
+                    if (useTogglePattern
+                        && button.TryGetCurrentPattern(TogglePattern.Pattern, out object toggleObject))
+                    {
+                        ((TogglePattern)toggleObject).Toggle();
+                        Logger.Log($"Pocket Casts: {actionName} invoked on its '{name}' control.");
+                        return true;
+                    }
+
+                    if (!useTogglePattern
+                        && button.TryGetCurrentPattern(InvokePattern.Pattern, out object invokeObject))
+                    {
+                        ((InvokePattern)invokeObject).Invoke();
+                        Logger.Log($"Pocket Casts: {actionName} invoked on its '{name}' control.");
+                        return true;
+                    }
+                }
+
+                Logger.Log($"Pocket Casts: cannot {actionName}; its player control was not found.");
+                return false;
+            });
         }
         catch (Exception ex)
         {
