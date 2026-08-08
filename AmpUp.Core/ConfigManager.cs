@@ -84,6 +84,72 @@ public static class ConfigManager
         return candidate;
     }
 
+    /// <summary>
+    /// Returns true when the five Turn Up knobs, buttons, and light slots still
+    /// match a newly-created profile. The last raw knob positions are ignored
+    /// because the hardware can populate them before the user assigns anything.
+    /// </summary>
+    public static bool IsTurnUpProfileEmpty(AppConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+
+        var knobs = config.Knobs
+            .Where(knob => knob.Idx is >= 0 and < 5)
+            .OrderBy(knob => knob.Idx)
+            .Select(knob => new
+            {
+                knob.Idx,
+                Label = knob.Label ?? "",
+                Target = knob.Target ?? "none",
+                DeviceId = knob.DeviceId ?? "",
+                knob.MinVolume,
+                knob.MaxVolume,
+                knob.Curve,
+                Apps = knob.Apps ?? new List<string>(),
+                knob.EncoderStep,
+            })
+            .ToList();
+        var defaultKnobs = Enumerable.Range(0, 5)
+            .Select(idx => new KnobConfig { Idx = idx })
+            .Select(knob => new
+            {
+                knob.Idx,
+                Label = knob.Label ?? "",
+                Target = knob.Target ?? "none",
+                DeviceId = knob.DeviceId ?? "",
+                knob.MinVolume,
+                knob.MaxVolume,
+                knob.Curve,
+                Apps = knob.Apps ?? new List<string>(),
+                knob.EncoderStep,
+            })
+            .ToList();
+
+        var buttons = config.Buttons
+            .Where(button => button.Idx is >= 0 and < 5)
+            .OrderBy(button => button.Idx)
+            .ToList();
+        var defaultButtons = Enumerable.Range(0, 5)
+            .Select(idx => new ButtonConfig { Idx = idx })
+            .ToList();
+
+        var lights = config.Lights
+            .Where(light => light.Idx is >= 0 and < 5)
+            .OrderBy(light => light.Idx)
+            .ToList();
+        var defaultLights = Enumerable.Range(0, 5)
+            .Select(idx => new LightConfig { Idx = idx, R = 0, G = 150, B = 255 })
+            .ToList();
+
+        return config.LedBrightness == 100
+            && knobs.Count == 5
+            && buttons.Count == 5
+            && lights.Count == 5
+            && JsonConvert.SerializeObject(knobs) == JsonConvert.SerializeObject(defaultKnobs)
+            && JsonConvert.SerializeObject(buttons) == JsonConvert.SerializeObject(defaultButtons)
+            && JsonConvert.SerializeObject(lights) == JsonConvert.SerializeObject(defaultLights);
+    }
+
     public static AppConfig Load()
     {
         var config = LoadJsonFile<AppConfig>(ConfigPath, "config", cfg => { if (cfg != null) NormalizeAndValidate(cfg); });

@@ -10,6 +10,7 @@ namespace AmpUp;
 public partial class ImportWizardWindow : Window
 {
     public IReadOnlyCollection<string> ExistingProfileNames { get; set; } = Array.Empty<string>();
+    public bool ImportIntoDefault { get; set; }
     public string? ImportedProfileName { get; private set; }
 
     private int _currentStep = 1;
@@ -508,8 +509,18 @@ public partial class ImportWizardWindow : Window
 
     private void BuildStep3()
     {
-        // Suggest profile name from Turn Up profile
-        ProfileNameBox.Text = _selectedProfile?.ProfileName ?? "Imported";
+        if (ImportIntoDefault)
+        {
+            ProfileNameLabel.Text = "Destination Profile";
+            ProfileNameBox.Text = "Default";
+            ProfileNameBox.IsReadOnly = true;
+        }
+        else
+        {
+            ProfileNameLabel.Text = "Profile Name";
+            ProfileNameBox.Text = _selectedProfile?.ProfileName ?? "Imported";
+            ProfileNameBox.IsReadOnly = false;
+        }
 
         // Build summary
         var knobSummary = new List<string>();
@@ -570,14 +581,15 @@ public partial class ImportWizardWindow : Window
 
     private void DoImport()
     {
-        var profileName = ProfileNameBox.Text.Trim();
+        var profileName = ImportIntoDefault ? "Default" : ProfileNameBox.Text.Trim();
         if (string.IsNullOrEmpty(profileName))
         {
             GlassDialog.ShowWarning("Please enter a profile name.", owner: this);
             return;
         }
 
-        profileName = ConfigManager.GetUniqueProfileName(ExistingProfileNames, profileName);
+        if (!ImportIntoDefault)
+            profileName = ConfigManager.GetUniqueProfileName(ExistingProfileNames, profileName);
 
         // Build the config
         var config = new AppConfig
@@ -597,10 +609,11 @@ public partial class ImportWizardWindow : Window
 
         Logger.Log($"Imported Turn Up profile \"{_selectedProfile?.ProfileName}\" as \"{profileName}\"");
 
-        GlassDialog.ShowInfo(
-            $"Profile \"{profileName}\" imported successfully!\n\n" +
-            "Switch to it in the Profiles dropdown, or fine-tune settings in the Mixer and Buttons tabs.",
-            "IMPORT COMPLETE", owner: this);
+        string completionMessage = ImportIntoDefault
+            ? "Your Turn Up settings were imported into the empty Default profile.\n\nYou can fine-tune them in the Mixer and Buttons tabs."
+            : $"Profile \"{profileName}\" imported successfully!\n\n" +
+              "Switch to it in the Profiles dropdown, or fine-tune settings in the Mixer and Buttons tabs.";
+        GlassDialog.ShowInfo(completionMessage, "IMPORT COMPLETE", owner: this);
 
         Close();
     }

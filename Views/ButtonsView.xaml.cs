@@ -2169,7 +2169,15 @@ public partial class ButtonsView : UserControl
         scroll.Content = panel;
 
         Window? procFlyout = null;
-        Action closeProcFlyout = () => { procFlyout?.Close(); procFlyout = null; };
+        Action closeProcFlyout = () =>
+        {
+            // Close() raises Deactivated while the window is already closing.
+            // Clear the shared reference first so that re-entrant callbacks are
+            // no-ops instead of trying to close the same WPF window twice.
+            var flyout = procFlyout;
+            procFlyout = null;
+            flyout?.Close();
+        };
 
         foreach (var proc in processes)
         {

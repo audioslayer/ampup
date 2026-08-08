@@ -110,7 +110,7 @@
 
             <!-- ── Step 3: Import ──────────────────────────── -->
             <StackPanel x:Name="Step3" Grid.Row="1" Visibility="Collapsed">
-                <TextBlock Text="Profile Name"
+                <TextBlock x:Name="ProfileNameLabel" Text="Profile Name"
                            FontFamily="Segoe UI" FontSize="12"
                            Foreground="#9A9A9A" Margin="0,0,0,6" />
 

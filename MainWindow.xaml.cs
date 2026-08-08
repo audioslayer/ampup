@@ -348,10 +348,15 @@ public partial class MainWindow : FluentWindow
 
     public void LaunchImportWizard()
     {
+        bool importIntoDefault = _config.Profiles.Count == 1
+            && string.Equals(_config.Profiles[0], "Default", StringComparison.OrdinalIgnoreCase)
+            && ConfigManager.IsTurnUpProfileEmpty(_config);
+
         var wizard = new ImportWizardWindow
         {
             Owner = this,
-            ExistingProfileNames = _config.Profiles.ToList()
+            ExistingProfileNames = _config.Profiles.ToList(),
+            ImportIntoDefault = importIntoDefault,
         };
         wizard.ShowDialog();
 

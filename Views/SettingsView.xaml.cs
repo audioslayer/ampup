@@ -1060,10 +1060,15 @@ public partial class SettingsView : UserControl
     {
         if (_config == null) return;
 
+        bool importIntoDefault = _config.Profiles.Count == 1
+            && string.Equals(_config.Profiles[0], "Default", StringComparison.OrdinalIgnoreCase)
+            && ConfigManager.IsTurnUpProfileEmpty(_config);
+
         var wizard = new ImportWizardWindow
         {
             Owner = Window.GetWindow(this),
-            ExistingProfileNames = _config.Profiles.ToList()
+            ExistingProfileNames = _config.Profiles.ToList(),
+            ImportIntoDefault = importIntoDefault,
         };
         wizard.ShowDialog();
 
