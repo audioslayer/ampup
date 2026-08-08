@@ -51,10 +51,14 @@ public partial class SettingsView : UserControl
     private bool _configLoaded;
     private bool _turnUpConnected;
     private bool _streamControllerConnected;
+    private readonly List<Border> _settingsTabs = new();
+    private int _settingsTabIndex;
 
     public SettingsView()
     {
         InitializeComponent();
+        BuildSettingsTabs();
+        ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshSettingsTabColors);
 
         _debounceTimer = new DispatcherTimer
         {
@@ -206,6 +210,99 @@ public partial class SettingsView : UserControl
         };
         CoffeeFooter.MouseEnter += (_, _) => CoffeeFooter.Opacity = 1.0;
         CoffeeFooter.MouseLeave += (_, _) => CoffeeFooter.Opacity = 0.85;
+    }
+
+    private void BuildSettingsTabs()
+    {
+        string[] tabNames = { "HARDWARE", "APP", "PROFILES", "LIGHTING", "SERVICES", "ABOUT" };
+        SettingsTabRow.Children.Clear();
+        _settingsTabs.Clear();
+
+        for (int i = 0; i < tabNames.Length; i++)
+        {
+            int index = i;
+            var tab = new Border
+            {
+                Padding = new Thickness(18, 10, 18, 10),
+                Cursor = Cursors.Hand,
+                BorderBrush = Brushes.Transparent,
+                BorderThickness = new Thickness(0, 0, 0, 2),
+                Background = Brushes.Transparent,
+                Child = new TextBlock
+                {
+                    Text = tabNames[i],
+                    FontSize = 11,
+                    FontWeight = FontWeights.SemiBold,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                },
+            };
+
+            tab.MouseEnter += (_, _) =>
+            {
+                if (index != _settingsTabIndex && tab.Child is TextBlock label)
+                    label.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+            };
+            tab.MouseLeave += (_, _) =>
+            {
+                if (index != _settingsTabIndex && tab.Child is TextBlock label)
+                    label.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+            };
+            tab.MouseLeftButtonDown += (_, _) => SelectSettingsTab(index);
+
+            _settingsTabs.Add(tab);
+            SettingsTabRow.Children.Add(tab);
+        }
+
+        SelectSettingsTab(_settingsTabIndex, scrollToTop: false);
+    }
+
+    private void SelectSettingsTab(int index, bool scrollToTop = true)
+    {
+        _settingsTabIndex = Math.Clamp(index, 0, _settingsTabs.Count - 1);
+        RefreshSettingsTabColors();
+
+        ConnectionCard.Visibility = _settingsTabIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
+        GeneralCard.Visibility = _settingsTabIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+        AppearanceCard.Visibility = _settingsTabIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+        ProfilesCard.Visibility = _settingsTabIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
+        BackupCard.Visibility = _settingsTabIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
+        IntegrationsCard.Visibility = _settingsTabIndex is 3 or 4 ? Visibility.Visible : Visibility.Collapsed;
+        AboutCard.Visibility = _settingsTabIndex == 5 ? Visibility.Visible : Visibility.Collapsed;
+
+        bool showLighting = _settingsTabIndex == 3;
+        bool showServices = _settingsTabIndex == 4;
+        IntegrationHeaderText.Text = showLighting ? "LIGHTING INTEGRATIONS" : "SERVICE INTEGRATIONS";
+
+        GoveeIntegration.Visibility = showLighting ? Visibility.Visible : Visibility.Collapsed;
+        CorsairIntegration.Visibility = showLighting ? Visibility.Visible : Visibility.Collapsed;
+        SignalRgbIntegration.Visibility = showLighting ? Visibility.Visible : Visibility.Collapsed;
+        GoveeIntegration.BorderThickness = new Thickness(0);
+
+        HomeAssistantIntegration.Visibility = showServices ? Visibility.Visible : Visibility.Collapsed;
+        ObsIntegration.Visibility = showServices ? Visibility.Visible : Visibility.Collapsed;
+        VoiceMeeterIntegration.Visibility = showServices ? Visibility.Visible : Visibility.Collapsed;
+        DiscordIntegration.Visibility = showServices ? Visibility.Visible : Visibility.Collapsed;
+        SpotifyIntegration.Visibility = showServices ? Visibility.Visible : Visibility.Collapsed;
+
+        if (scrollToTop)
+            SettingsScrollViewer.ScrollToTop();
+    }
+
+    private void RefreshSettingsTabColors()
+    {
+        for (int i = 0; i < _settingsTabs.Count; i++)
+        {
+            bool active = i == _settingsTabIndex;
+            Border tab = _settingsTabs[i];
+            tab.BorderBrush = active ? new SolidColorBrush(ThemeManager.Accent) : Brushes.Transparent;
+            if (tab.Child is not TextBlock label) continue;
+
+            label.FontWeight = active ? FontWeights.Bold : FontWeights.SemiBold;
+            if (active)
+                label.Foreground = new SolidColorBrush(ThemeManager.Accent);
+            else
+                label.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+        }
     }
 
     // Reference to AmbienceSync for LAN scanning (set from App.xaml.cs)
