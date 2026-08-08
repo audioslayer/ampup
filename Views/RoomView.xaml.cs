@@ -37,6 +37,8 @@ public partial class RoomView : UserControl
     private readonly Dictionary<GoveeDeviceConfig, int> _goveeManualControlRevisions = new();
     private readonly DispatcherTimer _goveeStateRefreshTimer;
     private bool _goveeStateRefreshInProgress;
+    private bool _goveeStateRefreshPending;
+    private bool _goveeStateRefreshPendingAllowHidden;
 
     // DreamView live preview swatches
     private readonly List<Border> _dreamZoneSwatches = new();
@@ -383,6 +385,11 @@ public partial class RoomView : UserControl
                     GoveeCloudApi.EnrichLanDevicesWithCloudNames(_config.Ambience.GoveeDevices, devices);
                 RebuildDevicePanel();
             });
+
+            // Loaded can fire before LoadConfig has created the cloud client.
+            // Re-query once device discovery completes; the refresh method
+            // coalesces this request if an earlier LAN-only query is active.
+            await RefreshGoveeDeviceStatesAsync(allowHidden: true);
         }
         catch (Exception ex)
         {
@@ -6669,7 +6676,11 @@ public partial class RoomView : UserControl
     private async Task RefreshGoveeDeviceStatesAsync(bool allowHidden = false)
     {
         if (_goveeStateRefreshInProgress)
+        {
+            _goveeStateRefreshPending = true;
+            _goveeStateRefreshPendingAllowHidden |= allowHidden;
             return;
+        }
         if (!allowHidden && (!IsVisible || Window.GetWindow(this)?.WindowState == WindowState.Minimized))
             return;
 
@@ -6752,6 +6763,15 @@ public partial class RoomView : UserControl
         finally
         {
             _goveeStateRefreshInProgress = false;
+
+            if (_goveeStateRefreshPending)
+            {
+                bool pendingAllowHidden = _goveeStateRefreshPendingAllowHidden;
+                _goveeStateRefreshPending = false;
+                _goveeStateRefreshPendingAllowHidden = false;
+                _ = Dispatcher.BeginInvoke(new Action(() =>
+                    _ = RefreshGoveeDeviceStatesAsync(pendingAllowHidden)));
+            }
         }
     }
 
