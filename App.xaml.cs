@@ -3114,7 +3114,8 @@ public partial class App : Application
         try
         {
             var corsair = _corsairSync;
-            var config = _config?.Corsair;
+            var appConfig = _config;
+            var config = appConfig?.Corsair;
             if (corsair?.IsAvailable != true || config?.Enabled != true)
                 return;
 
@@ -3124,8 +3125,19 @@ public partial class App : Application
             if (!string.Equals(config.LightSyncMode, "static", StringComparison.OrdinalIgnoreCase))
                 return;
 
+            // When Corsair follows the Global room effect, a persisted solid
+            // room color is the authoritative static color. Using Corsair's
+            // older per-device fallback here caused iCUE reconnects to restore
+            // (for example) green even though the active room color was red.
+            string savedColor = config.StaticColor;
+            bool followsGlobalSolid = config.SyncToGlobal
+                && string.Equals(appConfig?.Ambience.RoomEffect, "SingleColor", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(appConfig?.Ambience.RoomColor1);
+            if (followsGlobalSolid)
+                savedColor = appConfig!.Ambience.RoomColor1;
+
             Color color;
-            try { color = ColorTranslator.FromHtml(config.StaticColor); }
+            try { color = ColorTranslator.FromHtml(savedColor); }
             catch { color = Color.FromArgb(0, 230, 118); }
 
             float brightness = Math.Clamp(config.LightBrightness, 0, 200) / 100f;
@@ -3133,7 +3145,7 @@ public partial class App : Application
             byte g = (byte)Math.Clamp((int)Math.Round(color.G * brightness), 0, 255);
             byte b = (byte)Math.Clamp((int)Math.Round(color.B * brightness), 0, 255);
             await corsair.SetStaticColorAllAsync(r, g, b);
-            Logger.Log($"CorsairSync: restored static color {config.StaticColor} at {config.LightBrightness}% brightness");
+            Logger.Log($"CorsairSync: restored {(followsGlobalSolid ? "global room" : "static")} color {savedColor} at {config.LightBrightness}% brightness");
         }
         catch (Exception ex)
         {

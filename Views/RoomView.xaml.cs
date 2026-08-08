@@ -5965,6 +5965,15 @@ public partial class RoomView : UserControl
             _config.Ambience.RoomColor1 = $"#{color1.R:X2}{color1.G:X2}{color1.B:X2}";
             _config.Ambience.RoomColor2 = $"#{color2.R:X2}{color2.G:X2}{color2.B:X2}";
             _config.Ambience.RoomEffectSpeed = _roomEffectSpeed;
+
+            // Keep the reconnect/static fallback aligned with Global when a
+            // solid room color is selected. Also send it immediately below so
+            // LINK hubs do not depend on the first asynchronous effect frame.
+            if (_config.Corsair.SyncToGlobal
+                && string.Equals(patternId, LightEffect.SingleColor.ToString(), StringComparison.OrdinalIgnoreCase))
+            {
+                _config.Corsair.StaticColor = _config.Ambience.RoomColor1;
+            }
             _onSave?.Invoke(_config);
         }
 
@@ -5973,6 +5982,19 @@ public partial class RoomView : UserControl
         {
             _config.Ambience.LinkToLights = false;
             _config.Corsair.LightSyncMode = "static";
+        }
+
+        if (!corsairOnly
+            && _config?.Corsair.Enabled == true
+            && _config.Corsair.SyncToGlobal
+            && string.Equals(patternId, LightEffect.SingleColor.ToString(), StringComparison.OrdinalIgnoreCase)
+            && _corsairSync?.IsAvailable == true)
+        {
+            float boost = Math.Clamp(_config.Corsair.LightBrightness, 0, 200) / 100f;
+            byte r = (byte)Math.Clamp((int)Math.Round(color1.R * boost), 0, 255);
+            byte g = (byte)Math.Clamp((int)Math.Round(color1.G * boost), 0, 255);
+            byte b = (byte)Math.Clamp((int)Math.Round(color1.B * boost), 0, 255);
+            _ = _corsairSync.SetStaticColorAllAsync(r, g, b);
         }
 
         // Resume any paused sync (don't send brightness — it kicks segment devices out of razer mode)
