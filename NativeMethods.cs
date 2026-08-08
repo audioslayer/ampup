@@ -97,8 +97,22 @@ internal static class NativeMethods
         return !hasCaption;
     }
 
+    internal const int GWL_EXSTYLE = -20;
+    internal const long WS_EX_LAYERED = 0x00080000L;
+    internal const uint LWA_ALPHA = 0x00000002;
+
     [DllImport("user32.dll")]
-    private static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
+    internal static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
+    [DllImport("user32.dll")]
+    internal static extern bool SetLayeredWindowAttributes(
+        IntPtr hwnd,
+        uint colorKey,
+        byte alpha,
+        uint flags);
 
     [DllImport("user32.dll")]
     internal static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);

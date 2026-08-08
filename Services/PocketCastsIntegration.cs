@@ -59,38 +59,48 @@ public sealed class PocketCastsIntegration
             {
                 IntPtr foregroundBefore = NativeMethods.GetForegroundWindow();
                 bool wasMinimized = NativeMethods.IsIconic(window);
-                var root = AutomationElement.FromHandle(window);
-                var buttons = root.FindAll(
-                    TreeScope.Descendants,
-                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button));
+                bool shielded = TryMakeWindowTransparent(window, foregroundBefore, out IntPtr originalExStyle);
 
-                for (int i = 0; i < buttons.Count; i++)
+                try
                 {
-                    var button = buttons[i];
-                    string name = button.Current.Name ?? "";
-                    if (!nameMatches(name)) continue;
+                    var root = AutomationElement.FromHandle(window);
+                    var buttons = root.FindAll(
+                        TreeScope.Descendants,
+                        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button));
 
-                    if (useTogglePattern
-                        && button.TryGetCurrentPattern(TogglePattern.Pattern, out object toggleObject))
+                    for (int i = 0; i < buttons.Count; i++)
                     {
-                        ((TogglePattern)toggleObject).Toggle();
-                        RestorePreviousWindow(window, foregroundBefore, wasMinimized);
-                        Logger.Log($"Pocket Casts: {actionName} invoked on its '{name}' control.");
-                        return true;
+                        var button = buttons[i];
+                        string name = button.Current.Name ?? "";
+                        if (!nameMatches(name)) continue;
+
+                        if (useTogglePattern
+                            && button.TryGetCurrentPattern(TogglePattern.Pattern, out object toggleObject))
+                        {
+                            ((TogglePattern)toggleObject).Toggle();
+                            RestorePreviousWindow(window, foregroundBefore, wasMinimized);
+                            Logger.Log($"Pocket Casts: {actionName} invoked on its '{name}' control.");
+                            return true;
+                        }
+
+                        if (!useTogglePattern
+                            && button.TryGetCurrentPattern(InvokePattern.Pattern, out object invokeObject))
+                        {
+                            ((InvokePattern)invokeObject).Invoke();
+                            RestorePreviousWindow(window, foregroundBefore, wasMinimized);
+                            Logger.Log($"Pocket Casts: {actionName} invoked on its '{name}' control.");
+                            return true;
+                        }
                     }
 
-                    if (!useTogglePattern
-                        && button.TryGetCurrentPattern(InvokePattern.Pattern, out object invokeObject))
-                    {
-                        ((InvokePattern)invokeObject).Invoke();
-                        RestorePreviousWindow(window, foregroundBefore, wasMinimized);
-                        Logger.Log($"Pocket Casts: {actionName} invoked on its '{name}' control.");
-                        return true;
-                    }
+                    Logger.Log($"Pocket Casts: cannot {actionName}; its player control was not found.");
+                    return false;
                 }
-
-                Logger.Log($"Pocket Casts: cannot {actionName}; its player control was not found.");
-                return false;
+                finally
+                {
+                    if (shielded)
+                        NativeMethods.SetWindowLongPtr(window, NativeMethods.GWL_EXSTYLE, originalExStyle);
+                }
             });
         }
         catch (Exception ex)
@@ -98,6 +108,40 @@ public sealed class PocketCastsIntegration
             Logger.Log($"Pocket Casts: {actionName} failed - {ex.Message}");
             return false;
         }
+    }
+
+    private static bool TryMakeWindowTransparent(
+        IntPtr pocketCastsWindow,
+        IntPtr foregroundBefore,
+        out IntPtr originalExStyle)
+    {
+        originalExStyle = NativeMethods.GetWindowLongPtr(pocketCastsWindow, NativeMethods.GWL_EXSTYLE);
+
+        // No shield is needed while the user is already working in Pocket Casts.
+        // Avoid changing a window that already owns custom layered-window state,
+        // since its original alpha cannot be inferred safely.
+        if (foregroundBefore == pocketCastsWindow
+            || (originalExStyle.ToInt64() & NativeMethods.WS_EX_LAYERED) != 0)
+            return false;
+
+        var transparentStyle = new IntPtr(originalExStyle.ToInt64() | NativeMethods.WS_EX_LAYERED);
+        NativeMethods.SetWindowLongPtr(
+            pocketCastsWindow,
+            NativeMethods.GWL_EXSTYLE,
+            transparentStyle);
+
+        if (NativeMethods.SetLayeredWindowAttributes(
+            pocketCastsWindow,
+            0,
+            0,
+            NativeMethods.LWA_ALPHA))
+            return true;
+
+        NativeMethods.SetWindowLongPtr(
+            pocketCastsWindow,
+            NativeMethods.GWL_EXSTYLE,
+            originalExStyle);
+        return false;
     }
 
     private static void RestorePreviousWindow(
