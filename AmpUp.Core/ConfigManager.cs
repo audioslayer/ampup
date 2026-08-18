@@ -303,6 +303,9 @@ public static class ConfigManager
             if (looksUntouched)
                 key.Title = "";
         }
+        NormalizeN3EncoderContexts(config.N3.EncoderContexts);
+        foreach (var folder in config.N3.Folders)
+            NormalizeN3EncoderContexts(folder.EncoderContexts);
         for (int i = 0; i < 5; i++)
         {
             if (!config.Lights.Any(l => l.Idx == i))
@@ -334,6 +337,29 @@ public static class ConfigManager
         NormalizeDeviceSurfaceSelections(config);
         MigrateLegacyProfileFiles(config.Profiles);
         return config;
+    }
+
+    private static void NormalizeN3EncoderContexts(List<N3EncoderContextConfig> contexts)
+    {
+        contexts.RemoveAll(context => context.Page < -1);
+        foreach (var context in contexts)
+        {
+            context.Knobs.RemoveAll(knob => knob.Idx is < 0 or > 2);
+
+            var seen = new HashSet<int>();
+            for (int i = context.Knobs.Count - 1; i >= 0; i--)
+            {
+                if (!seen.Add(context.Knobs[i].Idx))
+                    context.Knobs.RemoveAt(i);
+            }
+        }
+
+        var seenPages = new HashSet<int>();
+        for (int i = contexts.Count - 1; i >= 0; i--)
+        {
+            if (!seenPages.Add(contexts[i].Page))
+                contexts.RemoveAt(i);
+        }
     }
 
     private static void NormalizeProfileMetadata(AppConfig config)

@@ -258,6 +258,22 @@ public class ButtonFolderConfig
     /// back behavior.
     /// </summary>
     public bool BackKeyEnabled { get; set; } = true;
+    /// <summary>
+    /// Optional encoder overrides scoped to this Space. Page -1 applies to
+    /// every page in the Space; page-specific entries take precedence.
+    /// Missing encoder indexes inherit from the global N3 knob assignment.
+    /// </summary>
+    public List<N3EncoderContextConfig> EncoderContexts { get; set; } = new();
+}
+
+/// <summary>
+/// Contextual N3 encoder assignments for one Space or one page within it.
+/// Page -1 is the Space-wide layer; page 0+ is a page-specific layer.
+/// </summary>
+public class N3EncoderContextConfig
+{
+    public int Page { get; set; } = -1;
+    public List<KnobConfig> Knobs { get; set; } = new();
 }
 
 public class DeviceColorEntry
@@ -377,6 +393,11 @@ public class N3Config
     public List<KnobConfig> Knobs { get; set; } = new();
     public List<ButtonConfig> Buttons { get; set; } = new();
     public List<StreamControllerDisplayKeyConfig> DisplayKeys { get; set; } = new();
+    /// <summary>
+    /// Encoder overrides for the Home Space. Named Spaces keep their own
+    /// contexts on <see cref="ButtonFolderConfig.EncoderContexts"/>.
+    /// </summary>
+    public List<N3EncoderContextConfig> EncoderContexts { get; set; } = new();
     public int DisplayBrightness { get; set; } = 100;
     /// <summary>
     /// Legacy field (kept for backwards-compat migration). Older builds saved

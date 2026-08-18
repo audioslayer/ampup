@@ -51,4 +51,31 @@ public static class VolumePipeline
     {
         return ComputeVolume(rawValue, knob.MinVolume, knob.MaxVolume, knob.Curve);
     }
+
+    /// <summary>
+    /// Inverse of <see cref="ComputeVolume(int, KnobConfig)"/>. Converts a
+    /// live target volume back into the encoder's raw 0-1023 position so an
+    /// infinite encoder can continue from the target's current value without
+    /// jumping when its Space or page binding changes.
+    /// </summary>
+    public static int ComputeRawValue(float volume, KnobConfig knob)
+    {
+        float min = Math.Clamp(knob.MinVolume, 0, 100) / 100f;
+        float max = Math.Clamp(knob.MaxVolume, 0, 100) / 100f;
+        if (max <= min) max = Math.Min(1f, min + 0.01f);
+
+        float curved = max > min
+            ? Math.Clamp((volume - min) / (max - min), 0f, 1f)
+            : 0f;
+
+        float raw = knob.Curve switch
+        {
+            ResponseCurve.Logarithmic => (float)((Math.Pow(10.0, curved) - 1.0) / 9.0),
+            ResponseCurve.Exponential => MathF.Sqrt(curved),
+            ResponseCurve.Exponential2 => MathF.Pow(curved, 1f / 3f),
+            _ => curved,
+        };
+
+        return Math.Clamp((int)Math.Round(raw * 1023f), 0, 1023);
+    }
 }

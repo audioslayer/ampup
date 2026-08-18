@@ -1231,6 +1231,7 @@ public partial class ButtonsView
         // Remove configs for the last page — folder-aware.
         keys.RemoveAll(k => k.Idx >= startIdx && k.Idx < startIdx + StreamControllerKeysPerPage);
         btns.RemoveAll(b => b.Idx >= btnStart && b.Idx < btnStart + StreamControllerKeysPerPage);
+        RemoveActiveEditorEncoderPageOverrides(removedPage);
 
         _scPageCount--;
         SetActiveN3PageCount(_scPageCount);

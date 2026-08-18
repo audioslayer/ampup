@@ -1633,10 +1633,16 @@ public partial class ButtonsView
         {
             int buttonIdx = StreamControllerEncoderPressBase + i;
             var press = _config.N3.Buttons.FirstOrDefault(b => b.Idx == buttonIdx);
+            var rotation = GetEffectiveEditorEncoderBinding(i);
             bool selected = _scSelectedButtonIdx == buttonIdx;
 
             if (i < _v2HwEncoderSubs.Count)
-                _v2HwEncoderSubs[i].Text = GetStreamActionDisplay(press);
+            {
+                string rotateLabel = FormatN3EncoderTarget(rotation?.Target);
+                string pressLabel = GetStreamActionDisplay(press);
+                _v2HwEncoderSubs[i].Text = $"{rotateLabel} / {pressLabel}";
+                _v2HwEncoderSubs[i].ToolTip = $"Rotate: {rotateLabel}\nPress: {pressLabel}";
+            }
             // Tag holds the outerRim Ellipse — drive its Stroke for selection
             // instead of the wrapping Border (which is transparent chrome).
             if (_v2HwEncoderRings[i].Tag is Ellipse rim)

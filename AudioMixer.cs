@@ -515,6 +515,17 @@ public class AudioMixer : IDisposable
         }
     }
 
+    /// <summary>
+    /// Forget the last raw value for one hardware control. Contextual N3
+    /// encoder bindings call this when a knob starts controlling a different
+    /// target so an equal raw value is still applied to the new target.
+    /// </summary>
+    public void ResetVolumeDebounce(int debounceKey)
+    {
+        lock (_lastValuesLock)
+            _lastValues.Remove(debounceKey);
+    }
+
     private void SetDeviceVolume(string deviceId, DataFlow dataFlow, float vol)
     {
         if (string.IsNullOrEmpty(deviceId))

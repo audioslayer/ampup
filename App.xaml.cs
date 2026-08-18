@@ -177,6 +177,7 @@ public partial class App : Application
     /// </summary>
     public static readonly float[] KnobPositions = { 1f, 1f, 1f, 1f, 1f };
     public static readonly float[] StreamControllerKnobPositions = { 1f, 1f, 1f };
+    private readonly KnobConfig?[] _lastEffectiveN3Knobs = new KnobConfig?[3];
     public static RgbController? Rgb { get; private set; }
     public static AudioAnalyzer? AudioAnalyzer { get; private set; }
     internal static HardwareMonitorService? HardwareMonitor => (Current as App)?._hardwareMonitor;
@@ -2115,7 +2116,7 @@ public partial class App : Application
     private KnobConfig? GetKnobConfigByStateIndex(int stateIdx)
     {
         if (stateIdx >= N3KnobStateBase)
-            return _config.N3.Knobs.FirstOrDefault(k => k.Idx == stateIdx - N3KnobStateBase);
+            return GetEffectiveN3KnobConfig(stateIdx - N3KnobStateBase);
         return _config.Knobs.FirstOrDefault(k => k.Idx == stateIdx);
     }
 
@@ -2314,8 +2315,17 @@ public partial class App : Application
             return;
         }
 
-        var knob = _config.N3.Knobs.FirstOrDefault(k => k.Idx == e.Index);
+        var knob = GetEffectiveN3KnobConfig(e.Index);
         if (knob == null) return;
+
+        int stateIdx = N3KnobStateBase + e.Index;
+        if (!ReferenceEquals(_lastEffectiveN3Knobs[e.Index], knob))
+        {
+            _lastEffectiveN3Knobs[e.Index] = knob;
+            _mixer.ResetVolumeDebounce(stateIdx);
+            _lastOsdValue[stateIdx] = -1;
+            _pendingOsdValue[stateIdx] = -1;
+        }
 
         // Stream Controller navigation targets — twist the encoder to
         // cycle Spaces or pages. Discrete: one detent = one step, sign
@@ -2331,9 +2341,18 @@ public partial class App : Application
             return;
         }
 
-        int current = knob.LastRawValue >= 0
-            ? knob.LastRawValue
-            : (int)Math.Round(StreamControllerKnobPositions[e.Index] * 1023f);
+        int current;
+        if (CanReadN3TargetVolume(knob.Target))
+        {
+            float liveVolume = _mixer.GetVolume(knob);
+            current = VolumePipeline.ComputeRawValue(liveVolume, knob);
+        }
+        else
+        {
+            current = knob.LastRawValue >= 0
+                ? knob.LastRawValue
+                : (int)Math.Round(StreamControllerKnobPositions[e.Index] * 1023f);
+        }
 
         // Per-encoder step (digital wheel). Falls back to the legacy global EncoderStep
         // if the per-encoder field is somehow zero/negative (e.g. malformed config).
@@ -2341,7 +2360,41 @@ public partial class App : Application
         step = Math.Clamp(step, 1, 128);
         int next = Math.Clamp(current + (e.Delta * step), 0, 1023);
         StreamControllerKnobPositions[e.Index] = next / 1023f;
-        ApplyKnobConfig(knob, next, N3KnobStateBase + e.Index, false);
+        ApplyKnobConfig(knob, next, stateIdx, false);
+    }
+
+    private KnobConfig? GetEffectiveN3KnobConfig(int encoderIdx)
+    {
+        if (_config == null) return null;
+
+        var contexts = GetActiveFolder()?.EncoderContexts ?? _config.N3.EncoderContexts;
+        var pageKnob = contexts.FirstOrDefault(c => c.Page == _config.N3.CurrentPage)
+            ?.Knobs.FirstOrDefault(k => k.Idx == encoderIdx);
+        if (pageKnob != null) return pageKnob;
+
+        var spaceKnob = contexts.FirstOrDefault(c => c.Page == -1)
+            ?.Knobs.FirstOrDefault(k => k.Idx == encoderIdx);
+        return spaceKnob ?? _config.N3.Knobs.FirstOrDefault(k => k.Idx == encoderIdx);
+    }
+
+    private static bool CanReadN3TargetVolume(string? target)
+    {
+        if (string.IsNullOrWhiteSpace(target)) return false;
+        var normalized = target.ToLowerInvariant();
+        return normalized != "none"
+            && normalized != "monitor"
+            && normalized != "led_brightness"
+            && normalized != "room_lights"
+            && normalized != "govee"
+            && normalized != "corsair_pump_fan"
+            && normalized != "corsair_case_fan"
+            && normalized != "sc_space_cycle"
+            && normalized != "sc_page_cycle"
+            && !normalized.StartsWith("ha_", StringComparison.Ordinal)
+            && !normalized.StartsWith("group:", StringComparison.Ordinal)
+            && !normalized.StartsWith("govee:", StringComparison.Ordinal)
+            && !normalized.StartsWith("vm_strip:", StringComparison.Ordinal)
+            && !normalized.StartsWith("vm_bus:", StringComparison.Ordinal);
     }
 
     /// <summary>

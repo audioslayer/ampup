@@ -502,6 +502,8 @@ public partial class ButtonsView
     {
         if (_v2ActionPanel == null) return;
 
+        BuildV2EncoderRotationEditor();
+
         // Gesture bar for side buttons + encoder presses — hidden for LCD keys.
         _v2GestureBar = BuildV2GestureBar();
         _v2ActionPanel.Children.Add(_v2GestureBar);
@@ -726,6 +728,7 @@ public partial class ButtonsView
         if (_v2PreviewPanel == null && _v2ActionPanel == null) return;
 
         var selection = DescribeSelection(_scSelectedButtonIdx);
+        RefreshV2EncoderRotationEditor();
 
         // ── Header label ────────────────────────────────────────────────
         // Prefer the user's custom label if set, otherwise fall back to the
