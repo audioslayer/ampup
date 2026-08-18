@@ -1395,6 +1395,8 @@ public partial class ButtonsView : UserControl
             _holdPowerSegments[i].AccentColor = accent;
             _holdCycleDevicePickers[i].AccentColor = accent;
         }
+
+        RefreshV2EncoderRotationAccent();
     }
 
     private Border MakeSeparator(int spacing = 10)

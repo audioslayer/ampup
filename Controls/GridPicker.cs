@@ -77,6 +77,8 @@ public class GridPicker : Border
         { "DEVICES",      ("\u2B21", Color.FromRgb(0xBA, 0x68, 0xC8)) },  // purple
         { "INTEGRATIONS", ("\u25C8", Color.FromRgb(0xFF, 0xB7, 0x4D)) },  // amber
         { "APPS",         ("\u25C9", Color.FromRgb(0x66, 0xBB, 0x6A)) },  // green
+        { "LIGHTING",     ("\u2600", Color.FromRgb(0xFF, 0xD5, 0x4F)) },  // yellow
+        { "STREAM CONTROLLER", ("\u229E", Color.FromRgb(0x26, 0xC6, 0xDA)) }, // teal
     };
 
     public record SubItem(string Display, string Tag, string? Icon = null, Color? IconColor = null);

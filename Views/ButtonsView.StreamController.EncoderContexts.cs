@@ -1,7 +1,11 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using AmpUp.Controls;
+using Material.Icons;
+using Material.Icons.WPF;
 
 namespace AmpUp.Views;
 
@@ -15,10 +19,15 @@ public partial class ButtonsView
     }
 
     private Border? _v2EncoderRotationCard;
+    private Border? _v2EncoderRotationBody;
+    private Border? _v2EncoderRotationHeader;
+    private Border? _v2EncoderRotationAccentIcon;
+    private TextBlock? _v2EncoderRotationSummary;
+    private MaterialIcon? _v2EncoderRotationChevron;
     private SegmentedControl? _v2EncoderScopePicker;
     private CheckBox? _v2EncoderOverrideCheck;
     private TextBlock? _v2EncoderContextHint;
-    private ListPicker? _v2EncoderTargetPicker;
+    private GridPicker? _v2EncoderTargetPicker;
     private TextBox? _v2EncoderCustomTargetBox;
     private TextBox? _v2EncoderLabelBox;
     private StyledSlider? _v2EncoderSensitivitySlider;
@@ -27,22 +36,7 @@ public partial class ButtonsView
     private TextBlock? _v2EncoderRangeLabel;
     private TextBlock? _v2EncoderEffectiveLabel;
     private N3EncoderEditScope _v2EncoderEditScope = N3EncoderEditScope.Page;
-
-    private static readonly (string Label, string Target)[] N3ContextTargetOptions =
-    {
-        ("None", "none"),
-        ("Master Volume", "master"),
-        ("Microphone", "mic"),
-        ("Active Window", "active_window"),
-        ("System Sounds", "system"),
-        ("Automatic App", "any"),
-        ("Discord", "discord"),
-        ("Spotify", "spotify"),
-        ("Chrome", "chrome"),
-        ("Cycle Spaces", "sc_space_cycle"),
-        ("Cycle Pages", "sc_page_cycle"),
-        ("Custom App / Process", "__custom__"),
-    };
+    private bool _v2EncoderRotationExpanded;
 
     private void BuildV2EncoderRotationEditor()
     {
@@ -87,10 +81,13 @@ public partial class ButtonsView
         _v2EncoderOverrideCheck.Unchecked += (_, _) => ToggleV2EncoderOverride(false);
         content.Children.Add(_v2EncoderOverrideCheck);
 
-        content.Children.Add(MakeEncoderEditorLabel("TARGET"));
-        _v2EncoderTargetPicker = new ListPicker { Margin = new Thickness(0, 0, 0, 8) };
-        foreach (var option in N3ContextTargetOptions)
-            _v2EncoderTargetPicker.AddItem(option.Label, option.Target);
+        content.Children.Add(MakeEncoderEditorLabel("CONTROL TARGET"));
+        _v2EncoderTargetPicker = new GridPicker
+        {
+            Margin = new Thickness(0, 0, 0, 8),
+            ToolTip = "Choose what turning this encoder controls",
+        };
+        PopulateV2EncoderTargetPicker();
         _v2EncoderTargetPicker.SelectionChanged += (_, _) => SaveV2EncoderTarget();
         content.Children.Add(_v2EncoderTargetPicker);
 
@@ -142,11 +139,200 @@ public partial class ButtonsView
             Foreground = new SolidColorBrush(ThemeManager.Accent),
             TextWrapping = TextWrapping.Wrap,
         };
-        content.Children.Add(_v2EncoderEffectiveLabel);
+        var effectivePill = new Border
+        {
+            CornerRadius = new CornerRadius(7),
+            Padding = new Thickness(10, 7, 10, 7),
+            Background = new SolidColorBrush(Color.FromArgb(
+                0x12, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
+            Child = _v2EncoderEffectiveLabel,
+        };
+        content.Children.Add(effectivePill);
 
-        _v2EncoderRotationCard = MakeV2CommonFieldCard("ROTATION", content);
+        _v2EncoderRotationCard = MakeV2EncoderRotationCard(content);
         _v2EncoderRotationCard.Visibility = Visibility.Collapsed;
         _v2ActionPanel.Children.Add(_v2EncoderRotationCard);
+    }
+
+    private void PopulateV2EncoderTargetPicker()
+    {
+        if (_v2EncoderTargetPicker == null) return;
+
+        var picker = _v2EncoderTargetPicker;
+        var muted = Color.FromRgb(0x88, 0x88, 0x88);
+        var blue = Color.FromRgb(0x42, 0xA5, 0xF5);
+        var green = Color.FromRgb(0x66, 0xBB, 0x6A);
+        var red = Color.FromRgb(0xEF, 0x53, 0x50);
+        var teal = Color.FromRgb(0x26, 0xC6, 0xDA);
+        var purple = Color.FromRgb(0xAB, 0x47, 0xBC);
+        var orange = Color.FromRgb(0xFF, 0xA7, 0x26);
+        var yellow = Color.FromRgb(0xFF, 0xD5, 0x4F);
+
+        picker.AddCategory("Audio");
+        picker.AddItem("None", "none", "-", muted);
+        picker.AddItem("Master Volume", "master", "\u266A", green);
+        picker.AddItem("Microphone", "mic", "\u25CE", red);
+        picker.AddItem("Active Window", "active_window", "\u25A3", purple);
+        picker.AddItem("System Sounds", "system", "\u25C6", blue);
+        picker.AddItem("Automatic App", "any", "\u25C8", teal);
+
+        picker.AddCategory("Lighting");
+        picker.AddItem("Room Brightness", "room_lights", "\u2600", yellow,
+            "All configured room lights");
+        picker.AddItem("AmpUp LED Brightness", "led_brightness", "\u25C9", orange,
+            "Turn Up hardware LEDs");
+        picker.AddItem("Monitor Brightness", "monitor", "\u25AD", orange,
+            "Primary display");
+
+        picker.AddCategory("Apps");
+        picker.AddItem("Discord", "discord", "D", Color.FromRgb(0x58, 0x65, 0xF2));
+        picker.AddItem("Spotify", "spotify", "\u266A", Color.FromRgb(0x1D, 0xB9, 0x54));
+        picker.AddItem("Chrome", "chrome", "C", Color.FromRgb(0x42, 0x85, 0xF4));
+        picker.AddItem("Custom App / Process", "__custom__", "+", teal);
+
+        picker.AddCategory("Stream Controller");
+        picker.AddItem("Cycle Spaces", "sc_space_cycle", "\u229E", teal);
+        picker.AddItem("Cycle Pages", "sc_page_cycle", "\u25A4", orange);
+    }
+
+    private Border MakeV2EncoderRotationCard(UIElement content)
+    {
+        var accent = ThemeManager.Accent;
+        var cardStack = new StackPanel();
+
+        var headerGrid = new Grid();
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        _v2EncoderRotationAccentIcon = new Border
+        {
+            Width = 34,
+            Height = 34,
+            CornerRadius = new CornerRadius(9),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, accent.R, accent.G, accent.B)),
+            Background = new SolidColorBrush(Color.FromArgb(0x16, accent.R, accent.G, accent.B)),
+            Child = new TextBlock
+            {
+                Text = "\u21BB",
+                FontSize = 19,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(accent),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            },
+        };
+        Grid.SetColumn(_v2EncoderRotationAccentIcon, 0);
+        headerGrid.Children.Add(_v2EncoderRotationAccentIcon);
+
+        var titleStack = new StackPanel
+        {
+            Margin = new Thickness(11, 0, 10, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        titleStack.Children.Add(new TextBlock
+        {
+            Text = "ROTATION",
+            FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextPrimaryBrush"),
+        });
+        _v2EncoderRotationSummary = new TextBlock
+        {
+            Text = "Choose what this encoder controls",
+            FontSize = 9.5,
+            Foreground = FindBrush("TextDimBrush"),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(0, 2, 0, 0),
+        };
+        titleStack.Children.Add(_v2EncoderRotationSummary);
+        Grid.SetColumn(titleStack, 1);
+        headerGrid.Children.Add(titleStack);
+
+        _v2EncoderRotationChevron = new MaterialIcon
+        {
+            Kind = MaterialIconKind.ChevronDown,
+            Width = 20,
+            Height = 20,
+            Foreground = FindBrush("TextDimBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(_v2EncoderRotationChevron, 2);
+        headerGrid.Children.Add(_v2EncoderRotationChevron);
+
+        _v2EncoderRotationHeader = new Border
+        {
+            Padding = new Thickness(13, 11, 13, 11),
+            Background = Brushes.Transparent,
+            Cursor = Cursors.Hand,
+            Child = headerGrid,
+            ToolTip = "Expand rotation settings",
+        };
+        _v2EncoderRotationHeader.MouseEnter += (_, _) =>
+            _v2EncoderRotationHeader.Background = new SolidColorBrush(
+                Color.FromArgb(0x0C, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
+        _v2EncoderRotationHeader.MouseLeave += (_, _) =>
+            _v2EncoderRotationHeader.Background = Brushes.Transparent;
+        _v2EncoderRotationHeader.MouseLeftButtonUp += (_, e) =>
+        {
+            SetV2EncoderRotationExpanded(!_v2EncoderRotationExpanded);
+            e.Handled = true;
+        };
+        cardStack.Children.Add(_v2EncoderRotationHeader);
+
+        _v2EncoderRotationBody = new Border
+        {
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Padding = new Thickness(13, 14, 13, 13),
+            Visibility = Visibility.Collapsed,
+            Opacity = 0,
+            Child = content,
+        };
+        _v2EncoderRotationBody.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        cardStack.Children.Add(_v2EncoderRotationBody);
+
+        var card = new Border
+        {
+            CornerRadius = new CornerRadius(12),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(0, 0, 0, 12),
+            ClipToBounds = true,
+            Child = cardStack,
+        };
+        card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        SetV2EncoderRotationExpanded(false);
+        return card;
+    }
+
+    private void SetV2EncoderRotationExpanded(bool expanded)
+    {
+        _v2EncoderRotationExpanded = expanded;
+        if (_v2EncoderRotationChevron != null)
+            _v2EncoderRotationChevron.Kind = expanded
+                ? MaterialIconKind.ChevronUp
+                : MaterialIconKind.ChevronDown;
+        if (_v2EncoderRotationHeader != null)
+            _v2EncoderRotationHeader.ToolTip = expanded
+                ? "Collapse rotation settings"
+                : "Expand rotation settings";
+        if (_v2EncoderRotationBody == null) return;
+
+        _v2EncoderRotationBody.BeginAnimation(UIElement.OpacityProperty, null);
+        if (!expanded)
+        {
+            _v2EncoderRotationBody.Opacity = 0;
+            _v2EncoderRotationBody.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        _v2EncoderRotationBody.Visibility = Visibility.Visible;
+        _v2EncoderRotationBody.BeginAnimation(UIElement.OpacityProperty,
+            new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(140))
+            {
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
+            });
     }
 
     private TextBlock MakeEncoderEditorLabel(string text) => new()
@@ -350,7 +536,7 @@ public partial class ButtonsView
         knob.MinVolume = (int)Math.Round(_v2EncoderRangeSlider.LowerValue);
         knob.MaxVolume = (int)Math.Round(_v2EncoderRangeSlider.UpperValue);
         if (_v2EncoderRangeLabel != null)
-            _v2EncoderRangeLabel.Text = $"VOLUME RANGE: {knob.MinVolume}-{knob.MaxVolume}%";
+            _v2EncoderRangeLabel.Text = $"{GetN3EncoderRangeName(knob.Target)}: {knob.MinVolume}-{knob.MaxVolume}%";
         QueueSave();
     }
 
@@ -415,18 +601,20 @@ public partial class ButtonsView
                 _v2EncoderRangeSlider.IsEnabled = editable;
             }
             if (_v2EncoderRangeLabel != null)
-                _v2EncoderRangeLabel.Text = $"VOLUME RANGE: {shown.MinVolume}-{shown.MaxVolume}%";
+                _v2EncoderRangeLabel.Text = $"{GetN3EncoderRangeName(shown.Target)}: {shown.MinVolume}-{shown.MaxVolume}%";
 
             var effective = GetEffectiveEditorEncoderBinding(encoderIdx);
+            string source = GetExactEditorEncoderBinding(N3EncoderEditScope.Page, encoderIdx) != null
+                ? "this page"
+                : GetExactEditorEncoderBinding(N3EncoderEditScope.Space, encoderIdx) != null
+                    ? "this Space"
+                    : "global";
             if (_v2EncoderEffectiveLabel != null)
             {
-                string source = GetExactEditorEncoderBinding(N3EncoderEditScope.Page, encoderIdx) != null
-                    ? "this page"
-                    : GetExactEditorEncoderBinding(N3EncoderEditScope.Space, encoderIdx) != null
-                        ? "this Space"
-                        : "global";
                 _v2EncoderEffectiveLabel.Text = $"Effective now: {FormatN3EncoderTarget(effective?.Target)} ({source})";
             }
+            if (_v2EncoderRotationSummary != null)
+                _v2EncoderRotationSummary.Text = $"{FormatN3EncoderTarget(effective?.Target)}  ·  {source}";
         }
         finally
         {
@@ -472,6 +660,9 @@ public partial class ButtonsView
             "active_window" => "Active Window",
             "system" => "System Sounds",
             "any" => "Automatic App",
+            "room_lights" => "Room Brightness",
+            "led_brightness" => "AmpUp LED Brightness",
+            "monitor" => "Monitor Brightness",
             "discord" => "Discord",
             "spotify" => "Spotify",
             "chrome" => "Chrome",
@@ -479,6 +670,37 @@ public partial class ButtonsView
             "sc_page_cycle" => "Cycle Pages",
             _ => target,
         };
+    }
+
+    private static string GetN3EncoderRangeName(string? target)
+    {
+        if (string.IsNullOrWhiteSpace(target)) return "VALUE RANGE";
+        string normalized = target.ToLowerInvariant();
+        return normalized == "room_lights"
+               || normalized == "led_brightness"
+               || normalized == "monitor"
+               || normalized == "govee"
+               || normalized.StartsWith("govee:", StringComparison.Ordinal)
+               || normalized.StartsWith("group:", StringComparison.Ordinal)
+            ? "BRIGHTNESS RANGE"
+            : "VOLUME RANGE";
+    }
+
+    private void RefreshV2EncoderRotationAccent()
+    {
+        var accent = ThemeManager.Accent;
+        _v2EncoderTargetPicker?.RefreshAccent();
+        if (_v2EncoderRotationAccentIcon != null)
+        {
+            _v2EncoderRotationAccentIcon.BorderBrush = new SolidColorBrush(
+                Color.FromArgb(0x66, accent.R, accent.G, accent.B));
+            _v2EncoderRotationAccentIcon.Background = new SolidColorBrush(
+                Color.FromArgb(0x16, accent.R, accent.G, accent.B));
+            if (_v2EncoderRotationAccentIcon.Child is TextBlock icon)
+                icon.Foreground = new SolidColorBrush(accent);
+        }
+        if (_v2EncoderEffectiveLabel != null)
+            _v2EncoderEffectiveLabel.Foreground = new SolidColorBrush(accent);
     }
 
     private void RemoveActiveEditorEncoderPageOverrides(int page)

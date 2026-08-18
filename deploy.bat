@@ -8,10 +8,9 @@ echo.
 cd /d "%~dp0"
 
 echo [1/5] Pulling latest from GitHub...
-git fetch origin
-git reset --hard origin/master
+git pull --ff-only
 if errorlevel 1 (
-    echo ERROR: git pull failed. Check your connection or conflicts.
+    echo ERROR: git pull failed. Check your connection, branch, or local changes.
     pause
     exit /b 1
 )
