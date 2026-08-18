@@ -1598,7 +1598,10 @@ public partial class ButtonsView : UserControl
     private static bool IsScPageAction(string? action)
         => action is "sc_page_next" or "sc_page_prev" or "sc_page_home" or "sc_go_to_page";
 
-    private void PopulateActionPicker(ActionPicker picker, bool haEnabled, bool anyHaConfigured, bool goveeEnabled, bool anyGoveeConfigured, bool obsEnabled = false, bool anyObsConfigured = false, bool vmEnabled = false, bool anyVmConfigured = false, bool groupsExist = false, bool anyGroupConfigured = false, bool showScPageActions = false)
+    private static bool IsN3CompositeAction(string? action)
+        => action is "multi_action" or "toggle_action";
+
+    private void PopulateActionPicker(ActionPicker picker, bool haEnabled, bool anyHaConfigured, bool goveeEnabled, bool anyGoveeConfigured, bool obsEnabled = false, bool anyObsConfigured = false, bool vmEnabled = false, bool anyVmConfigured = false, bool groupsExist = false, bool anyGroupConfigured = false, bool showScPageActions = false, bool showN3CompositeActions = false)
     {
         picker.ClearItems();
 
@@ -1618,6 +1621,7 @@ public partial class ButtonsView : UserControl
                 bool isDiscord = IsDiscordAction(value);
                 bool isGroup = value == "group_toggle";
                 bool isScPage = IsScPageAction(value);
+                bool isN3Composite = IsN3CompositeAction(value);
 
                 if (isHa && !haEnabled && !anyHaConfigured) continue;
                 if (isGovee && !goveeEnabled && !anyGoveeConfigured) continue;
@@ -1626,6 +1630,7 @@ public partial class ButtonsView : UserControl
                 if (isDiscord) continue; // RPC voice scopes are partner-only.
                 if (isGroup && !groupsExist && !anyGroupConfigured) continue;
                 if (isScPage && !showScPageActions) continue;
+                if (isN3Composite && !showN3CompositeActions) continue;
 
                 if (!anyAdded) { picker.AddCategory(category); anyAdded = true; }
 
@@ -1663,7 +1668,7 @@ public partial class ButtonsView : UserControl
         picker.BuildPopup();
     }
 
-    private ActionPicker MakeActionCombo()
+    private ActionPicker MakeActionCombo(bool showN3CompositeActions = false)
     {
         var picker = new ActionPicker
         {
@@ -1677,6 +1682,7 @@ public partial class ButtonsView : UserControl
             foreach (var value in values)
             {
                 if (IsDiscordAction(value)) continue;
+                if (IsN3CompositeAction(value) && !showN3CompositeActions) continue;
                 if (!ActionLookup.TryGetValue(value, out var action)) continue;
                 var icon = ActionIcons.GetValueOrDefault(value, "—");
                 var color = ActionColors.GetValueOrDefault(value, Color.FromRgb(0x88, 0x88, 0x88));

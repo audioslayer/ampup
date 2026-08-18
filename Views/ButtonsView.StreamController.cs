@@ -997,7 +997,7 @@ public partial class ButtonsView
         _scActionTabContent = new StackPanel { Visibility = Visibility.Collapsed };
 
         _scActionTabContent.Children.Add(MakeEditorLabel("ACTION"));
-        _scActionPicker = MakeActionCombo();
+        _scActionPicker = MakeActionCombo(showN3CompositeActions: true);
         _scActionPicker.SelectionChanged += (_, _) =>
         {
             if (_loading) return;
@@ -2457,7 +2457,8 @@ public partial class ButtonsView
             _config.Buttons.Concat(_config.N3.Buttons).Any(b => IsVmAction(b.Action) || IsVmAction(b.DoublePressAction) || IsVmAction(b.HoldAction)),
             _config.Groups.Count > 0,
             _config.Buttons.Concat(_config.N3.Buttons).Any(b => b.Action == "group_toggle" || b.DoublePressAction == "group_toggle" || b.HoldAction == "group_toggle"),
-            showScPageActions: true);
+            showScPageActions: true,
+            showN3CompositeActions: true);
 
         PopulateDevicePicker(_scDevicePicker);
         PopulateKnobPicker(_scKnobPicker, _config);
