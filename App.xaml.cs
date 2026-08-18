@@ -5214,7 +5214,8 @@ public partial class App : Application
     private void HandleQuickWheelOpen(int buttonIdx)
     {
         // Find which wheel config matches this button
-        var wheelCfg = _config.Osd.QuickWheels.FirstOrDefault(w => w.Enabled && w.TriggerButton == buttonIdx);
+        var wheelCfg = _config.Osd.QuickWheels.FirstOrDefault(w =>
+            w.Enabled && w.GetVirtualButtonIdx() == buttonIdx);
         if (wheelCfg == null) return;
 
         Dispatcher.Invoke(() =>
