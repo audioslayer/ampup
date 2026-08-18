@@ -1,7 +1,6 @@
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using Material.Icons;
 using MiIcon = Material.Icons.WPF.MaterialIcon;
@@ -116,23 +115,20 @@ public partial class MainWindow : FluentWindow
     /// </summary>
     private void UpdateAccentDependentUI()
     {
-        // Header profile control: subtle glass edge + compact accent tile.
+        // Profile button border gradient
         ProfileButton.BorderBrush = new LinearGradientBrush(
-            ThemeManager.WithAlpha(ThemeManager.Accent, 0x66),
-            ThemeManager.WithAlpha(ThemeManager.Accent, 0x22),
+            ThemeManager.WithAlpha(ThemeManager.Accent, 0x88),
+            ThemeManager.WithAlpha(ThemeManager.Accent, 0x44),
             new Point(0, 0), new Point(1, 1));
+
+        // Profile button drop shadow
         ProfileButton.Effect = new System.Windows.Media.Effects.DropShadowEffect
         {
             Color = ThemeManager.Accent,
-            BlurRadius = 14,
-            Opacity = 0.16,
+            BlurRadius = 12,
+            Opacity = 0.25,
             ShadowDepth = 0
         };
-        ProfileIconHost.Background = new SolidColorBrush(
-            ThemeManager.WithAlpha(ThemeManager.Accent, 0x18));
-        ProfileChevron.Foreground = _profileFlyoutOpen
-            ? new SolidColorBrush(ThemeManager.Accent)
-            : (Brush)FindResource("TextDimBrush");
 
         // Connection dot glow
         ConnectionDotGlow.Color = ThemeManager.Accent;
@@ -732,40 +728,6 @@ public partial class MainWindow : FluentWindow
         e.Handled = true;
     }
 
-    private void ProfileButton_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        // The title bar is draggable. Stop the press here so clicking the
-        // profile control never starts a window drag before MouseLeftButtonUp.
-        e.Handled = true;
-    }
-
-    private void ProfileButton_MouseEnter(object sender, MouseEventArgs e)
-    {
-        var accent = ThemeManager.Accent;
-        ProfileButton.Background = new SolidColorBrush(Color.FromArgb(0x12, accent.R, accent.G, accent.B));
-        ProfileChevron.Foreground = new SolidColorBrush(accent);
-    }
-
-    private void ProfileButton_MouseLeave(object sender, MouseEventArgs e)
-    {
-        if (_profileFlyoutOpen) return;
-        ProfileButton.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "CardBgBrush");
-        ProfileChevron.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextDimBrush");
-    }
-
-    private Point GetProfileFlyoutAnchor()
-    {
-        var screenPos = ProfileButton.PointToScreen(new Point(0, ProfileButton.ActualHeight + 6));
-        var dpiSource = PresentationSource.FromVisual(ProfileButton);
-        if (dpiSource?.CompositionTarget != null)
-        {
-            var dpiX = dpiSource.CompositionTarget.TransformToDevice.M11;
-            var dpiY = dpiSource.CompositionTarget.TransformToDevice.M22;
-            screenPos = new Point(screenPos.X / dpiX, screenPos.Y / dpiY);
-        }
-        return screenPos;
-    }
-
     private void OpenProfileFlyout()
     {
         BuildProfileFlyout();
@@ -783,21 +745,21 @@ public partial class MainWindow : FluentWindow
             Background = (System.Windows.Media.Brush)FindResource("BgDarkBrush"),
             BorderBrush = (System.Windows.Media.SolidColorBrush)FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(8),
-            MinWidth = 250,
-            Child = ProfilePopupPanel,
-            Effect = new System.Windows.Media.Effects.DropShadowEffect
-            {
-                Color = Colors.Black,
-                BlurRadius = 24,
-                Opacity = 0.5,
-                ShadowDepth = 6,
-            },
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(6),
+            MinWidth = 200,
+            Child = ProfilePopupPanel
         };
         ProfilePopupPanel.Visibility = System.Windows.Visibility.Visible;
 
-        var screenPos = GetProfileFlyoutAnchor();
+        var screenPos = ProfileButton.PointToScreen(new Point(ProfileButton.ActualWidth + 4, 0));
+        var dpiSource = PresentationSource.FromVisual(ProfileButton);
+        if (dpiSource?.CompositionTarget != null)
+        {
+            var dpiX = dpiSource.CompositionTarget.TransformToDevice.M11;
+            var dpiY = dpiSource.CompositionTarget.TransformToDevice.M22;
+            screenPos = new Point(screenPos.X / dpiX, screenPos.Y / dpiY);
+        }
         _profileFlyout = new Window
         {
             WindowStyle = WindowStyle.None,
@@ -813,24 +775,8 @@ public partial class MainWindow : FluentWindow
         };
         _profileFlyout.Deactivated += (_, _) => CloseProfileFlyout();
         _profileFlyout.KeyDown += (_, e2) => { if (e2.Key == Key.Escape) CloseProfileFlyout(); };
-
-        var translate = new TranslateTransform(0, -6);
-        popupBorder.RenderTransform = translate;
-        popupBorder.Opacity = 0;
         _profileFlyout.Show();
         _profileFlyoutOpen = true;
-        ProfileChevron.Kind = MaterialIconKind.ChevronUp;
-        ProfileChevron.Foreground = new SolidColorBrush(ThemeManager.Accent);
-        ProfileButton.Background = new SolidColorBrush(
-            ThemeManager.WithAlpha(ThemeManager.Accent, 0x16));
-
-        translate.BeginAnimation(TranslateTransform.YProperty,
-            new DoubleAnimation(-6, 0, TimeSpan.FromMilliseconds(130))
-            {
-                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
-            });
-        popupBorder.BeginAnimation(UIElement.OpacityProperty,
-            new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(110)));
     }
 
     public DeviceSurface GetCurrentDeviceSurface() => GetEffectiveDeviceSurface();
@@ -849,62 +795,22 @@ public partial class MainWindow : FluentWindow
 
         _profileFlyout?.Close();
         _profileFlyout = null;
-        ProfileChevron.Kind = MaterialIconKind.ChevronDown;
-        ProfileChevron.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextDimBrush");
-        ProfileButton.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "CardBgBrush");
     }
 
     private void BuildProfileFlyout()
     {
         ProfilePopupPanel.Children.Clear();
 
-        var accent = ThemeManager.Accent;
-
-        var headerGrid = new System.Windows.Controls.Grid
-        {
-            Margin = new Thickness(7, 4, 7, 10),
-        };
-        headerGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition
-            { Width = new GridLength(1, GridUnitType.Star) });
-        headerGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition
-            { Width = GridLength.Auto });
-
-        var headerText = new System.Windows.Controls.StackPanel();
-        headerText.Children.Add(new System.Windows.Controls.TextBlock
+        // Header
+        var header = new System.Windows.Controls.TextBlock
         {
             Text = "PROFILES",
-            FontSize = 10,
-            FontWeight = FontWeights.Bold,
-            Foreground = (SolidColorBrush)FindResource("TextPrimaryBrush"),
-        });
-        headerText.Children.Add(new System.Windows.Controls.TextBlock
-        {
-            Text = "Switch your AmpUp setup",
             FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
             Foreground = (SolidColorBrush)FindResource("TextDimBrush"),
-            Margin = new Thickness(0, 2, 0, 0),
-        });
-        headerGrid.Children.Add(headerText);
-
-        var countBadge = new System.Windows.Controls.Border
-        {
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(7, 3, 7, 3),
-            Background = new SolidColorBrush(Color.FromArgb(0x16, accent.R, accent.G, accent.B)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x44, accent.R, accent.G, accent.B)),
-            BorderThickness = new Thickness(1),
-            VerticalAlignment = VerticalAlignment.Center,
-            Child = new System.Windows.Controls.TextBlock
-            {
-                Text = _config.Profiles.Count.ToString(),
-                FontSize = 9,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(accent),
-            },
+            Margin = new Thickness(6, 4, 0, 8)
         };
-        System.Windows.Controls.Grid.SetColumn(countBadge, 1);
-        headerGrid.Children.Add(countBadge);
-        ProfilePopupPanel.Children.Add(headerGrid);
+        ProfilePopupPanel.Children.Add(header);
 
         // Profile items
         foreach (var profile in _config.Profiles)
@@ -918,69 +824,39 @@ public partial class MainWindow : FluentWindow
             row.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star) });
             row.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = System.Windows.GridLength.Auto });
 
-            Color profileColor = accent;
-            try { profileColor = (Color)ColorConverter.ConvertFromString(iconCfg.Color); } catch { }
-
-            // Profile icon tile (clickable to change icon)
+            // Icon button (clickable to change icon)
             var iconElement = new MiIcon
             {
-                Width = 17,
-                Height = 17,
+                Width = 18, Height = 18,
+                Margin = new Thickness(0, 0, 8, 0),
                 VerticalAlignment = VerticalAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Foreground = new SolidColorBrush(profileColor),
+                Cursor = Cursors.Hand,
+                ToolTip = "Change icon"
             };
             if (Enum.TryParse<MaterialIconKind>(iconCfg.Symbol, out var iconKind))
                 iconElement.Kind = iconKind;
-
-            var iconHost = new System.Windows.Controls.Border
-            {
-                Width = 32,
-                Height = 32,
-                CornerRadius = new CornerRadius(9),
-                Margin = new Thickness(0, 0, 10, 0),
-                Background = new SolidColorBrush(Color.FromArgb(0x14, profileColor.R, profileColor.G, profileColor.B)),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(0x38, profileColor.R, profileColor.G, profileColor.B)),
-                BorderThickness = new Thickness(1),
-                Cursor = Cursors.Hand,
-                ToolTip = "Change icon",
-                Child = iconElement,
-            };
-            iconHost.MouseLeftButtonDown += (_, ev) =>
+            try { iconElement.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(iconCfg.Color)); } catch { }
+            iconElement.MouseLeftButtonDown += (_, ev) =>
             {
                 ev.Handled = true;
                 ShowIconPicker(profileCapture);
             };
-            System.Windows.Controls.Grid.SetColumn(iconHost, 0);
-            row.Children.Add(iconHost);
+            System.Windows.Controls.Grid.SetColumn(iconElement, 0);
+            row.Children.Add(iconElement);
 
-            var nameStack = new System.Windows.Controls.StackPanel
-            {
-                VerticalAlignment = VerticalAlignment.Center,
-            };
+            // Profile name
             var nameBlock = new System.Windows.Controls.TextBlock
             {
                 Text = profile,
-                FontSize = 12.5,
+                FontSize = 12,
                 FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal,
                 Foreground = isActive
-                    ? new SolidColorBrush(accent)
+                    ? (SolidColorBrush)FindResource("AccentBrush")
                     : (SolidColorBrush)FindResource("TextPrimaryBrush"),
+                VerticalAlignment = VerticalAlignment.Center
             };
-            nameStack.Children.Add(nameBlock);
-            if (isActive)
-            {
-                nameStack.Children.Add(new System.Windows.Controls.TextBlock
-                {
-                    Text = "ACTIVE",
-                    FontSize = 7.5,
-                    FontWeight = FontWeights.Bold,
-                    Foreground = new SolidColorBrush(Color.FromArgb(0xAA, accent.R, accent.G, accent.B)),
-                    Margin = new Thickness(0, 1, 0, 0),
-                });
-            }
-            System.Windows.Controls.Grid.SetColumn(nameStack, 1);
-            row.Children.Add(nameStack);
+            System.Windows.Controls.Grid.SetColumn(nameBlock, 1);
+            row.Children.Add(nameBlock);
 
             // Edit + Delete buttons
             var actionPanel = new System.Windows.Controls.StackPanel
@@ -1038,12 +914,11 @@ public partial class MainWindow : FluentWindow
 
             var rowBorder = new System.Windows.Controls.Border
             {
-                Padding = new Thickness(9, 8, 9, 8),
-                Margin = new Thickness(0, 1, 0, 1),
-                CornerRadius = new CornerRadius(9),
+                Padding = new Thickness(6, 6, 6, 6),
+                CornerRadius = new CornerRadius(6),
                 Cursor = Cursors.Hand,
                 Background = isActive
-                    ? new SolidColorBrush(Color.FromArgb(0x18, accent.R, accent.G, accent.B))
+                    ? new SolidColorBrush(Color.FromArgb(0x20, 0x00, 0xB4, 0xD8))
                     : System.Windows.Media.Brushes.Transparent,
                 Child = row
             };
@@ -1057,7 +932,7 @@ public partial class MainWindow : FluentWindow
             rowBorder.MouseLeave += (_, _) =>
             {
                 rowBorder.Background = profileCapture == _config.ActiveProfile
-                    ? new SolidColorBrush(Color.FromArgb(0x18, accent.R, accent.G, accent.B))
+                    ? new SolidColorBrush(Color.FromArgb(0x20, 0x00, 0xB4, 0xD8))
                     : System.Windows.Media.Brushes.Transparent;
             };
 
@@ -1077,61 +952,33 @@ public partial class MainWindow : FluentWindow
         {
             Height = 1,
             Background = (SolidColorBrush)FindResource("CardBorderBrush"),
-            Margin = new Thickness(7, 8, 7, 8)
+            Margin = new Thickness(4, 6, 4, 6)
         };
         ProfilePopupPanel.Children.Add(divider);
 
         // Add new profile button
-        var addRow = new System.Windows.Controls.Grid();
-        addRow.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = GridLength.Auto });
-        addRow.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition
-            { Width = new GridLength(1, GridUnitType.Star) });
-
-        var addIconHost = new System.Windows.Controls.Border
+        var addRow = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+        addRow.Children.Add(new System.Windows.Controls.TextBlock
         {
-            Width = 32,
-            Height = 32,
-            CornerRadius = new CornerRadius(9),
-            Margin = new Thickness(0, 0, 10, 0),
-            Background = new SolidColorBrush(Color.FromArgb(0x12, accent.R, accent.G, accent.B)),
-            Child = new System.Windows.Controls.TextBlock
-            {
-                Text = "+",
-                FontSize = 17,
-                FontWeight = FontWeights.Medium,
-                Foreground = new SolidColorBrush(accent),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, -2, 0, 0),
-            },
-        };
-        addRow.Children.Add(addIconHost);
-
-        var addText = new System.Windows.Controls.StackPanel
-        {
+            Text = "+",
+            FontSize = 14,
+            FontWeight = FontWeights.Bold,
+            Foreground = (SolidColorBrush)FindResource("TextSecBrush"),
             VerticalAlignment = VerticalAlignment.Center,
-        };
-        addText.Children.Add(new System.Windows.Controls.TextBlock
+            Margin = new Thickness(2, 0, 8, 0)
+        });
+        addRow.Children.Add(new System.Windows.Controls.TextBlock
         {
             Text = "New Profile",
             FontSize = 12,
-            FontWeight = FontWeights.Medium,
-            Foreground = (SolidColorBrush)FindResource("TextPrimaryBrush"),
+            Foreground = (SolidColorBrush)FindResource("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center
         });
-        addText.Children.Add(new System.Windows.Controls.TextBlock
-        {
-            Text = "Create another control setup",
-            FontSize = 8.5,
-            Foreground = (SolidColorBrush)FindResource("TextDimBrush"),
-            Margin = new Thickness(0, 1, 0, 0),
-        });
-        System.Windows.Controls.Grid.SetColumn(addText, 1);
-        addRow.Children.Add(addText);
 
         var addBorder = new System.Windows.Controls.Border
         {
-            Padding = new Thickness(9, 8, 9, 8),
-            CornerRadius = new CornerRadius(9),
+            Padding = new Thickness(6, 6, 6, 6),
+            CornerRadius = new CornerRadius(6),
             Cursor = Cursors.Hand,
             Child = addRow
         };
@@ -1355,7 +1202,14 @@ public partial class MainWindow : FluentWindow
             }
         };
 
-        var screenPos = GetProfileFlyoutAnchor();
+        var screenPos = ProfileButton.PointToScreen(new Point(ProfileButton.ActualWidth + 4, 0));
+        var dpiSource = PresentationSource.FromVisual(ProfileButton);
+        if (dpiSource?.CompositionTarget != null)
+        {
+            var dpiX = dpiSource.CompositionTarget.TransformToDevice.M11;
+            var dpiY = dpiSource.CompositionTarget.TransformToDevice.M22;
+            screenPos = new Point(screenPos.X / dpiX, screenPos.Y / dpiY);
+        }
 
         editorWindow = new Window
         {
@@ -1609,8 +1463,15 @@ public partial class MainWindow : FluentWindow
             }
         };
 
-        // Keep secondary profile editors aligned with the header trigger.
-        var screenPos = GetProfileFlyoutAnchor();
+        // Position to the right of the ProfileButton
+        var screenPos = ProfileButton.PointToScreen(new Point(ProfileButton.ActualWidth + 4, 0));
+        var dpiSource2 = PresentationSource.FromVisual(ProfileButton);
+        if (dpiSource2?.CompositionTarget != null)
+        {
+            var dpiX = dpiSource2.CompositionTarget.TransformToDevice.M11;
+            var dpiY = dpiSource2.CompositionTarget.TransformToDevice.M22;
+            screenPos = new Point(screenPos.X / dpiX, screenPos.Y / dpiY);
+        }
 
         iconPopupWindow = new Window
         {

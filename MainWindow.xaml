@@ -62,56 +62,6 @@
                 </TextBlock>
             </StackPanel>
 
-            <!-- Active profile dropdown — kept close to the brand so profiles
-                 feel like an app-level context instead of a navigation item. -->
-            <Border x:Name="ProfileButton" Grid.Column="1"
-                    Height="34" MinWidth="142" MaxWidth="230"
-                    Margin="18,0,0,0" Padding="5,3,9,3"
-                    HorizontalAlignment="Left" VerticalAlignment="Center"
-                    CornerRadius="10" BorderThickness="1"
-                    Background="{DynamicResource CardBgBrush}"
-                    Cursor="Hand" ToolTip="Switch profile"
-                    PreviewMouseLeftButtonDown="ProfileButton_PreviewMouseLeftButtonDown"
-                    MouseEnter="ProfileButton_MouseEnter"
-                    MouseLeave="ProfileButton_MouseLeave"
-                    MouseLeftButtonUp="ProfileButton_Click">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <Border x:Name="ProfileIconHost" Grid.Column="0"
-                            Width="26" Height="26" CornerRadius="8"
-                            VerticalAlignment="Center">
-                        <mi:MaterialIcon x:Name="ProfileIcon" Kind="AccountCircleOutline"
-                                         Width="16" Height="16"
-                                         Foreground="{DynamicResource AccentBrush}"
-                                         HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
-
-                    <StackPanel Grid.Column="1" Margin="8,0,10,0"
-                                VerticalAlignment="Center">
-                        <TextBlock Text="ACTIVE PROFILE" FontSize="7.5" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextDimBrush}" />
-                        <TextBlock x:Name="ProfileLabel" Text="Default"
-                                   FontSize="11" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                   TextTrimming="CharacterEllipsis" MaxWidth="140"
-                                   Margin="0,-1,0,0" />
-                    </StackPanel>
-
-                    <mi:MaterialIcon x:Name="ProfileChevron" Grid.Column="2"
-                                     Kind="ChevronDown" Width="16" Height="16"
-                                     Foreground="{DynamicResource TextDimBrush}"
-                                     VerticalAlignment="Center" />
-                </Grid>
-            </Border>
-
-            <!-- Re-parented into the borderless flyout window when opened. -->
-            <StackPanel x:Name="ProfilePopupPanel" Grid.Column="1" Visibility="Collapsed" />
-
             <!-- Connection Status + Window Controls -->
             <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,12,0" VerticalAlignment="Center">
                 <Ellipse x:Name="ConnectionDot" Width="8" Height="8" Fill="{StaticResource TextDimBrush}" Margin="0,0,8,0">
@@ -177,10 +127,44 @@
                     BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,0,1,0">
                 <Grid>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <DockPanel Grid.Row="0" Margin="0,12,0,0" LastChildFill="True">
+                    <!-- Profile button at top of sidebar -->
+                    <StackPanel Grid.Row="0" Margin="0,12,0,0">
+                        <Border x:Name="ProfileButton" Width="48" Height="48" CornerRadius="24"
+                                Background="{DynamicResource CardBgBrush}"
+                                BorderThickness="2" Cursor="Hand" ToolTip="Switch profile"
+                                HorizontalAlignment="Center"
+                                MouseLeftButtonUp="ProfileButton_Click">
+                            <Border.BorderBrush>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#8800E676" Offset="0" />
+                                    <GradientStop Color="#4400E676" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.BorderBrush>
+                            <Border.Effect>
+                                <DropShadowEffect Color="#00E676" BlurRadius="12" Opacity="0.25" ShadowDepth="0" />
+                            </Border.Effect>
+                            <mi:MaterialIcon x:Name="ProfileIcon" Kind="AccountCircleOutline"
+                                       Width="22" Height="22" Foreground="{DynamicResource AccentBrush}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock x:Name="ProfileLabel" Text="Default" FontSize="8" FontWeight="Medium"
+                                   Foreground="{StaticResource TextSecBrush}"
+                                   HorizontalAlignment="Center" Margin="0,5,0,0"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="60" TextAlignment="Center" />
+
+                        <!-- Separator line under profile button -->
+                        <Border Height="1" Margin="14,10,14,0"
+                                Background="{DynamicResource AccentBorder22Brush}" />
+                    </StackPanel>
+
+                    <!-- ProfilePopupPanel is populated and shown via code-behind Window flyout -->
+                    <StackPanel x:Name="ProfilePopupPanel" Visibility="Collapsed" />
+
+                    <DockPanel Grid.Row="1" Margin="0,12,0,0" LastChildFill="True">
                         <!-- Settings at very bottom -->
                         <Button x:Name="NavSettings" Style="{StaticResource NavButton}" Click="NavSettings_Click"
                                 DockPanel.Dock="Bottom">
