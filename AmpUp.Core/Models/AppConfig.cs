@@ -364,7 +364,7 @@ public enum LightEffect
     Off, SingleColor, ColorBlend, PositionFill, Blink, Pulse,
     RainbowWave, RainbowCycle, MicStatus, DeviceMute, AudioReactive,
     Breathing, Fire, Comet, Sparkle, GradientFill,
-    PositionBlend, PositionBlendMute,
+    PositionBlend, PositionBlendMute, ColorBlendMute,
     PingPong, Stack, Wave, Candle, Wheel, RainbowWheel,
     ProgramMute, ProgramStatus, AppGroupMute, DeviceSelect, DevicePositionFill,
     Scanner, MeteorRain, ColorWave, Segments, TheaterChase,

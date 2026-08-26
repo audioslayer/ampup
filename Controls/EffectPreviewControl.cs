@@ -231,6 +231,7 @@ namespace AmpUp.Controls
                 // STATIC
                 case LightEffect.SingleColor:     RenderSingleColor(c);     break;
                 case LightEffect.ColorBlend:      RenderColorBlend(c);      break;
+                case LightEffect.ColorBlendMute:  RenderColorBlendMute(c);  break;
                 case LightEffect.PositionFill:    RenderPositionFill(c);    break;
                 case LightEffect.PositionBlend:   RenderPositionBlend(c);   break;
                 case LightEffect.PositionBlendMute: RenderPositionBlendMute(c); break;

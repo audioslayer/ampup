@@ -1693,6 +1693,11 @@ public partial class MainWindow : FluentWindow
         });
     }
 
+    public void SetVoiceMeeterStatus(bool? connected)
+    {
+        Dispatcher.Invoke(() => _settingsView.UpdateVmStatus(connected));
+    }
+
     /// <summary>
     /// Connection flaps are frequent (COM port drops, N3 retries every 5s while
     /// disconnected). In Auto hardware mode the connect state feeds the computed

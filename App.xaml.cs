@@ -395,6 +395,7 @@ public partial class App : Application
 
         // Start VoiceMeeter integration
         _vm = new VoiceMeeterIntegration();
+        _vm.MuteStateChanged += SetVoiceMeeterTargetMuteState;
         _buttons.SetVoiceMeeterIntegration(_vm);
         if (_config.VoiceMeeter.Enabled && _vm.IsAvailable)
             _vm.Connect();
@@ -553,6 +554,7 @@ public partial class App : Application
         if (_isConnected)
             _mainWindow.SetConnectionStatus(true, _serial.Port?.PortName);
         _mainWindow.SetN3ConnectionStatus(_isN3Connected, _n3DeviceName);
+        _mainWindow.SetVoiceMeeterStatus(_config.VoiceMeeter.Enabled ? _vm?.IsConnected == true : null);
         UpdateAggregateTrayStatus();
 
         // Hardware device probes (Corsair / LG / N3 / Screen Sync) run here
@@ -1502,6 +1504,9 @@ public partial class App : Application
                 _vm.Connect();
             else if (!_config.VoiceMeeter.Enabled && _vm.IsConnected)
                 _vm.Disconnect();
+
+            _mainWindow?.SetVoiceMeeterStatus(
+                _config.VoiceMeeter.Enabled ? _vm.IsConnected : null);
         }
         _autoSwitcher?.UpdateConfig(_config.AutoSwitch);
         ConfigureAutoSwitchTimer();
@@ -4789,7 +4794,9 @@ public partial class App : Application
                     _notifyMaster = _notifyEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
                     _notifyMaster.AudioEndpointVolume.OnVolumeNotification += OnMasterVolumeNotification;
                     // Seed current state immediately
-                    _rgb.SetMasterMuted(_notifyMaster.AudioEndpointVolume.Mute);
+                    bool initialMasterMuted = _notifyMaster.AudioEndpointVolume.Mute;
+                    _rgb.SetMasterMuted(initialMasterMuted);
+                    SetDirectTargetMuteState("master", initialMasterMuted);
                     // Seed tray icon volume
                     _trayVolume = _notifyMaster.AudioEndpointVolume.MasterVolumeLevelScalar;
                     _trayMuted = _notifyMaster.AudioEndpointVolume.Mute;
@@ -4808,7 +4815,9 @@ public partial class App : Application
                     _notifyMic = _notifyEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Capture, NAudio.CoreAudioApi.Role.Communications);
                     _notifyMic.AudioEndpointVolume.OnVolumeNotification += OnMicVolumeNotification;
                     // Seed current state immediately
-                    _rgb.SetMicMuted(_notifyMic.AudioEndpointVolume.Mute);
+                    bool initialMicMuted = _notifyMic.AudioEndpointVolume.Mute;
+                    _rgb.SetMicMuted(initialMicMuted);
+                    SetDirectTargetMuteState("mic", initialMicMuted);
                 }
                 catch { }
             }
@@ -4823,6 +4832,7 @@ public partial class App : Application
         try
         {
             _rgb.SetMasterMuted(data.Muted);
+            SetDirectTargetMuteState("master", data.Muted);
             UpdateTrayIconVolume(data.MasterVolume, data.Muted);
         }
         catch { }
@@ -4831,7 +4841,12 @@ public partial class App : Application
     private void OnMicVolumeNotification(NAudio.CoreAudioApi.AudioVolumeNotificationData data)
     {
         if (_isShuttingDown || _sessionLocked || IsResumeSettling) return;
-        try { _rgb.SetMicMuted(data.Muted); } catch { }
+        try
+        {
+            _rgb.SetMicMuted(data.Muted);
+            SetDirectTargetMuteState("mic", data.Muted);
+        }
+        catch { }
     }
 
     private void PollMuteStates()
@@ -4853,11 +4868,14 @@ public partial class App : Application
             lock (_pollDeviceLock)
             {
                 _pollEnumerator ??= new NAudio.CoreAudioApi.MMDeviceEnumerator();
+                bool? micMuted = null;
+                bool? masterMuted = null;
 
                 try
                 {
                     _cachedMic ??= _pollEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Capture, NAudio.CoreAudioApi.Role.Communications);
-                    _rgb.SetMicMuted(_cachedMic.AudioEndpointVolume.Mute);
+                    micMuted = _cachedMic.AudioEndpointVolume.Mute;
+                    _rgb.SetMicMuted(micMuted.Value);
                 }
                 catch
                 {
@@ -4875,7 +4893,8 @@ public partial class App : Application
                         _lastDefaultOutputDeviceId = _cachedMaster.ID;
                         _rgb.SetDefaultOutputDevice(_lastDefaultOutputDeviceId);
                     }
-                    _rgb.SetMasterMuted(_cachedMaster.AudioEndpointVolume.Mute);
+                    masterMuted = _cachedMaster.AudioEndpointVolume.Mute;
+                    _rgb.SetMasterMuted(masterMuted.Value);
                 }
                 catch
                 {
@@ -4883,6 +4902,8 @@ public partial class App : Application
                     _cachedMaster = null;
                     _lastDefaultOutputDeviceId = "";
                 }
+
+                PollLinkedTargetMuteStates(masterMuted, micMuted);
 
                 // Poll program status + app group mute states for app-aware LED
                 // effects — shares one process snapshot + one endpoint enumeration
@@ -4913,12 +4934,131 @@ public partial class App : Application
         if (_config == null) return true;
         static bool NeedsPolling(LightEffect effect) =>
             effect is LightEffect.ProgramMute or LightEffect.ProgramStatus or LightEffect.AppGroupMute
-                or LightEffect.DeviceSelect or LightEffect.DevicePositionFill;
+                or LightEffect.DeviceSelect or LightEffect.DevicePositionFill
+                or LightEffect.PositionBlendMute or LightEffect.ColorBlendMute;
 
         if (_config.Lights.Any(l => NeedsPolling(l.Effect)))
             return true;
 
         return _config.GlobalLight.Enabled && NeedsPolling(_config.GlobalLight.Effect);
+    }
+
+    private static bool IsTargetMuteEffect(LightEffect effect)
+        => effect is LightEffect.PositionBlendMute or LightEffect.ColorBlendMute;
+
+    private bool KnobUsesTargetMuteEffect(int knobIdx)
+    {
+        if (_config.Lights.Any(l => l.Idx == knobIdx && IsTargetMuteEffect(l.Effect)))
+            return true;
+
+        return _config.GlobalLight.Enabled
+            && !_config.GlobalLight.DisabledKnobs.Contains(knobIdx)
+            && IsTargetMuteEffect(_config.GlobalLight.Effect);
+    }
+
+    private void SetDirectTargetMuteState(string target, bool muted)
+    {
+        foreach (var knob in _config.Knobs)
+        {
+            if (KnobUsesTargetMuteEffect(knob.Idx)
+                && string.Equals(knob.Target, target, StringComparison.OrdinalIgnoreCase))
+            {
+                _rgb.SetTargetMuted(knob.Idx, muted);
+            }
+        }
+    }
+
+    private void SetVoiceMeeterTargetMuteState(bool isStrip, int index, bool muted)
+    {
+        string target = $"{(isStrip ? "vm_strip" : "vm_bus")}:{index}";
+        foreach (var knob in _config.Knobs)
+        {
+            if (KnobUsesTargetMuteEffect(knob.Idx)
+                && string.Equals(knob.Target, target, StringComparison.OrdinalIgnoreCase))
+            {
+                _rgb.SetTargetMuted(knob.Idx, muted);
+            }
+        }
+    }
+
+    private void PollLinkedTargetMuteStates(bool? masterMuted, bool? micMuted)
+    {
+        foreach (var knob in _config.Knobs)
+        {
+            if (knob.Idx < 0 || knob.Idx >= 5 || !KnobUsesTargetMuteEffect(knob.Idx))
+                continue;
+
+            string target = knob.Target ?? "";
+            if (target.Equals("master", StringComparison.OrdinalIgnoreCase))
+            {
+                if (masterMuted.HasValue) _rgb.SetTargetMuted(knob.Idx, masterMuted.Value);
+                continue;
+            }
+
+            if (target.Equals("mic", StringComparison.OrdinalIgnoreCase))
+            {
+                if (micMuted.HasValue) _rgb.SetTargetMuted(knob.Idx, micMuted.Value);
+                continue;
+            }
+
+            if (target.Equals("apps", StringComparison.OrdinalIgnoreCase))
+            {
+                // PollAppGroupMuteStates resolves this target using its configured app list.
+                continue;
+            }
+
+            if (TryParseVoiceMeeterTarget(target, out bool isStrip, out int vmIdx))
+            {
+                bool read;
+                bool vmMuted;
+                if (_vm == null || !_config.VoiceMeeter.Enabled || !_vm.IsAvailable)
+                {
+                    read = false;
+                    vmMuted = false;
+                }
+                else if (isStrip)
+                {
+                    read = _vm.TryGetStripMuted(vmIdx, out vmMuted);
+                }
+                else
+                {
+                    read = _vm.TryGetBusMuted(vmIdx, out vmMuted);
+                }
+                if (read) _rgb.SetTargetMuted(knob.Idx, vmMuted);
+                continue;
+            }
+
+            if ((target.Equals("output_device", StringComparison.OrdinalIgnoreCase)
+                 || target.Equals("input_device", StringComparison.OrdinalIgnoreCase))
+                && !string.IsNullOrWhiteSpace(knob.DeviceId))
+            {
+                try
+                {
+                    using var device = _pollEnumerator?.GetDevice(knob.DeviceId);
+                    if (device != null)
+                        _rgb.SetTargetMuted(knob.Idx, device.AudioEndpointVolume.Mute);
+                }
+                catch { }
+                continue;
+            }
+
+            // Targets without a meaningful mute state render as unmuted.
+            _rgb.SetTargetMuted(knob.Idx, false);
+        }
+    }
+
+    private static bool TryParseVoiceMeeterTarget(string target, out bool isStrip, out int index)
+    {
+        isStrip = false;
+        index = -1;
+        var parts = target.Split(':', 2);
+        if (parts.Length != 2 || !int.TryParse(parts[1], out index)) return false;
+        if (parts[0].Equals("vm_strip", StringComparison.OrdinalIgnoreCase))
+        {
+            isStrip = true;
+            return true;
+        }
+        return parts[0].Equals("vm_bus", StringComparison.OrdinalIgnoreCase);
     }
 
     private void ConfigureMutePollingTimer()
@@ -5027,14 +5167,16 @@ public partial class App : Application
         var knobsToCheck = new List<KnobConfig>();
         foreach (var l in _config.Lights)
         {
-            if (l.Effect == LightEffect.AppGroupMute)
+            if (l.Effect == LightEffect.AppGroupMute || IsTargetMuteEffect(l.Effect))
             {
                 var knob = _config.Knobs.FirstOrDefault(k => k.Idx == l.Idx);
                 if (knob != null && knob.Target == "apps" && knob.Apps?.Count > 0)
                     knobsToCheck.Add(knob);
             }
         }
-        if (_config.GlobalLight.Enabled && _config.GlobalLight.Effect == LightEffect.AppGroupMute)
+        if (_config.GlobalLight.Enabled
+            && (_config.GlobalLight.Effect == LightEffect.AppGroupMute
+                || IsTargetMuteEffect(_config.GlobalLight.Effect)))
         {
             foreach (var knob in _config.Knobs)
             {
@@ -5171,6 +5313,7 @@ public partial class App : Application
                 // if no apps found, default to false (show color1 / live appearance)
                 bool allMuted = anyFound && !anyUnmuted;
                 _rgb.SetAppGroupMuted(knob.Idx, allMuted);
+                _rgb.SetTargetMuted(knob.Idx, allMuted);
             }
         }
         catch { }

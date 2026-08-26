@@ -164,6 +164,7 @@ namespace AmpUp.Controls
         {
             { LightEffect.SingleColor,  Color.FromRgb(0x64, 0xB5, 0xF6) }, // soft blue
             { LightEffect.ColorBlend,   Color.FromRgb(0xBA, 0x68, 0xC8) }, // purple
+            { LightEffect.ColorBlendMute, Color.FromRgb(0xCE, 0x93, 0xD8) }, // whole-dial blend + mute
             { LightEffect.PositionFill, Color.FromRgb(0x4D, 0xD0, 0xE1) }, // cyan
             { LightEffect.GradientFill, Color.FromRgb(0xAE, 0xD5, 0x81) }, // lime green
             { LightEffect.Blink,        Color.FromRgb(0xFF, 0xD5, 0x4F) }, // gold
@@ -312,9 +313,10 @@ namespace AmpUp.Controls
             {
                 (LightEffect.SingleColor,  "●",   "Solid",    false),
                 (LightEffect.ColorBlend,   "◑",   "Blend",    false),
+                (LightEffect.ColorBlendMute,   "◑⊘",  "Blend+Mute",false),
                 (LightEffect.PositionFill, "▂▅█", "Fill",     false),
                 (LightEffect.PositionBlend,    "▂▄▇", "PosBlend",  false),
-                (LightEffect.PositionBlendMute,"▂▄⊘", "Blend+Mute",false),
+                (LightEffect.PositionBlendMute,"▂▄⊘", "Pos+Mute",false),
                 (LightEffect.CycleFill,    "▂▅⟳", "CycleFill", false),
                 (LightEffect.RainbowFill,  "▂▅🌈","RbwFill",   false),
                 (LightEffect.GradientFill, "◐",   "Gradient", false),
@@ -655,6 +657,7 @@ namespace AmpUp.Controls
             return effect switch
             {
                 LightEffect.ColorBlend       => Color.FromRgb(0xFF, 0xD5, 0x4F),
+                LightEffect.ColorBlendMute   => Color.FromRgb(0x55, 0x55, 0x55),
                 LightEffect.GradientFill     => Color.FromRgb(0xE0, 0x6C, 0x9F),
                 LightEffect.PositionBlend    => Color.FromRgb(0xE0, 0x6C, 0x9F),
                 LightEffect.PositionBlendMute=> Color.FromRgb(0x55, 0x55, 0x55),

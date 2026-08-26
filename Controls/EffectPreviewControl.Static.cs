@@ -22,6 +22,19 @@ namespace AmpUp.Controls
             c.Dc.DrawRoundedRectangle(gb, null, new Rect(0, 0, c.W, c.H), 3, 3);
         }
 
+        private void RenderColorBlendMute(Ctx c)
+        {
+            double cycle = Saw(c.T / 4.0);
+            bool muted = cycle > 0.5;
+            Color dialColor = muted ? c.Color : Lerp(c.Color, c.Color2, Sin01(c.T * 1.2));
+            Rect(c.Dc, 0, 0, c.W, c.H, dialColor, muted ? 0.75 : 1.0, 3);
+            if (muted)
+            {
+                double iconR = Math.Min(c.W, c.H) * 0.22;
+                c.Dc.DrawEllipse(null, Pen(Colors.White, 1.5, 0.75), new Point(c.Cx, c.Cy), iconR, iconR);
+            }
+        }
+
         private void RenderPositionFill(Ctx c)
         {
             double fillPct = Sin01(c.T * 1.2);

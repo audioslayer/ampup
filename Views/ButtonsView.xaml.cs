@@ -1223,14 +1223,14 @@ public partial class ButtonsView : UserControl
             case "vm_mute_strip":
                 label.Text = "STRIP INDEX";
                 SetPlaceholderText("0");
-                if (box != null) box.ToolTip = "VoiceMeeter strip index (0-4)";
+                if (box != null) box.ToolTip = "VoiceMeeter strip index (Potato supports 0-7)";
                 browseBtn.Visibility = Visibility.Collapsed;
                 pickBtn.Visibility = Visibility.Collapsed;
                 break;
             case "vm_mute_bus":
                 label.Text = "BUS INDEX";
                 SetPlaceholderText("0");
-                if (box != null) box.ToolTip = "VoiceMeeter bus index (0-2)";
+                if (box != null) box.ToolTip = "VoiceMeeter bus index (Potato supports 0-7)";
                 browseBtn.Visibility = Visibility.Collapsed;
                 pickBtn.Visibility = Visibility.Collapsed;
                 break;
@@ -1455,8 +1455,8 @@ public partial class ButtonsView : UserControl
         { "obs_stream",         "Toggle OBS Studio streaming on/off" },
         { "obs_scene",          "Switch to an OBS scene (enter scene name in path)" },
         { "obs_mute",           "Toggle mute on an OBS audio source (enter source name in path)" },
-        { "vm_mute_strip",      "Toggle mute on a VoiceMeeter strip (enter strip index 0-4 in path)" },
-        { "vm_mute_bus",        "Toggle mute on a VoiceMeeter bus (enter bus index 0-2 in path)" },
+        { "vm_mute_strip",      "Toggle mute on a VoiceMeeter strip (Potato indices: 0-7)" },
+        { "vm_mute_bus",        "Toggle mute on a VoiceMeeter bus (Potato indices: 0-7)" },
         { "spotify_play_pause", "Play / pause Spotify playback (requires Spotify connected in Settings)" },
         { "spotify_next",       "Skip to the next Spotify track" },
         { "spotify_prev",       "Go to the previous Spotify track" },

@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using AmpUp.Core;
 using AmpUp.Core.Models;
+using Microsoft.Win32;
 
 namespace AmpUp.Core.Services;
 
@@ -10,12 +11,16 @@ public class VoiceMeeterIntegration : IDisposable
     private bool _loggedIn;
     private bool _available;
     private bool _disposed;
+    private string? _dllPath;
     private readonly object _lock = new();
+    private readonly object _parameterLock = new();
     private Task? _reconnectTask;
     private CancellationTokenSource? _cts;
 
     public bool IsAvailable => _available;
     public bool IsConnected => _loggedIn;
+    public string? DllPath => _dllPath;
+    public event Action<bool, int, bool>? MuteStateChanged;
 
     // ── P/Invoke to VoicemeeterRemote64.dll ─────────────────────────
 
@@ -47,42 +52,64 @@ public class VoiceMeeterIntegration : IDisposable
     public VoiceMeeterIntegration()
     {
         // Check if the DLL is loadable
-        _available = CheckDllAvailable();
+        _available = CheckDllAvailable(out _dllPath);
         if (_available)
-            Logger.Log("VoiceMeeter: DLL found, integration available");
+            Logger.Log($"VoiceMeeter: DLL found at '{_dllPath}', integration available");
         else
-            Logger.Log("VoiceMeeter: DLL not found, integration unavailable");
+            Logger.Log("VoiceMeeter: DLL not found in the registry, standard install folders, or PATH; integration unavailable");
     }
 
-    private static bool CheckDllAvailable()
+    private static bool CheckDllAvailable(out string? dllPath)
     {
+        dllPath = null;
+
+        foreach (var installDir in GetInstallDirs())
+        {
+            var candidate = System.IO.Path.Combine(installDir, DllName);
+            if (!System.IO.File.Exists(candidate))
+                continue;
+
+            try
+            {
+                // VoiceMeeter uses a 32-bit installer even though it ships both
+                // Remote API architectures. Keep this folder available for the
+                // lazy P/Invoke bindings after proving the DLL can be called.
+                if (!SetDllDirectory(installDir))
+                    continue;
+
+                VBVMR_Login();
+                VBVMR_Logout();
+                dllPath = candidate;
+                return true;
+            }
+            catch (Exception ex) when (ex is DllNotFoundException
+                                       or BadImageFormatException
+                                       or EntryPointNotFoundException)
+            {
+                Logger.Log($"VoiceMeeter: Could not load '{candidate}': {ex.Message}");
+            }
+        }
+
         try
         {
-            // Try to find the DLL via registry (VoiceMeeter installs to Program Files)
-            var installDir = GetInstallDir();
-            if (!string.IsNullOrEmpty(installDir))
-            {
-                var dllPath = System.IO.Path.Combine(installDir, DllName);
-                if (System.IO.File.Exists(dllPath))
-                {
-                    // Add the install dir to the DLL search path so P/Invoke can find it
-                    SetDllDirectory(installDir);
-                    return true;
-                }
-            }
-
             // Fallback: try loading directly (might be in PATH)
             VBVMR_Login();
             VBVMR_Logout();
+            dllPath = DllName;
             return true;
         }
-        catch (DllNotFoundException)
+        catch (Exception ex) when (ex is DllNotFoundException
+                                   or BadImageFormatException
+                                   or EntryPointNotFoundException)
         {
+            Logger.Log($"VoiceMeeter: {DllName} load failed: {ex.Message}");
             return false;
         }
-        catch
+        catch (Exception ex)
         {
-            // DLL exists but maybe VoiceMeeter isn't running — that's still "available"
+            // The library loaded, but VoiceMeeter may not be running yet.
+            Logger.Log($"VoiceMeeter: DLL probe returned an application error: {ex.Message}");
+            dllPath = DllName;
             return true;
         }
     }
@@ -90,16 +117,65 @@ public class VoiceMeeterIntegration : IDisposable
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool SetDllDirectory(string lpPathName);
 
-    private static string? GetInstallDir()
+    private static IEnumerable<string> GetInstallDirs()
     {
-        try
+        const string uninstallKey =
+            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\VB:Voicemeeter {17359A74-1236-5467}";
+
+        var candidates = new List<string>();
+
+        // Match VB-Audio's official SDK lookup: check the native view, then force
+        // the 32-bit registry view. The latter is where 64-bit AmpUp normally finds
+        // VoiceMeeter/Potato's installer entry.
+        foreach (var view in new[] { RegistryView.Registry64, RegistryView.Registry32 })
         {
-            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
-                @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\VB:Voicemeeter {17359A74-1236-5467}");
-            return key?.GetValue("UninstallString")?.ToString() is string path
-                ? System.IO.Path.GetDirectoryName(path) : null;
+            try
+            {
+                using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view);
+                using var key = baseKey.OpenSubKey(uninstallKey);
+                var installDir = GetDirectoryFromUninstallString(key?.GetValue("UninstallString")?.ToString());
+                if (!string.IsNullOrWhiteSpace(installDir))
+                    candidates.Add(installDir);
+            }
+            catch
+            {
+                // Registry access can be restricted; standard folders below remain valid fallbacks.
+            }
         }
-        catch { return null; }
+
+        AddStandardInstallDir(candidates, Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86));
+        AddStandardInstallDir(candidates, Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
+        AddStandardInstallDir(candidates, Environment.GetEnvironmentVariable("ProgramW6432"));
+
+        return candidates.Distinct(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static void AddStandardInstallDir(List<string> candidates, string? programFilesDir)
+    {
+        if (!string.IsNullOrWhiteSpace(programFilesDir))
+            candidates.Add(System.IO.Path.Combine(programFilesDir, "VB", "Voicemeeter"));
+    }
+
+    private static string? GetDirectoryFromUninstallString(string? uninstallString)
+    {
+        if (string.IsNullOrWhiteSpace(uninstallString))
+            return null;
+
+        var command = Environment.ExpandEnvironmentVariables(uninstallString.Trim());
+        string executablePath;
+
+        if (command.StartsWith('"'))
+        {
+            int closingQuote = command.IndexOf('"', 1);
+            executablePath = closingQuote > 1 ? command[1..closingQuote] : command.Trim('"');
+        }
+        else
+        {
+            int exeEnd = command.IndexOf(".exe", StringComparison.OrdinalIgnoreCase);
+            executablePath = exeEnd >= 0 ? command[..(exeEnd + 4)] : command;
+        }
+
+        return System.IO.Path.GetDirectoryName(executablePath);
     }
 
     public bool Connect()
@@ -117,6 +193,9 @@ public class VoiceMeeterIntegration : IDisposable
                 if (result == 0 || result == 1)
                 {
                     _loggedIn = true;
+                    // Prime the Remote API's local parameter cache. Reads return
+                    // cached values until IsParametersDirty refreshes them.
+                    VBVMR_IsParametersDirty();
                     Logger.Log($"VoiceMeeter: Login successful (result={result})");
                     StartReconnectMonitor();
                     return true;
@@ -189,20 +268,8 @@ public class VoiceMeeterIntegration : IDisposable
     /// </summary>
     public bool ToggleStripMute(int stripIdx)
     {
-        if (!EnsureConnected()) return false;
-        try
-        {
-            VBVMR_GetParameterFloat($"Strip[{stripIdx}].Mute", out float current);
-            float newVal = current < 0.5f ? 1f : 0f;
-            VBVMR_SetParameterFloat($"Strip[{stripIdx}].Mute", newVal);
-            return newVal > 0.5f;
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"VoiceMeeter: ToggleStripMute({stripIdx}) failed: {ex.Message}");
-            HandleConnectionLost();
-            return false;
-        }
+        return ToggleMute($"Strip[{stripIdx}].Mute", $"strip {stripIdx}",
+            muted => MuteStateChanged?.Invoke(true, stripIdx, muted));
     }
 
     /// <summary>
@@ -210,21 +277,17 @@ public class VoiceMeeterIntegration : IDisposable
     /// </summary>
     public bool ToggleBusMute(int busIdx)
     {
-        if (!EnsureConnected()) return false;
-        try
-        {
-            VBVMR_GetParameterFloat($"Bus[{busIdx}].Mute", out float current);
-            float newVal = current < 0.5f ? 1f : 0f;
-            VBVMR_SetParameterFloat($"Bus[{busIdx}].Mute", newVal);
-            return newVal > 0.5f;
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"VoiceMeeter: ToggleBusMute({busIdx}) failed: {ex.Message}");
-            HandleConnectionLost();
-            return false;
-        }
+        return ToggleMute($"Bus[{busIdx}].Mute", $"bus {busIdx}",
+            muted => MuteStateChanged?.Invoke(false, busIdx, muted));
     }
+
+    /// <summary>Read the current mute state for a VoiceMeeter strip.</summary>
+    public bool TryGetStripMuted(int stripIdx, out bool muted)
+        => TryGetMute($"Strip[{stripIdx}].Mute", out muted);
+
+    /// <summary>Read the current mute state for a VoiceMeeter bus.</summary>
+    public bool TryGetBusMuted(int busIdx, out bool muted)
+        => TryGetMute($"Bus[{busIdx}].Mute", out muted);
 
     /// <summary>
     /// Get strip labels. Returns list of (index, name) tuples.
@@ -276,6 +339,87 @@ public class VoiceMeeterIntegration : IDisposable
     }
 
     // ── Internals ───────────────────────────────────────────────────
+
+    private bool ToggleMute(string parameter, string description, Action<bool> onChanged)
+    {
+        if (!EnsureConnected()) return false;
+
+        lock (_parameterLock)
+        {
+            try
+            {
+                if (!TryRefreshParameters()) return false;
+
+                int getResult = VBVMR_GetParameterFloat(parameter, out float current);
+                if (getResult != 0)
+                {
+                    Logger.Log($"VoiceMeeter: Reading {description} mute failed (result={getResult})");
+                    if (getResult < 0) HandleConnectionLost();
+                    return false;
+                }
+
+                float newValue = current < 0.5f ? 1f : 0f;
+                int setResult = VBVMR_SetParameterFloat(parameter, newValue);
+                if (setResult != 0)
+                {
+                    Logger.Log($"VoiceMeeter: Toggling {description} mute failed (result={setResult})");
+                    if (setResult < 0) HandleConnectionLost();
+                    return false;
+                }
+
+                bool muted = newValue > 0.5f;
+                Logger.Log($"VoiceMeeter: {description} mute -> {(muted ? "on" : "off")}");
+                onChanged(muted);
+                return muted;
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"VoiceMeeter: Toggling {description} mute failed: {ex.Message}");
+                HandleConnectionLost();
+                return false;
+            }
+        }
+    }
+
+    private bool TryGetMute(string parameter, out bool muted)
+    {
+        muted = false;
+        if (!EnsureConnected()) return false;
+
+        lock (_parameterLock)
+        {
+            try
+            {
+                if (!TryRefreshParameters()) return false;
+
+                int result = VBVMR_GetParameterFloat(parameter, out float value);
+                if (result != 0)
+                {
+                    if (result < 0) HandleConnectionLost();
+                    return false;
+                }
+
+                muted = value >= 0.5f;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"VoiceMeeter: Reading '{parameter}' failed: {ex.Message}");
+                HandleConnectionLost();
+                return false;
+            }
+        }
+    }
+
+    private bool TryRefreshParameters()
+    {
+        int result = VBVMR_IsParametersDirty();
+        if (result >= 0) return true;
+
+        Logger.Log($"VoiceMeeter: Parameter refresh failed (result={result})");
+        HandleConnectionLost();
+        return false;
+    }
 
     private bool EnsureConnected()
     {

@@ -1411,6 +1411,12 @@ public partial class SettingsView : UserControl
 
     public void UpdateVmStatus(bool? connected)
     {
+        if (ChkVmEnabled.IsChecked != true)
+        {
+            RefreshVmHeaderStatus();
+            return;
+        }
+
         if (connected == null)
         {
             VmStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFB800"));

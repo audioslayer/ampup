@@ -28,6 +28,7 @@ public class RgbController : IDisposable
     private readonly float[] _knobPositions = new float[5];
     private bool _micMuted;
     private bool _masterMuted;
+    private readonly bool[] _targetMuted = new bool[5];
     private int _brightness = 100; // 0-100 global brightness
     private readonly int[] _knobBrightness = { 100, 100, 100, 100, 100 }; // per-knob 0-100
     private int _muteBrightnessPct = 15; // 0-100, dim level when muted (Issue #9)
@@ -262,6 +263,16 @@ public class RgbController : IDisposable
     /// Update master muted state for the DeviceMute effect.
     /// </summary>
     public void SetMasterMuted(bool muted) => _masterMuted = muted;
+
+    /// <summary>
+    /// Update the mute state of the audio target linked to a physical knob.
+    /// Used by mute-aware blend effects (Windows endpoints, app groups, VoiceMeeter).
+    /// </summary>
+    public void SetTargetMuted(int knobIdx, bool muted)
+    {
+        if (knobIdx >= 0 && knobIdx < _targetMuted.Length)
+            _targetMuted[knobIdx] = muted;
+    }
 
     /// <summary>
     /// Update the current default output device ID for the DeviceSelect effect.
@@ -855,6 +866,10 @@ public class RgbController : IDisposable
 
             case LightEffect.ColorBlend:
                 EffectColorBlend(k, light, pos);
+                break;
+
+            case LightEffect.ColorBlendMute:
+                EffectColorBlendMute(k, light, pos);
                 break;
 
             case LightEffect.PositionFill:
@@ -1537,13 +1552,13 @@ public class RgbController : IDisposable
     }
 
     /// <summary>
-    /// PositionBlend while the master output device is unmuted.
+    /// PositionBlend while this knob's linked target is unmuted.
     /// When muted: all 3 LEDs show a dim version of color2 as a clear mute indicator.
     /// color1 = low end (unmuted), color2 = high end (unmuted) / mute color.
     /// </summary>
     private void EffectPositionBlendMute(int k, LightConfig light, float pos)
     {
-        if (_masterMuted)
+        if (_targetMuted[k])
         {
             // All LEDs dim mute color (color2 at 40% brightness)
             int r = (int)(light.R2 * 0.4f);
@@ -1558,6 +1573,14 @@ public class RgbController : IDisposable
             EffectPositionBlend(k, light, pos);
         }
     }
+
+    /// <summary>
+    /// Whole-dial color blend tied to knob position. All three LEDs show the
+    /// same point in the gradient. When the linked target is muted, the dial
+    /// returns to the low-volume endpoint (the same appearance as position 0).
+    /// </summary>
+    private void EffectColorBlendMute(int k, LightConfig light, float pos)
+        => EffectColorBlend(k, light, _targetMuted[k] ? 0f : pos);
 
     // --- New per-knob 3-LED effects ---
 
