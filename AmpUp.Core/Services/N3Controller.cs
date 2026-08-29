@@ -185,7 +185,14 @@ public sealed class N3Controller : IDisposable
             _asleep = false;
             if (initialize)
             {
-                TryInitialize();
+                if (TryInitialize())
+                {
+                    // The firmware keeps its VSDinside boot artwork in the
+                    // display buffers until the host explicitly clears them.
+                    // Remove it before Amp Up sends its own key images so no
+                    // vendor wallpaper remains visible around the buttons.
+                    ClearAllDisplays();
+                }
             }
 
             StartReadLoop();
@@ -280,6 +287,10 @@ public sealed class N3Controller : IDisposable
             _asleep = false;
             WriteExtendedReport(0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x44, 0x49, 0x53);
             WriteExtendedReport(0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x4C, 0x49, 0x47, 0x00, 0x00, 0x00, 0x00);
+            // Waking can restore the firmware's saved VSDinside artwork.
+            // Clear every display buffer before the caller resyncs Amp Up's
+            // current page.
+            ClearAllDisplays();
             Logger.Log("N3: wake (CRT DIS + CRT LIG) sent");
         }
         catch (Exception ex)
