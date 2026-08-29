@@ -577,10 +577,12 @@ internal static class StreamControllerDisplayRenderer
         }
 
         // Glow ring — drawn BEHIND the final text overlay, in front of the
-        // icon/image. Only set by ResolveEffectiveKey when a DynamicState
-        // key is in its "active/bright" side AND DynamicStateGlowColor is
-        // non-empty. For static keys this is always empty (no-op).
-        if (!string.IsNullOrWhiteSpace(key.DynamicStateGlowColor))
+        // icon/image. ResolveEffectiveKey clears it on the dim side of a
+        // DynamicState key. Keep the display-type guard here because a key can
+        // retain its dynamic settings after the user switches it back to Normal;
+        // dormant glow must not leak into static keys as a colored edge stripe.
+        if (key.DisplayType == DisplayKeyType.DynamicState
+            && !string.IsNullOrWhiteSpace(key.DynamicStateGlowColor))
         {
             var glowRgb = ParseColor(key.DynamicStateGlowColor, DrawingColor.FromArgb(0x00, 0xE6, 0x76));
             DrawGlowRing(bitmap, canvas, glowRgb);
