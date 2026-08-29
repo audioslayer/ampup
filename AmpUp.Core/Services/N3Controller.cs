@@ -93,6 +93,7 @@ public sealed class N3Controller : IDisposable
     private volatile bool _disposed;
     private volatile bool _initialized;
     private volatile bool _asleep;
+    private int _displayResetPending;
     private int _disconnectNotified = 1;
 
     public event Action<N3InputEvent>? OnInput;
@@ -322,12 +323,21 @@ public sealed class N3Controller : IDisposable
         {
             WriteExtendedReport(0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x43, 0x4C, 0x45, 0x00, 0x00, 0x00, 0xFF);
             WriteExtendedReport(0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x53, 0x54, 0x50);
+            Interlocked.Exchange(ref _displayResetPending, 1);
         }
         catch (Exception ex)
         {
             Logger.Log($"N3: clear displays failed - {ex.Message}");
         }
     }
+
+    /// <summary>
+    /// Returns true once after a full firmware-buffer clear. The N3 can
+    /// occasionally accept but fail to display part of the first image batch
+    /// after CLE 0xFF, so the owner should verify it with one delayed resend.
+    /// </summary>
+    public bool ConsumeDisplayResetPending()
+        => Interlocked.Exchange(ref _displayResetPending, 0) != 0;
 
     public bool ClearDisplay(int keyIndex, bool commit = true)
     {

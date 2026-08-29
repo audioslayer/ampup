@@ -3481,17 +3481,23 @@ public partial class App : Application
                         return;
                     }
 
+                    bool verifyAfterReset = n3.ConsumeDisplayResetPending();
+                    var sentOps = new List<(int slot, byte[]? frame, bool clear)>(ops.Count);
                     foreach (var (slot, bitmap, encodedFrame, clear) in ops)
                     {
                         if (clear)
                         {
-                            n3.ClearDisplay(slot, commit: false);
+                            if (!n3.ClearDisplay(slot, commit: false))
+                                throw new IOException($"N3 rejected clear for display slot {slot + 1}");
+                            sentOps.Add((slot, null, true));
                             continue;
                         }
 
                         if (encodedFrame != null)
                         {
-                            n3.SendDisplayImage(slot, encodedFrame, commit: false);
+                            if (!n3.SendDisplayImage(slot, encodedFrame, commit: false))
+                                throw new IOException($"N3 rejected image for display slot {slot + 1}");
+                            sentOps.Add((slot, encodedFrame, false));
                             continue;
                         }
 
@@ -3501,10 +3507,35 @@ public partial class App : Application
                             try { jpeg = StreamControllerDisplayRenderer.EncodeDeviceBitmap(bitmap); }
                             finally { bitmap.Dispose(); }
 
-                            n3.SendDisplayImage(slot, jpeg, commit: false);
+                            if (!n3.SendDisplayImage(slot, jpeg, commit: false))
+                                throw new IOException($"N3 rejected image for display slot {slot + 1}");
+                            sentOps.Add((slot, jpeg, false));
                         }
                     }
-                    n3.CommitDisplayChanges();
+                    if (!n3.CommitDisplayChanges())
+                        throw new IOException("N3 rejected the display commit");
+
+                    if (verifyAfterReset)
+                    {
+                        // This firmware sometimes acknowledges the first batch
+                        // after CLE 0xFF but leaves a subset of slots blank. A
+                        // single delayed replay makes the reset deterministic.
+                        await Task.Delay(150).ConfigureAwait(false);
+                        if (generation != Volatile.Read(ref _n3DisplayGeneration))
+                            return;
+
+                        Logger.Log("N3: verifying display page after firmware buffer clear");
+                        foreach (var (slot, frame, clear) in sentOps)
+                        {
+                            bool sent = clear
+                                ? n3.ClearDisplay(slot, commit: false)
+                                : n3.SendDisplayImage(slot, frame!, commit: false);
+                            if (!sent)
+                                throw new IOException($"N3 rejected verification for display slot {slot + 1}");
+                        }
+                        if (!n3.CommitDisplayChanges())
+                            throw new IOException("N3 rejected the verification display commit");
+                    }
                 }
                 catch (Exception ex)
                 {
