@@ -4011,13 +4011,33 @@ public partial class App : Application
         if (!string.IsNullOrWhiteSpace(dev.Ip))
         {
             dev.PoweredOn = on;
-            _ = AmbienceSync.SendTurnAsync(dev.Ip, on);
+            string lanFallbackApiKey = _config.Ambience.GoveeApiKey;
+            string lanDeviceId = dev.DeviceId ?? "";
+            string lanSku = dev.Sku ?? "";
+            bool useH61A0CloudFallback = !on
+                && string.Equals(lanSku.Trim(), "H61A0", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(lanDeviceId)
+                && !string.IsNullOrWhiteSpace(lanFallbackApiKey);
+
+            _ambienceSync?.ClearSegmentTracking(dev.Ip);
+            _ = Task.Run(async () =>
+            {
+                await AmbienceSync.SendDevicePowerAsync(dev, on);
+
+                if (useH61A0CloudFallback)
+                {
+                    using var api = new GoveeCloudApi(lanFallbackApiKey);
+                    bool ok = await api.ControlDeviceAsync(
+                        lanDeviceId, lanSku, GoveeCloudApi.TurnOnOff(false));
+                    Logger.Log($"SetGoveePower H61A0 off fallback for {dev.Name}: "
+                        + $"LAN sent, cloud={(ok ? "sent" : "failed")}.");
+                }
+            });
+
             // Power-cycling segment devices loses segment mode on the device
-            // but our _segmentEnabled cache still thinks it's active, so the
-            // next frame gets skipped and the device sits at its default
-            // (often white) until the 25 s keep-alive fires. Clear the cache
-            // so the next frame re-enables segment mode immediately.
-            if (on) _ambienceSync?.ClearAllSegmentTracking();
+            // but our _segmentEnabled cache still thinks it's active. Clearing
+            // tracking makes the next on-frame explicitly re-enable it.
+            if (on) _ambienceSync?.ClearSegmentTracking(dev.Ip);
             return;
         }
 

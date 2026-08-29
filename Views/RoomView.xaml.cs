@@ -1947,41 +1947,20 @@ public partial class RoomView : UserControl
                     VerticalAlignment = VerticalAlignment.Center,
                     Margin = new Thickness(0, 0, 12, 0),
                 };
-                var capturedIp = devConfig.Ip;
                 var capturedDev = devConfig;
                 onOff.Checked += async (_, _) =>
                 {
                     if (_loading || _config == null) return;
-                    MarkGoveeManualControl(capturedDev);
                     capturedDev.PoweredOn = true;
-                    if (hasLan)
-                    {
-                        AmbienceSync.PauseSync(capturedIp, 5);
-                        await AmbienceSync.SendTurnAsync(capturedIp, true);
-                        await Task.Delay(150);
-                    }
-                    else if (_cloudApi != null)
-                    {
-                        await _cloudApi.ControlDeviceAsync(capturedDev.DeviceId, capturedDev.Sku,
-                            GoveeCloudApi.TurnOnOff(true));
-                    }
+                    await SendGoveePowerCommandAsync(capturedDev, true);
+                    await Task.Delay(150);
                     QueueSave();
                 };
                 onOff.Unchecked += async (_, _) =>
                 {
                     if (_loading || _config == null) return;
-                    MarkGoveeManualControl(capturedDev);
                     capturedDev.PoweredOn = false;
-                    if (hasLan)
-                    {
-                        AmbienceSync.PauseSync(capturedIp, 5);
-                        await AmbienceSync.SendTurnAsync(capturedIp, false);
-                    }
-                    else if (_cloudApi != null)
-                    {
-                        await _cloudApi.ControlDeviceAsync(capturedDev.DeviceId, capturedDev.Sku,
-                            GoveeCloudApi.TurnOnOff(false));
-                    }
+                    await SendGoveePowerCommandAsync(capturedDev, false);
                     QueueSave();
                 };
                 devRow.Children.Add(onOff);
@@ -3222,25 +3201,14 @@ public partial class RoomView : UserControl
             {
                 if (_loading) return;
                 devConfig.PoweredOn = true;
-                if (hasLan)
-                {
-                    AmbienceSync.PauseSync(devConfig.Ip, 5);
-                    await AmbienceSync.SendTurnAsync(devConfig.Ip, true);
-                }
-                else if (cloudDev != null)
-                    await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
-                        cloudDev.Device, cloudDev.Sku, GoveeCloudApi.TurnOnOff(true)));
+                await SendGoveePowerCommandAsync(devConfig, true);
                 _onSave?.Invoke(_config!);
             };
             onOff.Unchecked += async (_, _) =>
             {
                 if (_loading) return;
                 devConfig.PoweredOn = false;
-                if (hasLan)
-                    await AmbienceSync.SendTurnAsync(devConfig.Ip, false);
-                else if (cloudDev != null)
-                    await SafeCloudCall(() => _cloudApi!.ControlDeviceAsync(
-                        cloudDev.Device, cloudDev.Sku, GoveeCloudApi.TurnOnOff(false)));
+                await SendGoveePowerCommandAsync(devConfig, false);
                 _onSave?.Invoke(_config!);
             };
             devRow.Children.Add(onOff);
@@ -4236,22 +4204,13 @@ public partial class RoomView : UserControl
         {
             if (_loading) return;
             if (devConfig != null) { devConfig.PoweredOn = true; _onSave?.Invoke(_config!); }
-            if (lanIp != null)
-            {
-                AmbienceSync.PauseSync(lanIp, 5);
-                await AmbienceSync.SendTurnAsync(lanIp, true);
-            }
-            else if (_cloudApi != null)
-                await SafeCloudCall(() => _cloudApi.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.TurnOnOff(true)));
+            await SendGoveePowerCommandAsync(devConfig, true);
         };
         onOffCheck.Unchecked += async (_, _) =>
         {
             if (_loading) return;
             if (devConfig != null) { devConfig.PoweredOn = false; _onSave?.Invoke(_config!); }
-            if (lanIp != null)
-                await AmbienceSync.SendTurnAsync(lanIp, false);
-            else if (_cloudApi != null)
-                await SafeCloudCall(() => _cloudApi.ControlDeviceAsync(device.Device, device.Sku, GoveeCloudApi.TurnOnOff(false)));
+            await SendGoveePowerCommandAsync(devConfig, false);
         };
         content.Children.Add(onOffCheck);
 
@@ -6798,6 +6757,56 @@ public partial class RoomView : UserControl
 
     private void MarkGoveeManualControl(GoveeDeviceConfig device)
         => _goveeManualControlRevisions[device] = _goveeManualControlRevisions.GetValueOrDefault(device) + 1;
+
+    /// <summary>
+    /// Sends a per-device power command without letting an active RGBIC segment
+    /// frame keep the LEDs illuminated. H61A0 additionally receives a cloud-off
+    /// fallback because its LAN controller can report off while retaining the
+    /// last Razer frame on the physical rope.
+    /// </summary>
+    private async Task SendGoveePowerCommandAsync(GoveeDeviceConfig? device, bool on)
+    {
+        if (device == null || _config == null) return;
+
+        MarkGoveeManualControl(device);
+        bool hasLan = !string.IsNullOrWhiteSpace(device.Ip);
+        if (hasLan)
+        {
+            _sync?.ClearSegmentTracking(device.Ip);
+            await AmbienceSync.SendDevicePowerAsync(device, on);
+            if (on) _sync?.ClearSegmentTracking(device.Ip);
+        }
+
+        bool isH61A0OffFallback = !on
+            && string.Equals(device.Sku?.Trim(), "H61A0", StringComparison.OrdinalIgnoreCase);
+        bool needsCloud = !hasLan || isH61A0OffFallback;
+        if (!needsCloud
+            || string.IsNullOrWhiteSpace(device.DeviceId)
+            || string.IsNullOrWhiteSpace(device.Sku))
+            return;
+
+        string apiKey = _config.Ambience.GoveeApiKey;
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            Logger.Log($"[Room] Cloud power fallback skipped for {device.Name}: missing API key.");
+            return;
+        }
+
+        try
+        {
+            // A one-shot client cannot be disposed by a concurrent config reload,
+            // which previously produced ObjectDisposedException during state refresh.
+            using var api = new GoveeCloudApi(apiKey);
+            bool ok = await api.ControlDeviceAsync(
+                device.DeviceId, device.Sku, GoveeCloudApi.TurnOnOff(on));
+            Logger.Log($"[Room] Govee power {device.Name}={(on ? "on" : "off")}: "
+                + $"LAN={(hasLan ? "sent" : "n/a")}, cloud={(ok ? "sent" : "failed")}.");
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[Room] Govee cloud power fallback failed for {device.Name}: {ex.Message}");
+        }
+    }
 
     private static async Task<(GoveeDeviceConfig Device, bool On, int Brightness, int Revision)?>
         QueryCurrentGoveeDeviceStateAsync(GoveeDeviceConfig device, GoveeCloudApi? cloudApi, int revision)

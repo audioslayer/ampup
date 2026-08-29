@@ -1341,6 +1341,35 @@ public class AmbienceSync : IDisposable
     }
 
     /// <summary>
+    /// Reliably changes power for a configured LAN device. RGBIC devices can
+    /// keep displaying the last Razer/segment frame even after their normal
+    /// LAN power state flips to off. Exit segment mode first, allow the
+    /// controller to settle, then repeat the idempotent off packet once.
+    /// </summary>
+    public static async Task SendDevicePowerAsync(GoveeDeviceConfig device, bool on)
+    {
+        if (device == null || string.IsNullOrWhiteSpace(device.Ip)) return;
+
+        string ip = device.Ip;
+        bool usesSegments = device.UseSegmentProtocol && GetSegmentCount(device) > 0;
+        PauseSync(ip, on ? 5 : 30);
+
+        if (!on && usesSegments)
+        {
+            await DisableSegmentMode(ip);
+            await Task.Delay(160);
+        }
+
+        await SendTurnAsync(ip, on);
+
+        if (!on && usesSegments)
+        {
+            await Task.Delay(140);
+            await SendTurnAsync(ip, false);
+        }
+    }
+
+    /// <summary>
     /// Sets a Govee device to a specific color via LAN UDP.
     /// </summary>
     public static async Task SendColorAsync(string ip, byte r, byte g, byte b, int durationMs = 30)
