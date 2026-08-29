@@ -226,6 +226,7 @@ public static class ConfigManager
         ArgumentNullException.ThrowIfNull(config);
         NormalizeNullMembers(config, new AppConfig(), new HashSet<object>(ReferenceEqualityComparer.Instance));
         MigrateLegacyN3ControlButtonIds(config);
+        MigrateN3RoomEffectSpaces(config.N3.Folders);
 
         for (int i = 0; i < 5; i++)
         {
@@ -337,6 +338,122 @@ public static class ConfigManager
         NormalizeDeviceSurfaceSelections(config);
         MigrateLegacyProfileFiles(config.Profiles);
         return config;
+    }
+
+    private static readonly (string Title, string Accent, string Effect, string Icon)[] NewN3RoomEffects =
+    {
+        ("Clouds",     "#7ED6FF", "ColorClouds",      "fx_colorclouds"),
+        ("Fireflies",  "#D9FF6A", "FireflyGarden",    "fx_fireflygarden"),
+        ("Sparkler",   "#FFD166", "Sparkler",         "fx_sparkler"),
+        ("Shadows",    "#7C4DFF", "DancingShadows",  "fx_dancingshadows"),
+        ("Nova Burst", "#FF5CD6", "NovaBurst",        "fx_novaburst"),
+        ("Chroma",     "#39FFD0", "ChromaticSpring", "fx_chromaticspring"),
+    };
+
+    /// <summary>
+    /// Extends an existing N3 Effects/Room Effects Space without replacing any
+    /// user-designed keys. Aurora and Ocean remain slots 0/1; the new scenes are
+    /// inserted directly after them and the old tail shifts forward.
+    /// </summary>
+    private static void MigrateN3RoomEffectSpaces(List<ButtonFolderConfig> folders)
+    {
+        foreach (var folder in folders)
+        {
+            if (!folder.Name.Contains("effect", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var displayKeys = folder.DisplayKeys
+                .Where(key => key.Idx >= 0)
+                .OrderBy(key => key.Idx)
+                .ToList();
+            if (displayKeys.Count < 2) continue;
+
+            var pairs = displayKeys.Select(key =>
+            {
+                var button = folder.Buttons.FirstOrDefault(candidate => candidate.Idx == 100 + key.Idx)
+                    ?? new ButtonConfig { Idx = 100 + key.Idx };
+                return (Key: key, Button: button);
+            }).ToList();
+
+            if (!IsRoomEffect(pairs[0].Button, "Aurora")
+                || !IsRoomEffect(pairs[1].Button, "Ocean"))
+                continue;
+
+            var expectedPrefix = new[] { "Aurora", "Ocean" }
+                .Concat(NewN3RoomEffects.Select(effect => effect.Effect))
+                .ToArray();
+            bool alreadyMigrated = pairs.Count >= expectedPrefix.Length
+                && expectedPrefix.Select((effect, idx) => IsRoomEffect(pairs[idx].Button, effect)).All(matches => matches);
+            if (alreadyMigrated) continue;
+
+            var newEffectNames = NewN3RoomEffects
+                .Select(effect => effect.Effect)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var reordered = new List<(StreamControllerDisplayKeyConfig Key, ButtonConfig Button)>
+            {
+                pairs[0],
+                pairs[1],
+            };
+
+            foreach (var effect in NewN3RoomEffects)
+                reordered.Add(CreateN3RoomEffectPair(effect));
+
+            reordered.AddRange(pairs.Skip(2).Where(pair =>
+                !string.Equals(pair.Button.Action, "room_effect", StringComparison.OrdinalIgnoreCase)
+                || !newEffectNames.Contains(pair.Button.Path)));
+
+            var pairedButtons = pairs.Select(pair => pair.Button).ToHashSet();
+            var extraButtons = folder.Buttons
+                .Where(button => !pairedButtons.Contains(button))
+                .ToList();
+            for (int i = 0; i < reordered.Count; i++)
+            {
+                reordered[i].Key.Idx = i;
+                reordered[i].Button.Idx = 100 + i;
+            }
+
+            folder.DisplayKeys = reordered.Select(pair => pair.Key).ToList();
+            folder.Buttons = reordered.Select(pair => pair.Button).Concat(extraButtons).ToList();
+            folder.PageCount = Math.Max(folder.PageCount,
+                (int)Math.Ceiling(reordered.Count / 6.0));
+        }
+    }
+
+    private static bool IsRoomEffect(ButtonConfig button, string effect)
+        => string.Equals(button.Action, "room_effect", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(button.Path, effect, StringComparison.OrdinalIgnoreCase);
+
+    private static (StreamControllerDisplayKeyConfig Key, ButtonConfig Button) CreateN3RoomEffectPair(
+        (string Title, string Accent, string Effect, string Icon) effect)
+    {
+        var key = new StreamControllerDisplayKeyConfig
+        {
+            ImagePath = "",
+            PresetIconKind = effect.Icon,
+            Title = effect.Title,
+            Subtitle = "",
+            BackgroundColor = "#0B0B16",
+            AccentColor = effect.Accent,
+            TextPosition = DisplayTextPosition.Bottom,
+            TextSize = effect.Title.Length > 10 ? 10 : 12,
+            TextColor = "#FFFFFF",
+            IconColor = effect.Accent,
+            FontFamily = "Segoe UI",
+            Brightness = 100,
+            DisplayType = DisplayKeyType.Normal,
+            ClockFormat = "h:mm",
+            DynamicStateGlowColor = effect.Accent,
+        };
+        var button = new ButtonConfig
+        {
+            Label = effect.Title,
+            Action = "room_effect",
+            Path = effect.Effect,
+            HoldAction = "none",
+            DoublePressAction = "none",
+            LinkedKnobIdx = -1,
+        };
+        return (key, button);
     }
 
     private static void NormalizeN3EncoderContexts(List<N3EncoderContextConfig> contexts)

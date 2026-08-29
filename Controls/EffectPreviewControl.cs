@@ -331,6 +331,12 @@ namespace AmpUp.Controls
                 case LightEffect.CandyStripe:      RenderCandyStripe(c);      break;
                 case LightEffect.Riptide:          RenderRiptide(c);          break;
                 case LightEffect.Moonbeam:         RenderMoonbeam(c);         break;
+                case LightEffect.ColorClouds:      RenderColorClouds(c);      break;
+                case LightEffect.FireflyGarden:    RenderFireflyGarden(c);    break;
+                case LightEffect.Sparkler:         RenderSparkler(c);         break;
+                case LightEffect.DancingShadows:   RenderDancingShadows(c);   break;
+                case LightEffect.NovaBurst:        RenderNovaBurst(c);        break;
+                case LightEffect.ChromaticSpring:  RenderChromaticSpring(c);  break;
 
                 default: RenderFallback(c); break;
             }

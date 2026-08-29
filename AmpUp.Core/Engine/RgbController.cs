@@ -59,6 +59,23 @@ public class RgbController : IDisposable
     private readonly float[] _starBright = new float[15];
     private readonly float[] _starTarget = new float[15];
 
+    // Room-scene particles. These effects deliberately keep a tiny fixed pool:
+    // enough motion for the 15-zone renderer without allocating on the 20 FPS path.
+    private struct RoomParticle
+    {
+        public float Pos;
+        public float Velocity;
+        public float Age;
+        public float Life;
+        public float Palette;
+        public bool Active;
+    }
+    private readonly RoomParticle[] _fireflies = new RoomParticle[8];
+    private readonly RoomParticle[] _sparklerParticles = new RoomParticle[20];
+    private int _fireflySpawnCountdown;
+    private int _sparklerSpawnCountdown;
+    private float _sparklerCenter = 0.5f;
+
     // AudioPositionBlend crossfade: 0=idle effect, 1=AudioReactive
     private readonly float[] _audioBlendFade = new float[5];
     private float _audioBlendFadeGlobal; // global-level crossfade for spanning effects
@@ -748,6 +765,8 @@ public class RgbController : IDisposable
         LightEffect.SpectrumPulse,
         LightEffect.Heatwave, LightEffect.Mirage, LightEffect.CandyStripe,
         LightEffect.Riptide, LightEffect.Moonbeam,
+        LightEffect.ColorClouds, LightEffect.FireflyGarden, LightEffect.Sparkler,
+        LightEffect.DancingShadows, LightEffect.NovaBurst, LightEffect.ChromaticSpring,
     };
 
     /// <summary>
@@ -2256,6 +2275,12 @@ public class RgbController : IDisposable
             case LightEffect.CandyStripe:      GlobalCandyStripe(gl); break;
             case LightEffect.Riptide:          GlobalRiptide(gl); break;
             case LightEffect.Moonbeam:         GlobalMoonbeam(gl); break;
+            case LightEffect.ColorClouds:      GlobalColorClouds(gl); break;
+            case LightEffect.FireflyGarden:    GlobalFireflyGarden(gl); break;
+            case LightEffect.Sparkler:         GlobalSparkler(gl); break;
+            case LightEffect.DancingShadows:   GlobalDancingShadows(gl); break;
+            case LightEffect.NovaBurst:        GlobalNovaBurst(gl); break;
+            case LightEffect.ChromaticSpring:  GlobalChromaticSpring(gl); break;
         }
     }
 
@@ -4319,6 +4344,276 @@ public class RgbController : IDisposable
         }
     }
 
+    /// <summary>
+    /// Layered, palette-mapped cloud banks. Three incommensurate waves create a
+    /// smooth pseudo-noise field that never falls into an obvious repeating chase.
+    /// </summary>
+    private void GlobalColorClouds(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.004f + speed / 100f * 0.018f);
+
+        for (int i = 0; i < 15; i++)
+        {
+            float x = i / 14f;
+            float a = Wave(x * 0.85f + t * 0.17f);
+            float b = Wave(x * 2.15f - t * 0.11f + 0.31f);
+            float c = Wave(x * 4.7f + t * 0.07f + 0.67f);
+            float cloud = Smooth(a * 0.52f + b * 0.31f + c * 0.17f);
+            float palettePos = PingPong(x * 0.58f + cloud * 0.36f + t * 0.025f);
+            var (cr, cg, cb) = GetGradientColor(gl, palettePos);
+
+            float brightness = 0.48f + cloud * 0.52f;
+            float silver = MathF.Pow(cloud, 5f) * 0.18f;
+            SetGlobalLed(i,
+                Math.Clamp((int)((cr + (255 - cr) * silver) * brightness), 0, 255),
+                Math.Clamp((int)((cg + (255 - cg) * silver) * brightness), 0, 255),
+                Math.Clamp((int)((cb + (255 - cb) * silver) * brightness), 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Slow, independently drifting points with soft bloom and organic flutter.
+    /// The wrapped particle space keeps fireflies moving naturally across room edges.
+    /// </summary>
+    private void GlobalFireflyGarden(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        int active = 0;
+        for (int p = 0; p < _fireflies.Length; p++)
+        {
+            if (!_fireflies[p].Active) continue;
+            active++;
+            _fireflies[p].Age += 1f;
+            _fireflies[p].Pos = Frac(_fireflies[p].Pos + _fireflies[p].Velocity);
+            _fireflies[p].Velocity += ((float)_rng.NextDouble() - 0.5f) * 0.00035f;
+            _fireflies[p].Velocity = Math.Clamp(_fireflies[p].Velocity, -0.006f, 0.006f);
+            if (_fireflies[p].Age >= _fireflies[p].Life)
+                _fireflies[p].Active = false;
+        }
+
+        if (_fireflySpawnCountdown > 0) _fireflySpawnCountdown--;
+        int desired = 3 + speed / 22;
+        if ((_fireflySpawnCountdown <= 0 || active < 3) && active < desired)
+        {
+            for (int p = 0; p < _fireflies.Length; p++)
+            {
+                if (_fireflies[p].Active) continue;
+                _fireflies[p] = new RoomParticle
+                {
+                    Active = true,
+                    Pos = (float)_rng.NextDouble(),
+                    Velocity = ((float)_rng.NextDouble() - 0.5f) * (0.0025f + speed / 100f * 0.0035f),
+                    Age = 0f,
+                    Life = 55f + (float)_rng.NextDouble() * 90f,
+                    Palette = (float)_rng.NextDouble(),
+                };
+                break;
+            }
+            _fireflySpawnCountdown = Math.Max(3, 15 - speed / 9);
+        }
+
+        for (int i = 0; i < 15; i++)
+        {
+            float x = i / 14f;
+            var (baseR, baseG, baseB) = GetGradientColor(gl, PingPong(x * 0.35f + _animTick * 0.0007f));
+            float rr = baseR * 0.025f, gg = baseG * 0.025f, bb = baseB * 0.025f;
+
+            for (int p = 0; p < _fireflies.Length; p++)
+            {
+                var fly = _fireflies[p];
+                if (!fly.Active) continue;
+                float life = MathF.Sin(Math.Clamp(fly.Age / fly.Life, 0f, 1f) * MathF.PI);
+                life *= life;
+                float flutter = 0.62f + 0.38f * Wave(fly.Age * 0.095f + fly.Palette * 3.7f);
+                float d = WrapDist(x, fly.Pos);
+                float glow = MathF.Exp(-d * d * 240f) * life * flutter;
+                var (fr, fg, fb) = GetGradientColor(gl, fly.Palette);
+                float whiteCore = MathF.Pow(glow, 3f) * 0.62f;
+                rr += (fr + (255 - fr) * whiteCore) * glow;
+                gg += (fg + (255 - fg) * whiteCore) * glow;
+                bb += (fb + (255 - fb) * whiteCore) * glow;
+            }
+
+            SetGlobalLed(i,
+                Math.Clamp((int)rr, 0, 255),
+                Math.Clamp((int)gg, 0, 255),
+                Math.Clamp((int)bb, 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// A continuous room-scale spark fountain. Sparks launch from a slowly moving
+    /// center, coast outward, and cool from white into the selected palette.
+    /// </summary>
+    private void GlobalSparkler(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        _sparklerCenter = 0.5f + MathF.Sin(_animTick * 0.006f) * 0.18f;
+
+        for (int p = 0; p < _sparklerParticles.Length; p++)
+        {
+            if (!_sparklerParticles[p].Active) continue;
+            _sparklerParticles[p].Age += 1f;
+            _sparklerParticles[p].Pos += _sparklerParticles[p].Velocity;
+            _sparklerParticles[p].Velocity *= 0.955f;
+            if (_sparklerParticles[p].Age >= _sparklerParticles[p].Life
+                || _sparklerParticles[p].Pos < -0.08f || _sparklerParticles[p].Pos > 1.08f)
+                _sparklerParticles[p].Active = false;
+        }
+
+        if (_sparklerSpawnCountdown > 0) _sparklerSpawnCountdown--;
+        if (_sparklerSpawnCountdown <= 0)
+        {
+            int spawnCount = 1 + speed / 45;
+            for (int n = 0; n < spawnCount; n++)
+            {
+                for (int p = 0; p < _sparklerParticles.Length; p++)
+                {
+                    if (_sparklerParticles[p].Active) continue;
+                    float side = _rng.Next(2) == 0 ? -1f : 1f;
+                    _sparklerParticles[p] = new RoomParticle
+                    {
+                        Active = true,
+                        Pos = _sparklerCenter,
+                        Velocity = side * (0.012f + (float)_rng.NextDouble() * (0.018f + speed / 100f * 0.018f)),
+                        Age = 0f,
+                        Life = 14f + (float)_rng.NextDouble() * 18f,
+                        Palette = (float)_rng.NextDouble(),
+                    };
+                    break;
+                }
+            }
+            _sparklerSpawnCountdown = Math.Max(1, 4 - speed / 35);
+        }
+
+        for (int i = 0; i < 15; i++)
+        {
+            float x = i / 14f;
+            var (ar, ag, ab) = GetGradientColor(gl, PingPong(x + _animTick * 0.002f));
+            float rr = ar * 0.025f, gg = ag * 0.025f, bb = ab * 0.025f;
+
+            for (int p = 0; p < _sparklerParticles.Length; p++)
+            {
+                var spark = _sparklerParticles[p];
+                if (!spark.Active) continue;
+                float age = Math.Clamp(spark.Age / spark.Life, 0f, 1f);
+                float envelope = (1f - age) * MathF.Min(1f, spark.Age * 0.6f);
+                float d = x - spark.Pos;
+                float glow = MathF.Exp(-d * d * 520f) * envelope;
+                var (sr, sg, sb) = GetGradientColor(gl, spark.Palette);
+                float hot = Math.Clamp(1f - age * 2.2f, 0f, 1f);
+                rr += (sr + (255 - sr) * hot) * glow;
+                gg += (sg + (255 - sg) * hot) * glow;
+                bb += (sb + (255 - sb) * hot) * glow;
+            }
+
+            float core = MathF.Exp(-(x - _sparklerCenter) * (x - _sparklerCenter) * 650f)
+                * (0.48f + 0.32f * Wave(_animTick * 0.17f));
+            rr += 255f * core; gg += 245f * core; bb += 220f * core;
+            SetGlobalLed(i,
+                Math.Clamp((int)rr, 0, 255),
+                Math.Clamp((int)gg, 0, 255),
+                Math.Clamp((int)bb, 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Bright flowing color crossed by three independently moving shadow wells.
+    /// Soft luminous rims keep it dimensional instead of simply dimming the room.
+    /// </summary>
+    private void GlobalDancingShadows(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.006f + speed / 100f * 0.025f);
+        float s1 = PingPong(t * 0.23f);
+        float s2 = PingPong(0.31f - t * 0.17f);
+        float s3 = PingPong(0.68f + t * 0.11f);
+
+        for (int i = 0; i < 15; i++)
+        {
+            float x = i / 14f;
+            float d1 = MathF.Abs(x - s1), d2 = MathF.Abs(x - s2), d3 = MathF.Abs(x - s3);
+            float well = MathF.Max(MathF.Exp(-d1 * d1 * 90f),
+                MathF.Max(MathF.Exp(-d2 * d2 * 120f), MathF.Exp(-d3 * d3 * 150f)));
+            float rim = MathF.Max(
+                MathF.Exp(-MathF.Pow(d1 - 0.105f, 2f) * 650f),
+                MathF.Max(MathF.Exp(-MathF.Pow(d2 - 0.09f, 2f) * 720f),
+                          MathF.Exp(-MathF.Pow(d3 - 0.075f, 2f) * 820f)));
+            var (cr, cg, cb) = GetGradientColor(gl, PingPong(x * 0.7f + t * 0.045f));
+            float brightness = 0.9f - well * 0.74f + rim * 0.20f;
+            float rimWhite = rim * 0.12f;
+            SetGlobalLed(i,
+                Math.Clamp((int)((cr + (255 - cr) * rimWhite) * brightness), 0, 255),
+                Math.Clamp((int)((cg + (255 - cg) * rimWhite) * brightness), 0, 255),
+                Math.Clamp((int)((cb + (255 - cb) * rimWhite) * brightness), 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Repeating star birth: a white ignition core throws two colored shells and
+    /// a softer afterglow across the room from a new center each cycle.
+    /// </summary>
+    private void GlobalNovaBurst(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        int cycleTicks = Math.Max(34, 96 - speed / 2);
+        int cycle = _animTick / cycleTicks;
+        float phase = (_animTick % cycleTicks) / (float)cycleTicks;
+        float center = 0.12f + PseudoRandom01(cycle * 17 + 41) * 0.76f;
+        float shell1 = phase * 0.82f;
+        float shell2 = Math.Max(0f, phase - 0.16f) * 0.66f;
+        float decay = MathF.Pow(1f - phase, 0.55f);
+
+        for (int i = 0; i < 15; i++)
+        {
+            float x = i / 14f;
+            float radial = MathF.Abs(x - center);
+            float ring1 = MathF.Exp(-MathF.Pow(radial - shell1, 2f) * 720f) * decay;
+            float ring2 = MathF.Exp(-MathF.Pow(radial - shell2, 2f) * 900f) * decay * 0.68f;
+            float ignition = MathF.Exp(-(x - center) * (x - center) * 600f)
+                * Math.Clamp(1f - phase * 5f, 0f, 1f);
+            float haze = MathF.Exp(-radial * radial * 18f) * decay * 0.16f;
+            var (r1, g1, b1) = GetGradientColor(gl, Frac(cycle * 0.173f + radial * 0.85f));
+            var (r2, g2, b2) = GetGradientColor(gl, Frac(cycle * 0.173f + 0.48f - radial * 0.55f));
+
+            SetGlobalLed(i,
+                Math.Clamp((int)(r1 * (ring1 + haze) + r2 * ring2 + 255f * ignition), 0, 255),
+                Math.Clamp((int)(g1 * (ring1 + haze) + g2 * ring2 + 250f * ignition), 0, 255),
+                Math.Clamp((int)(b1 * (ring1 + haze) + b2 * ring2 + 255f * ignition), 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// A compressing, releasing coil of color. Counter-phased ridges make the
+    /// spring feel elastic while preserving a useful ambient brightness floor.
+    /// </summary>
+    private void GlobalChromaticSpring(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.008f + speed / 100f * 0.035f);
+        float compression = 0.5f + 0.5f * MathF.Sin(t * 0.72f);
+        float coils = 2.6f + compression * 4.4f;
+
+        for (int i = 0; i < 15; i++)
+        {
+            float x = i / 14f;
+            float waveA = Wave(x * coils - t * 0.29f);
+            float waveB = Wave(x * (coils * 0.52f) + t * 0.21f + 0.5f);
+            float ridgeA = MathF.Pow(waveA, 5f);
+            float ridgeB = MathF.Pow(waveB, 7f) * 0.68f;
+            float ridge = MathF.Max(ridgeA, ridgeB);
+            float palettePos = PingPong(x * (0.55f + compression * 0.24f) + t * 0.035f + ridgeB * 0.18f);
+            var (cr, cg, cb) = GetGradientColor(gl, palettePos);
+            float brightness = 0.24f + ridge * 0.76f;
+            float core = MathF.Pow(ridge, 3f) * 0.16f;
+            SetGlobalLed(i,
+                Math.Clamp((int)((cr + (255 - cr) * core) * brightness), 0, 255),
+                Math.Clamp((int)((cg + (255 - cg) * core) * brightness), 0, 255),
+                Math.Clamp((int)((cb + (255 - cb) * core) * brightness), 0, 255));
+        }
+    }
+
     private void AddPaletteVeil(GlobalLightConfig gl, float amount, float speed)
     {
         for (int i = 0; i < 15; i++)
@@ -4529,6 +4824,9 @@ public class RgbController : IDisposable
         float t = Frac(value);
         return 1f - MathF.Abs(t * 2f - 1f);
     }
+
+    private static float PseudoRandom01(int seed)
+        => Frac(MathF.Sin(seed * 12.9898f + 78.233f) * 43758.5453f);
 
     /// <summary>Wrapped distance between two points on the 0-1 ring.</summary>
     private static float WrapDist(float a, float b)

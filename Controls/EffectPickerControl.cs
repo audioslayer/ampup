@@ -262,6 +262,12 @@ namespace AmpUp.Controls
             { LightEffect.CandyStripe,      Color.FromRgb(0xFF, 0x4F, 0x9E) }, // candy pink
             { LightEffect.Riptide,          Color.FromRgb(0x26, 0xC6, 0xDA) }, // riptide teal
             { LightEffect.Moonbeam,         Color.FromRgb(0xCF, 0xD8, 0xDC) }, // moon silver
+            { LightEffect.ColorClouds,      Color.FromRgb(0x7E, 0xD6, 0xFF) }, // sky cyan
+            { LightEffect.FireflyGarden,    Color.FromRgb(0xD9, 0xFF, 0x6A) }, // firefly lime
+            { LightEffect.Sparkler,         Color.FromRgb(0xFF, 0xD1, 0x66) }, // hot gold
+            { LightEffect.DancingShadows,   Color.FromRgb(0x7C, 0x4D, 0xFF) }, // velvet violet
+            { LightEffect.NovaBurst,        Color.FromRgb(0xFF, 0x5C, 0xD6) }, // nova magenta
+            { LightEffect.ChromaticSpring,  Color.FromRgb(0x39, 0xFF, 0xD0) }, // chroma mint
         };
 
         // ── Constructor ──────────────────────────────────────────────────
@@ -419,6 +425,12 @@ namespace AmpUp.Controls
                     (LightEffect.CandyStripe,      "▥",  "Candy",    false),
                     (LightEffect.Riptide,          "∿",  "Riptide",  false),
                     (LightEffect.Moonbeam,         "☾",  "Moonbeam", false),
+                    (LightEffect.ColorClouds,      "☁",  "Clouds+",  false),
+                    (LightEffect.FireflyGarden,    "✣",  "Fireflies",false),
+                    (LightEffect.Sparkler,         "✺",  "Sparkler", false),
+                    (LightEffect.DancingShadows,   "◐",  "Shadows",  false),
+                    (LightEffect.NovaBurst,        "✹",  "Nova",     false),
+                    (LightEffect.ChromaticSpring,  "≋",  "C.Spring", false),
                 });
             }
         }
@@ -708,6 +720,12 @@ namespace AmpUp.Controls
                 LightEffect.CandyStripe      => Color.FromRgb(0x82, 0xB1, 0xFF),
                 LightEffect.Riptide          => Color.FromRgb(0x00, 0xBF, 0xA5),
                 LightEffect.Moonbeam         => Color.FromRgb(0x90, 0xA4, 0xAE),
+                LightEffect.ColorClouds      => Color.FromRgb(0xD6, 0xA8, 0xFF),
+                LightEffect.FireflyGarden    => Color.FromRgb(0xFF, 0xD5, 0x4F),
+                LightEffect.Sparkler         => Color.FromRgb(0x40, 0xC4, 0xFF),
+                LightEffect.DancingShadows   => Color.FromRgb(0x00, 0xE5, 0xFF),
+                LightEffect.NovaBurst        => Color.FromRgb(0x82, 0xB1, 0xFF),
+                LightEffect.ChromaticSpring  => Color.FromRgb(0xFF, 0x40, 0xC8),
                 _ => primary,
             };
         }

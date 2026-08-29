@@ -5696,12 +5696,18 @@ public partial class App : Application
     /// </summary>
     private void ExportFxIconsAndExit()
     {
-        // 18 effects matching the FX Space pages, paired with the filename
+        // Effects matching the FX Space pages, paired with the filename
         // stub (minus "fx_") the PresetIconKind resolver will look up.
         (AmpUp.Core.Models.LightEffect Effect, string Stub)[] effects =
         {
             (AmpUp.Core.Models.LightEffect.Aurora,        "aurora"),
             (AmpUp.Core.Models.LightEffect.Ocean,         "ocean"),
+            (AmpUp.Core.Models.LightEffect.ColorClouds,   "colorclouds"),
+            (AmpUp.Core.Models.LightEffect.FireflyGarden, "fireflygarden"),
+            (AmpUp.Core.Models.LightEffect.Sparkler,      "sparkler"),
+            (AmpUp.Core.Models.LightEffect.DancingShadows,"dancingshadows"),
+            (AmpUp.Core.Models.LightEffect.NovaBurst,     "novaburst"),
+            (AmpUp.Core.Models.LightEffect.ChromaticSpring,"chromaticspring"),
             (AmpUp.Core.Models.LightEffect.Starfield,     "starfield"),
             (AmpUp.Core.Models.LightEffect.Plasma,        "plasma"),
             (AmpUp.Core.Models.LightEffect.NebulaDrift,   "nebuladrift"),

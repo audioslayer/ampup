@@ -383,6 +383,7 @@ public enum LightEffect
     ColorMelt, GradientFlow, Kaleidoscope, NeonFlux, PastelDrift,
     DuetChase, CloudShift, SunsetGlow, CometTrail, SpectrumPulse,
     Heatwave, Mirage, CandyStripe, Riptide, Moonbeam,
+    ColorClouds, FireflyGarden, Sparkler, DancingShadows, NovaBurst, ChromaticSpring,
 }
 
 public class N3Config
