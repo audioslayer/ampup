@@ -9,7 +9,7 @@ namespace AmpUp.Core.Engine;
 /// Each knob has 3 LEDs, each LED has R/G/B = 5 knobs x 3 LEDs x 3 bytes = 45 data bytes.
 /// Supports multiple lighting effects per knob with smooth 20 FPS animation.
 /// </summary>
-public class RgbController : IDisposable
+public partial class RgbController : IDisposable
 {
     private Action<byte[], int, int>? _writeBytes;
     private Func<bool>? _isPortOpen;
@@ -767,8 +767,12 @@ public class RgbController : IDisposable
         LightEffect.Riptide, LightEffect.Moonbeam,
         LightEffect.ColorClouds, LightEffect.FireflyGarden, LightEffect.Sparkler,
         LightEffect.DancingShadows, LightEffect.NovaBurst, LightEffect.ChromaticSpring,
-        LightEffect.RgbOverdrive, LightEffect.LaserGrid, LightEffect.Hyperdrive,
-        LightEffect.PrismPulse, LightEffect.ColorJuggle, LightEffect.SpectrumSurge,
+          LightEffect.RgbOverdrive, LightEffect.LaserGrid, LightEffect.Hyperdrive,
+          LightEffect.PrismPulse, LightEffect.ColorJuggle, LightEffect.SpectrumSurge,
+          LightEffect.BlackHole, LightEffect.LavaLamp, LightEffect.Bubbles,
+          LightEffect.FractalMotion, LightEffect.NoiseMap, LightEffect.MovingPanes,
+          LightEffect.Sunrise, LightEffect.Shimmer, LightEffect.SpotsFade,
+          LightEffect.StreamDual,
     };
 
     /// <summary>
@@ -2289,6 +2293,16 @@ public class RgbController : IDisposable
             case LightEffect.PrismPulse:       GlobalPrismPulse(gl); break;
             case LightEffect.ColorJuggle:      GlobalColorJuggle(gl); break;
             case LightEffect.SpectrumSurge:    GlobalSpectrumSurge(gl); break;
+            case LightEffect.BlackHole:        GlobalBlackHole(gl); break;
+            case LightEffect.LavaLamp:         GlobalLavaLamp(gl); break;
+            case LightEffect.Bubbles:          GlobalBubbles(gl); break;
+            case LightEffect.FractalMotion:    GlobalFractalMotion(gl); break;
+            case LightEffect.NoiseMap:         GlobalNoiseMap(gl); break;
+            case LightEffect.MovingPanes:      GlobalMovingPanes(gl); break;
+            case LightEffect.Sunrise:          GlobalSunrise(gl); break;
+            case LightEffect.Shimmer:          GlobalShimmer(gl); break;
+            case LightEffect.SpotsFade:        GlobalSpotsFade(gl); break;
+            case LightEffect.StreamDual:       GlobalStreamDual(gl); break;
         }
     }
 
@@ -4623,8 +4637,8 @@ public class RgbController : IDisposable
     }
 
     /// <summary>
-    /// Full-spectrum color bands held near maximum value. Interference crests
-    /// lift toward white instead of dimming, giving the room a constant RGB wash.
+    /// Palette bands held near maximum value. Interference crests lift toward
+    /// white instead of dimming, giving the room a constant saturated wash.
     /// </summary>
     private void GlobalRgbOverdrive(GlobalLightConfig gl)
     {
@@ -4635,13 +4649,14 @@ public class RgbController : IDisposable
             float x = i / 14f;
             float interference = Smooth(Wave(x * 3.2f - t * 0.36f)
                 * 0.58f + Wave(x * 7.1f + t * 0.21f) * 0.42f);
-            float hue = Frac(x * 0.82f + t * 0.055f + interference * 0.14f) * 360f;
-            var (r, g, b) = HsvToRgb(hue, 0.98f, 0.88f + interference * 0.12f);
+            float palette = PingPong(x * 0.82f + t * 0.055f + interference * 0.14f);
+            var (r, g, b) = GetGradientColor(gl, palette);
+            float value = 0.88f + interference * 0.12f;
             float white = MathF.Pow(interference, 7f) * 0.22f;
             SetGlobalLed(i,
-                Math.Clamp((int)(r + (255 - r) * white), 0, 255),
-                Math.Clamp((int)(g + (255 - g) * white), 0, 255),
-                Math.Clamp((int)(b + (255 - b) * white), 0, 255));
+                Math.Clamp((int)(r * value + (255 - r * value) * white), 0, 255),
+                Math.Clamp((int)(g * value + (255 - g * value) * white), 0, 255),
+                Math.Clamp((int)(b * value + (255 - b * value) * white), 0, 255));
         }
     }
 
@@ -4680,7 +4695,7 @@ public class RgbController : IDisposable
     }
 
     /// <summary>
-    /// Multiple rainbow streaks race around the room at different speeds over a
+    /// Multiple palette streaks race around the room at different speeds over a
     /// saturated background, each with a white leading edge and long bright tail.
     /// </summary>
     private void GlobalHyperdrive(GlobalLightConfig gl)
@@ -4690,8 +4705,10 @@ public class RgbController : IDisposable
         for (int i = 0; i < 15; i++)
         {
             float x = i / 14f;
-            float hue = Frac(x * 0.72f + t * 0.045f) * 360f;
-            var (baseR, baseG, baseB) = HsvToRgb(hue, 0.98f, 0.66f);
+            var (baseR, baseG, baseB) = GetGradientColor(gl, PingPong(x * 0.72f + t * 0.045f));
+            baseR = (int)(baseR * 0.66f);
+            baseG = (int)(baseG * 0.66f);
+            baseB = (int)(baseB * 0.66f);
             float rr = baseR, gg = baseG, bb = baseB;
 
             for (int streak = 0; streak < 4; streak++)
@@ -4700,7 +4717,7 @@ public class RgbController : IDisposable
                 float d = WrapDist(x, head);
                 float halo = MathF.Exp(-d * d * (150f + streak * 22f));
                 float core = MathF.Exp(-d * d * (820f + streak * 80f));
-                var (sr, sg, sb) = HsvToRgb(Frac(streak * 0.23f + t * 0.025f) * 360f, 0.96f, 1f);
+                var (sr, sg, sb) = GetGradientColor(gl, PingPong(streak * 0.23f + t * 0.025f));
                 rr += sr * halo * 0.55f + 255f * core * 0.48f;
                 gg += sg * halo * 0.55f + 255f * core * 0.48f;
                 bb += sb * halo * 0.55f + 255f * core * 0.48f;
@@ -4728,18 +4745,18 @@ public class RgbController : IDisposable
         for (int i = 0; i < 15; i++)
         {
             float x = i / 14f;
-            float hue = Frac(x * 0.9f - t * 0.075f + Wave(x * 2.1f + t * 0.12f) * 0.12f) * 360f;
-            var (r, g, b) = HsvToRgb(hue, 0.96f, value);
+            float palette = PingPong(x * 0.9f - t * 0.075f + Wave(x * 2.1f + t * 0.12f) * 0.12f);
+            var (r, g, b) = GetGradientColor(gl, palette);
             SetGlobalLed(i,
-                Math.Clamp((int)(r + (255 - r) * white), 0, 255),
-                Math.Clamp((int)(g + (255 - g) * white), 0, 255),
-                Math.Clamp((int)(b + (255 - b) * white), 0, 255));
+                Math.Clamp((int)(r * value + (255 - r * value) * white), 0, 255),
+                Math.Clamp((int)(g * value + (255 - g * value) * white), 0, 255),
+                Math.Clamp((int)(b * value + (255 - b * value) * white), 0, 255));
         }
     }
 
     /// <summary>
-    /// Six bright spectrum orbs follow different sine paths and add together.
-    /// A colorful 64% floor keeps the room lit between crossings.
+    /// Six bright palette orbs follow different sine paths and add together.
+    /// A saturated 64% floor keeps the room lit between crossings.
     /// </summary>
     private void GlobalColorJuggle(GlobalLightConfig gl)
     {
@@ -4749,7 +4766,10 @@ public class RgbController : IDisposable
         for (int i = 0; i < 15; i++)
         {
             float x = i / 14f;
-            var (baseR, baseG, baseB) = HsvToRgb(Frac(x * 0.64f + t * 0.035f) * 360f, 0.96f, 0.64f);
+            var (baseR, baseG, baseB) = GetGradientColor(gl, PingPong(x * 0.64f + t * 0.035f));
+            baseR = (int)(baseR * 0.64f);
+            baseG = (int)(baseG * 0.64f);
+            baseB = (int)(baseB * 0.64f);
             float rr = baseR, gg = baseG, bb = baseB;
 
             for (int orb = 0; orb < 6; orb++)
@@ -4758,7 +4778,7 @@ public class RgbController : IDisposable
                 float d = x - pos;
                 float glow = MathF.Exp(-d * d * 260f);
                 float core = MathF.Exp(-d * d * 900f);
-                var (or, og, ob) = HsvToRgb(Frac(orb / 6f + t * 0.018f) * 360f, 0.98f, 1f);
+                var (or, og, ob) = GetGradientColor(gl, PingPong(orb / 6f + t * 0.018f));
                 rr += or * glow * 0.54f + 255f * core * 0.22f;
                 gg += og * glow * 0.54f + 255f * core * 0.22f;
                 bb += ob * glow * 0.54f + 255f * core * 0.22f;

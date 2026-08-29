@@ -343,6 +343,16 @@ namespace AmpUp.Controls
                 case LightEffect.PrismPulse:       RenderPrismPulse(c);       break;
                 case LightEffect.ColorJuggle:      RenderColorJuggle(c);      break;
                 case LightEffect.SpectrumSurge:    RenderSpectrumSurge(c);    break;
+                case LightEffect.BlackHole:        RenderBlackHole(c);        break;
+                case LightEffect.LavaLamp:         RenderLavaLamp(c);         break;
+                case LightEffect.Bubbles:          RenderBubbles(c);          break;
+                case LightEffect.FractalMotion:    RenderFractalMotion(c);    break;
+                case LightEffect.NoiseMap:         RenderNoiseMap(c);         break;
+                case LightEffect.MovingPanes:      RenderMovingPanes(c);      break;
+                case LightEffect.Sunrise:          RenderSunrise(c);          break;
+                case LightEffect.Shimmer:          RenderShimmer(c);          break;
+                case LightEffect.SpotsFade:        RenderSpotsFade(c);        break;
+                case LightEffect.StreamDual:       RenderStreamDual(c);       break;
 
                 default: RenderFallback(c); break;
             }

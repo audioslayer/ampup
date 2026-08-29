@@ -274,6 +274,19 @@ namespace AmpUp.Controls
             { LightEffect.PrismPulse,       Color.FromRgb(0xFF, 0xEA, 0x00) }, // prism gold
             { LightEffect.ColorJuggle,      Color.FromRgb(0xFF, 0x40, 0xC8) }, // juggling pink
             { LightEffect.SpectrumSurge,    Color.FromRgb(0x00, 0xE5, 0xFF) }, // surge cyan
+
+            // Curated spatial scenes inspired by public WLED/OpenRGB catalogs.
+            // Every one follows the selected palette instead of forcing rainbow hues.
+            { LightEffect.BlackHole,        Color.FromRgb(0x7C, 0x4D, 0xFF) }, // gravity violet
+            { LightEffect.LavaLamp,         Color.FromRgb(0xFF, 0x70, 0x43) }, // molten orange
+            { LightEffect.Bubbles,          Color.FromRgb(0x40, 0xC4, 0xFF) }, // aqua glass
+            { LightEffect.FractalMotion,    Color.FromRgb(0xE0, 0x40, 0xFB) }, // fractal magenta
+            { LightEffect.NoiseMap,         Color.FromRgb(0x26, 0xA6, 0x9A) }, // organic teal
+            { LightEffect.MovingPanes,      Color.FromRgb(0xFF, 0xCA, 0x28) }, // warm panels
+            { LightEffect.Sunrise,          Color.FromRgb(0xFF, 0x8A, 0x65) }, // dawn coral
+            { LightEffect.Shimmer,          Color.FromRgb(0xFF, 0xF5, 0x9D) }, // soft gold
+            { LightEffect.SpotsFade,        Color.FromRgb(0x69, 0xF0, 0xAE) }, // mint spots
+            { LightEffect.StreamDual,       Color.FromRgb(0x44, 0x8A, 0xFF) }, // electric blue
         };
 
         // ── Constructor ──────────────────────────────────────────────────
@@ -443,6 +456,16 @@ namespace AmpUp.Controls
                     (LightEffect.PrismPulse,       "◇",  "P.Pulse",  false),
                     (LightEffect.ColorJuggle,      "●",  "Juggle",   false),
                     (LightEffect.SpectrumSurge,    "≋",  "Surge",    false),
+                    (LightEffect.BlackHole,        "●",  "Black Hole",false),
+                    (LightEffect.LavaLamp,         "◉",  "Lava Lamp",false),
+                    (LightEffect.Bubbles,          "○",  "Bubbles",  false),
+                    (LightEffect.FractalMotion,    "⌁",  "Fractal",  false),
+                    (LightEffect.NoiseMap,         "░",  "Noise Map",false),
+                    (LightEffect.MovingPanes,      "▥",  "Panes",    false),
+                    (LightEffect.Sunrise,          "☀",  "Sunrise",  false),
+                    (LightEffect.Shimmer,          "✧",  "Shimmer",  false),
+                    (LightEffect.SpotsFade,        "••", "Spots",    false),
+                    (LightEffect.StreamDual,       "⇄",  "Dual Flow",false),
                 });
             }
         }
@@ -744,6 +767,16 @@ namespace AmpUp.Controls
                 LightEffect.PrismPulse       => Color.FromRgb(0x7C, 0x4D, 0xFF),
                 LightEffect.ColorJuggle      => Color.FromRgb(0x39, 0xFF, 0x14),
                 LightEffect.SpectrumSurge    => Color.FromRgb(0xFF, 0x40, 0xC8),
+                LightEffect.BlackHole        => Color.FromRgb(0x00, 0xE5, 0xFF),
+                LightEffect.LavaLamp         => Color.FromRgb(0xE0, 0x40, 0xFB),
+                LightEffect.Bubbles          => Color.FromRgb(0xB2, 0xEB, 0xF2),
+                LightEffect.FractalMotion    => Color.FromRgb(0x40, 0xC4, 0xFF),
+                LightEffect.NoiseMap         => Color.FromRgb(0xFF, 0xCA, 0x28),
+                LightEffect.MovingPanes      => Color.FromRgb(0x7C, 0x4D, 0xFF),
+                LightEffect.Sunrise          => Color.FromRgb(0xFF, 0xD5, 0x4F),
+                LightEffect.Shimmer          => Color.FromRgb(0xCE, 0x93, 0xD8),
+                LightEffect.SpotsFade        => Color.FromRgb(0x40, 0xC4, 0xFF),
+                LightEffect.StreamDual       => Color.FromRgb(0xFF, 0x40, 0x81),
                 _ => primary,
             };
         }

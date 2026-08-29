@@ -385,6 +385,8 @@ public enum LightEffect
     Heatwave, Mirage, CandyStripe, Riptide, Moonbeam,
     ColorClouds, FireflyGarden, Sparkler, DancingShadows, NovaBurst, ChromaticSpring,
     RgbOverdrive, LaserGrid, Hyperdrive, PrismPulse, ColorJuggle, SpectrumSurge,
+    BlackHole, LavaLamp, Bubbles, FractalMotion, NoiseMap,
+    MovingPanes, Sunrise, Shimmer, SpotsFade, StreamDual,
 }
 
 public class N3Config

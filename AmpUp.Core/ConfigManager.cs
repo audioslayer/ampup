@@ -342,6 +342,16 @@ public static class ConfigManager
 
     private static readonly (string Title, string Accent, string Effect, string Icon)[] NewN3RoomEffects =
     {
+        ("Black Hole", "#7C4DFF", "BlackHole",       "fx_blackhole"),
+        ("Lava Lamp",  "#FF7043", "LavaLamp",        "fx_lavalamp"),
+        ("Bubbles",    "#40C4FF", "Bubbles",         "fx_bubbles"),
+        ("Fractal",    "#E040FB", "FractalMotion",   "fx_fractalmotion"),
+        ("Noise Map",   "#26A69A", "NoiseMap",        "fx_noisemap"),
+        ("Panes",       "#FFCA28", "MovingPanes",     "fx_movingpanes"),
+        ("Sunrise",     "#FF8A65", "Sunrise",         "fx_sunrise"),
+        ("Shimmer",     "#FFF59D", "Shimmer",         "fx_shimmer"),
+        ("Spots",       "#69F0AE", "SpotsFade",       "fx_spotsfade"),
+        ("Dual Stream", "#448AFF", "StreamDual",      "fx_streamdual"),
         ("Clouds",     "#7ED6FF", "ColorClouds",      "fx_colorclouds"),
         ("Fireflies",  "#D9FF6A", "FireflyGarden",    "fx_fireflygarden"),
         ("Sparkler",   "#FFD166", "Sparkler",         "fx_sparkler"),

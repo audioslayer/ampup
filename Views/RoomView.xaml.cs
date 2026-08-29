@@ -992,10 +992,6 @@ public partial class RoomView : UserControl
         LightEffect.Prism,
         LightEffect.EmberDrift,
         LightEffect.Glitch,
-        LightEffect.RgbOverdrive,
-        LightEffect.Hyperdrive,
-        LightEffect.PrismPulse,
-        LightEffect.ColorJuggle,
     };
 
     private static bool EffectIgnoresPalette(LightEffect e) => PaletteIgnoredEffects.Contains(e);
@@ -1825,7 +1821,11 @@ public partial class RoomView : UserControl
                 or LightEffect.ColorClouds or LightEffect.FireflyGarden or LightEffect.Sparkler
                 or LightEffect.DancingShadows or LightEffect.NovaBurst or LightEffect.ChromaticSpring
                 or LightEffect.RgbOverdrive or LightEffect.LaserGrid or LightEffect.Hyperdrive
-                or LightEffect.PrismPulse or LightEffect.ColorJuggle or LightEffect.SpectrumSurge => 3,
+                or LightEffect.PrismPulse or LightEffect.ColorJuggle or LightEffect.SpectrumSurge
+                or LightEffect.BlackHole or LightEffect.LavaLamp or LightEffect.Bubbles
+                or LightEffect.FractalMotion or LightEffect.NoiseMap or LightEffect.MovingPanes
+                or LightEffect.Sunrise or LightEffect.Shimmer or LightEffect.SpotsFade
+                or LightEffect.StreamDual => 3,
 
             _ => -1,
         };

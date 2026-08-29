@@ -12,8 +12,8 @@ namespace AmpUp.Controls
             for (int i = 0; i <= 12; i++)
             {
                 double x = i / 12.0;
-                double hue = ((x * 0.84 + c.T * 0.10 + Math.Sin(x * 17 - c.T * 2.2) * 0.06) % 1.0 + 1.0) % 1.0;
-                stops.Add(new GradientStop(Hsv(hue, 0.98, 1.0), x));
+                double palette = Sin01((x * 2.4 + c.T * 0.10 + Math.Sin(x * 17 - c.T * 2.2) * 0.12) * Math.PI);
+                stops.Add(new GradientStop(Lerp(c.Color, c.Color2, palette), x));
             }
             c.Dc.DrawRoundedRectangle(new LinearGradientBrush(stops, 0), null, new Rect(0, 0, c.W, c.H), 3, 3);
             double crest = c.W * Saw(c.T * 0.37);
@@ -45,13 +45,13 @@ namespace AmpUp.Controls
             for (int i = 0; i <= 8; i++)
             {
                 double x = i / 8.0;
-                stops.Add(new GradientStop(Hsv((x * 0.72 + c.T * 0.06) % 1.0, 0.98, 0.62), x));
+                stops.Add(new GradientStop(Scale(Lerp(c.Color, c.Color2, Sin01((x + c.T * 0.06) * Math.PI * 2)), 0.68), x));
             }
             c.Dc.DrawRoundedRectangle(new LinearGradientBrush(stops, 0), null, new Rect(0, 0, c.W, c.H), 3, 3);
             for (int i = 0; i < 5; i++)
             {
                 double head = c.W * Saw(c.T * (0.44 + i * 0.035) + i * 0.21);
-                var color = Hsv((i / 5.0 + c.T * 0.04) % 1.0, 0.96, 1.0);
+                var color = Lerp(c.Color, c.Color2, Sin01((i / 5.0 + c.T * 0.04) * Math.PI * 2));
                 double lineHeight = Math.Max(2.6, c.H * 0.075);
                 double y = c.H * (0.1 + i * 0.19);
                 Rect(c.Dc, head - c.W * 0.17, y, c.W * 0.17, lineHeight, color, 0.70, lineHeight * 0.5);
@@ -65,7 +65,7 @@ namespace AmpUp.Controls
             for (int i = 0; i <= 7; i++)
             {
                 double x = i / 7.0;
-                stops.Add(new GradientStop(Hsv((x + c.T * 0.08) % 1.0, 0.98, 1.0), x));
+                stops.Add(new GradientStop(Lerp(c.Color, c.Color2, Sin01((x + c.T * 0.08) * Math.PI * 2)), x));
             }
             c.Dc.DrawRoundedRectangle(new LinearGradientBrush(stops, 0), null, new Rect(0, 0, c.W, c.H), 3, 3);
             double pulse = Math.Pow(Sin01(c.T * 1.15), 6);
@@ -74,14 +74,13 @@ namespace AmpUp.Controls
 
         private void RenderColorJuggle(Ctx c)
         {
-            var background = new LinearGradientBrush(Hsv((c.T * 0.04) % 1.0, 0.95, 0.68),
-                Hsv((0.52 + c.T * 0.04) % 1.0, 0.95, 0.68), 0);
+            var background = new LinearGradientBrush(Scale(c.Color, 0.68), Scale(c.Color2, 0.68), 0);
             c.Dc.DrawRoundedRectangle(background, null, new Rect(0, 0, c.W, c.H), 3, 3);
             for (int i = 0; i < 6; i++)
             {
                 double x = c.W * Sin01(c.T * (0.75 + i * 0.08) + i * 1.17);
                 double y = c.H * (0.18 + i * 0.128);
-                var color = Hsv((i / 6.0 + c.T * 0.03) % 1.0, 0.98, 1.0);
+                var color = Lerp(c.Color, c.Color2, Sin01((i / 6.0 + c.T * 0.03) * Math.PI * 2));
                 Dot(c.Dc, x, y, Math.Max(5.5, c.H * 0.19), color, 0.28);
                 Dot(c.Dc, x, y, Math.Max(2.4, c.H * 0.075), Lerp(color, Colors.White, 0.38), 1.0);
             }

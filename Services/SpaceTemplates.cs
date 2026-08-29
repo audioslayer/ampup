@@ -26,7 +26,7 @@ public static class SpaceTemplates
 
     public static readonly IReadOnlyList<Template> All = new[]
     {
-        new Template("Room Effects",  "30 room lighting patterns across 5 pages, including six super-bright RGB scenes.",
+        new Template("Room Effects",  "40 room lighting patterns across 7 pages, led by ten palette-driven cinematic scenes.",
             "#69F0AE", "neon_lava_lamp", BuildRoomEffects),
         new Template("Media",         "Prev / Play-Pause / Next, mute master + mic, screenshot.",
             "#448AFF", "", BuildMedia),
@@ -48,44 +48,42 @@ public static class SpaceTemplates
 
     private static ButtonFolderConfig BuildRoomEffects()
     {
-        (string Title, string Accent, string Effect, string Icon)[] page1 =
+        (string Title, string Accent, string Effect, string Icon)[] patterns =
         {
             ("Aurora",    "#69F0AE", "Aurora",        "fx_aurora"),
             ("Ocean",     "#29B6F6", "Ocean",         "fx_ocean"),
+            ("Black Hole", "#7C4DFF", "BlackHole",      "fx_blackhole"),
+            ("Lava Lamp",  "#FF7043", "LavaLamp",       "fx_lavalamp"),
+            ("Bubbles",    "#40C4FF", "Bubbles",        "fx_bubbles"),
+            ("Fractal",    "#E040FB", "FractalMotion",  "fx_fractalmotion"),
+            ("Noise Map",  "#26A69A", "NoiseMap",       "fx_noisemap"),
+            ("Panes",      "#FFCA28", "MovingPanes",    "fx_movingpanes"),
+            ("Sunrise",    "#FF8A65", "Sunrise",        "fx_sunrise"),
+            ("Shimmer",    "#FFF59D", "Shimmer",        "fx_shimmer"),
+            ("Spots",      "#69F0AE", "SpotsFade",      "fx_spotsfade"),
+            ("Dual Stream","#448AFF", "StreamDual",     "fx_streamdual"),
             ("Clouds",    "#7ED6FF", "ColorClouds",   "fx_colorclouds"),
             ("Fireflies", "#D9FF6A", "FireflyGarden", "fx_fireflygarden"),
             ("Sparkler",  "#FFD166", "Sparkler",      "fx_sparkler"),
             ("Shadows",   "#7C4DFF", "DancingShadows","fx_dancingshadows"),
-        };
-        (string, string, string, string)[] page2 =
-        {
             ("Nova Burst", "#FF5CD6", "NovaBurst",       "fx_novaburst"),
             ("Chroma",     "#39FFD0", "ChromaticSpring", "fx_chromaticspring"),
             ("Overdrive",  "#FF1774", "RgbOverdrive",    "fx_rgboverdrive"),
             ("Lasers",     "#00FFE5", "LaserGrid",       "fx_lasergrid"),
             ("Hyperdrive", "#7C4DFF", "Hyperdrive",      "fx_hyperdrive"),
             ("Prism Pulse","#FFEA00", "PrismPulse",      "fx_prismpulse"),
-        };
-        (string, string, string, string)[] page3 =
-        {
             ("Juggle",    "#FF40C8", "ColorJuggle",    "fx_colorjuggle"),
             ("Surge",     "#00E5FF", "SpectrumSurge", "fx_spectrumsurge"),
             ("Starfield", "#B0BEC5", "Starfield",     "fx_starfield"),
             ("Plasma",    "#E040FB", "Plasma",        "fx_plasma"),
             ("Nebula",    "#7C4DFF", "NebulaDrift",   "fx_nebuladrift"),
             ("Breathing", "#90A4AE", "BreathingSync", "fx_breathingsync"),
-        };
-        (string, string, string, string)[] page4 =
-        {
             ("Fire",      "#FF5722", "Fire",          "fx_fire"),
             ("Lava",      "#FF6B35", "Lava",          "fx_lava"),
             ("Lightning", "#FFEB3B", "Lightning",     "fx_lightning"),
             ("Police",    "#2196F3", "PoliceLights",  "fx_police"),
             ("Scanner",   "#F44336", "Scanner",       "fx_scanner"),
             ("Matrix",    "#00E676", "Matrix",        "fx_matrix"),
-        };
-        (string, string, string, string)[] page5 =
-        {
             ("ColorWave", "#00ACC1", "ColorWave",     "fx_colorwave"),
             ("Rainfall",  "#4FC3F7", "Rainfall",      "fx_rainfall"),
             ("Waterfall", "#4DD0E1", "Waterfall",     "fx_waterfall"),
@@ -94,17 +92,17 @@ public static class SpaceTemplates
             ("Heartbeat", "#E91E63", "Heartbeat",     "fx_heartbeat"),
         };
 
-        var folder = new ButtonFolderConfig { Name = "Room Effects", PageCount = 5, BackKeyEnabled = false };
-        var pages = new[] { page1, page2, page3, page4, page5 };
-        for (int p = 0; p < pages.Length; p++)
+        var folder = new ButtonFolderConfig
         {
-            for (int s = 0; s < KeysPerPage; s++)
-            {
-                int local = p * KeysPerPage + s;
-                var (title, accent, effect, icon) = pages[p][s];
-                folder.DisplayKeys.Add(DisplayKey(local, title, accent, icon));
-                folder.Buttons.Add(Btn(KeyBase + local, "room_effect", effect));
-            }
+            Name = "Room Effects",
+            PageCount = (int)Math.Ceiling(patterns.Length / (double)KeysPerPage),
+            BackKeyEnabled = false,
+        };
+        for (int local = 0; local < patterns.Length; local++)
+        {
+            var (title, accent, effect, icon) = patterns[local];
+            folder.DisplayKeys.Add(DisplayKey(local, title, accent, icon));
+            folder.Buttons.Add(Btn(KeyBase + local, "room_effect", effect));
         }
         return folder;
     }
