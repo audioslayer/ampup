@@ -5708,6 +5708,12 @@ public partial class App : Application
             (AmpUp.Core.Models.LightEffect.DancingShadows,"dancingshadows"),
             (AmpUp.Core.Models.LightEffect.NovaBurst,     "novaburst"),
             (AmpUp.Core.Models.LightEffect.ChromaticSpring,"chromaticspring"),
+            (AmpUp.Core.Models.LightEffect.RgbOverdrive,  "rgboverdrive"),
+            (AmpUp.Core.Models.LightEffect.LaserGrid,     "lasergrid"),
+            (AmpUp.Core.Models.LightEffect.Hyperdrive,    "hyperdrive"),
+            (AmpUp.Core.Models.LightEffect.PrismPulse,    "prismpulse"),
+            (AmpUp.Core.Models.LightEffect.ColorJuggle,   "colorjuggle"),
+            (AmpUp.Core.Models.LightEffect.SpectrumSurge, "spectrumsurge"),
             (AmpUp.Core.Models.LightEffect.Starfield,     "starfield"),
             (AmpUp.Core.Models.LightEffect.Plasma,        "plasma"),
             (AmpUp.Core.Models.LightEffect.NebulaDrift,   "nebuladrift"),
@@ -5739,9 +5745,18 @@ public partial class App : Application
         const int size = 512;
         const int frame = 60; // ~2s into the animation
 
+        var commandLineArgs = Environment.GetCommandLineArgs();
+        bool force = commandLineArgs
+            .Any(arg => string.Equals(arg, "--force", StringComparison.OrdinalIgnoreCase));
+        string? only = commandLineArgs
+            .FirstOrDefault(arg => arg.StartsWith("--only=", StringComparison.OrdinalIgnoreCase))?[7..];
+
         int ok = 0;
         foreach (var (effect, stub) in effects)
         {
+            if (!string.IsNullOrWhiteSpace(only)
+                && !string.Equals(only, stub, StringComparison.OrdinalIgnoreCase))
+                continue;
             try
             {
                 var tileColor = AmpUp.Controls.EffectPickerControl.EffectColors
@@ -5765,6 +5780,11 @@ public partial class App : Application
                 // fine on a 60x60 LCD, picked up automatically by the .jpg
                 // branch of TryResolveCustomPackImagePath.
                 var outPath = System.IO.Path.Combine(outDir, $"fx_{stub}.jpg");
+                if (!force && System.IO.File.Exists(outPath))
+                {
+                    Console.WriteLine($"Kept existing {outPath}");
+                    continue;
+                }
                 using var fs = new System.IO.FileStream(outPath, System.IO.FileMode.Create, System.IO.FileAccess.Write);
                 var encoder = new System.Windows.Media.Imaging.JpegBitmapEncoder { QualityLevel = 92 };
                 encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bmp));

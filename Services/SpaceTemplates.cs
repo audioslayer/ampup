@@ -26,7 +26,7 @@ public static class SpaceTemplates
 
     public static readonly IReadOnlyList<Template> All = new[]
     {
-        new Template("Room Effects",  "24 room lighting patterns across 4 pages (Aurora, Ocean, Color Clouds, Fireflies …).",
+        new Template("Room Effects",  "30 room lighting patterns across 5 pages, including six super-bright RGB scenes.",
             "#69F0AE", "neon_lava_lamp", BuildRoomEffects),
         new Template("Media",         "Prev / Play-Pause / Next, mute master + mic, screenshot.",
             "#448AFF", "", BuildMedia),
@@ -61,12 +61,21 @@ public static class SpaceTemplates
         {
             ("Nova Burst", "#FF5CD6", "NovaBurst",       "fx_novaburst"),
             ("Chroma",     "#39FFD0", "ChromaticSpring", "fx_chromaticspring"),
+            ("Overdrive",  "#FF1774", "RgbOverdrive",    "fx_rgboverdrive"),
+            ("Lasers",     "#00FFE5", "LaserGrid",       "fx_lasergrid"),
+            ("Hyperdrive", "#7C4DFF", "Hyperdrive",      "fx_hyperdrive"),
+            ("Prism Pulse","#FFEA00", "PrismPulse",      "fx_prismpulse"),
+        };
+        (string, string, string, string)[] page3 =
+        {
+            ("Juggle",    "#FF40C8", "ColorJuggle",    "fx_colorjuggle"),
+            ("Surge",     "#00E5FF", "SpectrumSurge", "fx_spectrumsurge"),
             ("Starfield", "#B0BEC5", "Starfield",     "fx_starfield"),
             ("Plasma",    "#E040FB", "Plasma",        "fx_plasma"),
             ("Nebula",    "#7C4DFF", "NebulaDrift",   "fx_nebuladrift"),
             ("Breathing", "#90A4AE", "BreathingSync", "fx_breathingsync"),
         };
-        (string, string, string, string)[] page3 =
+        (string, string, string, string)[] page4 =
         {
             ("Fire",      "#FF5722", "Fire",          "fx_fire"),
             ("Lava",      "#FF6B35", "Lava",          "fx_lava"),
@@ -75,7 +84,7 @@ public static class SpaceTemplates
             ("Scanner",   "#F44336", "Scanner",       "fx_scanner"),
             ("Matrix",    "#00E676", "Matrix",        "fx_matrix"),
         };
-        (string, string, string, string)[] page4 =
+        (string, string, string, string)[] page5 =
         {
             ("ColorWave", "#00ACC1", "ColorWave",     "fx_colorwave"),
             ("Rainfall",  "#4FC3F7", "Rainfall",      "fx_rainfall"),
@@ -85,8 +94,8 @@ public static class SpaceTemplates
             ("Heartbeat", "#E91E63", "Heartbeat",     "fx_heartbeat"),
         };
 
-        var folder = new ButtonFolderConfig { Name = "Room Effects", PageCount = 4, BackKeyEnabled = false };
-        var pages = new[] { page1, page2, page3, page4 };
+        var folder = new ButtonFolderConfig { Name = "Room Effects", PageCount = 5, BackKeyEnabled = false };
+        var pages = new[] { page1, page2, page3, page4, page5 };
         for (int p = 0; p < pages.Length; p++)
         {
             for (int s = 0; s < KeysPerPage; s++)

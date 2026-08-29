@@ -767,6 +767,8 @@ public class RgbController : IDisposable
         LightEffect.Riptide, LightEffect.Moonbeam,
         LightEffect.ColorClouds, LightEffect.FireflyGarden, LightEffect.Sparkler,
         LightEffect.DancingShadows, LightEffect.NovaBurst, LightEffect.ChromaticSpring,
+        LightEffect.RgbOverdrive, LightEffect.LaserGrid, LightEffect.Hyperdrive,
+        LightEffect.PrismPulse, LightEffect.ColorJuggle, LightEffect.SpectrumSurge,
     };
 
     /// <summary>
@@ -2281,6 +2283,12 @@ public class RgbController : IDisposable
             case LightEffect.DancingShadows:   GlobalDancingShadows(gl); break;
             case LightEffect.NovaBurst:        GlobalNovaBurst(gl); break;
             case LightEffect.ChromaticSpring:  GlobalChromaticSpring(gl); break;
+            case LightEffect.RgbOverdrive:     GlobalRgbOverdrive(gl); break;
+            case LightEffect.LaserGrid:        GlobalLaserGrid(gl); break;
+            case LightEffect.Hyperdrive:       GlobalHyperdrive(gl); break;
+            case LightEffect.PrismPulse:       GlobalPrismPulse(gl); break;
+            case LightEffect.ColorJuggle:      GlobalColorJuggle(gl); break;
+            case LightEffect.SpectrumSurge:    GlobalSpectrumSurge(gl); break;
         }
     }
 
@@ -4611,6 +4619,180 @@ public class RgbController : IDisposable
                 Math.Clamp((int)((cr + (255 - cr) * core) * brightness), 0, 255),
                 Math.Clamp((int)((cg + (255 - cg) * core) * brightness), 0, 255),
                 Math.Clamp((int)((cb + (255 - cb) * core) * brightness), 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Full-spectrum color bands held near maximum value. Interference crests
+    /// lift toward white instead of dimming, giving the room a constant RGB wash.
+    /// </summary>
+    private void GlobalRgbOverdrive(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.012f + speed / 100f * 0.055f);
+        for (int i = 0; i < 15; i++)
+        {
+            float x = i / 14f;
+            float interference = Smooth(Wave(x * 3.2f - t * 0.36f)
+                * 0.58f + Wave(x * 7.1f + t * 0.21f) * 0.42f);
+            float hue = Frac(x * 0.82f + t * 0.055f + interference * 0.14f) * 360f;
+            var (r, g, b) = HsvToRgb(hue, 0.98f, 0.88f + interference * 0.12f);
+            float white = MathF.Pow(interference, 7f) * 0.22f;
+            SetGlobalLed(i,
+                Math.Clamp((int)(r + (255 - r) * white), 0, 255),
+                Math.Clamp((int)(g + (255 - g) * white), 0, 255),
+                Math.Clamp((int)(b + (255 - b) * white), 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Three palette-colored laser beams cross over a bright ambient base.
+    /// Narrow white cores and broad colored halos make each pass read on walls.
+    /// </summary>
+    private void GlobalLaserGrid(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.01f + speed / 100f * 0.045f);
+        float p1 = PingPong(t * 0.31f);
+        float p2 = PingPong(0.35f - t * 0.23f);
+        float p3 = PingPong(0.72f + t * 0.17f);
+        var (r1, g1, b1) = GetGradientColor(gl, 0.08f);
+        var (r2, g2, b2) = GetGradientColor(gl, 0.52f);
+        var (r3, g3, b3) = GetGradientColor(gl, 0.92f);
+
+        for (int i = 0; i < 15; i++)
+        {
+            float x = i / 14f;
+            var (br, bg, bb) = GetGradientColor(gl, PingPong(x * 0.55f + t * 0.035f));
+            float beam1 = MathF.Exp(-(x - p1) * (x - p1) * 360f);
+            float beam2 = MathF.Exp(-(x - p2) * (x - p2) * 420f);
+            float beam3 = MathF.Exp(-(x - p3) * (x - p3) * 500f);
+            float peak = MathF.Max(beam1, MathF.Max(beam2, beam3));
+            float rr = br * 0.68f + r1 * beam1 * 0.82f + r2 * beam2 * 0.82f + r3 * beam3 * 0.82f;
+            float gg = bg * 0.68f + g1 * beam1 * 0.82f + g2 * beam2 * 0.82f + g3 * beam3 * 0.82f;
+            float bb2 = bb * 0.68f + b1 * beam1 * 0.82f + b2 * beam2 * 0.82f + b3 * beam3 * 0.82f;
+            float core = MathF.Pow(peak, 5f) * 0.52f;
+            SetGlobalLed(i,
+                Math.Clamp((int)(rr + 255f * core), 0, 255),
+                Math.Clamp((int)(gg + 255f * core), 0, 255),
+                Math.Clamp((int)(bb2 + 255f * core), 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Multiple rainbow streaks race around the room at different speeds over a
+    /// saturated background, each with a white leading edge and long bright tail.
+    /// </summary>
+    private void GlobalHyperdrive(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.014f + speed / 100f * 0.065f);
+        for (int i = 0; i < 15; i++)
+        {
+            float x = i / 14f;
+            float hue = Frac(x * 0.72f + t * 0.045f) * 360f;
+            var (baseR, baseG, baseB) = HsvToRgb(hue, 0.98f, 0.66f);
+            float rr = baseR, gg = baseG, bb = baseB;
+
+            for (int streak = 0; streak < 4; streak++)
+            {
+                float head = Frac(t * (0.19f + streak * 0.027f) + streak * 0.241f);
+                float d = WrapDist(x, head);
+                float halo = MathF.Exp(-d * d * (150f + streak * 22f));
+                float core = MathF.Exp(-d * d * (820f + streak * 80f));
+                var (sr, sg, sb) = HsvToRgb(Frac(streak * 0.23f + t * 0.025f) * 360f, 0.96f, 1f);
+                rr += sr * halo * 0.55f + 255f * core * 0.48f;
+                gg += sg * halo * 0.55f + 255f * core * 0.48f;
+                bb += sb * halo * 0.55f + 255f * core * 0.48f;
+            }
+
+            SetGlobalLed(i,
+                Math.Clamp((int)rr, 0, 255),
+                Math.Clamp((int)gg, 0, 255),
+                Math.Clamp((int)bb, 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// A smooth full-room prism pulse. Value never drops below 82%, while soft
+    /// synchronized peaks desaturate toward white for a camera-flash glow.
+    /// </summary>
+    private void GlobalPrismPulse(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.009f + speed / 100f * 0.038f);
+        float pulse = Smooth(Wave(t * 0.34f));
+        float value = 0.82f + pulse * 0.18f;
+        float white = MathF.Pow(pulse, 6f) * 0.30f;
+
+        for (int i = 0; i < 15; i++)
+        {
+            float x = i / 14f;
+            float hue = Frac(x * 0.9f - t * 0.075f + Wave(x * 2.1f + t * 0.12f) * 0.12f) * 360f;
+            var (r, g, b) = HsvToRgb(hue, 0.96f, value);
+            SetGlobalLed(i,
+                Math.Clamp((int)(r + (255 - r) * white), 0, 255),
+                Math.Clamp((int)(g + (255 - g) * white), 0, 255),
+                Math.Clamp((int)(b + (255 - b) * white), 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Six bright spectrum orbs follow different sine paths and add together.
+    /// A colorful 64% floor keeps the room lit between crossings.
+    /// </summary>
+    private void GlobalColorJuggle(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.012f + speed / 100f * 0.052f);
+
+        for (int i = 0; i < 15; i++)
+        {
+            float x = i / 14f;
+            var (baseR, baseG, baseB) = HsvToRgb(Frac(x * 0.64f + t * 0.035f) * 360f, 0.96f, 0.64f);
+            float rr = baseR, gg = baseG, bb = baseB;
+
+            for (int orb = 0; orb < 6; orb++)
+            {
+                float pos = 0.5f + 0.46f * MathF.Sin(t * (0.42f + orb * 0.047f) + orb * 1.19f);
+                float d = x - pos;
+                float glow = MathF.Exp(-d * d * 260f);
+                float core = MathF.Exp(-d * d * 900f);
+                var (or, og, ob) = HsvToRgb(Frac(orb / 6f + t * 0.018f) * 360f, 0.98f, 1f);
+                rr += or * glow * 0.54f + 255f * core * 0.22f;
+                gg += og * glow * 0.54f + 255f * core * 0.22f;
+                bb += ob * glow * 0.54f + 255f * core * 0.22f;
+            }
+
+            SetGlobalLed(i,
+                Math.Clamp((int)rr, 0, 255),
+                Math.Clamp((int)gg, 0, 255),
+                Math.Clamp((int)bb, 0, 255));
+        }
+    }
+
+    /// <summary>
+    /// Broad center-out palette waves with luminous white crests. The entire
+    /// effect stays at 72% or brighter for maximum room-filling color.
+    /// </summary>
+    private void GlobalSpectrumSurge(GlobalLightConfig gl)
+    {
+        int speed = Math.Clamp(gl.EffectSpeed, 1, 100);
+        float t = _animTick * (0.01f + speed / 100f * 0.048f);
+        for (int i = 0; i < 15; i++)
+        {
+            float x = i / 14f;
+            float radial = MathF.Abs(x - 0.5f) * 2f;
+            float wave1 = Wave(radial * 2.4f - t * 0.42f);
+            float wave2 = Wave(radial * 4.7f - t * 0.27f + 0.35f);
+            float surge = Smooth(wave1 * 0.68f + wave2 * 0.32f);
+            var (cr, cg, cb) = GetGradientColor(gl, PingPong(radial * 0.76f - t * 0.055f + surge * 0.16f));
+            float brightness = 0.78f + surge * 0.22f;
+            float white = MathF.Pow(surge, 6f) * 0.28f;
+            SetGlobalLed(i,
+                Math.Clamp((int)((cr + (255 - cr) * white) * brightness), 0, 255),
+                Math.Clamp((int)((cg + (255 - cg) * white) * brightness), 0, 255),
+                Math.Clamp((int)((cb + (255 - cb) * white) * brightness), 0, 255));
         }
     }
 

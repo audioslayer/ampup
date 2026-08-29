@@ -348,6 +348,12 @@ public static class ConfigManager
         ("Shadows",    "#7C4DFF", "DancingShadows",  "fx_dancingshadows"),
         ("Nova Burst", "#FF5CD6", "NovaBurst",        "fx_novaburst"),
         ("Chroma",     "#39FFD0", "ChromaticSpring", "fx_chromaticspring"),
+        ("Overdrive",  "#FF1774", "RgbOverdrive",    "fx_rgboverdrive"),
+        ("Lasers",     "#00FFE5", "LaserGrid",       "fx_lasergrid"),
+        ("Hyperdrive", "#7C4DFF", "Hyperdrive",      "fx_hyperdrive"),
+        ("Prism Pulse","#FFEA00", "PrismPulse",      "fx_prismpulse"),
+        ("Juggle",     "#FF40C8", "ColorJuggle",     "fx_colorjuggle"),
+        ("Surge",      "#00E5FF", "SpectrumSurge",   "fx_spectrumsurge"),
     };
 
     /// <summary>

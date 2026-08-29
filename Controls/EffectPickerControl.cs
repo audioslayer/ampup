@@ -268,6 +268,12 @@ namespace AmpUp.Controls
             { LightEffect.DancingShadows,   Color.FromRgb(0x7C, 0x4D, 0xFF) }, // velvet violet
             { LightEffect.NovaBurst,        Color.FromRgb(0xFF, 0x5C, 0xD6) }, // nova magenta
             { LightEffect.ChromaticSpring,  Color.FromRgb(0x39, 0xFF, 0xD0) }, // chroma mint
+            { LightEffect.RgbOverdrive,     Color.FromRgb(0xFF, 0x17, 0x74) }, // overdrive red
+            { LightEffect.LaserGrid,        Color.FromRgb(0x00, 0xFF, 0xE5) }, // laser cyan
+            { LightEffect.Hyperdrive,       Color.FromRgb(0x7C, 0x4D, 0xFF) }, // warp violet
+            { LightEffect.PrismPulse,       Color.FromRgb(0xFF, 0xEA, 0x00) }, // prism gold
+            { LightEffect.ColorJuggle,      Color.FromRgb(0xFF, 0x40, 0xC8) }, // juggling pink
+            { LightEffect.SpectrumSurge,    Color.FromRgb(0x00, 0xE5, 0xFF) }, // surge cyan
         };
 
         // ── Constructor ──────────────────────────────────────────────────
@@ -431,6 +437,12 @@ namespace AmpUp.Controls
                     (LightEffect.DancingShadows,   "◐",  "Shadows",  false),
                     (LightEffect.NovaBurst,        "✹",  "Nova",     false),
                     (LightEffect.ChromaticSpring,  "≋",  "C.Spring", false),
+                    (LightEffect.RgbOverdrive,     "⚡",  "Overdrive",false),
+                    (LightEffect.LaserGrid,        "╳",  "Lasers",   false),
+                    (LightEffect.Hyperdrive,       "»",  "Hyperdrive",false),
+                    (LightEffect.PrismPulse,       "◇",  "P.Pulse",  false),
+                    (LightEffect.ColorJuggle,      "●",  "Juggle",   false),
+                    (LightEffect.SpectrumSurge,    "≋",  "Surge",    false),
                 });
             }
         }
@@ -726,6 +738,12 @@ namespace AmpUp.Controls
                 LightEffect.DancingShadows   => Color.FromRgb(0x00, 0xE5, 0xFF),
                 LightEffect.NovaBurst        => Color.FromRgb(0x82, 0xB1, 0xFF),
                 LightEffect.ChromaticSpring  => Color.FromRgb(0xFF, 0x40, 0xC8),
+                LightEffect.RgbOverdrive     => Color.FromRgb(0x00, 0xE5, 0xFF),
+                LightEffect.LaserGrid        => Color.FromRgb(0xFF, 0x2D, 0x95),
+                LightEffect.Hyperdrive       => Color.FromRgb(0x00, 0xE5, 0xFF),
+                LightEffect.PrismPulse       => Color.FromRgb(0x7C, 0x4D, 0xFF),
+                LightEffect.ColorJuggle      => Color.FromRgb(0x39, 0xFF, 0x14),
+                LightEffect.SpectrumSurge    => Color.FromRgb(0xFF, 0x40, 0xC8),
                 _ => primary,
             };
         }

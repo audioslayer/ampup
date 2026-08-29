@@ -337,6 +337,12 @@ namespace AmpUp.Controls
                 case LightEffect.DancingShadows:   RenderDancingShadows(c);   break;
                 case LightEffect.NovaBurst:        RenderNovaBurst(c);        break;
                 case LightEffect.ChromaticSpring:  RenderChromaticSpring(c);  break;
+                case LightEffect.RgbOverdrive:     RenderRgbOverdrive(c);     break;
+                case LightEffect.LaserGrid:        RenderLaserGrid(c);        break;
+                case LightEffect.Hyperdrive:       RenderHyperdrive(c);       break;
+                case LightEffect.PrismPulse:       RenderPrismPulse(c);       break;
+                case LightEffect.ColorJuggle:      RenderColorJuggle(c);      break;
+                case LightEffect.SpectrumSurge:    RenderSpectrumSurge(c);    break;
 
                 default: RenderFallback(c); break;
             }
