@@ -69,6 +69,7 @@ public partial class RoomView : UserControl
     private readonly float[] _vuFillSmoothed = new float[5];
     private readonly float[] _vuFillPeaks = new float[15]; // per-segment brightness for animated modes
     private volatile float[]? _vuFillMask;
+    private volatile float _vuGlobalBeat;
     private int _vuFillTick;
     private float _vuAvgEnergy; // running average for onset detection
     private bool _vuLastOnset; // debounce onset detection
@@ -274,19 +275,11 @@ public partial class RoomView : UserControl
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
             _ = RefreshGoveeDeviceStatesAsync(allowHidden: true));
 
-        // Preserve legacy placements when they exist. Without them,
-        // AmbienceSync automatically spreads the effect across device order.
-        if (config.RoomLayout.Devices.Count > 0)
-        {
-            _spatialMapper = new AmpUp.Core.Engine.SpatialMapper();
-            _spatialMapper.Recalculate(config.RoomLayout);
-            _sync?.SetSpatialMapper(_spatialMapper);
-        }
-        else
-        {
-            _spatialMapper = null;
-            _sync?.SetSpatialMapper(null);
-        }
+        // The editable room layout is retired. Let AmbienceSync distribute
+        // room effects automatically across every active device in order;
+        // stale/incomplete legacy placements must not exclude a light.
+        _spatialMapper = null;
+        _sync?.SetSpatialMapper(null);
     }
 
     // ── Top Bar ──────────────────────────────────────────────────────
@@ -779,8 +772,8 @@ public partial class RoomView : UserControl
             var slidersGrid = new Grid { Margin = new Thickness(0, 0, 0, 8) };
             int col = 0;
 
-            // SENSITIVITY (only when Music Reactive is on)
-            if (globalMusic)
+            // SENSITIVITY (for either audio-reactive overlay)
+            if (globalMusic || _vuFillActive)
             {
                 slidersGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 var sensSlider = new StyledSlider
@@ -936,6 +929,7 @@ public partial class RoomView : UserControl
                     _config.Ambience.VuFillMode = capturedMode;
                     Array.Clear(_vuFillPeaks);
                     _vuFillMask = null;
+                    _vuGlobalBeat = 0;
                     _vuAvgEnergy = 0;
                     _vuLastOnset = false;
                     QueueSave(); RefreshToggleRow(); // re-renders the mode pills' active state
@@ -2890,6 +2884,7 @@ public partial class RoomView : UserControl
         Array.Clear(_vuFillSmoothed);
         Array.Clear(_vuFillPeaks);
         _vuFillMask = null;
+        _vuGlobalBeat = 0;
         App.AudioAnalyzer?.Start();
         EnsureGoveeDevicesPoweredForUserMode();
 
@@ -2926,6 +2921,7 @@ public partial class RoomView : UserControl
         Array.Clear(_vuFillSmoothed);
         Array.Clear(_vuFillPeaks);
         _vuFillMask = null;
+        _vuGlobalBeat = 0;
         _vuAvgEnergy = 0;
         _vuLastOnset = false;
         App.Rgb?.SetScreenSyncColors(null);
@@ -2942,9 +2938,10 @@ public partial class RoomView : UserControl
         // Track a responsive five-band envelope independently from the room
         // renderer. The completed mask is published atomically below and then
         // multiplied over whichever effect frame is currently selected.
+        float sensitivityGain = Math.Clamp(_config.Ambience.MusicSensitivity / 50f, 0.02f, 2f);
         for (int band = 0; band < 5; band++)
         {
-            float raw = Math.Clamp(bands[band] * 2f, 0f, 1f);
+            float raw = Math.Clamp(bands[band] * 2f * sensitivityGain, 0f, 1f);
             if (raw > _vuFillSmoothed[band])
                 _vuFillSmoothed[band] = raw;
             else
@@ -2955,7 +2952,9 @@ public partial class RoomView : UserControl
         var mask = new float[15];
 
         static float FillBrightness(float level, float position) =>
-            level > position ? 1f : Math.Max(0f, 1f - (position - level) * 5f);
+            level <= 0.01f ? 0f
+            : level >= position ? 1f
+            : Math.Max(0f, 1f - (position - level) * 5f);
 
         switch (_config.Ambience.VuFillMode)
         {
@@ -3033,6 +3032,15 @@ public partial class RoomView : UserControl
             }
         }
 
+        // Bass and low mids provide a common room-wide hit beneath the
+        // positional VU shape. This keeps every device visibly reacting even
+        // when its automatic spatial slice is outside the current fill level.
+        float globalBeat = Math.Clamp(
+            _vuFillSmoothed[0] * 0.5f
+            + _vuFillSmoothed[1] * 0.3f
+            + _vuFillSmoothed[2] * 0.2f,
+            0f, 1f);
+        _vuGlobalBeat = MathF.Pow(globalBeat, 0.8f);
         _vuFillMask = mask;
     }
 
@@ -3050,14 +3058,30 @@ public partial class RoomView : UserControl
         if (!_vuFillActive || mask == null || mask.Length < 15)
             return patternFrame;
 
+        byte maxR = 0, maxG = 0, maxB = 0;
+        for (int led = 0; led < 15; led++)
+        {
+            int sourceOffset = led * 3;
+            maxR = Math.Max(maxR, patternFrame[sourceOffset]);
+            maxG = Math.Max(maxG, patternFrame[sourceOffset + 1]);
+            maxB = Math.Max(maxB, patternFrame[sourceOffset + 2]);
+        }
+
+        float globalBeat = Math.Clamp(_vuGlobalBeat, 0f, 1f);
+        int ambientR = (int)Math.Round(maxR * globalBeat * 0.35f);
+        int ambientG = (int)Math.Round(maxG * globalBeat * 0.35f);
+        int ambientB = (int)Math.Round(maxB * globalBeat * 0.35f);
         var output = new byte[45];
         for (int led = 0; led < 15; led++)
         {
-            float brightness = Math.Clamp(mask[led], 0f, 1f);
+            float brightness = Math.Clamp(Math.Max(mask[led], globalBeat * 0.9f), 0f, 1f);
             int offset = led * 3;
-            output[offset] = (byte)Math.Clamp((int)Math.Round(patternFrame[offset] * brightness), 0, 255);
-            output[offset + 1] = (byte)Math.Clamp((int)Math.Round(patternFrame[offset + 1] * brightness), 0, 255);
-            output[offset + 2] = (byte)Math.Clamp((int)Math.Round(patternFrame[offset + 2] * brightness), 0, 255);
+            output[offset] = (byte)Math.Clamp(Math.Max(
+                (int)Math.Round(patternFrame[offset] * brightness), ambientR), 0, 255);
+            output[offset + 1] = (byte)Math.Clamp(Math.Max(
+                (int)Math.Round(patternFrame[offset + 1] * brightness), ambientG), 0, 255);
+            output[offset + 2] = (byte)Math.Clamp(Math.Max(
+                (int)Math.Round(patternFrame[offset + 2] * brightness), ambientB), 0, 255);
         }
         return output;
     }
