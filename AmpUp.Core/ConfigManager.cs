@@ -225,6 +225,10 @@ public static class ConfigManager
     {
         ArgumentNullException.ThrowIfNull(config);
         NormalizeNullMembers(config, new AppConfig(), new HashSet<object>(ReferenceEqualityComparer.Instance));
+        // The custom room-layout UI has been retired. Room effects now always
+        // use spatial distribution, falling back to automatic device order
+        // when no legacy placement data exists.
+        config.Ambience.SpatialSync = true;
         MigrateLegacyN3ControlButtonIds(config);
         MigrateN3RoomEffectSpaces(config.N3.Folders);
 

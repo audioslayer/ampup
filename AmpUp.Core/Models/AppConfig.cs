@@ -694,7 +694,7 @@ public class AmbienceConfig
     public ScreenSyncConfig ScreenSync { get; set; } = new();
     public bool GameModeEnabled { get; set; } = false;
     public bool GoveeSyncToGlobal { get; set; } = true; // Govee follows Global tab effects
-    public bool SpatialSync { get; set; } = false; // false=Mirror (all same), true=Spatial (flow across)
+    public bool SpatialSync { get; set; } = true; // Room effects flow across devices by default
     // Persisted room effect state — restored on startup
     public string? RoomEffect { get; set; } = null; // null = not active
     public string RoomColor1 { get; set; } = "#00E676";

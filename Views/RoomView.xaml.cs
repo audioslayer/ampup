@@ -63,15 +63,15 @@ public partial class RoomView : UserControl
     private DispatcherTimer? _goveeLanMusicTimer;
     private string? _goveeLanMusicIp;
 
-    // VU Fill mode — per-segment VU meters driven by audio
+    // VU Fill mode — audio-driven masks layered over the selected room effect
     private bool _vuFillActive;
     private DispatcherTimer? _vuFillTimer;
     private readonly float[] _vuFillSmoothed = new float[5];
     private readonly float[] _vuFillPeaks = new float[15]; // per-segment brightness for animated modes
+    private volatile float[]? _vuFillMask;
     private int _vuFillTick;
     private float _vuAvgEnergy; // running average for onset detection
     private bool _vuLastOnset; // debounce onset detection
-    private readonly Dictionary<string, DateTime> _vuBulbLastSend = new();
 
     // Room pattern engine — headless RgbController for rendering effects
     private RgbController? _roomRgb;
@@ -220,6 +220,10 @@ public partial class RoomView : UserControl
     public void LoadConfig(AppConfig config, Action<AppConfig> onSave)
     {
         _loading = true;
+        // Spatial distribution is now the only room-effect projection mode.
+        // ConfigManager migrates persisted configs too; keep this assignment
+        // here so directly supplied/profile configs follow the same contract.
+        config.Ambience.SpatialSync = true;
         _config = config;
         _onSave = onSave;
         _loading = false;
@@ -270,13 +274,18 @@ public partial class RoomView : UserControl
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
             _ = RefreshGoveeDeviceStatesAsync(allowHidden: true));
 
-        // Always initialize spatial mapper when devices exist (spatial mode is the default)
+        // Preserve legacy placements when they exist. Without them,
+        // AmbienceSync automatically spreads the effect across device order.
         if (config.RoomLayout.Devices.Count > 0)
         {
             _spatialMapper = new AmpUp.Core.Engine.SpatialMapper();
             _spatialMapper.Recalculate(config.RoomLayout);
             _sync?.SetSpatialMapper(_spatialMapper);
-            // Mirror is the default — don't auto-enable spatial mode
+        }
+        else
+        {
+            _spatialMapper = null;
+            _sync?.SetSpatialMapper(null);
         }
     }
 
@@ -440,7 +449,7 @@ public partial class RoomView : UserControl
     // ██  CARD 1: ROOM LIGHTING (unified)
     // ══════════════════════════════════════════════════════════════════
 
-    private int _roomTabIndex = 0; // 0=Room Effect, 1=Layout, 2=Devices
+    private int _roomTabIndex = 0; // 0=Room Effect, 1=Devices
     private StackPanel? _roomTabContent;
 
     private StackPanel? _screenSyncSettingsPanel;
@@ -469,7 +478,7 @@ public partial class RoomView : UserControl
             Padding = new Thickness(8, 6, 8, 6),
         };
         var accent = ThemeManager.Accent;
-        var tabNames = new[] { "ROOM EFFECT", "LAYOUT", "DEVICES" };
+        var tabNames = new[] { "ROOM EFFECT", "DEVICES" };
         var tabCount = tabNames.Length;
         var tabBorders = new Border[tabCount];
 
@@ -585,12 +594,11 @@ public partial class RoomView : UserControl
         switch (_roomTabIndex)
         {
             case 0: BuildRoomEffectTab(_roomTabContent); break;
-            case 1: BuildLayoutTab(_roomTabContent); break;
-            case 2: BuildDevicesTab(_roomTabContent); break;
+            case 1: BuildDevicesTab(_roomTabContent); break;
         }
         _loading = false;
 
-        if (_roomTabIndex == 2)
+        if (_roomTabIndex == 1)
             _ = RefreshGoveeDeviceStatesAsync();
     }
 
@@ -618,8 +626,8 @@ public partial class RoomView : UserControl
         // Keep the (untouched) effect picker in sync with the new toggle state
         if (_roomEffectPicker != null)
         {
-            _roomEffectPicker.IsEnabled = !_vuFillActive;
-            _roomEffectPicker.Opacity = _vuFillActive ? 0.4 : 1.0;
+            _roomEffectPicker.IsEnabled = true;
+            _roomEffectPicker.Opacity = 1.0;
             if (_activePattern == null || _activePattern == "__sync__"
                 || _activePattern == RoomTemperaturePatternId)
                 _roomEffectPicker.SelectedIndex = -1;
@@ -656,7 +664,7 @@ public partial class RoomView : UserControl
             syncActive, on =>
             {
                 if (_config == null) return;
-                if (on) { ResumeAllGoveeSync(); StopRoomPattern(); _activePattern = "__sync__"; _config.Ambience.LinkToLights = true; _config.Corsair.LightSyncMode = "vu_reactive"; }
+                if (on) { StopVuFill(); ResumeAllGoveeSync(); StopRoomPattern(); _activePattern = "__sync__"; _config.Ambience.LinkToLights = true; _config.Corsair.LightSyncMode = "vu_reactive"; }
                 else { _activePattern = null; _config.Ambience.LinkToLights = false; _config.Corsair.LightSyncMode = "static"; }
                 QueueSave(); RefreshToggleRow();
             }, Color.FromRgb(0x69, 0xF0, 0xAE)));
@@ -672,8 +680,8 @@ public partial class RoomView : UserControl
                 QueueSave(); RefreshToggleRow();
             }, Color.FromRgb(0xFF, 0xB8, 0x00)));
 
-        // VU Fill — segments fill up like VU meters with music
-        row.Children.Add(BuildToggleTile("≡", "VU FILL", "Segments fill with music energy",
+        // VU Fill — layer audio-driven masks over the selected room effect
+        row.Children.Add(BuildToggleTile("≡", "VU FILL", "Layer music energy over the selected effect",
             _vuFillActive, on =>
             {
                 if (_loading) return;
@@ -926,7 +934,10 @@ public partial class RoomView : UserControl
                 {
                     if (_config == null) return;
                     _config.Ambience.VuFillMode = capturedMode;
-                    for (int i = 0; i < 15; i++) _vuFillPeaks[i] = 0;
+                    Array.Clear(_vuFillPeaks);
+                    _vuFillMask = null;
+                    _vuAvgEnergy = 0;
+                    _vuLastOnset = false;
                     QueueSave(); RefreshToggleRow(); // re-renders the mode pills' active state
                 };
                 var vuTransform = new TranslateTransform(0, 0);
@@ -1011,7 +1022,6 @@ public partial class RoomView : UserControl
     private void BuildRoomEffectTab(StackPanel stack)
     {
         if (_config == null) return;
-        var layout = _config.RoomLayout;
 
         // ════════════════════════════════════════════════════════════
         // EFFECT card — Category tabs + Effect picker
@@ -1033,8 +1043,8 @@ public partial class RoomView : UserControl
         var effectPicker = new Controls.EffectPickerControl(showGlobal: true)
         {
             Margin = new Thickness(0, 0, 0, 0),
-            IsEnabled = !_vuFillActive,
-            Opacity = _vuFillActive ? 0.4 : 1.0,
+            IsEnabled = true,
+            Opacity = 1.0,
         };
         _roomEffectPicker = effectPicker; // RefreshToggleRow syncs enabled/selection state in place
 
@@ -1148,7 +1158,7 @@ public partial class RoomView : UserControl
 
         effectPicker.SelectionChanged += (_, _) =>
         {
-            if (_loading || _vuFillActive) return;
+            if (_loading) return;
             var effect = effectPicker.SelectedEffect;
             // Run SingleColor through the pattern loop too — otherwise the Govee
             // device falls out of razer mode after a few seconds (no keepalive frames).
@@ -2873,10 +2883,34 @@ public partial class RoomView : UserControl
     private void StartVuFill()
     {
         StopVuFill();
-        StopRoomPattern(); // stop any running room effect so we don't fight for Govee segments
         _vuFillActive = true;
+        _vuFillTick = 0;
+        _vuAvgEnergy = 0;
+        _vuLastOnset = false;
+        Array.Clear(_vuFillSmoothed);
+        Array.Clear(_vuFillPeaks);
+        _vuFillMask = null;
         App.AudioAnalyzer?.Start();
         EnsureGoveeDevicesPoweredForUserMode();
+
+        // VU Fill now overlays the selected pattern instead of replacing it.
+        // Resume the saved effect when no renderer is active so every VU mode
+        // always has a full animated color frame to modulate.
+        if (_activePattern == "__sync__")
+        {
+            _activePattern = null;
+            if (_config != null)
+                _config.Ambience.LinkToLights = false;
+        }
+
+        if (_roomRgb == null)
+        {
+            string pattern = _config?.Ambience.RoomEffect ?? LightEffect.SingleColor.ToString();
+            if (pattern == RoomTemperaturePatternId)
+                SendRoomTemperature(_config?.Ambience.RoomTemperatureKelvin ?? _roomTemperatureKelvin);
+            else
+                StartRoomPattern(NormalizeRoomEffectName(pattern) ?? LightEffect.SingleColor.ToString());
+        }
 
         _vuFillTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) }; // ~30fps
         _vuFillTimer.Tick += (_, _) => VuFillTick();
@@ -2889,7 +2923,11 @@ public partial class RoomView : UserControl
         _vuFillActive = false;
         _vuFillTimer?.Stop();
         _vuFillTimer = null;
-        for (int i = 0; i < 5; i++) _vuFillSmoothed[i] = 0;
+        Array.Clear(_vuFillSmoothed);
+        Array.Clear(_vuFillPeaks);
+        _vuFillMask = null;
+        _vuAvgEnergy = 0;
+        _vuLastOnset = false;
         App.Rgb?.SetScreenSyncColors(null);
     }
 
@@ -2901,238 +2939,129 @@ public partial class RoomView : UserControl
         var bands = App.AudioAnalyzer?.SmoothedBands;
         if (bands == null || bands.Length < 5) return;
 
-        // Smooth each band: fast attack, slow decay
-        for (int b = 0; b < 5; b++)
+        // Track a responsive five-band envelope independently from the room
+        // renderer. The completed mask is published atomically below and then
+        // multiplied over whichever effect frame is currently selected.
+        for (int band = 0; band < 5; band++)
         {
-            float raw = Math.Clamp(bands[b] * 2f, 0f, 1f);
-            if (raw > _vuFillSmoothed[b])
-                _vuFillSmoothed[b] = raw;
+            float raw = Math.Clamp(bands[band] * 2f, 0f, 1f);
+            if (raw > _vuFillSmoothed[band])
+                _vuFillSmoothed[band] = raw;
             else
-                _vuFillSmoothed[b] += (raw - _vuFillSmoothed[b]) * 0.2f;
+                _vuFillSmoothed[band] += (raw - _vuFillSmoothed[band]) * 0.2f;
         }
 
-        float overall = 0;
-        for (int b = 0; b < 5; b++) overall += _vuFillSmoothed[b];
-        overall = Math.Clamp(overall / 5f, 0f, 1f);
+        float overall = Math.Clamp(_vuFillSmoothed.Sum() / 5f, 0f, 1f);
+        var mask = new float[15];
 
-        var c1 = _roomColor1;
-        var c2 = _roomColor2;
-        var mode = _config.Ambience.VuFillMode;
+        static float FillBrightness(float level, float position) =>
+            level > position ? 1f : Math.Max(0f, 1f - (position - level) * 5f);
 
-        foreach (var dev in _config.Ambience.GoveeDevices)
+        switch (_config.Ambience.VuFillMode)
         {
-            if (string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn) continue;
-
-            int segCount = AmbienceSync.GetSegmentCount(dev);
-            bool useSegs = segCount > 0 && dev.UseSegmentProtocol;
-
-            if (useSegs)
+            case VuFillMode.Split:
             {
-                bool isPaired = AmbienceSync.IsPairedDevice(dev.Sku);
-                var segColors = new (byte R, byte G, byte B)[segCount];
-
-                if (isPaired)
+                int half = mask.Length / 2;
+                float bass = Math.Clamp((_vuFillSmoothed[0] + _vuFillSmoothed[1]) / 1.5f, 0f, 1f);
+                float treble = Math.Clamp((_vuFillSmoothed[3] + _vuFillSmoothed[4]) / 1.5f, 0f, 1f);
+                for (int i = 0; i < half; i++)
+                    mask[i] = FillBrightness(bass, (float)i / Math.Max(half - 1, 1));
+                int rightCount = mask.Length - half;
+                for (int i = 0; i < rightCount; i++)
+                    mask[half + i] = FillBrightness(treble, (float)i / Math.Max(rightCount - 1, 1));
+                break;
+            }
+            case VuFillMode.Rainfall:
+            {
+                float energy = Math.Clamp((_vuFillSmoothed[0] + _vuFillSmoothed[1]) * 1.5f, 0f, 1f);
+                bool onset = UpdateVuOnset(energy);
+                if (_vuFillTick % 5 == 0)
                 {
-                    int half = segCount / 2;
-
-                    switch (mode)
+                    for (int i = 0; i < _vuFillPeaks.Length - 1; i++)
+                        _vuFillPeaks[i] = _vuFillPeaks[i + 1] * 0.8f;
+                    _vuFillPeaks[^1] = 0;
+                }
+                if (onset)
+                    _vuFillPeaks[^1] = Math.Max(0.5f, energy);
+                Array.Copy(_vuFillPeaks, mask, mask.Length);
+                break;
+            }
+            case VuFillMode.Pulse:
+            {
+                float bass = Math.Clamp((_vuFillSmoothed[0] + _vuFillSmoothed[1]) * 1.5f, 0f, 1f);
+                Array.Fill(mask, bass);
+                break;
+            }
+            case VuFillMode.Spectrum:
+            {
+                for (int i = 0; i < mask.Length; i++)
+                {
+                    float bandPosition = (float)i / (mask.Length - 1) * 4f;
+                    int low = Math.Min((int)bandPosition, 4);
+                    int high = Math.Min(low + 1, 4);
+                    float fraction = bandPosition - low;
+                    mask[i] = _vuFillSmoothed[low] * (1f - fraction)
+                        + _vuFillSmoothed[high] * fraction;
+                }
+                break;
+            }
+            case VuFillMode.Drip:
+            {
+                float energy = Math.Clamp((_vuFillSmoothed[0] + _vuFillSmoothed[1]) * 1.5f, 0f, 1f);
+                bool onset = UpdateVuOnset(energy);
+                for (int i = 0; i < _vuFillPeaks.Length; i++)
+                    _vuFillPeaks[i] = Math.Max(0, _vuFillPeaks[i] - 0.015f);
+                if (_vuFillTick % 4 == 0)
+                {
+                    for (int i = 0; i < _vuFillPeaks.Length - 1; i++)
                     {
-                        case VuFillMode.Split:
-                        {
-                            // Left=bass, Right=treble — independent levels
-                            float leftLevel = Math.Clamp((_vuFillSmoothed[0] + _vuFillSmoothed[1]) / 1.5f, 0f, 1f);
-                            float rightLevel = Math.Clamp((_vuFillSmoothed[3] + _vuFillSmoothed[4]) / 1.5f, 0f, 1f);
-                            for (int s = 0; s < half; s++)
-                            {
-                                float fillPos = (float)s / Math.Max(half - 1, 1);
-                                float br = leftLevel > fillPos ? 1f : Math.Max(0, 1f - (fillPos - leftLevel) * 5f);
-                                segColors[s] = BlendVuColor(c1, c2, fillPos, br);
-                            }
-                            int rc = segCount - half;
-                            for (int s = 0; s < rc; s++)
-                            {
-                                float fillPos = (float)s / Math.Max(rc - 1, 1);
-                                float br = rightLevel > fillPos ? 1f : Math.Max(0, 1f - (fillPos - rightLevel) * 5f);
-                                segColors[half + s] = BlendVuColor(c1, c2, fillPos, br);
-                            }
-                            break;
-                        }
-                        case VuFillMode.Rainfall:
-                        {
-                            // Onset-triggered drips that fall from top to bottom
-                            // Detect onset: current energy significantly above running average
-                            float energy = (_vuFillSmoothed[0] + _vuFillSmoothed[1]) * 1.5f;
-                            _vuAvgEnergy += (energy - _vuAvgEnergy) * 0.05f; // slow-tracking average
-                            bool onset = energy > _vuAvgEnergy + 0.25f && !_vuLastOnset;
-                            _vuLastOnset = energy > _vuAvgEnergy + 0.15f; // hysteresis
-
-                            // Shift existing drips down (every 5 ticks = ~6 shifts/sec, visible speed)
-                            if (_vuFillTick % 5 == 0)
-                            {
-                                for (int s = 0; s < half - 1; s++)
-                                    _vuFillPeaks[s] = _vuFillPeaks[s + 1] * 0.8f;
-                                _vuFillPeaks[half - 1] = 0;
-                            }
-
-                            // Spawn drip at top on onset
-                            if (onset)
-                                _vuFillPeaks[half - 1] = Math.Clamp(energy, 0.5f, 1f);
-
-                            // Render
-                            for (int s = 0; s < half; s++)
-                            {
-                                float t = (float)s / Math.Max(half - 1, 1);
-                                segColors[s] = BlendVuColor(c1, c2, t, _vuFillPeaks[s]);
-                            }
-                            for (int s = 0; s < segCount - half; s++)
-                                segColors[half + s] = segColors[Math.Min(s, half - 1)];
-                            break;
-                        }
-                        case VuFillMode.Pulse:
-                        {
-                            // All segments pulse together with bass
-                            float bass = Math.Clamp((_vuFillSmoothed[0] + _vuFillSmoothed[1]) * 1.5f, 0f, 1f);
-                            for (int s = 0; s < segCount; s++)
-                                segColors[s] = BlendVuColor(c1, c2, bass, bass);
-                            break;
-                        }
-                        case VuFillMode.Spectrum:
-                        {
-                            // Each segment = a frequency slice (spread 5 bands across segments)
-                            for (int s = 0; s < half; s++)
-                            {
-                                float bandPos = (float)s / Math.Max(half - 1, 1) * 4f; // map to 0-4
-                                int lo = Math.Min((int)bandPos, 4);
-                                int hi = Math.Min(lo + 1, 4);
-                                float frac = bandPos - lo;
-                                float level = _vuFillSmoothed[lo] * (1 - frac) + _vuFillSmoothed[hi] * frac;
-                                segColors[s] = BlendVuColor(c1, c2, (float)s / Math.Max(half - 1, 1), level);
-                            }
-                            for (int s = 0; s < segCount - half; s++)
-                                segColors[half + s] = segColors[Math.Min(s, half - 1)]; // mirror
-                            break;
-                        }
-                        case VuFillMode.Drip:
-                        {
-                            // Liquid drip with gravity — onset spawns drip at top, falls and pools at bottom
-                            float energy = (_vuFillSmoothed[0] + _vuFillSmoothed[1]) * 1.5f;
-                            _vuAvgEnergy += (energy - _vuAvgEnergy) * 0.05f;
-                            bool onset = energy > _vuAvgEnergy + 0.25f && !_vuLastOnset;
-                            _vuLastOnset = energy > _vuAvgEnergy + 0.15f;
-
-                            // Slow decay on all segments (pool evaporates)
-                            for (int s = 0; s < half; s++)
-                                _vuFillPeaks[s] = Math.Max(0, _vuFillPeaks[s] - 0.015f);
-
-                            // Gravity: shift brightness downward (every 4 ticks = ~8/sec)
-                            if (_vuFillTick % 4 == 0)
-                            {
-                                for (int s = 0; s < half - 1; s++)
-                                {
-                                    float transfer = _vuFillPeaks[s + 1] * 0.3f;
-                                    _vuFillPeaks[s] = Math.Min(1f, _vuFillPeaks[s] + transfer);
-                                    _vuFillPeaks[s + 1] -= transfer;
-                                }
-                            }
-
-                            // Spawn drip at top on onset
-                            if (onset)
-                                _vuFillPeaks[half - 1] = Math.Clamp(energy, 0.6f, 1f);
-
-                            // Render
-                            for (int s = 0; s < half; s++)
-                            {
-                                float t = (float)s / Math.Max(half - 1, 1);
-                                segColors[s] = BlendVuColor(c1, c2, t, Math.Clamp(_vuFillPeaks[s], 0, 1));
-                            }
-                            for (int s = 0; s < segCount - half; s++)
-                                segColors[half + s] = segColors[Math.Min(s, half - 1)];
-                            break;
-                        }
-                        default: // Classic
-                        {
-                            var vuColors = new (byte R, byte G, byte B)[half];
-                            for (int s = 0; s < half; s++)
-                            {
-                                float fillPos = (float)s / Math.Max(half - 1, 1);
-                                float br = overall > fillPos ? 1f : Math.Max(0, 1f - (fillPos - overall) * 5f);
-                                vuColors[s] = BlendVuColor(c1, c2, fillPos, br);
-                            }
-                            for (int s = 0; s < half; s++)
-                                segColors[s] = vuColors[s];
-                            int rightCount = segCount - half;
-                            for (int s = 0; s < rightCount && s < half; s++)
-                                segColors[half + s] = vuColors[s];
-                            break;
-                        }
+                        float transfer = _vuFillPeaks[i + 1] * 0.3f;
+                        _vuFillPeaks[i] = Math.Min(1f, _vuFillPeaks[i] + transfer);
+                        _vuFillPeaks[i + 1] -= transfer;
                     }
                 }
-                else
-                {
-                    // Non-paired: all modes use simple fill (segments aren't split)
-                    for (int s = 0; s < segCount; s++)
-                    {
-                        float fillPos = (float)s / Math.Max(segCount - 1, 1);
-                        float brightness = overall > fillPos ? 1f : Math.Max(0, 1f - (fillPos - overall) * 5f);
-                        segColors[s] = BlendVuColor(c1, c2, fillPos, brightness);
-                    }
-                }
-
-                // SendSegmentFrame is non-blocking and already queues its UDP
-                // write. Avoid creating a ThreadPool task per device at 30 FPS.
-                _sync?.SendSegmentFrame(dev.Ip, segColors);
+                if (onset)
+                    _vuFillPeaks[^1] = Math.Max(0.6f, energy);
+                Array.Copy(_vuFillPeaks, mask, mask.Length);
+                break;
             }
-            else
+            default: // Classic
             {
-                // Single-color device: brightness pulse
-                string key = "vu_" + dev.Ip;
-                if (!_vuBulbLastSend.TryGetValue(key, out var last) ||
-                    (DateTime.UtcNow - last).TotalMilliseconds >= 100)
-                {
-                    _vuBulbLastSend[key] = DateTime.UtcNow;
-                    int brightPct = (int)(10 + overall * 90);
-                    _ = AmbienceSync.SendBrightnessAsync(dev.Ip, brightPct);
-                }
+                for (int i = 0; i < mask.Length; i++)
+                    mask[i] = FillBrightness(overall, (float)i / (mask.Length - 1));
+                break;
             }
         }
 
-        // Build 15-LED frame for Corsair and Turn Up
-        var frame = new byte[45];
-        for (int k = 0; k < 5; k++)
-        {
-            float level = _vuFillSmoothed[k];
-            for (int led = 0; led < 3; led++)
-            {
-                float fillPos = led / 2f;
-                float brightness = level > fillPos ? 1f : Math.Max(0, 1f - (fillPos - level) * 5f);
-                var c = BlendVuColor(c1, c2, fillPos, brightness);
-                int offset = k * 9 + led * 3;
-                frame[offset] = c.R;
-                frame[offset + 1] = c.G;
-                frame[offset + 2] = c.B;
-            }
-        }
-
-        if (_config.Ambience.SyncRoomToTurnUp)
-            App.Rgb?.SetScreenSyncColors(frame);
-
-        if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
-        {
-            float boost = _config.Corsair.LightBrightness / 100f;
-            var boosted = new byte[45];
-            for (int i = 0; i < 45; i++)
-                boosted[i] = (byte)Math.Min(frame[i] * boost, 255);
-            _corsairSync.SyncColors(boosted);
-        }
+        _vuFillMask = mask;
     }
 
-    private static (byte R, byte G, byte B) BlendVuColor(Color c1, Color c2, float t, float brightness)
+    private bool UpdateVuOnset(float energy)
     {
-        byte r = (byte)Math.Clamp((c1.R + (c2.R - c1.R) * t) * brightness, 0, 255);
-        byte g = (byte)Math.Clamp((c1.G + (c2.G - c1.G) * t) * brightness, 0, 255);
-        byte b = (byte)Math.Clamp((c1.B + (c2.B - c1.B) * t) * brightness, 0, 255);
-        return (r, g, b);
+        _vuAvgEnergy += (energy - _vuAvgEnergy) * 0.05f;
+        bool onset = energy > _vuAvgEnergy + 0.25f && !_vuLastOnset;
+        _vuLastOnset = energy > _vuAvgEnergy + 0.15f;
+        return onset;
     }
+
+    private byte[] ApplyVuFillMask(byte[] patternFrame)
+    {
+        var mask = _vuFillMask;
+        if (!_vuFillActive || mask == null || mask.Length < 15)
+            return patternFrame;
+
+        var output = new byte[45];
+        for (int led = 0; led < 15; led++)
+        {
+            float brightness = Math.Clamp(mask[led], 0f, 1f);
+            int offset = led * 3;
+            output[offset] = (byte)Math.Clamp((int)Math.Round(patternFrame[offset] * brightness), 0, 255);
+            output[offset + 1] = (byte)Math.Clamp((int)Math.Round(patternFrame[offset + 1] * brightness), 0, 255);
+            output[offset + 2] = (byte)Math.Clamp((int)Math.Round(patternFrame[offset + 2] * brightness), 0, 255);
+        }
+        return output;
+    }
+
 
     // ── GOVEE TAB ───────────────────────────────────────────────────
 
@@ -6128,6 +6057,24 @@ public partial class RoomView : UserControl
                 frameForSync[i] = (byte)Math.Min(linearColors[i] * musicBrightness, 255);
         }
 
+        // VU Fill is a brightness/position mask layered over the selected
+        // effect. This preserves every pattern's animation and palette while
+        // the VU mode controls which portions of that pattern are visible.
+        if (_vuFillActive)
+        {
+            frameForSync = ApplyVuFillMask(frameForSync);
+            totalR = totalG = totalB = 0;
+            for (int i = 0; i < 15; i++)
+            {
+                totalR += frameForSync[i * 3];
+                totalG += frameForSync[i * 3 + 1];
+                totalB += frameForSync[i * 3 + 2];
+            }
+            r = (byte)(totalR / 15);
+            g = (byte)(totalG / 15);
+            b = (byte)(totalB / 15);
+        }
+
         // Sync room effect to Turn Up hardware LEDs
         if (config.Ambience.SyncRoomToTurnUp)
             App.Rgb?.SetScreenSyncColors(frameForSync);
@@ -6139,7 +6086,7 @@ public partial class RoomView : UserControl
                 _sync?.OnRoomFrame(
                     frameForSync,
                     config.Ambience,
-                    allowNativeSegmentEffects: _corsairMusicTimer?.IsEnabled != true);
+                    allowNativeSegmentEffects: _corsairMusicTimer?.IsEnabled != true && !_vuFillActive);
 
             // Cloud-only devices (no LAN IP) — throttle to ~1/sec (Cloud API rate limit)
             if (config.Ambience.GoveeCloudEnabled
@@ -6166,7 +6113,7 @@ public partial class RoomView : UserControl
         {
             float boost = config.Corsair.LightBrightness / 100f;
             float nativeBoost = boost * musicBrightness;
-            if (!TrySyncCorsairNativeRoomEffect(nativeBoost)
+            if ((_vuFillActive || !TrySyncCorsairNativeRoomEffect(nativeBoost))
                 && !TrySyncCorsairSpatialFrame(frameForSync, boost))
             {
                 var boosted = new byte[45];
