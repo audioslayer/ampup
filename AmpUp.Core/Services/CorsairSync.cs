@@ -43,6 +43,8 @@ public class CorsairSync : IDisposable
     private int _sessionState; // CorsairSessionState
     private bool _hasExclusiveLightingControl;
     private readonly object _controlLock = new();
+    private int _deviceDiscoveryInProgress;
+    private long _nextAutomaticDiscoveryAt;
 
     public bool IsAvailable => _connected && !_disposed && _dllLoaded && !_paused;
     public List<CorsairDevice> Devices { get; private set; } = new();
@@ -300,7 +302,7 @@ public class CorsairSync : IDisposable
             // Auto-discover devices
             _ = Task.Run(() =>
             {
-                try { DiscoverDevices(); }
+                try { DiscoverDevices(force: true); }
                 catch (Exception ex) { Logger.Log($"CorsairSync: device discovery failed — {ex.Message}"); }
             });
         }
@@ -318,51 +320,81 @@ public class CorsairSync : IDisposable
         }
     }
 
-    private void DiscoverDevices()
+    private void DiscoverDevices(bool force = false)
     {
-        var filter = new CorsairDeviceFilter { deviceTypeMask = CDT_All };
-        var devices = new CorsairDeviceInfo[CORSAIR_DEVICE_COUNT_MAX];
-        int err = CorsairGetDevices(ref filter, CORSAIR_DEVICE_COUNT_MAX, devices, out int count);
-        if (err != 0)
-        {
-            Logger.Log($"CorsairSync: CorsairGetDevices error {err}");
+        // Frame writers can request discovery many times per second while iCUE
+        // is restarting. Explicit UI/session refreshes bypass this cooldown;
+        // automatic empty-list recovery gets one attempt every two seconds.
+        long now = Environment.TickCount64;
+        if (!force && now < Volatile.Read(ref _nextAutomaticDiscoveryAt))
             return;
-        }
 
-        var list = new List<CorsairDevice>();
-        for (int i = 0; i < count; i++)
+        // Discovery can be requested by frame writers while a DevicesReady
+        // subscriber is still running. In particular, the static-color restore
+        // path may try to discover again when iCUE briefly returns zero devices.
+        // Do not allow that callback path (or concurrent frame workers) to
+        // re-enter the native SDK and recursively raise DevicesReady.
+        if (Interlocked.CompareExchange(ref _deviceDiscoveryInProgress, 1, 0) != 0)
+            return;
+
+        try
         {
-            var d = devices[i];
-            string typeName = d.type switch
+            var filter = new CorsairDeviceFilter { deviceTypeMask = CDT_All };
+            var devices = new CorsairDeviceInfo[CORSAIR_DEVICE_COUNT_MAX];
+            int err = CorsairGetDevices(ref filter, CORSAIR_DEVICE_COUNT_MAX, devices, out int count);
+            if (err != 0)
             {
-                0x0001 => "keyboard",
-                0x0002 => "mouse",
-                0x0004 => "mousemat",
-                0x0008 => "headset",
-                0x0010 => "headset_stand",
-                0x0020 => "fan_controller",
-                0x0040 => "led_controller",
-                0x0080 => "memory",
-                0x0100 => "cooler",
-                0x0200 => "motherboard",
-                0x0400 => "gpu",
-                _ => "unknown"
-            };
-            list.Add(new CorsairDevice
+                Volatile.Write(ref _nextAutomaticDiscoveryAt, Environment.TickCount64 + 2_000);
+                Logger.Log($"CorsairSync: CorsairGetDevices error {err}");
+                return;
+            }
+
+            var list = new List<CorsairDevice>();
+            for (int i = 0; i < count; i++)
             {
-                Id = d.id ?? "",
-                Name = d.model ?? "",
-                Type = typeName,
-                LedCount = d.ledCount
-            });
+                var d = devices[i];
+                string typeName = d.type switch
+                {
+                    0x0001 => "keyboard",
+                    0x0002 => "mouse",
+                    0x0004 => "mousemat",
+                    0x0008 => "headset",
+                    0x0010 => "headset_stand",
+                    0x0020 => "fan_controller",
+                    0x0040 => "led_controller",
+                    0x0080 => "memory",
+                    0x0100 => "cooler",
+                    0x0200 => "motherboard",
+                    0x0400 => "gpu",
+                    _ => "unknown"
+                };
+                list.Add(new CorsairDevice
+                {
+                    Id = d.id ?? "",
+                    Name = d.model ?? "",
+                    Type = typeName,
+                    LedCount = d.ledCount
+                });
+            }
+            // Device set may have changed (plug/unplug) — drop cached LED geometry
+            // so it is re-queried lazily on the next frame.
+            _ledCache.Clear();
+            Devices = list;
+            Volatile.Write(ref _nextAutomaticDiscoveryAt,
+                list.Count == 0 ? Environment.TickCount64 + 2_000 : 0);
+            Logger.Log($"CorsairSync: discovered {list.Count} device(s): "
+                + string.Join(", ", list.Select(d => $"{d.Name} [{d.Type}, {d.LedCount} LEDs]")));
+
+            // "Ready" means there is hardware to restore. Raising this for an
+            // empty result made the restore subscriber immediately rediscover,
+            // producing an unbounded callback loop when iCUE was restarting.
+            if (list.Count > 0)
+                DevicesReady?.Invoke();
         }
-        // Device set may have changed (plug/unplug) — drop cached LED geometry
-        // so it is re-queried lazily on the next frame.
-        _ledCache.Clear();
-        Devices = list;
-        Logger.Log($"CorsairSync: discovered {list.Count} device(s): "
-            + string.Join(", ", list.Select(d => $"{d.Name} [{d.Type}, {d.LedCount} LEDs]")));
-        DevicesReady?.Invoke();
+        finally
+        {
+            Volatile.Write(ref _deviceDiscoveryInProgress, 0);
+        }
     }
 
     public Task<List<CorsairDevice>> GetDevicesAsync()
@@ -372,7 +404,7 @@ public class CorsairSync : IDisposable
         {
             try
             {
-                DiscoverDevices();
+                DiscoverDevices(force: true);
                 return Devices;
             }
             catch (Exception ex)
@@ -391,7 +423,7 @@ public class CorsairSync : IDisposable
     public void RefreshDevices()
     {
         if (_disposed || !_connected || !_dllLoaded) return;
-        try { DiscoverDevices(); }
+        try { DiscoverDevices(force: true); }
         catch (Exception ex)
         {
             Logger.Log($"CorsairSync: RefreshDevices failed — {ex.Message}");

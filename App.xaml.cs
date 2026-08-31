@@ -3180,6 +3180,13 @@ public partial class App : Application
             if (corsair?.IsAvailable != true || config?.Enabled != true)
                 return;
 
+            // DevicesReady should only be raised for a non-empty discovery,
+            // but keep the restore path safe if that event contract changes.
+            // SetStaticColorAllAsync auto-discovers an empty list, so entering
+            // it from a discovery callback with no devices would recurse.
+            if (corsair.Devices.Count == 0)
+                return;
+
             // Animated/global modes continuously send their own frames. Static
             // mode does not, so re-apply its saved color after iCUE finishes
             // connecting or re-enumerating hardware.
