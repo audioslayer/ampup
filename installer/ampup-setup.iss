@@ -6,6 +6,9 @@
 #define MyAppPublisher "Tyson Wolf"
 #define MyAppExeName "AmpUp.exe"
 #define MyAppURL "https://github.com/audioslayer/ampup"
+#ifndef PublishDir
+  #define PublishDir "..\publish"
+#endif
 
 [Setup]
 AppId={{E7B3F2A1-9C4D-4E8F-B6A2-1D3F5E7A9B0C}
@@ -39,7 +42,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 ; Include all published files from the self-contained publish output
-Source: "..\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; Include icon file for shortcuts
 Source: "..\Assets\ampup.ico"; DestDir: "{app}"; Flags: ignoreversion
 

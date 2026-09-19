@@ -67,12 +67,30 @@ public partial class RoomView : UserControl
     private bool _vuFillActive;
     private DispatcherTimer? _vuFillTimer;
     private readonly float[] _vuFillSmoothed = new float[5];
-    private readonly float[] _vuFillPeaks = new float[15]; // per-segment brightness for animated modes
+    private readonly float[] _vuSpectrum = new float[15];
+    private readonly float[] _vuSpectrumPeak = new float[15];
+    private readonly float[] _vuPreviousRawSpectrum = new float[15];
+    private float _vuSpectrumAutoPeak = 0.04f;
+    private readonly float[] _vuRain = new float[15];
+    private readonly float[] _vuRainHue = new float[15];
     private volatile float[]? _vuFillMask;
     private volatile float _vuGlobalBeat;
+    private volatile float _vuSpectrumDensity;
+    private volatile float _vuTransientFlash;
     private int _vuFillTick;
-    private float _vuAvgEnergy; // running average for onset detection
-    private bool _vuLastOnset; // debounce onset detection
+    private int _vuRainCooldown;
+    private float _vuRainHueCursor;
+    private float _vuBloomRadius = 2f;
+    private float _vuGravityLevel;
+    private float _vuGravityPeak;
+    private float _vuGravityVelocity;
+    private float _vuEnergyBaseline;
+    private float _vuRawEnergyAverage;
+    private float _vuPreviousRawEnergy;
+    private float _vuSpectralFluxAverage = 0.01f;
+    private int _vuBeatCooldown;
+    private float _vuInputPeak = 0.08f;
+    private float _vuVoicePeak = 0.08f;
 
     // Room pattern engine — headless RgbController for rendering effects
     private RgbController? _roomRgb;
@@ -867,12 +885,12 @@ public partial class RoomView : UserControl
         {
             var accent = Color.FromRgb(0xFF, 0x40, 0x81);
             var modes = new[] {
-                (VuFillMode.Classic,  "Classic",  "Bottom-to-top energy fill"),
-                (VuFillMode.Split,    "Split",    "Left=bass, right=treble"),
-                (VuFillMode.Rainfall, "Rainfall", "Onset-triggered drips"),
-                (VuFillMode.Pulse,    "Pulse",    "All segments pulse with bass"),
-                (VuFillMode.Spectrum, "Spectrum", "Per-segment frequency band"),
-                (VuFillMode.Drip,     "Drip",     "Liquid gravity pool"),
+                (VuFillMode.Classic,  "Voice Glow", "Vocal flashes ripple through the selected room colors"),
+                (VuFillMode.Split,    "Mirror EQ",  "A mirrored full-spectrum equalizer with peak sparkle"),
+                (VuFillMode.Rainfall, "Beat Rain",  "Transient-triggered color rain with layered trails"),
+                (VuFillMode.Pulse,    "Bass Bloom", "Bass hits bloom outward from the center of the room"),
+                (VuFillMode.Spectrum, "Prism EQ",   "Fifteen independent frequency bands paint the room"),
+                (VuFillMode.Drip,     "Gravimeter", "A gravity-driven volume column with a falling peak dot"),
             };
             var tileWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
             foreach (var (mode, label, tip) in modes)
@@ -927,11 +945,11 @@ public partial class RoomView : UserControl
                 {
                     if (_config == null) return;
                     _config.Ambience.VuFillMode = capturedMode;
-                    Array.Clear(_vuFillPeaks);
+                    ResetVuVisualState();
                     _vuFillMask = null;
-                    _vuGlobalBeat = 0;
-                    _vuAvgEnergy = 0;
-                    _vuLastOnset = false;
+                    _vuGlobalBeat = 0.15f;
+                    _vuInputPeak = 0.08f;
+                    _vuVoicePeak = 0.08f;
                     QueueSave(); RefreshToggleRow(); // re-renders the mode pills' active state
                 };
                 var vuTransform = new TranslateTransform(0, 0);
@@ -951,7 +969,154 @@ public partial class RoomView : UserControl
                 tileWrap.Children.Add(tile);
             }
             container.Children.Add(MakeSectionCard("VU FILL MODE", tileWrap));
+            container.Children.Add(MakeSectionCard("VU VISUALIZER TUNING", BuildVuTuningPanel(accent)));
         }
+    }
+
+    private UIElement BuildVuTuningPanel(Color accent)
+    {
+        if (_config == null) return new Border();
+
+        var root = new StackPanel();
+        var rangeLabel = new TextBlock
+        {
+            FontSize = 10,
+            Foreground = FindBrush("TextSecBrush"),
+            Margin = new Thickness(2, 0, 0, 7),
+        };
+        VuFillMode mode = _config.Ambience.VuFillMode;
+        bool classicVoiceMode = mode == VuFillMode.Classic;
+        bool fullSpectrumMode = mode is VuFillMode.Split or VuFillMode.Spectrum;
+        bool usesBeatBand = mode is VuFillMode.Rainfall or VuFillMode.Pulse or VuFillMode.Drip;
+        void UpdateRangeLabel()
+        {
+            if (_config == null) return;
+            if (classicVoiceMode)
+            {
+                rangeLabel.Text = "Voice Glow follows vocals from 250–6,000 Hz and flashes across the whole room";
+                return;
+            }
+            if (fullSpectrumMode)
+            {
+                rangeLabel.Text = "Live 15-band spectrum from 40 Hz–16 kHz  •  each frequency moves independently";
+                return;
+            }
+            int half = _config.Ambience.VuBeatWidthHz / 2;
+            int low = Math.Max(20, _config.Ambience.VuBeatFrequencyHz - half);
+            int high = _config.Ambience.VuBeatFrequencyHz + half;
+            rangeLabel.Text = $"Listening for beats from {low:N0}–{high:N0} Hz  •  drag vertically or use the mouse wheel";
+        }
+        UpdateRangeLabel();
+        root.Children.Add(rangeLabel);
+
+        var dials = new WrapPanel { Orientation = Orientation.Horizontal };
+        root.Children.Add(dials);
+
+        void AddDial(
+            string label, double minimum, double maximum, double value, double step,
+            string suffix, string tip, Action<int> changed)
+        {
+            var dial = new Controls.TuningDialControl
+            {
+                Minimum = minimum,
+                Maximum = maximum,
+                Value = Math.Clamp(value, minimum, maximum),
+                Step = step,
+                Suffix = suffix,
+                AccentColor = accent,
+                Width = 68,
+                Height = 68,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                ToolTip = tip,
+            };
+            dial.ValueChanged += (_, _) =>
+            {
+                if (_loading || _config == null) return;
+                changed((int)Math.Round(dial.Value));
+                UpdateRangeLabel();
+                QueueSave();
+            };
+
+            var cell = new StackPanel
+            {
+                Width = 88,
+                Margin = new Thickness(2, 0, 4, 7),
+                ToolTip = tip,
+            };
+            cell.Children.Add(new TextBlock
+            {
+                Text = label,
+                FontSize = 9,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = FindBrush("TextSecBrush"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 2),
+            });
+            cell.Children.Add(dial);
+            dials.Children.Add(cell);
+        }
+
+        var ambience = _config.Ambience;
+        if (usesBeatBand)
+        {
+            AddDial("BEAT FREQ", 30, 500, ambience.VuBeatFrequencyHz, 5, "Hz",
+                "Center frequency that drives transient peaks and bass movement",
+                value =>
+                {
+                    ambience.VuBeatFrequencyHz = value;
+                    _vuInputPeak = 0.08f;
+                });
+            AddDial("BAND WIDTH", 20, 500, ambience.VuBeatWidthHz, 10, "Hz",
+                "Width of the frequency window around Beat Freq",
+                value =>
+                {
+                    ambience.VuBeatWidthHz = value;
+                    _vuInputPeak = 0.08f;
+                });
+        }
+        AddDial(classicVoiceMode ? "VOICE GATE" : "NOISE GATE", 0, 60, ambience.VuBeatGate, 1, "%",
+            classicVoiceMode
+                ? "Ignore quiet vocal-range energy below this level"
+                : "Ignore background energy below this level",
+            value => ambience.VuBeatGate = value);
+        AddDial("ATTACK", 0, 200, ambience.VuAttackMs, 5, "ms",
+            "How quickly lights jump up when a beat arrives; lower is snappier",
+            value => ambience.VuAttackMs = value);
+        AddDial("RELEASE", 40, 800, ambience.VuReleaseMs, 10, "ms",
+            "How long the room takes to fade after a beat",
+            value => ambience.VuReleaseMs = value);
+        if (ambience.VuFillMode == VuFillMode.Rainfall)
+        {
+            AddDial("RAIN DENSITY", 1, 5, ambience.VuDropDensity, 1, "",
+                "How many layered droplets strong transients launch",
+                value => ambience.VuDropDensity = value);
+            AddDial("TRAIL", 10, 100, ambience.VuTrailLength, 1, "%",
+                "How long each colored droplet glows while falling",
+                value => ambience.VuTrailLength = value);
+            AddDial("BEAT FLASH", 0, 100, ambience.VuBeatFlash, 1, "%",
+                "Strength of the full-room multicolor flash on each detected beat",
+                value => ambience.VuBeatFlash = value);
+        }
+        else if (ambience.VuFillMode == VuFillMode.Drip)
+        {
+            AddDial("GRAVITY", 1, 5, ambience.VuDropDensity, 1, "",
+                "How quickly the floating peak dot falls after a hit",
+                value => ambience.VuDropDensity = value);
+            AddDial("PEAK HOLD", 10, 100, ambience.VuTrailLength, 1, "%",
+                "How long the peak dot hangs before gravity pulls it down",
+                value => ambience.VuTrailLength = value);
+            AddDial("SPARK", 0, 100, ambience.VuBeatFlash, 1, "%",
+                "White-hot sparkle added to transient peaks",
+                value => ambience.VuBeatFlash = value);
+        }
+        else if (ambience.VuFillMode == VuFillMode.Pulse)
+        {
+            AddDial("BLOOM", 0, 100, ambience.VuBeatFlash, 1, "%",
+                "Strength of the center-out wave launched by each hit",
+                value => ambience.VuBeatFlash = value);
+        }
+
+        return root;
     }
 
     // Tab index: 0=Favorites, 1=Static, 2=Animated, 3=Reactive, 4=Scenes, 5=Temperature
@@ -2879,18 +3044,18 @@ public partial class RoomView : UserControl
         StopVuFill();
         _vuFillActive = true;
         _vuFillTick = 0;
-        _vuAvgEnergy = 0;
-        _vuLastOnset = false;
         Array.Clear(_vuFillSmoothed);
-        Array.Clear(_vuFillPeaks);
+        ResetVuVisualState();
         _vuFillMask = null;
-        _vuGlobalBeat = 0;
+        _vuGlobalBeat = 0.15f;
+        _vuInputPeak = 0.08f;
+        _vuVoicePeak = 0.08f;
         App.AudioAnalyzer?.Start();
         EnsureGoveeDevicesPoweredForUserMode();
 
-        // VU Fill now overlays the selected pattern instead of replacing it.
-        // Resume the saved effect when no renderer is active so every VU mode
-        // always has a full animated color frame to modulate.
+        // Keep the selected room renderer alive as a moving color source. VU
+        // Fill owns brightness and spatial motion, while the chosen effect
+        // supplies its animated palette.
         if (_activePattern == "__sync__")
         {
             _activePattern = null;
@@ -2919,11 +3084,11 @@ public partial class RoomView : UserControl
         _vuFillTimer?.Stop();
         _vuFillTimer = null;
         Array.Clear(_vuFillSmoothed);
-        Array.Clear(_vuFillPeaks);
+        ResetVuVisualState();
         _vuFillMask = null;
         _vuGlobalBeat = 0;
-        _vuAvgEnergy = 0;
-        _vuLastOnset = false;
+        _vuInputPeak = 0.08f;
+        _vuVoicePeak = 0.08f;
         App.Rgb?.SetScreenSyncColors(null);
     }
 
@@ -2932,123 +3097,355 @@ public partial class RoomView : UserControl
         if (_config == null || !_vuFillActive) return;
         _vuFillTick++;
 
-        var bands = App.AudioAnalyzer?.SmoothedBands;
-        if (bands == null || bands.Length < 5) return;
+        var analyzer = App.AudioAnalyzer;
+        var bands = analyzer?.SmoothedBands;
+        if (analyzer == null || bands == null || bands.Length < 5) return;
 
-        // Track a responsive five-band envelope independently from the room
-        // renderer. The completed mask is published atomically below and then
-        // multiplied over whichever effect frame is currently selected.
-        float sensitivityGain = Math.Clamp(_config.Ambience.MusicSensitivity / 50f, 0.02f, 2f);
+        var ambience = _config.Ambience;
+        // Sensitivity adds useful headroom instead of doubling an already
+        // normalized signal. At 100%, strong music can still rise on a beat
+        // rather than remaining pinned at 1.0 for the whole song.
+        float sensitivityGain = 0.62f + ambience.MusicSensitivity / 100f * 0.58f;
+        float gate = Math.Clamp(ambience.VuBeatGate / 100f, 0f, 0.95f);
+
         for (int band = 0; band < 5; band++)
         {
-            float raw = Math.Clamp(bands[band] * 2f * sensitivityGain, 0f, 1f);
-            if (raw > _vuFillSmoothed[band])
-                _vuFillSmoothed[band] = raw;
-            else
-                _vuFillSmoothed[band] += (raw - _vuFillSmoothed[band]) * 0.2f;
+            float raw = Math.Clamp(bands[band] * sensitivityGain, 0f, 1f);
+            _vuFillSmoothed[band] = AdvanceVuEnvelope(
+                _vuFillSmoothed[band], raw, ambience.VuAttackMs, ambience.VuReleaseMs);
         }
 
-        float overall = Math.Clamp(_vuFillSmoothed.Sum() / 5f, 0f, 1f);
-        var mask = new float[15];
+        Span<float> rawSpectrum = stackalloc float[15];
+        analyzer.CopySpectrum(rawSpectrum);
+        float rawSpectrumMax = 0.001f;
+        for (int i = 0; i < rawSpectrum.Length; i++)
+            rawSpectrumMax = Math.Max(rawSpectrumMax, rawSpectrum[i]);
+        UpdateVuAutoPeak(ref _vuSpectrumAutoPeak, rawSpectrumMax, 0.006f);
+        float spectrumMax = 0f;
+        for (int i = 0; i < rawSpectrum.Length; i++)
+        {
+            // One shared AGC preserves the spectral shape. Per-band AGC would
+            // turn every non-silent bin into 100% and flatten the visualizer.
+            float normalized = Math.Clamp(
+                rawSpectrum[i] / _vuSpectrumAutoPeak * sensitivityGain * 0.78f, 0f, 1f);
+            normalized = ApplyVuGate(MathF.Sqrt(normalized), gate);
+            _vuSpectrum[i] = AdvanceVuEnvelope(
+                _vuSpectrum[i], normalized, ambience.VuAttackMs, ambience.VuReleaseMs);
+            _vuSpectrumPeak[i] = Math.Max(_vuSpectrum[i], _vuSpectrumPeak[i] * 0.975f);
+            spectrumMax = Math.Max(spectrumMax, _vuSpectrum[i]);
+        }
 
-        static float FillBrightness(float level, float position) =>
-            level <= 0.01f ? 0f
-            : level >= position ? 1f
-            : Math.Max(0f, 1f - (position - level) * 5f);
+        float density = 0f;
+        for (int i = 1; i < _vuSpectrum.Length; i++)
+            density += Math.Abs(_vuSpectrum[i] - _vuSpectrum[i - 1]);
+        _vuSpectrumDensity = Math.Clamp(density / (_vuSpectrum.Length - 1) * 2.2f, 0f, 1f);
 
-        switch (_config.Ambience.VuFillMode)
+        float fineEnergy = analyzer.GetFrequencyLevel(ambience.VuBeatFrequencyHz, ambience.VuBeatWidthHz);
+        float coarseEnergy = CalculateCoarseFrequencyLevel(
+            bands, ambience.VuBeatFrequencyHz, ambience.VuBeatWidthHz);
+        float rawFocusedEnergy = Math.Max(fineEnergy, coarseEnergy * 0.70f);
+        UpdateVuAutoPeak(ref _vuInputPeak, rawFocusedEnergy, 0.025f);
+        float focusedEnergy = ApplyVuGate(
+            Math.Clamp(rawFocusedEnergy / _vuInputPeak * sensitivityGain * 0.78f, 0f, 1f), gate);
+
+        float voiceFine = analyzer.GetFrequencyLevel(2100f, 5700f);
+        float voiceCoarse = Math.Clamp(bands[2] * 0.68f + bands[3] * 0.32f, 0f, 1f);
+        float rawVoiceEnergy = Math.Max(voiceFine, voiceCoarse * 0.75f);
+        UpdateVuAutoPeak(ref _vuVoicePeak, rawVoiceEnergy, 0.02f);
+        float voiceEnergy = ApplyVuGate(
+            Math.Clamp(rawVoiceEnergy / _vuVoicePeak * sensitivityGain * 0.78f, 0f, 1f), gate);
+
+        float bassEnergy = Math.Max(focusedEnergy,
+            Math.Clamp(_vuSpectrum[0] * 0.55f + _vuSpectrum[1] * 0.30f + _vuSpectrum[2] * 0.15f, 0f, 1f));
+        float activeEnergy = ambience.VuFillMode == VuFillMode.Classic ? voiceEnergy : bassEnergy;
+        float rawBeatEnergy = Math.Max(rawFocusedEnergy,
+            rawSpectrum[0] * 0.55f + rawSpectrum[1] * 0.30f + rawSpectrum[2] * 0.15f);
+        bool onset = DetectVuTransient(rawSpectrum, rawBeatEnergy);
+
+        // A moving floor removes the sustained loudness of mastered music and
+        // leaves the short-term movement that people perceive as the beat.
+        if (_vuEnergyBaseline <= 0f)
+            _vuEnergyBaseline = activeEnergy;
+        float baselineRate = activeEnergy < _vuEnergyBaseline ? 0.08f : 0.006f;
+        _vuEnergyBaseline += (activeEnergy - _vuEnergyBaseline) * baselineRate;
+        float dynamicEnergy = Math.Clamp(
+            (activeEnergy - _vuEnergyBaseline) * 3.4f + activeEnergy * 0.14f,
+            0f, 1f);
+        if (onset)
+        {
+            _vuTransientFlash = Math.Max(_vuTransientFlash,
+                Math.Clamp(0.58f + dynamicEnergy * 0.42f, 0f, 1f));
+            _vuBloomRadius = 0f;
+        }
+        _vuTransientFlash *= MathF.Exp(-33f / Math.Max(ambience.VuReleaseMs * 0.55f, 45f));
+
+        _vuGlobalBeat = AdvanceVuEnvelope(
+            _vuGlobalBeat, dynamicEnergy, ambience.VuAttackMs, Math.Min(ambience.VuReleaseMs, 220));
+
+        var visual = new float[15];
+        switch (ambience.VuFillMode)
         {
             case VuFillMode.Split:
-            {
-                int half = mask.Length / 2;
-                float bass = Math.Clamp((_vuFillSmoothed[0] + _vuFillSmoothed[1]) / 1.5f, 0f, 1f);
-                float treble = Math.Clamp((_vuFillSmoothed[3] + _vuFillSmoothed[4]) / 1.5f, 0f, 1f);
-                for (int i = 0; i < half; i++)
-                    mask[i] = FillBrightness(bass, (float)i / Math.Max(half - 1, 1));
-                int rightCount = mask.Length - half;
-                for (int i = 0; i < rightCount; i++)
-                    mask[half + i] = FillBrightness(treble, (float)i / Math.Max(rightCount - 1, 1));
+                RenderMirrorEq(visual);
                 break;
-            }
             case VuFillMode.Rainfall:
-            {
-                float energy = Math.Clamp((_vuFillSmoothed[0] + _vuFillSmoothed[1]) * 1.5f, 0f, 1f);
-                bool onset = UpdateVuOnset(energy);
-                if (_vuFillTick % 5 == 0)
-                {
-                    for (int i = 0; i < _vuFillPeaks.Length - 1; i++)
-                        _vuFillPeaks[i] = _vuFillPeaks[i + 1] * 0.8f;
-                    _vuFillPeaks[^1] = 0;
-                }
-                if (onset)
-                    _vuFillPeaks[^1] = Math.Max(0.5f, energy);
-                Array.Copy(_vuFillPeaks, mask, mask.Length);
+                UpdateBeatRain(visual, dynamicEnergy, onset);
                 break;
-            }
             case VuFillMode.Pulse:
-            {
-                float bass = Math.Clamp((_vuFillSmoothed[0] + _vuFillSmoothed[1]) * 1.5f, 0f, 1f);
-                Array.Fill(mask, bass);
+                UpdateBassBloom(visual, dynamicEnergy, onset);
                 break;
-            }
             case VuFillMode.Spectrum:
-            {
-                for (int i = 0; i < mask.Length; i++)
-                {
-                    float bandPosition = (float)i / (mask.Length - 1) * 4f;
-                    int low = Math.Min((int)bandPosition, 4);
-                    int high = Math.Min(low + 1, 4);
-                    float fraction = bandPosition - low;
-                    mask[i] = _vuFillSmoothed[low] * (1f - fraction)
-                        + _vuFillSmoothed[high] * fraction;
-                }
+                Array.Copy(_vuSpectrum, visual, visual.Length);
                 break;
-            }
             case VuFillMode.Drip:
-            {
-                float energy = Math.Clamp((_vuFillSmoothed[0] + _vuFillSmoothed[1]) * 1.5f, 0f, 1f);
-                bool onset = UpdateVuOnset(energy);
-                for (int i = 0; i < _vuFillPeaks.Length; i++)
-                    _vuFillPeaks[i] = Math.Max(0, _vuFillPeaks[i] - 0.015f);
-                if (_vuFillTick % 4 == 0)
+                UpdateGravimeter(visual, dynamicEnergy);
+                break;
+            default:
+                for (int i = 0; i < visual.Length; i++)
                 {
-                    for (int i = 0; i < _vuFillPeaks.Length - 1; i++)
-                    {
-                        float transfer = _vuFillPeaks[i + 1] * 0.3f;
-                        _vuFillPeaks[i] = Math.Min(1f, _vuFillPeaks[i] + transfer);
-                        _vuFillPeaks[i + 1] -= transfer;
-                    }
+                    float ripple = 0.82f + 0.18f * MathF.Sin(
+                        _vuFillTick * 0.13f + i * 0.72f + _vuSpectrumDensity * 3f);
+                    visual[i] = Math.Clamp(_vuGlobalBeat * ripple, 0f, 1f);
                 }
-                if (onset)
-                    _vuFillPeaks[^1] = Math.Max(0.6f, energy);
-                Array.Copy(_vuFillPeaks, mask, mask.Length);
                 break;
-            }
-            default: // Classic
-            {
-                for (int i = 0; i < mask.Length; i++)
-                    mask[i] = FillBrightness(overall, (float)i / (mask.Length - 1));
-                break;
-            }
         }
 
-        // Bass and low mids provide a common room-wide hit beneath the
-        // positional VU shape. This keeps every device visibly reacting even
-        // when its automatic spatial slice is outside the current fill level.
-        float globalBeat = Math.Clamp(
-            _vuFillSmoothed[0] * 0.5f
-            + _vuFillSmoothed[1] * 0.3f
-            + _vuFillSmoothed[2] * 0.2f,
-            0f, 1f);
-        _vuGlobalBeat = MathF.Pow(globalBeat, 0.8f);
-        _vuFillMask = mask;
+        if (_vuFillTick % 90 == 0)
+        {
+            Logger.Log($"[VU2] mode={ambience.VuFillMode} level={_vuGlobalBeat:F3} "
+                + $"peak={_vuTransientFlash:F3} density={_vuSpectrumDensity:F3} "
+                + $"spectrum={spectrumMax:F3} floor={_vuEnergyBaseline:F3} flux={_vuSpectralFluxAverage:F3}");
+        }
+        _vuFillMask = visual;
     }
 
-    private bool UpdateVuOnset(float energy)
+    private static float ApplyVuGate(float value, float gate) => value <= gate
+        ? 0f
+        : Math.Clamp((value - gate) / Math.Max(1f - gate, 0.05f), 0f, 1f);
+
+    private static void UpdateVuAutoPeak(ref float peak, float value, float floor)
     {
-        _vuAvgEnergy += (energy - _vuAvgEnergy) * 0.05f;
-        bool onset = energy > _vuAvgEnergy + 0.25f && !_vuLastOnset;
-        _vuLastOnset = energy > _vuAvgEnergy + 0.15f;
+        peak = value > peak ? value : peak + (value - peak) * 0.0025f;
+        peak = Math.Clamp(peak, floor, 1f);
+    }
+
+    private void RenderMirrorEq(float[] visual)
+    {
+        int center = visual.Length / 2;
+        for (int i = 0; i < visual.Length; i++)
+        {
+            float distance = Math.Abs(i - center) / (float)center;
+            int spectrumIndex = Math.Clamp((int)Math.Round(distance * 14f), 0, 14);
+            float level = _vuSpectrum[spectrumIndex];
+            float peakSpark = Math.Max(0f, _vuSpectrumPeak[spectrumIndex] - level) * 0.65f
+                + MathF.Pow(level, 3f) * (0.10f + _vuSpectrumDensity * 0.28f);
+            visual[i] = Math.Clamp(level * 0.82f + peakSpark, 0f, 1f);
+        }
+    }
+
+    private void UpdateBeatRain(float[] visual, float energy, bool onset)
+    {
+        var ambience = _config!.Ambience;
+        float trail = Math.Clamp(ambience.VuTrailLength / 100f, 0.1f, 1f);
+        int density = Math.Clamp(ambience.VuDropDensity, 1, 5);
+        if (_vuRainCooldown > 0) _vuRainCooldown--;
+
+        int shiftInterval = Math.Clamp(6 - _roomEffectSpeed / 22, 2, 6);
+        if (_vuFillTick % shiftInterval == 0)
+        {
+            for (int i = 0; i < _vuRain.Length - 1; i++)
+            {
+                _vuRain[i] = Math.Max(_vuRain[i] * (0.42f + trail * 0.38f), _vuRain[i + 1]);
+                _vuRainHue[i] = _vuRainHue[i + 1];
+            }
+            _vuRain[^1] = 0f;
+        }
+        else
+        {
+            for (int i = 0; i < _vuRain.Length; i++)
+                _vuRain[i] *= 0.91f + trail * 0.075f;
+        }
+
+        bool sustained = energy > 0.70f && _vuRainCooldown == 0;
+        if ((onset || sustained) && _vuRainCooldown == 0)
+        {
+            int drops = 1 + (int)MathF.Round(energy * (density - 1));
+            for (int drop = 0; drop < drops; drop++)
+            {
+                int position = Math.Max(0, _vuRain.Length - 1 - drop * 2);
+                _vuRainHueCursor = (_vuRainHueCursor + 0.13f + _vuSpectrumDensity * 0.16f) % 1f;
+                _vuRain[position] = Math.Max(_vuRain[position], 0.64f + energy * 0.36f - drop * 0.08f);
+                _vuRainHue[position] = _vuRainHueCursor;
+            }
+            _vuRainCooldown = Math.Max(3, 10 - density);
+        }
+        Array.Copy(_vuRain, visual, visual.Length);
+    }
+
+    private void UpdateBassBloom(float[] visual, float energy, bool onset)
+    {
+        float strength = Math.Clamp((_config?.Ambience.VuBeatFlash ?? 70) / 100f, 0f, 1f);
+        float speed = 0.20f + _roomEffectSpeed / 100f * 0.34f;
+        if (onset) _vuBloomRadius = 0f;
+        else _vuBloomRadius += speed;
+
+        for (int i = 0; i < visual.Length; i++)
+        {
+            float distance = Math.Abs(i - 7f);
+            float ring = MathF.Exp(-MathF.Pow(distance - _vuBloomRadius, 2f) / 1.35f);
+            float core = MathF.Exp(-distance * 0.42f) * energy * 0.42f;
+            visual[i] = Math.Clamp(core + ring * Math.Max(_vuTransientFlash, energy * 0.55f) * strength, 0f, 1f);
+        }
+    }
+
+    private void UpdateGravimeter(float[] visual, float energy)
+    {
+        var ambience = _config!.Ambience;
+        float target = energy * 14f;
+        _vuGravityLevel = target > _vuGravityLevel
+            ? target
+            : _vuGravityLevel + (target - _vuGravityLevel) * 0.12f;
+
+        if (_vuGravityLevel >= _vuGravityPeak)
+        {
+            _vuGravityPeak = _vuGravityLevel;
+            _vuGravityVelocity = 0f;
+        }
+        else
+        {
+            float hold = ambience.VuTrailLength / 100f;
+            float gravity = (0.008f + ambience.VuDropDensity * 0.005f) * (1.15f - hold * 0.75f);
+            _vuGravityVelocity += gravity;
+            _vuGravityPeak = Math.Max(_vuGravityLevel, _vuGravityPeak - _vuGravityVelocity);
+        }
+
+        for (int i = 0; i < visual.Length; i++)
+        {
+            float fill = _vuGravityLevel - i;
+            visual[i] = fill >= 1f ? 0.92f : fill > 0f ? 0.12f + fill * 0.80f : 0f;
+            float peakDistance = Math.Abs(i - _vuGravityPeak);
+            if (peakDistance < 1.15f)
+                visual[i] = Math.Max(visual[i], 1f - peakDistance / 1.15f);
+        }
+    }
+
+    private void ResetVuVisualState()
+    {
+        Array.Clear(_vuSpectrum);
+        Array.Clear(_vuSpectrumPeak);
+        Array.Clear(_vuPreviousRawSpectrum);
+        _vuSpectrumAutoPeak = 0.04f;
+        Array.Clear(_vuRain);
+        Array.Clear(_vuRainHue);
+        _vuSpectrumDensity = 0f;
+        _vuTransientFlash = 0f;
+        _vuRainCooldown = 0;
+        _vuRainHueCursor = 0f;
+        _vuBloomRadius = 2f;
+        _vuGravityLevel = 0f;
+        _vuGravityPeak = 0f;
+        _vuGravityVelocity = 0f;
+        _vuEnergyBaseline = 0f;
+        _vuRawEnergyAverage = 0f;
+        _vuPreviousRawEnergy = 0f;
+        _vuSpectralFluxAverage = 0.01f;
+        _vuBeatCooldown = 0;
+    }
+
+    private static float CalculateMusicReactiveTarget(float[] bands, int sensitivity)
+    {
+        float gain = Math.Clamp(sensitivity / 50f, 0.02f, 2f);
+        float energy = Math.Clamp(
+            (bands[0] * 0.5f + bands[1] * 0.3f + bands[2] * 0.2f) * gain,
+            0f, 1f);
+        energy = MathF.Pow(energy, 1.3f);
+        return 0.15f + energy * 0.85f;
+    }
+
+    private static float CalculateMusicReactiveTarget(float focusedEnergy)
+    {
+        float curved = MathF.Pow(Math.Clamp(focusedEnergy, 0f, 1f), 1.3f);
+        return 0.15f + curved * 0.85f;
+    }
+
+    private static float CalculateCoarseFrequencyLevel(
+        float[] bands, int centerHz, int widthHz)
+    {
+        ReadOnlySpan<float> lows = [20f, 80f, 250f, 2000f, 6000f];
+        ReadOnlySpan<float> highs = [80f, 250f, 2000f, 6000f, 20000f];
+        float windowLow = Math.Max(20f, centerHz - widthHz * 0.5f);
+        float windowHigh = Math.Min(20000f, centerHz + widthHz * 0.5f);
+        float weighted = 0f;
+        float totalWeight = 0f;
+
+        for (int i = 0; i < 5; i++)
+        {
+            float overlap = Math.Max(0f,
+                Math.Min(windowHigh, highs[i]) - Math.Max(windowLow, lows[i]));
+            if (overlap <= 0f) continue;
+            weighted += bands[i] * overlap;
+            totalWeight += overlap;
+        }
+
+        if (totalWeight > 0f)
+            return Math.Clamp(weighted / totalWeight, 0f, 1f);
+
+        int nearest = 0;
+        float nearestDistance = float.MaxValue;
+        for (int i = 0; i < 5; i++)
+        {
+            float bandCenter = (lows[i] + highs[i]) * 0.5f;
+            float distance = Math.Abs(centerHz - bandCenter);
+            if (distance >= nearestDistance) continue;
+            nearestDistance = distance;
+            nearest = i;
+        }
+        return Math.Clamp(bands[nearest], 0f, 1f);
+    }
+
+    private static float AdvanceMusicReactiveEnvelope(float current, float target) =>
+        target > current ? target : current + (target - current) * 0.25f;
+
+    private static float AdvanceVuEnvelope(float current, float target, int attackMs, int releaseMs)
+    {
+        int timeMs = target > current ? Math.Max(attackMs, 0) : Math.Max(releaseMs, 1);
+        float amount = timeMs == 0 ? 1f : 1f - MathF.Exp(-33f / timeMs);
+        return current + (target - current) * amount;
+    }
+
+    private bool DetectVuTransient(ReadOnlySpan<float> rawSpectrum, float rawEnergy)
+    {
+        // Spectral flux measures newly arriving energy rather than sustained
+        // loudness. The first ten logarithmic bins cover roughly 40 Hz–2 kHz,
+        // where kicks, snares, and rhythmic vocal attacks carry most onsets.
+        float flux = 0f;
+        int fluxBins = Math.Min(10, rawSpectrum.Length);
+        float normalization = Math.Max(_vuSpectrumAutoPeak, 0.006f);
+        for (int i = 0; i < rawSpectrum.Length; i++)
+        {
+            if (i < fluxBins)
+                flux += Math.Max(0f, rawSpectrum[i] - _vuPreviousRawSpectrum[i]) / normalization;
+            _vuPreviousRawSpectrum[i] = rawSpectrum[i];
+        }
+        flux /= Math.Max(fluxBins, 1);
+
+        if (_vuRawEnergyAverage <= 0f)
+            _vuRawEnergyAverage = rawEnergy;
+        float rise = rawEnergy - _vuPreviousRawEnergy;
+        float fluxThreshold = Math.Max(0.008f, _vuSpectralFluxAverage * 1.55f);
+        float riseThreshold = Math.Max(0.0015f, _vuRawEnergyAverage * 0.055f);
+        bool fluxHit = flux > fluxThreshold && rawEnergy > 0.003f;
+        bool energyHit = rawEnergy > _vuRawEnergyAverage * 1.12f && rise > riseThreshold;
+
+        if (_vuBeatCooldown > 0)
+            _vuBeatCooldown--;
+        bool onset = _vuBeatCooldown == 0 && (fluxHit || energyHit);
+        if (onset)
+            _vuBeatCooldown = 5; // about 165ms at 30fps; preserves rapid double-kicks
+
+        _vuSpectralFluxAverage += (flux - _vuSpectralFluxAverage) * (flux > _vuSpectralFluxAverage ? 0.025f : 0.08f);
+        _vuRawEnergyAverage += (rawEnergy - _vuRawEnergyAverage) * 0.025f;
+        _vuPreviousRawEnergy = rawEnergy;
         return onset;
     }
 
@@ -3057,33 +3454,80 @@ public partial class RoomView : UserControl
         var mask = _vuFillMask;
         if (!_vuFillActive || mask == null || mask.Length < 15)
             return patternFrame;
-
-        byte maxR = 0, maxG = 0, maxB = 0;
-        for (int led = 0; led < 15; led++)
-        {
-            int sourceOffset = led * 3;
-            maxR = Math.Max(maxR, patternFrame[sourceOffset]);
-            maxG = Math.Max(maxG, patternFrame[sourceOffset + 1]);
-            maxB = Math.Max(maxB, patternFrame[sourceOffset + 2]);
-        }
-
-        float globalBeat = Math.Clamp(_vuGlobalBeat, 0f, 1f);
-        int ambientR = (int)Math.Round(maxR * globalBeat * 0.35f);
-        int ambientG = (int)Math.Round(maxG * globalBeat * 0.35f);
-        int ambientB = (int)Math.Round(maxB * globalBeat * 0.35f);
         var output = new byte[45];
+        VuFillMode mode = _config?.Ambience.VuFillMode ?? VuFillMode.Classic;
+        float flashStrength = Math.Clamp((_config?.Ambience.VuBeatFlash ?? 70) / 100f, 0f, 1f);
+        float transient = Math.Clamp(_vuTransientFlash, 0f, 1f);
+        float density = Math.Clamp(_vuSpectrumDensity, 0f, 1f);
         for (int led = 0; led < 15; led++)
         {
-            float brightness = Math.Clamp(Math.Max(mask[led], globalBeat * 0.9f), 0f, 1f);
             int offset = led * 3;
-            output[offset] = (byte)Math.Clamp(Math.Max(
-                (int)Math.Round(patternFrame[offset] * brightness), ambientR), 0, 255);
-            output[offset + 1] = (byte)Math.Clamp(Math.Max(
-                (int)Math.Round(patternFrame[offset + 1] * brightness), ambientG), 0, 255);
-            output[offset + 2] = (byte)Math.Clamp(Math.Max(
-                (int)Math.Round(patternFrame[offset + 2] * brightness), ambientB), 0, 255);
+            float position = led / 14f;
+            float colorPosition = mode switch
+            {
+                VuFillMode.Rainfall => _vuRain[led] > 0.02f
+                    ? _vuRainHue[led]
+                    : (position + _vuRainHueCursor) % 1f,
+                VuFillMode.Split => (Math.Abs(led - 7f) / 7f + density * 0.18f) % 1f,
+                VuFillMode.Spectrum => (position + density * 0.28f) % 1f,
+                VuFillMode.Pulse => (position * 0.64f + transient * 0.23f) % 1f,
+                VuFillMode.Drip => (position * 0.82f + density * 0.18f) % 1f,
+                _ => (position + _vuFillTick * 0.0025f + density * 0.18f) % 1f,
+            };
+            var (sourceR, sourceG, sourceB) = SampleVividPatternColor(patternFrame, colorPosition);
+
+            float brightness = Math.Clamp(mask[led], 0f, 1f);
+            float background = mode == VuFillMode.Classic ? 0.025f : 0.012f;
+            float flash = mode switch
+            {
+                VuFillMode.Rainfall => transient * flashStrength * 0.30f,
+                VuFillMode.Drip => transient * flashStrength * 0.10f,
+                VuFillMode.Split or VuFillMode.Spectrum => transient * 0.24f,
+                VuFillMode.Classic => transient * 0.18f,
+                VuFillMode.Pulse => transient * flashStrength * 0.08f,
+                _ => 0f,
+            };
+            float whiteSpark = mode switch
+            {
+                VuFillMode.Split or VuFillMode.Spectrum =>
+                    MathF.Pow(brightness, 4f) * density * 0.10f + transient * 0.07f,
+                VuFillMode.Drip when Math.Abs(led - _vuGravityPeak) < 1.1f => transient * flashStrength * 0.24f,
+                VuFillMode.Classic => transient * 0.12f,
+                _ => 0f,
+            };
+            float finalBrightness = Math.Clamp(background + brightness * 0.96f + flash, 0f, 1f);
+            output[offset] = (byte)Math.Clamp(
+                (int)Math.Round(sourceR * finalBrightness + 255f * whiteSpark), 0, 255);
+            output[offset + 1] = (byte)Math.Clamp(
+                (int)Math.Round(sourceG * finalBrightness + 255f * whiteSpark), 0, 255);
+            output[offset + 2] = (byte)Math.Clamp(
+                (int)Math.Round(sourceB * finalBrightness + 255f * whiteSpark), 0, 255);
         }
         return output;
+    }
+
+    private (float R, float G, float B) SampleVividPatternColor(byte[] patternFrame, float position)
+    {
+        float sourcePosition = Math.Clamp(position, 0f, 1f) * 14f;
+        int low = Math.Min((int)sourcePosition, 14);
+        int high = Math.Min(low + 1, 14);
+        float fraction = sourcePosition - low;
+        int lowOffset = low * 3;
+        int highOffset = high * 3;
+        float r = patternFrame[lowOffset] * (1f - fraction) + patternFrame[highOffset] * fraction;
+        float g = patternFrame[lowOffset + 1] * (1f - fraction) + patternFrame[highOffset + 1] * fraction;
+        float b = patternFrame[lowOffset + 2] * (1f - fraction) + patternFrame[highOffset + 2] * fraction;
+        float peak = Math.Max(r, Math.Max(g, b));
+        if (peak < 10f)
+        {
+            var fallback = _roomPalette.Sample(position);
+            r = fallback.R;
+            g = fallback.G;
+            b = fallback.B;
+            peak = Math.Max(r, Math.Max(g, b));
+        }
+        float normalization = peak > 0f ? 255f / peak : 0f;
+        return (r * normalization, g * normalization, b * normalization);
     }
 
 
@@ -6053,17 +6497,10 @@ public partial class RoomView : UserControl
         {
             // Bass + low-mid drives the pulse (bands 0-2, ≤2kHz). Treble ignored —
             // industry standard: bass/mids control intensity, treble controls sparkle/detail.
-            float gain = config.Ambience.MusicSensitivity / 50f;
-            float energy = Math.Clamp((musicBands[0] * 0.5f + musicBands[1] * 0.3f + musicBands[2] * 0.2f) * gain, 0f, 1f);
-
-            // Gentle curve for visible contrast without crushing moderate levels
-            energy = MathF.Pow(energy, 1.3f);
-
-            float target = 0.15f + energy * 0.85f; // 15% floor, 100% on peak
-            if (target > _musicReactiveBrightness)
-                _musicReactiveBrightness = target; // instant attack — snap to beat
-            else
-                _musicReactiveBrightness += (target - _musicReactiveBrightness) * 0.25f; // fast decay between beats
+            float target = CalculateMusicReactiveTarget(
+                musicBands, config.Ambience.MusicSensitivity);
+            _musicReactiveBrightness = AdvanceMusicReactiveEnvelope(
+                _musicReactiveBrightness, target);
 
             musicBrightness = _musicReactiveBrightness;
             r = (byte)Math.Min(r * musicBrightness, 255);
@@ -6081,9 +6518,9 @@ public partial class RoomView : UserControl
                 frameForSync[i] = (byte)Math.Min(linearColors[i] * musicBrightness, 255);
         }
 
-        // VU Fill is a brightness/position mask layered over the selected
-        // effect. This preserves every pattern's animation and palette while
-        // the VU mode controls which portions of that pattern are visible.
+        // VU Fill renders a dedicated audio canvas. The selected room effect
+        // remains the moving color source, so every pattern can drive all six
+        // visualizers without crushing them through a second brightness mask.
         if (_vuFillActive)
         {
             frameForSync = ApplyVuFillMask(frameForSync);
@@ -6110,7 +6547,11 @@ public partial class RoomView : UserControl
                 _sync?.OnRoomFrame(
                     frameForSync,
                     config.Ambience,
-                    allowNativeSegmentEffects: _corsairMusicTimer?.IsEnabled != true && !_vuFillActive);
+                    allowNativeSegmentEffects: _corsairMusicTimer?.IsEnabled != true && !_vuFillActive,
+                    forceMirrorPerDevice: _vuFillActive
+                        && config.Ambience.VuFillMode is VuFillMode.Rainfall or VuFillMode.Drip,
+                    preserveSegmentOrder: _vuFillActive
+                        && config.Ambience.VuFillMode is VuFillMode.Rainfall or VuFillMode.Drip);
 
             // Cloud-only devices (no LAN IP) — throttle to ~1/sec (Cloud API rate limit)
             if (config.Ambience.GoveeCloudEnabled

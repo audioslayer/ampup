@@ -318,7 +318,12 @@ public class AmbienceSync : IDisposable
     /// Called by RoomView.OnRoomFrame for room pattern effects.
     /// Sends full 15-LED frame with rate limiting and segment support.
     /// </summary>
-    public void OnRoomFrame(byte[] linear45, AmbienceConfig cfg, bool allowNativeSegmentEffects = true)
+    public void OnRoomFrame(
+        byte[] linear45,
+        AmbienceConfig cfg,
+        bool allowNativeSegmentEffects = true,
+        bool forceMirrorPerDevice = false,
+        bool preserveSegmentOrder = false)
     {
         if (_disposed || !cfg.GoveeEnabled || cfg.GoveeDevices.Count == 0) return;
         if (_syncSuspended) return;
@@ -334,7 +339,7 @@ public class AmbienceSync : IDisposable
         }
         if (activeDevices.Count == 0) return;
 
-        if (cfg.SpatialSync && _spatialMapper != null && _spatialMapper.HasLayout)
+        if (!forceMirrorPerDevice && cfg.SpatialSync && _spatialMapper != null && _spatialMapper.HasLayout)
         {
             // ── Room Layout spatial mode: use 3D positions for color mapping ──
             foreach (var (device, zones) in activeDevices)
@@ -350,7 +355,7 @@ public class AmbienceSync : IDisposable
                 SendDeviceFrame(device, colors, isSeg);
             }
         }
-        else if (cfg.SpatialSync)
+        else if (!forceMirrorPerDevice && cfg.SpatialSync)
         {
             // ── Linear spatial mode (no room layout): spread across devices in order ──
             int totalZones = 0;
@@ -396,6 +401,21 @@ public class AmbienceSync : IDisposable
                         // Paired mirror: both panels show the same pattern.
                         // Reverse within each panel so they match other Govee devices.
                         int mapIdx;
+                        if (isPaired && preserveSegmentOrder)
+                        {
+                            int firstPanelCount = zones / 2;
+                            mapIdx = s < firstPanelCount
+                                ? s
+                                : Math.Min(s - firstPanelCount, firstPanelCount - 1);
+                            int orderedSrcIdx = mapIdx * 14 / Math.Max(firstPanelCount - 1, 1);
+                            int orderedR = linear45[orderedSrcIdx * 3];
+                            int orderedG = linear45[orderedSrcIdx * 3 + 1];
+                            int orderedB = linear45[orderedSrcIdx * 3 + 2];
+                            (orderedR, orderedG, orderedB) = ApplySettings(
+                                orderedR, orderedG, orderedB, cfg);
+                            segColors[s] = (orderedR, orderedG, orderedB);
+                            continue;
+                        }
                         if (isPaired)
                             mapIdx = (panelSegs - 1) - (s % panelSegs);
                         else

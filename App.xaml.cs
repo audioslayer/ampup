@@ -5062,6 +5062,11 @@ public partial class App : Application
             if (target.Equals("apps", StringComparison.OrdinalIgnoreCase))
             {
                 // PollAppGroupMuteStates resolves this target using its configured app list.
+                if (knob.Apps == null || knob.Apps.Count == 0)
+                {
+                    _rgb.SetAppGroupMuted(knob.Idx, false);
+                    _rgb.SetTargetMuted(knob.Idx, false);
+                }
                 continue;
             }
 
@@ -5351,10 +5356,12 @@ public partial class App : Application
                                 uint pid = session.GetProcessID;
                                 if (pid == 0) continue;
                                 // Shared snapshot lookup — no Process.GetProcessById per session.
-                                if (!processNamesById.TryGetValue((int)pid, out var processName))
-                                    continue;
+                                processNamesById.TryGetValue((int)pid, out var processName);
+                                string displayName = session.DisplayName ?? "";
                                 bool matchesGroup = knob.Apps!.Any(app =>
-                                    processName.Contains(app, StringComparison.OrdinalIgnoreCase));
+                                    !string.IsNullOrWhiteSpace(app)
+                                    && (AudioMixer.FuzzyContains(processName ?? "", app)
+                                        || AudioMixer.FuzzyContains(displayName, app)));
                                 if (matchesGroup)
                                 {
                                     anyFound = true;

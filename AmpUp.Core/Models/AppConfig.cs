@@ -572,12 +572,12 @@ public enum ReactiveMode
 
 public enum VuFillMode
 {
-    Classic,      // standard bottom→top fill
-    Split,        // left panel=bass, right panel=treble (independent levels)
-    Rainfall,     // drips fall from top on beats
-    Pulse,        // all segments pulse together with bass energy
-    Spectrum,     // each segment = a frequency band (like equalizer)
-    Drip,         // liquid drips spawn at top, fall, splash at bottom
+    Classic,      // Voice Glow — vocal-range full-room flashes
+    Split,        // Mirror EQ — mirrored 15-band spectrum
+    Rainfall,     // Beat Rain — transient-triggered color trails
+    Pulse,        // Bass Bloom — center-out bass waves
+    Spectrum,     // Prism EQ — one logarithmic frequency band per segment
+    Drip,         // Gravimeter — gravity-driven fill with a falling peak dot
 }
 
 public enum ProfileTransition
@@ -688,6 +688,14 @@ public class AmbienceConfig
     public int MusicSensitivity { get; set; } = 50; // 1-100, controls music reactive intensity
     [JsonConverter(typeof(StringEnumConverter))]
     public VuFillMode VuFillMode { get; set; } = VuFillMode.Classic;
+    public int VuBeatFrequencyHz { get; set; } = 110;
+    public int VuBeatWidthHz { get; set; } = 140;
+    public int VuBeatGate { get; set; } = 12;
+    public int VuAttackMs { get; set; } = 20;
+    public int VuReleaseMs { get; set; } = 180;
+    public int VuDropDensity { get; set; } = 3;
+    public int VuTrailLength { get; set; } = 65;
+    public int VuBeatFlash { get; set; } = 70;
     public int BrightnessScale { get; set; } = 100;
     public bool WarmToneShift { get; set; } = false;
     public string GoveeApiKey { get; set; } = "";

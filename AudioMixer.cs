@@ -63,7 +63,7 @@ public class AudioMixer : IDisposable
     /// processName.Replace(" ", "").Contains(search.Replace(" ", "")), case-insensitive.
     /// Called per session per VU tick, so no string allocs allowed here.
     /// </summary>
-    private static bool FuzzyContains(string processName, string search)
+    internal static bool FuzzyContains(string processName, string search)
     {
         // First non-space needle char — an empty/all-space needle matches anything
         int nStart = 0;

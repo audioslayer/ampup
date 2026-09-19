@@ -12,9 +12,17 @@ public class AudioAnalyzer : IDisposable
     // Public smoothed band levels: [sub-bass, bass, low-mid, high-mid, treble]
     public float[] SmoothedBands { get; } = new float[5];
 
+    // Fine logarithmic spectrum used by VU tuning. This supplements the five
+    // broad public bands so the room effect can target an actual Hz window.
+    private const int SpectrumBinCount = 48;
+    private const float SpectrumMinHz = 20f;
+    private const float SpectrumMaxHz = 20000f;
+    private readonly float[] _smoothedSpectrum = new float[SpectrumBinCount];
+    private readonly float[] _spectrumScratch = new float[SpectrumBinCount];
+
     private WasapiLoopbackCapture? _capture;
     private readonly object _lock = new();
-    private readonly float[] _sampleBuffer = new float[1024];
+    private readonly float[] _sampleBuffer = new float[FftSize];
     private readonly Complex[] _fftBuffer = new Complex[FftSize];
     private readonly float[] _hannWindow = BuildHannWindow();
     private int _bufferPos;
@@ -45,9 +53,13 @@ public class AudioAnalyzer : IDisposable
     };
 
     private const float NormRef = 0.005f; // reference amplitude for normalization (WASAPI loopback levels are very low)
-    private const int FftSize = 1024;
-    private const int FftLog2 = 10; // log2(1024)
-    private const int AnalysisHopBuffers = 2; // ~23Hz at 48kHz, enough for 20 FPS LEDs
+    private const int FftSize = 4096;
+    private const int FftLog2 = 12; // log2(4096)
+    // NAudio normalizes forward FFT bins by N. Compensate only for the larger
+    // number of bins averaged in each broad band, preserving its prior response.
+    private static readonly float BroadBandScale = MathF.Sqrt(FftSize / 1024f);
+    private const int AnalysisHopBuffers = 1;
+    private const int AnalysisHopSamples = FftSize / 2; // ~23Hz at 48kHz, 50% overlap
 
     private static float[] BuildHannWindow()
     {
@@ -123,6 +135,7 @@ public class AudioAnalyzer : IDisposable
         {
             for (int i = 0; i < 5; i++)
                 SmoothedBands[i] = 0f;
+            Array.Clear(_smoothedSpectrum);
         }
     }
 
@@ -175,7 +188,8 @@ public class AudioAnalyzer : IDisposable
                     _analysisHop = 0;
                     ProcessFft(_formatSampleRate);
                 }
-                _bufferPos = 0;
+                Array.Copy(_sampleBuffer, AnalysisHopSamples, _sampleBuffer, 0, FftSize - AnalysisHopSamples);
+                _bufferPos = FftSize - AnalysisHopSamples;
             }
         }
     }
@@ -319,13 +333,12 @@ public class AudioAnalyzer : IDisposable
             int count = 0;
             for (int bin = binMin; bin <= binMax; bin++)
             {
-                float mag = MathF.Sqrt(complex[bin].X * complex[bin].X + complex[bin].Y * complex[bin].Y);
-                sumSq += mag * mag;
+                sumSq += complex[bin].X * complex[bin].X + complex[bin].Y * complex[bin].Y;
                 count++;
             }
 
             float rms = count > 0 ? MathF.Sqrt(sumSq / count) : 0f;
-            float raw = Math.Clamp(rms / NormRef, 0f, 1f);
+            float raw = Math.Clamp(rms * BroadBandScale / NormRef, 0f, 1f);
 
             // Apply attack/decay smoothing
             lock (_lock)
@@ -334,6 +347,116 @@ public class AudioAnalyzer : IDisposable
                 SmoothedBands[band] = raw > current
                     ? current * 0.5f + raw * 0.5f    // attack: fast
                     : current * 0.88f + raw * 0.12f; // decay: slow
+            }
+        }
+
+        // Build a finer logarithmic spectrum from the same FFT. Keeping this
+        // work here avoids another capture/FFT pipeline for the room VU tuner.
+        float logRange = MathF.Log(SpectrumMaxHz / SpectrumMinHz);
+        for (int spectrumBin = 0; spectrumBin < SpectrumBinCount; spectrumBin++)
+        {
+            float lowHz = SpectrumMinHz * MathF.Exp(logRange * spectrumBin / SpectrumBinCount);
+            float highHz = SpectrumMinHz * MathF.Exp(logRange * (spectrumBin + 1) / SpectrumBinCount);
+            int binMin = Math.Max(1, (int)MathF.Floor(lowHz / binHz));
+            int binMax = Math.Min(halfBins - 1, (int)MathF.Ceiling(highHz / binHz));
+            if (binMin > binMax)
+            {
+                _spectrumScratch[spectrumBin] = 0f;
+                continue;
+            }
+
+            float sumSq = 0f;
+            int count = 0;
+            for (int fftBin = binMin; fftBin <= binMax; fftBin++)
+            {
+                sumSq += complex[fftBin].X * complex[fftBin].X
+                    + complex[fftBin].Y * complex[fftBin].Y;
+                count++;
+            }
+            float rms = count > 0 ? MathF.Sqrt(sumSq / count) : 0f;
+            _spectrumScratch[spectrumBin] = Math.Clamp(
+                rms / NormRef, 0f, 1f);
+        }
+
+        lock (_lock)
+        {
+            for (int i = 0; i < SpectrumBinCount; i++)
+            {
+                float raw = _spectrumScratch[i];
+                float current = _smoothedSpectrum[i];
+                _smoothedSpectrum[i] = raw > current
+                    ? current * 0.45f + raw * 0.55f
+                    : current * 0.86f + raw * 0.14f;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Returns normalized energy in a tunable frequency window. A triangular
+    /// weighting favors the selected center while the width controls how much
+    /// neighboring spectrum contributes.
+    /// </summary>
+    public float GetFrequencyLevel(float centerHz, float widthHz)
+    {
+        centerHz = Math.Clamp(centerHz, SpectrumMinHz, SpectrumMaxHz);
+        widthHz = Math.Clamp(widthHz, 10f, SpectrumMaxHz);
+        float halfWidth = Math.Max(widthHz * 0.5f, 5f);
+        float weighted = 0f;
+        float weightTotal = 0f;
+        float nearestDistance = float.MaxValue;
+        float nearestValue = 0f;
+        float logRange = MathF.Log(SpectrumMaxHz / SpectrumMinHz);
+
+        lock (_lock)
+        {
+            for (int i = 0; i < SpectrumBinCount; i++)
+            {
+                float binCenter = SpectrumMinHz * MathF.Exp(logRange * (i + 0.5f) / SpectrumBinCount);
+                float distance = MathF.Abs(binCenter - centerHz);
+                if (distance < nearestDistance)
+                {
+                    nearestDistance = distance;
+                    nearestValue = _smoothedSpectrum[i];
+                }
+
+                float weight = 1f - distance / halfWidth;
+                if (weight <= 0f) continue;
+                weighted += _smoothedSpectrum[i] * weight;
+                weightTotal += weight;
+            }
+        }
+
+        return weightTotal > 0f ? Math.Clamp(weighted / weightTotal, 0f, 1f) : nearestValue;
+    }
+
+    /// <summary>
+    /// Copies a logarithmically spaced slice of the live FFT into the caller's
+    /// buffer. Room visualizers use this instead of stretching the five broad
+    /// bands across every light, so kick, vocals, hats, and harmonics can move
+    /// independently across the room.
+    /// </summary>
+    public void CopySpectrum(Span<float> destination, float minHz = 40f, float maxHz = 16000f)
+    {
+        if (destination.IsEmpty) return;
+
+        minHz = Math.Clamp(minHz, SpectrumMinHz, SpectrumMaxHz - 1f);
+        maxHz = Math.Clamp(maxHz, minHz + 1f, SpectrumMaxHz);
+        float sourceLogRange = MathF.Log(SpectrumMaxHz / SpectrumMinHz);
+        float requestedLogRange = MathF.Log(maxHz / minHz);
+
+        lock (_lock)
+        {
+            for (int i = 0; i < destination.Length; i++)
+            {
+                float t = destination.Length == 1 ? 0.5f : i / (float)(destination.Length - 1);
+                float hz = minHz * MathF.Exp(requestedLogRange * t);
+                float sourcePosition = MathF.Log(hz / SpectrumMinHz) / sourceLogRange
+                    * SpectrumBinCount - 0.5f;
+                int low = Math.Clamp((int)MathF.Floor(sourcePosition), 0, SpectrumBinCount - 1);
+                int high = Math.Min(low + 1, SpectrumBinCount - 1);
+                float fraction = Math.Clamp(sourcePosition - low, 0f, 1f);
+                destination[i] = _smoothedSpectrum[low] * (1f - fraction)
+                    + _smoothedSpectrum[high] * fraction;
             }
         }
     }
