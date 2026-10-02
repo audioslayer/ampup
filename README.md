@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/source-1.3.2-00BFEF" alt="Source version 1.3.2" />
+  <a href="https://github.com/audioslayer/ampup/releases/latest"><img src="https://img.shields.io/github/v/release/audioslayer/ampup?label=latest&color=00BFEF" alt="Latest release" /></a>
   <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows&logoColor=white" alt="Windows 10 and 11" />
   <img src="https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white" alt=".NET 8" />
   <img src="https://img.shields.io/badge/Turn%20Up-stable-00B875" alt="Stable Turn Up support" />
@@ -64,6 +64,7 @@ The experimental macOS port has been discontinued. Current releases support **64
 
 - Control master output, microphone input, individual apps, app groups, active-window audio, and specific input/output devices.
 - Match traditional desktop apps, games, browsers, UWP apps, and sessions whose display name differs from their process name.
+- Move every audio session an app opens with one knob—apps such as Apple Music and Discord can show several sliders in the Windows volume mixer.
 - Apply linear, logarithmic, or exponential response curves with custom minimum and maximum volume ranges.
 - Use live VU meters, peak activity, mute state, and a unified tray mixer without opening the main window.
 - Detect newly connected, removed, or changed Windows audio devices while Amp Up remains open—including Bluetooth endpoints.
@@ -122,25 +123,15 @@ The experimental macOS port has been discontinued. Current releases support **64
 | **Corsair iCUE** | Room lighting, static and reactive effects, device sync, and supported fan/pump controls |
 | **Home Assistant** | Entity actions and controls from hardware buttons, knobs, and N3 keys |
 | **OBS Studio** | Streaming/recording actions and dynamic N3 status displays |
-| **VoiceMeeter** | Strip and bus gain targets when VoiceMeeter is installed and enabled |
+| **VoiceMeeter** | Strip and bus gain and mute for Basic, Banana, and Potato; automatic detection or a chosen install folder, with automatic reconnect when VoiceMeeter restarts |
 | **Spotify** | Playback actions, session restore, track state, and N3 now-playing artwork |
 | **Discord RPC** | Mute, deafen, voice-state, leave-channel, and noise-suppression actions; authorization remains tester-gated pending public Discord approval |
 
 Integration credentials and Amp Up configuration are stored locally under `%APPDATA%\AmpUp`.
 
-## What changed in 1.3
+## Release notes
 
-Version 1.3 focuses on everyday reliability and update delivery:
-
-- Added live Windows audio-device detection so newly connected Bluetooth and USB endpoints appear without restarting Amp Up.
-- Reworked Turn Up and N3 input processing to prevent stalled controls, delayed button actions, and stale knob-event backlogs.
-- Added serial read-stall recovery, cleaner hardware-mode scanning, and safer RGB refresh behavior.
-- Fixed recurring resource leaks and refresh contention across Windows audio sessions, tray rows, HTTP integrations, Govee UDP, and process handles.
-- Added log rotation and rate limiting for repeated offline/error conditions.
-- Prevented invalid Spotify refresh credentials from retrying every few seconds.
-- Added the verified one-click in-app updater and connected the tray banner directly to it.
-
-See [CHANGELOG.md](CHANGELOG.md) for the complete release history.
+See [GitHub Releases](https://github.com/audioslayer/ampup/releases) for what's new in each version.
 
 ## Configuration and logs
 
@@ -159,7 +150,12 @@ Amp Up keeps user data outside the installation directory:
 
 - Close the official Turn Up app and any other software that may have opened its COM port.
 - Unplug and reconnect the mixer, then allow a few seconds for Windows to restore the CH343 serial device.
-- Check **Settings → Connection** if the configured port differs from the detected port.
+- Check **Settings → Devices** if the configured port differs from the detected port.
+
+### VoiceMeeter is not detected
+
+- Open VoiceMeeter and enable the integration in **Settings → Connected Apps**. Either app can start first.
+- If the status reads **Remote API not found**, click **Browse** and select the VoiceMeeter install folder, usually `C:\Program Files (x86)\VB\Voicemeeter`.
 
 ### A Bluetooth or USB audio device is missing
 
