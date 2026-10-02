@@ -15,13 +15,31 @@ namespace AmpUp.Core.Services;
 /// </summary>
 public sealed class DiscordRpcIntegration : IDisposable
 {
-    // Discord limits rpc.voice.read/rpc.voice.write to approved partners.
-    // AmpUp is a public client and must not start an OAuth flow that Discord
-    // will reject with invalid_scope. Keep the implementation/config model so
-    // existing profiles remain readable if Discord opens access in the future.
-    public static bool VoiceControlAvailable => false;
+    // Discord limits rpc.voice.read/rpc.voice.write to approved partners, but
+    // users added as testers on AmpUp's developer app can authorize them.
+    // Everyone else gets invalid_scope from AUTHORIZE — IsTesterAccessError
+    // detects that so the UI can explain how to request tester access.
+    public static bool VoiceControlAvailable => true;
     public const string VoiceControlUnavailableReason =
         "Discord voice controls are unavailable because Discord restricts the required RPC voice scopes to approved partners.";
+
+    // Where users ask to be added as a tester: DM audio in the #amp-up channel.
+    public const string CommunityInviteUrl = "https://discord.gg/TDkfWSjqZ";
+    public const string TesterAccessMessage =
+        "Discord voice controls are in tester preview. Discord only lets approved testers connect until AmpUp is fully approved.\n\n" +
+        "To get access, join the WolfDen Discord and DM audio in the #amp-up channel. Once you're added as a tester, click Connect again.";
+
+    /// <summary>
+    /// True when Discord rejected authorization because this account isn't
+    /// an approved tester (invalid_scope / OAuth2 scope errors).
+    /// </summary>
+    public static bool IsTesterAccessError(Exception ex)
+    {
+        var message = ex.Message ?? "";
+        return message.Contains("invalid_scope", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("scope", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("OAuth2", StringComparison.OrdinalIgnoreCase);
+    }
 
     private const int HandshakeOpcode = 0;
     private const int FrameOpcode = 1;

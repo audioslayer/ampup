@@ -125,7 +125,7 @@ The experimental macOS port has been discontinued. Current releases support **64
 | **OBS Studio** | Streaming/recording actions and dynamic N3 status displays |
 | **VoiceMeeter** | Strip and bus gain and mute for Basic, Banana, and Potato; automatic detection or a chosen install folder, with automatic reconnect when VoiceMeeter restarts |
 | **Spotify** | Playback actions, session restore, track state, and N3 now-playing artwork |
-| **Discord RPC** | Mute, deafen, voice-state, leave-channel, and noise-suppression actions; authorization remains tester-gated pending public Discord approval |
+| **Discord RPC** | Mute, deafen, voice-state, leave-channel, and noise-suppression actions. Tester preview until Discord approves public access: join the [WolfDen Discord](https://discord.gg/TDkfWSjqZ) and DM audio in #amp-up to be added |
 
 Integration credentials and Amp Up configuration are stored locally under `%APPDATA%\AmpUp`.
 

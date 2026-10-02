@@ -200,6 +200,10 @@ public partial class SettingsView : UserControl
         // Spotify
         BtnDiscordConnect.Click += OnDiscordConnect;
         BtnDiscordDisconnect.Click += OnDiscordDisconnect;
+        BtnDiscordJoinCommunity.Click += (_, _) => OpenDiscordCommunity();
+        BtnDiscordJoinCommunity.Visibility = string.IsNullOrWhiteSpace(DiscordRpcIntegration.CommunityInviteUrl)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
         TxtSpotifyClientId.TextChanged += OnValueChanged;
         BtnSpotifySetupGuide.Click += OnSpotifySetupGuide;
         BtnSpotifyConnect.Click += OnSpotifyConnect;
@@ -209,14 +213,11 @@ public partial class SettingsView : UserControl
         TxtVersion.Text = $"Amp Up v{UpdateChecker.CurrentVersion}";
         BtnCheckUpdate.Click += OnCheckUpdate;
 
-        // Buy Me a Coffee link
-        CoffeeFooter.MouseLeftButtonDown += (_, _) =>
-        {
-            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://www.buymeacoffee.com/audioslayer") { UseShellExecute = true }); }
-            catch { }
-        };
-        CoffeeFooter.MouseEnter += (_, _) => CoffeeFooter.Opacity = 1.0;
-        CoffeeFooter.MouseLeave += (_, _) => CoffeeFooter.Opacity = 0.85;
+        // Community & Support tiles
+        WireCommunityTile(DiscordCommunityTile, DiscordCommunityTileShine,
+            Color.FromRgb(0x58, 0x65, 0xF2), DiscordRpcIntegration.CommunityInviteUrl);
+        WireCommunityTile(CoffeeTile, CoffeeTileShine,
+            Color.FromRgb(0xFF, 0xB0, 0x20), "https://www.buymeacoffee.com/audioslayer");
     }
 
     private void BuildSettingsTabs()
@@ -275,6 +276,7 @@ public partial class SettingsView : UserControl
         BackupCard.Visibility = _settingsTabIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
         IntegrationsCard.Visibility = _settingsTabIndex is 3 or 4 ? Visibility.Visible : Visibility.Collapsed;
         AboutCard.Visibility = _settingsTabIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+        CommunityCard.Visibility = _settingsTabIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
 
         bool showLighting = _settingsTabIndex == 3;
         bool showServices = _settingsTabIndex == 4;
@@ -1837,6 +1839,12 @@ public partial class SettingsView : UserControl
             RefreshDiscordStatus();
             GlassDialog.ShowInfo("Discord connected. Discord button actions are ready.", owner: Window.GetWindow(this));
         }
+        catch (Exception ex) when (DiscordRpcIntegration.IsTesterAccessError(ex))
+        {
+            Logger.Log($"Discord connect rejected (not a tester): {ex.Message}");
+            TxtDiscordStatus.Text = "Tester access needed";
+            ShowDiscordTesterAccessDialog();
+        }
         catch (Exception ex)
         {
             TxtDiscordStatus.Text = "Error";
@@ -1853,6 +1861,65 @@ public partial class SettingsView : UserControl
     {
         App.DiscordRpc?.Disconnect();
         RefreshDiscordStatus();
+    }
+
+    /// <summary>
+    /// Hover lifts the tile with a brand-colored glow and sweeps a light sheen
+    /// across it; click opens the link in the default browser.
+    /// </summary>
+    private static void WireCommunityTile(System.Windows.Controls.Border tile,
+        System.Windows.Shapes.Rectangle shine, Color glow, string url)
+    {
+        var lift = (TranslateTransform)tile.RenderTransform;
+        var shadow = new System.Windows.Media.Effects.DropShadowEffect
+        {
+            Color = glow, BlurRadius = 0, ShadowDepth = 0, Opacity = 0,
+        };
+        tile.Effect = shadow;
+        var shineMove = (TranslateTransform)((TransformGroup)shine.RenderTransform).Children[1];
+        var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+
+        System.Windows.Media.Animation.DoubleAnimation Anim(double to, double ms) =>
+            new(to, TimeSpan.FromMilliseconds(ms)) { EasingFunction = ease };
+
+        tile.MouseEnter += (_, _) =>
+        {
+            lift.BeginAnimation(TranslateTransform.YProperty, Anim(-4, 220));
+            shadow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.BlurRadiusProperty, Anim(28, 260));
+            shadow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, Anim(0.55, 260));
+
+            shine.Opacity = 1;
+            shineMove.BeginAnimation(TranslateTransform.XProperty,
+                new System.Windows.Media.Animation.DoubleAnimation(-120, tile.ActualWidth + 40, TimeSpan.FromMilliseconds(750))
+                { EasingFunction = new System.Windows.Media.Animation.SineEase() });
+        };
+        tile.MouseLeave += (_, _) =>
+        {
+            lift.BeginAnimation(TranslateTransform.YProperty, Anim(0, 260));
+            shadow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.BlurRadiusProperty, Anim(0, 300));
+            shadow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, Anim(0, 300));
+        };
+        tile.MouseLeftButtonDown += (_, _) => lift.BeginAnimation(TranslateTransform.YProperty, Anim(-1, 90));
+        tile.MouseLeftButtonUp += (_, _) =>
+        {
+            lift.BeginAnimation(TranslateTransform.YProperty, Anim(-4, 160));
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
+            catch (Exception ex) { Logger.Log($"Could not open {url}: {ex.Message}"); }
+        };
+    }
+
+    private void ShowDiscordTesterAccessDialog()
+    {
+        GlassDialog.ShowInfo(DiscordRpcIntegration.TesterAccessMessage, owner: Window.GetWindow(this));
+        OpenDiscordCommunity();
+    }
+
+    private static void OpenDiscordCommunity()
+    {
+        var url = DiscordRpcIntegration.CommunityInviteUrl;
+        if (string.IsNullOrWhiteSpace(url)) return;
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
+        catch (Exception ex) { Logger.Log($"Could not open Discord invite: {ex.Message}"); }
     }
 
     private void RefreshDiscordStatus()
