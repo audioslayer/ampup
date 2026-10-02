@@ -422,13 +422,18 @@ public partial class SettingsView : UserControl
     /// </summary>
     private void ApplyIntegrationAppIcons(string? voiceMeeterDir)
     {
-        // Home Assistant has no desktop app — use its brand mark instead.
+        // Home Assistant has no desktop app — recreate its app tile
+        // (white mark on HA blue) instead.
+        HomeAssistantIconHost.Width = HomeAssistantIconHost.Height = 38;
+        HomeAssistantIconHost.Margin = new Thickness(1, 1, 13, 0);
+        HomeAssistantIconHost.CornerRadius = new CornerRadius(9);
+        HomeAssistantIconHost.Background = new SolidColorBrush(Color.FromRgb(0x18, 0xBC, 0xF2));
         HomeAssistantIconHost.Child = new Material.Icons.WPF.MaterialIcon
         {
             Kind = Material.Icons.MaterialIconKind.HomeAssistant,
             Width = 26,
             Height = 26,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x18, 0xBC, 0xF2)),
+            Foreground = Brushes.White,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
@@ -452,15 +457,21 @@ public partial class SettingsView : UserControl
                 foreach (var (host, icon) in icons)
                 {
                     if (icon == null) continue;
+                    // Real app icons carry their own shape (circle, hexagon,
+                    // badge), so drop the tile background and let the logo
+                    // fill the slot instead of floating inside a grey square.
                     var image = new System.Windows.Controls.Image
                     {
                         Source = icon,
-                        Width = 26,
-                        Height = 26,
+                        Width = 38,
+                        Height = 38,
+                        Stretch = Stretch.Uniform,
                         HorizontalAlignment = HorizontalAlignment.Center,
                         VerticalAlignment = VerticalAlignment.Center,
+                        Clip = new RectangleGeometry(new Rect(0, 0, 38, 38), 9, 9),
                     };
                     RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
+                    host.Background = Brushes.Transparent;
                     host.Child = image;
                 }
             });

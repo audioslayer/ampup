@@ -33,6 +33,7 @@ public static class IntegrationAppIcons
         {
             var exe = FindExecutable(app, voiceMeeterDir);
             if (exe != null) icon = ExtractIcon(exe);
+            icon ??= LoadBundled(app);
         }
         catch (Exception ex)
         {
@@ -133,6 +134,20 @@ public static class IntegrationAppIcons
         dirs.Add(Path.Combine(pf86, "VB", "Voicemeeter"));
         dirs.Add(Path.Combine(pf, "VB", "Voicemeeter"));
         return dirs.SelectMany(dir => exes.Select(exe => Path.Combine(dir, exe)));
+    }
+
+    // Shipped logos for apps that commonly aren't installed on the AmpUp PC
+    // (OBS, VoiceMeeter) so the card still shows the real brand mark.
+    private static BitmapSource? LoadBundled(string app)
+    {
+        if (app is not ("obs" or "voicemeeter")) return null;
+        var bmp = new BitmapImage();
+        bmp.BeginInit();
+        bmp.UriSource = new Uri($"pack://application:,,,/Assets/integrations/{app}.png", UriKind.Absolute);
+        bmp.CacheOption = BitmapCacheOption.OnLoad;
+        bmp.EndInit();
+        bmp.Freeze();
+        return bmp;
     }
 
     private static BitmapSource? ExtractIcon(string path)

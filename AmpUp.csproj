@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <Resource Include="Assets\knob-face.png" />
+    <Resource Include="Assets\integrations\*.png" />
     <Resource Include="Assets\icon\ampup-16.png" />
     <Resource Include="Assets\icon\ampup-24.png" />
     <Resource Include="Assets\icon\ampup-32.png" />
