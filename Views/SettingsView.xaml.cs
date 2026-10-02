@@ -410,9 +410,61 @@ public partial class SettingsView : UserControl
 
         BuildAccentSwatches();
         BuildCardThemeSwatches();
+        ApplyIntegrationAppIcons(config.VoiceMeeter.InstallDirectory);
 
         _loading = false;
         _configLoaded = true;
+    }
+
+    /// <summary>
+    /// Swaps the generic glyph on each integration card for the installed
+    /// app's real icon. Apps that aren't found keep their Phosphor fallback.
+    /// </summary>
+    private void ApplyIntegrationAppIcons(string? voiceMeeterDir)
+    {
+        // Home Assistant has no desktop app — use its brand mark instead.
+        HomeAssistantIconHost.Child = new Material.Icons.WPF.MaterialIcon
+        {
+            Kind = Material.Icons.MaterialIconKind.HomeAssistant,
+            Width = 26,
+            Height = 26,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x18, 0xBC, 0xF2)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        var hosts = new (string App, System.Windows.Controls.Border Host)[]
+        {
+            ("discord", DiscordIconHost),
+            ("spotify", SpotifyIconHost),
+            ("obs", ObsIconHost),
+            ("voicemeeter", VoiceMeeterIconHost),
+            ("corsair", CorsairIconHost),
+            ("signalrgb", SignalRgbIconHost),
+            ("govee", GoveeIconHost),
+        };
+
+        _ = Task.Run(() =>
+        {
+            var icons = hosts.Select(h => (h.Host, Icon: IntegrationAppIcons.Get(h.App, voiceMeeterDir))).ToList();
+            Dispatcher.BeginInvoke(() =>
+            {
+                foreach (var (host, icon) in icons)
+                {
+                    if (icon == null) continue;
+                    var image = new System.Windows.Controls.Image
+                    {
+                        Source = icon,
+                        Width = 26,
+                        Height = 26,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center,
+                    };
+                    RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
+                    host.Child = image;
+                }
+            });
+        });
     }
 
     public void SetAmbienceSync(AmbienceSync sync) => _ambienceSync = sync;
