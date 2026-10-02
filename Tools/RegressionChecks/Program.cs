@@ -74,6 +74,16 @@ var matcher = typeof(AudioMixer).GetMethod("FuzzyContains", BindingFlags.Static 
 Check((bool)matcher.Invoke(null, new object[] { "AppleMusic", "Apple Music" })!, "App matching ignores spaces");
 Check(!(bool)matcher.Invoke(null, new object[] { "spotify", "discord" })!, "App matching rejects unrelated sessions");
 
+var pidGroupConfig = new AppConfig();
+pidGroupConfig.Knobs.Add(new KnobConfig
+{
+    Idx = 2, Target = "apps",
+    Apps = new() { "amplibraryagent", "amplibraryagent:16136", "applemusic", "applemusic:7048", "vm_strip:1x" },
+});
+AmpUp.Core.ConfigManager.NormalizeAppGroups(pidGroupConfig);
+Check(pidGroupConfig.Knobs[0].Apps.SequenceEqual(new[] { "amplibraryagent", "applemusic", "vm_strip:1x" }),
+    "App groups drop stale PID-pinned session entries");
+
 using var analyzer = new AudioAnalyzer();
 var samples = (float[])typeof(AudioAnalyzer).GetField("_sampleBuffer", PrivateInstance)!.GetValue(analyzer)!;
 for (int i = 0; i < samples.Length; i++) samples[i] = 0.01f * MathF.Sin(2 * MathF.PI * 1500 * i / 48000);

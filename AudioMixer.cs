@@ -101,6 +101,35 @@ public class AudioMixer : IDisposable
     // Map of processId -> AudioSessionControl (for active_window lookups)
     private Dictionary<uint, AudioSessionControl> _sessionsByPid = new();
 
+    // Every session from the last refresh, one entry each. The name-keyed
+    // _sessions dict is first-wins, so a process with two sessions (Apple
+    // Music, Discord) or two processes sharing a WASAPI display name would
+    // lose all but one — volume/peak matching walks this list instead.
+    private sealed record SessionEntry(string ProcessName, string DisplayName, AudioSessionControl Session);
+    private List<SessionEntry> _sessionEntries = new();
+
+    /// <summary>
+    /// True when a configured app name targets this session by process name
+    /// or WASAPI display name. Legacy picks stored as "name:pid" (from older
+    /// pickers that listed internal keys) match on the name alone.
+    /// </summary>
+    private static bool SessionMatches(SessionEntry entry, string app)
+    {
+        int colon = app.IndexOf(':');
+        if (colon > 0 && colon < app.Length - 1 && app.AsSpan(colon + 1).IndexOfAnyExceptInRange('0', '9') < 0)
+            app = app[..colon];
+        return FuzzyContains(entry.ProcessName, app)
+            || (entry.DisplayName.Length > 0 && FuzzyContains(entry.DisplayName, app));
+    }
+
+    // Loop instead of LINQ Any — runs per session per VU tick.
+    private static bool MatchesAnyApp(SessionEntry entry, List<string> apps)
+    {
+        for (int i = 0; i < apps.Count; i++)
+            if (SessionMatches(entry, apps[i])) return true;
+        return false;
+    }
+
     public void Start()
     {
         RefreshSessions();
@@ -154,6 +183,7 @@ public class AudioMixer : IDisposable
             var newSessions = new Dictionary<string, AudioSessionControl>();
             var newPidSessions = new Dictionary<uint, AudioSessionControl>();
             var newWrappers = new List<AudioSessionControl>();
+            var newEntries = new List<SessionEntry>();
             pendingWrappers = newWrappers;
             var seenPids = new HashSet<int>();
 
@@ -171,6 +201,12 @@ public class AudioMixer : IDisposable
                     var rawName = ResolvePidName(pid);
                     if (rawName == null) continue; // process gone
                     var name = rawName.ToLowerInvariant();
+                    string sessionDisplayName = "";
+                    try { sessionDisplayName = s.DisplayName?.ToLowerInvariant() ?? ""; } catch { }
+                    // Resource-path display names ("@%SystemRoot%\...") aren't app names
+                    if (sessionDisplayName.StartsWith('@')) sessionDisplayName = "";
+                    newEntries.Add(new SessionEntry(name, sessionDisplayName, s));
+                    stored = true;
                     // Use compound key (name:pid) to store ALL sessions per process
                     // (apps like Discord create multiple: voice, screenshare, notifications)
                     var sessionKey = $"{name}:{pid}";
@@ -239,6 +275,7 @@ public class AudioMixer : IDisposable
                 var oldWrappers = _sessionWrappers;
                 _sessions = newSessions;
                 _sessionsByPid = newPidSessions;
+                _sessionEntries = newEntries;
                 _sessionWrappers = newWrappers;
                 var oldDevice = _renderDevice;
                 _renderDevice = device;
@@ -453,14 +490,10 @@ public class AudioMixer : IDisposable
             {
                 lock (_lock)
                 {
-                    foreach (var appName in knob.Apps)
+                    foreach (var entry in _sessionEntries)
                     {
-                        var app = appName.ToLowerInvariant();
-                        foreach (var kv in _sessions)
-                        {
-                            if (FuzzyContains(kv.Key, app))
-                                try { kv.Value.SimpleAudioVolume.Volume = vol; } catch { }
-                        }
+                        if (MatchesAnyApp(entry, knob.Apps))
+                            try { entry.Session.SimpleAudioVolume.Volume = vol; } catch { }
                     }
                 }
                 return;
@@ -502,10 +535,10 @@ public class AudioMixer : IDisposable
 
                 // Match ALL sessions by process name substring (apps like Discord
                 // create multiple sessions — voice, screenshare, notifications)
-                foreach (var kv in _sessions)
+                foreach (var entry in _sessionEntries)
                 {
-                    if (FuzzyContains(kv.Key, target))
-                        try { kv.Value.SimpleAudioVolume.Volume = vol; } catch { }
+                    if (SessionMatches(entry, target))
+                        try { entry.Session.SimpleAudioVolume.Volume = vol; } catch { }
                 }
             }
         }
@@ -726,14 +759,10 @@ public class AudioMixer : IDisposable
                 lock (_lock)
                 {
                     float maxVol = 0f;
-                    foreach (var appName in knob.Apps)
+                    foreach (var entry in _sessionEntries)
                     {
-                        var app = appName.ToLowerInvariant();
-                        foreach (var kv in _sessions)
-                        {
-                            if (FuzzyContains(kv.Key, app))
-                                try { maxVol = Math.Max(maxVol, kv.Value.SimpleAudioVolume.Volume); } catch { }
-                        }
+                        if (MatchesAnyApp(entry, knob.Apps))
+                            try { maxVol = Math.Max(maxVol, entry.Session.SimpleAudioVolume.Volume); } catch { }
                     }
                     return maxVol;
                 }
@@ -754,10 +783,10 @@ public class AudioMixer : IDisposable
             lock (_lock)
             {
                 float maxVol = -1f;
-                foreach (var kv in _sessions)
+                foreach (var entry in _sessionEntries)
                 {
-                    if (FuzzyContains(kv.Key, target))
-                        try { maxVol = Math.Max(maxVol, kv.Value.SimpleAudioVolume.Volume); } catch { }
+                    if (SessionMatches(entry, target))
+                        try { maxVol = Math.Max(maxVol, entry.Session.SimpleAudioVolume.Volume); } catch { }
                 }
                 if (maxVol >= 0) return maxVol;
             }
@@ -967,14 +996,10 @@ public class AudioMixer : IDisposable
                 lock (_lock)
                 {
                     float maxPeak = 0f;
-                    foreach (var appName in knob.Apps)
+                    foreach (var entry in _sessionEntries)
                     {
-                        var app = appName.ToLowerInvariant();
-                        foreach (var kv in _sessions)
-                        {
-                            if (FuzzyContains(kv.Key, app))
-                                try { maxPeak = Math.Max(maxPeak, kv.Value.AudioMeterInformation.MasterPeakValue); } catch { }
-                        }
+                        if (MatchesAnyApp(entry, knob.Apps))
+                            try { maxPeak = Math.Max(maxPeak, entry.Session.AudioMeterInformation.MasterPeakValue); } catch { }
                     }
                     return maxPeak;
                 }
@@ -993,8 +1018,13 @@ public class AudioMixer : IDisposable
             // Process name substring match
             lock (_lock)
             {
-                var match = _sessions.FirstOrDefault(kv => FuzzyContains(kv.Key, target));
-                if (match.Value != null) return match.Value.AudioMeterInformation.MasterPeakValue;
+                float maxPeak = 0f;
+                foreach (var entry in _sessionEntries)
+                {
+                    if (SessionMatches(entry, target))
+                        try { maxPeak = Math.Max(maxPeak, entry.Session.AudioMeterInformation.MasterPeakValue); } catch { }
+                }
+                return maxPeak;
             }
         }
         catch { }
@@ -1204,7 +1234,9 @@ public class AudioMixer : IDisposable
     {
         lock (_lock)
         {
-            return _sessions.Keys.OrderBy(k => k).ToList();
+            // Skip the internal "name:pid" keys — a PID-pinned pick stops
+            // matching as soon as the app restarts.
+            return _sessions.Keys.Where(k => !k.Contains(':')).OrderBy(k => k).ToList();
         }
     }
 
@@ -1337,6 +1369,7 @@ public class AudioMixer : IDisposable
         {
             _sessions.Clear();
             _sessionsByPid.Clear();
+            _sessionEntries.Clear();
             foreach (var w in _sessionWrappers)
                 try { w.Dispose(); } catch { }
             _sessionWrappers = new List<AudioSessionControl>();

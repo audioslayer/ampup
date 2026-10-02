@@ -868,12 +868,17 @@ public class ButtonHandler : IDisposable
                     if (pid == 0) continue;
                     using var proc = Process.GetProcessById(pid);
                     var procName = proc.ProcessName.ToLowerInvariant();
+                    // Packaged apps (Apple Music) play through helper processes
+                    // whose session carries the app's display name.
+                    string displayName = "";
+                    try { displayName = session.DisplayName?.ToLowerInvariant() ?? ""; } catch { }
+                    if (displayName.StartsWith('@')) displayName = "";
 
                     foreach (var appName in knob.Apps)
                     {
                         var appLower = appName.ToLowerInvariant();
-                        if (procName.Contains(appLower)
-                            || procName.Replace(" ", "").Contains(appLower.Replace(" ", "")))
+                        if (AudioMixer.FuzzyContains(procName, appLower)
+                            || (displayName.Length > 0 && AudioMixer.FuzzyContains(displayName, appLower)))
                         {
                             keepSession = true;
                             matchingSessions.Add(session);

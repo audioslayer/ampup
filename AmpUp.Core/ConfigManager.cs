@@ -311,6 +311,7 @@ public static class ConfigManager
         NormalizeN3EncoderContexts(config.N3.EncoderContexts);
         foreach (var folder in config.N3.Folders)
             NormalizeN3EncoderContexts(folder.EncoderContexts);
+        NormalizeAppGroups(config);
         for (int i = 0; i < 5; i++)
         {
             if (!config.Lights.Any(l => l.Idx == i))
@@ -474,6 +475,40 @@ public static class ConfigManager
             LinkedKnobIdx = -1,
         };
         return (key, button);
+    }
+
+    /// <summary>
+    /// Older app-group pickers listed internal "name:pid" session keys, so
+    /// groups could hold entries like "applemusic:7048" that stop matching
+    /// once the app restarts. Strip the PID and drop the resulting duplicates.
+    /// </summary>
+    public static void NormalizeAppGroups(AppConfig config)
+    {
+        var knobs = config.Knobs
+            .Concat(config.N3.Knobs)
+            .Concat(config.N3.EncoderContexts.SelectMany(c => c.Knobs))
+            .Concat(config.N3.Folders.SelectMany(f => f.EncoderContexts).SelectMany(c => c.Knobs));
+        foreach (var knob in knobs)
+        {
+            if (knob.Apps.Count == 0) continue;
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var cleaned = new List<string>(knob.Apps.Count);
+            foreach (var app in knob.Apps)
+            {
+                var name = StripSessionPid(app);
+                if (name.Length > 0 && seen.Add(name)) cleaned.Add(name);
+            }
+            knob.Apps = cleaned;
+        }
+    }
+
+    public static string StripSessionPid(string app)
+    {
+        var trimmed = app?.Trim() ?? "";
+        int colon = trimmed.LastIndexOf(':');
+        if (colon > 0 && colon < trimmed.Length - 1 && trimmed.AsSpan(colon + 1).IndexOfAnyExceptInRange('0', '9') < 0)
+            return trimmed[..colon];
+        return trimmed;
     }
 
     private static void NormalizeN3EncoderContexts(List<N3EncoderContextConfig> contexts)
