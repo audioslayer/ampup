@@ -1693,9 +1693,9 @@ public partial class MainWindow : FluentWindow
         });
     }
 
-    public void SetVoiceMeeterStatus(bool? connected)
+    public void SetVoiceMeeterStatus(bool? connected, bool available = true, bool requiresRestart = false)
     {
-        Dispatcher.Invoke(() => _settingsView.UpdateVmStatus(connected));
+        Dispatcher.Invoke(() => _settingsView.UpdateVmStatus(connected, available, requiresRestart));
     }
 
     /// <summary>

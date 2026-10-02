@@ -166,6 +166,13 @@ public partial class SettingsView : UserControl
         // VoiceMeeter
         ChkVmEnabled.Checked += OnValueChanged;
         ChkVmEnabled.Unchecked += OnValueChanged;
+        BtnVmBrowse.Click += OnVmBrowse;
+        BtnVmAutomatic.Click += (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            TxtVmInstallFolder.Text = "";
+            CollectAndSave();
+        };
 
         // Corsair iCUE
         ChkCorsairEnabled.Checked += OnCorsairEnabledChanged;
@@ -214,7 +221,7 @@ public partial class SettingsView : UserControl
 
     private void BuildSettingsTabs()
     {
-        string[] tabNames = { "HARDWARE", "APP", "PROFILES", "LIGHTING", "SERVICES", "ABOUT" };
+        string[] tabNames = { "DEVICES", "GENERAL", "PROFILES", "LIGHTING APPS", "CONNECTED APPS" };
         SettingsTabRow.Children.Clear();
         _settingsTabs.Clear();
 
@@ -267,11 +274,11 @@ public partial class SettingsView : UserControl
         ProfilesCard.Visibility = _settingsTabIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
         BackupCard.Visibility = _settingsTabIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
         IntegrationsCard.Visibility = _settingsTabIndex is 3 or 4 ? Visibility.Visible : Visibility.Collapsed;
-        AboutCard.Visibility = _settingsTabIndex == 5 ? Visibility.Visible : Visibility.Collapsed;
+        AboutCard.Visibility = _settingsTabIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
 
         bool showLighting = _settingsTabIndex == 3;
         bool showServices = _settingsTabIndex == 4;
-        IntegrationHeaderText.Text = showLighting ? "LIGHTING INTEGRATIONS" : "SERVICE INTEGRATIONS";
+        IntegrationHeaderText.Text = showLighting ? "LIGHTING APPS" : "CONNECTED APPS";
 
         GoveeIntegration.Visibility = showLighting ? Visibility.Visible : Visibility.Collapsed;
         CorsairIntegration.Visibility = showLighting ? Visibility.Visible : Visibility.Collapsed;
@@ -368,6 +375,7 @@ public partial class SettingsView : UserControl
 
         // Integrations — VoiceMeeter
         ChkVmEnabled.IsChecked = config.VoiceMeeter.Enabled;
+        TxtVmInstallFolder.Text = config.VoiceMeeter.InstallDirectory;
         RefreshVmHeaderStatus();
 
         // Integrations — Corsair iCUE
@@ -927,6 +935,7 @@ public partial class SettingsView : UserControl
 
         // VoiceMeeter
         _config.VoiceMeeter.Enabled = ChkVmEnabled.IsChecked == true;
+        _config.VoiceMeeter.InstallDirectory = TxtVmInstallFolder.Text.Trim();
 
         // Corsair iCUE
         _config.Corsair.Enabled = ChkCorsairEnabled.IsChecked == true;
@@ -1393,6 +1402,29 @@ public partial class SettingsView : UserControl
 
     // ── VoiceMeeter settings ──────────────────────────────────────────
 
+    private void OnVmBrowse(object sender, RoutedEventArgs e)
+    {
+        if (_loading || _config == null) return;
+        var dialog = new OpenFolderDialog
+        {
+            Title = "Choose the VoiceMeeter install folder",
+            Multiselect = false,
+        };
+        if (Directory.Exists(TxtVmInstallFolder.Text))
+            dialog.InitialDirectory = TxtVmInstallFolder.Text;
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+
+        if (!File.Exists(Path.Combine(dialog.FolderName, "VoicemeeterRemote64.dll")))
+        {
+            GlassDialog.ShowWarning(
+                "This folder does not contain the VoiceMeeter Remote API. Choose the folder containing VoiceMeeter itself, usually C:\\Program Files (x86)\\VB\\Voicemeeter.",
+                owner: Window.GetWindow(this));
+            return;
+        }
+        TxtVmInstallFolder.Text = dialog.FolderName;
+        CollectAndSave();
+    }
+
     private void RefreshVmHeaderStatus()
     {
         if (_config == null) return;
@@ -1409,8 +1441,13 @@ public partial class SettingsView : UserControl
         }
     }
 
-    public void UpdateVmStatus(bool? connected)
+    public void UpdateVmStatus(bool? connected, bool available = true, bool requiresRestart = false)
     {
+        TxtVmInstallHint.Text = requiresRestart
+            ? "Install folder saved. Restart AmpUp to switch to this installation."
+            : string.IsNullOrWhiteSpace(TxtVmInstallFolder.Text)
+                ? "AmpUp finds VoiceMeeter automatically. Choose its install folder if detection fails."
+                : "Using your selected install folder. Use Automatic restores automatic detection.";
         if (ChkVmEnabled.IsChecked != true)
         {
             RefreshVmHeaderStatus();
@@ -1429,8 +1466,8 @@ public partial class SettingsView : UserControl
         }
         else
         {
-            VmStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FF4444"));
-            TxtVmStatusHeader.Text = "Not Found";
+            VmStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(available ? "#FFB800" : "#FF4444"));
+            TxtVmStatusHeader.Text = available ? "Waiting for VoiceMeeter" : "Remote API not found";
         }
     }
 

@@ -807,6 +807,7 @@ public class ObsConfig
 public class VoiceMeeterConfig
 {
     public bool Enabled { get; set; } = false;
+    public string InstallDirectory { get; set; } = "";
 }
 
 // ── Room Layout (3D spatial mapping for room lighting) ──

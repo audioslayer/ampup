@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using AmpUp;
 using AmpUp.Core.Engine;
 using AmpUp.Core.Models;
+using AmpUp.Core.Services;
 using NAudio.Dsp;
 using NAudio.Wave;
 
@@ -112,4 +113,91 @@ Check((int)typeof(AudioAnalyzer).GetField("_bufferPos", PrivateInstance)!.GetVal
 analyzer.Stop();
 analyzer.CopySpectrum(spectrum);
 Check(spectrum.ToArray().All(x => x == 0), "Stopping analysis clears spectrum");
+// Fake only the native connection boundary; exercise the real login/monitor lifecycle.
+VoiceMeeterIntegration MakeVm(Func<bool> discover, Func<int> login, Func<int> logout, Func<int> refresh)
+    => (VoiceMeeterIntegration)Activator.CreateInstance(typeof(VoiceMeeterIntegration),
+        BindingFlags.Instance | BindingFlags.NonPublic, null,
+        new object[] { discover, login, logout, refresh }, null)!;
+void PollVm(VoiceMeeterIntegration vm)
+{
+    var gate = typeof(VoiceMeeterIntegration).GetField("_lock", PrivateInstance)!.GetValue(vm)!;
+    lock (gate)
+        typeof(VoiceMeeterIntegration).GetMethod("RefreshConnection", PrivateInstance)!.Invoke(vm, null);
+}
+int vmLogins = 0, vmLogouts = 0, engineResult = -2;
+using (var vm = MakeVm(() => true, () => { vmLogins++; return 1; },
+    () => { vmLogouts++; return 0; }, () => engineResult))
+{
+    var states = new List<bool>();
+    vm.StateChanged += () => states.Add(vm.IsConnected);
+    Check(!vm.Connect() && vm.IsAvailable && !vm.IsConnected,
+        "VoiceMeeter login before engine launch reports waiting, not connected");
+    engineResult = 0;
+    PollVm(vm);
+    Check(vm.IsConnected && vmLogins == 1, "Later VoiceMeeter launch connects using the existing login");
+    engineResult = -2;
+    PollVm(vm);
+    Check(!vm.IsConnected, "VoiceMeeter engine shutdown is detected without knob activity");
+    engineResult = 1;
+    PollVm(vm);
+    Check(vm.IsConnected && vmLogins == 1 && states.SequenceEqual(new[] { true, false, true }),
+        "VoiceMeeter restart reconnects once and publishes status transitions");
+    vm.Disconnect();
+    PollVm(vm);
+    bool actionConnected = (bool)typeof(VoiceMeeterIntegration).GetMethod("EnsureConnected", PrivateInstance)!.Invoke(vm, null)!;
+    Check(!vm.IsConnected && !actionConnected && vmLogins == 1 && vmLogouts == 1,
+        "Disabling VoiceMeeter cancels retries and actions cannot re-enable it");
+    Check(vm.Connect() && vmLogins == 2, "Re-enabling VoiceMeeter creates a fresh login");
+}
+Check(vmLogouts == 2, "VoiceMeeter disposal releases its final login exactly once");
+
+int retryLogins = 0;
+using var failedLoginVm = MakeVm(() => true,
+    () => Interlocked.Increment(ref retryLogins) == 1 ? -1 : 0, () => 0, () => 0);
+Check(!failedLoginVm.Connect(), "Initial VoiceMeeter login failure stays disconnected");
+int dllReady = 0;
+using var lateInstallVm = MakeVm(() => Volatile.Read(ref dllReady) == 1, () => 0, () => 0, () => 0);
+Check(!lateInstallVm.Connect() && !lateInstallVm.IsAvailable, "Missing VoiceMeeter DLL still starts discovery retries");
+Volatile.Write(ref dllReady, 1);
+var retryDeadline = DateTime.UtcNow.AddSeconds(8);
+while ((!failedLoginVm.IsConnected || !lateInstallVm.IsConnected) && DateTime.UtcNow < retryDeadline)
+    Thread.Sleep(50);
+Check(failedLoginVm.IsConnected && retryLogins == 2,
+    "Background monitor retries a failed first login without user interaction");
+Check(lateInstallVm.IsAvailable && lateInstallVm.IsConnected,
+    "Background monitor discovers a later VoiceMeeter install without restarting AmpUp");
+failedLoginVm.Dispose();
+lateInstallVm.Dispose();
+Check(!failedLoginVm.Connect() && !lateInstallVm.Connect(), "Disposed VoiceMeeter integrations cannot restart monitoring");
+
+var parseInstall = typeof(VoiceMeeterIntegration).GetMethod("GetDirectoryFromUninstallString", BindingFlags.Static | BindingFlags.NonPublic)!;
+foreach (string command in new[] { "\"C:\\Custom Apps\\VoiceMeeter\\uninstall.exe\" /S", "C:\\Custom Apps\\VoiceMeeter\\uninstall.exe /S" })
+    Check((string?)parseInstall.Invoke(null, new object[] { command }) == @"C:\Custom Apps\VoiceMeeter",
+        "VoiceMeeter detects custom install paths with spaces: " + command);
+var manualDirectories = (IEnumerable<string>)typeof(VoiceMeeterIntegration)
+    .GetMethod("GetInstallDirs", BindingFlags.Static | BindingFlags.NonPublic)!
+    .Invoke(null, new object[] { @"D:\Audio Apps\VoiceMeeter" })!;
+Check(manualDirectories.SequenceEqual(new[] { @"D:\Audio Apps\VoiceMeeter" }),
+    "Explicit VoiceMeeter folder takes precedence over automatic discovery");
+var savedVmConfig = new VoiceMeeterConfig { Enabled = true, InstallDirectory = @"D:\Audio Apps\VoiceMeeter" };
+var restoredVmConfig = Newtonsoft.Json.JsonConvert.DeserializeObject<VoiceMeeterConfig>(
+    Newtonsoft.Json.JsonConvert.SerializeObject(savedVmConfig))!;
+Check(restoredVmConfig.Enabled && restoredVmConfig.InstallDirectory == savedVmConfig.InstallDirectory,
+    "VoiceMeeter install folder survives saving and loading configuration");
+bool manualDllReady = false;
+using (var manualVm = MakeVm(() => manualDllReady, () => 0, () => 0, () => 0))
+{
+    manualVm.Connect();
+    manualDllReady = true;
+    manualVm.SetInstallDirectory(savedVmConfig.InstallDirectory);
+    Check(manualVm.IsConnected && manualVm.IsAvailable,
+        "Selecting a folder immediately retries failed VoiceMeeter discovery");
+    typeof(VoiceMeeterIntegration).GetField("_dllPath", PrivateInstance)!
+        .SetValue(manualVm, System.IO.Path.Combine(savedVmConfig.InstallDirectory, "VoicemeeterRemote64.dll"));
+    Check(!manualVm.RequiresRestart, "Matching the loaded VoiceMeeter folder does not require a restart");
+    manualVm.SetInstallDirectory(@"E:\VoiceMeeter");
+    Check(manualVm.RequiresRestart, "Switching an already loaded VoiceMeeter API requests a restart");
+    manualVm.SetInstallDirectory("");
+    Check(!manualVm.RequiresRestart, "Automatic detection clears the explicit VoiceMeeter folder override");
+}
 Console.WriteLine($"{passed} regression checks passed.");

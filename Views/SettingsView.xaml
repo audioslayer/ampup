@@ -5,13 +5,16 @@
              xmlns:controls="clr-namespace:AmpUp.Controls">
 
     <UserControl.Resources>
-        <Style x:Key="SettingsSectionCard" TargetType="Border">
-            <Setter Property="Background" Value="{DynamicResource InputBgBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="9" />
-            <Setter Property="Padding" Value="14" />
-            <Setter Property="Margin" Value="0,0,0,10" />
+        <Style x:Key="SettingsSectionCard" TargetType="Border" BasedOn="{StaticResource CardPanel}">
+            <Setter Property="Padding" Value="20" />
+            <Setter Property="Margin" Value="0,0,0,14" />
+        </Style>
+        <Style x:Key="IntegrationHeading" TargetType="TextBlock" BasedOn="{StaticResource HeaderText}">
+            <Setter Property="FontSize" Value="17" />
+        </Style>
+        <Style x:Key="IntegrationDescription" TargetType="TextBlock" BasedOn="{StaticResource SecondaryText}">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,4,0,0" />
         </Style>
     </UserControl.Resources>
 
@@ -203,6 +206,23 @@
                 </StackPanel>
             </Border>
 
+            <!-- ── ABOUT ─────────────────────────────────────────── -->
+            <Border x:Name="AboutCard" Style="{StaticResource CardPanel}" Margin="0,0,0,8">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="VERSION &amp; UPDATES" Style="{StaticResource HeaderText}" Margin="0" />
+                    </StackPanel>
+                    <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock x:Name="TxtVersion" Style="{StaticResource BodyText}" VerticalAlignment="Center" />
+                        <ui:Button x:Name="BtnCheckUpdate" Content="Check for Updates"
+                                   Appearance="Secondary" Margin="16,0,0,0" />
+                    </WrapPanel>
+                    <TextBlock x:Name="TxtUpdateStatus" Style="{StaticResource SecondaryText}" Margin="0,8,0,0"
+                               Visibility="Collapsed" />
+                </StackPanel>
+            </Border>
+
             <!-- ── PROFILES ────────────────────────────────────────── -->
             <Border x:Name="ProfilesCard" Style="{StaticResource CardPanel}" Margin="0,0,0,8">
                 <StackPanel>
@@ -294,7 +314,7 @@
             <!-- LED Calibration moved to the Lights tab (CALIBRATION sub-tab) -->
 
             <!-- ── INTEGRATIONS ────────────────────────────────────── -->
-            <Border x:Name="IntegrationsCard" Style="{StaticResource CardPanel}" Margin="0,0,0,8">
+            <Border x:Name="IntegrationsCard" Margin="0,0,0,8">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                         <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
@@ -304,18 +324,35 @@
                     <!-- Home Assistant -->
                     <Border x:Name="HomeAssistantIntegration" Style="{StaticResource SettingsSectionCard}">
                     <StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                            <TextBlock Text="Home Assistant" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
-                            <Ellipse x:Name="HaStatusDotHeader" Width="8" Height="8"
-                                     Fill="#555555" VerticalAlignment="Center" Margin="12,0,6,0" />
-                            <TextBlock x:Name="TxtHaStatusHeader" Text="Disabled"
-                                       Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
-                        </StackPanel>
+                        <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,0,0,1" Padding="0,0,0,16" Margin="0,0,0,16">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="40" Height="40" CornerRadius="10" Background="{DynamicResource InputBgBrush}" Margin="0,0,12,0" VerticalAlignment="Top">
+                                        <controls:PhosphorIcon IconName="House" IconSize="24" IconColor="{DynamicResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="Home Assistant" Style="{StaticResource IntegrationHeading}" />
+                                        <TextBlock Text="Connect your home controls and entities to AmpUp." Style="{StaticResource IntegrationDescription}" />
+                                    </StackPanel>
+                                    <Border Grid.Column="2" Background="{DynamicResource InputBgBrush}" CornerRadius="12" Padding="10,5" Margin="16,0,0,0" VerticalAlignment="Top">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse x:Name="HaStatusDotHeader" Width="8" Height="8"
+                                            Fill="#555555" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                            <TextBlock x:Name="TxtHaStatusHeader" Text="Disabled"
+                                            Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
                         <CheckBox x:Name="ChkHaEnabled"
                                   Content="Enabled"
                                   Foreground="{StaticResource TextPrimaryBrush}"
                                   Margin="0,0,0,8" />
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <WrapPanel Orientation="Horizontal" Margin="0,0,0,6">
                             <StackPanel Margin="0,0,16,0">
                                 <TextBlock Text="URL" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
                                 <ui:TextBox x:Name="TxtHaUrl" Width="320"
@@ -331,8 +368,8 @@
                                              BorderBrush="{DynamicResource InputBorderBrush}"
                                              Foreground="{StaticResource TextPrimaryBrush}" />
                             </StackPanel>
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        </WrapPanel>
+                        <WrapPanel Orientation="Horizontal" Margin="0,4,0,0">
                             <ui:Button x:Name="BtnHaTest" Content="Test Connection"
                                        Appearance="Secondary" Height="32" />
                             <ui:Button x:Name="BtnHaRefresh" Content="Refresh Entities"
@@ -341,25 +378,42 @@
                                      Fill="#555555" VerticalAlignment="Center" Margin="12,0,6,0" />
                             <TextBlock x:Name="TxtHaStatus" Text=""
                                        Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
-                        </StackPanel>
+                        </WrapPanel>
                     </StackPanel>
                     </Border>
 
                     <!-- OBS Studio -->
                     <Border x:Name="ObsIntegration" Style="{StaticResource SettingsSectionCard}">
                         <StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <TextBlock Text="OBS Studio" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
-                                <Ellipse x:Name="ObsStatusDotHeader" Width="8" Height="8"
-                                         Fill="#555555" VerticalAlignment="Center" Margin="12,0,6,0" />
-                                <TextBlock x:Name="TxtObsStatusHeader" Text="Disabled"
-                                           Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
-                            </StackPanel>
+                            <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,0,0,1" Padding="0,0,0,16" Margin="0,0,0,16">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="40" Height="40" CornerRadius="10" Background="{DynamicResource InputBgBrush}" Margin="0,0,12,0" VerticalAlignment="Top">
+                                        <controls:PhosphorIcon IconName="Monitor" IconSize="24" IconColor="{DynamicResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="OBS Studio" Style="{StaticResource IntegrationHeading}" />
+                                        <TextBlock Text="Control source audio and switch scenes from your controller." Style="{StaticResource IntegrationDescription}" />
+                                    </StackPanel>
+                                    <Border Grid.Column="2" Background="{DynamicResource InputBgBrush}" CornerRadius="12" Padding="10,5" Margin="16,0,0,0" VerticalAlignment="Top">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse x:Name="ObsStatusDotHeader" Width="8" Height="8"
+                                            Fill="#555555" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                            <TextBlock x:Name="TxtObsStatusHeader" Text="Disabled"
+                                            Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
                             <CheckBox x:Name="ChkObsEnabled"
                                       Content="Enabled"
                                       Foreground="{StaticResource TextPrimaryBrush}"
                                       Margin="0,0,0,8" />
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <WrapPanel Orientation="Horizontal" Margin="0,0,0,6">
                                 <StackPanel Margin="0,0,16,0">
                                     <TextBlock Text="Host" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
                                     <ui:TextBox x:Name="TxtObsHost" Width="220"
@@ -383,34 +437,46 @@
                                                  BorderBrush="{DynamicResource InputBorderBrush}"
                                                  Foreground="{StaticResource TextPrimaryBrush}" />
                                 </StackPanel>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                            </WrapPanel>
+                            <WrapPanel Orientation="Horizontal" Margin="0,4,0,0">
                                 <ui:Button x:Name="BtnObsTest" Content="Test Connection"
                                            Appearance="Secondary" Height="32" />
                                 <Ellipse x:Name="ObsStatusDot" Width="8" Height="8"
                                          Fill="#555555" VerticalAlignment="Center" Margin="12,0,6,0" />
                                 <TextBlock x:Name="TxtObsStatus" Text=""
                                            Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
-                            </StackPanel>
+                            </WrapPanel>
                         </StackPanel>
                     </Border>
 
                     <!-- Govee -->
                     <Border x:Name="GoveeIntegration" Style="{StaticResource SettingsSectionCard}">
                         <StackPanel>
-                            <TextBlock Text="Govee" Style="{StaticResource BodyText}" FontWeight="SemiBold" Margin="0,0,0,8" />
+                            <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,0,0,1" Padding="0,0,0,16" Margin="0,0,0,16">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="40" Height="40" CornerRadius="10" Background="{DynamicResource InputBgBrush}" Margin="0,0,12,0" VerticalAlignment="Top">
+                                        <controls:PhosphorIcon IconName="Lightbulb" IconSize="24" IconColor="{DynamicResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="Govee" Style="{StaticResource IntegrationHeading}" />
+                                        <TextBlock Text="Connect room lighting through LAN sync or the Cloud API." Style="{StaticResource IntegrationDescription}" />
+                                    </StackPanel>
 
-                            <!-- LAN + Cloud side-by-side -->
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
+                                </Grid>
+                            </Border>
+
+                            <!-- Govee connection methods -->
+                            <StackPanel>
 
                                 <!-- LAN Column -->
-                                <StackPanel Grid.Column="0">
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="LAN SYNC" Style="{StaticResource BodyText}" FontWeight="SemiBold" Margin="0,0,0,10" />
+                                    <WrapPanel Orientation="Horizontal" Margin="0,0,0,10">
                                         <CheckBox x:Name="ChkGoveeEnabled"
                                                   Content="Enable Govee LAN sync"
                                                   Foreground="{StaticResource TextPrimaryBrush}"
@@ -419,10 +485,10 @@
                                                  Fill="#555555" VerticalAlignment="Center" Margin="0,0,6,0" />
                                         <TextBlock x:Name="TxtGoveeStatus" Text="Disabled"
                                                    Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
-                                    </StackPanel>
+                                    </WrapPanel>
 
                                     <StackPanel x:Name="GoveeLanSection" Visibility="Collapsed">
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                        <WrapPanel Orientation="Horizontal" Margin="0,0,0,8">
                                             <ui:Button x:Name="BtnGoveeScan" Content="Scan Network"
                                                        Appearance="Secondary" Height="32" />
                                             <ui:Button x:Name="BtnGoveeLanHelp" Content="?"
@@ -437,18 +503,17 @@
                                             <TextBlock x:Name="TxtGoveeScanStatus" Text=""
                                                        Style="{StaticResource SecondaryText}"
                                                        VerticalAlignment="Center" Margin="10,0,0,0" />
-                                        </StackPanel>
+                                        </WrapPanel>
                                         <StackPanel x:Name="GoveeDeviceList" Margin="0,0,0,8" />
                                     </StackPanel>
                                 </StackPanel>
 
-                                <!-- Vertical separator -->
-                                <Border Grid.Column="1" Width="1" Background="{DynamicResource CardBorderBrush}"
-                                        Margin="16,0,16,0" />
+                                <Border Height="1" Background="{DynamicResource CardBorderBrush}" Margin="0,16,0,16" />
 
                                 <!-- Cloud API Column -->
-                                <StackPanel Grid.Column="2">
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="CLOUD API" Style="{StaticResource BodyText}" FontWeight="SemiBold" Margin="0,0,0,10" />
+                                    <WrapPanel Orientation="Horizontal" Margin="0,0,0,10">
                                         <CheckBox x:Name="ChkGoveeCloudEnabled"
                                                   Content="Enable Govee Cloud API"
                                                   Foreground="{StaticResource TextPrimaryBrush}"
@@ -457,25 +522,25 @@
                                                  Fill="#555555" VerticalAlignment="Center" Margin="0,0,6,0" />
                                         <TextBlock x:Name="TxtGoveeCloudStatus" Text="Disabled"
                                                    Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
-                                    </StackPanel>
+                                    </WrapPanel>
 
                                     <StackPanel x:Name="GoveeCloudSection" Visibility="Collapsed">
                                         <TextBlock Text="API Key" Style="{StaticResource SecondaryText}" Margin="0,0,0,4"
                                                    ToolTip="Enables scenes and music mode control" />
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                        <WrapPanel Orientation="Horizontal" Margin="0,0,0,6">
                                             <PasswordBox x:Name="TxtGoveeApiKey" Width="320"
                                                          Background="{DynamicResource InputBgBrush}"
                                                          BorderBrush="{DynamicResource InputBorderBrush}"
                                                          Foreground="{StaticResource TextPrimaryBrush}" />
                                             <ui:Button x:Name="BtnGoveeSetupGuide" Content="Setup Guide"
                                                        Appearance="Secondary" Margin="8,0,0,0" Height="32" />
-                                        </StackPanel>
+                                        </WrapPanel>
                                         <TextBlock x:Name="TxtGoveeApiStatus" Text=""
                                                    Style="{StaticResource SecondaryText}" FontSize="11"
                                                    Margin="0,0,0,0" />
                                     </StackPanel>
                                 </StackPanel>
-                            </Grid>
+                            </StackPanel>
 
                             <!-- Hint about Ambience tab -->
                             <TextBlock x:Name="TxtGoveeAmbienceHint" Text=""
@@ -487,30 +552,96 @@
                     <!-- VoiceMeeter -->
                     <Border x:Name="VoiceMeeterIntegration" Style="{StaticResource SettingsSectionCard}">
                         <StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <TextBlock Text="VoiceMeeter" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
-                                <Ellipse x:Name="VmStatusDotHeader" Width="8" Height="8"
-                                         Fill="#555555" VerticalAlignment="Center" Margin="12,0,6,0" />
-                                <TextBlock x:Name="TxtVmStatusHeader" Text="Disabled"
-                                           Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
-                            </StackPanel>
+                            <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,0,0,1" Padding="0,0,0,16" Margin="0,0,0,16">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="40" Height="40" CornerRadius="10" Background="{DynamicResource InputBgBrush}" Margin="0,0,12,0" VerticalAlignment="Top">
+                                        <controls:PhosphorIcon IconName="SlidersHorizontal" IconSize="24" IconColor="{DynamicResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="VoiceMeeter" Style="{StaticResource IntegrationHeading}" />
+                                        <TextBlock Text="Adjust strip and bus volume, and toggle mute." Style="{StaticResource IntegrationDescription}" />
+                                    </StackPanel>
+                                    <Border Grid.Column="2" Background="{DynamicResource InputBgBrush}" CornerRadius="12" Padding="10,5" Margin="16,0,0,0" VerticalAlignment="Top">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse x:Name="VmStatusDotHeader" Width="8" Height="8"
+                                            Fill="#555555" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                            <TextBlock x:Name="TxtVmStatusHeader" Text="Disabled"
+                                            Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
                             <CheckBox x:Name="ChkVmEnabled"
                                       Content="Enabled"
                                       Foreground="{StaticResource TextPrimaryBrush}"
                                       Margin="0,0,0,4" />
+                            <TextBlock Text="Install folder" Style="{StaticResource SecondaryText}" Margin="0,12,0,6" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:TextBox x:Name="TxtVmInstallFolder" IsReadOnly="True"
+                                            PlaceholderText="Automatic detection"
+                                            Background="{DynamicResource InputBgBrush}"
+                                            BorderBrush="{DynamicResource InputBorderBrush}"
+                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                            ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+                                <ui:Button x:Name="BtnVmBrowse" Grid.Column="1" Content="Browse"
+                                           Appearance="Secondary" Margin="8,0,0,0" Height="34" />
+                                <ui:Button x:Name="BtnVmAutomatic" Grid.Column="2" Content="Use Automatic"
+                                           Appearance="Secondary" Margin="8,0,0,0" Height="34" />
+                            </Grid>
+                            <TextBlock x:Name="TxtVmInstallHint" Text="AmpUp finds VoiceMeeter automatically. Choose its install folder if detection fails."
+                                       Style="{StaticResource SecondaryText}" TextWrapping="Wrap" FontSize="11" Margin="0,8,0,0" />
+                            <Expander x:Name="VmSetupGuide" Header="Setup guide" Foreground="{DynamicResource TextSecBrush}" Margin="0,12,0,0">
+                                <StackPanel Margin="0,8,0,0">
+                                    <TextBlock Text="1. Install and open VoiceMeeter Basic, Banana, or Potato."
+                                               Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,0,0,8" />
+                                    <TextBlock Text="2. Enable the integration above. AmpUp checks for a connection every five seconds, so either app can start first."
+                                               Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,0,0,8" />
+                                    <TextBlock Text="3. If the status says Remote API not found, click Browse and select the folder where VoiceMeeter is installed. The usual location is C:\Program Files (x86)\VB\Voicemeeter."
+                                               Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,0,0,8" />
+                                    <TextBlock Text="4. Once connected, open Mixer to assign a VoiceMeeter strip or bus to a knob. You can also assign mute actions in Buttons."
+                                               Style="{StaticResource SecondaryText}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Expander>
                         </StackPanel>
                     </Border>
 
                     <!-- Corsair iCUE -->
                     <Border x:Name="CorsairIntegration" Style="{StaticResource SettingsSectionCard}">
                         <StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <TextBlock Text="Corsair iCUE" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
-                                <Ellipse x:Name="CorsairStatusDot" Width="8" Height="8"
-                                         Fill="#555555" VerticalAlignment="Center" Margin="12,0,6,0" />
-                                <TextBlock x:Name="TxtCorsairStatus" Text="Disabled"
-                                           Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
-                            </StackPanel>
+                            <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,0,0,1" Padding="0,0,0,16" Margin="0,0,0,16">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="40" Height="40" CornerRadius="10" Background="{DynamicResource InputBgBrush}" Margin="0,0,12,0" VerticalAlignment="Top">
+                                        <controls:PhosphorIcon IconName="Cpu" IconSize="24" IconColor="{DynamicResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="Corsair iCUE" Style="{StaticResource IntegrationHeading}" />
+                                        <TextBlock Text="Bring Corsair devices into your room lighting setup." Style="{StaticResource IntegrationDescription}" />
+                                    </StackPanel>
+                                    <Border Grid.Column="2" Background="{DynamicResource InputBgBrush}" CornerRadius="12" Padding="10,5" Margin="16,0,0,0" VerticalAlignment="Top">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse x:Name="CorsairStatusDot" Width="8" Height="8"
+                                            Fill="#555555" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                            <TextBlock x:Name="TxtCorsairStatus" Text="Disabled"
+                                            Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
                             <CheckBox x:Name="ChkCorsairEnabled"
                                       Content="Enabled"
                                       Foreground="{StaticResource TextPrimaryBrush}"
@@ -522,18 +653,35 @@
                     <!-- SignalRGB -->
                     <Border x:Name="SignalRgbIntegration" Style="{StaticResource SettingsSectionCard}">
                         <StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <TextBlock Text="SignalRGB" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
-                                <Ellipse x:Name="SignalRgbStatusDot" Width="8" Height="8"
-                                         Fill="#555555" VerticalAlignment="Center" Margin="12,0,6,0" />
-                                <TextBlock x:Name="TxtSignalRgbStatus" Text="Disabled"
-                                           Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
-                            </StackPanel>
+                            <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,0,0,1" Padding="0,0,0,16" Margin="0,0,0,16">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="40" Height="40" CornerRadius="10" Background="{DynamicResource InputBgBrush}" Margin="0,0,12,0" VerticalAlignment="Top">
+                                        <controls:PhosphorIcon IconName="Palette" IconSize="24" IconColor="{DynamicResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="SignalRGB" Style="{StaticResource IntegrationHeading}" />
+                                        <TextBlock Text="Sync Turn Up lighting and link effects to your AmpUp profiles." Style="{StaticResource IntegrationDescription}" />
+                                    </StackPanel>
+                                    <Border Grid.Column="2" Background="{DynamicResource InputBgBrush}" CornerRadius="12" Padding="10,5" Margin="16,0,0,0" VerticalAlignment="Top">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse x:Name="SignalRgbStatusDot" Width="8" Height="8"
+                                            Fill="#555555" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                            <TextBlock x:Name="TxtSignalRgbStatus" Text="Disabled"
+                                            Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
                             <CheckBox x:Name="ChkSignalRgbEnabled"
                                       Content="Enabled"
                                       Foreground="{StaticResource TextPrimaryBrush}"
                                       Margin="0,0,0,8" />
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <WrapPanel Orientation="Horizontal" Margin="0,0,0,6">
                                 <StackPanel Margin="0,0,12,0" Visibility="Collapsed">
                                     <TextBlock Text="Bridge Port" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
                                     <ui:TextBox x:Name="TxtSignalRgbPort" Width="120"
@@ -555,13 +703,13 @@
                                         <ComboBoxItem Content="Wide Strip" />
                                     </ComboBox>
                                 </StackPanel>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
+                                <WrapPanel Orientation="Horizontal" VerticalAlignment="Bottom">
                                     <ui:Button x:Name="BtnSignalRgbInstallPlugin" Content="Update Plugin"
                                                Appearance="Secondary" Height="32" Margin="0,0,6,0" />
                                     <ui:Button x:Name="BtnSignalRgbOpenPluginFolder" Content="Open Folder"
                                                Appearance="Secondary" Height="32" />
-                                </StackPanel>
-                            </StackPanel>
+                                </WrapPanel>
+                            </WrapPanel>
                             <TextBlock Text="Ignored Lights"
                                        Style="{StaticResource SecondaryText}" Margin="0,8,0,4" />
                             <WrapPanel Margin="0,0,0,4">
@@ -583,7 +731,7 @@
                                               Content="Sync AmpUp profiles to SignalRGB"
                                               Foreground="{StaticResource TextPrimaryBrush}"
                                               Margin="0,0,0,8" />
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <WrapPanel Orientation="Horizontal" Margin="0,0,0,6">
                                         <StackPanel Margin="0,0,12,0">
                                             <TextBlock Text="Profile" Style="{StaticResource SecondaryText}" Margin="0,0,0,4" />
                                             <controls:ListPicker x:Name="CmbSignalRgbProfile" Width="150"
@@ -607,14 +755,14 @@
                                                         BorderBrush="{DynamicResource InputBorderBrush}"
                                                         Foreground="{StaticResource TextPrimaryBrush}" />
                                         </StackPanel>
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal">
+                                    </WrapPanel>
+                                    <WrapPanel Orientation="Horizontal">
                                         <ui:Button x:Name="BtnSignalRgbApplyProfileSync" Content="Apply Now"
                                                    Appearance="Secondary" Height="30" Margin="0,0,8,0" />
                                         <TextBlock x:Name="TxtSignalRgbProfileSyncHint" Text=""
                                                    Style="{StaticResource SecondaryText}" FontSize="11"
                                                    VerticalAlignment="Center" />
-                                    </StackPanel>
+                                    </WrapPanel>
                                 </StackPanel>
                             </Border>
                             <TextBlock x:Name="TxtSignalRgbPluginStatus" Text=""
@@ -626,19 +774,36 @@
                     <!-- Discord -->
                     <Border x:Name="DiscordIntegration" Style="{StaticResource SettingsSectionCard}">
                         <StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <TextBlock Text="Discord" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
-                                <Ellipse x:Name="DiscordStatusDot" Width="8" Height="8"
-                                         Fill="#555555" VerticalAlignment="Center" Margin="12,0,6,0" />
-                                <TextBlock x:Name="TxtDiscordStatus" Text="Unavailable"
-                                           Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal">
+                            <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,0,0,1" Padding="0,0,0,16" Margin="0,0,0,16">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="40" Height="40" CornerRadius="10" Background="{DynamicResource InputBgBrush}" Margin="0,0,12,0" VerticalAlignment="Top">
+                                        <controls:PhosphorIcon IconName="Headphones" IconSize="24" IconColor="{DynamicResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="Discord" Style="{StaticResource IntegrationHeading}" />
+                                        <TextBlock Text="Discord voice controls and connection availability." Style="{StaticResource IntegrationDescription}" />
+                                    </StackPanel>
+                                    <Border Grid.Column="2" Background="{DynamicResource InputBgBrush}" CornerRadius="12" Padding="10,5" Margin="16,0,0,0" VerticalAlignment="Top">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse x:Name="DiscordStatusDot" Width="8" Height="8"
+                                            Fill="#555555" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                            <TextBlock x:Name="TxtDiscordStatus" Text="Unavailable"
+                                            Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                            <WrapPanel Orientation="Horizontal">
                                 <ui:Button x:Name="BtnDiscordConnect" Content="Unavailable"
                                            Appearance="Secondary" Margin="0,0,8,0" IsEnabled="False" />
                                 <ui:Button x:Name="BtnDiscordDisconnect" Content="Disconnect"
                                            Appearance="Secondary" IsEnabled="False" />
-                            </StackPanel>
+                            </WrapPanel>
                             <TextBlock Text="Voice actions are disabled: Discord restricts the required RPC voice scopes to approved partners. Existing bindings are preserved but safely do nothing."
                                        Style="{StaticResource SecondaryText}" FontSize="11"
                                        TextWrapping="Wrap" Margin="0,6,0,0" />
@@ -648,24 +813,38 @@
                     <!-- Spotify -->
                     <Border x:Name="SpotifyIntegration" Style="{StaticResource SettingsSectionCard}">
                         <StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <TextBlock Text="Spotify" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
-                                <Ellipse x:Name="SpotifyStatusDot" Width="8" Height="8"
-                                         Fill="#555555" VerticalAlignment="Center" Margin="12,0,6,0" />
-                                <TextBlock x:Name="TxtSpotifyStatus" Text="Not connected"
-                                           Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
-                            </StackPanel>
-                            <TextBlock Text="Playback, likes, shuffle, LCD album art."
-                                       Style="{StaticResource SecondaryText}" FontSize="11"
-                                       TextWrapping="Wrap" Margin="0,0,0,8" />
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,0,0,1" Padding="0,0,0,16" Margin="0,0,0,16">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="40" Height="40" CornerRadius="10" Background="{DynamicResource InputBgBrush}" Margin="0,0,12,0" VerticalAlignment="Top">
+                                        <controls:PhosphorIcon IconName="MusicNote" IconSize="24" IconColor="{DynamicResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="Spotify" Style="{StaticResource IntegrationHeading}" />
+                                        <TextBlock Text="Control playback, likes and shuffle, and show LCD album art." Style="{StaticResource IntegrationDescription}" />
+                                    </StackPanel>
+                                    <Border Grid.Column="2" Background="{DynamicResource InputBgBrush}" CornerRadius="12" Padding="10,5" Margin="16,0,0,0" VerticalAlignment="Top">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse x:Name="SpotifyStatusDot" Width="8" Height="8"
+                                            Fill="#555555" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                            <TextBlock x:Name="TxtSpotifyStatus" Text="Not connected"
+                                            Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                            <WrapPanel Orientation="Horizontal" Margin="0,0,0,6">
                                 <ui:Button x:Name="BtnSpotifySetupGuide" Content="Setup Guide"
                                            Appearance="Primary" Margin="0,0,8,0" />
                                 <ui:Button x:Name="BtnSpotifyConnect" Content="Connect"
                                            Appearance="Secondary" Margin="0,0,8,0" />
                                 <ui:Button x:Name="BtnSpotifyDisconnect" Content="Disconnect"
                                            Appearance="Secondary" IsEnabled="False" />
-                            </StackPanel>
+                            </WrapPanel>
                             <Expander Header="Advanced — paste a Client ID directly"
                                       Foreground="{DynamicResource TextDimBrush}"
                                       Margin="0,4,0,0" FontSize="11">
@@ -684,22 +863,7 @@
                 </StackPanel>
             </Border>
 
-            <!-- ── ABOUT ─────────────────────────────────────────── -->
-            <Border x:Name="AboutCard" Style="{StaticResource CardPanel}" Margin="0,0,0,0">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
-                        <TextBlock Text="ABOUT" Style="{StaticResource HeaderText}" Margin="0" />
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock x:Name="TxtVersion" Style="{StaticResource BodyText}" VerticalAlignment="Center" />
-                        <ui:Button x:Name="BtnCheckUpdate" Content="Check for Updates"
-                                   Appearance="Secondary" Margin="16,0,0,0" />
-                    </StackPanel>
-                    <TextBlock x:Name="TxtUpdateStatus" Style="{StaticResource SecondaryText}" Margin="0,8,0,0"
-                               Visibility="Collapsed" />
-                </StackPanel>
-            </Border>
+
 
         </StackPanel>
     </ScrollViewer>

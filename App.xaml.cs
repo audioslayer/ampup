@@ -394,10 +394,13 @@ public partial class App : Application
             _ = _obs.ConnectAsync();
 
         // Start VoiceMeeter integration
-        _vm = new VoiceMeeterIntegration();
+        _vm = new VoiceMeeterIntegration(_config.VoiceMeeter.InstallDirectory);
         _vm.MuteStateChanged += SetVoiceMeeterTargetMuteState;
+        _vm.StateChanged += () => Dispatcher.BeginInvoke(() =>
+            _mainWindow?.SetVoiceMeeterStatus(
+                _config.VoiceMeeter.Enabled ? _vm.IsConnected : null, _vm.IsAvailable, _vm.RequiresRestart));
         _buttons.SetVoiceMeeterIntegration(_vm);
-        if (_config.VoiceMeeter.Enabled && _vm.IsAvailable)
+        if (_config.VoiceMeeter.Enabled)
             _vm.Connect();
 
         // Spotify integration — tries to restore a prior session silently
@@ -554,7 +557,8 @@ public partial class App : Application
         if (_isConnected)
             _mainWindow.SetConnectionStatus(true, _serial.Port?.PortName);
         _mainWindow.SetN3ConnectionStatus(_isN3Connected, _n3DeviceName);
-        _mainWindow.SetVoiceMeeterStatus(_config.VoiceMeeter.Enabled ? _vm?.IsConnected == true : null);
+        _mainWindow.SetVoiceMeeterStatus(_config.VoiceMeeter.Enabled ? _vm?.IsConnected == true : null,
+            _vm?.IsAvailable == true, _vm?.RequiresRestart == true);
         UpdateAggregateTrayStatus();
 
         // Hardware device probes (Corsair / LG / N3 / Screen Sync) run here
@@ -1500,13 +1504,14 @@ public partial class App : Application
         // VoiceMeeter: connect/disconnect based on enabled state
         if (_vm != null)
         {
-            if (_config.VoiceMeeter.Enabled && _vm.IsAvailable && !_vm.IsConnected)
+            _vm.SetInstallDirectory(_config.VoiceMeeter.InstallDirectory);
+            if (_config.VoiceMeeter.Enabled && !_vm.IsConnected)
                 _vm.Connect();
-            else if (!_config.VoiceMeeter.Enabled && _vm.IsConnected)
+            else if (!_config.VoiceMeeter.Enabled)
                 _vm.Disconnect();
 
             _mainWindow?.SetVoiceMeeterStatus(
-                _config.VoiceMeeter.Enabled ? _vm.IsConnected : null);
+                _config.VoiceMeeter.Enabled ? _vm.IsConnected : null, _vm.IsAvailable, _vm.RequiresRestart);
         }
         _autoSwitcher?.UpdateConfig(_config.AutoSwitch);
         ConfigureAutoSwitchTimer();
