@@ -485,7 +485,7 @@ public class DreamSyncController : IDisposable
 
                                 int brightnessScale = CombinedBrightnessScale(amb.BrightnessScale, dev.BrightnessScale);
                                 for (int s = 0; s < segColors.Length; s++)
-                                    segColors[s] = ApplyWhiteBalance(ApplyBrightness(segColors[s], brightnessScale), dev);
+                                    segColors[s] = ApplyWhiteBalance(ApplyBrightness(LedChromaGamma(segColors[s]), brightnessScale), dev);
 
                                 // Delta check across all segments
                                 if (SegmentColorsChanged(mapping.DeviceIp, segColors, ChangeDeadband(cfg.Sensitivity)))
@@ -503,7 +503,7 @@ public class DreamSyncController : IDisposable
                                     ? AverageRegion(grid, gridCols, gridRows, EdgeRegion(mapping.Side, gridRows))
                                     : SampleColorForSide(effectiveZones, effectiveZones.Length, mapping.Side);
                                 color = SmoothColors(mapping.DeviceIp, new[] { color })[0];
-                                color = ApplyWhiteBalance(ApplyBrightness(color, CombinedBrightnessScale(amb.BrightnessScale, dev.BrightnessScale)), dev);
+                                color = ApplyWhiteBalance(ApplyBrightness(LedChromaGamma(color), CombinedBrightnessScale(amb.BrightnessScale, dev.BrightnessScale)), dev);
 
                                 int sensitivity = ChangeDeadband(cfg.Sensitivity);
                                 if (_lastSent.TryGetValue(mapping.DeviceIp, out var prev))
@@ -726,6 +726,22 @@ public class DreamSyncController : IDisposable
             (byte)(c.G * scale / 100),
             (byte)(c.B * scale / 100)
         );
+    }
+
+    /// <summary>
+    /// LEDs are linear emitters, so small secondary channels that barely show on a monitor glow
+    /// strongly on a light (screen red ≈ 220,40,50 turns pink). Apply gamma to each channel
+    /// RELATIVE to the strongest one: the dominant channel keeps its level (no dimming) while the
+    /// minor channels drop the way they would on a display. Greys/whites are unaffected.
+    /// </summary>
+    private const float LedChromaGammaExp = 2.2f;
+    private static (byte R, byte G, byte B) LedChromaGamma((byte R, byte G, byte B) c)
+    {
+        int max = Math.Max(c.R, Math.Max(c.G, c.B));
+        if (max == 0) return c;
+        float m = max;
+        byte F(byte v) => (byte)Math.Clamp(MathF.Pow(v / m, LedChromaGammaExp) * m + 0.5f, 0f, 255f);
+        return (F(c.R), F(c.G), F(c.B));
     }
 
     private static (byte R, byte G, byte B) ApplyWhiteBalance((byte R, byte G, byte B) c, GoveeDeviceConfig dev)
