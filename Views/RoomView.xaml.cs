@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using AmpUp.Controls;
+using Material.Icons;
 using Newtonsoft.Json.Linq;
 
 namespace AmpUp.Views;
@@ -1953,25 +1954,8 @@ public partial class RoomView : UserControl
     /// to HiddenGoveeDeviceIds so future Settings scans won't re-add it.
     /// Used from both the Room DEVICES tab and the Settings device list.
     /// </summary>
-    private FrameworkElement BuildGoveeRemoveButton(GoveeDeviceConfig devConfig)
+    private void RemoveGoveeDevice(GoveeDeviceConfig devConfig)
     {
-        var btn = new System.Windows.Controls.Button
-        {
-            Content = "\u2715",
-            Width = 22,
-            Height = 22,
-            Padding = new Thickness(0),
-            FontSize = 11,
-            Background = System.Windows.Media.Brushes.Transparent,
-            BorderBrush = System.Windows.Media.Brushes.Transparent,
-            Foreground = FindBrush("TextDimBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0),
-            Cursor = System.Windows.Input.Cursors.Hand,
-            ToolTip = "Remove this device (won't reappear on rescan)",
-        };
-        btn.Click += (_, _) =>
-        {
             if (_config == null) return;
 
             // Tag both DeviceId and Ip so future scans can't sneak it back
@@ -1987,8 +1971,6 @@ public partial class RoomView : UserControl
             _config.Ambience.GoveeDevices.Remove(devConfig);
             QueueSave();
             RebuildRoomTabContent();
-        };
-        return btn;
     }
 
     private void BuildDevicesTab(StackPanel stack)
@@ -1998,6 +1980,9 @@ public partial class RoomView : UserControl
         _goveePowerControls.Clear();
         _goveeBrightnessControls.Clear();
         _deviceControls.Clear();
+
+        stack.Children.Add(UiKit.PageHeader("Devices",
+            "Power, brightness and sync for every light AmpUp drives. Add or rescan devices in Settings."));
 
         // ── Govee devices ──
         bool hasGovee = _config.Ambience.GoveeEnabled && _config.Ambience.GoveeDevices.Count > 0;
@@ -2069,52 +2054,31 @@ public partial class RoomView : UserControl
 
                 var body = new StackPanel();
 
-                // ── Header: status dot + name/subtitle | switches + remove ──
-                var header = new Grid();
-                header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
                 var dot = new System.Windows.Shapes.Ellipse
                 {
                     Width = 8, Height = 8,
-                    Margin = new Thickness(0, 5, 10, 0),
-                    VerticalAlignment = VerticalAlignment.Top,
+                    Margin = new Thickness(0, 0, 14, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
                     Fill = FindBrush("TextDimBrush"),
                     ToolTip = hasLan ? "Checking device…" : "Cloud device (status not polled)",
                 };
-                Grid.SetColumn(dot, 0);
-                header.Children.Add(dot);
-
-                var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
-                info.Children.Add(new TextBlock
-                {
-                    Text = displayName,
-                    FontSize = 12, FontWeight = FontWeights.SemiBold,
-                    Foreground = FindBrush("TextPrimaryBrush"),
-                    TextTrimming = TextTrimming.CharacterEllipsis,
-                });
-                info.Children.Add(new TextBlock
-                {
-                    Text = string.Join("  ·  ", subParts),
-                    FontSize = 10, TextWrapping = TextWrapping.Wrap,
-                    Foreground = hasCloud
-                        ? new SolidColorBrush(Color.FromRgb(0x42, 0xA5, 0xF5))
-                        : FindBrush("TextDimBrush"),
-                    Margin = new Thickness(0, 2, 0, 0),
-                    ToolTip = hasCloud ? "Cloud-only device — controlled through the Govee API" : null,
-                });
-                Grid.SetColumn(info, 1);
-                header.Children.Add(info);
 
                 var controls = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+                controls.Children.Add(dot);
                 controls.Children.Add(MakeLabeledDeviceSwitch("Power", onOff, null));
                 controls.Children.Add(MakeLabeledDeviceSwitch("Sync", ampUpSync,
                     "Sync with AmpUp — when off, AmpUp won't push room effects or DreamView/screen sync to this device."));
-                controls.Children.Add(BuildGoveeRemoveButton(devConfig));
-                Grid.SetColumn(controls, 2);
-                header.Children.Add(controls);
-                body.Children.Add(header);
+                var removeDev = devConfig;
+                controls.Children.Add(UiKit.MoreButton(() => new List<GlassMenuItem>
+                {
+                    new("Remove device", MaterialIconKind.DeleteOutline, () => RemoveGoveeDevice(removeDev), IsDanger: true),
+                }));
+
+                var devColor = hasCloud ? Color.FromRgb(0x42, 0xA5, 0xF5) : Color.FromRgb(0x26, 0xC6, 0xDA);
+                var devCard = UiKit.Card(devColor,
+                    segs > 1 ? MaterialIconKind.LedStripVariant : MaterialIconKind.LightbulbOutline,
+                    displayName, string.Join("  ·  ", subParts), controls, body);
+                if (hasCloud) devCard.Subtitle.ToolTip = "Cloud-only device — controlled through the Govee API";
 
                 // Cloud-only rows stop here — brightness/segment streaming isn't
                 // viable via the REST API (100 req/min cap).
@@ -2164,7 +2128,7 @@ public partial class RoomView : UserControl
                     _goveeBrightnessControls[devConfig] = (brightSlider, brightLabel);
                     _deviceControls[devConfig.Ip] = (onOff, brightSlider);
 
-                    var brightRow = new DockPanel { Margin = new Thickness(18, 10, 0, 0) };
+                    var brightRow = new DockPanel();
                     var brightName = new TextBlock
                     {
                         Text = "Brightness", FontSize = 11, Width = 70,
@@ -2202,53 +2166,44 @@ public partial class RoomView : UserControl
                 // ── Advanced (collapsible): White Balance for Screen Sync ──
                 body.Children.Add(BuildGoveeAdvancedSection(devConfig));
 
-                goveeChildren.Add(MakeDeviceItemCard(body));
+                goveeChildren.Add(devCard.Root);
             }
 
             if (goveeChildren.Count > 0)
-                stack.Children.Add(MakeSectionCard("GOVEE", goveeChildren.ToArray()));
+            {
+                stack.Children.Add(UiKit.SectionHeader("GOVEE",
+                    goveeChildren.Count == 1 ? "1 device" : $"{goveeChildren.Count} devices"));
+                foreach (var c in goveeChildren) stack.Children.Add(c);
+            }
         }
 
         // ── Corsair devices ──
         bool hasCorsair = _config.Corsair.Enabled && _corsairSync?.IsAvailable == true;
         if (hasCorsair)
         {
-            var corsairChildren = new List<UIElement>();
+            int corsairCount = _corsairSync?.Devices.Count ?? 0;
+            stack.Children.Add(UiKit.SectionHeader("CORSAIR",
+                corsairCount == 0 ? "" : corsairCount == 1 ? "1 device" : $"{corsairCount} devices"));
 
             if (_corsairSync?.Devices.Count > 0)
             {
+                var corBody = new StackPanel();
+                var list = UiKit.ListContainer(out var rows);
                 foreach (var dev in _corsairSync.Devices)
                 {
-                    var g = new Grid();
-                    g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                    g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                     var cdot = new System.Windows.Shapes.Ellipse
                     {
-                        Width = 8, Height = 8, Margin = new Thickness(0, 5, 10, 0),
-                        VerticalAlignment = VerticalAlignment.Top,
+                        Width = 7, Height = 7, Margin = new Thickness(0, 0, 6, 0),
+                        VerticalAlignment = VerticalAlignment.Center,
                         Fill = new SolidColorBrush(Color.FromRgb(0x00, 0xDD, 0x77)),
                         ToolTip = "Detected via iCUE",
                     };
-                    Grid.SetColumn(cdot, 0);
-                    g.Children.Add(cdot);
-                    var cinfo = new StackPanel();
-                    cinfo.Children.Add(new TextBlock
-                    {
-                        Text = dev.Name,
-                        FontSize = 12, FontWeight = FontWeights.SemiBold,
-                        Foreground = FindBrush("TextPrimaryBrush"),
-                        TextTrimming = TextTrimming.CharacterEllipsis,
-                    });
-                    cinfo.Children.Add(new TextBlock
-                    {
-                        Text = $"{dev.LedCount} LEDs",
-                        FontSize = 10, Foreground = FindBrush("TextDimBrush"),
-                        Margin = new Thickness(0, 2, 0, 0),
-                    });
-                    Grid.SetColumn(cinfo, 1);
-                    g.Children.Add(cinfo);
-                    corsairChildren.Add(MakeDeviceItemCard(g));
+                    var right = new StackPanel { Orientation = Orientation.Horizontal };
+                    right.Children.Add(UiKit.MutedText($"{dev.LedCount} LEDs"));
+                    right.Children.Add(cdot);
+                    rows.Children.Add(UiKit.ListRow(UiKit.Icon(MaterialIconKind.LedStripVariant, 16), dev.Name, null, right));
                 }
+                corBody.Children.Add(list);
 
                 // Brightness slider for all Corsair
                 var corBrightSlider = new StyledSlider
@@ -2277,42 +2232,35 @@ public partial class RoomView : UserControl
                     corBrightLabel.Text = $"{pct}%";
                     QueueSave();
                 };
-                var corBrightRow = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };
-                var corBrightName = new StackPanel { Width = 150, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
-                corBrightName.Children.Add(new TextBlock { Text = "Brightness", FontSize = 11, FontWeight = FontWeights.SemiBold,
-                    Foreground = FindBrush("TextPrimaryBrush") });
-                corBrightName.Children.Add(new TextBlock { Text = "Applies to all Corsair devices", FontSize = 10,
-                    TextWrapping = TextWrapping.Wrap, Foreground = FindBrush("TextDimBrush"), Margin = new Thickness(0, 2, 0, 0) });
+                var corBrightRow = new DockPanel { Margin = new Thickness(0, 12, 0, 0) };
+                var corBrightName = new TextBlock
+                {
+                    Text = "Brightness", FontSize = 11, Width = 70,
+                    Foreground = FindBrush("TextSecBrush"),
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
                 DockPanel.SetDock(corBrightName, Dock.Left);
                 DockPanel.SetDock(corBrightLabel, Dock.Right);
                 corBrightRow.Children.Add(corBrightName);
                 corBrightRow.Children.Add(corBrightLabel);
                 corBrightRow.Children.Add(corBrightSlider);
-                corsairChildren.Add(corBrightRow);
+                corBody.Children.Add(corBrightRow);
+
+                stack.Children.Add(UiKit.Card(Color.FromRgb(0xFF, 0xCA, 0x28), MaterialIconKind.Keyboard,
+                    "Corsair iCUE", "Brightness applies to all Corsair devices", null, corBody).Root);
             }
             else
             {
-                corsairChildren.Add(new TextBlock
-                {
-                    Text = "No Corsair devices detected — make sure iCUE is running.",
-                    FontSize = 11, Foreground = FindBrush("TextSecBrush"),
-                    TextWrapping = TextWrapping.Wrap,
-                    Margin = new Thickness(0, 4, 0, 0),
-                });
+                stack.Children.Add(UiKit.EmptyState(MaterialIconKind.Keyboard, "No Corsair devices detected",
+                    "Make sure iCUE is running, then come back to this tab."));
             }
-
-            stack.Children.Add(MakeSectionCard("CORSAIR", corsairChildren.ToArray()));
         }
 
         if (!hasGovee && !hasCorsair)
         {
-            stack.Children.Add(new TextBlock
-            {
-                Text = "No devices configured — enable Govee or Corsair in Settings.",
-                FontSize = 11, Foreground = FindBrush("TextSecBrush"),
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 8, 0, 10),
-            });
+            stack.Children.Add(UiKit.SectionHeader("LIGHTS"));
+            stack.Children.Add(UiKit.EmptyState(MaterialIconKind.LightbulbGroupOutline, "No devices configured",
+                "Enable Govee or Corsair in Settings to control them here."));
         }
 
         // ── AmpUp hardware (Turn Up) ──
@@ -2336,23 +2284,12 @@ public partial class RoomView : UserControl
         var row2 = MakeDeviceSettingRow("Mirror Room to Hardware",
             "Knob LEDs follow the room effect and VU Fill colors", mixerSwitch);
         row2.Margin = new Thickness(0);
-        stack.Children.Add(MakeSectionCard("TURN UP", row1, row2));
-    }
-
-    /// <summary>Inner card wrapping one device inside a section card.</summary>
-    private Border MakeDeviceItemCard(UIElement content)
-    {
-        var b = new Border
-        {
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(12, 10, 12, 10),
-            Margin = new Thickness(0, 0, 0, 8),
-            Child = content,
-        };
-        b.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-        b.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
-        return b;
+        var tuBody = new StackPanel();
+        tuBody.Children.Add(row1);
+        tuBody.Children.Add(row2);
+        stack.Children.Add(UiKit.SectionHeader("TURN UP"));
+        stack.Children.Add(UiKit.Card(Color.FromRgb(0x69, 0xF0, 0xAE), MaterialIconKind.Tune,
+            "Hardware LEDs", "Let the knob LEDs follow your screen and room lights", null, tuBody).Root);
     }
 
     /// <summary>Label + hint on the left, control right-aligned (Screen Sync style).</summary>
@@ -2400,16 +2337,11 @@ public partial class RoomView : UserControl
     /// <summary>Collapsible "Advanced" block holding per-device White Balance (Screen Sync).</summary>
     private StackPanel BuildGoveeAdvancedSection(GoveeDeviceConfig wbCfg)
     {
-        var outer = new StackPanel { Margin = new Thickness(18, 8, 0, 0) };
-        var chevron = new TextBlock
-        {
-            Text = "›", FontSize = 14, FontWeight = FontWeights.Bold,
-            Foreground = FindBrush("TextDimBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            RenderTransformOrigin = new Point(0.5, 0.5),
-            RenderTransform = new RotateTransform(0),
-            Margin = new Thickness(0, -2, 6, 0),
-        };
+        var outer = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
+        var chevron = UiKit.Icon(MaterialIconKind.ChevronRight, 14);
+        chevron.RenderTransformOrigin = new Point(0.5, 0.5);
+        chevron.RenderTransform = new RotateTransform(0);
+        chevron.Margin = new Thickness(0, 0, 6, 0);
         var toggleRow = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -4130,16 +4062,17 @@ public partial class RoomView : UserControl
     {
         if (_config == null) return;
 
-        // ── Header row: SCREEN SYNC + GAME MODE tiles side by side ──
-        var tileGrid = new Grid { Margin = new Thickness(0, 0, 0, 2) };
-        tileGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        tileGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        stack.Children.Add(UiKit.PageHeader("Screen Sync",
+            "Mirror the colors on your screen to your room lights in real time. Game Mode can switch it on for you."));
+        stack.Children.Add(UiKit.SectionHeader("MODES"));
 
         bool syncRunning = _config.Ambience.ScreenSync.Enabled;
-        var screenSyncTile = BuildToggleTile("⬛", "SCREEN SYNC", "Lights follow your screen",
-            syncRunning, on =>
+        Action<bool> setSyncSwitch = _ => { };
+        bool syncSwitchShown = syncRunning;
+        var screenSyncSwitch = MakeScreenSyncSwitch(syncRunning, on =>
             {
                 if (_loading || _config == null) return;
+                syncSwitchShown = on;
                 _config.Ambience.ScreenSync.Enabled = on;
                 // A manual toggle is the user's choice — Game Mode must not undo it on game exit.
                 _config.Ambience.GameModeOwnsScreenSync = false;
@@ -4168,36 +4101,35 @@ public partial class RoomView : UserControl
                 QueueSave();
                 // Music Reactive / VU Fill tiles live on the ROOM EFFECT tab and are
                 // rebuilt from live state whenever that tab is opened.
-            }, Color.FromRgb(0x44, 0x8A, 0xFF),
-            syncRunning ? "ACTIVE" : "STANDBY",
-            out var statusUpdater);
-        _screenSyncTileStatusUpdater = statusUpdater; // settings status timer routes through this
-        screenSyncTile.Margin = new Thickness(0, 0, 5, 8);
-        Grid.SetColumn(screenSyncTile, 0);
-        tileGrid.Children.Add(screenSyncTile);
+            }, out setSyncSwitch, "Turn Screen Sync on or off");
+        var syncBadge = UiKit.StatusBadge(out var badgeUpdate);
+        badgeUpdate(syncRunning ? "ACTIVE" : "STANDBY", syncRunning);
+        // settings status timer routes through this — also keeps the switch in step
+        // when Game Mode turns Screen Sync on/off behind the user's back.
+        _screenSyncTileStatusUpdater = (status, active) =>
+        {
+            badgeUpdate(status, active);
+            if (active != syncSwitchShown) { syncSwitchShown = active; setSyncSwitch(active); }
+        };
+        var syncActions = new StackPanel { Orientation = Orientation.Horizontal };
+        syncActions.Children.Add(syncBadge);
+        syncActions.Children.Add(screenSyncSwitch);
+        var screenSyncTile = UiKit.Card(Color.FromRgb(0x44, 0x8A, 0xFF), MaterialIconKind.MonitorShimmer,
+            "Screen Sync", "Lights follow your screen", syncActions).Root;
 
         // Game Mode — auto-enable screen sync when fullscreen app detected
         bool gameMode = _config.Ambience.GameModeEnabled;
-        var gameTile = BuildToggleTile("🎮", "GAME MODE",
-            "Turns Screen Sync on automatically while a fullscreen game is focused (browsers & video players ignored)",
-            gameMode, on =>
+        var gameSwitch = MakeScreenSyncSwitch(gameMode, on =>
             {
                 if (_loading || _config == null) return;
                 _config.Ambience.GameModeEnabled = on;
                 QueueSave();
-            }, Color.FromRgb(0xFF, 0x6B, 0x35));
-        gameTile.Margin = new Thickness(5, 0, 0, 8);
-        Grid.SetColumn(gameTile, 1);
-        tileGrid.Children.Add(gameTile);
-
-        foreach (var t in new[] { screenSyncTile, gameTile })
-        {
-            t.MinWidth = 0;
-            if (t.Child is Grid g && g.Children.Count > 0 && g.Children[0] is StackPanel sp
-                && sp.Children.Count > 1 && sp.Children[1] is TextBlock sub)
-                sub.TextWrapping = TextWrapping.Wrap;
-        }
-        stack.Children.Add(tileGrid);
+            }, out _, "Turn Game Mode on or off");
+        var gameTile = UiKit.Card(Color.FromRgb(0xFF, 0x6B, 0x35), MaterialIconKind.GamepadVariantOutline,
+            "Game Mode",
+            "Turns Screen Sync on while a fullscreen game is focused (browsers and video players ignored)",
+            gameSwitch).Root;
+        stack.Children.Add(UiKit.ResponsivePair(screenSyncTile, gameTile));
 
         // ── Settings cards ──
         _screenSyncSettingsPanel = new StackPanel();
@@ -4401,7 +4333,8 @@ public partial class RoomView : UserControl
         cropRow.Margin = new Thickness(0);
         sourceBody.Children.Add(cropRow);
 
-        var sourceCard = MakeSectionCard("SOURCE", sourceBody);
+        var sourceCard = UiKit.Card(Color.FromRgb(0x42, 0xA5, 0xF5), MaterialIconKind.Monitor,
+            "Source", "What gets captured and how often", null, sourceBody).Root;
 
         // ══════════════════ LOOK ══════════════════
         var lookBody = new StackPanel();
@@ -4462,18 +4395,11 @@ public partial class RoomView : UserControl
         if (lookBody.Children[lookBody.Children.Count - 1] is FrameworkElement lastLook)
             lastLook.Margin = new Thickness(0);
 
-        var lookCard = MakeSectionCard("LOOK", lookBody);
+        var lookCard = UiKit.Card(Color.FromRgb(0xAB, 0x47, 0xBC), MaterialIconKind.PaletteOutline,
+            "Look", "Color intensity and responsiveness", null, lookBody).Root;
 
-        var topGrid = new Grid();
-        topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        sourceCard.Margin = new Thickness(0, 0, 5, 10);
-        lookCard.Margin = new Thickness(5, 0, 0, 10);
-        Grid.SetColumn(sourceCard, 0);
-        Grid.SetColumn(lookCard, 1);
-        topGrid.Children.Add(sourceCard);
-        topGrid.Children.Add(lookCard);
-        stack.Children.Add(topGrid);
+        stack.Children.Add(UiKit.SectionHeader("SETTINGS"));
+        stack.Children.Add(UiKit.ResponsivePair(sourceCard, lookCard));
 
         // ══════════════════ PREVIEW ══════════════════
         _screenEdgeControl = new Controls.ScreenEdgeControl
@@ -4518,13 +4444,8 @@ public partial class RoomView : UserControl
         var previewBody = new StackPanel();
         previewBody.Children.Add(_screenEdgeControl);
         previewBody.Children.Add(_dreamStatusLabel);
-        previewBody.Children.Add(new TextBlock
-        {
-            Text = "Drag the crop lines to set content boundaries",
-            FontSize = 10, Foreground = FindBrush("TextDimBrush"),
-            HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 2, 0, 0),
-        });
-        stack.Children.Add(MakeSectionCard("PREVIEW", previewBody));
+        stack.Children.Add(UiKit.Card(Color.FromRgb(0x26, 0xC6, 0xDA), MaterialIconKind.EyeOutline,
+            "Preview", "Live capture zones — drag the crop lines to set content boundaries", null, previewBody).Root);
 
         // Status update timer — updates status label and the SCREEN SYNC tile badge.
         // When sync isn't running the preview timer owns the status label
@@ -4574,7 +4495,7 @@ public partial class RoomView : UserControl
         UpdateScreenSyncTimersForWindowState();
 
         // ══════════════════ DEVICES ══════════════════
-        var devBody = new StackPanel();
+        var devList = UiKit.ListContainer(out var devBody);
         bool hasMonitor = _config.RoomLayout.Monitor != null;
         int devRows = 0;
         foreach (var goveeDevice in _config.Ambience.GoveeDevices)
@@ -4590,44 +4511,20 @@ public partial class RoomView : UserControl
             }
             var capturedMapping = mapping;
 
-            var rowBorder = new Border
-            {
-                CornerRadius = new CornerRadius(8),
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(12, 8, 12, 8),
-                Margin = new Thickness(0, 0, 0, 6),
-            };
-            rowBorder.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-            rowBorder.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
-
-            var rowGrid = new Grid();
-            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            rowBorder.Child = rowGrid;
-
-            var nameStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
-            nameStack.Children.Add(new TextBlock
-            {
-                Text = !string.IsNullOrWhiteSpace(goveeDevice.Name) ? goveeDevice.Name : goveeDevice.Ip,
-                FontSize = 12, FontWeight = FontWeights.SemiBold,
-                Foreground = FindBrush("TextPrimaryBrush"),
-                TextTrimming = TextTrimming.CharacterEllipsis,
-            });
-            var subInfo = new TextBlock { FontSize = 10, Foreground = FindBrush("TextDimBrush"), Margin = new Thickness(0, 2, 0, 0) };
             string segText = segCount > 0 && goveeDevice.UseSegmentProtocol ? $"{segCount} segments" : "Single color";
+            var controls = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            var rowBorder = UiKit.ListRow(
+                UiKit.Icon(segCount > 1 ? MaterialIconKind.LedStripVariant : MaterialIconKind.LightbulbOutline, 16),
+                !string.IsNullOrWhiteSpace(goveeDevice.Name) ? goveeDevice.Name : goveeDevice.Ip,
+                segText, controls, null, out var subInfo);
             void UpdateSub() => subInfo.Text = capturedMapping.UseAutoSpatial && hasMonitor
                 ? $"{segText} · edge auto from room layout" : segText;
             UpdateSub();
-            nameStack.Children.Add(subInfo);
-            Grid.SetColumn(nameStack, 0);
-            rowGrid.Children.Add(nameStack);
 
-            var controls = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            Grid.SetColumn(controls, 1);
-            rowGrid.Children.Add(controls);
 
-            controls.Children.Add(new TextBlock { Text = "AUTO", FontSize = 9, FontWeight = FontWeights.SemiBold,
-                Foreground = FindBrush("TextDimBrush"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
+            var autoCaption = new TextBlock { Text = "Auto", FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+            autoCaption.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+            controls.Children.Add(autoCaption);
 
             var sideCombo = new ComboBox { Width = 130, Margin = new Thickness(12, 0, 8, 0), ToolTip = "Screen edge" };
             sideCombo.Items.Add("Full"); sideCombo.Items.Add("Left"); sideCombo.Items.Add("Right");
@@ -4685,15 +4582,18 @@ public partial class RoomView : UserControl
             devBody.Children.Add(rowBorder);
             devRows++;
         }
+        stack.Children.Add(UiKit.SectionHeader("DEVICES",
+            devRows == 0 ? "" : devRows == 1 ? "1 light" : $"{devRows} lights"));
         if (devRows == 0)
         {
-            devBody.Children.Add(new TextBlock
-            {
-                Text = "No LAN Govee devices yet. Add devices in the DEVICES tab to map them to screen edges.",
-                FontSize = 11, TextWrapping = TextWrapping.Wrap, Foreground = FindBrush("TextDimBrush"),
-            });
+            stack.Children.Add(UiKit.EmptyState(MaterialIconKind.LightbulbGroupOutline, "No LAN Govee devices yet",
+                "Add devices in the DEVICES tab to map them to screen edges."));
         }
-        stack.Children.Add(MakeSectionCard("DEVICES", devBody));
+        else
+        {
+            stack.Children.Add(UiKit.Card(Color.FromRgb(0x69, 0xF0, 0xAE), MaterialIconKind.BorderOutside,
+                "Edge mapping", "Which part of the screen each light follows", null, devList).Root);
+        }
     }
 
     private void RebuildZonePreview(StackPanel stack)

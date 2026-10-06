@@ -6,6 +6,7 @@ using System.Windows.Threading;
 using Microsoft.Win32;
 using AmpUp.Controls;
 using AmpUp.Core.Services;
+using Material.Icons;
 
 namespace AmpUp.Views;
 
@@ -42,6 +43,7 @@ public partial class OsdView : UserControl
         public ComboBox TriggerCombo = null!;
         public StackPanel CustomPanel = null!;
         public TextBlock Title = null!;
+        public TextBlock Subtitle = null!;
     }
 
     public OsdView()
@@ -118,9 +120,11 @@ public partial class OsdView : UserControl
             Foreground = new SolidColorBrush(ThemeManager.Accent),
         };
 
+        RootPanel.Children.Add(UiKit.PageHeader("On-Screen Display",
+            "Overlays that appear when you turn a knob, switch profiles or change audio devices, plus Quick Wheel radial menus."));
+
         // ══════════════════ POPUPS ══════════════════
         var popupsBody = new StackPanel();
-        popupsBody.Children.Add(MakeHint("Overlay notifications shown while AmpUp is minimized to the tray."));
 
         SldOsdVolumeDur = NewDurSlider(0.3, 8, 2, "How long the volume overlay stays visible");
         LblOsdVolumeDur = NewValLabel("2.0s");
@@ -152,7 +156,8 @@ public partial class OsdView : UserControl
         var fsRow = MakeSettingRow("Hide in fullscreen games", "Keep overlays off fullscreen apps and games", fsSw);
         fsRow.Margin = new Thickness(0);
         popupsBody.Children.Add(fsRow);
-        var popupsCard = MakeSectionCard("POPUPS", popupsBody);
+        var popupsCard = UiKit.Card(Color.FromRgb(0x42, 0xA5, 0xF5), MaterialIconKind.BellOutline,
+            "Popups", "Shown while AmpUp is minimized to the tray", null, popupsBody).Root;
 
         // ══════════════════ PLACEMENT ══════════════════
         var placeBody = new StackPanel();
@@ -163,29 +168,32 @@ public partial class OsdView : UserControl
         placeBody.Children.Add(BuildPositionPicker());
         placeBody.Children.Add(MakeHint(
             "Windows shows its own volume popup at bottom center — avoid it to keep AmpUp's visible.",
-            new Thickness(0, 8, 0, 12)));
+            new Thickness(0, 8, 0, 0)));
 
-        var previewBtn = new Wpf.Ui.Controls.Button
-        {
-            Content = "Preview",
-            Appearance = Wpf.Ui.Controls.ControlAppearance.Secondary,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            ToolTip = "Show a sample volume overlay at the chosen monitor and position",
-        };
-        previewBtn.Click += OnOsdPreview;
-        placeBody.Children.Add(previewBtn);
-        var placeCard = MakeSectionCard("PLACEMENT", placeBody);
+        var previewBtn = UiKit.IconButton(MaterialIconKind.PlayCircleOutline,
+            "Show a sample volume overlay at the chosen monitor and position",
+            _ => OnOsdPreview(this, new RoutedEventArgs()));
+        var placeActions = new StackPanel { Orientation = Orientation.Horizontal };
+        var previewCap = new TextBlock { Text = "Preview", FontSize = 11, VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 4, 0), Cursor = Cursors.Hand };
+        previewCap.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+        previewCap.MouseLeftButtonUp += (_, e) => { e.Handled = true; OnOsdPreview(this, new RoutedEventArgs()); };
+        placeActions.Children.Add(previewCap);
+        placeActions.Children.Add(previewBtn);
+        var placeCard = UiKit.Card(Color.FromRgb(0xAB, 0x47, 0xBC), MaterialIconKind.Monitor,
+            "Placement", "Where overlays appear on screen", placeActions, placeBody).Root;
 
-        RootPanel.Children.Add(MakeResponsivePair(popupsCard, placeCard));
+        RootPanel.Children.Add(UiKit.SectionHeader("OVERLAYS", "3 types"));
+        RootPanel.Children.Add(UiKit.ResponsivePair(popupsCard, placeCard));
 
         // ══════════════════ QUICK WHEELS ══════════════════
-        var wheelsBody = new StackPanel();
-        wheelsBody.Children.Add(MakeHint("Hold a button to open a radial overlay. Turn any knob to navigate, release to confirm. Add multiple wheels for different buttons."));
+        RootPanel.Children.Add(UiKit.SectionHeader("QUICK WHEELS", "", out _wheelCountText));
 
+        var behaviourBody = new StackPanel();
         SldOsdWheelDur = NewDurSlider(0, 15, 0,
             "Delay before Quick Wheel closes after releasing the trigger button. Off = confirm immediately on release.");
         LblOsdWheelDur = NewValLabel("Off");
-        var wheelDurBlock = new StackPanel { Margin = new Thickness(0, 0, 0, 14), ToolTip = SldOsdWheelDur.ToolTip };
+        var wheelDurBlock = new StackPanel { ToolTip = SldOsdWheelDur.ToolTip };
         var wheelDurHead = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
         DockPanel.SetDock(LblOsdWheelDur, Dock.Right);
         wheelDurHead.Children.Add(LblOsdWheelDur);
@@ -195,23 +203,22 @@ public partial class OsdView : UserControl
         wheelDurHead.Children.Add(wdLeft);
         wheelDurBlock.Children.Add(wheelDurHead);
         wheelDurBlock.Children.Add(SldOsdWheelDur);
-        wheelsBody.Children.Add(wheelDurBlock);
+        behaviourBody.Children.Add(wheelDurBlock);
+        RootPanel.Children.Add(UiKit.Card(Color.FromRgb(0x26, 0xC6, 0xDA), MaterialIconKind.GestureTapHold,
+            "How wheels work",
+            "Hold a button to open a radial overlay. Turn any knob to navigate, release to confirm.",
+            null, behaviourBody).Root);
 
         WheelRowsPanel = new StackPanel();
-        wheelsBody.Children.Add(WheelRowsPanel);
+        RootPanel.Children.Add(WheelRowsPanel);
 
-        var addWheelBtn = new Wpf.Ui.Controls.Button
-        {
-            Content = "+ Add Quick Wheel",
-            Appearance = Wpf.Ui.Controls.ControlAppearance.Secondary,
-            Margin = new Thickness(0, 2, 0, 0),
-            ToolTip = "Add another Quick Wheel binding",
-        };
-        addWheelBtn.Click += (_, _) => AddWheelRow(new QuickWheelConfig { Enabled = true });
-        wheelsBody.Children.Add(addWheelBtn);
-
-        RootPanel.Children.Add(MakeSectionCard("QUICK WHEELS", wheelsBody));
+        var addWheel = UiKit.LinkRow(MaterialIconKind.Plus, "Add Quick Wheel", accent: true,
+            () => AddWheelRow(new QuickWheelConfig { Enabled = true }), "Add another Quick Wheel binding");
+        addWheel.HorizontalAlignment = HorizontalAlignment.Left;
+        RootPanel.Children.Add(addWheel);
     }
+
+    private TextBlock _wheelCountText = null!;
 
     private FrameworkElement MakeDurationRow(StyledSlider slider, TextBlock valLabel)
     {
@@ -267,57 +274,6 @@ public partial class OsdView : UserControl
         var b = new System.Windows.Controls.Border { Height = 1, Margin = new Thickness(0, 2, 0, 14) };
         b.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "CardBorderBrush");
         return b;
-    }
-
-    private System.Windows.Controls.Border MakeSectionCard(string title, UIElement body)
-    {
-        var content = new StackPanel();
-        var header = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
-        var bar = new System.Windows.Controls.Border { Width = 3, CornerRadius = new CornerRadius(2),
-            Margin = new Thickness(0, 0, 10, 0) };
-        bar.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "AccentBrush");
-        header.Children.Add(bar);
-        header.Children.Add(new TextBlock { Text = title, Style = (Style)FindResource("HeaderText"), Margin = new Thickness(0) });
-        content.Children.Add(header);
-        content.Children.Add(body);
-        var border = new System.Windows.Controls.Border
-        {
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(16),
-            Margin = new Thickness(0, 0, 0, 10),
-            Child = content,
-        };
-        border.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "CardBgBrush");
-        border.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "CardBorderBrush");
-        return border;
-    }
-
-    /// <summary>Two cards side by side; stacks vertically when the view is narrow.</summary>
-    private Grid MakeResponsivePair(FrameworkElement left, FrameworkElement right)
-    {
-        var g = new Grid();
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        g.Children.Add(left);
-        g.Children.Add(right);
-        bool? wide = null;
-        void Apply(double width)
-        {
-            bool isWide = width >= 760;
-            if (wide == isWide) return;
-            wide = isWide;
-            g.ColumnDefinitions[1].Width = isWide ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-            Grid.SetColumn(right, isWide ? 1 : 0);
-            Grid.SetRow(right, isWide ? 0 : 1);
-            left.Margin = new Thickness(0, 0, isWide ? 5 : 0, 10);
-            right.Margin = new Thickness(isWide ? 5 : 0, 0, 0, 10);
-        }
-        g.SizeChanged += (_, e) => Apply(e.NewSize.Width);
-        Apply(1000);
-        return g;
     }
 
     /// <summary>Compact accent-aware on/off switch (same look as the Room tab).</summary>
@@ -693,50 +649,29 @@ public partial class OsdView : UserControl
         var state = new WheelRowState { Enabled = qw.Enabled, ModeIdx = Math.Clamp((int)qw.Mode, 0, 3) };
 
         var body = new StackPanel();
-        var wrapper = new System.Windows.Controls.Border
-        {
-            CornerRadius = new CornerRadius(8),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(14, 12, 14, 12),
-            Margin = new Thickness(0, 0, 0, 10),
-            Child = body,
-            Tag = state,
-        };
-        wrapper.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "BgDarkBrush");
-        wrapper.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "CardBorderBrush");
-
-        // Header: enable switch + title + remove
-        var header = new Grid { Margin = new Thickness(0, 0, 0, 12) };
-        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var enableSw = MakeSwitch(state.Enabled, on => { state.Enabled = on; QueueSave(); },
             out _, "Enable or disable this wheel (disabling releases the button's hold action)");
-        header.Children.Add(enableSw);
-        state.Title = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold,
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
-        state.Title.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
-        Grid.SetColumn(state.Title, 1);
-        header.Children.Add(state.Title);
-        var removeBtn = new Wpf.Ui.Controls.Button
+        System.Windows.Controls.Border wrapper = null!;
+        var more = UiKit.MoreButton(() => new List<GlassMenuItem>
         {
-            Content = "Remove",
-            Appearance = Wpf.Ui.Controls.ControlAppearance.Secondary,
-            Padding = new Thickness(10, 4, 10, 4),
-            FontSize = 11,
-            ToolTip = "Remove this Quick Wheel",
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        removeBtn.Click += (_, _) =>
-        {
-            WheelRowsPanel.Children.Remove(wrapper);
-            RenumberWheels();
-            _debounceTimer.Stop();
-            _debounceTimer.Start();
-        };
-        Grid.SetColumn(removeBtn, 2);
-        header.Children.Add(removeBtn);
-        body.Children.Add(header);
+            new("Remove wheel", MaterialIconKind.DeleteOutline, () =>
+            {
+                WheelRowsPanel.Children.Remove(wrapper);
+                RenumberWheels();
+                _debounceTimer.Stop();
+                _debounceTimer.Start();
+            }, IsDanger: true),
+        });
+        more.Margin = new Thickness(8, 0, 0, 0);
+        var actions = new StackPanel { Orientation = Orientation.Horizontal };
+        actions.Children.Add(enableSw);
+        actions.Children.Add(more);
+
+        var card = UiKit.Card(Color.FromRgb(0xFF, 0x70, 0x43), MaterialIconKind.ChartDonut, "Wheel", null, actions, body);
+        wrapper = card.Root;
+        wrapper.Tag = state;
+        state.Title = card.Title;
+        state.Subtitle = card.Subtitle;
 
         // Trigger
         var btnCombo = new ComboBox
@@ -748,7 +683,7 @@ public partial class OsdView : UserControl
         btnCombo.SetResourceReference(Control.BorderBrushProperty, "InputBorderBrush");
         btnCombo.SetResourceReference(Control.ForegroundProperty, "TextPrimaryBrush");
         PopulateTriggerCombo(btnCombo, qw.Device, qw.TriggerButton);
-        btnCombo.SelectionChanged += (_, _) => { if (!_loading) { _debounceTimer.Stop(); _debounceTimer.Start(); } };
+        btnCombo.SelectionChanged += (_, _) => { UpdateWheelSubtitle(state); if (!_loading) { _debounceTimer.Stop(); _debounceTimer.Start(); } };
         state.TriggerCombo = btnCombo;
         body.Children.Add(MakeSettingRow("Trigger", "Hold this input to open the wheel", btnCombo));
 
@@ -767,6 +702,7 @@ public partial class OsdView : UserControl
         var modePills = MakePillRow(WheelModeLabels, state.ModeIdx, idx =>
         {
             state.ModeIdx = idx;
+            UpdateWheelSubtitle(state);
             customPanel.Visibility = idx == (int)QuickWheelMode.Custom ? Visibility.Visible : Visibility.Collapsed;
             if (!_loading) { _debounceTimer.Stop(); _debounceTimer.Start(); }
         });
@@ -778,16 +714,7 @@ public partial class OsdView : UserControl
         foreach (var slot in qw.CustomSlots)
             AddCustomSlotRow(customPanel, slot);
 
-        var addSlotBtn = new Wpf.Ui.Controls.Button
-        {
-            Content = "+ Add Slot",
-            Appearance = Wpf.Ui.Controls.ControlAppearance.Secondary,
-            Margin = new Thickness(0, 4, 0, 0),
-            Padding = new Thickness(8, 4, 8, 4),
-            ToolTip = "Add a custom action slot (max 8)",
-            Tag = "addSlotBtn",
-        };
-        addSlotBtn.Click += (_, _) =>
+        var addSlotBtn = UiKit.LinkRow(MaterialIconKind.Plus, "Add slot", accent: true, () =>
         {
             int slotCount = 0;
             foreach (var c in customPanel.Children)
@@ -796,12 +723,25 @@ public partial class OsdView : UserControl
             AddCustomSlotRow(customPanel, new CustomWheelSlot());
             _debounceTimer.Stop();
             _debounceTimer.Start();
-        };
+        }, "Add a custom action slot (max 8)");
+        addSlotBtn.Tag = "addSlotBtn";
+        addSlotBtn.HorizontalAlignment = HorizontalAlignment.Left;
+        addSlotBtn.Margin = new Thickness(-8, 2, 0, 0);
         customPanel.Children.Add(addSlotBtn);
         body.Children.Add(customPanel);
 
         WheelRowsPanel.Children.Add(wrapper);
         RenumberWheels();
+        UpdateWheelSubtitle(state);
+    }
+
+    private static void UpdateWheelSubtitle(WheelRowState st)
+    {
+        if (st.Subtitle == null) return;
+        string trig = (st.TriggerCombo?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "";
+        string mode = WheelModeLabels[Math.Clamp(st.ModeIdx, 0, WheelModeLabels.Length - 1)];
+        st.Subtitle.Text = string.IsNullOrEmpty(trig) ? mode : $"Hold {trig}  ·  {mode}";
+        st.Subtitle.Visibility = Visibility.Visible;
     }
 
     private void RenumberWheels()
@@ -810,6 +750,8 @@ public partial class OsdView : UserControl
         foreach (var child in WheelRowsPanel.Children)
             if (child is FrameworkElement fe && fe.Tag is WheelRowState st)
                 st.Title.Text = $"Wheel {n++}";
+        if (_wheelCountText != null)
+            _wheelCountText.Text = n - 1 == 1 ? "1 wheel" : $"{n - 1} wheels";
     }
 
     private void AddCustomSlotRow(StackPanel customPanel, CustomWheelSlot slot)
@@ -864,22 +806,12 @@ public partial class OsdView : UserControl
         Grid.SetColumn(labelBox, 2);
         slotRow.Children.Add(labelBox);
 
-        var removeSlotBtn = new Wpf.Ui.Controls.Button
-        {
-            Content = "✕",
-            Appearance = Wpf.Ui.Controls.ControlAppearance.Secondary,
-            Width = 24, Height = 24,
-            Padding = new Thickness(0),
-            FontSize = 10,
-            ToolTip = "Remove this slot",
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        removeSlotBtn.Click += (_, _) =>
+        var removeSlotBtn = UiKit.IconButton(MaterialIconKind.Close, "Remove this slot", _ =>
         {
             customPanel.Children.Remove(slotRow);
             _debounceTimer.Stop();
             _debounceTimer.Start();
-        };
+        }, danger: true, size: 24);
         Grid.SetColumn(removeSlotBtn, 4);
         slotRow.Children.Add(removeSlotBtn);
 
