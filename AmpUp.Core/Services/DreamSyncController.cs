@@ -146,6 +146,7 @@ public class DreamSyncController : IDisposable
         _lastSegmentColors.Clear();
         _smoothState.Clear();
         _adaptLum = -1f;
+        _dynFactor = 1f;
     }
 
     public DreamSyncController(ScreenSyncConfig config, AmbienceConfig ambience, IScreenCapture capture)
@@ -1153,10 +1154,11 @@ public class DreamSyncController : IDisposable
 
     // Slow-moving "what the scene has been like" luminance, for dynamic brightness.
     private float _adaptLum = -1f;
+    private float _dynFactor = 1f;
 
     /// <summary>
     /// Returns a brightness multiplier from how the current edge luminance compares with the
-    /// last ~2 s. Brighter than recent → up to 1.5x; darker → down to 0.4x. Steady scenes
+    /// last ~4 s. Brighter than recent → up to 1.25x; darker → down to 0.65x. Steady scenes
     /// settle back to 1x as the adaptation catches up.
     /// </summary>
     private float UpdateDynamicBrightness((byte R, byte G, byte B)[,] grid, int cols, int rows, int frameMs)
@@ -1173,12 +1175,16 @@ public class DreamSyncController : IDisposable
 
         if (_adaptLum < 0) { _adaptLum = lum; return 1f; }
         // ~2 s time constant regardless of FPS.
-        float k = 1f - MathF.Exp(-frameMs / 2000f);
+        float k = 1f - MathF.Exp(-frameMs / 4000f); // ~4 s adaptation
         _adaptLum += (lum - _adaptLum) * k;
 
         const float floor = 0.02f; // don't amplify near-black noise
         float ratio = (lum + floor) / (_adaptLum + floor);
-        return Math.Clamp(MathF.Pow(ratio, 0.6f), 0.4f, 1.5f);
+        float target = Math.Clamp(MathF.Pow(ratio, 0.35f), 0.65f, 1.25f);
+        // Ease the multiplier itself (~300 ms) so it never jumps frame to frame.
+        float e = 1f - MathF.Exp(-frameMs / 300f);
+        _dynFactor += (target - _dynFactor) * e;
+        return _dynFactor;
     }
 
     private static (byte R, byte G, byte B) ScaleColor((byte R, byte G, byte B) c, float f)
