@@ -106,27 +106,12 @@ internal sealed class DxgiDesktopDuplicator : IDisposable
                         D3D11.D3D11CreateDevice(adapter, DriverType.Unknown, DeviceCreationFlags.BgraSupport,
                             fl, out _device, out _context).CheckError();
 
-                        // Prefer IDXGIOutput5.DuplicateOutput1 so HDR desktops arrive as FP16
-                        // scRGB instead of a driver-converted (washed out / clipped) BGRA8.
-                        string api = "DuplicateOutput1";
-                        using (var output5 = output.QueryInterfaceOrNull<IDXGIOutput5>())
-                        {
-                            if (output5 != null)
-                            {
-                                try
-                                {
-                                    _duplication = output5.DuplicateOutput1(_device, 0,
-                                        new[] { Format.R16G16B16A16_Float, Format.B8G8R8A8_UNorm });
-                                }
-                                catch { _duplication = null; }
-                            }
-                        }
-                        if (_duplication == null)
-                        {
-                            api = "DuplicateOutput";
-                            using var output1 = output.QueryInterface<IDXGIOutput1>();
+                        // NOTE: do NOT use IDXGIOutput5.DuplicateOutput1 — Vortice 3.6.2's binding
+                        // AccessViolates (uncatchable, kills the process). Plain DuplicateOutput already
+                        // returns FP16 scRGB on HDR desktops, which the tone-map path below handles.
+                        string api = "DuplicateOutput";
+                        using (var output1 = output.QueryInterface<IDXGIOutput1>())
                             _duplication = output1.DuplicateOutput(_device);
-                        }
 
                         var dd = _duplication.Description;
                         var fmt = dd.ModeDescription.Format;
