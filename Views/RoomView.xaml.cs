@@ -469,7 +469,7 @@ public partial class RoomView : UserControl
     // ██  CARD 1: ROOM LIGHTING (unified)
     // ══════════════════════════════════════════════════════════════════
 
-    private int _roomTabIndex = 0; // 0=Room Effect, 1=Devices
+    private int _roomTabIndex = 0; // 0=Room Effect, 1=Devices, 2=Screen Sync
     private StackPanel? _roomTabContent;
 
     private StackPanel? _screenSyncSettingsPanel;
@@ -498,7 +498,7 @@ public partial class RoomView : UserControl
             Padding = new Thickness(8, 6, 8, 6),
         };
         var accent = ThemeManager.Accent;
-        var tabNames = new[] { "ROOM EFFECT", "DEVICES" };
+        var tabNames = new[] { "ROOM EFFECT", "DEVICES", "SCREEN SYNC" };
         var tabCount = tabNames.Length;
         var tabBorders = new Border[tabCount];
 
@@ -608,13 +608,21 @@ public partial class RoomView : UserControl
             BuildTabToggleRow(toggleRow, _roomTabIndex);
             _toggleRowContainer.Children.Add(toggleRow);
             BuildToggleSettingsRow(_toggleRowContainer);
-            RebuildScreenSyncSettingsPanel(); // BuildRoomEffectTab parents it at the bottom
+        }
+
+        // Screen Sync preview/status timers only live while the SCREEN SYNC tab is shown
+        if (_roomTabIndex != 2)
+        {
+            StopScreenSyncPreviewTimers();
+            _screenSyncSettingsPanel = null;
+            _screenSyncTileStatusUpdater = null;
         }
 
         switch (_roomTabIndex)
         {
             case 0: BuildRoomEffectTab(_roomTabContent); break;
             case 1: BuildDevicesTab(_roomTabContent); break;
+            case 2: BuildScreenSyncTab(_roomTabContent); break;
         }
         _loading = false;
 
@@ -657,23 +665,6 @@ public partial class RoomView : UserControl
         _loading = false;
     }
 
-    /// <summary>
-    /// (Re)creates the SCREEN SYNC settings card + its status/preview timers.
-    /// Split out of BuildTabToggleRow so RefreshToggleRow can rebuild the
-    /// toggle tiles without recreating this panel (and its timers).
-    /// </summary>
-    private void RebuildScreenSyncSettingsPanel()
-    {
-        if (_screenSyncSettingsPanel != null)
-            _roomTabContent?.Children.Remove(_screenSyncSettingsPanel);
-        var ssInner = new StackPanel();
-        BuildScreenSyncSettings(ssInner, (status, active) => _screenSyncTileStatusUpdater?.Invoke(status, active));
-        var ssCard = MakeSectionCard("SCREEN SYNC", ssInner);
-        ssCard.Margin = new Thickness(0, 8, 0, 0);
-        _screenSyncSettingsPanel = new StackPanel();
-        _screenSyncSettingsPanel.Children.Add(ssCard);
-    }
-
     private void BuildTabToggleRow(WrapPanel row, int tabIndex)
     {
         if (tabIndex != 0 || _config == null) return; // Only Room Effect tab has toggle row
@@ -710,60 +701,7 @@ public partial class RoomView : UserControl
                 QueueSave(); RefreshToggleRow();
             }, Color.FromRgb(0xFF, 0x40, 0x81)));
 
-        // Screen Sync
-        bool syncRunning = _config.Ambience.ScreenSync.Enabled;
-        var screenSyncTile = BuildToggleTile("⬛", "SCREEN SYNC", "Capture screen colors to room lights",
-            syncRunning, on =>
-            {
-                if (_loading || _config == null) return;
-                _config.Ambience.ScreenSync.Enabled = on;
-                // A manual toggle is the user's choice — Game Mode must not undo it on game exit.
-                _config.Ambience.GameModeOwnsScreenSync = false;
-                if (on)
-                {
-                    // Stop everything so screen sync has exclusive control
-                    StopCorsairMusicSync();
-                    StopVuFill();
-                    ResumeAllGoveeSync();
-                    StopRoomPattern();
-                    _config.Ambience.LinkToLights = false;
-                    if (_config.Corsair.Enabled)
-                        _config.Corsair.LightSyncMode = "dreamview";
-                }
-                else
-                {
-                    // DreamSync.Stop() disables segments — clear AmbienceSync tracking
-                    _sync?.ClearAllSegmentTracking();
-                    if (_config.Corsair.Enabled)
-                        _config.Corsair.LightSyncMode = "vu_reactive";
-                    // Restart the room effect if one was selected
-                    if (_activePattern != null && _activePattern != "__sync__")
-                        StartRoomPattern(_activePattern);
-                }
-                _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-                QueueSave();
-                RefreshToggleRow(); // update Music Reactive / VU Fill toggle states
-            }, Color.FromRgb(0x44, 0x8A, 0xFF),
-            syncRunning ? "ACTIVE" : "STANDBY",
-            out var statusUpdater);
-        _screenSyncTileStatusUpdater = statusUpdater; // settings panel's status timer routes through this
-        row.Children.Add(screenSyncTile);
-
-        // Game Mode — auto-enable screen sync when fullscreen app detected
-        bool gameMode = _config.Ambience.GameModeEnabled;
-        row.Children.Add(BuildToggleTile("🎮", "GAME MODE", gameMode
-                ? "Screen sync activates in fullscreen apps"
-                : "Auto-sync when fullscreen game detected",
-            gameMode, on =>
-            {
-                if (_loading || _config == null) return;
-                _config.Ambience.GameModeEnabled = on;
-                QueueSave();
-            }, Color.FromRgb(0xFF, 0x6B, 0x35)));
-
-        // Screen Sync settings panel (always visible with live preview) is built
-        // by RebuildScreenSyncSettingsPanel — kept out of this method so toggle
-        // clicks can rebuild the tile row without recreating the panel + timers.
+        // Screen Sync + Game Mode tiles live in the SCREEN SYNC tab (BuildScreenSyncTab).
     }
 
     // ── ROOM EFFECT TAB (unified: effect + palette + direction + canvas) ──
@@ -1500,9 +1438,6 @@ public partial class RoomView : UserControl
 
         // SPEED and BRIGHTNESS sliders are in the toggle settings row (BuildToggleSettingsRow)
 
-        // Screen Sync settings (if enabled) — below the cards
-        if (_screenSyncSettingsPanel != null)
-            stack.Children.Add(_screenSyncSettingsPanel);
     }
 
     // ── TEMPERATURE TAB (normal white room lighting) ──────────
@@ -3996,48 +3931,230 @@ public partial class RoomView : UserControl
         _screenSyncPreviewTimer = null;
     }
 
+    // ── SCREEN SYNC TAB ────────────────────────────────────────────────
+
+    private void BuildScreenSyncTab(StackPanel stack)
+    {
+        if (_config == null) return;
+
+        // ── Header row: SCREEN SYNC + GAME MODE tiles side by side ──
+        var tileGrid = new Grid { Margin = new Thickness(0, 0, 0, 2) };
+        tileGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        tileGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        bool syncRunning = _config.Ambience.ScreenSync.Enabled;
+        var screenSyncTile = BuildToggleTile("⬛", "SCREEN SYNC", "Lights follow your screen",
+            syncRunning, on =>
+            {
+                if (_loading || _config == null) return;
+                _config.Ambience.ScreenSync.Enabled = on;
+                // A manual toggle is the user's choice — Game Mode must not undo it on game exit.
+                _config.Ambience.GameModeOwnsScreenSync = false;
+                if (on)
+                {
+                    // Stop everything so screen sync has exclusive control
+                    StopCorsairMusicSync();
+                    StopVuFill();
+                    ResumeAllGoveeSync();
+                    StopRoomPattern();
+                    _config.Ambience.LinkToLights = false;
+                    if (_config.Corsair.Enabled)
+                        _config.Corsair.LightSyncMode = "dreamview";
+                }
+                else
+                {
+                    // DreamSync.Stop() disables segments — clear AmbienceSync tracking
+                    _sync?.ClearAllSegmentTracking();
+                    if (_config.Corsair.Enabled)
+                        _config.Corsair.LightSyncMode = "vu_reactive";
+                    // Restart the room effect if one was selected
+                    if (_activePattern != null && _activePattern != "__sync__")
+                        StartRoomPattern(_activePattern);
+                }
+                _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+                QueueSave();
+                // Music Reactive / VU Fill tiles live on the ROOM EFFECT tab and are
+                // rebuilt from live state whenever that tab is opened.
+            }, Color.FromRgb(0x44, 0x8A, 0xFF),
+            syncRunning ? "ACTIVE" : "STANDBY",
+            out var statusUpdater);
+        _screenSyncTileStatusUpdater = statusUpdater; // settings status timer routes through this
+        screenSyncTile.Margin = new Thickness(0, 0, 5, 8);
+        Grid.SetColumn(screenSyncTile, 0);
+        tileGrid.Children.Add(screenSyncTile);
+
+        // Game Mode — auto-enable screen sync when fullscreen app detected
+        bool gameMode = _config.Ambience.GameModeEnabled;
+        var gameTile = BuildToggleTile("🎮", "GAME MODE",
+            "Turns Screen Sync on automatically while a fullscreen game is focused (browsers & video players ignored)",
+            gameMode, on =>
+            {
+                if (_loading || _config == null) return;
+                _config.Ambience.GameModeEnabled = on;
+                QueueSave();
+            }, Color.FromRgb(0xFF, 0x6B, 0x35));
+        gameTile.Margin = new Thickness(5, 0, 0, 8);
+        Grid.SetColumn(gameTile, 1);
+        tileGrid.Children.Add(gameTile);
+
+        foreach (var t in new[] { screenSyncTile, gameTile })
+        {
+            t.MinWidth = 0;
+            if (t.Child is Grid g && g.Children.Count > 0 && g.Children[0] is StackPanel sp
+                && sp.Children.Count > 1 && sp.Children[1] is TextBlock sub)
+                sub.TextWrapping = TextWrapping.Wrap;
+        }
+        stack.Children.Add(tileGrid);
+
+        // ── Settings cards ──
+        _screenSyncSettingsPanel = new StackPanel();
+        BuildScreenSyncSettings(_screenSyncSettingsPanel, (status, active) => _screenSyncTileStatusUpdater?.Invoke(status, active));
+        stack.Children.Add(_screenSyncSettingsPanel);
+    }
+
+    /// <summary>Pill-style single-select row (matches the DIRECTION pills).</summary>
+    private WrapPanel MakeScreenSyncPillRow(string[] labels, int activeIdx, Action<int> onSelect)
+    {
+        var row = new WrapPanel { Orientation = Orientation.Horizontal };
+        var pills = new Border[labels.Length];
+        int current = activeIdx;
+        void Paint()
+        {
+            var accent = ThemeManager.Accent;
+            for (int i = 0; i < pills.Length; i++)
+            {
+                bool active = i == current;
+                pills[i].Background = active
+                    ? new SolidColorBrush(Color.FromArgb(0x38, accent.R, accent.G, accent.B))
+                    : FindBrush("InputBgBrush");
+                pills[i].BorderBrush = active
+                    ? new SolidColorBrush(Color.FromArgb(0x80, accent.R, accent.G, accent.B))
+                    : FindBrush("InputBorderBrush");
+                if (pills[i].Child is TextBlock tb)
+                    tb.Foreground = active ? new SolidColorBrush(accent) : FindBrush("TextSecBrush");
+            }
+        }
+        for (int i = 0; i < labels.Length; i++)
+        {
+            int idx = i;
+            var pill = new Border
+            {
+                CornerRadius = new CornerRadius(14),
+                Padding = new Thickness(14, 6, 14, 6),
+                Margin = new Thickness(0, 0, 6, 0),
+                MinWidth = 48,
+                Cursor = Cursors.Hand,
+                BorderThickness = new Thickness(1),
+                Child = new TextBlock
+                {
+                    Text = labels[i], FontSize = 10, FontWeight = FontWeights.SemiBold,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                },
+            };
+            pill.MouseLeftButtonDown += (_, _) =>
+            {
+                if (current == idx) return;
+                current = idx;
+                Paint();
+                onSelect(idx);
+            };
+            pills[i] = pill;
+            row.Children.Add(pill);
+        }
+        Paint();
+        return row;
+    }
+
+    /// <summary>Compact accent-aware on/off switch. Returns the switch + a visual-only state setter.</summary>
+    private Border MakeScreenSyncSwitch(bool initial, Action<bool> onChanged, out Action<bool> setState, string? tooltip = null)
+    {
+        bool on = initial;
+        var knob = new System.Windows.Shapes.Ellipse
+        {
+            Width = 14, Height = 14,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var track = new Border
+        {
+            Width = 38, Height = 22,
+            CornerRadius = new CornerRadius(11),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(3),
+            Cursor = Cursors.Hand,
+            Child = knob,
+            ToolTip = tooltip,
+        };
+        void Paint()
+        {
+            var a = ThemeManager.Accent;
+            track.Background = on
+                ? new SolidColorBrush(Color.FromArgb(0x55, a.R, a.G, a.B))
+                : FindBrush("InputBgBrush");
+            track.BorderBrush = on ? new SolidColorBrush(a) : FindBrush("InputBorderBrush");
+            knob.Fill = on ? new SolidColorBrush(a) : FindBrush("TextDimBrush");
+            knob.Margin = new Thickness(on ? 16 : 0, 0, 0, 0);
+        }
+        track.MouseLeftButtonDown += (_, _) =>
+        {
+            on = !on;
+            Paint();
+            onChanged(on);
+        };
+        setState = v => { on = v; Paint(); };
+        Paint();
+        return track;
+    }
+
     private void BuildScreenSyncSettings(StackPanel stack, Action<string, bool> statusTileUpdater)
     {
         StopScreenSyncPreviewTimers();
         var cfg = _config!.Ambience.ScreenSync;
         var accent = ThemeManager.Accent;
-        var dimBrush = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A));
 
-        // Helper: make a labeled slider row (label left, slider stretches, value right)
-        StackPanel MakeSliderRow(string label, StyledSlider slider, TextBlock valLabel)
+        // Helper: labeled setting row (label + hint on the left, control on the right)
+        Grid MakeSettingRow(string label, string? hint, FrameworkElement control)
         {
-            var outer = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
-            outer.Children.Add(new TextBlock { Text = label, FontSize = 9, FontWeight = FontWeights.SemiBold,
-                Foreground = dimBrush, Margin = new Thickness(0, 0, 0, 4) });
-            var dock = new DockPanel();
+            var g = new Grid { Margin = new Thickness(0, 0, 0, 12) };
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+            left.Children.Add(new TextBlock { Text = label, FontSize = 11, FontWeight = FontWeights.SemiBold,
+                Foreground = FindBrush("TextPrimaryBrush") });
+            if (hint != null)
+                left.Children.Add(new TextBlock { Text = hint, FontSize = 10, TextWrapping = TextWrapping.Wrap,
+                    Foreground = FindBrush("TextDimBrush"), Margin = new Thickness(0, 2, 0, 0) });
+            Grid.SetColumn(left, 0);
+            g.Children.Add(left);
+            control.VerticalAlignment = VerticalAlignment.Center;
+            Grid.SetColumn(control, 1);
+            g.Children.Add(control);
+            return g;
+        }
+
+        // Helper: slider block (label + value on top, slider full width)
+        StackPanel MakeSliderBlock(string label, string tooltip, StyledSlider slider, TextBlock valLabel)
+        {
+            var outer = new StackPanel { Margin = new Thickness(0, 0, 0, 12), ToolTip = tooltip };
+            var head = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
+            valLabel.FontWeight = FontWeights.SemiBold;
             valLabel.Margin = new Thickness(8, 0, 0, 0);
             DockPanel.SetDock(valLabel, Dock.Right);
-            dock.Children.Add(valLabel);
+            head.Children.Add(valLabel);
+            head.Children.Add(new TextBlock { Text = label, FontSize = 11, FontWeight = FontWeights.SemiBold,
+                Foreground = FindBrush("TextPrimaryBrush"), VerticalAlignment = VerticalAlignment.Center });
+            outer.Children.Add(head);
             slider.HorizontalAlignment = HorizontalAlignment.Stretch;
-            dock.Children.Add(slider);
-            outer.Children.Add(dock);
+            outer.Children.Add(slider);
             return outer;
         }
 
-        // Helper: make a labeled combo row
-        StackPanel MakeComboRow(string label, ComboBox combo)
-        {
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-            row.Children.Add(new TextBlock { Text = label, FontSize = 10, FontWeight = FontWeights.SemiBold,
-                Foreground = dimBrush, VerticalAlignment = VerticalAlignment.Center, Width = 90 });
-            row.Children.Add(combo);
-            return row;
-        }
+        // ══════════════════ SOURCE ══════════════════
+        var sourceBody = new StackPanel();
 
-        // ══════════════════════════════════════════════════════════════
-        // Single-column layout: config row → sliders → full-width preview
-        // ══════════════════════════════════════════════════════════════
-        var leftCol = new StackPanel();
-
-        // Monitor
         var screens = System.Windows.Forms.Screen.AllScreens;
         var friendlyNames = NativeMethods.GetMonitorFriendlyNames();
-        var monitorCombo = new ComboBox { MinWidth = 160, MaxWidth = 280 };
+        var monitorCombo = new ComboBox { MinWidth = 180, MaxWidth = 280 };
         for (int i = 0; i < screens.Length; i++)
         {
             var screen = screens[i];
@@ -4055,48 +4172,54 @@ public partial class RoomView : UserControl
             _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
             QueueSave();
         };
-        leftCol.Children.Add(MakeComboRow("MONITOR", monitorCombo));
+        sourceBody.Children.Add(MakeSettingRow("Monitor", "Screen to capture colors from", monitorCombo));
 
-        // FPS + Zones on same row
-        var fpsZoneRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-        fpsZoneRow.Children.Add(new TextBlock { Text = "FPS", FontSize = 10, FontWeight = FontWeights.SemiBold,
-            Foreground = dimBrush, VerticalAlignment = VerticalAlignment.Center, Width = 90 });
-        var fpsCombo = new ComboBox { Width = 75, Margin = new Thickness(0, 0, 16, 0) };
-        fpsCombo.Items.Add("15"); fpsCombo.Items.Add("30"); fpsCombo.Items.Add("60");
-        fpsCombo.SelectedIndex = cfg.TargetFps switch { 15 => 0, 60 => 2, _ => 1 };
-        fpsCombo.SelectionChanged += (_, _) =>
+        var fpsPills = MakeScreenSyncPillRow(new[] { "15", "30", "60" },
+            cfg.TargetFps switch { 15 => 0, 60 => 2, _ => 1 }, idx =>
+            {
+                if (_loading || _config == null) return;
+                _config.Ambience.ScreenSync.TargetFps = idx switch { 0 => 15, 2 => 60, _ => 30 };
+                _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+                QueueSave();
+            });
+        sourceBody.Children.Add(MakeSettingRow("Frame rate", "Capture updates per second", fpsPills));
+
+        // ZoneCount = capture grid column count in DreamSyncController (ScreenCapture accepts 4/8/16)
+        var zonePills = MakeScreenSyncPillRow(new[] { "4", "8", "16" },
+            cfg.ZoneCount switch { 4 => 0, 16 => 2, _ => 1 }, idx =>
+            {
+                if (_loading || _config == null) return;
+                _config.Ambience.ScreenSync.ZoneCount = idx switch { 0 => 4, 2 => 16, _ => 8 };
+                _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+                RebuildZonePreview(stack);
+                QueueSave();
+            });
+        sourceBody.Children.Add(MakeSettingRow("Zones", "Sampling columns across the screen", zonePills));
+
+        var cropSwitch = MakeScreenSyncSwitch(cfg.CropBlackBars, on =>
         {
             if (_loading || _config == null) return;
-            _config.Ambience.ScreenSync.TargetFps = fpsCombo.SelectedIndex switch { 0 => 15, 2 => 60, _ => 30 };
+            _config.Ambience.ScreenSync.CropBlackBars = on;
             _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
             QueueSave();
-        };
-        fpsZoneRow.Children.Add(fpsCombo);
-        fpsZoneRow.Children.Add(new TextBlock { Text = "ZONES", FontSize = 10, FontWeight = FontWeights.SemiBold,
-            Foreground = dimBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
-        var zoneCombo = new ComboBox { Width = 75 };
-        zoneCombo.Items.Add("4"); zoneCombo.Items.Add("8"); zoneCombo.Items.Add("16");
-        zoneCombo.SelectedIndex = cfg.ZoneCount switch { 4 => 0, 16 => 2, _ => 1 };
-        zoneCombo.SelectionChanged += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Ambience.ScreenSync.ZoneCount = zoneCombo.SelectedIndex switch { 0 => 4, 2 => 16, _ => 8 };
-            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-            RebuildZonePreview(stack);
-            QueueSave();
-        };
-        fpsZoneRow.Children.Add(zoneCombo);
-        leftCol.Children.Add(fpsZoneRow);
+        }, out var setCropState,
+        "Auto-detect and ignore pillarbox/letterbox black bars\n(for 16:9 content on ultrawide monitors)");
+        var cropRow = MakeSettingRow("Crop black bars", "Ignore pillarbox / letterbox bars", cropSwitch);
+        cropRow.Margin = new Thickness(0);
+        sourceBody.Children.Add(cropRow);
 
-        // Saturation slider
+        var sourceCard = MakeSectionCard("SOURCE", sourceBody);
+
+        // ══════════════════ LOOK ══════════════════
+        var lookBody = new StackPanel();
+
         var satSlider = new StyledSlider
         {
             Minimum = 50, Maximum = 300, Value = (int)(cfg.Saturation * 100),
             Height = 28, AccentColor = accent, ShowLabel = false,
         };
         var satLabel = new TextBlock { Text = $"{cfg.Saturation:F1}×", FontSize = 11,
-            Foreground = new SolidColorBrush(accent),
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+            Foreground = new SolidColorBrush(accent), VerticalAlignment = VerticalAlignment.Center };
         satSlider.ValueChanged += (_, _) =>
         {
             if (_loading || _config == null) return;
@@ -4105,16 +4228,15 @@ public partial class RoomView : UserControl
             _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
             QueueSave();
         };
+        lookBody.Children.Add(MakeSliderBlock("Saturation", "Boost the color intensity of captured colors", satSlider, satLabel));
 
-        // Sensitivity slider
         var sensSlider = new StyledSlider
         {
             Minimum = 1, Maximum = 20, Value = cfg.Sensitivity,
             Height = 28, AccentColor = accent, ShowLabel = false,
         };
         var sensLabel = new TextBlock { Text = $"{cfg.Sensitivity}", FontSize = 11,
-            Foreground = new SolidColorBrush(accent),
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+            Foreground = new SolidColorBrush(accent), VerticalAlignment = VerticalAlignment.Center };
         sensSlider.ValueChanged += (_, _) =>
         {
             if (_loading || _config == null) return;
@@ -4123,91 +4245,49 @@ public partial class RoomView : UserControl
             _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
             QueueSave();
         };
+        lookBody.Children.Add(MakeSliderBlock("Sensitivity (higher = more responsive)",
+            "Higher values react faster to on-screen changes; lower values are smoother", sensSlider, sensLabel));
 
-        // Corsair brightness (declared outside if so grid code can reference)
-        StyledSlider? corsairBrightSlider = null;
-        TextBlock? corsairBrightLabel = null;
         if (_config!.Corsair.Enabled)
         {
-            corsairBrightSlider = new StyledSlider
+            var cbs = new StyledSlider
             {
                 Minimum = 1, Maximum = 100, Value = Math.Min(_config.Corsair.LightBrightness, 100),
                 Height = 28, AccentColor = accent, ShowLabel = false,
             };
-            corsairBrightLabel = new TextBlock { Text = $"{_config.Corsair.LightBrightness}%", FontSize = 11,
-                Foreground = new SolidColorBrush(accent),
-                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
-            var cbs = corsairBrightSlider; var cbl = corsairBrightLabel;
-            corsairBrightSlider.ValueChanged += (_, _) =>
+            var cbl = new TextBlock { Text = $"{_config.Corsair.LightBrightness}%", FontSize = 11,
+                Foreground = new SolidColorBrush(accent), VerticalAlignment = VerticalAlignment.Center };
+            cbs.ValueChanged += (_, _) =>
             {
                 if (_config == null) return;
                 _config.Corsair.LightBrightness = (int)cbs.Value;
                 cbl.Text = $"{(int)cbs.Value}%";
                 QueueSave();
             };
+            lookBody.Children.Add(MakeSliderBlock("iCUE brightness", "Brightness of Corsair iCUE devices", cbs, cbl));
         }
+        if (lookBody.Children[lookBody.Children.Count - 1] is FrameworkElement lastLook)
+            lastLook.Margin = new Thickness(0);
 
-        // Crop Black Bars toggle
-        var cropRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 0) };
-        cropRow.Children.Add(new Border { Width = 90 }); // align with labels
-        var cropCheck = new CheckBox
-        {
-            Content = "Crop Black Bars",
-            IsChecked = cfg.CropBlackBars,
-            Foreground = FindBrush("TextSecBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = "Auto-detect and ignore pillarbox/letterbox black bars\n(for 16:9 content on ultrawide monitors)",
-        };
-        cropCheck.Checked += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Ambience.ScreenSync.CropBlackBars = true;
-            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-            QueueSave();
-        };
-        cropCheck.Unchecked += (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            _config.Ambience.ScreenSync.CropBlackBars = false;
-            _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-            QueueSave();
-        };
-        cropRow.Children.Add(cropCheck);
-        leftCol.Children.Add(cropRow);
+        var lookCard = MakeSectionCard("LOOK", lookBody);
 
-        // ── Sliders row: Saturation + Sensitivity + iCUE in a grid ──
-        var sliderGrid = new Grid { Margin = new Thickness(0, 4, 0, 8) };
-        int sCol = 0;
+        var topGrid = new Grid();
+        topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        sourceCard.Margin = new Thickness(0, 0, 5, 10);
+        lookCard.Margin = new Thickness(5, 0, 0, 10);
+        Grid.SetColumn(sourceCard, 0);
+        Grid.SetColumn(lookCard, 1);
+        topGrid.Children.Add(sourceCard);
+        topGrid.Children.Add(lookCard);
+        stack.Children.Add(topGrid);
 
-        // Saturation
-        sliderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var satCell = MakeSliderRow("SATURATION", satSlider, satLabel);
-        satCell.Margin = new Thickness(0, 0, 12, 0);
-        Grid.SetColumn(satCell, sCol++);
-        sliderGrid.Children.Add(satCell);
-
-        // Sensitivity
-        sliderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var sensCell = MakeSliderRow("SENSITIVITY", sensSlider, sensLabel);
-        sensCell.Margin = new Thickness(0, 0, 12, 0);
-        Grid.SetColumn(sensCell, sCol++);
-        sliderGrid.Children.Add(sensCell);
-
-        // Corsair brightness (if enabled)
-        if (corsairBrightSlider != null && corsairBrightLabel != null)
-        {
-            sliderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            var corsairCell = MakeSliderRow("iCUE BRIGHTNESS", corsairBrightSlider, corsairBrightLabel);
-            Grid.SetColumn(corsairCell, sCol++);
-            sliderGrid.Children.Add(corsairCell);
-        }
-
-        leftCol.Children.Add(sliderGrid);
-
-        // ── Full-width live preview ──
+        // ══════════════════ PREVIEW ══════════════════
         _screenEdgeControl = new Controls.ScreenEdgeControl
         {
-            Height = 220,
+            Height = 300,
+            MaxWidth = 720,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         _screenEdgeControl.SetContentBounds(cfg.ContentBounds);
         _screenEdgeControl.ContentBoundsChanged += bounds =>
@@ -4217,7 +4297,7 @@ public partial class RoomView : UserControl
             // CropBlackBars = true when auto-detecting OR when user has manual crop set
             bool hasCrop = bounds.AutoDetect || bounds.LeftPct > 0 || bounds.RightPct > 0 || bounds.TopPct > 0 || bounds.BottomPct > 0;
             _config.Ambience.ScreenSync.CropBlackBars = hasCrop;
-            cropCheck.IsChecked = hasCrop;
+            setCropState(hasCrop);
             _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
             QueueSave();
         };
@@ -4232,30 +4312,34 @@ public partial class RoomView : UserControl
             };
             _dreamSync.OnZoneGrid += _screenSyncZoneGridHandler;
         }
-        leftCol.Children.Add(_screenEdgeControl);
 
         _dreamStatusLabel = new TextBlock
         {
             Text = _dreamSync?.Status ?? "Stopped",
-            FontSize = 10,
-            Foreground = FindBrush("TextDimBrush"),
+            FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextSecBrush"),
             HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 4, 0, 0),
+            Margin = new Thickness(0, 8, 0, 0),
         };
-        leftCol.Children.Add(_dreamStatusLabel);
+        var previewBody = new StackPanel();
+        previewBody.Children.Add(_screenEdgeControl);
+        previewBody.Children.Add(_dreamStatusLabel);
+        previewBody.Children.Add(new TextBlock
+        {
+            Text = "Drag the crop lines to set content boundaries",
+            FontSize = 10, Foreground = FindBrush("TextDimBrush"),
+            HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 2, 0, 0),
+        });
+        stack.Children.Add(MakeSectionCard("PREVIEW", previewBody));
 
-        stack.Children.Add(leftCol);
-
-        // Status update timer — updates status label and Game Mode badge.
+        // Status update timer — updates status label and the SCREEN SYNC tile badge.
         // When sync isn't running the preview timer owns the status label
         // (sets it to "Preview"), so only write _dreamSync.Status here when
-        // sync is actually running, otherwise the two timers fight and the
-        // label flashes between "Preview" and "Stopped" every second.
+        // sync is actually running, otherwise the two timers fight.
         _screenSyncStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _screenSyncStatusTimer.Tick += (_, _) =>
         {
-            // Visibility guard — the window hooks quiesce this timer on hide,
-            // but it also shouldn't do work while another tab is active.
             if (!this.IsVisible) return;
             if (Window.GetWindow(this)?.WindowState == WindowState.Minimized) return;
             if (_dreamStatusLabel != null && _dreamSync != null && _dreamSync.IsRunning)
@@ -4265,15 +4349,9 @@ public partial class RoomView : UserControl
         };
         _screenSyncStatusTimer.Start();
 
-        // Preview capture timer — low-FPS screen capture when sync isn't actively running
-        // so the user always sees a live preview of the selected monitor.
-        //
-        // IsVisible is used instead of .Visibility because .Visibility on
-        // _screenSyncSettingsPanel stays Visible when the user navigates to
-        // another tab (only the outer RoomView control gets hidden). IsVisible
-        // walks the ancestor chain and returns false the moment the RoomView
-        // tab isn't active — which stops the expensive GDI screen capture
-        // from running 5x per second on a hidden tab.
+        // Preview capture timer — low-FPS screen capture when sync isn't actively running.
+        // IsVisible walks the ancestor chain, so the GDI capture stops the moment the
+        // Room page (or this tab) isn't shown. Timers are also stopped on tab switch.
         _screenSyncPreviewTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) }; // ~5 FPS
         _screenSyncPreviewTimer.Tick += (_, _) =>
         {
@@ -4302,138 +4380,127 @@ public partial class RoomView : UserControl
         // immediately re-apply the quiesce state so the fresh timers don't run.
         UpdateScreenSyncTimersForWindowState();
 
-        // ── Device Zone Mapping ──
-        if (_config!.Ambience.GoveeDevices.Count > 0)
+        // ══════════════════ DEVICES ══════════════════
+        var devBody = new StackPanel();
+        bool hasMonitor = _config.RoomLayout.Monitor != null;
+        int devRows = 0;
+        foreach (var goveeDevice in _config.Ambience.GoveeDevices)
         {
-            stack.Children.Add(MakeSeparator());
-            stack.Children.Add(MakeSubLabel("DEVICE ZONE MAPPING"));
+            if (string.IsNullOrWhiteSpace(goveeDevice.Ip)) continue;
 
-            bool hasMonitor = _config.RoomLayout.Monitor != null;
-
-            foreach (var goveeDevice in _config.Ambience.GoveeDevices)
+            int segCount = AmbienceSync.GetSegmentCount(goveeDevice);
+            var mapping = cfg.DeviceMappings.FirstOrDefault(m => m.DeviceIp == goveeDevice.Ip);
+            if (mapping == null)
             {
-                if (string.IsNullOrWhiteSpace(goveeDevice.Ip)) continue;
-
-                var mapRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
-
-                var devName = new TextBlock
-                {
-                    Text = !string.IsNullOrWhiteSpace(goveeDevice.Name) ? goveeDevice.Name : goveeDevice.Ip,
-                    FontSize = 12, FontWeight = FontWeights.SemiBold,
-                    Foreground = FindBrush("TextPrimaryBrush"),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Width = 140,
-                    TextTrimming = TextTrimming.CharacterEllipsis,
-                };
-                mapRow.Children.Add(devName);
-
-                int segCount = AmbienceSync.GetSegmentCount(goveeDevice);
-                var mapping = cfg.DeviceMappings.FirstOrDefault(m => m.DeviceIp == goveeDevice.Ip);
-                if (mapping == null)
-                {
-                    mapping = new ZoneDeviceMapping { DeviceIp = goveeDevice.Ip, Side = ZoneSide.Full };
-                    cfg.DeviceMappings.Add(mapping);
-                }
-                var capturedMapping = mapping;
-
-                if (segCount > 0 && goveeDevice.UseSegmentProtocol)
-                {
-                    mapRow.Children.Add(new TextBlock
-                    {
-                        Text = $"{segCount} seg",
-                        FontSize = 10,
-                        Foreground = FindBrush("TextDimBrush"),
-                        VerticalAlignment = VerticalAlignment.Center,
-                        Margin = new Thickness(0, 0, 8, 0),
-                    });
-                }
-
-                // Auto spatial checkbox — derive zone from room position
-                var autoLabel = new TextBlock
-                {
-                    FontSize = 10, Foreground = FindBrush("TextSecBrush"),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(4, 0, 8, 0),
-                    Text = mapping.UseAutoSpatial && hasMonitor ? "auto" : "",
-                };
-
-                var sideCombo = new ComboBox { Width = 120, Margin = new Thickness(0, 0, 8, 0) };
-                sideCombo.Items.Add("Full"); sideCombo.Items.Add("Left"); sideCombo.Items.Add("Right");
-                sideCombo.Items.Add("Top"); sideCombo.Items.Add("Bottom");
-                sideCombo.Items.Add("LeftVertical"); sideCombo.Items.Add("RightVertical");
-                sideCombo.SelectedItem = mapping.Side.ToString();
-                sideCombo.IsEnabled = !mapping.UseAutoSpatial;
-                sideCombo.SelectionChanged += (_, _) =>
-                {
-                    if (_loading || _config == null) return;
-                    if (Enum.TryParse<ZoneSide>(sideCombo.SelectedItem?.ToString(), out var side))
-                        capturedMapping.Side = side;
-                    _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-                    QueueSave();
-                };
-
-                var autoCheck = new CheckBox
-                {
-                    Content = "Auto",
-                    IsChecked = mapping.UseAutoSpatial,
-                    FontSize = 10,
-                    Foreground = FindBrush("TextSecBrush"),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(0, 0, 4, 0),
-                    IsEnabled = hasMonitor,
-                    ToolTip = hasMonitor
-                        ? "Automatically determine screen edge from device position in room layout"
-                        : "Place a monitor in the room layout to enable spatial mapping",
-                };
-                autoCheck.Checked += (_, _) =>
-                {
-                    if (_loading || _config == null) return;
-                    capturedMapping.UseAutoSpatial = true;
-                    sideCombo.IsEnabled = false;
-                    autoLabel.Text = "auto";
-                    _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-                    QueueSave();
-                };
-                autoCheck.Unchecked += (_, _) =>
-                {
-                    if (_loading || _config == null) return;
-                    capturedMapping.UseAutoSpatial = false;
-                    sideCombo.IsEnabled = true;
-                    autoLabel.Text = "";
-                    _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-                    QueueSave();
-                };
-                mapRow.Children.Add(autoCheck);
-                mapRow.Children.Add(autoLabel);
-                mapRow.Children.Add(sideCombo);
-
-                // Crop mode combo — per-device content bounds behavior
-                var cropCombo = new ComboBox { Width = 130, Margin = new Thickness(0, 0, 0, 0) };
-                cropCombo.Items.Add("Content"); cropCombo.Items.Add("Full Screen"); cropCombo.Items.Add("Ambient");
-                cropCombo.SelectedIndex = mapping.CropMode switch
-                {
-                    DeviceCropMode.FullScreen => 1,
-                    DeviceCropMode.Ambient => 2,
-                    _ => 0,
-                };
-                cropCombo.SelectionChanged += (_, _) =>
-                {
-                    if (_loading || _config == null) return;
-                    capturedMapping.CropMode = cropCombo.SelectedIndex switch
-                    {
-                        1 => DeviceCropMode.FullScreen,
-                        2 => DeviceCropMode.Ambient,
-                        _ => DeviceCropMode.Content,
-                    };
-                    _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-                    QueueSave();
-                };
-                mapRow.Children.Add(cropCombo);
-
-                stack.Children.Add(mapRow);
+                mapping = new ZoneDeviceMapping { DeviceIp = goveeDevice.Ip, Side = ZoneSide.Full };
+                cfg.DeviceMappings.Add(mapping);
             }
-        }
+            var capturedMapping = mapping;
 
+            var rowBorder = new Border
+            {
+                CornerRadius = new CornerRadius(8),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(12, 8, 12, 8),
+                Margin = new Thickness(0, 0, 0, 6),
+            };
+            rowBorder.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+            rowBorder.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
+
+            var rowGrid = new Grid();
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            rowBorder.Child = rowGrid;
+
+            var nameStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+            nameStack.Children.Add(new TextBlock
+            {
+                Text = !string.IsNullOrWhiteSpace(goveeDevice.Name) ? goveeDevice.Name : goveeDevice.Ip,
+                FontSize = 12, FontWeight = FontWeights.SemiBold,
+                Foreground = FindBrush("TextPrimaryBrush"),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            });
+            var subInfo = new TextBlock { FontSize = 10, Foreground = FindBrush("TextDimBrush"), Margin = new Thickness(0, 2, 0, 0) };
+            string segText = segCount > 0 && goveeDevice.UseSegmentProtocol ? $"{segCount} segments" : "Single color";
+            void UpdateSub() => subInfo.Text = capturedMapping.UseAutoSpatial && hasMonitor
+                ? $"{segText} · edge auto from room layout" : segText;
+            UpdateSub();
+            nameStack.Children.Add(subInfo);
+            Grid.SetColumn(nameStack, 0);
+            rowGrid.Children.Add(nameStack);
+
+            var controls = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetColumn(controls, 1);
+            rowGrid.Children.Add(controls);
+
+            controls.Children.Add(new TextBlock { Text = "AUTO", FontSize = 9, FontWeight = FontWeights.SemiBold,
+                Foreground = FindBrush("TextDimBrush"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
+
+            var sideCombo = new ComboBox { Width = 130, Margin = new Thickness(12, 0, 8, 0), ToolTip = "Screen edge" };
+            sideCombo.Items.Add("Full"); sideCombo.Items.Add("Left"); sideCombo.Items.Add("Right");
+            sideCombo.Items.Add("Top"); sideCombo.Items.Add("Bottom");
+            sideCombo.Items.Add("LeftVertical"); sideCombo.Items.Add("RightVertical");
+            sideCombo.SelectedItem = mapping.Side.ToString();
+            sideCombo.IsEnabled = !mapping.UseAutoSpatial;
+            sideCombo.SelectionChanged += (_, _) =>
+            {
+                if (_loading || _config == null) return;
+                if (Enum.TryParse<ZoneSide>(sideCombo.SelectedItem?.ToString(), out var side))
+                    capturedMapping.Side = side;
+                _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+                QueueSave();
+            };
+
+            var autoSwitch = MakeScreenSyncSwitch(mapping.UseAutoSpatial, on =>
+            {
+                if (_loading || _config == null) return;
+                capturedMapping.UseAutoSpatial = on;
+                sideCombo.IsEnabled = !on;
+                UpdateSub();
+                _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+                QueueSave();
+            }, out _, hasMonitor
+                ? "Automatically determine screen edge from device position in room layout"
+                : "Place a monitor in the room layout to enable spatial mapping");
+            autoSwitch.VerticalAlignment = VerticalAlignment.Center;
+            if (!hasMonitor) { autoSwitch.IsHitTestVisible = false; autoSwitch.Opacity = 0.4; }
+            controls.Children.Add(autoSwitch);
+            controls.Children.Add(sideCombo);
+
+            var cropCombo = new ComboBox { Width = 120, ToolTip = "Crop mode" };
+            cropCombo.Items.Add("Content"); cropCombo.Items.Add("Full Screen"); cropCombo.Items.Add("Ambient");
+            cropCombo.SelectedIndex = mapping.CropMode switch
+            {
+                DeviceCropMode.FullScreen => 1,
+                DeviceCropMode.Ambient => 2,
+                _ => 0,
+            };
+            cropCombo.SelectionChanged += (_, _) =>
+            {
+                if (_loading || _config == null) return;
+                capturedMapping.CropMode = cropCombo.SelectedIndex switch
+                {
+                    1 => DeviceCropMode.FullScreen,
+                    2 => DeviceCropMode.Ambient,
+                    _ => DeviceCropMode.Content,
+                };
+                _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+                QueueSave();
+            };
+            controls.Children.Add(cropCombo);
+
+            devBody.Children.Add(rowBorder);
+            devRows++;
+        }
+        if (devRows == 0)
+        {
+            devBody.Children.Add(new TextBlock
+            {
+                Text = "No LAN Govee devices yet. Add devices in the DEVICES tab to map them to screen edges.",
+                FontSize = 11, TextWrapping = TextWrapping.Wrap, Foreground = FindBrush("TextDimBrush"),
+            });
+        }
+        stack.Children.Add(MakeSectionCard("DEVICES", devBody));
     }
 
     private void RebuildZonePreview(StackPanel stack)
