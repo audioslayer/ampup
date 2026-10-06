@@ -145,6 +145,7 @@ public class DreamSyncController : IDisposable
         _segmentBrightnessResetTick.Clear();
         _lastSegmentColors.Clear();
         _smoothState.Clear();
+        _adaptLum = -1f;
     }
 
     public DreamSyncController(ScreenSyncConfig config, AmbienceConfig ambience, IScreenCapture capture)
@@ -362,6 +363,22 @@ public class DreamSyncController : IDisposable
                         {
                             _lastGridPreviewTick = nowTick;
                             OnZoneGrid?.Invoke(grid, gridCols, gridRows);
+                        }
+                    }
+
+                    // Dynamic brightness: react to the game getting brighter/darker relative to
+                    // what it has been doing (explosions / flashes punch up, dark rooms drop).
+                    // Applied after the preview so the UI still shows the real screen colours.
+                    if (grid != null)
+                    {
+                        float dyn = UpdateDynamicBrightness(grid, gridCols, gridRows, delayMs);
+                        if (Math.Abs(dyn - 1f) > 0.01f)
+                        {
+                            for (int row = 0; row < gridRows; row++)
+                                for (int col = 0; col < gridCols; col++)
+                                    grid[row, col] = ScaleColor(grid[row, col], dyn);
+                            for (int i = 0; i < zones.Length; i++)
+                                zones[i] = ScaleColor(zones[i], dyn);
                         }
                     }
 
@@ -1133,6 +1150,45 @@ public class DreamSyncController : IDisposable
     /// made the lights react LESS. 20 → 0 (every change), 13 → 1, 1 → 4.</summary>
     private static int ChangeDeadband(int sensitivity)
         => Math.Clamp((20 - Math.Clamp(sensitivity, 1, 20)) / 5, 0, 4);
+
+    // Slow-moving "what the scene has been like" luminance, for dynamic brightness.
+    private float _adaptLum = -1f;
+
+    /// <summary>
+    /// Returns a brightness multiplier from how the current edge luminance compares with the
+    /// last ~2 s. Brighter than recent → up to 1.5x; darker → down to 0.4x. Steady scenes
+    /// settle back to 1x as the adaptation catches up.
+    /// </summary>
+    private float UpdateDynamicBrightness((byte R, byte G, byte B)[,] grid, int cols, int rows, int frameMs)
+    {
+        double sum = 0;
+        for (int row = 0; row < rows; row++)
+            for (int col = 0; col < cols; col++)
+            {
+                var c = grid[row, col];
+                double r = c.R / 255.0, g = c.G / 255.0, b = c.B / 255.0;
+                sum += 0.2126 * r * r + 0.7152 * g * g + 0.0722 * b * b; // linear-ish luminance
+            }
+        float lum = (float)(sum / (rows * cols));
+
+        if (_adaptLum < 0) { _adaptLum = lum; return 1f; }
+        // ~2 s time constant regardless of FPS.
+        float k = 1f - MathF.Exp(-frameMs / 2000f);
+        _adaptLum += (lum - _adaptLum) * k;
+
+        const float floor = 0.02f; // don't amplify near-black noise
+        float ratio = (lum + floor) / (_adaptLum + floor);
+        return Math.Clamp(MathF.Pow(ratio, 0.6f), 0.4f, 1.5f);
+    }
+
+    private static (byte R, byte G, byte B) ScaleColor((byte R, byte G, byte B) c, float f)
+    {
+        // Cap the boost so the brightest channel just reaches 255 — clipping channels
+        // independently would shift the hue (orange → yellow).
+        int max = Math.Max(c.R, Math.Max(c.G, c.B));
+        if (max > 0) f = Math.Min(f, 255f / max);
+        return ((byte)(c.R * f + 0.5f), (byte)(c.G * f + 0.5f), (byte)(c.B * f + 0.5f));
+    }
 
     // Per-device smoothed colour state (linear light, 0-1). Only touched from the capture thread.
     private readonly Dictionary<string, float[]> _smoothState = new();
