@@ -49,6 +49,7 @@ public class ScreenCapture : IDisposable
 
     // Pixels darker than this (R+G+B sum) are ignored to prevent dark UI from washing out colors.
     // Set high enough to filter gray/near-black pixels that dilute saturated colors (e.g. red → pink).
+    private const int HueBinCount = 12;
     private const int DarkThreshold = 80; // ~27 per channel
 
     // Black bar detection: a column/row is "black" if fewer than this % of pixels are non-dark
@@ -563,6 +564,7 @@ public class ScreenCapture : IDisposable
             PixelFormat.Format32bppRgb);
 
         var results = new (byte R, byte G, byte B)[rows, cols];
+        var hueBins = new double[HueBinCount * 4]; // per bin: linR, linG, linB (chroma-weighted), weight
 
         try
         {
@@ -608,6 +610,7 @@ public class ScreenCapture : IDisposable
                         // bright spots is dim instead of full brightness.
                         double rLin = 0, gLin = 0, bLin = 0, lumAll = 0;
                         long count = 0, total = 0;
+                        Array.Clear(hueBins);
 
                         for (int pass = 0; pass < 2; pass++)
                         {
@@ -633,6 +636,24 @@ public class ScreenCapture : IDisposable
                                     gLin += lg;
                                     bLin += lb;
                                     count++;
+
+                                    // Hue histogram, weighted by chroma, for picking the dominant
+                                    // colour (a red sign on blue sky shouldn't average to purple).
+                                    int mx = Math.Max(pr, Math.Max(pg, pb)), mn = Math.Min(pr, Math.Min(pg, pb));
+                                    int chroma = mx - mn;
+                                    if (chroma >= 32 && chroma * 4 >= mx) // reasonably saturated
+                                    {
+                                        int h6; // hue * 6 in [0, 6*chroma)
+                                        if (mx == pr) h6 = (pg - pb + 6 * chroma) % (6 * chroma);
+                                        else if (mx == pg) h6 = pb - pr + 2 * chroma;
+                                        else h6 = pr - pg + 4 * chroma;
+                                        int bin = Math.Clamp(h6 * HueBinCount / (6 * chroma), 0, HueBinCount - 1);
+                                        int o = bin * 4;
+                                        hueBins[o] += lr * chroma;
+                                        hueBins[o + 1] += lg * chroma;
+                                        hueBins[o + 2] += lb * chroma;
+                                        hueBins[o + 3] += chroma;
+                                    }
                                 }
                             }
                         }
@@ -640,6 +661,35 @@ public class ScreenCapture : IDisposable
                         if (count > 0)
                         {
                             rLin /= count; gLin /= count; bLin /= count;
+
+                            // Dominant hue: strongest group of 3 neighbouring bins. If it owns most
+                            // of the colourful content, lean toward its average instead of the mean.
+                            double hueTotal = 0, best = 0; int bestBin = -1;
+                            for (int hb = 0; hb < HueBinCount; hb++) hueTotal += hueBins[hb * 4 + 3];
+                            for (int hb = 0; hb < HueBinCount; hb++)
+                            {
+                                double w3 = hueBins[((hb + HueBinCount - 1) % HueBinCount) * 4 + 3]
+                                    + hueBins[hb * 4 + 3] + hueBins[((hb + 1) % HueBinCount) * 4 + 3];
+                                if (w3 > best) { best = w3; bestBin = hb; }
+                            }
+                            // Ignore when colourful pixels are a tiny fraction (mostly grey edge).
+                            if (bestBin >= 0 && hueTotal > count * 8)
+                            {
+                                double dr = 0, dg = 0, db = 0;
+                                for (int k = -1; k <= 1; k++)
+                                {
+                                    int o = ((bestBin + k + HueBinCount) % HueBinCount) * 4;
+                                    dr += hueBins[o]; dg += hueBins[o + 1]; db += hueBins[o + 2];
+                                }
+                                dr /= best; dg /= best; db /= best;
+                                double dominance = best / hueTotal;          // 0.25 (even spread) .. 1
+                                double t = Math.Clamp((dominance - 0.35) / 0.35, 0, 1);
+                                // Keep the cell's overall brightness; take the dominant hue.
+                                double lm = 0.2126 * rLin + 0.7152 * gLin + 0.0722 * bLin;
+                                double ld = 0.2126 * dr + 0.7152 * dg + 0.0722 * db;
+                                if (ld > 1e-6) { double k2 = lm / ld; dr *= k2; dg *= k2; db *= k2; }
+                                rLin += (dr - rLin) * t; gLin += (dg - gLin) * t; bLin += (db - bLin) * t;
+                            }
                             double lumColor = 0.2126 * rLin + 0.7152 * gLin + 0.0722 * bLin;
                             double lumMean = lumAll / total;
                             if (lumColor > 1e-6 && lumMean < lumColor)

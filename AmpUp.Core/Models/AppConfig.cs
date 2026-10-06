@@ -731,6 +731,11 @@ public class GoveeDeviceConfig
     public bool PoweredOn { get; set; } = true;
     /// <summary>Per-device brightness scale for AmpUp-driven room/effect frames.</summary>
     public int BrightnessScale { get; set; } = 100;
+    /// <summary>Per-channel white balance for Screen Sync (50-100%). Govee LEDs often run
+    /// blue/green on white; trimming a channel makes whites look white and devices match.</summary>
+    public int WhiteBalanceR { get; set; } = 100;
+    public int WhiteBalanceG { get; set; } = 100;
+    public int WhiteBalanceB { get; set; } = 100;
 }
 
 public enum ZoneSide { Full, Left, Right, Top, Bottom, LeftVertical, RightVertical }

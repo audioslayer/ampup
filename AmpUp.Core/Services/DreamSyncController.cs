@@ -485,7 +485,7 @@ public class DreamSyncController : IDisposable
 
                                 int brightnessScale = CombinedBrightnessScale(amb.BrightnessScale, dev.BrightnessScale);
                                 for (int s = 0; s < segColors.Length; s++)
-                                    segColors[s] = ApplyBrightness(segColors[s], brightnessScale);
+                                    segColors[s] = ApplyWhiteBalance(ApplyBrightness(segColors[s], brightnessScale), dev);
 
                                 // Delta check across all segments
                                 if (SegmentColorsChanged(mapping.DeviceIp, segColors, ChangeDeadband(cfg.Sensitivity)))
@@ -503,7 +503,7 @@ public class DreamSyncController : IDisposable
                                     ? AverageRegion(grid, gridCols, gridRows, EdgeRegion(mapping.Side, gridRows))
                                     : SampleColorForSide(effectiveZones, effectiveZones.Length, mapping.Side);
                                 color = SmoothColors(mapping.DeviceIp, new[] { color })[0];
-                                color = ApplyBrightness(color, CombinedBrightnessScale(amb.BrightnessScale, dev.BrightnessScale));
+                                color = ApplyWhiteBalance(ApplyBrightness(color, CombinedBrightnessScale(amb.BrightnessScale, dev.BrightnessScale)), dev);
 
                                 int sensitivity = ChangeDeadband(cfg.Sensitivity);
                                 if (_lastSent.TryGetValue(mapping.DeviceIp, out var prev))
@@ -726,6 +726,14 @@ public class DreamSyncController : IDisposable
             (byte)(c.G * scale / 100),
             (byte)(c.B * scale / 100)
         );
+    }
+
+    private static (byte R, byte G, byte B) ApplyWhiteBalance((byte R, byte G, byte B) c, GoveeDeviceConfig dev)
+    {
+        int wr = Math.Clamp(dev.WhiteBalanceR, 0, 100), wg = Math.Clamp(dev.WhiteBalanceG, 0, 100),
+            wb = Math.Clamp(dev.WhiteBalanceB, 0, 100);
+        if (wr == 100 && wg == 100 && wb == 100) return c;
+        return ((byte)(c.R * wr / 100), (byte)(c.G * wg / 100), (byte)(c.B * wb / 100));
     }
 
     private static int CombinedBrightnessScale(int globalScale, int deviceScale)

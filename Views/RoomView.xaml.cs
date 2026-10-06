@@ -4693,6 +4693,34 @@ public partial class RoomView : UserControl
         };
         content.Children.Add(brightnessSlider);
 
+        // White balance (Screen Sync): trim R/G/B so whites look white and devices match.
+        if (devConfig != null)
+        {
+            var wbCfg = devConfig;
+            content.Children.Add(new TextBlock
+            {
+                Text = "WB", FontSize = 10, Foreground = FindBrush("TextDimBrush"),
+                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 2, 0),
+                ToolTip = "White balance for Screen Sync — lower a channel if whites look tinted on this light.",
+            });
+            StyledSlider MakeWb(System.Windows.Media.Color col, int value, Action<int> set)
+            {
+                var sl = new StyledSlider
+                {
+                    Minimum = 50, Maximum = 100, Value = Math.Clamp(value, 50, 100),
+                    Width = 78, Height = 35, Suffix = "%", AccentColor = col,
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                var deb = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+                deb.Tick += (_, _) => { deb.Stop(); set((int)sl.Value); _onSave?.Invoke(_config!); };
+                sl.ValueChanged += (_, _) => { if (_loading) return; deb.Stop(); deb.Start(); };
+                return sl;
+            }
+            content.Children.Add(MakeWb(System.Windows.Media.Color.FromRgb(0xFF, 0x52, 0x52), wbCfg.WhiteBalanceR, v => wbCfg.WhiteBalanceR = v));
+            content.Children.Add(MakeWb(System.Windows.Media.Color.FromRgb(0x00, 0xE6, 0x76), wbCfg.WhiteBalanceG, v => wbCfg.WhiteBalanceG = v));
+            content.Children.Add(MakeWb(System.Windows.Media.Color.FromRgb(0x44, 0x8A, 0xFF), wbCfg.WhiteBalanceB, v => wbCfg.WhiteBalanceB = v));
+        }
+
         // Store references for live knob updates
         if (lanIp != null)
             _deviceControls[lanIp] = (onOffCheck, brightnessSlider);
