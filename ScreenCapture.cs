@@ -112,7 +112,7 @@ public class ScreenCapture : IDisposable
         }
         catch (Exception ex)
         {
-            Logger.Log($"ScreenCapture.CaptureZones failed: {ex.Message}");
+            LogFailureThrottled($"ScreenCapture.CaptureZones failed: {ex.Message}");
             return null;
         }
     }
@@ -173,7 +173,7 @@ public class ScreenCapture : IDisposable
         }
         catch (Exception ex)
         {
-            Logger.Log($"ScreenCapture.CaptureZoneGrid failed: {ex.Message}");
+            LogFailureThrottled($"ScreenCapture.CaptureZoneGrid failed: {ex.Message}");
             return null;
         }
     }
@@ -280,7 +280,7 @@ public class ScreenCapture : IDisposable
         }
         catch (Exception ex)
         {
-            Logger.Log($"ScreenCapture.CaptureSide failed: {ex.Message}");
+            LogFailureThrottled($"ScreenCapture.CaptureSide failed: {ex.Message}");
             return null;
         }
     }
@@ -384,6 +384,16 @@ public class ScreenCapture : IDisposable
     private const int DxgiHoldLastFrameMs = 5000;
     private long _lastDxgiOkTick;
     private long _lastLostLogTick;
+    private static long _lastFailureLogTick;
+
+    // Capture runs up to 60x/s — a persistent failure must not flood the log.
+    private static void LogFailureThrottled(string msg)
+    {
+        long now = Environment.TickCount64;
+        if (now - Interlocked.Read(ref _lastFailureLogTick) < 60_000) return;
+        Interlocked.Exchange(ref _lastFailureLogTick, now);
+        Logger.Log(msg + " (further failures suppressed for 60s)");
+    }
     private const int DxgiLostRetryMs = 250; // after ACCESS_LOST: brief GDI gap, then rebuild
 
     private Bitmap? CaptureScreen(Rectangle bounds, int monitorIndex)
@@ -477,7 +487,7 @@ public class ScreenCapture : IDisposable
         if (result == DxgiDesktopDuplicator.CaptureResult.Lost)
         {
             _dxgiRetryAfterTick = Environment.TickCount64 + DxgiLostRetryMs;
-            if (Environment.TickCount64 - _lastLostLogTick > 10_000)
+            if (Environment.TickCount64 - _lastLostLogTick > 60_000)
             {
                 Logger.Log($"ScreenCapture: DXGI lost ({_dxgi.LastLostReason}) — holding last frame while rebuilding");
                 _lastLostLogTick = Environment.TickCount64;
