@@ -478,7 +478,7 @@ public class ScreenCapture : IDisposable
             _dxgiRetryAfterTick = Environment.TickCount64 + DxgiLostRetryMs;
             if (Environment.TickCount64 - _lastLostLogTick > 10_000)
             {
-                Logger.Log("ScreenCapture: DXGI access lost — holding last frame while rebuilding");
+                Logger.Log($"ScreenCapture: DXGI lost ({_dxgi.LastLostReason}) — holding last frame while rebuilding");
                 _lastLostLogTick = Environment.TickCount64;
             }
             // Mode change / fullscreen-exclusive switch / UAC or lock screen. Recreate on next

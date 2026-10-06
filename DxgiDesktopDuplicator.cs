@@ -197,6 +197,8 @@ internal sealed class DxgiDesktopDuplicator : IDisposable
     /// Lost = duplication invalidated (mode change, fullscreen switch, secure desktop);
     /// caller should dispose and recreate.
     /// </summary>
+    public string LastLostReason { get; private set; } = "";
+
     public CaptureResult TryCapture(Bitmap target)
     {
         if (_duplication == null || _context == null) return CaptureResult.Lost;
@@ -206,6 +208,7 @@ internal sealed class DxgiDesktopDuplicator : IDisposable
             return CaptureResult.NoChange;
         if (hr.Code == DXGI_ERROR_ACCESS_LOST || hr.Failure)
         {
+            LastLostReason = $"AcquireNextFrame hr=0x{hr.Code:X8}";
             resource?.Dispose();
             return CaptureResult.Lost;
         }
@@ -219,23 +222,36 @@ internal sealed class DxgiDesktopDuplicator : IDisposable
                 using var srcTex = resource!.QueryInterface<ID3D11Texture2D>();
                 var sd = srcTex.Description;
                 if (sd.Width != _srcW || sd.Height != _srcH)
+                {
+                    LastLostReason = $"surface {sd.Width}x{sd.Height} != output {_srcW}x{_srcH}";
                     return CaptureResult.Lost; // resolution changed without ACCESS_LOST — rebuild
+                }
 
                 // CopySubresourceRegion silently does nothing (debug-layer error only) when the
                 // formats are in different typeless groups, which would leave the readback black
                 // forever. IDXGIOutput1 duplication normally hands out BGRA8 even on HDR desktops,
                 // but guard anyway so an FP16 / 10-bit surface falls back to GDI instead.
-                if (_isHdr)
-                {
-                    if (sd.Format != Format.R16G16B16A16_Float && sd.Format != Format.R16G16B16A16_Typeless)
-                        return CaptureResult.Lost; // HDR toggled off — rebuild with the new format
-                }
-                else if (sd.Format != Format.B8G8R8A8_UNorm && sd.Format != Format.B8G8R8A8_UNorm_SRgb
-                    && sd.Format != Format.B8G8R8A8_Typeless)
-                {
-                    if (sd.Format == Format.R16G16B16A16_Float)
-                        return CaptureResult.Lost; // HDR toggled on — rebuild picks the FP16 path
+                // The duplication's ModeDescription can say FP16 on an HDR desktop while the
+                // acquired surfaces are actually BGRA8 (driver-converted) — or vice versa after a
+                // game switches modes. Follow the real surface format instead of rebuilding the
+                // whole duplication every frame (that loop made the lights flash / go black).
+                bool surfHdr = sd.Format == Format.R16G16B16A16_Float || sd.Format == Format.R16G16B16A16_Typeless;
+                bool surfSdr = sd.Format == Format.B8G8R8A8_UNorm || sd.Format == Format.B8G8R8A8_UNorm_SRgb
+                    || sd.Format == Format.B8G8R8A8_Typeless;
+                if (!surfHdr && !surfSdr)
                     throw new NotSupportedException($"desktop surface format {sd.Format} not supported");
+                if (surfHdr != _isHdr)
+                {
+                    _isHdr = surfHdr;
+                    _texFormat = surfHdr ? Format.R16G16B16A16_Float : Format.B8G8R8A8_UNorm;
+                    if (surfHdr)
+                    {
+                        float nits = QuerySdrWhiteNits(_deviceName) ?? 200f;
+                        _hdrScale = 80f / nits;
+                        EnsureLut();
+                    }
+                    CreateTextures(_srcW, _srcH);
+                    LogOnce($"DXGI capture {_deviceName}: surfaces are {sd.Format}, using {(surfHdr ? "HDR tone-map" : "SDR")} path");
                 }
 
                 _context.CopySubresourceRegion(_mipTexture!, 0, 0, 0, 0, srcTex, 0, null);
