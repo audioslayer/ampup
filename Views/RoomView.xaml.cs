@@ -2185,7 +2185,7 @@ public partial class RoomView : UserControl
                         bool online;
                         try { online = await AmbienceSync.GetDeviceStatusAsync(probeIp) != null; }
                         catch { online = false; }
-                        Dispatcher.BeginInvoke(() =>
+                        _ = Dispatcher.BeginInvoke(() =>
                         {
                             dot.Fill = online
                                 ? new SolidColorBrush(Color.FromRgb(0x00, 0xDD, 0x77))
