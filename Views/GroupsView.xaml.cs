@@ -57,36 +57,39 @@ public partial class GroupsView : UserControl
 
     // ── Top Bar ──────────────────────────────────────────────────────
 
+    private TextBlock? _countLabel;
+
     private void BuildTopBar()
     {
-        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var titleLabel = new TextBlock
+        var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+        var (bar, title) = MakeSectionHeader("DEVICE GROUPS");
+        var header = WrapHeader(bar, title);
+        header.Margin = new Thickness(0, 0, 0, 4);
+        left.Children.Add(header);
+
+        _countLabel = new TextBlock
         {
-            Text = "Device Groups",
-            FontSize = 13,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 16, 0),
+            FontSize = 10,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(13, 0, 0, 0),
         };
-        row.Children.Add(titleLabel);
+        _countLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        left.Children.Add(_countLabel);
+        Grid.SetColumn(left, 0);
+        grid.Children.Add(left);
 
-        var countLabel = new TextBlock
-        {
-            FontSize = 11,
-            Style = FindStyle("SecondaryText"),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        row.Children.Add(countLabel);
+        var newBtn = BuildNewGroupButton(primary: true);
+        newBtn.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(newBtn, 1);
+        grid.Children.Add(newBtn);
 
-        Loaded += (_, _) =>
-        {
-            int count = _config?.Groups.Count ?? 0;
-            countLabel.Text = count == 0 ? "No groups" : $"{count} group{(count == 1 ? "" : "s")}";
-        };
+        Loaded += (_, _) => UpdateTopBarCount();
 
-        TopBar.Children.Add(row);
+        TopBar.Children.Add(grid);
     }
 
     // ── Main Panel ───────────────────────────────────────────────────
@@ -94,7 +97,8 @@ public partial class GroupsView : UserControl
     private void RebuildGroupPanel()
     {
         GroupPanel.Children.Clear();
-        _sectionHeaders.Clear();
+        // Keep the top-bar header (index 0) registered for accent refresh
+        if (_sectionHeaders.Count > 1) _sectionHeaders.RemoveRange(1, _sectionHeaders.Count - 1);
 
         if (_config == null) return;
 
@@ -110,27 +114,15 @@ public partial class GroupsView : UserControl
             }
         }
 
-        // New Group button
-        GroupPanel.Children.Add(BuildNewGroupButton());
-
-        // Update top bar count
         UpdateTopBarCount();
     }
 
     private void UpdateTopBarCount()
     {
-        if (TopBar.Children.Count > 0 && TopBar.Children[0] is StackPanel row)
-        {
-            foreach (var child in row.Children)
-            {
-                if (child is TextBlock tb && tb.Style == FindStyle("SecondaryText"))
-                {
-                    int count = _config?.Groups.Count ?? 0;
-                    tb.Text = count == 0 ? "No groups" : $"{count} group{(count == 1 ? "" : "s")}";
-                    break;
-                }
-            }
-        }
+        if (_countLabel == null) return;
+        int count = _config?.Groups.Count ?? 0;
+        _countLabel.Text = (count == 0 ? "No groups" : $"{count} group{(count == 1 ? "" : "s")}")
+            + " · Control lights and audio devices together from one knob or button";
     }
 
     // ── Empty State ──────────────────────────────────────────────────
@@ -142,24 +134,35 @@ public partial class GroupsView : UserControl
             Style = FindStyle("CardPanel") as Style,
             Margin = new Thickness(0, 0, 0, 12),
         };
-        var stack = new StackPanel { Margin = new Thickness(4) };
+        var stack = new StackPanel { Margin = new Thickness(4, 12, 4, 12), HorizontalAlignment = HorizontalAlignment.Center, MaxWidth = 460 };
         card.Child = stack;
 
-        stack.Children.Add(new TextBlock
+        var t1 = new TextBlock
         {
             Text = "No device groups yet",
             FontSize = 16,
             FontWeight = FontWeights.SemiBold,
-            Foreground = FindBrush("TextPrimaryBrush"),
+            HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 0, 0, 8),
-        });
-        stack.Children.Add(new TextBlock
+        };
+        t1.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        stack.Children.Add(t1);
+
+        var t2 = new TextBlock
         {
-            Text = "Create a group to organize your Govee, Corsair, Home Assistant, and audio devices together.",
-            Style = FindStyle("SecondaryText"),
+            Text = "Create a group to organize your Govee, Corsair, Home Assistant, and audio devices together. "
+                 + "Point a knob at a group to dim everything at once, or bind a button to toggle the whole group on and off.",
+            FontSize = 11,
             TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 4),
-        });
+            TextAlignment = TextAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 14),
+        };
+        t2.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+        stack.Children.Add(t2);
+
+        var btn = BuildNewGroupButton(primary: true);
+        btn.HorizontalAlignment = HorizontalAlignment.Center;
+        stack.Children.Add(btn);
 
         return card;
     }
@@ -181,44 +184,25 @@ public partial class GroupsView : UserControl
         var outerStack = new StackPanel();
         card.Child = outerStack;
 
-        // ── Header row: name + color swatch + delete ──
-        var headerRow = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
-
-        // Delete button (right side)
-        var deleteBtn = new Button
-        {
-            Content = "Delete",
-            FontSize = 11,
-            Padding = new Thickness(10, 4, 10, 4),
-            Foreground = FindBrush("DangerRedBrush"),
-            Background = Brushes.Transparent,
-            BorderBrush = FindBrush("DangerRedBrush"),
-            BorderThickness = new Thickness(1),
-            Cursor = Cursors.Hand,
-            ToolTip = "Delete this group",
-        };
-        int deleteIdx = groupIndex;
-        deleteBtn.Click += (_, _) =>
-        {
-            if (_config == null) return;
-            _config.Groups.RemoveAt(deleteIdx);
-            Save();
-            RebuildGroupPanel();
-        };
-        DockPanel.SetDock(deleteBtn, Dock.Right);
-        headerRow.Children.Add(deleteBtn);
+        // ── Header row: swatch | name + subtitle | delete ──
+        var headerRow = new Grid { Margin = new Thickness(0, 0, 0, 12) };
+        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         // Color swatch (click to cycle)
         var colorSwatch = new Border
         {
-            Width = 22, Height = 22,
-            CornerRadius = new CornerRadius(4),
+            Width = 26, Height = 26,
+            CornerRadius = new CornerRadius(13),
             Background = new SolidColorBrush(groupColor),
+            BorderThickness = new Thickness(2),
             Cursor = Cursors.Hand,
-            Margin = new Thickness(0, 0, 10, 0),
+            Margin = new Thickness(0, 0, 12, 0),
             VerticalAlignment = VerticalAlignment.Center,
             ToolTip = "Click to change group color",
         };
+        colorSwatch.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
         int colorIdx = groupIndex;
         colorSwatch.MouseLeftButtonUp += (_, _) =>
         {
@@ -228,29 +212,31 @@ public partial class GroupsView : UserControl
             Save();
             RebuildGroupPanel();
         };
-        DockPanel.SetDock(colorSwatch, Dock.Left);
+        Grid.SetColumn(colorSwatch, 0);
         headerRow.Children.Add(colorSwatch);
 
-        // Editable name
+        // Editable name + subtitle
+        var nameStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
         var nameBox = new TextBox
         {
             Text = group.Name,
             FontSize = 15,
             FontWeight = FontWeights.SemiBold,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            Background = FindBrush("InputBgBrush"),
-            BorderBrush = FindBrush("InputBorderBrush"),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(8, 4, 8, 4),
-            MinWidth = 180,
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding = new Thickness(0, 2, 0, 2),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             MaxWidth = 400,
-            VerticalAlignment = VerticalAlignment.Center,
-            CaretBrush = FindBrush("AccentBrush"),
-            ToolTip = "Group name",
+            ToolTip = "Group name (click to rename)",
         };
+        nameBox.SetResourceReference(TextBox.ForegroundProperty, "TextPrimaryBrush");
+        nameBox.SetResourceReference(TextBox.BorderBrushProperty, "InputBorderBrush");
+        nameBox.SetResourceReference(TextBox.CaretBrushProperty, "AccentBrush");
+        nameBox.GotFocus += (_, _) => nameBox.SetResourceReference(TextBox.BorderBrushProperty, "AccentBrush");
         int nameIdx = groupIndex;
         nameBox.LostFocus += (_, _) =>
         {
+            nameBox.SetResourceReference(TextBox.BorderBrushProperty, "InputBorderBrush");
             if (_config == null) return;
             var text = nameBox.Text.Trim();
             if (string.IsNullOrEmpty(text)) text = "Untitled Group";
@@ -261,111 +247,124 @@ public partial class GroupsView : UserControl
         {
             if (e.Key == Key.Enter) { Keyboard.ClearFocus(); e.Handled = true; }
         };
-        headerRow.Children.Add(nameBox);
+        nameStack.Children.Add(nameBox);
+
+        var subtitle = new TextBlock
+        {
+            Text = BuildGroupSubtitle(group),
+            FontSize = 10,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 4, 0, 0),
+        };
+        subtitle.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        nameStack.Children.Add(subtitle);
+        Grid.SetColumn(nameStack, 1);
+        headerRow.Children.Add(nameStack);
+
+        // Delete button (right side)
+        var deleteBtn = MakePillButton("Delete", danger: true, "Delete this group");
+        deleteBtn.VerticalAlignment = VerticalAlignment.Center;
+        int deleteIdx = groupIndex;
+        deleteBtn.Click += (_, _) =>
+        {
+            if (_config == null) return;
+            _config.Groups.RemoveAt(deleteIdx);
+            Save();
+            RebuildGroupPanel();
+        };
+        Grid.SetColumn(deleteBtn, 2);
+        headerRow.Children.Add(deleteBtn);
 
         outerStack.Children.Add(headerRow);
-        outerStack.Children.Add(MakeSeparator());
 
-        // ── Device list ──
-        var (devBar, devLabel) = MakeSectionHeader("DEVICES");
+        // ── Members (inner item card with chip list) ──
+        var (devBar, devLabel) = MakeSectionHeader("MEMBERS");
         outerStack.Children.Add(WrapHeader(devBar, devLabel));
+
+        var chips = new WrapPanel { Orientation = Orientation.Horizontal };
 
         if (group.Devices.Count == 0)
         {
-            outerStack.Children.Add(new TextBlock
+            var none = new TextBlock
             {
                 Text = "No devices in this group",
-                Style = FindStyle("SecondaryText"),
-                Margin = new Thickness(0, 0, 0, 10),
-            });
+                FontSize = 11,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(2, 0, 10, 6),
+            };
+            none.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+            chips.Children.Add(none);
         }
         else
         {
             for (int d = 0; d < group.Devices.Count; d++)
             {
-                outerStack.Children.Add(BuildDeviceRow(group.Devices[d], groupIndex, d));
+                chips.Children.Add(BuildDeviceChip(group.Devices[d], groupIndex, d));
             }
         }
 
-        // ── Add Device button ──
-        var addBtn = new Button
-        {
-            Padding = new Thickness(12, 6, 12, 6),
-            FontSize = 11,
-            Cursor = Cursors.Hand,
-            Margin = new Thickness(0, 6, 0, 0),
-            ToolTip = "Add a device to this group",
-        };
-        var addContent = new StackPanel { Orientation = Orientation.Horizontal };
-        addContent.Children.Add(new TextBlock
-        {
-            Text = "+",
-            FontSize = 14,
-            FontWeight = FontWeights.Bold,
-            Foreground = FindBrush("AccentBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 6, 0),
-        });
-        addContent.Children.Add(new TextBlock
-        {
-            Text = "Add Device",
-            FontSize = 11,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-        addBtn.Content = addContent;
+        // ── Add Device chip ──
+        var addBtn = MakePillButton("+  Add device", danger: false, "Add a device to this group");
+        addBtn.Margin = new Thickness(0, 0, 6, 6);
         int addGroupIdx = groupIndex;
         addBtn.Click += (_, _) => ShowAddDeviceMenu(addBtn, addGroupIdx);
-        outerStack.Children.Add(addBtn);
+        chips.Children.Add(addBtn);
+
+        var itemCard = new Border
+        {
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(10, 10, 10, 4),
+            Child = chips,
+        };
+        itemCard.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+        itemCard.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
+        outerStack.Children.Add(itemCard);
 
         return card;
     }
 
-    // ── Device Row ───────────────────────────────────────────────────
-
-    private Border BuildDeviceRow(GroupDevice device, int groupIndex, int deviceIndex)
+    private static string BuildGroupSubtitle(DeviceGroup group)
     {
-        var row = new Border
-        {
-            Background = FindBrush("InputBgBrush"),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(10, 6, 10, 6),
-            Margin = new Thickness(0, 0, 0, 4),
-        };
+        int n = group.Devices.Count;
+        if (n == 0) return "Empty · add devices below";
+        var types = group.Devices.Select(d => d.Type).Distinct().Select(GetTypeDisplayName);
+        return $"{n} device{(n == 1 ? "" : "s")} · {string.Join(", ", types)}";
+    }
 
-        var dock = new DockPanel();
-        row.Child = dock;
+    private static string GetTypeDisplayName(string type) => type switch
+    {
+        "govee" => "Govee",
+        "corsair" => "Corsair iCUE",
+        "ha" => "Home Assistant",
+        "audio_output" => "Audio",
+        _ => type,
+    };
 
-        // Remove button
-        var removeBtn = new TextBlock
+    // ── Device Chip ──────────────────────────────────────────────────
+
+    private Border BuildDeviceChip(GroupDevice device, int groupIndex, int deviceIndex)
+    {
+        var chip = new Border
         {
-            Text = "\u2715",
-            FontSize = 13,
-            Foreground = FindBrush("TextDimBrush"),
-            Cursor = Cursors.Hand,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0),
-            ToolTip = "Remove from group",
+            CornerRadius = new CornerRadius(14),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(4, 3, 8, 3),
+            Margin = new Thickness(0, 0, 6, 6),
+            ToolTip = string.IsNullOrEmpty(device.DeviceId) ? device.Name : $"{device.Name}\n{device.DeviceId}",
         };
-        int rGroup = groupIndex, rDevice = deviceIndex;
-        removeBtn.MouseLeftButtonUp += (_, _) =>
-        {
-            if (_config == null) return;
-            _config.Groups[rGroup].Devices.RemoveAt(rDevice);
-            Save();
-            RebuildGroupPanel();
-        };
-        removeBtn.MouseEnter += (_, _) => removeBtn.Foreground = FindBrush("DangerRedBrush");
-        removeBtn.MouseLeave += (_, _) => removeBtn.Foreground = FindBrush("TextDimBrush");
-        DockPanel.SetDock(removeBtn, Dock.Right);
-        dock.Children.Add(removeBtn);
+        chip.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        chip.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        chip.Child = row;
 
         // Type badge
         var typeBadge = new Border
         {
-            CornerRadius = new CornerRadius(3),
-            Padding = new Thickness(6, 2, 6, 2),
-            Margin = new Thickness(0, 0, 8, 0),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(7, 2, 7, 2),
+            Margin = new Thickness(0, 0, 7, 0),
             VerticalAlignment = VerticalAlignment.Center,
             Background = GetTypeBadgeBackground(device.Type),
         };
@@ -374,28 +373,23 @@ public partial class GroupsView : UserControl
             Text = GetTypeLabel(device.Type),
             FontSize = 9,
             FontWeight = FontWeights.SemiBold,
-            Foreground = Brushes.White,
+            Foreground = Brush("#101010"),
         };
-        DockPanel.SetDock(typeBadge, Dock.Left);
-        dock.Children.Add(typeBadge);
+        row.Children.Add(typeBadge);
 
         // Device name
-        var namePanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        namePanel.Children.Add(new TextBlock
+        var nameText = new TextBlock
         {
             Text = device.Name,
-            FontSize = 12,
-            Foreground = FindBrush("TextPrimaryBrush"),
-        });
-        var idLine = new StackPanel { Orientation = Orientation.Horizontal };
-        idLine.Children.Add(new TextBlock
-        {
-            Text = device.DeviceId,
-            FontSize = 9,
-            Foreground = FindBrush("TextDimBrush"),
+            FontSize = 11,
+            MaxWidth = 220,
             TextTrimming = TextTrimming.CharacterEllipsis,
-        });
-        // Show action badge for HA devices
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        nameText.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        row.Children.Add(nameText);
+
+        // Action tag for HA devices
         if (device.Type == "ha")
         {
             var actionLabel = device.Action switch
@@ -404,14 +398,13 @@ public partial class GroupsView : UserControl
                 "off" => "TURN OFF",
                 _     => "TOGGLE",
             };
-            idLine.Children.Add(new Border
+            var tag = new Border
             {
-                CornerRadius = new CornerRadius(3),
-                Padding = new Thickness(5, 1, 5, 1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(6, 1, 6, 1),
                 Margin = new Thickness(6, 0, 0, 0),
-                Background = (SolidColorBrush)FindResource("BgDarkBrush"),
-                BorderBrush = (SolidColorBrush)FindResource("InputBorderBrush"),
                 BorderThickness = new Thickness(1),
+                VerticalAlignment = VerticalAlignment.Center,
                 Child = new TextBlock
                 {
                     Text = actionLabel,
@@ -419,12 +412,83 @@ public partial class GroupsView : UserControl
                     FontWeight = FontWeights.SemiBold,
                     Foreground = Brush("#9A9A9A"),
                 },
-            });
+            };
+            tag.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+            tag.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
+            row.Children.Add(tag);
         }
-        namePanel.Children.Add(idLine);
-        dock.Children.Add(namePanel);
 
-        return row;
+        // Remove button
+        var removeBtn = new TextBlock
+        {
+            Text = "✕",
+            FontSize = 11,
+            Cursor = Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+            ToolTip = "Remove from group",
+        };
+        removeBtn.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        int rGroup = groupIndex, rDevice = deviceIndex;
+        removeBtn.MouseLeftButtonUp += (_, _) =>
+        {
+            if (_config == null) return;
+            _config.Groups[rGroup].Devices.RemoveAt(rDevice);
+            Save();
+            RebuildGroupPanel();
+        };
+        removeBtn.MouseEnter += (_, _) => removeBtn.SetResourceReference(TextBlock.ForegroundProperty, "DangerRedBrush");
+        removeBtn.MouseLeave += (_, _) => removeBtn.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        row.Children.Add(removeBtn);
+
+        return chip;
+    }
+
+    /// <summary>Rounded pill button. Danger = red outline; primary = filled accent; else accent outline.</summary>
+    private Button MakePillButton(string text, bool danger, string? tooltip, bool primary = false)
+    {
+        var btn = new Button { Cursor = Cursors.Hand, ToolTip = tooltip, Focusable = false };
+
+        var tmpl = new ControlTemplate(typeof(Button));
+        var bd = new FrameworkElementFactory(typeof(System.Windows.Controls.Border));
+        bd.Name = "Bd";
+        bd.SetValue(System.Windows.Controls.Border.CornerRadiusProperty, new CornerRadius(14));
+        bd.SetValue(System.Windows.Controls.Border.BorderThicknessProperty, new Thickness(1));
+        bd.SetValue(System.Windows.Controls.Border.PaddingProperty, new Thickness(14, 5, 14, 5));
+        bd.SetValue(System.Windows.Controls.Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty));
+        bd.SetValue(System.Windows.Controls.Border.BorderBrushProperty, new TemplateBindingExtension(Control.BorderBrushProperty));
+        var cp = new FrameworkElementFactory(typeof(ContentPresenter));
+        cp.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+        cp.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+        bd.AppendChild(cp);
+        tmpl.VisualTree = bd;
+        btn.Template = tmpl;
+
+        var label = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold };
+        btn.Content = label;
+
+        void Paint(bool hover)
+        {
+            var c = danger ? ((SolidColorBrush)FindBrush("DangerRedBrush")).Color : ThemeManager.Accent;
+            if (primary)
+            {
+                btn.Background = new SolidColorBrush(hover ? ThemeManager.WithAlpha(c, 0xDD) : c);
+                btn.BorderBrush = new SolidColorBrush(c);
+                label.SetResourceReference(TextBlock.ForegroundProperty, "BgBaseBrush");
+            }
+            else
+            {
+                btn.Background = new SolidColorBrush(ThemeManager.WithAlpha(c, (byte)(hover ? 0x33 : 0x14)));
+                btn.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(c, (byte)(hover ? 0xCC : 0x77)));
+                label.Foreground = new SolidColorBrush(c);
+            }
+        }
+        Paint(false);
+        btn.MouseEnter += (_, _) => Paint(true);
+        btn.MouseLeave += (_, _) => Paint(false);
+        // Only accent-colored pills need repainting; re-read on each render via Loaded too
+        btn.Loaded += (_, _) => Paint(btn.IsMouseOver);
+        return btn;
     }
 
     // ── Add Device Menu ──────────────────────────────────────────────
@@ -978,34 +1042,9 @@ public partial class GroupsView : UserControl
 
     // ── New Group Button ─────────────────────────────────────────────
 
-    private Button BuildNewGroupButton()
+    private Button BuildNewGroupButton(bool primary)
     {
-        var btn = new Button
-        {
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Padding = new Thickness(16, 8, 16, 8),
-            Cursor = Cursors.Hand,
-            Margin = new Thickness(0, 4, 0, 0),
-            ToolTip = "Create a new device group",
-        };
-        var content = new StackPanel { Orientation = Orientation.Horizontal };
-        content.Children.Add(new TextBlock
-        {
-            Text = "+",
-            FontSize = 16,
-            FontWeight = FontWeights.Bold,
-            Foreground = FindBrush("AccentBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 8, 0),
-        });
-        content.Children.Add(new TextBlock
-        {
-            Text = "New Group",
-            FontSize = 12,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-        btn.Content = content;
+        var btn = MakePillButton("+  New group", danger: false, "Create a new device group", primary);
         btn.Click += (_, _) =>
         {
             if (_config == null) return;
