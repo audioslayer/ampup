@@ -808,7 +808,9 @@ public class DreamSyncController : IDisposable
     /// RELATIVE to the strongest one: the dominant channel keeps its level (no dimming) while the
     /// minor channels drop the way they would on a display. Greys/whites are unaffected.
     /// </summary>
-    private const float LedChromaGammaExp = 2.2f;
+    // 1.5, not a full display gamma (2.2): 2.2 crushed the green in orange so orange walls
+    // showed as red. 1.5 still strips most of the tint that made reds pink.
+    private const float LedChromaGammaExp = 1.5f;
     private static (byte R, byte G, byte B) LedChromaGamma((byte R, byte G, byte B) c)
     {
         int max = Math.Max(c.R, Math.Max(c.G, c.B));
