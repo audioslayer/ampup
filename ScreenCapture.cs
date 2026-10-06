@@ -380,13 +380,27 @@ public class ScreenCapture : IDisposable
     private bool _dxgiFailureLogged;       // log once per failure streak
     private string? _dxgiLoggedDevice;
     private const int DxgiRetryMs = 3000;
+    private const int DxgiHoldLastFrameMs = 5000;
+    private long _lastDxgiOkTick;
+    private long _lastLostLogTick;
     private const int DxgiLostRetryMs = 250; // after ACCESS_LOST: brief GDI gap, then rebuild
 
     private Bitmap? CaptureScreen(Rectangle bounds, int monitorIndex)
     {
         if (_disposed) return null; // caller holds _lock; don't resurrect resources after Dispose
         var bmp = TryCaptureDxgi(monitorIndex);
-        return bmp ?? CaptureScreenGdi(bounds);
+        if (bmp != null)
+        {
+            _lastDxgiOkTick = Environment.TickCount64;
+            return bmp;
+        }
+        // DXGI hiccup (fullscreen game mode switch, access lost, rebuild backoff). Mixing in GDI
+        // frames here makes the lights flash — GDI colours differ a lot (esp. on HDR desktops) —
+        // so hold the last good DXGI frame for a while and only fall back if the outage persists.
+        if (_cachedBmp != null && _lastDxgiOkTick != 0
+            && Environment.TickCount64 - _lastDxgiOkTick < DxgiHoldLastFrameMs)
+            return _cachedBmp;
+        return CaptureScreenGdi(bounds);
     }
 
     /// <summary>
@@ -462,6 +476,11 @@ public class ScreenCapture : IDisposable
         if (result == DxgiDesktopDuplicator.CaptureResult.Lost)
         {
             _dxgiRetryAfterTick = Environment.TickCount64 + DxgiLostRetryMs;
+            if (Environment.TickCount64 - _lastLostLogTick > 10_000)
+            {
+                Logger.Log("ScreenCapture: DXGI access lost — holding last frame while rebuilding");
+                _lastLostLogTick = Environment.TickCount64;
+            }
             // Mode change / fullscreen-exclusive switch / UAC or lock screen. Recreate on next
             // call; DuplicateOutput fails while the secure desktop is up, which the retry
             // backoff above absorbs (GDI covers the gap).
