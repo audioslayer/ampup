@@ -693,7 +693,8 @@ public class ScreenCapture : IDisposable
                                 }
                                 dr /= best; dg /= best; db /= best;
                                 double dominance = best / hueTotal;          // 0.25 (even spread) .. 1
-                                double t = Math.Clamp((dominance - 0.35) / 0.35, 0, 1);
+                                // Capped at 0.6 so neighbouring cells don't snap to different hues (patchy strips).
+                                double t = 0.6 * Math.Clamp((dominance - 0.45) / 0.4, 0, 1);
                                 // Keep the cell's overall brightness; take the dominant hue.
                                 double lm = 0.2126 * rLin + 0.7152 * gLin + 0.0722 * bLin;
                                 double ld = 0.2126 * dr + 0.7152 * dg + 0.0722 * db;

@@ -637,53 +637,72 @@ public class DreamSyncController : IDisposable
             if (region.PrimaryEdge == ZoneSide.Left) { colStart = 0; colEnd = 1; }
             else { colStart = cols - 1; colEnd = cols; }
 
-            // Segments map top→bottom across rows, averaging cols in range
-            for (int seg = 0; seg < segmentCount; seg++)
-            {
-                float segRowStart = rowStart + (float)seg / segmentCount * rowRange;
-                float segRowEnd = rowStart + (float)(seg + 1) / segmentCount * rowRange;
-
-                int r = 0, g = 0, b = 0, count = 0;
-                for (int row = (int)segRowStart; row < (int)Math.Ceiling(segRowEnd) && row < rowEnd; row++)
-                {
-                    for (int col = colStart; col < colEnd; col++)
-                    {
-                        r += grid[row, col].R;
-                        g += grid[row, col].G;
-                        b += grid[row, col].B;
-                        count++;
-                    }
-                }
-                if (count > 0)
-                    result[seg] = ((byte)(r / count), (byte)(g / count), (byte)(b / count));
-            }
+            return SmoothProfileToSegments(grid, rowStart, rowEnd, colStart, colEnd, true, segmentCount);
         }
-        else
+
+        // Horizontal (Top/Bottom/Full): segments map left→right across cols, averaging rows in range
+        return SmoothProfileToSegments(grid, rowStart, rowEnd, colStart, colEnd, false, segmentCount);
+    }
+
+    /// <summary>
+    /// Builds a 1-D colour profile along the light (rows for side lights, columns for top/bottom),
+    /// then samples it at each segment's centre with linear interpolation and applies a light
+    /// Gaussian blur along the strip — in linear light. Gives a smooth gradient like the screen
+    /// instead of blocky steps where neighbouring segments jump between unrelated colours.
+    /// </summary>
+    private static (byte R, byte G, byte B)[] SmoothProfileToSegments(
+        (byte R, byte G, byte B)[,] grid, int rowStart, int rowEnd, int colStart, int colEnd,
+        bool vertical, int segmentCount)
+    {
+        var result = new (byte R, byte G, byte B)[segmentCount];
+        if (segmentCount <= 0) return result;
+
+        int len = vertical ? rowEnd - rowStart : colEnd - colStart;
+        len = Math.Max(len, 1);
+        var prof = new float[len * 3];
+        for (int i = 0; i < len; i++)
         {
-            // Horizontal (Top/Bottom/Full): segments map left→right across cols, averaging rows in range
-            for (int seg = 0; seg < segmentCount; seg++)
+            float r = 0, g = 0, b = 0; int count = 0;
+            int a0 = vertical ? colStart : rowStart, a1 = vertical ? colEnd : rowEnd;
+            for (int j = a0; j < a1; j++)
             {
-                float segColStart = colStart + (float)seg / segmentCount * colRange;
-                float segColEnd = colStart + (float)(seg + 1) / segmentCount * colRange;
-
-                int r = 0, g = 0, b = 0, count = 0;
-                for (int col = (int)segColStart; col < (int)Math.Ceiling(segColEnd) && col < colEnd; col++)
-                {
-                    for (int row = rowStart; row < rowEnd; row++)
-                    {
-                        r += grid[row, col].R;
-                        g += grid[row, col].G;
-                        b += grid[row, col].B;
-                        count++;
-                    }
-                }
-                if (count > 0)
-                    result[seg] = ((byte)(r / count), (byte)(g / count), (byte)(b / count));
+                var c = vertical ? grid[rowStart + i, j] : grid[j, colStart + i];
+                r += Lin(c.R); g += Lin(c.G); b += Lin(c.B); count++;
             }
+            if (count > 0) { prof[i * 3] = r / count; prof[i * 3 + 1] = g / count; prof[i * 3 + 2] = b / count; }
         }
 
+        // Sample at segment centres with linear interpolation between profile cells.
+        var seg = new float[segmentCount * 3];
+        for (int sI = 0; sI < segmentCount; sI++)
+        {
+            float pos = (sI + 0.5f) / segmentCount * len - 0.5f;
+            int i0 = Math.Clamp((int)MathF.Floor(pos), 0, len - 1);
+            int i1 = Math.Min(i0 + 1, len - 1);
+            float t = Math.Clamp(pos - i0, 0f, 1f);
+            for (int ch = 0; ch < 3; ch++)
+                seg[sI * 3 + ch] = prof[i0 * 3 + ch] + (prof[i1 * 3 + ch] - prof[i0 * 3 + ch]) * t;
+        }
+
+        // Light Gaussian blur along the strip (edges clamp).
+        float sigma = Math.Max(0.7f, segmentCount / 10f);
+        int rad = (int)MathF.Ceiling(sigma * 2);
+        for (int sI = 0; sI < segmentCount; sI++)
+        {
+            float r = 0, g = 0, b = 0, wsum = 0;
+            for (int k = -rad; k <= rad; k++)
+            {
+                int j = Math.Clamp(sI + k, 0, segmentCount - 1);
+                float w = MathF.Exp(-(k * k) / (2 * sigma * sigma));
+                r += seg[j * 3] * w; g += seg[j * 3 + 1] * w; b += seg[j * 3 + 2] * w; wsum += w;
+            }
+            result[sI] = (UnLin(r / wsum), UnLin(g / wsum), UnLin(b / wsum));
+        }
         return result;
     }
+
+    private static float Lin(byte v) { float f = v / 255f; return f * f; }
+    private static byte UnLin(float v) => (byte)Math.Clamp(MathF.Sqrt(MathF.Max(v, 0f)) * 255f + 0.5f, 0f, 255f);
 
     /// <summary>Explicit per-range wiring (GoveeDeviceConfig.SegmentMap). Unmapped segments stay off.</summary>
     private static (byte R, byte G, byte B)[] MapSegmentRanges(
