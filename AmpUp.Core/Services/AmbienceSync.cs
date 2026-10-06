@@ -1656,7 +1656,7 @@ public class AmbienceSync : IDisposable
     /// </summary>
     public static int GetSegmentCount(string? sku) => sku?.ToUpperInvariant() switch
     {
-        "H6056" => 15,  // Flow Plus Light Bar (18 LEDs/bar × 2 bars, API exposes 15 segments)
+        "H6056" => 12,  // Flow Plus Light Bar — verified on hardware: 2 bars × 6 segments, each bottom→top
         "H6057" => 15,  // Flow Plus Light Bar
         "H6046" => 12,  // RGBIC TV Light Bars
         "H6047" => 12,
@@ -1669,7 +1669,7 @@ public class AmbienceSync : IDisposable
         "H610A" => 24,  // Glide Lively Wall Light (2 panels × 12 addressable segments)
         "H610B" => 24,
         "H6601" => 10,  // Curtain Lights
-        "H61A0" => 19,  // RGBIC Neon Rope Light (10ft = 19 segments)
+        "H61A0" => 42,  // RGBIC Neon Rope Light — verified on hardware: 42 segments (19 left it flashing/ignored)
         _ => 0
     };
 

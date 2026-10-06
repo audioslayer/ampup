@@ -736,9 +736,24 @@ public class GoveeDeviceConfig
     public int WhiteBalanceR { get; set; } = 100;
     public int WhiteBalanceG { get; set; } = 100;
     public int WhiteBalanceB { get; set; } = 100;
+    /// <summary>Optional explicit Screen Sync wiring: which segment ranges follow which screen
+    /// edge, in which direction. Overrides side/spatial mapping when set (e.g. a rope bent into
+    /// an upside-down U: right leg = right edge, top = top edge, left leg = left edge).</summary>
+    public List<SegmentEdgeRange> SegmentMap { get; set; } = new();
 }
 
 public enum ZoneSide { Full, Left, Right, Top, Bottom, LeftVertical, RightVertical }
+
+public class SegmentEdgeRange
+{
+    public int Start { get; set; }          // first segment index (0-based, inclusive)
+    public int End { get; set; }            // last segment index (inclusive)
+    [JsonConverter(typeof(StringEnumConverter))]
+    public ZoneSide Edge { get; set; } = ZoneSide.Top; // Left / Right / Top / Bottom
+    /// <summary>false = segments run top→bottom (side edges) or left→right (top/bottom);
+    /// true = the opposite direction.</summary>
+    public bool Reverse { get; set; }
+}
 
 public enum DeviceCropMode { Content, FullScreen, Ambient }
 

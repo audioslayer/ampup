@@ -110,15 +110,23 @@ public class ScreenSpatialMapper
                 float gapHalf = (float)(dev.SplitGapFt / 2);
                 float halfLen = (float)(dev.LengthFt * 0.4); // each half ~40% of total length
 
+                // A split device that sits entirely off to one side (e.g. two light bars on the
+                // right-hand wall) is edge lighting for THAT side — both halves follow the same
+                // screen edge. Only a split device straddling the monitor (wall panels either side
+                // of it) gets left/right edges.
+                ZoneSide leftSide = ZoneSide.Left, rightSide = ZoneSide.Right;
+                if (edge == ZoneSide.Left || edge == ZoneSide.Right)
+                    leftSide = rightSide = edge;
+
                 // Left half region
                 float leftDx = dx - gapHalf;
-                var leftRegion = ComputeRegion(leftDx, dz, halfLen, dev, mon, ZoneSide.Left);
+                var leftRegion = ComputeRegion(leftDx, dz, halfLen, dev, mon, leftSide);
                 leftRegion.Reversed = dev.Reversed;
                 map[dev.DeviceId] = leftRegion;
 
                 // Right half region
                 float rightDx = dx + gapHalf;
-                var rightRegion = ComputeRegion(rightDx, dz, halfLen, dev, mon, ZoneSide.Right);
+                var rightRegion = ComputeRegion(rightDx, dz, halfLen, dev, mon, rightSide);
                 rightRegion.Reversed = dev.Reversed;
                 map[dev.DeviceId + ":R"] = rightRegion;
                 continue;

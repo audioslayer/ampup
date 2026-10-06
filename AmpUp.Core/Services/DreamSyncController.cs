@@ -401,7 +401,11 @@ public class DreamSyncController : IDisposable
                                 // Map screen zones to device segments (side-aware for edge glow)
                                 (byte R, byte G, byte B)[] segColors;
 
-                                if (mapping.UseAutoSpatial && spatialMapper != null && grid != null)
+                                if (dev.SegmentMap is { Count: > 0 } && grid != null)
+                                {
+                                    segColors = MapSegmentRanges(grid, gridCols, gridRows, dev.SegmentMap, segCount);
+                                }
+                                else if (mapping.UseAutoSpatial && spatialMapper != null && grid != null)
                                 {
                                     // ── Spatial mapping path (2D grid) ──
                                     string deviceKey = dev.Ip ?? mapping.DeviceIp;
@@ -416,10 +420,17 @@ public class DreamSyncController : IDisposable
                                         int half = segCount / 2;
                                         var rightCols = MapZonesToSegmentsSpatial(grid, gridCols, gridRows, splitRight.Value, half);
                                         var leftCols = MapZonesToSegmentsSpatial(grid, gridCols, gridRows, region.Value, segCount - half);
+                                        // Verified on H610A hardware: segments 0..half-1 = RIGHT panel,
+                                        // half..end = LEFT panel, and BOTH panels count bottom→top.
+                                        // MapZonesToSegmentsSpatial returns top→bottom, so reverse both
+                                        // (the layout's Reversed flag flips that to top→bottom).
+                                        bool bottomUp = !region.Value.Reversed;
                                         segColors = new (byte R, byte G, byte B)[segCount];
                                         for (int si = 0; si < half; si++)
-                                            segColors[si] = rightCols[half - 1 - si];
-                                        Array.Copy(leftCols, 0, segColors, half, segCount - half);
+                                            segColors[si] = bottomUp ? rightCols[half - 1 - si] : rightCols[si];
+                                        int leftN = segCount - half;
+                                        for (int si = 0; si < leftN; si++)
+                                            segColors[half + si] = bottomUp ? leftCols[leftN - 1 - si] : leftCols[si];
                                     }
                                     else if (region.HasValue)
                                     {
@@ -653,6 +664,32 @@ public class DreamSyncController : IDisposable
             }
         }
 
+        return result;
+    }
+
+    /// <summary>Explicit per-range wiring (GoveeDeviceConfig.SegmentMap). Unmapped segments stay off.</summary>
+    private static (byte R, byte G, byte B)[] MapSegmentRanges(
+        (byte R, byte G, byte B)[,] grid, int cols, int rows, List<SegmentEdgeRange> map, int segCount)
+    {
+        var result = new (byte R, byte G, byte B)[segCount];
+        foreach (var r in map)
+        {
+            int start = Math.Clamp(Math.Min(r.Start, r.End), 0, segCount - 1);
+            int end = Math.Clamp(Math.Max(r.Start, r.End), 0, segCount - 1);
+            int n = end - start + 1;
+            var region = r.Edge switch
+            {
+                ZoneSide.Left or ZoneSide.LeftVertical => new ScreenSpatialMapper.ScreenRegion
+                    { XStart = 0, XEnd = 1f / cols, YStart = 0, YEnd = 1, PrimaryEdge = ZoneSide.Left },
+                ZoneSide.Right or ZoneSide.RightVertical => new ScreenSpatialMapper.ScreenRegion
+                    { XStart = 1 - 1f / cols, XEnd = 1, YStart = 0, YEnd = 1, PrimaryEdge = ZoneSide.Right },
+                ZoneSide.Bottom => EdgeRegion(ZoneSide.Bottom, rows),
+                _ => EdgeRegion(ZoneSide.Top, rows),
+            };
+            var colors = MapZonesToSegmentsSpatial(grid, cols, rows, region, n);
+            if (r.Reverse) Array.Reverse(colors);
+            Array.Copy(colors, 0, result, start, n);
+        }
         return result;
     }
 
