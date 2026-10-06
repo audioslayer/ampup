@@ -32,7 +32,6 @@ public partial class App : Application
     private System.Threading.Timer? _gameModeTimer;
     private System.Threading.Timer? _audioDeviceRefreshTimer;
     private bool _gameModeActive;
-    private bool _gameModePreDreamView;        // was DreamView enabled before game mode?
     private string _gameModePrevCorsairMode = "off"; // Corsair LightSyncMode before game mode
     private DateTime _connectedAt = DateTime.MinValue;
     private Forms.NotifyIcon? _trayIcon;
@@ -47,6 +46,9 @@ public partial class App : Application
     private readonly (string target, float value)[] _haLastValues = new (string, float)[8];
     private readonly bool[] _haThrottleActive = new bool[8];
     private DuckingEngine? _duckingEngine;
+    private int _autoSwitchRunning;
+    private uint _autoSwitchFgPid;
+    private string? _autoSwitchFgName;
     private AutoProfileSwitcher? _autoSwitcher;
     private TrayMixerPopup? _trayMixerPopup;
     private UpdateInfo? _availableUpdate;
@@ -99,6 +101,7 @@ public partial class App : Application
     private const int N3KnobStateBase = 5;
     private const int StreamControllerRefreshIntervalMs = 1000;
     private const int StreamControllerAnimatedRefreshIntervalMs = 80;
+    private const int StreamControllerDisabledRefreshIntervalMs = 5000;
     private const int StreamControllerDynamicRefreshMs = 3000;
     private const int StreamControllerHardwareRefreshMs = 1000;
     private const int MutePollingIdleMs = 1000;
@@ -242,6 +245,14 @@ public partial class App : Application
 
         // Load config and create backend
         _config = ConfigManager.Load();
+        // Game Mode switched Screen Sync on and the app never saw the game exit (crash / quit
+        // mid-game) — undo it so Screen Sync doesn't stay on forever.
+        if (_config.Ambience.GameModeOwnsScreenSync)
+        {
+            _config.Ambience.GameModeOwnsScreenSync = false;
+            _config.Ambience.ScreenSync.Enabled = false;
+            Logger.Log("GameMode: cleared leftover Screen Sync from an unfinished game session");
+        }
 
         // Apply user's accent color and card theme
         ThemeManager.SetAccentColor(_config.AccentColor);
@@ -327,6 +338,15 @@ public partial class App : Application
 
         // DreamView / Screen Sync
         _dreamSync = new DreamSyncController(_config.Ambience.ScreenSync, _config.Ambience, new WindowsScreenCapture());
+        // Seed the spatial mapper from the saved layout. Previously it was only set when the
+        // user edited the Room layout, so "Auto Spatial" mappings silently fell back to the
+        // side-based mapping after every restart.
+        if (_config.RoomLayout?.Monitor != null && _config.RoomLayout.Devices.Count > 0)
+        {
+            var screenMapper = new AmpUp.Core.Engine.ScreenSpatialMapper();
+            screenMapper.Recalculate(_config.RoomLayout);
+            _dreamSync.SetSpatialMapper(screenMapper);
+        }
         _dreamSync.OnZoneColors += zones =>
         {
             // Build a 45-byte RGB array from zone colors (map zones to 15 LEDs)
@@ -452,15 +472,27 @@ public partial class App : Application
                 if (hwnd == IntPtr.Zero) return null;
                 NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
                 if (pid == 0) return null;
+                // Process.GetProcessById snapshots the whole process table;
+                // the foreground PID rarely changes between 1.5s polls.
+                if (pid == _autoSwitchFgPid && _autoSwitchFgName != null) return _autoSwitchFgName;
                 using var process = System.Diagnostics.Process.GetProcessById((int)pid);
-                return process.ProcessName;
+                _autoSwitchFgName = process.ProcessName;
+                _autoSwitchFgPid = pid;
+                return _autoSwitchFgName;
             }
             catch { return null; }
         });
+        // BeginInvoke: the timer thread must not block on the UI thread while
+        // the profile switch rebuilds views (that also let ticks overlap).
         _autoSwitcher.OnProfileSwitchRequested += profileName =>
-            Dispatcher.Invoke(() => SwitchToProfile(profileName));
-        _autoSwitchTimer = new System.Threading.Timer(_ => _autoSwitcher?.Poll(), null,
-            GetAutoSwitchDueMs(), GetAutoSwitchPeriodMs());
+            Dispatcher.BeginInvoke(() => SwitchToProfile(profileName));
+        _autoSwitchTimer = new System.Threading.Timer(_ =>
+        {
+            if (Interlocked.Exchange(ref _autoSwitchRunning, 1) != 0) return;
+            try { _autoSwitcher?.Poll(); }
+            catch (Exception ex) { Logger.Log($"AutoSwitch poll failed: {ex.Message}"); }
+            finally { Volatile.Write(ref _autoSwitchRunning, 0); }
+        }, null, GetAutoSwitchDueMs(), GetAutoSwitchPeriodMs());
 
         // Game Mode — auto-enable screen sync when fullscreen game detected
         _gameModeTimer = new System.Threading.Timer(_ => PollGameMode(), null,
@@ -2580,6 +2612,14 @@ public partial class App : Application
 
     private long _gameModeLastChangeMs;
 
+    // Browsers and video players: fullscreen YouTube/Netflix/etc. shouldn't count as a game.
+    private static readonly HashSet<string> VideoProcesses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "chrome", "msedge", "firefox", "brave", "opera", "opera_gx", "vivaldi", "arc", "librewolf", "waterfox",
+        "vlc", "mpc-hc", "mpc-hc64", "mpc-be", "mpc-be64", "mpv", "potplayer", "potplayermini64",
+        "wmplayer", "video.ui", "microsoft.media.player", "netflix", "plex", "plex htpc", "kodi", "stremio", "jellyfin media player",
+    };
+
     private void PollGameMode()
     {
         if (IsResumeSettling) return;
@@ -2605,9 +2645,12 @@ public partial class App : Application
                         var name = proc.ProcessName.ToLowerInvariant();
                         // Skip explorer (desktop), shell, and common non-game fullscreen apps
                         if (name != "explorer" && name != "shellexperiencehost"
-                            && name != "searchhost" && name != "startmenuexperiencehost")
+                            && name != "searchhost" && name != "startmenuexperiencehost"
+                            && !(_config.Ambience.GameModeIgnoreVideo && VideoProcesses.Contains(name)))
                         {
-                            isFullscreen = NativeMethods.IsForegroundFullscreen();
+                            // Only the monitor Screen Sync captures counts — a game on another
+                            // screen would otherwise sync lights to whatever is on this one.
+                            isFullscreen = NativeMethods.IsForegroundFullscreen(_config.Ambience.ScreenSync.MonitorIndex);
                         }
                     }
                     catch { }
@@ -2620,7 +2663,6 @@ public partial class App : Application
         {
             _gameModeActive = true;
             _gameModeLastChangeMs = nowMs;
-            _gameModePreDreamView = _config.Ambience.ScreenSync.Enabled;
             _gameModePrevCorsairMode = _config.Corsair.LightSyncMode;
 
             try
@@ -2639,6 +2681,7 @@ public partial class App : Application
             if (!_config.Ambience.ScreenSync.Enabled)
             {
                 _config.Ambience.ScreenSync.Enabled = true;
+                _config.Ambience.GameModeOwnsScreenSync = true;
                 _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
             }
 
@@ -2654,20 +2697,35 @@ public partial class App : Application
             Logger.Log("GameMode: fullscreen exited — restoring room effect");
 
             // Only restore DreamView if we were the ones who turned it on
-            if (!_gameModePreDreamView)
+            if (_config.Ambience.GameModeOwnsScreenSync)
             {
+                _config.Ambience.GameModeOwnsScreenSync = false;
                 _config.Ambience.ScreenSync.Enabled = false;
                 _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
                 _ambienceSync?.ClearAllSegmentTracking();
             }
 
-            // Restart the room effect
-            _mainWindow?.GetRoomView()?.RestartRoomEffectAfterScreenSync();
+            // Restart the room effect — but only if screen sync is actually off now. If the
+            // user had Screen Sync on before the game, it keeps running and restarting a room
+            // pattern / Music Reactive / VU Fill would fight it for the same Govee devices.
+            if (!_config.Ambience.ScreenSync.Enabled)
+                _mainWindow?.GetRoomView()?.RestartRoomEffectAfterScreenSync();
 
             // Only restore Corsair if we changed it
             if (_config.Corsair.Enabled && _gameModePrevCorsairMode != "dreamview")
                 _config.Corsair.LightSyncMode = _gameModePrevCorsairMode;
         }
+    }
+
+    /// <summary>
+    /// Runs on the UI thread without blocking a worker: inline when already
+    /// on the dispatcher thread, otherwise BeginInvoke (FIFO, so successive
+    /// RunOnUi calls from the same worker keep their order).
+    /// </summary>
+    private void RunOnUi(Action action)
+    {
+        if (Dispatcher.CheckAccess()) action();
+        else Dispatcher.BeginInvoke(action);
     }
 
     private void HandleProfileSwitch(string profileName)
@@ -2739,13 +2797,16 @@ public partial class App : Application
         _rgb.PlayTransition(_config.ProfileTransition, profileColor.R, profileColor.G, profileColor.B);
         Logger.Log($"Switched to profile: {profileName}");
 
-        // Refresh the UI to show the new profile's settings
-        Dispatcher.Invoke(() => (MainWindow as MainWindow)?.RefreshViews(_config));
+        // Refresh the UI to show the new profile's settings. RunOnUi: inline
+        // when already on the UI thread (preserves ordering for UI callers),
+        // queued otherwise so the hardware input worker never blocks on a
+        // full view rebuild.
+        RunOnUi(() => (MainWindow as MainWindow)?.RefreshViews(_config));
 
         // Show OSD for profile switch
         if (_config.Osd.ShowProfileSwitch)
         {
-            Dispatcher.Invoke(() =>
+            RunOnUi(() =>
             {
                 if (!EnsureOsd()) return;
                 var iconCfg = _config.ProfileIcons.GetValueOrDefault(profileName) ?? new ProfileIconConfig();
@@ -2894,9 +2955,20 @@ public partial class App : Application
             if (_config == null) return;
             if (!_isN3Connected && !_forceN3Sleep)
             {
+                // With the N3 disabled / Turn Up-only there is nothing to
+                // reconnect or idle-sleep, so back the dispatcher wakeup off
+                // to 5s instead of firing every second for the app lifetime.
+                bool n3Wanted = _config.N3?.Enabled == true && _config.HardwareMode != HardwareMode.TurnUpOnly;
+                int idleInterval = n3Wanted ? StreamControllerRefreshIntervalMs : StreamControllerDisabledRefreshIntervalMs;
+                if (_streamControllerRefreshTimer != null
+                    && (int)_streamControllerRefreshTimer.Interval.TotalMilliseconds != idleInterval)
+                    _streamControllerRefreshTimer.Interval = TimeSpan.FromMilliseconds(idleInterval);
                 TryReconnectN3FromRefreshTick();
                 return;
             }
+            if (_streamControllerRefreshTimer != null
+                && (int)_streamControllerRefreshTimer.Interval.TotalMilliseconds == StreamControllerDisabledRefreshIntervalMs)
+                UpdateStreamControllerRefreshCadence();
 
             // ── N3 idle sleep ─────────────────────────────────────────────
             // Uses the real firmware standby command (CRT HAN) via N3Controller.Sleep —
@@ -4711,7 +4783,7 @@ public partial class App : Application
 
         if (_config.Osd.ShowVolume)
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.BeginInvoke(() =>
             {
                 if (!EnsureOsd()) return;
                 _osdOverlay!.ShowVolume("LED Brightness", pct, "Palette");
@@ -4734,7 +4806,7 @@ public partial class App : Application
         }
 
         if (!_config.Osd.ShowDeviceSwitch) return;
-        Dispatcher.Invoke(() =>
+        Dispatcher.BeginInvoke(() =>
         {
             if (!EnsureOsd()) return;
             _osdOverlay!.ShowDevice(deviceName, isOutput);
@@ -4768,7 +4840,7 @@ public partial class App : Application
     public void NotifyUpdateAvailable(UpdateInfo update)
     {
         _availableUpdate = update;
-        Dispatcher.Invoke(() => _trayMixerPopup?.ShowUpdateAvailable(update.Tag));
+        RunOnUi(() => _trayMixerPopup?.ShowUpdateAvailable(update.Tag));
     }
 
     /// <summary>
@@ -5484,7 +5556,10 @@ public partial class App : Application
             w.Enabled && w.GetVirtualButtonIdx() == buttonIdx);
         if (wheelCfg == null) return;
 
-        Dispatcher.Invoke(() =>
+        // Queued, not Invoke: the gesture engine/input worker must not stall
+        // while the overlay window is created. Close is queued the same way,
+        // so FIFO dispatcher ordering keeps open-before-close.
+        RunOnUi(() =>
         {
             if (_wheelVisible) return;
             _wheelVisible = true;
@@ -5678,8 +5753,9 @@ public partial class App : Application
 
     private void HandleQuickWheelClose(int buttonIdx)
     {
-        if (!_wheelVisible || _radialWheel == null) return;
-        Dispatcher.Invoke(() =>
+        // No pre-check off the UI thread: an Open queued just before this may
+        // not have run yet. The inner check runs after it in FIFO order.
+        RunOnUi(() =>
         {
             if (_radialWheel == null || !_wheelVisible) return;
 

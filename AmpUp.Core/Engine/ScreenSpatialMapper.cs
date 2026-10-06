@@ -19,6 +19,7 @@ public class ScreenSpatialMapper
         public float XStart, XEnd;   // horizontal range on screen
         public float YStart, YEnd;   // vertical range on screen
         public ZoneSide PrimaryEdge; // which screen edge the device is closest to
+        public bool Reversed;        // layout says segment 0 is at the far end (right / bottom)
 
         public override string ToString()
         {
@@ -35,7 +36,9 @@ public class ScreenSpatialMapper
         }
     }
 
-    private readonly Dictionary<string, ScreenRegion> _deviceRegions = new();
+    // Recalculate runs on the UI thread while the screen-sync capture thread calls GetRegion
+    // every frame, so the map is rebuilt off to the side and swapped in atomically.
+    private volatile Dictionary<string, ScreenRegion> _deviceRegions = new();
 
     public bool HasLayout => _deviceRegions.Count > 0;
 
@@ -54,7 +57,13 @@ public class ScreenSpatialMapper
     /// </summary>
     public void Recalculate(RoomLayout layout)
     {
-        _deviceRegions.Clear();
+        var regions = new Dictionary<string, ScreenRegion>();
+        try { BuildRegions(layout, regions); }
+        finally { _deviceRegions = regions; }
+    }
+
+    private static void BuildRegions(RoomLayout layout, Dictionary<string, ScreenRegion> map)
+    {
         if (layout.Monitor == null || layout.Devices.Count == 0) return;
 
         var mon = layout.Monitor;
@@ -104,17 +113,20 @@ public class ScreenSpatialMapper
                 // Left half region
                 float leftDx = dx - gapHalf;
                 var leftRegion = ComputeRegion(leftDx, dz, halfLen, dev, mon, ZoneSide.Left);
-                _deviceRegions[dev.DeviceId] = leftRegion;
+                leftRegion.Reversed = dev.Reversed;
+                map[dev.DeviceId] = leftRegion;
 
                 // Right half region
                 float rightDx = dx + gapHalf;
                 var rightRegion = ComputeRegion(rightDx, dz, halfLen, dev, mon, ZoneSide.Right);
-                _deviceRegions[dev.DeviceId + ":R"] = rightRegion;
+                rightRegion.Reversed = dev.Reversed;
+                map[dev.DeviceId + ":R"] = rightRegion;
                 continue;
             }
 
             region = ComputeRegion(dx, dz, (float)dev.LengthFt, dev, mon, edge);
-            _deviceRegions[dev.DeviceId] = region;
+            region.Reversed = dev.Reversed;
+            map[dev.DeviceId] = region;
         }
     }
 

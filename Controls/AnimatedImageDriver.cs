@@ -135,6 +135,7 @@ internal static class AnimatedImageDriver
     {
         if (s_entries.Count == 0) return;
         var now = DateTime.UtcNow;
+        bool anyRenderable = false;
 
         // Iterate backwards so dead weak registrations can be compacted in
         // place without allocating a targets array on every 30 ms tick.
@@ -146,6 +147,16 @@ internal static class AnimatedImageDriver
                 s_entries.RemoveAt(i);
                 continue;
             }
+            // Don't swap frames on images nobody can see (other tab, window
+            // minimized or hidden to tray). Re-arm the deadline instead of
+            // letting it fall far behind, so the catch-up loop below stays
+            // short when the image becomes visible again.
+            if (!IsRenderable(target))
+            {
+                if (now >= entry.NextAtUtc) entry.NextAtUtc = now.AddMilliseconds(100);
+                continue;
+            }
+            anyRenderable = true;
             if (now < entry.NextAtUtc) continue;
 
             do
@@ -167,6 +178,22 @@ internal static class AnimatedImageDriver
             s_timer?.Stop();
             s_timer = null;
             s_sharedAnimations.Clear();
+            return;
         }
+
+        // Back off to a slow poll while every registered image is offscreen
+        // (e.g. app minimized / hidden to tray during gaming).
+        if (s_timer != null)
+        {
+            var want = TimeSpan.FromMilliseconds(anyRenderable ? 30 : 250);
+            if (s_timer.Interval != want) s_timer.Interval = want;
+        }
+    }
+
+    private static bool IsRenderable(Image target)
+    {
+        if (!target.IsVisible) return false;
+        var window = Window.GetWindow(target);
+        return window != null && window.IsVisible && window.WindowState != WindowState.Minimized;
     }
 }

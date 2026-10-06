@@ -32,7 +32,25 @@ public class DreamSyncController : IDisposable
 
     // Running state
     private CancellationTokenSource? _cts;
-    private Task? _loopTask;
+    private Thread? _loopThread;
+    private volatile bool _resetSendStateRequested; // set by SetSuspended/Stop, consumed by capture thread
+
+    // Grid rows sampled per frame. 6 gives vertical bars / spatial side regions real vertical
+    // resolution (3 rows meant a 10-segment side bar showed only 3 distinct colors). Top/Bottom
+    // edges use the outer third (EdgeRows) to match the old 3-row behaviour.
+    private const int GridRows = 6;
+    private const int EdgeRows = GridRows / 3;
+
+    // UI grid preview is throttled — the RoomView handler allocates a brush per cell on the
+    // dispatcher, which is wasted work at 60 fps while a game is running.
+    private const int PreviewIntervalMs = 66;
+    private long _lastGridPreviewTick;
+
+    // Latest-wins color frame per device. The channel only carries a small flush token for
+    // these, so at most ONE color frame per device is ever pending — a slow network drops stale
+    // frames instead of replaying a backlog. Control packets (enable/brightness) stay in order
+    // in the channel.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, UdpSendRequest> _latestColorFrame = new();
     private volatile bool _running;
     private volatile bool _suspended;
 
@@ -107,16 +125,24 @@ public class DreamSyncController : IDisposable
 
     public void SetSuspended(bool suspended)
     {
-        _suspended = suspended;
         if (suspended)
         {
-            _lastSent.Clear();
-            _segmentEnabled.Clear();
-            _segmentEnableTick.Clear();
-            _segmentBrightnessResetTick.Clear();
-            _lastSegmentColors.Clear();
+            // The send-state dictionaries belong to the capture thread; clearing them here
+            // (UI / power-event thread) raced the loop. Ask the loop to do it instead.
+            _resetSendStateRequested = true;
+            Interlocked.Increment(ref _udpSendGeneration); // drop anything still queued
             Status = "Suspended";
         }
+        _suspended = suspended;
+    }
+
+    private void ResetSendState()
+    {
+        _lastSent.Clear();
+        _segmentEnabled.Clear();
+        _segmentEnableTick.Clear();
+        _segmentBrightnessResetTick.Clear();
+        _lastSegmentColors.Clear();
     }
 
     public DreamSyncController(ScreenSyncConfig config, AmbienceConfig ambience, IScreenCapture capture)
@@ -162,7 +188,7 @@ public class DreamSyncController : IDisposable
             crop = cfg.ContentBounds;
 
         int cols = cfg.ZoneCount;
-        int rows = 3;
+        int rows = GridRows;
         return _capture.CaptureZoneGrid(cfg.MonitorIndex, cols, rows, crop);
     }
 
@@ -174,7 +200,16 @@ public class DreamSyncController : IDisposable
         Interlocked.Increment(ref _udpSendGeneration);
         _running = true;
         _cts = new CancellationTokenSource();
-        _loopTask = Task.Run(() => RunLoop(_cts.Token));
+        var token = _cts.Token;
+        // Dedicated BelowNormal thread: the loop is a steady 30-60 Hz wakeup, so keep it off
+        // the thread pool and let the game win any CPU contention.
+        _loopThread = new Thread(() => RunLoop(token))
+        {
+            IsBackground = true,
+            Name = "AmpUp ScreenSync",
+            Priority = ThreadPriority.BelowNormal,
+        };
+        _loopThread.Start();
         Logger.Log("DreamSync: started");
     }
 
@@ -187,32 +222,45 @@ public class DreamSyncController : IDisposable
         // leak into the stopped/new session.
         Interlocked.Increment(ref _udpSendGeneration);
         _cts?.Cancel();
-        try { _loopTask?.Wait(2000); } catch { }
-        _loopTask = null;
-        _cts?.Dispose();
+        bool exited = true;
+        try
+        {
+            if (_loopThread != null && _loopThread != Thread.CurrentThread)
+                exited = _loopThread.Join(2000);
+        }
+        catch { }
+        _loopThread = null;
+        // Don't dispose the CTS if the loop is still alive — it may still touch WaitHandle.
+        if (exited) _cts?.Dispose();
         _cts = null;
         // Clear tracking without sending disable commands — Game Mode cycles start/stop
         // frequently and sending segment-disable kills room effects using segments.
         // Segments auto-timeout on the device after ~60s without keepalive frames.
-        _segmentEnabled.Clear();
-        _segmentEnableTick.Clear();
-        _segmentBrightnessResetTick.Clear();
-        _lastSegmentColors.Clear();
+        if (exited) ResetSendState();
+        else _resetSendStateRequested = true;
         Status = "Stopped";
         Logger.Log("DreamSync: stopped");
     }
 
     // ── Capture loop ─────────────────────────────────────────────────────────
 
-    private async Task RunLoop(CancellationToken ct)
+    private void RunLoop(CancellationToken ct)
     {
+        WaitHandle wake;
+        try { wake = ct.WaitHandle; } catch (ObjectDisposedException) { return; }
+
         while (!ct.IsCancellationRequested)
         {
+            if (_resetSendStateRequested)
+            {
+                _resetSendStateRequested = false;
+                ResetSendState();
+            }
+
             if (_suspended)
             {
                 Status = "Suspended";
-                try { await Task.Delay(250, ct); }
-                catch (OperationCanceledException) { break; }
+                if (wake.WaitOne(250)) break;
                 continue;
             }
 
@@ -232,7 +280,7 @@ public class DreamSyncController : IDisposable
 
                 // Try 2D grid capture first (preferred — enables spatial mapping)
                 int gridCols = cfg.ZoneCount;
-                int gridRows = 3; // top / middle / bottom
+                int gridRows = GridRows;
                 var grid = _capture.CaptureZoneGrid(cfg.MonitorIndex, gridCols, gridRows, contentCrop);
 
                 // Flat zone array (for legacy path + UI preview)
@@ -303,9 +351,17 @@ public class DreamSyncController : IDisposable
                     }
 
                     // Notify UI for live preview (fire and forget — UI marshal on receipt)
+                    // OnZoneColors also feeds Turn Up / Corsair, so it fires every frame.
                     OnZoneColors?.Invoke(zones);
                     if (grid != null)
-                        OnZoneGrid?.Invoke(grid, gridCols, gridRows);
+                    {
+                        long nowTick = Environment.TickCount64;
+                        if (nowTick - _lastGridPreviewTick >= PreviewIntervalMs)
+                        {
+                            _lastGridPreviewTick = nowTick;
+                            OnZoneGrid?.Invoke(grid, gridCols, gridRows);
+                        }
+                    }
 
                     // Snapshot spatial mapper under lock
                     ScreenSpatialMapper? spatialMapper;
@@ -348,9 +404,26 @@ public class DreamSyncController : IDisposable
                                     // ── Spatial mapping path (2D grid) ──
                                     string deviceKey = dev.Ip ?? mapping.DeviceIp;
                                     var region = spatialMapper.GetRegion(deviceKey);
-                                    if (region.HasValue)
+                                    var splitRight = spatialMapper.GetRegion(deviceKey + ":R");
+                                    if (region.HasValue && splitRight.HasValue && segCount >= 2)
+                                    {
+                                        // SplitLR layout (paired lights): the mapper emits two regions
+                                        // but this path used to ignore the ":R" one. Same wiring as the
+                                        // non-spatial paired path: first half = right unit (reversed),
+                                        // second half = left unit.
+                                        int half = segCount / 2;
+                                        var rightCols = MapZonesToSegmentsSpatial(grid, gridCols, gridRows, splitRight.Value, half);
+                                        var leftCols = MapZonesToSegmentsSpatial(grid, gridCols, gridRows, region.Value, segCount - half);
+                                        segColors = new (byte R, byte G, byte B)[segCount];
+                                        for (int si = 0; si < half; si++)
+                                            segColors[si] = rightCols[half - 1 - si];
+                                        Array.Copy(leftCols, 0, segColors, half, segCount - half);
+                                    }
+                                    else if (region.HasValue)
                                     {
                                         segColors = MapZonesToSegmentsSpatial(grid, gridCols, gridRows, region.Value, segCount);
+                                        // Honor the layout's "reverse segment order" flag.
+                                        if (region.Value.Reversed) Array.Reverse(segColors);
                                     }
                                     else
                                     {
@@ -391,6 +464,14 @@ public class DreamSyncController : IDisposable
                                     // Vertical light bars — sample top-to-bottom from left/right columns of 2D grid
                                     segColors = MapGridToSegmentsVertical(grid, gridCols, gridRows, segCount, mapping.Side);
                                 }
+                                else if ((mapping.Side == ZoneSide.Top || mapping.Side == ZoneSide.Bottom) && grid != null)
+                                {
+                                    // Bar along the top/bottom edge: full width, left→right, sampled from
+                                    // the outer third of the screen. (The 1D zone path treated Top/Bottom
+                                    // as the left/right QUARTER of the screen.)
+                                    segColors = MapZonesToSegmentsSpatial(grid, gridCols, gridRows,
+                                        EdgeRegion(mapping.Side, gridRows), segCount);
+                                }
                                 else
                                 {
                                     var effectiveZones = (mapping.CropMode == DeviceCropMode.FullScreen && fullScreenZones != null)
@@ -414,7 +495,9 @@ public class DreamSyncController : IDisposable
                                 // ── Single-color fallback (colorwc) ──
                                 var effectiveZones = (mapping.CropMode == DeviceCropMode.FullScreen && fullScreenZones != null)
                                     ? fullScreenZones : zones;
-                                var color = SampleColorForSide(effectiveZones, effectiveZones.Length, mapping.Side);
+                                var color = (mapping.Side == ZoneSide.Top || mapping.Side == ZoneSide.Bottom) && grid != null
+                                    ? AverageRegion(grid, gridCols, gridRows, EdgeRegion(mapping.Side, gridRows))
+                                    : SampleColorForSide(effectiveZones, effectiveZones.Length, mapping.Side);
                                 color = ApplyBrightness(color, CombinedBrightnessScale(amb.BrightnessScale, dev.BrightnessScale));
 
                                 int sensitivity = cfg.Sensitivity;
@@ -445,12 +528,11 @@ public class DreamSyncController : IDisposable
 
             // Sleep for the remainder of the frame interval
             int elapsed = (int)sw.ElapsedMilliseconds;
-            int remaining = delayMs - elapsed;
-            if (remaining > 1)
-            {
-                try { await Task.Delay(remaining, ct); }
-                catch (OperationCanceledException) { break; }
-            }
+            // Cap the loop's duty cycle at ~25% of one core: if a frame took longer than budgeted
+            // (big monitors, GDI contention with a game), idle at least 3x the work time so the
+            // effective FPS drops instead of the game stuttering.
+            int remaining = Math.Max(delayMs - elapsed, elapsed * 3);
+            if (remaining > 1 && wake.WaitOne(remaining)) break;
         }
 
         Status = "Stopped";
@@ -502,10 +584,12 @@ public class DreamSyncController : IDisposable
         var result = new (byte R, byte G, byte B)[segmentCount];
 
         // Convert normalized region bounds to grid indices (clamped)
-        int colStart = Math.Clamp((int)(region.XStart * cols), 0, cols - 1);
-        int colEnd = Math.Clamp((int)Math.Ceiling(region.XEnd * cols), 1, cols);
-        int rowStart = Math.Clamp((int)(region.YStart * rows), 0, rows - 1);
-        int rowEnd = Math.Clamp((int)Math.Ceiling(region.YEnd * rows), 1, rows);
+        // Small epsilon so float round-off (e.g. 2f/6*6 = 2.0000002) doesn't pull in an extra row/col.
+        const float eps = 1e-3f;
+        int colStart = Math.Clamp((int)(region.XStart * cols + eps), 0, cols - 1);
+        int colEnd = Math.Clamp((int)Math.Ceiling(region.XEnd * cols - eps), colStart + 1, cols);
+        int rowStart = Math.Clamp((int)(region.YStart * rows + eps), 0, rows - 1);
+        int rowEnd = Math.Clamp((int)Math.Ceiling(region.YEnd * rows - eps), rowStart + 1, rows);
 
         int colRange = Math.Max(colEnd - colStart, 1);
         int rowRange = Math.Max(rowEnd - rowStart, 1);
@@ -561,6 +645,22 @@ public class DreamSyncController : IDisposable
 
         return result;
     }
+
+    private static ScreenSpatialMapper.ScreenRegion EdgeRegion(ZoneSide side, int rows)
+    {
+        float edge = (float)EdgeRows / rows;
+        return new ScreenSpatialMapper.ScreenRegion
+        {
+            XStart = 0, XEnd = 1,
+            YStart = side == ZoneSide.Top ? 0f : 1f - edge,
+            YEnd = side == ZoneSide.Top ? edge : 1f,
+            PrimaryEdge = side,
+        };
+    }
+
+    private static (byte R, byte G, byte B) AverageRegion(
+        (byte R, byte G, byte B)[,] grid, int cols, int rows, ScreenSpatialMapper.ScreenRegion region)
+        => MapZonesToSegmentsSpatial(grid, cols, rows, region, 1)[0];
 
     // ── Color helpers ─────────────────────────────────────────────────────────
 
@@ -676,7 +776,31 @@ public class DreamSyncController : IDisposable
 
     // ── UDP send (persistent socket, bounded single-writer loop) ──────────────
 
-    private readonly record struct UdpSendRequest(string Ip, byte[] Data, long Generation);
+    private readonly record struct UdpSendRequest(string Ip, byte[] Data, long Generation, bool IsFlushToken = false);
+
+    /// <summary>Queue a color frame; replaces any not-yet-sent color frame for the same device.</summary>
+    private void QueueLatestColorFrame(string ip, byte[] data)
+    {
+        if (_disposed || !_running || string.IsNullOrWhiteSpace(ip) || data.Length == 0)
+            return;
+
+        var req = new UdpSendRequest(ip, data, Volatile.Read(ref _udpSendGeneration));
+        if (_latestColorFrame.TryAdd(ip, req))
+        {
+            // First pending frame for this device — wake the sender with a flush token.
+            _udpSendQueue.Writer.TryWrite(new UdpSendRequest(ip, Array.Empty<byte>(), req.Generation, IsFlushToken: true));
+        }
+        else
+        {
+            // A flush token is already queued; just replace the payload it will pick up.
+            // (If the sender TryRemove'd in between, AddOrUpdate re-adds without a token, so
+            // re-check and enqueue one in that case.)
+            bool added = false;
+            _latestColorFrame.AddOrUpdate(ip, _ => { added = true; return req; }, (_, _) => req);
+            if (added)
+                _udpSendQueue.Writer.TryWrite(new UdpSendRequest(ip, Array.Empty<byte>(), req.Generation, IsFlushToken: true));
+        }
+    }
 
     private void QueueUdpSend(string ip, byte[] data, long? generation = null)
     {
@@ -693,8 +817,12 @@ public class DreamSyncController : IDisposable
     {
         try
         {
-            await foreach (var request in _udpSendQueue.Reader.ReadAllAsync(ct))
+            await foreach (var queued in _udpSendQueue.Reader.ReadAllAsync(ct))
             {
+                var request = queued;
+                if (request.IsFlushToken && !_latestColorFrame.TryRemove(request.Ip, out request))
+                    continue;
+
                 if (request.Generation != Volatile.Read(ref _udpSendGeneration))
                     continue;
 
@@ -737,7 +865,7 @@ public class DreamSyncController : IDisposable
         string json = $"{{\"msg\":{{\"cmd\":\"colorwc\",\"data\":{{\"color\":{{\"r\":{r},\"g\":{g},\"b\":{b}}},\"colorTemInKelvin\":0}}}}}}";
         byte[] data = Encoding.UTF8.GetBytes(json);
 
-        QueueUdpSend(ip, data);
+        QueueLatestColorFrame(ip, data);
     }
 
     private void SendBrightnessFast(string ip, int brightness, long? generation = null)
@@ -823,7 +951,7 @@ public class DreamSyncController : IDisposable
         string json = $"{{\"msg\":{{\"cmd\":\"razer\",\"data\":{{\"pt\":\"{b64}\"}}}}}}";
         byte[] data = Encoding.UTF8.GetBytes(json);
 
-        QueueUdpSend(ip, data);
+        QueueLatestColorFrame(ip, data);
     }
 
     /// <summary>

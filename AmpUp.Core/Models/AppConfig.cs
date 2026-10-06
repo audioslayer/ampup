@@ -701,6 +701,11 @@ public class AmbienceConfig
     public string GoveeApiKey { get; set; } = "";
     public ScreenSyncConfig ScreenSync { get; set; } = new();
     public bool GameModeEnabled { get; set; } = false;
+    /// <summary>True while Game Mode (not the user) has switched Screen Sync on. Persisted so a
+    /// crash/exit mid-game can't leave Screen Sync permanently enabled — cleared at startup.</summary>
+    public bool GameModeOwnsScreenSync { get; set; } = false;
+    /// <summary>Fullscreen browsers / video players (YouTube, Netflix, VLC) don't trigger Game Mode.</summary>
+    public bool GameModeIgnoreVideo { get; set; } = true;
     public bool GoveeSyncToGlobal { get; set; } = true; // Govee follows Global tab effects
     public bool SpatialSync { get; set; } = true; // Room effects flow across devices by default
     // Persisted room effect state — restored on startup

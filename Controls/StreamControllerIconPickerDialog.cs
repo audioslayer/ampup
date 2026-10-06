@@ -1008,7 +1008,9 @@ using System;
                         bmp.BeginInit();
                         bmp.UriSource = new Uri(path, UriKind.Absolute);
                         bmp.CacheOption = BitmapCacheOption.OnLoad;
+                        bmp.DecodePixelWidth = 84; // shown at 42 DIP; avoid full-res decode
                         bmp.EndInit();
+                        bmp.Freeze();
                         image = new Image
                         {
                             Source = bmp,

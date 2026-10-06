@@ -311,6 +311,7 @@ public class CorsairSync : IDisposable
             _connected = false;
             _hasExclusiveLightingControl = false;
             _ledCache.Clear();
+            Volatile.Write(ref _lastStaticRgb, -1);
         }
         }
         catch (Exception ex)
@@ -379,6 +380,7 @@ public class CorsairSync : IDisposable
             // Device set may have changed (plug/unplug) — drop cached LED geometry
             // so it is re-queried lazily on the next frame.
             _ledCache.Clear();
+            Volatile.Write(ref _lastStaticRgb, -1);
             Devices = list;
             Volatile.Write(ref _nextAutomaticDiscoveryAt,
                 list.Count == 0 ? Environment.TickCount64 + 2_000 : 0);
@@ -988,6 +990,16 @@ public class CorsairSync : IDisposable
             catch { }
         }
         if (Devices.Count == 0) return;
+        // Music-reactive / VU timers call this at frame rate with the same
+        // color for long stretches. Skip identical repeats (re-sent once a
+        // second as a safety net); any other LED write invalidates the cache.
+        int rgbKey = (r << 16) | (g << 8) | b;
+        long nowMs = Environment.TickCount64;
+        if (Volatile.Read(ref _lastStaticRgb) == rgbKey
+            && nowMs - Volatile.Read(ref _lastStaticTick) < 1000)
+            return;
+        Volatile.Write(ref _lastStaticTick, nowMs);
+        Volatile.Write(ref _lastStaticRgb, rgbKey);
         await Task.Run(() =>
         {
             foreach (var device in Devices)
@@ -1023,8 +1035,13 @@ public class CorsairSync : IDisposable
 
     // ── Effects (iCUE SDK doesn't have an effects API — these are no-ops) ───
 
+    private int _lastStaticRgb = -1;
+    private long _lastStaticTick;
+
     private void SetLedColorsChecked(CorsairDevice device, int count, CorsairLedColor[] colors, string operation)
     {
+        if (operation != "static color")
+            Volatile.Write(ref _lastStaticRgb, -1);
         int error = CorsairSetLedColors(device.Id, count, colors);
         string key = $"{device.Id}:{operation}";
         if (error == 0)
@@ -1121,12 +1138,14 @@ public class CorsairSync : IDisposable
     {
         // Pause syncing without disconnecting from iCUE
         _paused = true;
+        Volatile.Write(ref _lastStaticRgb, -1);
         ReleaseLightingControl();
     }
 
     public void Resume()
     {
         _paused = false;
+        Volatile.Write(ref _lastStaticRgb, -1);
         AcquireLightingControl();
     }
 

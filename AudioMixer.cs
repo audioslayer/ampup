@@ -654,8 +654,8 @@ public class AudioMixer : IDisposable
             // (some apps like Chrome have child processes)
             try
             {
-                using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
-                var name = proc.ProcessName.ToLowerInvariant();
+                var name = ResolvePidName((int)pid)?.ToLowerInvariant();
+                if (name != null)
                 lock (_lock)
                 {
                     if (_sessions.TryGetValue(name, out var sessionByName))
@@ -871,8 +871,8 @@ public class AudioMixer : IDisposable
             // Fallback: match by process name
             try
             {
-                using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
-                var name = proc.ProcessName.ToLowerInvariant();
+                var name = ResolvePidName((int)pid)?.ToLowerInvariant();
+                if (name != null)
                 lock (_lock)
                 {
                     if (_sessions.TryGetValue(name, out var sessionByName))
@@ -1086,8 +1086,8 @@ public class AudioMixer : IDisposable
             // Fallback: match by process name
             try
             {
-                using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
-                var name = proc.ProcessName.ToLowerInvariant();
+                var name = ResolvePidName((int)pid)?.ToLowerInvariant();
+                if (name != null)
                 lock (_lock)
                 {
                     if (_sessions.TryGetValue(name, out var sessionByName))
@@ -1150,8 +1150,7 @@ public class AudioMixer : IDisposable
             NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
             if (pid == 0) return "";
 
-            using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
-            return proc.ProcessName;
+            return ResolvePidName((int)pid) ?? "";
         }
         catch
         {
@@ -1200,8 +1199,7 @@ public class AudioMixer : IDisposable
 
             try
             {
-                using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
-                return proc.ProcessName;
+                return ResolvePidName((int)pid) ?? "";
             }
             catch { return ""; }
         }

@@ -15,7 +15,16 @@ public partial class RgbController : IDisposable
     private Func<bool>? _isPortOpen;
     private readonly byte[] _colorMsg = new byte[48];
     private readonly byte[] _linearColors = new byte[45]; // pre-gamma, post-brightness — for external sync
-    private System.Threading.Timer? _refreshTimer;
+    // Dedicated render thread (was a System.Threading.Timer on the shared
+    // thread pool). The 20 FPS LED pipeline — effect math, serial write and
+    // OnFrameReady fan-out to Govee/Corsair — no longer jitters when the pool
+    // is busy, and never competes with pool work. One thread, mostly asleep.
+    private Thread? _renderThread;
+    private readonly AutoResetEvent _renderWake = new(false);
+    private volatile bool _renderEnabled;
+    private volatile bool _renderReset;
+    private volatile bool _renderDisposed;
+    private volatile int _refreshMs = 50;
     private int _tickInProgress;
 
     /// <summary>
@@ -245,19 +254,68 @@ public partial class RgbController : IDisposable
     {
         _writeBytes = write;
         _isPortOpen = isOpen;
+        _lastSendTick = 0; // force a full frame on (re)connect
         refreshMs = Math.Clamp(refreshMs, 16, 1000);
 
-        // Start or stop the refresh timer based on connection state
-        if (write != null && isOpen?.Invoke() == true)
+        // Start or stop the render loop based on connection state
+        _refreshMs = refreshMs;
+        _renderEnabled = write != null && isOpen?.Invoke() == true;
+        if (_renderEnabled) EnsureRenderThread();
+        _renderReset = true; // first frame one period from now (old timer dueTime)
+        try { _renderWake.Set(); } catch (ObjectDisposedException) { }
+    }
+
+    private void EnsureRenderThread()
+    {
+        if (_renderThread != null || _renderDisposed) return;
+        lock (_renderWake)
         {
-            _refreshTimer?.Dispose();
-            _refreshTimer = new System.Threading.Timer(_ => Tick(), null, refreshMs, refreshMs);
+            if (_renderThread != null || _renderDisposed) return;
+            _renderThread = new Thread(RenderLoop)
+            {
+                IsBackground = true,
+                Name = "AmpUp RGB render",
+            };
+            _renderThread.Start();
         }
-        else
+    }
+
+    private void RenderLoop()
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        long next = sw.ElapsedMilliseconds + _refreshMs;
+        try
         {
-            _refreshTimer?.Dispose();
-            _refreshTimer = null;
+            while (!_renderDisposed)
+            {
+                if (!_renderEnabled)
+                {
+                    _renderWake.WaitOne();
+                    next = sw.ElapsedMilliseconds + _refreshMs;
+                    continue;
+                }
+                if (_renderReset)
+                {
+                    _renderReset = false;
+                    next = sw.ElapsedMilliseconds + _refreshMs;
+                }
+
+                long wait = next - sw.ElapsedMilliseconds;
+                if (wait > 0)
+                {
+                    _renderWake.WaitOne((int)wait);
+                    continue; // re-evaluate enabled/reset/period
+                }
+
+                try { Tick(); }
+                catch (Exception ex) { Logger.Log($"RGB render tick failed: {ex.Message}"); }
+
+                long now = sw.ElapsedMilliseconds;
+                next += _refreshMs;
+                if (next <= now) next = now + _refreshMs; // no burst catch-up after a stall
+            }
         }
+        catch (ObjectDisposedException) { }
     }
 
     // --- Public state setters ---
@@ -630,16 +688,34 @@ public partial class RgbController : IDisposable
     {
         if (_writeBytes == null || _isPortOpen?.Invoke() != true) return;
 
+        // Skip identical frames, but still resend at KeepAliveMs so the device
+        // (which blanks its LEDs without periodic frames) stays lit. Static
+        // effects therefore drop from 20 serial writes/sec to ~4.
+        long now = Environment.TickCount64;
+        if (now - _lastSendTick < KeepAliveMs &&
+            _colorMsg.AsSpan().SequenceEqual(_lastSentMsg))
+            return;
+
         try
         {
             _writeBytes.Invoke(_colorMsg, 0, _colorMsg.Length);
+            Buffer.BlockCopy(_colorMsg, 0, _lastSentMsg, 0, _colorMsg.Length);
+            _lastSendTick = now;
         }
-        catch { }
+        catch { _lastSendTick = 0; }
     }
+
+    private const long KeepAliveMs = 250;
+    private readonly byte[] _lastSentMsg = new byte[48];
+    private long _lastSendTick;
 
     public void Dispose()
     {
-        _refreshTimer?.Dispose();
+        _renderDisposed = true;
+        _renderEnabled = false;
+        try { _renderWake.Set(); } catch (ObjectDisposedException) { }
+        // Event is intentionally not disposed: the background render thread
+        // may still be inside WaitOne; it exits on the _renderDisposed check.
     }
 
     // --- Animation engine ---
@@ -3194,11 +3270,12 @@ public partial class RgbController : IDisposable
     /// Bottom LED (2) lights first, then middle (1), then top (0) as level rises.
     /// Looks amazing on vertical wall-mounted segment lights.
     /// </summary>
+    private static readonly float[] SilentBands = new float[5];
     private void GlobalEqualizer(GlobalLightConfig gl)
     {
         var bands = _getAudioBands?.Invoke();
         if (bands == null || bands.Length < 5)
-            bands = new float[5]; // silent — show dark
+            bands = SilentBands; // silent — show dark
 
         for (int knob = 0; knob < 5; knob++)
         {

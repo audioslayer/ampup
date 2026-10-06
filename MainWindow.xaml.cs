@@ -34,7 +34,7 @@ public partial class MainWindow : FluentWindow
     private Action<AppConfig>? _onConfigChanged;
 
     private System.Windows.Threading.DispatcherTimer? _hwPreviewTimer;
-    private volatile bool _windowActive = true; // safe to read from any thread
+    private volatile bool _windowActive = true; // HW preview strip is on-screen; safe to read from any thread
     private long _lastHwPreviewLedFrameTick;
     private bool _pulseRunning; // PulseAnimation storyboard begun (connected state)
     private DeviceSurface? _lastRenderedSurface; // surface the views were last rendered with
@@ -165,42 +165,83 @@ public partial class MainWindow : FluentWindow
             Interval = TimeSpan.FromMilliseconds(100)
         };
         _hwPreviewTimer.Tick += HwPreviewTimer_Tick;
-        _hwPreviewTimer.Start();
 
         // Stop the timer when minimized or hidden to tray — WPF DispatcherTimers
         // keep firing even when the window is minimized, causing unnecessary WASAPI
-        // peak calls + rendering at 20 FPS with nothing visible.
-        StateChanged += (_, _) =>
-        {
-            if (WindowState == WindowState.Minimized)
-            {
-                _windowActive = false;
-                _hwPreviewTimer.Stop();
-                SetPulsePaused(true);
-            }
-            else
-            {
-                _windowActive = true;
-                _hwPreviewTimer.Start();
-                SetPulsePaused(false);
-            }
-        };
-        IsVisibleChanged += (_, _) =>
-        {
-            if (!IsVisible)
-            {
-                _windowActive = false;
-                _hwPreviewTimer.Stop();
-                SetPulsePaused(true);
-            }
-            else if (WindowState != WindowState.Minimized)
-            {
-                _windowActive = true;
-                _hwPreviewTimer.Start();
-                SetPulsePaused(false);
-            }
-        };
+        // peak calls + rendering with nothing visible. The strip itself is also
+        // Collapsed in MainWindow.xaml; while it is, the timer (5 WASAPI peak
+        // reads per tick) and LED-frame dispatches are pure waste, so gate on
+        // the strip's own visibility too.
+        StateChanged += (_, _) => UpdateHwPreviewActivity();
+        IsVisibleChanged += (_, _) => UpdateHwPreviewActivity();
+        HwPreview.IsVisibleChanged += (_, _) => UpdateHwPreviewActivity();
+        UpdateHwPreviewActivity();
     }
+
+    private void UpdateHwPreviewActivity()
+    {
+        bool windowShown = IsVisible && WindowState != WindowState.Minimized;
+        // Pulse pause tracks the window only (the dot lives in the title bar).
+        SetPulsePaused(!windowShown);
+        ScheduleHiddenTrim(!windowShown);
+
+        bool previewLive = windowShown && HwPreview.IsVisible;
+        _windowActive = previewLive;
+        if (_hwPreviewTimer == null) return;
+        if (previewLive)
+        {
+            if (!_hwPreviewTimer.IsEnabled) _hwPreviewTimer.Start();
+        }
+        else
+        {
+            _hwPreviewTimer.Stop();
+        }
+    }
+
+    private System.Windows.Threading.DispatcherTimer? _hiddenTrimTimer;
+    private bool _trimmedWhileHidden;
+
+    /// <summary>
+    /// Once the window has stayed hidden/minimized for a few seconds (e.g. sent
+    /// to tray while gaming), compact the managed heap and release the working
+    /// set back to the OS one time. Pages touched again will fault back in.
+    /// </summary>
+    private void ScheduleHiddenTrim(bool hidden)
+    {
+        if (!hidden)
+        {
+            _hiddenTrimTimer?.Stop();
+            _trimmedWhileHidden = false;
+            return;
+        }
+        if (_trimmedWhileHidden) return;
+        if (_hiddenTrimTimer == null)
+        {
+            _hiddenTrimTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+            _hiddenTrimTimer.Tick += (_, _) =>
+            {
+                _hiddenTrimTimer!.Stop();
+                if (IsVisible && WindowState != WindowState.Minimized) return;
+                _trimmedWhileHidden = true;
+                try
+                {
+                    System.Runtime.GCSettings.LargeObjectHeapCompactionMode =
+                        System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
+                    GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
+                    GC.WaitForPendingFinalizers();
+                    GC.Collect();
+                    using var proc = System.Diagnostics.Process.GetCurrentProcess();
+                    EmptyWorkingSet(proc.Handle);
+                }
+                catch { }
+            };
+        }
+        _hiddenTrimTimer.Stop();
+        _hiddenTrimTimer.Start();
+    }
+
+    [System.Runtime.InteropServices.DllImport("psapi.dll")]
+    private static extern bool EmptyWorkingSet(IntPtr hProcess);
 
     /// <summary>
     /// Pause/resume the connection-dot pulse storyboard alongside the window
@@ -1733,7 +1774,7 @@ public partial class MainWindow : FluentWindow
             _pulseRunning = true;
             // Connection events fire while hidden in tray — don't leave the
             // freshly-begun clock running with nothing visible.
-            if (!_windowActive)
+            if (!IsVisible || WindowState == WindowState.Minimized)
                 pulse.Pause(this);
         }
         else

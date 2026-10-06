@@ -64,7 +64,16 @@ public class SerialReader : IDisposable
         _cts = newCts;
         try { oldCts.Cancel(); } catch { }
         oldCts.Dispose();
-        Task.Run(() => ConnectLoop(newCts.Token));
+        // Dedicated thread: the read loop blocks in SerialPort.Read for the
+        // app's lifetime. Parking that on a thread-pool thread steals a pool
+        // worker permanently and can delay every Task.Run/Timer callback while
+        // the pool injects replacements (visible as UI/LED hitches).
+        var token = newCts.Token;
+        new Thread(() => ConnectLoop(token))
+        {
+            IsBackground = true,
+            Name = "AmpUp Turn Up serial",
+        }.Start();
     }
 
     public void Stop()
@@ -92,7 +101,7 @@ public class SerialReader : IDisposable
         CloseCurrentPort();
     }
 
-    private async Task ConnectLoop(CancellationToken ct)
+    private void ConnectLoop(CancellationToken ct)
     {
         while (_running && !ct.IsCancellationRequested)
         {
@@ -104,7 +113,7 @@ public class SerialReader : IDisposable
                 if (port == null)
                 {
                     if (_running && !ct.IsCancellationRequested)
-                        await Task.Delay(preferredOnly ? 250 : 2000, ct).ContinueWith(_ => { });
+                        SleepCancellable(preferredOnly ? 250 : 2000, ct);
                     continue;
                 }
                 if (!_running || ct.IsCancellationRequested)
@@ -125,7 +134,7 @@ public class SerialReader : IDisposable
                 // Request device info + knob positions (FE 01 FF)
                 TrySendInfoRequest(port);
 
-                await ReadLoop(ct);
+                ReadLoop(ct);
                 ClosePortIfCurrent(port);
             }
             catch (Exception ex)
@@ -149,7 +158,7 @@ public class SerialReader : IDisposable
                     // quickly. The old five-second pause plus a probe/reopen
                     // cycle produced ~20-second outages in issue #23.
                     int delayMs = requested ? 250 : 750;
-                    await Task.Delay(delayMs, ct).ContinueWith(_ => { });
+                    SleepCancellable(delayMs, ct);
                 }
             }
             finally
@@ -270,7 +279,20 @@ public class SerialReader : IDisposable
         return false;
     }
 
-    private async Task ReadLoop(CancellationToken ct)
+    // Synchronous, cancellation-aware sleep for the dedicated serial thread.
+    // Avoids ct.WaitHandle (Start() disposes the old CTS right after Cancel).
+    private static void SleepCancellable(int ms, CancellationToken ct)
+    {
+        long end = Environment.TickCount64 + ms;
+        while (!ct.IsCancellationRequested)
+        {
+            long left = end - Environment.TickCount64;
+            if (left <= 0) return;
+            Thread.Sleep((int)Math.Min(left, 50));
+        }
+    }
+
+    private void ReadLoop(CancellationToken ct)
     {
         var tmp = new byte[ReadChunkSize];
         var lastReadUtc = DateTime.UtcNow;
@@ -318,8 +340,8 @@ public class SerialReader : IDisposable
                         $"No Turn Up serial data for {idleFor.TotalSeconds:0.0}s on {_port?.PortName ?? _portName}; reconnecting");
                 }
 
-                try { await Task.Delay(50, ct); }
-                catch (OperationCanceledException) { break; }
+                SleepCancellable(50, ct);
+                if (ct.IsCancellationRequested) break;
             }
             catch (OperationCanceledException) { break; }
             catch { throw; }

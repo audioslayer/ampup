@@ -25,6 +25,7 @@ public static class Logger
     private static bool _processExitHooked;
     private static long _bytesWritten;
     private static System.Threading.Timer? _flushTimer;
+    private static bool _flushScheduled;
 
     static Logger()
     {
@@ -77,7 +78,16 @@ public static class Logger
             var writer = EnsureWriter();
             writer?.WriteLine(line);
             if (writer != null)
+            {
                 _bytesWritten += lineBytes;
+                // One-shot flush ~1s after the first unflushed line, instead of
+                // a periodic timer that woke the process every second forever.
+                if (!_flushScheduled && _flushTimer != null)
+                {
+                    _flushScheduled = true;
+                    _flushTimer.Change(1000, System.Threading.Timeout.Infinite);
+                }
+            }
         }
         catch
         {
@@ -100,7 +110,8 @@ public static class Logger
             _writer = new StreamWriter(stream) { AutoFlush = false };
             _bytesWritten = stream.Length;
 
-            _flushTimer ??= new System.Threading.Timer(_ => FlushPending(), null, 1000, 1000);
+            _flushTimer ??= new System.Threading.Timer(_ => FlushPending(), null,
+                System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
             if (!_processExitHooked)
             {
                 AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
@@ -119,6 +130,7 @@ public static class Logger
     {
         lock (_lock)
         {
+            _flushScheduled = false;
             try { _writer?.Flush(); }
             catch { DisableWriter(); }
         }

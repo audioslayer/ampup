@@ -64,6 +64,12 @@ namespace AmpUp.Controls
         private readonly string[] _labels = { "1", "2", "3", "4", "5" };
         // Connected status
         private bool _connected;
+        // Set whenever any drawn state changes; Tick() skips the full
+        // DrawingVisual rebuild (geometry + FormattedText + brushes) when clean.
+        private bool _dirty = true;
+        private double _lastRenderWidth = -1;
+        private static readonly SolidColorBrush ConnectedDotBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x00, 0xDD, 0x77)));
+        private static readonly SolidColorBrush DisconnectedDotBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44)));
         // Click callback: knobIdx → navigate to Mixer tab
         public Action<int>? OnKnobClicked;
 
@@ -131,7 +137,12 @@ namespace AmpUp.Controls
                 for (int l = 0; l < 3; l++)
                 {
                     int off = k * 9 + l * 3;
-                    _ledColors[k, l] = (frame[off], frame[off + 1], frame[off + 2]);
+                    var c = (frame[off], frame[off + 1], frame[off + 2]);
+                    if (_ledColors[k, l] != c)
+                    {
+                        _ledColors[k, l] = c;
+                        _dirty = true;
+                    }
                 }
             }
         }
@@ -142,7 +153,14 @@ namespace AmpUp.Controls
         public void SetPositions(float[] positions)
         {
             for (int i = 0; i < KnobCount && i < positions.Length; i++)
-                _positions[i] = Math.Clamp(positions[i], 0f, 1f);
+            {
+                float p = Math.Clamp(positions[i], 0f, 1f);
+                if (_positions[i] != p)
+                {
+                    _positions[i] = p;
+                    _dirty = true;
+                }
+            }
         }
 
         public void SetVuLevel(int idx, float level)
@@ -154,12 +172,24 @@ namespace AmpUp.Controls
         public void SetLabel(int idx, string label)
         {
             if (idx >= 0 && idx < KnobCount)
-                _labels[idx] = string.IsNullOrWhiteSpace(label) ? (idx + 1).ToString() : label;
+            {
+                var l = string.IsNullOrWhiteSpace(label) ? (idx + 1).ToString() : label;
+                if (_labels[idx] != l)
+                {
+                    _labels[idx] = l;
+                    _dirty = true;
+                }
+            }
         }
 
         public void SetConnected(bool connected)
         {
+            if (_connected == connected) return;
             _connected = connected;
+            _dirty = true;
+            // Previously the dot only updated on the next Tick; repaint now so
+            // the status is correct even while the tick timer is paused.
+            Render(new Size(ActualWidth, ActualHeight));
         }
 
         /// <summary>
@@ -172,14 +202,18 @@ namespace AmpUp.Controls
 
             for (int i = 0; i < KnobCount; i++)
             {
+                float before = _vuSmoothed[i];
                 if (_vuTarget[i] > _vuSmoothed[i])
                     _vuSmoothed[i] += (_vuTarget[i] - _vuSmoothed[i]) * attack;
                 else
                     _vuSmoothed[i] *= decay;
 
                 if (_vuSmoothed[i] < 0.001f) _vuSmoothed[i] = 0f;
+                if (_vuSmoothed[i] != before) _dirty = true;
             }
 
+            // Silent audio + static LEDs + untouched knobs → nothing to redraw.
+            if (!_dirty && ActualWidth == _lastRenderWidth) return;
             Render(new Size(ActualWidth, ActualHeight));
         }
 
@@ -192,6 +226,8 @@ namespace AmpUp.Controls
             double w = size.Width;
             double h = StripHeight;
             if (w <= 0) return;
+            _dirty = false;
+            _lastRenderWidth = w;
 
             double slotW = w / KnobCount;
 
@@ -218,9 +254,7 @@ namespace AmpUp.Controls
             // Connection status dot — bottom-right corner of strip
             double dotX = w - 7;
             double dotY = h - 7;
-            var dotBrush = _connected
-                ? Freeze(new SolidColorBrush(Color.FromRgb(0x00, 0xDD, 0x77)))
-                : Freeze(new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44)));
+            var dotBrush = _connected ? ConnectedDotBrush : DisconnectedDotBrush;
             dc.DrawEllipse(dotBrush, null, new Point(dotX, dotY), 2.5, 2.5);
         }
 

@@ -86,9 +86,9 @@ public sealed class N3Controller : IDisposable
     private HidDevice? _keyboardDevice;
     private HidStream? _keyboardStream;
     private CancellationTokenSource? _readCts;
-    private Task? _readTask;
+    private Thread? _readTask;
     private CancellationTokenSource? _keyboardReadCts;
-    private Task? _keyboardReadTask;
+    private Thread? _keyboardReadTask;
     private System.Threading.Timer? _keepAliveTimer;
     private volatile bool _disposed;
     private volatile bool _initialized;
@@ -457,7 +457,9 @@ public sealed class N3Controller : IDisposable
 
         int reportLength = InputReportLength > 0 ? InputReportLength : 513;
         Logger.Log($"N3: read loop started on primary HID (len={reportLength})");
-        _readTask = Task.Run(() => ReadLoop(_stream, reportLength, "primary", true, _readCts.Token));
+        // Dedicated threads: HidStream.Read blocks for the connection lifetime,
+        // which would otherwise pin a thread-pool worker per interface.
+        _readTask = StartReadThread(_stream, reportLength, "primary", true, _readCts.Token);
     }
 
     private void StartKeyboardReadLoop()
@@ -470,10 +472,21 @@ public sealed class N3Controller : IDisposable
 
         int reportLength = SafeGet(() => _keyboardDevice?.GetMaxInputReportLength() ?? 64, 64);
         Logger.Log($"N3: read loop started on keyboard-side HID (len={reportLength})");
-        _keyboardReadTask = Task.Run(() => ReadLoop(_keyboardStream, reportLength, "keyboard", false, _keyboardReadCts.Token));
+        _keyboardReadTask = StartReadThread(_keyboardStream, reportLength, "keyboard", false, _keyboardReadCts.Token);
     }
 
-    private async Task ReadLoop(HidStream stream, int reportLength, string channelName, bool parseKnownProtocol, CancellationToken ct)
+    private Thread StartReadThread(HidStream stream, int reportLength, string channelName, bool parseKnownProtocol, CancellationToken ct)
+    {
+        var t = new Thread(() => ReadLoop(stream, reportLength, channelName, parseKnownProtocol, ct))
+        {
+            IsBackground = true,
+            Name = $"AmpUp N3 HID read ({channelName})",
+        };
+        t.Start();
+        return t;
+    }
+
+    private void ReadLoop(HidStream stream, int reportLength, string channelName, bool parseKnownProtocol, CancellationToken ct)
     {
         reportLength = Math.Max(reportLength, 8);
         var buffer = new byte[reportLength];
@@ -511,7 +524,7 @@ public sealed class N3Controller : IDisposable
             }
             catch (TimeoutException)
             {
-                await Task.Delay(10, ct).ConfigureAwait(false);
+                Thread.Sleep(10);
             }
             catch (OperationCanceledException)
             {
@@ -665,8 +678,15 @@ public sealed class N3Controller : IDisposable
         };
     }
 
+    private int _keepAliveRunning;
+
     private void SafeKeepAlive()
     {
+        // Timer callbacks overlap when an image batch holds _streamLock for
+        // hundreds of ms; without this guard each tick parked another pool
+        // thread on the lock. A skipped keepalive is harmless (image traffic
+        // is itself device activity, and the next tick retries).
+        if (Interlocked.Exchange(ref _keepAliveRunning, 1) != 0) return;
         try
         {
             if (_asleep) return;
@@ -676,6 +696,7 @@ public sealed class N3Controller : IDisposable
         {
             // Keepalive is best-effort during bring-up.
         }
+        finally { Volatile.Write(ref _keepAliveRunning, 0); }
     }
 
     private void WriteImageDataReports(ReadOnlySpan<byte> imageData)
@@ -964,13 +985,13 @@ public sealed class N3Controller : IDisposable
 
         try
         {
-            _readTask?.Wait(250);
+            if (_readTask != null && _readTask != Thread.CurrentThread) _readTask.Join(250);
         }
         catch { }
 
         try
         {
-            _keyboardReadTask?.Wait(250);
+            if (_keyboardReadTask != null && _keyboardReadTask != Thread.CurrentThread) _keyboardReadTask.Join(250);
         }
         catch { }
 

@@ -76,12 +76,20 @@ internal static class NativeMethods
     /// Checks both screen coverage AND window style — a maximized window with a title bar
     /// (browser, editor) is NOT fullscreen. Only borderless/exclusive fullscreen counts.
     /// </summary>
-    internal static bool IsForegroundFullscreen()
+    internal static bool IsForegroundFullscreen() => IsForegroundFullscreen(-1);
+
+    /// <param name="monitorIndex">Screen.AllScreens index the window must be on, or -1 for any.</param>
+    internal static bool IsForegroundFullscreen(int monitorIndex)
     {
         var hwnd = GetForegroundWindow();
         if (hwnd == IntPtr.Zero) return false;
         if (!GetWindowRect(hwnd, out var rect)) return false;
         var screen = System.Windows.Forms.Screen.FromHandle(hwnd);
+        if (monitorIndex >= 0)
+        {
+            var all = System.Windows.Forms.Screen.AllScreens;
+            if (monitorIndex < all.Length && all[monitorIndex].DeviceName != screen.DeviceName) return false;
+        }
         bool coversScreen = rect.Left <= screen.Bounds.Left
             && rect.Top <= screen.Bounds.Top
             && rect.Right >= screen.Bounds.Right

@@ -6,22 +6,26 @@ using AmpUp.Core.Models;
 namespace AmpUp;
 
 /// <summary>
-/// GDI-based screen capture with zone-based color sampling.
-/// Captures a monitor region via StretchBlt (HALFTONE) into a cached downsampled bitmap
-/// and samples dominant colors per zone. Runs on a background thread at up to 30fps.
-/// DXGI Desktop Duplication can replace this layer later for frame-synced capture.
+/// Screen capture with zone-based color sampling.
+/// Primary path: DXGI Desktop Duplication with GPU mip downsampling (DxgiDesktopDuplicator),
+/// read back at 1/8 res into a cached bitmap. Fallback: GDI StretchBlt (HALFTONE) into the
+/// same cached bitmap when DXGI is unavailable. Samplers then pick dominant colors per zone.
 /// </summary>
 public class ScreenCapture : IDisposable
 {
     private bool _disposed;
 
     // Pixel stride for downsampled sampling (every Nth pixel — good balance of speed vs accuracy)
-    private const int SampleStride = 4;
+    // The bitmap is already a 1/8 box-filtered downsample (GPU mip / HALFTONE), so a coarse
+    // stride here would throw away most of it: at 3440x1440 -> 430x180 a stride of 4 left only
+    // ~15 sample rows per zone row. Stride 2 is ~19k reads per pass — negligible.
+    private const int SampleStride = 2;
 
     // StretchBlt downsample factor — capture at 1/Nth of source resolution via GPU HALFTONE filter.
     // HALFTONE box-filters on the way down, so sampling the result is more accurate than
-    // stride-sampling the full-res source. 2x is a safe default (~4x less CPU & memory).
-    private const int CaptureDownsample = 2;
+    // stride-sampling the full-res source. 8x (e.g. 3440x1440 -> 430x180) is still far more
+    // detail than a 16x3 zone grid needs. GDI is only the fallback when DXGI is unavailable.
+    private const int CaptureDownsample = 8; // matches DxgiDesktopDuplicator.MipLevel (1/8) so both paths yield the same bitmap size
 
     // Cached downsampled bitmap reused across frames to eliminate per-frame allocations.
     // Single-threaded instance (DreamSyncController owns a single capture instance).
@@ -51,7 +55,11 @@ public class ScreenCapture : IDisposable
     private const float BlackBarContentThreshold = 0.02f; // 2% — a mostly-black column
 
     // Cache detected content bounds (recalculate every N frames since aspect ratio rarely changes)
+    // NOTE: bounds are in DOWNSAMPLED bitmap pixels; reset whenever the bitmap size changes
+    // (DXGI <-> GDI switch, resolution change, monitor change) — see EnsureBoundsCacheFor.
     private Rectangle _cachedContentBounds;
+    private Rectangle _pendingContentBounds;   // hysteresis: a new crop must be seen twice in a row
+    private int _boundsBmpW, _boundsBmpH;
     private int _contentBoundsFrameCounter;
     private const int ContentBoundsRecalcInterval = 30; // ~1s at 30fps
 
@@ -75,21 +83,16 @@ public class ScreenCapture : IDisposable
         var bounds = GetMonitorBounds(monitorIndex);
         if (bounds.Width == 0 || bounds.Height == 0) return null;
 
+        lock (_lock) // Dispose may run on another thread
         try
         {
-            var bmp = CaptureScreen(bounds);
+            var bmp = CaptureScreen(bounds, monitorIndex);
             if (bmp == null) return null;
 
             if (cropBlackBars)
             {
                 // Recalculate content bounds periodically (aspect ratio doesn't change often)
-                _contentBoundsFrameCounter++;
-                if (_contentBoundsFrameCounter >= ContentBoundsRecalcInterval ||
-                    _cachedContentBounds.Width == 0 || _cachedContentBounds.Height == 0)
-                {
-                    _cachedContentBounds = DetectContentBounds(bmp);
-                    _contentBoundsFrameCounter = 0;
-                }
+                UpdateContentBounds(bmp);
 
                 // Only use crop if it's meaningfully smaller than the full frame
                 // (at least 3% cropped from one side to avoid false positives on dark scenes)
@@ -125,9 +128,10 @@ public class ScreenCapture : IDisposable
         var bounds = GetMonitorBounds(monitorIndex);
         if (bounds.Width == 0 || bounds.Height == 0) return null;
 
+        lock (_lock) // Dispose may run on another thread
         try
         {
-            var bmp = CaptureScreen(bounds);
+            var bmp = CaptureScreen(bounds, monitorIndex);
             if (bmp == null) return null;
 
             // Determine crop rectangle
@@ -135,14 +139,10 @@ public class ScreenCapture : IDisposable
             if (crop != null && crop.AutoDetect)
             {
                 // Auto-detect content bounds
-                _contentBoundsFrameCounter++;
-                if (_contentBoundsFrameCounter >= ContentBoundsRecalcInterval ||
-                    _cachedContentBounds.Width == 0)
+                if (UpdateContentBounds(bmp))
                 {
-                    _cachedContentBounds = DetectContentBounds(bmp);
-                    _contentBoundsFrameCounter = 0;
-
-                    // Update the ContentBounds percentages from detected pixels
+                    // Update the ContentBounds percentages from detected pixels (percentages
+                    // are resolution-independent, so downsampled coords convert exactly)
                     if (_cachedContentBounds.Width > 0 && _cachedContentBounds.Height > 0)
                     {
                         crop.LeftPct = (double)_cachedContentBounds.Left / bmp.Width;
@@ -175,6 +175,50 @@ public class ScreenCapture : IDisposable
             Logger.Log($"ScreenCapture.CaptureZoneGrid failed: {ex.Message}");
             return null;
         }
+    }
+
+    /// <summary>
+    /// Periodically re-detect letterbox/pillarbox bounds. Returns true when the detection ran.
+    /// A changed crop is only committed after two consecutive detections agree, so a single
+    /// dark frame (night scene, loading screen fade) can't snap the crop inward for a second.
+    /// </summary>
+    private bool UpdateContentBounds(Bitmap bmp)
+    {
+        if (bmp.Width != _boundsBmpW || bmp.Height != _boundsBmpH)
+        {
+            // Cached rectangle was measured on a different-sized bitmap — invalid now.
+            _boundsBmpW = bmp.Width;
+            _boundsBmpH = bmp.Height;
+            _cachedContentBounds = Rectangle.Empty;
+            _pendingContentBounds = Rectangle.Empty;
+            _contentBoundsFrameCounter = 0;
+        }
+
+        _contentBoundsFrameCounter++;
+        bool empty = _cachedContentBounds.Width == 0 || _cachedContentBounds.Height == 0;
+        if (!empty && _contentBoundsFrameCounter < ContentBoundsRecalcInterval)
+            return false;
+        _contentBoundsFrameCounter = 0;
+
+        var detected = DetectContentBounds(bmp);
+        if (empty || BoundsClose(detected, _cachedContentBounds) || BoundsClose(detected, _pendingContentBounds))
+        {
+            _cachedContentBounds = detected;
+            _pendingContentBounds = Rectangle.Empty;
+        }
+        else
+        {
+            _pendingContentBounds = detected;
+        }
+        return true;
+    }
+
+    private static bool BoundsClose(Rectangle a, Rectangle b)
+    {
+        if (b.Width == 0 || b.Height == 0) return false;
+        const int tol = 3; // downsampled px (~24 source px)
+        return Math.Abs(a.Left - b.Left) <= tol && Math.Abs(a.Top - b.Top) <= tol
+            && Math.Abs(a.Right - b.Right) <= tol && Math.Abs(a.Bottom - b.Bottom) <= tol;
     }
 
     /// <summary>
@@ -224,9 +268,10 @@ public class ScreenCapture : IDisposable
         var bounds = GetMonitorBounds(monitorIndex);
         if (bounds.Width == 0 || bounds.Height == 0) return null;
 
+        lock (_lock) // Dispose may run on another thread
         try
         {
-            var bmp = CaptureScreen(bounds);
+            var bmp = CaptureScreen(bounds, monitorIndex);
             if (bmp == null) return null;
 
             var region = GetSideRegion(bmp.Width, bmp.Height, side);
@@ -327,7 +372,112 @@ public class ScreenCapture : IDisposable
     private const int HALFTONE = 4;
     private const uint SRCCOPY = 0x00CC0020;
 
-    private Bitmap? CaptureScreen(Rectangle bounds)
+    // ── DXGI Desktop Duplication (primary path) ─────────────────────────────
+
+    private readonly object _lock = new();
+    private DxgiDesktopDuplicator? _dxgi;
+    private long _dxgiRetryAfterTick;      // Environment.TickCount64 before which we stay on GDI
+    private bool _dxgiFailureLogged;       // log once per failure streak
+    private string? _dxgiLoggedDevice;
+    private const int DxgiRetryMs = 3000;
+    private const int DxgiLostRetryMs = 250; // after ACCESS_LOST: brief GDI gap, then rebuild
+
+    private Bitmap? CaptureScreen(Rectangle bounds, int monitorIndex)
+    {
+        if (_disposed) return null; // caller holds _lock; don't resurrect resources after Dispose
+        var bmp = TryCaptureDxgi(monitorIndex);
+        return bmp ?? CaptureScreenGdi(bounds);
+    }
+
+    /// <summary>
+    /// Returns the cached bitmap filled from DXGI, or null to fall back to GDI for this frame.
+    /// When no new desktop frame is available the previous image is reused (no spin, no GDI).
+    /// </summary>
+    private Bitmap? TryCaptureDxgi(int monitorIndex)
+    {
+        var screens = System.Windows.Forms.Screen.AllScreens;
+        if (monitorIndex < 0 || monitorIndex >= screens.Length) monitorIndex = 0;
+        var screen = screens[monitorIndex];
+
+        if (_dxgi != null && !string.Equals(_dxgi.DeviceName, screen.DeviceName, StringComparison.OrdinalIgnoreCase))
+        {
+            _dxgi.Dispose();
+            _dxgi = null;
+        }
+
+        if (_dxgi == null)
+        {
+            if (Environment.TickCount64 < _dxgiRetryAfterTick) return null;
+            try
+            {
+                _dxgi = DxgiDesktopDuplicator.Create(screen.DeviceName);
+                if (!string.Equals(_dxgiLoggedDevice, screen.DeviceName, StringComparison.Ordinal))
+                {
+                    Logger.Log($"ScreenCapture: DXGI desktop duplication active on {screen.DeviceName} ({_dxgi.Width}x{_dxgi.Height} readback)");
+                    _dxgiLoggedDevice = screen.DeviceName;
+                }
+            }
+            catch (Exception ex)
+            {
+                _dxgi = null;
+                _dxgiRetryAfterTick = Environment.TickCount64 + DxgiRetryMs;
+                if (!_dxgiFailureLogged)
+                {
+                    Logger.Log($"ScreenCapture: DXGI init failed on {screen.DeviceName}, using GDI fallback (retry every {DxgiRetryMs}ms): {ex.Message}");
+                    _dxgiFailureLogged = true;
+                }
+                return null;
+            }
+        }
+
+        // Cached bitmap must match the DXGI readback size.
+        if (_cachedBmp == null || _cachedBmp.Width != _dxgi.Width || _cachedBmp.Height != _dxgi.Height)
+        {
+            _cachedBmp?.Dispose();
+            _cachedBmp = new Bitmap(_dxgi.Width, _dxgi.Height, PixelFormat.Format32bppRgb);
+            _cachedSrcW = _cachedSrcH = -1; // force GDI path to re-validate size if it runs
+            _dxgi.ResetFrameState();
+        }
+
+        DxgiDesktopDuplicator.CaptureResult result;
+        try
+        {
+            result = _dxgi.TryCapture(_cachedBmp);
+        }
+        catch (Exception ex)
+        {
+            // Unexpected failure (unsupported surface format, device removed): back off the
+            // full retry interval so we don't rebuild the D3D device every frame.
+            if (!_dxgiFailureLogged)
+            {
+                Logger.Log($"ScreenCapture: DXGI capture error, GDI fallback (retry every {DxgiRetryMs}ms): {ex.Message}");
+                _dxgiFailureLogged = true;
+            }
+            _dxgiRetryAfterTick = Environment.TickCount64 + DxgiRetryMs;
+            _dxgi.Dispose();
+            _dxgi = null;
+            return null;
+        }
+
+        if (result == DxgiDesktopDuplicator.CaptureResult.Lost)
+        {
+            _dxgiRetryAfterTick = Environment.TickCount64 + DxgiLostRetryMs;
+            // Mode change / fullscreen-exclusive switch / UAC or lock screen. Recreate on next
+            // call; DuplicateOutput fails while the secure desktop is up, which the retry
+            // backoff above absorbs (GDI covers the gap).
+            _dxgi.Dispose();
+            _dxgi = null;
+            return null;
+        }
+
+        if (result == DxgiDesktopDuplicator.CaptureResult.NewFrame)
+            _dxgiFailureLogged = false; // healthy again — log the next failure streak
+
+        // NoChange before the first real frame → nothing valid in the bitmap yet.
+        return _dxgi.HasFrame ? _cachedBmp : null;
+    }
+
+    private Bitmap? CaptureScreenGdi(Rectangle bounds)
     {
         // Downsampled target size — floored, minimum 1px per dim.
         int dw = Math.Max(1, bounds.Width / CaptureDownsample);
@@ -565,6 +715,9 @@ public class ScreenCapture : IDisposable
     /// </summary>
     private static (byte R, byte G, byte B)[] SampleZones(Bitmap bmp, int zoneCount, Rectangle contentBounds)
     {
+        contentBounds.Intersect(new Rectangle(0, 0, bmp.Width, bmp.Height));
+        if (contentBounds.Width == 0 || contentBounds.Height == 0)
+            return new (byte R, byte G, byte B)[zoneCount];
         var data = bmp.LockBits(
             new Rectangle(0, 0, bmp.Width, bmp.Height),
             ImageLockMode.ReadOnly,
@@ -829,8 +982,13 @@ public class ScreenCapture : IDisposable
 
     public void Dispose()
     {
-        _disposed = true;
-        _cachedBmp?.Dispose();
-        _cachedBmp = null;
+        lock (_lock)
+        {
+            _disposed = true;
+            _dxgi?.Dispose();
+            _dxgi = null;
+            _cachedBmp?.Dispose();
+            _cachedBmp = null;
+        }
     }
 }

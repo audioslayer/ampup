@@ -173,6 +173,7 @@ public class AmbienceSync : IDisposable
                 }
 
                 _lastSendTick[ip] = now;
+                if (IsDuplicateSegmentFrame(ip, needEnable, segColors, now)) continue;
                 _ = SendSegmentEnableThenColors(ip, needEnable, segColors);
             }
             else
@@ -264,20 +265,23 @@ public class AmbienceSync : IDisposable
             {
                 try
                 {
-                    udp.Client.ReceiveTimeout = Math.Max(100, (int)(deadline - DateTime.UtcNow).TotalMilliseconds);
-                    var result = await Task.Run(() =>
+                    // Async receive with a timeout instead of Task.Run(blocking
+                    // Receive): doesn't pin a thread-pool worker for up to 5s.
+                    int waitMs = Math.Max(100, (int)(deadline - DateTime.UtcNow).TotalMilliseconds);
+                    (byte[]? Data, IPEndPoint? Ep) result;
+                    using (var rcvCts = CancellationTokenSource.CreateLinkedTokenSource(ct))
                     {
+                        rcvCts.CancelAfter(waitMs);
                         try
                         {
-                            IPEndPoint? ep = null;
-                            var data = udp.Receive(ref ep);
-                            return (Data: data, Ep: ep);
+                            var r = await udp.ReceiveAsync(rcvCts.Token).ConfigureAwait(false);
+                            result = (r.Buffer, r.RemoteEndPoint);
                         }
                         catch
                         {
-                            return (Data: (byte[]?)null, Ep: (IPEndPoint?)null);
+                            result = (null, null);
                         }
-                    }, ct);
+                    }
 
                     if (result.Data == null || result.Ep == null) break;
 
@@ -1046,6 +1050,7 @@ public class AmbienceSync : IDisposable
                 _segmentKeepAliveTick[ip] = now;
             }
             _lastSendTick[ip] = now;
+            if (IsDuplicateSegmentFrame(ip, needEnable, segColors, now)) return;
             _ = SendSegmentEnableThenColors(ip, needEnable, segColors);
         }
         else
@@ -1281,17 +1286,18 @@ public class AmbienceSync : IDisposable
             byte[] data = Encoding.UTF8.GetBytes(json);
             await udp.SendAsync(data, data.Length, ip, LanControlPort);
 
-            udp.Client.ReceiveTimeout = 2000;
-            var result = await Task.Run(() =>
+            // Async receive with 2s timeout (was Task.Run + blocking Receive,
+            // which parked one pool thread per device during power refresh).
+            string? result;
+            using (var rcvCts = new CancellationTokenSource(2000))
             {
                 try
                 {
-                    IPEndPoint? ep = null;
-                    var resp = udp.Receive(ref ep);
-                    return Encoding.UTF8.GetString(resp);
+                    var rcv = await udp.ReceiveAsync(rcvCts.Token).ConfigureAwait(false);
+                    result = Encoding.UTF8.GetString(rcv.Buffer);
                 }
-                catch { return null; }
-            });
+                catch { result = null; }
+            }
 
             if (result == null) return null;
 
@@ -1463,6 +1469,7 @@ public class AmbienceSync : IDisposable
     {
         _segmentEnabled.TryRemove(ip, out _);
         _segmentKeepAliveTick.TryRemove(ip, out _);
+        _lastSegmentFrame.TryRemove(ip, out _);
         _ = SendSegmentEnable(ip, false);
     }
 
@@ -1474,6 +1481,7 @@ public class AmbienceSync : IDisposable
     {
         _segmentEnabled.Clear();
         _segmentKeepAliveTick.Clear();
+        _lastSegmentFrame.Clear();
     }
 
     public void ClearSegmentTracking(string ip)
@@ -1481,11 +1489,29 @@ public class AmbienceSync : IDisposable
         if (string.IsNullOrWhiteSpace(ip)) return;
         _segmentEnabled.TryRemove(ip, out _);
         _segmentKeepAliveTick.TryRemove(ip, out _);
+        _lastSegmentFrame.TryRemove(ip, out _);
     }
 
     public static async Task DisableSegmentMode(string ip)
     {
         await SendSegmentEnable(ip, false);
+    }
+
+    // Last segment frame actually sent per device. Identical frames are skipped
+    // (static scenes / silence otherwise spam 30 UDP packets/s per device), but
+    // re-sent at least every SegmentDuplicateResendInterval since UDP is lossy.
+    private readonly ConcurrentDictionary<string, ((byte R, byte G, byte B)[] Colors, long Tick)> _lastSegmentFrame = new();
+    private const long SegmentDuplicateResendInterval = TimeSpan.TicksPerSecond;
+
+    private bool IsDuplicateSegmentFrame(string ip, bool needEnable, (byte R, byte G, byte B)[] colors, long now)
+    {
+        if (!needEnable
+            && _lastSegmentFrame.TryGetValue(ip, out var prev)
+            && now - prev.Tick < SegmentDuplicateResendInterval
+            && prev.Colors.AsSpan().SequenceEqual(colors))
+            return true;
+        _lastSegmentFrame[ip] = ((((byte R, byte G, byte B)[])colors.Clone()), now);
+        return false;
     }
 
     /// <summary>
@@ -1509,6 +1535,7 @@ public class AmbienceSync : IDisposable
             _segmentKeepAliveTick[ip] = now;
         }
         _lastSendTick[ip] = now;
+        if (IsDuplicateSegmentFrame(ip, needEnable, colors, now)) return;
         _ = SendSegmentEnableThenColors(ip, needEnable, colors);
     }
 

@@ -73,6 +73,8 @@ public class DuckingEngine : IDisposable
             }
             catch (Exception ex)
             {
+                // Endpoint may have been removed/invalidated — rebuild next poll.
+                DropCachedDevice();
                 Logger.Log($"DuckingEngine.Poll error: {ex.Message}");
             }
             finally
@@ -261,9 +263,13 @@ public class DuckingEngine : IDisposable
         var result = new Dictionary<string, (AudioSessionControl, float)>();
         var seenPids = new HashSet<int>();
 
-        var device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-        using var dev = device;
-        var mgr = dev.AudioSessionManager;
+        // Reuse the default render endpoint + its session manager across polls
+        // instead of activating a fresh MMDevice every tick. Revalidated every
+        // DeviceRecheckMs (picks up default-device switches) and dropped on any
+        // COM error. Poll always runs on MTA thread-pool threads, so the cached
+        // objects never cross into an STA.
+        var mgr = GetSessionManager();
+        mgr.RefreshSessions(); // Sessions is a snapshot taken at the last refresh
         var sessions = mgr.Sessions;
 
         for (int i = 0; i < sessions.Count; i++)
@@ -318,6 +324,44 @@ public class DuckingEngine : IDisposable
         return result;
     }
 
+    private const long DeviceRecheckMs = 3000;
+    private MMDevice? _cachedDevice;
+    private long _cachedDeviceTick;
+
+    // Caller holds _lock.
+    private AudioSessionManager GetSessionManager()
+    {
+        long now = Environment.TickCount64;
+        if (_cachedDevice != null && now - _cachedDeviceTick >= DeviceRecheckMs)
+        {
+            try
+            {
+                using var current = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                if (current.ID != _cachedDevice.ID || _cachedDevice.State != DeviceState.Active)
+                    DropCachedDevice();
+                else
+                    _cachedDeviceTick = now;
+            }
+            catch { DropCachedDevice(); }
+        }
+
+        if (_cachedDevice == null)
+        {
+            _cachedDevice = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            _cachedDeviceTick = now;
+        }
+
+        try { return _cachedDevice.AudioSessionManager; }
+        catch { DropCachedDevice(); throw; }
+    }
+
+    private void DropCachedDevice()
+    {
+        var dev = _cachedDevice;
+        _cachedDevice = null;
+        if (dev != null) try { dev.Dispose(); } catch { }
+    }
+
     private static float Lerp(float a, float b, float t) => a + (b - a) * t;
 
     public void Dispose()
@@ -325,6 +369,7 @@ public class DuckingEngine : IDisposable
         lock (_lock)
         {
             _disposed = true;
+            DropCachedDevice();
         }
         _enumerator.Dispose();
     }

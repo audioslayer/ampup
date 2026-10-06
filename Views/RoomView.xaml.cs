@@ -148,8 +148,17 @@ public partial class RoomView : UserControl
         };
         IsVisibleChanged += (_, e) =>
         {
+            // Only keep the 15s Govee status poll alive while the Room page
+            // is actually visible (hidden tab / tray => no wakeups at all).
             if (e.NewValue is true)
+            {
+                if (IsLoaded) _goveeStateRefreshTimer.Start();
                 _ = RefreshGoveeDeviceStatesAsync();
+            }
+            else
+            {
+                _goveeStateRefreshTimer.Stop();
+            }
         };
 
         BuildTopBar();
@@ -708,6 +717,8 @@ public partial class RoomView : UserControl
             {
                 if (_loading || _config == null) return;
                 _config.Ambience.ScreenSync.Enabled = on;
+                // A manual toggle is the user's choice — Game Mode must not undo it on game exit.
+                _config.Ambience.GameModeOwnsScreenSync = false;
                 if (on)
                 {
                     // Stop everything so screen sync has exclusive control
@@ -2978,7 +2989,10 @@ public partial class RoomView : UserControl
         _musicReactiveBrightness = 1f;
         EnsureGoveeDevicesPoweredForUserMode();
 
-        _corsairMusicTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
+        // SmoothedBands is a fixed array the analyzer updates in place, so this
+        // tick only needs to re-pick the reference if the analyzer instance is
+        // recreated. 1s instead of 33ms removes ~30 UI wakeups/sec.
+        _corsairMusicTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _corsairMusicTimer.Tick += (_, _) =>
         {
             _globalMusicBands = App.AudioAnalyzer?.SmoothedBands;
@@ -6269,8 +6283,10 @@ public partial class RoomView : UserControl
             // Save current state before stopping
             _savedMusicReactive = _corsairMusicTimer?.IsEnabled == true;
             _savedVuFill = _vuFillActive;
-            if (_activePattern != null && _activePattern != "__sync__")
-                _savedPatternForGameMode = _activePattern;
+            // Always overwrite (null when nothing is running) so a pattern saved by a PREVIOUS
+            // game session isn't resurrected on this session's exit.
+            _savedPatternForGameMode = (_activePattern != null && _activePattern != "__sync__")
+                ? _activePattern : null;
 
             // Stop all room modes — screen sync needs exclusive control
             StopCorsairMusicSync();
