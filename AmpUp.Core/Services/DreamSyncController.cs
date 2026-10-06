@@ -685,7 +685,7 @@ public class DreamSyncController : IDisposable
         }
 
         // Light Gaussian blur along the strip (edges clamp).
-        float sigma = Math.Max(0.7f, segmentCount / 10f);
+        float sigma = Math.Max(0.5f, segmentCount / 20f); // light touch — /10 was too blended
         int rad = (int)MathF.Ceiling(sigma * 2);
         for (int sI = 0; sI < segmentCount; sI++)
         {
