@@ -326,6 +326,19 @@ public partial class MixerView
             RebuildScAppToggles(idx);
     }
 
+    /// <summary>
+    /// Redraws every app-group chip list (Turn Up + SC) from the current config.
+    /// Called when the Groups page edits a knob's Apps list.
+    /// </summary>
+    public void RefreshAppGroups()
+    {
+        if (_config == null || _mixer == null) return;
+        for (int i = 0; i < _appsListPanels.Length; i++)
+            if (_appsListPanels[i] != null) RebuildAppToggles(i);
+        for (int i = 0; i < _scAppsListPanels.Length; i++)
+            if (_scAppsListPanels[i] != null) RebuildScAppToggles(i);
+    }
+
     /// <summary>SC-side chip rebuild — same logic as the Turn Up path, writes to N3 knobs.</summary>
     private void RebuildScAppToggles(int idx)
     {

@@ -1671,7 +1671,7 @@ public partial class MixerView : UserControl
     /// <summary>
     /// Try to get the app icon from a running process by name. Cached.
     /// </summary>
-    private static BitmapSource? GetAppIcon(string processName)
+    internal static BitmapSource? GetAppIcon(string processName)
     {
         if (_appIconCache.TryGetValue(processName, out var cached))
             return cached;

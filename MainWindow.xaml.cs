@@ -323,6 +323,8 @@ public partial class MainWindow : FluentWindow
         _bindingsView.LoadConfig(_config);
         _osdView.OnRequestRefresh = () => RefreshViews();
         _osdView.LoadConfig(_config, saveHandler);
+        _groupsView.SetMixer(_mixer);
+        _groupsView.OnAppGroupsChanged = () => _mixerView.RefreshAppGroups();
         _groupsView.LoadConfig(_config, saveHandler);
 
         // Show/hide Ambience nav based on Govee or Corsair enabled state
