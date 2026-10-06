@@ -144,6 +144,7 @@ public class DreamSyncController : IDisposable
         _segmentEnableTick.Clear();
         _segmentBrightnessResetTick.Clear();
         _lastSegmentColors.Clear();
+        _smoothState.Clear();
     }
 
     public DreamSyncController(ScreenSyncConfig config, AmbienceConfig ambience, IScreenCapture capture)
@@ -480,6 +481,8 @@ public class DreamSyncController : IDisposable
                                     segColors = MapZonesToSegments(effectiveZones, segCount, mapping.Side);
                                 }
 
+                                segColors = SmoothColors(mapping.DeviceIp, segColors);
+
                                 int brightnessScale = CombinedBrightnessScale(amb.BrightnessScale, dev.BrightnessScale);
                                 for (int s = 0; s < segColors.Length; s++)
                                     segColors[s] = ApplyBrightness(segColors[s], brightnessScale);
@@ -499,6 +502,7 @@ public class DreamSyncController : IDisposable
                                 var color = (mapping.Side == ZoneSide.Top || mapping.Side == ZoneSide.Bottom) && grid != null
                                     ? AverageRegion(grid, gridCols, gridRows, EdgeRegion(mapping.Side, gridRows))
                                     : SampleColorForSide(effectiveZones, effectiveZones.Length, mapping.Side);
+                                color = SmoothColors(mapping.DeviceIp, new[] { color })[0];
                                 color = ApplyBrightness(color, CombinedBrightnessScale(amb.BrightnessScale, dev.BrightnessScale));
 
                                 int sensitivity = ChangeDeadband(cfg.Sensitivity);
@@ -1068,6 +1072,48 @@ public class DreamSyncController : IDisposable
     /// made the lights react LESS. 20 → 0 (every change), 13 → 1, 1 → 4.</summary>
     private static int ChangeDeadband(int sensitivity)
         => Math.Clamp((20 - Math.Clamp(sensitivity, 1, 20)) / 5, 0, 4);
+
+    // Per-device smoothed colour state (linear light, 0-1). Only touched from the capture thread.
+    private readonly Dictionary<string, float[]> _smoothState = new();
+
+    /// <summary>
+    /// Adaptive temporal smoothing, applied per send (~30/s). Small frame-to-frame changes
+    /// (noise, film grain, slow camera pans) ease in so the room doesn't shimmer; big changes
+    /// (scene cuts, explosions, menus) pass almost instantly so the lights still feel live.
+    /// Done in linear light so fades don't dip through muddy midtones.
+    /// </summary>
+    private (byte R, byte G, byte B)[] SmoothColors(string ip, (byte R, byte G, byte B)[] colors)
+    {
+        int n = colors.Length * 3;
+        if (!_smoothState.TryGetValue(ip, out var st) || st.Length != n)
+        {
+            st = new float[n];
+            for (int i = 0; i < colors.Length; i++)
+            {
+                st[i * 3] = ToLin(colors[i].R); st[i * 3 + 1] = ToLin(colors[i].G); st[i * 3 + 2] = ToLin(colors[i].B);
+            }
+            _smoothState[ip] = st;
+            return colors;
+        }
+
+        var result = new (byte R, byte G, byte B)[colors.Length];
+        for (int i = 0; i < colors.Length; i++)
+        {
+            float tr = ToLin(colors[i].R), tg = ToLin(colors[i].G), tb = ToLin(colors[i].B);
+            float sr = st[i * 3], sg = st[i * 3 + 1], sb = st[i * 3 + 2];
+            // Difference in perceptual (sRGB-ish) space drives how fast we follow.
+            float d = MathF.Max(MathF.Abs(MathF.Sqrt(tr) - MathF.Sqrt(sr)),
+                      MathF.Max(MathF.Abs(MathF.Sqrt(tg) - MathF.Sqrt(sg)), MathF.Abs(MathF.Sqrt(tb) - MathF.Sqrt(sb))));
+            float alpha = Math.Clamp(0.30f + d * 2.5f, 0.30f, 1f); // d≥0.28 (~70/255) → instant
+            sr += (tr - sr) * alpha; sg += (tg - sg) * alpha; sb += (tb - sb) * alpha;
+            st[i * 3] = sr; st[i * 3 + 1] = sg; st[i * 3 + 2] = sb;
+            result[i] = (FromLin(sr), FromLin(sg), FromLin(sb));
+        }
+        return result;
+    }
+
+    private static float ToLin(byte v) { float f = v / 255f; return f * f; }
+    private static byte FromLin(float v) => (byte)Math.Clamp(MathF.Sqrt(MathF.Max(v, 0f)) * 255f + 0.5f, 0f, 255f);
 
     private bool SegmentColorsChanged(string ip, (byte R, byte G, byte B)[] colors, int sensitivity)
     {
