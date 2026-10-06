@@ -584,35 +584,75 @@ public class ScreenCapture : IDisposable
                         int xStart = crop.Left + col * colWidth;
                         int xEnd = (col == cols - 1) ? crop.Right : xStart + colWidth;
 
-                        double rLin = 0, gLin = 0, bLin = 0;
-                        long count = 0;
-
-                        for (int y = yStart; y < yEnd; y += SampleStride)
+                        // Edge lighting only cares about what's near the screen border. Interior
+                        // cells (not in the first/last row or column) sample this column's top +
+                        // bottom bands instead of the middle of the screen, so every consumer of
+                        // the grid (side columns, top/bottom rows, flattened zones, spatial
+                        // regions) sees edge content only.
+                        bool interior = rows > 2 && cols > 2
+                            && row > 0 && row < rows - 1 && col > 0 && col < cols - 1;
+                        int bandH = rowHeight;
+                        int y0a, y1a, y0b, y1b;
+                        if (interior)
                         {
-                            byte* rowPtr = ptr + y * stride;
-                            for (int x = xStart; x < xEnd; x += SampleStride)
+                            y0a = crop.Top; y1a = crop.Top + bandH;
+                            y0b = crop.Bottom - bandH; y1b = crop.Bottom;
+                        }
+                        else
+                        {
+                            y0a = yStart; y1a = yEnd; y0b = y1b = 0;
+                        }
+
+                        // Colour (chroma) comes from non-dark pixels so dark UI doesn't grey it
+                        // out; brightness comes from ALL pixels so a mostly-black edge with a few
+                        // bright spots is dim instead of full brightness.
+                        double rLin = 0, gLin = 0, bLin = 0, lumAll = 0;
+                        long count = 0, total = 0;
+
+                        for (int pass = 0; pass < 2; pass++)
+                        {
+                            int ys = pass == 0 ? y0a : y0b, ye = pass == 0 ? y1a : y1b;
+                            for (int y = ys; y < ye; y += SampleStride)
                             {
-                                int offset = x * 4;
-                                byte pb = rowPtr[offset];
-                                byte pg = rowPtr[offset + 1];
-                                byte pr = rowPtr[offset + 2];
+                                byte* rowPtr = ptr + y * stride;
+                                for (int x = xStart; x < xEnd; x += SampleStride)
+                                {
+                                    int offset = x * 4;
+                                    byte pb = rowPtr[offset];
+                                    byte pg = rowPtr[offset + 1];
+                                    byte pr = rowPtr[offset + 2];
 
-                                if (pr + pg + pb < DarkThreshold)
-                                    continue;
+                                    double lr = LinSq[pr], lg = LinSq[pg], lb = LinSq[pb];
+                                    lumAll += 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
+                                    total++;
 
-                                rLin += LinSq[pr];
-                                gLin += LinSq[pg];
-                                bLin += LinSq[pb];
-                                count++;
+                                    if (pr + pg + pb < DarkThreshold)
+                                        continue;
+
+                                    rLin += lr;
+                                    gLin += lg;
+                                    bLin += lb;
+                                    count++;
+                                }
                             }
                         }
 
                         if (count > 0)
                         {
+                            rLin /= count; gLin /= count; bLin /= count;
+                            double lumColor = 0.2126 * rLin + 0.7152 * gLin + 0.0722 * bLin;
+                            double lumMean = lumAll / total;
+                            if (lumColor > 1e-6 && lumMean < lumColor)
+                            {
+                                // Slight lift (^0.8) keeps dim-but-coloured scenes visible on the
+                                // LEDs while still tracking real screen brightness.
+                                double scale = Math.Pow(lumMean / lumColor, 0.8);
+                                rLin *= scale; gLin *= scale; bLin *= scale;
+                            }
                             results[row, col] = (
-                                (byte)Math.Clamp(Math.Sqrt(rLin / count) * 255, 0, 255),
-                                (byte)Math.Clamp(Math.Sqrt(gLin / count) * 255, 0, 255),
-                                (byte)Math.Clamp(Math.Sqrt(bLin / count) * 255, 0, 255));
+                                (byte)Math.Clamp(Math.Sqrt(rLin) * 255, 0, 255),
+                                (byte)Math.Clamp(Math.Sqrt(gLin) * 255, 0, 255),
+                                (byte)Math.Clamp(Math.Sqrt(bLin) * 255, 0, 255));
                         }
                     }
                 }

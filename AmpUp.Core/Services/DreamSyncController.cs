@@ -484,7 +484,7 @@ public class DreamSyncController : IDisposable
                                     segColors[s] = ApplyBrightness(segColors[s], brightnessScale);
 
                                 // Delta check across all segments
-                                if (SegmentColorsChanged(mapping.DeviceIp, segColors, cfg.Sensitivity))
+                                if (SegmentColorsChanged(mapping.DeviceIp, segColors, ChangeDeadband(cfg.Sensitivity)))
                                 {
                                     _lastSegmentColors[mapping.DeviceIp] = segColors;
                                     SendSegmentColors(mapping.DeviceIp, segColors);
@@ -500,7 +500,7 @@ public class DreamSyncController : IDisposable
                                     : SampleColorForSide(effectiveZones, effectiveZones.Length, mapping.Side);
                                 color = ApplyBrightness(color, CombinedBrightnessScale(amb.BrightnessScale, dev.BrightnessScale));
 
-                                int sensitivity = cfg.Sensitivity;
+                                int sensitivity = ChangeDeadband(cfg.Sensitivity);
                                 if (_lastSent.TryGetValue(mapping.DeviceIp, out var prev))
                                 {
                                     int dr = Math.Abs(color.R - prev.R);
@@ -1047,6 +1047,12 @@ public class DreamSyncController : IDisposable
         }
         return result;
     }
+
+    /// <summary>Sensitivity slider (1-20, higher = more responsive) → per-channel change needed
+    /// before a new colour is sent. It used to be the raw deadband, so a higher "sensitivity"
+    /// made the lights react LESS. 20 → 0 (every change), 13 → 1, 1 → 4.</summary>
+    private static int ChangeDeadband(int sensitivity)
+        => Math.Clamp((20 - Math.Clamp(sensitivity, 1, 20)) / 5, 0, 4);
 
     private bool SegmentColorsChanged(string ip, (byte R, byte G, byte B)[] colors, int sensitivity)
     {
