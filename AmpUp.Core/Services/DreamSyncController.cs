@@ -38,8 +38,9 @@ public class DreamSyncController : IDisposable
     // Grid rows sampled per frame. 6 gives vertical bars / spatial side regions real vertical
     // resolution (3 rows meant a 10-segment side bar showed only 3 distinct colors). Top/Bottom
     // edges use the outer third (EdgeRows) to match the old 3-row behaviour.
-    private const int GridRows = 6;
-    private const int EdgeRows = GridRows / 3;
+    // 12 rows: enough vertical resolution for tall wall lights (e.g. 12 segments per side).
+    private const int GridRows = 12;
+    private const int EdgeRows = 2; // top/bottom bars read the outer ~17% of the screen
 
     // UI grid preview is throttled — the RoomView handler allocates a brush per cell on the
     // dispatcher, which is wasted work at 60 fps while a game is running.
@@ -598,6 +599,11 @@ public class DreamSyncController : IDisposable
 
         if (vertical)
         {
+            // Side lights follow the outermost screen column only — inner columns would mix in
+            // content from further toward the middle of the screen.
+            if (region.PrimaryEdge == ZoneSide.Left) { colStart = 0; colEnd = 1; }
+            else { colStart = cols - 1; colEnd = cols; }
+
             // Segments map top→bottom across rows, averaging cols in range
             for (int seg = 0; seg < segmentCount; seg++)
             {
@@ -747,8 +753,17 @@ public class DreamSyncController : IDisposable
             if (h < 0) h += 1;
         }
 
-        // Boost saturation
-        s = Math.Clamp(s * saturation, 0f, 1f);
+        // Near-black: go dark instead of glowing. Dark game scenes carry a faint blue/grey
+        // tint that the saturation boost used to turn into a solid blue room.
+        if (v < 0.05f) return (0, 0, 0);
+
+        // Fade the boost in with brightness so dim, nearly-neutral colours aren't pushed
+        // into a strong hue; full boost from ~35% value up.
+        float boostWeight = Math.Clamp((v - 0.05f) / 0.30f, 0f, 1f);
+        float effSat = 1f + (saturation - 1f) * boostWeight;
+        // Low-chroma pixels (greys) stay grey-ish: scale the boost down when s is tiny.
+        if (s < 0.15f) effSat = 1f + (effSat - 1f) * (s / 0.15f);
+        s = Math.Clamp(s * effSat, 0f, 1f);
 
         // HSV → RGB
         float c = v * s;

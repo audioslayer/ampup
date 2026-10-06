@@ -149,8 +149,10 @@ public class ScreenSpatialMapper
                 float dist = Math.Max(Math.Abs(dx) - monHalfW, 0.1f);
                 float xWidth = Math.Clamp(0.4f / (1f + dist), 0.1f, 0.35f);
                 // Y range: map device vertical position to screen Y
-                float yCenter = monH > 0 ? Math.Clamp(0.5f - dz / monH, 0, 1) : 0.5f;
-                float yExtent = monH > 0 ? Math.Clamp(deviceLen / monH / 2, 0.1f, 0.5f) : 0.4f;
+                // Lights beside the screen are edge lighting: they span the full screen height
+                // top→bottom regardless of how high they hang on the wall (taking the room
+                // height literally made e.g. wall lights above the desk show only the top 30%).
+                float yCenter = 0.5f, yExtent = 0.5f;
                 region = new ScreenRegion
                 {
                     XStart = 0, XEnd = xWidth,
@@ -164,8 +166,10 @@ public class ScreenSpatialMapper
             {
                 float dist = Math.Max(Math.Abs(dx) - monHalfW, 0.1f);
                 float xWidth = Math.Clamp(0.4f / (1f + dist), 0.1f, 0.35f);
-                float yCenter = monH > 0 ? Math.Clamp(0.5f - dz / monH, 0, 1) : 0.5f;
-                float yExtent = monH > 0 ? Math.Clamp(deviceLen / monH / 2, 0.1f, 0.5f) : 0.4f;
+                // Lights beside the screen are edge lighting: they span the full screen height
+                // top→bottom regardless of how high they hang on the wall (taking the room
+                // height literally made e.g. wall lights above the desk show only the top 30%).
+                float yCenter = 0.5f, yExtent = 0.5f;
                 region = new ScreenRegion
                 {
                     XStart = 1f - xWidth, XEnd = 1f,
