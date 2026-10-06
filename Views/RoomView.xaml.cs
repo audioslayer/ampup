@@ -2014,54 +2014,27 @@ public partial class RoomView : UserControl
                 if (!hasLan && !hasCloud) continue;
                 var devConfig = govDev;
 
-                var devRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
-
-                // Device name
                 var displayName = !string.IsNullOrWhiteSpace(govDev.Name)
                     ? govDev.Name
                     : (hasLan ? govDev.Ip : govDev.DeviceId);
-                devRow.Children.Add(new TextBlock
-                {
-                    Text = displayName,
-                    FontSize = 12, FontWeight = FontWeights.SemiBold,
-                    Foreground = FindBrush("TextPrimaryBrush"),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Width = 150, TextTrimming = TextTrimming.CharacterEllipsis,
-                    Margin = new Thickness(0, 0, 12, 0),
-                });
 
-                // "API" badge for cloud-only devices (H604C G1S Pro etc. — Govee
-                // blocks LAN control on camera-equipped SKUs).
-                if (hasCloud)
+                // Subtitle: product name · SKU · IP/Cloud · segments
+                var subParts = new List<string>();
+                if (!string.IsNullOrWhiteSpace(govDev.Sku))
                 {
-                    devRow.Children.Add(new Border
-                    {
-                        Background = new SolidColorBrush(Color.FromArgb(0x33, 0x42, 0xA5, 0xF5)),
-                        BorderBrush = new SolidColorBrush(Color.FromRgb(0x42, 0xA5, 0xF5)),
-                        BorderThickness = new Thickness(1),
-                        CornerRadius = new CornerRadius(4),
-                        Padding = new Thickness(6, 1, 6, 1),
-                        VerticalAlignment = VerticalAlignment.Center,
-                        Margin = new Thickness(0, 0, 10, 0),
-                        Child = new TextBlock
-                        {
-                            Text = "API",
-                            FontSize = 9,
-                            FontWeight = FontWeights.Bold,
-                            Foreground = new SolidColorBrush(Color.FromRgb(0x42, 0xA5, 0xF5)),
-                        },
-                    });
+                    var product = AmbienceSync.GetProductName(govDev.Sku);
+                    if (!string.IsNullOrWhiteSpace(product) && product != govDev.Sku && product != displayName)
+                        subParts.Add(product);
+                    subParts.Add(govDev.Sku);
                 }
+                subParts.Add(hasLan ? govDev.Ip : "Cloud API");
+                int segs = AmbienceSync.GetSegmentCount(govDev);
+                if (segs > 1) subParts.Add($"{segs} segments");
 
                 // On/Off — LAN uses AmbienceSync, cloud-only falls back to Cloud API.
-                var onOff = new CheckBox
-                {
-                    Content = "On", FontSize = 11,
-                    IsChecked = devConfig.PoweredOn,
-                    Foreground = FindBrush("TextPrimaryBrush"),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(0, 0, 12, 0),
-                };
+                // The CheckBox stays the logical model (live knob updates + Govee power
+                // sync write IsChecked); the visible control is a switch mirroring it.
+                var onOff = new CheckBox { IsChecked = devConfig.PoweredOn };
                 var capturedDev = devConfig;
                 onOff.Checked += async (_, _) =>
                 {
@@ -2078,19 +2051,9 @@ public partial class RoomView : UserControl
                     await SendGoveePowerCommandAsync(capturedDev, false);
                     QueueSave();
                 };
-                devRow.Children.Add(onOff);
                 _goveePowerControls[devConfig] = onOff;
 
-                var ampUpSync = new CheckBox
-                {
-                    Content = "Sync",
-                    FontSize = 11,
-                    IsChecked = devConfig.SyncWithAmpUp,
-                    Foreground = FindBrush("TextPrimaryBrush"),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(0, 0, 12, 0),
-                    ToolTip = "When off, AmpUp won't push room effects or DreamView/screen sync to this device.",
-                };
+                var ampUpSync = new CheckBox { IsChecked = devConfig.SyncWithAmpUp };
                 ampUpSync.Checked += (_, _) =>
                 {
                     if (_loading || _config == null) return;
@@ -2103,75 +2066,143 @@ public partial class RoomView : UserControl
                     capturedDev.SyncWithAmpUp = false;
                     QueueSave();
                 };
-                devRow.Children.Add(ampUpSync);
+
+                var body = new StackPanel();
+
+                // ── Header: status dot + name/subtitle | switches + remove ──
+                var header = new Grid();
+                header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var dot = new System.Windows.Shapes.Ellipse
+                {
+                    Width = 8, Height = 8,
+                    Margin = new Thickness(0, 5, 10, 0),
+                    VerticalAlignment = VerticalAlignment.Top,
+                    Fill = FindBrush("TextDimBrush"),
+                    ToolTip = hasLan ? "Checking device…" : "Cloud device (status not polled)",
+                };
+                Grid.SetColumn(dot, 0);
+                header.Children.Add(dot);
+
+                var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+                info.Children.Add(new TextBlock
+                {
+                    Text = displayName,
+                    FontSize = 12, FontWeight = FontWeights.SemiBold,
+                    Foreground = FindBrush("TextPrimaryBrush"),
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                });
+                info.Children.Add(new TextBlock
+                {
+                    Text = string.Join("  ·  ", subParts),
+                    FontSize = 10, TextWrapping = TextWrapping.Wrap,
+                    Foreground = hasCloud
+                        ? new SolidColorBrush(Color.FromRgb(0x42, 0xA5, 0xF5))
+                        : FindBrush("TextDimBrush"),
+                    Margin = new Thickness(0, 2, 0, 0),
+                    ToolTip = hasCloud ? "Cloud-only device — controlled through the Govee API" : null,
+                });
+                Grid.SetColumn(info, 1);
+                header.Children.Add(info);
+
+                var controls = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+                controls.Children.Add(MakeLabeledDeviceSwitch("Power", onOff, null));
+                controls.Children.Add(MakeLabeledDeviceSwitch("Sync", ampUpSync,
+                    "Sync with AmpUp — when off, AmpUp won't push room effects or DreamView/screen sync to this device."));
+                controls.Children.Add(BuildGoveeRemoveButton(devConfig));
+                Grid.SetColumn(controls, 2);
+                header.Children.Add(controls);
+                body.Children.Add(header);
 
                 // Cloud-only rows stop here — brightness/segment streaming isn't
                 // viable via the REST API (100 req/min cap).
-                if (!hasLan)
+                if (hasLan)
                 {
-                    devRow.Children.Add(BuildGoveeRemoveButton(devConfig));
-                    goveeChildren.Add(devRow);
-                    continue;
-                }
-
-                // Brightness slider (LAN only)
-                var brightSlider = new StyledSlider
-                {
-                    Minimum = 0, Maximum = 100,
-                    Value = Math.Clamp(devConfig.BrightnessScale, 0, 100),
-                    Width = 150, Height = 30,
-                    AccentColor = ThemeManager.Accent,
-                    ShowLabel = false,
-                };
-                var brightLabel = new TextBlock
-                {
-                    Text = $"{(int)brightSlider.Value}%", FontSize = 11,
-                    Foreground = FindBrush("TextSecBrush"),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(6, 0, 0, 0),
-                };
-                brightSlider.ValueChanged += (_, _) =>
-                {
-                    int pct = (int)brightSlider.Value;
-                    brightLabel.Text = $"{pct}%";
-                    if (_loading) return;
-                    MarkGoveeManualControl(devConfig);
-                    devConfig.BrightnessScale = pct;
-                    QueueSave();
-
-                    bool segmentSynced = AmbienceSync.GetSegmentCount(devConfig) > 0
-                        && devConfig.UseSegmentProtocol
-                        && devConfig.SyncWithAmpUp;
-                    if (segmentSynced)
+                    // Brightness slider (LAN only)
+                    var brightSlider = new StyledSlider
                     {
-                        AmbienceSync.ResumeSync(devConfig.Ip);
-                    }
-                    else
+                        Minimum = 0, Maximum = 100,
+                        Value = Math.Clamp(devConfig.BrightnessScale, 0, 100),
+                        Height = 30,
+                        AccentColor = ThemeManager.Accent,
+                        ShowLabel = false,
+                        HorizontalAlignment = HorizontalAlignment.Stretch,
+                    };
+                    var brightLabel = new TextBlock
                     {
-                        AmbienceSync.PauseSync(devConfig.Ip, 2);
-                        _ = AmbienceSync.SendBrightnessAsync(devConfig.Ip, pct);
-                    }
-                };
-                devRow.Children.Add(brightSlider);
-                devRow.Children.Add(brightLabel);
-                _goveeBrightnessControls[devConfig] = (brightSlider, brightLabel);
-                _deviceControls[devConfig.Ip] = (onOff, brightSlider);
-
-                // Segment count badge
-                int segs = AmbienceSync.GetSegmentCount(govDev);
-                if (segs > 1)
-                {
-                    devRow.Children.Add(new TextBlock
-                    {
-                        Text = $"{segs} seg",
-                        FontSize = 9, Foreground = FindBrush("TextDimBrush"),
+                        Text = $"{(int)brightSlider.Value}%", FontSize = 11,
+                        FontWeight = FontWeights.SemiBold,
+                        Foreground = FindBrush("TextSecBrush"),
                         VerticalAlignment = VerticalAlignment.Center,
+                        MinWidth = 34, TextAlignment = TextAlignment.Right,
                         Margin = new Thickness(8, 0, 0, 0),
+                    };
+                    brightSlider.ValueChanged += (_, _) =>
+                    {
+                        int pct = (int)brightSlider.Value;
+                        brightLabel.Text = $"{pct}%";
+                        if (_loading) return;
+                        MarkGoveeManualControl(devConfig);
+                        devConfig.BrightnessScale = pct;
+                        QueueSave();
+
+                        bool segmentSynced = AmbienceSync.GetSegmentCount(devConfig) > 0
+                            && devConfig.UseSegmentProtocol
+                            && devConfig.SyncWithAmpUp;
+                        if (segmentSynced)
+                        {
+                            AmbienceSync.ResumeSync(devConfig.Ip);
+                        }
+                        else
+                        {
+                            AmbienceSync.PauseSync(devConfig.Ip, 2);
+                            _ = AmbienceSync.SendBrightnessAsync(devConfig.Ip, pct);
+                        }
+                    };
+                    _goveeBrightnessControls[devConfig] = (brightSlider, brightLabel);
+                    _deviceControls[devConfig.Ip] = (onOff, brightSlider);
+
+                    var brightRow = new DockPanel { Margin = new Thickness(18, 10, 0, 0) };
+                    var brightName = new TextBlock
+                    {
+                        Text = "Brightness", FontSize = 11, Width = 70,
+                        Foreground = FindBrush("TextSecBrush"),
+                        VerticalAlignment = VerticalAlignment.Center,
+                    };
+                    DockPanel.SetDock(brightName, Dock.Left);
+                    DockPanel.SetDock(brightLabel, Dock.Right);
+                    brightRow.Children.Add(brightName);
+                    brightRow.Children.Add(brightLabel);
+                    brightRow.Children.Add(brightSlider);
+                    body.Children.Add(brightRow);
+
+                    // Online/offline status — read-only probe, doesn't touch config.
+                    var probeIp = devConfig.Ip;
+                    _ = Task.Run(async () =>
+                    {
+                        bool online;
+                        try { online = await AmbienceSync.GetDeviceStatusAsync(probeIp) != null; }
+                        catch { online = false; }
+                        Dispatcher.BeginInvoke(() =>
+                        {
+                            dot.Fill = online
+                                ? new SolidColorBrush(Color.FromRgb(0x00, 0xDD, 0x77))
+                                : new SolidColorBrush(Color.FromRgb(0xFF, 0x44, 0x44));
+                            dot.ToolTip = online ? "Online (LAN)" : "Not responding on LAN";
+                        });
                     });
                 }
+                else
+                {
+                    dot.Fill = new SolidColorBrush(Color.FromRgb(0x42, 0xA5, 0xF5));
+                }
 
-                devRow.Children.Add(BuildGoveeRemoveButton(devConfig));
-                goveeChildren.Add(devRow);
+                // ── Advanced (collapsible): White Balance for Screen Sync ──
+                body.Children.Add(BuildGoveeAdvancedSection(devConfig));
+
+                goveeChildren.Add(MakeDeviceItemCard(body));
             }
 
             if (goveeChildren.Count > 0)
@@ -2188,45 +2219,55 @@ public partial class RoomView : UserControl
             {
                 foreach (var dev in _corsairSync.Devices)
                 {
-                    var devRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
-
-                    devRow.Children.Add(new TextBlock
+                    var g = new Grid();
+                    g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    var cdot = new System.Windows.Shapes.Ellipse
+                    {
+                        Width = 8, Height = 8, Margin = new Thickness(0, 5, 10, 0),
+                        VerticalAlignment = VerticalAlignment.Top,
+                        Fill = new SolidColorBrush(Color.FromRgb(0x00, 0xDD, 0x77)),
+                        ToolTip = "Detected via iCUE",
+                    };
+                    Grid.SetColumn(cdot, 0);
+                    g.Children.Add(cdot);
+                    var cinfo = new StackPanel();
+                    cinfo.Children.Add(new TextBlock
                     {
                         Text = dev.Name,
                         FontSize = 12, FontWeight = FontWeights.SemiBold,
                         Foreground = FindBrush("TextPrimaryBrush"),
-                        VerticalAlignment = VerticalAlignment.Center,
-                        Width = 200, TextTrimming = TextTrimming.CharacterEllipsis,
-                        Margin = new Thickness(0, 0, 12, 0),
+                        TextTrimming = TextTrimming.CharacterEllipsis,
                     });
-
-                    devRow.Children.Add(new TextBlock
+                    cinfo.Children.Add(new TextBlock
                     {
                         Text = $"{dev.LedCount} LEDs",
-                        FontSize = 10, Foreground = FindBrush("TextSecBrush"),
-                        VerticalAlignment = VerticalAlignment.Center,
+                        FontSize = 10, Foreground = FindBrush("TextDimBrush"),
+                        Margin = new Thickness(0, 2, 0, 0),
                     });
-
-                    corsairChildren.Add(devRow);
+                    Grid.SetColumn(cinfo, 1);
+                    g.Children.Add(cinfo);
+                    corsairChildren.Add(MakeDeviceItemCard(g));
                 }
 
                 // Brightness slider for all Corsair
-                var corBrightRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 4) };
-                corBrightRow.Children.Add(MakeSubLabel("BRIGHTNESS"));
                 var corBrightSlider = new StyledSlider
                 {
                     Minimum = 1, Maximum = 100,
                     Value = Math.Min(_config.Corsair.LightBrightness, 100),
-                    Width = 150, Height = 30,
+                    Height = 30,
                     AccentColor = ThemeManager.Accent,
                     ShowLabel = false,
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
                 };
                 var corBrightLabel = new TextBlock
                 {
                     Text = $"{Math.Min(_config.Corsair.LightBrightness, 100)}%",
-                    FontSize = 11, Foreground = FindBrush("TextSecBrush"),
+                    FontSize = 11, FontWeight = FontWeights.SemiBold,
+                    Foreground = FindBrush("TextSecBrush"),
                     VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(6, 0, 0, 0),
+                    MinWidth = 34, TextAlignment = TextAlignment.Right,
+                    Margin = new Thickness(8, 0, 0, 0),
                 };
                 corBrightSlider.ValueChanged += (_, _) =>
                 {
@@ -2236,8 +2277,17 @@ public partial class RoomView : UserControl
                     corBrightLabel.Text = $"{pct}%";
                     QueueSave();
                 };
-                corBrightRow.Children.Add(corBrightSlider);
+                var corBrightRow = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };
+                var corBrightName = new StackPanel { Width = 150, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+                corBrightName.Children.Add(new TextBlock { Text = "Brightness", FontSize = 11, FontWeight = FontWeights.SemiBold,
+                    Foreground = FindBrush("TextPrimaryBrush") });
+                corBrightName.Children.Add(new TextBlock { Text = "Applies to all Corsair devices", FontSize = 10,
+                    TextWrapping = TextWrapping.Wrap, Foreground = FindBrush("TextDimBrush"), Margin = new Thickness(0, 2, 0, 0) });
+                DockPanel.SetDock(corBrightName, Dock.Left);
+                DockPanel.SetDock(corBrightLabel, Dock.Right);
+                corBrightRow.Children.Add(corBrightName);
                 corBrightRow.Children.Add(corBrightLabel);
+                corBrightRow.Children.Add(corBrightSlider);
                 corsairChildren.Add(corBrightRow);
             }
             else
@@ -2246,6 +2296,7 @@ public partial class RoomView : UserControl
                 {
                     Text = "No Corsair devices detected — make sure iCUE is running.",
                     FontSize = 11, Foreground = FindBrush("TextSecBrush"),
+                    TextWrapping = TextWrapping.Wrap,
                     Margin = new Thickness(0, 4, 0, 0),
                 });
             }
@@ -2259,42 +2310,184 @@ public partial class RoomView : UserControl
             {
                 Text = "No devices configured — enable Govee or Corsair in Settings.",
                 FontSize = 11, Foreground = FindBrush("TextSecBrush"),
-                Margin = new Thickness(0, 8, 0, 0),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 8, 0, 10),
             });
         }
 
-        // ── AmpUp hardware ──
-        var turnUpCheck = new CheckBox
+        // ── AmpUp hardware (Turn Up) ──
+        var turnUpSwitch = MakeScreenSyncSwitch(_config.Ambience.ScreenSync.SyncToTurnUp, on =>
         {
-            Content = "Sync Screen to Hardware LEDs",
-            IsChecked = _config.Ambience.ScreenSync.SyncToTurnUp,
-            Foreground = FindBrush("TextPrimaryBrush"), FontSize = 12,
-            Margin = new Thickness(0, 4, 0, 4),
-            ToolTip = "Send screen colors to AmpUp hardware LEDs when Screen Sync is active",
-        };
-        turnUpCheck.Checked += (_, _) => { if (!_loading && _config != null) { _config.Ambience.ScreenSync.SyncToTurnUp = true; QueueSave(); } };
-        turnUpCheck.Unchecked += (_, _) => { if (!_loading && _config != null) { _config.Ambience.ScreenSync.SyncToTurnUp = false; QueueSave(); } };
+            if (_loading || _config == null) return;
+            _config.Ambience.ScreenSync.SyncToTurnUp = on;
+            QueueSave();
+        }, out _, "Send screen colors to AmpUp hardware LEDs when Screen Sync is active");
 
-        var mixerCheck = new CheckBox
+        var mixerSwitch = MakeScreenSyncSwitch(_config.Ambience.SyncRoomToTurnUp, on =>
         {
-            Content = "Mirror Room to Hardware",
-            IsChecked = _config.Ambience.SyncRoomToTurnUp,
-            Foreground = FindBrush("TextPrimaryBrush"), FontSize = 12,
-            Margin = new Thickness(0, 4, 0, 4),
-            ToolTip = "Sync room effect and VU Fill colors to AmpUp hardware LEDs",
+            if (_loading || _config == null) return;
+            _config.Ambience.SyncRoomToTurnUp = on;
+            if (!on) App.Rgb?.SetScreenSyncColors(null);
+            QueueSave();
+        }, out _, "Sync room effect and VU Fill colors to AmpUp hardware LEDs");
+
+        var row1 = MakeDeviceSettingRow("Sync Screen to Hardware LEDs",
+            "Knob LEDs show screen colors while Screen Sync is running", turnUpSwitch);
+        var row2 = MakeDeviceSettingRow("Mirror Room to Hardware",
+            "Knob LEDs follow the room effect and VU Fill colors", mixerSwitch);
+        row2.Margin = new Thickness(0);
+        stack.Children.Add(MakeSectionCard("TURN UP", row1, row2));
+    }
+
+    /// <summary>Inner card wrapping one device inside a section card.</summary>
+    private Border MakeDeviceItemCard(UIElement content)
+    {
+        var b = new Border
+        {
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12, 10, 12, 10),
+            Margin = new Thickness(0, 0, 0, 8),
+            Child = content,
         };
-        mixerCheck.Checked += (_, _) => { if (!_loading && _config != null) { _config.Ambience.SyncRoomToTurnUp = true; QueueSave(); } };
-        mixerCheck.Unchecked += (_, _) =>
+        b.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+        b.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
+        return b;
+    }
+
+    /// <summary>Label + hint on the left, control right-aligned (Screen Sync style).</summary>
+    private Grid MakeDeviceSettingRow(string label, string? hint, FrameworkElement control)
+    {
+        var g = new Grid { Margin = new Thickness(0, 0, 0, 12) };
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+        left.Children.Add(new TextBlock { Text = label, FontSize = 11, FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextPrimaryBrush"), TextWrapping = TextWrapping.Wrap });
+        if (hint != null)
+            left.Children.Add(new TextBlock { Text = hint, FontSize = 10, TextWrapping = TextWrapping.Wrap,
+                Foreground = FindBrush("TextDimBrush"), Margin = new Thickness(0, 2, 0, 0) });
+        Grid.SetColumn(left, 0);
+        g.Children.Add(left);
+        control.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(control, 1);
+        g.Children.Add(control);
+        return g;
+    }
+
+    /// <summary>
+    /// Small caption + switch that mirrors a (non-visual) CheckBox model. Clicking the
+    /// switch sets IsChecked (firing the CheckBox's handlers); external writes to
+    /// IsChecked (knob updates, power sync) repaint the switch.
+    /// </summary>
+    private StackPanel MakeLabeledDeviceSwitch(string caption, CheckBox model, string? tooltip)
+    {
+        var sw = MakeScreenSyncSwitch(model.IsChecked == true, on => model.IsChecked = on, out var setState, tooltip);
+        model.Checked += (_, _) => setState(true);
+        model.Unchecked += (_, _) => setState(false);
+        var sp = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 12, 0), ToolTip = tooltip };
+        sp.Children.Add(new TextBlock
         {
-            if (!_loading && _config != null)
+            Text = caption, FontSize = 10,
+            Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 6, 0),
+        });
+        sp.Children.Add(sw);
+        return sp;
+    }
+
+    /// <summary>Collapsible "Advanced" block holding per-device White Balance (Screen Sync).</summary>
+    private StackPanel BuildGoveeAdvancedSection(GoveeDeviceConfig wbCfg)
+    {
+        var outer = new StackPanel { Margin = new Thickness(18, 8, 0, 0) };
+        var chevron = new TextBlock
+        {
+            Text = "›", FontSize = 14, FontWeight = FontWeights.Bold,
+            Foreground = FindBrush("TextDimBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            RenderTransformOrigin = new Point(0.5, 0.5),
+            RenderTransform = new RotateTransform(0),
+            Margin = new Thickness(0, -2, 6, 0),
+        };
+        var toggleRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Background = Brushes.Transparent,
+            Cursor = Cursors.Hand,
+            ToolTip = "White balance for Screen Sync — lower a channel if whites look tinted on this light.",
+        };
+        toggleRow.Children.Add(chevron);
+        toggleRow.Children.Add(new TextBlock
+        {
+            Text = "ADVANCED", FontSize = 10, FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextSecBrush"), VerticalAlignment = VerticalAlignment.Center,
+        });
+        int wbTrimmed = (wbCfg.WhiteBalanceR < 100 ? 1 : 0) + (wbCfg.WhiteBalanceG < 100 ? 1 : 0) + (wbCfg.WhiteBalanceB < 100 ? 1 : 0);
+        if (wbTrimmed > 0)
+            toggleRow.Children.Add(new TextBlock
             {
-                _config.Ambience.SyncRoomToTurnUp = false;
-                App.Rgb?.SetScreenSyncColors(null);
-                QueueSave();
-            }
-        };
+                Text = "  ·  white balance adjusted", FontSize = 10,
+                Foreground = FindBrush("TextDimBrush"), VerticalAlignment = VerticalAlignment.Center,
+            });
+        outer.Children.Add(toggleRow);
 
-        stack.Children.Add(MakeSectionCard("AMP UP HARDWARE", turnUpCheck, mixerCheck));
+        var panel = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 8, 0, 0) };
+        panel.Children.Add(new TextBlock
+        {
+            Text = "White Balance (Screen Sync) — lower a channel if whites look tinted on this light.",
+            FontSize = 10, TextWrapping = TextWrapping.Wrap,
+            Foreground = FindBrush("TextDimBrush"), Margin = new Thickness(0, 0, 0, 6),
+        });
+
+        UIElement MakeWb(string name, Color col, int value, Action<int> set)
+        {
+            var sl = new StyledSlider
+            {
+                Minimum = 50, Maximum = 100, Value = Math.Clamp(value, 50, 100),
+                Height = 30, ShowLabel = false, AccentColor = col,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+            };
+            var val = new TextBlock
+            {
+                Text = $"{(int)sl.Value}%", FontSize = 11, FontWeight = FontWeights.SemiBold,
+                Foreground = FindBrush("TextSecBrush"), VerticalAlignment = VerticalAlignment.Center,
+                MinWidth = 34, TextAlignment = TextAlignment.Right, Margin = new Thickness(8, 0, 0, 0),
+            };
+            var deb = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+            deb.Tick += (_, _) => { deb.Stop(); set((int)sl.Value); _onSave?.Invoke(_config!); };
+            sl.ValueChanged += (_, _) =>
+            {
+                val.Text = $"{(int)sl.Value}%";
+                if (_loading) return;
+                deb.Stop(); deb.Start();
+            };
+            var row = new DockPanel { Margin = new Thickness(0, 0, 0, 2) };
+            var lbl = new TextBlock
+            {
+                Text = name, FontSize = 11, Width = 52,
+                Foreground = new SolidColorBrush(col), FontWeight = FontWeights.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            DockPanel.SetDock(lbl, Dock.Left);
+            DockPanel.SetDock(val, Dock.Right);
+            row.Children.Add(lbl);
+            row.Children.Add(val);
+            row.Children.Add(sl);
+            return row;
+        }
+        panel.Children.Add(MakeWb("Red", Color.FromRgb(0xFF, 0x52, 0x52), wbCfg.WhiteBalanceR, v => wbCfg.WhiteBalanceR = v));
+        panel.Children.Add(MakeWb("Green", Color.FromRgb(0x00, 0xE6, 0x76), wbCfg.WhiteBalanceG, v => wbCfg.WhiteBalanceG = v));
+        panel.Children.Add(MakeWb("Blue", Color.FromRgb(0x44, 0x8A, 0xFF), wbCfg.WhiteBalanceB, v => wbCfg.WhiteBalanceB = v));
+        outer.Children.Add(panel);
+
+        toggleRow.MouseLeftButtonDown += (_, _) =>
+        {
+            bool open = panel.Visibility != Visibility.Visible;
+            panel.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+            ((RotateTransform)chevron.RenderTransform).Angle = open ? 90 : 0;
+        };
+        return outer;
     }
 
     // ── OLD LAYOUT TAB (dead code — kept for reference) ──
