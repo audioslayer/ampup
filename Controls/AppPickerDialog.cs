@@ -29,7 +29,7 @@ public class AppPickerDialog : Window
     private readonly List<AppEntry> _allEntries = new();
 
     // Common apps with their typical install paths
-    private static readonly (string Name, string Path, string ProcessName, MaterialIconKind Icon)[] CommonApps =
+    internal static readonly (string Name, string Path, string ProcessName, MaterialIconKind Icon)[] CommonApps =
     {
         ("Discord", @"%LocalAppData%\Discord\Update.exe --processStart Discord.exe", "Discord", MaterialIconKind.Chat),
         ("Spotify", @"%AppData%\Spotify\Spotify.exe", "Spotify", MaterialIconKind.Music),

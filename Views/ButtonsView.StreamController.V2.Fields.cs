@@ -225,6 +225,8 @@ public partial class ButtonsView
                 _scBrowsePathButton.Visibility = Visibility.Collapsed;
                 _scPickPathButton.Visibility = Visibility.Collapsed;
                 SetPathHeader("PAGE NUMBER");
+                _scPathBox.Visibility = Visibility.Visible;
+                _scAppChip.Visibility = Visibility.Collapsed;
             }
             else if (action == "open_url")
             {
@@ -236,16 +238,14 @@ public partial class ButtonsView
                 if (_scPathBox.Parent is Border inputBorder)
                     inputBorder.Visibility = Visibility.Visible;
                 SetPathHeader("URL");
+                _scPathBox.Visibility = Visibility.Visible;
+                _scAppChip.Visibility = Visibility.Collapsed;
             }
             else
             {
                 ApplyPathLabelAndButtons(_scPathLabel, _scPathBox, _scBrowsePathButton, _scPickPathButton, action, _scAppChip);
                 SetPathHeader(HeaderTextForAction(action, _scPathLabel.Text));
             }
-
-            _scAppChip.Visibility = action is "close_program" or "mute_program"
-                ? Visibility.Visible
-                : Visibility.Collapsed;
         }
 
         if (action == "toggle_action")

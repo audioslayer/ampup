@@ -856,7 +856,6 @@ public partial class ButtonsView : UserControl
             _tapAppChips[i] = appChip;
             browseBtn.Click += (_, _) => BrowseForFileOrColor(pathBox, appChip, GetComboActionValue(_tapCombos[idx]));
             pickBtn.Click += (_, _) => ShowProcessPicker(pickBtn, pathBox, GetComboActionValue(_tapCombos[idx]));
-            appChip.MouseLeftButtonDown += (_, _) => OnAppChipClick(pathBox, appChip);
             tapSection.Children.Add(pathPanel);
 
             var (macroPanel, macroBox) = MakeTextBoxRow("MACRO KEYS", "ctrl+shift+m");
@@ -921,7 +920,6 @@ public partial class ButtonsView : UserControl
             _dblAppChips[i] = dblAppChip;
             dblBrowseBtn.Click += (_, _) => BrowseForFileOrColor(dblPathBox, dblAppChip, GetComboActionValue(_dblCombos[idx]));
             dblPickBtn.Click += (_, _) => ShowProcessPicker(dblPickBtn, dblPathBox, GetComboActionValue(_dblCombos[idx]));
-            dblAppChip.MouseLeftButtonDown += (_, _) => OnAppChipClick(dblPathBox, dblAppChip);
             dblSection.Children.Add(dblPathPanel);
 
             var (dblMacroPanel, dblMacroBox) = MakeTextBoxRow("MACRO KEYS", "ctrl+shift+m");
@@ -996,7 +994,6 @@ public partial class ButtonsView : UserControl
             _holdAppChips[i] = holdAppChip;
             holdBrowseBtn.Click += (_, _) => BrowseForFileOrColor(holdPathBox, holdAppChip, GetComboActionValue(_holdCombos[idx]));
             holdPickBtn.Click += (_, _) => ShowProcessPicker(holdPickBtn, holdPathBox, GetComboActionValue(_holdCombos[idx]));
-            holdAppChip.MouseLeftButtonDown += (_, _) => OnAppChipClick(holdPathBox, holdAppChip);
             holdSection.Children.Add(holdPathPanel);
 
             var (holdMacroPanel, holdMacroBox) = MakeTextBoxRow("MACRO KEYS", "ctrl+shift+m");
@@ -1146,13 +1143,21 @@ public partial class ButtonsView : UserControl
                 SetTextBoxValue(box, "");
         }
 
-        // launch_exe shows the compact app chip; everything else shows the textbox input.
-        bool showChip = action == "launch_exe" && chip != null;
-        var inputBorder = box?.Parent as System.Windows.Controls.Border;
+        // App-targeting actions show the app picker trigger; everything else shows the textbox input.
+        bool showChip = action is "launch_exe" or "close_program" or "mute_program" && chip != null;
+        UIElement? inputElement = box?.Parent as System.Windows.Controls.Border ?? (UIElement?)box;
         if (chip != null)
             chip.Visibility = showChip ? Visibility.Visible : Visibility.Collapsed;
-        if (inputBorder != null)
-            inputBorder.Visibility = showChip ? Visibility.Collapsed : Visibility.Visible;
+        if (inputElement != null)
+            inputElement.Visibility = showChip ? Visibility.Collapsed : Visibility.Visible;
+        if (showChip && chip is AppPathPicker appPicker)
+        {
+            appPicker.Mode = action == "launch_exe" ? AppPathPicker.PickerMode.LaunchPath : AppPathPicker.PickerMode.ProcessName;
+            var mixer = _mixer;
+            appPicker.ExtraRunningProvider = action == "mute_program" && mixer != null
+                ? () => mixer.GetRunningAudioApps()
+                : null;
+        }
         if (showChip && box != null)
             UpdateAppChipDisplay(chip!, GetTextBoxValue(box));
 
@@ -1265,6 +1270,13 @@ public partial class ButtonsView : UserControl
                 browseBtn.Visibility = Visibility.Collapsed;
                 pickBtn.Visibility = Visibility.Collapsed;
                 break;
+        }
+
+        // The app picker carries its own Browse / Running / "Use name" rows.
+        if (showChip)
+        {
+            browseBtn.Visibility = Visibility.Collapsed;
+            pickBtn.Visibility = Visibility.Collapsed;
         }
     }
 
@@ -1850,9 +1862,10 @@ public partial class ButtonsView : UserControl
         row.Children.Add(inputBorder);
 
         // App chip (shown for launch_exe) — collapsed by default
-        var chip = MakeAppChip();
+        var chip = MakeAppChip(box);
         chip.Visibility = Visibility.Collapsed;
         Grid.SetColumn(chip, 0);
+        Grid.SetColumnSpan(chip, 3);
         row.Children.Add(chip);
 
         container.Children.Add(row);
@@ -1860,197 +1873,51 @@ public partial class ButtonsView : UserControl
     }
 
     /// <summary>
-    /// Build a compact "app chip" — rounded border with app icon, display name,
-    /// and chevron. Click opens AppPickerDialog. Used for launch_exe action
-    /// instead of a raw program-path textbox.
+    /// Build the GridPicker-style app trigger used by launch_exe / close_program /
+    /// mute_program. The hidden path TextBox stays the single source of truth for
+    /// config (Path / DoublePressPath / HoldPath) — the picker only mirrors it.
     /// </summary>
-    private System.Windows.Controls.Border MakeAppChip()
+    private AppPathPicker MakeAppChip(TextBox backingBox)
     {
-        var iconImg = new System.Windows.Controls.Image
+        var picker = new AppPathPicker
         {
-            Width = 22,
-            Height = 22,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 8, 0),
+            RecentProvider = CollectRecentAppValues,
         };
-
-        var placeholderIcon = new MaterialIcon
+        picker.ValuePicked += v =>
         {
-            Kind = MaterialIconKind.RocketLaunchOutline,
-            Width = 18,
-            Height = 18,
-            Foreground = FindBrush("TextDimBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(2, 0, 10, 0),
+            SetTextBoxValue(backingBox, v);
+            QueueSave();
         };
-
-        var nameText = new TextBlock
-        {
-            Text = "Choose Program...",
-            FontSize = 12,
-            Foreground = FindBrush("TextDimBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-        };
-
-        var chevron = new MaterialIcon
-        {
-            Kind = MaterialIconKind.ChevronDown,
-            Width = 14,
-            Height = 14,
-            Foreground = FindBrush("TextDimBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0),
-        };
-
-        var content = new DockPanel { LastChildFill = true };
-        DockPanel.SetDock(iconImg, Dock.Left);
-        DockPanel.SetDock(placeholderIcon, Dock.Left);
-        DockPanel.SetDock(chevron, Dock.Right);
-        content.Children.Add(iconImg);
-        content.Children.Add(placeholderIcon);
-        content.Children.Add(chevron);
-        content.Children.Add(nameText);
-
-        var bg = (Brush)Application.Current.FindResource("InputBgBrush");
-        var hoverBg = (Brush)Application.Current.FindResource("CardBorderBrush");
-        var idleBorder = (Brush)Application.Current.FindResource("InputBorderBrush");
-
-        var border = new System.Windows.Controls.Border
-        {
-            CornerRadius = new CornerRadius(6),
-            Background = bg,
-            BorderBrush = idleBorder,
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(10, 0, 10, 0),
-            Height = 34,
-            Cursor = Cursors.Hand,
-            Child = content,
-            ToolTip = "Click to pick an app",
-        };
-
-        // Store inner refs on the Tag for retrieval in UpdateAppChipDisplay
-        border.Tag = new AppChipRefs(iconImg, placeholderIcon, nameText);
-
-        border.MouseEnter += (_, _) =>
-        {
-            border.Background = hoverBg;
-            border.BorderBrush = new SolidColorBrush(ThemeManager.Accent);
-        };
-        border.MouseLeave += (_, _) =>
-        {
-            border.Background = bg;
-            border.BorderBrush = idleBorder;
-        };
-
-        return border;
+        backingBox.TextChanged += (_, _) => picker.SetValue(GetTextBoxValue(backingBox));
+        return picker;
     }
 
-    private sealed record AppChipRefs(System.Windows.Controls.Image Icon, MaterialIcon Placeholder, TextBlock Name);
+    /// <summary>Values already used by app-targeting actions anywhere in the config.</summary>
+    private IEnumerable<string> CollectRecentAppValues(AppPathPicker.PickerMode mode)
+    {
+        if (_config == null) yield break;
+        bool Wanted(string? action) => mode == AppPathPicker.PickerMode.LaunchPath
+            ? action == "launch_exe"
+            : action is "close_program" or "mute_program";
 
-    /// <summary>
-    /// Refresh an app chip's icon, display name, and tooltip from the given path.
-    /// Empty path → "Choose Program..." placeholder state.
-    /// </summary>
+        var lists = new List<IEnumerable<ButtonConfig>> { _config.Buttons, _config.N3.Buttons };
+        if (_config.N3.Folders != null)
+            lists.AddRange(_config.N3.Folders.Select(f => (IEnumerable<ButtonConfig>)f.Buttons));
+        foreach (var list in lists)
+        {
+            foreach (var b in list)
+            {
+                if (Wanted(b.Action) && !string.IsNullOrWhiteSpace(b.Path)) yield return b.Path;
+                if (Wanted(b.DoublePressAction) && !string.IsNullOrWhiteSpace(b.DoublePressPath)) yield return b.DoublePressPath;
+                if (Wanted(b.HoldAction) && !string.IsNullOrWhiteSpace(b.HoldPath)) yield return b.HoldPath;
+            }
+        }
+    }
+
+    /// <summary>Sync an app picker's display with the given stored value.</summary>
     private void UpdateAppChipDisplay(System.Windows.Controls.Border chip, string? path)
     {
-        if (chip.Tag is not AppChipRefs refs) return;
-
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            refs.Icon.Source = null;
-            refs.Icon.Visibility = Visibility.Collapsed;
-            refs.Placeholder.Visibility = Visibility.Visible;
-            refs.Name.Text = "Choose Program...";
-            refs.Name.Foreground = FindBrush("TextDimBrush");
-            chip.ToolTip = "Click to pick an app";
-            return;
-        }
-
-        refs.Name.Text = GetAppDisplayName(path);
-        refs.Name.Foreground = FindBrush("TextPrimaryBrush");
-
-        var icon = TryExtractIcon(path);
-        if (icon != null)
-        {
-            refs.Icon.Source = icon;
-            refs.Icon.Visibility = Visibility.Visible;
-            refs.Placeholder.Visibility = Visibility.Collapsed;
-        }
-        else
-        {
-            refs.Icon.Source = null;
-            refs.Icon.Visibility = Visibility.Collapsed;
-            refs.Placeholder.Visibility = Visibility.Visible;
-        }
-
-        chip.ToolTip = path;
-    }
-
-    private static string GetAppDisplayName(string path)
-    {
-        try
-        {
-            var exe = ExtractExecutablePath(Environment.ExpandEnvironmentVariables(path));
-
-            if (!string.IsNullOrWhiteSpace(exe) && System.IO.File.Exists(exe))
-            {
-                var fvi = System.Diagnostics.FileVersionInfo.GetVersionInfo(exe);
-                if (!string.IsNullOrWhiteSpace(fvi.ProductName))
-                    return fvi.ProductName!;
-                return System.IO.Path.GetFileNameWithoutExtension(exe);
-            }
-
-            return System.IO.Path.GetFileNameWithoutExtension(exe);
-        }
-        catch
-        {
-            return System.IO.Path.GetFileNameWithoutExtension(path);
-        }
-    }
-
-    private static string ExtractExecutablePath(string command)
-    {
-        if (string.IsNullOrWhiteSpace(command)) return command;
-
-        command = command.Trim();
-        if (command.StartsWith('"'))
-        {
-            int closingQuote = command.IndexOf('"', 1);
-            if (closingQuote > 1)
-                return command[1..closingQuote];
-        }
-
-        int exeEnd = command.IndexOf(".exe", StringComparison.OrdinalIgnoreCase);
-        if (exeEnd >= 0)
-            return command[..(exeEnd + 4)];
-
-        return command.Split(' ', 2)[0];
-    }
-
-    private static ImageSource? TryExtractIcon(string path)
-    {
-        try
-        {
-            var exe = ExtractExecutablePath(Environment.ExpandEnvironmentVariables(path));
-
-            if (string.IsNullOrWhiteSpace(exe) || !System.IO.File.Exists(exe))
-                return null;
-
-            using var icon = System.Drawing.Icon.ExtractAssociatedIcon(exe);
-            if (icon == null) return null;
-
-            var src = System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(
-                icon.Handle,
-                Int32Rect.Empty,
-                System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
-            src.Freeze();
-            return src;
-        }
-        catch
-        {
-            return null;
-        }
+        if (chip is AppPathPicker picker) picker.SetValue(path);
     }
 
     private void BrowseForFile(TextBox targetBox, System.Windows.Controls.Border? chip = null)
@@ -2113,33 +1980,8 @@ public partial class ButtonsView : UserControl
         }
     }
 
-    private void OnAppChipClick(TextBox targetBox, System.Windows.Controls.Border chip)
-    {
-        var picker = new AppPickerDialog { Owner = Window.GetWindow(this) };
-        if (picker.ShowDialog() == true && !string.IsNullOrEmpty(picker.SelectedPath))
-        {
-            targetBox.Text = picker.SelectedPath;
-            targetBox.Foreground = FindBrush("TextPrimaryBrush");
-            UpdateAppChipDisplay(chip, picker.SelectedPath);
-            QueueSave();
-        }
-    }
-
     private void ShowProcessPicker(Button anchor, TextBox targetBox, string action)
     {
-        // launch_exe: show the app picker dialog instead
-        if (action == "launch_exe")
-        {
-            var picker = new AppPickerDialog { Owner = Window.GetWindow(this) };
-            if (picker.ShowDialog() == true && !string.IsNullOrEmpty(picker.SelectedPath))
-            {
-                targetBox.Text = picker.SelectedPath;
-                targetBox.Foreground = FindBrush("TextPrimaryBrush");
-                QueueSave();
-            }
-            return;
-        }
-
         if (_mixer == null) return;
 
         List<string> processes;

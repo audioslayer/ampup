@@ -1429,27 +1429,19 @@ public partial class ButtonsView
 
         var buttonRow = new StackPanel { Orientation = Orientation.Horizontal };
         var browse = MakeEditorButton("Browse", (_, _) => BrowsePathForSelectedStreamAction());
-        var pick = MakeEditorButton("Pick Running App", (_, _) => PickRunningAppForSelectedStreamAction());
+        // Hidden for app actions (the app picker replaces it); kept for the shared row signature.
+        var pick = MakeEditorButton("Pick Running App", (_, _) => { });
+        pick.Visibility = Visibility.Collapsed;
         pick.Margin = new Thickness(8, 0, 0, 0);
         buttonRow.Children.Add(browse);
         buttonRow.Children.Add(pick);
         panel.Children.Add(buttonRow);
 
-        var appChip = new Border
-        {
-            Visibility = Visibility.Collapsed,
-            Margin = new Thickness(0, 8, 0, 0),
-            Padding = new Thickness(10, 5, 10, 5),
-            CornerRadius = new CornerRadius(8),
-            Background = new SolidColorBrush(Color.FromArgb(0x1F, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x44, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
-            BorderThickness = new Thickness(1),
-            Child = new TextBlock
-            {
-                Text = "Selected app",
-                Foreground = FindBrush("TextPrimaryBrush")
-            }
-        };
+        // GridPicker-style app trigger for launch_exe / close_program / mute_program.
+        // The TextBox above stays the source of truth; ApplyPathLabelAndButtons swaps them.
+        var appChip = MakeAppChip(box);
+        appChip.Visibility = Visibility.Collapsed;
+        appChip.Margin = new Thickness(0, 0, 0, 8);
         panel.Children.Add(appChip);
 
         box.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
@@ -2891,6 +2883,8 @@ public partial class ButtonsView
                 _scPathBox.Tag = "Page number (1-based)";
                 _scBrowsePathButton.Visibility = Visibility.Collapsed;
                 _scPickPathButton.Visibility = Visibility.Collapsed;
+                _scPathBox.Visibility = Visibility.Visible;
+                _scAppChip.Visibility = Visibility.Collapsed;
             }
             else if (action == "open_url")
             {
@@ -2902,6 +2896,8 @@ public partial class ButtonsView
                 // open_url doesn't use the app chip — ensure the text input is visible
                 if (_scPathBox.Parent is System.Windows.Controls.Border inputBorder)
                     inputBorder.Visibility = Visibility.Visible;
+                _scPathBox.Visibility = Visibility.Visible;
+                _scAppChip.Visibility = Visibility.Collapsed;
             }
             else
             {
@@ -2909,7 +2905,8 @@ public partial class ButtonsView
             }
         }
 
-        _scAppChip.Visibility = action is "close_program" or "mute_program" ? Visibility.Visible : Visibility.Collapsed;
+        if (_scPathPanel.Visibility != Visibility.Visible)
+            _scAppChip.Visibility = Visibility.Collapsed;
     }
 
     private void UpdateStreamControllerSelection()
@@ -4259,17 +4256,6 @@ public partial class ButtonsView
                 SetTextBoxValue(_scPathBox, dialog.FileName);
                 QueueSave();
             }
-        }
-    }
-
-    private void PickRunningAppForSelectedStreamAction()
-    {
-        if (_config == null || _onSave == null || _scPathBox == null) return;
-        var dialog = new AmpUp.Controls.AppPickerDialog { Owner = Window.GetWindow(this) };
-        if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.SelectedPath))
-        {
-            SetTextBoxValue(_scPathBox, dialog.SelectedPath);
-            QueueSave();
         }
     }
 
