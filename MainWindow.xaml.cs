@@ -528,17 +528,25 @@ public partial class MainWindow : FluentWindow
     private bool _sidebarExpanded;
     private System.Windows.Threading.DispatcherTimer? _sidebarCollapseTimer;
 
+    /// <summary>
+    /// Keyboard focus only keeps the sidebar open when the user is actually using the keyboard
+    /// (Tab/arrow navigation). A mouse click also moves focus into the sidebar, which used to keep
+    /// it expanded after clicking a page until focus happened to move elsewhere.
+    /// </summary>
+    private bool SidebarHeldByKeyboard =>
+        SidebarPanel.IsKeyboardFocusWithin && InputManager.Current.MostRecentInputDevice is KeyboardDevice;
+
     private void SidebarPanel_MouseEnter(object sender, MouseEventArgs e) => ExpandSidebar();
 
     private void SidebarPanel_MouseLeave(object sender, MouseEventArgs e)
     {
-        if (_profileFlyoutOpen || SidebarPanel.IsKeyboardFocusWithin) return;
+        if (_profileFlyoutOpen || SidebarHeldByKeyboard) return;
         ScheduleSidebarCollapse();
     }
 
     private void SidebarPanel_IsKeyboardFocusWithinChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
-        if ((bool)e.NewValue) ExpandSidebar();
+        if ((bool)e.NewValue && InputManager.Current.MostRecentInputDevice is KeyboardDevice) ExpandSidebar();
         else if (!SidebarPanel.IsMouseOver && !_profileFlyoutOpen) ScheduleSidebarCollapse();
     }
 
@@ -555,7 +563,7 @@ public partial class MainWindow : FluentWindow
         timer.Tick += (_, _) =>
         {
             timer.Stop();
-            if (_profileFlyoutOpen || SidebarPanel.IsMouseOver || SidebarPanel.IsKeyboardFocusWithin) return;
+            if (_profileFlyoutOpen || SidebarPanel.IsMouseOver || SidebarHeldByKeyboard) return;
             SetSidebarExpanded(false);
         };
         return timer;
@@ -999,7 +1007,7 @@ public partial class MainWindow : FluentWindow
         _profileFlyout = null;
 
         // Collapse cleanly if the pointer already left the bar while the flyout was open
-        if (!SidebarPanel.IsMouseOver && !SidebarPanel.IsKeyboardFocusWithin)
+        if (!SidebarPanel.IsMouseOver && !SidebarHeldByKeyboard)
             ScheduleSidebarCollapse();
     }
 
