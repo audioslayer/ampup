@@ -125,7 +125,7 @@ public partial class MainWindow : FluentWindow
         ProfileButton.Effect = new System.Windows.Media.Effects.DropShadowEffect
         {
             Color = ThemeManager.Accent,
-            BlurRadius = 12,
+            BlurRadius = 10,
             Opacity = 0.25,
             ShadowDepth = 0
         };
@@ -470,9 +470,13 @@ public partial class MainWindow : FluentWindow
         st.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
     }
 
-    private static SolidColorBrush NavPillBrush()
+    // Active row: accent gradient tint, strong on the left fading to the right.
+    private static LinearGradientBrush NavPillBrush()
     {
-        var b = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x26));
+        var b = new LinearGradientBrush(
+            ThemeManager.WithAlpha(ThemeManager.Accent, 0x33),
+            ThemeManager.WithAlpha(ThemeManager.Accent, 0x0D),
+            new Point(0, 0.5), new Point(1, 0.5));
         b.Freeze();
         return b;
     }
@@ -483,20 +487,18 @@ public partial class MainWindow : FluentWindow
         if (active)
         {
             item.Icon.SetResourceReference(MiIcon.ForegroundProperty, "AccentBrush");
-            item.Label.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "AccentBrush");
-            item.Label.FontWeight = FontWeights.SemiBold;
+            item.Label.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextPrimaryBrush");
             item.Pill.Background = NavPillBrush();
         }
         else
         {
             item.Icon.SetResourceReference(MiIcon.ForegroundProperty, "TextSecBrush");
             item.Label.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextSecBrush");
-            item.Label.FontWeight = FontWeights.Medium;
             item.Pill.Background = Brushes.Transparent;
         }
 
         // Indicator bar: grows from the centre + fades (cheap, layout-only on one element)
-        double h = active ? 24 : 0, o = active ? 1 : 0;
+        double h = active ? 22 : 0, o = active ? 1 : 0;
         if (animate)
         {
             var dur = TimeSpan.FromMilliseconds(180);
@@ -517,6 +519,110 @@ public partial class MainWindow : FluentWindow
     {
         if (_activeNavButton != null && NavItems.TryGetValue(_activeNavButton, out var item))
             item.Pill.Background = NavPillBrush();
+    }
+
+    // ── Expand-on-hover sidebar ─────────────────────────────────────
+    // Collapsed: 64px icon rail. Expanded: 200px overlay (spans the content column via
+    // ColumnSpan + ZIndex, so the content never reflows) with labels, captions, profile card.
+    private const double SidebarCollapsedWidth = 64, SidebarExpandedWidth = 200;
+    private bool _sidebarExpanded;
+    private System.Windows.Threading.DispatcherTimer? _sidebarCollapseTimer;
+
+    private void SidebarPanel_MouseEnter(object sender, MouseEventArgs e) => ExpandSidebar();
+
+    private void SidebarPanel_MouseLeave(object sender, MouseEventArgs e)
+    {
+        if (_profileFlyoutOpen || SidebarPanel.IsKeyboardFocusWithin) return;
+        ScheduleSidebarCollapse();
+    }
+
+    private void SidebarPanel_IsKeyboardFocusWithinChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if ((bool)e.NewValue) ExpandSidebar();
+        else if (!SidebarPanel.IsMouseOver && !_profileFlyoutOpen) ScheduleSidebarCollapse();
+    }
+
+    private void ScheduleSidebarCollapse()
+    {
+        _sidebarCollapseTimer ??= CreateSidebarCollapseTimer();
+        _sidebarCollapseTimer.Stop();
+        _sidebarCollapseTimer.Start();
+    }
+
+    private System.Windows.Threading.DispatcherTimer CreateSidebarCollapseTimer()
+    {
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            if (_profileFlyoutOpen || SidebarPanel.IsMouseOver || SidebarPanel.IsKeyboardFocusWithin) return;
+            SetSidebarExpanded(false);
+        };
+        return timer;
+    }
+
+    private void ExpandSidebar()
+    {
+        _sidebarCollapseTimer?.Stop();
+        SetSidebarExpanded(true);
+    }
+
+    private void SetSidebarExpanded(bool expanded)
+    {
+        if (_sidebarExpanded == expanded) return;
+        _sidebarExpanded = expanded;
+
+        bool animate = SystemParameters.ClientAreaAnimation && IsLoaded;
+        var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+        var widthDur = TimeSpan.FromMilliseconds(180);
+        var fadeDur = TimeSpan.FromMilliseconds(expanded ? 160 : 90);
+        double width = expanded ? SidebarExpandedWidth : SidebarCollapsedWidth;
+        double show = expanded ? 1 : 0, hide = expanded ? 0 : 1;
+
+        void Animate(UIElement el, DependencyProperty prop, double to, TimeSpan dur, TimeSpan? delay = null)
+        {
+            if (!animate)
+            {
+                el.BeginAnimation(prop, null);
+                el.SetValue(prop, to);
+                return;
+            }
+            el.BeginAnimation(prop, new System.Windows.Media.Animation.DoubleAnimation(to, dur)
+            {
+                EasingFunction = ease,
+                BeginTime = delay ?? TimeSpan.Zero
+            });
+        }
+
+        Animate(SidebarPanel, WidthProperty, width, widthDur);
+
+        // Labels fade in slightly after the width starts growing; fade out immediately.
+        var labelDelay = expanded ? TimeSpan.FromMilliseconds(40) : TimeSpan.Zero;
+        foreach (var item in NavItems.Values)
+            Animate(item.Label, OpacityProperty, show, fadeDur, labelDelay);
+        foreach (var el in new UIElement[] { CapHardware, CapLighting, CapApp, ProfileCardBg, ProfileCardText, ProfileCardChevron })
+            Animate(el, OpacityProperty, show, fadeDur, labelDelay);
+        foreach (var el in new UIElement[] { SepHardware, SepLighting, SepApp })
+            Animate(el, OpacityProperty, hide, fadeDur);
+
+        // Soft right-edge shadow only while overlaying the content
+        if (expanded)
+        {
+            var shadow = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = Colors.Black, BlurRadius = 24, ShadowDepth = 0, Direction = 0, Opacity = 0
+            };
+            SidebarPanel.Effect = shadow;
+            if (animate)
+                shadow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty,
+                    new System.Windows.Media.Animation.DoubleAnimation(0.45, widthDur));
+            else
+                shadow.Opacity = 0.45;
+        }
+        else
+        {
+            SidebarPanel.Effect = null;
+        }
     }
 
     private void NavigateTo(System.Windows.Controls.UserControl view, System.Windows.Controls.Button navButton)
@@ -847,8 +953,8 @@ public partial class MainWindow : FluentWindow
         };
         ProfilePopupPanel.Visibility = System.Windows.Visibility.Visible;
 
-        var screenPos = ProfileButton.PointToScreen(new Point(ProfileButton.ActualWidth + 4, 0));
-        var dpiSource = PresentationSource.FromVisual(ProfileButton);
+        var screenPos = ProfileCard.PointToScreen(new Point(ProfileCard.ActualWidth + 8, 0));
+        var dpiSource = PresentationSource.FromVisual(ProfileCard);
         if (dpiSource?.CompositionTarget != null)
         {
             var dpiX = dpiSource.CompositionTarget.TransformToDevice.M11;
@@ -872,6 +978,7 @@ public partial class MainWindow : FluentWindow
         _profileFlyout.KeyDown += (_, e2) => { if (e2.Key == Key.Escape) CloseProfileFlyout(); };
         _profileFlyout.Show();
         _profileFlyoutOpen = true;
+        ExpandSidebar();
     }
 
     public DeviceSurface GetCurrentDeviceSurface() => GetEffectiveDeviceSurface();
@@ -890,6 +997,10 @@ public partial class MainWindow : FluentWindow
 
         _profileFlyout?.Close();
         _profileFlyout = null;
+
+        // Collapse cleanly if the pointer already left the bar while the flyout was open
+        if (!SidebarPanel.IsMouseOver && !SidebarPanel.IsKeyboardFocusWithin)
+            ScheduleSidebarCollapse();
     }
 
     private void BuildProfileFlyout()
@@ -1297,8 +1408,8 @@ public partial class MainWindow : FluentWindow
             }
         };
 
-        var screenPos = ProfileButton.PointToScreen(new Point(ProfileButton.ActualWidth + 4, 0));
-        var dpiSource = PresentationSource.FromVisual(ProfileButton);
+        var screenPos = ProfileCard.PointToScreen(new Point(ProfileCard.ActualWidth + 8, 0));
+        var dpiSource = PresentationSource.FromVisual(ProfileCard);
         if (dpiSource?.CompositionTarget != null)
         {
             var dpiX = dpiSource.CompositionTarget.TransformToDevice.M11;
