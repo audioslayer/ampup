@@ -702,7 +702,15 @@ public partial class RoomView : UserControl
                 QueueSave(); RefreshToggleRow();
             }, Color.FromRgb(0xFF, 0x40, 0x81)));
 
-        // Screen Sync + Game Mode tiles live in the SCREEN SYNC tab (BuildScreenSyncTab).
+        // Game Mode — same setting as the SCREEN SYNC tab's Game Mode card (tabs rebuild on
+        // switch, so both always show the current state).
+        row.Children.Add(BuildToggleTile("🎮", "GAME MODE", "Screen Sync while a fullscreen game is focused",
+            _config.Ambience.GameModeEnabled, on =>
+            {
+                if (_loading || _config == null) return;
+                _config.Ambience.GameModeEnabled = on;
+                QueueSave(); RefreshToggleRow();
+            }, Color.FromRgb(0xFF, 0x6B, 0x35)));
     }
 
     // ── ROOM EFFECT TAB (unified: effect + palette + direction + canvas) ──
@@ -4129,7 +4137,9 @@ public partial class RoomView : UserControl
             "Game Mode",
             "Turns Screen Sync on while a fullscreen game is focused (browsers and video players ignored)",
             gameSwitch).Root;
-        stack.Children.Add(UiKit.ResponsivePair(screenSyncTile, gameTile));
+        // One column — side-by-side cards read as confusing.
+        stack.Children.Add(screenSyncTile);
+        stack.Children.Add(Spaced(gameTile));
 
         // ── Settings cards ──
         _screenSyncSettingsPanel = new StackPanel();
@@ -4399,7 +4409,8 @@ public partial class RoomView : UserControl
             "Look", "Color intensity and responsiveness", null, lookBody).Root;
 
         stack.Children.Add(UiKit.SectionHeader("SETTINGS"));
-        stack.Children.Add(UiKit.ResponsivePair(sourceCard, lookCard));
+        stack.Children.Add(Spaced(sourceCard));
+        stack.Children.Add(Spaced(lookCard));
 
         // ══════════════════ PREVIEW ══════════════════
         _screenEdgeControl = new Controls.ScreenEdgeControl
@@ -5525,6 +5536,12 @@ public partial class RoomView : UserControl
     }
 
     // ── Room preset/color helpers ──────────────────────────────────
+
+    private static FrameworkElement Spaced(FrameworkElement e)
+    {
+        e.Margin = new Thickness(e.Margin.Left, Math.Max(e.Margin.Top, 12), e.Margin.Right, e.Margin.Bottom);
+        return e;
+    }
 
     private Border BuildToggleTile(string icon, string title, string subtitle, bool initialActive, Action<bool> onToggle, Color? iconColor = null)
         => BuildToggleTile(icon, title, subtitle, initialActive, onToggle, iconColor, null, out _);
