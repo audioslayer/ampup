@@ -287,6 +287,9 @@ public partial class ButtonsView : UserControl
     {
         InitializeComponent();
 
+        PageHeaderHost.Content = UiKit.PageHeader("Buttons",
+            "Tap, double-press and hold actions for your Turn Up buttons and Stream Controller keys.");
+
         _debounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
         _debounce.Tick += (_, _) =>
         {
@@ -2219,7 +2222,7 @@ public partial class ButtonsView : UserControl
                 HorizontalContentAlignment = HorizontalAlignment.Left,
                 Padding = new Thickness(10, 5, 10, 5),
                 Background = Brushes.Transparent,
-                Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
+                Foreground = FindBrush("TextSecBrush"),
                 BorderThickness = new Thickness(0),
                 FontSize = 11,
                 Cursor = Cursors.Hand,

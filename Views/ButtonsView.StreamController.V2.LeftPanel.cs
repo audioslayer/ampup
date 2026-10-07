@@ -31,7 +31,8 @@ public partial class ButtonsView
     private StackPanel? _v2PageDotsPanel;
 
     // ── Folders management panel (collapsible, styled like Audio Sessions) ──
-    private TextBlock? _v2FolderSectionArrow;
+    private MaterialIcon? _v2FolderSectionArrow;
+    private TextBlock? _v2FolderSectionCount;
     private StackPanel? _v2FolderSectionContent;
     private bool _v2FoldersExpanded;
 
@@ -103,7 +104,7 @@ public partial class ButtonsView
         var section = new Border
         {
             Margin = new Thickness(0, 14, 0, 0),
-            Padding = new Thickness(16),
+            Padding = new Thickness(16, 14, 16, 14),
             CornerRadius = new CornerRadius(10),
             BorderThickness = new Thickness(1),
         };
@@ -111,52 +112,47 @@ public partial class ButtonsView
         section.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
         var stack = new StackPanel();
-
-        // Clickable header — accent bar + label + chevron, matches AUDIO SESSIONS.
-        var headerRow = new Border
-        {
-            Cursor = Cursors.Hand,
-            Background = System.Windows.Media.Brushes.Transparent,
-        };
-        var headerStack = new StackPanel { Orientation = Orientation.Horizontal };
-        headerStack.Children.Add(new Border
-        {
-            Width = 3,
-            CornerRadius = new CornerRadius(2),
-            Background = new SolidColorBrush(ThemeManager.Accent),
-            Margin = new Thickness(0, 0, 10, 0),
-        });
-        var headerLabel = new TextBlock
-        {
-            Text = "SPACES",
-            FontSize = 14,
-            FontWeight = FontWeights.Bold,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        headerStack.Children.Add(headerLabel);
-        _v2FolderSectionArrow = new TextBlock
-        {
-            Text = "\u25B6",
-            FontSize = 9,
-            Foreground = new SolidColorBrush(ThemeManager.Accent),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0),
-        };
-        headerStack.Children.Add(_v2FolderSectionArrow);
-        headerRow.Child = headerStack;
-        headerRow.MouseLeftButtonDown += (_, _) => ToggleV2FoldersExpanded();
-        stack.Children.Add(headerRow);
+        stack.Children.Add(BuildV2CollapsibleHeader("SPACES", ToggleV2FoldersExpanded,
+            out var arrow, out var count));
+        _v2FolderSectionArrow = arrow;
+        _v2FolderSectionCount = count;
+        count.Text = (1 + (_config?.N3.Folders.Count ?? 0)).ToString();
 
         _v2FolderSectionContent = new StackPanel
         {
             Visibility = Visibility.Collapsed,
-            Margin = new Thickness(0, 12, 0, 0),
+            Margin = new Thickness(0, 10, 0, 0),
         };
         stack.Children.Add(_v2FolderSectionContent);
 
         section.Child = stack;
         return section;
+    }
+
+    /// <summary>
+    /// Collapsible section header in the shared UiKit language: accent bar, bold accent
+    /// label, muted count, then a chevron. The whole row toggles.
+    /// </summary>
+    private static Border BuildV2CollapsibleHeader(string title, Action toggle,
+        out MaterialIcon chevron, out TextBlock countText)
+    {
+        var header = UiKit.SectionHeader(title, null, out countText);
+        header.Margin = new Thickness(0);
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.Children.Add(header);
+        chevron = UiKit.Icon(MaterialIconKind.ChevronDown, 18);
+        Grid.SetColumn(chevron, 1);
+        grid.Children.Add(chevron);
+        var row = new Border
+        {
+            Cursor = Cursors.Hand,
+            Background = System.Windows.Media.Brushes.Transparent,
+            Child = grid,
+        };
+        row.MouseLeftButtonDown += (_, _) => toggle();
+        return row;
     }
 
     private void ToggleV2FoldersExpanded()
@@ -165,7 +161,7 @@ public partial class ButtonsView
         if (_v2FolderSectionContent != null)
             _v2FolderSectionContent.Visibility = _v2FoldersExpanded ? Visibility.Visible : Visibility.Collapsed;
         if (_v2FolderSectionArrow != null)
-            _v2FolderSectionArrow.Text = _v2FoldersExpanded ? "\u25BC" : "\u25B6";
+            _v2FolderSectionArrow.Kind = _v2FoldersExpanded ? MaterialIconKind.ChevronUp : MaterialIconKind.ChevronDown;
 
         if (_v2FoldersExpanded) RefreshV2FoldersList();
     }
@@ -175,56 +171,55 @@ public partial class ButtonsView
     {
         if (_v2FolderSectionContent == null || _config == null) return;
         _v2FolderSectionContent.Children.Clear();
+        if (_v2FolderSectionCount != null)
+            _v2FolderSectionCount.Text = (1 + _config.N3.Folders.Count).ToString();
 
-        // "+ New Space" action row at the top.
-        var newBtn = MakeEditorButton("+ New Space", (_, _) =>
-        {
-            if (_config == null) return;
-            string? name = GlassDialog.Prompt("Enter a name for the new Space:", "New Space", Window.GetWindow(this));
-            if (string.IsNullOrWhiteSpace(name)) return;
-            name = name.Trim();
-            if (_config.N3.Folders.Any(f => f.Name == name))
-            {
-                int counter = 2;
-                string candidate;
-                do { candidate = $"{name} ({counter++})"; }
-                while (_config.N3.Folders.Any(f => f.Name == candidate));
-                name = candidate;
-            }
-            var folder = new ButtonFolderConfig { Name = name, PageCount = 1 };
-            for (int i = 0; i < StreamControllerKeysPerPage; i++)
-            {
-                folder.DisplayKeys.Add(new StreamControllerDisplayKeyConfig { Idx = i });
-                folder.Buttons.Add(new ButtonConfig { Idx = StreamControllerDisplayKeyBase + i });
-            }
-            _config.N3.Folders.Add(folder);
-            QueueSave();
-            RefreshV2FoldersList();
-        });
-        newBtn.Margin = new Thickness(0, 0, 0, 8);
-        _v2FolderSectionContent.Children.Add(newBtn);
+        // Groups-style list: dark rounded container, hover rows, "+ New Space" link row last.
+        var list = UiKit.ListContainer(out var rows);
+        _v2FolderSectionContent.Children.Add(list);
 
         // Home always appears at the top — it's the default Space and is
         // always present. Rename/Delete are hidden since it's permanent.
-        _v2FolderSectionContent.Children.Add(BuildV2HomeRow());
+        rows.Children.Add(BuildV2HomeRow());
+
+        foreach (var folder in _config.N3.Folders)
+            rows.Children.Add(BuildV2FolderRow(folder));
+
+        rows.Children.Add(UiKit.LinkRow(MaterialIconKind.Plus, "New Space", accent: true, CreateV2Space,
+            "Create an empty Space with its own pages of keys"));
 
         if (_config.N3.Folders.Count == 0)
         {
-            _v2FolderSectionContent.Children.Add(new TextBlock
-            {
-                Text = "No extra Spaces yet. Create one above or right-click any key → Open as Space.",
-                FontSize = 11,
-                Foreground = FindBrush("TextDimBrush"),
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(2, 4, 2, 0),
-            });
-            return;
+            var hint = UiKit.MutedText("No extra Spaces yet. Create one, add a template below, or right-click any key and choose Open as Space.");
+            hint.TextWrapping = TextWrapping.Wrap;
+            hint.Margin = new Thickness(2, 8, 2, 0);
+            _v2FolderSectionContent.Children.Add(hint);
         }
+    }
 
-        foreach (var folder in _config.N3.Folders)
+    private void CreateV2Space()
+    {
+        if (_config == null) return;
+        string? name = GlassDialog.Prompt("Enter a name for the new Space:", "New Space", Window.GetWindow(this));
+        if (string.IsNullOrWhiteSpace(name)) return;
+        name = name.Trim();
+        if (_config.N3.Folders.Any(f => f.Name == name))
         {
-            _v2FolderSectionContent.Children.Add(BuildV2FolderRow(folder));
+            int counter = 2;
+            string candidate;
+            do { candidate = $"{name} ({counter++})"; }
+            while (_config.N3.Folders.Any(f => f.Name == candidate));
+            name = candidate;
         }
+        var folder = new ButtonFolderConfig { Name = name, PageCount = 1 };
+        for (int i = 0; i < StreamControllerKeysPerPage; i++)
+        {
+            folder.DisplayKeys.Add(new StreamControllerDisplayKeyConfig { Idx = i });
+            folder.Buttons.Add(new ButtonConfig { Idx = StreamControllerDisplayKeyBase + i });
+        }
+        _config.N3.Folders.Add(folder);
+        QueueSave();
+        RefreshV2FoldersList();
     }
 
     /// <summary>
@@ -297,10 +292,10 @@ public partial class ButtonsView
     }
 
     /// <summary>
-    /// Shared builder for Home + user-Space rows. The whole card is
-    /// clickable to activate; the name is an inline-editable TextBox
-    /// (matching the preview-header rename pattern), and delete is a
-    /// small icon button. Home passes folder=null and skips both.
+    /// Shared builder for Home + user-Space rows, in the Groups list-row language:
+    /// [icon tile] [name / detail] [ACTIVE badge] [hover "…" menu]. The whole row is
+    /// clickable to activate; the name is an inline-editable TextBox (matching the
+    /// preview-header rename pattern). Home passes folder=null and skips rename/delete.
     /// </summary>
     private Border BuildV2SpaceRow(
         ButtonFolderConfig? folder,
@@ -310,86 +305,77 @@ public partial class ButtonsView
         int keyCount,
         Action onActivate)
     {
+        var accent = ThemeManager.Accent;
+        Brush restBg = isActive
+            ? new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x18))
+            : System.Windows.Media.Brushes.Transparent;
         var row = new Border
         {
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(12, 10, 12, 10),
-            Margin = new Thickness(0, 0, 0, 6),
-            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 6, 4, 6),
+            Background = restBg,
             Cursor = isActive ? Cursors.Arrow : Cursors.Hand,
+            ToolTip = isActive ? null : "Open this Space in the editor",
         };
-        row.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-        if (isActive)
-        {
-            row.BorderBrush = new SolidColorBrush(Color.FromArgb(
-                0x88, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
-        }
-        else
-        {
-            row.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-        }
 
         var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var labelStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var tile = UiKit.IconTile(isActive ? accent : Color.FromRgb(0x8A, 0x8A, 0x8A), iconKind, 30);
+        tile.Margin = new Thickness(0, 0, 10, 0);
+        grid.Children.Add(tile);
 
-        var nameRow = new StackPanel { Orientation = Orientation.Horizontal };
-        nameRow.Children.Add(new MaterialIcon
-        {
-            Kind = iconKind,
-            Width = 14, Height = 14,
-            Foreground = new SolidColorBrush(ThemeManager.Accent),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 8, 0),
-        });
-
-        // Home: non-editable bold label. User Space: inline-editable TextBox
-        // that mirrors the preview-header rename pattern.
+        var labelStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        TextBox? nameBox = null;
         if (folder == null)
         {
-            nameRow.Children.Add(new TextBlock
+            var home = new TextBlock
             {
                 Text = "Home",
                 FontSize = 12,
                 FontWeight = FontWeights.SemiBold,
-                Foreground = FindBrush("TextPrimaryBrush"),
                 VerticalAlignment = VerticalAlignment.Center,
-            });
+            };
+            home.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+            labelStack.Children.Add(home);
         }
         else
         {
-            var nameBox = new TextBox
+            nameBox = new TextBox
             {
                 Text = folder.Name,
                 FontSize = 12,
                 FontWeight = FontWeights.SemiBold,
-                Foreground = FindBrush("TextPrimaryBrush"),
-                CaretBrush = FindBrush("AccentBrush"),
-                SelectionBrush = FindBrush("AccentDimBrush"),
                 Background = System.Windows.Media.Brushes.Transparent,
                 BorderThickness = new Thickness(0),
                 Padding = new Thickness(0),
                 MaxLength = 30,
+                HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Center,
                 Cursor = Cursors.IBeam,
                 ToolTip = "Click to rename",
             };
-            nameBox.GotFocus += (_, _) =>
+            nameBox.SetResourceReference(TextBox.ForegroundProperty, "TextPrimaryBrush");
+            nameBox.SetResourceReference(TextBox.CaretBrushProperty, "AccentBrush");
+            nameBox.SetResourceReference(TextBox.SelectionBrushProperty, "AccentDimBrush");
+            var box = nameBox;
+            box.GotFocus += (_, _) =>
             {
-                nameBox.Background = FindBrush("InputBgBrush");
-                nameBox.BorderThickness = new Thickness(0, 0, 0, 1);
-                nameBox.BorderBrush = FindBrush("AccentBrush");
-                nameBox.SelectAll();
+                box.SetResourceReference(TextBox.BackgroundProperty, "InputBgBrush");
+                box.BorderThickness = new Thickness(0, 0, 0, 1);
+                box.SetResourceReference(TextBox.BorderBrushProperty, "AccentBrush");
+                box.SelectAll();
             };
-            nameBox.LostFocus += (_, _) =>
+            box.LostFocus += (_, _) =>
             {
-                nameBox.Background = System.Windows.Media.Brushes.Transparent;
-                nameBox.BorderThickness = new Thickness(0);
-                CommitV2SpaceRename(folder, nameBox.Text);
+                box.Background = System.Windows.Media.Brushes.Transparent;
+                box.BorderThickness = new Thickness(0);
+                CommitV2SpaceRename(folder, box.Text);
             };
-            nameBox.KeyDown += (_, e) =>
+            box.KeyDown += (_, e) =>
             {
                 if (e.Key == Key.Enter)
                 {
@@ -398,77 +384,76 @@ public partial class ButtonsView
                 }
                 else if (e.Key == Key.Escape)
                 {
-                    nameBox.Text = folder.Name;
+                    box.Text = folder.Name;
                     Keyboard.ClearFocus();
                     e.Handled = true;
                 }
             };
-            nameRow.Children.Add(nameBox);
+            labelStack.Children.Add(box);
         }
+
+        var detail = new TextBlock
+        {
+            Text = $"{pageCount} page{(pageCount == 1 ? "" : "s")} · {keyCount} key{(keyCount == 1 ? "" : "s")} assigned",
+            FontSize = 10.5,
+            Margin = new Thickness(0, 1, 0, 0),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        detail.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        labelStack.Children.Add(detail);
+        Grid.SetColumn(labelStack, 1);
+        grid.Children.Add(labelStack);
 
         if (isActive)
         {
-            nameRow.Children.Add(new TextBlock
-            {
-                Text = "  ACTIVE",
-                FontSize = 9,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(ThemeManager.Accent),
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(6, 1, 0, 0),
-            });
+            var badge = UiKit.StatusBadge(out var setBadge);
+            setBadge("ACTIVE", true);
+            badge.Margin = new Thickness(0, 0, 6, 0);
+            Grid.SetColumn(badge, 2);
+            grid.Children.Add(badge);
         }
-        labelStack.Children.Add(nameRow);
 
-        labelStack.Children.Add(new TextBlock
+        // Hover-only "…" menu (Open / Rename / Delete) — same pattern as Groups rows.
+        var more = UiKit.MoreButton(() =>
         {
-            Text = $"{pageCount} page{(pageCount == 1 ? "" : "s")} · {keyCount} key{(keyCount == 1 ? "" : "s")} assigned",
-            FontSize = 10,
-            Foreground = FindBrush("TextDimBrush"),
-            Margin = new Thickness(22, 2, 0, 0),
-        });
-        Grid.SetColumn(labelStack, 0);
-        grid.Children.Add(labelStack);
-
-        // Delete — user Spaces only. Small icon button; no label chrome.
-        if (folder != null)
-        {
-            var delIcon = new MaterialIcon
+            var items = new List<GlassMenuItem>();
+            if (!isActive)
+                items.Add(new GlassMenuItem("Open", MaterialIconKind.FolderOpenOutline, onActivate));
+            if (folder != null && nameBox != null)
             {
-                Kind = MaterialIconKind.TrashCanOutline,
-                Width = 16, Height = 16,
-                Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x6B)),
-            };
-            var delBtn = new Button
+                var box = nameBox;
+                items.Add(new GlassMenuItem("Rename", MaterialIconKind.PencilOutline, () =>
+                {
+                    box.Focus();
+                    box.SelectAll();
+                }));
+                items.Add(GlassMenuItem.Sep);
+                items.Add(new GlassMenuItem("Delete", MaterialIconKind.TrashCanOutline, () => DeleteV2Space(folder), IsDanger: true));
+            }
+            else if (items.Count == 0)
             {
-                Content = delIcon,
-                Background = System.Windows.Media.Brushes.Transparent,
-                BorderThickness = new Thickness(0),
-                Padding = new Thickness(6),
-                Margin = new Thickness(6, 0, 0, 0),
-                Cursor = Cursors.Hand,
-                ToolTip = $"Delete {folder.Name}",
-                VerticalAlignment = VerticalAlignment.Center,
-                Focusable = false,
-            };
-            delBtn.MouseEnter += (_, _) => delIcon.Foreground =
-                new SolidColorBrush(Color.FromRgb(0xFF, 0x44, 0x44));
-            delBtn.MouseLeave += (_, _) => delIcon.Foreground =
-                new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x6B));
-            delBtn.Click += (_, e) =>
-            {
-                e.Handled = true;
-                DeleteV2Space(folder);
-            };
-            Grid.SetColumn(delBtn, 1);
-            grid.Children.Add(delBtn);
-        }
+                items.Add(new GlassMenuItem("Home can't be renamed or deleted", MaterialIconKind.InformationOutline, null, IsEnabled: false));
+            }
+            return items;
+        }, folder == null ? "Home options" : $"{folder.Name} options");
+        more.Opacity = 0;
+        Grid.SetColumn(more, 3);
+        grid.Children.Add(more);
 
         row.Child = grid;
+        row.MouseEnter += (_, _) =>
+        {
+            if (!isActive) row.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+            more.Opacity = 1;
+        };
+        row.MouseLeave += (_, _) =>
+        {
+            row.Background = restBg;
+            more.Opacity = 0;
+        };
 
-        // Click anywhere on the row (except the name editor or delete icon)
-        // activates the Space. Routed-event OriginalSource lets us skip
-        // clicks that originated in the name TextBox or the delete button.
+        // Click anywhere on the row (except the name editor or the menu button)
+        // activates the Space. The menu button marks its click handled.
         row.MouseLeftButtonUp += (_, e) =>
         {
             if (e.Handled || isActive) return;

@@ -50,7 +50,7 @@ public class QuickActionPicker : Border
     // ── UI ──────────────────────────────────────────────────────────
     private readonly StackPanel _root;
     private readonly Border _selectedDisplay;
-    private readonly TextBlock _selectedIcon;
+    private readonly ContentControl _selectedIcon;
     private readonly TextBlock _selectedName;
     private readonly StackPanel _optionsHost;
     private readonly Border _searchBoxHost;
@@ -100,20 +100,18 @@ public class QuickActionPicker : Border
         // ── Selected row (SELECTED <icon> <name>) ──────────────────
         // Search trigger lives OUTSIDE the picker — it's rendered next to
         // the ACTION tab in the right-pane tab bar and calls ShowSearch().
-        _selectedIcon = new TextBlock
+        _selectedIcon = new ContentControl
         {
-            FontSize = 14,
+            Focusable = false,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 8, 0),
-            Text = "\u2014",
+            Margin = new Thickness(0, 0, 10, 0),
         };
-        _selectedIcon.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
 
         _selectedName = new TextBlock
         {
             Text = "None selected",
-            FontSize = 12,
-            FontWeight = FontWeights.Medium,
+            FontSize = 12.5,
+            FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
@@ -147,8 +145,8 @@ public class QuickActionPicker : Border
 
         _selectedDisplay = new Border
         {
-            Padding = new Thickness(10, 6, 10, 6),
-            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(10, 7, 10, 7),
+            CornerRadius = new CornerRadius(8),
             Margin = new Thickness(0, 0, 0, 10),
             Child = selectedRow,
         };
@@ -283,7 +281,7 @@ public class QuickActionPicker : Border
         // ── Categories (accordion) ────────────────────────────────
         _categoryAccordion = new StackPanel { Orientation = Orientation.Vertical };
 
-        var catsHeader = BuildSectionHeader("BROWSE BY CATEGORY", MaterialIconKind.FormatListBulletedSquare);
+        var catsHeader = BuildSectionHeader("BROWSE BY CATEGORY");
         var catsInner = new StackPanel { Orientation = Orientation.Vertical };
         catsInner.Children.Add(catsHeader);
         catsInner.Children.Add(_categoryAccordion);
@@ -307,7 +305,7 @@ public class QuickActionPicker : Border
         };
         _searchEmptyText.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
 
-        var searchHeader = BuildSectionHeader("RESULTS", MaterialIconKind.Magnify);
+        var searchHeader = BuildSectionHeader("RESULTS");
         var searchInner = new StackPanel { Orientation = Orientation.Vertical };
         searchInner.Children.Add(searchHeader);
         searchInner.Children.Add(_searchResultsPanel);
@@ -449,18 +447,31 @@ public class QuickActionPicker : Border
     private void UpdateSelectedDisplay()
     {
         var match = _items.FirstOrDefault(i => i.Value == SelectedValue);
-        if (match != null)
+        if (match != null && match.Value != "none")
         {
-            ApplyIcon(_selectedIcon, null, match.Icon, match.Color);
+            _selectedIcon.Content = GridPicker.BuildTile(KindFor(match), match.Icon, null, match.Color, 26);
             _selectedName.Text = match.Display;
-            _selectedIcon.Visibility = Visibility.Visible;
+            _selectedName.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
         }
         else
         {
-            _selectedIcon.Text = "\u2014";
-            _selectedIcon.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-            _selectedName.Text = "None selected";
+            _selectedIcon.Content = GridPicker.BuildTile(MaterialIconKind.Cancel, null, null, Color.FromRgb(0x8A, 0x8A, 0x8A), 26);
+            _selectedName.Text = match?.Display ?? "None selected";
+            _selectedName.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
         }
+    }
+
+    /// <summary>
+    /// Material icon for an item: the shared ActionPicker catalogue first (so both pickers
+    /// show the same icon per action), then the item's own icon string if it names a kind.
+    /// </summary>
+    private static MaterialIconKind? KindFor(PickerItem item)
+        => ActionPicker.ActionMeta.TryGetValue(item.Value, out var m) ? m.Kind : GridPicker.ParseKind(item.Icon);
+
+    private static string? DescriptionFor(PickerItem item)
+    {
+        if (!string.IsNullOrWhiteSpace(item.Tooltip) && item.Tooltip != item.Display) return item.Tooltip;
+        return ActionPicker.ActionMeta.TryGetValue(item.Value, out var m) ? m.Description : null;
     }
 
     /// <summary>
@@ -530,21 +541,17 @@ public class QuickActionPicker : Border
 
         var countText = new TextBlock
         {
-            Text = $"  ({_items.Count(i => string.Equals(i.Category, category, StringComparison.OrdinalIgnoreCase))})",
-            FontSize = 10,
+            Text = _items.Count(i => string.Equals(i.Category, category, StringComparison.OrdinalIgnoreCase)
+                                     && i.ParentValue == null).ToString(),
+            FontSize = 11,
+            Margin = new Thickness(8, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center,
         };
         countText.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         headerStack.Children.Add(countText);
 
-        var chevron = new TextBlock
-        {
-            Text = expanded ? "\u25BC" : "\u25B6",
-            FontSize = 9,
-            Margin = new Thickness(10, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        chevron.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        var chevron = UiKit.Icon(expanded ? MaterialIconKind.ChevronUp : MaterialIconKind.ChevronDown, 18);
+        chevron.Margin = new Thickness(10, 0, 0, 0);
 
         var headerGrid = new Grid();
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -585,7 +592,7 @@ public class QuickActionPicker : Border
             bool current = _categoryExpanded.TryGetValue(category, out var v) && v;
             _categoryExpanded[category] = !current;
             itemsPanel.Visibility = !current ? Visibility.Visible : Visibility.Collapsed;
-            chevron.Text = !current ? "\u25BC" : "\u25B6";
+            chevron.Kind = !current ? MaterialIconKind.ChevronUp : MaterialIconKind.ChevronDown;
             e.Handled = true;
         };
 
@@ -613,41 +620,45 @@ public class QuickActionPicker : Border
     {
         bool isSelected = string.Equals(item.Value, SelectedValue, StringComparison.Ordinal);
 
+        // Same row anatomy as ActionPicker / GridPicker: [tinted icon tile] [title / description] [check | chevron].
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        // Colored icon badge.
-        var iconBadge = new Border
-        {
-            Width = 26, Height = 26,
-            CornerRadius = new CornerRadius(6),
-            Margin = new Thickness(0, 0, 10, 0),
-            Background = new SolidColorBrush(Color.FromArgb(0x22, item.Color.R, item.Color.G, item.Color.B)),
-            BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x44, item.Color.R, item.Color.G, item.Color.B)),
-        };
-        iconBadge.Child = BuildIconVisual(item.Icon, 14, new SolidColorBrush(item.Color));
+        var iconBadge = GridPicker.BuildTile(KindFor(item), item.Icon, null, item.Color, 30);
+        iconBadge.Margin = new Thickness(0, 0, 12, 0);
         Grid.SetColumn(iconBadge, 0);
         grid.Children.Add(iconBadge);
 
-        // Name (+ tooltip as subtitle).
+        bool childSelected = item.HasChildren
+            && _items.Any(c => c.ParentValue == item.Value
+                               && string.Equals(c.Value, SelectedValue, StringComparison.Ordinal));
+        bool rowHighlight = isSelected || childSelected;
+
         var textStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         var nameText = new TextBlock
         {
             Text = item.Display,
-            FontSize = 12,
-            FontWeight = isSelected ? FontWeights.SemiBold : FontWeights.Normal,
+            FontSize = 12.5,
+            FontWeight = rowHighlight ? FontWeights.SemiBold : FontWeights.Normal,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
-        nameText.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        nameText.SetResourceReference(TextBlock.ForegroundProperty, rowHighlight ? "AccentBrush" : "TextPrimaryBrush");
         textStack.Children.Add(nameText);
-        if (!string.IsNullOrWhiteSpace(item.Tooltip) && item.Tooltip != item.Display)
+        string? desc = DescriptionFor(item);
+        if (childSelected)
+        {
+            var cur = _items.FirstOrDefault(c => c.ParentValue == item.Value
+                                                 && string.Equals(c.Value, SelectedValue, StringComparison.Ordinal));
+            if (cur != null) desc = "Current: " + cur.Display;
+        }
+        if (!string.IsNullOrWhiteSpace(desc))
         {
             var subText = new TextBlock
             {
-                Text = item.Tooltip,
-                FontSize = 10,
+                Text = desc,
+                FontSize = 10.5,
                 Margin = new Thickness(0, 2, 0, 0),
                 TextTrimming = TextTrimming.CharacterEllipsis,
             };
@@ -657,53 +668,44 @@ public class QuickActionPicker : Border
         Grid.SetColumn(textStack, 1);
         grid.Children.Add(textStack);
 
-        // Group rows show a right-chevron so the user knows a flyout is
-        // coming. Selected state reflects when any CHILD of the group is
-        // currently active too.
-        bool childSelected = item.HasChildren
-            && _items.Any(c => c.ParentValue == item.Value
-                               && string.Equals(c.Value, SelectedValue, StringComparison.Ordinal));
+        FrameworkElement? trailing = null;
         if (item.HasChildren)
+            trailing = UiKit.Icon(MaterialIconKind.ChevronRight, 18, childSelected ? "AccentBrush" : "TextDimBrush");
+        else if (isSelected)
+            trailing = UiKit.Icon(MaterialIconKind.Check, 18, "AccentBrush");
+        if (trailing != null)
         {
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var chev = new TextBlock
-            {
-                Text = "›", // ›
-                FontSize = 16,
-                FontWeight = FontWeights.SemiBold,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(10, 0, 0, 0),
-            };
-            chev.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-            Grid.SetColumn(chev, 2);
-            grid.Children.Add(chev);
+            trailing.Margin = new Thickness(8, 0, 0, 0);
+            Grid.SetColumn(trailing, 2);
+            grid.Children.Add(trailing);
         }
 
-        bool rowHighlight = isSelected || childSelected;
+        var accent = ThemeManager.Accent;
+        Brush normalBg = isSelected
+            ? new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x22))
+            : childSelected ? new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x10)) : Brushes.Transparent;
         var row = new Border
         {
-            Padding = new Thickness(10, 8, 10, 8),
-            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 6, 10, 6),
+            CornerRadius = new CornerRadius(8),
             Cursor = Cursors.Hand,
-            Background = rowHighlight
-                ? new SolidColorBrush(Color.FromArgb(0x22, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B))
-                : System.Windows.Media.Brushes.Transparent,
+            Background = normalBg,
             BorderThickness = new Thickness(1),
-            BorderBrush = rowHighlight
-                ? new SolidColorBrush(ThemeManager.Accent)
-                : System.Windows.Media.Brushes.Transparent,
-            Margin = new Thickness(0, 0, 0, 2),
+            BorderBrush = Brushes.Transparent,
+            Margin = new Thickness(0, 1, 0, 1),
+            SnapsToDevicePixels = true,
+            ToolTip = string.IsNullOrWhiteSpace(item.Tooltip) ? null : item.Tooltip,
             Child = grid,
         };
         row.MouseEnter += (_, _) =>
         {
-            if (!rowHighlight)
-                row.Background = new SolidColorBrush(Color.FromArgb(0x14, item.Color.R, item.Color.G, item.Color.B));
+            if (!isSelected)
+                row.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
         };
         row.MouseLeave += (_, _) =>
         {
-            if (!rowHighlight)
-                row.Background = System.Windows.Media.Brushes.Transparent;
+            if (!isSelected)
+                row.Background = normalBg;
         };
         row.MouseLeftButtonUp += (_, e) =>
         {
@@ -738,9 +740,7 @@ public class QuickActionPicker : Border
             // Map MaterialIconKind if the stored icon is enum-parseable;
             // otherwise the menu row just renders without an icon (still
             // has a left color-badge area via label formatting).
-            MaterialIconKind? icon = null;
-            if (!string.IsNullOrEmpty(child.Icon) && Enum.TryParse<MaterialIconKind>(child.Icon, out var parsed))
-                icon = parsed;
+            MaterialIconKind? icon = KindFor(child);
 
             bool selected = string.Equals(child.Value, SelectedValue, StringComparison.Ordinal);
             menuItems.Add(new GlassMenuItem(
@@ -757,30 +757,6 @@ public class QuickActionPicker : Border
                 IsChecked: selected));
         }
         GlassContextMenuHost.Show(anchor, menuItems);
-    }
-
-    /// <summary>Render an icon string as either a MaterialIcon (if enum-parseable) or a TextBlock glyph.</summary>
-    private static UIElement BuildIconVisual(string icon, double size, Brush foreground)
-    {
-        if (!string.IsNullOrEmpty(icon) && Enum.TryParse<MaterialIconKind>(icon, out var kind))
-        {
-            return new MaterialIcon
-            {
-                Kind = kind,
-                Width = size, Height = size,
-                Foreground = foreground,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-        }
-        return new TextBlock
-        {
-            Text = string.IsNullOrEmpty(icon) ? "\u2022" : icon,
-            FontSize = size,
-            Foreground = foreground,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
     }
 
     private void RebuildSearchResults()
@@ -810,66 +786,11 @@ public class QuickActionPicker : Border
 
     // ── UI builders ─────────────────────────────────────────────────
 
-    private StackPanel BuildSectionHeader(string title, MaterialIconKind icon)
+    private static FrameworkElement BuildSectionHeader(string title)
     {
-        var header = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(2, 0, 0, 6),
-        };
-
-        var ic = new MaterialIcon
-        {
-            Kind = icon,
-            Width = 12,
-            Height = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 6, 0),
-        };
-        ic.SetResourceReference(Control.ForegroundProperty, "TextDimBrush");
-        header.Children.Add(ic);
-
-        var lbl = new TextBlock
-        {
-            Text = title,
-            FontSize = 9,
-            FontWeight = FontWeights.SemiBold,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        lbl.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-        header.Children.Add(lbl);
-
+        var header = UiKit.SectionHeader(title);
+        header.Margin = new Thickness(0, 2, 0, 8);
         return header;
-    }
-
-    /// <summary>
-    /// Render the action's icon into the appropriate target.
-    /// If the icon string parses to a MaterialIconKind, add a MaterialIcon to the grid (column 0) and leave
-    /// the fallback TextBlock empty. Otherwise populate the TextBlock directly.
-    /// If grid is null, always write to the TextBlock.
-    /// </summary>
-    private void ApplyIcon(TextBlock target, Grid? grid, string icon, Color color)
-    {
-        if (!string.IsNullOrEmpty(icon) && grid != null
-            && Enum.TryParse<MaterialIconKind>(icon, ignoreCase: true, out var kind))
-        {
-            var mi = new MaterialIcon
-            {
-                Kind = kind,
-                Width = 14,
-                Height = 14,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 7, 0),
-                Foreground = new SolidColorBrush(color),
-            };
-            Grid.SetColumn(mi, 0);
-            grid.Children.Add(mi);
-            target.Text = "";
-            return;
-        }
-
-        target.Text = string.IsNullOrEmpty(icon) ? "\u2022" : icon;
-        target.Foreground = new SolidColorBrush(color);
     }
 
     // Helpers (allow subclasses to raise events)

@@ -63,10 +63,12 @@ namespace AmpUp.Controls
         public SegmentedControl()
         {
             // Outer border styling
-            SetResourceReference(BackgroundProperty, "BgDarkBrush");
-            SetResourceReference(BorderBrushProperty, "CardBorderBrush");
+            // Soft pill track (matches GridPicker / StyledSlider language)
+            SetResourceReference(BackgroundProperty, "InputBgBrush");
+            SetResourceReference(BorderBrushProperty, "InputBorderBrush");
             BorderThickness = new Thickness(1);
-            CornerRadius = new CornerRadius(4);
+            CornerRadius = new CornerRadius(8);
+            Padding = new Thickness(2);
             SnapsToDevicePixels = true;
 
             _grid = new Grid();
@@ -85,8 +87,7 @@ namespace AmpUp.Controls
             var textBlock = new TextBlock
             {
                 Text = display,
-                FontSize = 11,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
+                FontSize = 11.5,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
@@ -99,8 +100,8 @@ namespace AmpUp.Controls
                 Background = Brushes.Transparent,
                 BorderBrush = Brushes.Transparent,
                 BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(3),
-                Padding = new Thickness(8, 4, 8, 4),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(10, 5, 10, 5),
                 Cursor = Cursors.Hand,
                 Child = textBlock,
                 SnapsToDevicePixels = true,
@@ -173,15 +174,15 @@ namespace AmpUp.Controls
         {
             info.Container.Background = Brushes.Transparent;
             info.Container.BorderBrush = Brushes.Transparent;
-            info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+            info.Label.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
             info.Label.FontWeight = FontWeights.Normal;
         }
 
         private void ApplyHoverVisual(SegmentInfo info)
         {
-            info.Container.Background = (Brush)Application.Current.FindResource("InputBgBrush");
+            info.Container.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
             info.Container.BorderBrush = Brushes.Transparent;
-            info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0xBB));
+            info.Label.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
             info.Label.FontWeight = FontWeights.Normal;
         }
 
@@ -195,7 +196,7 @@ namespace AmpUp.Controls
                 Color.FromArgb(0x66, _accentColor.R, _accentColor.G, _accentColor.B));
             // Text: full accent color
             info.Label.Foreground = new SolidColorBrush(_accentColor);
-            info.Label.FontWeight = FontWeights.Medium;
+            info.Label.FontWeight = FontWeights.SemiBold;
         }
     }
 }

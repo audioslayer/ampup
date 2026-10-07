@@ -17,7 +17,7 @@ namespace AmpUp.Views;
 /// </summary>
 public partial class ButtonsView
 {
-    private TextBlock? _v2TemplatesSectionArrow;
+    private Material.Icons.WPF.MaterialIcon? _v2TemplatesSectionArrow;
     private StackPanel? _v2TemplatesSectionContent;
     private bool _v2TemplatesExpanded;
 
@@ -26,7 +26,7 @@ public partial class ButtonsView
         var section = new Border
         {
             Margin = new Thickness(0, 14, 0, 0),
-            Padding = new Thickness(16),
+            Padding = new Thickness(16, 14, 16, 14),
             CornerRadius = new CornerRadius(10),
             BorderThickness = new Thickness(1),
         };
@@ -34,46 +34,16 @@ public partial class ButtonsView
         section.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
         var stack = new StackPanel();
-
-        // Header matches SPACES — accent bar + uppercase label + chevron.
-        var headerRow = new Border
-        {
-            Cursor = Cursors.Hand,
-            Background = System.Windows.Media.Brushes.Transparent,
-        };
-        var headerStack = new StackPanel { Orientation = Orientation.Horizontal };
-        headerStack.Children.Add(new Border
-        {
-            Width = 3,
-            CornerRadius = new CornerRadius(2),
-            Background = new SolidColorBrush(ThemeManager.Accent),
-            Margin = new Thickness(0, 0, 10, 0),
-        });
-        headerStack.Children.Add(new TextBlock
-        {
-            Text = "TEMPLATES",
-            FontSize = 14,
-            FontWeight = FontWeights.Bold,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-        _v2TemplatesSectionArrow = new TextBlock
-        {
-            Text = "▶",
-            FontSize = 9,
-            Foreground = new SolidColorBrush(ThemeManager.Accent),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0),
-        };
-        headerStack.Children.Add(_v2TemplatesSectionArrow);
-        headerRow.Child = headerStack;
-        headerRow.MouseLeftButtonDown += (_, _) => ToggleV2TemplatesExpanded();
-        stack.Children.Add(headerRow);
+        // Header matches SPACES — accent bar + label + count + chevron.
+        stack.Children.Add(BuildV2CollapsibleHeader("TEMPLATES", ToggleV2TemplatesExpanded,
+            out var arrow, out var count));
+        _v2TemplatesSectionArrow = arrow;
+        count.Text = SpaceTemplates.All.Count.ToString();
 
         _v2TemplatesSectionContent = new StackPanel
         {
             Visibility = Visibility.Collapsed,
-            Margin = new Thickness(0, 12, 0, 0),
+            Margin = new Thickness(0, 10, 0, 0),
         };
         stack.Children.Add(_v2TemplatesSectionContent);
 
@@ -87,7 +57,8 @@ public partial class ButtonsView
         if (_v2TemplatesSectionContent != null)
             _v2TemplatesSectionContent.Visibility = _v2TemplatesExpanded ? Visibility.Visible : Visibility.Collapsed;
         if (_v2TemplatesSectionArrow != null)
-            _v2TemplatesSectionArrow.Text = _v2TemplatesExpanded ? "▼" : "▶";
+            _v2TemplatesSectionArrow.Kind = _v2TemplatesExpanded
+                ? Material.Icons.MaterialIconKind.ChevronUp : Material.Icons.MaterialIconKind.ChevronDown;
 
         if (_v2TemplatesExpanded) RefreshV2TemplatesList();
     }
@@ -97,81 +68,29 @@ public partial class ButtonsView
         if (_v2TemplatesSectionContent == null) return;
         _v2TemplatesSectionContent.Children.Clear();
 
-        _v2TemplatesSectionContent.Children.Add(new TextBlock
-        {
-            Text = "Pre-built Space layouts — click Add to copy into your Spaces. Editable afterwards.",
-            FontSize = 11,
-            Foreground = FindBrush("TextDimBrush"),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(2, 0, 2, 10),
-        });
+        var intro = AmpUp.Controls.UiKit.MutedText("Pre-built Space layouts. Add one to copy it into your Spaces, then edit it like any other.");
+        intro.TextWrapping = TextWrapping.Wrap;
+        intro.Margin = new Thickness(2, 0, 2, 10);
+        _v2TemplatesSectionContent.Children.Add(intro);
 
+        var list = AmpUp.Controls.UiKit.ListContainer(out var rows);
         foreach (var tmpl in SpaceTemplates.All)
-            _v2TemplatesSectionContent.Children.Add(BuildTemplateRow(tmpl));
+            rows.Children.Add(BuildTemplateRow(tmpl));
+        _v2TemplatesSectionContent.Children.Add(list);
     }
 
     private Border BuildTemplateRow(SpaceTemplates.Template tmpl)
     {
-        var row = new Border
-        {
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(12, 10, 12, 10),
-            Margin = new Thickness(0, 0, 0, 6),
-            BorderThickness = new Thickness(1),
-        };
-        row.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-        row.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-
-        // Parse the accent hex so the badge and "+" button tint match the template.
+        // Parse the accent hex so the icon tile tint matches the template.
         Color accentColor = ThemeManager.Accent;
         try { accentColor = (Color)ColorConverter.ConvertFromString(tmpl.AccentHex); }
         catch { }
 
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });   // accent dot
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // name + desc
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });   // Add button
-
-        // Accent dot (colored pill so each template is visually distinct in the list).
-        var accentPill = new Border
-        {
-            Width = 8,
-            Height = 32,
-            CornerRadius = new CornerRadius(4),
-            Background = new SolidColorBrush(accentColor),
-            Margin = new Thickness(0, 0, 12, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        Grid.SetColumn(accentPill, 0);
-        grid.Children.Add(accentPill);
-
-        // Name + description.
-        var labelStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        labelStack.Children.Add(new TextBlock
-        {
-            Text = tmpl.Name,
-            FontSize = 13,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = FindBrush("TextPrimaryBrush"),
-        });
-        labelStack.Children.Add(new TextBlock
-        {
-            Text = tmpl.Description,
-            FontSize = 11,
-            Foreground = FindBrush("TextDimBrush"),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 2, 0, 0),
-        });
-        Grid.SetColumn(labelStack, 1);
-        grid.Children.Add(labelStack);
-
-        var addBtn = MakeEditorButton("Add", (_, _) => AddTemplateToSpaces(tmpl));
-        addBtn.Margin = new Thickness(12, 0, 0, 0);
-        addBtn.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(addBtn, 2);
-        grid.Children.Add(addBtn);
-
-        row.Child = grid;
+        var tile = AmpUp.Controls.UiKit.IconTile(accentColor, Material.Icons.MaterialIconKind.ViewDashboardOutline, 30);
+        var add = AmpUp.Controls.UiKit.LinkRow(Material.Icons.MaterialIconKind.Plus, "Add", accent: true,
+            () => AddTemplateToSpaces(tmpl), $"Add {tmpl.Name} to your Spaces");
+        var row = AmpUp.Controls.UiKit.ListRow(tile, tmpl.Name, tmpl.Description, add);
+        row.ToolTip = tmpl.Description;
         return row;
     }
 

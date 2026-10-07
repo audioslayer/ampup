@@ -57,7 +57,15 @@ public partial class SettingsView : UserControl
     public SettingsView()
     {
         InitializeComponent();
+        PageHeaderHost.Content = AmpUp.Controls.UiKit.PageHeader("Settings",
+            "Hardware, appearance, profiles and the apps Amp Up connects to.");
         BuildSettingsTabs();
+        BindReveal(ChkHaEnabled, HaSettingsPanel);
+        BindReveal(ChkObsEnabled, ObsSettingsPanel);
+        BindReveal(ChkVmEnabled, VmSettingsPanel);
+        BindReveal(ChkCorsairEnabled, CorsairDeviceList);
+        BindReveal(ChkSignalRgbEnabled, SignalRgbSettingsPanel);
+        BindReveal(ChkSignalRgbProfileSync, SignalRgbProfileSyncPanel);
         ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshSettingsTabColors);
 
         _debounceTimer = new DispatcherTimer
@@ -155,14 +163,6 @@ public partial class SettingsView : UserControl
         TxtObsPassword.PasswordChanged += OnPasswordChanged;
         BtnObsTest.Click += OnObsTest;
 
-        // OBS Studio
-        ChkObsEnabled.Checked += OnValueChanged;
-        ChkObsEnabled.Unchecked += OnValueChanged;
-        TxtObsHost.TextChanged += OnValueChanged;
-        TxtObsPort.TextChanged += OnValueChanged;
-        TxtObsPassword.PasswordChanged += OnPasswordChanged;
-        BtnObsTest.Click += OnObsTest;
-
         // VoiceMeeter
         ChkVmEnabled.Checked += OnValueChanged;
         ChkVmEnabled.Unchecked += OnValueChanged;
@@ -182,6 +182,7 @@ public partial class SettingsView : UserControl
         ChkSignalRgbEnabled.Checked += OnSignalRgbEnabledChanged;
         ChkSignalRgbEnabled.Unchecked += OnSignalRgbEnabledChanged;
         TxtSignalRgbPort.TextChanged += OnValueChanged;
+        foreach (var shape in SignalRgbCanvasShapes) CmbSignalRgbCanvasShape.AddItem(shape, shape);
         CmbSignalRgbCanvasShape.SelectionChanged += OnValueChanged;
         ChkSignalRgbProfileSync.Checked += OnValueChanged;
         ChkSignalRgbProfileSync.Unchecked += OnValueChanged;
@@ -218,6 +219,15 @@ public partial class SettingsView : UserControl
             Color.FromRgb(0x58, 0x65, 0xF2), DiscordRpcIntegration.CommunityInviteUrl);
         WireCommunityTile(CoffeeTile, CoffeeTileShine,
             Color.FromRgb(0xFF, 0xB0, 0x20), "https://www.buymeacoffee.com/audioslayer");
+    }
+
+    /// <summary>Show <paramref name="panel"/> only while <paramref name="sw"/> is on.</summary>
+    private static void BindReveal(SettingsSwitch sw, FrameworkElement panel)
+    {
+        void Apply() => panel.Visibility = sw.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        sw.Checked += (_, _) => Apply();
+        sw.Unchecked += (_, _) => Apply();
+        Apply();
     }
 
     private void BuildSettingsTabs()
@@ -862,7 +872,7 @@ public partial class SettingsView : UserControl
     {
         bool show = AdvancedSection.Visibility == Visibility.Collapsed;
         AdvancedSection.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        AdvancedArrow.Text = show ? "▼" : "▶";
+        AdvancedArrow.Kind = show ? Material.Icons.MaterialIconKind.ChevronDown : Material.Icons.MaterialIconKind.ChevronRight;
     }
 
     /// <summary>
@@ -873,9 +883,7 @@ public partial class SettingsView : UserControl
         Dispatcher.Invoke(() =>
         {
             _turnUpConnected = connected;
-            ConnectionDot.Fill = new SolidColorBrush(connected
-                ? (Color)ColorConverter.ConvertFromString("#00E676")
-                : (Color)ColorConverter.ConvertFromString("#FF4444"));
+            ConnectionDot.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, connected ? "SuccessGrnBrush" : "DangerRedBrush");
             TxtConnectionStatus.Text = connected
                 ? $"Connected on {portName ?? "unknown"}"
                 : "Disconnected";
@@ -890,9 +898,7 @@ public partial class SettingsView : UserControl
         Dispatcher.Invoke(() =>
         {
             _streamControllerConnected = connected;
-            N3ConnectionDot.Fill = new SolidColorBrush(connected
-                ? (Color)ColorConverter.ConvertFromString("#00E676")
-                : (Color)ColorConverter.ConvertFromString("#FF4444"));
+            N3ConnectionDot.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, connected ? "SuccessGrnBrush" : "DangerRedBrush");
             TxtN3ConnectionStatus.Text = connected
                 ? $"Connected over USB HID{(string.IsNullOrWhiteSpace(deviceName) ? "" : $" ({deviceName})")}"
                 : "Not detected";
@@ -1731,22 +1737,14 @@ public partial class SettingsView : UserControl
     private void SelectSignalRgbCanvasShape(string? canvasShape)
     {
         string target = NormalizeSignalRgbCanvasShape(canvasShape);
-        foreach (var item in CmbSignalRgbCanvasShape.Items.OfType<ComboBoxItem>())
-        {
-            if (string.Equals(item.Content?.ToString(), target, StringComparison.OrdinalIgnoreCase))
-            {
-                CmbSignalRgbCanvasShape.SelectedItem = item;
-                return;
-            }
-        }
-
-        CmbSignalRgbCanvasShape.SelectedIndex = 0;
+        int idx = Array.FindIndex(SignalRgbCanvasShapes, n => string.Equals(n, target, StringComparison.OrdinalIgnoreCase));
+        CmbSignalRgbCanvasShape.SelectedIndex = Math.Max(0, idx);
     }
 
     private string GetSelectedSignalRgbCanvasShape()
     {
-        if (CmbSignalRgbCanvasShape.SelectedItem is ComboBoxItem item)
-            return NormalizeSignalRgbCanvasShape(item.Content?.ToString());
+        if (CmbSignalRgbCanvasShape.SelectedTag is string shape)
+            return NormalizeSignalRgbCanvasShape(shape);
 
         return "Classic Strip";
     }
@@ -1760,7 +1758,9 @@ public partial class SettingsView : UserControl
         _ => "Classic Strip",
     };
 
-    private CheckBox[] SignalRgbIgnoreKnobChecks() =>
+    private static readonly string[] SignalRgbCanvasShapes = { "Classic Strip", "Knob Grid", "Arc", "Matrix", "Wide Strip" };
+
+    private SettingsSwitch[] SignalRgbIgnoreKnobChecks() =>
     [
         ChkSignalRgbIgnoreKnob1,
         ChkSignalRgbIgnoreKnob2,
@@ -2154,13 +2154,13 @@ public partial class SettingsView : UserControl
         bool cloudOn = ChkGoveeCloudEnabled.IsChecked == true;
         if (lanOn || cloudOn)
         {
-            TxtGoveeAmbienceHint.Text = "✓ Ambience tab is available in the sidebar";
-            TxtGoveeAmbienceHint.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#00DD77"));
+            TxtGoveeAmbienceHint.Text = "Govee lights are available in the Room tab.";
+            TxtGoveeAmbienceHint.SetResourceReference(TextBlock.ForegroundProperty, "SuccessGrnBrush");
         }
         else
         {
-            TxtGoveeAmbienceHint.Text = "Enable Govee to unlock the Ambience tab in the sidebar";
-            TxtGoveeAmbienceHint.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#9A9A9A"));
+            TxtGoveeAmbienceHint.Text = "Turn on LAN sync or the Cloud API to control Govee lights from the Room tab.";
+            TxtGoveeAmbienceHint.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         }
     }
 
@@ -2526,4 +2526,87 @@ public partial class SettingsView : UserControl
         }
     }
 
+}
+
+/// <summary>
+/// CheckBox-compatible wrapper around <see cref="AmpUp.Controls.UiKit.Switch"/> for the Settings page:
+/// exposes IsChecked + Checked/Unchecked so existing load/save logic keeps working. Renders as a
+/// setting row ([label / description] ... [switch]), or label + switch inline when Compact
+/// (or switch only when there is no text).
+/// </summary>
+public class SettingsSwitch : System.Windows.Controls.Border
+{
+    private bool _on;
+    private Action<bool>? _setState;
+    private readonly TextBlock _label = new() { FontSize = 13, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _desc = new() { FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0), Visibility = Visibility.Collapsed };
+    private bool _compact;
+
+    public event RoutedEventHandler? Checked;
+    public event RoutedEventHandler? Unchecked;
+
+    public SettingsSwitch()
+    {
+        _desc.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        Build();
+    }
+
+    public string Text { get => _label.Text; set { _label.Text = value; Build(); } }
+    public string Description
+    {
+        get => _desc.Text;
+        set { _desc.Text = value; _desc.Visibility = string.IsNullOrEmpty(value) ? Visibility.Collapsed : Visibility.Visible; }
+    }
+    public bool Compact { get => _compact; set { _compact = value; Build(); } }
+
+    public bool? IsChecked
+    {
+        get => _on;
+        set
+        {
+            bool v = value == true;
+            if (v == _on) return;
+            _on = v;
+            _setState?.Invoke(v);
+            Raise();
+        }
+    }
+
+    private void Raise() => (_on ? Checked : Unchecked)?.Invoke(this, new RoutedEventArgs());
+
+    private void Build()
+    {
+        var sw = AmpUp.Controls.UiKit.Switch(_on, v => { _on = v; Raise(); }, out var set, ToolTip as string);
+        _setState = set;
+        if (_label.Parent is Panel p1) p1.Children.Remove(_label);
+        if (_desc.Parent is Panel p2) p2.Children.Remove(_desc);
+        bool hasText = !string.IsNullOrEmpty(_label.Text);
+        if (_compact || !hasText)
+        {
+            var sp = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left };
+            if (hasText)
+            {
+                _label.FontSize = 12;
+                _label.Margin = new Thickness(0, 0, 8, 0);
+                _label.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+                sp.Children.Add(_label);
+            }
+            sp.Children.Add(sw);
+            Child = sp;
+            return;
+        }
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0) };
+        _label.FontSize = 13;
+        _label.Margin = new Thickness(0);
+        _label.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        text.Children.Add(_label);
+        text.Children.Add(_desc);
+        grid.Children.Add(text);
+        Grid.SetColumn(sw, 1);
+        grid.Children.Add(sw);
+        Child = grid;
+    }
 }

@@ -7,6 +7,8 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using AmpUp.Controls;
+using Material.Icons;
+using Material.Icons.WPF;
 
 namespace AmpUp.Views;
 
@@ -53,7 +55,7 @@ public partial class ButtonsView
     private bool _scFanSourcesLoading;
     private TextBlock? _scGaugeMaxLabel;
     private TextBox? _scGaugeMaxBox;
-    private CheckBox? _scGaugeColorCheck;
+    private SwitchRow? _scGaugeColorCheck;
     private TextBlock? _scHardwareCustomLabelLabel;
     private TextBlock? _scHardwareLayoutLabel;
     private TextBlock? _scHardwareSizeHeaderLabel;
@@ -318,7 +320,15 @@ public partial class ButtonsView
         bannerRow.Children.Add(_scFolderBannerLabel);
         _scFolderBackToRootButton = new Button
         {
-            Content = "← Back to Home",
+            Content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Children =
+                {
+                    new MaterialIcon { Kind = MaterialIconKind.ArrowLeft, Width = 13, Height = 13, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center },
+                    new TextBlock { Text = "Back to Home", VerticalAlignment = VerticalAlignment.Center },
+                },
+            },
             Padding = new Thickness(10, 4, 10, 4),
             FontSize = 11,
             Cursor = Cursors.Hand,
@@ -837,11 +847,8 @@ public partial class ButtonsView
             UpdateEditorPreviewOnly();
             QueueSave();
         };
-        _scGaugeColorCheck = new CheckBox
+        _scGaugeColorCheck = new SwitchRow("Color by value (green, yellow, red)")
         {
-            Content = "Color by value (green → yellow → red)",
-            FontSize = 11,
-            Foreground = FindBrush("TextPrimaryBrush"),
             Margin = new Thickness(0, 0, 0, 10),
         };
         void OnGaugeColorToggled()
@@ -853,8 +860,7 @@ public partial class ButtonsView
             UpdateEditorPreviewOnly();
             QueueSave();
         }
-        _scGaugeColorCheck.Checked += (_, _) => OnGaugeColorToggled();
-        _scGaugeColorCheck.Unchecked += (_, _) => OnGaugeColorToggled();
+        _scGaugeColorCheck.Toggled += _ => OnGaugeColorToggled();
         _scHardwareLayoutPicker.SelectionChanged += (_, _) =>
         {
             if (_loading || _config == null) return;
@@ -1842,16 +1848,12 @@ public partial class ButtonsView
 
         foreach (var effect in effects)
         {
-            var check = new CheckBox
+            var check = new SwitchRow(effect.Name, selected.Contains(effect.Name))
             {
-                Content = effect.Name,
-                IsChecked = selected.Contains(effect.Name),
-                Foreground = FindBrush("TextPrimaryBrush"),
                 Margin = new Thickness(0, 3, 0, 3),
                 Tag = effect.Name,
             };
-            check.Checked += (_, _) => SaveSignalRgbCycleSelection();
-            check.Unchecked += (_, _) => SaveSignalRgbCycleSelection();
+            check.Toggled += _ => SaveSignalRgbCycleSelection();
             _scSignalRgbCycleList.Children.Add(check);
         }
     }
@@ -1872,7 +1874,7 @@ public partial class ButtonsView
         _loading = true;
         try
         {
-            foreach (var child in _scSignalRgbCycleList.Children.OfType<CheckBox>())
+            foreach (var child in _scSignalRgbCycleList.Children.OfType<SwitchRow>())
                 child.IsChecked = all;
         }
         finally
@@ -1887,7 +1889,7 @@ public partial class ButtonsView
         if (_loading || _config == null || _scSignalRgbCycleList == null) return;
 
         var effects = _scSignalRgbCycleList.Children
-            .OfType<CheckBox>()
+            .OfType<SwitchRow>()
             .Where(c => c.IsChecked == true)
             .Select(c => c.Tag as string ?? "")
             .Where(s => !string.IsNullOrWhiteSpace(s))
@@ -2989,7 +2991,7 @@ public partial class ButtonsView
                  && _scSignalRgbCycleList != null)
         {
             var effects = _scSignalRgbCycleList.Children
-                .OfType<CheckBox>()
+                .OfType<SwitchRow>()
                 .Where(c => c.IsChecked == true)
                 .Select(c => c.Tag as string ?? "")
                 .Where(s => !string.IsNullOrWhiteSpace(s))
@@ -3513,7 +3515,7 @@ public partial class ButtonsView
         {
             Width = 26, Height = 26,
             CornerRadius = new CornerRadius(13),
-            Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)),
+            Background = FindBrush("InputBgBrush"),
             BorderThickness = new Thickness(2),
             BorderBrush = string.IsNullOrEmpty(currentHex)
                 ? new SolidColorBrush(Colors.White)
@@ -3522,11 +3524,11 @@ public partial class ButtonsView
             Cursor = Cursors.Hand,
             ToolTip = "No glow",
         };
-        off.Child = new TextBlock
+        off.Child = new MaterialIcon
         {
-            Text = "✕",
-            FontSize = 12,
-            Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
+            Kind = MaterialIconKind.Close,
+            Width = 12, Height = 12,
+            Foreground = FindBrush("TextSecBrush"),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
@@ -4404,21 +4406,21 @@ public partial class ButtonsView
         Grid.SetColumn(stepLabel, 0);
         headerGrid.Children.Add(stepLabel);
 
-        var upBtn = MakeMultiActionIconButton("▲", "Move up");
+        var upBtn = MakeMultiActionIconButton(MaterialIconKind.ChevronUp, "Move up");
         upBtn.IsEnabled = idx > 0;
         upBtn.Opacity = idx > 0 ? 1.0 : 0.35;
         upBtn.Click += (_, _) => MoveMultiActionStep(idx, -1);
         Grid.SetColumn(upBtn, 1);
         headerGrid.Children.Add(upBtn);
 
-        var downBtn = MakeMultiActionIconButton("▼", "Move down");
+        var downBtn = MakeMultiActionIconButton(MaterialIconKind.ChevronDown, "Move down");
         downBtn.IsEnabled = idx < total - 1;
         downBtn.Opacity = idx < total - 1 ? 1.0 : 0.35;
         downBtn.Click += (_, _) => MoveMultiActionStep(idx, 1);
         Grid.SetColumn(downBtn, 2);
         headerGrid.Children.Add(downBtn);
 
-        var removeBtn = MakeMultiActionIconButton("✕", "Remove step");
+        var removeBtn = MakeMultiActionIconButton(MaterialIconKind.Close, "Remove step");
         removeBtn.Foreground = new SolidColorBrush(Color.FromRgb(0xEF, 0x53, 0x50));
         removeBtn.Click += (_, _) => RemoveMultiActionStep(idx);
         Grid.SetColumn(removeBtn, 3);
@@ -4611,11 +4613,11 @@ public partial class ButtonsView
         return row;
     }
 
-    private Button MakeMultiActionIconButton(string glyph, string tooltip)
+    private Button MakeMultiActionIconButton(MaterialIconKind kind, string tooltip)
     {
         return new Button
         {
-            Content = glyph,
+            Content = new MaterialIcon { Kind = kind, Width = 14, Height = 14 },
             ToolTip = tooltip,
             Width = 26,
             Height = 26,

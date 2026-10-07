@@ -289,6 +289,9 @@ namespace AmpUp.Controls
             { LightEffect.StreamDual,       Color.FromRgb(0x44, 0x8A, 0xFF) }, // electric blue
         };
 
+        private static Brush ThemeBrush(string key)
+            => Application.Current?.TryFindResource(key) as Brush ?? Brushes.Gray;
+
         // ── Constructor ──────────────────────────────────────────────────
         public EffectPickerControl(bool showGlobal = false, bool showFavorites = true)
         {
@@ -309,7 +312,7 @@ namespace AmpUp.Controls
                     Text = "FAVORITES",
                     FontSize = 9,
                     FontWeight = FontWeights.SemiBold,
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
+                    Foreground = ThemeBrush("TextDimBrush"),
                     Margin = new Thickness(2, 6, 0, 4),
                     Visibility = Visibility.Collapsed,
                 };
@@ -324,9 +327,9 @@ namespace AmpUp.Controls
 
                 _favoritesEmpty = new TextBlock
                 {
-                    Text = "No favorites yet. Click the ★ on any effect tile to add it here.",
+                    Text = "No favorites yet. Right-click any effect tile to add it here.",
                     FontSize = 11,
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
+                    Foreground = ThemeBrush("TextDimBrush"),
                     FontStyle = FontStyles.Italic,
                     Margin = new Thickness(4, 6, 0, 6),
                     Visibility = Visibility.Collapsed,
@@ -478,7 +481,7 @@ namespace AmpUp.Controls
                 Text = title,
                 FontSize = 9,
                 FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
+                Foreground = ThemeBrush("TextDimBrush"),
                 Margin = new Thickness(2, 6, 0, 4),
             };
             parent.Children.Add(header);
@@ -522,7 +525,7 @@ namespace AmpUp.Controls
                 FontSize = 10,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
+                Foreground = ThemeBrush("TextDimBrush"),
                 Margin = new Thickness(0, 3, 0, 0),
             };
             info.Label = labelBlock;
@@ -672,7 +675,7 @@ namespace AmpUp.Controls
             info.Container.SetResourceReference(Border.BackgroundProperty, "BgBaseBrush");
             info.Container.SetResourceReference(Border.BorderBrushProperty, "BgDarkBrush");
             info.Preview.Opacity = 0.65;
-            info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0x7A, 0x7A, 0x7A));
+            info.Label.Foreground = ThemeBrush("TextDimBrush");
         }
 
         private void ApplyHoverVisual(EffectTile info)
@@ -683,7 +686,7 @@ namespace AmpUp.Controls
             info.Container.BorderBrush = new SolidColorBrush(
                 Color.FromArgb(0x33, c.R, c.G, c.B));
             info.Preview.Opacity = 0.9;
-            info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0xBB));
+            info.Label.Foreground = ThemeBrush("TextSecBrush");
         }
 
         private void ApplySelectedVisual(EffectTile info)

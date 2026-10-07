@@ -23,6 +23,7 @@
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
+                <ContentControl x:Name="PageHeaderHost" Focusable="False" />
                 <Grid x:Name="TurnUpButtonsPanel" Grid.IsSharedSizeScope="True">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />

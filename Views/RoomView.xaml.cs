@@ -672,7 +672,7 @@ public partial class RoomView : UserControl
 
         // Amp Up sync
         bool syncActive = _activePattern == "__sync__";
-        row.Children.Add(BuildToggleTile("🔗", "AMP UP", "Mirror knob LEDs to room",
+        row.Children.Add(BuildToggleTile(MaterialIconKind.LinkVariant, "AMP UP", "Mirror knob LEDs to room",
             syncActive, on =>
             {
                 if (_config == null) return;
@@ -683,7 +683,7 @@ public partial class RoomView : UserControl
 
         // Music Reactive
         bool globalMusic = _corsairMusicTimer?.IsEnabled == true && !_vuFillActive;
-        row.Children.Add(BuildToggleTile("♪", "MUSIC REACTIVE", "Audio-driven brightness",
+        row.Children.Add(BuildToggleTile(MaterialIconKind.MusicNote, "MUSIC REACTIVE", "Audio-driven brightness",
             globalMusic, on =>
             {
                 if (_loading) return;
@@ -693,7 +693,7 @@ public partial class RoomView : UserControl
             }, Color.FromRgb(0xFF, 0xB8, 0x00)));
 
         // VU Fill — layer audio-driven masks over the selected room effect
-        row.Children.Add(BuildToggleTile("≡", "VU FILL", "Layer music energy over the selected effect",
+        row.Children.Add(BuildToggleTile(MaterialIconKind.Equalizer, "VU FILL", "Layer music energy over the selected effect",
             _vuFillActive, on =>
             {
                 if (_loading) return;
@@ -704,7 +704,7 @@ public partial class RoomView : UserControl
 
         // Game Mode — same setting as the SCREEN SYNC tab's Game Mode card (tabs rebuild on
         // switch, so both always show the current state).
-        row.Children.Add(BuildToggleTile("🎮", "GAME MODE", "Screen Sync while a fullscreen game is focused",
+        row.Children.Add(BuildToggleTile(MaterialIconKind.GamepadVariant, "GAME MODE", "Screen Sync while a fullscreen game is focused",
             _config.Ambience.GameModeEnabled, on =>
             {
                 if (_loading || _config == null) return;
@@ -5543,124 +5543,114 @@ public partial class RoomView : UserControl
         return e;
     }
 
-    private Border BuildToggleTile(string icon, string title, string subtitle, bool initialActive, Action<bool> onToggle, Color? iconColor = null)
+    private Border BuildToggleTile(MaterialIconKind icon, string title, string subtitle, bool initialActive, Action<bool> onToggle, Color? iconColor = null)
         => BuildToggleTile(icon, title, subtitle, initialActive, onToggle, iconColor, null, out _);
 
-    private Border BuildToggleTile(string icon, string title, string subtitle, bool initialActive, Action<bool> onToggle, Color? iconColor, string? extraStatus, out Action<string, bool>? extraStatusUpdater)
+    /// <summary>
+    /// UiKit-style toggle card: coloured icon tile, title + muted subtitle, UiKit.Switch on the right.
+    /// Clicking anywhere on the card toggles (same as the switch).
+    /// </summary>
+    private Border BuildToggleTile(MaterialIconKind icon, string title, string subtitle, bool initialActive, Action<bool> onToggle, Color? iconColor, string? extraStatus, out Action<string, bool>? extraStatusUpdater)
     {
         extraStatusUpdater = null;
         bool isActive = initialActive;
-        var accent = ThemeManager.Accent;
-        var icoColor = iconColor ?? accent;
+        var icoColor = iconColor ?? ThemeManager.Accent;
 
         var tile = new Border
         {
-            CornerRadius = new CornerRadius(8),
+            CornerRadius = new CornerRadius(10),
             BorderThickness = new Thickness(1),
-            Padding = new Thickness(12, 8, 12, 8),
+            Padding = new Thickness(10, 8, 12, 8),
             Margin = new Thickness(0, 0, 8, 8),
             Cursor = Cursors.Hand,
-            MinWidth = 180,
+            MinWidth = 220,
         };
 
-        var iconText = new TextBlock { Text = icon, FontSize = 16, Foreground = new SolidColorBrush(icoColor), Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
-        var titleText = new TextBlock { Text = title, FontSize = 11, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
-        var subtitleText = new TextBlock { Text = subtitle, FontSize = 9, Margin = new Thickness(0, 2, 0, 0) };
+        var iconTile = UiKit.IconTile(icoColor, icon, 30);
+        iconTile.Margin = new Thickness(0, 0, 10, 0);
+        iconTile.VerticalAlignment = VerticalAlignment.Center;
 
-        var leftStack = new StackPanel();
-        var titleRow = new StackPanel { Orientation = Orientation.Horizontal };
-        titleRow.Children.Add(iconText);
-        titleRow.Children.Add(titleText);
-        leftStack.Children.Add(titleRow);
+        var titleText = new TextBlock { Text = title, FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        titleText.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        var subtitleText = new TextBlock { Text = subtitle, FontSize = 10.5, Margin = new Thickness(0, 1, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 230 };
+        subtitleText.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+
+        var leftStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        leftStack.Children.Add(titleText);
         leftStack.Children.Add(subtitleText);
 
-        // Optional extra status line (e.g. DreamView ACTIVE/STANDBY)
-        Border? extraDot = null;
-        TextBlock? extraLabel = null;
         if (extraStatus != null)
         {
             var extraRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 3, 0, 0) };
-            extraDot = new Border { Width = 6, Height = 6, CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center };
-            extraLabel = new TextBlock { FontSize = 9, FontWeight = FontWeights.SemiBold };
-            extraRow.Children.Add(extraDot);
-            extraRow.Children.Add(extraLabel);
+            var eDot = new Border { Width = 6, Height = 6, CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center };
+            var eLbl = new TextBlock { FontSize = 9.5, FontWeight = FontWeights.SemiBold };
+            extraRow.Children.Add(eDot);
+            extraRow.Children.Add(eLbl);
             leftStack.Children.Add(extraRow);
-            // Set initial state
-            var eDot = extraDot; var eLbl = extraLabel;
             extraStatusUpdater = (s, active) =>
             {
-                var c = active ? Color.FromRgb(0x00, 0xE6, 0x76) : Color.FromRgb(0x55, 0x55, 0x55);
-                eDot.Background = new SolidColorBrush(c);
                 eLbl.Text = s;
-                eLbl.Foreground = new SolidColorBrush(active ? Color.FromRgb(0x00, 0xE6, 0x76) : Color.FromRgb(0x66, 0x66, 0x66));
+                if (active)
+                {
+                    var a = ThemeManager.Accent;
+                    eDot.Background = new SolidColorBrush(a);
+                    eLbl.Foreground = new SolidColorBrush(a);
+                }
+                else
+                {
+                    eDot.SetResourceReference(Border.BackgroundProperty, "TextDimBrush");
+                    eLbl.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+                }
             };
             extraStatusUpdater(extraStatus, false);
         }
 
-        var statusText = new TextBlock { FontSize = 9, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
-        var statusPill = new Border
-        {
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(8, 3, 8, 3),
-            Margin = new Thickness(10, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-            Child = statusText,
-        };
-
-        var content = new Grid();
-        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(leftStack, 0);
-        Grid.SetColumn(statusPill, 1);
-        content.Children.Add(leftStack);
-        content.Children.Add(statusPill);
-        tile.Child = content;
-
-        void UpdateVisuals()
+        void UpdateVisuals(bool hover = false)
         {
             var a = ThemeManager.Accent;
             if (isActive)
-                tile.Background = new SolidColorBrush(Color.FromArgb(0x22, a.R, a.G, a.B));
+            {
+                tile.Background = new SolidColorBrush(Color.FromArgb(0x1C, a.R, a.G, a.B));
+                tile.BorderBrush = new SolidColorBrush(Color.FromArgb(hover ? (byte)0xC0 : (byte)0x80, a.R, a.G, a.B));
+            }
             else
-                tile.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-            if (isActive)
-                tile.BorderBrush = new SolidColorBrush(Color.FromArgb(0xA0, a.R, a.G, a.B));
-            else
-                tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-            titleText.Foreground = new SolidColorBrush(isActive ? a : Color.FromRgb(0xE8, 0xE8, 0xE8));
-            subtitleText.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
-            statusText.Text = isActive ? "ON" : "OFF";
-            statusText.Foreground = new SolidColorBrush(isActive ? a : Color.FromRgb(0x55, 0x55, 0x55));
-            if (isActive)
-                statusPill.Background = new SolidColorBrush(Color.FromArgb(0x28, a.R, a.G, a.B));
-            else
-                statusPill.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+            {
+                tile.SetResourceReference(Border.BackgroundProperty, hover ? "InputBgBrush" : "CardBgBrush");
+                tile.SetResourceReference(Border.BorderBrushProperty, hover ? "InputBorderBrush" : "CardBorderBrush");
+            }
         }
+
+        Action<bool> setSwitch = _ => { };
+        var sw = UiKit.Switch(isActive, on =>
+        {
+            isActive = on;
+            UpdateVisuals(tile.IsMouseOver);
+            onToggle(on);
+        }, out setSwitch, title);
+        sw.Margin = new Thickness(12, 0, 0, 0);
+
+        var content = new Grid();
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(iconTile, 0);
+        Grid.SetColumn(leftStack, 1);
+        Grid.SetColumn(sw, 2);
+        content.Children.Add(iconTile);
+        content.Children.Add(leftStack);
+        content.Children.Add(sw);
+        tile.Child = content;
         UpdateVisuals();
 
-        var tileTransform = new TranslateTransform(0, 0);
-        tile.RenderTransform = tileTransform;
         tile.MouseLeftButtonDown += (_, _) =>
         {
             isActive = !isActive;
-            UpdateVisuals();
+            setSwitch(isActive);
+            UpdateVisuals(true);
             onToggle(isActive);
         };
-        tile.MouseEnter += (_, _) =>
-        {
-            tileTransform.Y = -1;
-            if (!isActive)
-            {
-                tile.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-                tile.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
-            }
-        };
-        tile.MouseLeave += (_, _) =>
-        {
-            tileTransform.Y = 0;
-            if (!isActive) tile.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-            UpdateVisuals(); // restore correct border
-        };
+        tile.MouseEnter += (_, _) => UpdateVisuals(true);
+        tile.MouseLeave += (_, _) => UpdateVisuals(false);
 
         return tile;
     }
@@ -5699,10 +5689,10 @@ public partial class RoomView : UserControl
 
         updater = (s, active) =>
         {
-            var c = active ? Color.FromRgb(0x00, 0xE6, 0x76) : Color.FromRgb(0x66, 0x66, 0x66);
+            var c = active ? ThemeManager.Accent : Color.FromRgb(0x66, 0x66, 0x66);
             dot.Background = new SolidColorBrush(c);
             statusText.Text = s;
-            statusText.Foreground = new SolidColorBrush(active ? Color.FromRgb(0x00, 0xE6, 0x76) : Color.FromRgb(0x88, 0x88, 0x88));
+            statusText.Foreground = new SolidColorBrush(active ? ThemeManager.Accent : Color.FromRgb(0x88, 0x88, 0x88));
         };
         updater(status, isActive);
         return tile;
@@ -5733,10 +5723,11 @@ public partial class RoomView : UserControl
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        content.Children.Add(new TextBlock
+        content.Children.Add(new Material.Icons.WPF.MaterialIcon
         {
-            Text = "🔗", FontSize = 20,
+            Kind = MaterialIconKind.LinkVariant, Width = 20, Height = 20,
             HorizontalAlignment = HorizontalAlignment.Center,
+            Foreground = isActive ? new SolidColorBrush(accent) : new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
         });
         content.Children.Add(new TextBlock
         {

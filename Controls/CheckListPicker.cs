@@ -6,6 +6,8 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
+using Material.Icons;
+using Material.Icons.WPF;
 
 namespace AmpUp.Controls;
 
@@ -17,7 +19,7 @@ namespace AmpUp.Controls;
 public class CheckListPicker : Border
 {
     private readonly TextBlock _label;
-    private readonly TextBlock _chevron;
+    private readonly MaterialIcon _chevron;
     private readonly StackPanel _itemsPanel;
     private readonly ScrollViewer _scrollViewer;
     private Window? _flyout;
@@ -27,17 +29,20 @@ public class CheckListPicker : Border
 
     public event EventHandler? SelectionChanged;
 
-    public Color AccentColor { get; set; } = Color.FromRgb(0x00, 0xE6, 0x76);
+    private Color? _accentOverride;
+    /// <summary>Follows ThemeManager.Accent live unless a caller sets an explicit colour.</summary>
+    public Color AccentColor { get => _accentOverride ?? ThemeManager.Accent; set => _accentOverride = value; }
 
     public CheckListPicker()
     {
+        // Trigger matches GridPicker / ListPicker: rounded input-coloured field + Material chevron.
         BorderThickness = new Thickness(1);
-        CornerRadius = new CornerRadius(4);
-        Padding = new Thickness(8, 5, 8, 5);
+        CornerRadius = new CornerRadius(8);
+        Padding = new Thickness(10, 6, 8, 6);
         Cursor = Cursors.Hand;
         SnapsToDevicePixels = true;
-        this.SetResourceReference(BackgroundProperty, "BgDarkBrush");
-        this.SetResourceReference(BorderBrushProperty, "CardBorderBrush");
+        this.SetResourceReference(BackgroundProperty, "InputBgBrush");
+        this.SetResourceReference(BorderBrushProperty, "InputBorderBrush");
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -54,14 +59,14 @@ public class CheckListPicker : Border
         Grid.SetColumn(_label, 0);
         grid.Children.Add(_label);
 
-        _chevron = new TextBlock
+        _chevron = new MaterialIcon
         {
-            Text = "\u25BE",
-            FontSize = 10,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
+            Kind = MaterialIconKind.ChevronDown,
+            Width = 16, Height = 16,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(6, 0, 0, 0)
         };
+        _chevron.SetResourceReference(MaterialIcon.ForegroundProperty, "TextDimBrush");
         Grid.SetColumn(_chevron, 1);
         grid.Children.Add(_chevron);
 
@@ -87,8 +92,8 @@ public class CheckListPicker : Border
         {
             if (!_isOpen)
             {
-                this.SetResourceReference(BorderBrushProperty, "CardBorderBrush");
-                this.SetResourceReference(BackgroundProperty, "BgDarkBrush");
+                this.SetResourceReference(BorderBrushProperty, "InputBorderBrush");
+                this.SetResourceReference(BackgroundProperty, "InputBgBrush");
             }
         };
 
@@ -199,13 +204,13 @@ public class CheckListPicker : Border
         var popupBorder = new Border
         {
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(0),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(6),
             Child = _scrollViewer,
             MinWidth = Math.Max(ActualWidth, 120),
         };
         popupBorder.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
-        popupBorder.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        popupBorder.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
 
         _flyout = new Window
         {
@@ -249,6 +254,7 @@ public class CheckListPicker : Border
 
         BorderBrush = new SolidColorBrush(AccentColor);
         this.SetResourceReference(BackgroundProperty, "InputBgBrush");
+        _chevron.Foreground = new SolidColorBrush(AccentColor);
     }
 
     private void CloseFlyout()
@@ -263,8 +269,9 @@ public class CheckListPicker : Border
         _flyout?.Close();
         _flyout = null;
 
-        this.SetResourceReference(BorderBrushProperty, "CardBorderBrush");
-        this.SetResourceReference(BackgroundProperty, "BgDarkBrush");
+        this.SetResourceReference(BorderBrushProperty, "InputBorderBrush");
+        this.SetResourceReference(BackgroundProperty, "InputBgBrush");
+        _chevron.SetResourceReference(MaterialIcon.ForegroundProperty, "TextDimBrush");
     }
 
     private void RebuildPopupItems()
@@ -278,12 +285,12 @@ public class CheckListPicker : Border
 
             var checkBox = new Border
             {
-                Width = 14, Height = 14,
+                Width = 16, Height = 16,
                 BorderBrush = isChecked
                     ? new SolidColorBrush(AccentColor)
                     : new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
                 BorderThickness = new Thickness(1.5),
-                CornerRadius = new CornerRadius(2),
+                CornerRadius = new CornerRadius(4),
                 Background = isChecked
                     ? new SolidColorBrush(Color.FromArgb(0x40, AccentColor.R, AccentColor.G, AccentColor.B))
                     : Brushes.Transparent,
@@ -293,11 +300,10 @@ public class CheckListPicker : Border
 
             if (isChecked)
             {
-                checkBox.Child = new TextBlock
+                checkBox.Child = new MaterialIcon
                 {
-                    Text = "\u2713",
-                    FontSize = 9,
-                    FontWeight = FontWeights.Bold,
+                    Kind = MaterialIconKind.Check,
+                    Width = 12, Height = 12,
                     Foreground = new SolidColorBrush(AccentColor),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center
@@ -325,7 +331,9 @@ public class CheckListPicker : Border
 
             var itemBorder = new Border
             {
-                Padding = new Thickness(6, 6, 8, 6),
+                CornerRadius = new CornerRadius(8),
+                Margin = new Thickness(0, 1, 0, 1),
+                Padding = new Thickness(6, 7, 10, 7),
                 Cursor = Cursors.Hand,
                 Background = isChecked
                     ? new SolidColorBrush(Color.FromArgb(0x1F, AccentColor.R, AccentColor.G, AccentColor.B))

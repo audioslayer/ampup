@@ -158,7 +158,7 @@ namespace AmpUp.Controls
             var container = new Border
             {
                 BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(6),
+                CornerRadius = new CornerRadius(8),
                 Padding = new Thickness(4, 4, 4, 2),
                 Margin = new Thickness(2, 0, 2, 0),
                 Cursor = Cursors.Hand,
@@ -166,8 +166,8 @@ namespace AmpUp.Controls
                 SnapsToDevicePixels = true,
                 ClipToBounds = true,
             };
-            container.SetResourceReference(Border.BackgroundProperty, "BgBaseBrush");
-            container.SetResourceReference(Border.BorderBrushProperty, "BgDarkBrush");
+            container.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+            container.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
             info.Container = container;
             if (tooltip != null)
                 container.ToolTip = tooltip;
@@ -256,28 +256,32 @@ namespace AmpUp.Controls
 
         private void ApplyNormalVisual(CurveCard info)
         {
-            info.Container.SetResourceReference(Border.BackgroundProperty, "BgBaseBrush");
-            info.Container.SetResourceReference(Border.BorderBrushProperty, "BgDarkBrush");
+            info.Container.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+            info.Container.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
             info.CurveLine.Stroke = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A));
-            info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+            info.Label.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+            info.Label.FontWeight = FontWeights.Normal;
         }
 
         private void ApplyHoverVisual(CurveCard info)
         {
-            info.Container.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
-            info.Container.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+            info.Container.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+            info.Container.BorderBrush = new SolidColorBrush(
+                Color.FromArgb(0x80, _accentColor.R, _accentColor.G, _accentColor.B));
             info.CurveLine.Stroke = new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0xBB));
-            info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0xBB));
+            info.Label.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+            info.Label.FontWeight = FontWeights.Normal;
         }
 
         private void ApplySelectedVisual(CurveCard info)
         {
             info.Container.Background = new SolidColorBrush(
-                Color.FromArgb(0x20, _accentColor.R, _accentColor.G, _accentColor.B));
+                Color.FromArgb(0x22, _accentColor.R, _accentColor.G, _accentColor.B));
             info.Container.BorderBrush = new SolidColorBrush(
-                Color.FromArgb(0x66, _accentColor.R, _accentColor.G, _accentColor.B));
-            info.CurveLine.Stroke = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
-            info.Label.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
+                Color.FromArgb(0xA0, _accentColor.R, _accentColor.G, _accentColor.B));
+            info.CurveLine.Stroke = new SolidColorBrush(_accentColor);
+            info.Label.Foreground = new SolidColorBrush(_accentColor);
+            info.Label.FontWeight = FontWeights.SemiBold;
         }
     }
 }

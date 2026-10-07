@@ -272,24 +272,8 @@ public partial class MixerView
             labelsRow.Children.Add(minLabel);
             labelsRow.Children.Add(maxLabel);
 
-            var rangeStack = new StackPanel();
-            rangeStack.Children.Add(new TextBlock
-            {
-                Text = "VOLUME RANGE",
-                FontSize = 9,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = FindBrush("TextDimBrush"),
-                Margin = new Thickness(0, 0, 0, 4)
-            });
-            rangeStack.Children.Add(range);
-            rangeStack.Children.Add(labelsRow);
-
-            var rangeHost = new Border
-            {
-                Padding = new Thickness(16, 0, 16, 0),
-                Margin = new Thickness(i == 0 ? 0 : 4, 0, i == ScChannelCount - 1 ? 0 : 4, 8),
-                Child = rangeStack,
-            };
+            var rangeHost = MakeSectionCard("VOLUME RANGE", range, labelsRow);
+            rangeHost.Margin = new Thickness(i == 0 ? 0 : 4, 0, i == ScChannelCount - 1 ? 0 : 4, 10);
             Grid.SetRow(rangeHost, 3);
             Grid.SetColumn(rangeHost, i);
             grid.Children.Add(rangeHost);

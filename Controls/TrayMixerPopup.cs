@@ -1214,9 +1214,16 @@ public class TrayMixerPopup : Window
             VerticalAlignment = VerticalAlignment.Center,
         };
         var dock = new DockPanel();
+        dock.Children.Add(new MaterialIcon
+        {
+            Kind = MaterialIconKind.LightningBolt, Width = 11, Height = 11,
+            Margin = new Thickness(0, 0, 4, 0),
+            Foreground = new SolidColorBrush(Color.FromArgb(0xCC, accent.R, accent.G, accent.B)),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
         dock.Children.Add(new TextBlock
         {
-            Text = "⚡ Quick Assign",
+            Text = "Quick Assign",
             Foreground = new SolidColorBrush(Color.FromArgb(0xCC, accent.R, accent.G, accent.B)),
             FontSize = 9.5,
             VerticalAlignment = VerticalAlignment.Center,
@@ -1557,25 +1564,24 @@ public class TrayMixerPopup : Window
 
             var devDock = new DockPanel { LastChildFill = true };
 
-            // Checkbox for quick-swap inclusion
-            var cb = new CheckBox
+            // Switch for quick-swap inclusion (UiKit app-wide switch)
+            Action<bool> setCb = _ => { };
+            var cb = UiKit.Switch(inSubset, on =>
             {
-                IsChecked = inSubset,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 6, 0),
-                ToolTip = "Include in quick-swap cycle",
-            };
-            cb.Checked += (_, _) =>
-            {
-                quickSwapIds.Add(dev.Id);
+                if (on) quickSwapIds.Add(dev.Id);
+                else
+                {
+                    quickSwapIds.Remove(dev.Id);
+                    if (quickSwapIds.Count == 0) // must have at least 1
+                    {
+                        quickSwapIds.Add(dev.Id);
+                        Dispatcher.BeginInvoke(() => setCb(true));
+                        return;
+                    }
+                }
                 SaveQuickSwapSubset(configKey, quickSwapIds);
-            };
-            cb.Unchecked += (_, _) =>
-            {
-                quickSwapIds.Remove(dev.Id);
-                if (quickSwapIds.Count == 0) { cb.IsChecked = true; return; } // must have at least 1
-                SaveQuickSwapSubset(configKey, quickSwapIds);
-            };
+            }, out setCb, "Include in quick-swap cycle");
+            cb.Margin = new Thickness(0, 0, 8, 0);
             DockPanel.SetDock(cb, Dock.Left);
             devDock.Children.Add(cb);
 
@@ -2190,22 +2196,34 @@ public class TrayMixerPopup : Window
         menuWin.Content = outer;
 
         // Helper: build a menu item
-        UIElement MakeItem(string text, Brush fg, Action action, bool isSub = false)
+        UIElement MakeItem(string text, Brush fg, Action action, bool isSub = false, MaterialIconKind? icon = null, bool iconSlot = false)
         {
             var item = new Border
             {
                 Background = Brushes.Transparent,
-                CornerRadius = new CornerRadius(3),
+                CornerRadius = new CornerRadius(4),
                 Padding = new Thickness(isSub ? 18 : 10, 6, 10, 6),
                 Cursor = Cursors.Hand,
             };
-            item.Child = new TextBlock
+            var label = new TextBlock
             {
                 Text = text,
                 Foreground = fg,
                 FontSize = 10.5,
                 FontFamily = new FontFamily("Segoe UI"),
+                VerticalAlignment = VerticalAlignment.Center,
             };
+            if (icon != null || iconSlot)
+            {
+                var row = new StackPanel { Orientation = Orientation.Horizontal };
+                var slot = new Border { Width = 13, Height = 13, Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center };
+                if (icon is MaterialIconKind k)
+                    slot.Child = new MaterialIcon { Kind = k, Width = 13, Height = 13, Foreground = fg };
+                row.Children.Add(slot);
+                row.Children.Add(label);
+                item.Child = row;
+            }
+            else item.Child = label;
             item.MouseEnter += (_, _) => item.Background = new SolidColorBrush(Color.FromArgb(30, accent.R, accent.G, accent.B));
             item.MouseLeave += (_, _) => item.Background = Brushes.Transparent;
             item.MouseLeftButtonDown += (_, _) =>
@@ -2246,16 +2264,16 @@ public class TrayMixerPopup : Window
             var knobCfg = _config.Knobs.FirstOrDefault(kn => kn.Idx == knobIdx);
             bool isCurrent = knobCfg?.Target?.Equals(processName, StringComparison.OrdinalIgnoreCase) == true;
             string kLabel = !string.IsNullOrWhiteSpace(knobCfg?.Label) ? knobCfg!.Label : $"Knob {knobIdx + 1}";
-            string prefix = isCurrent ? "✓  " : "   ";
+
             var fg = isCurrent
                 ? new SolidColorBrush(accent)
                 : new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
 
-            menuStack.Children.Add(MakeItem($"{prefix}{kLabel}", fg, () =>
+            menuStack.Children.Add(MakeItem(kLabel, fg, () =>
             {
                 AssignAppToKnob(processName, knobIdx, isCurrent);
                 RefreshSessions();
-            }, isSub: true));
+            }, isSub: true, icon: isCurrent ? MaterialIconKind.Check : null, iconSlot: true));
         }
 
         menuStack.Children.Add(MakeSeparator());
@@ -2288,7 +2306,7 @@ public class TrayMixerPopup : Window
             {
                 var devCapture = dev;
                 var devName = dev.Name.Length > 30 ? dev.Name[..28] + "…" : dev.Name;
-                menuStack.Children.Add(MakeItem($"   {devName}",
+                menuStack.Children.Add(MakeItem(devName,
                     new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
                     () =>
                     {
@@ -2328,7 +2346,7 @@ public class TrayMixerPopup : Window
         }
         else
         {
-            menuStack.Children.Add(MakeItem($"📌 Pin {displayName} to top",
+            menuStack.Children.Add(MakeItem($"Pin {displayName} to top",
                 new SolidColorBrush(Color.FromArgb(0xCC, accent.R, accent.G, accent.B)),
                 () =>
                 {
@@ -2336,7 +2354,7 @@ public class TrayMixerPopup : Window
                         _config.PinnedTrayApps.Add(processName);
                     _onSave?.Invoke(_config);
                     RefreshSessions();
-                }));
+                }, icon: MaterialIconKind.Pin));
         }
 
         menuStack.Children.Add(MakeSeparator());
@@ -2554,8 +2572,8 @@ public class TrayMixerPopup : Window
             Minimum = 0,
             Maximum = 100,
             Value = Math.Clamp(value, 0, 100),
-            Height = 16,
-            Margin = new Thickness(0, 3, 0, 0),
+            Height = 22,
+            Margin = new Thickness(0, 1, 0, 0),
             Style = BuildSliderStyle(accentColor)
         };
         return slider;
@@ -2578,18 +2596,20 @@ public class TrayMixerPopup : Window
         // Use XAML string to build the slider template — FrameworkElementFactory
         // can't set Track.Thumb/DecreaseRepeatButton/IncreaseRepeatButton as properties.
         var accentHex = $"#{accent.R:X2}{accent.G:X2}{accent.B:X2}";
+        // Soft-pill look matching StyledSlider: 8px rounded input-coloured track, accent fill,
+        // thumb (white dot + accent halo) only while hovered / dragging / focused.
         var xaml = $@"
 <ControlTemplate TargetType='Slider'
     xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'
     xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>
-    <Grid>
-        <Border Height='4' CornerRadius='2' Background='#2A2A2A' VerticalAlignment='Center' />
+    <Grid Background='Transparent'>
+        <Border Height='8' CornerRadius='4' Background='{{DynamicResource InputBgBrush}}' VerticalAlignment='Center' />
         <Track x:Name='PART_Track'>
             <Track.DecreaseRepeatButton>
                 <RepeatButton IsHitTestVisible='False' Focusable='False'>
                     <RepeatButton.Template>
                         <ControlTemplate TargetType='RepeatButton'>
-                            <Border Height='4' CornerRadius='2' Background='{accentHex}' VerticalAlignment='Center' Opacity='0.85' />
+                            <Border Height='8' CornerRadius='4' Background='{accentHex}' VerticalAlignment='Center' Margin='0,0,-7,0' />
                         </ControlTemplate>
                     </RepeatButton.Template>
                 </RepeatButton>
@@ -2598,20 +2618,27 @@ public class TrayMixerPopup : Window
                 <RepeatButton Opacity='0' IsHitTestVisible='False' Focusable='False' />
             </Track.IncreaseRepeatButton>
             <Track.Thumb>
-                <Thumb Width='12' Height='12' Cursor='Hand'>
+                <Thumb x:Name='Thumb' Width='22' Height='22' Cursor='Hand' Opacity='0'>
                     <Thumb.Template>
                         <ControlTemplate TargetType='Thumb'>
-                            <Border Background='White' CornerRadius='6' Width='12' Height='12'>
-                                <Border.Effect>
-                                    <DropShadowEffect Color='{accentHex}' BlurRadius='6' ShadowDepth='0' Opacity='0.5' />
-                                </Border.Effect>
-                            </Border>
+                            <Grid Background='Transparent'>
+                                <Ellipse Width='22' Height='22' Fill='{accentHex}' Opacity='0.33' />
+                                <Ellipse Width='14' Height='14' Fill='White' />
+                            </Grid>
                         </ControlTemplate>
                     </Thumb.Template>
                 </Thumb>
             </Track.Thumb>
         </Track>
     </Grid>
+    <ControlTemplate.Triggers>
+        <Trigger Property='IsMouseOver' Value='True'>
+            <Setter TargetName='Thumb' Property='Opacity' Value='1' />
+        </Trigger>
+        <Trigger Property='IsKeyboardFocusWithin' Value='True'>
+            <Setter TargetName='Thumb' Property='Opacity' Value='1' />
+        </Trigger>
+    </ControlTemplate.Triggers>
 </ControlTemplate>";
 
         var template = (ControlTemplate)System.Windows.Markup.XamlReader.Parse(xaml);

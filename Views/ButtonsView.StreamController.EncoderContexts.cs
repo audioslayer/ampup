@@ -25,7 +25,7 @@ public partial class ButtonsView
     private TextBlock? _v2EncoderRotationSummary;
     private MaterialIcon? _v2EncoderRotationChevron;
     private SegmentedControl? _v2EncoderScopePicker;
-    private CheckBox? _v2EncoderOverrideCheck;
+    private SwitchRow? _v2EncoderOverrideCheck;
     private TextBlock? _v2EncoderContextHint;
     private GridPicker? _v2EncoderTargetPicker;
     private TextBox? _v2EncoderCustomTargetBox;
@@ -70,15 +70,11 @@ public partial class ButtonsView
         };
         content.Children.Add(_v2EncoderContextHint);
 
-        _v2EncoderOverrideCheck = new CheckBox
+        _v2EncoderOverrideCheck = new SwitchRow("Override this encoder here")
         {
-            Content = "Override this encoder here",
-            FontSize = 11,
-            Foreground = FindBrush("TextPrimaryBrush"),
             Margin = new Thickness(0, 0, 0, 12),
         };
-        _v2EncoderOverrideCheck.Checked += (_, _) => ToggleV2EncoderOverride(true);
-        _v2EncoderOverrideCheck.Unchecked += (_, _) => ToggleV2EncoderOverride(false);
+        _v2EncoderOverrideCheck.Toggled += on => ToggleV2EncoderOverride(on);
         content.Children.Add(_v2EncoderOverrideCheck);
 
         content.Children.Add(MakeEncoderEditorLabel("CONTROL TARGET"));

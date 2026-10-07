@@ -4,11 +4,12 @@
              xmlns:controls="clr-namespace:AmpUp.Controls">
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel>
+            <ContentControl x:Name="PageHeaderHost" Focusable="False" />
             <Border x:Name="LightsSurfaceBar" Style="{StaticResource CardPanel}" Margin="0,0,0,10" Visibility="Collapsed">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
-                        <TextBlock Text="LIGHT SURFACE" Style="{StaticResource HeaderText}" Margin="0" />
+                        <Border Width="3" Height="14" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                        <TextBlock Text="LIGHT SURFACE" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
                     </StackPanel>
                     <controls:SegmentedControl x:Name="LightsDeviceSelector"
                                                HorizontalAlignment="Left"

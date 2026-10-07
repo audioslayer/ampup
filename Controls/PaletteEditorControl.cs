@@ -45,7 +45,6 @@ public class PaletteEditorControl : FrameworkElement
     // Static frozen resources
     private static readonly Brush s_bgBrush;
     private static readonly Pen s_chipBorder;
-    private static readonly Pen s_chipSelectedBorder;
     private static readonly Pen s_gradientBorder;
     private static readonly Pen s_hoverBorder;
     private static readonly Brush s_addBrush;
@@ -54,7 +53,6 @@ public class PaletteEditorControl : FrameworkElement
     private static readonly Brush s_labelBrush;
     private static readonly Brush s_hoverLabelBrush;
     private static readonly Brush s_activeLabelBrush;
-    private static readonly Brush s_activeTintBrush;
     private static readonly Brush s_presetBorder;
 
     // Hover tracking for presets
@@ -70,11 +68,6 @@ public class PaletteEditorControl : FrameworkElement
         chipBorderBrush.Freeze();
         s_chipBorder = new Pen(chipBorderBrush, 1.5);
         s_chipBorder.Freeze();
-
-        var accentBrush = new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76));
-        accentBrush.Freeze();
-        s_chipSelectedBorder = new Pen(accentBrush, 2);
-        s_chipSelectedBorder.Freeze();
 
         var gradBorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
         gradBorderBrush.Freeze();
@@ -106,10 +99,6 @@ public class PaletteEditorControl : FrameworkElement
         activeLabelBrush.Freeze();
         s_activeLabelBrush = activeLabelBrush;
 
-        var activeTintBrush = new SolidColorBrush(Color.FromArgb(0x18, 0x00, 0xE6, 0x76));
-        activeTintBrush.Freeze();
-        s_activeTintBrush = activeTintBrush;
-
         var presetBorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
         presetBorderBrush.Freeze();
         s_presetBorder = presetBorderBrush;
@@ -125,6 +114,10 @@ public class PaletteEditorControl : FrameworkElement
     {
         Height = TotalHeight;
         Cursor = Cursors.Arrow;
+        // Theme-aware drawing: repaint when the accent or card theme changes.
+        Action repaint = () => Dispatcher.BeginInvoke(new Action(InvalidateVisual));
+        Loaded += (_, _) => { ThemeManager.OnAccentChanged += repaint; ThemeManager.OnCardThemeChanged += repaint; };
+        Unloaded += (_, _) => { ThemeManager.OnAccentChanged -= repaint; ThemeManager.OnCardThemeChanged -= repaint; };
         ToolTip = "Click a stop to change its color. Drag to move. Right-click to delete.";
     }
 
@@ -168,14 +161,36 @@ public class PaletteEditorControl : FrameworkElement
     private double StopToX(double position) => position * (BarWidth - 2) + 1;
     private double XToStop(double x) => Math.Clamp((x - 1) / (BarWidth - 2), 0, 1);
 
+    private static Brush Res(string key, Brush fallback)
+        => Application.Current?.TryFindResource(key) as Brush ?? fallback;
+
+    private static Pen MakePen(Brush brush, double thickness)
+    {
+        var pen = new Pen(brush, thickness);
+        pen.Freeze();
+        return pen;
+    }
+
     protected override void OnRender(DrawingContext dc)
     {
         if (ActualWidth < 20) return;
 
+        // Resolve theme colours per render (card theme / accent can change at runtime)
+        var accent = ThemeManager.Accent;
+        var selectedPen = MakePen(new SolidColorBrush(accent), 2);
+        var chipPen = MakePen(Res("InputBorderBrush", s_chipBorder.Brush), 1.5);
+        var gradientPen = MakePen(Res("CardBorderBrush", s_gradientBorder.Brush), 1);
+        var hoverPen = MakePen(Res("TextDimBrush", s_hoverBorder.Brush), 1.2);
+        var activeTint = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x18));
+        activeTint.Freeze();
+        var labelBrush = Res("TextDimBrush", s_labelBrush);
+        var hoverLabelBrush = Res("TextSecBrush", s_hoverLabelBrush);
+        var activeLabelBrush = Res("TextPrimaryBrush", s_activeLabelBrush);
+
         // 1. Gradient bar — reserves space on right for Add button
         var gradBrush = BuildGradientBrush();
         var gradRect = new Rect(0, 0, BarWidth, GradientBarHeight);
-        dc.DrawRoundedRectangle(gradBrush, s_gradientBorder, gradRect, 4, 4);
+        dc.DrawRoundedRectangle(gradBrush, gradientPen, gradRect, 4, 4);
 
         // 2. Color stop chips
         var sorted = SortedStops;
@@ -190,10 +205,10 @@ public class PaletteEditorControl : FrameworkElement
             chipBrush.Freeze();
 
             // Draw connecting line from bar to chip
-            dc.DrawLine(s_chipBorder, new Point(x, GradientBarHeight), new Point(x, ChipY - ChipRadius));
+            dc.DrawLine(chipPen, new Point(x, GradientBarHeight), new Point(x, ChipY - ChipRadius));
 
             // Draw chip circle (selected gets accent border)
-            var pen = i == _selectedStop ? s_chipSelectedBorder : s_chipBorder;
+            var pen = i == _selectedStop ? selectedPen : chipPen;
             dc.DrawEllipse(chipBrush, pen, new Point(x, ChipY), ChipRadius, ChipRadius);
         }
 
@@ -202,14 +217,11 @@ public class PaletteEditorControl : FrameworkElement
         {
             double addCx = BarWidth + 6 + AddButtonSize / 2;
             double addCy = GradientBarHeight / 2; // align with center of gradient bar
-            var addBg = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
-            addBg.Freeze();
-            var addBorder = new Pen(new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)), 1);
-            addBorder.Freeze();
+            var addBg = Res("InputBgBrush", s_bgBrush);
+            var addBorder = MakePen(Res("InputBorderBrush", s_presetBorder), 1);
             dc.DrawEllipse(addBg, addBorder, new Point(addCx, addCy), AddButtonSize / 2, AddButtonSize / 2);
             // Clean plus sign — thin, centered
-            var plusPen = new Pen(new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)), 1.5);
-            plusPen.Freeze();
+            var plusPen = MakePen(Res("TextSecBrush", s_addBrush), 1.5);
             dc.DrawLine(plusPen, new Point(addCx - 3.5, addCy), new Point(addCx + 3.5, addCy));
             dc.DrawLine(plusPen, new Point(addCx, addCy - 3.5), new Point(addCx, addCy + 3.5));
         }
@@ -236,15 +248,15 @@ public class PaletteEditorControl : FrameworkElement
 
             // Active: accent border; Hovered: lighter border; Default: subtle
             Pen borderPen;
-            if (isActive) borderPen = s_chipSelectedBorder;
-            else if (isHovered) borderPen = s_hoverBorder;
-            else borderPen = s_gradientBorder;
+            if (isActive) borderPen = selectedPen;
+            else if (isHovered) borderPen = hoverPen;
+            else borderPen = gradientPen;
 
             // Active background tint
             if (isActive)
             {
                 var tintRect = new Rect(px - 2, py - 2, PresetSwatchW + 4, PresetRowH + 2);
-                dc.DrawRoundedRectangle(s_activeTintBrush, null, tintRect, 5, 5);
+                dc.DrawRoundedRectangle(activeTint, null, tintRect, 5, 5);
             }
 
             dc.DrawRoundedRectangle(presetBrush, borderPen, rect, 4, 4);
@@ -253,7 +265,7 @@ public class PaletteEditorControl : FrameworkElement
             var labelText = new FormattedText(
                 preset.Name, System.Globalization.CultureInfo.CurrentCulture,
                 FlowDirection.LeftToRight, s_typeface, 8.5,
-                isActive ? s_activeLabelBrush : (isHovered ? s_hoverLabelBrush : s_labelBrush),
+                isActive ? activeLabelBrush : (isHovered ? hoverLabelBrush : labelBrush),
                 VisualTreeHelper.GetDpi(this).PixelsPerDip);
             labelText.MaxTextWidth = PresetSwatchW;
             labelText.TextAlignment = TextAlignment.Center;

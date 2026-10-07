@@ -6,6 +6,8 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
+using Material.Icons;
+using Material.Icons.WPF;
 
 namespace AmpUp.Controls;
 
@@ -19,7 +21,7 @@ public class ListPicker : Border
 {
     private readonly TextBlock _labelIcon;
     private readonly TextBlock _label;
-    private readonly TextBlock _chevron;
+    private readonly MaterialIcon _chevron;
     private readonly StackPanel _itemsPanel;
     private readonly ScrollViewer _scrollViewer;
     private readonly TextBox _filterBox;
@@ -46,13 +48,14 @@ public class ListPicker : Border
     public ListPicker()
     {
         // Trigger button
+        // Trigger matches GridPicker: rounded input-coloured field + Material chevron.
         BorderThickness = new Thickness(1);
-        CornerRadius = new CornerRadius(4);
-        Padding = new Thickness(8, 5, 8, 5);
+        CornerRadius = new CornerRadius(8);
+        Padding = new Thickness(10, 6, 8, 6);
         Cursor = Cursors.Hand;
         SnapsToDevicePixels = true;
-        this.SetResourceReference(BackgroundProperty, "BgDarkBrush");
-        this.SetResourceReference(BorderBrushProperty, "CardBorderBrush");
+        this.SetResourceReference(BackgroundProperty, "InputBgBrush");
+        this.SetResourceReference(BorderBrushProperty, "InputBorderBrush");
 
         // Layout: [icon] label + chevron
         var grid = new Grid();
@@ -83,14 +86,14 @@ public class ListPicker : Border
         Grid.SetColumn(labelRow, 0);
         grid.Children.Add(labelRow);
 
-        _chevron = new TextBlock
+        _chevron = new MaterialIcon
         {
-            Text = "\u25BE",
-            FontSize = 10,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
+            Kind = MaterialIconKind.ChevronDown,
+            Width = 16, Height = 16,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(6, 0, 0, 0)
         };
+        _chevron.SetResourceReference(MaterialIcon.ForegroundProperty, "TextDimBrush");
         Grid.SetColumn(_chevron, 1);
         grid.Children.Add(_chevron);
 
@@ -107,7 +110,7 @@ public class ListPicker : Border
 
         var filterPlaceholder = new TextBlock
         {
-            Text = "Filter...",
+            Text = "Filter…",
             Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
             FontSize = 12,
             Padding = new Thickness(10, 7, 0, 0),
@@ -121,10 +124,11 @@ public class ListPicker : Border
             CaretBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
             BorderThickness = new Thickness(0, 0, 0, 1),
             Padding = new Thickness(8, 6, 8, 6),
+            Margin = new Thickness(0, 0, 0, 4),
             FontSize = 12,
             Visibility = Visibility.Collapsed,
         };
-        _filterBox.SetResourceReference(TextBox.BackgroundProperty, "BgDarkBrush");
+        _filterBox.SetResourceReference(TextBox.BackgroundProperty, "InputBgBrush");
         _filterBox.SetResourceReference(TextBox.BorderBrushProperty, "InputBorderBrush");
         _filterBox.TextChanged += (_, _) =>
         {
@@ -154,9 +158,9 @@ public class ListPicker : Border
         {
             if (!_isOpen)
             {
-                this.SetResourceReference(BorderBrushProperty, "CardBorderBrush");
-                this.SetResourceReference(BackgroundProperty, "BgDarkBrush");
-                _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+                this.SetResourceReference(BorderBrushProperty, "InputBorderBrush");
+                this.SetResourceReference(BackgroundProperty, "InputBgBrush");
+                _chevron.SetResourceReference(MaterialIcon.ForegroundProperty, "TextDimBrush");
             }
         };
 
@@ -252,13 +256,13 @@ public class ListPicker : Border
         var popupBorder = new Border
         {
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(0),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(6),
             Child = _popupStack,
             MinWidth = Math.Max(ActualWidth, 120),
         };
         popupBorder.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
-        popupBorder.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        popupBorder.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
 
         _flyout = new Window
         {
@@ -303,6 +307,7 @@ public class ListPicker : Border
 
         BorderBrush = new SolidColorBrush(AccentColor);
         this.SetResourceReference(BackgroundProperty, "InputBgBrush");
+        _chevron.Foreground = new SolidColorBrush(AccentColor);
 
         if (showFilter)
             _filterBox.Focus();
@@ -319,9 +324,9 @@ public class ListPicker : Border
 
         _flyout?.Close();
         _flyout = null;
-        this.SetResourceReference(BorderBrushProperty, "CardBorderBrush");
-        this.SetResourceReference(BackgroundProperty, "BgDarkBrush");
-        _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+        this.SetResourceReference(BorderBrushProperty, "InputBorderBrush");
+        this.SetResourceReference(BackgroundProperty, "InputBgBrush");
+        _chevron.SetResourceReference(MaterialIcon.ForegroundProperty, "TextDimBrush");
     }
 
     // ── Popup item rendering ────────────────────────────────────
@@ -358,7 +363,7 @@ public class ListPicker : Border
                     ? new SolidColorBrush(AccentColor)
                     : Brushes.Transparent,
                 CornerRadius = new CornerRadius(1),
-                Margin = new Thickness(0, 2, 0, 2)
+                Margin = new Thickness(0, 2, 8, 2)
             };
 
             var rowGrid = new Grid();
@@ -402,7 +407,9 @@ public class ListPicker : Border
 
             var itemBorder = new Border
             {
-                Padding = new Thickness(6, 6, 8, 6),
+                CornerRadius = new CornerRadius(8),
+                Margin = new Thickness(0, 1, 0, 1),
+                Padding = new Thickness(6, 7, 10, 7),
                 Cursor = Cursors.Hand,
                 Background = selected
                     ? new SolidColorBrush(Color.FromArgb(0x1F, AccentColor.R, AccentColor.G, AccentColor.B))

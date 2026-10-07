@@ -21,7 +21,6 @@ public partial class LightsView : UserControl
     private readonly DispatcherTimer _debounce;
 
     // Section header elements (refreshed on accent change)
-    private readonly List<(Border bar, TextBlock label)> _sectionHeaders = new();
 
     // Effect icons
     // Per-channel controls
@@ -76,7 +75,7 @@ public partial class LightsView : UserControl
     private Border? _globalTab;
     private Border? _calibrationTab;
 
-    // Calibration mode state (orthogonal to _globalEnableCheck — it's a UI view
+    // Calibration mode state (orthogonal to _globalEnabled — it's a UI view
     // mode only, never persisted). When true, calibration panel is shown and
     // both per-knob and global settings are hidden.
     private bool _calibrationMode;
@@ -88,7 +87,8 @@ public partial class LightsView : UserControl
     private (byte R, byte G, byte B)? _calibPreviewColor;
 
     // Global lighting controls
-    private CheckBox? _globalEnableCheck;
+    // Global lighting on/off (driven by the PER KNOB / GLOBAL tabs, saved to GlobalLight.Enabled)
+    private bool _globalEnabled;
     private EffectPickerControl? _globalEffectPicker;
     private StyledSlider? _globalSpeedSlider;
     private FrameworkElement? _globalSpeedCard;
@@ -156,6 +156,7 @@ public partial class LightsView : UserControl
     private string _presetFilter = "All";
     private WrapPanel? _presetCardsPanel;
     private StackPanel? _presetFilterPanel;
+    private TextBlock? _presetCountText;
 
     // Clipboard for light copy/paste
     private static LightConfig? _lightClipboard;
@@ -210,6 +211,9 @@ public partial class LightsView : UserControl
             if (!_loading) QueueSave();
         };
 
+        PageHeaderHost.Content = UiKit.PageHeader("Lights",
+            "LED effects, colors and brightness for each knob, or one effect across all of them.");
+
         BuildPresetsSection();
         BuildGlobalCard();
         BuildChannelControls();
@@ -244,8 +248,7 @@ public partial class LightsView : UserControl
 
         // Populate global lighting card
         var gl = config.GlobalLight;
-        if (_globalEnableCheck != null)
-            _globalEnableCheck.IsChecked = gl.Enabled;
+        _globalEnabled = gl.Enabled;
         if (_globalEffectPicker != null)
             _globalEffectPicker.SelectedEffect = gl.Effect;
         _globalColor1 = Color.FromRgb((byte)gl.R, (byte)gl.G, (byte)gl.B);
@@ -382,44 +385,14 @@ public partial class LightsView : UserControl
     {
         var panel = PresetsPanel;
 
-        // Section header
-        var headerRow = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
-        var headerBar = new Border
-        {
-            Width = 3, Background = new SolidColorBrush(ThemeManager.Accent),
-            CornerRadius = new CornerRadius(2), Margin = new Thickness(0, 0, 8, 0),
-            VerticalAlignment = VerticalAlignment.Stretch,
-        };
-        var headerLabel = new TextBlock
-        {
-            Text = "PRESETS", FontSize = 12, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(ThemeManager.Accent),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        _sectionHeaders.Add((headerBar, headerLabel));
-        DockPanel.SetDock(headerBar, Dock.Left);
-        headerRow.Children.Add(headerBar);
-
-        // Save Current button on right
-        var saveBtn = new Border
-        {
-            CornerRadius = new CornerRadius(4), Padding = new Thickness(10, 4, 10, 4),
-            Cursor = Cursors.Hand, HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        saveBtn.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-        var saveTxt = new TextBlock
-        {
-            Text = "💾 SAVE CURRENT", FontSize = 10, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
-        };
-        saveBtn.Child = saveTxt;
-        saveBtn.MouseLeftButtonUp += (_, _) => SaveCurrentAsPreset();
-        saveBtn.MouseEnter += (s, _) => ((Border)s!).SetResourceReference(Border.BackgroundProperty, "CardBorderBrush");
-        saveBtn.MouseLeave += (s, _) => ((Border)s!).SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+        // Section header: accent bar + PRESETS + count, "Save current" link on the right
+        var headerRow = new DockPanel { Margin = new Thickness(0, 0, 0, 2) };
+        var saveBtn = UiKit.LinkRow(MaterialIconKind.ContentSaveOutline, "Save current", true,
+            SaveCurrentAsPreset, "Save the current LED setup as a custom preset");
+        saveBtn.VerticalAlignment = VerticalAlignment.Top;
         DockPanel.SetDock(saveBtn, Dock.Right);
         headerRow.Children.Add(saveBtn);
-        headerRow.Children.Add(headerLabel);
+        headerRow.Children.Add(UiKit.SectionHeader("PRESETS", null, out _presetCountText));
         panel.Children.Add(headerRow);
 
         // Category filter tabs
@@ -433,12 +406,7 @@ public partial class LightsView : UserControl
                 Margin = new Thickness(0, 0, 6, 0), Cursor = Cursors.Hand,
                 Tag = cat,
             };
-            pill.SetResourceReference(Border.BackgroundProperty, cat == "All" ? "CardBorderBrush" : "CardBgBrush");
-            var txt = new TextBlock
-            {
-                Text = cat, FontSize = 10,
-                Foreground = new SolidColorBrush(cat == "All" ? Color.FromRgb(0xE8, 0xE8, 0xE8) : Color.FromRgb(0xB0, 0xB0, 0xB0)),
-            };
+            var txt = new TextBlock { Text = cat, FontSize = 11 };
             pill.Child = txt;
             pill.MouseLeftButtonUp += (s, _) =>
             {
@@ -450,6 +418,7 @@ public partial class LightsView : UserControl
             _presetFilterPanel.Children.Add(pill);
         }
         panel.Children.Add(_presetFilterPanel);
+        UpdatePresetFilterHighlight();
 
         // Scrollable preset cards
         var scroll = new ScrollViewer
@@ -474,9 +443,24 @@ public partial class LightsView : UserControl
         foreach (Border pill in _presetFilterPanel.Children)
         {
             var isActive = (string)pill.Tag == _presetFilter;
-            pill.SetResourceReference(Border.BackgroundProperty, isActive ? "CardBorderBrush" : "CardBgBrush");
+            var ac = ThemeManager.Accent;
+            pill.BorderThickness = new Thickness(1);
+            if (isActive)
+            {
+                pill.Background = new SolidColorBrush(ThemeManager.WithAlpha(ac, 0x22));
+                pill.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(ac, 0x88));
+            }
+            else
+            {
+                pill.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+                pill.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
+            }
             if (pill.Child is TextBlock txt)
-                txt.Foreground = new SolidColorBrush(isActive ? Color.FromRgb(0xE8, 0xE8, 0xE8) : Color.FromRgb(0xB0, 0xB0, 0xB0));
+            {
+                if (isActive) txt.Foreground = new SolidColorBrush(ac);
+                else txt.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+                txt.FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal;
+            }
         }
     }
 
@@ -493,6 +477,8 @@ public partial class LightsView : UserControl
         {
             _presetCardsPanel.Children.Add(BuildPresetCard(preset));
         }
+        if (_presetCountText != null)
+            _presetCountText.Text = filtered.Count.ToString();
     }
 
     private Border BuildPresetCard(LedPreset preset)
@@ -552,7 +538,7 @@ public partial class LightsView : UserControl
         var name = new TextBlock
         {
             Text = preset.Name, FontSize = 11, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            Foreground = LightsView.ThemeBrush("TextPrimaryBrush"),
         };
         stack.Children.Add(name);
 
@@ -658,14 +644,14 @@ public partial class LightsView : UserControl
         var stack = new StackPanel { Margin = new Thickness(16) };
         stack.Children.Add(new TextBlock
         {
-            Text = "Preset Name", Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            Text = "Preset Name", Foreground = LightsView.ThemeBrush("TextPrimaryBrush"),
             FontSize = 12, Margin = new Thickness(0, 0, 0, 4),
         });
         var nameBox = new TextBox
         {
             Text = "My Preset", FontSize = 12,
             Background = FindBrush("InputBgBrush"),
-            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            Foreground = LightsView.ThemeBrush("TextPrimaryBrush"),
             BorderBrush = FindBrush("InputBorderBrush"),
             Padding = new Thickness(6, 4, 6, 4),
         };
@@ -673,14 +659,14 @@ public partial class LightsView : UserControl
 
         stack.Children.Add(new TextBlock
         {
-            Text = "Category", Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            Text = "Category", Foreground = LightsView.ThemeBrush("TextPrimaryBrush"),
             FontSize = 12, Margin = new Thickness(0, 12, 0, 4),
         });
         var catCombo = new ComboBox
         {
             FontSize = 12,
             Background = FindBrush("InputBgBrush"),
-            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            Foreground = LightsView.ThemeBrush("TextPrimaryBrush"),
         };
         foreach (var cat in new[] { "Gaming", "Music", "Work", "Party", "Ambient" })
             catCombo.Items.Add(cat);
@@ -743,14 +729,14 @@ public partial class LightsView : UserControl
         perKnobTab.MouseLeftButtonDown += (_, _) =>
         {
             _calibrationMode = false;
-            if (_globalEnableCheck != null) _globalEnableCheck.IsChecked = false;
+            _globalEnabled = false;
             UpdateGlobalVisibility();
             if (!_loading) QueueSave();
         };
         globalTab.MouseLeftButtonDown += (_, _) =>
         {
             _calibrationMode = false;
-            if (_globalEnableCheck != null) _globalEnableCheck.IsChecked = true;
+            _globalEnabled = true;
             UpdateGlobalVisibility();
             if (!_loading) QueueSave();
         };
@@ -765,21 +751,6 @@ public partial class LightsView : UserControl
         toggleRow.Children.Add(calibTab);
         toggleBar.Child = toggleRow;
         panel.Children.Add(toggleBar);
-
-        // Hidden checkbox to keep save/load working
-        var enableCheck = new CheckBox { Visibility = Visibility.Collapsed };
-        panel.Children.Add(enableCheck);
-        _globalEnableCheck = enableCheck;
-        enableCheck.Checked += (_, _) =>
-        {
-            UpdateGlobalVisibility();
-            if (!_loading) QueueSave();
-        };
-        enableCheck.Unchecked += (_, _) =>
-        {
-            UpdateGlobalVisibility();
-            if (!_loading) QueueSave();
-        };
 
         // Settings panel (collapsed when disabled) — holds individual section cards
         var settings = new StackPanel { Visibility = Visibility.Collapsed };
@@ -886,9 +857,9 @@ public partial class LightsView : UserControl
             Margin = new Thickness(0, 0, 0, 10),
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
-        modePicker.AddItem("Beat Pulse", "BeatPulse", "♫", Color.FromRgb(0xFF, 0x80, 0xAB), "Bass drives all knob brightness simultaneously");
-        modePicker.AddItem("Spectrum Bands", "SpectrumBands", "≡", Color.FromRgb(0x64, 0xB5, 0xF6), "Each knob = its own frequency band");
-        modePicker.AddItem("Color Shift", "ColorShift", "◑", Color.FromRgb(0xBA, 0x68, 0xC8), "Hue shifts across spectrum based on audio energy");
+        modePicker.AddItem("Beat Pulse", "BeatPulse", "MusicNote", Color.FromRgb(0xFF, 0x80, 0xAB), "Bass drives all knob brightness simultaneously");
+        modePicker.AddItem("Spectrum Bands", "SpectrumBands", "Equalizer", Color.FromRgb(0x64, 0xB5, 0xF6), "Each knob = its own frequency band");
+        modePicker.AddItem("Color Shift", "ColorShift", "PaletteOutline", Color.FromRgb(0xBA, 0x68, 0xC8), "Hue shifts across spectrum based on audio energy");
         modePicker.Select("SpectrumBands");
         modePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
         _globalReactiveModeCombo = modePicker;
@@ -897,13 +868,7 @@ public partial class LightsView : UserControl
 
         // Idle Effect picker (for AudioPositionBlend, inside effect card)
         var idleEffectPanel = new StackPanel { Margin = new Thickness(0, 8, 0, 0), Visibility = Visibility.Collapsed };
-        idleEffectPanel.Children.Add(new TextBlock
-        {
-            Text = "IDLE EFFECT (no music)",
-            FontSize = 9, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
-            Margin = new Thickness(0, 0, 0, 6),
-        });
+        idleEffectPanel.Children.Add(MakeLabel("IDLE EFFECT (NO MUSIC)"));
         var idleEffectPicker = new EffectPickerControl(showGlobal: true, showFavorites: false)
         {
             Margin = new Thickness(0, 0, 0, 8),
@@ -1056,13 +1021,7 @@ public partial class LightsView : UserControl
             Cursor = Cursors.Hand,
             BorderThickness = new Thickness(2),
             ToolTip = "Stop preview (resume normal)",
-            Child = new TextBlock
-            {
-                Text = "✕", FontSize = 14, FontWeight = FontWeights.Bold,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-            },
+            Child = UiKit.Icon(MaterialIconKind.Close, 16),
         };
         offSwatch.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
         offSwatch.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
@@ -1138,7 +1097,7 @@ public partial class LightsView : UserControl
             var valLabel = new TextBlock
             {
                 Text = "1.0",
-                Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
+                Foreground = LightsView.ThemeBrush("TextSecBrush"),
                 FontSize = 12, VerticalAlignment = VerticalAlignment.Center,
             };
             Grid.SetColumn(valLabel, 2);
@@ -1288,11 +1247,11 @@ public partial class LightsView : UserControl
         if (border.Child is StackPanel inner)
         {
             if (inner.Children[0] is TextBlock nameLabel)
-                nameLabel.Foreground = new SolidColorBrush(on ? accent : Color.FromRgb(0x88, 0x88, 0x88));
+                nameLabel.Foreground = on ? new SolidColorBrush(accent) : ThemeBrush("TextDimBrush");
             if (_globalKnobPreviews[idx] != null)
                 _globalKnobPreviews[idx].Opacity = on ? 1.0 : 0.3;
             if (_globalKnobEffectNames[idx] != null)
-                _globalKnobEffectNames[idx].Foreground = new SolidColorBrush(on ? Color.FromRgb(0xCC, 0xCC, 0xCC) : Color.FromRgb(0x55, 0x55, 0x55));
+                _globalKnobEffectNames[idx].Foreground = ThemeBrush(on ? "TextSecBrush" : "TextDimBrush");
         }
 
         var knob = _config?.Knobs.FirstOrDefault(k => k.Idx == idx);
@@ -1305,7 +1264,7 @@ public partial class LightsView : UserControl
 
     private void UpdateGlobalVisibility()
     {
-        bool globalEnabled = _globalEnableCheck?.IsChecked ?? false;
+        bool globalEnabled = _globalEnabled;
         bool calib = _calibrationMode;
         var accent = ((SolidColorBrush)FindResource("AccentBrush")).Color;
 
@@ -1343,7 +1302,7 @@ public partial class LightsView : UserControl
     {
         var tab = new Border
         {
-            Padding = new Thickness(22, 10, 22, 10),
+            Padding = new Thickness(20, 10, 20, 10),
             Cursor = Cursors.Hand,
             BorderBrush = new SolidColorBrush(Colors.Transparent),
             BorderThickness = new Thickness(0, 0, 0, 2),
@@ -1352,19 +1311,19 @@ public partial class LightsView : UserControl
         tab.Child = new TextBlock
         {
             Text = text,
-            FontSize = 11,
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             HorizontalAlignment = HorizontalAlignment.Center,
         };
         tab.MouseEnter += (_, _) =>
         {
             if (tab.BorderBrush is SolidColorBrush br && br.Color.A == 0 && tab.Child is TextBlock t)
-                t.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
+                t.Foreground = LightsView.ThemeBrush("TextPrimaryBrush");
         };
         tab.MouseLeave += (_, _) =>
         {
             if (tab.BorderBrush is SolidColorBrush br && br.Color.A == 0 && tab.Child is TextBlock t)
-                t.Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
+                t.Foreground = LightsView.ThemeBrush("TextSecBrush");
         };
         SetModeTabActive(tab, active, accent);
         return tab;
@@ -1389,7 +1348,7 @@ public partial class LightsView : UserControl
             tab.BorderThickness = new Thickness(0, 0, 0, 2);
             if (label != null)
             {
-                label.Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
+                label.Foreground = LightsView.ThemeBrush("TextSecBrush");
                 label.FontWeight = FontWeights.SemiBold;
             }
         }
@@ -1434,7 +1393,7 @@ public partial class LightsView : UserControl
             {
                 Text = name,
                 FontSize = 8,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x77, 0x77, 0x77)),
+                Foreground = LightsView.ThemeBrush("TextDimBrush"),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 2, 0, 0),
                 TextTrimming = TextTrimming.CharacterEllipsis,
@@ -1488,14 +1447,14 @@ public partial class LightsView : UserControl
                 var accent = ThemeManager.Accent;
                 swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0xAA, accent.R, accent.G, accent.B));
                 swatch.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-                label.Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
+                label.Foreground = LightsView.ThemeBrush("TextSecBrush");
             };
             swatch.MouseLeave += (_, _) =>
             {
                 swatchTransform.Y = 0;
                 swatch.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
                 swatch.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
-                label.Foreground = new SolidColorBrush(Color.FromRgb(0x77, 0x77, 0x77));
+                label.Foreground = LightsView.ThemeBrush("TextDimBrush");
             };
 
             container.Children.Add(swatch);
@@ -1825,26 +1784,23 @@ public partial class LightsView : UserControl
 
             // Reactive mode picker (only visible for AudioReactive)
             var reactiveContainer = new StackPanel();
-            reactiveContainer.Children.Add(MakeLabel("REACTIVE MODE"));
             var modeCombo = new ActionPicker
             {
-                Margin = new Thickness(0, 0, 0, 10),
                 HorizontalAlignment = HorizontalAlignment.Stretch,
             };
-            modeCombo.AddItem("Beat Pulse", "BeatPulse", "♫", Color.FromRgb(0xFF, 0x80, 0xAB), "Bass drives all knob brightness simultaneously");
-            modeCombo.AddItem("Spectrum Bands", "SpectrumBands", "≡", Color.FromRgb(0x64, 0xB5, 0xF6), "Each knob = its own frequency band");
-            modeCombo.AddItem("Color Shift", "ColorShift", "◑", Color.FromRgb(0xBA, 0x68, 0xC8), "Hue shifts across spectrum based on audio energy");
+            modeCombo.AddItem("Beat Pulse", "BeatPulse", "MusicNote", Color.FromRgb(0xFF, 0x80, 0xAB), "Bass drives all knob brightness simultaneously");
+            modeCombo.AddItem("Spectrum Bands", "SpectrumBands", "Equalizer", Color.FromRgb(0x64, 0xB5, 0xF6), "Each knob = its own frequency band");
+            modeCombo.AddItem("Color Shift", "ColorShift", "PaletteOutline", Color.FromRgb(0xBA, 0x68, 0xC8), "Hue shifts across spectrum based on audio energy");
             modeCombo.Select("SpectrumBands");
             modeCombo.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
             _reactiveModeComboBoxes[idx] = modeCombo;
             reactiveContainer.Children.Add(modeCombo);
             reactiveContainer.Visibility = Visibility.Collapsed;
             _reactiveModePanels[idx] = reactiveContainer;
-            panel.Children.Add(reactiveContainer);
+            panel.Children.Add(MakeConditionalCard("REACTIVE MODE", reactiveContainer));
 
             // App picker (visible for app-aware status effects)
             var programNameContainer = new StackPanel();
-            programNameContainer.Children.Add(MakeLabel("WATCH APP"));
 
             var appChip = MakeProgramAppChip(idx);
             _programAppChips[idx] = appChip;
@@ -1856,7 +1812,6 @@ public partial class LightsView : UserControl
                 Background = FindBrush("InputBgBrush"),
                 Foreground = FindBrush("TextPrimaryBrush"),
                 BorderBrush = FindBrush("InputBorderBrush"),
-                Margin = new Thickness(0, 0, 0, 10),
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 FontSize = 12,
                 Padding = new Thickness(6, 4, 6, 4),
@@ -1871,10 +1826,9 @@ public partial class LightsView : UserControl
             programNameContainer.Children.Add(programNameBox);
             programNameContainer.Visibility = Visibility.Collapsed;
             _programNamePanels[idx] = programNameContainer;
-            panel.Children.Add(programNameContainer);
+            panel.Children.Add(MakeConditionalCard("WATCH APP", programNameContainer));
 
             var statusEffectContainer = new StackPanel { Visibility = Visibility.Collapsed };
-            statusEffectContainer.Children.Add(MakeLabel("APP STATUS EFFECTS"));
             var unmutedPicker = MakeProgramStatusEffectPicker("What to show while the app is running and unmuted");
             unmutedPicker.Select(LightEffect.PositionBlend.ToString());
             statusEffectContainer.Children.Add(MakeStatusEffectRow("UNMUTED", unmutedPicker));
@@ -1891,12 +1845,11 @@ public partial class LightsView : UserControl
             _programStatusNotRunningPickers[idx] = notRunningPicker;
 
             _programStatusEffectPanels[idx] = statusEffectContainer;
-            panel.Children.Add(statusEffectContainer);
+            panel.Children.Add(MakeConditionalCard("APP STATUS EFFECTS", statusEffectContainer));
 
             // Per-state effects for the two-state mute reactives (Mic / Device
             // Mute / App Mute / Group). "Solid" = the classic constant state color.
             var muteStatusContainer = new StackPanel { Visibility = Visibility.Collapsed };
-            muteStatusContainer.Children.Add(MakeLabel("STATE EFFECTS"));
             var stateUnmutedPicker = MakeProgramStatusEffectPicker("Effect shown while unmuted. Solid = the classic constant color. Two-color effects use the UNMUTED + UNMUTED 2 colors.");
             stateUnmutedPicker.Select(LightEffect.SingleColor.ToString());
             stateUnmutedPicker.SelectionChanged += (_, _) =>
@@ -1916,12 +1869,11 @@ public partial class LightsView : UserControl
             _muteStatusMutedPickers[idx] = stateMutedPicker;
 
             _muteStatusEffectPanels[idx] = muteStatusContainer;
-            panel.Children.Add(muteStatusContainer);
+            panel.Children.Add(MakeConditionalCard("STATE EFFECTS", muteStatusContainer));
 
             // Activity flash — temporary effect while this knob is turned or its
             // button is pressed; reverts to the normal effect when the timer runs out.
             var activityContainer = new StackPanel();
-            activityContainer.Children.Add(MakeLabel("ACTIVITY FLASH"));
             var activityPicker = MakeProgramStatusEffectPicker(
                 "Temporary effect played while this knob is being turned or its button pressed. None = disabled.",
                 includeNone: true);
@@ -1941,7 +1893,7 @@ public partial class LightsView : UserControl
                 Value = 1.0,
                 ShowLabel = false,
                 AccentColor = ThemeManager.Accent,
-                Margin = new Thickness(0, 0, 0, 10),
+                Height = 28,
                 ToolTip = "How long the activity flash plays after the last input",
             };
             activityDurationSlider.ValueChanged += (_, _) =>
@@ -1952,11 +1904,19 @@ public partial class LightsView : UserControl
             };
             _activityDurationSliders[idx] = activityDurationSlider;
             activityContainer.Children.Add(activityDurationSlider);
-            panel.Children.Add(activityContainer);
+            panel.Children.Add(MakeSectionCard("ACTIVITY FLASH", activityContainer));
 
             // DeviceSelect rows (hidden unless DeviceSelect effect)
             var deviceSelectContainer = new StackPanel { Visibility = Visibility.Collapsed };
-            deviceSelectContainer.Children.Add(MakeLabel("DEVICE COLORS"));
+            // Index 0 is kept by RebuildDeviceSelectRows — a short hint line.
+            deviceSelectContainer.Children.Add(new TextBlock
+            {
+                Text = "LED color shown while each output device is the default.",
+                FontSize = 11,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = FindBrush("TextSecBrush"),
+                Margin = new Thickness(0, 0, 0, 8),
+            });
             deviceSelectContainer.ToolTip = "Set LED color for each audio output device";
 
             _dsDevicePickers[idx] = new ListPicker[_dsRowCount];
@@ -2011,7 +1971,7 @@ public partial class LightsView : UserControl
             }
 
             _deviceSelectPanels[idx] = deviceSelectContainer;
-            panel.Children.Add(deviceSelectContainer);
+            panel.Children.Add(MakeConditionalCard("DEVICE COLORS", deviceSelectContainer));
         }
     }
 
@@ -2268,50 +2228,53 @@ public partial class LightsView : UserControl
     {
         var picker = new EffectGridPicker
         {
-            Margin = new Thickness(0, 0, 0, 8),
             HorizontalAlignment = HorizontalAlignment.Stretch,
             ToolTip = tooltip,
         };
 
+        picker.AddCategory("Basic");
         if (includeNone)
-            picker.AddItem("None", "none", "—", Color.FromRgb(0x88, 0x88, 0x88), "Disabled");
-        picker.AddItem("Off", LightEffect.Off.ToString(), "0", Color.FromRgb(0x66, 0x66, 0x66), "Turn these LEDs off for this app state");
-        picker.AddItem("Solid", LightEffect.SingleColor.ToString(), "●", Color.FromRgb(0x00, 0xE6, 0x76), "Use this state's color as a solid color");
-        picker.AddItem("Blend", LightEffect.ColorBlend.ToString(), "◑", Color.FromRgb(0xFF, 0xAA, 0x33), "Blend this state's color into the secondary color by knob position");
-        picker.AddItem("Fill", LightEffect.PositionFill.ToString(), "▂▅█", Color.FromRgb(0x4A, 0xB3, 0xFF), "Progressively fill with this state's color");
-        picker.AddItem("PosBlend", LightEffect.PositionBlend.ToString(), "▂▄▇", Color.FromRgb(0x8A, 0xFF, 0xA8), "Progressively fill from this state's color to secondary");
-        picker.AddItem("CycleFill", LightEffect.CycleFill.ToString(), "▂▅⟳", Color.FromRgb(0xFF, 0xD5, 0x4F), "Progressive fill with cycling colors");
-        picker.AddItem("RainbowFill", LightEffect.RainbowFill.ToString(), "▂▅", Color.FromRgb(0xFF, 0x66, 0xDD), "Progressive rainbow fill");
-        picker.AddItem("Gradient", LightEffect.GradientFill.ToString(), "●", Color.FromRgb(0xB3, 0x88, 0xFF), "Static gradient across the three LEDs");
-        picker.AddItem("Blink", LightEffect.Blink.ToString(), "⚡", Color.FromRgb(0xFF, 0xD7, 0x40), "Blink between this state's color and secondary");
-        picker.AddItem("Pulse", LightEffect.Pulse.ToString(), "◎", Color.FromRgb(0xE0, 0x40, 0xFB), "Pulse between this state's color and secondary");
-        picker.AddItem("Breathe", LightEffect.Breathing.ToString(), "〰", Color.FromRgb(0xBA, 0x68, 0xC8), "Smooth breathing animation");
-        picker.AddItem("Fire", LightEffect.Fire.ToString(), "♨", Color.FromRgb(0xFF, 0x70, 0x43), "Fire animation using this state's color and secondary");
-        picker.AddItem("Comet", LightEffect.Comet.ToString(), "☄", Color.FromRgb(0x90, 0xA4, 0xAE), "Comet animation");
-        picker.AddItem("Sparkle", LightEffect.Sparkle.ToString(), "✦", Color.FromRgb(0xF5, 0xF5, 0xF5), "Sparkle animation");
-        picker.AddItem("Pong", LightEffect.PingPong.ToString(), "↔", Color.FromRgb(0x29, 0xB6, 0xF6), "Bouncing dot animation");
-        picker.AddItem("Stack", LightEffect.Stack.ToString(), "▁▃▆", Color.FromRgb(0x66, 0xBB, 0x6A), "Stacking LED animation");
-        picker.AddItem("Wave", LightEffect.Wave.ToString(), "∿", Color.FromRgb(0x26, 0xC6, 0xDA), "Traveling brightness wave");
-        picker.AddItem("Candle", LightEffect.Candle.ToString(), "♢", Color.FromRgb(0xFF, 0xA7, 0x26), "Organic candle flicker");
-        picker.AddItem("Rainbow", LightEffect.RainbowWave.ToString(), "≈", Color.FromRgb(0xFF, 0x66, 0xDD), "Rainbow wave animation");
-        picker.AddItem("Cycle", LightEffect.RainbowCycle.ToString(), "⟳", Color.FromRgb(0x7C, 0x4D, 0xFF), "Rainbow cycle animation");
-        picker.AddItem("Wheel", LightEffect.Wheel.ToString(), "⟲", Color.FromRgb(0x4D, 0xDD, 0xFF), "Rotating dot animation");
-        picker.AddItem("R.Wheel", LightEffect.RainbowWheel.ToString(), "⊚", Color.FromRgb(0xFF, 0x44, 0xAA), "Rainbow wheel animation");
-        picker.AddItem("Heart", LightEffect.Heartbeat.ToString(), "♥", Color.FromRgb(0xFF, 0x52, 0x52), "Heartbeat pulse animation");
-        picker.AddItem("Plasma", LightEffect.Plasma.ToString(), "◆", Color.FromRgb(0x9C, 0x27, 0xB0), "Flowing plasma color animation");
-        picker.AddItem("Drip", LightEffect.Drip.ToString(), "◇", Color.FromRgb(0x4F, 0xC3, 0xF7), "Droplet animation");
+            picker.AddEffect("None", "none", MaterialIconKind.Cancel, Color.FromRgb(0x88, 0x88, 0x88), "Disabled");
+        picker.AddEffect("Off", LightEffect.Off.ToString(), MaterialIconKind.LightbulbOffOutline, Color.FromRgb(0x88, 0x88, 0x88), "Turn these LEDs off for this state");
+        picker.AddEffect("Solid", LightEffect.SingleColor.ToString(), MaterialIconKind.Circle, Color.FromRgb(0x00, 0xE6, 0x76), "Use this state's color as a solid color");
+        picker.AddEffect("Blend", LightEffect.ColorBlend.ToString(), MaterialIconKind.CircleHalfFull, Color.FromRgb(0xFF, 0xAA, 0x33), "Blend this state's color into the secondary color by knob position");
+        picker.AddEffect("Gradient", LightEffect.GradientFill.ToString(), MaterialIconKind.GradientHorizontal, Color.FromRgb(0xB3, 0x88, 0xFF), "Static gradient across the three LEDs");
+        picker.AddCategory("Fill");
+        picker.AddEffect("Fill", LightEffect.PositionFill.ToString(), MaterialIconKind.SignalCellular3, Color.FromRgb(0x4A, 0xB3, 0xFF), "Progressively fill with this state's color");
+        picker.AddEffect("Position Blend", LightEffect.PositionBlend.ToString(), MaterialIconKind.SignalCellular2, Color.FromRgb(0x8A, 0xFF, 0xA8), "Progressively fill from this state's color to secondary");
+        picker.AddEffect("Cycle Fill", LightEffect.CycleFill.ToString(), MaterialIconKind.Autorenew, Color.FromRgb(0xFF, 0xD5, 0x4F), "Progressive fill with cycling colors");
+        picker.AddEffect("Rainbow Fill", LightEffect.RainbowFill.ToString(), MaterialIconKind.Looks, Color.FromRgb(0xFF, 0x66, 0xDD), "Progressive rainbow fill");
+        picker.AddCategory("Animated");
+        picker.AddEffect("Blink", LightEffect.Blink.ToString(), MaterialIconKind.FlashOutline, Color.FromRgb(0xFF, 0xD7, 0x40), "Blink between this state's color and secondary");
+        picker.AddEffect("Pulse", LightEffect.Pulse.ToString(), MaterialIconKind.Pulse, Color.FromRgb(0xE0, 0x40, 0xFB), "Pulse between this state's color and secondary");
+        picker.AddEffect("Breathe", LightEffect.Breathing.ToString(), MaterialIconKind.WeatherWindy, Color.FromRgb(0xBA, 0x68, 0xC8), "Smooth breathing animation");
+        picker.AddEffect("Fire", LightEffect.Fire.ToString(), MaterialIconKind.Fire, Color.FromRgb(0xFF, 0x70, 0x43), "Fire animation using this state's color and secondary");
+        picker.AddEffect("Comet", LightEffect.Comet.ToString(), MaterialIconKind.Meteor, Color.FromRgb(0x90, 0xA4, 0xAE), "Comet animation");
+        picker.AddEffect("Sparkle", LightEffect.Sparkle.ToString(), MaterialIconKind.Shimmer, Color.FromRgb(0xF5, 0xF5, 0xF5), "Sparkle animation");
+        picker.AddEffect("Ping Pong", LightEffect.PingPong.ToString(), MaterialIconKind.ArrowLeftRight, Color.FromRgb(0x29, 0xB6, 0xF6), "Bouncing dot animation");
+        picker.AddEffect("Stack", LightEffect.Stack.ToString(), MaterialIconKind.ChartBar, Color.FromRgb(0x66, 0xBB, 0x6A), "Stacking LED animation");
+        picker.AddEffect("Wave", LightEffect.Wave.ToString(), MaterialIconKind.Waveform, Color.FromRgb(0x26, 0xC6, 0xDA), "Traveling brightness wave");
+        picker.AddEffect("Candle", LightEffect.Candle.ToString(), MaterialIconKind.Candle, Color.FromRgb(0xFF, 0xA7, 0x26), "Organic candle flicker");
+        picker.AddEffect("Rainbow", LightEffect.RainbowWave.ToString(), MaterialIconKind.Looks, Color.FromRgb(0xFF, 0x66, 0xDD), "Rainbow wave animation");
+        picker.AddEffect("Rainbow Cycle", LightEffect.RainbowCycle.ToString(), MaterialIconKind.Sync, Color.FromRgb(0x7C, 0x4D, 0xFF), "Rainbow cycle animation");
+        picker.AddEffect("Wheel", LightEffect.Wheel.ToString(), MaterialIconKind.Rotate3dVariant, Color.FromRgb(0x4D, 0xDD, 0xFF), "Rotating dot animation");
+        picker.AddEffect("Rainbow Wheel", LightEffect.RainbowWheel.ToString(), MaterialIconKind.PaletteOutline, Color.FromRgb(0xFF, 0x44, 0xAA), "Rainbow wheel animation");
+        picker.AddEffect("Heartbeat", LightEffect.Heartbeat.ToString(), MaterialIconKind.HeartPulse, Color.FromRgb(0xFF, 0x52, 0x52), "Heartbeat pulse animation");
+        picker.AddEffect("Plasma", LightEffect.Plasma.ToString(), MaterialIconKind.Blur, Color.FromRgb(0x9C, 0x27, 0xB0), "Flowing plasma color animation");
+        picker.AddEffect("Drip", LightEffect.Drip.ToString(), MaterialIconKind.Water, Color.FromRgb(0x4F, 0xC3, 0xF7), "Droplet animation");
         picker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
         return picker;
     }
 
     private FrameworkElement MakeStatusEffectRow(string label, FrameworkElement picker)
     {
-        var row = new Grid { Margin = new Thickness(0, 0, 0, 2) };
+        var row = new Grid { Margin = new Thickness(0, 0, 0, 8) };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(94) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var text = MakeLabel(label);
-        text.Margin = new Thickness(0, 7, 8, 0);
+        text.Margin = new Thickness(0, 0, 8, 0);
+        text.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(text, 0);
         row.Children.Add(text);
 
@@ -2367,7 +2330,7 @@ public partial class LightsView : UserControl
             Text = label,
             FontSize = 9,
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
+            Foreground = LightsView.ThemeBrush("TextSecBrush"),
             VerticalAlignment = VerticalAlignment.Center,
         };
         pill.Tag = dot; // SetSwatchColor uses Tag to find inner dot
@@ -2772,7 +2735,7 @@ public partial class LightsView : UserControl
             _ledBorders[i] = _selectorCards[i];
 
         var menuBg = FindBrush("CardBgBrush");
-        var menuFg = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
+        var menuFg = LightsView.ThemeBrush("TextPrimaryBrush");
         var menuBorder = FindBrush("CardBorderBrush");
 
         for (int i = 0; i < 5; i++)
@@ -2968,7 +2931,7 @@ public partial class LightsView : UserControl
 
         // Save global lighting config
         var gl = _config.GlobalLight;
-        gl.Enabled = _globalEnableCheck?.IsChecked ?? false;
+        gl.Enabled = _globalEnabled;
         if (_globalEffectPicker != null)
             gl.Effect = _globalEffectPicker.SelectedEffect;
         gl.R = _globalColor1.R;
@@ -2994,7 +2957,7 @@ public partial class LightsView : UserControl
         // Only overwrite per-knob light configs when Per-Knob mode is active.
         // When Global mode is on, the per-knob UI is hidden — writing back stale/default
         // values would trash the saved colors and turn knobs black on Global disable.
-        bool globalActive = _globalEnableCheck?.IsChecked ?? false;
+        bool globalActive = _globalEnabled;
 
         for (int i = 0; i < 5; i++)
         {
@@ -3106,35 +3069,8 @@ public partial class LightsView : UserControl
         _onSave(_config);
     }
 
-    private Grid MakeSectionHeader(string title)
-    {
-        var accent = ThemeManager.Accent;
-        var grid = new Grid { Margin = new Thickness(0, 0, 0, 8) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var bar = new Border
-        {
-            Background = new SolidColorBrush(accent),
-            CornerRadius = new CornerRadius(2),
-            Margin = new Thickness(0, 1, 8, 1),
-        };
-        Grid.SetColumn(bar, 0);
-        grid.Children.Add(bar);
-
-        var label = new TextBlock
-        {
-            Text = title,
-            FontSize = 11,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(accent),
-        };
-        Grid.SetColumn(label, 1);
-        grid.Children.Add(label);
-
-        _sectionHeaders.Add((bar, label));
-        return grid;
-    }
+    /// <summary>Shared accent-bar section header (UiKit) — theme brushes update live.</summary>
+    private static FrameworkElement MakeSectionHeader(string title) => UiKit.SectionHeader(title);
 
     private Border MakeSeparator(int spacing = 10)
     {
@@ -3151,14 +3087,12 @@ public partial class LightsView : UserControl
     /// </summary>
     private Grid MakeSpeedBrightnessRow(StyledSlider speedSlider, StyledSlider brightSlider)
     {
-        var ac = ThemeManager.Accent;
-        var dimBrush = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A));
-        var acBrush = new SolidColorBrush(ac);
+        var dimBrush = ThemeBrush("TextDimBrush");
 
         UIElement MakeSliderCell(string label, StyledSlider slider, TextBlock valLabel)
         {
             var cell = new StackPanel { Margin = new Thickness(0, 0, 16, 0) };
-            cell.Children.Add(new TextBlock { Text = label, FontSize = 9, FontWeight = FontWeights.SemiBold,
+            cell.Children.Add(new TextBlock { Text = label, FontSize = 10, FontWeight = FontWeights.SemiBold,
                 Foreground = dimBrush, Margin = new Thickness(0, 0, 0, 4) });
             var row = new DockPanel();
             DockPanel.SetDock(valLabel, Dock.Right);
@@ -3172,21 +3106,31 @@ public partial class LightsView : UserControl
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var speedLabel = new TextBlock { Text = $"{(int)speedSlider.Value}%", FontSize = 11,
-            Foreground = acBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+        var speedLabel = new TextBlock { Text = $"{(int)speedSlider.Value}%", FontSize = 11, FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+        speedLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
         speedSlider.ValueChanged += (_, _) => speedLabel.Text = $"{(int)speedSlider.Value}%";
         var speedCell = MakeSliderCell("SPEED", speedSlider, speedLabel);
         Grid.SetColumn(speedCell as FrameworkElement, 0);
         grid.Children.Add(speedCell);
 
-        var brightLabel = new TextBlock { Text = $"{(int)brightSlider.Value}%", FontSize = 11,
-            Foreground = acBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+        var brightLabel = new TextBlock { Text = $"{(int)brightSlider.Value}%", FontSize = 11, FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+        brightLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
         brightSlider.ValueChanged += (_, _) => brightLabel.Text = $"{(int)brightSlider.Value}%";
         var brightCell = MakeSliderCell("BRIGHTNESS", brightSlider, brightLabel);
         Grid.SetColumn(brightCell as FrameworkElement, 1);
         grid.Children.Add(brightCell);
 
         return grid;
+    }
+
+    /// <summary>Section card whose visibility follows <paramref name="container"/> (callers toggle the container).</summary>
+    private Border MakeConditionalCard(string title, StackPanel container)
+    {
+        var card = MakeSectionCard(title, container);
+        card.SetBinding(VisibilityProperty, new System.Windows.Data.Binding(nameof(Visibility)) { Source = container });
+        return card;
     }
 
     private Border MakeSectionCard(string title, params UIElement[] children)
@@ -3211,11 +3155,6 @@ public partial class LightsView : UserControl
     private void RefreshAccentColors()
     {
         var accent = ThemeManager.Accent;
-        foreach (var (bar, label) in _sectionHeaders)
-        {
-            bar.Background = new SolidColorBrush(accent);
-            label.Foreground = new SolidColorBrush(accent);
-        }
         for (int i = 0; i < 5; i++)
         {
             _effectPickers[i].AccentColor = accent;
@@ -3243,10 +3182,10 @@ public partial class LightsView : UserControl
         return new TextBlock
         {
             Text = text,
-            FontSize = 9,
+            FontSize = 10,
             FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextDimBrush"),
-            Margin = new Thickness(0, 4, 0, 3)
+            Margin = new Thickness(0, 4, 0, 4)
         };
     }
 
@@ -3257,7 +3196,7 @@ public partial class LightsView : UserControl
             Text = text,
             FontSize = 9,
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromArgb(0x99, 0xCC, 0xCC, 0xCC)),
+            Foreground = ThemeBrush("TextDimBrush"),
             Width = 72,
             Margin = new Thickness(0, 0, 4, 0),
             VerticalAlignment = VerticalAlignment.Center,
@@ -3271,6 +3210,10 @@ public partial class LightsView : UserControl
         return MakeColorPill(label, initial, isColor2 ? "Secondary color — click to change" : "Primary color — click to change",
             () => OnPickGlobalColor(isColor2));
     }
+
+    /// <summary>Theme brush lookup usable from static code and the color dialog.</summary>
+    internal static Brush ThemeBrush(string key)
+        => Application.Current?.TryFindResource(key) as Brush ?? Brushes.Gray;
 
     private Brush FindBrush(string key)
     {
@@ -3336,7 +3279,7 @@ public class ColorPickerDialog : Window
     private readonly Canvas _hueCanvas;
     private readonly Border _preview;
     private readonly TextBox _hexInput;
-    private readonly Slider _rSlider, _gSlider, _bSlider;
+    private readonly StyledSlider _rSlider, _gSlider, _bSlider;
     private readonly TextBlock _rLabel, _gLabel, _bLabel;
 
     private float _hue; // 0-360
@@ -3385,7 +3328,7 @@ public class ColorPickerDialog : Window
             Text = "PICK COLOR",
             FontSize = 10,
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
+            Foreground = LightsView.ThemeBrush("TextDimBrush"),
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center,
         };
@@ -3437,7 +3380,7 @@ public class ColorPickerDialog : Window
             Text = "QUICK PICK",
             FontSize = 9,
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
+            Foreground = LightsView.ThemeBrush("TextDimBrush"),
             Margin = new Thickness(0, 0, 0, 6),
         });
         var presetPanel = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
@@ -3539,7 +3482,7 @@ public class ColorPickerDialog : Window
             FontFamily = new FontFamily("Consolas"),
             FontSize = 13,
             Background = (Brush)Application.Current.FindResource("InputBgBrush"),
-            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            Foreground = LightsView.ThemeBrush("TextPrimaryBrush"),
             BorderBrush = (Brush)Application.Current.FindResource("InputBorderBrush"),
             VerticalContentAlignment = VerticalAlignment.Center,
             Padding = new Thickness(6, 4, 6, 4)
@@ -3572,8 +3515,8 @@ public class ColorPickerDialog : Window
             Content = "OK",
             Width = 80,
             Margin = new Thickness(0, 0, 8, 0),
-            Background = new SolidColorBrush(Color.FromRgb(0x00, 0xB4, 0xD8)),
-            Foreground = Brushes.White,
+            Background = new SolidColorBrush(ThemeManager.Accent),
+            Foreground = Brushes.Black,
             BorderThickness = new Thickness(0),
             Cursor = Cursors.Hand
         };
@@ -3589,7 +3532,7 @@ public class ColorPickerDialog : Window
             Content = "Cancel",
             Width = 80,
             Background = (Brush)Application.Current.FindResource("InputBgBrush"),
-            Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
+            Foreground = LightsView.ThemeBrush("TextSecBrush"),
             BorderBrush = (Brush)Application.Current.FindResource("InputBorderBrush"),
             Cursor = Cursors.Hand
         };
@@ -3790,7 +3733,7 @@ public class ColorPickerDialog : Window
 
     // ── Helpers ──
 
-    private (Slider slider, TextBlock label) MakeChannelRow(StackPanel parent, string name, byte value, Color tint)
+    private (StyledSlider slider, TextBlock label) MakeChannelRow(StackPanel parent, string name, byte value, Color tint)
     {
         var row = new Grid { Margin = new Thickness(0, 0, 0, 4) };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
@@ -3808,13 +3751,15 @@ public class ColorPickerDialog : Window
         Grid.SetColumn(lbl, 0);
         row.Children.Add(lbl);
 
-        var slider = new Slider
+        var slider = new StyledSlider
         {
             Minimum = 0,
             Maximum = 255,
             Value = value,
-            IsSnapToTickEnabled = true,
-            TickFrequency = 1,
+            Step = 1,
+            ShowLabel = false,
+            Height = 24,
+            AccentColor = tint,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(6, 0, 6, 0)
         };
@@ -3824,7 +3769,7 @@ public class ColorPickerDialog : Window
         var valLabel = new TextBlock
         {
             Text = value.ToString(),
-            Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
+            Foreground = LightsView.ThemeBrush("TextSecBrush"),
             FontSize = 11,
             VerticalAlignment = VerticalAlignment.Center,
             TextAlignment = TextAlignment.Right
@@ -3832,7 +3777,7 @@ public class ColorPickerDialog : Window
         Grid.SetColumn(valLabel, 2);
         row.Children.Add(valLabel);
 
-        slider.ValueChanged += (_, e) => valLabel.Text = ((int)e.NewValue).ToString();
+        slider.ValueChanged += (_, _) => valLabel.Text = ((int)slider.Value).ToString();
 
         parent.Children.Add(row);
         return (slider, valLabel);

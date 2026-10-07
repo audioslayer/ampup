@@ -4,6 +4,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using AmpUp.Controls;
+using Material.Icons;
 
 namespace AmpUp.Views;
 
@@ -14,24 +15,6 @@ public class BindingsView : UserControl
     private Action<string>? _onNavigateToButtons;  // profile name
     private Action<string>? _onSwitchProfile;
     private Action<string>? _onPreviewOsd;         // profile name → show OSD
-
-    // Action icons duplicated from ButtonsView (internal access)
-    private static readonly Dictionary<string, string> ActionIcons = new()
-    {
-        { "none", "—" }, { "media_play_pause", "⏯" }, { "media_next", "⏭" },
-        { "media_prev", "⏮" }, { "mute_master", "🔇" }, { "mute_mic", "🎤" },
-        { "mute_program", "🔇" }, { "mute_active_window", "🔇" }, { "launch_exe", "🚀" },
-        { "close_program", "✕" }, { "cycle_output", "🔊" }, { "cycle_input", "🎙" },
-        { "select_output", "🔊" }, { "select_input", "🎙" }, { "macro", "⌨" },
-        { "switch_profile", "📋" }, { "cycle_brightness", "💡" }, { "mute_app_group", "🔇" },
-        { "mute_device", "🔇" },
-        { "power_sleep", "😴" }, { "power_lock", "🔒" }, { "power_off", "⏻" },
-        { "power_restart", "🔄" }, { "power_logoff", "🚪" }, { "power_hibernate", "❄" },
-        { "ha_toggle", "⚡" }, { "ha_scene", "🎬" }, { "ha_color", "◉" }, { "ha_color_temp", "●" }, { "ha_service", "⚙" },
-        { "group_toggle", "▣" },
-        { "corsair_toggle", "✦" },
-        { "vm_mute_strip", "🔇" }, { "vm_mute_bus", "🔇" },
-    };
 
     private static readonly Dictionary<string, Color> ActionColors = new()
     {
@@ -216,23 +199,8 @@ public class BindingsView : UserControl
         _root.Children.Clear();
         Array.Clear(_knobCards);
 
-        // Page header
-        var headerPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 20) };
-        headerPanel.Children.Add(new TextBlock
-        {
-            Text = "Profile Overview",
-            FontSize = 22,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = (SolidColorBrush)FindResource("TextPrimaryBrush"),
-        });
-        headerPanel.Children.Add(new TextBlock
-        {
-            Text = "All knob and button assignments across your profiles",
-            FontSize = 12,
-            Foreground = (SolidColorBrush)FindResource("TextSecBrush"),
-            Margin = new Thickness(0, 4, 0, 0)
-        });
-        _root.Children.Add(headerPanel);
+        _root.Children.Add(UiKit.PageHeader("Overview",
+            "Every knob, button and key assignment across your profiles. Click a profile to switch to it."));
 
         // Interactive hardware device visualization — the widget only
         // renders the 5-knob Turn Up device, so hide it entirely when
@@ -281,150 +249,68 @@ public class BindingsView : UserControl
         try { accentColor = (Color)ColorConverter.ConvertFromString(iconCfg.Color); }
         catch { accentColor = ThemeManager.Accent; }
 
-        var accentBrush = new SolidColorBrush(accentColor);
-
-        var section = new Border
-        {
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
-            Margin = new Thickness(0, 0, 0, 16),
-            Padding = new Thickness(16, 14, 16, 16)
-        };
-        section.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-        section.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-
-        var sectionContent = new StackPanel();
-
-        // Profile header row — clickable to switch + navigate
-        var profileHeader = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 14),
-            Cursor = Cursors.Hand
-        };
         var capturedName = profileName;
-        profileHeader.MouseLeftButtonDown += (_, _) =>
-        {
-            _onSwitchProfile?.Invoke(capturedName);
-        };
 
-        // Accent left bar
-        profileHeader.Children.Add(new Border
-        {
-            Width = 3,
-            Height = 18,
-            CornerRadius = new CornerRadius(2),
-            Background = accentBrush,
-            Margin = new Thickness(0, 0, 8, 0),
-            VerticalAlignment = VerticalAlignment.Center
-        });
-
-        profileHeader.Children.Add(new TextBlock
-        {
-            Text = profileName,
-            FontSize = 14,
-            FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal,
-            Foreground = accentBrush,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-
-        if (isActive)
-        {
-            profileHeader.Children.Add(new Border
-            {
-                Background = new SolidColorBrush(Color.FromArgb(0x30, accentColor.R, accentColor.G, accentColor.B)),
-                BorderBrush = accentBrush,
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(3),
-                Padding = new Thickness(5, 1, 5, 1),
-                Margin = new Thickness(8, 0, 0, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-                Child = new TextBlock
-                {
-                    Text = "ACTIVE",
-                    FontSize = 9,
-                    FontWeight = FontWeights.SemiBold,
-                    Foreground = accentBrush
-                }
-            });
-        }
-
-        // Right side action buttons
+        // Right side actions — reorder, duplicate, preview OSD (icon buttons like Groups cards).
         var actionRow = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        // Move up/down arrows
+        if (isActive)
+        {
+            var badge = UiKit.StatusBadge(out var setBadge);
+            setBadge("ACTIVE", true);
+            actionRow.Children.Add(badge);
+        }
+
         int profileIdx = _config?.Profiles.IndexOf(profileName) ?? -1;
         int profileCount = _config?.Profiles.Count ?? 0;
 
-        var moveUpBtn = MakeArrowButton("\u25B2", "Move up", accentColor); // ▲
+        var moveUpBtn = UiKit.IconButton(MaterialIconKind.ArrowUp, "Move up",
+            _ => { if (profileIdx > 0) OnMoveProfile?.Invoke(capturedName, -1); });
         moveUpBtn.Opacity = profileIdx > 0 ? 1.0 : 0.3;
-        if (profileIdx > 0)
-        {
-            moveUpBtn.MouseLeftButtonDown += (_, e) =>
-            {
-                OnMoveProfile?.Invoke(capturedName, -1);
-                e.Handled = true;
-            };
-        }
+        moveUpBtn.IsEnabled = profileIdx > 0;
         actionRow.Children.Add(moveUpBtn);
 
-        var moveDownBtn = MakeArrowButton("\u25BC", "Move down", accentColor); // ▼
-        moveDownBtn.Opacity = profileIdx < profileCount - 1 ? 1.0 : 0.3;
-        if (profileIdx < profileCount - 1)
-        {
-            moveDownBtn.MouseLeftButtonDown += (_, e) =>
-            {
-                OnMoveProfile?.Invoke(capturedName, 1);
-                e.Handled = true;
-            };
-        }
+        var moveDownBtn = UiKit.IconButton(MaterialIconKind.ArrowDown, "Move down",
+            _ => { if (profileIdx >= 0 && profileIdx < profileCount - 1) OnMoveProfile?.Invoke(capturedName, 1); });
+        moveDownBtn.Opacity = profileIdx >= 0 && profileIdx < profileCount - 1 ? 1.0 : 0.3;
+        moveDownBtn.IsEnabled = profileIdx >= 0 && profileIdx < profileCount - 1;
         actionRow.Children.Add(moveDownBtn);
 
-        // Duplicate button
-        var dupeBtn = MakeAccentButton("Duplicate", "Duplicate this profile", accentColor);
-        dupeBtn.Margin = new Thickness(6, 0, 0, 0);
-        dupeBtn.MouseLeftButtonDown += (_, e) =>
-        {
-            OnDuplicateProfile?.Invoke(capturedName);
-            e.Handled = true;
-        };
-        actionRow.Children.Add(dupeBtn);
+        actionRow.Children.Add(UiKit.IconButton(MaterialIconKind.ContentCopy, "Duplicate this profile",
+            _ => OnDuplicateProfile?.Invoke(capturedName)));
+        actionRow.Children.Add(UiKit.IconButton(MaterialIconKind.EyeOutline, "Preview the OSD for this profile",
+            _ => _onPreviewOsd?.Invoke(capturedName)));
 
-        // Preview OSD button
-        var previewBtn = MakeAccentButton("Preview OSD", "Show OSD for this profile", accentColor);
-        previewBtn.Margin = new Thickness(6, 0, 0, 0);
-        previewBtn.MouseLeftButtonDown += (_, e) =>
-        {
-            _onPreviewOsd?.Invoke(capturedName);
-            e.Handled = true;
-        };
-        actionRow.Children.Add(previewBtn);
+        if (!Enum.TryParse<Material.Icons.MaterialIconKind>(iconCfg.Symbol, out var profileKind))
+            profileKind = MaterialIconKind.AccountCircleOutline;
 
-        var headerGrid = new Grid { Margin = new Thickness(0, 0, 0, 14) };
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(profileHeader, 0);
-        profileHeader.Margin = new Thickness(0);
-        headerGrid.Children.Add(profileHeader);
-        Grid.SetColumn(actionRow, 1);
-        headerGrid.Children.Add(actionRow);
-        sectionContent.Children.Add(headerGrid);
+        var parts = UiKit.Card(accentColor, profileKind, profileName,
+            isActive ? "Active profile" : "Click to switch to this profile", actionRow);
+        parts.Root.Margin = new Thickness(0, 0, 0, 14);
+        parts.Body.Margin = new Thickness(0, 16, 0, 0);
+        if (parts.Title.Parent is FrameworkElement names)
+        {
+            names.Cursor = Cursors.Hand;
+            names.ToolTip = isActive ? null : $"Switch to {profileName}";
+            names.MouseLeftButtonDown += (_, _) => _onSwitchProfile?.Invoke(capturedName);
+        }
+        var sectionContent = parts.Body;
 
         // Turn Up rows (KNOBS + BUTTONS) follow the Active Surface toggle
         // — hidden when the user has picked Stream Controller as their
         // surface, even if a Turn Up is physically connected.
         if (ShouldShowTurnUpOverview())
         {
-            sectionContent.Children.Add(MakeSectionLabel("KNOBS"));
+            sectionContent.Children.Add(MakeSectionLabel("KNOBS", "5"));
 
             var knobsRow = new UniformGrid
             {
                 Columns = 5,
-                Margin = new Thickness(0, 6, 0, 14)
+                Margin = new Thickness(0, 0, 0, 16)
             };
             for (int i = 0; i < 5; i++)
             {
@@ -434,12 +320,12 @@ public class BindingsView : UserControl
             }
             sectionContent.Children.Add(knobsRow);
 
-            sectionContent.Children.Add(MakeSectionLabel("BUTTONS"));
+            sectionContent.Children.Add(MakeSectionLabel("BUTTONS", "5"));
 
             var buttonsRow = new UniformGrid
             {
                 Columns = 5,
-                Margin = new Thickness(0, 6, 0, 0)
+                Margin = new Thickness(0, 0, 0, 0)
             };
             for (int i = 0; i < 5; i++)
             {
@@ -455,8 +341,7 @@ public class BindingsView : UserControl
         if (ShouldShowStreamControllerOverview())
             sectionContent.Children.Add(BuildStreamControllerSection(config, capturedName));
 
-        section.Child = sectionContent;
-        return section;
+        return parts.Root;
     }
 
     /// <summary>
@@ -495,13 +380,13 @@ public class BindingsView : UserControl
     {
         var stack = new StackPanel { Margin = new Thickness(0, 14, 0, 0) };
 
-        stack.Children.Add(MakeSectionLabel("STREAM CONTROLLER KEYS"));
+        stack.Children.Add(MakeSectionLabel("STREAM CONTROLLER KEYS", "6"));
 
         // LCD grid (2 rows × 3 cols) — iterate root-folder display keys.
         var lcdGrid = new UniformGrid
         {
             Columns = 3, Rows = 2,
-            Margin = new Thickness(0, 6, 0, 14),
+            Margin = new Thickness(-4, 0, -4, 12),
         };
         for (int i = 0; i < 6; i++)
         {
@@ -513,13 +398,13 @@ public class BindingsView : UserControl
         }
         stack.Children.Add(lcdGrid);
 
-        stack.Children.Add(MakeSectionLabel("STREAM CONTROLLER CONTROLS"));
+        stack.Children.Add(MakeSectionLabel("STREAM CONTROLLER CONTROLS", "6"));
 
         // Side buttons + encoder presses in a single row.
         var controlsRow = new UniformGrid
         {
             Columns = 6,
-            Margin = new Thickness(0, 6, 0, 0),
+            Margin = new Thickness(0, 0, 0, 0),
         };
         for (int i = 0; i < 3; i++)
         {
@@ -659,81 +544,8 @@ public class BindingsView : UserControl
         }
     }
 
-    private static Border MakeAccentButton(string text, string tooltip, Color accent)
-    {
-        var bgNormal = new SolidColorBrush(Color.FromArgb(0x20, accent.R, accent.G, accent.B));
-        bgNormal.Freeze();
-        var bgHover = new SolidColorBrush(Color.FromArgb(0x38, accent.R, accent.G, accent.B));
-        bgHover.Freeze();
-        var borderBrush = new SolidColorBrush(Color.FromArgb(0x50, accent.R, accent.G, accent.B));
-        borderBrush.Freeze();
-        var fgBrush = new SolidColorBrush(accent);
-        fgBrush.Freeze();
-
-        var btn = new Border
-        {
-            Background = bgNormal,
-            BorderBrush = borderBrush,
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(10, 3, 10, 3),
-            Cursor = Cursors.Hand,
-            VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = tooltip,
-            Child = new TextBlock
-            {
-                Text = text,
-                FontSize = 10,
-                FontWeight = FontWeights.Medium,
-                Foreground = fgBrush,
-            }
-        };
-        btn.MouseEnter += (_, _) => btn.Background = bgHover;
-        btn.MouseLeave += (_, _) => btn.Background = bgNormal;
-        return btn;
-    }
-
-    private static Border MakeArrowButton(string text, string tooltip, Color accent)
-    {
-        var bgNormal = new SolidColorBrush(Color.FromArgb(0x10, accent.R, accent.G, accent.B));
-        bgNormal.Freeze();
-        var bgHover = new SolidColorBrush(Color.FromArgb(0x28, accent.R, accent.G, accent.B));
-        bgHover.Freeze();
-        var borderBrush = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B));
-        borderBrush.Freeze();
-        var fgBrush = new SolidColorBrush(Color.FromArgb(0xAA, accent.R, accent.G, accent.B));
-        fgBrush.Freeze();
-
-        var btn = new Border
-        {
-            Background = bgNormal,
-            BorderBrush = borderBrush,
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(8, 3, 8, 3),
-            Cursor = Cursors.Hand,
-            VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = tooltip,
-            Child = new TextBlock
-            {
-                Text = text,
-                FontSize = 10,
-                Foreground = fgBrush,
-            }
-        };
-        btn.MouseEnter += (_, _) => btn.Background = bgHover;
-        btn.MouseLeave += (_, _) => btn.Background = bgNormal;
-        return btn;
-    }
-
-    private static TextBlock MakeSectionLabel(string text) => new()
-    {
-        Text = text,
-        FontSize = 9,
-        FontWeight = FontWeights.SemiBold,
-        Foreground = (SolidColorBrush)Application.Current.MainWindow!.FindResource("TextDimBrush"),
-        Margin = new Thickness(0, 0, 0, 0)
-    };
+    private static FrameworkElement MakeSectionLabel(string text, string? count = null)
+        => UiKit.SectionHeader(text, count);
 
     private UIElement BuildKnobCard(int idx, KnobConfig knob, string profileName, LightConfig? light = null)
     {
@@ -845,8 +657,7 @@ public class BindingsView : UserControl
                     {
                         Text = app,
                         FontSize = 9,
-                        Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
-                    }
+                    }.WithResourceForeground("TextSecBrush")
                 });
             }
             if (knob.Apps.Count > 4)
@@ -972,7 +783,6 @@ public class BindingsView : UserControl
 
     private static UIElement BuildGestureRow(string gestureLabel, string action, string path, string macroKeys, string profileName, Color gestureColor)
     {
-        ActionIcons.TryGetValue(action, out var icon);
         if (!ActionColors.TryGetValue(action, out var actionColor))
             actionColor = Color.FromRgb(0xCC, 0xCC, 0xCC); // fallback for unknown actions
         ActionDisplayNames.TryGetValue(action, out var displayName);
@@ -1133,5 +943,14 @@ public class BindingsView : UserControl
             }
         }
         return result.ToString();
+    }
+}
+
+internal static class BindingsViewTextExtensions
+{
+    public static TextBlock WithResourceForeground(this TextBlock tb, string key)
+    {
+        tb.SetResourceReference(TextBlock.ForegroundProperty, key);
+        return tb;
     }
 }

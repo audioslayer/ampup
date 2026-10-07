@@ -288,13 +288,13 @@ public partial class OsdOverlay : Window
             if (knob != null && !string.IsNullOrEmpty(knob.Label))
                 knobLabel = knob.Label;
             else if (knob != null && target == "apps" && knob.Apps.Count > 0)
-                knobLabel = knob.Apps.Count == 1 ? knob.Apps[0] : "App Group";
+                knobLabel = knob.Apps.Count == 1 ? knob.Apps[0] : "App group";
             else
                 knobLabel = FormatTarget(target);
 
             bool knobDim = knobLabel == "\u2014";
-            string icon = GetTargetIcon(target);
-            string labelText = string.IsNullOrEmpty(icon) ? knobLabel : icon + " " + knobLabel;
+            var iconKind = GetTargetIcon(target);
+            string labelText = knobLabel;
 
             var knobText = new TextBlock
             {
@@ -310,8 +310,22 @@ public partial class OsdOverlay : Window
                 VerticalAlignment = VerticalAlignment.Top,
                 FontFamily = new FontFamily("Segoe UI")
             };
-            System.Windows.Controls.Grid.SetRow(knobText, 1);
-            grid.Children.Add(knobText);
+            FrameworkElement knobCell = knobText;
+            if (iconKind is MaterialIconKind kind)
+            {
+                var knobStack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top };
+                knobStack.Children.Add(new MaterialIcon
+                {
+                    Kind = kind, Width = 14, Height = 14,
+                    Foreground = new SolidColorBrush(GetTargetColor(target)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 0, 0, 2),
+                });
+                knobStack.Children.Add(knobText);
+                knobCell = knobStack;
+            }
+            System.Windows.Controls.Grid.SetRow(knobCell, 1);
+            grid.Children.Add(knobCell);
 
             // Row 2: Divider
             var divider = new Border
@@ -361,38 +375,40 @@ public partial class OsdOverlay : Window
 
     private static string FormatTarget(string target) => target switch
     {
-        "master" => "Master Volume",
+        "master" => "Master volume",
         "mic" => "Microphone",
-        "system" => "System",
+        "system" => "System sounds",
         "discord" => "Discord",
         "spotify" => "Spotify",
         "chrome" => "Chrome",
-        "any" => "All Apps",
-        "active_window" => "Active Window",
+        "any" => "Auto (next playing app)",
+        "active_window" => "Focused app",
         "none" or "" => "—",
-        "ha_light" => "HA Light",
-        "ha_media" => "HA Media",
+        "ha_light" => "Home Assistant light",
+        "ha_media" => "Home Assistant speaker",
         _ when target.StartsWith("govee:") => "Govee",
         _ => char.ToUpper(target[0]) + target[1..]
     };
 
-    private static string GetTargetIcon(string target) => target switch
+    private static MaterialIconKind? GetTargetIcon(string target) => target switch
     {
-        "master" => "🔊",
-        "system" => "🔔",
-        "any" or "active_window" => "🪟",
-        "spotify" => "♪",
-        "mic" or "input_device" => "🎙",
-        "output_device" => "🔈",
-        "monitor" => "🖥",
-        "discord" => "💬",
-        "chrome" => "◆",
-        "apps" => "▣",
-        _ when target.StartsWith("ha_") => "◈",
-        _ when target.StartsWith("govee") => "◈",
-        "led_brightness" => "💡",
-        "none" or "" => "",
-        _ => "♪"
+        "master" => MaterialIconKind.VolumeHigh,
+        "system" => MaterialIconKind.BellRing,
+        "active_window" => MaterialIconKind.CursorDefaultClick,
+        "any" => MaterialIconKind.AutoFix,
+        "spotify" => MaterialIconKind.Music,
+        "mic" => MaterialIconKind.Microphone,
+        "input_device" => MaterialIconKind.MicrophoneVariant,
+        "output_device" => MaterialIconKind.Speaker,
+        "monitor" => MaterialIconKind.MonitorShimmer,
+        "discord" => MaterialIconKind.Headset,
+        "chrome" => MaterialIconKind.Web,
+        "apps" => MaterialIconKind.Apps,
+        _ when target.StartsWith("ha_") => MaterialIconKind.HomeAssistant,
+        _ when target.StartsWith("govee") => MaterialIconKind.LedStripVariant,
+        "led_brightness" => MaterialIconKind.Brightness6,
+        "none" or "" => null,
+        _ => MaterialIconKind.Application
     };
 
     private static Color GetTargetColor(string target) => target switch

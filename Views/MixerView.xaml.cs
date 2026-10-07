@@ -34,15 +34,50 @@ public partial class MixerView : UserControl
     // Display names for targets
     private static readonly Dictionary<string, string> HATargetDisplayNames = new()
     {
-        { "ha_light", "Home Assistant: Light" },
-        { "ha_media", "Home Assistant: Media" },
-        { "ha_fan", "Home Assistant: Fan" },
-        { "ha_cover", "Home Assistant: Cover" },
-        { "apps", "App Group" },
-        { "led_brightness", "LED Brightness" },
-        { "govee", "Govee" },
-        { "room_lights", "Room Lights" }
+        { "ha_light", "Home Assistant light" },
+        { "ha_media", "Home Assistant speaker" },
+        { "ha_fan", "Home Assistant fan" },
+        { "ha_cover", "Home Assistant cover" },
+        { "apps", "App group" },
+        { "led_brightness", "Turn Up LED brightness" },
+        { "govee", "Govee light" },
+        { "room_lights", "Room lights" }
     };
+
+    /// <summary>Friendly names for built-in targets — mirror the labels in the TARGET picker.</summary>
+    private static readonly Dictionary<string, string> BuiltInTargetNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { "none", "Nothing" },
+        { "master", "Master volume" },
+        { "mic", "Microphone" },
+        { "system", "System sounds" },
+        { "active_window", "Focused app" },
+        { "any", "Auto (next playing app)" },
+        { "output_device", "Speaker / headset" },
+        { "input_device", "Mic device" },
+        { "monitor", "Monitor brightness" },
+        { "sc_space_cycle", "Switch Spaces" },
+        { "sc_page_cycle", "Switch pages" },
+    };
+
+    /// <summary>Old auto-generated title-case name ("Active Window", "Master") — used to detect
+    /// labels that were persisted from the previous naming so they upgrade to the friendly name.</summary>
+    private static string LegacyTargetName(string target)
+    {
+        if (string.IsNullOrEmpty(target) || target == "none") return "None";
+        var legacy = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "ha_light", "Home Assistant: Light" }, { "ha_media", "Home Assistant: Media" },
+            { "ha_fan", "Home Assistant: Fan" }, { "ha_cover", "Home Assistant: Cover" },
+            { "apps", "App Group" }, { "led_brightness", "LED Brightness" }, { "room_lights", "Room Lights" },
+        };
+        var baseTarget = target.Contains(':') ? target.Split(':')[0] : target;
+        if (legacy.TryGetValue(baseTarget, out var l)) return l;
+        var words = target.Replace('_', ' ').Split(' ');
+        for (int i = 0; i < words.Length; i++)
+            if (words[i].Length > 0) words[i] = char.ToUpper(words[i][0]) + words[i][1..];
+        return string.Join(' ', words);
+    }
 
     // Per-channel control arrays
     private readonly AnimatedKnobControl[] _knobs = new AnimatedKnobControl[5];
@@ -92,6 +127,9 @@ public partial class MixerView : UserControl
     public MixerView()
     {
         InitializeComponent();
+
+        MixerPageHeaderHost.Content = UiKit.PageHeader("Mixer",
+            "Choose what each knob controls, then tune how it responds — curve and volume range.");
 
         _debounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
         _debounce.Tick += (_, _) =>
@@ -777,7 +815,7 @@ public partial class MixerView : UserControl
             _curvePickers[i] = curvePicker;
             curveCells[i].Child = MakeSectionCard("CURVE", curvePicker);
 
-            // VOLUME RANGE — inline row (no card)
+            // VOLUME RANGE
             var rangeSlider = new RangeSlider
             {
                 Minimum = 0,
@@ -797,27 +835,10 @@ public partial class MixerView : UserControl
             };
             _rangeSliders[i] = rangeSlider;
 
-            var rangeLabel = new TextBlock
-            {
-                Text = "VOLUME RANGE",
-                FontSize = 9,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
-                Margin = new Thickness(0, 0, 0, 4),
-            };
-            var minLabel = new TextBlock
-            {
-                Text = "0%",
-                FontSize = 10,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
-            };
-            var maxLabel = new TextBlock
-            {
-                Text = "100%",
-                FontSize = 10,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
-                HorizontalAlignment = HorizontalAlignment.Right,
-            };
+            var minLabel = new TextBlock { Text = "0%", FontSize = 10 };
+            minLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+            var maxLabel = new TextBlock { Text = "100%", FontSize = 10, HorizontalAlignment = HorizontalAlignment.Right };
+            maxLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
             rangeSlider.LowerValueChanged += (_, _) => minLabel.Text = $"{(int)rangeSlider.LowerValue}%";
             rangeSlider.UpperValueChanged += (_, _) => maxLabel.Text = $"{(int)rangeSlider.UpperValue}%";
 
@@ -825,11 +846,8 @@ public partial class MixerView : UserControl
             labelsRow.Children.Add(minLabel);
             labelsRow.Children.Add(maxLabel);
 
-            var rangePanel = new StackPanel { Margin = new Thickness(0, 4, 0, 8) };
-            rangePanel.Children.Add(rangeLabel);
-            rangePanel.Children.Add(rangeSlider);
-            rangePanel.Children.Add(labelsRow);
-            rangeCells[i].Child = rangePanel;
+            // VOLUME RANGE — same section card as TARGET / CURVE so all rows line up.
+            rangeCells[i].Child = MakeSectionCard("VOLUME RANGE", rangeSlider, labelsRow);
 
         }
     }
@@ -1563,7 +1581,8 @@ public partial class MixerView : UserControl
 
     private static string GetDisplayLabel(KnobConfig knob)
     {
-        if (!string.IsNullOrWhiteSpace(knob.Label))
+        if (!string.IsNullOrWhiteSpace(knob.Label)
+            && !string.Equals(knob.Label.Trim(), LegacyTargetName(knob.Target), StringComparison.OrdinalIgnoreCase))
             return knob.Label;
         return FormatTargetName(knob.Target);
     }
@@ -1640,6 +1659,8 @@ public partial class MixerView : UserControl
         var baseTarget = target.Contains(':') ? target.Split(':')[0] : target;
         if (HATargetDisplayNames.TryGetValue(baseTarget, out var displayName))
             return displayName;
+        if (BuiltInTargetNames.TryGetValue(target, out var builtIn))
+            return builtIn;
 
         // Device group — show group name
         if (target.StartsWith("group:", StringComparison.OrdinalIgnoreCase))
@@ -1721,7 +1742,8 @@ public partial class MixerView : UserControl
         };
 
         // Insert banner before the channel grid (index 0)
-        rootStack.Children.Insert(0, banner);
+        // Keep the page header first; the banner sits right below it.
+        rootStack.Children.Insert(rootStack.Children.IndexOf(MixerPageHeaderHost) + 1, banner);
 
         _suggestionBanner = banner;
 
@@ -1778,7 +1800,7 @@ public partial class MixerView : UserControl
             ? sp.Children.OfType<TextBlock>().FirstOrDefault()
             : null;
         if (textBlock != null)
-            textBlock.Text = $"✦ We found {string.Join(", ", appNames)} — apply suggested layout?";
+            textBlock.Text = $"We found {string.Join(", ", appNames)} — apply suggested layout?";
 
         // Store layout for Apply button — use Tag on the banner
         _suggestionBanner.Tag = new SuggestedLayout
