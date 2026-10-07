@@ -1258,135 +1258,144 @@ public partial class MixerView : UserControl
     /// </summary>
     internal void RebuildAppTogglesFor(WrapPanel panel, KnobConfig knob, Action rebuildCallback)
     {
+        // "Icon stack" style (user's pick): overlapping app icons + "Spotify + 2 more" + Edit.
+        // Membership is edited through a glass menu instead of clicking toggle chips.
         panel.Children.Clear();
-
         if (_config == null || _mixer == null) return;
 
-        var accent = ThemeManager.Accent;
         var runningApps = _mixer.GetRunningAudioApps();
+        var members = knob.Apps.ToList();
 
-        // Show apps already in the group that might not be running
-        var allApps = new List<string>(knob.Apps);
-        foreach (var app in runningApps)
+        var row = new Grid { Margin = new Thickness(0, 2, 0, 4), Cursor = System.Windows.Input.Cursors.Hand, Background = Brushes.Transparent };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        const int maxIcons = 5;
+        var stack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        for (int i = 0; i < Math.Min(members.Count, maxIcons); i++)
         {
-            if (!allApps.Contains(app, StringComparer.OrdinalIgnoreCase))
-                allApps.Add(app);
+            var app = members[i];
+            bool running = runningApps.Contains(app, StringComparer.OrdinalIgnoreCase);
+            stack.Children.Add(StackIcon(app, running, i == 0));
         }
-
-        if (allApps.Count == 0)
+        if (members.Count > maxIcons)
         {
-            panel.Children.Add(new TextBlock
+            var more = new Border
             {
-                Text = "No audio apps running",
-                FontSize = 10,
-                Foreground = FindBrush("TextDimBrush"),
-                Margin = new Thickness(0, 2, 0, 4),
-            });
-            return;
-        }
-
-        // Sort: in-group first, then alphabetical
-        foreach (var app in allApps.OrderByDescending(a => knob.Apps.Contains(a, StringComparer.OrdinalIgnoreCase)).ThenBy(a => a))
-        {
-            bool isInGroup = knob.Apps.Contains(app, StringComparer.OrdinalIgnoreCase);
-            bool isRunning = runningApps.Contains(app, StringComparer.OrdinalIgnoreCase);
-            var appCapture = app;
-
-            // Chip content: icon + name
-            var chipContent = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-
-            // Try app icon, fall back to accent dot for in-group running apps
-            var appIcon = isRunning ? GetAppIcon(app) : null;
-            if (appIcon != null)
-            {
-                chipContent.Children.Add(new Image
+                Width = 30, Height = 30, CornerRadius = new CornerRadius(9), BorderThickness = new Thickness(2),
+                Margin = new Thickness(-8, 0, 0, 0),
+                Child = new TextBlock
                 {
-                    Source = appIcon,
-                    Width = 14, Height = 14,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(0, 0, 5, 0),
-                    Opacity = isInGroup ? 1.0 : 0.4,
-                });
-            }
-            else if (isInGroup && isRunning)
-            {
-                chipContent.Children.Add(new Border
-                {
-                    Width = 5, Height = 5,
-                    CornerRadius = new CornerRadius(3),
-                    Background = new SolidColorBrush(accent),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(0, 0, 5, 0),
-                });
-            }
-
-            chipContent.Children.Add(new TextBlock
-            {
-                Text = app,
-                FontSize = 10.5,
-                FontStyle = (!isRunning && isInGroup) ? FontStyles.Italic : FontStyles.Normal,
-                Foreground = new SolidColorBrush(
-                    isInGroup ? Color.FromRgb(0xE8, 0xE8, 0xE8)
-                    : isRunning ? Color.FromRgb(0x77, 0x77, 0x77)
-                    : Color.FromRgb(0x55, 0x55, 0x55)),
-                VerticalAlignment = VerticalAlignment.Center,
-            });
-
-            var chip = new Border
-            {
-                Background = new SolidColorBrush(isInGroup
-                    ? Color.FromArgb(0x28, accent.R, accent.G, accent.B)
-                    : Colors.Transparent),
-                BorderBrush = new SolidColorBrush(isInGroup
-                    ? Color.FromArgb(0x66, accent.R, accent.G, accent.B)
-                    : Colors.Transparent),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(12),
-                Padding = new Thickness(10, 4, 10, 4),
-                Margin = new Thickness(0, 0, 4, 4),
-                Cursor = System.Windows.Input.Cursors.Hand,
-                Child = chipContent,
-                ToolTip = isInGroup
-                    ? (isRunning ? "Click to remove from group" : "Not running — click to remove")
-                    : "Click to add to group",
+                    Text = $"+{members.Count - maxIcons}", FontSize = 10.5, FontWeight = FontWeights.Bold,
+                    HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+                },
             };
-            if (!isInGroup)
-            {
-                chip.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
-                chip.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-            }
-
-            // Hover effect
-            chip.MouseEnter += (_, _) =>
-            {
-                if (isInGroup)
-                    chip.Background = new SolidColorBrush(Color.FromArgb(0x3A, accent.R, accent.G, accent.B));
-                else
-                    chip.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-            };
-            chip.MouseLeave += (_, _) =>
-            {
-                if (isInGroup)
-                    chip.Background = new SolidColorBrush(Color.FromArgb(0x28, accent.R, accent.G, accent.B));
-                else
-                    chip.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
-            };
-
-            // Click to toggle
-            chip.MouseLeftButtonUp += (_, e) =>
-            {
-                if (_loading) return;
-                if (knob.Apps.Contains(appCapture, StringComparer.OrdinalIgnoreCase))
-                    knob.Apps.RemoveAll(a => a.Equals(appCapture, StringComparison.OrdinalIgnoreCase));
-                else
-                    knob.Apps.Add(appCapture);
-                QueueSave();
-                rebuildCallback();
-                e.Handled = true;
-            };
-
-            panel.Children.Add(chip);
+            more.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+            more.SetResourceReference(Border.BorderBrushProperty, "CardBgBrush");
+            ((TextBlock)more.Child).SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+            stack.Children.Add(more);
         }
+        if (members.Count > 0) row.Children.Add(stack);
+
+        var names = new TextBlock
+        {
+            FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(members.Count > 0 ? 10 : 0, 0, 8, 0),
+        };
+        names.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        if (members.Count == 0)
+            names.Text = "No apps yet — click Edit to add some";
+        else
+        {
+            var first = new System.Windows.Documents.Run(FormatTargetName(members[0])) { FontWeight = FontWeights.SemiBold };
+            first.SetResourceReference(System.Windows.Documents.TextElement.ForegroundProperty, "TextPrimaryBrush");
+            names.Inlines.Add(first);
+            if (members.Count > 1) names.Inlines.Add(new System.Windows.Documents.Run($" + {members.Count - 1} more"));
+        }
+        names.ToolTip = members.Count > 0 ? string.Join(", ", members.Select(FormatTargetName)) : null;
+        Grid.SetColumn(names, 1);
+        row.Children.Add(names);
+
+        var edit = new TextBlock
+        {
+            Text = "Edit", FontSize = 12, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center,
+            Foreground = new SolidColorBrush(ThemeManager.Accent),
+        };
+        Grid.SetColumn(edit, 2);
+        row.Children.Add(edit);
+
+        row.MouseLeftButtonUp += (_, e) =>
+        {
+            if (_loading) return;
+            ShowAppGroupMenu(row, knob, runningApps, rebuildCallback);
+            e.Handled = true;
+        };
+        panel.Children.Add(row);
+    }
+
+    private FrameworkElement StackIcon(string app, bool running, bool first)
+    {
+        var icon = running ? GetAppIcon(app) : null;
+        var tile = new Border
+        {
+            Width = 30, Height = 30, CornerRadius = new CornerRadius(9), BorderThickness = new Thickness(2),
+            Margin = new Thickness(first ? 0 : -8, 0, 0, 0),
+            ToolTip = FormatTargetName(app) + (running ? "" : " · not running"),
+            Opacity = running ? 1.0 : 0.55,
+        };
+        tile.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+        tile.SetResourceReference(Border.BorderBrushProperty, "CardBgBrush");
+        if (icon != null)
+        {
+            var img = new Image { Source = icon, Width = 18, Height = 18, Stretch = Stretch.Uniform };
+            RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
+            tile.Child = img;
+        }
+        else
+        {
+            var mi = new Material.Icons.WPF.MaterialIcon { Kind = Material.Icons.MaterialIconKind.Application, Width = 15, Height = 15 };
+            mi.SetResourceReference(Control.ForegroundProperty, "TextDimBrush");
+            tile.Child = mi;
+        }
+        // Lift on hover so overlapped icons can be identified.
+        tile.RenderTransform = new TranslateTransform();
+        tile.MouseEnter += (_, _) => { ((TranslateTransform)tile.RenderTransform).Y = -3; Panel.SetZIndex(tile, 2); };
+        tile.MouseLeave += (_, _) => { ((TranslateTransform)tile.RenderTransform).Y = 0; Panel.SetZIndex(tile, 0); };
+        return tile;
+    }
+
+    private void ShowAppGroupMenu(FrameworkElement anchor, KnobConfig knob, IReadOnlyCollection<string> runningApps, Action rebuildCallback)
+    {
+        void Changed() { QueueSave(); rebuildCallback(); }
+        var items = new List<GlassMenuItem>();
+        foreach (var app in knob.Apps.ToList())
+        {
+            var a = app;
+            items.Add(new GlassMenuItem(FormatTargetName(a) + (runningApps.Contains(a, StringComparer.OrdinalIgnoreCase) ? "" : "  (not running)"),
+                null, () => { knob.Apps.RemoveAll(x => x.Equals(a, StringComparison.OrdinalIgnoreCase)); Changed(); }, IsChecked: true));
+        }
+        var others = runningApps.Where(r => !knob.Apps.Contains(r, StringComparer.OrdinalIgnoreCase)).OrderBy(r => r).ToList();
+        if (items.Count > 0 && others.Count > 0) items.Add(GlassMenuItem.Sep);
+        foreach (var app in others)
+        {
+            var a = app;
+            items.Add(new GlassMenuItem(FormatTargetName(a), Material.Icons.MaterialIconKind.Plus, () => { knob.Apps.Add(a); Changed(); }));
+        }
+        if (items.Count > 0) items.Add(GlassMenuItem.Sep);
+        items.Add(new GlassMenuItem("Other app…", Material.Icons.MaterialIconKind.Magnify, () =>
+        {
+            var choices = runningApps
+                .Where(r => !knob.Apps.Contains(r, StringComparer.OrdinalIgnoreCase))
+                .Select(r => new AppChooser.Choice(r, FormatTargetName(r), "Playing audio now", GetAppIcon(r)))
+                .ToList();
+            AppChooser.Show(anchor, choices, picked =>
+            {
+                if (!knob.Apps.Contains(picked, StringComparer.OrdinalIgnoreCase)) knob.Apps.Add(picked);
+                Changed();
+            });
+        }));
+        GlassContextMenuHost.Show(anchor, items);
     }
 
     // --- Save ---
