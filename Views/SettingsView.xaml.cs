@@ -1958,7 +1958,7 @@ public partial class SettingsView : UserControl
         }
     }
 
-    private async void OnSpotifySetupGuide(object sender, RoutedEventArgs e)
+    private void OnSpotifySetupGuide(object sender, RoutedEventArgs e)
     {
         if (_config == null) return;
         var guide = new AmpUp.Controls.SpotifySetupGuide
