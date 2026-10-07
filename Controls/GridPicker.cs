@@ -67,6 +67,7 @@ public class GridPicker : System.Windows.Controls.Border
     private readonly TextBlock _label;
     private readonly ContentControl _triggerIconHost;
     private readonly MaterialIcon _chevron;
+    private readonly TextBlock _triggerSub;
 
     // ── Flyout ────────────────────────────────────────────────────
 
@@ -107,11 +108,11 @@ public class GridPicker : System.Windows.Controls.Border
     {
         this.SetResourceReference(BorderBrushProperty, "InputBorderBrush");
         BorderThickness = new Thickness(1);
-        CornerRadius = new CornerRadius(8);
-        Padding = new Thickness(6, 5, 8, 5);
+        CornerRadius = new CornerRadius(10);
+        Padding = new Thickness(8, 7, 12, 7);
         Cursor = Cursors.Hand;
         SnapsToDevicePixels = true;
-        MinHeight = 38;
+        MinHeight = 50;
         this.SetResourceReference(BackgroundProperty, "InputBgBrush");
 
         var grid = new Grid();
@@ -119,22 +120,34 @@ public class GridPicker : System.Windows.Controls.Border
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        _triggerIconHost = new ContentControl { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0), Focusable = false };
+        _triggerIconHost = new ContentControl { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0), Focusable = false };
         grid.Children.Add(_triggerIconHost);
 
         _label = new TextBlock
         {
             Text = "Choose…",
-            FontSize = 12,
-            FontWeight = FontWeights.Medium,
-            VerticalAlignment = VerticalAlignment.Center,
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
         _label.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-        Grid.SetColumn(_label, 1);
-        grid.Children.Add(_label);
+        // Muted one-line description under the name, same as the rows in the open list.
+        _triggerSub = new TextBlock
+        {
+            FontSize = 11,
+            Margin = new Thickness(0, 1, 0, 0),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Visibility = Visibility.Collapsed,
+        };
+        _triggerSub.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        var labels = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        labels.Children.Add(_label);
+        labels.Children.Add(_triggerSub);
+        Grid.SetColumn(labels, 1);
+        grid.Children.Add(labels);
 
-        _chevron = new MaterialIcon { Kind = MaterialIconKind.ChevronDown, Width = 16, Height = 16, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+        _chevron = new MaterialIcon { Kind = MaterialIconKind.ChevronDown, Width = 18, Height = 18, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0),
+            RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = new RotateTransform(0) };
         _chevron.SetResourceReference(MaterialIcon.ForegroundProperty, "TextDimBrush");
         Grid.SetColumn(_chevron, 2);
         grid.Children.Add(_chevron);
@@ -145,6 +158,7 @@ public class GridPicker : System.Windows.Controls.Border
         MouseEnter += (_, _) =>
         {
             BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(AccentColor, 0xAA));
+            Background = new SolidColorBrush(ThemeManager.WithAlpha(AccentColor, 0x14));
             _chevron.Foreground = new SolidColorBrush(AccentColor);
         };
         MouseLeave += (_, _) => { if (!_isOpen) ResetTriggerChrome(); };
@@ -159,8 +173,13 @@ public class GridPicker : System.Windows.Controls.Border
     private void ResetTriggerChrome()
     {
         this.SetResourceReference(BorderBrushProperty, "InputBorderBrush");
+        this.SetResourceReference(BackgroundProperty, "InputBgBrush");
         _chevron.SetResourceReference(MaterialIcon.ForegroundProperty, "TextDimBrush");
     }
+
+    private void RotateChevron(double angle)
+        => ((RotateTransform)_chevron.RenderTransform).BeginAnimation(RotateTransform.AngleProperty,
+            new DoubleAnimation(angle, TimeSpan.FromMilliseconds(160)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
 
     public void RefreshAccent()
     {
@@ -328,7 +347,8 @@ public class GridPicker : System.Windows.Controls.Border
         {
             _label.Text = "Choose…";
             _label.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-            _triggerIconHost.Content = BuildTile(MaterialIconKind.GestureTap, null, null, Color.FromRgb(0x88, 0x88, 0x88), 24);
+            _triggerSub.Visibility = Visibility.Collapsed;
+            _triggerIconHost.Content = BuildTile(MaterialIconKind.GestureTap, null, null, Color.FromRgb(0x88, 0x88, 0x88), 32);
             return;
         }
         var e = _items[_selectedIndex];
@@ -337,9 +357,14 @@ public class GridPicker : System.Windows.Controls.Border
         ToolTipService.SetToolTip(_label, e.Subtitle);
 
         var s = _selectedSubItem;
+        // Sub-selection (a specific device / entity): show which kind of target it is underneath.
+        string? subText = s != null ? e.Display : e.Subtitle;
+        _triggerSub.Text = subText ?? "";
+        _triggerSub.Visibility = string.IsNullOrWhiteSpace(subText) || _labelOverride != null && subText == _label.Text
+            ? Visibility.Collapsed : Visibility.Visible;
         _triggerIconHost.Content = s != null && (s.Kind != null || s.Image != null)
-            ? BuildTile(s.Kind, s.Icon, s.Image, s.IconColor ?? e.IconColor ?? AccentColor, 24)
-            : BuildTile(e.Kind, e.Icon, e.Image, e.IconColor ?? AccentColor, 24);
+            ? BuildTile(s.Kind, s.Icon, s.Image, s.IconColor ?? e.IconColor ?? AccentColor, 32)
+            : BuildTile(e.Kind, e.Icon, e.Image, e.IconColor ?? AccentColor, 32);
     }
 
     // ── Icon helpers ──────────────────────────────────────────────
@@ -540,7 +565,8 @@ public class GridPicker : System.Windows.Controls.Border
             System.Windows.Threading.DispatcherPriority.Loaded);
 
         BorderBrush = new SolidColorBrush(AccentColor);
-        _chevron.Kind = MaterialIconKind.ChevronUp;
+        Background = new SolidColorBrush(ThemeManager.WithAlpha(AccentColor, 0x14));
+        RotateChevron(180);
     }
 
     private void CloseFlyout()
@@ -553,7 +579,7 @@ public class GridPicker : System.Windows.Controls.Border
         _navRows.Clear();
         _selectedRowVisual = null;
         f?.Close();
-        _chevron.Kind = MaterialIconKind.ChevronDown;
+        RotateChevron(0);
         ResetTriggerChrome();
     }
 
