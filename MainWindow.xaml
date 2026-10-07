@@ -28,6 +28,28 @@
                              AutoReverse="True"
                              Timeline.DesiredFrameRate="10" />
         </Storyboard>
+        <Style x:Key="SidebarNavButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Width" Value="62" />
+            <Setter Property="Height" Value="56" />
+            <Setter Property="Margin" Value="7,1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="NavBorder" Background="Transparent" CornerRadius="12">
+                            <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="NavBorder" Property="Background" Value="{DynamicResource AccentHover1ABrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </ui:FluentWindow.Resources>
 
     <Grid>
@@ -185,151 +207,165 @@
                     <!-- ProfilePopupPanel is populated and shown via code-behind Window flyout -->
                     <StackPanel x:Name="ProfilePopupPanel" Visibility="Collapsed" />
 
-                    <DockPanel Grid.Row="1" Margin="0,12,0,0" LastChildFill="True">
-                        <!-- Settings at very bottom -->
-                        <Button x:Name="NavSettings" Style="{StaticResource NavButton}" Click="NavSettings_Click"
-                                DockPanel.Dock="Bottom">
+                    <DockPanel Grid.Row="1" Margin="0,10,0,10" LastChildFill="True">
+                        <!-- Bottom group: Overview + Settings -->
+                        <Button x:Name="NavSettings" Style="{StaticResource SidebarNavButton}" Click="NavSettings_Click" DockPanel.Dock="Bottom">
                             <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="0" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Border x:Name="NavSettingsBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
-                                        Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
-                                        Visibility="Collapsed" Margin="0" />
-                                <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                    <controls:PhosphorIcon x:Name="NavSettingsIcon" IconName="Gear" IconSize="22"
-                                               IconColor="#9A9A9A" HorizontalAlignment="Center" />
-                                    <TextBlock x:Name="NavSettingsLabel" Text="Settings" FontSize="9" Foreground="{StaticResource TextSecBrush}"
+                                <Border x:Name="NavSettingsBar" Width="3" Height="0" CornerRadius="2" Opacity="0"
+                                        Background="{DynamicResource AccentBrush}" HorizontalAlignment="Left"
+                                        VerticalAlignment="Center" Margin="-7,0,0,0" IsHitTestVisible="False" />
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Border x:Name="NavSettingsPill" Width="44" Height="30" CornerRadius="10" Background="Transparent">
+                                        <mi:MaterialIcon x:Name="NavSettingsIcon" Kind="CogOutline" Width="22" Height="22"
+                                                         Foreground="{DynamicResource TextSecBrush}" RenderTransformOrigin="0.5,0.5"
+                                                         HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <mi:MaterialIcon.RenderTransform><ScaleTransform /></mi:MaterialIcon.RenderTransform>
+                                        </mi:MaterialIcon>
+                                    </Border>
+                                    <TextBlock x:Name="NavSettingsLabel" Text="Settings" FontSize="10" FontWeight="Medium"
+                                               Foreground="{DynamicResource TextSecBrush}"
                                                HorizontalAlignment="Center" Margin="0,3,0,0" />
                                 </StackPanel>
                             </Grid>
                         </Button>
-                        <Button x:Name="NavBindings" Style="{StaticResource NavButton}" Click="NavBindings_Click"
-                                DockPanel.Dock="Bottom" ToolTip="Overview of all knob and button bindings across profiles">
+                        <Button x:Name="NavBindings" Style="{StaticResource SidebarNavButton}" Click="NavBindings_Click" DockPanel.Dock="Bottom" ToolTip="Overview of all knob and button bindings across profiles">
                             <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="0" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Border x:Name="NavBindingsBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
-                                        Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
-                                        Visibility="Collapsed" Margin="0" />
-                                <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                    <controls:PhosphorIcon x:Name="NavBindingsIcon" IconName="AppWindow" IconSize="22"
-                                               IconColor="#9A9A9A" HorizontalAlignment="Center" />
-                                    <TextBlock x:Name="NavBindingsLabel" Text="Overview" FontSize="9" Foreground="{StaticResource TextSecBrush}"
+                                <Border x:Name="NavBindingsBar" Width="3" Height="0" CornerRadius="2" Opacity="0"
+                                        Background="{DynamicResource AccentBrush}" HorizontalAlignment="Left"
+                                        VerticalAlignment="Center" Margin="-7,0,0,0" IsHitTestVisible="False" />
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Border x:Name="NavBindingsPill" Width="44" Height="30" CornerRadius="10" Background="Transparent">
+                                        <mi:MaterialIcon x:Name="NavBindingsIcon" Kind="ViewDashboardOutline" Width="22" Height="22"
+                                                         Foreground="{DynamicResource TextSecBrush}" RenderTransformOrigin="0.5,0.5"
+                                                         HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <mi:MaterialIcon.RenderTransform><ScaleTransform /></mi:MaterialIcon.RenderTransform>
+                                        </mi:MaterialIcon>
+                                    </Border>
+                                    <TextBlock x:Name="NavBindingsLabel" Text="Overview" FontSize="10" FontWeight="Medium"
+                                               Foreground="{DynamicResource TextSecBrush}"
                                                HorizontalAlignment="Center" Margin="0,3,0,0" />
                                 </StackPanel>
                             </Grid>
                         </Button>
+                        <Border Height="1" Margin="18,6,18,6" Background="{DynamicResource CardBorderBrush}" DockPanel.Dock="Bottom" />
 
-                        <!-- Nav items -->
+                        <!-- Nav items: hardware pages, then app pages -->
                         <StackPanel>
-                            <Button x:Name="NavMixer" Style="{StaticResource NavButton}" Click="NavMixer_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="0" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border x:Name="NavMixerBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
-                                            Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
-                                            Visibility="Collapsed" Margin="0" />
-                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <controls:PhosphorIcon x:Name="NavMixerIcon" IconName="SlidersHorizontal" IconSize="22"
-                                                   IconColor="#00E676" HorizontalAlignment="Center" />
-                                        <TextBlock x:Name="NavMixerLabel" Text="Mixer" FontSize="9" Foreground="{DynamicResource AccentBrush}"
-                                                   HorizontalAlignment="Center" Margin="0,3,0,0" />
-                                    </StackPanel>
-                                </Grid>
-                            </Button>
-                            <Button x:Name="NavButtons" Style="{StaticResource NavButton}" Click="NavButtons_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="0" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border x:Name="NavButtonsBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
-                                            Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
-                                            Visibility="Collapsed" Margin="0" />
-                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <controls:PhosphorIcon x:Name="NavButtonsIcon" IconName="Keyboard" IconSize="22"
-                                                   IconColor="#9A9A9A" HorizontalAlignment="Center" />
-                                        <TextBlock x:Name="NavButtonsLabel" Text="Buttons" FontSize="9" Foreground="{StaticResource TextSecBrush}"
-                                                   HorizontalAlignment="Center" Margin="0,3,0,0" />
-                                    </StackPanel>
-                                </Grid>
-                            </Button>
-                            <Button x:Name="NavLights" Style="{StaticResource NavButton}" Click="NavLights_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="0" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border x:Name="NavLightsBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
-                                            Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
-                                            Visibility="Collapsed" Margin="0" />
-                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <controls:PhosphorIcon x:Name="NavLightsIcon" IconName="Lightbulb" IconSize="22"
-                                                   IconColor="#9A9A9A" HorizontalAlignment="Center" />
-                                        <TextBlock x:Name="NavLightsLabel" Text="Lights" FontSize="9" Foreground="{StaticResource TextSecBrush}"
-                                                   HorizontalAlignment="Center" Margin="0,3,0,0" />
-                                    </StackPanel>
-                                </Grid>
-                            </Button>
-                            <Button x:Name="NavAmbience" Style="{StaticResource NavButton}" Click="NavAmbience_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="0" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border x:Name="NavAmbienceBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
-                                            Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
-                                            Visibility="Collapsed" Margin="0" />
-                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <controls:PhosphorIcon x:Name="NavAmbienceIcon" IconName="House" IconSize="22"
-                                                   IconColor="#9A9A9A" HorizontalAlignment="Center" />
-                                        <TextBlock x:Name="NavAmbienceLabel" Text="Room" FontSize="9" Foreground="{StaticResource TextSecBrush}"
-                                                   HorizontalAlignment="Center" Margin="0,3,0,0" />
-                                    </StackPanel>
-                                </Grid>
-                            </Button>
-                            <Button x:Name="NavOsd" Style="{StaticResource NavButton}" Click="NavOsd_Click"
-                                    ToolTip="OSD Overlay &amp; Quick Wheel settings">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="0" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border x:Name="NavOsdBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
-                                            Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
-                                            Visibility="Collapsed" Margin="0" />
-                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <controls:PhosphorIcon x:Name="NavOsdIcon" IconName="Monitor" IconSize="22"
-                                                   IconColor="#9A9A9A" HorizontalAlignment="Center" />
-                                        <TextBlock x:Name="NavOsdLabel" Text="OSD" FontSize="9" Foreground="{StaticResource TextSecBrush}"
-                                                   HorizontalAlignment="Center" Margin="0,3,0,0" />
-                                    </StackPanel>
-                                </Grid>
-                            </Button>
-                            <Button x:Name="NavGroups" Style="{StaticResource NavButton}" Click="NavGroups_Click"
-                                    ToolTip="Device Groups — organize Govee, Corsair, and HA devices">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="0" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border x:Name="NavGroupsBar" Grid.Column="0" Width="6" Height="6" CornerRadius="3"
-                                            Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"
-                                            Visibility="Collapsed" Margin="0" />
-                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <controls:PhosphorIcon x:Name="NavGroupsIcon" IconName="Link" IconSize="22"
-                                                   IconColor="#9A9A9A" HorizontalAlignment="Center" />
-                                        <TextBlock x:Name="NavGroupsLabel" Text="Groups" FontSize="9" Foreground="{StaticResource TextSecBrush}"
-                                                   HorizontalAlignment="Center" Margin="0,3,0,0" />
-                                    </StackPanel>
-                                </Grid>
-                            </Button>
+                        <Button x:Name="NavMixer" Style="{StaticResource SidebarNavButton}" Click="NavMixer_Click">
+                            <Grid>
+                                <Border x:Name="NavMixerBar" Width="3" Height="0" CornerRadius="2" Opacity="0"
+                                        Background="{DynamicResource AccentBrush}" HorizontalAlignment="Left"
+                                        VerticalAlignment="Center" Margin="-7,0,0,0" IsHitTestVisible="False" />
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Border x:Name="NavMixerPill" Width="44" Height="30" CornerRadius="10" Background="Transparent">
+                                        <mi:MaterialIcon x:Name="NavMixerIcon" Kind="TuneVertical" Width="22" Height="22"
+                                                         Foreground="{DynamicResource TextSecBrush}" RenderTransformOrigin="0.5,0.5"
+                                                         HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <mi:MaterialIcon.RenderTransform><ScaleTransform /></mi:MaterialIcon.RenderTransform>
+                                        </mi:MaterialIcon>
+                                    </Border>
+                                    <TextBlock x:Name="NavMixerLabel" Text="Mixer" FontSize="10" FontWeight="Medium"
+                                               Foreground="{DynamicResource TextSecBrush}"
+                                               HorizontalAlignment="Center" Margin="0,3,0,0" />
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                        <Button x:Name="NavButtons" Style="{StaticResource SidebarNavButton}" Click="NavButtons_Click">
+                            <Grid>
+                                <Border x:Name="NavButtonsBar" Width="3" Height="0" CornerRadius="2" Opacity="0"
+                                        Background="{DynamicResource AccentBrush}" HorizontalAlignment="Left"
+                                        VerticalAlignment="Center" Margin="-7,0,0,0" IsHitTestVisible="False" />
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Border x:Name="NavButtonsPill" Width="44" Height="30" CornerRadius="10" Background="Transparent">
+                                        <mi:MaterialIcon x:Name="NavButtonsIcon" Kind="GestureTapButton" Width="22" Height="22"
+                                                         Foreground="{DynamicResource TextSecBrush}" RenderTransformOrigin="0.5,0.5"
+                                                         HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <mi:MaterialIcon.RenderTransform><ScaleTransform /></mi:MaterialIcon.RenderTransform>
+                                        </mi:MaterialIcon>
+                                    </Border>
+                                    <TextBlock x:Name="NavButtonsLabel" Text="Buttons" FontSize="10" FontWeight="Medium"
+                                               Foreground="{DynamicResource TextSecBrush}"
+                                               HorizontalAlignment="Center" Margin="0,3,0,0" />
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                        <Button x:Name="NavLights" Style="{StaticResource SidebarNavButton}" Click="NavLights_Click">
+                            <Grid>
+                                <Border x:Name="NavLightsBar" Width="3" Height="0" CornerRadius="2" Opacity="0"
+                                        Background="{DynamicResource AccentBrush}" HorizontalAlignment="Left"
+                                        VerticalAlignment="Center" Margin="-7,0,0,0" IsHitTestVisible="False" />
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Border x:Name="NavLightsPill" Width="44" Height="30" CornerRadius="10" Background="Transparent">
+                                        <mi:MaterialIcon x:Name="NavLightsIcon" Kind="LightbulbOutline" Width="22" Height="22"
+                                                         Foreground="{DynamicResource TextSecBrush}" RenderTransformOrigin="0.5,0.5"
+                                                         HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <mi:MaterialIcon.RenderTransform><ScaleTransform /></mi:MaterialIcon.RenderTransform>
+                                        </mi:MaterialIcon>
+                                    </Border>
+                                    <TextBlock x:Name="NavLightsLabel" Text="Lights" FontSize="10" FontWeight="Medium"
+                                               Foreground="{DynamicResource TextSecBrush}"
+                                               HorizontalAlignment="Center" Margin="0,3,0,0" />
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                        <Border Height="1" Margin="18,6,18,6" Background="{DynamicResource CardBorderBrush}" />
+                        <Button x:Name="NavAmbience" Style="{StaticResource SidebarNavButton}" Click="NavAmbience_Click">
+                            <Grid>
+                                <Border x:Name="NavAmbienceBar" Width="3" Height="0" CornerRadius="2" Opacity="0"
+                                        Background="{DynamicResource AccentBrush}" HorizontalAlignment="Left"
+                                        VerticalAlignment="Center" Margin="-7,0,0,0" IsHitTestVisible="False" />
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Border x:Name="NavAmbiencePill" Width="44" Height="30" CornerRadius="10" Background="Transparent">
+                                        <mi:MaterialIcon x:Name="NavAmbienceIcon" Kind="SofaOutline" Width="22" Height="22"
+                                                         Foreground="{DynamicResource TextSecBrush}" RenderTransformOrigin="0.5,0.5"
+                                                         HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <mi:MaterialIcon.RenderTransform><ScaleTransform /></mi:MaterialIcon.RenderTransform>
+                                        </mi:MaterialIcon>
+                                    </Border>
+                                    <TextBlock x:Name="NavAmbienceLabel" Text="Room" FontSize="10" FontWeight="Medium"
+                                               Foreground="{DynamicResource TextSecBrush}"
+                                               HorizontalAlignment="Center" Margin="0,3,0,0" />
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                        <Button x:Name="NavOsd" Style="{StaticResource SidebarNavButton}" Click="NavOsd_Click" ToolTip="OSD Overlay &amp; Quick Wheel settings">
+                            <Grid>
+                                <Border x:Name="NavOsdBar" Width="3" Height="0" CornerRadius="2" Opacity="0"
+                                        Background="{DynamicResource AccentBrush}" HorizontalAlignment="Left"
+                                        VerticalAlignment="Center" Margin="-7,0,0,0" IsHitTestVisible="False" />
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Border x:Name="NavOsdPill" Width="44" Height="30" CornerRadius="10" Background="Transparent">
+                                        <mi:MaterialIcon x:Name="NavOsdIcon" Kind="MonitorDashboard" Width="22" Height="22"
+                                                         Foreground="{DynamicResource TextSecBrush}" RenderTransformOrigin="0.5,0.5"
+                                                         HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <mi:MaterialIcon.RenderTransform><ScaleTransform /></mi:MaterialIcon.RenderTransform>
+                                        </mi:MaterialIcon>
+                                    </Border>
+                                    <TextBlock x:Name="NavOsdLabel" Text="OSD" FontSize="10" FontWeight="Medium"
+                                               Foreground="{DynamicResource TextSecBrush}"
+                                               HorizontalAlignment="Center" Margin="0,3,0,0" />
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                        <Button x:Name="NavGroups" Style="{StaticResource SidebarNavButton}" Click="NavGroups_Click" ToolTip="Device Groups — organize Govee, Corsair, and HA devices">
+                            <Grid>
+                                <Border x:Name="NavGroupsBar" Width="3" Height="0" CornerRadius="2" Opacity="0"
+                                        Background="{DynamicResource AccentBrush}" HorizontalAlignment="Left"
+                                        VerticalAlignment="Center" Margin="-7,0,0,0" IsHitTestVisible="False" />
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Border x:Name="NavGroupsPill" Width="44" Height="30" CornerRadius="10" Background="Transparent">
+                                        <mi:MaterialIcon x:Name="NavGroupsIcon" Kind="VectorLink" Width="22" Height="22"
+                                                         Foreground="{DynamicResource TextSecBrush}" RenderTransformOrigin="0.5,0.5"
+                                                         HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <mi:MaterialIcon.RenderTransform><ScaleTransform /></mi:MaterialIcon.RenderTransform>
+                                        </mi:MaterialIcon>
+                                    </Border>
+                                    <TextBlock x:Name="NavGroupsLabel" Text="Groups" FontSize="10" FontWeight="Medium"
+                                               Foreground="{DynamicResource TextSecBrush}"
+                                               HorizontalAlignment="Center" Margin="0,3,0,0" />
+                                </StackPanel>
+                            </Grid>
+                        </Button>
                         </StackPanel>
                     </DockPanel>
                 </Grid>

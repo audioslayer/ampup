@@ -132,6 +132,9 @@ public partial class MainWindow : FluentWindow
 
         // Connection dot glow
         ConnectionDotGlow.Color = ThemeManager.Accent;
+
+        // Active sidebar pill tint
+        RefreshNavAccent();
     }
 
     /// <summary>
@@ -423,67 +426,116 @@ public partial class MainWindow : FluentWindow
         }
     }
 
-    // Map nav buttons to their indicator bars
-    private Dictionary<System.Windows.Controls.Button, System.Windows.Controls.Border> GetNavBars() => new()
+    // ── Sidebar nav ─────────────────────────────────────────────────
+    // Each item: outline icon when idle, filled icon when active (where MDI has a pair).
+    private sealed record NavItem(System.Windows.Controls.Button Button, System.Windows.Controls.Border Bar,
+        System.Windows.Controls.Border Pill, MiIcon Icon, System.Windows.Controls.TextBlock Label,
+        MaterialIconKind Idle, MaterialIconKind Active);
+
+    private Dictionary<System.Windows.Controls.Button, NavItem>? _navItems;
+
+    private Dictionary<System.Windows.Controls.Button, NavItem> NavItems => _navItems ??= new()
     {
-        { NavMixer,     NavMixerBar },
-        { NavButtons,   NavButtonsBar },
-        { NavLights,    NavLightsBar },
-        { NavAmbience,  NavAmbienceBar },
-        { NavOsd,       NavOsdBar },
-        { NavGroups,    NavGroupsBar },
-        { NavSettings,  NavSettingsBar },
-        { NavBindings,  NavBindingsBar },
+        { NavMixer,    new(NavMixer,    NavMixerBar,    NavMixerPill,    NavMixerIcon,    NavMixerLabel,    MaterialIconKind.TuneVertical,         MaterialIconKind.TuneVerticalVariant) },
+        { NavButtons,  new(NavButtons,  NavButtonsBar,  NavButtonsPill,  NavButtonsIcon,  NavButtonsLabel,  MaterialIconKind.GestureTapButton,     MaterialIconKind.GestureTapButton) },
+        { NavLights,   new(NavLights,   NavLightsBar,   NavLightsPill,   NavLightsIcon,   NavLightsLabel,   MaterialIconKind.LightbulbOutline,     MaterialIconKind.Lightbulb) },
+        { NavAmbience, new(NavAmbience, NavAmbienceBar, NavAmbiencePill, NavAmbienceIcon, NavAmbienceLabel, MaterialIconKind.SofaOutline,          MaterialIconKind.Sofa) },
+        { NavOsd,      new(NavOsd,      NavOsdBar,      NavOsdPill,      NavOsdIcon,      NavOsdLabel,      MaterialIconKind.MonitorDashboard,     MaterialIconKind.MonitorDashboard) },
+        { NavGroups,   new(NavGroups,   NavGroupsBar,   NavGroupsPill,   NavGroupsIcon,   NavGroupsLabel,   MaterialIconKind.VectorLink,           MaterialIconKind.VectorLink) },
+        { NavBindings, new(NavBindings, NavBindingsBar, NavBindingsPill, NavBindingsIcon, NavBindingsLabel, MaterialIconKind.ViewDashboardOutline, MaterialIconKind.ViewDashboard) },
+        { NavSettings, new(NavSettings, NavSettingsBar, NavSettingsPill, NavSettingsIcon, NavSettingsLabel, MaterialIconKind.CogOutline,           MaterialIconKind.Cog) },
     };
+
+    private bool _navHoverWired;
+
+    private void WireNavHover()
+    {
+        if (_navHoverWired) return;
+        _navHoverWired = true;
+        foreach (var item in NavItems.Values)
+        {
+            var it = item;
+            it.Button.MouseEnter += (_, _) => AnimateNavIconScale(it, 1.12);
+            it.Button.MouseLeave += (_, _) => AnimateNavIconScale(it, 1.0);
+        }
+    }
+
+    private static void AnimateNavIconScale(NavItem item, double to)
+    {
+        if (item.Icon.RenderTransform is not ScaleTransform st || st.IsFrozen)
+            item.Icon.RenderTransform = st = new ScaleTransform();
+        var anim = new System.Windows.Media.Animation.DoubleAnimation(to, TimeSpan.FromMilliseconds(120))
+        { EasingFunction = new System.Windows.Media.Animation.QuadraticEase() };
+        st.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
+        st.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
+    }
+
+    private static SolidColorBrush NavPillBrush()
+    {
+        var b = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x26));
+        b.Freeze();
+        return b;
+    }
+
+    private void ApplyNavItemState(NavItem item, bool active, bool animate)
+    {
+        item.Icon.Kind = active ? item.Active : item.Idle;
+        if (active)
+        {
+            item.Icon.SetResourceReference(MiIcon.ForegroundProperty, "AccentBrush");
+            item.Label.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "AccentBrush");
+            item.Label.FontWeight = FontWeights.SemiBold;
+            item.Pill.Background = NavPillBrush();
+        }
+        else
+        {
+            item.Icon.SetResourceReference(MiIcon.ForegroundProperty, "TextSecBrush");
+            item.Label.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextSecBrush");
+            item.Label.FontWeight = FontWeights.Medium;
+            item.Pill.Background = Brushes.Transparent;
+        }
+
+        // Indicator bar: grows from the centre + fades (cheap, layout-only on one element)
+        double h = active ? 24 : 0, o = active ? 1 : 0;
+        if (animate)
+        {
+            var dur = TimeSpan.FromMilliseconds(180);
+            var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+            item.Bar.BeginAnimation(HeightProperty, new System.Windows.Media.Animation.DoubleAnimation(h, dur) { EasingFunction = ease });
+            item.Bar.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(o, dur));
+        }
+        else
+        {
+            item.Bar.BeginAnimation(HeightProperty, null);
+            item.Bar.BeginAnimation(OpacityProperty, null);
+            item.Bar.Height = h;
+            item.Bar.Opacity = o;
+        }
+    }
+
+    private void RefreshNavAccent()
+    {
+        if (_activeNavButton != null && NavItems.TryGetValue(_activeNavButton, out var item))
+            item.Pill.Background = NavPillBrush();
+    }
 
     private void NavigateTo(System.Windows.Controls.UserControl view, System.Windows.Controls.Button navButton)
     {
         ContentArea.Content = view;
+        WireNavHover();
 
-        // Update sidebar highlight (icon + label)
-        var accent = (SolidColorBrush)FindResource("AccentBrush");
-        var dimIcon = (SolidColorBrush)FindResource("TextSecBrush");
-        var dimLabel = (SolidColorBrush)FindResource("TextSecBrush");
+        bool animate = IsLoaded;
+        if (_activeNavButton != null && _activeNavButton != navButton
+            && NavItems.TryGetValue(_activeNavButton, out var old))
+            ApplyNavItemState(old, false, animate);
 
-        if (_activeNavButton != null)
+        if (NavItems.TryGetValue(navButton, out var item))
         {
-            var (oldPhIcon, oldLabel) = FindNavChildren(_activeNavButton);
-            if (oldPhIcon != null) oldPhIcon.IconColor = ((SolidColorBrush)dimIcon).Color;
-            if (oldLabel != null) oldLabel.Foreground = dimLabel;
-
-            if (_activeNavBar != null)
-                _activeNavBar.Visibility = Visibility.Collapsed;
-        }
-
-        var (newPhIcon, newLabel) = FindNavChildren(navButton);
-        if (newPhIcon != null) newPhIcon.IconColor = ((SolidColorBrush)accent).Color;
-        if (newLabel != null) newLabel.Foreground = accent;
-
-        // Show new indicator bar
-        var bars = GetNavBars();
-        if (bars.TryGetValue(navButton, out var bar))
-        {
-            bar.Visibility = Visibility.Visible;
-            _activeNavBar = bar;
+            ApplyNavItemState(item, true, animate && _activeNavButton != navButton);
+            _activeNavBar = item.Bar;
         }
 
         _activeNavButton = navButton;
-    }
-
-    private static (Controls.PhosphorIcon? Icon, System.Windows.Controls.TextBlock? Label) FindNavChildren(System.Windows.Controls.Button button)
-    {
-        var grid = button.Content as System.Windows.Controls.Grid;
-        var sp = grid != null
-            ? grid.Children.OfType<System.Windows.Controls.StackPanel>().FirstOrDefault()
-            : button.Content as System.Windows.Controls.StackPanel;
-
-        if (sp != null)
-        {
-            var phIcon = sp.Children.OfType<Controls.PhosphorIcon>().FirstOrDefault();
-            var label = sp.Children.OfType<System.Windows.Controls.TextBlock>().FirstOrDefault();
-            return (phIcon, label);
-        }
-        return (null, null);
     }
 
     // ── Window drag ─────────────────────────────────────────────────
