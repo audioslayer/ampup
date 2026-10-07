@@ -673,7 +673,7 @@ public partial class OsdView : UserControl
         (QuickWheelMode.SignalRgbEffect, "SignalRGB Effects"),
         (QuickWheelMode.Custom, "Custom"),
     };
-    private const int WheelMaxItems = 8;
+    private const int WheelMaxItems = RadialWheelOverlay.MaxSlots;
 
     private static int WheelModePillIndex(QuickWheelMode mode) =>
         Math.Max(0, Array.FindIndex(WheelModes, m => m.mode == mode));
@@ -749,7 +749,7 @@ public partial class OsdView : UserControl
         });
         body.Children.Add(modePills);
 
-        customPanel.Children.Add(MakeHint("Pick an action, the label shown on its wheel segment, and any settings it needs (max 8 slots).", new Thickness(0, 0, 0, 8)));
+        customPanel.Children.Add(MakeHint("Pick an action, the label shown on its wheel segment, and any settings it needs (max 12 slots).", new Thickness(0, 0, 0, 8)));
 
         // Populate existing custom slots
         foreach (var slot in qw.CustomSlots)
@@ -761,7 +761,7 @@ public partial class OsdView : UserControl
             AddCustomSlotRow(state, new CustomWheelSlot());
             _debounceTimer.Stop();
             _debounceTimer.Start();
-        }, "Add a custom action slot (max 8)");
+        }, "Add a custom action slot (max 12)");
         addSlotBtn.Tag = "addSlotBtn";
         addSlotBtn.HorizontalAlignment = HorizontalAlignment.Left;
         addSlotBtn.Margin = new Thickness(-8, 2, 0, 0);

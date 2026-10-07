@@ -5549,7 +5549,7 @@ public partial class App : Application
     // One command per visible wheel segment, captured when the wheel opens so
     // confirming runs exactly what was shown (no re-enumeration / index drift).
     private List<Action> _wheelCommands = new();
-    private const int WheelMaxSlots = 8;
+    private const int WheelMaxSlots = RadialWheelOverlay.MaxSlots;
 
     private void HandleQuickWheelOpen(int buttonIdx)
     {
@@ -5658,7 +5658,9 @@ public partial class App : Application
             if (isInput)
             {
                 var color = System.Windows.Media.Color.FromRgb(0xFF, 0xB8, 0x00);
-                _radialWheel!.SetActions(list.Select(a => (a.id, a.name, "Microphone", color)).ToList(), currentIdx);
+                int activeIdx = list.FindIndex(a => a.id == currentId);
+                _radialWheel!.SetActions(list.Select(a => (a.id, a.name, "Microphone", color)).ToList(),
+                    currentIdx, "Input device", activeIdx);
             }
             else
             {
@@ -5694,9 +5696,10 @@ public partial class App : Application
         if (names.Count == 0) { _wheelVisible = false; return; }
 
         var color = System.Windows.Media.Color.FromRgb(0xAB, 0x47, 0xBC);
-        int currentIdx = Math.Max(0, names.FindIndex(n =>
-            string.Equals(n, Services.SignalRgbEffectCatalog.LastAppliedEffectName, StringComparison.OrdinalIgnoreCase)));
-        _radialWheel!.SetActions(names.Select(n => (n, n, "Palette", color)).ToList(), currentIdx);
+        int activeIdx = names.FindIndex(n =>
+            string.Equals(n, Services.SignalRgbEffectCatalog.LastAppliedEffectName, StringComparison.OrdinalIgnoreCase));
+        _radialWheel!.SetActions(names.Select(n => (n, n, "Palette", color)).ToList(),
+            Math.Max(0, activeIdx), "SignalRGB effect", activeIdx);
         foreach (var name in names)
             _wheelCommands.Add(() => Services.SignalRgbEffectCatalog.ApplyEffect(name));
     }
@@ -5715,7 +5718,7 @@ public partial class App : Application
 
     private void PopulateWheelMediaControls()
     {
-        _radialWheel!.SetActions(MediaControlActions, 0);
+        _radialWheel!.SetActions(MediaControlActions, 0, "Media control");
         foreach (var a in MediaControlActions)
         {
             var actionId = a.id;
