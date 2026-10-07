@@ -724,20 +724,17 @@ public partial class OsdView : UserControl
         var enableSw = MakeSwitch(state.Enabled, on => { state.Enabled = on; QueueSave(); },
             out _, "Enable or disable this wheel (disabling releases the button's hold action)");
         System.Windows.Controls.Border wrapper = null!;
-        var more = UiKit.MoreButton(() => new List<GlassMenuItem>
+        var remove = UiKit.IconButton(MaterialIconKind.DeleteOutline, "Remove wheel", _ =>
         {
-            new("Remove wheel", MaterialIconKind.DeleteOutline, () =>
-            {
-                WheelRowsPanel.Children.Remove(wrapper);
-                RenumberWheels();
-                _debounceTimer.Stop();
-                _debounceTimer.Start();
-            }, IsDanger: true),
-        });
-        more.Margin = new Thickness(8, 0, 0, 0);
+            WheelRowsPanel.Children.Remove(wrapper);
+            RenumberWheels();
+            _debounceTimer.Stop();
+            _debounceTimer.Start();
+        }, danger: true);
+        remove.Margin = new Thickness(8, 0, 0, 0);
         var actions = new StackPanel { Orientation = Orientation.Horizontal };
         actions.Children.Add(enableSw);
-        actions.Children.Add(more);
+        actions.Children.Add(remove);
 
         var card = UiKit.Card(Color.FromRgb(0xFF, 0x70, 0x43), MaterialIconKind.ChartDonut, "Wheel", null, actions, body);
         wrapper = card.Root;
