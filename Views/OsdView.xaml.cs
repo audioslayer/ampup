@@ -39,11 +39,26 @@ public partial class OsdView : UserControl
     private sealed class WheelRowState
     {
         public bool Enabled;
-        public int ModeIdx;
+        public QuickWheelMode Mode;
         public ComboBox TriggerCombo = null!;
         public StackPanel CustomPanel = null!;
+        public StackPanel ItemsPanel = null!;
         public TextBlock Title = null!;
         public TextBlock Subtitle = null!;
+        public List<string> OutputDeviceIds = new();
+        public List<string> InputDeviceIds = new();
+        public List<string> SignalRgbEffects = new();
+        public readonly List<CustomSlotRowState> Slots = new();
+    }
+
+    /// <summary>Editor state for one Custom wheel slot row.</summary>
+    private sealed class CustomSlotRowState
+    {
+        public StackPanel Row = null!;
+        public ComboBox Action = null!;
+        public TextBox Label = null!;
+        public Func<string> GetPath = () => "", GetKeys = () => "", GetProfile = () => "";
+        public string ActionId => (Action?.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
     }
 
     public OsdView()
@@ -567,7 +582,10 @@ public partial class OsdView : UserControl
         ("power_off", "Shutdown"),
         ("power_restart", "Restart"),
         ("launch_exe", "Launch App"),
+        ("open_url", "Open URL"),
         ("macro", "Macro"),
+        ("switch_profile", "Switch Profile"),
+        ("signalrgb_effect", "SignalRGB Effect"),
     };
 
     /// <summary>
@@ -645,11 +663,32 @@ public partial class OsdView : UserControl
         combo.SelectedIndex = Math.Clamp(selectIndex, 0, combo.Items.Count - 1);
     }
 
-    private static readonly string[] WheelModeLabels = { "Profiles", "Output Device", "Media Controls", "Custom" };
+    // Pill order shown to the user → QuickWheelMode stored in config.
+    private static readonly (QuickWheelMode mode, string label)[] WheelModes =
+    {
+        (QuickWheelMode.Profile, "Profiles"),
+        (QuickWheelMode.OutputDevice, "Output Devices"),
+        (QuickWheelMode.InputDevice, "Input Devices"),
+        (QuickWheelMode.MediaControls, "Media Controls"),
+        (QuickWheelMode.SignalRgbEffect, "SignalRGB Effects"),
+        (QuickWheelMode.Custom, "Custom"),
+    };
+    private const int WheelMaxItems = 8;
+
+    private static int WheelModePillIndex(QuickWheelMode mode) =>
+        Math.Max(0, Array.FindIndex(WheelModes, m => m.mode == mode));
 
     private void AddWheelRow(QuickWheelConfig qw)
     {
-        var state = new WheelRowState { Enabled = qw.Enabled, ModeIdx = Math.Clamp((int)qw.Mode, 0, 3) };
+        var mode = Enum.IsDefined(qw.Mode) ? qw.Mode : QuickWheelMode.Profile;
+        var state = new WheelRowState
+        {
+            Enabled = qw.Enabled,
+            Mode = mode,
+            OutputDeviceIds = new List<string>(qw.OutputDeviceIds),
+            InputDeviceIds = new List<string>(qw.InputDeviceIds),
+            SignalRgbEffects = new List<string>(qw.SignalRgbEffects),
+        };
 
         var body = new StackPanel();
         var enableSw = MakeSwitch(state.Enabled, on => { state.Enabled = on; QueueSave(); },
@@ -694,36 +733,32 @@ public partial class OsdView : UserControl
         body.Children.Add(MakeLabel("Shows"));
 
         // Custom slots panel (shown only when mode = Custom)
-        var customPanel = new StackPanel
-        {
-            Margin = new Thickness(0, 6, 0, 0),
-            Visibility = state.ModeIdx == (int)QuickWheelMode.Custom ? Visibility.Visible : Visibility.Collapsed,
-            Tag = "customPanel",
-        };
+        var customPanel = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
         state.CustomPanel = customPanel;
 
-        var modePills = MakePillRow(WheelModeLabels, state.ModeIdx, idx =>
+        // Item picker (shown for device / SignalRGB modes) — rebuilt on mode change
+        var itemsPanel = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
+        state.ItemsPanel = itemsPanel;
+
+        var modePills = MakePillRow(WheelModes.Select(m => m.label).ToArray(), WheelModePillIndex(state.Mode), idx =>
         {
-            state.ModeIdx = idx;
+            state.Mode = WheelModes[idx].mode;
             UpdateWheelSubtitle(state);
-            customPanel.Visibility = idx == (int)QuickWheelMode.Custom ? Visibility.Visible : Visibility.Collapsed;
+            RefreshWheelModePanels(state);
             if (!_loading) { _debounceTimer.Stop(); _debounceTimer.Start(); }
         });
         body.Children.Add(modePills);
 
-        customPanel.Children.Add(MakeHint("Pick an action and the label shown on its wheel segment (max 8 slots).", new Thickness(0, 0, 0, 8)));
+        customPanel.Children.Add(MakeHint("Pick an action, the label shown on its wheel segment, and any settings it needs (max 8 slots).", new Thickness(0, 0, 0, 8)));
 
         // Populate existing custom slots
         foreach (var slot in qw.CustomSlots)
-            AddCustomSlotRow(customPanel, slot);
+            AddCustomSlotRow(state, slot);
 
         var addSlotBtn = UiKit.LinkRow(MaterialIconKind.Plus, "Add slot", accent: true, () =>
         {
-            int slotCount = 0;
-            foreach (var c in customPanel.Children)
-                if (c is Grid g && g.Tag is string s && s == "slotRow") slotCount++;
-            if (slotCount >= 8) return;
-            AddCustomSlotRow(customPanel, new CustomWheelSlot());
+            if (state.Slots.Count >= WheelMaxItems) return;
+            AddCustomSlotRow(state, new CustomWheelSlot());
             _debounceTimer.Stop();
             _debounceTimer.Start();
         }, "Add a custom action slot (max 8)");
@@ -732,17 +767,19 @@ public partial class OsdView : UserControl
         addSlotBtn.Margin = new Thickness(-8, 2, 0, 0);
         customPanel.Children.Add(addSlotBtn);
         body.Children.Add(customPanel);
+        body.Children.Add(itemsPanel);
 
         WheelRowsPanel.Children.Add(wrapper);
         RenumberWheels();
         UpdateWheelSubtitle(state);
+        RefreshWheelModePanels(state);
     }
 
     private static void UpdateWheelSubtitle(WheelRowState st)
     {
         if (st.Subtitle == null) return;
         string trig = (st.TriggerCombo?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "";
-        string mode = WheelModeLabels[Math.Clamp(st.ModeIdx, 0, WheelModeLabels.Length - 1)];
+        string mode = WheelModes[WheelModePillIndex(st.Mode)].label;
         st.Subtitle.Text = string.IsNullOrEmpty(trig) ? mode : $"Hold {trig}  ·  {mode}";
         st.Subtitle.Visibility = Visibility.Visible;
     }
@@ -757,14 +794,136 @@ public partial class OsdView : UserControl
             _wheelCountText.Text = n - 1 == 1 ? "1 wheel" : $"{n - 1} wheels";
     }
 
-    private void AddCustomSlotRow(StackPanel customPanel, CustomWheelSlot slot)
+    /// <summary>Show the custom slot editor or the item checklist that matches the wheel's mode.</summary>
+    private void RefreshWheelModePanels(WheelRowState st)
     {
-        var slotRow = new Grid { Margin = new Thickness(0, 0, 0, 4), Tag = "slotRow" };
-        slotRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
-        slotRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-        slotRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
-        slotRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        slotRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        st.CustomPanel.Visibility = st.Mode == QuickWheelMode.Custom ? Visibility.Visible : Visibility.Collapsed;
+        st.ItemsPanel.Children.Clear();
+
+        switch (st.Mode)
+        {
+            case QuickWheelMode.OutputDevice:
+                BuildWheelItemChecklist(st.ItemsPanel, st.OutputDeviceIds,
+                    GetAudioDevices(NAudio.CoreAudioApi.DataFlow.Render), "output devices");
+                break;
+            case QuickWheelMode.InputDevice:
+                BuildWheelItemChecklist(st.ItemsPanel, st.InputDeviceIds,
+                    GetAudioDevices(NAudio.CoreAudioApi.DataFlow.Capture), "input devices");
+                break;
+            case QuickWheelMode.SignalRgbEffect:
+                BuildWheelItemChecklist(st.ItemsPanel, st.SignalRgbEffects,
+                    GetSignalRgbEffectNames().Select(n => (n, n)).ToList(), "SignalRGB effects");
+                break;
+        }
+        st.ItemsPanel.Visibility = st.ItemsPanel.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private static List<(string id, string name)> GetAudioDevices(NAudio.CoreAudioApi.DataFlow flow)
+    {
+        var list = new List<(string id, string name)>();
+        try
+        {
+            using var enumerator = new NAudio.CoreAudioApi.MMDeviceEnumerator();
+            var devices = enumerator.EnumerateAudioEndPoints(flow, NAudio.CoreAudioApi.DeviceState.Active);
+            for (int i = 0; i < devices.Count; i++)
+            {
+                using var d = devices[i];
+                list.Add((d.ID, d.FriendlyName));
+            }
+        }
+        catch (Exception ex) { Logger.Log($"OSD wheel device list error: {ex.Message}"); }
+        return list;
+    }
+
+    private static List<string> GetSignalRgbEffectNames()
+    {
+        try { return AmpUp.Services.SignalRgbEffectCatalog.GetInstalledEffects().Select(e => e.Name).ToList(); }
+        catch (Exception ex) { Logger.Log($"OSD wheel SignalRGB list error: {ex.Message}"); return new(); }
+    }
+
+    /// <summary>
+    /// Checklist of available items; <paramref name="picked"/> is edited in place and
+    /// keeps check order (= wheel order). Picked items that aren't available right now
+    /// (unplugged device, removed effect) stay listed so they aren't silently dropped.
+    /// </summary>
+    private void BuildWheelItemChecklist(StackPanel host, List<string> picked,
+        List<(string id, string name)> available, string noun)
+    {
+        host.Children.Add(MakeHint(
+            $"Pick up to {WheelMaxItems} {noun} for this wheel, in the order you check them. None picked = the first {WheelMaxItems}.",
+            new Thickness(0, 0, 0, 8)));
+
+        var items = new List<(string id, string name, bool missing)>();
+        foreach (var id in picked)
+        {
+            var match = available.FirstOrDefault(a => a.id == id);
+            items.Add(match.id != null ? (id, match.name, false) : (id, id, true));
+        }
+        foreach (var a in available)
+            if (!picked.Contains(a.id)) items.Add((a.id, a.name, false));
+
+        if (items.Count == 0)
+        {
+            host.Children.Add(MakeHint($"No {noun} found on this PC.", new Thickness(0, 0, 0, 4)));
+            return;
+        }
+
+        var countText = MakeHint("", new Thickness(0, 6, 0, 0));
+        var boxes = new List<CheckBox>();
+        void Refresh()
+        {
+            countText.Text = picked.Count == 0
+                ? $"Showing the first {Math.Min(WheelMaxItems, available.Count)} automatically"
+                : $"{picked.Count} of {WheelMaxItems} picked";
+            foreach (var cb in boxes)
+                cb.IsEnabled = cb.IsChecked == true || picked.Count < WheelMaxItems;
+        }
+
+        var list = new StackPanel();
+        foreach (var (id, name, missing) in items)
+        {
+            var cb = new CheckBox
+            {
+                Content = missing ? $"{name}  (not available)" : name,
+                IsChecked = picked.Contains(id),
+                Margin = new Thickness(0, 2, 0, 2),
+                FontSize = 12,
+            };
+            cb.SetResourceReference(Control.ForegroundProperty, missing ? "TextDimBrush" : "TextPrimaryBrush");
+            cb.Checked += (_, _) => { if (!picked.Contains(id)) picked.Add(id); Refresh(); QueueSave(); };
+            cb.Unchecked += (_, _) => { picked.Remove(id); Refresh(); QueueSave(); };
+            boxes.Add(cb);
+            list.Children.Add(cb);
+        }
+
+        host.Children.Add(new ScrollViewer
+        {
+            Content = list,
+            MaxHeight = 240,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+        });
+        host.Children.Add(countText);
+        Refresh();
+    }
+
+    private void AddCustomSlotRow(WheelRowState st, CustomWheelSlot slot)
+    {
+        var customPanel = st.CustomPanel;
+        var slotState = new CustomSlotRowState();
+        var row = new StackPanel { Margin = new Thickness(0, 0, 0, 6), Tag = slotState };
+        slotState.Row = row;
+
+        var topRow = new Grid();
+        topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
+        topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+        topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+        topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.Children.Add(topRow);
+
+        // Second line holds the action's settings (keys / app / URL / profile / effect)
+        var paramHost = new StackPanel { Margin = new Thickness(12, 4, 0, 0) };
+        row.Children.Add(paramHost);
 
         var actionCombo = new ComboBox
         {
@@ -781,18 +940,9 @@ public partial class OsdView : UserControl
             if (CustomSlotActions[i].id == slot.ActionId) selectedIdx = i;
         }
         actionCombo.SelectedIndex = selectedIdx >= 0 ? selectedIdx : 0;
-        actionCombo.SelectionChanged += (_, _) =>
-        {
-            // Auto-fill label if it was empty or matched the previous action label
-            if (actionCombo.SelectedItem is ComboBoxItem ci && slotRow.Children[1] is TextBox labelBox)
-            {
-                if (string.IsNullOrEmpty(labelBox.Text) || CustomSlotActions.Any(a => a.label == labelBox.Text))
-                    labelBox.Text = ci.Content?.ToString() ?? "";
-            }
-            if (!_loading) { _debounceTimer.Stop(); _debounceTimer.Start(); }
-        };
+        slotState.Action = actionCombo;
         Grid.SetColumn(actionCombo, 0);
-        slotRow.Children.Add(actionCombo);
+        topRow.Children.Add(actionCombo);
 
         var labelBox = new TextBox
         {
@@ -801,38 +951,164 @@ public partial class OsdView : UserControl
             Background = (System.Windows.Media.Brush)FindResource("BgBaseBrush"),
             BorderBrush = (System.Windows.Media.Brush)FindResource("BgDarkBrush"),
             Foreground = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"),
-            ToolTip = "Display label on the wheel segment",
+            ToolTip = "Label shown on the wheel segment",
             VerticalContentAlignment = VerticalAlignment.Center,
             Height = 28,
         };
         labelBox.TextChanged += (_, _) => { if (!_loading) { _debounceTimer.Stop(); _debounceTimer.Start(); } };
+        slotState.Label = labelBox;
         Grid.SetColumn(labelBox, 2);
-        slotRow.Children.Add(labelBox);
+        topRow.Children.Add(labelBox);
 
         var removeSlotBtn = UiKit.IconButton(MaterialIconKind.Close, "Remove this slot", _ =>
         {
-            customPanel.Children.Remove(slotRow);
+            customPanel.Children.Remove(row);
+            st.Slots.Remove(slotState);
             _debounceTimer.Stop();
             _debounceTimer.Start();
         }, danger: true, size: 24);
         Grid.SetColumn(removeSlotBtn, 4);
-        slotRow.Children.Add(removeSlotBtn);
+        topRow.Children.Add(removeSlotBtn);
 
-        // Insert before the "Add Slot" button (last child)
-        int insertIdx = customPanel.Children.Count - 1;
-        if (insertIdx < 0) insertIdx = 0;
-        // Find the add button — it's the last child with Tag "addSlotBtn"
-        bool inserted = false;
+        // Param values survive switching the action back and forth while editing
+        string path = slot.Path, keys = slot.MacroKeys, profile = slot.ProfileName;
+        slotState.GetPath = () => path;
+        slotState.GetKeys = () => keys;
+        slotState.GetProfile = () => profile;
+
+        void BuildParam()
+        {
+            paramHost.Children.Clear();
+            string actionId = slotState.ActionId;
+            FrameworkElement? control = null;
+            string label = "";
+
+            switch (actionId)
+            {
+                case "macro":
+                {
+                    label = "Keys";
+                    var tb = MakeSlotTextBox(keys, "Key combo, e.g. win+shift+s or ctrl+alt+m");
+                    tb.TextChanged += (_, _) => { keys = tb.Text; QueueSave(); };
+                    control = tb;
+                    break;
+                }
+                case "open_url":
+                {
+                    label = "URL";
+                    var tb = MakeSlotTextBox(path, "Web address to open, e.g. https://example.com");
+                    tb.TextChanged += (_, _) => { path = tb.Text; QueueSave(); };
+                    control = tb;
+                    break;
+                }
+                case "launch_exe":
+                {
+                    label = "App";
+                    var picker = new AppPathPicker { MinWidth = 280, HorizontalAlignment = HorizontalAlignment.Left };
+                    picker.SetValue(path);
+                    picker.ValuePicked += v => { path = v; QueueSave(); };
+                    control = picker;
+                    break;
+                }
+                case "switch_profile":
+                {
+                    label = "Profile";
+                    control = MakeSlotCombo(_config?.Profiles ?? new List<string>(), profile,
+                        v => { profile = v; QueueSave(); }, "No profiles yet");
+                    break;
+                }
+                case "signalrgb_effect":
+                {
+                    label = "Effect";
+                    control = MakeSlotCombo(GetSignalRgbEffectNames(), path,
+                        v => { path = v; QueueSave(); }, "SignalRGB not found");
+                    break;
+                }
+            }
+
+            if (control == null) { paramHost.Visibility = Visibility.Collapsed; return; }
+            var line = new StackPanel { Orientation = Orientation.Horizontal };
+            var lbl = MakeHint(label, new Thickness(0, 0, 8, 0));
+            lbl.Width = 50;
+            lbl.VerticalAlignment = VerticalAlignment.Center;
+            line.Children.Add(lbl);
+            line.Children.Add(control);
+            paramHost.Children.Add(line);
+            paramHost.Visibility = Visibility.Visible;
+        }
+
+        string prevAction = slotState.ActionId;
+        actionCombo.SelectionChanged += (_, _) =>
+        {
+            // Path is shared by app / URL / effect — don't carry an exe path into a URL box
+            if (slotState.ActionId != prevAction) path = "";
+            prevAction = slotState.ActionId;
+            // Auto-fill label if it was empty or matched the previous action label
+            if (actionCombo.SelectedItem is ComboBoxItem ci
+                && (string.IsNullOrEmpty(labelBox.Text) || CustomSlotActions.Any(a => a.label == labelBox.Text)))
+                labelBox.Text = ci.Content?.ToString() ?? "";
+            BuildParam();
+            if (!_loading) { _debounceTimer.Stop(); _debounceTimer.Start(); }
+        };
+        BuildParam();
+
+        st.Slots.Add(slotState);
+        // Insert before the "Add slot" button
+        int insertAt = customPanel.Children.Count;
         for (int i = customPanel.Children.Count - 1; i >= 0; i--)
         {
             if (customPanel.Children[i] is FrameworkElement fe && fe.Tag is string t && t == "addSlotBtn")
             {
-                customPanel.Children.Insert(i, slotRow);
-                inserted = true;
+                insertAt = i;
                 break;
             }
         }
-        if (!inserted) customPanel.Children.Add(slotRow);
+        customPanel.Children.Insert(insertAt, row);
+    }
+
+    private TextBox MakeSlotTextBox(string text, string tooltip)
+    {
+        var tb = new TextBox
+        {
+            Text = text,
+            Width = 280,
+            Height = 28,
+            ToolTip = tooltip,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Background = (System.Windows.Media.Brush)FindResource("BgBaseBrush"),
+            BorderBrush = (System.Windows.Media.Brush)FindResource("BgDarkBrush"),
+            Foreground = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"),
+        };
+        return tb;
+    }
+
+    private ComboBox MakeSlotCombo(List<string> options, string selected, Action<string> onPick, string emptyText)
+    {
+        var combo = new ComboBox
+        {
+            Width = 280,
+            Background = (System.Windows.Media.Brush)FindResource("BgBaseBrush"),
+            BorderBrush = (System.Windows.Media.Brush)FindResource("BgDarkBrush"),
+            Foreground = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"),
+        };
+        // Keep a saved value that isn't currently available rather than dropping it
+        var all = new List<string>(options);
+        if (!string.IsNullOrEmpty(selected) && !all.Contains(selected)) all.Insert(0, selected);
+        if (all.Count == 0)
+        {
+            combo.Items.Add(new ComboBoxItem { Content = emptyText, IsEnabled = false });
+            combo.IsEnabled = false;
+            return combo;
+        }
+        foreach (var o in all) combo.Items.Add(new ComboBoxItem { Content = o, Tag = o });
+        combo.SelectedIndex = Math.Max(0, all.IndexOf(selected));
+        // Store the shown default so the slot isn't saved with an empty value
+        if (string.IsNullOrEmpty(selected)) onPick(all[0]);
+        combo.SelectionChanged += (_, _) =>
+        {
+            if (combo.SelectedItem is ComboBoxItem ci && ci.Tag is string v) onPick(v);
+        };
+        return combo;
     }
 
     private List<QuickWheelConfig> CollectWheelConfigs()
@@ -852,35 +1128,31 @@ public partial class OsdView : UserControl
                 triggerIdx = tag.Item2;
             }
 
+            // Every mode's contents are kept, so switching modes doesn't wipe the others.
             var cfg = new QuickWheelConfig
             {
                 Enabled = st.Enabled,
-                Mode = (QuickWheelMode)Math.Clamp(st.ModeIdx, 0, 3),
+                Mode = st.Mode,
                 Device = device,
                 TriggerButton = triggerIdx,
                 TriggerGesture = "hold",
+                OutputDeviceIds = new List<string>(st.OutputDeviceIds),
+                InputDeviceIds = new List<string>(st.InputDeviceIds),
+                SignalRgbEffects = new List<string>(st.SignalRgbEffects),
             };
 
-            // Collect custom slots if mode is Custom
-            if (cfg.Mode == QuickWheelMode.Custom)
+            foreach (var slot in st.Slots)
             {
-                foreach (var slotChild in st.CustomPanel.Children)
+                string actionId = slot.ActionId;
+                cfg.CustomSlots.Add(new CustomWheelSlot
                 {
-                    if (slotChild is Grid slotRow && slotRow.Tag is string s && s == "slotRow"
-                        && slotRow.Children.Count >= 2)
-                    {
-                        var actionCombo = slotRow.Children[0] as ComboBox;
-                        var labelBox = slotRow.Children[1] as TextBox;
-                        string actionId = "";
-                        if (actionCombo?.SelectedItem is ComboBoxItem ci && ci.Tag is string aid)
-                            actionId = aid;
-                        cfg.CustomSlots.Add(new CustomWheelSlot
-                        {
-                            ActionId = actionId,
-                            Label = labelBox?.Text ?? "",
-                        });
-                    }
-                }
+                    ActionId = actionId,
+                    Label = slot.Label.Text ?? "",
+                    // Only keep the parameter the chosen action actually uses
+                    Path = actionId is "launch_exe" or "open_url" or "signalrgb_effect" ? slot.GetPath() : "",
+                    MacroKeys = actionId == "macro" ? slot.GetKeys() : "",
+                    ProfileName = actionId == "switch_profile" ? slot.GetProfile() : "",
+                });
             }
 
             list.Add(cfg);
