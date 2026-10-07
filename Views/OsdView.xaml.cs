@@ -184,7 +184,10 @@ public partial class OsdView : UserControl
             "Placement", "Where overlays appear on screen", placeActions, placeBody).Root;
 
         RootPanel.Children.Add(UiKit.SectionHeader("OVERLAYS", "3 types"));
-        RootPanel.Children.Add(UiKit.ResponsivePair(popupsCard, placeCard));
+        // One column — side-by-side cards read as confusing on this tab.
+        RootPanel.Children.Add(popupsCard);
+        placeCard.Margin = new Thickness(placeCard.Margin.Left, Math.Max(placeCard.Margin.Top, 12), placeCard.Margin.Right, placeCard.Margin.Bottom);
+        RootPanel.Children.Add(placeCard);
 
         // ══════════════════ QUICK WHEELS ══════════════════
         RootPanel.Children.Add(UiKit.SectionHeader("QUICK WHEELS", "", out _wheelCountText));
