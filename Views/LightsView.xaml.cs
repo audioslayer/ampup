@@ -664,9 +664,6 @@ public partial class LightsView : UserControl
         });
         var catCombo = new ComboBox
         {
-            FontSize = 12,
-            Background = FindBrush("InputBgBrush"),
-            Foreground = LightsView.ThemeBrush("TextPrimaryBrush"),
         };
         foreach (var cat in new[] { "Gaming", "Music", "Work", "Party", "Ambient" })
             catCombo.Items.Add(cat);

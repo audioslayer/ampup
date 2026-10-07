@@ -682,9 +682,6 @@ public partial class OsdView : UserControl
             MinWidth = 180,
             ToolTip = "Which hardware input opens this wheel (hold)",
         };
-        btnCombo.SetResourceReference(Control.BackgroundProperty, "InputBgBrush");
-        btnCombo.SetResourceReference(Control.BorderBrushProperty, "InputBorderBrush");
-        btnCombo.SetResourceReference(Control.ForegroundProperty, "TextPrimaryBrush");
         PopulateTriggerCombo(btnCombo, qw.Device, qw.TriggerButton);
         btnCombo.SelectionChanged += (_, _) => { UpdateWheelSubtitle(state); if (!_loading) { _debounceTimer.Stop(); _debounceTimer.Start(); } };
         state.TriggerCombo = btnCombo;
@@ -769,9 +766,6 @@ public partial class OsdView : UserControl
         var actionCombo = new ComboBox
         {
             Width = 175,
-            Background = (System.Windows.Media.Brush)FindResource("BgBaseBrush"),
-            BorderBrush = (System.Windows.Media.Brush)FindResource("BgDarkBrush"),
-            Foreground = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"),
             ToolTip = "Action to execute when this slot is selected",
         };
         int selectedIdx = -1;
