@@ -82,6 +82,7 @@ public partial class MixerView : UserControl
     // Per-channel control arrays
     private readonly AnimatedKnobControl[] _knobs = new AnimatedKnobControl[5];
     private readonly VuMeterControl[] _vuMeters = new VuMeterControl[5];
+    private readonly Material.Icons.WPF.MaterialIcon[] _rangeIcons = new Material.Icons.WPF.MaterialIcon[5];
     private readonly ChannelGlowControl[] _glowControls = new ChannelGlowControl[5];
     private readonly TextBlock[] _volLabels = new TextBlock[5];
     private readonly TextBox[] _channelLabels = new TextBox[5];
@@ -745,7 +746,28 @@ public partial class MixerView : UserControl
                 Margin = new Thickness(0, 0, 0, 6)
             };
             _volLabels[i] = volLabel;
-            panel.Children.Add(volLabel);
+            // Volume % with a small range icon to its right. The range editor is rarely used,
+            // so it stays hidden inside the card until this icon is clicked.
+            var volRow = new Grid();
+            volRow.Children.Add(volLabel);
+            var rangeIcon = new Material.Icons.WPF.MaterialIcon
+            {
+                Kind = Material.Icons.MaterialIconKind.ArrowExpandVertical,
+                Width = 15, Height = 15,
+            };
+            var rangeBtn = new Border
+            {
+                Width = 24, Height = 24, CornerRadius = new CornerRadius(6),
+                HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
+                Background = Brushes.Transparent, Cursor = System.Windows.Input.Cursors.Hand,
+                ToolTip = "Volume range: limit how low or high this knob goes",
+                Child = rangeIcon,
+            };
+            rangeBtn.MouseEnter += (_, _) => rangeBtn.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+            rangeBtn.MouseLeave += (_, _) => rangeBtn.Background = Brushes.Transparent;
+            _rangeIcons[i] = rangeIcon;
+            volRow.Children.Add(rangeBtn);
+            panel.Children.Add(volRow);
 
             // Target display (shows current target as small text)
             var targetDisplay = new TextBlock
@@ -852,9 +874,42 @@ public partial class MixerView : UserControl
             labelsRow.Children.Add(maxLabel);
 
             // VOLUME RANGE — same section card as TARGET / CURVE so all rows line up.
-            rangeCells[i].Child = MakeSectionCard("VOLUME RANGE", rangeSlider, labelsRow);
+            // Volume range lives inside the knob card, collapsed until the range icon is clicked.
+            var rangeStack = new StackPanel();
+            rangeStack.Children.Add(MakeLabel("VOLUME RANGE"));
+            rangeStack.Children.Add(rangeSlider);
+            rangeStack.Children.Add(labelsRow);
+            rangeCells[i].Child = rangeStack;
+            var rangeCell = rangeCells[i];
+            if (_rangeIcons[i].Parent is Border rb)
+                rb.MouseLeftButtonUp += (_, e) =>
+                {
+                    rangeCell.Visibility = rangeCell.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+                    UpdateRangeIcon(idx);
+                    e.Handled = true;
+                };
+            rangeSlider.LowerValueChanged += (_, _) => UpdateRangeIcon(idx);
+            rangeSlider.UpperValueChanged += (_, _) => UpdateRangeIcon(idx);
+            UpdateRangeIcon(idx);
 
         }
+    }
+
+    /// <summary>Range icon is accent-coloured when the editor is open or a custom range is set.</summary>
+    private void UpdateRangeIcon(int idx)
+    {
+        var icon = _rangeIcons[idx];
+        var slider = _rangeSliders[idx];
+        if (icon == null) return;
+        bool custom = slider != null && (slider.LowerValue > 0 || slider.UpperValue < 100);
+        var cells = new[] { Ch0Range, Ch1Range, Ch2Range, Ch3Range, Ch4Range };
+        bool open = cells[idx].Visibility == Visibility.Visible;
+        if (custom || open) icon.Foreground = new SolidColorBrush(ThemeManager.Accent);
+        else icon.SetResourceReference(Control.ForegroundProperty, "TextDimBrush");
+        if (icon.Parent is FrameworkElement btn)
+            btn.ToolTip = custom && slider != null
+                ? $"Volume range {(int)slider.LowerValue}% to {(int)slider.UpperValue}% (click to edit)"
+                : "Volume range: limit how low or high this knob goes";
     }
 
     private void UpdateTargetDisplay(int idx)
@@ -875,7 +930,7 @@ public partial class MixerView : UserControl
                 else if (target is "output_device" or "input_device")
                 {
                     var device = _audioDevices.FirstOrDefault(d => d.Id == picker.SelectedSubTag);
-                    display.Text = device.Name ?? picker.SelectedSubTag;
+                    display.Text = device.Name ?? (target == "input_device" ? "Disconnected mic" : "Disconnected speaker");
                 }
                 else
                 {
@@ -1176,7 +1231,7 @@ public partial class MixerView : UserControl
         if ((baseTarget == "output_device" || baseTarget == "input_device") && !string.IsNullOrEmpty(deviceId))
         {
             var device = _audioDevices.FirstOrDefault(d => d.Id == deviceId);
-            var displayName = device.Name ?? deviceId;
+            var displayName = device.Name ?? (baseTarget == "input_device" ? "Disconnected mic" : "Disconnected speaker");
             picker.SelectByTag(baseTarget, deviceId, displayName);
             if (picker.Tag is TextBlock display)
                 display.Text = displayName;
@@ -1341,7 +1396,7 @@ public partial class MixerView : UserControl
 
     private FrameworkElement StackIcon(string app, bool running, bool first)
     {
-        var icon = running ? GetAppIcon(app) : null;
+        var icon = GetAppIcon(app); // disk cache covers apps that aren't running
         var tile = new Border
         {
             Width = 30, Height = 30, CornerRadius = new CornerRadius(9), BorderThickness = new Thickness(2),
@@ -1609,7 +1664,7 @@ public partial class MixerView : UserControl
     /// </summary>
     internal static BitmapSource? GetAppIcon(string processName)
     {
-        if (_appIconCache.TryGetValue(processName, out var cached))
+        if (_appIconCache.TryGetValue(processName, out var cached) && cached != null)
             return cached;
 
         BitmapSource? icon = null;
@@ -1642,8 +1697,52 @@ public partial class MixerView : UserControl
         }
         catch { }
 
-        _appIconCache[processName] = icon;
+        // Icons can only be read from a running process, so remember them on disk. A closed
+        // app (e.g. Spotify in an app group) still shows its real icon later. Nulls are not
+        // cached, so an app that starts later picks up its icon.
+        if (icon != null) SaveIconToDisk(processName, icon);
+        else icon = LoadIconFromDisk(processName);
+        if (icon != null) _appIconCache[processName] = icon;
         return icon;
+    }
+
+    private static string IconCachePath(string processName)
+    {
+        var bad = System.IO.Path.GetInvalidFileNameChars();
+        var safe = new string(processName.Select(c => bad.Contains(c) ? '_' : c).ToArray()).ToLowerInvariant();
+        return System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AmpUp", "icons", safe + ".png");
+    }
+
+    private static void SaveIconToDisk(string processName, BitmapSource icon)
+    {
+        try
+        {
+            var path = IconCachePath(processName);
+            if (System.IO.File.Exists(path)) return;
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
+            var enc = new PngBitmapEncoder();
+            enc.Frames.Add(BitmapFrame.Create(icon));
+            using var fs = System.IO.File.Create(path);
+            enc.Save(fs);
+        }
+        catch { }
+    }
+
+    private static BitmapSource? LoadIconFromDisk(string processName)
+    {
+        try
+        {
+            var path = IconCachePath(processName);
+            if (!System.IO.File.Exists(path)) return null;
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.UriSource = new Uri(path);
+            bmp.EndInit();
+            bmp.Freeze();
+            return bmp;
+        }
+        catch { return null; }
     }
 
     /// <summary>
