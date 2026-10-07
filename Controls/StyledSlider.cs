@@ -11,8 +11,10 @@ namespace AmpUp.Controls;
 /// </summary>
 public class StyledSlider : FrameworkElement
 {
-    private const double TrackHeight = 3.0;
-    private const double ThumbRadius = 6.0;
+    // Soft pill style: thick rounded track, thumb hidden until hover/drag/focus.
+    private const double TrackHeight = 8.0;
+    private const double ThumbRadius = 7.0;
+    private const double HaloRadius = 11.0;
     private const double TrackMargin = 8.0;
 
     private static readonly Typeface s_typeface = new("Segoe UI");
@@ -100,7 +102,7 @@ public class StyledSlider : FrameworkElement
 
         // Background track
         dc.DrawRoundedRectangle(GetTrackBg(), null,
-            new Rect(TrackLeft, trackTop, TrackWidth, TrackHeight), 1.5, 1.5);
+            new Rect(TrackLeft, trackTop, TrackWidth, TrackHeight), TrackHeight / 2, TrackHeight / 2);
 
         // Filled portion (accent colored)
         double vx = ValueToX(Value);
@@ -109,20 +111,17 @@ public class StyledSlider : FrameworkElement
         if (vx > TrackLeft)
         {
             dc.DrawRoundedRectangle(fillBrush, null,
-                new Rect(TrackLeft, trackTop, vx - TrackLeft, TrackHeight), 1.5, 1.5);
+                new Rect(TrackLeft, trackTop, vx - TrackLeft, TrackHeight), TrackHeight / 2, TrackHeight / 2);
         }
 
-        // Thumb (accent colored)
-        var thumbFillBrush = new SolidColorBrush(AccentColor);
-        thumbFillBrush.Freeze();
-        var thumbPen = new Pen(GetThumbBorder(), 1.5);
-        thumbPen.Freeze();
-        dc.DrawEllipse(thumbFillBrush, thumbPen, new Point(vx, cy), ThumbRadius, ThumbRadius);
-
-        // Inner dot (white center)
-        var whiteDot = new SolidColorBrush(Color.FromArgb(0xCC, 0xFF, 0xFF, 0xFF));
-        whiteDot.Freeze();
-        dc.DrawEllipse(whiteDot, null, new Point(vx, cy), 2, 2);
+        // Thumb: only while hovered / dragged / focused — quiet at rest.
+        if (IsMouseOver || _dragging || IsKeyboardFocused)
+        {
+            var halo = new SolidColorBrush(Color.FromArgb(0x55, AccentColor.R, AccentColor.G, AccentColor.B));
+            halo.Freeze();
+            dc.DrawEllipse(halo, null, new Point(vx, cy), HaloRadius, HaloRadius);
+            dc.DrawEllipse(Brushes.White, null, new Point(vx, cy), ThumbRadius, ThumbRadius);
+        }
 
         // Value label below thumb
         if (ShowLabel)
@@ -137,6 +136,37 @@ public class StyledSlider : FrameworkElement
     }
 
     // ── Mouse interaction ───────────────────────────────────────
+
+    public StyledSlider()
+    {
+        Cursor = Cursors.Hand;
+        Focusable = true;
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        double step = Step > 0 ? Step : (Maximum - Minimum) / 100.0;
+        double big = Math.Max(step, (Maximum - Minimum) / 10.0);
+        double? v = e.Key switch
+        {
+            Key.Right or Key.Up => Value + step,
+            Key.Left or Key.Down => Value - step,
+            Key.PageUp => Value + big,
+            Key.PageDown => Value - big,
+            Key.Home => Minimum,
+            Key.End => Maximum,
+            _ => null,
+        };
+        if (v == null) return;
+        Value = SnapValue(v.Value);
+        e.Handled = true;
+    }
+
+    protected override void OnMouseEnter(MouseEventArgs e) { base.OnMouseEnter(e); InvalidateVisual(); }
+    protected override void OnMouseLeave(MouseEventArgs e) { base.OnMouseLeave(e); InvalidateVisual(); }
+    protected override void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs e) { base.OnGotKeyboardFocus(e); InvalidateVisual(); }
+    protected override void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs e) { base.OnLostKeyboardFocus(e); InvalidateVisual(); }
 
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
@@ -160,6 +190,7 @@ public class StyledSlider : FrameworkElement
         base.OnMouseLeftButtonUp(e);
         _dragging = false;
         ReleaseMouseCapture();
+        InvalidateVisual();
     }
 
     protected override Size MeasureOverride(Size availableSize)
