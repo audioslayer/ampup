@@ -636,6 +636,10 @@ public class GridPicker : System.Windows.Controls.Border
     {
         if (_listPanel == null) return;
         var prevNavKey = _navIndex >= 0 && _navIndex < _navRows.Count ? _navRows[_navIndex].Row.Tag : null;
+        // Clearing the panel collapses the scroll extent, which snaps the list back to the top
+        // (expanding a section mid-list jumped to the top). Remember and restore the offset;
+        // search explicitly ScrollToTop()s after rebuilding, which still wins.
+        double keepOffset = _scroll?.VerticalOffset ?? 0;
         _listPanel.Children.Clear();
         _navRows.Clear();
         _navIndex = -1;
@@ -730,7 +734,15 @@ public class GridPicker : System.Windows.Controls.Border
         if (restore < 0 && _query.Length > 0 && _navRows.Count > 0) restore = 0;
         if (restore < 0 && _selectedRowVisual != null) restore = _navRows.FindIndex(r => r.Row == _selectedRowVisual);
         if (restore >= 0) SetNav(restore);
+        RestoreScroll(keepOffset);
     }
+
+    private void RestoreScroll(double offset)
+    {
+        if (_scroll == null || offset <= 0) return;
+        _scroll.UpdateLayout();
+        _scroll.ScrollToVerticalOffset(Math.Min(offset, _scroll.ScrollableHeight));
+}
 
     private System.Windows.Controls.Border MakeRowShell(bool selected, bool parentOfSelection = false)
     {
