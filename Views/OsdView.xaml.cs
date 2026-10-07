@@ -42,7 +42,10 @@ public partial class OsdView : UserControl
         public QuickWheelMode Mode;
         public ComboBox TriggerCombo = null!;
         public StackPanel CustomPanel = null!;
+        public StackPanel SlotList = null!;
         public StackPanel ItemsPanel = null!;
+        public Controls.HaloWheel? Mini;
+        public DispatcherTimer? MiniTimer;
         public TextBlock Title = null!;
         public TextBlock Subtitle = null!;
         public List<string> OutputDeviceIds = new();
@@ -54,7 +57,8 @@ public partial class OsdView : UserControl
     /// <summary>Editor state for one Custom wheel slot row.</summary>
     private sealed class CustomSlotRowState
     {
-        public StackPanel Row = null!;
+        public Grid Row = null!;
+        public TextBlock Number = null!;
         public ComboBox Action = null!;
         public TextBox Label = null!;
         public Func<string> GetPath = () => "", GetKeys = () => "", GetProfile = () => "";
@@ -663,19 +667,25 @@ public partial class OsdView : UserControl
         combo.SelectedIndex = Math.Clamp(selectIndex, 0, combo.Items.Count - 1);
     }
 
-    // Pill order shown to the user → QuickWheelMode stored in config.
+    // Dropdown order shown to the user → QuickWheelMode stored in config.
     private static readonly (QuickWheelMode mode, string label)[] WheelModes =
     {
         (QuickWheelMode.Profile, "Profiles"),
-        (QuickWheelMode.OutputDevice, "Output Devices"),
-        (QuickWheelMode.InputDevice, "Input Devices"),
-        (QuickWheelMode.MediaControls, "Media Controls"),
-        (QuickWheelMode.SignalRgbEffect, "SignalRGB Effects"),
+        (QuickWheelMode.OutputDevice, "Output devices"),
+        (QuickWheelMode.InputDevice, "Input devices"),
+        (QuickWheelMode.MediaControls, "Media controls"),
+        (QuickWheelMode.SignalRgbEffect, "SignalRGB effects"),
         (QuickWheelMode.Custom, "Custom"),
     };
     private const int WheelMaxItems = RadialWheelOverlay.MaxSlots;
 
-    private static int WheelModePillIndex(QuickWheelMode mode) =>
+    // Custom slot row columns: number | action | setting | label | remove
+    private static readonly GridLength[] SlotColumns =
+    {
+        new(18), new(168), new(1, GridUnitType.Star), new(132), new(28),
+    };
+
+    private static int WheelModeIndex(QuickWheelMode mode) =>
         Math.Max(0, Array.FindIndex(WheelModes, m => m.mode == mode));
 
     private void AddWheelRow(QuickWheelConfig qw)
@@ -690,7 +700,13 @@ public partial class OsdView : UserControl
             SignalRgbEffects = new List<string>(qw.SignalRgbEffects),
         };
 
-        var body = new StackPanel();
+        var body = new Grid();
+        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
+        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(190) });
+        var left = new StackPanel();
+        body.Children.Add(left);
+
         var enableSw = MakeSwitch(state.Enabled, on => { state.Enabled = on; QueueSave(); },
             out _, "Enable or disable this wheel (disabling releases the button's hold action)");
         System.Windows.Controls.Border wrapper = null!;
@@ -706,16 +722,6 @@ public partial class OsdView : UserControl
         });
         more.Margin = new Thickness(8, 0, 0, 0);
         var actions = new StackPanel { Orientation = Orientation.Horizontal };
-        var previewCap = new TextBlock { Text = "Preview", FontSize = 11, VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 4, 0), Cursor = Cursors.Hand };
-        previewCap.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
-        previewCap.MouseLeftButtonUp += (_, e) => { e.Handled = true; PreviewWheel(state); };
-        var previewBtn = UiKit.IconButton(MaterialIconKind.PlayCircleOutline,
-            "Open this wheel on screen with its current items (nothing runs when you pick)",
-            _ => PreviewWheel(state));
-        previewBtn.Margin = new Thickness(0, 0, 12, 0);
-        actions.Children.Add(previewCap);
-        actions.Children.Add(previewBtn);
         actions.Children.Add(enableSw);
         actions.Children.Add(more);
 
@@ -725,40 +731,37 @@ public partial class OsdView : UserControl
         state.Title = card.Title;
         state.Subtitle = card.Subtitle;
 
-        // Trigger
-        var btnCombo = new ComboBox
-        {
-            MinWidth = 180,
-            ToolTip = "Which hardware input opens this wheel (hold)",
-        };
+        // ── Trigger + Shows on one line ──
+        var btnCombo = new ComboBox { MinWidth = 180, ToolTip = "Which hardware input opens this wheel (hold)" };
         PopulateTriggerCombo(btnCombo, qw.Device, qw.TriggerButton);
         btnCombo.SelectionChanged += (_, _) => { UpdateWheelSubtitle(state); if (!_loading) { _debounceTimer.Stop(); _debounceTimer.Start(); } };
         state.TriggerCombo = btnCombo;
-        body.Children.Add(MakeSettingRow("Trigger", "Hold this input to open the wheel", btnCombo));
 
-        // Mode pills
-        body.Children.Add(MakeLabel("Shows"));
-
-        // Custom slots panel (shown only when mode = Custom)
-        var customPanel = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
-        state.CustomPanel = customPanel;
-
-        // Item picker (shown for device / SignalRGB modes) — rebuilt on mode change
-        var itemsPanel = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
-        state.ItemsPanel = itemsPanel;
-
-        var modePills = MakePillRow(WheelModes.Select(m => m.label).ToArray(), WheelModePillIndex(state.Mode), idx =>
+        var showsCombo = new ComboBox { MinWidth = 170, ToolTip = "What this wheel lets you pick" };
+        foreach (var m in WheelModes) showsCombo.Items.Add(new ComboBoxItem { Content = m.label });
+        showsCombo.SelectedIndex = WheelModeIndex(state.Mode);
+        showsCombo.SelectionChanged += (_, _) =>
         {
-            state.Mode = WheelModes[idx].mode;
+            if (showsCombo.SelectedIndex < 0) return;
+            state.Mode = WheelModes[showsCombo.SelectedIndex].mode;
             UpdateWheelSubtitle(state);
             RefreshWheelModePanels(state);
-            if (!_loading) { _debounceTimer.Stop(); _debounceTimer.Start(); }
-        });
-        body.Children.Add(modePills);
+            WheelChanged(state);
+        };
 
-        customPanel.Children.Add(MakeHint("Pick an action, the label shown on its wheel segment, and any settings it needs (max 12 slots).", new Thickness(0, 0, 0, 8)));
+        var fieldRow = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
+        fieldRow.Children.Add(MakeInlineField("Trigger", btnCombo, new Thickness(0, 0, 22, 6)));
+        fieldRow.Children.Add(MakeInlineField("Shows", showsCombo, new Thickness(0, 0, 0, 6)));
+        left.Children.Add(fieldRow);
+        left.Children.Add(MakeDivider());
 
-        // Populate existing custom slots
+        // ── Custom slots (shown when Shows = Custom) ──
+        var customPanel = new StackPanel();
+        state.CustomPanel = customPanel;
+        customPanel.Children.Add(MakeSlotHeader());
+        var slotList = new StackPanel();
+        state.SlotList = slotList;
+        customPanel.Children.Add(slotList);
         foreach (var slot in qw.CustomSlots)
             AddCustomSlotRow(state, slot);
 
@@ -766,27 +769,127 @@ public partial class OsdView : UserControl
         {
             if (state.Slots.Count >= WheelMaxItems) return;
             AddCustomSlotRow(state, new CustomWheelSlot());
-            _debounceTimer.Stop();
-            _debounceTimer.Start();
-        }, "Add a custom action slot (max 12)");
-        addSlotBtn.Tag = "addSlotBtn";
+            WheelChanged(state);
+        }, $"Add an action slot (max {WheelMaxItems})");
         addSlotBtn.HorizontalAlignment = HorizontalAlignment.Left;
         addSlotBtn.Margin = new Thickness(-8, 2, 0, 0);
         customPanel.Children.Add(addSlotBtn);
-        body.Children.Add(customPanel);
-        body.Children.Add(itemsPanel);
+        left.Children.Add(customPanel);
+
+        // ── Item checklist / hint for the other modes — rebuilt on mode change ──
+        var itemsPanel = new StackPanel();
+        state.ItemsPanel = itemsPanel;
+        left.Children.Add(itemsPanel);
+
+        // ── Live mini wheel ──
+        var mini = BuildMiniWheel(state);
+        Grid.SetColumn(mini, 2);
+        body.Children.Add(mini);
 
         WheelRowsPanel.Children.Add(wrapper);
         RenumberWheels();
         UpdateWheelSubtitle(state);
         RefreshWheelModePanels(state);
+        RefreshMiniNow(state);
+    }
+
+    private FrameworkElement MakeInlineField(string label, FrameworkElement control, Thickness margin)
+    {
+        var sp = new StackPanel { Orientation = Orientation.Horizontal, Margin = margin };
+        var lbl = MakeLabel(label, new Thickness(0, 0, 10, 0));
+        lbl.VerticalAlignment = VerticalAlignment.Center;
+        sp.Children.Add(lbl);
+        control.VerticalAlignment = VerticalAlignment.Center;
+        sp.Children.Add(control);
+        return sp;
+    }
+
+    private Grid MakeSlotGrid()
+    {
+        var g = new Grid();
+        foreach (var w in SlotColumns) g.ColumnDefinitions.Add(new ColumnDefinition { Width = w });
+        return g;
+    }
+
+    private Grid MakeSlotHeader()
+    {
+        var g = MakeSlotGrid();
+        g.Margin = new Thickness(0, 0, 0, 4);
+        string[] heads = { "", "ACTION", "SETTING", "LABEL ON WHEEL" };
+        for (int i = 1; i < heads.Length; i++)
+        {
+            var tb = MakeHint(heads[i], new Thickness(i == 1 ? 0 : 0, 0, 0, 0));
+            tb.FontSize = 9.5;
+            Grid.SetColumn(tb, i);
+            g.Children.Add(tb);
+        }
+        return g;
+    }
+
+    /// <summary>Small live Halo wheel on the right of the card. Click it for the full-size preview.</summary>
+    private FrameworkElement BuildMiniWheel(WheelRowState st)
+    {
+        var halo = new Controls.HaloWheel();
+        halo.SegmentClicked += _ => PreviewWheel(st);
+        st.Mini = halo;
+
+        var stack = new StackPanel();
+        stack.Children.Add(new Viewbox { Width = 166, Height = 166, Child = halo, Stretch = Stretch.Uniform });
+        var caption = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) };
+        var capIcon = new Material.Icons.WPF.MaterialIcon { Kind = MaterialIconKind.ArrowExpandAll, Width = 12, Height = 12, Margin = new Thickness(0, 0, 5, 0) };
+        capIcon.Foreground = new SolidColorBrush(ThemeManager.Accent);
+        caption.Children.Add(capIcon);
+        caption.Children.Add(MakeHint("Click to preview", new Thickness(0)));
+        stack.Children.Add(caption);
+
+        var frame = new System.Windows.Controls.Border
+        {
+            CornerRadius = new CornerRadius(10),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(10, 10, 10, 8),
+            Cursor = Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Top,
+            ToolTip = "Live preview — click to open this wheel full size (picking an item runs nothing)",
+            Background = new RadialGradientBrush(Color.FromRgb(0x18, 0x21, 0x2B), Color.FromRgb(0x0B, 0x0D, 0x10))
+            {
+                GradientOrigin = new Point(0.3, 0.2), Center = new Point(0.3, 0.2), RadiusX = 1, RadiusY = 1,
+            },
+            Child = stack,
+        };
+        frame.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "CardBorderBrush");
+        frame.MouseEnter += (_, _) => frame.BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
+        frame.MouseLeave += (_, _) => frame.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "CardBorderBrush");
+        frame.MouseLeftButtonUp += (_, _) => PreviewWheel(st);
+        return frame;
+    }
+
+    /// <summary>Something on the card changed: save (debounced) and redraw the mini wheel.</summary>
+    private void WheelChanged(WheelRowState st)
+    {
+        QueueSave();
+        st.MiniTimer ??= CreateMiniTimer(st);
+        st.MiniTimer.Stop();
+        st.MiniTimer.Start();
+    }
+
+    private DispatcherTimer CreateMiniTimer(WheelRowState st)
+    {
+        var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
+        t.Tick += (_, _) => { t.Stop(); RefreshMiniNow(st); };
+        return t;
+    }
+
+    private void RefreshMiniNow(WheelRowState st)
+    {
+        if (_config == null || st.Mini == null) return;
+        st.Mini.SetContent(Services.QuickWheelContent.Build(_config, BuildWheelConfig(st)));
     }
 
     private static void UpdateWheelSubtitle(WheelRowState st)
     {
         if (st.Subtitle == null) return;
         string trig = (st.TriggerCombo?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "";
-        string mode = WheelModes[WheelModePillIndex(st.Mode)].label;
+        string mode = WheelModes[WheelModeIndex(st.Mode)].label;
         st.Subtitle.Text = string.IsNullOrEmpty(trig) ? mode : $"Hold {trig}  ·  {mode}";
         st.Subtitle.Visibility = Visibility.Visible;
     }
@@ -801,7 +904,7 @@ public partial class OsdView : UserControl
             _wheelCountText.Text = n - 1 == 1 ? "1 wheel" : $"{n - 1} wheels";
     }
 
-    /// <summary>Show the custom slot editor or the item checklist that matches the wheel's mode.</summary>
+    /// <summary>Show the slot editor or the item checklist / hint that matches the wheel's mode.</summary>
     private void RefreshWheelModePanels(WheelRowState st)
     {
         st.CustomPanel.Visibility = st.Mode == QuickWheelMode.Custom ? Visibility.Visible : Visibility.Collapsed;
@@ -810,16 +913,34 @@ public partial class OsdView : UserControl
         switch (st.Mode)
         {
             case QuickWheelMode.OutputDevice:
-                BuildWheelItemChecklist(st.ItemsPanel, st.OutputDeviceIds,
-                    GetAudioDevices(NAudio.CoreAudioApi.DataFlow.Render), "output devices");
+                BuildWheelItemChecklist(st, st.OutputDeviceIds,
+                    GetAudioDevices(NAudio.CoreAudioApi.DataFlow.Render),
+                    GetDefaultDeviceId(NAudio.CoreAudioApi.DataFlow.Render), "devices");
                 break;
             case QuickWheelMode.InputDevice:
-                BuildWheelItemChecklist(st.ItemsPanel, st.InputDeviceIds,
-                    GetAudioDevices(NAudio.CoreAudioApi.DataFlow.Capture), "input devices");
+                BuildWheelItemChecklist(st, st.InputDeviceIds,
+                    GetAudioDevices(NAudio.CoreAudioApi.DataFlow.Capture),
+                    GetDefaultDeviceId(NAudio.CoreAudioApi.DataFlow.Capture), "mics");
                 break;
             case QuickWheelMode.SignalRgbEffect:
-                BuildWheelItemChecklist(st.ItemsPanel, st.SignalRgbEffects,
-                    GetSignalRgbEffectNames().Select(n => (n, n)).ToList(), "SignalRGB effects");
+            {
+                var effects = GetSignalRgbEffectNames();
+                if (effects.Count == 0 && st.SignalRgbEffects.Count == 0)
+                {
+                    st.ItemsPanel.Children.Add(MakeWarning(
+                        "SignalRGB isn't installed on this PC, so there are no effects to pick. Install SignalRGB and reopen this page."));
+                    break;
+                }
+                BuildWheelItemChecklist(st, st.SignalRgbEffects,
+                    effects.Select(n => (n, n)).ToList(),
+                    AmpUp.Services.SignalRgbEffectCatalog.LastAppliedEffectName, "effects");
+                break;
+            }
+            case QuickWheelMode.Profile:
+                st.ItemsPanel.Children.Add(MakeHint($"Shows your profiles (up to {WheelMaxItems}). The active one is marked on the wheel.", new Thickness(0, 0, 0, 4)));
+                break;
+            case QuickWheelMode.MediaControls:
+                st.ItemsPanel.Children.Add(MakeHint("Shows play/pause, previous, next, mute master, mute mic, volume up/down and stop.", new Thickness(0, 0, 0, 4)));
                 break;
         }
         st.ItemsPanel.Visibility = st.ItemsPanel.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -842,23 +963,71 @@ public partial class OsdView : UserControl
         return list;
     }
 
+    private static string GetDefaultDeviceId(NAudio.CoreAudioApi.DataFlow flow)
+    {
+        try
+        {
+            using var enumerator = new NAudio.CoreAudioApi.MMDeviceEnumerator();
+            using var d = enumerator.GetDefaultAudioEndpoint(flow, NAudio.CoreAudioApi.Role.Multimedia);
+            return d.ID;
+        }
+        catch { return ""; }
+    }
+
     private static List<string> GetSignalRgbEffectNames()
     {
         try { return AmpUp.Services.SignalRgbEffectCatalog.GetInstalledEffects().Select(e => e.Name).ToList(); }
         catch (Exception ex) { Logger.Log($"OSD wheel SignalRGB list error: {ex.Message}"); return new(); }
     }
 
-    /// <summary>
-    /// Checklist of available items; <paramref name="picked"/> is edited in place and
-    /// keeps check order (= wheel order). Picked items that aren't available right now
-    /// (unplugged device, removed effect) stay listed so they aren't silently dropped.
-    /// </summary>
-    private void BuildWheelItemChecklist(StackPanel host, List<string> picked,
-        List<(string id, string name)> available, string noun)
+    private static readonly Color WarnColor = Color.FromRgb(0xFF, 0xB8, 0x00);
+
+    private FrameworkElement MakeWarning(string text, FrameworkElement? extra = null)
     {
+        var row = new DockPanel();
+        var icon = new Material.Icons.WPF.MaterialIcon
+        {
+            Kind = MaterialIconKind.AlertOutline, Width = 14, Height = 14,
+            Foreground = new SolidColorBrush(WarnColor), Margin = new Thickness(0, 0, 6, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        DockPanel.SetDock(icon, Dock.Left);
+        row.Children.Add(icon);
+        if (extra != null)
+        {
+            DockPanel.SetDock(extra, Dock.Right);
+            extra.Margin = new Thickness(6, 0, 0, 0);
+            row.Children.Add(extra);
+        }
+        row.Children.Add(new TextBlock
+        {
+            Text = text, FontSize = 11, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xCF, 0x66)),
+        });
+        return new System.Windows.Controls.Border
+        {
+            Child = row,
+            Padding = new Thickness(8, 4, 6, 4),
+            MinHeight = 30,
+            CornerRadius = new CornerRadius(6),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, WarnColor.R, WarnColor.G, WarnColor.B)),
+            Background = new SolidColorBrush(Color.FromArgb(0x12, WarnColor.R, WarnColor.G, WarnColor.B)),
+        };
+    }
+
+    /// <summary>
+    /// Checklist of available items; <paramref name="picked"/> is edited in place and keeps
+    /// check order (= wheel order, shown as a number). Picked items that aren't available right
+    /// now (unplugged device, removed effect) stay listed so they aren't silently dropped.
+    /// </summary>
+    private void BuildWheelItemChecklist(WheelRowState st, List<string> picked,
+        List<(string id, string name)> available, string inUseId, string noun)
+    {
+        var host = st.ItemsPanel;
         host.Children.Add(MakeHint(
-            $"Pick up to {WheelMaxItems} {noun} for this wheel, in the order you check them. None picked = the first {WheelMaxItems}.",
-            new Thickness(0, 0, 0, 8)));
+            $"Tick up to {WheelMaxItems} {noun}. The number is their order on the wheel. None ticked = the first {WheelMaxItems}.",
+            new Thickness(0, 0, 0, 6)));
 
         var items = new List<(string id, string name, bool missing)>();
         foreach (var id in picked)
@@ -875,68 +1044,91 @@ public partial class OsdView : UserControl
             return;
         }
 
-        var countText = MakeHint("", new Thickness(0, 6, 0, 0));
-        var boxes = new List<CheckBox>();
+        var rows = new List<(CheckBox box, TextBlock order, string id)>();
         void Refresh()
         {
-            countText.Text = picked.Count == 0
-                ? $"Showing the first {Math.Min(WheelMaxItems, available.Count)} automatically"
-                : $"{picked.Count} of {WheelMaxItems} picked";
-            foreach (var cb in boxes)
-                cb.IsEnabled = cb.IsChecked == true || picked.Count < WheelMaxItems;
+            foreach (var (box, order, id) in rows)
+            {
+                int at = picked.IndexOf(id);
+                order.Text = at >= 0 ? (at + 1).ToString() : "";
+                box.IsEnabled = at >= 0 || picked.Count < WheelMaxItems;
+            }
         }
 
         var list = new StackPanel();
         foreach (var (id, name, missing) in items)
         {
-            var cb = new CheckBox
+            var g = new Grid { Margin = new Thickness(0, 1, 0, 1), Background = Brushes.Transparent };
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var cb = new CheckBox { IsChecked = picked.Contains(id), VerticalAlignment = VerticalAlignment.Center };
+            var order = new TextBlock
             {
-                Content = missing ? $"{name}  (not available)" : name,
-                IsChecked = picked.Contains(id),
-                Margin = new Thickness(0, 2, 0, 2),
-                FontSize = 12,
+                FontSize = 10.5, FontWeight = FontWeights.SemiBold, TextAlignment = TextAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(ThemeManager.Accent),
             };
-            cb.SetResourceReference(Control.ForegroundProperty, missing ? "TextDimBrush" : "TextPrimaryBrush");
-            cb.Checked += (_, _) => { if (!picked.Contains(id)) picked.Add(id); Refresh(); QueueSave(); };
-            cb.Unchecked += (_, _) => { picked.Remove(id); Refresh(); QueueSave(); };
-            boxes.Add(cb);
-            list.Children.Add(cb);
+            var label = new TextBlock
+            {
+                Text = missing ? $"{name}  (not available)" : name, FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis,
+                Margin = new Thickness(4, 0, 8, 0),
+            };
+            label.SetResourceReference(TextBlock.ForegroundProperty, missing ? "TextDimBrush" : "TextPrimaryBrush");
+            Grid.SetColumn(order, 1);
+            Grid.SetColumn(label, 2);
+            g.Children.Add(cb);
+            g.Children.Add(order);
+            g.Children.Add(label);
+
+            if (!string.IsNullOrEmpty(inUseId) && string.Equals(id, inUseId, StringComparison.OrdinalIgnoreCase))
+            {
+                var a = ThemeManager.Accent;
+                var chip = new System.Windows.Controls.Border
+                {
+                    CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(1), Padding = new Thickness(6, 0, 6, 1),
+                    BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, a.R, a.G, a.B)),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Child = new TextBlock { Text = "In use", FontSize = 10, Foreground = new SolidColorBrush(a) },
+                };
+                Grid.SetColumn(chip, 3);
+                g.Children.Add(chip);
+            }
+
+            // Click anywhere on the row to toggle
+            g.Cursor = Cursors.Hand;
+            g.MouseLeftButtonUp += (_, e) => { if (e.OriginalSource is not CheckBox && cb.IsEnabled) cb.IsChecked = cb.IsChecked != true; };
+            cb.Checked += (_, _) => { if (!picked.Contains(id)) picked.Add(id); Refresh(); WheelChanged(st); };
+            cb.Unchecked += (_, _) => { picked.Remove(id); Refresh(); WheelChanged(st); };
+            rows.Add((cb, order, id));
+            list.Children.Add(g);
         }
 
         host.Children.Add(new ScrollViewer
         {
             Content = list,
-            MaxHeight = 240,
+            MaxHeight = 230,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         });
-        host.Children.Add(countText);
         Refresh();
     }
 
     private void AddCustomSlotRow(WheelRowState st, CustomWheelSlot slot)
     {
-        var customPanel = st.CustomPanel;
         var slotState = new CustomSlotRowState();
-        var row = new StackPanel { Margin = new Thickness(0, 0, 0, 6), Tag = slotState };
+        var row = MakeSlotGrid();
+        row.Margin = new Thickness(0, 0, 0, 6);
         slotState.Row = row;
 
-        var topRow = new Grid();
-        topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
-        topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-        topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
-        topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.Children.Add(topRow);
+        var num = MakeHint("", new Thickness(0, 0, 6, 0));
+        num.TextAlignment = TextAlignment.Right;
+        num.VerticalAlignment = VerticalAlignment.Center;
+        slotState.Number = num;
+        row.Children.Add(num);
 
-        // Second line holds the action's settings (keys / app / URL / profile / effect)
-        var paramHost = new StackPanel { Margin = new Thickness(12, 4, 0, 0) };
-        row.Children.Add(paramHost);
-
-        var actionCombo = new ComboBox
-        {
-            Width = 175,
-            ToolTip = "Action to execute when this slot is selected",
-        };
+        var actionCombo = new ComboBox { Margin = new Thickness(0, 0, 8, 0), ToolTip = "What this slot does" };
         int selectedIdx = -1;
         for (int i = 0; i < CustomSlotActions.Length; i++)
         {
@@ -945,34 +1137,35 @@ public partial class OsdView : UserControl
         }
         actionCombo.SelectedIndex = selectedIdx >= 0 ? selectedIdx : 0;
         slotState.Action = actionCombo;
-        Grid.SetColumn(actionCombo, 0);
-        topRow.Children.Add(actionCombo);
+        Grid.SetColumn(actionCombo, 1);
+        row.Children.Add(actionCombo);
+
+        // Setting cell (column 2) is rebuilt when the action changes
+        var settingHost = new ContentControl { Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(settingHost, 2);
+        row.Children.Add(settingHost);
 
         var labelBox = new TextBox
         {
             Text = string.IsNullOrEmpty(slot.Label) && selectedIdx >= 0 ? CustomSlotActions[selectedIdx].label : slot.Label,
-            Width = 145,
-            Background = (System.Windows.Media.Brush)FindResource("BgBaseBrush"),
-            BorderBrush = (System.Windows.Media.Brush)FindResource("BgDarkBrush"),
-            Foreground = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"),
-            ToolTip = "Label shown on the wheel segment",
+            ToolTip = "Name shown on the wheel",
             VerticalContentAlignment = VerticalAlignment.Center,
-            Height = 28,
+            Margin = new Thickness(0, 0, 4, 0),
         };
-        labelBox.TextChanged += (_, _) => { if (!_loading) { _debounceTimer.Stop(); _debounceTimer.Start(); } };
+        labelBox.TextChanged += (_, _) => WheelChanged(st);
         slotState.Label = labelBox;
-        Grid.SetColumn(labelBox, 2);
-        topRow.Children.Add(labelBox);
+        Grid.SetColumn(labelBox, 3);
+        row.Children.Add(labelBox);
 
         var removeSlotBtn = UiKit.IconButton(MaterialIconKind.Close, "Remove this slot", _ =>
         {
-            customPanel.Children.Remove(row);
+            st.SlotList.Children.Remove(row);
             st.Slots.Remove(slotState);
-            _debounceTimer.Stop();
-            _debounceTimer.Start();
+            RenumberSlots(st);
+            WheelChanged(st);
         }, danger: true, size: 24);
         Grid.SetColumn(removeSlotBtn, 4);
-        topRow.Children.Add(removeSlotBtn);
+        row.Children.Add(removeSlotBtn);
 
         // Param values survive switching the action back and forth while editing
         string path = slot.Path, keys = slot.MacroKeys, profile = slot.ProfileName;
@@ -980,65 +1173,60 @@ public partial class OsdView : UserControl
         slotState.GetKeys = () => keys;
         slotState.GetProfile = () => profile;
 
-        void BuildParam()
+        void BuildSetting()
         {
-            paramHost.Children.Clear();
-            string actionId = slotState.ActionId;
-            FrameworkElement? control = null;
-            string label = "";
-
-            switch (actionId)
+            switch (slotState.ActionId)
             {
                 case "macro":
                 {
-                    label = "Keys";
-                    var tb = MakeSlotTextBox(keys, "Key combo, e.g. win+shift+s or ctrl+alt+m");
-                    tb.TextChanged += (_, _) => { keys = tb.Text; QueueSave(); };
-                    control = tb;
+                    var tb = new TextBox { Text = keys, ToolTip = "Key combo, e.g. win+shift+s or ctrl+alt+m", VerticalContentAlignment = VerticalAlignment.Center };
+                    tb.TextChanged += (_, _) => { keys = tb.Text; WheelChanged(st); };
+                    settingHost.Content = tb;
                     break;
                 }
                 case "open_url":
                 {
-                    label = "URL";
-                    var tb = MakeSlotTextBox(path, "Web address to open, e.g. https://example.com");
-                    tb.TextChanged += (_, _) => { path = tb.Text; QueueSave(); };
-                    control = tb;
+                    var tb = new TextBox { Text = path, ToolTip = "Web address to open, e.g. https://example.com", VerticalContentAlignment = VerticalAlignment.Center };
+                    tb.TextChanged += (_, _) => { path = tb.Text; WheelChanged(st); };
+                    settingHost.Content = tb;
                     break;
                 }
                 case "launch_exe":
                 {
-                    label = "App";
-                    var picker = new AppPathPicker { MinWidth = 280, HorizontalAlignment = HorizontalAlignment.Left };
+                    var picker = new AppPathPicker();
                     picker.SetValue(path);
-                    picker.ValuePicked += v => { path = v; QueueSave(); };
-                    control = picker;
+                    picker.ValuePicked += v => { path = v; WheelChanged(st); };
+                    settingHost.Content = picker;
                     break;
                 }
                 case "switch_profile":
-                {
-                    label = "Profile";
-                    control = MakeSlotCombo(_config?.Profiles ?? new List<string>(), profile,
-                        v => { profile = v; QueueSave(); }, "No profiles yet");
+                    settingHost.Content = MakeSlotCombo(_config?.Profiles ?? new List<string>(), profile,
+                        v => { profile = v; WheelChanged(st); });
                     break;
-                }
                 case "signalrgb_effect":
                 {
-                    label = "Effect";
-                    control = MakeSlotCombo(GetSignalRgbEffectNames(), path,
-                        v => { path = v; QueueSave(); }, "SignalRGB not found");
+                    var effects = GetSignalRgbEffectNames();
+                    if (effects.Count == 0)
+                    {
+                        // No SignalRGB on this PC: say so, and still let them type an effect name
+                        var tb = new TextBox { Text = path, Width = 110, ToolTip = "Effect name, e.g. Aurora", VerticalContentAlignment = VerticalAlignment.Center };
+                        tb.TextChanged += (_, _) => { path = tb.Text; WheelChanged(st); };
+                        settingHost.Content = MakeWarning("SignalRGB not installed. Effect:", tb);
+                    }
+                    else
+                    {
+                        settingHost.Content = MakeSlotCombo(effects, path, v => { path = v; WheelChanged(st); });
+                    }
+                    break;
+                }
+                default:
+                {
+                    var none = MakeHint("No settings", new Thickness(4, 0, 0, 0));
+                    none.VerticalAlignment = VerticalAlignment.Center;
+                    settingHost.Content = none;
                     break;
                 }
             }
-
-            if (control == null) { paramHost.Visibility = Visibility.Collapsed; return; }
-            var line = new StackPanel { Orientation = Orientation.Horizontal };
-            var lbl = MakeHint(label, new Thickness(0, 0, 8, 0));
-            lbl.Width = 50;
-            lbl.VerticalAlignment = VerticalAlignment.Center;
-            line.Children.Add(lbl);
-            line.Children.Add(control);
-            paramHost.Children.Add(line);
-            paramHost.Visibility = Visibility.Visible;
         }
 
         string prevAction = slotState.ActionId;
@@ -1047,60 +1235,36 @@ public partial class OsdView : UserControl
             // Path is shared by app / URL / effect — don't carry an exe path into a URL box
             if (slotState.ActionId != prevAction) path = "";
             prevAction = slotState.ActionId;
-            // Auto-fill label if it was empty or matched the previous action label
+            // Auto-fill label if it was empty or matched an action name
             if (actionCombo.SelectedItem is ComboBoxItem ci
                 && (string.IsNullOrEmpty(labelBox.Text) || CustomSlotActions.Any(a => a.label == labelBox.Text)))
                 labelBox.Text = ci.Content?.ToString() ?? "";
-            BuildParam();
-            if (!_loading) { _debounceTimer.Stop(); _debounceTimer.Start(); }
+            BuildSetting();
+            WheelChanged(st);
         };
-        BuildParam();
+        BuildSetting();
 
         st.Slots.Add(slotState);
-        // Insert before the "Add slot" button
-        int insertAt = customPanel.Children.Count;
-        for (int i = customPanel.Children.Count - 1; i >= 0; i--)
-        {
-            if (customPanel.Children[i] is FrameworkElement fe && fe.Tag is string t && t == "addSlotBtn")
-            {
-                insertAt = i;
-                break;
-            }
-        }
-        customPanel.Children.Insert(insertAt, row);
+        st.SlotList.Children.Add(row);
+        RenumberSlots(st);
     }
 
-    private TextBox MakeSlotTextBox(string text, string tooltip)
+    private static void RenumberSlots(WheelRowState st)
     {
-        var tb = new TextBox
-        {
-            Text = text,
-            Width = 280,
-            Height = 28,
-            ToolTip = tooltip,
-            VerticalContentAlignment = VerticalAlignment.Center,
-            Background = (System.Windows.Media.Brush)FindResource("BgBaseBrush"),
-            BorderBrush = (System.Windows.Media.Brush)FindResource("BgDarkBrush"),
-            Foreground = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"),
-        };
-        return tb;
+        for (int i = 0; i < st.Slots.Count; i++)
+            st.Slots[i].Number.Text = (i + 1).ToString();
     }
 
-    private ComboBox MakeSlotCombo(List<string> options, string selected, Action<string> onPick, string emptyText)
+    private ComboBox MakeSlotCombo(List<string> options, string selected, Action<string> onPick)
     {
-        var combo = new ComboBox
-        {
-            Width = 280,
-            Background = (System.Windows.Media.Brush)FindResource("BgBaseBrush"),
-            BorderBrush = (System.Windows.Media.Brush)FindResource("BgDarkBrush"),
-            Foreground = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"),
-        };
+        var combo = new ComboBox();
         // Keep a saved value that isn't currently available rather than dropping it
         var all = new List<string>(options);
         if (!string.IsNullOrEmpty(selected) && !all.Contains(selected)) all.Insert(0, selected);
         if (all.Count == 0)
         {
-            combo.Items.Add(new ComboBoxItem { Content = emptyText, IsEnabled = false });
+            combo.Items.Add(new ComboBoxItem { Content = "None available", IsEnabled = false });
+            combo.SelectedIndex = 0;
             combo.IsEnabled = false;
             return combo;
         }
@@ -1169,7 +1333,7 @@ public partial class OsdView : UserControl
     private RadialWheelOverlay? _previewWheel;
 
     /// <summary>
-    /// Open the real wheel overlay with this card's current items, like the Placement preview.
+    /// Open the real wheel overlay full size with this card's current items (from the mini wheel).
     /// Hover, arrow keys or the mouse wheel move the highlight; picking an item only closes it.
     /// </summary>
     private void PreviewWheel(WheelRowState st)
@@ -1178,13 +1342,7 @@ public partial class OsdView : UserControl
         _previewWheel?.Dismiss();
 
         var content = Services.QuickWheelContent.Build(_config, BuildWheelConfig(st));
-        if (content.Items.Count == 0)
-        {
-            st.Subtitle.Text = st.Mode == QuickWheelMode.Custom
-                ? "Nothing to preview yet. Add a slot first."
-                : "Nothing to preview. No items found for this wheel.";
-            return;
-        }
+        if (content.Items.Count == 0) return; // the mini wheel already shows "Nothing to show"
 
         var wheel = new RadialWheelOverlay();
         wheel.SetMonitor(DisplayMonitorResolver.ResolveOsdMonitorIndex(_config.Osd));
