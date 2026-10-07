@@ -902,7 +902,7 @@ public partial class ButtonsView : UserControl
 
             // ── Row 4: DOUBLE section ──
             var dblSection = new StackPanel();
-            dblSection.Children.Add(MakeGestureHeader("DOUBLE"));
+            dblSection.Children.Add(MakeGestureHeader("DOUBLE PRESS"));
 
             var dblCombo = MakeActionCombo();
             _dblCombos[i] = dblCombo;
@@ -1333,7 +1333,7 @@ public partial class ButtonsView : UserControl
     private static readonly Dictionary<string, string> GestureTooltips = new()
     {
         { "TAP", "Single press — released within 500ms" },
-        { "DOUBLE", "Press twice quickly within 300ms" },
+        { "DOUBLE", "Press twice quickly within 300ms" }, { "DOUBLE PRESS", "Press twice quickly within 300ms" },
         { "HOLD", "Hold for 500ms+ (fires while held)" },
     };
 
@@ -1597,6 +1597,29 @@ public partial class ButtonsView : UserControl
     private static readonly Dictionary<string, (string Display, string Value)> ActionLookup =
         Actions.ToDictionary(a => a.Value, a => a);
 
+    // Turn Up button picker order (Media, Mute, App control, Device, System, Power,
+    // Integrations [Room folded in], Stream Controller, Advanced). The shared
+    // ActionCategories table is left untouched for the Stream Controller V2 designer.
+    private static readonly (string Category, string[] Values)[] TurnUpActionCategories = BuildTurnUpActionCategories();
+
+    private static (string Category, string[] Values)[] BuildTurnUpActionCategories()
+    {
+        var byName = ActionCategories.ToDictionary(c => c.Category, c => c.Values);
+        string[] Get(string n) => byName.TryGetValue(n, out var v) ? v : Array.Empty<string>();
+        return new[]
+        {
+            ("Media", Get("Media")),
+            ("Mute", Get("Mute")),
+            ("App Control", Get("App Control")),
+            ("Device", Get("Device")),
+            ("System", Get("System")),
+            ("Power", Get("Power")),
+            ("Integrations", Get("Room").Concat(Get("Integrations")).ToArray()),
+            ("Stream Controller", Get("Stream Controller")),
+            ("Advanced", Get("Advanced")),
+        };
+    }
+
     private static bool IsScPageAction(string? action)
         => action is "sc_page_next" or "sc_page_prev" or "sc_page_home" or "sc_go_to_page";
 
@@ -1607,7 +1630,7 @@ public partial class ButtonsView : UserControl
     {
         picker.ClearItems();
 
-        foreach (var (category, values) in ActionCategories)
+        foreach (var (category, values) in TurnUpActionCategories)
         {
             bool anyAdded = false;
 
@@ -1678,7 +1701,7 @@ public partial class ButtonsView : UserControl
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
 
-        foreach (var (category, values) in ActionCategories)
+        foreach (var (category, values) in TurnUpActionCategories)
         {
             picker.AddCategory(category);
             foreach (var value in values)

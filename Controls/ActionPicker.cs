@@ -1,298 +1,493 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using System.Windows.Threading;
+using Material.Icons;
+using Material.Icons.WPF;
 
 namespace AmpUp.Controls;
 
 /// <summary>
-/// Custom action picker dropdown — replaces ComboBox for button action selection.
-/// Shows icon + label on a dark button, opens a borderless Window flyout with hoverable rows.
-/// Items can optionally have sub-menus that expand inline to the right within the same Window.
-/// Uses borderless Windows instead of Popups to avoid Win11 click-through bugs.
+/// Searchable, categorized button ACTION picker. Visually and behaviourally mirrors
+/// <see cref="GridPicker"/> (the knob TARGET picker): a 50px trigger with a tinted icon tile,
+/// friendly name + muted description and a rotating chevron; a borderless Window flyout (not a
+/// Popup — Win11 click-through / HWND isolation) with a search box, accent-bar section headers,
+/// icon-tile rows with one-line descriptions, check on the selection, and INLINE accordion
+/// expansion for sub-options (devices, profiles, HA entities, Govee lights…) and action groups
+/// (Home Assistant / Govee / Spotify / Pocket Casts).
+///
+/// Public API is unchanged from the old dropdown: AddItem / AddCategory / AddActionGroup /
+/// RegisterSubMenu / Select / SelectWithSub / SelectedValue / SelectedSubTag + events.
+/// Stored values are the raw action strings; only the presentation changed.
 /// </summary>
-public class ActionPicker : Border
+public class ActionPicker : System.Windows.Controls.Border
 {
-    private readonly TextBlock _iconBlock;
-    private readonly TextBlock _displayText;
-    private readonly TextBlock _chevron;
-    private readonly Border _popupBorder;
-    private readonly StackPanel _itemsPanel;
-    private readonly ScrollViewer _scrollViewer;
-
-    // Main flyout
-    private Window? _flyout;
-    private bool _isOpen = false;
-
-    // Inline sub-panel (replaces second Window sub-flyout)
-    private readonly Border _subPanelBorder;
-    private readonly Border _subDivider;
-    private readonly StackPanel _subItemsPanel;
-    private readonly ScrollViewer _subScrollViewer;
-    private readonly TextBox _subFilterBox;
-    private readonly TextBlock _subFilterPlaceholder;
-    private readonly TextBlock _subHeaderLabel;
-    private string _subFilterText = "";
-    private string? _activeSubParentValue;
-    private List<SubItem> _activeSubItems = new();
-    private readonly DispatcherTimer _subOpenTimer;
-    private int _hoveredSubMenuIdx = -1;
-
-    private int _selectedIndex = -1;
-    private string? _selectedSubTag; // entity ID from sub-menu selection
-    private readonly List<(string Display, string Value, string Icon, Color Color, string Tooltip)> _items = new();
-    private readonly List<(int ItemIndex, string CategoryName)> _categories = new();
-
-    // Category header styles (icon + color)
-    public static readonly Dictionary<string, (string Icon, Color Color)> CategoryStyles = new()
+    // ── Friendly presentation per action value ───────────────────
+    // (Material icon, title, one-line description). Values not listed fall back to the
+    // display / glyph / tooltip passed to AddItem.
+    public static readonly Dictionary<string, (MaterialIconKind Kind, string Title, string Description)> ActionMeta = new()
     {
-        { "MEDIA",              ("\u266B", Color.FromRgb(0x00, 0xE6, 0x76)) },
-        { "MUTE",               ("\uD83D\uDD07", Color.FromRgb(0xFF, 0x52, 0x52)) },
-        { "APP CONTROL",        ("\u2B21", Color.FromRgb(0x44, 0x8A, 0xFF)) },
-        { "DEVICE",             ("\uD83D\uDD0C", Color.FromRgb(0xB3, 0x88, 0xFF)) },
-        { "SYSTEM",             ("\u2699", Color.FromRgb(0xFF, 0xD7, 0x40)) },
-        { "POWER",              ("\u23FB", Color.FromRgb(0xFF, 0x52, 0x52)) },
-        { "INTEGRATIONS",       ("\u26A1", Color.FromRgb(0x26, 0xC6, 0xDA)) },
+        ["none"]                    = (MaterialIconKind.Cancel, "Do nothing", "Leave this gesture unassigned"),
+        // Media
+        ["media_play_pause"]        = (MaterialIconKind.PlayPause, "Play / pause", "Toggle music or video playback"),
+        ["media_next"]              = (MaterialIconKind.SkipNext, "Next track", "Skip to the next song or video"),
+        ["media_prev"]              = (MaterialIconKind.SkipPrevious, "Previous track", "Go back to the previous song or video"),
+        // Mute
+        ["mute_master"]             = (MaterialIconKind.VolumeOff, "Mute speakers", "Mute or unmute the Windows master volume"),
+        ["mute_mic"]                = (MaterialIconKind.MicrophoneOff, "Mute microphone", "Mute or unmute your default mic"),
+        ["mute_program"]            = (MaterialIconKind.VolumeVariantOff, "Mute an app", "Mute or unmute one specific app"),
+        ["mute_active_window"]      = (MaterialIconKind.WindowMaximize, "Mute focused app", "Mute whichever app is in front"),
+        ["mute_app_group"]          = (MaterialIconKind.SpeakerOff, "Mute app group", "Mute every app on a knob's app group"),
+        ["mute_device"]             = (MaterialIconKind.HeadphonesOff, "Mute a device", "Mute a specific speaker or headset"),
+        // App control
+        ["launch_exe"]              = (MaterialIconKind.RocketLaunch, "Open app", "Launch a program, file or script"),
+        ["close_program"]           = (MaterialIconKind.CloseBox, "Close app", "Force-close a running program"),
+        ["add_active_app_to_group"] = (MaterialIconKind.PlaylistPlus, "Add focused app to group", "Put the app in front onto a knob's app group"),
+        ["open_url"]                = (MaterialIconKind.Web, "Open website", "Open a link in your default browser"),
+        ["type_text"]               = (MaterialIconKind.FormTextbox, "Type text", "Type a saved snippet where your cursor is"),
+        ["screenshot"]              = (MaterialIconKind.MonitorScreenshot, "Take screenshot", "Capture the screen"),
+        // Device
+        ["cycle_output"]            = (MaterialIconKind.SpeakerMultiple, "Next speaker / headset", "Switch Windows output to the next device"),
+        ["cycle_input"]             = (MaterialIconKind.Microphone, "Next microphone", "Switch Windows input to the next mic"),
+        ["select_output"]           = (MaterialIconKind.Speaker, "Use a speaker / headset", "Switch Windows output to a specific device"),
+        ["select_input"]            = (MaterialIconKind.MicrophoneVariant, "Use a microphone", "Switch Windows input to a specific mic"),
+        // System
+        ["macro"]                   = (MaterialIconKind.KeyboardOutline, "Keyboard shortcut", "Press a key combo like Ctrl+Shift+M"),
+        ["switch_profile"]          = (MaterialIconKind.AccountSwitch, "Switch profile", "Load a different AmpUp profile"),
+        ["cycle_profile"]           = (MaterialIconKind.AccountMultiple, "Next profile", "Cycle through your chosen profiles"),
+        ["cycle_brightness"]        = (MaterialIconKind.Brightness6, "LED brightness", "Step through the knob LED brightness levels"),
+        ["quick_wheel"]             = (MaterialIconKind.ChartDonut, "Quick wheel", "Hold to open the radial picker"),
+        // Power
+        ["power_sleep"]             = (MaterialIconKind.Sleep, "Sleep", "Put the PC to sleep"),
+        ["power_lock"]              = (MaterialIconKind.Lock, "Lock", "Lock Windows"),
+        ["power_off"]               = (MaterialIconKind.Power, "Shut down", "Turn the PC off"),
+        ["power_restart"]           = (MaterialIconKind.Restart, "Restart", "Restart the PC"),
+        ["power_logoff"]            = (MaterialIconKind.Logout, "Sign out", "Sign out of Windows"),
+        ["power_hibernate"]         = (MaterialIconKind.Snowflake, "Hibernate", "Save your session and power down"),
+        ["system_power"]            = (MaterialIconKind.Power, "Power (legacy)", "Run the power action picked below"),
+        // Room / integrations
+        ["room_toggle"]             = (MaterialIconKind.LightbulbGroup, "Room lights on / off", "Toggle all room lights (Govee + Corsair)"),
+        ["room_effect"]             = (MaterialIconKind.Palette, "Room effect", "Switch the active room lighting effect"),
+        ["group_toggle"]            = (MaterialIconKind.Group, "Device group on / off", "Turn a device group on or off"),
+        ["corsair_toggle"]          = (MaterialIconKind.LightbulbOn, "iCUE lights on / off", "Toggle Corsair iCUE lighting"),
+        ["ha_toggle"]               = (MaterialIconKind.ToggleSwitch, "Toggle entity", "Turn a Home Assistant entity on or off"),
+        ["ha_scene"]                = (MaterialIconKind.MovieOpen, "Activate scene", "Run a Home Assistant scene"),
+        ["ha_color"]                = (MaterialIconKind.Palette, "Light color", "Set a Home Assistant light to a color"),
+        ["ha_color_temp"]           = (MaterialIconKind.Thermometer, "Light temperature", "Set a light's warmth in Kelvin"),
+        ["ha_service"]              = (MaterialIconKind.Cog, "Call service", "Call any Home Assistant service"),
+        ["govee_toggle"]            = (MaterialIconKind.Lightbulb, "Light on / off", "Turn a Govee light on or off"),
+        ["govee_color"]             = (MaterialIconKind.Palette, "Light color", "Set a Govee light to a color"),
+        ["govee_white_toggle"]      = (MaterialIconKind.LightbulbOn, "All lights white", "Every room light to full white; press again for off"),
+        ["obs_record"]              = (MaterialIconKind.RecordRec, "OBS record", "Start or stop OBS recording"),
+        ["obs_stream"]              = (MaterialIconKind.Broadcast, "OBS stream", "Start or stop OBS streaming"),
+        ["obs_scene"]               = (MaterialIconKind.MovieOpen, "OBS scene", "Switch to an OBS scene"),
+        ["obs_mute"]                = (MaterialIconKind.MicrophoneOff, "OBS mute source", "Mute or unmute an OBS audio source"),
+        ["vm_mute_strip"]           = (MaterialIconKind.TuneVertical, "VoiceMeeter strip mute", "Mute or unmute a VoiceMeeter input strip"),
+        ["vm_mute_bus"]             = (MaterialIconKind.TuneVertical, "VoiceMeeter bus mute", "Mute or unmute a VoiceMeeter output bus"),
+        ["spotify_play_pause"]      = (MaterialIconKind.PlayPause, "Play / pause", "Play or pause Spotify"),
+        ["spotify_next"]            = (MaterialIconKind.SkipNext, "Next track", "Skip to the next Spotify track"),
+        ["spotify_prev"]            = (MaterialIconKind.SkipPrevious, "Previous track", "Go back to the previous Spotify track"),
+        ["spotify_shuffle"]         = (MaterialIconKind.Shuffle, "Shuffle", "Turn Spotify shuffle on or off"),
+        ["spotify_like"]            = (MaterialIconKind.Heart, "Like track", "Like or unlike the playing track"),
+        ["pocketcasts_open"]        = (MaterialIconKind.Podcast, "Open Pocket Casts", "Open or focus the Pocket Casts app"),
+        ["pocketcasts_play_pause"]  = (MaterialIconKind.PlayPause, "Play / pause", "Play or pause Pocket Casts"),
+        ["pocketcasts_skip_back"]   = (MaterialIconKind.Rewind10, "Back 10 seconds", "Jump back 10 seconds"),
+        ["pocketcasts_skip_forward"]= (MaterialIconKind.FastForward30, "Forward 30 seconds", "Jump ahead 30 seconds"),
+        ["signalrgb_effect"]        = (MaterialIconKind.AutoFix, "SignalRGB effect", "Switch SignalRGB to a lighting effect"),
+        ["signalrgb_effect_cycle"]  = (MaterialIconKind.Repeat, "Cycle SignalRGB effects", "Step through the effects listed on this button"),
+        ["signalrgb_blackout"]      = (MaterialIconKind.LightbulbOff, "SignalRGB blackout", "Turn all SignalRGB lighting black"),
+        ["signalrgb_restore"]       = (MaterialIconKind.Restore, "SignalRGB restore", "Bring back the last SignalRGB effect"),
+        // Stream Controller
+        ["sc_page_next"]            = (MaterialIconKind.ChevronRight, "Next page", "Go to the next Stream Controller page"),
+        ["sc_page_prev"]            = (MaterialIconKind.ChevronLeft, "Previous page", "Go to the previous Stream Controller page"),
+        ["sc_page_home"]            = (MaterialIconKind.Home, "First page", "Jump back to page 1"),
+        ["sc_go_to_page"]           = (MaterialIconKind.Numeric, "Go to page", "Jump to a specific page number"),
+        // Advanced
+        ["multi_action"]            = (MaterialIconKind.FormatListNumbered, "Multi-action", "Run several actions in a row"),
+        ["toggle_action"]           = (MaterialIconKind.SwapHorizontal, "Toggle A / B", "Alternate between two actions each press"),
+        ["open_folder"]             = (MaterialIconKind.FolderOpen, "Open Space", "Jump into a named Space"),
+        // Action-group parents
+        ["group_ha"]                = (MaterialIconKind.HomeAssistant, "Home Assistant", "Toggle entities, scenes, light colors, services"),
+        ["group_govee"]             = (MaterialIconKind.Lightbulb, "Govee", "Power, color and white toggles"),
+        ["group_spotify"]           = (MaterialIconKind.Spotify, "Spotify", "Playback, shuffle and likes"),
+        ["group_pocketcasts"]       = (MaterialIconKind.Podcast, "Pocket Casts", "Open, play / pause and skip"),
+        // Lights tab reactive modes (also use this control)
+        ["BeatPulse"]               = (MaterialIconKind.Pulse, "Beat Pulse", "Bass drives all knob brightness together"),
+        ["SpectrumBands"]           = (MaterialIconKind.Equalizer, "Spectrum Bands", "Each knob shows its own frequency band"),
+        ["ColorShift"]              = (MaterialIconKind.Palette, "Color Shift", "Hue shifts with the audio energy"),
     };
 
-    // Sub-menu providers: keyed by action value
-    private readonly Dictionary<string, Func<List<SubItem>>> _subMenuProviders = new();
+    private static readonly Regex DisabledSuffix = new(@"\s\([^)]*disabled\)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    // Action groups — parent rows with synthetic values ("group_spotify")
-    // that hide a set of child action values behind a flyout. The children
-    // remain in _items (so SelectedValue / rendering still work) but are
-    // omitted from the main popup list and shown in the group's flyout
-    // instead. Picking a child commits it as the selection, which then
-    // triggers any existing sub-menu the child has registered (e.g. HA
-    // entity picker).
+    // ── Model ─────────────────────────────────────────────────────
+
+    public record SubItem(string Display, string Tag, string? Icon = null, Color? IconColor = null);
+
+    private readonly List<(string Display, string Value, string Icon, Color Color, string Tooltip)> _items = new();
+    private readonly List<(int ItemIndex, string CategoryName)> _categories = new();
+    private readonly Dictionary<string, Func<List<SubItem>>> _subMenuProviders = new();
     private readonly Dictionary<string, (string Display, string Icon, Color Color, List<string> Children)> _actionGroups = new();
     private readonly HashSet<string> _actionGroupChildren = new();
     private readonly HashSet<string> _actionGroupParents = new();
 
+    private int _selectedIndex = -1;
+    private string? _selectedSubTag;
+
     public event EventHandler? SelectionChanged;
 
-    /// <summary>
-    /// Fired when a sub-menu item is selected. Args: (actionValue, subItemTag).
-    /// </summary>
+    /// <summary>Fired when a sub-item is chosen. Args: (actionValue, subItemTag).</summary>
     public event Action<string, string>? SubItemSelected;
 
-    public string SelectedValue => _selectedIndex >= 0 ? _items[_selectedIndex].Value : "none";
+    public string SelectedValue => _selectedIndex >= 0 && _selectedIndex < _items.Count ? _items[_selectedIndex].Value : "none";
 
-    /// <summary>The sub-item tag selected from the flyout (e.g. entity ID), or null.</summary>
+    /// <summary>The sub-item tag chosen in the flyout (entity ID, device ID, profile…), or null.</summary>
     public string? SelectedSubTag => _selectedSubTag;
 
-    public record SubItem(string Display, string Tag, string? Icon = null, Color? IconColor = null);
+    public Color AccentColor => ThemeManager.Accent;
+
+    // ── Trigger visuals ───────────────────────────────────────────
+
+    private readonly TextBlock _label;
+    private readonly TextBlock _triggerSub;
+    private readonly ContentControl _triggerIconHost;
+    private readonly MaterialIcon _chevron;
+
+    // ── Flyout ────────────────────────────────────────────────────
+
+    private Window? _flyout;
+    private bool _isOpen;
+    private System.Windows.Controls.Border? _popupBorder;
+    private TextBox? _searchBox;
+    private TextBlock? _searchPlaceholder;
+    private ScrollViewer? _scroll;
+    private StackPanel? _listPanel;
+    private string _query = "";
+    private readonly HashSet<string> _expanded = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<SubItem>> _childCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<(System.Windows.Controls.Border Row, Action Activate, Action? Expand, Action? Collapse)> _navRows = new();
+    private int _navIndex = -1;
+    private System.Windows.Controls.Border? _selectedRowVisual;
+    private DateTime _lastClose = DateTime.MinValue;
+    private const double FlyoutWidth = 440;
 
     public ActionPicker()
     {
-        // Button appearance
-        this.SetResourceReference(Border.BorderBrushProperty, "BgDarkBrush");
-        BorderThickness = new Thickness(1.5);
-        CornerRadius = new CornerRadius(6);
-        Padding = new Thickness(8, 0, 8, 0);
-        Height = 36;
+        this.SetResourceReference(BorderBrushProperty, "InputBorderBrush");
+        BorderThickness = new Thickness(1);
+        CornerRadius = new CornerRadius(10);
+        Padding = new Thickness(8, 7, 12, 7);
         Cursor = Cursors.Hand;
         SnapsToDevicePixels = true;
-        this.SetResourceReference(BackgroundProperty, "BgBaseBrush");
+        MinHeight = 50;
+        this.SetResourceReference(BackgroundProperty, "InputBgBrush");
 
-        // Layout: [icon] [label -- fills] [chevron]
-        var dock = new DockPanel { LastChildFill = true };
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        _iconBlock = new TextBlock
-        {
-            FontSize = 14,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 7, 0),
-            Text = "\u2014",
-            Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
-        };
-        DockPanel.SetDock(_iconBlock, Dock.Left);
-        dock.Children.Add(_iconBlock);
+        _triggerIconHost = new ContentControl { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0), Focusable = false };
+        grid.Children.Add(_triggerIconHost);
 
-        _chevron = new TextBlock
-        {
-            Text = "\u25BE",
-            FontSize = 10,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(7, 0, 0, 0),
-            Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
-        };
-        DockPanel.SetDock(_chevron, Dock.Right);
-        dock.Children.Add(_chevron);
+        _label = new TextBlock { Text = "Choose…", FontSize = 13, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
+        _label.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        _triggerSub = new TextBlock { FontSize = 11, Margin = new Thickness(0, 1, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, Visibility = Visibility.Collapsed };
+        _triggerSub.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        var labels = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        labels.Children.Add(_label);
+        labels.Children.Add(_triggerSub);
+        Grid.SetColumn(labels, 1);
+        grid.Children.Add(labels);
 
-        _displayText = new TextBlock
-        {
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
-            TextTrimming = TextTrimming.CharacterEllipsis,
-        };
-        dock.Children.Add(_displayText);
+        _chevron = new MaterialIcon { Kind = MaterialIconKind.ChevronDown, Width = 18, Height = 18, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0),
+            RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = new RotateTransform(0) };
+        _chevron.SetResourceReference(MaterialIcon.ForegroundProperty, "TextDimBrush");
+        Grid.SetColumn(_chevron, 2);
+        grid.Children.Add(_chevron);
 
-        Child = dock;
+        Child = grid;
+        UpdateTrigger();
 
-        // Main flyout content
-        _itemsPanel = new StackPanel();
-        _scrollViewer = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            MaxHeight = 400,
-            Content = _itemsPanel,
-        };
-
-        // ── Inline sub-panel content ──
-        _subHeaderLabel = new TextBlock
-        {
-            FontSize = 9,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
-            Margin = new Thickness(8, 2, 0, 6),
-        };
-
-        _subItemsPanel = new StackPanel();
-        _subScrollViewer = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            MaxHeight = 360,
-            Content = _subItemsPanel
-        };
-
-        _subFilterBox = new TextBox
-        {
-            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
-            CaretBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(8, 5, 8, 5),
-            FontSize = 11,
-            Visibility = Visibility.Collapsed,
-            Margin = new Thickness(4, 0, 4, 6),
-        };
-        _subFilterBox.SetResourceReference(TextBox.BackgroundProperty, "CardBgBrush");
-        _subFilterBox.SetResourceReference(TextBox.BorderBrushProperty, "CardBorderBrush");
-        _subFilterPlaceholder = new TextBlock
-        {
-            Text = "Search...",
-            Foreground = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44)),
-            FontSize = 11,
-            Padding = new Thickness(14, 6, 0, 0),
-            IsHitTestVisible = false,
-            Visibility = Visibility.Collapsed,
-        };
-        _subFilterBox.TextChanged += (_, _) =>
-        {
-            _subFilterText = _subFilterBox.Text.Trim();
-            _subFilterPlaceholder.Visibility = string.IsNullOrEmpty(_subFilterBox.Text)
-                ? Visibility.Visible : Visibility.Collapsed;
-            ApplySubFilter();
-        };
-
-        var subFilterContainer = new Grid();
-        subFilterContainer.Children.Add(_subFilterBox);
-        subFilterContainer.Children.Add(_subFilterPlaceholder);
-
-        var subStack = new StackPanel();
-        subStack.Children.Add(_subHeaderLabel);
-        subStack.Children.Add(subFilterContainer);
-        subStack.Children.Add(_subScrollViewer);
-
-        _subPanelBorder = new Border
-        {
-            CornerRadius = new CornerRadius(0, 6, 6, 0),
-            Padding = new Thickness(4, 6, 4, 6),
-            Child = subStack,
-            MinWidth = 200,
-            MaxWidth = 300,
-            Visibility = Visibility.Collapsed,
-        };
-        _subPanelBorder.SetResourceReference(Border.BackgroundProperty, "BgBaseBrush");
-
-        // Thin vertical divider between main items and sub-panel
-        _subDivider = new Border
-        {
-            Width = 1,
-            Margin = new Thickness(0, 10, 0, 10),
-            Visibility = Visibility.Collapsed,
-        };
-        _subDivider.SetResourceReference(Border.BackgroundProperty, "CardBorderBrush");
-
-        // Horizontal layout: [main items] [divider] [sub-panel]
-        var hStack = new StackPanel { Orientation = Orientation.Horizontal };
-        hStack.Children.Add(_scrollViewer);
-        hStack.Children.Add(_subDivider);
-        hStack.Children.Add(_subPanelBorder);
-
-        _popupBorder = new Border
-        {
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
-            Child = hStack,
-        };
-        _popupBorder.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
-        _popupBorder.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
-
-        _subOpenTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
-        _subOpenTimer.Tick += (_, _) =>
-        {
-            _subOpenTimer.Stop();
-            if (_hoveredSubMenuIdx >= 0 && _hoveredSubMenuIdx < _items.Count)
-            {
-                var value = _items[_hoveredSubMenuIdx].Value;
-                if (_subMenuProviders.ContainsKey(value))
-                    OpenSubMenu(value);
-            }
-        };
-
-        // Hover on button
         MouseEnter += (_, _) =>
         {
-            if (!_isOpen)
-            {
-                var accent = ThemeManager.Accent;
-                BorderBrush = new SolidColorBrush(Color.FromArgb(0xA0, accent.R, accent.G, accent.B));
-                _chevron.Foreground = new SolidColorBrush(Color.FromArgb(0xA0, accent.R, accent.G, accent.B));
-            }
+            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(AccentColor, 0xAA));
+            Background = new SolidColorBrush(ThemeManager.WithAlpha(AccentColor, 0x14));
+            _chevron.Foreground = new SolidColorBrush(AccentColor);
         };
-        MouseLeave += (_, _) =>
-        {
-            if (!_isOpen)
-            {
-                this.SetResourceReference(Border.BorderBrushProperty, "BgDarkBrush");
-                _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
-            }
-        };
-
-        // Toggle flyout on click
+        MouseLeave += (_, _) => { if (!_isOpen) ResetTriggerChrome(); };
         MouseLeftButtonUp += (_, e) =>
         {
-            if (_isOpen) CloseFlyout(); else OpenFlyout();
+            if (_isOpen) CloseFlyout();
+            else if ((DateTime.UtcNow - _lastClose).TotalMilliseconds > 250) OpenFlyout();
             e.Handled = true;
         };
-
-        Unloaded += (_, _) => _subOpenTimer.Stop();
     }
 
-    // ── Main flyout ───────────────────────────────────────────────
+    private void ResetTriggerChrome()
+    {
+        this.SetResourceReference(BorderBrushProperty, "InputBorderBrush");
+        this.SetResourceReference(BackgroundProperty, "InputBgBrush");
+        _chevron.SetResourceReference(MaterialIcon.ForegroundProperty, "TextDimBrush");
+    }
+
+    private void RotateChevron(double angle)
+        => ((RotateTransform)_chevron.RenderTransform).BeginAnimation(RotateTransform.AngleProperty,
+            new DoubleAnimation(angle, TimeSpan.FromMilliseconds(160)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+
+    // ── Item management (public API, unchanged) ──────────────────
+
+    public void AddItem(string display, string value, string icon, Color color, string tooltip)
+        => _items.Add((display, value, icon, color, tooltip));
+
+    /// <summary>
+    /// Mark existing action values as members of a group. The flyout shows one expandable
+    /// parent row; its children are listed inside it and choosing one commits that action.
+    /// </summary>
+    public void AddActionGroup(string groupValue, string display, string icon, Color color, IEnumerable<string> childValues)
+    {
+        var children = childValues?.Where(v => !string.IsNullOrEmpty(v)).ToList() ?? new List<string>();
+        if (children.Count == 0) return;
+        _actionGroups[groupValue] = (display, icon, color, children);
+        foreach (var c in children) _actionGroupChildren.Add(c);
+        _actionGroupParents.Add(groupValue);
+        _items.Add((display, groupValue, icon, color, $"{display} — pick a specific action"));
+    }
+
+    /// <summary>Kept for API compatibility — the list is built when the flyout opens.</summary>
+    public void BuildPopup() { if (_isOpen) RebuildList(); }
+
+    /// <summary>Register child options for an action; they expand inline under its row.</summary>
+    public void RegisterSubMenu(string actionValue, Func<List<SubItem>> provider) => _subMenuProviders[actionValue] = provider;
+
+    public void ClearSubMenus() => _subMenuProviders.Clear();
+
+    public void AddCategory(string categoryName) => _categories.Add((_items.Count, categoryName));
+
+    public void ClearItems()
+    {
+        _items.Clear();
+        _categories.Clear();
+        _actionGroups.Clear();
+        _actionGroupChildren.Clear();
+        _actionGroupParents.Clear();
+        _selectedIndex = -1;
+        _selectedSubTag = null;
+        UpdateTrigger();
+        if (_isOpen) RebuildList();
+    }
+
+    public void Select(string value) => SelectCore(value, clearSubTag: true);
+
+    private void SelectCore(string value, bool clearSubTag)
+    {
+        if (clearSubTag) _selectedSubTag = null;
+        int i = _items.FindIndex(x => x.Value == value);
+        _selectedIndex = i >= 0 ? i : (_items.Count > 0 ? 0 : -1);
+        UpdateTrigger();
+        if (_isOpen) RebuildList();
+    }
+
+    /// <summary>Select an action plus a sub-tag (entity / device / profile…).</summary>
+    public void SelectWithSub(string value, string? subTag)
+    {
+        _selectedSubTag = subTag;
+        SelectCore(value, clearSubTag: false);
+    }
+
+    // ── Presentation helpers ──────────────────────────────────────
+
+    private string TitleOf(int index)
+    {
+        var it = _items[index];
+        if (!ActionMeta.TryGetValue(it.Value, out var m)) return it.Display;
+        var suffix = DisabledSuffix.Match(it.Display);
+        return suffix.Success ? m.Title + suffix.Value : m.Title;
+    }
+
+    private string? DescriptionOf(int index)
+    {
+        var it = _items[index];
+        if (ActionMeta.TryGetValue(it.Value, out var m)) return m.Description;
+        return string.IsNullOrEmpty(it.Tooltip) || it.Tooltip == it.Display ? null : it.Tooltip;
+    }
+
+    private MaterialIconKind? KindOf(int index)
+        => ActionMeta.TryGetValue(_items[index].Value, out var m) ? m.Kind : GridPicker.ParseKind(_items[index].Icon);
+
+    private string? GroupOf(string value)
+        => _actionGroups.FirstOrDefault(g => g.Value.Children.Contains(value)).Key;
+
+    /// <summary>Title shown on the trigger — group children get their group name as prefix.</summary>
+    private string TriggerTitleOf(int index)
+    {
+        var title = TitleOf(index);
+        var g = GroupOf(_items[index].Value);
+        if (g != null)
+        {
+            int gi = _items.FindIndex(x => x.Value == g);
+            if (gi >= 0) title = TitleOf(gi) + ": " + title;
+        }
+        return title;
+    }
+
+    private FrameworkElement Tile(int index, double size)
+        => GridPicker.BuildTile(KindOf(index), _items[index].Icon, null, _items[index].Color, size);
+
+    // ── Trigger ───────────────────────────────────────────────────
+
+    private void UpdateTrigger()
+    {
+        if (_selectedIndex < 0 || _selectedIndex >= _items.Count)
+        {
+            _label.Text = "Choose…";
+            _label.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+            _triggerSub.Visibility = Visibility.Collapsed;
+            _triggerIconHost.Content = GridPicker.BuildTile(MaterialIconKind.GestureTap, null, null, Color.FromRgb(0x88, 0x88, 0x88), 32);
+            ToolTip = null;
+            return;
+        }
+
+        var item = _items[_selectedIndex];
+        string title = TriggerTitleOf(_selectedIndex);
+        string? sub = DescriptionOf(_selectedIndex);
+
+        if (!string.IsNullOrEmpty(_selectedSubTag))
+        {
+            var match = GetChildren(item.Value, useCache: false).FirstOrDefault(s => s.Tag == _selectedSubTag);
+            if (match != null) { sub = title; title = match.Display; }
+        }
+
+        _label.Text = title;
+        _label.SetResourceReference(TextBlock.ForegroundProperty, item.Value == "none" ? "TextSecBrush" : "TextPrimaryBrush");
+        _triggerSub.Text = sub ?? "";
+        _triggerSub.Visibility = string.IsNullOrWhiteSpace(sub) ? Visibility.Collapsed : Visibility.Visible;
+        _triggerIconHost.Content = Tile(_selectedIndex, 32);
+        ToolTip = item.Tooltip;
+    }
+
+    // ── Flyout ────────────────────────────────────────────────────
 
     private void OpenFlyout()
     {
-        CloseSubPanel();
-        _popupBorder.MinWidth = ActualWidth;
-        RebuildAllPopupItems();
-
-        // Detach from any previous flyout so we can re-parent
-        if (_popupBorder.Parent is Border oldParent)
-            oldParent.Child = null;
-
-        var outerBorder = new Border
+        _query = "";
+        _childCache.Clear();
+        _expanded.Clear();
+        if (_selectedIndex >= 0 && _selectedIndex < _items.Count)
         {
-            Child = _popupBorder,
+            var v = _items[_selectedIndex].Value;
+            if (GroupOf(v) is { } g) _expanded.Add("grp:" + g);
+            if (_selectedSubTag != null && _subMenuProviders.ContainsKey(v)) _expanded.Add(v);
+        }
+
+        _searchBox = new TextBox
+        {
+            FontSize = 12.5,
+            BorderThickness = new Thickness(0),
+            Background = Brushes.Transparent,
+            Padding = new Thickness(0, 2, 0, 2),
+            VerticalContentAlignment = VerticalAlignment.Center,
         };
-        outerBorder.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+        _searchBox.SetResourceReference(TextBox.ForegroundProperty, "TextPrimaryBrush");
+        _searchBox.SetResourceReference(TextBox.CaretBrushProperty, "TextPrimaryBrush");
+        _searchPlaceholder = new TextBlock
+        {
+            Text = "Search actions, devices, profiles…",
+            FontSize = 12.5,
+            IsHitTestVisible = false,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(2, 0, 0, 0),
+        };
+        _searchPlaceholder.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        _searchBox.TextChanged += (_, _) =>
+        {
+            _query = _searchBox.Text.Trim();
+            _searchPlaceholder.Visibility = _searchBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+            RebuildList();
+            _scroll?.ScrollToTop();
+        };
+
+        var searchGrid = new Grid();
+        searchGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        searchGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var mag = UiKit.Icon(MaterialIconKind.Magnify, 16);
+        mag.Margin = new Thickness(0, 0, 8, 0);
+        searchGrid.Children.Add(mag);
+        var textHost = new Grid();
+        textHost.Children.Add(_searchBox);
+        textHost.Children.Add(_searchPlaceholder);
+        Grid.SetColumn(textHost, 1);
+        searchGrid.Children.Add(textHost);
+
+        var searchBorder = new System.Windows.Controls.Border
+        {
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(10, 7, 10, 7),
+            Margin = new Thickness(0, 0, 0, 8),
+            Child = searchGrid,
+        };
+        searchBorder.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "InputBgBrush");
+        searchBorder.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "InputBorderBrush");
+
+        _listPanel = new StackPanel();
+        _scroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = _listPanel,
+            Focusable = false,
+        };
+
+        var hint = new TextBlock { Text = "↑ ↓ to move  ·  Enter to choose  ·  Esc to close", FontSize = 10, Margin = new Thickness(4, 8, 0, 0) };
+        hint.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+
+        var root = new DockPanel();
+        DockPanel.SetDock(searchBorder, Dock.Top);
+        DockPanel.SetDock(hint, Dock.Bottom);
+        root.Children.Add(searchBorder);
+        root.Children.Add(hint);
+        root.Children.Add(_scroll);
+
+        _popupBorder = new System.Windows.Controls.Border
+        {
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(10),
+            Child = root,
+        };
+        _popupBorder.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "BgDarkBrush");
+        _popupBorder.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "InputBorderBrush");
+
+        // Placement — DPI-aware, flips upward when there's no room below.
+        var belowPx = PointToScreen(new Point(0, ActualHeight + 4));
+        var abovePx = PointToScreen(new Point(0, -4));
+        var source = PresentationSource.FromVisual(this);
+        double dpiX = 1, dpiY = 1;
+        if (source?.CompositionTarget != null)
+        {
+            dpiX = source.CompositionTarget.TransformToDevice.M11;
+            dpiY = source.CompositionTarget.TransformToDevice.M22;
+        }
+        var wa = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)belowPx.X, (int)belowPx.Y)).WorkingArea;
+        double waTop = wa.Top / dpiY, waBottom = wa.Bottom / dpiY, waLeft = wa.Left / dpiX, waRight = wa.Right / dpiX;
+        double belowY = belowPx.Y / dpiY, aboveY = abovePx.Y / dpiY;
+        double spaceBelow = waBottom - belowY - 8, spaceAbove = aboveY - waTop - 8;
+        bool openUp = spaceBelow < 420 && spaceAbove > spaceBelow;
+        // Short lists (e.g. Lights tab reactive modes) don't need the full-height panel.
+        double wanted = _items.Count <= 6 && _subMenuProviders.Count == 0 ? 120 + _items.Count * 52 : 560;
+        double height = Math.Clamp(Math.Min(openUp ? spaceAbove : spaceBelow, wanted), 200, 560);
+        double width = Math.Max(FlyoutWidth, ActualWidth);
+        _popupBorder.Width = width;
+        _popupBorder.Height = height;
+
+        double left = belowPx.X / dpiX;
+        if (left + width > waRight) left = Math.Max(waLeft, waRight - width);
+        double top = openUp ? aboveY - height : belowY;
 
         _flyout = new Window
         {
@@ -302,632 +497,477 @@ public class ActionPicker : Border
             ShowInTaskbar = false,
             Topmost = true,
             AllowsTransparency = false,
-            Background = (Brush)Application.Current.FindResource("BgDarkBrush"),
-            Content = outerBorder
+            Content = _popupBorder,
+            Left = left,
+            Top = top,
         };
+        _flyout.SetResourceReference(Window.BackgroundProperty, "BgDarkBrush");
+        _flyout.Deactivated += (_, _) => CloseFlyout();
+        _flyout.PreviewKeyDown += OnFlyoutKeyDown;
 
-        // Position below the trigger (convert physical pixels back to DIPs for PerMonitorV2)
-        var screenPos = PointToScreen(new Point(0, ActualHeight + 2));
-        var source = PresentationSource.FromVisual(this);
-        if (source?.CompositionTarget != null)
-        {
-            var dpiX = source.CompositionTarget.TransformToDevice.M11;
-            var dpiY = source.CompositionTarget.TransformToDevice.M22;
-            screenPos = new Point(screenPos.X / dpiX, screenPos.Y / dpiY);
-        }
-        _flyout.Left = screenPos.X;
-        _flyout.Top = screenPos.Y;
+        RebuildList();
 
-        _flyout.Deactivated += (_, _) =>
-        {
-            CloseFlyout();
-        };
-        _flyout.KeyDown += (_, e) => { if (e.Key == Key.Escape) CloseFlyout(); };
-
-        // Slide-down + fade-in animation (120ms)
-        var translate = new TranslateTransform(0, -8);
+        var translate = new TranslateTransform(0, openUp ? 8 : -8);
         _popupBorder.RenderTransform = translate;
         _popupBorder.Opacity = 0;
 
         _flyout.Show();
+        _flyout.Activate();
         _isOpen = true;
+        _searchBox.Focus();
+        Keyboard.Focus(_searchBox);
 
-        var slideAnim = new DoubleAnimation(-8, 0, new Duration(TimeSpan.FromMilliseconds(120)))
-            { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
-        var fadeAnim = new DoubleAnimation(0, 1, new Duration(TimeSpan.FromMilliseconds(120)));
-        translate.BeginAnimation(TranslateTransform.YProperty, slideAnim);
-        _popupBorder.BeginAnimation(UIElement.OpacityProperty, fadeAnim);
+        translate.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(openUp ? 8 : -8, 0, TimeSpan.FromMilliseconds(130))
+            { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+        _popupBorder.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(130)));
 
-        BorderBrush = new SolidColorBrush(ThemeManager.Accent);
-        _chevron.Foreground = new SolidColorBrush(ThemeManager.Accent);
+        _flyout.Dispatcher.BeginInvoke(new Action(() => _selectedRowVisual?.BringIntoView(new Rect(0, -40, 10, 120))),
+            System.Windows.Threading.DispatcherPriority.Loaded);
+
+        BorderBrush = new SolidColorBrush(AccentColor);
+        Background = new SolidColorBrush(ThemeManager.WithAlpha(AccentColor, 0x14));
+        RotateChevron(180);
     }
 
     private void CloseFlyout()
     {
         if (!_isOpen) return;
         _isOpen = false;
-        _subOpenTimer.Stop();
-        CloseSubPanel();
-
-        // Detach child before close so _popupBorder can be reused
-        if (_flyout?.Content is Border b)
-            b.Child = null;
-
-        _flyout?.Close();
+        _lastClose = DateTime.UtcNow;
+        var f = _flyout;
         _flyout = null;
-
-        this.SetResourceReference(Border.BorderBrushProperty, "BgDarkBrush");
-        _chevron.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+        _navRows.Clear();
+        _selectedRowVisual = null;
+        f?.Close();
+        RotateChevron(0);
+        ResetTriggerChrome();
     }
 
-    // ── Inline sub-panel ──────────────────────────────────────────
-
-    private void OpenSubMenu(string actionValue)
+    private void OnFlyoutKeyDown(object sender, KeyEventArgs e)
     {
-        if (!_subMenuProviders.TryGetValue(actionValue, out var provider))
-            return;
-
-        var items = provider();
-        if (items.Count == 0) return;
-
-        _activeSubParentValue = actionValue;
-        _activeSubItems = items;
-
-        // Set header from parent item display name
-        var parentDisplay = _items.FirstOrDefault(i => i.Value == actionValue).Display ?? actionValue;
-        _subHeaderLabel.Text = parentDisplay.ToUpperInvariant();
-
-        RebuildSubItems();
-
-        var showFilter = _activeSubItems.Count > 8;
-        _subFilterBox.Visibility = showFilter ? Visibility.Visible : Visibility.Collapsed;
-        _subFilterPlaceholder.Visibility = showFilter ? Visibility.Visible : Visibility.Collapsed;
-        _subFilterBox.Text = "";
-        _subFilterText = "";
-
-        // Show the inline sub-panel and divider
-        _subDivider.Visibility = Visibility.Visible;
-        _subPanelBorder.Visibility = Visibility.Visible;
-
-        // Refresh main items to highlight active parent
-        RebuildAllPopupItems();
-
-        if (showFilter)
-            _subFilterBox.Focus();
-    }
-
-    private void CloseSubPanel()
-    {
-        _hoveredSubMenuIdx = -1;
-        _subDivider.Visibility = Visibility.Collapsed;
-        _subPanelBorder.Visibility = Visibility.Collapsed;
-    }
-
-    // ── Item management ─────────────────────────────────────────────
-
-    public void AddItem(string display, string value, string icon, Color color, string tooltip)
-    {
-        _items.Add((display, value, icon, color, tooltip));
-    }
-
-    /// <summary>
-    /// Mark a set of existing action values as members of a group. The
-    /// main popup will hide the children and render a single parent row
-    /// with a right-chevron; clicking it opens a flyout listing the
-    /// children. Pick one of those and the picker commits it as the real
-    /// action selection (including any sub-menu that action may have
-    /// already registered — e.g. HA entity picker).
-    /// </summary>
-    public void AddActionGroup(string groupValue, string display, string icon, Color color, IEnumerable<string> childValues)
-    {
-        var children = childValues?.Where(v => !string.IsNullOrEmpty(v)).ToList() ?? new List<string>();
-        if (children.Count == 0) return;
-        _actionGroups[groupValue] = (display, icon, color, children);
-        foreach (var c in children) _actionGroupChildren.Add(c);
-        _actionGroupParents.Add(groupValue);
-        // Insert as an _items row so category layout + BuildPopupItem work.
-        _items.Add((display, groupValue, icon, color, $"{display} — pick a specific action"));
-
-        // Register a sub-menu provider that returns the children so the
-        // existing inline side-panel UI handles the flyout. The children's
-        // Tag is the real action value; the sub-item click handler checks
-        // _actionGroupParents to know it should commit that as the main
-        // action instead of treating it as a secondary tag.
-        _subMenuProviders[groupValue] = () =>
+        switch (e.Key)
         {
-            var result = new List<SubItem>();
-            foreach (var childValue in children)
-            {
-                var entry = _items.FirstOrDefault(i => i.Value == childValue);
-                if (string.IsNullOrEmpty(entry.Value)) continue;
-                result.Add(new SubItem(entry.Display, entry.Value, entry.Icon, entry.Color));
-            }
-            return result;
-        };
-    }
-
-    /// <summary>
-    /// Rebuild the popup after all items and categories have been added.
-    /// Must be called after AddItem/AddCategory to display items.
-    /// </summary>
-    public void BuildPopup()
-    {
-        RebuildAllPopupItems();
-    }
-
-    /// <summary>
-    /// Register a sub-menu provider for items with the given action value.
-    /// When hovered/clicked, a slide-out panel shows the provider's items.
-    /// </summary>
-    public void RegisterSubMenu(string actionValue, Func<List<SubItem>> provider)
-    {
-        _subMenuProviders[actionValue] = provider;
-    }
-
-    public void ClearSubMenus()
-    {
-        _subMenuProviders.Clear();
-    }
-
-    public void AddCategory(string categoryName)
-    {
-        _categories.Add((_items.Count, categoryName));
-    }
-
-    public void ClearItems()
-    {
-        _items.Clear();
-        _categories.Clear();
-        _itemsPanel.Children.Clear();
-        _selectedIndex = -1;
-        _selectedSubTag = null;
-        _displayText.Text = "None";
-        _iconBlock.Text = "\u2014";
-        _iconBlock.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
-    }
-
-    public void Select(string value)
-    {
-        SelectCore(value, clearSubTag: true);
-    }
-
-    private void SelectCore(string value, bool clearSubTag)
-    {
-        if (clearSubTag)
-            _selectedSubTag = null;
-
-        for (int i = 0; i < _items.Count; i++)
-        {
-            if (_items[i].Value == value)
-            {
-                SetSelectedIndex(i, fireEvent: false);
-                return;
-            }
-        }
-        SetSelectedIndex(0, fireEvent: false);
-    }
-
-    /// <summary>
-    /// Select an action and optionally set the sub-tag (entity ID).
-    /// If subTag is provided and a sub-menu exists, show the entity name on the button.
-    /// </summary>
-    public void SelectWithSub(string value, string? subTag)
-    {
-        _selectedSubTag = subTag;
-        SelectCore(value, clearSubTag: false);
-
-        // If we have a sub-tag, try to resolve its display name
-        if (!string.IsNullOrEmpty(subTag) && _subMenuProviders.TryGetValue(value, out var provider))
-        {
-            var items = provider();
-            var match = items.FirstOrDefault(i => i.Tag == subTag);
-            if (match != null)
-                _displayText.Text = match.Display;
-        }
-    }
-
-    // ── Sub-items rebuild ────────────────────────────────────────
-
-    private void RebuildSubItems()
-    {
-        _subItemsPanel.Children.Clear();
-        var accent = ThemeManager.Accent;
-
-        for (int i = 0; i < _activeSubItems.Count; i++)
-        {
-            int idx = i;
-            var sub = _activeSubItems[i];
-            bool selected = _selectedSubTag == sub.Tag && _activeSubParentValue == SelectedValue;
-
-            var rowGrid = new Grid();
-            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var accentBar = new Border
-            {
-                Width = 2,
-                Background = selected ? new SolidColorBrush(accent) : Brushes.Transparent,
-                CornerRadius = new CornerRadius(1),
-                Margin = new Thickness(0, 2, 6, 2)
-            };
-            Grid.SetColumn(accentBar, 0);
-            rowGrid.Children.Add(accentBar);
-
-            int textCol = 1;
-
-            if (!string.IsNullOrEmpty(sub.Icon))
-            {
-                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                var iconText = new TextBlock
-                {
-                    Text = sub.Icon,
-                    FontSize = 12,
-                    Foreground = new SolidColorBrush(sub.IconColor ?? accent),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(0, 0, 6, 0)
-                };
-                Grid.SetColumn(iconText, 1);
-                rowGrid.Children.Add(iconText);
-                textCol = 2;
-            }
-
-            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-            var itemText = new TextBlock
-            {
-                Text = sub.Display,
-                FontSize = 11.5,
-                Foreground = selected
-                    ? new SolidColorBrush(accent)
-                    : new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
-                FontWeight = selected ? FontWeights.Medium : FontWeights.Normal,
-                VerticalAlignment = VerticalAlignment.Center,
-                TextTrimming = TextTrimming.CharacterEllipsis
-            };
-            Grid.SetColumn(itemText, textCol);
-            rowGrid.Children.Add(itemText);
-
-            var itemBorder = new Border
-            {
-                Padding = new Thickness(6, 6, 8, 6),
-                Cursor = Cursors.Hand,
-                Background = selected
-                    ? new SolidColorBrush(Color.FromArgb(0x1F, accent.R, accent.G, accent.B))
-                    : Brushes.Transparent,
-                CornerRadius = new CornerRadius(4),
-                Margin = new Thickness(2, 1, 2, 1),
-                SnapsToDevicePixels = true,
-                Child = rowGrid
-            };
-
-            itemBorder.MouseEnter += (_, _) =>
-            {
-                if (!selected)
-                {
-                    itemBorder.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-                    itemText.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
-                }
-            };
-            itemBorder.MouseLeave += (_, _) =>
-            {
-                if (!selected)
-                {
-                    itemBorder.Background = Brushes.Transparent;
-                    itemText.Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
-                }
-            };
-
-            itemBorder.MouseLeftButtonUp += (_, e) =>
-            {
-                var parentValue = _activeSubParentValue ?? "";
-                var subItem = _activeSubItems[idx];
-
-                // Action-group parent: the sub-item's Tag is the REAL
-                // action value — commit it as the selection and open its
-                // own sub-menu if it has one (e.g. HA entity picker).
-                if (_actionGroupParents.Contains(parentValue))
-                {
-                    int childIdx = _items.FindIndex(i => i.Value == subItem.Tag);
-                    if (childIdx >= 0)
-                    {
-                        _selectedSubTag = null;
-                        SetSelectedIndex(childIdx, fireEvent: true);
-                        if (_subMenuProviders.TryGetValue(subItem.Tag, out var childProvider)
-                            && childProvider().Count > 0)
-                        {
-                            OpenSubMenu(subItem.Tag);
-                        }
-                        else
-                        {
-                            CloseFlyout();
-                        }
-                    }
-                    e.Handled = true;
-                    return;
-                }
-
-                // Legacy path: parent becomes the action, subItem.Tag is a
-                // secondary value (entity ID / device ID / etc.).
-                for (int pi = 0; pi < _items.Count; pi++)
-                {
-                    if (_items[pi].Value == parentValue)
-                    {
-                        _selectedIndex = pi;
-                        var item = _items[pi];
-                        _iconBlock.Text = item.Icon;
-                        _iconBlock.Foreground = new SolidColorBrush(item.Color);
-                        ToolTip = item.Tooltip;
-                        break;
-                    }
-                }
-
-                _selectedSubTag = subItem.Tag;
-                // Show entity name on the button
-                _displayText.Text = subItem.Display;
-
-                CloseFlyout();
-
-                RebuildAllPopupItems();
-                SubItemSelected?.Invoke(parentValue, subItem.Tag);
-                SelectionChanged?.Invoke(this, EventArgs.Empty);
+            case Key.Escape:
+                if (_searchBox != null && _searchBox.Text.Length > 0) _searchBox.Text = "";
+                else CloseFlyout();
                 e.Handled = true;
-            };
-
-            _subItemsPanel.Children.Add(itemBorder);
-        }
-    }
-
-    private void ApplySubFilter()
-    {
-        if (string.IsNullOrEmpty(_subFilterText))
-        {
-            foreach (UIElement child in _subItemsPanel.Children)
-                child.Visibility = Visibility.Visible;
-            return;
-        }
-
-        for (int i = 0; i < _activeSubItems.Count && i < _subItemsPanel.Children.Count; i++)
-        {
-            var match = _activeSubItems[i].Display.Contains(_subFilterText, StringComparison.OrdinalIgnoreCase);
-            _subItemsPanel.Children[i].Visibility = match ? Visibility.Visible : Visibility.Collapsed;
-        }
-    }
-
-    // ── Internal ────────────────────────────────────────────────────
-
-    private void SetSelectedIndex(int idx, bool fireEvent)
-    {
-        _selectedIndex = idx;
-
-        if (idx >= 0 && idx < _items.Count)
-        {
-            var item = _items[idx];
-            _displayText.Text = item.Display;
-            _iconBlock.Text = item.Icon;
-            _iconBlock.Foreground = new SolidColorBrush(item.Color);
-            ToolTip = item.Tooltip;
-        }
-        else
-        {
-            _displayText.Text = "None";
-            _iconBlock.Text = "\u2014";
-            _iconBlock.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
-        }
-
-        RebuildAllPopupItems();
-
-        if (fireEvent)
-            SelectionChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    private void BuildPopupItem(int idx)
-    {
-        var item = _items[idx];
-        bool selected = idx == _selectedIndex;
-        bool isActionGroup = _actionGroupParents.Contains(item.Value);
-        bool hasSubMenu = _subMenuProviders.TryGetValue(item.Value, out var subProvider)
-            && subProvider().Count > 0;
-        bool isActiveSubParent = hasSubMenu && _subPanelBorder.Visibility == Visibility.Visible
-            && item.Value == _activeSubParentValue;
-        // Highlight a group parent when any of its children is the
-        // currently-selected action.
-        bool groupChildSelected = isActionGroup && _selectedIndex >= 0
-            && _actionGroups.TryGetValue(item.Value, out var groupInfo)
-            && groupInfo.Children.Contains(_items[_selectedIndex].Value);
-
-        var accentBar = new Border
-        {
-            Width = 3,
-            Background = selected || isActiveSubParent
-                ? new SolidColorBrush(ThemeManager.Accent)
-                : Brushes.Transparent,
-            CornerRadius = new CornerRadius(1),
-            Margin = new Thickness(0, 2, 0, 2),
-        };
-
-        var iconText = new TextBlock
-        {
-            Text = item.Icon,
-            FontSize = 13,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 8, 0),
-            Foreground = new SolidColorBrush(item.Color),
-        };
-
-        var nameText = new TextBlock
-        {
-            Text = item.Display,
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            Foreground = selected || isActiveSubParent
-                ? new SolidColorBrush(ThemeManager.Accent)
-                : new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
-            FontWeight = selected || isActiveSubParent ? FontWeights.Medium : FontWeights.Normal,
-        };
-
-        var rowGrid = new Grid();
-        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // accent bar
-        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // icon
-        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // name
-        Grid.SetColumn(accentBar, 0);
-        Grid.SetColumn(iconText, 1);
-        Grid.SetColumn(nameText, 2);
-        rowGrid.Children.Add(accentBar);
-        rowGrid.Children.Add(iconText);
-        rowGrid.Children.Add(nameText);
-
-        // Sub-menu arrow (shown for legacy sub-menus + action-group parents)
-        if (hasSubMenu)
-        {
-            bool highlight = isActiveSubParent || groupChildSelected;
-            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var arrow = new TextBlock
-            {
-                Text = "\u203A",
-                FontSize = 14,
-                Foreground = new SolidColorBrush(highlight ? ThemeManager.Accent : Color.FromRgb(0x66, 0x66, 0x66)),
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(8, 0, 4, 0),
-                FontWeight = FontWeights.Bold
-            };
-            Grid.SetColumn(arrow, 3);
-            rowGrid.Children.Add(arrow);
-        }
-
-        var row = new Border
-        {
-            Padding = new Thickness(0, 5, 10, 5),
-            Cursor = Cursors.Hand,
-            Background = selected
-                ? new SolidColorBrush(Color.FromArgb(0x1F, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B))
-                : Brushes.Transparent,
-            SnapsToDevicePixels = true,
-            Child = rowGrid,
-            ToolTip = item.Tooltip,
-        };
-        if (isActiveSubParent && !selected)
-            row.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-
-        int capturedIdx = idx;
-
-        row.MouseEnter += (_, _) =>
-        {
-            if (capturedIdx != _selectedIndex)
-            {
-                row.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-                nameText.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
-            }
-
-            if (hasSubMenu)
-            {
-                _hoveredSubMenuIdx = capturedIdx;
-                _subOpenTimer.Stop();
-                _subOpenTimer.Start();
-            }
-            else
-            {
-                _subOpenTimer.Stop();
-                _hoveredSubMenuIdx = -1;
-                // Don't close sub-panel here -- prevents premature close during
-                // diagonal mouse movement between main item and sub-panel.
-            }
-        };
-        row.MouseLeave += (_, _) =>
-        {
-            bool sel = capturedIdx == _selectedIndex;
-            var accent = ThemeManager.Accent;
-            row.Background = sel
-                ? new SolidColorBrush(Color.FromArgb(0x1F, accent.R, accent.G, accent.B))
-                : Brushes.Transparent;
-            nameText.Foreground = sel
-                ? new SolidColorBrush(accent)
-                : new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
-        };
-
-        row.MouseLeftButtonUp += (_, e) =>
-        {
-            if (hasSubMenu)
-            {
-                _subOpenTimer.Stop();
-                OpenSubMenu(item.Value);
+                break;
+            case Key.Down: MoveNav(+1); e.Handled = true; break;
+            case Key.Up: MoveNav(-1); e.Handled = true; break;
+            case Key.PageDown: MoveNav(+6); e.Handled = true; break;
+            case Key.PageUp: MoveNav(-6); e.Handled = true; break;
+            case Key.Enter:
+                if (_navIndex >= 0 && _navIndex < _navRows.Count) _navRows[_navIndex].Activate();
+                else if (_navRows.Count > 0) _navRows[0].Activate();
                 e.Handled = true;
-                return;
-            }
-
-            _selectedSubTag = null;
-            CloseFlyout();
-            SetSelectedIndex(capturedIdx, fireEvent: true);
-            e.Handled = true;
-        };
-
-        _itemsPanel.Children.Add(row);
+                break;
+            case Key.Right:
+                if (_navIndex >= 0 && _navIndex < _navRows.Count && _navRows[_navIndex].Expand is { } ex
+                    && (_searchBox == null || _searchBox.CaretIndex >= _searchBox.Text.Length))
+                { ex(); e.Handled = true; }
+                break;
+            case Key.Left:
+                if (_navIndex >= 0 && _navIndex < _navRows.Count && _navRows[_navIndex].Collapse is { } col
+                    && (_searchBox == null || _searchBox.Text.Length == 0))
+                { col(); e.Handled = true; }
+                break;
+        }
     }
 
-    private Dictionary<int, int> BuildCategoryMap()
+    private void MoveNav(int delta)
     {
-        var map = new Dictionary<int, int>();
+        if (_navRows.Count == 0) return;
+        int next = _navIndex < 0 ? (delta > 0 ? 0 : _navRows.Count - 1) : Math.Clamp(_navIndex + delta, 0, _navRows.Count - 1);
+        SetNav(next);
+    }
+
+    private void SetNav(int idx)
+    {
+        if (_navIndex >= 0 && _navIndex < _navRows.Count)
+            _navRows[_navIndex].Row.BorderBrush = Brushes.Transparent;
+        _navIndex = idx;
+        if (idx >= 0 && idx < _navRows.Count)
+        {
+            var row = _navRows[idx].Row;
+            row.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(AccentColor, 0x88));
+            row.BringIntoView();
+        }
+    }
+
+    // ── List building ─────────────────────────────────────────────
+
+    private List<SubItem> GetChildren(string value, bool useCache = true)
+    {
+        if (_actionGroupParents.Contains(value)) return new();
+        if (!_subMenuProviders.TryGetValue(value, out var provider)) return new();
+        if (useCache && _childCache.TryGetValue(value, out var cached)) return cached;
+        List<SubItem> list;
+        try { list = provider() ?? new(); } catch { list = new(); }
+        if (useCache) _childCache[value] = list;
+        return list;
+    }
+
+    private bool Matches(params string?[] fields)
+    {
+        if (_query.Length == 0) return true;
+        var terms = _query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var hay = string.Join(" ", fields.Where(f => !string.IsNullOrEmpty(f)));
+        return terms.All(t => hay.Contains(t, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private bool ItemMatches(int i, string? category, string? groupTitle = null)
+        => Matches(TitleOf(i), DescriptionOf(i), _items[i].Display, _items[i].Value, category, groupTitle);
+
+    private void RebuildList()
+    {
+        if (_listPanel == null) return;
+        var prevNavKey = _navIndex >= 0 && _navIndex < _navRows.Count ? _navRows[_navIndex].Row.Tag : null;
+        double keepOffset = _scroll?.VerticalOffset ?? 0;
+        _listPanel.Children.Clear();
+        _navRows.Clear();
+        _navIndex = -1;
+        _selectedRowVisual = null;
+
+        var groups = new List<(string? Name, List<int> Indices)>();
+        int firstCat = _categories.Count > 0 ? _categories[0].ItemIndex : _items.Count;
+        if (firstCat > 0) groups.Add((null, Enumerable.Range(0, Math.Min(firstCat, _items.Count)).ToList()));
         for (int c = 0; c < _categories.Count; c++)
         {
             int start = _categories[c].ItemIndex;
             int end = c + 1 < _categories.Count ? _categories[c + 1].ItemIndex : _items.Count;
-            for (int i = start; i < end; i++)
-                map[i] = c;
+            groups.Add((_categories[c].CategoryName, Enumerable.Range(start, Math.Max(0, end - start)).ToList()));
         }
-        return map;
-    }
 
-    private void RebuildAllPopupItems()
-    {
-        _itemsPanel.Children.Clear();
-        var categoryMap = BuildCategoryMap();
-        int currentCategory = -1;
-        var accent = ThemeManager.Accent;
-
-        for (int i = 0; i < _items.Count; i++)
+        // Group parents are appended after all categories by AddActionGroup — file each one
+        // under the category holding its first child (Integrations), not at the end.
+        var parentHome = new Dictionary<int, string?>();
+        foreach (var (gv, info) in _actionGroups)
         {
-            // Skip children of an action group — they only appear in the
-            // group's flyout, not the main popup list.
-            if (_actionGroupChildren.Contains(_items[i].Value)) continue;
+            int pi = _items.FindIndex(x => x.Value == gv);
+            int ci = _items.FindIndex(x => x.Value == info.Children.FirstOrDefault(c => _items.Any(y => y.Value == c)));
+            if (pi < 0) continue;
+            var homeName = ci >= 0 ? groups.FirstOrDefault(g => g.Indices.Contains(ci)).Name : null;
+            parentHome[pi] = homeName;
+        }
 
-            int cat = categoryMap.GetValueOrDefault(i, -1);
+        int shown = 0;
+        foreach (var (name, indices) in groups)
+        {
+            var section = new StackPanel();
+            int count = 0;
+            var ordered = indices.Where(i => !parentHome.ContainsKey(i)).ToList();
+            ordered.AddRange(parentHome.Where(p => p.Value == name).Select(p => p.Key));
 
-            // Category header
-            if (cat != currentCategory)
+            foreach (int i in ordered)
             {
-                currentCategory = cat;
-                if (cat >= 0)
+                var v = _items[i].Value;
+                if (_actionGroupChildren.Contains(v) && GroupOf(v) is { } gk && _items.Any(x => x.Value == gk)) continue;
+                if (_actionGroupParents.Contains(v))
                 {
-                    var catName = _categories[cat].CategoryName.ToUpperInvariant();
-                    var (icon, color) = CategoryStyles.GetValueOrDefault(catName, ("\u2022", accent));
-
-                    var headerRow = new StackPanel
-                    {
-                        Orientation = Orientation.Horizontal,
-                        Margin = new Thickness(8, _itemsPanel.Children.Count > 0 ? 10 : 2, 0, 4)
-                    };
-
-                    headerRow.Children.Add(new TextBlock
-                    {
-                        Text = icon,
-                        FontSize = 10,
-                        Foreground = new SolidColorBrush(color),
-                        VerticalAlignment = VerticalAlignment.Center,
-                        Margin = new Thickness(0, 0, 6, 0)
-                    });
-
-                    headerRow.Children.Add(new TextBlock
-                    {
-                        Text = catName,
-                        FontSize = 9,
-                        Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
-                        FontWeight = FontWeights.SemiBold,
-                        VerticalAlignment = VerticalAlignment.Center,
-                    });
-
-                    _itemsPanel.Children.Add(headerRow);
+                    var g = BuildGroup(i, name);
+                    if (g != null) { section.Children.Add(g); count++; }
+                    continue;
                 }
+                var row = BuildItemWithChildren(i, name, null, compact: false);
+                if (row != null) { section.Children.Add(row); count++; }
             }
 
-            BuildPopupItem(i);
+            if (count == 0) continue;
+            if (name != null)
+            {
+                var header = UiKit.SectionHeader(name, null);
+                ((FrameworkElement)header).Margin = new Thickness(4, shown == 0 ? 2 : 14, 0, 6);
+                _listPanel.Children.Add(header);
+            }
+            _listPanel.Children.Add(section);
+            shown++;
         }
+
+        // Group parents whose children are all missing from any category (defensive).
+        foreach (var kv in parentHome.Where(p => !groups.Any(g => g.Name == p.Value)))
+        {
+            var g = BuildGroup(kv.Key, null);
+            if (g != null) { _listPanel.Children.Add(g); shown++; }
+        }
+
+        if (shown == 0)
+        {
+            var empty = new StackPanel { Margin = new Thickness(0, 36, 0, 0), HorizontalAlignment = HorizontalAlignment.Center };
+            var ic = UiKit.Icon(MaterialIconKind.MagnifyClose, 28);
+            ic.HorizontalAlignment = HorizontalAlignment.Center;
+            empty.Children.Add(ic);
+            var t = new TextBlock { Text = $"Nothing matches \"{_query}\"", FontSize = 12, Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Center };
+            t.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+            empty.Children.Add(t);
+            _listPanel.Children.Add(empty);
+        }
+
+        int restore = prevNavKey != null ? _navRows.FindIndex(r => Equals(r.Row.Tag, prevNavKey)) : -1;
+        if (restore < 0 && _query.Length > 0 && _navRows.Count > 0) restore = 0;
+        if (restore < 0 && _selectedRowVisual != null) restore = _navRows.FindIndex(r => r.Row == _selectedRowVisual);
+        if (restore >= 0) SetNav(restore);
+
+        if (_scroll != null && keepOffset > 0)
+        {
+            _scroll.UpdateLayout();
+            _scroll.ScrollToVerticalOffset(Math.Min(keepOffset, _scroll.ScrollableHeight));
+        }
+    }
+
+    private System.Windows.Controls.Border MakeRowShell(bool selected, bool parentOfSelection = false)
+    {
+        var row = new System.Windows.Controls.Border
+        {
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(8, 6, 10, 6),
+            Margin = new Thickness(0, 1, 0, 1),
+            BorderThickness = new Thickness(1),
+            BorderBrush = Brushes.Transparent,
+            Cursor = Cursors.Hand,
+            SnapsToDevicePixels = true,
+            Background = selected
+                ? new SolidColorBrush(ThemeManager.WithAlpha(AccentColor, 0x22))
+                : parentOfSelection ? new SolidColorBrush(ThemeManager.WithAlpha(AccentColor, 0x10)) : Brushes.Transparent,
+        };
+        var normalBg = row.Background;
+        row.MouseEnter += (_, _) => { if (!selected) row.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "InputBgBrush"); };
+        row.MouseLeave += (_, _) => { if (!selected) row.Background = normalBg; };
+        return row;
+    }
+
+    private TextBlock MakeTitle(string text, bool accent)
+    {
+        var t = new TextBlock { Text = text, FontSize = 12.5, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
+        if (accent) t.Foreground = new SolidColorBrush(AccentColor);
+        else t.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        return t;
+    }
+
+    private static TextBlock MakeDescription(string text)
+    {
+        var t = new TextBlock { Text = text, FontSize = 10.5, Margin = new Thickness(0, 1, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+        t.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+        return t;
+    }
+
+    private static Grid ThreeColumnGrid()
+    {
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        return grid;
+    }
+
+    private static (Grid Outer, StackPanel Panel) MakeChildContainer()
+    {
+        var panel = new StackPanel { Margin = new Thickness(26, 0, 0, 6) };
+        var outer = new Grid();
+        var guide = new System.Windows.Controls.Border { Width = 2, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(15, 2, 0, 8), CornerRadius = new CornerRadius(1) };
+        guide.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "CardBorderBrush");
+        outer.Children.Add(guide);
+        outer.Children.Add(panel);
+        return (outer, panel);
+    }
+
+    /// <summary>Action-group accordion (Home Assistant, Govee, Spotify…).</summary>
+    private FrameworkElement? BuildGroup(int parentIndex, string? category)
+    {
+        var gv = _items[parentIndex].Value;
+        var expKey = "grp:" + gv;
+        var members = _actionGroups[gv].Children
+            .Select(c => _items.FindIndex(x => x.Value == c)).Where(i => i >= 0).ToList();
+        if (members.Count == 0) return null;
+
+        string groupTitle = TitleOf(parentIndex);
+        bool headerMatch = ItemMatches(parentIndex, category);
+        var matched = members.Where(m => ItemMatches(m, category, groupTitle)
+            || GetChildren(_items[m].Value).Any(s => Matches(s.Display, s.Tag))).ToList();
+        if (!headerMatch && matched.Count == 0) return null;
+
+        bool memberSelected = members.Contains(_selectedIndex);
+        bool expanded = _expanded.Contains(expKey) || (_query.Length > 0 && !headerMatch);
+        var visible = _query.Length > 0 && !headerMatch ? matched : members;
+
+        var container = new StackPanel();
+        var row = MakeRowShell(false, memberSelected);
+        row.Tag = "group:" + gv;
+        var grid = ThreeColumnGrid();
+        var tile = Tile(parentIndex, 32);
+        tile.Margin = new Thickness(0, 0, 12, 0);
+        grid.Children.Add(tile);
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        text.Children.Add(MakeTitle(groupTitle, memberSelected));
+        var desc = memberSelected ? "Current: " + TitleOf(_selectedIndex) : DescriptionOf(parentIndex);
+        if (!string.IsNullOrEmpty(desc)) text.Children.Add(MakeDescription(desc));
+        Grid.SetColumn(text, 1);
+        grid.Children.Add(text);
+        var chev = UiKit.Icon(expanded ? MaterialIconKind.ChevronUp : MaterialIconKind.ChevronDown, 18, memberSelected ? "AccentBrush" : "TextDimBrush");
+        chev.Margin = new Thickness(8, 0, 0, 0);
+        Grid.SetColumn(chev, 2);
+        grid.Children.Add(chev);
+        row.Child = grid;
+        row.ToolTip = _items[parentIndex].Tooltip;
+
+        Action toggle = () => { if (!_expanded.Remove(expKey)) _expanded.Add(expKey); RebuildList(); };
+        row.MouseLeftButtonUp += (_, ev) => { toggle(); ev.Handled = true; };
+        if (memberSelected && !expanded) _selectedRowVisual = row;
+        _navRows.Add((row, toggle, expanded ? null : toggle, expanded ? toggle : null));
+        container.Children.Add(row);
+
+        if (expanded)
+        {
+            var (outer, panel) = MakeChildContainer();
+            foreach (int m in visible)
+            {
+                var el = BuildItemWithChildren(m, category, headerMatch ? null : groupTitle, compact: true, force: true);
+                if (el != null) panel.Children.Add(el);
+            }
+            container.Children.Add(outer);
+        }
+        return container;
+    }
+
+    /// <summary>One action row plus its inline sub-options when expanded.</summary>
+    private FrameworkElement? BuildItemWithChildren(int index, string? category, string? groupTitle, bool compact, bool force = false)
+    {
+        var value = _items[index].Value;
+        var children = GetChildren(value);
+        bool hasChildren = children.Count > 0;
+        bool selfMatch = force || ItemMatches(index, category, groupTitle);
+        var matchedChildren = hasChildren && _query.Length > 0 ? children.Where(s => Matches(s.Display, s.Tag)).ToList() : children;
+        if (!selfMatch && matchedChildren.Count == 0) return null;
+        if (force && _query.Length > 0 && !ItemMatches(index, category, groupTitle) && matchedChildren.Count > 0) selfMatch = false;
+
+        bool expanded = hasChildren && (_expanded.Contains(value) || (_query.Length > 0 && !selfMatch && matchedChildren.Count > 0));
+        var visibleChildren = _query.Length > 0 && !selfMatch ? matchedChildren : children;
+
+        var row = BuildItemRow(index, value, hasChildren, expanded, compact);
+        if (!expanded) return row;
+        var stack = new StackPanel();
+        stack.Children.Add(row);
+        stack.Children.Add(BuildChildren(index, value, visibleChildren));
+        return stack;
+    }
+
+    private System.Windows.Controls.Border BuildItemRow(int index, string value, bool hasChildren, bool expanded, bool compact)
+    {
+        bool isSelected = index == _selectedIndex;
+        bool hasSubSelection = isSelected && _selectedSubTag != null;
+        bool showSelected = isSelected && !hasChildren;
+
+        var row = MakeRowShell(showSelected, isSelected && hasChildren);
+        row.Tag = "item:" + value;
+        row.ToolTip = _items[index].Tooltip;
+        if (compact) row.Padding = new Thickness(8, 5, 10, 5);
+
+        var grid = ThreeColumnGrid();
+        var tile = Tile(index, compact ? 24 : 32);
+        tile.Margin = new Thickness(0, 0, compact ? 10 : 12, 0);
+        grid.Children.Add(tile);
+
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        text.Children.Add(MakeTitle(TitleOf(index), isSelected));
+        string? desc = DescriptionOf(index);
+        if (hasSubSelection && hasChildren)
+        {
+            var cur = GetChildren(value).FirstOrDefault(s => s.Tag == _selectedSubTag)?.Display ?? _selectedSubTag;
+            desc = "Current: " + cur;
+        }
+        if (!string.IsNullOrEmpty(desc)) text.Children.Add(MakeDescription(desc));
+        Grid.SetColumn(text, 1);
+        grid.Children.Add(text);
+
+        FrameworkElement? trailing = null;
+        if (hasChildren)
+            trailing = UiKit.Icon(expanded ? MaterialIconKind.ChevronUp : MaterialIconKind.ChevronDown, 18, isSelected ? "AccentBrush" : "TextDimBrush");
+        else if (showSelected)
+            trailing = UiKit.Icon(MaterialIconKind.Check, 18, "AccentBrush");
+        if (trailing != null)
+        {
+            trailing.Margin = new Thickness(8, 0, 0, 0);
+            Grid.SetColumn(trailing, 2);
+            grid.Children.Add(trailing);
+        }
+        row.Child = grid;
+
+        Action toggle = () => { if (!_expanded.Remove(value)) _expanded.Add(value); RebuildList(); };
+        Action activate = hasChildren ? toggle : () => CommitItem(index);
+        row.MouseLeftButtonUp += (_, ev) => { activate(); ev.Handled = true; };
+
+        if (isSelected && (!hasChildren || !expanded || !hasSubSelection)) _selectedRowVisual ??= row;
+
+        _navRows.Add((row, activate,
+            hasChildren && !expanded ? toggle : null,
+            hasChildren && expanded ? toggle : null));
+        return row;
+    }
+
+    private FrameworkElement BuildChildren(int parentIndex, string parentValue, List<SubItem> children)
+    {
+        var (outer, panel) = MakeChildContainer();
+        bool parentSelected = parentIndex == _selectedIndex;
+        var parentKind = KindOf(parentIndex);
+        var parentColor = _items[parentIndex].Color;
+
+        foreach (var s in children)
+        {
+            bool selected = parentSelected && _selectedSubTag == s.Tag;
+            var row = MakeRowShell(selected);
+            row.Padding = new Thickness(8, 5, 10, 5);
+            row.Tag = "sub:" + parentValue + ":" + s.Tag;
+
+            var grid = ThreeColumnGrid();
+            // Sub-item glyphs are often emoji (render monochrome in WPF) — prefer a Material
+            // kind, falling back to the parent action's icon.
+            var lead = GridPicker.BuildTile(GridPicker.ParseKind(s.Icon) ?? parentKind, null, null, s.IconColor ?? parentColor, 24);
+            lead.Margin = new Thickness(0, 0, 10, 0);
+            grid.Children.Add(lead);
+
+            var title = MakeTitle(s.Display, selected);
+            title.FontSize = 12;
+            title.FontWeight = selected ? FontWeights.SemiBold : FontWeights.Normal;
+            title.VerticalAlignment = VerticalAlignment.Center;
+            Grid.SetColumn(title, 1);
+            grid.Children.Add(title);
+
+            if (selected)
+            {
+                var chk = UiKit.Icon(MaterialIconKind.Check, 16, "AccentBrush");
+                chk.Margin = new Thickness(8, 0, 0, 0);
+                Grid.SetColumn(chk, 2);
+                grid.Children.Add(chk);
+            }
+            row.Child = grid;
+
+            var sub = s;
+            Action activate = () => CommitSub(parentIndex, sub);
+            row.MouseLeftButtonUp += (_, ev) => { activate(); ev.Handled = true; };
+            if (selected) _selectedRowVisual = row;
+            _navRows.Add((row, activate, null, () => { _expanded.Remove(parentValue); RebuildList(); }));
+            panel.Children.Add(row);
+        }
+        return outer;
+    }
+
+    // ── Commit ────────────────────────────────────────────────────
+
+    private void CommitItem(int index)
+    {
+        _selectedIndex = index;
+        _selectedSubTag = null;
+        UpdateTrigger();
+        CloseFlyout();
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void CommitSub(int parentIndex, SubItem s)
+    {
+        _selectedIndex = parentIndex;
+        _selectedSubTag = s.Tag;
+        UpdateTrigger();
+        CloseFlyout();
+        SubItemSelected?.Invoke(_items[parentIndex].Value, s.Tag);
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 }

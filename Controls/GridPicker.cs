@@ -369,11 +369,11 @@ public class GridPicker : System.Windows.Controls.Border
 
     // ── Icon helpers ──────────────────────────────────────────────
 
-    private static MaterialIconKind? ParseKind(string? icon)
+    internal static MaterialIconKind? ParseKind(string? icon)
         => !string.IsNullOrEmpty(icon) && icon.Length > 2 && Enum.TryParse<MaterialIconKind>(icon, out var k) ? k : null;
 
     /// <summary>Tinted rounded tile holding an app image, a Material icon, or a legacy glyph.</summary>
-    private static FrameworkElement BuildTile(MaterialIconKind? kind, string? glyph, ImageSource? image, Color color, double size)
+    internal static FrameworkElement BuildTile(MaterialIconKind? kind, string? glyph, ImageSource? image, Color color, double size)
     {
         UIElement inner;
         double glyphSize = Math.Round(size * 0.55);
