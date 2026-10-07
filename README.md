@@ -77,7 +77,7 @@ The experimental macOS port has been discontinued. Current releases support **64
 - Build profiles, import/export configurations, back up settings, and switch profiles manually or by foreground application.
 - Automatically duck selected apps when a voice or priority application becomes active.
 - Show volume, profile, and device OSD notifications on a chosen monitor.
-- Open a radial Quick Wheel for fast profile or output-device selection.
+- Hold a button to open a Quick Wheel: switch profiles, output or input devices, SignalRGB effects, media controls, or your own custom actions. Pick exactly which items each wheel shows and preview it live in settings.
 
 ### Turn Up RGB lighting
 
