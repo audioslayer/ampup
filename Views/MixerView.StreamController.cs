@@ -171,9 +171,14 @@ public partial class MixerView
             stripStack.Children.Add(targetDisplay);
 
             stripCard.Child = stripLayers;
-            Grid.SetRow(stripCard, 0);
-            Grid.SetColumn(stripCard, i);
-            grid.Children.Add(stripCard);
+            // One independent column per encoder (shared rows made every column as tall as the
+            // tallest target section, wasting space).
+            var col = new StackPanel { Margin = new Thickness(i == 0 ? 0 : 4, 0, i == ScChannelCount - 1 ? 0 : 4, 0) };
+            Grid.SetRow(col, 0);
+            Grid.SetColumn(col, i);
+            grid.Children.Add(col);
+            stripCard.Margin = new Thickness(0, 0, 0, 10);
+            col.Children.Add(stripCard);
 
             // ── Target picker card ─────────────────────────────────────
             var targetPicker = new GridPicker
@@ -209,11 +214,10 @@ public partial class MixerView
             _scAppsPanels[i] = appsContainer;
             _scAppsListPanels[i] = appsListPanel;
 
-            var targetCard = MakeSectionCard("TARGET", targetPicker, appsContainer);
-            targetCard.Margin = new Thickness(i == 0 ? 0 : 4, 0, i == ScChannelCount - 1 ? 0 : 4, 10);
-            Grid.SetRow(targetCard, 1);
-            Grid.SetColumn(targetCard, i);
-            grid.Children.Add(targetCard);
+            // Target lives inside the encoder card, under the volume readout.
+            targetPicker.Margin = new Thickness(0, 8, 0, 0);
+            stripStack.Children.Add(targetPicker);
+            stripStack.Children.Add(appsContainer);
 
             // ── Sensitivity slider card ────────────────────────────────
             // N3 encoders are digital infinite scrollers — what matters is
@@ -238,10 +242,8 @@ public partial class MixerView
             _scSensitivitySliders[i] = sensitivity;
 
             var sensCard = MakeSectionCard("SENSITIVITY", sensitivity);
-            sensCard.Margin = new Thickness(i == 0 ? 0 : 4, 0, i == ScChannelCount - 1 ? 0 : 4, 10);
-            Grid.SetRow(sensCard, 2);
-            Grid.SetColumn(sensCard, i);
-            grid.Children.Add(sensCard);
+            sensCard.Margin = new Thickness(0, 0, 0, 10);
+            col.Children.Add(sensCard);
 
             // ── Range slider row ───────────────────────────────────────
             var range = new RangeSlider
@@ -273,10 +275,8 @@ public partial class MixerView
             labelsRow.Children.Add(maxLabel);
 
             var rangeHost = MakeSectionCard("VOLUME RANGE", range, labelsRow);
-            rangeHost.Margin = new Thickness(i == 0 ? 0 : 4, 0, i == ScChannelCount - 1 ? 0 : 4, 10);
-            Grid.SetRow(rangeHost, 3);
-            Grid.SetColumn(rangeHost, i);
-            grid.Children.Add(rangeHost);
+            rangeHost.Margin = new Thickness(0, 0, 0, 10);
+            col.Children.Add(rangeHost);
         }
 
         StreamControllerMixerContent.Children.Add(grid);

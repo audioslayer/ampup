@@ -800,7 +800,12 @@ public partial class MixerView : UserControl
 
             _appsPanels[i] = appsContainer;
 
-            targetCells[i].Child = MakeSectionCard("TARGET", targetPicker, appsContainer);
+            // Target sits inside the knob card (no separate card / header) — it's the knob's
+            // main setting, and a separate card wasted a whole row of space.
+            var targetStack = new StackPanel();
+            targetStack.Children.Add(targetPicker);
+            targetStack.Children.Add(appsContainer);
+            targetCells[i].Child = targetStack;
 
             // CURVE — CurvePickerControl (visual mini graphs)
             var curvePicker = new CurvePickerControl
