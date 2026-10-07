@@ -403,6 +403,76 @@ public static class UiKit
     public static System.Windows.Controls.Border MoreButton(Func<IReadOnlyList<GlassMenuItem>> items, string tooltip = "More options")
         => IconButton(MaterialIconKind.DotsHorizontal, tooltip, anchor => GlassContextMenuHost.Show(anchor, items()));
 
+    /// <summary>
+    /// Small "?" that shows a help card on hover. Use it instead of explanatory text so
+    /// pages stay compact. Swap the text later with <see cref="HelpToolTip"/>.
+    /// </summary>
+    public static System.Windows.Controls.Border HelpTip(string text, string? title = null)
+    {
+        var icon = Icon(MaterialIconKind.HelpCircleOutline, 15);
+        var b = new System.Windows.Controls.Border
+        {
+            Child = icon,
+            Background = Brushes.Transparent,
+            Cursor = Cursors.Help,
+            Padding = new Thickness(2),
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = HelpToolTip(text, title),
+        };
+        ToolTipService.SetInitialShowDelay(b, 120);
+        ToolTipService.SetShowDuration(b, 60000);
+        b.MouseEnter += (_, _) => icon.SetResourceReference(MaterialIcon.ForegroundProperty, "AccentBrush");
+        b.MouseLeave += (_, _) => icon.SetResourceReference(MaterialIcon.ForegroundProperty, "TextDimBrush");
+        return b;
+    }
+
+    /// <summary>Help card tooltip: card background, accent hairline on top, title + wrapped text, soft shadow.</summary>
+    public static ToolTip HelpToolTip(string text, string? title = null)
+    {
+        var accent = ThemeManager.Accent;
+        var stack = new StackPanel { Margin = new Thickness(12, 9, 12, 11) };
+        if (!string.IsNullOrEmpty(title))
+        {
+            var t = new TextBlock { Text = title, FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) };
+            t.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+            stack.Children.Add(t);
+        }
+        var body = new TextBlock { Text = text, FontSize = 11.5, TextWrapping = TextWrapping.Wrap, LineHeight = 17 };
+        body.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+        stack.Children.Add(body);
+
+        var inner = new StackPanel();
+        inner.Children.Add(new System.Windows.Controls.Border
+        {
+            Height = 2,
+            CornerRadius = new CornerRadius(8, 8, 0, 0),
+            Background = new LinearGradientBrush(accent, Color.FromArgb(0, accent.R, accent.G, accent.B), 0),
+        });
+        inner.Children.Add(stack);
+
+        var card = new System.Windows.Controls.Border
+        {
+            MaxWidth = 280,
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, accent.R, accent.G, accent.B)),
+            Margin = new Thickness(8), // room for the shadow
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 16, ShadowDepth = 3, Opacity = 0.45, Color = Colors.Black },
+            Child = inner,
+        };
+        card.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "CardBgBrush");
+
+        return new ToolTip
+        {
+            Content = card,
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(0),
+            HasDropShadow = false,
+            Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+        };
+    }
+
     /// <summary>Muted caption followed by a control (e.g. "Power" + switch).</summary>
     public static StackPanel Captioned(string caption, FrameworkElement control, string? tooltip = null)
     {

@@ -45,6 +45,7 @@ public partial class OsdView : UserControl
         public StackPanel SlotList = null!;
         public StackPanel ItemsPanel = null!;
         public Controls.HaloWheel? Mini;
+        public System.Windows.Controls.Border ShowsHelp = null!;
         public DispatcherTimer? MiniTimer;
         public TextBlock Title = null!;
         public TextBlock Subtitle = null!;
@@ -209,27 +210,40 @@ public partial class OsdView : UserControl
         RootPanel.Children.Add(placeCard);
 
         // ══════════════════ QUICK WHEELS ══════════════════
-        RootPanel.Children.Add(UiKit.SectionHeader("QUICK WHEELS", "", out _wheelCountText));
+        // Header line: QUICK WHEELS · count · (?)  ……  Auto-dismiss (?) [slider] 1.0s
+        var wheelHead = new Grid { Margin = new Thickness(0, 0, 0, 2) };
+        wheelHead.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        wheelHead.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var behaviourBody = new StackPanel();
-        SldOsdWheelDur = NewDurSlider(0, 15, 0,
-            "Delay before Quick Wheel closes after releasing the trigger button. Off = confirm immediately on release.");
+        var headLeft = new StackPanel { Orientation = Orientation.Horizontal };
+        headLeft.Children.Add(UiKit.SectionHeader("QUICK WHEELS", "", out _wheelCountText));
+        var wheelHelp = UiKit.HelpTip(
+            "Hold the trigger button to open a wheel. Turn any knob to move the highlight, then let go to pick. " +
+            "You can also hover with the mouse and click.", "Quick Wheels");
+        wheelHelp.Margin = new Thickness(6, -6, 0, 0);
+        headLeft.Children.Add(wheelHelp);
+        wheelHead.Children.Add(headLeft);
+
+        SldOsdWheelDur = NewDurSlider(0, 15, 0, null!);
+        SldOsdWheelDur.Width = 150;
+        SldOsdWheelDur.HorizontalAlignment = HorizontalAlignment.Left;
+        SldOsdWheelDur.VerticalAlignment = VerticalAlignment.Center;
         LblOsdWheelDur = NewValLabel("Off");
-        var wheelDurBlock = new StackPanel { ToolTip = SldOsdWheelDur.ToolTip };
-        var wheelDurHead = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
-        DockPanel.SetDock(LblOsdWheelDur, Dock.Right);
-        wheelDurHead.Children.Add(LblOsdWheelDur);
-        var wdLeft = new StackPanel();
-        wdLeft.Children.Add(MakeLabel("Auto-dismiss delay", new Thickness(0)));
-        wdLeft.Children.Add(MakeHint("Off = confirm immediately when the trigger is released", new Thickness(0, 2, 0, 0)));
-        wheelDurHead.Children.Add(wdLeft);
-        wheelDurBlock.Children.Add(wheelDurHead);
-        wheelDurBlock.Children.Add(SldOsdWheelDur);
-        behaviourBody.Children.Add(wheelDurBlock);
-        RootPanel.Children.Add(UiKit.Card(Color.FromRgb(0x26, 0xC6, 0xDA), MaterialIconKind.GestureTapHold,
-            "How wheels work",
-            "Hold a button to open a radial overlay. Turn any knob to navigate, release to confirm.",
-            null, behaviourBody).Root);
+        LblOsdWheelDur.Margin = new Thickness(8, 0, 0, 0);
+        var dismiss = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, -2, 0, 0) };
+        var dismissLbl = MakeLabel("Auto-dismiss", new Thickness(0));
+        dismissLbl.VerticalAlignment = VerticalAlignment.Center;
+        dismiss.Children.Add(dismissLbl);
+        var dismissHelp = UiKit.HelpTip(
+            "How long the wheel stays open after you let go of the button, so you can still adjust it. " +
+            "Off picks the highlighted item the moment you let go.", "Auto-dismiss");
+        dismissHelp.Margin = new Thickness(4, 0, 10, 0);
+        dismiss.Children.Add(dismissHelp);
+        dismiss.Children.Add(SldOsdWheelDur);
+        dismiss.Children.Add(LblOsdWheelDur);
+        Grid.SetColumn(dismiss, 1);
+        wheelHead.Children.Add(dismiss);
+        RootPanel.Children.Add(wheelHead);
 
         WheelRowsPanel = new StackPanel();
         RootPanel.Children.Add(WheelRowsPanel);
@@ -751,7 +765,11 @@ public partial class OsdView : UserControl
 
         var fieldRow = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
         fieldRow.Children.Add(MakeInlineField("Trigger", btnCombo, new Thickness(0, 0, 22, 6)));
-        fieldRow.Children.Add(MakeInlineField("Shows", showsCombo, new Thickness(0, 0, 0, 6)));
+        var showsField = (StackPanel)MakeInlineField("Shows", showsCombo, new Thickness(0, 0, 0, 6));
+        state.ShowsHelp = UiKit.HelpTip("");
+        state.ShowsHelp.Margin = new Thickness(6, 0, 0, 0);
+        showsField.Children.Add(state.ShowsHelp);
+        fieldRow.Children.Add(showsField);
         left.Children.Add(fieldRow);
         left.Children.Add(MakeDivider());
 
@@ -835,18 +853,12 @@ public partial class OsdView : UserControl
 
         var stack = new StackPanel();
         stack.Children.Add(new Viewbox { Width = 166, Height = 166, Child = halo, Stretch = Stretch.Uniform });
-        var caption = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) };
-        var capIcon = new Material.Icons.WPF.MaterialIcon { Kind = MaterialIconKind.ArrowExpandAll, Width = 12, Height = 12, Margin = new Thickness(0, 0, 5, 0) };
-        capIcon.Foreground = new SolidColorBrush(ThemeManager.Accent);
-        caption.Children.Add(capIcon);
-        caption.Children.Add(MakeHint("Click to preview", new Thickness(0)));
-        stack.Children.Add(caption);
 
         var frame = new System.Windows.Controls.Border
         {
             CornerRadius = new CornerRadius(10),
             BorderThickness = new Thickness(1),
-            Padding = new Thickness(10, 10, 10, 8),
+            Padding = new Thickness(10),
             Cursor = Cursors.Hand,
             VerticalAlignment = VerticalAlignment.Top,
             ToolTip = "Live preview — click to open this wheel full size (picking an item runs nothing)",
@@ -909,6 +921,7 @@ public partial class OsdView : UserControl
     {
         st.CustomPanel.Visibility = st.Mode == QuickWheelMode.Custom ? Visibility.Visible : Visibility.Collapsed;
         st.ItemsPanel.Children.Clear();
+        st.ShowsHelp.ToolTip = UiKit.HelpToolTip(WheelModeHelp(st.Mode), WheelModes[WheelModeIndex(st.Mode)].label);
 
         switch (st.Mode)
         {
@@ -936,15 +949,19 @@ public partial class OsdView : UserControl
                     AmpUp.Services.SignalRgbEffectCatalog.LastAppliedEffectName, "effects");
                 break;
             }
-            case QuickWheelMode.Profile:
-                st.ItemsPanel.Children.Add(MakeHint($"Shows your profiles (up to {WheelMaxItems}). The active one is marked on the wheel.", new Thickness(0, 0, 0, 4)));
-                break;
-            case QuickWheelMode.MediaControls:
-                st.ItemsPanel.Children.Add(MakeHint("Shows play/pause, previous, next, mute master, mute mic, volume up/down and stop.", new Thickness(0, 0, 0, 4)));
-                break;
         }
         st.ItemsPanel.Visibility = st.ItemsPanel.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
+
+    private static string WheelModeHelp(QuickWheelMode mode) => mode switch
+    {
+        QuickWheelMode.OutputDevice => $"Tick the output devices to show (up to {WheelMaxItems}). The number is their order on the wheel. Tick none to show the first {WheelMaxItems}.",
+        QuickWheelMode.InputDevice => $"Tick the mics to show (up to {WheelMaxItems}). The number is their order on the wheel. Tick none to show the first {WheelMaxItems}.",
+        QuickWheelMode.SignalRgbEffect => $"Tick the SignalRGB effects to show (up to {WheelMaxItems}). The number is their order on the wheel. Tick none to show the first {WheelMaxItems}.",
+        QuickWheelMode.MediaControls => "Play / pause, previous, next, mute master, mute mic, volume up, volume down and stop.",
+        QuickWheelMode.Custom => $"Each slot is one item on the wheel (up to {WheelMaxItems}). Pick an action, fill in its setting if it has one, and type the name to show on the wheel.",
+        _ => $"Your profiles (up to {WheelMaxItems}). The one you're using now is marked ACTIVE.",
+    };
 
     private static List<(string id, string name)> GetAudioDevices(NAudio.CoreAudioApi.DataFlow flow)
     {
@@ -1025,9 +1042,6 @@ public partial class OsdView : UserControl
         List<(string id, string name)> available, string inUseId, string noun)
     {
         var host = st.ItemsPanel;
-        host.Children.Add(MakeHint(
-            $"Tick up to {WheelMaxItems} {noun}. The number is their order on the wheel. None ticked = the first {WheelMaxItems}.",
-            new Thickness(0, 0, 0, 6)));
 
         var items = new List<(string id, string name, bool missing)>();
         foreach (var id in picked)
