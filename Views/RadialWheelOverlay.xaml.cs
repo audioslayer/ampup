@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using Path = System.Windows.Shapes.Path;
 using Material.Icons;
@@ -11,8 +12,9 @@ using Material.Icons.WPF;
 namespace AmpUp.Views;
 
 /// <summary>
-/// Radial pie-segment overlay for quick profile switching via hardware wheel.
-/// Show() populates segments; Highlight() follows knob navigation; OnSegmentClicked fires on selection.
+/// "Halo" radial overlay for the Quick Wheel: a ring with exactly one segment per item
+/// (no blank slots) and a center card naming the highlighted item in full.
+/// Set*() populates; Highlight() follows knob navigation; OnSegmentClicked fires on selection.
 /// </summary>
 public partial class RadialWheelOverlay : Window
 {
@@ -21,28 +23,28 @@ public partial class RadialWheelOverlay : Window
     /// <summary>Fires when user clicks a segment (index) or presses Enter/Space, or -1 on Escape.</summary>
     public Action<int>? OnSegmentClicked;
 
-    private const int TotalSlots = 8; // always 8 petals
+    /// <summary>Most items the ring can show cleanly.</summary>
+    public const int MaxSlots = 12;
+
     private int _monitorIndex; // which monitor to center on (from OSD config)
-    private List<string> _profiles = new();
-    private readonly string[] _slotLabels = new string[TotalSlots]; // padded to 8
-    private readonly Color[] _slotColors = new Color[TotalSlots];
-    private readonly string[] _slotSymbols = new string[TotalSlots];
+    private readonly List<string> _ids = new();
+    private readonly List<string> _labels = new();
+    private readonly List<Color> _colors = new();
+    private readonly List<string> _symbols = new();
+    private string _kind = "";
+    private int _activeIndex = -1; // item that's currently in effect (active profile / default device)
     private int _highlighted = -1;
     private bool _dismissing;
 
-    // Geometry constants
+    // Geometry (canvas is 420x420)
     private const double CenterX = 210;
     private const double CenterY = 210;
-    private const double OuterR = 200;
-    private const double InnerR = 62;  // clears center label circle (120/2 + 2)
+    private const double RingInner = 154, RingOuter = 186;
+    private const double HlInner = 148, HlOuter = 196;
+    private const double GapDeg = 2.2;
 
-    // Colors
-    private static readonly Color SegmentBase = Color.FromArgb(0xCC, 0x1C, 0x1C, 0x1C);
-    private static readonly Color SegmentHover = Color.FromArgb(0xEE, 0x22, 0x22, 0x22);
     private static Color AccentColor => ThemeManager.Accent;
-
-    private readonly List<Path> _segPaths = new();
-    private readonly List<TextBlock> _segLabels = new();
+    private static readonly Color DimText = Color.FromRgb(0x8A, 0x8A, 0x8A);
 
     public RadialWheelOverlay()
     {
@@ -50,116 +52,91 @@ public partial class RadialWheelOverlay : Window
         Loaded += (_, _) =>
         {
             OuterGlow.Color = AccentColor;
+            CenterDisc.Stroke = new SolidColorBrush(Color.FromArgb(0x24, AccentColor.R, AccentColor.G, AccentColor.B));
             Focus();
             Keyboard.Focus(RootGrid);
             PlayFadeIn();
         };
     }
 
-    /// <summary>
-    /// Populate the wheel with profiles and show it centered on screen.
-    /// Call before Show().
-    /// </summary>
+    /// <summary>Populate with profiles (icon + color from ProfileIcons). Call before Show().</summary>
     public void SetProfiles(List<string> profiles, int currentIndex,
                             Dictionary<string, ProfileIconConfig>? icons = null)
     {
-        _profiles = profiles;
-        // Pad to 8 slots: profiles first, then blanks
-        for (int i = 0; i < TotalSlots; i++)
+        var items = new List<(string id, string label, string symbol, Color color)>();
+        foreach (var p in profiles.Take(MaxSlots))
         {
-            _slotLabels[i] = i < profiles.Count ? profiles[i] : "";
-            if (i < profiles.Count && icons != null
-                && icons.TryGetValue(profiles[i], out var cfg))
+            Color color = AccentColor;
+            string symbol = "AccountCircleOutline";
+            if (icons != null && icons.TryGetValue(p, out var cfg))
             {
-                try { _slotColors[i] = (Color)ColorConverter.ConvertFromString(cfg.Color); }
-                catch { _slotColors[i] = AccentColor; }
-                _slotSymbols[i] = cfg.Symbol;
+                try { color = (Color)ColorConverter.ConvertFromString(cfg.Color); }
+                catch { color = AccentColor; }
+                if (!string.IsNullOrEmpty(cfg.Symbol)) symbol = cfg.Symbol;
             }
-            else
-            {
-                _slotColors[i] = AccentColor;
-                _slotSymbols[i] = "";
-            }
+            items.Add((p, p, symbol, color));
         }
-        _highlighted = currentIndex >= 0 ? currentIndex : 0;
-        BuildSegments();
-        CenterOnScreen();
+        SetItems(items, currentIndex, "Profile", currentIndex);
     }
 
-    public int GetTotalSlots() => TotalSlots;
+    public int GetTotalSlots() => Math.Max(1, _ids.Count);
 
-    /// <summary>
-    /// Populate the wheel with audio output devices. Pads to 8 slots.
-    /// </summary>
+    /// <summary>Populate with audio output devices; currentIndex is the default device.</summary>
     public void SetDevices(List<(string id, string name)> devices, int currentIndex)
     {
-        _profiles = devices.Select(d => d.id).ToList(); // store IDs for selection
-        for (int i = 0; i < TotalSlots; i++)
-        {
-            _slotLabels[i] = i < devices.Count ? devices[i].name : "";
-            _slotColors[i] = i < devices.Count
-                ? Color.FromRgb(0xAB, 0x47, 0xBC) // purple for devices
-                : AccentColor;
-            _slotSymbols[i] = i < devices.Count ? "VolumeHigh" : "";
-        }
-        _highlighted = currentIndex >= 0 ? currentIndex : 0;
-        BuildSegments();
-        CenterOnScreen();
+        var purple = Color.FromRgb(0xAB, 0x47, 0xBC);
+        SetItems(devices.Select(d => (d.id, d.name, "VolumeHigh", purple)).ToList(),
+            currentIndex, "Output device", currentIndex);
     }
 
     /// <summary>
-    /// Populate the wheel with arbitrary actions (for MediaControls and Custom modes).
-    /// Each tuple: (id, label, materialIconName, color).
+    /// Populate with arbitrary items. Each tuple: (id, label, materialIconName, color).
+    /// <paramref name="kind"/> is the small line under the name; <paramref name="activeIndex"/>
+    /// marks the item that's in effect now (-1 for none).
     /// </summary>
-    public void SetActions(List<(string id, string label, string symbol, Color color)> actions, int currentIndex)
+    public void SetActions(List<(string id, string label, string symbol, Color color)> actions, int currentIndex,
+                           string kind = "Action", int activeIndex = -1)
+        => SetItems(actions, currentIndex, kind, activeIndex);
+
+    private void SetItems(List<(string id, string label, string symbol, Color color)> items,
+                          int currentIndex, string kind, int activeIndex)
     {
-        _profiles = actions.Select(a => a.id).ToList();
-        for (int i = 0; i < TotalSlots; i++)
+        _ids.Clear(); _labels.Clear(); _symbols.Clear(); _colors.Clear();
+        foreach (var it in items.Take(MaxSlots))
         {
-            if (i < actions.Count)
-            {
-                _slotLabels[i] = actions[i].label;
-                _slotColors[i] = actions[i].color;
-                _slotSymbols[i] = actions[i].symbol;
-            }
-            else
-            {
-                _slotLabels[i] = "";
-                _slotColors[i] = AccentColor;
-                _slotSymbols[i] = "";
-            }
+            _ids.Add(it.id);
+            _labels.Add(it.label);
+            _symbols.Add(it.symbol);
+            _colors.Add(it.color);
         }
-        _highlighted = currentIndex >= 0 ? currentIndex : 0;
-        BuildSegments();
+        _kind = kind;
+        _activeIndex = activeIndex;
+        _highlighted = _ids.Count == 0 ? -1 : Math.Clamp(currentIndex, 0, _ids.Count - 1);
+        Render();
         CenterOnScreen();
     }
 
     /// <summary>Returns the ID string at the highlighted index, or null if empty.</summary>
     public string? GetSelectedId()
     {
-        if (_highlighted >= 0 && _highlighted < _profiles.Count)
-            return _profiles[_highlighted];
+        if (_highlighted >= 0 && _highlighted < _ids.Count)
+            return _ids[_highlighted];
         return null;
     }
 
-    /// <summary>
-    /// Move the highlight to the given segment index (0-based).
-    /// </summary>
+    /// <summary>Move the highlight to the given item index (0-based, wraps).</summary>
     public void Highlight(int index)
     {
-        index = ((index % TotalSlots) + TotalSlots) % TotalSlots;
+        if (_ids.Count == 0) return;
+        index = ((index % _ids.Count) + _ids.Count) % _ids.Count;
         if (index == _highlighted) return;
         _highlighted = index;
-        RefreshSegmentColors();
-        CenterLabel.Text = !string.IsNullOrEmpty(_slotLabels[_highlighted])
-            ? _slotLabels[_highlighted] : "";
+        Render();
     }
 
     public int GetSelectedIndex() => _highlighted;
 
-    /// <summary>
-    /// Fade out and close without selecting.
-    /// </summary>
+    /// <summary>Fade out and close without selecting.</summary>
     public void Dismiss()
     {
         if (_dismissing) return;
@@ -167,209 +144,165 @@ public partial class RadialWheelOverlay : Window
         PlayFadeOut(() => Close());
     }
 
-    // ── Geometry helpers ─────────────────────────────────────────────
+    // ── Rendering ────────────────────────────────────────────────────
 
-    private void BuildSegments()
+    private void Render()
     {
-        SegmentCanvas.Children.Clear();
-        _segPaths.Clear();
-        _segLabels.Clear();
-
-        double sweep = 360.0 / TotalSlots;
-
-        for (int i = 0; i < TotalSlots; i++)
-        {
-            bool isEmpty = string.IsNullOrEmpty(_slotLabels[i]);
-            double startAngle = -90.0 + i * sweep;
-            var path = BuildSegmentPath(startAngle, sweep, i == _highlighted, isEmpty, _slotColors[i]);
-            int cap = i;
-            if (!isEmpty)
-            {
-                path.MouseEnter += (s, _) => OnSegHover(cap);
-                path.MouseLeftButtonDown += (_, _) => ConfirmAndDismiss(cap);
-                path.Cursor = Cursors.Hand;
-            }
-            SegmentCanvas.Children.Add(path);
-            _segPaths.Add(path);
-
-            // Label (icon + name stacked vertically)
-            double midAngle = startAngle + sweep / 2.0;
-            double labelR = (OuterR + InnerR) / 2.0;
-            double lx = CenterX + labelR * Math.Cos(midAngle * Math.PI / 180.0);
-            double ly = CenterY + labelR * Math.Sin(midAngle * Math.PI / 180.0);
-
-            var stack = new StackPanel
-            {
-                HorizontalAlignment = HorizontalAlignment.Center,
-                IsHitTestVisible = false,
-            };
-
-            // Icon (Material Icon if available)
-            if (!isEmpty && !string.IsNullOrEmpty(_slotSymbols[i])
-                && Enum.TryParse<MaterialIconKind>(_slotSymbols[i], out var iconKind))
-            {
-                var icon = new MaterialIcon
-                {
-                    Kind = iconKind,
-                    Width = 18, Height = 18,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    Foreground = new SolidColorBrush(_slotColors[i]),
-                };
-                stack.Children.Add(icon);
-            }
-
-            var tb = new TextBlock
-            {
-                Text = isEmpty ? "" : _slotLabels[i],
-                FontSize = 10,
-                FontWeight = isEmpty ? FontWeights.Normal : FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(isEmpty
-                    ? ((SolidColorBrush)Application.Current.FindResource("InputBorderBrush")).Color
-                    : Colors.White),
-                TextAlignment = TextAlignment.Center,
-                MaxWidth = 75,
-                TextTrimming = TextTrimming.CharacterEllipsis,
-            };
-            stack.Children.Add(tb);
-
-            stack.Measure(new Size(80, 60));
-            Canvas.SetLeft(stack, lx - stack.DesiredSize.Width / 2);
-            Canvas.SetTop(stack, ly - stack.DesiredSize.Height / 2);
-            SegmentCanvas.Children.Add(stack);
-            _segLabels.Add(tb);
-        }
-
-        CenterLabel.Text = _highlighted >= 0 && _highlighted < TotalSlots
-            && !string.IsNullOrEmpty(_slotLabels[_highlighted])
-            ? _slotLabels[_highlighted]
-            : "";
+        BuildRing();
+        BuildCenter();
     }
 
-    private static readonly Color EmptyBase = Color.FromArgb(0x88, 0x12, 0x12, 0x12);
-
-    private static Path BuildSegmentPath(double startAngleDeg, double sweepDeg, bool highlighted,
-                                         bool isEmpty = false, Color? slotColor = null)
+    private void BuildRing()
     {
-        var geo = BuildPieSlice(startAngleDeg, sweepDeg);
-        var sc = slotColor ?? AccentColor;
-        Color fill, stroke;
-        double strokeW;
+        SegmentCanvas.Children.Clear();
+        int n = _ids.Count;
+        if (n == 0) return;
+        double step = 360.0 / n;
 
-        if (isEmpty)
+        for (int i = 0; i < n; i++)
         {
-            fill = highlighted ? Color.FromArgb(0xAA, 0x18, 0x18, 0x18) : EmptyBase;
-            stroke = highlighted
-                ? Color.FromArgb(0x55, AccentColor.R, AccentColor.G, AccentColor.B)
-                : ((SolidColorBrush)Application.Current.FindResource("InputBgBrush")).Color;
-            strokeW = 1;
+            bool hl = i == _highlighted;
+            var c = _colors[i];
+            double mid = -90.0 + i * step;
+
+            var path = new Path
+            {
+                Data = BuildRingSlice(mid - step / 2 + GapDeg, mid + step / 2 - GapDeg,
+                    hl ? HlInner : RingInner, hl ? HlOuter : RingOuter),
+                Fill = new SolidColorBrush(hl ? c : Color.FromArgb(0x33, c.R, c.G, c.B)),
+                Cursor = Cursors.Hand,
+            };
+            if (hl)
+                path.Effect = new DropShadowEffect { Color = c, BlurRadius = 18, Opacity = 0.6, ShadowDepth = 0 };
+            int cap = i;
+            path.MouseEnter += (_, _) => OnSegHover(cap);
+            path.MouseLeftButtonDown += (_, _) => ConfirmAndDismiss(cap);
+            SegmentCanvas.Children.Add(path);
+
+            if (Enum.TryParse<MaterialIconKind>(_symbols[i], out var kind))
+            {
+                double size = hl ? 22 : 18;
+                double r = hl ? 172 : 170;
+                double rad = mid * Math.PI / 180.0;
+                var icon = new MaterialIcon
+                {
+                    Kind = kind,
+                    Width = size, Height = size,
+                    IsHitTestVisible = false,
+                    // Dark glyph on the solid highlighted segment, colored glyph on the dim ones
+                    Foreground = new SolidColorBrush(hl ? Color.FromRgb(0x0F, 0x0F, 0x0F) : c),
+                };
+                Canvas.SetLeft(icon, CenterX + r * Math.Cos(rad) - size / 2);
+                Canvas.SetTop(icon, CenterY + r * Math.Sin(rad) - size / 2);
+                SegmentCanvas.Children.Add(icon);
+            }
         }
-        else if (highlighted)
+    }
+
+    private void BuildCenter()
+    {
+        CenterPanel.Children.Clear();
+        if (_highlighted < 0 || _highlighted >= _ids.Count) return;
+        var c = _colors[_highlighted];
+
+        if (Enum.TryParse<MaterialIconKind>(_symbols[_highlighted], out var kind))
         {
-            fill = Color.FromArgb(0x35, sc.R, sc.G, sc.B);
-            stroke = Color.FromArgb(0xCC, sc.R, sc.G, sc.B);
-            strokeW = 2;
+            CenterPanel.Children.Add(new MaterialIcon
+            {
+                Kind = kind,
+                Width = 34, Height = 34,
+                Foreground = new SolidColorBrush(c),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 10),
+            });
+        }
+
+        CenterPanel.Children.Add(new TextBlock
+        {
+            Text = _labels[_highlighted],
+            FontSize = 16,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            TextAlignment = TextAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxHeight = 44, // two lines
+        });
+
+        if (!string.IsNullOrEmpty(_kind))
+        {
+            CenterPanel.Children.Add(new TextBlock
+            {
+                Text = _kind,
+                FontSize = 11,
+                Foreground = new SolidColorBrush(DimText),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 4, 0, 0),
+            });
+        }
+
+        if (_highlighted == _activeIndex)
+        {
+            var a = AccentColor;
+            CenterPanel.Children.Add(new System.Windows.Controls.Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(0x24, a.R, a.G, a.B)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, a.R, a.G, a.B)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(9),
+                Padding = new Thickness(9, 2, 9, 2),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 10, 0, 0),
+                Child = new TextBlock
+                {
+                    Text = "ACTIVE",
+                    FontSize = 9.5,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = new SolidColorBrush(a),
+                },
+            });
         }
         else
         {
-            fill = Color.FromArgb(0x18, sc.R, sc.G, sc.B);
-            stroke = Color.FromArgb(0x40, sc.R, sc.G, sc.B);
-            strokeW = 1;
-        }
-
-        var path = new Path
-        {
-            Data = geo,
-            Fill = new SolidColorBrush(fill),
-            Stroke = new SolidColorBrush(stroke),
-            StrokeThickness = strokeW,
-        };
-        if (highlighted && !isEmpty)
-        {
-            path.Effect = new System.Windows.Media.Effects.DropShadowEffect
+            CenterPanel.Children.Add(new TextBlock
             {
-                Color = sc, BlurRadius = 14, Opacity = 0.55, ShadowDepth = 0
-            };
+                Text = $"{_highlighted + 1} of {_ids.Count}",
+                FontSize = 10.5,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x6F, 0x6F, 0x6F)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 10, 0, 0),
+            });
         }
-        return path;
     }
 
-    private static PathGeometry BuildPieSlice(double startAngleDeg, double sweepDeg)
+    /// <summary>Annular slice between two angles (degrees, 0 = right, clockwise).</summary>
+    private static PathGeometry BuildRingSlice(double startDeg, double endDeg, double innerR, double outerR)
     {
-        double startRad = startAngleDeg * Math.PI / 180.0;
-        double endRad = (startAngleDeg + sweepDeg - 0.5) * Math.PI / 180.0; // -0.5° gap
+        double s = startDeg * Math.PI / 180.0, e = endDeg * Math.PI / 180.0;
+        Point Pt(double r, double a) => new(CenterX + r * Math.Cos(a), CenterY + r * Math.Sin(a));
+        bool large = endDeg - startDeg > 180;
 
-        var outerStart = new Point(CenterX + OuterR * Math.Cos(startRad), CenterY + OuterR * Math.Sin(startRad));
-        var outerEnd = new Point(CenterX + OuterR * Math.Cos(endRad), CenterY + OuterR * Math.Sin(endRad));
-        var innerStart = new Point(CenterX + InnerR * Math.Cos(startRad), CenterY + InnerR * Math.Sin(startRad));
-        var innerEnd = new Point(CenterX + InnerR * Math.Cos(endRad), CenterY + InnerR * Math.Sin(endRad));
-
-        bool isLargeArc = sweepDeg > 180;
-
-        var fig = new PathFigure { StartPoint = innerStart, IsClosed = true };
-        fig.Segments.Add(new LineSegment(outerStart, true));
-        fig.Segments.Add(new ArcSegment(outerEnd, new Size(OuterR, OuterR), 0,
-            isLargeArc, SweepDirection.Clockwise, true));
-        fig.Segments.Add(new LineSegment(innerEnd, true));
-        fig.Segments.Add(new ArcSegment(innerStart, new Size(InnerR, InnerR), 0,
-            isLargeArc, SweepDirection.Counterclockwise, true));
-
+        var fig = new PathFigure { StartPoint = Pt(innerR, s), IsClosed = true };
+        fig.Segments.Add(new LineSegment(Pt(outerR, s), true));
+        fig.Segments.Add(new ArcSegment(Pt(outerR, e), new Size(outerR, outerR), 0,
+            large, SweepDirection.Clockwise, true));
+        fig.Segments.Add(new LineSegment(Pt(innerR, e), true));
+        fig.Segments.Add(new ArcSegment(Pt(innerR, s), new Size(innerR, innerR), 0,
+            large, SweepDirection.Counterclockwise, true));
         return new PathGeometry(new[] { fig });
-    }
-
-    private void RefreshSegmentColors()
-    {
-        for (int i = 0; i < _segPaths.Count; i++)
-        {
-            bool hl = i == _highlighted;
-            bool empty = string.IsNullOrEmpty(_slotLabels[i]);
-            var sc = _slotColors[i];
-
-            if (empty)
-            {
-                _segPaths[i].Fill = new SolidColorBrush(hl
-                    ? Color.FromArgb(0xAA, 0x18, 0x18, 0x18) : EmptyBase);
-                _segPaths[i].Stroke = new SolidColorBrush(hl
-                    ? Color.FromArgb(0x55, AccentColor.R, AccentColor.G, AccentColor.B)
-                    : ((SolidColorBrush)Application.Current.FindResource("InputBgBrush")).Color);
-                _segPaths[i].StrokeThickness = 1;
-                _segPaths[i].Effect = null;
-            }
-            else if (hl)
-            {
-                _segPaths[i].Fill = new SolidColorBrush(Color.FromArgb(0x35, sc.R, sc.G, sc.B));
-                _segPaths[i].Stroke = new SolidColorBrush(Color.FromArgb(0xCC, sc.R, sc.G, sc.B));
-                _segPaths[i].StrokeThickness = 2;
-                _segPaths[i].Effect = new System.Windows.Media.Effects.DropShadowEffect
-                {
-                    Color = sc, BlurRadius = 14, Opacity = 0.55, ShadowDepth = 0
-                };
-            }
-            else
-            {
-                _segPaths[i].Fill = new SolidColorBrush(Color.FromArgb(0x18, sc.R, sc.G, sc.B));
-                _segPaths[i].Stroke = new SolidColorBrush(Color.FromArgb(0x40, sc.R, sc.G, sc.B));
-                _segPaths[i].StrokeThickness = 1;
-                _segPaths[i].Effect = null;
-            }
-        }
-        CenterLabel.Text = _highlighted >= 0 && _highlighted < TotalSlots
-            && !string.IsNullOrEmpty(_slotLabels[_highlighted])
-            ? _slotLabels[_highlighted]
-            : "";
     }
 
     private void OnSegHover(int idx)
     {
         if (idx == _highlighted) return;
         _highlighted = idx;
-        RefreshSegmentColors();
+        Render();
     }
 
     private void ConfirmAndDismiss(int idx)
     {
         if (_dismissing) return;
-        // Don't confirm on empty slots
-        if (idx >= 0 && idx < TotalSlots && string.IsNullOrEmpty(_slotLabels[idx])) return;
+        if (idx < 0 || idx >= _ids.Count) return;
         _dismissing = true;
         PlayFadeOut(() =>
         {
@@ -426,11 +359,11 @@ public partial class RadialWheelOverlay : Window
         }
         else if (e.Key == Key.Left || e.Key == Key.Up)
         {
-            Highlight((_highlighted - 1 + _profiles.Count) % _profiles.Count);
+            Highlight(_highlighted - 1);
         }
         else if (e.Key == Key.Right || e.Key == Key.Down)
         {
-            Highlight((_highlighted + 1) % _profiles.Count);
+            Highlight(_highlighted + 1);
         }
     }
 }

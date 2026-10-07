@@ -5544,10 +5544,12 @@ public partial class App : Application
         }
     }
 
-    // ── Quick Wheel (radial switcher — profiles or output devices) ───
+    // ── Quick Wheel (radial switcher — profiles, devices, effects, actions) ───
 
-    private QuickWheelMode _activeWheelMode;
-    private QuickWheelConfig? _activeWheelCfg;
+    // One command per visible wheel segment, captured when the wheel opens so
+    // confirming runs exactly what was shown (no re-enumeration / index drift).
+    private List<Action> _wheelCommands = new();
+    private const int WheelMaxSlots = RadialWheelOverlay.MaxSlots;
 
     private void HandleQuickWheelOpen(int buttonIdx)
     {
@@ -5563,8 +5565,7 @@ public partial class App : Application
         {
             if (_wheelVisible) return;
             _wheelVisible = true;
-            _activeWheelMode = wheelCfg.Mode;
-            _activeWheelCfg = wheelCfg;
+            _wheelCommands = new List<Action>();
 
             // Initialize last raw values so first delta is correct
             for (int i = 0; i < 5; i++)
@@ -5573,10 +5574,16 @@ public partial class App : Application
             _radialWheel = new RadialWheelOverlay();
             _radialWheel.SetMonitor(ResolveOsdMonitorIndex());
 
-            switch (_activeWheelMode)
+            switch (wheelCfg.Mode)
             {
                 case QuickWheelMode.OutputDevice:
-                    PopulateWheelDevices();
+                    PopulateWheelDevices(NAudio.CoreAudioApi.DataFlow.Render, wheelCfg.OutputDeviceIds);
+                    break;
+                case QuickWheelMode.InputDevice:
+                    PopulateWheelDevices(NAudio.CoreAudioApi.DataFlow.Capture, wheelCfg.InputDeviceIds);
+                    break;
+                case QuickWheelMode.SignalRgbEffect:
+                    PopulateWheelSignalRgb(wheelCfg.SignalRgbEffects);
                     break;
                 case QuickWheelMode.MediaControls:
                     PopulateWheelMediaControls();
@@ -5589,8 +5596,16 @@ public partial class App : Application
                     break;
             }
 
+            if (!_wheelVisible)
+            {
+                // Nothing to show (too few items) — drop the unshown overlay.
+                _radialWheel.Close();
+                _radialWheel = null;
+                return;
+            }
+
             _radialWheel.OnSegmentClicked = idx => ConfirmWheelSelection(idx);
-            _radialWheel.Closed += (_, _) => { _wheelVisible = false; _radialWheel = null; _activeWheelCfg = null; };
+            _radialWheel.Closed += (_, _) => { _wheelVisible = false; _radialWheel = null; };
             _radialWheel.Show();
         });
     }
@@ -5598,39 +5613,95 @@ public partial class App : Application
     private void PopulateWheelProfiles()
     {
         if (_config.Profiles.Count < 2) { _wheelVisible = false; return; }
-        int currentIdx = _config.Profiles.IndexOf(_config.ActiveProfile);
-        if (currentIdx < 0) currentIdx = 0;
-        _radialWheel!.SetProfiles(new List<string>(_config.Profiles), currentIdx, _config.ProfileIcons);
+        var profiles = _config.Profiles.Take(WheelMaxSlots).ToList();
+        int currentIdx = profiles.IndexOf(_config.ActiveProfile);
+        _radialWheel!.SetProfiles(profiles, Math.Max(0, currentIdx), _config.ProfileIcons);
+        foreach (var name in profiles)
+            _wheelCommands.Add(() => { if (name != _config.ActiveProfile) HandleProfileSwitch(name); });
     }
 
-    private void PopulateWheelDevices()
+    /// <summary>
+    /// Output or input device wheel. When the user picked devices, show those
+    /// (in their order, skipping unplugged ones); otherwise the first 8 active.
+    /// </summary>
+    private void PopulateWheelDevices(NAudio.CoreAudioApi.DataFlow flow, List<string> pickedIds)
     {
         try
         {
             using var enumerator = new NAudio.CoreAudioApi.MMDeviceEnumerator();
-            var devices = enumerator.EnumerateAudioEndPoints(
-                NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.DeviceState.Active);
-            using var current = enumerator.GetDefaultAudioEndpoint(
-                NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
-            var currentId = current.ID;
+            var devices = enumerator.EnumerateAudioEndPoints(flow, NAudio.CoreAudioApi.DeviceState.Active);
+            string currentId = "";
+            try
+            {
+                using var current = enumerator.GetDefaultAudioEndpoint(flow, NAudio.CoreAudioApi.Role.Multimedia);
+                currentId = current.ID;
+            }
+            catch { /* no default device */ }
 
-            var list = new List<(string id, string name)>();
-            int currentIdx = 0;
+            var active = new List<(string id, string name)>();
             for (int i = 0; i < devices.Count; i++)
             {
                 using var d = devices[i];
-                if (d.ID == currentId) currentIdx = list.Count;
-                list.Add((d.ID, d.FriendlyName));
+                active.Add((d.ID, d.FriendlyName));
             }
 
-            if (list.Count < 2) { _wheelVisible = false; return; }
-            _radialWheel!.SetDevices(list, currentIdx);
+            var list = pickedIds.Count > 0
+                ? pickedIds.Select(id => active.FirstOrDefault(a => a.id == id))
+                           .Where(a => a.id != null).ToList()
+                : active;
+            list = list.Take(WheelMaxSlots).ToList();
+
+            if (list.Count < (pickedIds.Count > 0 ? 1 : 2)) { _wheelVisible = false; return; }
+
+            int currentIdx = Math.Max(0, list.FindIndex(a => a.id == currentId));
+            bool isInput = flow == NAudio.CoreAudioApi.DataFlow.Capture;
+            if (isInput)
+            {
+                var color = System.Windows.Media.Color.FromRgb(0xFF, 0xB8, 0x00);
+                int activeIdx = list.FindIndex(a => a.id == currentId);
+                _radialWheel!.SetActions(list.Select(a => (a.id, a.name, "Microphone", color)).ToList(),
+                    currentIdx, "Input device", activeIdx);
+            }
+            else
+            {
+                _radialWheel!.SetDevices(list, currentIdx);
+            }
+
+            string action = isInput ? "select_input" : "select_output";
+            foreach (var (id, _) in list)
+                _wheelCommands.Add(() => _buttons.ExecuteAction(action, "", new ButtonConfig { DeviceId = id }));
         }
         catch (Exception ex)
         {
             Logger.Log($"Quick Wheel device enum error: {ex.Message}");
             _wheelVisible = false;
         }
+    }
+
+    private void PopulateWheelSignalRgb(List<string> pickedEffects)
+    {
+        List<string> names;
+        try
+        {
+            names = pickedEffects.Count > 0
+                ? pickedEffects.Where(n => !string.IsNullOrWhiteSpace(n)).ToList()
+                : Services.SignalRgbEffectCatalog.GetInstalledEffects().Select(e => e.Name).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Quick Wheel SignalRGB effect list error: {ex.Message}");
+            names = new List<string>();
+        }
+        names = names.Take(WheelMaxSlots).ToList();
+        if (names.Count == 0) { _wheelVisible = false; return; }
+
+        var color = System.Windows.Media.Color.FromRgb(0xAB, 0x47, 0xBC);
+        int activeIdx = names.FindIndex(n =>
+            string.Equals(n, Services.SignalRgbEffectCatalog.LastAppliedEffectName, StringComparison.OrdinalIgnoreCase));
+        _radialWheel!.SetActions(names.Select(n => (n, n, "Palette", color)).ToList(),
+            Math.Max(0, activeIdx), "SignalRGB effect", activeIdx);
+        foreach (var name in names)
+            _wheelCommands.Add(() => Services.SignalRgbEffectCatalog.ApplyEffect(name));
     }
 
     private static readonly List<(string id, string label, string symbol, System.Windows.Media.Color color)> MediaControlActions = new()
@@ -5647,7 +5718,12 @@ public partial class App : Application
 
     private void PopulateWheelMediaControls()
     {
-        _radialWheel!.SetActions(MediaControlActions, 0);
+        _radialWheel!.SetActions(MediaControlActions, 0, "Media control");
+        foreach (var a in MediaControlActions)
+        {
+            var actionId = a.id;
+            _wheelCommands.Add(() => RunWheelAction(actionId, null));
+        }
     }
 
     private void PopulateWheelCustom(QuickWheelConfig cfg)
@@ -5656,11 +5732,30 @@ public partial class App : Application
         foreach (var slot in cfg.CustomSlots)
         {
             if (string.IsNullOrEmpty(slot.ActionId)) continue;
+            if (actions.Count >= WheelMaxSlots) break;
             var (symbol, color) = GetActionVisuals(slot.ActionId);
             actions.Add((slot.ActionId, string.IsNullOrEmpty(slot.Label) ? slot.ActionId : slot.Label, symbol, color));
+            // Commands are built from the same filtered list, so an empty slot
+            // can't shift later segments onto the wrong action.
+            var s = slot;
+            _wheelCommands.Add(() => RunWheelAction(s.ActionId, s.ToButtonConfig()));
         }
         if (actions.Count == 0) { _wheelVisible = false; return; }
         _radialWheel!.SetActions(actions, 0);
+    }
+
+    /// <summary>Run a wheel action, with its parameters (keys, path, profile) when it has them.</summary>
+    private void RunWheelAction(string actionId, ButtonConfig? btn)
+    {
+        // volume_up / volume_down / media_stop are key presses not in ButtonHandler — handle inline
+        switch (actionId)
+        {
+            case "volume_up": NativeMethods.keybd_event(0xAF, 0, 0, UIntPtr.Zero); return; // VK_VOLUME_UP
+            case "volume_down": NativeMethods.keybd_event(0xAE, 0, 0, UIntPtr.Zero); return; // VK_VOLUME_DOWN
+            case "media_stop": NativeMethods.keybd_event(0xB2, 0, 0, UIntPtr.Zero); return; // VK_MEDIA_STOP
+        }
+        if (btn == null) _buttons.ExecuteActionByName(actionId);
+        else _buttons.ExecuteAction(actionId, btn.Path, btn);
     }
 
     private static (string symbol, System.Windows.Media.Color color) GetActionVisuals(string actionId)
@@ -5681,7 +5776,9 @@ public partial class App : Application
             "switch_profile" => ("AccountCircleOutline", System.Windows.Media.Color.FromRgb(0xAB, 0x47, 0xBC)),
             "cycle_brightness" => ("Brightness6", System.Windows.Media.Color.FromRgb(0xFF, 0xB8, 0x00)),
             "launch_exe" => ("Launch", System.Windows.Media.Color.FromRgb(0x42, 0xA5, 0xF5)),
+            "open_url" => ("Web", System.Windows.Media.Color.FromRgb(0x42, 0xA5, 0xF5)),
             "macro" => ("Keyboard", System.Windows.Media.Color.FromRgb(0xFF, 0xB8, 0x00)),
+            "signalrgb_effect" => ("Palette", System.Windows.Media.Color.FromRgb(0xAB, 0x47, 0xBC)),
             "power_sleep" => ("Sleep", System.Windows.Media.Color.FromRgb(0x9E, 0x9E, 0x9E)),
             "power_lock" => ("Lock", System.Windows.Media.Color.FromRgb(0x9E, 0x9E, 0x9E)),
             _ => ("CircleOutline", System.Windows.Media.Color.FromRgb(0x9E, 0x9E, 0x9E)),
@@ -5691,64 +5788,13 @@ public partial class App : Application
     private void ConfirmWheelSelection(int idx)
     {
         _wheelVisible = false;
-        var wheelCfg = _activeWheelCfg;
         _radialWheel = null;
-        _activeWheelCfg = null;
+        var commands = _wheelCommands;
+        _wheelCommands = new List<Action>();
 
-        if (_activeWheelMode == QuickWheelMode.MediaControls)
-        {
-            // Execute the media control action directly
-            if (idx >= 0 && idx < MediaControlActions.Count)
-            {
-                var actionId = MediaControlActions[idx].id;
-                // volume_up / volume_down are key presses not in ButtonHandler — handle inline
-                if (actionId == "volume_up")
-                    NativeMethods.keybd_event(0xAF, 0, 0, UIntPtr.Zero); // VK_VOLUME_UP
-                else if (actionId == "volume_down")
-                    NativeMethods.keybd_event(0xAE, 0, 0, UIntPtr.Zero); // VK_VOLUME_DOWN
-                else if (actionId == "media_stop")
-                    NativeMethods.keybd_event(0xB2, 0, 0, UIntPtr.Zero); // VK_MEDIA_STOP
-                else
-                    _buttons.ExecuteActionByName(actionId);
-            }
-        }
-        else if (_activeWheelMode == QuickWheelMode.Custom)
-        {
-            // Execute the custom action
-            if (wheelCfg != null && idx >= 0 && idx < wheelCfg.CustomSlots.Count)
-            {
-                var slot = wheelCfg.CustomSlots[idx];
-                if (!string.IsNullOrEmpty(slot.ActionId))
-                    _buttons.ExecuteActionByName(slot.ActionId);
-            }
-        }
-        else if (_activeWheelMode == QuickWheelMode.OutputDevice)
-        {
-            // idx → device ID via GetSelectedId was already set
-            // We need the device list — just re-enumerate and pick by index
-            try
-            {
-                using var enumerator = new NAudio.CoreAudioApi.MMDeviceEnumerator();
-                var devices = enumerator.EnumerateAudioEndPoints(
-                    NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.DeviceState.Active);
-                if (idx >= 0 && idx < devices.Count)
-                {
-                    using var d = devices[idx];
-                    _buttons.ExecuteAction("select_output", "",
-                        new ButtonConfig { DeviceId = d.ID });
-                }
-            }
-            catch (Exception ex) { Logger.Log($"Quick Wheel device select error: {ex.Message}"); }
-        }
-        else
-        {
-            if (idx >= 0 && idx < _config.Profiles.Count)
-            {
-                var profileName = _config.Profiles[idx];
-                if (profileName != _config.ActiveProfile)
-                    HandleProfileSwitch(profileName);
-            }
-        }
+        if (idx < 0 || idx >= commands.Count) return; // blank segment or Escape
+        try { commands[idx](); }
+        catch (Exception ex) { Logger.Log($"Quick Wheel action error: {ex.Message}"); }
     }
 
     private void HandleQuickWheelClose(int buttonIdx)
@@ -5769,7 +5815,6 @@ public partial class App : Application
                 wheel.OnSegmentClicked = null;
                 _wheelVisible = false;
                 _radialWheel = null;
-                _activeWheelCfg = null;
                 wheel.Dismiss();
                 ConfirmWheelSelection(idx);
                 return;
@@ -5790,7 +5835,6 @@ public partial class App : Application
                 wheel.OnSegmentClicked = null;
                 _wheelVisible = false;
                 _radialWheel = null;
-                _activeWheelCfg = null;
                 wheel.Dismiss();
                 ConfirmWheelSelection(idx);
             };

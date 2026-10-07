@@ -623,6 +623,11 @@ public class QuickWheelConfig
 
     public List<CustomWheelSlot> CustomSlots { get; set; } = new();
 
+    // User-picked wheel contents (max 8 each). Empty = show the first 8 available.
+    public List<string> OutputDeviceIds { get; set; } = new();
+    public List<string> InputDeviceIds { get; set; } = new();
+    public List<string> SignalRgbEffects { get; set; } = new();
+
     /// <summary>
     /// Resolve (Device, TriggerButton) to the virtual button index the
     /// gesture engine sees. Turn Up buttons keep their 0-4 range; N3
@@ -649,12 +654,26 @@ public enum QuickWheelMode
     OutputDevice,
     MediaControls,
     Custom,
+    InputDevice,
+    SignalRgbEffect,
 }
 
 public class CustomWheelSlot
 {
     public string ActionId { get; set; } = "";
     public string Label { get; set; } = "";
+    /// <summary>Action parameter: exe path / URL / effect name (ButtonConfig.Path).</summary>
+    public string Path { get; set; } = "";
+    public string MacroKeys { get; set; } = "";
+    public string ProfileName { get; set; } = "";
+
+    public ButtonConfig ToButtonConfig() => new()
+    {
+        Action = ActionId,
+        Path = Path,
+        MacroKeys = MacroKeys,
+        ProfileName = ProfileName,
+    };
 }
 
 public enum OsdPosition
