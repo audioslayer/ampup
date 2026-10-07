@@ -706,6 +706,16 @@ public partial class OsdView : UserControl
         });
         more.Margin = new Thickness(8, 0, 0, 0);
         var actions = new StackPanel { Orientation = Orientation.Horizontal };
+        var previewCap = new TextBlock { Text = "Preview", FontSize = 11, VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 4, 0), Cursor = Cursors.Hand };
+        previewCap.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+        previewCap.MouseLeftButtonUp += (_, e) => { e.Handled = true; PreviewWheel(state); };
+        var previewBtn = UiKit.IconButton(MaterialIconKind.PlayCircleOutline,
+            "Open this wheel on screen with its current items (nothing runs when you pick)",
+            _ => PreviewWheel(state));
+        previewBtn.Margin = new Thickness(0, 0, 12, 0);
+        actions.Children.Add(previewCap);
+        actions.Children.Add(previewBtn);
         actions.Children.Add(enableSw);
         actions.Children.Add(more);
 
@@ -1109,49 +1119,82 @@ public partial class OsdView : UserControl
     {
         var list = new List<QuickWheelConfig>();
         foreach (var child in WheelRowsPanel.Children)
-        {
-            if (child is not FrameworkElement fe || fe.Tag is not WheelRowState st) continue;
-
-            // Trigger device + local index live in the selected item's Tag,
-            // set up by PopulateTriggerCombo. Fall back to Turn Up button 0.
-            var device = QuickWheelDevice.TurnUp;
-            int triggerIdx = 0;
-            if (st.TriggerCombo.SelectedItem is ComboBoxItem trigCi && trigCi.Tag is ValueTuple<QuickWheelDevice, int> tag)
-            {
-                device = tag.Item1;
-                triggerIdx = tag.Item2;
-            }
-
-            // Every mode's contents are kept, so switching modes doesn't wipe the others.
-            var cfg = new QuickWheelConfig
-            {
-                Enabled = st.Enabled,
-                Mode = st.Mode,
-                Device = device,
-                TriggerButton = triggerIdx,
-                TriggerGesture = "hold",
-                OutputDeviceIds = new List<string>(st.OutputDeviceIds),
-                InputDeviceIds = new List<string>(st.InputDeviceIds),
-                SignalRgbEffects = new List<string>(st.SignalRgbEffects),
-            };
-
-            foreach (var slot in st.Slots)
-            {
-                string actionId = slot.ActionId;
-                cfg.CustomSlots.Add(new CustomWheelSlot
-                {
-                    ActionId = actionId,
-                    Label = slot.Label.Text ?? "",
-                    // Only keep the parameter the chosen action actually uses
-                    Path = actionId is "launch_exe" or "open_url" or "signalrgb_effect" ? slot.GetPath() : "",
-                    MacroKeys = actionId == "macro" ? slot.GetKeys() : "",
-                    ProfileName = actionId == "switch_profile" ? slot.GetProfile() : "",
-                });
-            }
-
-            list.Add(cfg);
-        }
+            if (child is FrameworkElement fe && fe.Tag is WheelRowState st)
+                list.Add(BuildWheelConfig(st));
         return list;
+    }
+
+    /// <summary>Read one wheel card's current (possibly unsaved) state into a config.</summary>
+    private static QuickWheelConfig BuildWheelConfig(WheelRowState st)
+    {
+        // Trigger device + local index live in the selected item's Tag,
+        // set up by PopulateTriggerCombo. Fall back to Turn Up button 0.
+        var device = QuickWheelDevice.TurnUp;
+        int triggerIdx = 0;
+        if (st.TriggerCombo.SelectedItem is ComboBoxItem trigCi && trigCi.Tag is ValueTuple<QuickWheelDevice, int> tag)
+        {
+            device = tag.Item1;
+            triggerIdx = tag.Item2;
+        }
+
+        // Every mode's contents are kept, so switching modes doesn't wipe the others.
+        var cfg = new QuickWheelConfig
+        {
+            Enabled = st.Enabled,
+            Mode = st.Mode,
+            Device = device,
+            TriggerButton = triggerIdx,
+            TriggerGesture = "hold",
+            OutputDeviceIds = new List<string>(st.OutputDeviceIds),
+            InputDeviceIds = new List<string>(st.InputDeviceIds),
+            SignalRgbEffects = new List<string>(st.SignalRgbEffects),
+        };
+
+        foreach (var slot in st.Slots)
+        {
+            string actionId = slot.ActionId;
+            cfg.CustomSlots.Add(new CustomWheelSlot
+            {
+                ActionId = actionId,
+                Label = slot.Label.Text ?? "",
+                // Only keep the parameter the chosen action actually uses
+                Path = actionId is "launch_exe" or "open_url" or "signalrgb_effect" ? slot.GetPath() : "",
+                MacroKeys = actionId == "macro" ? slot.GetKeys() : "",
+                ProfileName = actionId == "switch_profile" ? slot.GetProfile() : "",
+            });
+        }
+        return cfg;
+    }
+
+    private RadialWheelOverlay? _previewWheel;
+
+    /// <summary>
+    /// Open the real wheel overlay with this card's current items, like the Placement preview.
+    /// Hover, arrow keys or the mouse wheel move the highlight; picking an item only closes it.
+    /// </summary>
+    private void PreviewWheel(WheelRowState st)
+    {
+        if (_config == null) return;
+        _previewWheel?.Dismiss();
+
+        var content = Services.QuickWheelContent.Build(_config, BuildWheelConfig(st));
+        if (content.Items.Count == 0)
+        {
+            st.Subtitle.Text = st.Mode == QuickWheelMode.Custom
+                ? "Nothing to preview yet. Add a slot first."
+                : "Nothing to preview. No items found for this wheel.";
+            return;
+        }
+
+        var wheel = new RadialWheelOverlay();
+        wheel.SetMonitor(DisplayMonitorResolver.ResolveOsdMonitorIndex(_config.Osd));
+        wheel.SetContent(content);
+        wheel.OnSegmentClicked = _ => { }; // preview only: picking an item runs nothing
+        wheel.Deactivated += (_, _) => wheel.Dismiss(); // click anywhere else to close
+        wheel.Closed += (_, _) => { if (_previewWheel == wheel) _previewWheel = null; };
+        _previewWheel = wheel;
+        wheel.Show();
+        wheel.Activate();
     }
 
     private void OsdPosition_Click(object sender, MouseButtonEventArgs e)

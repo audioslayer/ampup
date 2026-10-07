@@ -5549,7 +5549,6 @@ public partial class App : Application
     // One command per visible wheel segment, captured when the wheel opens so
     // confirming runs exactly what was shown (no re-enumeration / index drift).
     private List<Action> _wheelCommands = new();
-    private const int WheelMaxSlots = RadialWheelOverlay.MaxSlots;
 
     private void HandleQuickWheelOpen(int buttonIdx)
     {
@@ -5564,8 +5563,15 @@ public partial class App : Application
         RunOnUi(() =>
         {
             if (_wheelVisible) return;
+
+            // Same item builder the OSD page's Preview uses
+            var content = Services.QuickWheelContent.Build(_config, wheelCfg,
+                name => { if (name != _config.ActiveProfile) HandleProfileSwitch(name); },
+                RunWheelAction);
+            if (content.Items.Count < content.MinItems) return;
+
             _wheelVisible = true;
-            _wheelCommands = new List<Action>();
+            _wheelCommands = content.Items.Select(i => i.Run).ToList();
 
             // Initialize last raw values so first delta is correct
             for (int i = 0; i < 5; i++)
@@ -5573,175 +5579,11 @@ public partial class App : Application
 
             _radialWheel = new RadialWheelOverlay();
             _radialWheel.SetMonitor(ResolveOsdMonitorIndex());
-
-            switch (wheelCfg.Mode)
-            {
-                case QuickWheelMode.OutputDevice:
-                    PopulateWheelDevices(NAudio.CoreAudioApi.DataFlow.Render, wheelCfg.OutputDeviceIds);
-                    break;
-                case QuickWheelMode.InputDevice:
-                    PopulateWheelDevices(NAudio.CoreAudioApi.DataFlow.Capture, wheelCfg.InputDeviceIds);
-                    break;
-                case QuickWheelMode.SignalRgbEffect:
-                    PopulateWheelSignalRgb(wheelCfg.SignalRgbEffects);
-                    break;
-                case QuickWheelMode.MediaControls:
-                    PopulateWheelMediaControls();
-                    break;
-                case QuickWheelMode.Custom:
-                    PopulateWheelCustom(wheelCfg);
-                    break;
-                default:
-                    PopulateWheelProfiles();
-                    break;
-            }
-
-            if (!_wheelVisible)
-            {
-                // Nothing to show (too few items) — drop the unshown overlay.
-                _radialWheel.Close();
-                _radialWheel = null;
-                return;
-            }
-
+            _radialWheel.SetContent(content);
             _radialWheel.OnSegmentClicked = idx => ConfirmWheelSelection(idx);
             _radialWheel.Closed += (_, _) => { _wheelVisible = false; _radialWheel = null; };
             _radialWheel.Show();
         });
-    }
-
-    private void PopulateWheelProfiles()
-    {
-        if (_config.Profiles.Count < 2) { _wheelVisible = false; return; }
-        var profiles = _config.Profiles.Take(WheelMaxSlots).ToList();
-        int currentIdx = profiles.IndexOf(_config.ActiveProfile);
-        _radialWheel!.SetProfiles(profiles, Math.Max(0, currentIdx), _config.ProfileIcons);
-        foreach (var name in profiles)
-            _wheelCommands.Add(() => { if (name != _config.ActiveProfile) HandleProfileSwitch(name); });
-    }
-
-    /// <summary>
-    /// Output or input device wheel. When the user picked devices, show those
-    /// (in their order, skipping unplugged ones); otherwise the first 8 active.
-    /// </summary>
-    private void PopulateWheelDevices(NAudio.CoreAudioApi.DataFlow flow, List<string> pickedIds)
-    {
-        try
-        {
-            using var enumerator = new NAudio.CoreAudioApi.MMDeviceEnumerator();
-            var devices = enumerator.EnumerateAudioEndPoints(flow, NAudio.CoreAudioApi.DeviceState.Active);
-            string currentId = "";
-            try
-            {
-                using var current = enumerator.GetDefaultAudioEndpoint(flow, NAudio.CoreAudioApi.Role.Multimedia);
-                currentId = current.ID;
-            }
-            catch { /* no default device */ }
-
-            var active = new List<(string id, string name)>();
-            for (int i = 0; i < devices.Count; i++)
-            {
-                using var d = devices[i];
-                active.Add((d.ID, d.FriendlyName));
-            }
-
-            var list = pickedIds.Count > 0
-                ? pickedIds.Select(id => active.FirstOrDefault(a => a.id == id))
-                           .Where(a => a.id != null).ToList()
-                : active;
-            list = list.Take(WheelMaxSlots).ToList();
-
-            if (list.Count < (pickedIds.Count > 0 ? 1 : 2)) { _wheelVisible = false; return; }
-
-            int currentIdx = Math.Max(0, list.FindIndex(a => a.id == currentId));
-            bool isInput = flow == NAudio.CoreAudioApi.DataFlow.Capture;
-            if (isInput)
-            {
-                var color = System.Windows.Media.Color.FromRgb(0xFF, 0xB8, 0x00);
-                int activeIdx = list.FindIndex(a => a.id == currentId);
-                _radialWheel!.SetActions(list.Select(a => (a.id, a.name, "Microphone", color)).ToList(),
-                    currentIdx, "Input device", activeIdx);
-            }
-            else
-            {
-                _radialWheel!.SetDevices(list, currentIdx);
-            }
-
-            string action = isInput ? "select_input" : "select_output";
-            foreach (var (id, _) in list)
-                _wheelCommands.Add(() => _buttons.ExecuteAction(action, "", new ButtonConfig { DeviceId = id }));
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"Quick Wheel device enum error: {ex.Message}");
-            _wheelVisible = false;
-        }
-    }
-
-    private void PopulateWheelSignalRgb(List<string> pickedEffects)
-    {
-        List<string> names;
-        try
-        {
-            names = pickedEffects.Count > 0
-                ? pickedEffects.Where(n => !string.IsNullOrWhiteSpace(n)).ToList()
-                : Services.SignalRgbEffectCatalog.GetInstalledEffects().Select(e => e.Name).ToList();
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"Quick Wheel SignalRGB effect list error: {ex.Message}");
-            names = new List<string>();
-        }
-        names = names.Take(WheelMaxSlots).ToList();
-        if (names.Count == 0) { _wheelVisible = false; return; }
-
-        var color = System.Windows.Media.Color.FromRgb(0xAB, 0x47, 0xBC);
-        int activeIdx = names.FindIndex(n =>
-            string.Equals(n, Services.SignalRgbEffectCatalog.LastAppliedEffectName, StringComparison.OrdinalIgnoreCase));
-        _radialWheel!.SetActions(names.Select(n => (n, n, "Palette", color)).ToList(),
-            Math.Max(0, activeIdx), "SignalRGB effect", activeIdx);
-        foreach (var name in names)
-            _wheelCommands.Add(() => Services.SignalRgbEffectCatalog.ApplyEffect(name));
-    }
-
-    private static readonly List<(string id, string label, string symbol, System.Windows.Media.Color color)> MediaControlActions = new()
-    {
-        ("media_play_pause", "Play / Pause", "PlayPause", System.Windows.Media.Color.FromRgb(0x00, 0xE6, 0x76)),
-        ("media_prev", "Previous", "SkipPrevious", System.Windows.Media.Color.FromRgb(0x00, 0xBC, 0xD4)),
-        ("media_next", "Next", "SkipNext", System.Windows.Media.Color.FromRgb(0x00, 0xBC, 0xD4)),
-        ("mute_master", "Mute Master", "VolumeOff", System.Windows.Media.Color.FromRgb(0xFF, 0x44, 0x44)),
-        ("mute_mic", "Mute Mic", "MicrophoneOff", System.Windows.Media.Color.FromRgb(0xFF, 0xB8, 0x00)),
-        ("volume_up", "Volume Up", "VolumeHigh", System.Windows.Media.Color.FromRgb(0x42, 0xA5, 0xF5)),
-        ("volume_down", "Volume Down", "VolumeLow", System.Windows.Media.Color.FromRgb(0x42, 0xA5, 0xF5)),
-        ("media_stop", "Stop", "Stop", System.Windows.Media.Color.FromRgb(0x9E, 0x9E, 0x9E)),
-    };
-
-    private void PopulateWheelMediaControls()
-    {
-        _radialWheel!.SetActions(MediaControlActions, 0, "Media control");
-        foreach (var a in MediaControlActions)
-        {
-            var actionId = a.id;
-            _wheelCommands.Add(() => RunWheelAction(actionId, null));
-        }
-    }
-
-    private void PopulateWheelCustom(QuickWheelConfig cfg)
-    {
-        var actions = new List<(string id, string label, string symbol, System.Windows.Media.Color color)>();
-        foreach (var slot in cfg.CustomSlots)
-        {
-            if (string.IsNullOrEmpty(slot.ActionId)) continue;
-            if (actions.Count >= WheelMaxSlots) break;
-            var (symbol, color) = GetActionVisuals(slot.ActionId);
-            actions.Add((slot.ActionId, string.IsNullOrEmpty(slot.Label) ? slot.ActionId : slot.Label, symbol, color));
-            // Commands are built from the same filtered list, so an empty slot
-            // can't shift later segments onto the wrong action.
-            var s = slot;
-            _wheelCommands.Add(() => RunWheelAction(s.ActionId, s.ToButtonConfig()));
-        }
-        if (actions.Count == 0) { _wheelVisible = false; return; }
-        _radialWheel!.SetActions(actions, 0);
     }
 
     /// <summary>Run a wheel action, with its parameters (keys, path, profile) when it has them.</summary>
@@ -5756,33 +5598,6 @@ public partial class App : Application
         }
         if (btn == null) _buttons.ExecuteActionByName(actionId);
         else _buttons.ExecuteAction(actionId, btn.Path, btn);
-    }
-
-    private static (string symbol, System.Windows.Media.Color color) GetActionVisuals(string actionId)
-    {
-        return actionId switch
-        {
-            "media_play_pause" => ("PlayPause", System.Windows.Media.Color.FromRgb(0x00, 0xE6, 0x76)),
-            "media_next" => ("SkipNext", System.Windows.Media.Color.FromRgb(0x00, 0xBC, 0xD4)),
-            "media_prev" => ("SkipPrevious", System.Windows.Media.Color.FromRgb(0x00, 0xBC, 0xD4)),
-            "media_stop" => ("Stop", System.Windows.Media.Color.FromRgb(0x9E, 0x9E, 0x9E)),
-            "mute_master" => ("VolumeOff", System.Windows.Media.Color.FromRgb(0xFF, 0x44, 0x44)),
-            "mute_mic" => ("MicrophoneOff", System.Windows.Media.Color.FromRgb(0xFF, 0xB8, 0x00)),
-            "volume_up" => ("VolumeHigh", System.Windows.Media.Color.FromRgb(0x42, 0xA5, 0xF5)),
-            "volume_down" => ("VolumeLow", System.Windows.Media.Color.FromRgb(0x42, 0xA5, 0xF5)),
-            "mute_program" => ("VolumeOff", System.Windows.Media.Color.FromRgb(0xFF, 0x44, 0x44)),
-            "mute_active_window" => ("VolumeOff", System.Windows.Media.Color.FromRgb(0xFF, 0x44, 0x44)),
-            "add_active_app_to_group" => ("PlusCircleOutline", System.Windows.Media.Color.FromRgb(0x26, 0xC6, 0xDA)),
-            "switch_profile" => ("AccountCircleOutline", System.Windows.Media.Color.FromRgb(0xAB, 0x47, 0xBC)),
-            "cycle_brightness" => ("Brightness6", System.Windows.Media.Color.FromRgb(0xFF, 0xB8, 0x00)),
-            "launch_exe" => ("Launch", System.Windows.Media.Color.FromRgb(0x42, 0xA5, 0xF5)),
-            "open_url" => ("Web", System.Windows.Media.Color.FromRgb(0x42, 0xA5, 0xF5)),
-            "macro" => ("Keyboard", System.Windows.Media.Color.FromRgb(0xFF, 0xB8, 0x00)),
-            "signalrgb_effect" => ("Palette", System.Windows.Media.Color.FromRgb(0xAB, 0x47, 0xBC)),
-            "power_sleep" => ("Sleep", System.Windows.Media.Color.FromRgb(0x9E, 0x9E, 0x9E)),
-            "power_lock" => ("Lock", System.Windows.Media.Color.FromRgb(0x9E, 0x9E, 0x9E)),
-            _ => ("CircleOutline", System.Windows.Media.Color.FromRgb(0x9E, 0x9E, 0x9E)),
-        };
     }
 
     private void ConfirmWheelSelection(int idx)

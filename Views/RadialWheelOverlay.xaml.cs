@@ -57,64 +57,29 @@ public partial class RadialWheelOverlay : Window
             Keyboard.Focus(RootGrid);
             PlayFadeIn();
         };
+        // Mouse wheel steps the highlight like a knob turn
+        MouseWheel += (_, e) => Highlight(_highlighted + (e.Delta < 0 ? 1 : -1));
     }
 
-    /// <summary>Populate with profiles (icon + color from ProfileIcons). Call before Show().</summary>
-    public void SetProfiles(List<string> profiles, int currentIndex,
-                            Dictionary<string, ProfileIconConfig>? icons = null)
-    {
-        var items = new List<(string id, string label, string symbol, Color color)>();
-        foreach (var p in profiles.Take(MaxSlots))
-        {
-            Color color = AccentColor;
-            string symbol = "AccountCircleOutline";
-            if (icons != null && icons.TryGetValue(p, out var cfg))
-            {
-                try { color = (Color)ColorConverter.ConvertFromString(cfg.Color); }
-                catch { color = AccentColor; }
-                if (!string.IsNullOrEmpty(cfg.Symbol)) symbol = cfg.Symbol;
-            }
-            items.Add((p, p, symbol, color));
-        }
-        SetItems(items, currentIndex, "Profile", currentIndex);
-    }
-
-    public int GetTotalSlots() => Math.Max(1, _ids.Count);
-
-    /// <summary>Populate with audio output devices; currentIndex is the default device.</summary>
-    public void SetDevices(List<(string id, string name)> devices, int currentIndex)
-    {
-        var purple = Color.FromRgb(0xAB, 0x47, 0xBC);
-        SetItems(devices.Select(d => (d.id, d.name, "VolumeHigh", purple)).ToList(),
-            currentIndex, "Output device", currentIndex);
-    }
-
-    /// <summary>
-    /// Populate with arbitrary items. Each tuple: (id, label, materialIconName, color).
-    /// <paramref name="kind"/> is the small line under the name; <paramref name="activeIndex"/>
-    /// marks the item that's in effect now (-1 for none).
-    /// </summary>
-    public void SetActions(List<(string id, string label, string symbol, Color color)> actions, int currentIndex,
-                           string kind = "Action", int activeIndex = -1)
-        => SetItems(actions, currentIndex, kind, activeIndex);
-
-    private void SetItems(List<(string id, string label, string symbol, Color color)> items,
-                          int currentIndex, string kind, int activeIndex)
+    /// <summary>Populate from built wheel content (see QuickWheelContent). Call before Show().</summary>
+    public void SetContent(AmpUp.Services.QuickWheelContent content)
     {
         _ids.Clear(); _labels.Clear(); _symbols.Clear(); _colors.Clear();
-        foreach (var it in items.Take(MaxSlots))
+        foreach (var it in content.Items.Take(MaxSlots))
         {
-            _ids.Add(it.id);
-            _labels.Add(it.label);
-            _symbols.Add(it.symbol);
-            _colors.Add(it.color);
+            _ids.Add(it.Id);
+            _labels.Add(it.Label);
+            _symbols.Add(it.Symbol);
+            _colors.Add(it.Color);
         }
-        _kind = kind;
-        _activeIndex = activeIndex;
-        _highlighted = _ids.Count == 0 ? -1 : Math.Clamp(currentIndex, 0, _ids.Count - 1);
+        _kind = content.Kind;
+        _activeIndex = content.ActiveIndex;
+        _highlighted = _ids.Count == 0 ? -1 : Math.Clamp(content.CurrentIndex, 0, _ids.Count - 1);
         Render();
         CenterOnScreen();
     }
+
+    public int GetTotalSlots() => Math.Max(1, _ids.Count);
 
     /// <summary>Returns the ID string at the highlighted index, or null if empty.</summary>
     public string? GetSelectedId()
