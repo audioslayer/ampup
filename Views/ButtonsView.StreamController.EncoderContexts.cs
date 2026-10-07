@@ -169,30 +169,29 @@ public partial class ButtonsView
         var yellow = Color.FromRgb(0xFF, 0xD5, 0x4F);
 
         picker.AddCategory("Audio");
-        picker.AddItem("None", "none", "-", muted);
-        picker.AddItem("Master Volume", "master", "\u266A", green);
-        picker.AddItem("Microphone", "mic", "\u25CE", red);
-        picker.AddItem("Active Window", "active_window", "\u25A3", purple);
-        picker.AddItem("System Sounds", "system", "\u25C6", blue);
-        picker.AddItem("Automatic App", "any", "\u25C8", teal);
-
-        picker.AddCategory("Lighting");
-        picker.AddItem("Room Brightness", "room_lights", "\u2600", yellow,
-            "All configured room lights");
-        picker.AddItem("AmpUp LED Brightness", "led_brightness", "\u25C9", orange,
-            "Turn Up hardware LEDs");
-        picker.AddItem("Monitor Brightness", "monitor", "\u25AD", orange,
-            "Primary display");
+        picker.AddItem("Nothing", "none", MaterialIconKind.CircleOffOutline, muted, "Encoder does nothing");
+        picker.AddItem("Master volume", "master", MaterialIconKind.VolumeHigh, green, "Windows main volume");
+        picker.AddItem("Microphone", "mic", MaterialIconKind.Microphone, red, "Default mic input level");
+        picker.AddItem("System sounds", "system", MaterialIconKind.BellRing, blue, "Windows notification sounds");
 
         picker.AddCategory("Apps");
-        picker.AddItem("Discord", "discord", "D", Color.FromRgb(0x58, 0x65, 0xF2));
-        picker.AddItem("Spotify", "spotify", "\u266A", Color.FromRgb(0x1D, 0xB9, 0x54));
-        picker.AddItem("Chrome", "chrome", "C", Color.FromRgb(0x42, 0x85, 0xF4));
-        picker.AddItem("Custom App / Process", "__custom__", "+", teal);
+        picker.AddItem("Focused app", "active_window", MaterialIconKind.CursorDefaultClick, purple, "Whatever app window is in front");
+        picker.AddItem("Auto (next playing app)", "any", MaterialIconKind.AutoFix, teal, "First app playing audio that isn't on another knob");
+        picker.AddItem("Discord", "discord", MaterialIconKind.Headset, Color.FromRgb(0x58, 0x65, 0xF2), "Discord voice and app audio");
+        picker.AddItem("Spotify", "spotify", MaterialIconKind.Music, Color.FromRgb(0x1D, 0xB9, 0x54), "Spotify music");
+        picker.AddItem("Chrome", "chrome", MaterialIconKind.Web, Color.FromRgb(0x42, 0x85, 0xF4), "Google Chrome tabs");
+        picker.AddItem("Other app…", "__custom__", MaterialIconKind.Plus, teal, "Type any process name");
+
+        picker.AddCategory("Devices");
+        picker.AddItem("Monitor brightness", "monitor", MaterialIconKind.MonitorShimmer, orange, "Primary display brightness");
+        picker.AddItem("Turn Up LED brightness", "led_brightness", MaterialIconKind.Brightness6, yellow, "Brightness of the knob lights");
+
+        picker.AddCategory("Lights & Integrations");
+        picker.AddItem("Room lights", "room_lights", MaterialIconKind.HomeLightbulbOutline, yellow, "Brightness of all your room lights");
 
         picker.AddCategory("Stream Controller");
-        picker.AddItem("Cycle Spaces", "sc_space_cycle", "\u229E", teal);
-        picker.AddItem("Cycle Pages", "sc_page_cycle", "\u25A4", orange);
+        picker.AddItem("Switch Spaces", "sc_space_cycle", MaterialIconKind.ViewDashboardOutline, teal, "Twist to move between Home and your Spaces");
+        picker.AddItem("Switch pages", "sc_page_cycle", MaterialIconKind.BookOpenPageVariantOutline, orange, "Twist to flip pages in the current Space");
     }
 
     private Border MakeV2EncoderRotationCard(UIElement content)

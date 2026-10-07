@@ -1,3 +1,4 @@
+using Material.Icons;
 using System.Diagnostics;
 using System.Runtime.Versioning;
 using System.Windows;
@@ -817,36 +818,6 @@ public partial class MixerView : UserControl
                 ToolTip = "What this knob controls",
             };
 
-            var _clrGreen  = Color.FromRgb(0x66, 0xBB, 0x6A);
-            var _clrRed    = Color.FromRgb(0xEF, 0x53, 0x50);
-            var _clrBlue   = Color.FromRgb(0x42, 0xA5, 0xF5);
-            var _clrTeal   = Color.FromRgb(0x26, 0xC6, 0xDA);
-            var _clrPurple = Color.FromRgb(0xAB, 0x47, 0xBC);
-            var _clrOrange = Color.FromRgb(0xFF, 0xA7, 0x26);
-            var _clrYellow = Color.FromRgb(0xFF, 0xD5, 0x4F);
-
-            targetPicker.AddCategory("Audio");
-            targetPicker.AddItem("Master",        "master",        "♪",  _clrGreen);
-            targetPicker.AddItem("Mic",           "mic",           "◎",  _clrRed);
-            targetPicker.AddItem("System",        "system",        "◆",  _clrBlue);
-            targetPicker.AddItem("Any",           "any",           "◈",  _clrTeal);
-            targetPicker.AddItem("Active Window", "active_window", "▣",  _clrPurple);
-
-            targetPicker.AddCategory("Devices");
-            targetPicker.AddItem("Output Device",  "output_device",  "▶",  _clrPurple);
-            targetPicker.AddItem("Input Device",   "input_device",   "◀",  _clrRed);
-            targetPicker.AddItem("Monitor",        "monitor",        "▭",  _clrOrange);
-            targetPicker.AddItem("LED Brightness", "led_brightness", "◉",  _clrYellow);
-
-            // Integration items (HA / Govee) are added conditionally in RebuildTargetPickerItems
-            // called from LoadConfig once we know which integrations are enabled.
-
-            targetPicker.AddCategory("Apps");
-            targetPicker.AddItem("App Group", "apps",     "▣", _clrTeal);
-            targetPicker.AddItem("Discord",   "discord",  "◉", Color.FromRgb(0x58, 0x65, 0xF2));
-            targetPicker.AddItem("Spotify",   "spotify",  "♪", Color.FromRgb(0x1D, 0xB9, 0x54));
-            targetPicker.AddItem("Chrome",    "chrome",   "◆", Color.FromRgb(0x42, 0x85, 0xF4));
-
             targetPicker.SelectionChanged += (_, _) =>
             {
                 if (_loading) return;
@@ -1002,8 +973,8 @@ public partial class MixerView : UserControl
             .OrderBy(e => e.FriendlyName)
             .Select(e =>
             {
-                var (icon, color) = HADomainStyles.GetStyle(e.Domain);
-                return new GridPicker.SubItem(e.FriendlyName, e.EntityId, icon, color);
+                var (_, color) = HADomainStyles.GetStyle(e.Domain);
+                return new GridPicker.SubItem(e.FriendlyName, e.EntityId, null, color, HADomainKind(e.Domain), e.EntityId);
             })
             .ToList();
 
@@ -1013,13 +984,23 @@ public partial class MixerView : UserControl
         return items;
     }
 
+    private static MaterialIconKind HADomainKind(string domain) => domain switch
+    {
+        "light" => MaterialIconKind.Lightbulb,
+        "media_player" => MaterialIconKind.CastAudio,
+        "fan" => MaterialIconKind.Fan,
+        "cover" => MaterialIconKind.WindowShutter,
+        _ => MaterialIconKind.HomeAssistant,
+    };
+
     private List<GridPicker.SubItem> GetDeviceSubItems(bool isOutput)
     {
         return _audioDevices
             .Where(d => d.IsOutput == isOutput)
             .OrderBy(d => d.Name)
-            .Select(d => new GridPicker.SubItem(d.Name, d.Id, isOutput ? "🔊" : "🎙",
-                isOutput ? Color.FromRgb(0xB3, 0x88, 0xFF) : Color.FromRgb(0x26, 0xC6, 0xDA)))
+            .Select(d => new GridPicker.SubItem(d.Name, d.Id, null,
+                isOutput ? Color.FromRgb(0xAB, 0x47, 0xBC) : Color.FromRgb(0xEF, 0x53, 0x50),
+                isOutput ? MaterialIconKind.Speaker : MaterialIconKind.MicrophoneVariant))
             .ToList();
     }
 
@@ -1028,11 +1009,11 @@ public partial class MixerView : UserControl
         var clr = Color.FromRgb(0xFF, 0xA7, 0x26); // orange
         var items = new List<GridPicker.SubItem>
         {
-            new("All Monitors", "", "▭", clr)
+            new("All monitors", "", null, clr, MaterialIconKind.MonitorMultiple)
         };
         foreach (var mon in MonitorBrightness.GetMonitorInfos())
         {
-            items.Add(new GridPicker.SubItem(mon.FriendlyName, mon.DeviceName, "▭", clr));
+            items.Add(new GridPicker.SubItem(mon.FriendlyName, mon.DeviceName, null, clr, MaterialIconKind.Monitor));
         }
         return items;
     }
@@ -1048,7 +1029,7 @@ public partial class MixerView : UserControl
                 var displayName = !string.IsNullOrWhiteSpace(d.Name) && !nameIsIp ? d.Name
                     : !string.IsNullOrEmpty(d.Sku) ? AmbienceSync.GetProductName(d.Sku)
                     : d.Ip;
-                return new GridPicker.SubItem(displayName, d.Ip, "◈", clr);
+                return new GridPicker.SubItem(displayName, d.Ip, null, clr, MaterialIconKind.LedStripVariant);
             })
             .ToList();
     }
@@ -1092,35 +1073,92 @@ public partial class MixerView : UserControl
         bool corsairEnabled = config.Corsair.Enabled && config.Corsair.FanEnabled;
         bool hasIntegrations = haEnabled || goveeEnabled || vmEnabled || corsairEnabled;
 
-        picker.AddCategory("Audio");
-        picker.AddItem("None",          "none",          "-",  Color.FromRgb(0x88, 0x88, 0x88));
-        picker.AddItem("Master",        "master",        "♪",  clrGreen);
-        picker.AddItem("Mic",           "mic",           "◎",  clrRed);
-        picker.AddItem("System",        "system",        "◆",  clrBlue);
-        picker.AddItem("Any",           "any",           "◈",  clrTeal);
-        picker.AddItem("Active Window", "active_window", "▣",  clrPurple);
+        var clrGrey = Color.FromRgb(0x88, 0x88, 0x88);
+        var clrRoom = Color.FromRgb(0x69, 0xF0, 0xAE);
+        var clrVM = Color.FromRgb(0xFF, 0x8F, 0x00);
+        var clrCorsair = Color.FromRgb(0xFF, 0xD3, 0x00);
 
+        // ── Audio ──
+        picker.AddCategory("Audio");
+        picker.AddItem("Nothing",       "none",   MaterialIconKind.CircleOffOutline, clrGrey,  "Knob does nothing", keywords: "none off disabled");
+        picker.AddItem("Master volume", "master", MaterialIconKind.VolumeHigh,       clrGreen, "Windows main volume", keywords: "master speakers output");
+        picker.AddItem("Microphone",    "mic",    MaterialIconKind.Microphone,       clrRed,   "Default mic input level", keywords: "mic input");
+        picker.AddItem("System sounds", "system", MaterialIconKind.BellRing,         clrBlue,  "Windows notification sounds", keywords: "system alerts");
+
+        // ── Apps ──
+        picker.AddCategory("Apps");
+        picker.AddItem("Focused app", "active_window", MaterialIconKind.CursorDefaultClick, clrPurple,
+            "Whatever app window is in front", keywords: "active window foreground");
+        picker.AddItem("Auto (next playing app)", "any", MaterialIconKind.AutoFix, clrTeal,
+            "First app playing audio that isn't on another knob", keywords: "any automatic");
+        picker.AddItem("App group", "apps", MaterialIconKind.Apps, clrTeal,
+            "Several apps together on one knob", keywords: "apps multiple group");
+        picker.AddItem("Discord", "discord", MaterialIconKind.Headset, Color.FromRgb(0x58, 0x65, 0xF2),
+            "Discord voice and app audio", GetAppIcon("discord"));
+        picker.AddItem("Spotify", "spotify", MaterialIconKind.Music, Color.FromRgb(0x1D, 0xB9, 0x54),
+            "Spotify music", GetAppIcon("spotify"));
+        picker.AddItem("Chrome", "chrome", MaterialIconKind.Web, Color.FromRgb(0x42, 0x85, 0xF4),
+            "Google Chrome tabs", GetAppIcon("chrome"));
+        picker.RegisterDynamicItems("Apps", () =>
+        {
+            var apps = _mixer?.GetRunningAudioApps() ?? new List<string>();
+            return apps
+                .Where(a => !string.IsNullOrWhiteSpace(a))
+                .Select(a => new GridPicker.SubItem(FormatTargetName(a), a, null, clrTeal,
+                    MaterialIconKind.Application, "Playing audio now", GetAppIcon(a)))
+                .ToList();
+        });
+
+        // ── Devices ──
         picker.AddCategory("Devices");
-        picker.AddItem("Output Device", "output_device", "▶",  clrPurple);
-        picker.AddItem("Input Device",  "input_device",  "◀",  clrRed);
-        picker.AddItem("Monitor",       "monitor",       "▭",  clrOrange);
-        picker.AddItem("LED Brightness","led_brightness","◉",  clrYellow);
+        picker.AddItem("Speaker / headset", "output_device", MaterialIconKind.Speaker, clrPurple,
+            "Volume of one specific output device", keywords: "output device headphones");
+        picker.AddItem("Mic device", "input_device", MaterialIconKind.MicrophoneVariant, clrRed,
+            "Level of one specific input device", keywords: "input device microphone");
+        picker.AddItem("Monitor brightness", "monitor", MaterialIconKind.MonitorShimmer, clrOrange,
+            "Screen brightness over DDC/CI", keywords: "display screen");
+        picker.AddItem("Turn Up LED brightness", "led_brightness", MaterialIconKind.Brightness6, clrYellow,
+            "Brightness of the knob lights", keywords: "led rgb lights");
 
         picker.RegisterSubMenu("output_device", () => GetDeviceSubItems(isOutput: true));
         picker.RegisterSubMenu("input_device", () => GetDeviceSubItems(isOutput: false));
         picker.RegisterMultiSelectSubMenu("monitor", () => GetMonitorSubItems());
 
-        if (hasIntegrations)
+        // ── Lights & Integrations ──
+        bool hasGroups = config.Groups.Count > 0;
+        if (hasIntegrations || hasGroups)
         {
-            picker.AddCategory("Integrations");
+            picker.AddCategory("Lights & Integrations");
+
+            if (goveeEnabled || corsairEnabled)
+                picker.AddItem("Room lights", "room_lights", MaterialIconKind.HomeLightbulbOutline, clrRoom,
+                    "Brightness of all your room lights", keywords: "room brightness govee corsair");
+
+            if (hasGroups)
+            {
+                picker.AddGroup("Groups", "groups", MaterialIconKind.LightbulbGroup, clrRoom, "Your device groups");
+                foreach (var group in config.Groups)
+                {
+                    var groupColor = clrRoom;
+                    try { groupColor = (Color)ColorConverter.ConvertFromString(group.Color); } catch { }
+                    picker.AddItem(group.Name, $"group:{group.Name}", MaterialIconKind.LightbulbGroup, groupColor,
+                        "Group brightness", "groups");
+                }
+            }
+
+            if (goveeEnabled)
+            {
+                picker.AddItem("Govee light", "govee", MaterialIconKind.LedStripVariant, clrGovee,
+                    "Brightness of one Govee light");
+                picker.RegisterSubMenu("govee", () => GetGoveeSubItems(config));
+            }
 
             if (haEnabled)
             {
-                picker.AddItem("Home Assistant",  "ha_light",  "◈", clrHA, "Light");
-                picker.AddItem("Home Assistant",  "ha_media",  "♪", clrHA, "Media Player");
-                picker.AddItem("Home Assistant",  "ha_fan",    "◎", clrHA, "Fan");
-                picker.AddItem("Home Assistant",  "ha_cover",  "▭", clrHA, "Cover");
-
+                picker.AddItem("Home Assistant light", "ha_light", MaterialIconKind.Lightbulb, clrHA, "Dim a smart light", keywords: "home assistant ha");
+                picker.AddItem("Home Assistant speaker", "ha_media", MaterialIconKind.CastAudio, clrHA, "Volume of a media player", keywords: "home assistant ha media");
+                picker.AddItem("Home Assistant fan", "ha_fan", MaterialIconKind.Fan, clrHA, "Fan speed", keywords: "home assistant ha");
+                picker.AddItem("Home Assistant blinds", "ha_cover", MaterialIconKind.WindowShutter, clrHA, "Open or close a cover", keywords: "home assistant ha cover");
                 foreach (var haKey in HATargetDomains.Keys)
                 {
                     var key = haKey;
@@ -1128,57 +1166,29 @@ public partial class MixerView : UserControl
                 }
             }
 
-            if (config.Groups.Count > 0)
-            {
-                foreach (var group in config.Groups)
-                {
-                    var groupColor = Color.FromRgb(0x69, 0xF0, 0xAE);
-                    try { groupColor = (Color)ColorConverter.ConvertFromString(group.Color); } catch { }
-                    picker.AddItem(group.Name, $"group:{group.Name}", "▣", groupColor, "Groups");
-                }
-            }
-
-            if (goveeEnabled || corsairEnabled)
-            {
-                var clrRoom = Color.FromRgb(0x69, 0xF0, 0xAE);
-                picker.AddItem("Room Lights", "room_lights", "💡", clrRoom, "Room Lighting");
-            }
-
-            if (goveeEnabled)
-            {
-                picker.AddItem("Govee", "govee", "◈", clrGovee, "Room Lighting");
-                picker.RegisterSubMenu("govee", () => GetGoveeSubItems(config));
-            }
-
             if (vmEnabled)
             {
-                var clrVM = Color.FromRgb(0xFF, 0x8F, 0x00);
-                // Show the full Potato surface. Basic/Banana simply use the lower indices.
+                picker.AddGroup("VoiceMeeter", "voicemeeter", MaterialIconKind.TuneVertical, clrVM, "Strip and bus gain");
                 for (int s = 0; s < 8; s++)
-                    picker.AddItem("VoiceMeeter", $"vm_strip:{s}", "♪", clrVM, $"Strip {s + 1}");
+                    picker.AddItem($"VoiceMeeter strip {s + 1}", $"vm_strip:{s}", MaterialIconKind.TuneVertical, clrVM, "Input strip gain", "voicemeeter");
                 for (int b = 0; b < 8; b++)
-                    picker.AddItem("VoiceMeeter", $"vm_bus:{b}", "▶", clrVM, $"Bus {b + 1}");
+                    picker.AddItem($"VoiceMeeter bus {b + 1}", $"vm_bus:{b}", MaterialIconKind.SpeakerMultiple, clrVM, "Output bus gain", "voicemeeter");
             }
 
             if (corsairEnabled)
             {
-                var clrCorsair = Color.FromRgb(0xFF, 0xD3, 0x00);
-                picker.AddItem("Corsair", "corsair_pump_fan", "◎", clrCorsair, "Pump Fan");
-                picker.AddItem("Corsair", "corsair_case_fan", "◉", clrCorsair, "Case Fans");
+                picker.AddItem("Corsair pump fan", "corsair_pump_fan", MaterialIconKind.WaterPump, clrCorsair, "Pump fan speed");
+                picker.AddItem("Corsair case fans", "corsair_case_fan", MaterialIconKind.Fan, clrCorsair, "Case fan speed");
             }
         }
-
-        picker.AddCategory("Apps");
-        picker.AddItem("App Group", "apps",     "▣", clrTeal);
-        picker.AddItem("Discord",   "discord",  "◉", Color.FromRgb(0x58, 0x65, 0xF2));
-        picker.AddItem("Spotify",   "spotify",  "♪", Color.FromRgb(0x1D, 0xB9, 0x54));
-        picker.AddItem("Chrome",    "chrome",   "◆", Color.FromRgb(0x42, 0x85, 0xF4));
 
         if (includeN3Nav)
         {
             picker.AddCategory("Stream Controller");
-            picker.AddItem("Cycle Spaces", "sc_space_cycle", "⊞", clrTeal);
-            picker.AddItem("Cycle Pages",  "sc_page_cycle",  "▤", clrOrange);
+            picker.AddItem("Switch Spaces", "sc_space_cycle", MaterialIconKind.ViewDashboardOutline, clrTeal,
+                "Twist to move between Home and your Spaces", keywords: "cycle spaces folders");
+            picker.AddItem("Switch pages", "sc_page_cycle", MaterialIconKind.BookOpenPageVariantOutline, clrOrange,
+                "Twist to flip pages in the current Space", keywords: "cycle pages");
         }
     }
 
@@ -1264,8 +1274,8 @@ public partial class MixerView : UserControl
             }
         }
         // Custom process name — add it dynamically
-        picker.AddItem(target, target);
-        picker.SelectedIndex = picker.ItemCount - 1;
+        picker.SelectedIndex = picker.AddItemToCategory("Apps", FormatTargetName(target), target,
+            MaterialIconKind.Application, Color.FromRgb(0x26, 0xC6, 0xDA), "Custom app", GetAppIcon(target));
         if (picker.Tag is TextBlock d)
             d.Text = FormatTargetName(target);
     }
