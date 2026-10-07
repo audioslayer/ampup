@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using Material.Icons;
 using Material.Icons.WPF;
 
@@ -15,6 +16,68 @@ namespace AmpUp.Controls;
 /// </summary>
 public static class UiKit
 {
+    /// <summary>
+    /// The app-wide on/off switch (the look the user picked): 38x22 rounded track, accent-tinted
+    /// with an accent border and accent knob when on, input-coloured with a dim knob when off.
+    /// The knob slides (120 ms). Space/Enter toggle when focused. Use this everywhere instead of
+    /// CheckBoxes or per-view switch copies.
+    /// </summary>
+    public static Border Switch(bool initial, Action<bool> onChanged, out Action<bool> setState, string? tooltip = null)
+    {
+        bool on = initial;
+        var knobShift = new TranslateTransform(on ? 16 : 0, 0);
+        var knob = new System.Windows.Shapes.Ellipse
+        {
+            Width = 14, Height = 14,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+            RenderTransform = knobShift,
+        };
+        var track = new Border
+        {
+            Width = 38, Height = 22,
+            CornerRadius = new CornerRadius(11),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(3),
+            Cursor = Cursors.Hand,
+            Focusable = true,
+            Child = knob,
+            ToolTip = tooltip,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        void Paint(bool animate)
+        {
+            var a = ThemeManager.Accent;
+            if (on)
+            {
+                track.Background = new SolidColorBrush(Color.FromArgb(0x55, a.R, a.G, a.B));
+                track.BorderBrush = new SolidColorBrush(a);
+                knob.Fill = new SolidColorBrush(a);
+            }
+            else
+            {
+                track.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+                track.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
+                knob.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "TextDimBrush");
+            }
+            double x = on ? 16 : 0;
+            if (animate && SystemParameters.ClientAreaAnimation)
+                knobShift.BeginAnimation(TranslateTransform.XProperty,
+                    new DoubleAnimation(x, TimeSpan.FromMilliseconds(120)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+            else
+            {
+                knobShift.BeginAnimation(TranslateTransform.XProperty, null);
+                knobShift.X = x;
+            }
+        }
+        void Toggle() { on = !on; Paint(true); onChanged(on); }
+        track.MouseLeftButtonDown += (_, e) => { track.Focus(); Toggle(); e.Handled = true; };
+        track.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Toggle(); e.Handled = true; } };
+        setState = v => { if (v == on) return; on = v; Paint(true); };
+        Paint(false);
+        return track;
+    }
+
     /// <summary>Parts of a card built by <see cref="Card"/> so callers can update text later.</summary>
     public sealed class CardParts
     {
