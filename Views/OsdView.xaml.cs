@@ -7,6 +7,7 @@ using Microsoft.Win32;
 using AmpUp.Controls;
 using AmpUp.Core.Services;
 using Material.Icons;
+using Material.Icons.WPF;
 
 namespace AmpUp.Views;
 
@@ -43,6 +44,7 @@ public partial class OsdView : UserControl
     private sealed class WheelRowState
     {
         public bool Enabled;
+        public string Name = "";
         public QuickWheelMode Mode;
         public ComboBox TriggerCombo = null!;
         public StackPanel CustomPanel = null!;
@@ -54,7 +56,7 @@ public partial class OsdView : UserControl
         public TextBlock Subtitle = null!;
         public System.Windows.Controls.Border Tab = null!;
         public TextBlock TabLabel = null!;
-        public System.Windows.Shapes.Ellipse TabDot = null!;
+        public MaterialIcon TabIcon = null!;
         public List<string> OutputDeviceIds = new();
         public List<string> InputDeviceIds = new();
         public List<string> SignalRgbEffects = new();
@@ -730,6 +732,7 @@ public partial class OsdView : UserControl
         var state = new WheelRowState
         {
             Enabled = qw.Enabled,
+            Name = qw.Name?.Trim() ?? "",
             Mode = mode,
             OutputDeviceIds = new List<string>(qw.OutputDeviceIds),
             InputDeviceIds = new List<string>(qw.InputDeviceIds),
@@ -768,7 +771,14 @@ public partial class OsdView : UserControl
         state.Subtitle.TextTrimming = TextTrimming.CharacterEllipsis;
         state.Subtitle.TextWrapping = TextWrapping.NoWrap;
         pageHead.Children.Add(state.Subtitle);
+        var rename = UiKit.IconButton(MaterialIconKind.PencilOutline, "Rename this wheel", _ =>
+        {
+            int number = WheelStates().ToList().IndexOf(state) + 1;
+            BeginWheelRename(state, number);
+        });
+        rename.Margin = new Thickness(0, 0, 10, 0);
         var actions = new StackPanel { Orientation = Orientation.Horizontal };
+        actions.Children.Add(rename);
         actions.Children.Add(enableSw);
         actions.Children.Add(remove);
         Grid.SetColumn(actions, 1);
@@ -792,6 +802,7 @@ public partial class OsdView : UserControl
             if (showsCombo.SelectedIndex < 0) return;
             state.Mode = WheelModes[showsCombo.SelectedIndex].mode;
             UpdateWheelSubtitle(state);
+            PaintWheelTab(state);
             RefreshWheelModePanels(state);
             WheelChanged(state);
         };
@@ -944,7 +955,7 @@ public partial class OsdView : UserControl
     private IEnumerable<WheelRowState> WheelStates() =>
         WheelRowsPanel.Children.OfType<FrameworkElement>().Select(fe => fe.Tag).OfType<WheelRowState>();
 
-    /// <summary>Rebuild the tab strip ("Wheel 1", "Wheel 2", "+ Add") and show only the selected wheel.</summary>
+    /// <summary>Rebuild the tab strip (one tab per wheel, then "+ Add") and show only the selected wheel.</summary>
     private void RenumberWheels()
     {
         var states = WheelStates().ToList();
@@ -955,16 +966,19 @@ public partial class OsdView : UserControl
         for (int i = 0; i < states.Count; i++)
         {
             var st = states[i];
-            st.Tab = MakeWheelTab($"Wheel {i + 1}", out st.TabLabel, out st.TabDot, () => SelectWheel(st));
+            int number = i + 1;
+            st.Tab = MakeWheelTab(WheelTabName(st, number), out st.TabLabel, out st.TabIcon,
+                () => SelectWheel(st), onRename: () => BeginWheelRename(st, number));
             _wheelTabs.Children.Add(st.Tab);
             PaintWheelTab(st);
         }
-        var add = MakeWheelTab("+  Add", out _, out _, () =>
+        var add = MakeWheelTab("Add", out _, out var addIcon, () =>
         {
             AddWheelRow(new QuickWheelConfig { Enabled = true });
             _debounceTimer.Stop();
             _debounceTimer.Start();
         }, isAdd: true);
+        addIcon.Kind = MaterialIconKind.Plus;
         add.ToolTip = "Add another Quick Wheel";
         _wheelTabs.Children.Add(add);
 
@@ -972,6 +986,19 @@ public partial class OsdView : UserControl
             child.Visibility = Vis(child.Tag == _selectedWheel);
         _wheelEmpty.Visibility = Vis(states.Count == 0);
     }
+
+    private static string WheelTabName(WheelRowState st, int number) =>
+        string.IsNullOrWhiteSpace(st.Name) ? $"Wheel {number}" : st.Name;
+
+    private static MaterialIconKind WheelModeIcon(QuickWheelMode mode) => mode switch
+    {
+        QuickWheelMode.Profile => MaterialIconKind.AccountSwitchOutline,
+        QuickWheelMode.OutputDevice => MaterialIconKind.Speaker,
+        QuickWheelMode.InputDevice => MaterialIconKind.Microphone,
+        QuickWheelMode.MediaControls => MaterialIconKind.PlayPause,
+        QuickWheelMode.SignalRgbEffect => MaterialIconKind.Palette,
+        _ => MaterialIconKind.ViewGridPlusOutline,
+    };
 
     private void SelectWheel(WheelRowState st)
     {
@@ -982,17 +1009,20 @@ public partial class OsdView : UserControl
         foreach (var other in WheelStates()) PaintWheelTab(other);
     }
 
-    /// <summary>Underline tab: optional status dot + label, 2px wheel-colour underline when selected.</summary>
-    private System.Windows.Controls.Border MakeWheelTab(string text, out TextBlock label,
-        out System.Windows.Shapes.Ellipse dot, Action onClick, bool isAdd = false)
+    /// <summary>
+    /// Underline tab: small mode icon + label, 2px wheel-colour underline when selected.
+    /// Double-clicking a wheel tab renames it in place.
+    /// </summary>
+    private System.Windows.Controls.Border MakeWheelTab(string text, out TextBlock label, out MaterialIcon icon,
+        Action onClick, Action? onRename = null, bool isAdd = false)
     {
-        dot = new System.Windows.Shapes.Ellipse { Width = 7, Height = 7, Margin = new Thickness(0, 1, 7, 0),
-            VerticalAlignment = VerticalAlignment.Center, Visibility = isAdd ? Visibility.Collapsed : Visibility.Visible };
+        icon = new MaterialIcon { Width = 14, Height = 14, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
         label = new TextBlock { Text = text, FontSize = 12.5, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
         string restKey = isAdd ? "AccentBrush" : "TextDimBrush";
         label.SetResourceReference(TextBlock.ForegroundProperty, restKey);
+        if (isAdd) icon.SetResourceReference(MaterialIcon.ForegroundProperty, "AccentBrush");
         var row = new StackPanel { Orientation = Orientation.Horizontal };
-        row.Children.Add(dot);
+        row.Children.Add(icon);
         row.Children.Add(label);
         var tab = new System.Windows.Controls.Border
         {
@@ -1007,9 +1037,13 @@ public partial class OsdView : UserControl
         // Hover brightens unselected tabs only (a selected tab has a coloured underline).
         var lbl = label;
         bool Unselected() => tab.BorderBrush == Brushes.Transparent;
-        tab.MouseEnter += (_, _) => { if (Unselected()) lbl.SetResourceReference(TextBlock.ForegroundProperty, isAdd ? "AccentBrush" : "TextSecBrush"); if (isAdd) lbl.Opacity = 0.8; };
-        tab.MouseLeave += (_, _) => { if (Unselected()) lbl.SetResourceReference(TextBlock.ForegroundProperty, restKey); lbl.Opacity = 1; };
-        tab.MouseLeftButtonUp += (_, e) => { e.Handled = true; onClick(); };
+        tab.MouseEnter += (_, _) => { if (Unselected() && !isAdd) lbl.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush"); if (isAdd) row.Opacity = 0.8; };
+        tab.MouseLeave += (_, _) => { if (Unselected()) lbl.SetResourceReference(TextBlock.ForegroundProperty, restKey); row.Opacity = 1; };
+        tab.MouseLeftButtonDown += (_, e) =>
+        {
+            if (e.ClickCount == 2 && onRename != null) { e.Handled = true; onRename(); }
+        };
+        tab.MouseLeftButtonUp += (_, e) => { if (e.Source is TextBox) return; e.Handled = true; onClick(); };
         return tab;
     }
 
@@ -1019,9 +1053,58 @@ public partial class OsdView : UserControl
         bool on = st == _selectedWheel;
         st.Tab.BorderBrush = on ? new SolidColorBrush(WheelColor) : Brushes.Transparent;
         st.TabLabel.SetResourceReference(TextBlock.ForegroundProperty, on ? "TextPrimaryBrush" : "TextDimBrush");
-        st.TabDot.Fill = st.Enabled ? new SolidColorBrush(Color.FromRgb(0x00, 0xDD, 0x77)) : (Brush)FindResource("TextDimBrush");
-        st.TabDot.Opacity = st.Enabled ? 1 : 0.5;
-        st.Tab.ToolTip = st.Enabled ? "Enabled" : "Turned off";
+        st.TabIcon.Kind = WheelModeIcon(st.Mode);
+        st.TabIcon.Foreground = st.Enabled ? new SolidColorBrush(WheelColor) : (Brush)FindResource("TextDimBrush");
+        st.TabIcon.Opacity = st.Enabled ? 1 : 0.5;
+        string mode = WheelModes[WheelModeIndex(st.Mode)].label;
+        st.Tab.ToolTip = $"{mode}{(st.Enabled ? "" : " · turned off")}\nDouble-click to rename";
+    }
+
+    /// <summary>Swap the tab label for a text box. Enter or clicking away saves, Esc cancels, empty = default name.</summary>
+    private void BeginWheelRename(WheelRowState st, int number)
+    {
+        if (st.Tab?.Child is not StackPanel row || row.Children.OfType<TextBox>().Any()) return;
+        SelectWheel(st);
+        var box = new TextBox
+        {
+            Text = WheelTabName(st, number),
+            FontSize = 12.5,
+            FontWeight = FontWeights.SemiBold,
+            MinWidth = 70,
+            MaxLength = 24,
+            Padding = new Thickness(2, 0, 2, 0),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        box.SetResourceReference(TextBox.BackgroundProperty, "InputBgBrush");
+        box.SetResourceReference(TextBox.ForegroundProperty, "TextPrimaryBrush");
+        box.SetResourceReference(TextBox.BorderBrushProperty, "AccentBrush");
+        box.SetResourceReference(TextBox.CaretBrushProperty, "AccentBrush");
+        st.TabLabel.Visibility = Visibility.Collapsed;
+        row.Children.Add(box);
+
+        bool done = false;
+        void Finish(bool save)
+        {
+            if (done) return;
+            done = true;
+            if (save)
+            {
+                var name = box.Text.Trim();
+                st.Name = name == $"Wheel {number}" ? "" : name;
+                QueueSave();
+            }
+            row.Children.Remove(box);
+            st.TabLabel.Text = WheelTabName(st, number);
+            st.TabLabel.Visibility = Visibility.Visible;
+        }
+        box.KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Enter) { Finish(true); e.Handled = true; }
+            else if (e.Key == Key.Escape) { Finish(false); e.Handled = true; }
+        };
+        box.LostKeyboardFocus += (_, _) => Finish(true);
+        box.Loaded += (_, _) => { box.Focus(); box.SelectAll(); };
     }
 
     /// <summary>Show the slot editor or the item checklist / hint that matches the wheel's mode.</summary>
@@ -1427,6 +1510,7 @@ public partial class OsdView : UserControl
         var cfg = new QuickWheelConfig
         {
             Enabled = st.Enabled,
+            Name = st.Name,
             Mode = st.Mode,
             Device = device,
             TriggerButton = triggerIdx,

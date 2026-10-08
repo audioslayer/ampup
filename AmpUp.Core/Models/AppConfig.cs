@@ -610,6 +610,9 @@ public class QuickWheelConfig
 {
     public bool Enabled { get; set; } = false;
 
+    /// <summary>User-chosen tab name on the OSD page. Empty = "Wheel N".</summary>
+    public string Name { get; set; } = "";
+
     [JsonConverter(typeof(StringEnumConverter))]
     public QuickWheelDevice Device { get; set; } = QuickWheelDevice.TurnUp;
 
