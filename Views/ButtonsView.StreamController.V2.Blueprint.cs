@@ -27,7 +27,7 @@ public partial class ButtonsView
     private const double BpCanvasW = 860, BpCanvasH = 690;
     private const double BpBodyX = 62, BpBodyY = 100, BpBodyW = 760, BpBodyH = 460;
     private const double BpKeySize = 120, BpKeyGap = 12, BpKeyInset = 44;
-    private const double BpBigKnobD = 232, BpSmallKnobD = 118, BpButtonD = 72;
+    private const double BpBigKnobD = 220, BpSmallKnobD = 112, BpButtonD = 72;
     private static readonly FontFamily BpMono = new("Cascadia Mono, Consolas, Courier New");
 
     private sealed class V2HwControl
@@ -92,24 +92,26 @@ public partial class ButtonsView
         _v2EncoderTiles.Clear();
 
         // Large knob, top right — centred on the key block's vertical middle
-        double keyBlockW = 3 * BpKeySize + 2 * BpKeyGap;
         double keyBlockH = 2 * BpKeySize + BpKeyGap;
         double bigCx = BpBodyX + BpBodyW - 44 - BpBigKnobD / 2;
         double topCy = BpBodyY + BpKeyInset + keyBlockH / 2;
         var big = AddBlueprintKnob(canvas, V2BigKnobEncoder, bigCx, topCy, BpBigKnobD);
         AddBlueprintCallout(canvas, big, bigCx, topCy - BpBigKnobD / 2, above: true);
 
-        // Bottom row: three buttons under the keys, then the two small knobs
-        double rowCy = BpBodyY + BpBodyH - 40 - BpSmallKnobD / 2;
+        // Bottom row: one button under each LCD column, then the two small knobs to the right,
+        // under the big knob. Centred in the band between the key block and the body edge.
         double keysX = BpBodyX + BpKeyInset;
+        double bandTop = BpBodyY + BpKeyInset + keyBlockH + 10;
+        double rowCy = (bandTop + BpBodyY + BpBodyH - 12) / 2;
         for (int i = 0; i < 3; i++)
         {
-            double cx = keysX + 26 + BpButtonD / 2 + i * 112;
+            double cx = keysX + BpKeySize / 2 + i * (BpKeySize + BpKeyGap);
             var b = AddBlueprintButton(canvas, i, cx, rowCy);
             AddBlueprintCallout(canvas, b, cx, rowCy + BpButtonD / 2, above: false);
         }
         var small = Enumerable.Range(0, 3).Where(e => e != V2BigKnobEncoder).ToList();
-        double[] smallCx = { keysX + keyBlockW - BpSmallKnobD / 2 + 20, bigCx };
+        double smallRight = BpBodyX + BpBodyW - 40 - BpSmallKnobD / 2;
+        double[] smallCx = { smallRight - 150, smallRight };
         for (int s = 0; s < small.Count; s++)
         {
             var k = AddBlueprintKnob(canvas, small[s], smallCx[s], rowCy, BpSmallKnobD);
@@ -360,7 +362,7 @@ public partial class ButtonsView
     /// <summary>Leader line from the control to a mono title + action caption.</summary>
     private void AddBlueprintCallout(Canvas c, V2HwControl ctl, double x, double edgeY, bool above)
     {
-        const double labelW = 150;
+        const double labelW = 124; // < the 132px spacing between neighbouring controls
         double labelTop = above ? BpBodyY - 86 : BpBodyY + BpBodyH + 20;
         double lineEnd = above ? labelTop + 40 : labelTop - 2;
         double lineStart = above ? edgeY - 4 : edgeY + 4;
