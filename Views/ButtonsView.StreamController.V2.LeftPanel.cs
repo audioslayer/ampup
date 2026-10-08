@@ -32,9 +32,8 @@ public partial class ButtonsView
 
     // ── Folders management panel (collapsible, styled like Audio Sessions) ──
     private TextBlock? _v2FolderSectionCount;
-    private GridPicker? _v2SpacePicker;
+    private StackPanel? _v2SpaceListHost;
     private TextBlock? _v2SpaceHint;
-    private bool _v2SpacePickerSyncing;
 
     // Cache of tile-level state so we can skip the expensive
     // CreateHardwarePreview + tile.Refresh() rebuild when nothing a tile
@@ -100,8 +99,9 @@ public partial class ButtonsView
     }
 
     /// <summary>
-    /// SPACES card: a GridPicker dropdown (same look as the Mixer's TARGET picker) listing
-    /// Home + every Space with its page / key counts, with New and a "…" menu beside it.
+    /// SPACES card in the same list style as TEMPLATES: icon-tile rows with name and
+    /// "pages · keys" detail. The Space being edited shows ACTIVE; the others show Open.
+    /// Each row's hover "…" menu renames / deletes; "+ New Space" sits at the bottom.
     /// </summary>
     private Border BuildV2FoldersSection()
     {
@@ -120,33 +120,10 @@ public partial class ButtonsView
         _v2FolderSectionCount = count;
         stack.Children.Add(header);
 
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _v2SpaceListHost = new StackPanel();
+        stack.Children.Add(_v2SpaceListHost);
 
-        _v2SpacePicker = new GridPicker();
-        _v2SpacePicker.SelectionChanged += (_, _) =>
-        {
-            if (_v2SpacePickerSyncing || _v2SpacePicker.SelectedTag is not string tag) return;
-            NavigateToFolderInEditor(tag == V2HomeSpaceTag ? "" : tag);
-        };
-        row.Children.Add(_v2SpacePicker);
-
-        var add = UiKit.IconButton(MaterialIconKind.Plus, "New Space", _ => CreateV2Space());
-        add.Margin = new Thickness(8, 0, 0, 0);
-        add.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(add, 1);
-        row.Children.Add(add);
-
-        var more = UiKit.MoreButton(BuildV2SpaceMenu, "Space options");
-        more.Margin = new Thickness(2, 0, 0, 0);
-        more.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(more, 2);
-        row.Children.Add(more);
-        stack.Children.Add(row);
-
-        _v2SpaceHint = UiKit.MutedText("No extra Spaces yet. Press + to create one, add a template below, or right-click any key and choose Open as Space.");
+        _v2SpaceHint = UiKit.MutedText("No extra Spaces yet. Create one, add a template below, or right-click any key and choose Open as Space.");
         _v2SpaceHint.TextWrapping = TextWrapping.Wrap;
         _v2SpaceHint.Margin = new Thickness(2, 8, 2, 0);
         stack.Children.Add(_v2SpaceHint);
@@ -182,9 +159,6 @@ public partial class ButtonsView
         return row;
     }
 
-    // Picker tag for Home (user Spaces use their name as the tag).
-    private const string V2HomeSpaceTag = "\u0001home";
-
     // Tile colours for user Spaces, cycled in list order. Home uses the accent.
     private static readonly Color[] V2SpacePalette =
     {
@@ -193,52 +167,71 @@ public partial class ButtonsView
         Color.FromRgb(0x66, 0xBB, 0x6A), Color.FromRgb(0x7E, 0x57, 0xC2),
     };
 
-    /// <summary>Rebuild the Spaces dropdown — called on load, navigation and after create/rename/delete.</summary>
+    /// <summary>Rebuild the Spaces list — called on load, navigation and after create/rename/delete.</summary>
     private void RefreshV2FoldersList()
     {
-        if (_v2SpacePicker == null || _config == null) return;
+        if (_v2SpaceListHost == null || _config == null) return;
         if (_v2FolderSectionCount != null)
             _v2FolderSectionCount.Text = (1 + _config.N3.Folders.Count).ToString();
 
-        _v2SpacePickerSyncing = true;
-        try
+        _v2SpaceListHost.Children.Clear();
+        var list = UiKit.ListContainer(out var rows);
+        _v2SpaceListHost.Children.Add(list);
+
+        rows.Children.Add(BuildV2SpaceListRow(null, MaterialIconKind.Home, ThemeManager.Accent,
+            "Home", V2SpaceDetail(Math.Max(1, _config.N3.PageCount), CountV2HomeKeys())));
+        for (int i = 0; i < _config.N3.Folders.Count; i++)
         {
-            _v2SpacePicker.ClearItems();
-            _v2SpacePicker.AddCategory("HOME");
-            _v2SpacePicker.AddItem("Home", V2HomeSpaceTag, MaterialIconKind.Home, ThemeManager.Accent,
-                V2SpaceDetail(Math.Max(1, _config.N3.PageCount), CountV2HomeKeys()), keywords: "home default");
-
-            if (_config.N3.Folders.Count > 0)
-            {
-                _v2SpacePicker.AddCategory("YOUR SPACES");
-                for (int i = 0; i < _config.N3.Folders.Count; i++)
-                {
-                    var folder = _config.N3.Folders[i];
-                    _v2SpacePicker.AddItem(folder.Name, folder.Name, MaterialIconKind.ViewDashboardOutline,
-                        V2SpacePalette[i % V2SpacePalette.Length],
-                        V2SpaceDetail(Math.Max(1, folder.PageCount), CountV2FolderKeys(folder)));
-                }
-            }
-
-            _v2SpacePicker.SelectByTag(string.IsNullOrEmpty(_scActiveFolder) ? V2HomeSpaceTag : _scActiveFolder);
+            var folder = _config.N3.Folders[i];
+            rows.Children.Add(BuildV2SpaceListRow(folder, MaterialIconKind.ViewDashboardOutline,
+                V2SpacePalette[i % V2SpacePalette.Length], folder.Name,
+                V2SpaceDetail(Math.Max(1, folder.PageCount), CountV2FolderKeys(folder))));
         }
-        finally { _v2SpacePickerSyncing = false; }
+        rows.Children.Add(UiKit.LinkRow(MaterialIconKind.Plus, "New Space", accent: true, CreateV2Space,
+            "Create an empty Space with its own pages of keys"));
 
         if (_v2SpaceHint != null)
             _v2SpaceHint.Visibility = _config.N3.Folders.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private IReadOnlyList<GlassMenuItem> BuildV2SpaceMenu()
+    /// <summary>One Templates-style row. folder == null is Home (can't be renamed or deleted).</summary>
+    private Border BuildV2SpaceListRow(ButtonFolderConfig? folder, MaterialIconKind icon, Color color, string name, string detail)
     {
-        var folder = _config?.N3.Folders.FirstOrDefault(f => f.Name == _scActiveFolder);
-        if (folder == null)
-            return new[] { new GlassMenuItem("Home can't be renamed or deleted", MaterialIconKind.InformationOutline, null, IsEnabled: false) };
-        return new[]
+        string folderName = folder?.Name ?? "";
+        bool isActive = string.Equals(_scActiveFolder ?? "", folderName, StringComparison.Ordinal);
+
+        var tile = UiKit.IconTile(color, icon, 30);
+        FrameworkElement right;
+        if (isActive)
         {
-            new GlassMenuItem($"Rename \"{folder.Name}\"", MaterialIconKind.PencilOutline, () => RenameV2Space(folder)),
+            var badge = UiKit.StatusBadge(out var setBadge);
+            setBadge("ACTIVE", true);
+            badge.Margin = new Thickness(0, 0, 6, 0);
+            right = badge;
+        }
+        else
+        {
+            right = UiKit.LinkRow(MaterialIconKind.ArrowRight, "Open", accent: true,
+                () => NavigateToFolderInEditor(folderName), $"Edit {name}");
+        }
+
+        FrameworkElement? more = folder == null ? null : UiKit.MoreButton(() => new[]
+        {
+            new GlassMenuItem("Rename", MaterialIconKind.PencilOutline, () => RenameV2Space(folder)),
             GlassMenuItem.Sep,
-            new GlassMenuItem($"Delete \"{folder.Name}\"", MaterialIconKind.TrashCanOutline, () => DeleteV2Space(folder), IsDanger: true),
-        };
+            new GlassMenuItem("Delete", MaterialIconKind.TrashCanOutline, () => DeleteV2Space(folder), IsDanger: true),
+        }, $"{name} options");
+
+        var row = UiKit.ListRow(tile, name, detail, right, more);
+        if (isActive)
+            row.Background = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x14));
+        else
+        {
+            row.Cursor = Cursors.Hand;
+            row.ToolTip = $"Edit {name}";
+            row.MouseLeftButtonUp += (_, e) => { if (!e.Handled) NavigateToFolderInEditor(folderName); };
+        }
+        return row;
     }
 
     private void RenameV2Space(ButtonFolderConfig folder)
