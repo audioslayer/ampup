@@ -230,17 +230,6 @@ public sealed class HaloWheel : Grid
                 },
             });
         }
-        else
-        {
-            _center.Children.Add(new TextBlock
-            {
-                Text = $"{_highlighted + 1} of {_items.Count}",
-                FontSize = 10.5,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x6F, 0x6F, 0x6F)),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 10, 0, 0),
-            });
-        }
     }
 
     /// <summary>Annular slice between two angles (degrees, 0 = right, clockwise).</summary>
