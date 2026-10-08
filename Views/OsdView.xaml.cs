@@ -33,7 +33,11 @@ public partial class OsdView : UserControl
     private readonly Dictionary<OsdPosition, System.Windows.Controls.Border> _posCells = new();
     private OsdPosition _currentPosition = OsdPosition.BottomRight;
     private StackPanel WheelRowsPanel = null!;
+    private StackPanel _wheelTabs = null!;
+    private TextBlock _wheelEmpty = null!;
+    private WheelRowState? _selectedWheel;
     private readonly List<Action> _accentRepaints = new();
+    private static readonly Color WheelColor = Color.FromRgb(0xFF, 0x70, 0x43);
 
     /// <summary>Per-wheel UI state, stored on each wheel card's Tag.</summary>
     private sealed class WheelRowState
@@ -47,8 +51,10 @@ public partial class OsdView : UserControl
         public Controls.HaloWheel? Mini;
         public System.Windows.Controls.Border ShowsHelp = null!;
         public DispatcherTimer? MiniTimer;
-        public TextBlock Title = null!;
         public TextBlock Subtitle = null!;
+        public System.Windows.Controls.Border Tab = null!;
+        public TextBlock TabLabel = null!;
+        public System.Windows.Shapes.Ellipse TabDot = null!;
         public List<string> OutputDeviceIds = new();
         public List<string> InputDeviceIds = new();
         public List<string> SignalRgbEffects = new();
@@ -223,33 +229,38 @@ public partial class OsdView : UserControl
             "On: the wheel stays up this long after you let go, so you can keep turning the knob or click with the mouse.",
             "Stay open after release", new Thickness(0, 4, 0, 10)));
         wheelBody.Children.Add(MakeDurationRow(SldOsdWheelDur, LblOsdWheelDur));
-        wheelBody.Children.Add(MakeDivider());
 
+        // Underline tab bar: one tab per wheel (green dot = enabled), then "+ Add".
+        var tabStrip = new System.Windows.Controls.Border { BorderThickness = new Thickness(0, 0, 0, 1), Margin = new Thickness(0, 2, 0, 14) };
+        tabStrip.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "CardBorderBrush");
+        _wheelTabs = new StackPanel { Orientation = Orientation.Horizontal };
+        var tabScroll = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = _wheelTabs,
+        };
+        tabStrip.Child = tabScroll;
+        wheelBody.Children.Add(tabStrip);
+
+        _wheelEmpty = MakeHint("No wheels yet. Press + Add to make one.", new Thickness(0, 0, 0, 4));
+        wheelBody.Children.Add(_wheelEmpty);
+
+        // Every wheel's editor lives here; only the selected one is visible.
         WheelRowsPanel = new StackPanel();
         wheelBody.Children.Add(WheelRowsPanel);
 
-        var addWheel = UiKit.LinkRow(MaterialIconKind.Plus, "Add Quick Wheel", accent: true,
-            () => AddWheelRow(new QuickWheelConfig { Enabled = true }), "Add another Quick Wheel binding");
-        addWheel.HorizontalAlignment = HorizontalAlignment.Left;
-        wheelBody.Children.Add(addWheel);
-
-        var wheelActions = new StackPanel { Orientation = Orientation.Horizontal };
-        _wheelCountText = new TextBlock { FontSize = 11, VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 6, 0) };
-        _wheelCountText.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-        wheelActions.Children.Add(_wheelCountText);
-        wheelActions.Children.Add(UiKit.HelpTip(
+        var wheelHelp = UiKit.HelpTip(
             "A radial menu for things you switch often, like profiles, audio devices, media controls or your own shortcuts.\n\n" +
             "1. Hold the trigger button\n2. Turn any knob to move the highlight\n3. Let go to pick\n\n" +
             "You can also point and click with the mouse. Taking a button for a wheel replaces its hold action.",
-            "Quick Wheels"));
+            "Quick Wheels");
 
-        var wheelCard = UiKit.Card(Color.FromRgb(0xFF, 0x70, 0x43), MaterialIconKind.ChartDonut,
-            "Quick Wheels", "Hold a button, turn a knob, let go to pick", wheelActions, wheelBody).Root;
+        var wheelCard = UiKit.Card(WheelColor, MaterialIconKind.ChartDonut,
+            "Quick Wheels", "Hold a button, turn a knob, let go to pick", wheelHelp, wheelBody).Root;
         RootPanel.Children.Add(wheelCard);
     }
 
-    private TextBlock _wheelCountText = null!;
 
     private FrameworkElement MakeDurationRow(StyledSlider slider, TextBlock valLabel)
     {
@@ -543,8 +554,10 @@ public partial class OsdView : UserControl
 
         // Quick wheels
         WheelRowsPanel.Children.Clear();
+        _selectedWheel = null;
         foreach (var qw in config.Osd.QuickWheels)
             AddWheelRow(qw);
+        RenumberWheels(); // also builds the strip when there are no wheels
 
         _loading = false;
         _configLoaded = true;
@@ -730,26 +743,40 @@ public partial class OsdView : UserControl
         var left = new StackPanel();
         body.Children.Add(left);
 
-        var enableSw = MakeSwitch(state.Enabled, on => { state.Enabled = on; QueueSave(); },
+        var enableSw = MakeSwitch(state.Enabled, on => { state.Enabled = on; PaintWheelTab(state); QueueSave(); },
             out _, "Enable or disable this wheel (disabling releases the button's hold action)");
-        System.Windows.Controls.Border wrapper = null!;
+        StackPanel wrapper = null!;
         var remove = UiKit.IconButton(MaterialIconKind.DeleteOutline, "Remove wheel", _ =>
         {
+            int at = WheelRowsPanel.Children.IndexOf(wrapper);
             WheelRowsPanel.Children.Remove(wrapper);
+            var next = WheelStates().ElementAtOrDefault(Math.Max(0, at - 1));
+            _selectedWheel = next;
             RenumberWheels();
             _debounceTimer.Stop();
             _debounceTimer.Start();
         }, danger: true);
         remove.Margin = new Thickness(8, 0, 0, 0);
+
+        // Page header: "Hold <trigger> · <mode>" on the left, on/off + remove on the right.
+        var pageHead = new Grid { Margin = new Thickness(0, 0, 0, 12) };
+        pageHead.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        pageHead.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        state.Subtitle = MakeHint("", new Thickness(0, 0, 12, 0));
+        state.Subtitle.FontSize = 11.5;
+        state.Subtitle.VerticalAlignment = VerticalAlignment.Center;
+        state.Subtitle.TextTrimming = TextTrimming.CharacterEllipsis;
+        state.Subtitle.TextWrapping = TextWrapping.NoWrap;
+        pageHead.Children.Add(state.Subtitle);
         var actions = new StackPanel { Orientation = Orientation.Horizontal };
         actions.Children.Add(enableSw);
         actions.Children.Add(remove);
+        Grid.SetColumn(actions, 1);
+        pageHead.Children.Add(actions);
 
-        var card = UiKit.Card(Color.FromRgb(0xFF, 0x70, 0x43), MaterialIconKind.ChartDonut, "Wheel", null, actions, body);
-        wrapper = card.Root;
-        wrapper.Tag = state;
-        state.Title = card.Title;
-        state.Subtitle = card.Subtitle;
+        wrapper = new StackPanel { Tag = state };
+        wrapper.Children.Add(pageHead);
+        wrapper.Children.Add(body);
 
         // ── Trigger + Shows on one line ──
         var btnCombo = new ComboBox { MinWidth = 180, ToolTip = "Which hardware input opens this wheel (hold)" };
@@ -811,6 +838,8 @@ public partial class OsdView : UserControl
         body.Children.Add(mini);
 
         WheelRowsPanel.Children.Add(wrapper);
+        // Loading keeps the first wheel selected; a user-added wheel opens straight away.
+        if (_selectedWheel == null || !_loading) _selectedWheel = state;
         RenumberWheels();
         UpdateWheelSubtitle(state);
         RefreshWheelModePanels(state);
@@ -912,14 +941,87 @@ public partial class OsdView : UserControl
         st.Subtitle.Visibility = Visibility.Visible;
     }
 
+    private IEnumerable<WheelRowState> WheelStates() =>
+        WheelRowsPanel.Children.OfType<FrameworkElement>().Select(fe => fe.Tag).OfType<WheelRowState>();
+
+    /// <summary>Rebuild the tab strip ("Wheel 1", "Wheel 2", "+ Add") and show only the selected wheel.</summary>
     private void RenumberWheels()
     {
-        int n = 1;
-        foreach (var child in WheelRowsPanel.Children)
-            if (child is FrameworkElement fe && fe.Tag is WheelRowState st)
-                st.Title.Text = $"Wheel {n++}";
-        if (_wheelCountText != null)
-            _wheelCountText.Text = n - 1 == 1 ? "1 wheel" : $"{n - 1} wheels";
+        var states = WheelStates().ToList();
+        if (_selectedWheel != null && !states.Contains(_selectedWheel)) _selectedWheel = null;
+        _selectedWheel ??= states.FirstOrDefault();
+
+        _wheelTabs.Children.Clear();
+        for (int i = 0; i < states.Count; i++)
+        {
+            var st = states[i];
+            st.Tab = MakeWheelTab($"Wheel {i + 1}", out st.TabLabel, out st.TabDot, () => SelectWheel(st));
+            _wheelTabs.Children.Add(st.Tab);
+            PaintWheelTab(st);
+        }
+        var add = MakeWheelTab("+  Add", out _, out _, () =>
+        {
+            AddWheelRow(new QuickWheelConfig { Enabled = true });
+            _debounceTimer.Stop();
+            _debounceTimer.Start();
+        }, isAdd: true);
+        add.ToolTip = "Add another Quick Wheel";
+        _wheelTabs.Children.Add(add);
+
+        foreach (var child in WheelRowsPanel.Children.OfType<FrameworkElement>())
+            child.Visibility = Vis(child.Tag == _selectedWheel);
+        _wheelEmpty.Visibility = Vis(states.Count == 0);
+    }
+
+    private void SelectWheel(WheelRowState st)
+    {
+        if (_selectedWheel == st) return;
+        _selectedWheel = st;
+        foreach (var child in WheelRowsPanel.Children.OfType<FrameworkElement>())
+            child.Visibility = Vis(child.Tag == st);
+        foreach (var other in WheelStates()) PaintWheelTab(other);
+    }
+
+    /// <summary>Underline tab: optional status dot + label, 2px wheel-colour underline when selected.</summary>
+    private System.Windows.Controls.Border MakeWheelTab(string text, out TextBlock label,
+        out System.Windows.Shapes.Ellipse dot, Action onClick, bool isAdd = false)
+    {
+        dot = new System.Windows.Shapes.Ellipse { Width = 7, Height = 7, Margin = new Thickness(0, 1, 7, 0),
+            VerticalAlignment = VerticalAlignment.Center, Visibility = isAdd ? Visibility.Collapsed : Visibility.Visible };
+        label = new TextBlock { Text = text, FontSize = 12.5, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        string restKey = isAdd ? "AccentBrush" : "TextDimBrush";
+        label.SetResourceReference(TextBlock.ForegroundProperty, restKey);
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(dot);
+        row.Children.Add(label);
+        var tab = new System.Windows.Controls.Border
+        {
+            Padding = new Thickness(2, 8, 2, 8),
+            Margin = new Thickness(0, 0, 22, -1),
+            BorderThickness = new Thickness(0, 0, 0, 2),
+            BorderBrush = Brushes.Transparent,
+            Background = Brushes.Transparent,
+            Cursor = Cursors.Hand,
+            Child = row,
+        };
+        // Hover brightens unselected tabs only (a selected tab has a coloured underline).
+        var lbl = label;
+        bool Unselected() => tab.BorderBrush == Brushes.Transparent;
+        tab.MouseEnter += (_, _) => { if (Unselected()) lbl.SetResourceReference(TextBlock.ForegroundProperty, isAdd ? "AccentBrush" : "TextSecBrush"); if (isAdd) lbl.Opacity = 0.8; };
+        tab.MouseLeave += (_, _) => { if (Unselected()) lbl.SetResourceReference(TextBlock.ForegroundProperty, restKey); lbl.Opacity = 1; };
+        tab.MouseLeftButtonUp += (_, e) => { e.Handled = true; onClick(); };
+        return tab;
+    }
+
+    private void PaintWheelTab(WheelRowState st)
+    {
+        if (st.Tab == null) return;
+        bool on = st == _selectedWheel;
+        st.Tab.BorderBrush = on ? new SolidColorBrush(WheelColor) : Brushes.Transparent;
+        st.TabLabel.SetResourceReference(TextBlock.ForegroundProperty, on ? "TextPrimaryBrush" : "TextDimBrush");
+        st.TabDot.Fill = st.Enabled ? new SolidColorBrush(Color.FromRgb(0x00, 0xDD, 0x77)) : (Brush)FindResource("TextDimBrush");
+        st.TabDot.Opacity = st.Enabled ? 1 : 0.5;
+        st.Tab.ToolTip = st.Enabled ? "Enabled" : "Turned off";
     }
 
     /// <summary>Show the slot editor or the item checklist / hint that matches the wheel's mode.</summary>
