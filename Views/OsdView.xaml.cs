@@ -35,6 +35,7 @@ public partial class OsdView : UserControl
     private OsdPosition _currentPosition = OsdPosition.BottomRight;
     private StackPanel WheelRowsPanel = null!;
     private StackPanel _wheelTabs = null!;
+    private System.Windows.Controls.Border _wheelActionsHost = null!;
     private TextBlock _wheelEmpty = null!;
     private WheelRowState? _selectedWheel;
     private readonly List<Action> _accentRepaints = new();
@@ -57,6 +58,8 @@ public partial class OsdView : UserControl
         public System.Windows.Controls.Border Tab = null!;
         public TextBlock TabLabel = null!;
         public MaterialIcon TabIcon = null!;
+        public FrameworkElement TabPencil = null!;
+        public FrameworkElement Actions = null!;
         public List<string> OutputDeviceIds = new();
         public List<string> InputDeviceIds = new();
         public List<string> SignalRgbEffects = new();
@@ -242,7 +245,15 @@ public partial class OsdView : UserControl
             VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
             Content = _wheelTabs,
         };
-        tabStrip.Child = tabScroll;
+        // Tabs on the left, the selected wheel's on/off switch + remove on the right.
+        var tabRow = new Grid();
+        tabRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        tabRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        tabRow.Children.Add(tabScroll);
+        _wheelActionsHost = new System.Windows.Controls.Border { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 2) };
+        Grid.SetColumn(_wheelActionsHost, 1);
+        tabRow.Children.Add(_wheelActionsHost);
+        tabStrip.Child = tabRow;
         wheelBody.Children.Add(tabStrip);
 
         _wheelEmpty = MakeHint("No wheels yet. Press + Add to make one.", new Thickness(0, 0, 0, 4));
@@ -761,31 +772,13 @@ public partial class OsdView : UserControl
         }, danger: true);
         remove.Margin = new Thickness(8, 0, 0, 0);
 
-        // Page header: "Hold <trigger> · <mode>" on the left, on/off + remove on the right.
-        var pageHead = new Grid { Margin = new Thickness(0, 0, 0, 12) };
-        pageHead.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        pageHead.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        state.Subtitle = MakeHint("", new Thickness(0, 0, 12, 0));
-        state.Subtitle.FontSize = 11.5;
-        state.Subtitle.VerticalAlignment = VerticalAlignment.Center;
-        state.Subtitle.TextTrimming = TextTrimming.CharacterEllipsis;
-        state.Subtitle.TextWrapping = TextWrapping.NoWrap;
-        pageHead.Children.Add(state.Subtitle);
-        var rename = UiKit.IconButton(MaterialIconKind.PencilOutline, "Rename this wheel", _ =>
-        {
-            int number = WheelStates().ToList().IndexOf(state) + 1;
-            BeginWheelRename(state, number);
-        });
-        rename.Margin = new Thickness(0, 0, 10, 0);
-        var actions = new StackPanel { Orientation = Orientation.Horizontal };
-        actions.Children.Add(rename);
+        // On/off + remove live in the tab row (right side) while this wheel is selected.
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         actions.Children.Add(enableSw);
         actions.Children.Add(remove);
-        Grid.SetColumn(actions, 1);
-        pageHead.Children.Add(actions);
+        state.Actions = actions;
 
         wrapper = new StackPanel { Tag = state };
-        wrapper.Children.Add(pageHead);
         wrapper.Children.Add(body);
 
         // ── Trigger + Shows on one line ──
@@ -969,6 +962,7 @@ public partial class OsdView : UserControl
             int number = i + 1;
             st.Tab = MakeWheelTab(WheelTabName(st, number), out st.TabLabel, out st.TabIcon,
                 () => SelectWheel(st), onRename: () => BeginWheelRename(st, number));
+            st.TabPencil = ((StackPanel)st.Tab.Child).Children.OfType<System.Windows.Controls.Border>().First();
             _wheelTabs.Children.Add(st.Tab);
             PaintWheelTab(st);
         }
@@ -985,6 +979,16 @@ public partial class OsdView : UserControl
         foreach (var child in WheelRowsPanel.Children.OfType<FrameworkElement>())
             child.Visibility = Vis(child.Tag == _selectedWheel);
         _wheelEmpty.Visibility = Vis(states.Count == 0);
+        ShowSelectedWheelActions();
+    }
+
+    /// <summary>Put the selected wheel's on/off switch + remove button in the tab row.</summary>
+    private void ShowSelectedWheelActions()
+    {
+        var actions = _selectedWheel?.Actions;
+        if (actions != null && actions.Parent is System.Windows.Controls.Border oldHost && oldHost != _wheelActionsHost)
+            oldHost.Child = null;
+        _wheelActionsHost.Child = actions;
     }
 
     private static string WheelTabName(WheelRowState st, int number) =>
@@ -1007,6 +1011,7 @@ public partial class OsdView : UserControl
         foreach (var child in WheelRowsPanel.Children.OfType<FrameworkElement>())
             child.Visibility = Vis(child.Tag == st);
         foreach (var other in WheelStates()) PaintWheelTab(other);
+        ShowSelectedWheelActions();
     }
 
     /// <summary>
@@ -1024,6 +1029,23 @@ public partial class OsdView : UserControl
         var row = new StackPanel { Orientation = Orientation.Horizontal };
         row.Children.Add(icon);
         row.Children.Add(label);
+        if (onRename != null)
+        {
+            // Small pencil right after the name — shown on the selected tab only.
+            var pencilIcon = new MaterialIcon { Kind = MaterialIconKind.PencilOutline, Width = 12, Height = 12 };
+            pencilIcon.SetResourceReference(MaterialIcon.ForegroundProperty, "TextDimBrush");
+            var pencil = new System.Windows.Controls.Border
+            {
+                Child = pencilIcon, Padding = new Thickness(3), Margin = new Thickness(5, 0, 0, 0),
+                CornerRadius = new CornerRadius(4), Background = Brushes.Transparent,
+                VerticalAlignment = VerticalAlignment.Center, ToolTip = "Rename",
+                Visibility = Visibility.Collapsed,
+            };
+            pencil.MouseEnter += (_, _) => pencilIcon.SetResourceReference(MaterialIcon.ForegroundProperty, "AccentBrush");
+            pencil.MouseLeave += (_, _) => pencilIcon.SetResourceReference(MaterialIcon.ForegroundProperty, "TextDimBrush");
+            pencil.MouseLeftButtonUp += (_, e) => { e.Handled = true; onRename(); };
+            row.Children.Add(pencil);
+        }
         var tab = new System.Windows.Controls.Border
         {
             Padding = new Thickness(2, 8, 2, 8),
@@ -1052,6 +1074,7 @@ public partial class OsdView : UserControl
         if (st.Tab == null) return;
         bool on = st == _selectedWheel;
         st.Tab.BorderBrush = on ? new SolidColorBrush(WheelColor) : Brushes.Transparent;
+        if (st.TabPencil != null) st.TabPencil.Visibility = Vis(on);
         st.TabLabel.SetResourceReference(TextBlock.ForegroundProperty, on ? "TextPrimaryBrush" : "TextDimBrush");
         st.TabIcon.Kind = WheelModeIcon(st.Mode);
         st.TabIcon.Foreground = st.Enabled ? new SolidColorBrush(WheelColor) : (Brush)FindResource("TextDimBrush");
@@ -1081,7 +1104,8 @@ public partial class OsdView : UserControl
         box.SetResourceReference(TextBox.BorderBrushProperty, "AccentBrush");
         box.SetResourceReference(TextBox.CaretBrushProperty, "AccentBrush");
         st.TabLabel.Visibility = Visibility.Collapsed;
-        row.Children.Add(box);
+        if (st.TabPencil != null) st.TabPencil.Visibility = Visibility.Collapsed;
+        row.Children.Insert(row.Children.IndexOf(st.TabLabel) + 1, box);
 
         bool done = false;
         void Finish(bool save)
@@ -1097,6 +1121,7 @@ public partial class OsdView : UserControl
             row.Children.Remove(box);
             st.TabLabel.Text = WheelTabName(st, number);
             st.TabLabel.Visibility = Visibility.Visible;
+            PaintWheelTab(st);
         }
         box.KeyDown += (_, e) =>
         {
