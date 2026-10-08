@@ -141,7 +141,7 @@ public partial class OsdView : UserControl
         };
 
         RootPanel.Children.Add(UiKit.PageHeader("On-Screen Display",
-            "Overlays that appear when you turn a knob, switch profiles or change audio devices, plus Quick Wheel radial menus."));
+            "What pops up on screen when you use your controller."));
 
         // ══════════════════ POPUPS ══════════════════
         var popupsBody = new StackPanel();
@@ -166,29 +166,34 @@ public partial class OsdView : UserControl
         var fsSw = MakeSwitch(false, on => { _hideInFullscreen = on; QueueSave(); },
             out _setFullscreenSwitch, "When on, OSD won't appear over fullscreen games or apps");
 
-        popupsBody.Children.Add(MakeSettingRow("Volume changes", "Shown when you turn a knob", volSw));
+        popupsBody.Children.Add(MakeSettingRow("Volume changes", null, volSw,
+            "Shows the knob's name and new level while you turn it."));
         popupsBody.Children.Add(_volumeDurRow);
-        popupsBody.Children.Add(MakeSettingRow("Profile switch", "Shown when the active profile changes", profSw));
+        popupsBody.Children.Add(MakeSettingRow("Profile switch", null, profSw,
+            "Shows the new profile's name and icon when you switch profiles, by button or automatically."));
         popupsBody.Children.Add(_profileDurRow);
-        popupsBody.Children.Add(MakeSettingRow("Device switch", "Shown when cycling audio devices", devSw));
+        popupsBody.Children.Add(MakeSettingRow("Audio device switch", null, devSw,
+            "Shows which speaker, headset or mic is now the default when a button cycles or selects a device."));
         popupsBody.Children.Add(_deviceDurRow);
         popupsBody.Children.Add(MakeDivider());
-        var fsRow = MakeSettingRow("Hide in fullscreen games", "Keep overlays off fullscreen apps and games", fsSw);
+        var fsRow = MakeSettingRow("Hide over fullscreen apps", null, fsSw,
+            "Stops overlays from covering fullscreen games, videos and presentations. The knobs and buttons still work as normal.");
         fsRow.Margin = new Thickness(0);
         popupsBody.Children.Add(fsRow);
         var popupsCard = UiKit.Card(Color.FromRgb(0x42, 0xA5, 0xF5), MaterialIconKind.BellOutline,
-            "On-Screen Overlays", "Flash over any app when a knob turns or the profile or device changes", null, popupsBody).Root;
+            "On-Screen Overlays", "Quick feedback that appears over any app", UiKit.HelpTip(
+                "Small cards that fade in when something changes, then fade out on their own. " +
+                "Turn each one on or off and set how long it stays.", "On-Screen Overlays"), popupsBody).Root;
 
         // ══════════════════ PLACEMENT ══════════════════
         var placeBody = new StackPanel();
-        CmbOsdMonitor = new ListPicker { MinWidth = 180, MaxWidth = 280, ToolTip = "Which monitor to show the OSD on" };
-        placeBody.Children.Add(MakeSettingRow("Monitor", "Screen the overlay appears on", CmbOsdMonitor));
+        CmbOsdMonitor = new ListPicker { MinWidth = 180, MaxWidth = 280 };
+        placeBody.Children.Add(MakeSettingRow("Monitor", null, CmbOsdMonitor));
 
-        placeBody.Children.Add(MakeLabel("Position"));
+        placeBody.Children.Add(MakeLabelWithHelp("Position",
+            "Windows draws its own volume popup near the top-left or bottom-center. Pick a different spot so the two don't overlap.",
+            "Position", new Thickness(0, 0, 0, 8)));
         placeBody.Children.Add(BuildPositionPicker());
-        placeBody.Children.Add(MakeHint(
-            "Windows shows its own volume popup at bottom center — avoid it to keep AmpUp's visible.",
-            new Thickness(0, 8, 0, 0)));
 
         var previewBtn = UiKit.IconButton(MaterialIconKind.PlayCircleOutline,
             "Show a sample volume overlay at the chosen monitor and position",
@@ -213,10 +218,10 @@ public partial class OsdView : UserControl
 
         SldOsdWheelDur = NewDurSlider(0, 15, 0, null!);
         LblOsdWheelDur = NewValLabel("Off");
-        wheelBody.Children.Add(MakeLabel("Auto-dismiss", new Thickness(0, 4, 0, 0)));
-        wheelBody.Children.Add(MakeHint(
-            "How long a wheel stays open after you let go. Off picks the highlighted item right away",
-            new Thickness(0, 2, 0, 10)));
+        wheelBody.Children.Add(MakeLabelWithHelp("Stay open after release",
+            "Off: letting go of the button picks the highlighted item right away.\n" +
+            "On: the wheel stays up this long after you let go, so you can keep turning the knob or click with the mouse.",
+            "Stay open after release", new Thickness(0, 4, 0, 10)));
         wheelBody.Children.Add(MakeDurationRow(SldOsdWheelDur, LblOsdWheelDur));
         wheelBody.Children.Add(MakeDivider());
 
@@ -234,11 +239,13 @@ public partial class OsdView : UserControl
         _wheelCountText.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         wheelActions.Children.Add(_wheelCountText);
         wheelActions.Children.Add(UiKit.HelpTip(
-            "Hold the trigger button to open a wheel. Turn any knob to move the highlight, then let go to pick. " +
-            "You can also hover with the mouse and click.", "Quick Wheels"));
+            "A radial menu for things you switch often, like profiles, audio devices, media controls or your own shortcuts.\n\n" +
+            "1. Hold the trigger button\n2. Turn any knob to move the highlight\n3. Let go to pick\n\n" +
+            "You can also point and click with the mouse. Taking a button for a wheel replaces its hold action.",
+            "Quick Wheels"));
 
         var wheelCard = UiKit.Card(Color.FromRgb(0xFF, 0x70, 0x43), MaterialIconKind.ChartDonut,
-            "Quick Wheels", "Hold a button to pop up a radial menu, turn a knob to pick", wheelActions, wheelBody).Root;
+            "Quick Wheels", "Hold a button, turn a knob, let go to pick", wheelActions, wheelBody).Root;
         RootPanel.Children.Add(wheelCard);
     }
 
@@ -262,13 +269,13 @@ public partial class OsdView : UserControl
         return g;
     }
 
-    private Grid MakeSettingRow(string label, string? hint, FrameworkElement control)
+    private Grid MakeSettingRow(string label, string? hint, FrameworkElement control, string? help = null)
     {
         var g = new Grid { Margin = new Thickness(0, 0, 0, 12) };
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
-        left.Children.Add(MakeLabel(label, new Thickness(0)));
+        left.Children.Add(MakeLabelWithHelp(label, help, label));
         if (hint != null) left.Children.Add(MakeHint(hint, new Thickness(0, 2, 0, 0)));
         g.Children.Add(left);
         control.VerticalAlignment = VerticalAlignment.Center;
@@ -283,6 +290,20 @@ public partial class OsdView : UserControl
             Margin = margin ?? new Thickness(0, 0, 0, 6) };
         tb.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
         return tb;
+    }
+
+    /// <summary>Bold label with an optional "?" help card right after it.</summary>
+    private FrameworkElement MakeLabelWithHelp(string text, string? help, string? helpTitle = null, Thickness? margin = null)
+    {
+        var lbl = MakeLabel(text, new Thickness(0));
+        lbl.VerticalAlignment = VerticalAlignment.Center;
+        if (help == null) { lbl.Margin = margin ?? new Thickness(0); return lbl; }
+        var sp = new StackPanel { Orientation = Orientation.Horizontal, Margin = margin ?? new Thickness(0) };
+        sp.Children.Add(lbl);
+        var tip = UiKit.HelpTip(help, helpTitle);
+        tip.Margin = new Thickness(4, 0, 0, 0);
+        sp.Children.Add(tip);
+        return sp;
     }
 
     private TextBlock MakeHint(string text, Thickness? margin = null)
