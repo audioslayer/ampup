@@ -390,7 +390,7 @@ public partial class OsdOverlay : Window
         _ => char.ToUpper(target[0]) + target[1..]
     };
 
-    private static MaterialIconKind? GetTargetIcon(string target) => target switch
+    internal static MaterialIconKind? GetTargetIcon(string target) => target switch
     {
         "master" => MaterialIconKind.VolumeHigh,
         "system" => MaterialIconKind.BellRing,
