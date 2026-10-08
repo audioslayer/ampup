@@ -1380,6 +1380,7 @@ public partial class OsdView : UserControl
             Text = string.IsNullOrEmpty(slot.Label) && selectedIdx >= 0 ? CustomSlotActions[selectedIdx].label : slot.Label,
             ToolTip = "Name shown on the wheel",
             VerticalContentAlignment = VerticalAlignment.Center,
+            MinHeight = 34,
             Margin = new Thickness(0, 0, 4, 0),
         };
         labelBox.TextChanged += (_, _) => WheelChanged(st);
