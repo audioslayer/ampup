@@ -177,7 +177,7 @@ public partial class OsdView : UserControl
         fsRow.Margin = new Thickness(0);
         popupsBody.Children.Add(fsRow);
         var popupsCard = UiKit.Card(Color.FromRgb(0x42, 0xA5, 0xF5), MaterialIconKind.BellOutline,
-            "Popups", "Shown while AmpUp is minimized to the tray", null, popupsBody).Root;
+            "On-Screen Overlays", "Flash over any app when a knob turns or the profile or device changes", null, popupsBody).Root;
 
         // ══════════════════ PLACEMENT ══════════════════
         var placeBody = new StackPanel();
@@ -201,57 +201,45 @@ public partial class OsdView : UserControl
         placeActions.Children.Add(previewCap);
         placeActions.Children.Add(previewBtn);
         var placeCard = UiKit.Card(Color.FromRgb(0xAB, 0x47, 0xBC), MaterialIconKind.Monitor,
-            "Placement", "Where overlays appear on screen", placeActions, placeBody).Root;
+            "Overlay Position", "Which monitor and corner the overlays show up in", placeActions, placeBody).Root;
 
-        RootPanel.Children.Add(UiKit.SectionHeader("OVERLAYS", "3 types"));
         // One column — side-by-side cards read as confusing on this tab.
         RootPanel.Children.Add(popupsCard);
-        placeCard.Margin = new Thickness(placeCard.Margin.Left, Math.Max(placeCard.Margin.Top, 12), placeCard.Margin.Right, placeCard.Margin.Bottom);
         RootPanel.Children.Add(placeCard);
 
         // ══════════════════ QUICK WHEELS ══════════════════
-        // Header line: QUICK WHEELS · count · (?)  ……  Auto-dismiss (?) [slider] 1.0s
-        var wheelHead = new Grid { Margin = new Thickness(0, 0, 0, 2) };
-        wheelHead.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        wheelHead.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        var headLeft = new StackPanel { Orientation = Orientation.Horizontal };
-        headLeft.Children.Add(UiKit.SectionHeader("QUICK WHEELS", "", out _wheelCountText));
-        var wheelHelp = UiKit.HelpTip(
-            "Hold the trigger button to open a wheel. Turn any knob to move the highlight, then let go to pick. " +
-            "You can also hover with the mouse and click.", "Quick Wheels");
-        wheelHelp.Margin = new Thickness(6, -6, 0, 0);
-        headLeft.Children.Add(wheelHelp);
-        wheelHead.Children.Add(headLeft);
+        // Card header: title + subtitle, count · (?) on the right. Body: Auto-dismiss row, wheels, add link.
+        var wheelBody = new StackPanel();
 
         SldOsdWheelDur = NewDurSlider(0, 15, 0, null!);
-        SldOsdWheelDur.Width = 150;
-        SldOsdWheelDur.HorizontalAlignment = HorizontalAlignment.Left;
-        SldOsdWheelDur.VerticalAlignment = VerticalAlignment.Center;
         LblOsdWheelDur = NewValLabel("Off");
-        LblOsdWheelDur.Margin = new Thickness(8, 0, 0, 0);
-        var dismiss = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, -2, 0, 0) };
-        var dismissLbl = MakeLabel("Auto-dismiss", new Thickness(0));
-        dismissLbl.VerticalAlignment = VerticalAlignment.Center;
-        dismiss.Children.Add(dismissLbl);
-        var dismissHelp = UiKit.HelpTip(
-            "How long the wheel stays open after you let go of the button, so you can still adjust it. " +
-            "Off picks the highlighted item the moment you let go.", "Auto-dismiss");
-        dismissHelp.Margin = new Thickness(4, 0, 10, 0);
-        dismiss.Children.Add(dismissHelp);
-        dismiss.Children.Add(SldOsdWheelDur);
-        dismiss.Children.Add(LblOsdWheelDur);
-        Grid.SetColumn(dismiss, 1);
-        wheelHead.Children.Add(dismiss);
-        RootPanel.Children.Add(wheelHead);
+        wheelBody.Children.Add(MakeLabel("Auto-dismiss", new Thickness(0, 4, 0, 0)));
+        wheelBody.Children.Add(MakeHint(
+            "How long a wheel stays open after you let go. Off picks the highlighted item right away",
+            new Thickness(0, 2, 0, 10)));
+        wheelBody.Children.Add(MakeDurationRow(SldOsdWheelDur, LblOsdWheelDur));
+        wheelBody.Children.Add(MakeDivider());
 
         WheelRowsPanel = new StackPanel();
-        RootPanel.Children.Add(WheelRowsPanel);
+        wheelBody.Children.Add(WheelRowsPanel);
 
         var addWheel = UiKit.LinkRow(MaterialIconKind.Plus, "Add Quick Wheel", accent: true,
             () => AddWheelRow(new QuickWheelConfig { Enabled = true }), "Add another Quick Wheel binding");
         addWheel.HorizontalAlignment = HorizontalAlignment.Left;
-        RootPanel.Children.Add(addWheel);
+        wheelBody.Children.Add(addWheel);
+
+        var wheelActions = new StackPanel { Orientation = Orientation.Horizontal };
+        _wheelCountText = new TextBlock { FontSize = 11, VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 6, 0) };
+        _wheelCountText.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        wheelActions.Children.Add(_wheelCountText);
+        wheelActions.Children.Add(UiKit.HelpTip(
+            "Hold the trigger button to open a wheel. Turn any knob to move the highlight, then let go to pick. " +
+            "You can also hover with the mouse and click.", "Quick Wheels"));
+
+        var wheelCard = UiKit.Card(Color.FromRgb(0xFF, 0x70, 0x43), MaterialIconKind.ChartDonut,
+            "Quick Wheels", "Hold a button to pop up a radial menu, turn a knob to pick", wheelActions, wheelBody).Root;
+        RootPanel.Children.Add(wheelCard);
     }
 
     private TextBlock _wheelCountText = null!;
