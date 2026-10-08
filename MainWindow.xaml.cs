@@ -955,8 +955,8 @@ public partial class MainWindow : FluentWindow
             BorderBrush = (System.Windows.Media.SolidColorBrush)FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(6),
-            MinWidth = 200,
+            Padding = new Thickness(8, 10, 8, 8),
+            MinWidth = 240,
             Child = ProfilePopupPanel
         };
         ProfilePopupPanel.Visibility = System.Windows.Visibility.Visible;
@@ -1015,194 +1015,79 @@ public partial class MainWindow : FluentWindow
     {
         ProfilePopupPanel.Children.Clear();
 
-        // Header
-        var header = new System.Windows.Controls.TextBlock
+        // Header — same caption style as the sidebar's HARDWARE / LIGHTING labels
+        var header = new System.Windows.Controls.Grid { Margin = new Thickness(10, 2, 10, 6) };
+        var caption = new System.Windows.Controls.TextBlock
         {
             Text = "PROFILES",
-            FontSize = 9,
-            FontWeight = FontWeights.SemiBold,
+            FontSize = 10,
+            FontWeight = FontWeights.Bold,
             Foreground = (SolidColorBrush)FindResource("TextDimBrush"),
-            Margin = new Thickness(6, 4, 0, 8)
         };
+        header.Children.Add(caption);
+        header.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = _config.Profiles.Count.ToString(),
+            FontSize = 10,
+            Foreground = (SolidColorBrush)FindResource("TextDimBrush"),
+            HorizontalAlignment = HorizontalAlignment.Right,
+        });
         ProfilePopupPanel.Children.Add(header);
 
-        // Profile items
         foreach (var profile in _config.Profiles)
-        {
-            var profileCapture = profile;
-            bool isActive = profile == _config.ActiveProfile;
-            var iconCfg = _config.ProfileIcons.GetValueOrDefault(profile) ?? new ProfileIconConfig();
+            ProfilePopupPanel.Children.Add(BuildProfileFlyoutRow(profile));
 
-            var row = new System.Windows.Controls.Grid();
-            row.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = System.Windows.GridLength.Auto });
-            row.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star) });
-            row.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = System.Windows.GridLength.Auto });
-
-            // Icon button (clickable to change icon)
-            var iconElement = new MiIcon
-            {
-                Width = 18, Height = 18,
-                Margin = new Thickness(0, 0, 8, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-                Cursor = Cursors.Hand,
-                ToolTip = "Change icon"
-            };
-            if (Enum.TryParse<MaterialIconKind>(iconCfg.Symbol, out var iconKind))
-                iconElement.Kind = iconKind;
-            try { iconElement.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(iconCfg.Color)); } catch { }
-            iconElement.MouseLeftButtonDown += (_, ev) =>
-            {
-                ev.Handled = true;
-                ShowIconPicker(profileCapture);
-            };
-            System.Windows.Controls.Grid.SetColumn(iconElement, 0);
-            row.Children.Add(iconElement);
-
-            // Profile name
-            var nameBlock = new System.Windows.Controls.TextBlock
-            {
-                Text = profile,
-                FontSize = 12,
-                FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal,
-                Foreground = isActive
-                    ? (SolidColorBrush)FindResource("AccentBrush")
-                    : (SolidColorBrush)FindResource("TextPrimaryBrush"),
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            System.Windows.Controls.Grid.SetColumn(nameBlock, 1);
-            row.Children.Add(nameBlock);
-
-            // Edit + Delete buttons
-            var actionPanel = new System.Windows.Controls.StackPanel
-            {
-                Orientation = System.Windows.Controls.Orientation.Horizontal,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-
-            // Edit button (pencil)
-            var editBtn = new System.Windows.Controls.TextBlock
-            {
-                Text = "\u270E", // ✎ pencil
-                FontSize = 11,
-                Foreground = (SolidColorBrush)FindResource("TextSecBrush"),
-                VerticalAlignment = VerticalAlignment.Center,
-                Cursor = Cursors.Hand,
-                Margin = new Thickness(8, 0, 0, 0),
-                ToolTip = "Edit profile"
-            };
-            editBtn.MouseEnter += (_, _) => editBtn.Foreground = (SolidColorBrush)FindResource("AccentBrush");
-            editBtn.MouseLeave += (_, _) => editBtn.Foreground = (SolidColorBrush)FindResource("TextSecBrush");
-            editBtn.MouseLeftButtonDown += (_, ev) =>
-            {
-                ev.Handled = true;
-                CloseProfileFlyout();
-                ShowProfileEditor(profileCapture);
-            };
-            actionPanel.Children.Add(editBtn);
-
-            // Delete button (not for Default)
-            if (!string.Equals(profile, "Default", StringComparison.OrdinalIgnoreCase))
-            {
-                var deleteBtn = new System.Windows.Controls.TextBlock
-                {
-                    Text = "✕",
-                    FontSize = 9,
-                    Foreground = (SolidColorBrush)FindResource("DangerRedBrush"),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Cursor = Cursors.Hand,
-                    Margin = new Thickness(6, 0, 0, 0),
-                    ToolTip = "Delete profile"
-                };
-                deleteBtn.MouseEnter += (_, _) => deleteBtn.Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x77, 0x77));
-                deleteBtn.MouseLeave += (_, _) => deleteBtn.Foreground = (SolidColorBrush)FindResource("DangerRedBrush");
-                deleteBtn.MouseLeftButtonDown += (_, ev) =>
-                {
-                    ev.Handled = true;
-                    DeleteProfile(profileCapture);
-                };
-                actionPanel.Children.Add(deleteBtn);
-            }
-
-            System.Windows.Controls.Grid.SetColumn(actionPanel, 2);
-            row.Children.Add(actionPanel);
-
-            var rowBorder = new System.Windows.Controls.Border
-            {
-                Padding = new Thickness(6, 6, 6, 6),
-                CornerRadius = new CornerRadius(6),
-                Cursor = Cursors.Hand,
-                Background = isActive
-                    ? new SolidColorBrush(Color.FromArgb(0x20, 0x00, 0xB4, 0xD8))
-                    : System.Windows.Media.Brushes.Transparent,
-                Child = row
-            };
-
-            // Hover
-            rowBorder.MouseEnter += (_, _) =>
-            {
-                if (profileCapture != _config.ActiveProfile)
-                    rowBorder.Background = (SolidColorBrush)FindResource("InputBgBrush");
-            };
-            rowBorder.MouseLeave += (_, _) =>
-            {
-                rowBorder.Background = profileCapture == _config.ActiveProfile
-                    ? new SolidColorBrush(Color.FromArgb(0x20, 0x00, 0xB4, 0xD8))
-                    : System.Windows.Media.Brushes.Transparent;
-            };
-
-            // Click to switch
-            rowBorder.MouseLeftButtonDown += (_, ev) =>
-            {
-                if (profileCapture == _config.ActiveProfile) return;
-                SwitchToProfile(profileCapture);
-                CloseProfileFlyout();
-            };
-
-            ProfilePopupPanel.Children.Add(rowBorder);
-        }
-
-        // Divider
-        var divider = new System.Windows.Controls.Border
+        ProfilePopupPanel.Children.Add(new System.Windows.Controls.Border
         {
             Height = 1,
             Background = (SolidColorBrush)FindResource("CardBorderBrush"),
-            Margin = new Thickness(4, 6, 4, 6)
-        };
-        ProfilePopupPanel.Children.Add(divider);
-
-        // Add new profile button
-        var addRow = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
-        addRow.Children.Add(new System.Windows.Controls.TextBlock
-        {
-            Text = "+",
-            FontSize = 14,
-            FontWeight = FontWeights.Bold,
-            Foreground = (SolidColorBrush)FindResource("TextSecBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(2, 0, 8, 0)
+            Margin = new Thickness(10, 6, 10, 6)
         });
-        addRow.Children.Add(new System.Windows.Controls.TextBlock
+
+        // New profile — nav-style row with a dashed icon tile
+        var plusTile = new System.Windows.Controls.Border
+        {
+            Width = 28, Height = 28,
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(1),
+            BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush"),
+            Margin = new Thickness(6, 0, 10, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new MiIcon { Kind = MaterialIconKind.Plus, Width = 16, Height = 16,
+                Foreground = (SolidColorBrush)FindResource("TextSecBrush") },
+        };
+        var addLabel = new System.Windows.Controls.TextBlock
         {
             Text = "New Profile",
-            FontSize = 12,
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
             Foreground = (SolidColorBrush)FindResource("TextSecBrush"),
             VerticalAlignment = VerticalAlignment.Center
-        });
-
+        };
+        var addRow = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+        addRow.Children.Add(plusTile);
+        addRow.Children.Add(addLabel);
         var addBorder = new System.Windows.Controls.Border
         {
-            Padding = new Thickness(6, 6, 6, 6),
-            CornerRadius = new CornerRadius(6),
+            Height = 40,
+            CornerRadius = new CornerRadius(10),
             Cursor = Cursors.Hand,
+            Background = Brushes.Transparent,
             Child = addRow
         };
         addBorder.MouseEnter += (_, _) =>
         {
-            addBorder.Background = (SolidColorBrush)FindResource("InputBgBrush");
+            addBorder.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "AccentHover1ABrush");
+            ((MiIcon)plusTile.Child).SetResourceReference(MiIcon.ForegroundProperty, "AccentBrush");
+            plusTile.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "AccentBrush");
+            addLabel.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextPrimaryBrush");
         };
         addBorder.MouseLeave += (_, _) =>
         {
-            addBorder.Background = System.Windows.Media.Brushes.Transparent;
+            addBorder.Background = Brushes.Transparent;
+            ((MiIcon)plusTile.Child).SetResourceReference(MiIcon.ForegroundProperty, "TextSecBrush");
+            plusTile.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "CardBorderBrush");
+            addLabel.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextSecBrush");
         };
         addBorder.MouseLeftButtonDown += (_, _) =>
         {
@@ -1210,6 +1095,158 @@ public partial class MainWindow : FluentWindow
             AddNewProfile();
         };
         ProfilePopupPanel.Children.Add(addBorder);
+    }
+
+    /// <summary>
+    /// One profile row, styled like a sidebar nav item: 40px rounded pill, accent gradient +
+    /// left accent bar when active, accent tint on hover. Edit / delete appear on hover.
+    /// </summary>
+    private FrameworkElement BuildProfileFlyoutRow(string profile)
+    {
+        bool isActive = profile == _config.ActiveProfile;
+        var iconCfg = _config.ProfileIcons.GetValueOrDefault(profile) ?? new ProfileIconConfig();
+        Color tint = ThemeManager.Accent;
+        try { tint = (Color)ColorConverter.ConvertFromString(iconCfg.Color); } catch { }
+
+        var row = new System.Windows.Controls.Grid();
+        row.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = GridLength.Auto });
+
+        // Icon tile in the profile's colour — click to change the icon
+        var icon = new MiIcon { Width = 16, Height = 16, Foreground = new SolidColorBrush(tint) };
+        if (Enum.TryParse<MaterialIconKind>(iconCfg.Symbol, out var iconKind))
+            icon.Kind = iconKind;
+        var tile = new System.Windows.Controls.Border
+        {
+            Width = 28, Height = 28,
+            CornerRadius = new CornerRadius(8),
+            Background = new SolidColorBrush(ThemeManager.WithAlpha(tint, 0x22)),
+            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(tint, isActive ? (byte)0x88 : (byte)0x44)),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(6, 0, 10, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Cursor = Cursors.Hand,
+            ToolTip = "Change icon",
+            Child = icon,
+        };
+        tile.MouseLeftButtonDown += (_, ev) => { ev.Handled = true; ShowIconPicker(profile); };
+        row.Children.Add(tile);
+
+        var nameBlock = new System.Windows.Controls.TextBlock
+        {
+            Text = profile,
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        nameBlock.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty,
+            isActive ? "TextPrimaryBrush" : "TextSecBrush");
+        System.Windows.Controls.Grid.SetColumn(nameBlock, 1);
+        row.Children.Add(nameBlock);
+
+        // Hover-only actions
+        var actions = new System.Windows.Controls.StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 6, 0),
+            Opacity = 0,
+        };
+        actions.Children.Add(MakeFlyoutAction(MaterialIconKind.PencilOutline, "Edit profile", false, () =>
+        {
+            CloseProfileFlyout();
+            ShowProfileEditor(profile);
+        }));
+        if (!string.Equals(profile, "Default", StringComparison.OrdinalIgnoreCase))
+            actions.Children.Add(MakeFlyoutAction(MaterialIconKind.DeleteOutline, "Delete profile", true,
+                () => DeleteProfile(profile)));
+        System.Windows.Controls.Grid.SetColumn(actions, 2);
+        row.Children.Add(actions);
+
+        var pill = new System.Windows.Controls.Border
+        {
+            CornerRadius = new CornerRadius(10),
+            IsHitTestVisible = false,
+            Background = isActive ? NavPillBrush() : Brushes.Transparent,
+        };
+        var bar = new System.Windows.Controls.Border
+        {
+            Width = 3, Height = 18,
+            CornerRadius = new CornerRadius(2),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+            IsHitTestVisible = false,
+            Visibility = isActive ? Visibility.Visible : Visibility.Collapsed,
+        };
+        bar.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "AccentBrush");
+
+        var host = new System.Windows.Controls.Grid();
+        host.Children.Add(pill);
+        host.Children.Add(bar);
+        host.Children.Add(row);
+
+        var rowBorder = new System.Windows.Controls.Border
+        {
+            Height = 40,
+            Margin = new Thickness(0, 1, 0, 1),
+            CornerRadius = new CornerRadius(10),
+            Cursor = isActive ? Cursors.Arrow : Cursors.Hand,
+            Background = Brushes.Transparent,
+            ToolTip = isActive ? null : $"Switch to {profile}",
+            Child = host
+        };
+        rowBorder.MouseEnter += (_, _) =>
+        {
+            actions.Opacity = 1;
+            if (!isActive)
+            {
+                rowBorder.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "AccentHover1ABrush");
+                nameBlock.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextPrimaryBrush");
+            }
+        };
+        rowBorder.MouseLeave += (_, _) =>
+        {
+            actions.Opacity = 0;
+            rowBorder.Background = Brushes.Transparent;
+            nameBlock.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty,
+                isActive ? "TextPrimaryBrush" : "TextSecBrush");
+        };
+        rowBorder.MouseLeftButtonDown += (_, _) =>
+        {
+            if (profile == _config.ActiveProfile) return;
+            SwitchToProfile(profile);
+            CloseProfileFlyout();
+        };
+        return rowBorder;
+    }
+
+    private System.Windows.Controls.Border MakeFlyoutAction(MaterialIconKind kind, string tip, bool danger, Action onClick)
+    {
+        var ic = new MiIcon { Kind = kind, Width = 15, Height = 15 };
+        ic.SetResourceReference(MiIcon.ForegroundProperty, "TextDimBrush");
+        var b = new System.Windows.Controls.Border
+        {
+            Width = 26, Height = 26,
+            CornerRadius = new CornerRadius(7),
+            Background = Brushes.Transparent,
+            Cursor = Cursors.Hand,
+            ToolTip = tip,
+            Child = ic,
+        };
+        b.MouseEnter += (_, _) =>
+        {
+            ic.SetResourceReference(MiIcon.ForegroundProperty, danger ? "DangerRedBrush" : "AccentBrush");
+            b.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "InputBgBrush");
+        };
+        b.MouseLeave += (_, _) =>
+        {
+            ic.SetResourceReference(MiIcon.ForegroundProperty, "TextDimBrush");
+            b.Background = Brushes.Transparent;
+        };
+        b.MouseLeftButtonDown += (_, ev) => { ev.Handled = true; onClick(); };
+        return b;
     }
 
     private void ShowProfileEditor(string profileName)

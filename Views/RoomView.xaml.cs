@@ -1989,8 +1989,8 @@ public partial class RoomView : UserControl
         _goveeBrightnessControls.Clear();
         _deviceControls.Clear();
 
-        stack.Children.Add(UiKit.PageHeader("Devices",
-            "Power, brightness and sync for every light AmpUp drives. Add or rescan devices in Settings."));
+        stack.Children.Add(UiKit.PageHeader("Devices", "Power, brightness and sync for every light",
+            icon: Material.Icons.MaterialIconKind.LightbulbGroupOutline));
 
         // ── Govee devices ──
         bool hasGovee = _config.Ambience.GoveeEnabled && _config.Ambience.GoveeDevices.Count > 0;
@@ -4070,8 +4070,8 @@ public partial class RoomView : UserControl
     {
         if (_config == null) return;
 
-        stack.Children.Add(UiKit.PageHeader("Screen Sync",
-            "Mirror the colors on your screen to your room lights in real time. Game Mode can switch it on for you."));
+        stack.Children.Add(UiKit.PageHeader("Screen Sync", "Mirror your screen's colors to your room lights",
+            icon: Material.Icons.MaterialIconKind.MonitorShimmer));
         stack.Children.Add(UiKit.SectionHeader("MODES"));
 
         bool syncRunning = _config.Ambience.ScreenSync.Enabled;

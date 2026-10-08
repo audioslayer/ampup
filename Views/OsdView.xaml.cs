@@ -140,8 +140,8 @@ public partial class OsdView : UserControl
             Foreground = new SolidColorBrush(ThemeManager.Accent),
         };
 
-        RootPanel.Children.Add(UiKit.PageHeader("On-Screen Display",
-            "What pops up on screen when you use your controller."));
+        RootPanel.Children.Add(UiKit.PageHeader("On-Screen Display", "What pops up on screen as you use your controller",
+            icon: MaterialIconKind.MonitorEye));
 
         // ══════════════════ POPUPS ══════════════════
         var popupsBody = new StackPanel();

@@ -287,8 +287,8 @@ public partial class ButtonsView : UserControl
     {
         InitializeComponent();
 
-        PageHeaderHost.Content = UiKit.PageHeader("Buttons",
-            "Tap, double-press and hold actions for your Turn Up buttons and Stream Controller keys.");
+        PageHeaderHost.Content = UiKit.PageHeader("Buttons", "Tap, double-press and hold actions",
+            icon: Material.Icons.MaterialIconKind.GestureTapButton);
 
         _debounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
         _debounce.Tick += (_, _) =>

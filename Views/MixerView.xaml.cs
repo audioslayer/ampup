@@ -129,8 +129,8 @@ public partial class MixerView : UserControl
     {
         InitializeComponent();
 
-        MixerPageHeaderHost.Content = UiKit.PageHeader("Mixer",
-            "Choose what each knob controls, then tune how it responds — curve and volume range.");
+        MixerPageHeaderHost.Content = UiKit.PageHeader("Mixer", "What each knob controls and how it responds",
+            icon: Material.Icons.MaterialIconKind.TuneVertical);
 
         _debounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
         _debounce.Tick += (_, _) =>

@@ -211,8 +211,8 @@ public partial class LightsView : UserControl
             if (!_loading) QueueSave();
         };
 
-        PageHeaderHost.Content = UiKit.PageHeader("Lights",
-            "LED effects, colors and brightness for each knob, or one effect across all of them.");
+        PageHeaderHost.Content = UiKit.PageHeader("Lights", "Effects, colors and brightness for every LED",
+            icon: Material.Icons.MaterialIconKind.LightbulbOnOutline);
 
         BuildPresetsSection();
         BuildGlobalCard();

@@ -98,33 +98,9 @@ public partial class GroupsView : UserControl
         }
     }
 
-    private FrameworkElement BuildPageHeader()
-    {
-        var grid = new Grid { Margin = new Thickness(2, 0, 2, 18) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0) };
-        var title = new TextBlock { Text = "Groups", FontSize = 20, FontWeight = FontWeights.SemiBold };
-        title.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
-        left.Children.Add(title);
-        var sub = new TextBlock
-        {
-            Text = "Control several devices or apps together from one knob or button. App groups made in the Mixer appear here too.",
-            FontSize = 12,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 4, 0, 0),
-        };
-        sub.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
-        left.Children.Add(sub);
-        grid.Children.Add(left);
-
-        var btn = BuildNewGroupButton();
-        btn.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(btn, 1);
-        grid.Children.Add(btn);
-        return grid;
-    }
+    private FrameworkElement BuildPageHeader() =>
+        UiKit.PageHeader("Groups", "Several devices or apps on one knob or button",
+            BuildNewGroupButton(), Material.Icons.MaterialIconKind.Group);
 
     private FrameworkElement BuildSectionHeader(string text, string count)
     {

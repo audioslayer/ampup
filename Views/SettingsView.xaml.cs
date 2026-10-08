@@ -57,8 +57,8 @@ public partial class SettingsView : UserControl
     public SettingsView()
     {
         InitializeComponent();
-        PageHeaderHost.Content = AmpUp.Controls.UiKit.PageHeader("Settings",
-            "Hardware, appearance, profiles and the apps Amp Up connects to.");
+        PageHeaderHost.Content = AmpUp.Controls.UiKit.PageHeader("Settings", "Hardware, appearance, profiles and integrations",
+            icon: Material.Icons.MaterialIconKind.CogOutline);
         BuildSettingsTabs();
         BindReveal(ChkHaEnabled, HaSettingsPanel);
         BindReveal(ChkObsEnabled, ObsSettingsPanel);

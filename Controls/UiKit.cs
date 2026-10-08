@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -87,28 +87,92 @@ public static class UiKit
         public StackPanel Body = null!;
     }
 
-    public static FrameworkElement PageHeader(string title, string subtitle, FrameworkElement? action = null)
+    /// <summary>
+    /// Compact one-line page header: glowing accent icon tile, title, short tagline after a
+    /// slim divider, optional action on the right, and an accent hairline that fades out below.
+    /// </summary>
+    public static FrameworkElement PageHeader(string title, string subtitle, FrameworkElement? action = null,
+        MaterialIconKind icon = MaterialIconKind.Tune)
     {
-        var grid = new Grid { Margin = new Thickness(2, 0, 2, 18) };
+        var root = new StackPanel { Margin = new Thickness(2, 0, 2, 16) };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        root.Children.Add(grid);
 
-        var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0) };
-        var t = new TextBlock { Text = title, FontSize = 20, FontWeight = FontWeights.SemiBold };
+        var glow = new System.Windows.Media.Effects.DropShadowEffect
+            { BlurRadius = 14, ShadowDepth = 0, Opacity = 0.55, Color = ThemeManager.Accent };
+        var tileIcon = new MaterialIcon { Kind = icon, Width = 17, Height = 17 };
+        tileIcon.SetResourceReference(MaterialIcon.ForegroundProperty, "AccentBrush");
+        var tile = new System.Windows.Controls.Border
+        {
+            Width = 32, Height = 32,
+            CornerRadius = new CornerRadius(9),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(0, 0, 12, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Effect = glow,
+            Child = tileIcon,
+        };
+        void PaintTile()
+        {
+            var a = ThemeManager.Accent;
+            tile.Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x1E));
+            tile.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x66));
+            glow.Color = a;
+        }
+        PaintTile();
+        Action onAccent = () => tile.Dispatcher.BeginInvoke(PaintTile);
+        tile.Loaded += (_, _) => { ThemeManager.OnAccentChanged -= onAccent; ThemeManager.OnAccentChanged += onAccent; };
+        tile.Unloaded += (_, _) => ThemeManager.OnAccentChanged -= onAccent;
+        grid.Children.Add(tile);
+
+        var line = new DockPanel { LastChildFill = true, VerticalAlignment = VerticalAlignment.Center };
+        var t = new TextBlock { Text = title, FontSize = 19, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
         t.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
-        left.Children.Add(t);
-        var sub = new TextBlock { Text = subtitle, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
-        sub.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
-        left.Children.Add(sub);
-        grid.Children.Add(left);
+        DockPanel.SetDock(t, Dock.Left);
+        line.Children.Add(t);
+        if (!string.IsNullOrWhiteSpace(subtitle))
+        {
+            var sep = new System.Windows.Controls.Border
+            {
+                Width = 1, Height = 16, Margin = new Thickness(14, 2, 14, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            sep.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "CardBorderBrush");
+            DockPanel.SetDock(sep, Dock.Left);
+            line.Children.Add(sep);
+            var sub = new TextBlock
+            {
+                Text = subtitle, FontSize = 12, Margin = new Thickness(0, 3, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis,
+                ToolTip = subtitle,
+            };
+            sub.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+            line.Children.Add(sub);
+        }
+        Grid.SetColumn(line, 1);
+        grid.Children.Add(line);
 
         if (action != null)
         {
             action.VerticalAlignment = VerticalAlignment.Center;
-            Grid.SetColumn(action, 1);
+            action.Margin = new Thickness(16, 0, 0, 0);
+            Grid.SetColumn(action, 2);
             grid.Children.Add(action);
         }
-        return grid;
+
+        // Accent hairline fading to nothing â€” ties the header to the theme without a heavy bar.
+        var hair = new System.Windows.Controls.Border
+        {
+            Height = 1, Margin = new Thickness(0, 12, 0, 0),
+            OpacityMask = new LinearGradientBrush(Color.FromArgb(0x99, 0, 0, 0), Colors.Transparent, 0),
+        };
+        hair.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "AccentBrush");
+        root.Children.Add(hair);
+        return root;
     }
 
     /// <summary>Accent bar + bold accent label + optional muted count.</summary>
@@ -347,7 +411,7 @@ public static class UiKit
         return tb;
     }
 
-    /// <summary>Subtle "+ Add …" style row. Accent = add action; otherwise secondary (show more etc.).</summary>
+    /// <summary>Subtle "+ Add â€¦" style row. Accent = add action; otherwise secondary (show more etc.).</summary>
     public static System.Windows.Controls.Border LinkRow(MaterialIconKind icon, string text, bool accent, Action? onClick, string? tooltip = null)
     {
         var row = new System.Windows.Controls.Border
@@ -399,7 +463,7 @@ public static class UiKit
         return b;
     }
 
-    /// <summary>"…" button that opens a glass context menu.</summary>
+    /// <summary>"â€¦" button that opens a glass context menu.</summary>
     public static System.Windows.Controls.Border MoreButton(Func<IReadOnlyList<GlassMenuItem>> items, string tooltip = "More options")
         => IconButton(MaterialIconKind.DotsHorizontal, tooltip, anchor => GlassContextMenuHost.Show(anchor, items()));
 

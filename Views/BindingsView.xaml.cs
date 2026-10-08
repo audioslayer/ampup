@@ -199,8 +199,8 @@ public class BindingsView : UserControl
         _root.Children.Clear();
         Array.Clear(_knobCards);
 
-        _root.Children.Add(UiKit.PageHeader("Overview",
-            "Every knob, button and key assignment across your profiles. Click a profile to switch to it."));
+        _root.Children.Add(UiKit.PageHeader("Overview", "Every assignment across all your profiles",
+            icon: Material.Icons.MaterialIconKind.ViewDashboardOutline));
 
         // Interactive hardware device visualization — the widget only
         // renders the 5-knob Turn Up device, so hide it entirely when
