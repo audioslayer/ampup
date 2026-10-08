@@ -802,6 +802,7 @@ public partial class ButtonsView
         // Rebuild the Spaces list so the ACTIVE pill / accent border
         // follow _scActiveFolder as the user navigates between Spaces.
         RefreshV2FoldersList();
+        RefreshV2MiniMap();
     }
 
     private void RefreshV2FolderBanner()

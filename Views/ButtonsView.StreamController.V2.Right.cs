@@ -37,7 +37,16 @@ public partial class ButtonsView
     private StackPanel? _v2CommonFieldsPanel;
     private StackPanel? _v2DesignContent;
     private Border? _v2PreviewCard;
-    private StackPanel? _v2PreviewRow;
+    private FrameworkElement? _v2PreviewRow;
+
+    // "Live mirror" layout: mini map of the six keys beside the preview, and
+    // collapsible Display / Text / Icon sections with a summary in each header.
+    private readonly List<(Border Cell, Image Thumb)> _v2MiniCells = new();
+    private TextBlock? _v2MiniCaption;
+    private StackPanel? _v2TextSectionBody;
+    private FrameworkElement? _v2IconSection;
+    private TextBlock? _v2DisplaySummary, _v2TextSummary, _v2IconSummary;
+    private static readonly HashSet<string> _v2CollapsedSections = new();
 
     // Inline-editable header that mirrors the Mixer tab's channel label:
     // always-editable TextBox with transparent chrome until focus reveals an
@@ -119,9 +128,10 @@ public partial class ButtonsView
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(14),
             Padding = new Thickness(10),
-            Width = 180,
-            Height = 180,
+            Width = 196,
+            Height = 196,
             VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
         };
 
         if (_scEditorPreview == null)
@@ -135,23 +145,41 @@ public partial class ButtonsView
         _scEditorPreview.Stretch = Stretch.Uniform;
         _v2PreviewCard.Child = _scEditorPreview;
 
-        _v2PreviewRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 0, 0, 14),
-        };
-        _v2PreviewRow.Children.Add(_v2PreviewCard);
+        // Mirror card: [preview] [mini map of the six keys + caption + icon buttons]
+        var mirrorGrid = new Grid();
+        mirrorGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        mirrorGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(136) });
+        mirrorGrid.Children.Add(_v2PreviewCard);
 
-        var iconButtonStack = new StackPanel
+        var side = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 0, 0) };
+        Grid.SetColumn(side, 1);
+        mirrorGrid.Children.Add(side);
+        side.Children.Add(BuildV2MiniMap());
+        _v2MiniCaption = new TextBlock
         {
-            Orientation = Orientation.Vertical,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(14, 0, 0, 0),
+            FontSize = 10.5,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 6, 0, 12),
+            Foreground = FindBrush("TextDimBrush"),
         };
+        side.Children.Add(_v2MiniCaption);
+
+        var mirrorCard = new Border
+        {
+            CornerRadius = new CornerRadius(14),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(14),
+            Margin = new Thickness(0, 0, 0, 14),
+            Child = mirrorGrid,
+        };
+        mirrorCard.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        mirrorCard.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        _v2PreviewRow = mirrorCard;
+
+        var iconButtonStack = side;
 
         var chooseIconInlineBtn = MakeEditorButton("Choose Icon", (_, _) => ChooseStreamControllerIcon());
-        chooseIconInlineBtn.VerticalAlignment = VerticalAlignment.Center;
+        chooseIconInlineBtn.HorizontalAlignment = HorizontalAlignment.Stretch;
         iconButtonStack.Children.Add(chooseIconInlineBtn);
 
         if (_scClearIconButton == null)
@@ -164,11 +192,9 @@ public partial class ButtonsView
         }
         DetachFromParent(_scClearIconButton);
         _scClearIconButton.Content = "Clear Icon";
-        _scClearIconButton.Margin = new Thickness(0, 8, 0, 0);
-        _scClearIconButton.VerticalAlignment = VerticalAlignment.Center;
+        _scClearIconButton.Margin = new Thickness(0, 6, 0, 0);
+        _scClearIconButton.HorizontalAlignment = HorizontalAlignment.Stretch;
         iconButtonStack.Children.Add(_scClearIconButton);
-
-        _v2PreviewRow.Children.Add(iconButtonStack);
 
         _v2PreviewPanel.Children.Add(_v2PreviewRow);
 
@@ -385,19 +411,35 @@ public partial class ButtonsView
             designContent.Children.Add(_scDynamicPanel);
         }
 
-        // The DESIGN tab itself is the section header now — drop the
-        // redundant in-card "DESIGN" accent-bar header.
-        var designCard = new Border
+        // Split the controls into three collapsible sections (Display / Text / Icon).
+        // Text keeps everything not claimed by the other two, in build order.
+        var displayBody = new StackPanel();
+        var textBody = new StackPanel();
+        var iconBody = new StackPanel();
+        var displayParts = new HashSet<UIElement?> { _scDisplayTypePicker, _scHardwarePanel, _v2BrightnessLabel, _v2BrightnessSlider, _scClockPanel, _scDynamicPanel };
+        var iconParts = new HashSet<UIElement?> { iconColorLabel, _scIconColorSwatchPanel, glowColorLabel, _scGlowColorSwatchPanel };
+        var children = designContent.Children.Cast<UIElement>().ToList();
+        designContent.Children.Clear();
+        for (int i = 0; i < children.Count; i++)
         {
-            CornerRadius = new CornerRadius(10),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(14),
-            Margin = new Thickness(0, 0, 0, 12),
-            Child = designContent,
-        };
-        designCard.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-        designCard.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-        _v2CommonFieldsPanel.Children.Add(designCard);
+            var el = children[i];
+            // The DISPLAY TYPE caption travels with its picker.
+            bool isDisplayCaption = i + 1 < children.Count && ReferenceEquals(children[i + 1], _scDisplayTypePicker);
+            var target = isDisplayCaption || displayParts.Contains(el) ? displayBody
+                       : iconParts.Contains(el) ? iconBody
+                       : textBody;
+            target.Children.Add(el);
+        }
+        if (iconBody.Children.Count > 0 && iconBody.Children[0] is FrameworkElement firstIcon)
+            firstIcon.Margin = new Thickness(0, 0, 0, 4);
+        if (_v2BrightnessLabel != null) _v2BrightnessLabel.Margin = new Thickness(0, 2, 0, 4);
+        _v2DesignContent = textBody;
+        _v2TextSectionBody = textBody;
+
+        _v2CommonFieldsPanel.Children.Add(BuildV2Section("display", "Display", displayBody, out _v2DisplaySummary));
+        _v2CommonFieldsPanel.Children.Add(BuildV2Section("text", "Text", textBody, out _v2TextSummary));
+        _v2IconSection = BuildV2Section("icon", "Icon", iconBody, out _v2IconSummary);
+        _v2CommonFieldsPanel.Children.Add(_v2IconSection);
 
         if (_v2SpotifyTabContent != null)
         {
@@ -450,6 +492,153 @@ public partial class ButtonsView
         // V2 layout (BuildStreamControllerDesignerV2) places it inside
         // the DESIGN tab content so the right pane can swap it for the
         // ACTION tab via a tab bar.
+    }
+
+    /// <summary>
+    /// 3x2 mini map of the current page's LCD keys (real thumbnails) with the key being
+    /// edited outlined in the accent colour. Clicking a cell selects that key.
+    /// </summary>
+    private FrameworkElement BuildV2MiniMap()
+    {
+        var grid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3, Rows = 2 };
+        _v2MiniCells.Clear();
+        for (int i = 0; i < StreamControllerKeysPerPage; i++)
+        {
+            int slot = i;
+            var thumb = new Image { Stretch = Stretch.UniformToFill };
+            RenderOptions.SetBitmapScalingMode(thumb, BitmapScalingMode.HighQuality);
+            var cell = new Border
+            {
+                Height = 34,
+                Margin = new Thickness(2),
+                CornerRadius = new CornerRadius(5),
+                BorderThickness = new Thickness(1.5),
+                ClipToBounds = true,
+                Cursor = Cursors.Hand,
+                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x26, 0x33)),
+                BorderBrush = Brushes.Transparent,
+                ToolTip = $"Key {slot + 1}",
+                Child = thumb,
+            };
+            cell.MouseLeftButtonUp += (_, e) => { e.Handled = true; OnV2KeyTileClick(slot); };
+            grid.Children.Add(cell);
+            _v2MiniCells.Add((cell, thumb));
+        }
+        var frame = new Border
+        {
+            CornerRadius = new CornerRadius(10),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(4),
+            Background = new SolidColorBrush(Color.FromRgb(0x07, 0x0B, 0x10)),
+            Child = grid,
+        };
+        frame.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
+        return frame;
+    }
+
+    /// <summary>Copy the left-panel tile thumbnails into the mini map and outline the selected key.</summary>
+    private void RefreshV2MiniMap()
+    {
+        if (_v2MiniCells.Count == 0) return;
+        int selected = -1;
+        for (int i = 0; i < _v2MiniCells.Count; i++)
+        {
+            var tile = i < _v2KeyTiles.Count ? _v2KeyTiles[i] : null;
+            bool isSel = tile?.IsSelected == true;
+            if (isSel) selected = i;
+            _v2MiniCells[i].Thumb.Source = tile?.PreviewImage;
+            _v2MiniCells[i].Cell.BorderBrush = isSel ? new SolidColorBrush(ThemeManager.Accent) : Brushes.Transparent;
+            _v2MiniCells[i].Cell.Opacity = isSel ? 1 : 0.7;
+        }
+        if (_v2MiniCaption != null)
+        {
+            string page = _scPageCount > 1 ? $" · Page {_scCurrentPage + 1}" : "";
+            _v2MiniCaption.Text = selected >= 0 ? $"Key {selected + 1} of 6{page}" : $"Page {_scCurrentPage + 1}";
+        }
+    }
+
+    /// <summary>Collapsible section: header row (title, live summary, chevron) over a padded body.</summary>
+    private Border BuildV2Section(string id, string title, StackPanel body, out TextBlock summary)
+    {
+        bool open = !_v2CollapsedSections.Contains(id);
+        body.Margin = new Thickness(14, 12, 14, 14);
+        body.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+
+        var head = new Grid { Background = Brushes.Transparent, Cursor = Cursors.Hand };
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var t = new TextBlock { Text = title, FontSize = 13, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        t.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        head.Children.Add(t);
+        summary = new TextBlock
+        {
+            FontSize = 11.5, Margin = new Thickness(12, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Right, TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        summary.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        Grid.SetColumn(summary, 1);
+        head.Children.Add(summary);
+        var chev = new Material.Icons.WPF.MaterialIcon
+        {
+            Kind = open ? Material.Icons.MaterialIconKind.ChevronUp : Material.Icons.MaterialIconKind.ChevronDown,
+            Width = 18, Height = 18, VerticalAlignment = VerticalAlignment.Center,
+        };
+        chev.SetResourceReference(Control.ForegroundProperty, "TextDimBrush");
+        Grid.SetColumn(chev, 2);
+        head.Children.Add(chev);
+
+        var headHost = new Border { Padding = new Thickness(14, 11, 12, 11), Child = head, Background = Brushes.Transparent };
+        var divider = new Border { Height = 1, Visibility = body.Visibility };
+        divider.SetResourceReference(Border.BackgroundProperty, "CardBorderBrush");
+
+        var stack = new StackPanel();
+        stack.Children.Add(headHost);
+        stack.Children.Add(divider);
+        stack.Children.Add(body);
+
+        headHost.MouseLeftButtonUp += (_, _) =>
+        {
+            bool nowOpen = body.Visibility != Visibility.Visible;
+            body.Visibility = divider.Visibility = nowOpen ? Visibility.Visible : Visibility.Collapsed;
+            chev.Kind = nowOpen ? Material.Icons.MaterialIconKind.ChevronUp : Material.Icons.MaterialIconKind.ChevronDown;
+            if (nowOpen) _v2CollapsedSections.Remove(id); else _v2CollapsedSections.Add(id);
+        };
+
+        var card = new Border
+        {
+            CornerRadius = new CornerRadius(12),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(0, 0, 0, 10),
+            Child = stack,
+        };
+        card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        return card;
+    }
+
+    /// <summary>Short current-value summaries shown in the section headers.</summary>
+    private void UpdateV2SectionSummaries()
+    {
+        var key = GetSelectedDisplayKeyConfig();
+        if (key == null) return;
+        int bright = Math.Clamp(key.Brightness <= 0 ? 100 : key.Brightness, 0, 100);
+        string type = key.DisplayType switch
+        {
+            DisplayKeyType.DynamicState => "Dynamic",
+            DisplayKeyType.SpotifyNowPlaying => "Spotify",
+            DisplayKeyType.HardwareMonitor => "Hardware",
+            _ => key.DisplayType.ToString(),
+        };
+        if (_v2DisplaySummary != null) _v2DisplaySummary.Text = $"{type} · {bright}%";
+        if (_v2TextSummary != null)
+        {
+            string title = string.IsNullOrWhiteSpace(key.Title) ? "No title" : key.Title.Replace('\n', ' ').Replace("\r", "");
+            _v2TextSummary.Text = key.TextPosition == DisplayTextPosition.Hidden ? $"{title} · hidden" : $"{title} · {key.TextPosition}";
+        }
+        if (_v2IconSummary != null)
+            _v2IconSummary.Text = !string.IsNullOrWhiteSpace(key.PresetIconKind) && string.IsNullOrWhiteSpace(key.ImagePath)
+                ? "Colors" : key.DisplayType == DisplayKeyType.Solid ? "Fill color" : "Background";
     }
 
     /// <summary>
@@ -981,6 +1170,10 @@ public partial class ButtonsView
                 BuildIconColorSwatches();
             if (showGlowRow)
                 BuildGlowColorSwatches();
+            if (_v2IconSection != null)
+                _v2IconSection.Visibility = showGlowRow ? Visibility.Visible : Visibility.Collapsed;
+            UpdateV2SectionSummaries();
+            RefreshV2MiniMap();
         }
         else
         {
@@ -1134,17 +1327,19 @@ public partial class ButtonsView
             element.Visibility = Visibility.Visible;
         }
 
-        int insertAt = _v2DesignContent.Children.Count;
+        // Size + color go back under TEXT POSITION, in whichever section holds it.
+        var host = _scTextPositionPicker?.Parent as Panel ?? _v2DesignContent;
+        int insertAt = host.Children.Count;
         if (_scTextPositionPicker != null)
         {
-            int pos = _v2DesignContent.Children.IndexOf(_scTextPositionPicker);
+            int pos = host.Children.IndexOf(_scTextPositionPicker);
             if (pos >= 0) insertAt = pos + 1;
         }
 
         foreach (var element in elements)
         {
             if (element == null) continue;
-            _v2DesignContent.Children.Insert(Math.Min(insertAt, _v2DesignContent.Children.Count), element);
+            host.Children.Insert(Math.Min(insertAt, host.Children.Count), element);
             insertAt++;
         }
     }

@@ -3304,6 +3304,8 @@ public partial class ButtonsView
                 display.HardwareMetricLabelSize = (int)Math.Round(_scHardwareLabelSizeSlider.Value);
         }
 
+        UpdateV2SectionSummaries();
+
         bool spotifySpan = StreamControllerDisplayRenderer.IsSpotifyAlbumArtSpanned(display);
         // In root the folder key Idx == local slot. In a folder, local slot = Idx + 1
         // (slot 0 is the Back key).
