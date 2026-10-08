@@ -227,7 +227,7 @@ public static class UiKit
     /// Card: [thin colour bar] [icon tile] [title / subtitle] [actions], then <paramref name="body"/>.
     /// </summary>
     public static CardParts Card(Color color, MaterialIconKind icon, string title, string? subtitle,
-        FrameworkElement? actions = null, UIElement? body = null)
+        FrameworkElement? actions = null, UIElement? body = null, string? help = null)
     {
         var card = new System.Windows.Controls.Border
         {
@@ -265,9 +265,20 @@ public static class UiKit
         header.Children.Add(tile);
 
         var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
-        var t = new TextBlock { Text = title, FontSize = 15, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
+        var t = new TextBlock { Text = title, FontSize = 15, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
         t.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
-        names.Children.Add(t);
+        if (string.IsNullOrEmpty(help))
+            names.Children.Add(t);
+        else
+        {
+            // "?" sits right after the title, not off at the far edge of the card.
+            var titleRow = new StackPanel { Orientation = Orientation.Horizontal };
+            titleRow.Children.Add(t);
+            var tip = HelpTip(help, title);
+            tip.Margin = new Thickness(6, 1, 0, 0);
+            titleRow.Children.Add(tip);
+            names.Children.Add(titleRow);
+        }
         var s = new TextBlock
         {
             Text = subtitle ?? "", FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0),

@@ -192,9 +192,9 @@ public partial class OsdView : UserControl
         fsRow.Margin = new Thickness(0);
         popupsBody.Children.Add(fsRow);
         var popupsCard = UiKit.Card(Color.FromRgb(0x42, 0xA5, 0xF5), MaterialIconKind.BellOutline,
-            "On-Screen Overlays", "Quick feedback that appears over any app", UiKit.HelpTip(
-                "Small cards that fade in when something changes, then fade out on their own. " +
-                "Turn each one on or off and set how long it stays.", "On-Screen Overlays"), popupsBody).Root;
+            "On-Screen Overlays", "Quick feedback that appears over any app", null, popupsBody,
+            help: "Small cards that fade in when something changes, then fade out on their own. " +
+                  "Turn each one on or off and set how long it stays.").Root;
 
         // ══════════════════ PLACEMENT ══════════════════
         var placeBody = new StackPanel();
@@ -266,14 +266,11 @@ public partial class OsdView : UserControl
         WheelRowsPanel = new StackPanel();
         wheelBody.Children.Add(WheelRowsPanel);
 
-        var wheelHelp = UiKit.HelpTip(
-            "A radial menu for things you switch often, like profiles, audio devices, media controls or your own shortcuts.\n\n" +
-            "1. Hold the trigger button\n2. Turn any knob to move the highlight\n3. Let go to pick\n\n" +
-            "You can also point and click with the mouse. Taking a button for a wheel replaces its hold action.",
-            "Quick Wheels");
-
         var wheelCard = UiKit.Card(WheelColor, MaterialIconKind.ChartDonut,
-            "Quick Wheels", "Hold a button, turn a knob, let go to pick", wheelHelp, wheelBody).Root;
+            "Quick Wheels", "Hold a button, turn a knob, let go to pick", null, wheelBody,
+            help: "A radial menu for things you switch often, like profiles, audio devices, media controls or your own shortcuts.\n\n" +
+                  "1. Hold the trigger button\n2. Turn any knob to move the highlight\n3. Let go to pick\n\n" +
+                  "You can also point and click with the mouse. Taking a button for a wheel replaces its hold action.").Root;
         RootPanel.Children.Add(wheelCard);
     }
 
