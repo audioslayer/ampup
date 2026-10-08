@@ -230,6 +230,7 @@ public static class ConfigManager
         // when no legacy placement data exists.
         config.Ambience.SpatialSync = true;
         MigrateLegacyN3ControlButtonIds(config);
+        AmpUp.Core.Services.AppGroupSync.Normalize(config);
         MigrateN3RoomEffectSpaces(config.N3.Folders);
 
         for (int i = 0; i < 5; i++)

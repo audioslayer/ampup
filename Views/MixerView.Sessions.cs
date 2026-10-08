@@ -422,6 +422,7 @@ public partial class MixerView
                 var k = _config.Knobs.FirstOrDefault(x => x.Idx == knobIdx);
                 if (k == null) return;
                 ToggleAppGroupMembership(k, processName);
+                AmpUp.Core.Services.AppGroupSync.CommitFromKnob(_config, k);
                 SaveAndRefresh();
             }, IsChecked: isMember));
         }

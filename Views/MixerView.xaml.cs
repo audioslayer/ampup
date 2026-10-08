@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using AmpUp.Controls;
+using AmpUp.Core.Services;
 
 namespace AmpUp.Views;
 
@@ -293,6 +294,7 @@ public partial class MixerView : UserControl
                 knob.MaxVolume = copy.MaxVolume;
                 knob.Curve = copy.Curve;
                 knob.Apps = copy.Apps;
+                knob.AppGroup = copy.AppGroup; // paste links to the same shared group
 
                 _loading = true;
                 _channelLabels[idx].Text = GetDisplayLabel(knob);
@@ -315,6 +317,7 @@ public partial class MixerView : UserControl
                 knob.Label = "";
                 knob.Target = "master";
                 knob.Apps = new List<string>();
+                knob.AppGroup = "";
                 knob.Curve = ResponseCurve.Linear;
                 knob.MinVolume = 0;
                 knob.MaxVolume = 100;
@@ -1322,8 +1325,19 @@ public partial class MixerView : UserControl
         panel.Children.Clear();
         if (_config == null || _mixer == null) return;
 
+        // A linked knob always shows (and uses) its group's current list.
+        var linked = AppGroupSync.Find(_config, knob.AppGroup);
+        if (linked != null && knob.Target == "apps") knob.Apps = new List<string>(linked.Apps);
+
         var runningApps = _mixer.GetRunningAudioApps();
         var members = knob.Apps.ToList();
+
+        // Which shared group this knob uses — click to switch, create or rename.
+        var host = new StackPanel();
+        panel.Children.Add(host);
+        host.Children.Add(BuildAppGroupChooser(knob));
+        if (string.IsNullOrWhiteSpace(knob.AppGroup) && members.Count == 0)
+            return; // nothing to show until a group is picked or created
 
         var row = new Grid { Margin = new Thickness(0, 2, 0, 4), Cursor = System.Windows.Input.Cursors.Hand, Background = Brushes.Transparent };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -1390,7 +1404,105 @@ public partial class MixerView : UserControl
             ShowAppGroupMenu(row, knob, runningApps, rebuildCallback);
             e.Handled = true;
         };
-        panel.Children.Add(row);
+        host.Children.Add(row);
+    }
+
+    /// <summary>
+    /// Pill showing the knob's shared app group ("Music · used by 2"). Click for a menu
+    /// of every group, plus New group and Rename.
+    /// </summary>
+    private FrameworkElement BuildAppGroupChooser(KnobConfig knob)
+    {
+        var group = AppGroupSync.Find(_config!, knob.AppGroup);
+        int users = group != null ? AppGroupSync.Users(_config!, group).Count() : 0;
+
+        var icon = new Material.Icons.WPF.MaterialIcon { Kind = Material.Icons.MaterialIconKind.Apps, Width = 14, Height = 14, Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center };
+        var name = new TextBlock
+        {
+            Text = group?.Name ?? (_config!.AppGroups.Count > 0 ? "Choose an app group" : "Create an app group"),
+            FontSize = 12.5, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        var shared = new TextBlock
+        {
+            Text = users > 1 ? $"  ·  shared by {users}" : "",
+            FontSize = 11, VerticalAlignment = VerticalAlignment.Center,
+        };
+        shared.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        var chev = new Material.Icons.WPF.MaterialIcon { Kind = Material.Icons.MaterialIconKind.ChevronDown, Width = 15, Height = 15, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        chev.SetResourceReference(Control.ForegroundProperty, "TextDimBrush");
+
+        var sp = new StackPanel { Orientation = Orientation.Horizontal };
+        sp.Children.Add(icon);
+        sp.Children.Add(name);
+        sp.Children.Add(shared);
+        sp.Children.Add(chev);
+
+        var pill = new Border
+        {
+            CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(1),
+            Padding = new Thickness(9, 5, 8, 5), Margin = new Thickness(0, 0, 0, 8),
+            HorizontalAlignment = HorizontalAlignment.Left, Cursor = System.Windows.Input.Cursors.Hand,
+            ToolTip = "Pick which app group this knob controls, or make a new one",
+            Child = sp,
+        };
+        void Paint(bool hover)
+        {
+            var a = ThemeManager.Accent;
+            pill.Background = new SolidColorBrush(ThemeManager.WithAlpha(a, (byte)(hover ? 0x26 : (group != null ? 0x14 : 0x0A))));
+            pill.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, (byte)(hover ? 0xAA : 0x55)));
+            icon.Foreground = new SolidColorBrush(a);
+            name.Foreground = group != null ? (Brush)FindBrush("TextPrimaryBrush") : new SolidColorBrush(a);
+        }
+        Paint(false);
+        pill.MouseEnter += (_, _) => Paint(true);
+        pill.MouseLeave += (_, _) => Paint(false);
+        pill.MouseLeftButtonUp += (_, e) => { e.Handled = true; if (!_loading) ShowAppGroupChooserMenu(pill, knob); };
+        return pill;
+    }
+
+    private void ShowAppGroupChooserMenu(FrameworkElement anchor, KnobConfig knob)
+    {
+        if (_config == null) return;
+        var items = new List<GlassMenuItem>();
+        foreach (var g in _config.AppGroups.OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            var group = g;
+            string label = $"{g.Name}  ·  {g.Apps.Count} app{(g.Apps.Count == 1 ? "" : "s")}";
+            items.Add(new GlassMenuItem(label, Material.Icons.MaterialIconKind.Apps, () =>
+            {
+                AppGroupSync.Assign(_config, knob, group);
+                AppGroupsEdited();
+            }, IsChecked: knob.AppGroup.Equals(g.Name, StringComparison.OrdinalIgnoreCase)));
+        }
+        if (items.Count > 0) items.Add(GlassMenuItem.Sep);
+        items.Add(new GlassMenuItem("New app group…", Material.Icons.MaterialIconKind.Plus, () =>
+        {
+            var name = GlassDialog.Prompt("Name for the new app group:", "New app group", Window.GetWindow(this),
+                string.IsNullOrWhiteSpace(knob.Label) ? "" : knob.Label);
+            if (string.IsNullOrWhiteSpace(name)) return;
+            AppGroupSync.Assign(_config, knob, AppGroupSync.Create(_config, name));
+            AppGroupsEdited();
+        }));
+        var current = AppGroupSync.Find(_config, knob.AppGroup);
+        if (current != null)
+        {
+            items.Add(new GlassMenuItem($"Rename \"{current.Name}\"…", Material.Icons.MaterialIconKind.PencilOutline, () =>
+            {
+                var name = GlassDialog.Prompt("New name for this app group:", "Rename app group", Window.GetWindow(this), current.Name);
+                if (string.IsNullOrWhiteSpace(name)) return;
+                AppGroupSync.Rename(_config, current, name);
+                AppGroupsEdited();
+            }));
+        }
+        GlassContextMenuHost.Show(anchor, items);
+    }
+
+    /// <summary>A shared app group changed: save and redraw every app-group panel (other knobs may share it).</summary>
+    private void AppGroupsEdited()
+    {
+        QueueSave();
+        RefreshAppGroups();
     }
 
     private FrameworkElement StackIcon(string app, bool running, bool first)
@@ -1426,7 +1538,13 @@ public partial class MixerView : UserControl
 
     private void ShowAppGroupMenu(FrameworkElement anchor, KnobConfig knob, IReadOnlyCollection<string> runningApps, Action rebuildCallback)
     {
-        void Changed() { QueueSave(); rebuildCallback(); }
+        void Changed()
+        {
+            // Write the edit back to the shared group so every linked knob follows.
+            if (_config != null) AppGroupSync.CommitFromKnob(_config, knob);
+            QueueSave();
+            RefreshAppGroups();
+        }
         var items = new List<GlassMenuItem>();
         foreach (var app in knob.Apps.ToList())
         {

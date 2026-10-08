@@ -967,6 +967,7 @@ public class ButtonHandler : IDisposable
             }
 
             knob.Apps.Add(processName.ToLowerInvariant());
+            AppGroupSync.CommitFromKnob(_lastConfig, knob); // keep knobs sharing this group in sync
             Logger.Log($"Added focused app '{processName}' to knob {knobIdx + 1} app group");
             OnAppGroupChanged?.Invoke();
         }

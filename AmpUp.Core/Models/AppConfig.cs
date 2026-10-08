@@ -52,10 +52,18 @@ public class AppConfig
     public CorsairConfig Corsair { get; set; } = new();
     public SpotifyConfig Spotify { get; set; } = new();
     public List<DeviceGroup> Groups { get; set; } = new();
+    /// <summary>Named app groups shared by any knob / encoder whose Target is "apps".</summary>
+    public List<AppGroupDef> AppGroups { get; set; } = new();
     public RoomLayout RoomLayout { get; set; } = new();
     public List<ColorPalette> CustomPalettes { get; set; } = new();
     /// <summary>LightEffect enum names saved as favorites — shown in the Favorites tab of the effect picker.</summary>
     public List<string> FavoriteEffects { get; set; } = new();
+}
+
+public class AppGroupDef
+{
+    public string Name { get; set; } = "";
+    public List<string> Apps { get; set; } = new();
 }
 
 public class DeviceGroup
@@ -145,6 +153,12 @@ public class KnobConfig
     [JsonConverter(typeof(StringEnumConverter))]
     public ResponseCurve Curve { get; set; } = ResponseCurve.Linear;
     public List<string> Apps { get; set; } = new();
+    /// <summary>
+    /// Name of the shared <see cref="AppGroupDef"/> this knob uses (Target "apps").
+    /// Empty = no group yet. <see cref="Apps"/> is kept as a mirror of the group's
+    /// list by AppGroupSync so the audio / LED / button code can keep reading it.
+    /// </summary>
+    public string AppGroup { get; set; } = "";
     public int LastRawValue { get; set; } = -1; // -1 = never saved, skip startup restore
     // Per-encoder step for digital infinite encoders (N3). Raw value change per detent
     // out of 1023. Defaults to 32 (~3% per click) to match the legacy global default.

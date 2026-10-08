@@ -84,8 +84,8 @@ public partial class GroupsView : UserControl
                 GroupPanel.Children.Add(BuildDeviceGroupCard(_config.Groups[i], i));
         }
 
-        // APP GROUPS (from Mixer)
-        var appGroups = GetAppGroups();
+        // APP GROUPS — named and shared; any knob or encoder can use one from the Mixer
+        var appGroups = _config.AppGroups;
         var appHeader = BuildSectionHeader("APP GROUPS", appGroups.Count == 0 ? "" : $"{appGroups.Count}");
         appHeader.Margin = new Thickness(0, 14, 0, 10);
         GroupPanel.Children.Add(appHeader);
@@ -93,15 +93,26 @@ public partial class GroupsView : UserControl
         {
             GroupPanel.Children.Add(BuildEmptyState(
                 "No app groups yet",
-                "App groups are created in the Mixer: set a knob's target to App Group and pick its apps. "
-                + "They show up here so you can manage them alongside your device groups.",
+                "Put several apps on one knob, like Spotify and Steam as Music. "
+                + "Make one here, or set a knob's target to App group in the Mixer.",
                 withNewButton: false));
         }
         else
         {
-            foreach (var ag in appGroups)
+            foreach (var ag in appGroups.ToList())
                 GroupPanel.Children.Add(BuildAppGroupCard(ag));
         }
+        var newApp = BuildLinkRow(MaterialIconKind.Plus, "New app group", accent: true);
+        newApp.HorizontalAlignment = HorizontalAlignment.Left;
+        newApp.MouseLeftButtonUp += (_, _) =>
+        {
+            var name = GlassDialog.Prompt("Name for the new app group:", "New app group", Window.GetWindow(this));
+            if (string.IsNullOrWhiteSpace(name) || _config == null) return;
+            var g = AppGroupSync.Create(_config, name);
+            _focusKey = AppGroupKey(g);
+            SaveAppGroups(null);
+        };
+        GroupPanel.Children.Add(newApp);
 
         if (_focusKey != null)
         {
@@ -116,11 +127,14 @@ public partial class GroupsView : UserControl
     /// <summary>Scroll an app group's card into view and pulse its border (used by the Mixer's "Manage" link).</summary>
     public void FocusAppGroup(bool streamController, int knobIdx)
     {
-        _focusKey = AppGroupKey(streamController, knobIdx);
+        var knobs = streamController ? _config?.N3.Knobs : _config?.Knobs;
+        var knob = knobs?.FirstOrDefault(k => k.Idx == knobIdx);
+        var group = _config != null && knob != null ? AppGroupSync.Find(_config, knob.AppGroup) : null;
+        _focusKey = group != null ? AppGroupKey(group) : null;
         RebuildGroupPanel();
     }
 
-    private static string AppGroupKey(bool streamController, int knobIdx) => $"{(streamController ? "sc" : "tu")}:{knobIdx}";
+    private static string AppGroupKey(AppGroupDef group) => "app:" + group.Name.ToLowerInvariant();
 
     private static void HighlightCard(Border card)
     {
@@ -794,34 +808,30 @@ public partial class GroupsView : UserControl
         GlassContextMenuHost.Show(anchor, items);
     }
 
-    // ── App groups (Mixer) ───────────────────────────────────────────
+    // ── App groups (shared, named) ───────────────────────────────────
 
-    private sealed record AppGroupRef(KnobConfig Knob, bool IsStreamController);
-
-    private List<AppGroupRef> GetAppGroups()
+    /// <summary>"Knob 4 · Music" / "Encoder 1" labels for the controls that use a group.</summary>
+    private List<(string Label, bool IsStreamController, int Idx)> AppGroupUsers(AppGroupDef group)
     {
-        var list = new List<AppGroupRef>();
+        var list = new List<(string, bool, int)>();
         if (_config == null) return list;
-        foreach (var k in _config.Knobs.Where(k => k.Target == "apps").OrderBy(k => k.Idx))
-            list.Add(new AppGroupRef(k, false));
-        foreach (var k in _config.N3.Knobs.Where(k => k.Target == "apps").OrderBy(k => k.Idx))
-            list.Add(new AppGroupRef(k, true));
+        foreach (var k in _config.Knobs.Where(k => k.Target == "apps" && k.AppGroup.Equals(group.Name, StringComparison.OrdinalIgnoreCase)).OrderBy(k => k.Idx))
+            list.Add((string.IsNullOrWhiteSpace(k.Label) ? $"Knob {k.Idx + 1}" : $"Knob {k.Idx + 1} · {k.Label}", false, k.Idx));
+        foreach (var k in _config.N3.Knobs.Where(k => k.Target == "apps" && k.AppGroup.Equals(group.Name, StringComparison.OrdinalIgnoreCase)).OrderBy(k => k.Idx))
+            list.Add((string.IsNullOrWhiteSpace(k.Label) ? $"Encoder {k.Idx + 1}" : $"Encoder {k.Idx + 1} · {k.Label}", true, k.Idx));
         return list;
     }
 
-    private Border BuildAppGroupCard(AppGroupRef ag)
+    private Border BuildAppGroupCard(AppGroupDef group)
     {
-        var knob = ag.Knob;
-        string prefix = ag.IsStreamController ? $"Encoder {knob.Idx + 1}" : $"Knob {knob.Idx + 1}";
-        string title = string.IsNullOrWhiteSpace(knob.Label) ? prefix : $"{prefix} · {knob.Label}";
-        string key = AppGroupKey(ag.IsStreamController, knob.Idx);
+        string key = AppGroupKey(group);
 
         List<string> running;
         try { running = _mixer?.GetRunningAudioApps() ?? new List<string>(); }
         catch { running = new List<string>(); }
 
         var rows = new List<MemberRow>();
-        foreach (var app in knob.Apps.ToList())
+        foreach (var app in group.Apps.ToList())
         {
             bool isRunning = running.Contains(app, StringComparer.OrdinalIgnoreCase);
             var appCapture = app;
@@ -832,22 +842,30 @@ public partial class GroupsView : UserControl
                 null, null,
                 () =>
                 {
-                    knob.Apps.RemoveAll(a => a.Equals(appCapture, StringComparison.OrdinalIgnoreCase));
-                    SaveAppGroups();
+                    group.Apps.RemoveAll(a => a.Equals(appCapture, StringComparison.OrdinalIgnoreCase));
+                    SaveAppGroups(group);
                 },
                 "Remove from group",
                 Dim: !isRunning));
         }
 
-        int n = knob.Apps.Count;
-        string device = ag.IsStreamController ? "Stream Controller" : "Turn Up";
-        string subtitle = n == 0 ? $"Empty · {device} mixer" : $"{n} app{(n == 1 ? "" : "s")} · {device} mixer";
+        var users = AppGroupUsers(group);
+        int n = group.Apps.Count;
+        string apps = n == 0 ? "Empty" : $"{n} app{(n == 1 ? "" : "s")}";
+        string usedBy = users.Count == 0 ? "not on a knob yet" : "used by " + string.Join(", ", users.Select(u => u.Label));
+        string subtitle = $"{apps} · {usedBy}";
 
         var list = BuildMemberList(key, rows, "No apps yet. Add one below.", "Add app",
-            anchor => ShowAddAppMenu(anchor, knob), BuildAppMemberRow);
+            anchor => ShowAddAppMenu(anchor, group), BuildAppMemberRow);
 
-        var openMixer = MakeIconButton(MaterialIconKind.TuneVertical, "Open in Mixer", danger: false, size: 30);
-        openMixer.MouseLeftButtonUp += (_, e) => { e.Handled = true; OnOpenInMixer?.Invoke(ag.IsStreamController, knob.Idx); };
+        var actions = new StackPanel { Orientation = Orientation.Horizontal };
+        if (users.Count > 0)
+        {
+            var first = users[0];
+            var openMixer = MakeIconButton(MaterialIconKind.TuneVertical, $"Open {first.Label} in the Mixer", danger: false, size: 30);
+            openMixer.MouseLeftButtonUp += (_, e) => { e.Handled = true; OnOpenInMixer?.Invoke(first.IsStreamController, first.Idx); };
+            actions.Children.Add(openMixer);
+        }
 
         var more = MakeIconButton(MaterialIconKind.DotsHorizontal, "More", danger: false, size: 30);
         more.MouseLeftButtonUp += (_, e) =>
@@ -855,52 +873,70 @@ public partial class GroupsView : UserControl
             e.Handled = true;
             GlassContextMenuHost.Show(more, new List<GlassMenuItem>
             {
-                new("Add app", MaterialIconKind.Plus, () => ShowAddAppMenu(more, knob)),
-                new("Add by process name…", MaterialIconKind.FormTextbox, () => PromptAddApp(knob)),
+                new("Add app", MaterialIconKind.Plus, () => ShowAddAppMenu(more, group)),
+                new("Add by process name…", MaterialIconKind.FormTextbox, () => PromptAddApp(group)),
+                new("Rename", MaterialIconKind.PencilOutline, () =>
+                {
+                    var name = GlassDialog.Prompt("New name for this app group:", "Rename app group", Window.GetWindow(this), group.Name);
+                    if (!string.IsNullOrWhiteSpace(name)) RenameAppGroup(group, name);
+                }),
                 GlassMenuItem.Sep,
                 new("Remove all apps", MaterialIconKind.DeleteSweepOutline, () =>
                 {
-                    if (knob.Apps.Count == 0) return;
-                    if (!GlassDialog.Confirm($"Remove all {knob.Apps.Count} apps from {title}?", "Clear app group",
+                    if (group.Apps.Count == 0) return;
+                    if (!GlassDialog.Confirm($"Remove all {group.Apps.Count} apps from {group.Name}?", "Clear app group",
                         dangerYes: true, Window.GetWindow(this))) return;
-                    knob.Apps.Clear();
-                    SaveAppGroups();
-                }, IsDanger: true, IsEnabled: knob.Apps.Count > 0),
+                    group.Apps.Clear();
+                    SaveAppGroups(group);
+                }, IsDanger: true, IsEnabled: group.Apps.Count > 0),
+                new("Delete group", MaterialIconKind.DeleteOutline, () =>
+                {
+                    string msg = $"Delete \"{group.Name}\"?";
+                    if (users.Count > 0)
+                        msg += $"\n\n{string.Join(", ", users.Select(u => u.Label))} will keep their current apps but won't be linked any more.";
+                    if (!GlassDialog.Confirm(msg, "Delete app group", dangerYes: true, Window.GetWindow(this))) return;
+                    if (_config == null) return;
+                    AppGroupSync.Delete(_config, group);
+                    SaveAppGroups(null);
+                }, IsDanger: true),
             });
         };
-
-        var actions = new StackPanel { Orientation = Orientation.Horizontal };
-        actions.Children.Add(openMixer);
         actions.Children.Add(more);
 
         var card = BuildCardShell(ThemeManager.Accent, MaterialIconKind.Apps,
-            "Created in the Mixer", null,
-            title, null, subtitle, "Rename this knob in the Mixer",
+            "App group", null,
+            group.Name, newName => RenameAppGroup(group, newName), subtitle, null,
             actions, list);
         card.Tag = key;
         return card;
     }
 
+    private void RenameAppGroup(AppGroupDef group, string newName)
+    {
+        if (_config == null || string.IsNullOrWhiteSpace(newName)) return;
+        AppGroupSync.Rename(_config, group, newName.Trim());
+        SaveAppGroups(group);
+    }
+
     /// <summary>Searchable app chooser (same flyout as the Mixer) listing apps playing audio right now.</summary>
-    private void ShowAddAppMenu(FrameworkElement anchor, KnobConfig knob)
+    private void ShowAddAppMenu(FrameworkElement anchor, AppGroupDef group)
     {
         List<string> running;
         try { running = _mixer?.GetRunningAudioApps() ?? new List<string>(); }
         catch { running = new List<string>(); }
 
         var choices = running
-            .Where(a => !knob.Apps.Contains(a, StringComparer.OrdinalIgnoreCase))
+            .Where(a => !group.Apps.Contains(a, StringComparer.OrdinalIgnoreCase))
             .OrderBy(a => MixerView.FormatTargetName(a), StringComparer.OrdinalIgnoreCase)
             .Select(a => new AppChooser.Choice(a, MixerView.FormatTargetName(a), "Playing audio now", MixerView.GetAppIcon(a)))
             .ToList();
 
         AppChooser.Show(anchor, choices, picked =>
         {
-            if (!knob.Apps.Contains(picked, StringComparer.OrdinalIgnoreCase)) knob.Apps.Add(picked);
-            SaveAppGroups();
+            if (!group.Apps.Contains(picked, StringComparer.OrdinalIgnoreCase)) group.Apps.Add(picked);
+            SaveAppGroups(group);
         }, emptyText: "No other apps are playing audio. Type a process name to add one anyway.");
     }
-
     /// <summary>
     /// App row in the Mixer dropdown style: tinted icon tile with the real app icon,
     /// friendly name + status line, remove button on hover.
@@ -963,19 +999,21 @@ public partial class GroupsView : UserControl
         return row;
     }
 
-    private void PromptAddApp(KnobConfig knob)
+    private void PromptAddApp(AppGroupDef group)
     {
         var name = GlassDialog.Prompt("Process name (e.g. spotify, chrome, game.exe):", "Add app", Window.GetWindow(this));
         if (string.IsNullOrWhiteSpace(name)) return;
         name = name.Trim();
         if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) name = name[..^4];
         name = name.ToLowerInvariant();
-        if (!knob.Apps.Contains(name, StringComparer.OrdinalIgnoreCase)) knob.Apps.Add(name);
-        SaveAppGroups();
+        if (!group.Apps.Contains(name, StringComparer.OrdinalIgnoreCase)) group.Apps.Add(name);
+        SaveAppGroups(group);
     }
 
-    private void SaveAppGroups()
+    /// <summary>Push the group's apps onto every knob using it, save, and redraw here + in the Mixer.</summary>
+    private void SaveAppGroups(AppGroupDef? group)
     {
+        if (_config != null && group != null) AppGroupSync.Mirror(_config, group);
         Save();
         OnAppGroupsChanged?.Invoke();
         RebuildGroupPanel();
