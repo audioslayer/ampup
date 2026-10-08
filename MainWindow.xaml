@@ -149,7 +149,10 @@
 
             <!-- Content Area -->
             <Border Grid.Column="1" Padding="24,16">
-                <ContentControl x:Name="ContentArea" />
+                <!-- Not focusable: otherwise Tab / arrow keys land on it and WPF draws a
+                     white focus rectangle around the whole page. -->
+                <ContentControl x:Name="ContentArea" Focusable="False" IsTabStop="False"
+                                FocusVisualStyle="{x:Null}" />
             </Border>
 
             <!-- Sidebar Navigation (expand-on-hover overlay) -->
