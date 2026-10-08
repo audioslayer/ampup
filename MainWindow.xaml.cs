@@ -328,6 +328,13 @@ public partial class MainWindow : FluentWindow
         _osdView.LoadConfig(_config, saveHandler);
         _groupsView.SetMixer(_mixer);
         _groupsView.OnAppGroupsChanged = () => _mixerView.RefreshAppGroups();
+        // Mixer "Manage" link ↔ Groups "Open in Mixer" button
+        _mixerView.OnOpenAppGroup = (sc, idx) =>
+        {
+            NavGroups_Click(NavGroups, new RoutedEventArgs());
+            _groupsView.FocusAppGroup(sc, idx);
+        };
+        _groupsView.OnOpenInMixer = (_, _) => NavigateTo(_mixerView, NavMixer);
         _groupsView.LoadConfig(_config, saveHandler);
 
         // Show/hide Ambience nav based on Govee or Corsair enabled state

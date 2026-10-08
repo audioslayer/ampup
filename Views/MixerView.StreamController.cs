@@ -200,15 +200,9 @@ public partial class MixerView
 
             // App Group chip list — mirrors the Turn Up mixer's setup.
             var appsContainer = new StackPanel { Visibility = Visibility.Collapsed };
-            appsContainer.Children.Add(new TextBlock
-            {
-                Text = "APP GROUP",
-                FontSize = 9,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = FindBrush("TextDimBrush"),
-                Margin = new Thickness(0, 6, 0, 4),
-            });
-            appsContainer.ToolTip = "Click apps to add or remove from this group";
+            var appHeader = MakeAppGroupHeader(true, i);
+            appHeader.Margin = new Thickness(0, 6, 0, 4);
+            appsContainer.Children.Add(appHeader);
             var appsListPanel = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
             appsContainer.Children.Add(appsListPanel);
             _scAppsPanels[i] = appsContainer;

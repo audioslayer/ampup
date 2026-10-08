@@ -813,8 +813,7 @@ public partial class MixerView : UserControl
 
             // App group picker (hidden unless "apps")
             var appsContainer = new StackPanel { Visibility = Visibility.Collapsed };
-            appsContainer.Children.Add(MakeLabel("APP GROUP"));
-            appsContainer.ToolTip = "Click apps to add or remove from this group";
+            appsContainer.Children.Add(MakeAppGroupHeader(false, i));
 
             var appsListPanel = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
             _appsListPanels[i] = appsListPanel;
@@ -1626,6 +1625,44 @@ public partial class MixerView : UserControl
         };
     }
 
+    /// <summary>Raised by an app group's "Manage" link: (isStreamController, knob idx).</summary>
+    public Action<bool, int>? OnOpenAppGroup { get; set; }
+
+    /// <summary>"APP GROUP" caption with a "Manage ↗" link that opens this group on the Groups page.</summary>
+    private Grid MakeAppGroupHeader(bool streamController, int knobIdx)
+    {
+        var g = new Grid { Margin = new Thickness(0, 4, 0, 3) };
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var cap = MakeLabel("APP GROUP");
+        cap.Margin = new Thickness(0);
+        cap.VerticalAlignment = VerticalAlignment.Center;
+        g.Children.Add(cap);
+
+        var icon = new Material.Icons.WPF.MaterialIcon { Kind = Material.Icons.MaterialIconKind.OpenInNew, Width = 11, Height = 11, Margin = new Thickness(4, 0, 0, 0) };
+        var text = new TextBlock { Text = "Manage", FontSize = 10.5, FontWeight = FontWeights.SemiBold };
+        var link = new StackPanel
+        {
+            Orientation = Orientation.Horizontal, Cursor = System.Windows.Input.Cursors.Hand,
+            Background = Brushes.Transparent, VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = "Open this app group on the Groups page",
+        };
+        link.Children.Add(text);
+        link.Children.Add(icon);
+        void Paint(bool hover)
+        {
+            text.SetResourceReference(TextBlock.ForegroundProperty, hover ? "AccentBrush" : "TextSecBrush");
+            icon.SetResourceReference(Control.ForegroundProperty, hover ? "AccentBrush" : "TextDimBrush");
+        }
+        Paint(false);
+        link.MouseEnter += (_, _) => Paint(true);
+        link.MouseLeave += (_, _) => Paint(false);
+        link.MouseLeftButtonUp += (_, e) => { e.Handled = true; OnOpenAppGroup?.Invoke(streamController, knobIdx); };
+        Grid.SetColumn(link, 1);
+        g.Children.Add(link);
+        return g;
+    }
+
     private TextBlock MakeLabel(string text)
     {
         return new TextBlock
@@ -1764,7 +1801,7 @@ public partial class MixerView : UserControl
             (byte)Math.Min(255, (int)(c.B * scale)));
     }
 
-    private static string FormatTargetName(string target)
+    internal static string FormatTargetName(string target)
     {
         if (string.IsNullOrEmpty(target) || target == "none")
             return "None";

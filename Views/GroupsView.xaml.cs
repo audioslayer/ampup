@@ -28,6 +28,12 @@ public partial class GroupsView : UserControl
     /// <summary>Raised after an app group's app list changes so the Mixer can redraw its chips.</summary>
     public Action? OnAppGroupsChanged { get; set; }
 
+    /// <summary>Raised by an app group card's "Open in Mixer" button: (isStreamController, knob idx).</summary>
+    public Action<bool, int>? OnOpenInMixer { get; set; }
+
+    // Card to scroll to + highlight after the next rebuild (set by FocusAppGroup).
+    private string? _focusKey;
+
     private readonly List<(Border bar, TextBlock label)> _sectionHeaders = new();
     private readonly HashSet<string> _expanded = new();
     private const int CollapsedRowCount = 5;
@@ -96,6 +102,41 @@ public partial class GroupsView : UserControl
             foreach (var ag in appGroups)
                 GroupPanel.Children.Add(BuildAppGroupCard(ag));
         }
+
+        if (_focusKey != null)
+        {
+            var key = _focusKey;
+            _focusKey = null;
+            var target = GroupPanel.Children.OfType<Border>().FirstOrDefault(b => b.Tag as string == key);
+            if (target != null)
+                Dispatcher.BeginInvoke(() => HighlightCard(target), System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+    }
+
+    /// <summary>Scroll an app group's card into view and pulse its border (used by the Mixer's "Manage" link).</summary>
+    public void FocusAppGroup(bool streamController, int knobIdx)
+    {
+        _focusKey = AppGroupKey(streamController, knobIdx);
+        RebuildGroupPanel();
+    }
+
+    private static string AppGroupKey(bool streamController, int knobIdx) => $"{(streamController ? "sc" : "tu")}:{knobIdx}";
+
+    private static void HighlightCard(Border card)
+    {
+        card.BringIntoView();
+        var accent = ThemeManager.Accent;
+        var brush = new SolidColorBrush(accent);
+        var oldBrush = card.BorderBrush;
+        var oldThickness = card.BorderThickness;
+        card.BorderBrush = brush;
+        card.BorderThickness = new Thickness(1.5);
+        var fade = new System.Windows.Media.Animation.ColorAnimation(accent, ThemeManager.WithAlpha(accent, 0), TimeSpan.FromMilliseconds(1600))
+        {
+            BeginTime = TimeSpan.FromMilliseconds(600),
+        };
+        fade.Completed += (_, _) => { card.BorderBrush = oldBrush; card.BorderThickness = oldThickness; };
+        brush.BeginAnimation(SolidColorBrush.ColorProperty, fade);
     }
 
     private FrameworkElement BuildPageHeader() =>
@@ -338,8 +379,9 @@ public partial class GroupsView : UserControl
         Action? OnTypeClick, string? TypeTooltip, Action OnRemove, string RemoveTooltip, bool Dim = false);
 
     private FrameworkElement BuildMemberList(string key, IReadOnlyList<MemberRow> rows, string emptyText,
-        string addLabel, Action<FrameworkElement> onAdd)
+        string addLabel, Action<FrameworkElement> onAdd, Func<MemberRow, FrameworkElement>? rowFactory = null)
     {
+        rowFactory ??= BuildMemberRowElement;
         var list = new Border
         {
             CornerRadius = new CornerRadius(8),
@@ -361,7 +403,7 @@ public partial class GroupsView : UserControl
         bool expanded = _expanded.Contains(key);
         int shown = expanded ? rows.Count : Math.Min(rows.Count, CollapsedRowCount);
         for (int i = 0; i < shown; i++)
-            stack.Children.Add(BuildMemberRowElement(rows[i]));
+            stack.Children.Add(rowFactory(rows[i]));
 
         if (rows.Count > CollapsedRowCount)
         {
@@ -772,7 +814,7 @@ public partial class GroupsView : UserControl
         var knob = ag.Knob;
         string prefix = ag.IsStreamController ? $"Encoder {knob.Idx + 1}" : $"Knob {knob.Idx + 1}";
         string title = string.IsNullOrWhiteSpace(knob.Label) ? prefix : $"{prefix} · {knob.Label}";
-        string key = $"{(ag.IsStreamController ? "sc" : "tu")}:{knob.Idx}";
+        string key = AppGroupKey(ag.IsStreamController, knob.Idx);
 
         List<string> running;
         try { running = _mixer?.GetRunningAudioApps() ?? new List<string>(); }
@@ -785,8 +827,8 @@ public partial class GroupsView : UserControl
             var appCapture = app;
             rows.Add(new MemberRow(
                 MakeAppIcon(app, isRunning),
-                app, null,
-                isRunning ? "Running" : "Not running",
+                MixerView.FormatTargetName(app), app,
+                isRunning ? "Playing audio now" : "Not running",
                 null, null,
                 () =>
                 {
@@ -801,8 +843,11 @@ public partial class GroupsView : UserControl
         string device = ag.IsStreamController ? "Stream Controller" : "Turn Up";
         string subtitle = n == 0 ? $"Empty · {device} mixer" : $"{n} app{(n == 1 ? "" : "s")} · {device} mixer";
 
-        var list = BuildMemberList(key, rows, "No apps yet — add running apps below.", "Add app",
-            anchor => ShowAddAppMenu(anchor, knob));
+        var list = BuildMemberList(key, rows, "No apps yet. Add one below.", "Add app",
+            anchor => ShowAddAppMenu(anchor, knob), BuildAppMemberRow);
+
+        var openMixer = MakeIconButton(MaterialIconKind.TuneVertical, "Open in Mixer", danger: false, size: 30);
+        openMixer.MouseLeftButtonUp += (_, e) => { e.Handled = true; OnOpenInMixer?.Invoke(ag.IsStreamController, knob.Idx); };
 
         var more = MakeIconButton(MaterialIconKind.DotsHorizontal, "More", danger: false, size: 30);
         more.MouseLeftButtonUp += (_, e) =>
@@ -824,33 +869,98 @@ public partial class GroupsView : UserControl
             });
         };
 
-        return BuildCardShell(ThemeManager.Accent, ag.IsStreamController ? MaterialIconKind.Knob : MaterialIconKind.TuneVertical,
+        var actions = new StackPanel { Orientation = Orientation.Horizontal };
+        actions.Children.Add(openMixer);
+        actions.Children.Add(more);
+
+        var card = BuildCardShell(ThemeManager.Accent, MaterialIconKind.Apps,
             "Created in the Mixer", null,
             title, null, subtitle, "Rename this knob in the Mixer",
-            more, list);
+            actions, list);
+        card.Tag = key;
+        return card;
     }
 
+    /// <summary>Searchable app chooser (same flyout as the Mixer) listing apps playing audio right now.</summary>
     private void ShowAddAppMenu(FrameworkElement anchor, KnobConfig knob)
     {
         List<string> running;
         try { running = _mixer?.GetRunningAudioApps() ?? new List<string>(); }
         catch { running = new List<string>(); }
 
-        var items = running
+        var choices = running
             .Where(a => !knob.Apps.Contains(a, StringComparer.OrdinalIgnoreCase))
-            .OrderBy(a => a, StringComparer.OrdinalIgnoreCase)
-            .Select(a => new GlassMenuItem(a, MaterialIconKind.Application, () =>
-            {
-                if (!knob.Apps.Contains(a, StringComparer.OrdinalIgnoreCase)) knob.Apps.Add(a);
-                SaveAppGroups();
-            }))
+            .OrderBy(a => MixerView.FormatTargetName(a), StringComparer.OrdinalIgnoreCase)
+            .Select(a => new AppChooser.Choice(a, MixerView.FormatTargetName(a), "Playing audio now", MixerView.GetAppIcon(a)))
             .ToList();
 
-        if (items.Count == 0)
-            items.Add(new GlassMenuItem("No other apps are playing audio", MaterialIconKind.InformationOutline, null, IsEnabled: false));
-        items.Add(GlassMenuItem.Sep);
-        items.Add(new GlassMenuItem("Add by process name…", MaterialIconKind.FormTextbox, () => PromptAddApp(knob)));
-        GlassContextMenuHost.Show(anchor, items);
+        AppChooser.Show(anchor, choices, picked =>
+        {
+            if (!knob.Apps.Contains(picked, StringComparer.OrdinalIgnoreCase)) knob.Apps.Add(picked);
+            SaveAppGroups();
+        }, emptyText: "No other apps are playing audio. Type a process name to add one anyway.");
+    }
+
+    /// <summary>
+    /// App row in the Mixer dropdown style: tinted icon tile with the real app icon,
+    /// friendly name + status line, remove button on hover.
+    /// </summary>
+    private FrameworkElement BuildAppMemberRow(MemberRow r)
+    {
+        var row = new Border { CornerRadius = new CornerRadius(8), Padding = new Thickness(6, 5, 4, 5), Background = Brushes.Transparent };
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.Child = grid;
+
+        var tile = new Border
+        {
+            Width = 34, Height = 34,
+            CornerRadius = new CornerRadius(9),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(0, 0, 12, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Opacity = r.Dim ? 0.6 : 1,
+            Child = r.Icon,
+        };
+        tile.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+        tile.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
+        r.Icon.HorizontalAlignment = HorizontalAlignment.Center;
+        r.Icon.VerticalAlignment = VerticalAlignment.Center;
+        grid.Children.Add(tile);
+
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var name = new TextBlock { Text = r.Name, FontSize = 12.5, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = r.Detail };
+        name.SetResourceReference(TextBlock.ForegroundProperty, r.Dim ? "TextSecBrush" : "TextPrimaryBrush");
+        text.Children.Add(name);
+        var sub = new TextBlock { Text = r.TypeText, FontSize = 10.5, Margin = new Thickness(0, 1, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+        sub.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        text.Children.Add(sub);
+        Grid.SetColumn(text, 1);
+        grid.Children.Add(text);
+
+        // Live status: green when the app is playing audio right now
+        var dot = new System.Windows.Shapes.Ellipse
+        {
+            Width = 7, Height = 7, Margin = new Thickness(8, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center,
+            Fill = r.Dim ? FindBrush("TextDimBrush") : new SolidColorBrush(Color.FromRgb(0x00, 0xDD, 0x77)),
+            Opacity = r.Dim ? 0.4 : 1,
+            ToolTip = r.TypeText,
+        };
+        Grid.SetColumn(dot, 2);
+        grid.Children.Add(dot);
+
+        var remove = MakeIconButton(MaterialIconKind.Close, r.RemoveTooltip, danger: true, size: 26);
+        remove.Opacity = 0;
+        remove.MouseLeftButtonUp += (_, e) => { e.Handled = true; r.OnRemove(); };
+        Grid.SetColumn(remove, 3);
+        grid.Children.Add(remove);
+
+        row.MouseEnter += (_, _) => { row.SetResourceReference(Border.BackgroundProperty, "CardBgBrush"); remove.Opacity = 1; };
+        row.MouseLeave += (_, _) => { row.Background = Brushes.Transparent; remove.Opacity = 0; };
+        return row;
     }
 
     private void PromptAddApp(KnobConfig knob)
@@ -873,12 +983,15 @@ public partial class GroupsView : UserControl
 
     private FrameworkElement MakeAppIcon(string app, bool running)
     {
-        var bmp = running ? MixerView.GetAppIcon(app) : null;
+        // GetAppIcon's disk cache also covers apps that aren't running right now.
+        var bmp = MixerView.GetAppIcon(app);
         if (bmp != null)
-            return new Image { Source = bmp, Width = 16, Height = 16 };
-        var ic = MakeIcon(MaterialIconKind.Application, 16, "TextDimBrush");
-        if (!running) ic.Opacity = 0.6;
-        return ic;
+        {
+            var img = new Image { Source = bmp, Width = 20, Height = 20, Stretch = Stretch.Uniform };
+            RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
+            return img;
+        }
+        return MakeIcon(MaterialIconKind.Application, 17, running ? "TextSecBrush" : "TextDimBrush");
     }
 
     // ── New group ────────────────────────────────────────────────────

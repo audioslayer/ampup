@@ -354,7 +354,12 @@
                                 </StackPanel>
                             </Grid>
                         </Button>
-                        <Button x:Name="NavGroups" Style="{StaticResource SidebarNavButton}" Click="NavGroups_Click" ToolTip="Device Groups — organize Govee, Corsair, and HA devices">
+                        <Grid Height="24" IsHitTestVisible="False">
+                            <Border x:Name="SepApp" Height="1" Margin="20,0" VerticalAlignment="Center" Background="{DynamicResource CardBorderBrush}" />
+                            <TextBlock x:Name="CapApp" Text="APP" FontSize="10" FontWeight="Bold" Opacity="0"
+                                       Foreground="{DynamicResource TextDimBrush}" VerticalAlignment="Bottom" Margin="22,0,0,3" />
+                        </Grid>
+                        <Button x:Name="NavGroups" Style="{StaticResource SidebarNavButton}" Click="NavGroups_Click" ToolTip="Groups — app groups from the Mixer plus Govee, Corsair and Home Assistant device groups">
                             <Grid>
                                 <Border x:Name="NavGroupsPill" CornerRadius="10" Background="Transparent" IsHitTestVisible="False" />
                                 <Border x:Name="NavGroupsBar" Width="3" Height="0" CornerRadius="2" Opacity="0"
@@ -374,11 +379,6 @@
                                 </StackPanel>
                             </Grid>
                         </Button>
-                        <Grid Height="24" IsHitTestVisible="False">
-                            <Border x:Name="SepApp" Height="1" Margin="20,0" VerticalAlignment="Center" Background="{DynamicResource CardBorderBrush}" />
-                            <TextBlock x:Name="CapApp" Text="APP" FontSize="10" FontWeight="Bold" Opacity="0"
-                                       Foreground="{DynamicResource TextDimBrush}" VerticalAlignment="Bottom" Margin="22,0,0,3" />
-                        </Grid>
                         <Button x:Name="NavOsd" Style="{StaticResource SidebarNavButton}" Click="NavOsd_Click" ToolTip="OSD Overlay &amp; Quick Wheel settings">
                             <Grid>
                                 <Border x:Name="NavOsdPill" CornerRadius="10" Background="Transparent" IsHitTestVisible="False" />
