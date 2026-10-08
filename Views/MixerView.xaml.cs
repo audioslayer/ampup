@@ -753,21 +753,7 @@ public partial class MixerView : UserControl
             // so it stays hidden inside the card until this icon is clicked.
             var volRow = new Grid();
             volRow.Children.Add(volLabel);
-            var rangeIcon = new Material.Icons.WPF.MaterialIcon
-            {
-                Kind = Material.Icons.MaterialIconKind.ArrowExpandVertical,
-                Width = 15, Height = 15,
-            };
-            var rangeBtn = new Border
-            {
-                Width = 24, Height = 24, CornerRadius = new CornerRadius(6),
-                HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
-                Background = Brushes.Transparent, Cursor = System.Windows.Input.Cursors.Hand,
-                ToolTip = "Volume range: limit how low or high this knob goes",
-                Child = rangeIcon,
-            };
-            rangeBtn.MouseEnter += (_, _) => rangeBtn.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-            rangeBtn.MouseLeave += (_, _) => rangeBtn.Background = Brushes.Transparent;
+            var rangeBtn = MakeRangeToggleButton(out var rangeIcon);
             _rangeIcons[i] = rangeIcon;
             volRow.Children.Add(rangeBtn);
             panel.Children.Add(volRow);
@@ -882,36 +868,61 @@ public partial class MixerView : UserControl
             rangeStack.Children.Add(rangeSlider);
             rangeStack.Children.Add(labelsRow);
             rangeCells[i].Child = rangeStack;
-            var rangeCell = rangeCells[i];
             if (_rangeIcons[i].Parent is Border rb)
-                rb.MouseLeftButtonUp += (_, e) =>
-                {
-                    rangeCell.Visibility = rangeCell.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
-                    UpdateRangeIcon(idx);
-                    e.Handled = true;
-                };
-            rangeSlider.LowerValueChanged += (_, _) => UpdateRangeIcon(idx);
-            rangeSlider.UpperValueChanged += (_, _) => UpdateRangeIcon(idx);
-            UpdateRangeIcon(idx);
+                WireRangeToggle(rb, _rangeIcons[i], rangeCells[i], rangeSlider);
 
         }
     }
 
-    /// <summary>Range icon is accent-coloured when the editor is open or a custom range is set.</summary>
-    private void UpdateRangeIcon(int idx)
+    /// <summary>
+    /// Small range icon button for the top-right of a volume readout. Shared by the Turn Up
+    /// and Stream Controller mixers; pair it with <see cref="WireRangeToggle"/>.
+    /// </summary>
+    private static Border MakeRangeToggleButton(out Material.Icons.WPF.MaterialIcon icon)
     {
-        var icon = _rangeIcons[idx];
-        var slider = _rangeSliders[idx];
-        if (icon == null) return;
-        bool custom = slider != null && (slider.LowerValue > 0 || slider.UpperValue < 100);
-        var cells = new[] { Ch0Range, Ch1Range, Ch2Range, Ch3Range, Ch4Range };
-        bool open = cells[idx].Visibility == Visibility.Visible;
-        if (custom || open) icon.Foreground = new SolidColorBrush(ThemeManager.Accent);
-        else icon.SetResourceReference(Control.ForegroundProperty, "TextDimBrush");
-        if (icon.Parent is FrameworkElement btn)
-            btn.ToolTip = custom && slider != null
+        icon = new Material.Icons.WPF.MaterialIcon
+        {
+            Kind = Material.Icons.MaterialIconKind.ArrowExpandVertical,
+            Width = 15, Height = 15,
+        };
+        var btn = new Border
+        {
+            Width = 24, Height = 24, CornerRadius = new CornerRadius(6),
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
+            Background = Brushes.Transparent, Cursor = System.Windows.Input.Cursors.Hand,
+            ToolTip = "Volume range: limit how low or high this knob goes",
+            Child = icon,
+        };
+        btn.MouseEnter += (_, _) => btn.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+        btn.MouseLeave += (_, _) => btn.Background = Brushes.Transparent;
+        return btn;
+    }
+
+    /// <summary>
+    /// Clicking <paramref name="btn"/> shows / hides <paramref name="editor"/>. The icon turns
+    /// accent-coloured while the editor is open or a custom range is set.
+    /// </summary>
+    private static void WireRangeToggle(Border btn, Material.Icons.WPF.MaterialIcon icon, FrameworkElement editor, RangeSlider slider)
+    {
+        void Paint()
+        {
+            bool custom = slider.LowerValue > 0 || slider.UpperValue < 100;
+            bool open = editor.Visibility == Visibility.Visible;
+            if (custom || open) icon.Foreground = new SolidColorBrush(ThemeManager.Accent);
+            else icon.SetResourceReference(Control.ForegroundProperty, "TextDimBrush");
+            btn.ToolTip = custom
                 ? $"Volume range {(int)slider.LowerValue}% to {(int)slider.UpperValue}% (click to edit)"
                 : "Volume range: limit how low or high this knob goes";
+        }
+        btn.MouseLeftButtonUp += (_, e) =>
+        {
+            editor.Visibility = editor.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+            Paint();
+            e.Handled = true;
+        };
+        slider.LowerValueChanged += (_, _) => Paint();
+        slider.UpperValueChanged += (_, _) => Paint();
+        Paint();
     }
 
     private void UpdateTargetDisplay(int idx)

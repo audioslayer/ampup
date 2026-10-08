@@ -157,7 +157,12 @@ public partial class MixerView
                 Margin = new Thickness(0, 0, 0, 4)
             };
             _scVolLabels[i] = volLabel;
-            stripStack.Children.Add(volLabel);
+            // Volume % with the range icon to its right (same as the Turn Up mixer).
+            var volRow = new Grid();
+            volRow.Children.Add(volLabel);
+            var rangeBtn = MakeRangeToggleButton(out var scRangeIcon);
+            volRow.Children.Add(rangeBtn);
+            stripStack.Children.Add(volRow);
 
             var targetDisplay = new TextBlock
             {
@@ -235,9 +240,11 @@ public partial class MixerView
             };
             _scSensitivitySliders[i] = sensitivity;
 
-            var sensCard = MakeSectionCard("SENSITIVITY", sensitivity);
-            sensCard.Margin = new Thickness(0, 0, 0, 10);
-            col.Children.Add(sensCard);
+            // Sensitivity lives in the encoder card itself, under the target.
+            var sensHeader = MakeLabel("SENSITIVITY");
+            sensHeader.Margin = new Thickness(0, 10, 0, 0);
+            stripStack.Children.Add(sensHeader);
+            stripStack.Children.Add(sensitivity);
 
             // ── Range slider row ───────────────────────────────────────
             var range = new RangeSlider
@@ -268,9 +275,13 @@ public partial class MixerView
             labelsRow.Children.Add(minLabel);
             labelsRow.Children.Add(maxLabel);
 
-            var rangeHost = MakeSectionCard("VOLUME RANGE", range, labelsRow);
-            rangeHost.Margin = new Thickness(0, 0, 0, 10);
-            col.Children.Add(rangeHost);
+            // Volume range: inside the card, collapsed until the range icon is clicked.
+            var rangePanel = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 4, 0, 0) };
+            rangePanel.Children.Add(MakeLabel("VOLUME RANGE"));
+            rangePanel.Children.Add(range);
+            rangePanel.Children.Add(labelsRow);
+            stripStack.Children.Add(rangePanel);
+            WireRangeToggle(rangeBtn, scRangeIcon, rangePanel, range);
         }
 
         StreamControllerMixerContent.Children.Add(grid);
