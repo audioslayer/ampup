@@ -60,9 +60,19 @@ The experimental macOS port has been discontinued. Current releases support **64
 
 ## Features
 
+### A modern interface
+
+- A slim sidebar that expands on hover, with sections for Hardware, Lighting, and App and the profile switcher at the top.
+- Compact page headers, and the same cards, switches, sliders, dropdowns, and text boxes on every page.
+- Searchable pickers with sections, friendly names, short descriptions, and real app icons.
+- Small **?** help tips explain each feature on hover instead of filling pages with text.
+- Twelve card themes plus a custom accent color.
+
 ### Windows audio and mixer control
 
 - Control master output, microphone input, individual apps, app groups, active-window audio, and specific input/output devices.
+- Give each knob or N3 encoder its own card. Pick its target, then set curve, volume range, and sensitivity in the same card.
+- Name app groups and share them between knobs and N3 encoders. An edit from any control updates the group everywhere it's used, and the **Groups** page lists every app group alongside your device groups.
 - Match traditional desktop apps, games, browsers, UWP apps, and sessions whose display name differs from their process name.
 - Move every audio session an app opens with one knob—apps such as Apple Music and Discord can show several sliders in the Windows volume mixer.
 - Apply linear, logarithmic, or exponential response curves with custom minimum and maximum volume ranges.
@@ -77,7 +87,7 @@ The experimental macOS port has been discontinued. Current releases support **64
 - Build profiles, import/export configurations, back up settings, and switch profiles manually or by foreground application.
 - Automatically duck selected apps when a voice or priority application becomes active.
 - Show volume, profile, and device OSD notifications on a chosen monitor.
-- Hold a button to open a Quick Wheel: switch profiles, output or input devices, SignalRGB effects, media controls, or your own custom actions. Pick exactly which items each wheel shows and preview it live in settings.
+- Hold a button to open a Quick Wheel: switch profiles, output or input devices, SignalRGB effects, media controls, or your own custom actions. Each wheel holds up to 12 items. Choose exactly which ones it shows, rename it, and watch a live preview as you edit on the **OSD** page.
 
 ### Turn Up RGB lighting
 
@@ -90,7 +100,8 @@ The experimental macOS port has been discontinued. Current releases support **64
 
 ### N3 stream controller
 
-- Design six LCD keys with titles, icons, custom images, colors, glow, text placement, and display modes.
+- Edit the device on a blueprint drawing of the real N3, showing live previews of every key, button, and knob.
+- Design six LCD keys with titles, icons, custom images, colors, glow, text placement, and display modes. A live mirror shows the key next to a mini map of the page.
 - Organize actions into pages and Spaces, with Home navigation and automatic Back keys.
 - Configure side buttons and encoder presses with tap, double-press, and hold gestures.
 - Use encoder rotation for volume-style targets, page navigation, or Space navigation.
@@ -102,6 +113,8 @@ The experimental macOS port has been discontinued. Current releases support **64
 
 - Synchronize Govee, Corsair iCUE, and Turn Up lighting from one Room workspace.
 - Use static and animated room effects, Music Reactive, VU Fill, Screen Sync, and Game Mode.
+- Screen Sync uses GPU capture (DXGI Desktop Duplication) with HDR tone-mapping. It samples the screen edges, picks dominant colors, and adjusts brightness to the scene.
+- Set white balance per device and map light segments to screen edges, for example a rope light bent around a frame.
 - Place devices on a room layout and map screen regions spatially.
 - Control brightness, palettes, direction, temperature, device groups, and per-device participation.
 - Support Govee LAN control, cloud-only devices, and compatible RGBIC segment effects.
@@ -111,6 +124,8 @@ The experimental macOS port has been discontinued. Current releases support **64
 - Dedicated ordered input workers keep slow button actions from blocking Turn Up or N3 device reads.
 - High-frequency absolute knob events are coalesced so stale input cannot build a latency backlog.
 - Serial stall detection reconnects the Turn Up if its USB stream stops responding.
+- Serial input, N3 input, and RGB rendering run on their own threads, and unchanged lighting frames are skipped instead of resent.
+- Memory is trimmed while Amp Up sits in the tray, and off-screen previews pause.
 - Audio-session and RGB refresh paths are non-reentrant and clean up Windows audio resources deterministically.
 - Runtime logs rotate automatically, repeated offline-device messages are rate-limited, and failed Spotify refresh credentials stop retrying continuously.
 
@@ -214,7 +229,7 @@ The version comes from `AmpUp.csproj`. For the in-app updater to recognize a rel
 | `App.xaml.cs` | Application startup, hardware orchestration, profiles, integrations, tray, OSD, and runtime coordination |
 | `AudioMixer.cs` | Windows Core Audio sessions, endpoints, peaks, mute, and volume targets |
 | `ButtonHandler.cs` | Gesture recognition and action execution |
-| `Views/` | Mixer, Buttons, Lights, Room, Overview, OSD, and Settings pages |
+| `Views/` | Mixer, Buttons, Lights, Room, Groups, Overview, OSD, and Settings pages |
 | `Controls/` | Custom WPF controls, tray mixer, action pickers, N3 tiles, effects, and editors |
 | `installer/` | Inno Setup definition and generated installer output |
 
