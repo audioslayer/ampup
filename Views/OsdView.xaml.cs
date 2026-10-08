@@ -198,8 +198,11 @@ public partial class OsdView : UserControl
 
         // ══════════════════ PLACEMENT ══════════════════
         var placeBody = new StackPanel();
-        CmbOsdMonitor = new ListPicker { MinWidth = 180, MaxWidth = 280 };
-        placeBody.Children.Add(MakeSettingRow("Monitor", null, CmbOsdMonitor));
+        // Label above, dropdown left-aligned under it (same column as the Position grid).
+        CmbOsdMonitor = new ListPicker { MinWidth = 220, MaxWidth = 320, HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 0, 0, 14) };
+        placeBody.Children.Add(MakeLabel("Monitor"));
+        placeBody.Children.Add(CmbOsdMonitor);
 
         placeBody.Children.Add(MakeLabelWithHelp("Position",
             "Windows draws its own volume popup near the top-left or bottom-center. Pick a different spot so the two don't overlap.",
