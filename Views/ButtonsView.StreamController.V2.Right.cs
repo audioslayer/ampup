@@ -47,6 +47,19 @@ public partial class ButtonsView
     private FrameworkElement? _v2IconSection;
     private TextBlock? _v2DisplaySummary, _v2TextSummary, _v2IconSummary;
     private static readonly HashSet<string> _v2CollapsedSections = new();
+    private FrameworkElement? _v2BrightnessRow;
+    private readonly List<(Border Tile, DisplayKeyType Type)> _v2TypeTiles = new();
+
+    // Display type tiles: icon, name, one-line description.
+    private static readonly (DisplayKeyType Type, Material.Icons.MaterialIconKind Icon, string Name, string Desc)[] V2DisplayTypes =
+    {
+        (DisplayKeyType.Normal, Material.Icons.MaterialIconKind.ImageOutline, "Normal", "Icon and title"),
+        (DisplayKeyType.Clock, Material.Icons.MaterialIconKind.ClockOutline, "Clock", "Live time"),
+        (DisplayKeyType.DynamicState, Material.Icons.MaterialIconKind.ToggleSwitchOutline, "Dynamic", "Shows on / off"),
+        (DisplayKeyType.Solid, Material.Icons.MaterialIconKind.SquareRounded, "Solid", "Flat color"),
+        (DisplayKeyType.SpotifyNowPlaying, Material.Icons.MaterialIconKind.Spotify, "Spotify", "Now playing"),
+        (DisplayKeyType.HardwareMonitor, Material.Icons.MaterialIconKind.Gauge, "Hardware", "CPU, GPU, temps"),
+    };
 
     // Inline-editable header that mirrors the Mixer tab's channel label:
     // always-editable TextBox with transparent chrome until focus reveals an
@@ -218,13 +231,18 @@ public partial class ButtonsView
         var designContent = new StackPanel();
         _v2DesignContent = designContent;
 
+        FrameworkElement? typeCaption = null, typeTiles = null, typePickerHost = null;
         if (_scDisplayTypePicker != null)
         {
-            designContent.Children.Add(MakeEditorLabel("DISPLAY TYPE"));
+            typeCaption = MakeEditorLabel("DISPLAY TYPE");
+            designContent.Children.Add(typeCaption);
+            // Icon tiles are the visible control; the segmented picker stays as the
+            // hidden backing control so all existing load / save code keeps working.
+            typeTiles = BuildV2DisplayTypeTiles();
+            designContent.Children.Add(typeTiles);
             DetachFromParent(_scDisplayTypePicker);
-            _scDisplayTypePicker.Margin = new Thickness(0, 0, 0, 12);
-            _scDisplayTypePicker.Visibility = Visibility.Visible;
-            designContent.Children.Add(_scDisplayTypePicker);
+            typePickerHost = new Border { Visibility = Visibility.Collapsed, Child = _scDisplayTypePicker };
+            designContent.Children.Add(typePickerHost);
         }
 
         if (_scHardwarePanel != null)
@@ -293,8 +311,9 @@ public partial class ButtonsView
                 Margin = new Thickness(0, 12, 0, 4),
             };
         }
+        // The old "Brightness: N%" caption stays unparented (legacy code still writes it);
+        // the visible control is a compact label | slider | value row.
         DetachFromParent(_v2BrightnessLabel);
-        designContent.Children.Add(_v2BrightnessLabel);
 
         if (_v2BrightnessSlider == null)
         {
@@ -319,8 +338,10 @@ public partial class ButtonsView
             };
         }
         DetachFromParent(_v2BrightnessSlider);
-        _v2BrightnessSlider.Margin = new Thickness(0, 0, 0, 10);
-        designContent.Children.Add(_v2BrightnessSlider);
+        _v2BrightnessSlider.Margin = new Thickness(0);
+        _v2BrightnessRow = MakeV2SliderRow("Brightness", _v2BrightnessSlider, v => $"{(int)Math.Round(v)}%");
+        _v2BrightnessRow.Margin = new Thickness(0, 4, 0, 6);
+        designContent.Children.Add(_v2BrightnessRow);
 
         _v2TextPositionLabel = MakeEditorLabel("TEXT POSITION");
         designContent.Children.Add(_v2TextPositionLabel);
@@ -338,6 +359,7 @@ public partial class ButtonsView
         }
         DetachFromParent(_scTextPositionPicker);
         _scTextPositionPicker.Margin = new Thickness(0, 0, 0, 10);
+        _scTextPositionPicker.HorizontalAlignment = HorizontalAlignment.Stretch;
         _scTextPositionPicker.Visibility = Visibility.Visible;
         designContent.Children.Add(_scTextPositionPicker);
 
@@ -416,23 +438,19 @@ public partial class ButtonsView
         var displayBody = new StackPanel();
         var textBody = new StackPanel();
         var iconBody = new StackPanel();
-        var displayParts = new HashSet<UIElement?> { _scDisplayTypePicker, _scHardwarePanel, _v2BrightnessLabel, _v2BrightnessSlider, _scClockPanel, _scDynamicPanel };
+        var displayParts = new HashSet<UIElement?> { typeCaption, typeTiles, typePickerHost, _scHardwarePanel, _v2BrightnessRow, _scClockPanel, _scDynamicPanel };
         var iconParts = new HashSet<UIElement?> { iconColorLabel, _scIconColorSwatchPanel, glowColorLabel, _scGlowColorSwatchPanel };
         var children = designContent.Children.Cast<UIElement>().ToList();
         designContent.Children.Clear();
-        for (int i = 0; i < children.Count; i++)
+        foreach (var el in children)
         {
-            var el = children[i];
-            // The DISPLAY TYPE caption travels with its picker.
-            bool isDisplayCaption = i + 1 < children.Count && ReferenceEquals(children[i + 1], _scDisplayTypePicker);
-            var target = isDisplayCaption || displayParts.Contains(el) ? displayBody
+            var target = displayParts.Contains(el) ? displayBody
                        : iconParts.Contains(el) ? iconBody
                        : textBody;
             target.Children.Add(el);
         }
         if (iconBody.Children.Count > 0 && iconBody.Children[0] is FrameworkElement firstIcon)
             firstIcon.Margin = new Thickness(0, 0, 0, 4);
-        if (_v2BrightnessLabel != null) _v2BrightnessLabel.Margin = new Thickness(0, 2, 0, 4);
         _v2DesignContent = textBody;
         _v2TextSectionBody = textBody;
 
@@ -617,9 +635,108 @@ public partial class ButtonsView
         return card;
     }
 
+    /// <summary>3x2 grid of display type tiles (icon, name, description). Click = pick that type.</summary>
+    private FrameworkElement BuildV2DisplayTypeTiles()
+    {
+        var grid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3, Margin = new Thickness(-3, 0, -3, 8) };
+        _v2TypeTiles.Clear();
+        foreach (var (type, iconKind, name, desc) in V2DisplayTypes)
+        {
+            var dt = type;
+            var icon = new Material.Icons.WPF.MaterialIcon { Kind = iconKind, Width = 20, Height = 20, HorizontalAlignment = HorizontalAlignment.Left };
+            var title = new TextBlock { Text = name, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 6, 0, 0) };
+            var sub = new TextBlock { Text = desc, FontSize = 10.5, Margin = new Thickness(0, 1, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+            sub.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+            var stack = new StackPanel();
+            stack.Children.Add(icon);
+            stack.Children.Add(title);
+            stack.Children.Add(sub);
+            var tile = new Border
+            {
+                Margin = new Thickness(3),
+                Padding = new Thickness(10, 9, 8, 9),
+                CornerRadius = new CornerRadius(10),
+                BorderThickness = new Thickness(1),
+                Cursor = Cursors.Hand,
+                ToolTip = $"{name}: {desc}",
+                Child = stack,
+            };
+            tile.MouseEnter += (_, _) => PaintV2TypeTile(tile, dt, hover: true);
+            tile.MouseLeave += (_, _) => PaintV2TypeTile(tile, dt, hover: false);
+            tile.MouseLeftButtonUp += (_, e) =>
+            {
+                e.Handled = true;
+                if (_scDisplayTypePicker == null) return;
+                for (int i = 0; i < _scDisplayTypePicker.SegmentCount; i++)
+                    if (_scDisplayTypePicker.GetTagAt(i) is DisplayKeyType t && t == dt)
+                        _scDisplayTypePicker.SelectAndNotify(i);
+                PaintV2TypeTiles();
+            };
+            _v2TypeTiles.Add((tile, dt));
+            grid.Children.Add(tile);
+        }
+        PaintV2TypeTiles();
+        return grid;
+    }
+
+    private DisplayKeyType? CurrentV2DisplayType() =>
+        _scDisplayTypePicker?.SelectedTag as DisplayKeyType? ?? GetSelectedDisplayKeyConfig()?.DisplayType;
+
+    private void PaintV2TypeTiles()
+    {
+        foreach (var (tile, dt) in _v2TypeTiles) PaintV2TypeTile(tile, dt, tile.IsMouseOver);
+    }
+
+    private void PaintV2TypeTile(Border tile, DisplayKeyType dt, bool hover)
+    {
+        bool on = CurrentV2DisplayType() == dt;
+        var a = ThemeManager.Accent;
+        if (on)
+        {
+            tile.Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x22));
+            tile.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0xCC));
+        }
+        else
+        {
+            tile.Background = hover ? FindBrush("InputBgBrush") : new SolidColorBrush(ThemeManager.WithAlpha(Colors.Black, 0x1A));
+            tile.BorderBrush = hover ? new SolidColorBrush(ThemeManager.WithAlpha(a, 0x66)) : FindBrush("InputBorderBrush");
+        }
+        if (tile.Child is StackPanel sp && sp.Children.Count >= 2)
+        {
+            ((Material.Icons.WPF.MaterialIcon)sp.Children[0]).Foreground = on ? new SolidColorBrush(a) : FindBrush("TextSecBrush");
+            ((TextBlock)sp.Children[1]).Foreground = on ? new SolidColorBrush(a) : FindBrush("TextPrimaryBrush");
+        }
+    }
+
+    /// <summary>"Caption ───●─── value" row; the value text follows the slider.</summary>
+    private Grid MakeV2SliderRow(string caption, StyledSlider slider, Func<double, string> format)
+    {
+        var g = new Grid();
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(78) });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(46) });
+        var cap = new TextBlock { Text = caption, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
+        cap.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+        g.Children.Add(cap);
+        slider.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(slider, 1);
+        g.Children.Add(slider);
+        var val = new TextBlock
+        {
+            Text = format(slider.Value), FontSize = 12, FontWeight = FontWeights.SemiBold,
+            TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center,
+        };
+        val.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
+        slider.ValueChanged += (_, _) => val.Text = format(slider.Value);
+        Grid.SetColumn(val, 2);
+        g.Children.Add(val);
+        return g;
+    }
+
     /// <summary>Short current-value summaries shown in the section headers.</summary>
     private void UpdateV2SectionSummaries()
     {
+        PaintV2TypeTiles();
         var key = GetSelectedDisplayKeyConfig();
         if (key == null) return;
         int bright = Math.Clamp(key.Brightness <= 0 ? 100 : key.Brightness, 0, 100);

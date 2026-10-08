@@ -42,6 +42,15 @@ namespace AmpUp.Controls
             ? _segments[_selectedIndex].Tag
             : null;
 
+        /// <summary>Select a segment as if the user clicked it (raises SelectionChanged).</summary>
+        public void SelectAndNotify(int index)
+        {
+            if (index < 0 || index >= _segments.Count || index == _selectedIndex) return;
+            _selectedIndex = index;
+            UpdateAllSegmentVisuals();
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+        }
+
         public int SegmentCount => _segments.Count;
 
         public object? GetTagAt(int index) =>
