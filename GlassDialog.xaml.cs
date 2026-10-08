@@ -165,15 +165,16 @@ public partial class GlassDialog : Window
     /// <summary>
     /// Show a glass-themed input prompt. Returns null if cancelled.
     /// </summary>
-    public static string? Prompt(string message, string title = "AMP UP", Window? owner = null)
+    public static string? Prompt(string message, string title = "AMP UP", Window? owner = null, string initialText = "")
     {
         var dlg = new GlassDialog();
         dlg.TitleText.Text = title.ToUpperInvariant();
         dlg.MessageText.Text = message;
         dlg.InputBorder.Visibility = Visibility.Visible;
+        dlg.InputBox.Text = initialText;
         if (owner != null) dlg.Owner = owner;
 
-        dlg.Loaded += (_, _) => dlg.InputBox.Focus();
+        dlg.Loaded += (_, _) => { dlg.InputBox.Focus(); dlg.InputBox.SelectAll(); };
 
         var cancel = new Button { Content = "Cancel", Style = GlassButtonStyle(false) };
         cancel.Click += (_, _) => { dlg.Result = GlassResult.Cancel; dlg.Close(); };
