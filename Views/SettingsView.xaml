@@ -107,20 +107,97 @@
             <Setter Property="MaxWidth" Value="440" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
         </Style>
+        <!-- These keyed styles replace WPF-UI's implicit ones, so they carry full
+             templates; without them WPF falls back to the grey Windows chrome. -->
         <Style x:Key="SPassword" TargetType="PasswordBox">
             <Setter Property="Background" Value="{DynamicResource InputBgBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="CaretBrush" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="MaxWidth" Value="440" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="MinHeight" Value="34" />
             <Setter Property="Padding" Value="10,0" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="PasswordBox">
+                        <Border x:Name="Bd" CornerRadius="8" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          Focusable="False" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource TextDimBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
+        <!-- Rounded app button: input-coloured with an accent hover; Appearance="Primary"
+             fills it with the accent colour. -->
         <Style x:Key="SButton" TargetType="ui:Button">
             <Setter Property="Height" Value="32" />
             <Setter Property="Margin" Value="0,0,8,8" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Appearance" Value="Secondary" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="Background" Value="{DynamicResource InputBgBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ui:Button">
+                        <Border x:Name="Bd" CornerRadius="8" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentHover1ABrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="Appearance" Value="Primary">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource BgBaseBrush}" />
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="Appearance" Value="Primary" />
+                                    <Condition Property="IsMouseOver" Value="True" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.88" />
+                            </MultiTrigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.8" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </UserControl.Resources>
 
