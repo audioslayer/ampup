@@ -1363,7 +1363,7 @@ public partial class OsdView : UserControl
     /// Icon tile for one item in a wheel's list: shows the icon the wheel will draw.
     /// Click = choose an icon or image, right-click = back to the default.
     /// </summary>
-    private System.Windows.Controls.Border MakeItemIconTile(WheelRowState st, string id)
+    private FrameworkElement MakeItemIconTile(WheelRowState st, string id)
     {
         var tile = new System.Windows.Controls.Border
         {
@@ -1391,7 +1391,7 @@ public partial class OsdView : UserControl
                 };
             tile.ToolTip = custom
                 ? "Your icon. Click to change, right-click to go back to the default."
-                : "Click to choose your own icon or image";
+                : "Change icon: click to pick an icon or upload an image";
         }
         Paint();
 
@@ -1413,7 +1413,47 @@ public partial class OsdView : UserControl
             Paint();
             WheelChanged(st);
         };
-        return tile;
+        return WithEditBadge(tile);
+    }
+
+    /// <summary>
+    /// Wrap an icon tile with a small pencil badge in its corner and an accent border on hover,
+    /// so it reads as "click to change". The badge ignores the mouse; clicks reach the tile.
+    /// </summary>
+    private FrameworkElement WithEditBadge(System.Windows.Controls.Border tile)
+    {
+        var a = ThemeManager.Accent;
+        var badge = new System.Windows.Controls.Border
+        {
+            Width = 14, Height = 14,
+            CornerRadius = new CornerRadius(7),
+            BorderThickness = new Thickness(1.5),
+            Background = new SolidColorBrush(a),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, -5, -5),
+            IsHitTestVisible = false,
+            Child = new MaterialIcon { Kind = MaterialIconKind.Pencil, Width = 8, Height = 8,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x10, 0x10, 0x10)) },
+        };
+        badge.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "CardBgBrush");
+
+        Brush? restBorder = null;
+        tile.MouseEnter += (_, _) =>
+        {
+            restBorder = tile.BorderBrush;
+            tile.BorderBrush = new SolidColorBrush(ThemeManager.Accent);
+        };
+        tile.MouseLeave += (_, _) => { if (restBorder != null) tile.BorderBrush = restBorder; };
+
+        var wrap = new Grid
+        {
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        wrap.Children.Add(tile);
+        wrap.Children.Add(badge);
+        return wrap;
     }
 
     /// <summary>What an item looks like on this wheel: its default, with the wheel's override on top.</summary>
@@ -1858,6 +1898,13 @@ public partial class OsdView : UserControl
             return;
         }
 
+        var hintRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+        hintRow.Children.Add(new MaterialIcon { Kind = MaterialIconKind.Pencil, Width = 11, Height = 11,
+            Foreground = new SolidColorBrush(ThemeManager.Accent), Margin = new Thickness(0, 0, 6, 0),
+            VerticalAlignment = VerticalAlignment.Center });
+        hintRow.Children.Add(MakeHint("Tick items to show them on the wheel. Click an icon to change it.", new Thickness(0)));
+        host.Children.Add(hintRow);
+
         var rows = new List<(CheckBox box, TextBlock order, string id)>();
         void Refresh()
         {
@@ -1872,10 +1919,10 @@ public partial class OsdView : UserControl
         var list = new StackPanel();
         foreach (var (id, name, missing) in items)
         {
-            var g = new Grid { Margin = new Thickness(0, 1, 0, 1), Background = Brushes.Transparent };
+            var g = new Grid { Margin = new Thickness(0, 2, 0, 2), Background = Brushes.Transparent };
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(34) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
@@ -2021,7 +2068,7 @@ public partial class OsdView : UserControl
                     Foreground = new SolidColorBrush(color),
                 };
             iconTile.ToolTip = string.IsNullOrEmpty(slotState.Icon) && string.IsNullOrEmpty(slotState.Color)
-                ? "Icon on the wheel (automatic). Click to choose your own."
+                ? "Change icon: click to pick an icon or upload an image (automatic for now)"
                 : "Icon on the wheel. Click to change, right-click to go back to automatic.";
         }
         iconTile.MouseLeftButtonUp += (_, e) =>
@@ -2052,8 +2099,9 @@ public partial class OsdView : UserControl
             RefreshIcon();
             WheelChanged(st);
         };
-        Grid.SetColumn(iconTile, 1);
-        row.Children.Add(iconTile);
+        var iconWithBadge = WithEditBadge(iconTile);
+        Grid.SetColumn(iconWithBadge, 1);
+        row.Children.Add(iconWithBadge);
 
         void BuildSetting()
         {
