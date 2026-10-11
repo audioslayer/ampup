@@ -166,6 +166,13 @@ public partial class OsdView : UserControl
         RootPanel.Children.Add(UiKit.PageHeader("On-Screen Display", "What pops up on screen as you use your controller",
             icon: MaterialIconKind.MonitorEye));
 
+        // Two tabs (same underline bar as the Room page): pop-up overlays, and Quick Wheels
+        var overlaysTab = new StackPanel();
+        var wheelsTab = new StackPanel { Visibility = Visibility.Collapsed };
+        RootPanel.Children.Add(BuildOsdTabBar(overlaysTab, wheelsTab));
+        RootPanel.Children.Add(overlaysTab);
+        RootPanel.Children.Add(wheelsTab);
+
         // ══════════════════ POPUPS ══════════════════
         var popupsBody = new StackPanel();
 
@@ -235,8 +242,8 @@ public partial class OsdView : UserControl
             "Overlay Position", "Which monitor and corner the overlays show up in", placeActions, placeBody).Root;
 
         // One column — side-by-side cards read as confusing on this tab.
-        RootPanel.Children.Add(popupsCard);
-        RootPanel.Children.Add(placeCard);
+        overlaysTab.Children.Add(popupsCard);
+        overlaysTab.Children.Add(placeCard);
 
         // ══════════════════ QUICK WHEELS ══════════════════
         // Card header: title + subtitle, count · (?) on the right. Body: Auto-dismiss row, wheels, add link.
@@ -283,10 +290,71 @@ public partial class OsdView : UserControl
             help: "A radial menu for things you switch often, like profiles, audio devices, media controls or your own shortcuts.\n\n" +
                   "1. Hold the trigger button\n2. Turn any knob to move the highlight\n3. Let go to pick\n\n" +
                   "You can also point and click with the mouse. Taking a button for a wheel replaces its hold action.").Root;
-        RootPanel.Children.Add(wheelCard);
-        RootPanel.Children.Add(BuildLookCard());
+        wheelsTab.Children.Add(wheelCard);
+        wheelsTab.Children.Add(BuildLookCard());
     }
 
+
+    // ══════════════════ TABS ══════════════════
+
+    private int _osdTabIndex;
+
+    /// <summary>Material underline tab bar (OVERLAYS / QUICK WHEELS), styled like the Room page's.</summary>
+    private FrameworkElement BuildOsdTabBar(params FrameworkElement[] pages)
+    {
+        var names = new[] { "OVERLAYS", "QUICK WHEELS" };
+        var tabs = new System.Windows.Controls.Border[names.Length];
+
+        void Paint()
+        {
+            var accent = ThemeManager.Accent;
+            for (int i = 0; i < tabs.Length; i++)
+            {
+                bool on = i == _osdTabIndex;
+                tabs[i].BorderBrush = new SolidColorBrush(on ? accent : Colors.Transparent);
+                if (tabs[i].Child is TextBlock t)
+                {
+                    t.Foreground = on ? new SolidColorBrush(accent) : FindBrush("TextSecBrush");
+                    t.FontWeight = on ? FontWeights.Bold : FontWeights.SemiBold;
+                }
+                pages[i].Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
+
+        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+        for (int i = 0; i < names.Length; i++)
+        {
+            int idx = i;
+            var label = new TextBlock { Text = names[i], FontSize = 11, FontWeight = FontWeights.SemiBold,
+                HorizontalAlignment = HorizontalAlignment.Center };
+            var tab = new System.Windows.Controls.Border
+            {
+                Padding = new Thickness(22, 10, 22, 10),
+                Cursor = Cursors.Hand,
+                BorderThickness = new Thickness(0, 0, 0, 2), // 2px underline slot
+                Background = Brushes.Transparent,
+                Child = label,
+            };
+            tab.MouseEnter += (_, _) => { if (idx != _osdTabIndex) label.Foreground = FindBrush("TextPrimaryBrush"); };
+            tab.MouseLeave += (_, _) => { if (idx != _osdTabIndex) label.Foreground = FindBrush("TextSecBrush"); };
+            tab.MouseLeftButtonDown += (_, _) => { _osdTabIndex = idx; Paint(); };
+            tabs[i] = tab;
+            row.Children.Add(tab);
+        }
+        _accentRepaints.Add(Paint);
+        Paint();
+
+        var underline = new System.Windows.Controls.Border { BorderThickness = new Thickness(0, 0, 0, 1), Child = row };
+        underline.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "InputBgBrush");
+        var card = new System.Windows.Controls.Border
+        {
+            Margin = new Thickness(0, 0, 0, 10),
+            Padding = new Thickness(8, 6, 8, 6),
+            Child = underline,
+        };
+        card.SetResourceReference(StyleProperty, "CardPanel");
+        return card;
+    }
 
     // ══════════════════ CUSTOMIZE WHEELS ══════════════════
 
