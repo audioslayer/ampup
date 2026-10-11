@@ -35,7 +35,6 @@ public partial class OsdView : UserControl
     private WrapPanel _lookSwatches = null!;
     private TextBlock LblOsdVolumeDur = null!, LblOsdProfileDur = null!, LblOsdDeviceDur = null!, LblOsdWheelDur = null!;
     private ListPicker CmbOsdMonitor = null!;
-    private readonly Dictionary<OsdPosition, System.Windows.Controls.Border> _posCells = new();
     private OsdPosition _currentPosition = OsdPosition.BottomRight;
     private StackPanel WheelRowsPanel = null!;
     private StackPanel _wheelTabs = null!;
@@ -204,22 +203,8 @@ public partial class OsdView : UserControl
         // Last of the on/off rows, with the others
         var fsRow = MakeSettingRow("Hide over fullscreen apps", null, fsSw,
             "Stops overlays from covering fullscreen games, videos and presentations. The knobs and buttons still work as normal.");
-        fsRow.Margin = new Thickness(0, 0, 0, 4);
+        fsRow.Margin = new Thickness(0);
         popupsBody.Children.Add(fsRow);
-
-        // Where they show up: monitor + position as one centered block, dropdown as wide as the grid
-        popupsBody.Children.Add(MakeDivider());
-        var placeGroup = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
-        CmbOsdMonitor = new ListPicker { HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 0, 0, 14) };
-        placeGroup.Children.Add(MakeLabel("Monitor"));
-        placeGroup.Children.Add(CmbOsdMonitor);
-        placeGroup.Children.Add(MakeLabelWithHelp("Position",
-            "Windows draws its own volume popup near the top-left or bottom-center. Pick a different spot so the two don't overlap.",
-            "Position", new Thickness(0, 0, 0, 8)));
-        var posPicker = BuildPositionPicker();
-        posPicker.HorizontalAlignment = HorizontalAlignment.Center;
-        placeGroup.Children.Add(posPicker);
-        popupsBody.Children.Add(placeGroup);
 
         // Live preview on the right, like the Quick Wheel cards
         var overlaySplit = new Grid();
@@ -869,73 +854,6 @@ public partial class OsdView : UserControl
     }
 
     /// <summary>Mini-monitor 3x2 grid picker for OSD position.</summary>
-    private FrameworkElement BuildPositionPicker()
-    {
-        var grid = new Grid();
-        for (int r = 0; r < 2; r++) grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        for (int c = 0; c < 3; c++) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var cells = new (OsdPosition Pos, string Label, int Row, int Col)[]
-        {
-            (OsdPosition.TopLeft, "Top left", 0, 0),
-            (OsdPosition.TopCenter, "Top center", 0, 1),
-            (OsdPosition.TopRight, "Top right", 0, 2),
-            (OsdPosition.BottomLeft, "Bottom left", 1, 0),
-            (OsdPosition.BottomCenter, "Bottom center", 1, 1),
-            (OsdPosition.BottomRight, "Bottom right", 1, 2),
-        };
-        foreach (var (pos, label, row, col) in cells)
-        {
-            var cell = new System.Windows.Controls.Border
-            {
-                Margin = new Thickness(3),
-                CornerRadius = new CornerRadius(5),
-                BorderThickness = new Thickness(1),
-                Cursor = Cursors.Hand,
-                Tag = pos.ToString(),
-                ToolTip = label,
-                Child = new TextBlock
-                {
-                    Text = label, FontSize = 10, FontWeight = FontWeights.SemiBold,
-                    TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center,
-                    HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(4, 0, 4, 0),
-                },
-            };
-            cell.MouseLeftButtonDown += OsdPosition_Click;
-            Grid.SetRow(cell, row);
-            Grid.SetColumn(cell, col);
-            grid.Children.Add(cell);
-            _posCells[pos] = cell;
-        }
-
-        // Monitor bezel + stand
-        var screen = new System.Windows.Controls.Border
-        {
-            Height = 120,
-            CornerRadius = new CornerRadius(8),
-            BorderThickness = new Thickness(2),
-            Padding = new Thickness(4),
-            Child = grid,
-        };
-        screen.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "InputBgBrush");
-        screen.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "InputBorderBrush");
-
-        var stand = new System.Windows.Controls.Border { Width = 40, Height = 6, CornerRadius = new CornerRadius(0, 0, 3, 3),
-            HorizontalAlignment = HorizontalAlignment.Center };
-        stand.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "InputBorderBrush");
-
-        var stack = new StackPanel();
-        stack.Children.Add(screen);
-        stack.Children.Add(stand);
-        // Fill the card up to 340px, left-aligned, shrinking on narrow widths
-        var wrap = new Grid();
-        wrap.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MaxWidth = 340 });
-        wrap.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.0001, GridUnitType.Star) });
-        wrap.Children.Add(stack);
-        return wrap;
-    }
-
     private void SubscribeDisplaySettingsChanged()
     {
         if (_displaySettingsSubscribed) return;
@@ -2360,49 +2278,70 @@ public partial class OsdView : UserControl
         wheel.Activate();
     }
 
-    private void OsdPosition_Click(object sender, MouseButtonEventArgs e)
-    {
-        if (_loading || _config == null) return;
-        if (sender is System.Windows.Controls.Border border && border.Tag is string posStr)
-        {
-            if (Enum.TryParse<OsdPosition>(posStr, out var pos))
-            {
-                _config.Osd.Position = pos;
-                HighlightOsdPosition(pos);
-                _debounceTimer.Stop();
-                _debounceTimer.Start();
-            }
-        }
-    }
-
     private System.Windows.Controls.Border? _osdMiniCard;
+    private System.Windows.Shapes.Rectangle? _osdMiniGhost;
     private Action? _paintOsdMini;
+    private bool _osdMiniPlaced;
+    private const double MiniScreenW = 300, MiniScreenH = 168, MiniCardW = 100, MiniCardH = 40, MiniPad = 10;
+
+    private static readonly (OsdPosition Pos, string Label)[] OsdSpots =
+    {
+        (OsdPosition.TopLeft, "Top left"), (OsdPosition.TopCenter, "Top center"), (OsdPosition.TopRight, "Top right"),
+        (OsdPosition.BottomLeft, "Bottom left"), (OsdPosition.BottomCenter, "Bottom center"), (OsdPosition.BottomRight, "Bottom right"),
+    };
 
     /// <summary>
-    /// Small monitor with a scaled-down volume overlay sitting in the chosen corner.
-    /// Follows the Position picker and accent; click it for a real overlay on screen.
+    /// Mini monitor that is also the position picker: hover a spot to see a dashed ghost of the
+    /// overlay there, click to slide it over. Click the overlay itself for a real one on screen.
+    /// The Monitor dropdown sits under the stand.
     /// </summary>
     private FrameworkElement BuildOsdMiniPreview()
     {
-        var screen = new Grid { ClipToBounds = true };
+        var screen = new Canvas { Width = MiniScreenW, Height = MiniScreenH, ClipToBounds = true, Background = Brushes.Transparent };
         var monitor = new System.Windows.Controls.Border
         {
-            Width = 264, Height = 150,
             CornerRadius = new CornerRadius(8),
             BorderThickness = new Thickness(5),
             BorderBrush = new SolidColorBrush(Color.FromRgb(0x08, 0x09, 0x0B)),
             Background = new LinearGradientBrush(Color.FromRgb(0x1B, 0x2A, 0x3A), Color.FromRgb(0x0B, 0x10, 0x18), 60),
-            Cursor = Cursors.Hand,
-            ToolTip = "Click to show a sample overlay on your screen",
             Child = screen,
         };
+
         // Faint "window" so it reads as a desktop
-        screen.Children.Add(new System.Windows.Controls.Border
+        var window = new System.Windows.Controls.Border
         {
-            Width = 120, Height = 64, CornerRadius = new CornerRadius(3),
+            Width = 132, Height = 70, CornerRadius = new CornerRadius(3),
             Background = new SolidColorBrush(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF)),
-            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-        });
+            IsHitTestVisible = false,
+        };
+        Canvas.SetLeft(window, (MiniScreenW - 132) / 2);
+        Canvas.SetTop(window, (MiniScreenH - 70) / 2);
+        screen.Children.Add(window);
+
+        // Six click zones (3 x 2) covering the screen
+        double zw = MiniScreenW / 3, zh = MiniScreenH / 2;
+        for (int i = 0; i < OsdSpots.Length; i++)
+        {
+            var (pos, label) = OsdSpots[i];
+            var zone = new System.Windows.Shapes.Rectangle
+            {
+                Width = zw, Height = zh, Fill = Brushes.Transparent, Cursor = Cursors.Hand, ToolTip = $"Show overlays {label.ToLower()}",
+            };
+            Canvas.SetLeft(zone, (i % 3) * zw);
+            Canvas.SetTop(zone, (i / 3) * zh);
+            zone.MouseEnter += (_, _) => ShowOsdGhost(pos);
+            zone.MouseLeave += (_, _) => { if (_osdMiniGhost != null) _osdMiniGhost.Visibility = Visibility.Hidden; };
+            zone.MouseLeftButtonUp += (_, e) => { e.Handled = true; SetOsdPosition(pos); };
+            screen.Children.Add(zone);
+        }
+
+        _osdMiniGhost = new System.Windows.Shapes.Rectangle
+        {
+            Width = MiniCardW, Height = MiniCardH, RadiusX = 5, RadiusY = 5,
+            StrokeThickness = 1.2, StrokeDashArray = new DoubleCollection { 3, 2 },
+            Visibility = Visibility.Hidden, IsHitTestVisible = false,
+        };
+        screen.Children.Add(_osdMiniGhost);
 
         // Mini overlay: label, icon + name + value, level bar
         var catLabel = new TextBlock { Text = "VOLUME", FontSize = 5.5, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 2) };
@@ -2418,25 +2357,27 @@ public partial class OsdView : UserControl
         mid.Children.Add(name);
         var track = new System.Windows.Controls.Border { Height = 2.5, CornerRadius = new CornerRadius(1.25) };
         var fill = new System.Windows.Controls.Border { Height = 2.5, CornerRadius = new CornerRadius(1.25),
-            HorizontalAlignment = HorizontalAlignment.Left, Width = 62 };
+            HorizontalAlignment = HorizontalAlignment.Left, Width = 64 };
         var bar = new Grid();
         bar.Children.Add(track);
         bar.Children.Add(fill);
-        var body = new StackPanel();
+        var body = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         body.Children.Add(catLabel);
         body.Children.Add(mid);
         body.Children.Add(bar);
 
         _osdMiniCard = new System.Windows.Controls.Border
         {
-            Width = 96,
+            Width = MiniCardW, Height = MiniCardH,
             CornerRadius = new CornerRadius(5),
             BorderThickness = new Thickness(0.75),
-            Padding = new Thickness(7, 5, 7, 6),
-            Margin = new Thickness(8),
+            Padding = new Thickness(7, 4, 7, 4),
             Background = new LinearGradientBrush(Color.FromRgb(0x14, 0x14, 0x14), Color.FromRgb(0x0F, 0x0F, 0x0F), 45),
+            Cursor = Cursors.Hand,
+            ToolTip = "Click to see a real overlay on your screen",
             Child = body,
         };
+        _osdMiniCard.MouseLeftButtonUp += (_, e) => { e.Handled = true; OnOsdPreview(this, new RoutedEventArgs()); };
         screen.Children.Add(_osdMiniCard);
 
         _paintOsdMini = () =>
@@ -2450,59 +2391,89 @@ public partial class OsdView : UserControl
             value.Foreground = new SolidColorBrush(a);
             track.Background = new SolidColorBrush(Color.FromArgb(0x22, a.R, a.G, a.B));
             fill.Background = new SolidColorBrush(a);
+            _osdMiniGhost.Stroke = new SolidColorBrush(Color.FromArgb(0xAA, a.R, a.G, a.B));
+            _osdMiniGhost.Fill = new SolidColorBrush(Color.FromArgb(0x18, a.R, a.G, a.B));
         };
         _paintOsdMini();
         _accentRepaints.Add(_paintOsdMini);
         PlaceOsdMini(_currentPosition);
 
-        monitor.MouseLeftButtonUp += (_, e) => { e.Handled = true; OnOsdPreview(this, new RoutedEventArgs()); };
-
-        var stack = new StackPanel { Margin = new Thickness(24, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top };
+        var stack = new StackPanel { Margin = new Thickness(24, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top,
+            Width = MiniScreenW + 10 };
         stack.Children.Add(monitor);
         // Stand
         stack.Children.Add(new System.Windows.Controls.Border { Width = 34, Height = 12,
             Background = new SolidColorBrush(Color.FromRgb(0x08, 0x09, 0x0B)), HorizontalAlignment = HorizontalAlignment.Center });
-        stack.Children.Add(new System.Windows.Controls.Border { Width = 86, Height = 4, CornerRadius = new CornerRadius(2),
+        stack.Children.Add(new System.Windows.Controls.Border { Width = 92, Height = 4, CornerRadius = new CornerRadius(2),
             Background = new SolidColorBrush(Color.FromRgb(0x08, 0x09, 0x0B)), HorizontalAlignment = HorizontalAlignment.Center });
-        var cap = MakeHint("Click to preview on your screen", new Thickness(0, 8, 0, 0));
-        cap.HorizontalAlignment = HorizontalAlignment.Center;
-        stack.Children.Add(cap);
+
+        var capRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 8, 0, 14) };
+        capRow.Children.Add(MakeHint("Click a spot on the screen to move the overlay", new Thickness(0, 0, 6, 0)));
+        capRow.Children.Add(UiKit.HelpTip(
+            "Hover the screen to see where it would go, then click to move it there. Click the overlay itself to see a real one.\n\n" +
+            "Windows draws its own volume popup near the top-left or bottom-center. Pick a different spot so the two don't overlap.",
+            "Position"));
+        stack.Children.Add(capRow);
+
+        stack.Children.Add(MakeLabel("Monitor"));
+        CmbOsdMonitor = new ListPicker { HorizontalAlignment = HorizontalAlignment.Stretch };
+        stack.Children.Add(CmbOsdMonitor);
         return stack;
     }
 
+    private static Point OsdSpotPoint(OsdPosition pos)
+    {
+        string p = pos.ToString();
+        double x = p.EndsWith("Left") ? MiniPad
+            : p.EndsWith("Right") ? MiniScreenW - MiniCardW - MiniPad
+            : (MiniScreenW - MiniCardW) / 2;
+        double y = p.StartsWith("Top") ? MiniPad : MiniScreenH - MiniCardH - MiniPad;
+        return new Point(x, y);
+    }
+
+    private void ShowOsdGhost(OsdPosition pos)
+    {
+        if (_osdMiniGhost == null) return;
+        if (pos == _currentPosition) { _osdMiniGhost.Visibility = Visibility.Hidden; return; }
+        var pt = OsdSpotPoint(pos);
+        Canvas.SetLeft(_osdMiniGhost, pt.X);
+        Canvas.SetTop(_osdMiniGhost, pt.Y);
+        _osdMiniGhost.Visibility = Visibility.Visible;
+    }
+
+    private void SetOsdPosition(OsdPosition pos)
+    {
+        if (_loading || _config == null) return;
+        _config.Osd.Position = pos;
+        HighlightOsdPosition(pos);
+        if (_osdMiniGhost != null) _osdMiniGhost.Visibility = Visibility.Hidden;
+        _debounceTimer.Stop();
+        _debounceTimer.Start();
+    }
+
+    /// <summary>Move the mini overlay to a spot: instantly the first time, then a short slide.</summary>
     private void PlaceOsdMini(OsdPosition pos)
     {
         if (_osdMiniCard == null) return;
-        string p = pos.ToString();
-        _osdMiniCard.VerticalAlignment = p.StartsWith("Top") ? VerticalAlignment.Top : VerticalAlignment.Bottom;
-        _osdMiniCard.HorizontalAlignment = p.EndsWith("Left") ? HorizontalAlignment.Left
-            : p.EndsWith("Right") ? HorizontalAlignment.Right : HorizontalAlignment.Center;
+        var pt = OsdSpotPoint(pos);
+        if (!_osdMiniPlaced)
+        {
+            Canvas.SetLeft(_osdMiniCard, pt.X);
+            Canvas.SetTop(_osdMiniCard, pt.Y);
+            _osdMiniPlaced = true;
+            return;
+        }
+        var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut };
+        var dur = TimeSpan.FromMilliseconds(280);
+        _osdMiniCard.BeginAnimation(Canvas.LeftProperty, new System.Windows.Media.Animation.DoubleAnimation(pt.X, dur) { EasingFunction = ease });
+        _osdMiniCard.BeginAnimation(Canvas.TopProperty, new System.Windows.Media.Animation.DoubleAnimation(pt.Y, dur) { EasingFunction = ease });
     }
 
     private void HighlightOsdPosition(OsdPosition active)
     {
         _currentPosition = active;
         PlaceOsdMini(active);
-        var accent = ThemeManager.Accent;
-        foreach (var (pos, cell) in _posCells)
-        {
-            bool isActive = pos == active;
-            if (isActive)
-            {
-                cell.Background = new SolidColorBrush(accent);
-                cell.BorderBrush = new SolidColorBrush(accent);
-            }
-            else
-            {
-                cell.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "CardBgBrush");
-                cell.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "CardBorderBrush");
-            }
-            if (cell.Child is TextBlock tb)
-            {
-                if (isActive) tb.Foreground = new SolidColorBrush(Color.FromRgb(0x10, 0x10, 0x10));
-                else tb.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-            }
-        }
     }
 
     /// <summary>
