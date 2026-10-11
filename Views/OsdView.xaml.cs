@@ -32,7 +32,6 @@ public partial class OsdView : UserControl
     // Customize Wheels card
     private StyledSlider _sldLookScale = null!, _sldLookBg = null!, _sldLookGlow = null!;
     private TextBlock _lblLookScale = null!, _lblLookBg = null!, _lblLookGlow = null!;
-    private Controls.HaloWheel _lookMini = null!;
     private WrapPanel _lookSwatches = null!;
     private TextBlock LblOsdVolumeDur = null!, LblOsdProfileDur = null!, LblOsdDeviceDur = null!, LblOsdWheelDur = null!;
     private ListPicker CmbOsdMonitor = null!;
@@ -202,45 +201,39 @@ public partial class OsdView : UserControl
         popupsBody.Children.Add(MakeSettingRow("Audio device switch", null, devSw,
             "Shows which speaker, headset or mic is now the default when a button cycles or selects a device."));
         popupsBody.Children.Add(_deviceDurRow);
-        popupsBody.Children.Add(MakeDivider());
         var fsRow = MakeSettingRow("Hide over fullscreen apps", null, fsSw,
             "Stops overlays from covering fullscreen games, videos and presentations. The knobs and buttons still work as normal.");
-        fsRow.Margin = new Thickness(0);
-        popupsBody.Children.Add(fsRow);
-        var popupsCard = UiKit.Card(Color.FromRgb(0x42, 0xA5, 0xF5), MaterialIconKind.BellOutline,
-            "On-Screen Overlays", "Quick feedback that appears over any app", null, popupsBody,
-            help: "Small cards that fade in when something changes, then fade out on their own. " +
-                  "Turn each one on or off and set how long it stays.").Root;
 
-        // ══════════════════ PLACEMENT ══════════════════
-        var placeBody = new StackPanel();
-        // Label above, dropdown left-aligned under it (same column as the Position grid).
+        // Where they show up (was the Overlay Position card)
+        popupsBody.Children.Add(MakeDivider());
         CmbOsdMonitor = new ListPicker { MinWidth = 220, MaxWidth = 320, HorizontalAlignment = HorizontalAlignment.Left,
             Margin = new Thickness(0, 0, 0, 14) };
-        placeBody.Children.Add(MakeLabel("Monitor"));
-        placeBody.Children.Add(CmbOsdMonitor);
-
-        placeBody.Children.Add(MakeLabelWithHelp("Position",
+        popupsBody.Children.Add(MakeLabel("Monitor"));
+        popupsBody.Children.Add(CmbOsdMonitor);
+        popupsBody.Children.Add(MakeLabelWithHelp("Position",
             "Windows draws its own volume popup near the top-left or bottom-center. Pick a different spot so the two don't overlap.",
             "Position", new Thickness(0, 0, 0, 8)));
-        placeBody.Children.Add(BuildPositionPicker());
+        var posPicker = BuildPositionPicker();
+        posPicker.Margin = new Thickness(0, 0, 0, 14);
+        popupsBody.Children.Add(posPicker);
+        fsRow.Margin = new Thickness(0);
+        popupsBody.Children.Add(fsRow);
 
-        var previewBtn = UiKit.IconButton(MaterialIconKind.PlayCircleOutline,
-            "Show a sample volume overlay at the chosen monitor and position",
-            _ => OnOsdPreview(this, new RoutedEventArgs()));
-        var placeActions = new StackPanel { Orientation = Orientation.Horizontal };
-        var previewCap = new TextBlock { Text = "Preview", FontSize = 11, VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 4, 0), Cursor = Cursors.Hand };
-        previewCap.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
-        previewCap.MouseLeftButtonUp += (_, e) => { e.Handled = true; OnOsdPreview(this, new RoutedEventArgs()); };
-        placeActions.Children.Add(previewCap);
-        placeActions.Children.Add(previewBtn);
-        var placeCard = UiKit.Card(Color.FromRgb(0xAB, 0x47, 0xBC), MaterialIconKind.Monitor,
-            "Overlay Position", "Which monitor and corner the overlays show up in", placeActions, placeBody).Root;
+        // Live preview on the right, like the Quick Wheel cards
+        var overlaySplit = new Grid();
+        overlaySplit.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        overlaySplit.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        overlaySplit.Children.Add(popupsBody);
+        var osdPreview = BuildOsdMiniPreview();
+        Grid.SetColumn(osdPreview, 1);
+        overlaySplit.Children.Add(osdPreview);
 
-        // One column — side-by-side cards read as confusing on this tab.
+        var popupsCard = UiKit.Card(Color.FromRgb(0x42, 0xA5, 0xF5), MaterialIconKind.BellOutline,
+            "On-Screen Overlays", "Quick feedback over any app, and where it shows up", null, overlaySplit,
+            help: "Small cards that fade in when something changes, then fade out on their own. " +
+                  "Turn each one on or off, set how long it stays, and pick the monitor and corner.\n\n" +
+                  "The preview on the right shows where it lands; click it to see a real one on your screen.").Root;
         overlaysTab.Children.Add(popupsCard);
-        overlaysTab.Children.Add(placeCard);
 
         // ══════════════════ QUICK WHEELS ══════════════════
         // Card header: title + subtitle, count · (?) on the right. Body: Auto-dismiss row, wheels, add link.
@@ -282,13 +275,20 @@ public partial class OsdView : UserControl
         WheelRowsPanel = new StackPanel();
         wheelBody.Children.Add(WheelRowsPanel);
 
+        // Look for every wheel (was its own card)
+        wheelBody.Children.Add(MakeDivider());
+        wheelBody.Children.Add(MakeLabelWithHelp("Look",
+            "Changes how every Quick Wheel looks. The volume / profile / device pop-ups are not affected.\n\n" +
+            "Start from a preset, then fine-tune. The wheel preview above updates as you go; click it to see the wheel full size.",
+            "Look", new Thickness(0, 4, 0, 10)));
+        wheelBody.Children.Add(BuildLookSection());
+
         var wheelCard = UiKit.Card(WheelColor, MaterialIconKind.ChartDonut,
             "Quick Wheels", "Hold a button, turn a knob, let go to pick", null, wheelBody,
             help: "A radial menu for things you switch often, like profiles, audio devices, media controls or your own shortcuts.\n\n" +
                   "1. Hold the trigger button\n2. Turn any knob to move the highlight\n3. Let go to pick\n\n" +
                   "You can also point and click with the mouse. Taking a button for a wheel replaces its hold action.").Root;
         wheelsTab.Children.Add(wheelCard);
-        wheelsTab.Children.Add(BuildLookCard());
     }
 
 
@@ -397,8 +397,11 @@ public partial class OsdView : UserControl
     private SegmentedControl _segColors = null!, _segRing = null!, _segGap = null!, _segHighlight = null!,
         _segCenter = null!, _segAnim = null!;
 
-    /// <summary>Quick Wheel look: preset tiles, size / color / ring / animation sections and a live sample wheel.</summary>
-    private FrameworkElement BuildLookCard()
+    /// <summary>
+    /// Quick Wheel look section (inside the Quick Wheels card): preset tiles, then Size / Color
+    /// beside Ring / Animation. Each wheel's mini preview above shows the result.
+    /// </summary>
+    private FrameworkElement BuildLookSection()
     {
         var left = new StackPanel();
 
@@ -424,7 +427,7 @@ public partial class OsdView : UserControl
                 if (_loading || _config == null || seg.SelectedTag is not string v) return;
                 set(_config.Osd.WheelLook, v);
                 LookChanged();
-                if (seg == _segAnim) _lookMini.PlayIntro();
+                if (seg == _segAnim) _selectedWheel?.Mini?.PlayIntro();
             };
             return seg;
         }
@@ -435,78 +438,54 @@ public partial class OsdView : UserControl
         foreach (var p in WheelPresets) presetWrap.Children.Add(MakePresetTile(p));
         left.Children.Add(presetWrap);
 
+        var colA = new StackPanel();
+        var colB = new StackPanel();
+
         // ── SIZE ──
-        left.Children.Add(UiKit.SectionHeader("SIZE"));
+        colA.Children.Add(UiKit.SectionHeader("SIZE"));
         _sldLookScale = NewSlider(60, 160, "How big the Quick Wheels are");
         _lblLookScale = NewVal();
         _sldLookBg = NewSlider(10, 100, "How solid the dark background is. Lower lets more of the screen show through.");
         _lblLookBg = NewVal();
         _sldLookGlow = NewSlider(0, 200, "How strongly the wheel and the highlighted item glow");
         _lblLookGlow = NewVal();
-        left.Children.Add(MakeDurationRow(_sldLookScale, _lblLookScale, "Size"));
-        left.Children.Add(MakeDurationRow(_sldLookBg, _lblLookBg, "Background"));
-        left.Children.Add(MakeDurationRow(_sldLookGlow, _lblLookGlow, "Glow"));
+        colA.Children.Add(MakeDurationRow(_sldLookScale, _lblLookScale, "Size"));
+        colA.Children.Add(MakeDurationRow(_sldLookBg, _lblLookBg, "Background"));
+        colA.Children.Add(MakeDurationRow(_sldLookGlow, _lblLookGlow, "Glow"));
         HookLookSlider(_sldLookScale, _lblLookScale, (o, v) => o.Scale = v);
         HookLookSlider(_sldLookBg, _lblLookBg, (o, v) => o.BackgroundOpacity = v);
         HookLookSlider(_sldLookGlow, _lblLookGlow, (o, v) => o.WheelLook.Glow = v);
 
         // ── COLOR ──
-        left.Children.Add(UiKit.SectionHeader("COLOR"));
+        colA.Children.Add(UiKit.SectionHeader("COLOR"));
         _lookSwatches = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
-        left.Children.Add(_lookSwatches);
+        colA.Children.Add(_lookSwatches);
         _segColors = NewSeg((l, v) => l.SegmentColors = v, ("Item", "Per item"), ("Accent", "One color"), ("Rainbow", "Rainbow"));
-        left.Children.Add(MakeLookRow("Segments", _segColors,
+        colA.Children.Add(MakeLookRow("Segments", _segColors,
             "Per item: each item keeps its own color. One color: every segment uses the color above. Rainbow: a rainbow around the ring."));
 
         // ── RING ──
-        left.Children.Add(UiKit.SectionHeader("RING"));
+        colB.Children.Add(UiKit.SectionHeader("RING"));
         _segRing = NewSeg((l, v) => l.RingThickness = v, ("Thin", "Thin"), ("Normal", "Normal"), ("Thick", "Thick"));
         _segGap = NewSeg((l, v) => l.SegmentGap = v, ("None", "None"), ("Small", "Small"), ("Wide", "Wide"));
         _segHighlight = NewSeg((l, v) => l.Highlight = v, ("Fill", "Solid"), ("Outline", "Outline"));
         _segCenter = NewSeg((l, v) => l.CenterInfo = v, ("Full", "Full"), ("Simple", "Icon + name"), ("Icon", "Icon only"));
-        left.Children.Add(MakeLookRow("Thickness", _segRing));
-        left.Children.Add(MakeLookRow("Spacing", _segGap, "Space between segments. None makes one continuous ring."));
-        left.Children.Add(MakeLookRow("Highlight", _segHighlight, "How the item you're pointing at stands out"));
-        left.Children.Add(MakeLookRow("Center", _segCenter,
+        colB.Children.Add(MakeLookRow("Thickness", _segRing));
+        colB.Children.Add(MakeLookRow("Spacing", _segGap, "Space between segments. None makes one continuous ring."));
+        colB.Children.Add(MakeLookRow("Highlight", _segHighlight, "How the item you're pointing at stands out"));
+        colB.Children.Add(MakeLookRow("Center", _segCenter,
             "What the middle shows: Full = icon, name, item type and the ACTIVE badge"));
 
         // ── ANIMATION ──
-        left.Children.Add(UiKit.SectionHeader("ANIMATION"));
+        colB.Children.Add(UiKit.SectionHeader("ANIMATION"));
         _segAnim = NewSeg((l, v) => l.Animation = v, ("Fade", "Fade"), ("Pop", "Pop"), ("Spin", "Spin"), ("None", "None"));
         var animRow = MakeLookRow("Open with", _segAnim, "How the wheel appears when you hold the button");
         animRow.Margin = new Thickness(0);
-        left.Children.Add(animRow);
+        colB.Children.Add(animRow);
 
-        // ── Live sample (media controls: always available, no device lookups) ──
-        _lookMini = new Controls.HaloWheel();
-        var miniBox = new Viewbox { Width = 200, Height = 200, Child = _lookMini, Stretch = Stretch.Uniform };
-        var miniFrame = new System.Windows.Controls.Border
-        {
-            CornerRadius = new CornerRadius(10),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(12),
-            Cursor = Cursors.Hand,
-            ToolTip = "Click to see the wheel full size",
-            Background = new RadialGradientBrush(Color.FromRgb(0x18, 0x21, 0x2B), Color.FromRgb(0x0B, 0x0D, 0x10))
-            {
-                GradientOrigin = new Point(0.3, 0.2), Center = new Point(0.3, 0.2), RadiusX = 1, RadiusY = 1,
-            },
-            Child = miniBox,
-        };
-        miniFrame.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "CardBorderBrush");
-        miniFrame.MouseLeftButtonUp += (_, e) => { e.Handled = true; PreviewLookWheel(); };
-        var miniStack = new StackPanel { Margin = new Thickness(20, 32, 0, 0), VerticalAlignment = VerticalAlignment.Top };
-        miniStack.Children.Add(miniFrame);
-        var miniCap = MakeHint("Click to preview full size", new Thickness(0, 8, 0, 0));
-        miniCap.HorizontalAlignment = HorizontalAlignment.Center;
-        miniStack.Children.Add(miniCap);
-
-        var split = new Grid();
-        split.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        split.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        split.Children.Add(left);
-        Grid.SetColumn(miniStack, 1);
-        split.Children.Add(miniStack);
+        var root = new StackPanel();
+        root.Children.Add(left);
+        root.Children.Add(UiKit.ResponsivePair(colA, colB, 700));
 
         _accentRepaints.Add(() =>
         {
@@ -515,15 +494,7 @@ public partial class OsdView : UserControl
             foreach (var g in new[] { _segColors, _segRing, _segGap, _segHighlight, _segCenter, _segAnim }) g.AccentColor = ThemeManager.Accent;
             if (_config != null) SyncLookControls(_config.Osd);
         });
-
-        var previewBtn = UiKit.IconButton(MaterialIconKind.PlayCircleOutline,
-            "Show a sample wheel full size with this look", _ => PreviewLookWheel());
-
-        return UiKit.Card(Color.FromRgb(0xFF, 0x40, 0x81), MaterialIconKind.Palette,
-            "Customize Wheels", "Size, color, ring style and animation for your Quick Wheels", previewBtn, split,
-            help: "Changes how every Quick Wheel looks. The volume / profile / device pop-ups are not affected.\n\n" +
-                  "Start from a preset, then fine-tune. The sample wheel on the right updates as you go; " +
-                  "click it (or the play button) to see the wheel full size.").Root;
+        return root;
     }
 
     private void HookLookSlider(StyledSlider slider, TextBlock label, Action<OsdConfig, int> set)
@@ -585,7 +556,7 @@ public partial class OsdView : UserControl
             if (_config == null) return;
             p.ApplyTo(_config.Osd);
             LookChanged();
-            _lookMini.PlayIntro();
+            _selectedWheel?.Mini?.PlayIntro();
         };
         _presetTiles.Add((p, tile, halo));
         return tile;
@@ -612,7 +583,6 @@ public partial class OsdView : UserControl
     {
         osd.WheelLook ??= new QuickWheelLook();
         SyncLookControls(osd);
-        RefreshLookMini();
     }
 
     /// <summary>Show the config's current look in every control on the card (no change events fire).</summary>
@@ -733,36 +703,11 @@ public partial class OsdView : UserControl
         };
     }
 
-    private void RefreshLookMini()
-    {
-        if (_config == null || _lookMini == null) return;
-        _lookMini.ApplyStyle(_config.Osd);
-        _lookMini.SetContent(Services.QuickWheelContent.Build(_config, new QuickWheelConfig { Mode = QuickWheelMode.MediaControls }));
-    }
-
-    /// <summary>Full-size wheel with sample items and the current look (picking an item runs nothing).</summary>
-    private void PreviewLookWheel()
-    {
-        if (_config == null) return;
-        _previewWheel?.Dismiss();
-        var wheel = new RadialWheelOverlay();
-        wheel.SetMonitor(DisplayMonitorResolver.ResolveOsdMonitorIndex(_config.Osd));
-        wheel.ApplyStyle(_config.Osd);
-        wheel.SetContent(Services.QuickWheelContent.Build(_config, new QuickWheelConfig { Mode = QuickWheelMode.MediaControls }));
-        wheel.OnSegmentClicked = _ => { };
-        wheel.Deactivated += (_, _) => wheel.Dismiss();
-        wheel.Closed += (_, _) => { if (_previewWheel == wheel) _previewWheel = null; };
-        _previewWheel = wheel;
-        wheel.Show();
-        wheel.Activate();
-    }
-
     /// <summary>A look setting changed: save, then refresh the card controls and every mini wheel.</summary>
     private void LookChanged()
     {
         if (_config == null) return;
         SyncLookControls(_config.Osd);
-        RefreshLookMini();
         foreach (var child in WheelRowsPanel.Children)
             if (child is FrameworkElement fe && fe.Tag is WheelRowState st)
                 RefreshMiniNow(st);
@@ -2317,9 +2262,114 @@ public partial class OsdView : UserControl
         }
     }
 
+    private System.Windows.Controls.Border? _osdMiniCard;
+    private Action? _paintOsdMini;
+
+    /// <summary>
+    /// Small monitor with a scaled-down volume overlay sitting in the chosen corner.
+    /// Follows the Position picker and accent; click it for a real overlay on screen.
+    /// </summary>
+    private FrameworkElement BuildOsdMiniPreview()
+    {
+        var screen = new Grid { ClipToBounds = true };
+        var monitor = new System.Windows.Controls.Border
+        {
+            Width = 264, Height = 150,
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(5),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x08, 0x09, 0x0B)),
+            Background = new LinearGradientBrush(Color.FromRgb(0x1B, 0x2A, 0x3A), Color.FromRgb(0x0B, 0x10, 0x18), 60),
+            Cursor = Cursors.Hand,
+            ToolTip = "Click to show a sample overlay on your screen",
+            Child = screen,
+        };
+        // Faint "window" so it reads as a desktop
+        screen.Children.Add(new System.Windows.Controls.Border
+        {
+            Width = 120, Height = 64, CornerRadius = new CornerRadius(3),
+            Background = new SolidColorBrush(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF)),
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+        });
+
+        // Mini overlay: label, icon + name + value, level bar
+        var catLabel = new TextBlock { Text = "VOLUME", FontSize = 5.5, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 2) };
+        var icon = new MaterialIcon { Kind = MaterialIconKind.VolumeHigh, Width = 9, Height = 9, Margin = new Thickness(0, 0, 4, 0) };
+        var name = new TextBlock { Text = "Master", FontSize = 7.5, FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)), VerticalAlignment = VerticalAlignment.Center };
+        var value = new TextBlock { Text = "75%", FontSize = 8.5, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
+        var mid = new DockPanel { Margin = new Thickness(0, 0, 0, 3) };
+        DockPanel.SetDock(icon, Dock.Left);
+        DockPanel.SetDock(value, Dock.Right);
+        mid.Children.Add(icon);
+        mid.Children.Add(value);
+        mid.Children.Add(name);
+        var track = new System.Windows.Controls.Border { Height = 2.5, CornerRadius = new CornerRadius(1.25) };
+        var fill = new System.Windows.Controls.Border { Height = 2.5, CornerRadius = new CornerRadius(1.25),
+            HorizontalAlignment = HorizontalAlignment.Left, Width = 62 };
+        var bar = new Grid();
+        bar.Children.Add(track);
+        bar.Children.Add(fill);
+        var body = new StackPanel();
+        body.Children.Add(catLabel);
+        body.Children.Add(mid);
+        body.Children.Add(bar);
+
+        _osdMiniCard = new System.Windows.Controls.Border
+        {
+            Width = 96,
+            CornerRadius = new CornerRadius(5),
+            BorderThickness = new Thickness(0.75),
+            Padding = new Thickness(7, 5, 7, 6),
+            Margin = new Thickness(8),
+            Background = new LinearGradientBrush(Color.FromRgb(0x14, 0x14, 0x14), Color.FromRgb(0x0F, 0x0F, 0x0F), 45),
+            Child = body,
+        };
+        screen.Children.Add(_osdMiniCard);
+
+        _paintOsdMini = () =>
+        {
+            var a = ThemeManager.Accent;
+            _osdMiniCard.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, a.R, a.G, a.B));
+            _osdMiniCard.Effect = new System.Windows.Media.Effects.DropShadowEffect
+                { Color = a, BlurRadius = 10, Opacity = 0.35, ShadowDepth = 0 };
+            catLabel.Foreground = new SolidColorBrush(Color.FromArgb(0x88, a.R, a.G, a.B));
+            icon.Foreground = new SolidColorBrush(a);
+            value.Foreground = new SolidColorBrush(a);
+            track.Background = new SolidColorBrush(Color.FromArgb(0x22, a.R, a.G, a.B));
+            fill.Background = new SolidColorBrush(a);
+        };
+        _paintOsdMini();
+        _accentRepaints.Add(_paintOsdMini);
+        PlaceOsdMini(_currentPosition);
+
+        monitor.MouseLeftButtonUp += (_, e) => { e.Handled = true; OnOsdPreview(this, new RoutedEventArgs()); };
+
+        var stack = new StackPanel { Margin = new Thickness(24, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top };
+        stack.Children.Add(monitor);
+        // Stand
+        stack.Children.Add(new System.Windows.Controls.Border { Width = 34, Height = 12,
+            Background = new SolidColorBrush(Color.FromRgb(0x08, 0x09, 0x0B)), HorizontalAlignment = HorizontalAlignment.Center });
+        stack.Children.Add(new System.Windows.Controls.Border { Width = 86, Height = 4, CornerRadius = new CornerRadius(2),
+            Background = new SolidColorBrush(Color.FromRgb(0x08, 0x09, 0x0B)), HorizontalAlignment = HorizontalAlignment.Center });
+        var cap = MakeHint("Click to preview on your screen", new Thickness(0, 8, 0, 0));
+        cap.HorizontalAlignment = HorizontalAlignment.Center;
+        stack.Children.Add(cap);
+        return stack;
+    }
+
+    private void PlaceOsdMini(OsdPosition pos)
+    {
+        if (_osdMiniCard == null) return;
+        string p = pos.ToString();
+        _osdMiniCard.VerticalAlignment = p.StartsWith("Top") ? VerticalAlignment.Top : VerticalAlignment.Bottom;
+        _osdMiniCard.HorizontalAlignment = p.EndsWith("Left") ? HorizontalAlignment.Left
+            : p.EndsWith("Right") ? HorizontalAlignment.Right : HorizontalAlignment.Center;
+    }
+
     private void HighlightOsdPosition(OsdPosition active)
     {
         _currentPosition = active;
+        PlaceOsdMini(active);
         var accent = ThemeManager.Accent;
         foreach (var (pos, cell) in _posCells)
         {
