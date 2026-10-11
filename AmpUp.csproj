@@ -11,9 +11,9 @@
     <RootNamespace>AmpUp</RootNamespace>
     <ApplicationManifest>Assets\app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\ampup.ico</ApplicationIcon>
-    <Version>1.4.1</Version>
-    <AssemblyVersion>1.4.1.0</AssemblyVersion>
-    <FileVersion>1.4.1.0</FileVersion>
+    <Version>1.4.2</Version>
+    <AssemblyVersion>1.4.2.0</AssemblyVersion>
+    <FileVersion>1.4.2.0</FileVersion>
     <!-- The UI and installer are English-only; omit unused framework satellite assemblies. -->
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <!-- Tray app: workstation GC keeps heaps small; concurrent GC off avoids the
