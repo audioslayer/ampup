@@ -615,13 +615,13 @@ public class OsdConfig
     public string MonitorFriendlyName { get; set; } = "";
     public string MonitorDevicePath { get; set; } = "";
     public bool HideInFullscreen { get; set; } = false;
-    /// <summary>Overlay + Quick Wheel size, percent (100 = original).</summary>
+    /// <summary>Quick Wheel size, percent (100 = original).</summary>
     public int Scale { get; set; } = 100;
-    /// <summary>Overlay + Quick Wheel background opacity, percent (100 = original look).</summary>
+    /// <summary>Quick Wheel background opacity, percent (100 = original look).</summary>
     public int BackgroundOpacity { get; set; } = 100;
-    /// <summary>Overlay + Quick Wheel accent as hex. Empty = follow the app's theme accent.</summary>
+    /// <summary>Quick Wheel accent as hex. Empty = follow the app's theme accent.</summary>
     public string AccentColor { get; set; } = "";
-    /// <summary>Quick Wheel-only look options (OSD page -> Quick Wheels Look).</summary>
+    /// <summary>Ring options (OSD page -> Customize Wheels). Scale / BackgroundOpacity / AccentColor above are wheel-only too.</summary>
     public QuickWheelLook WheelLook { get; set; } = new();
     // Legacy single wheel — kept for backwards compat on config load
     public QuickWheelConfig? QuickWheel { get; set; }

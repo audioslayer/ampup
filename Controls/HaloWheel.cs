@@ -63,7 +63,7 @@ public sealed class HaloWheel : Grid
     /// <summary>Apply the OSD page's look settings (color, background, ring options; size is the host's job).</summary>
     public void ApplyStyle(OsdConfig osd)
     {
-        AccentOverride = OsdOverlay.ParseColor(osd.AccentColor);
+        AccentOverride = ParseColor(osd.AccentColor);
         BackgroundOpacity = Math.Clamp(osd.BackgroundOpacity, 0, 100) / 100.0;
         _look = osd.WheelLook ?? new QuickWheelLook();
         (_ringInner, _ringOuter, _hlInner, _hlOuter, _iconSize) = _look.RingThickness switch
@@ -74,6 +74,13 @@ public sealed class HaloWheel : Grid
         };
         _gapDeg = _look.SegmentGap switch { "None" => 0.4, "Wide" => 5.0, _ => 2.2 };
         Render();
+    }
+
+    internal static Color? ParseColor(string? hex)
+    {
+        if (string.IsNullOrWhiteSpace(hex)) return null;
+        try { return (Color)ColorConverter.ConvertFromString(hex); }
+        catch { return null; }
     }
 
     /// <summary>Play the opening animation picked in the look settings (Fade is the host window's job).</summary>
