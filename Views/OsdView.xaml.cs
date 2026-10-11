@@ -163,10 +163,7 @@ public partial class OsdView : UserControl
             Foreground = new SolidColorBrush(ThemeManager.Accent),
         };
 
-        RootPanel.Children.Add(UiKit.PageHeader("On-Screen Display", "What pops up on screen as you use your controller",
-            icon: MaterialIconKind.MonitorEye));
-
-        // Two tabs (same underline bar as the Room page): pop-up overlays, and Quick Wheels
+        // No page header, like the Room page: the tab bar sits at the top. Two tabs (same underline bar as Room): pop-up overlays, and Quick Wheels
         var overlaysTab = new StackPanel();
         var wheelsTab = new StackPanel { Visibility = Visibility.Collapsed };
         RootPanel.Children.Add(BuildOsdTabBar(overlaysTab, wheelsTab));
