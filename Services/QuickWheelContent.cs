@@ -79,13 +79,15 @@ public sealed class QuickWheelContent
                 break;
             case QuickWheelMode.Custom:
                 c.Kind = "Action";
-                foreach (var slot in wheel.CustomSlots)
+                for (int si = 0; si < wheel.CustomSlots.Count; si++)
                 {
+                    var slot = wheel.CustomSlots[si];
                     if (string.IsNullOrEmpty(slot.ActionId)) continue;
                     if (c.Items.Count >= MaxItems) break;
                     var (symbol, color, image) = GetSlotVisuals(slot);
                     var s = slot;
-                    c.Items.Add(new QuickWheelItem(s.ActionId,
+                    // Id points back at the slot so the OSD page can edit its icon from the wheel
+                    c.Items.Add(new QuickWheelItem(CustomSlotIdPrefix + si,
                         string.IsNullOrEmpty(s.Label) ? s.ActionId : s.Label, symbol, color,
                         () => runAction(s.ActionId, s.ToButtonConfig()), image));
                 }
@@ -94,8 +96,27 @@ public sealed class QuickWheelContent
                 AddProfiles(c, config, switchProfile);
                 break;
         }
+
+        if (wheel.Mode != QuickWheelMode.Custom && wheel.ItemIcons is { Count: > 0 })
+        {
+            for (int i = 0; i < c.Items.Count; i++)
+            {
+                if (!wheel.ItemIcons.TryGetValue(c.Items[i].Id, out var ov)) continue;
+                var (symbol, color, image) = GetSlotVisuals(new CustomWheelSlot { Icon = ov.Icon, Color = ov.Color });
+                var it = c.Items[i];
+                c.Items[i] = it with
+                {
+                    Symbol = string.IsNullOrEmpty(ov.Icon) || image != null ? it.Symbol : symbol,
+                    Image = image ?? (string.IsNullOrEmpty(ov.Icon) ? it.Image : null),
+                    Color = string.IsNullOrEmpty(ov.Color) ? it.Color : color,
+                };
+            }
+        }
         return c;
     }
+
+    /// <summary>Custom wheel item ids are this prefix + the slot's index in CustomSlots.</summary>
+    public const string CustomSlotIdPrefix = "slot:";
 
     private static void AddProfiles(QuickWheelContent c, AppConfig config, Action<string> switchProfile)
     {

@@ -628,6 +628,15 @@ public class OsdConfig
     public List<QuickWheelConfig> QuickWheels { get; set; } = new();
 }
 
+/// <summary>A user-picked icon for one wheel item.</summary>
+public class WheelItemIcon
+{
+    /// <summary>Material icon name or image file path.</summary>
+    public string Icon { get; set; } = "";
+    /// <summary>Segment color as hex. Empty = the item's default color.</summary>
+    public string Color { get; set; } = "";
+}
+
 /// <summary>How the Quick Wheel ring is drawn. Defaults = the original Halo look.</summary>
 public class QuickWheelLook
 {
@@ -666,6 +675,12 @@ public class QuickWheelConfig
     public QuickWheelMode Mode { get; set; } = QuickWheelMode.Profile;
 
     public List<CustomWheelSlot> CustomSlots { get; set; } = new();
+
+    /// <summary>
+    /// Icon overrides for Profile / Device / Media / Effect wheels, keyed by item id
+    /// (profile name, device id, action id, effect name). Custom slots keep theirs on the slot.
+    /// </summary>
+    public Dictionary<string, WheelItemIcon> ItemIcons { get; set; } = new();
 
     // User-picked wheel contents (max 8 each). Empty = show the first 8 available.
     public List<string> OutputDeviceIds { get; set; } = new();

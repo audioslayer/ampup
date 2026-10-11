@@ -24,6 +24,8 @@ public sealed class HaloWheel : Grid
 
     /// <summary>Fires when a segment is clicked, with its index.</summary>
     public event Action<int>? SegmentClicked;
+    /// <summary>Fires when a segment is right-clicked, with its index and the segment shape (menu anchor).</summary>
+    public event Action<int, FrameworkElement>? SegmentRightClicked;
 
     private readonly List<QuickWheelItem> _items = new();
     private string _kind = "";
@@ -188,6 +190,12 @@ public sealed class HaloWheel : Grid
             int cap = i;
             path.MouseEnter += (_, _) => Highlight(cap);
             path.MouseLeftButtonDown += (_, e) => { e.Handled = true; SegmentClicked?.Invoke(cap); };
+            path.MouseRightButtonUp += (_, e) =>
+            {
+                if (SegmentRightClicked == null) return;
+                e.Handled = true;
+                SegmentRightClicked(cap, path);
+            };
             _ring.Children.Add(path);
 
             double size = hl ? _iconSize + 4 : _iconSize;

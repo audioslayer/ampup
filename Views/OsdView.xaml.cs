@@ -71,6 +71,7 @@ public partial class OsdView : UserControl
         public List<string> OutputDeviceIds = new();
         public List<string> InputDeviceIds = new();
         public List<string> SignalRgbEffects = new();
+        public Dictionary<string, WheelItemIcon> ItemIcons = new();
         public readonly List<CustomSlotRowState> Slots = new();
     }
 
@@ -84,6 +85,8 @@ public partial class OsdView : UserControl
         public Func<string> GetPath = () => "", GetKeys = () => "", GetProfile = () => "";
         /// <summary>Picked icon (Material name or image path) and color; empty = automatic.</summary>
         public string Icon = "", Color = "";
+        /// <summary>Redraws the row's icon tile (after the icon is changed from the mini wheel).</summary>
+        public Action RefreshIcon = () => { };
         public string ActionId => (Action?.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
     }
 
@@ -1109,6 +1112,7 @@ public partial class OsdView : UserControl
             OutputDeviceIds = new List<string>(qw.OutputDeviceIds),
             InputDeviceIds = new List<string>(qw.InputDeviceIds),
             SignalRgbEffects = new List<string>(qw.SignalRgbEffects),
+            ItemIcons = new Dictionary<string, WheelItemIcon>(qw.ItemIcons ?? new()),
         };
 
         var body = new Grid();
@@ -1249,6 +1253,7 @@ public partial class OsdView : UserControl
     {
         var halo = new Controls.HaloWheel();
         halo.SegmentClicked += _ => PreviewWheel(st);
+        halo.SegmentRightClicked += (idx, anchor) => ShowItemIconMenu(st, idx, anchor);
         st.Mini = halo;
 
         var stack = new StackPanel();
@@ -1261,7 +1266,8 @@ public partial class OsdView : UserControl
             Padding = new Thickness(10),
             Cursor = Cursors.Hand,
             VerticalAlignment = VerticalAlignment.Top,
-            ToolTip = "Live preview — click to open this wheel full size (picking an item runs nothing)",
+            ToolTip = "Live preview. Click to open this wheel full size (picking an item runs nothing).\n" +
+                      "Right-click an item to give it your own icon.",
             Background = new RadialGradientBrush(Color.FromRgb(0x18, 0x21, 0x2B), Color.FromRgb(0x0B, 0x0D, 0x10))
             {
                 GradientOrigin = new Point(0.3, 0.2), Center = new Point(0.3, 0.2), RadiusX = 1, RadiusY = 1,
@@ -1273,6 +1279,59 @@ public partial class OsdView : UserControl
         frame.MouseLeave += (_, _) => frame.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "CardBorderBrush");
         frame.MouseLeftButtonUp += (_, _) => PreviewWheel(st);
         return frame;
+    }
+
+    /// <summary>Right-click menu on a mini wheel item: choose its icon, or go back to the default.</summary>
+    private void ShowItemIconMenu(WheelRowState st, int index, FrameworkElement anchor)
+    {
+        if (_config == null) return;
+        var items = Services.QuickWheelContent.Build(_config, BuildWheelConfig(st)).Items;
+        if (index < 0 || index >= items.Count) return;
+        string id = items[index].Id;
+
+        // Custom wheels keep the icon on the slot (same as its row's icon tile)
+        CustomSlotRowState? slot = null;
+        if (st.Mode == QuickWheelMode.Custom
+            && id.StartsWith(Services.QuickWheelContent.CustomSlotIdPrefix)
+            && int.TryParse(id[Services.QuickWheelContent.CustomSlotIdPrefix.Length..], out int si)
+            && si >= 0 && si < st.Slots.Count)
+            slot = st.Slots[si];
+        if (st.Mode == QuickWheelMode.Custom && slot == null) return;
+
+        bool hasOverride = slot != null
+            ? !string.IsNullOrEmpty(slot.Icon) || !string.IsNullOrEmpty(slot.Color)
+            : st.ItemIcons.ContainsKey(id);
+
+        void Set(string icon, string color)
+        {
+            if (slot != null)
+            {
+                slot.Icon = icon;
+                slot.Color = color;
+                slot.RefreshIcon();
+            }
+            else if (string.IsNullOrEmpty(icon) && string.IsNullOrEmpty(color))
+                st.ItemIcons.Remove(id);
+            else
+                st.ItemIcons[id] = new WheelItemIcon { Icon = icon, Color = color };
+            WheelChanged(st);
+        }
+
+        var menu = new List<GlassMenuItem>
+        {
+            new($"Choose icon for \"{items[index].Label}\"…", MaterialIconKind.ImageEditOutline, () =>
+            {
+                var dialog = new StreamControllerIconPickerDialog { Owner = Window.GetWindow(this) };
+                if (dialog.ShowDialog() != true) return;
+                string color = slot?.Color ?? (st.ItemIcons.TryGetValue(id, out var cur) ? cur.Color : "");
+                if (!string.IsNullOrWhiteSpace(dialog.SelectedDownloadedImagePath))
+                    Set(dialog.SelectedDownloadedImagePath!, color);
+                else if (!string.IsNullOrWhiteSpace(dialog.SelectedIconKind))
+                    Set(dialog.SelectedIconKind!, dialog.SelectedAccent is Color a ? $"#{a.R:X2}{a.G:X2}{a.B:X2}" : color);
+            }),
+            new("Use default icon", MaterialIconKind.Restore, () => Set("", ""), IsEnabled: hasOverride),
+        };
+        GlassContextMenuHost.Show(anchor, menu);
     }
 
     /// <summary>Something on the card changed: save (debounced) and redraw the mini wheel.</summary>
@@ -1901,6 +1960,7 @@ public partial class OsdView : UserControl
         };
         BuildSetting();
         RefreshIcon();
+        slotState.RefreshIcon = RefreshIcon;
 
         st.Slots.Add(slotState);
         st.SlotList.Children.Add(row);
@@ -1968,6 +2028,7 @@ public partial class OsdView : UserControl
             Device = device,
             TriggerButton = triggerIdx,
             TriggerGesture = "hold",
+            ItemIcons = new Dictionary<string, WheelItemIcon>(st.ItemIcons),
             OutputDeviceIds = new List<string>(st.OutputDeviceIds),
             InputDeviceIds = new List<string>(st.InputDeviceIds),
             SignalRgbEffects = new List<string>(st.SignalRgbEffects),
