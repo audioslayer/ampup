@@ -24,6 +24,7 @@ public partial class RadialWheelOverlay : Window
         VerticalAlignment = VerticalAlignment.Center,
     };
     private int _monitorIndex; // which monitor to center on (from OSD config)
+    private string _animation = "Fade";
     private bool _dismissing;
 
     public RadialWheelOverlay()
@@ -82,6 +83,7 @@ public partial class RadialWheelOverlay : Window
         Width = Height = 460 * scale;
         _wheel.LayoutTransform = new System.Windows.Media.ScaleTransform(scale, scale);
         _wheel.ApplyStyle(osd);
+        _animation = osd.WheelLook?.Animation ?? "Fade";
     }
 
     /// <summary>Set which monitor to display on (matches OSD MonitorIndex).</summary>
@@ -101,8 +103,14 @@ public partial class RadialWheelOverlay : Window
 
     private void PlayFadeIn()
     {
+        if (_animation == "None")
+        {
+            RootGrid.Opacity = 1;
+            return;
+        }
         var sb = (Storyboard)FindResource("FadeIn");
         sb.Begin(this, true);
+        _wheel.PlayIntro(); // Pop / Spin on top of the fade
     }
 
     private void PlayFadeOut(Action onComplete)

@@ -30,8 +30,10 @@ public partial class OsdView : UserControl
     private FrameworkElement _volumeDurRow = null!, _profileDurRow = null!, _deviceDurRow = null!;
     private StyledSlider SldOsdVolumeDur = null!, SldOsdProfileDur = null!, SldOsdDeviceDur = null!, SldOsdWheelDur = null!;
     // Overlay Look card
-    private StyledSlider _sldLookScale = null!, _sldLookBg = null!;
-    private TextBlock _lblLookScale = null!, _lblLookBg = null!;
+    private StyledSlider _sldLookScale = null!, _sldLookBg = null!, _sldLookGlow = null!;
+    private TextBlock _lblLookScale = null!, _lblLookBg = null!, _lblLookGlow = null!;
+    private StackPanel _wheelLookOptions = null!;
+    private Controls.HaloWheel _lookMini = null!;
     private WrapPanel _lookSwatches = null!, _lookPresets = null!;
     private OsdOverlay? _lookPreview;
     private DispatcherTimer? _lookPreviewTimer;
@@ -329,6 +331,38 @@ public partial class OsdView : UserControl
         _lookSwatches = new WrapPanel();
         body.Children.Add(_lookSwatches);
 
+        // Wheel-only options
+        body.Children.Add(MakeDivider());
+        _wheelLookOptions = new StackPanel();
+        body.Children.Add(_wheelLookOptions);
+        _sldLookGlow = NewSlider(0, 200, "How strongly the wheel and the highlighted segment glow");
+        _lblLookGlow = NewVal();
+        body.Children.Add(MakeDurationRow(_sldLookGlow, _lblLookGlow, "Glow"));
+        _sldLookGlow.ValueChanged += (_, _) =>
+        {
+            _lblLookGlow.Text = $"{_sldLookGlow.Value:F0}%";
+            if (_loading || _config == null) return;
+            _config.Osd.WheelLook.Glow = (int)Math.Round(_sldLookGlow.Value);
+            LookChanged(previewOverlay: false);
+        };
+
+        // Live sample wheel on the right (media controls: always available, no device lookups)
+        _lookMini = new Controls.HaloWheel();
+        _lookMini.SegmentClicked += _ => PreviewLookWheel();
+        var miniStack = new StackPanel { Margin = new Thickness(18, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top };
+        miniStack.Children.Add(new Viewbox { Width = 190, Height = 190, Child = _lookMini, Stretch = Stretch.Uniform,
+            Cursor = Cursors.Hand, ToolTip = "Click for a full-size preview" });
+        var miniCap = MakeHint("Click to preview full size", new Thickness(0, 6, 0, 0));
+        miniCap.HorizontalAlignment = HorizontalAlignment.Center;
+        miniStack.Children.Add(miniCap);
+
+        var split = new Grid();
+        split.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        split.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        split.Children.Add(body);
+        Grid.SetColumn(miniStack, 1);
+        split.Children.Add(miniStack);
+
         _sldLookScale.ValueChanged += (_, _) =>
         {
             _lblLookScale.Text = $"{_sldLookScale.Value:F0}%";
@@ -345,8 +379,8 @@ public partial class OsdView : UserControl
         };
         _accentRepaints.Add(() =>
         {
-            _sldLookScale.AccentColor = _sldLookBg.AccentColor = ThemeManager.Accent;
-            _lblLookScale.Foreground = _lblLookBg.Foreground = new SolidColorBrush(ThemeManager.Accent);
+            _sldLookScale.AccentColor = _sldLookBg.AccentColor = _sldLookGlow.AccentColor = ThemeManager.Accent;
+            _lblLookScale.Foreground = _lblLookBg.Foreground = _lblLookGlow.Foreground = new SolidColorBrush(ThemeManager.Accent);
             if (_config != null) BuildLookChips(_config.Osd);
         });
 
@@ -354,9 +388,11 @@ public partial class OsdView : UserControl
             "Show a sample volume overlay with this look", _ => ShowLookPreview());
 
         return UiKit.Card(Color.FromRgb(0xFF, 0x40, 0x81), MaterialIconKind.Palette,
-            "Overlay Look", "Size, see-through and color for overlays and Quick Wheels", previewBtn, body,
-            help: "Applies to the volume / profile / device overlays and every Quick Wheel. " +
-                  "A sample overlay pops up while you adjust, so you can see the change right away.").Root;
+            "Quick Wheels Look", "Make the wheel your own: size, color, ring style and animation", previewBtn, split,
+            help: "Style, Size, Background and Color also apply to the volume / profile / device pop-ups, " +
+                  "so everything on screen matches. A sample pop-up appears while you change those.\n\n" +
+                  "Everything below the line is for the wheel only. The sample wheel on the right updates as you go; " +
+                  "click it to see the wheel full size.").Root;
     }
 
     private void LoadLook(OsdConfig osd)
@@ -365,7 +401,11 @@ public partial class OsdView : UserControl
         _lblLookScale.Text = $"{_sldLookScale.Value:F0}%";
         _sldLookBg.Value = Math.Clamp(osd.BackgroundOpacity, 10, 100);
         _lblLookBg.Text = $"{_sldLookBg.Value:F0}%";
+        osd.WheelLook ??= new QuickWheelLook();
+        _sldLookGlow.Value = Math.Clamp(osd.WheelLook.Glow, 0, 200);
+        _lblLookGlow.Text = $"{_sldLookGlow.Value:F0}%";
         BuildLookChips(osd);
+        RefreshLookMini();
     }
 
     /// <summary>Rebuild the Style preset pills and color swatches to show the current selection.</summary>
@@ -376,26 +416,9 @@ public partial class OsdView : UserControl
         _lookPresets.Children.Clear();
         foreach (var (name, scale, bg) in LookPresets)
         {
-            bool on = osd.Scale == scale && osd.BackgroundOpacity == bg;
-            var pill = new System.Windows.Controls.Border
-            {
-                CornerRadius = new CornerRadius(12),
-                Padding = new Thickness(12, 4, 12, 4),
-                Margin = new Thickness(0, 0, 6, 6),
-                BorderThickness = new Thickness(1),
-                BorderBrush = new SolidColorBrush(on ? accent : Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)),
-                Background = new SolidColorBrush(on ? Color.FromArgb(0x26, accent.R, accent.G, accent.B) : Colors.Transparent),
-                Cursor = Cursors.Hand,
-                Child = new TextBlock
-                {
-                    Text = name, FontSize = 11, FontWeight = FontWeights.SemiBold,
-                    Foreground = on ? new SolidColorBrush(accent) : FindBrush("TextSecBrush"),
-                },
-            };
             int s = scale, b = bg;
-            pill.MouseLeftButtonUp += (_, e) =>
+            _lookPresets.Children.Add(MakeLookPill(name, osd.Scale == scale && osd.BackgroundOpacity == bg, () =>
             {
-                e.Handled = true;
                 if (_config == null) return;
                 _config.Osd.Scale = s;
                 _config.Osd.BackgroundOpacity = b;
@@ -404,9 +427,10 @@ public partial class OsdView : UserControl
                 _sldLookBg.Value = b;
                 _loading = false;
                 LookChanged();
-            };
-            _lookPresets.Children.Add(pill);
+            }));
         }
+
+        BuildWheelLookOptions(osd.WheelLook ??= new QuickWheelLook());
 
         _lookSwatches.Children.Clear();
         System.Windows.Controls.Border Swatch(Brush fill, bool selected, string tip, UIElement? child = null)
@@ -477,15 +501,116 @@ public partial class OsdView : UserControl
         };
     }
 
-    /// <summary>A look setting changed: save, refresh pills / mini wheels, and pop the sample overlay.</summary>
-    private void LookChanged()
+    private System.Windows.Controls.Border MakeLookPill(string text, bool on, Action onClick, string? tip = null)
+    {
+        var accent = ThemeManager.Accent;
+        var pill = new System.Windows.Controls.Border
+        {
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(12, 4, 12, 4),
+            Margin = new Thickness(0, 0, 6, 6),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(on ? accent : Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)),
+            Background = new SolidColorBrush(on ? Color.FromArgb(0x26, accent.R, accent.G, accent.B) : Colors.Transparent),
+            Cursor = Cursors.Hand,
+            ToolTip = tip,
+            Child = new TextBlock
+            {
+                Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold,
+                Foreground = on ? new SolidColorBrush(accent) : FindBrush("TextSecBrush"),
+            },
+        };
+        pill.MouseLeftButtonUp += (_, e) => { e.Handled = true; onClick(); };
+        return pill;
+    }
+
+    /// <summary>The wheel-only option rows: label on the left, pills on the right.</summary>
+    private void BuildWheelLookOptions(QuickWheelLook look)
+    {
+        _wheelLookOptions.Children.Clear();
+
+        void Row(string label, string current, Action<string> set, params (string Value, string Text, string Tip)[] options)
+        {
+            var g = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var cap = MakeLabel(label, new Thickness(0, 4, 0, 0));
+            cap.VerticalAlignment = VerticalAlignment.Top;
+            g.Children.Add(cap);
+            var wrap = new WrapPanel();
+            foreach (var (value, text, tip) in options)
+            {
+                string v = value;
+                wrap.Children.Add(MakeLookPill(text, current == value, () =>
+                {
+                    set(v);
+                    LookChanged(previewOverlay: false);
+                    if (label == "Open animation") _lookMini.PlayIntro();
+                }, tip));
+            }
+            Grid.SetColumn(wrap, 1);
+            g.Children.Add(wrap);
+            _wheelLookOptions.Children.Add(g);
+        }
+
+        Row("Segment colors", look.SegmentColors, v => look.SegmentColors = v,
+            ("Item", "Per item", "Each item keeps its own color (app icons, profile colors, etc.)"),
+            ("Accent", "One color", "Every segment uses the Color picked above"),
+            ("Rainbow", "Rainbow", "A rainbow runs around the ring"));
+        Row("Ring", look.RingThickness, v => look.RingThickness = v,
+            ("Thin", "Thin", null!), ("Normal", "Normal", null!), ("Thick", "Thick", null!));
+        Row("Spacing", look.SegmentGap, v => look.SegmentGap = v,
+            ("None", "None", "Segments touch: one continuous ring"), ("Small", "Small", null!), ("Wide", "Wide", null!));
+        Row("Highlight", look.Highlight, v => look.Highlight = v,
+            ("Fill", "Solid", "The picked segment fills in solid"),
+            ("Outline", "Outline", "The picked segment gets a bright outline instead"));
+        Row("Center", look.CenterInfo, v => look.CenterInfo = v,
+            ("Full", "Full", "Icon, name, what kind of item it is, and the ACTIVE badge"),
+            ("Simple", "Icon + name", null!),
+            ("Icon", "Icon only", "Just a big icon in the middle"));
+        Row("Open animation", look.Animation, v => look.Animation = v,
+            ("Fade", "Fade", null!), ("Pop", "Pop", "Springs out from the center"),
+            ("Spin", "Spin", "The ring spins into place"), ("None", "None", "Appears instantly"));
+    }
+
+    private void RefreshLookMini()
+    {
+        if (_config == null || _lookMini == null) return;
+        _lookMini.ApplyStyle(_config.Osd);
+        _lookMini.SetContent(Services.QuickWheelContent.Build(_config, new QuickWheelConfig { Mode = QuickWheelMode.MediaControls }));
+    }
+
+    /// <summary>Full-size wheel with sample items and the current look (picking an item runs nothing).</summary>
+    private void PreviewLookWheel()
+    {
+        if (_config == null) return;
+        _previewWheel?.Dismiss();
+        var wheel = new RadialWheelOverlay();
+        wheel.SetMonitor(DisplayMonitorResolver.ResolveOsdMonitorIndex(_config.Osd));
+        wheel.ApplyStyle(_config.Osd);
+        wheel.SetContent(Services.QuickWheelContent.Build(_config, new QuickWheelConfig { Mode = QuickWheelMode.MediaControls }));
+        wheel.OnSegmentClicked = _ => { };
+        wheel.Deactivated += (_, _) => wheel.Dismiss();
+        wheel.Closed += (_, _) => { if (_previewWheel == wheel) _previewWheel = null; };
+        _previewWheel = wheel;
+        wheel.Show();
+        wheel.Activate();
+    }
+
+    /// <summary>
+    /// A look setting changed: save, refresh pills and every mini wheel, and (for the shared
+    /// settings) pop the sample overlay.
+    /// </summary>
+    private void LookChanged(bool previewOverlay = true)
     {
         if (_config == null) return;
         BuildLookChips(_config.Osd);
+        RefreshLookMini();
         foreach (var child in WheelRowsPanel.Children)
             if (child is FrameworkElement fe && fe.Tag is WheelRowState st)
                 RefreshMiniNow(st);
         QueueSave();
+        if (!previewOverlay) return;
 
         // Debounce the sample so dragging a slider doesn't restart its fade-in every tick
         _lookPreviewTimer ??= CreateLookPreviewTimer();

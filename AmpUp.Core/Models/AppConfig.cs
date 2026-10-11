@@ -621,9 +621,30 @@ public class OsdConfig
     public int BackgroundOpacity { get; set; } = 100;
     /// <summary>Overlay + Quick Wheel accent as hex. Empty = follow the app's theme accent.</summary>
     public string AccentColor { get; set; } = "";
+    /// <summary>Quick Wheel-only look options (OSD page -> Quick Wheels Look).</summary>
+    public QuickWheelLook WheelLook { get; set; } = new();
     // Legacy single wheel — kept for backwards compat on config load
     public QuickWheelConfig? QuickWheel { get; set; }
     public List<QuickWheelConfig> QuickWheels { get; set; } = new();
+}
+
+/// <summary>How the Quick Wheel ring is drawn. Defaults = the original Halo look.</summary>
+public class QuickWheelLook
+{
+    /// <summary>"Item" (each item's own color), "Accent" (one color) or "Rainbow".</summary>
+    public string SegmentColors { get; set; } = "Item";
+    /// <summary>"Thin", "Normal" or "Thick".</summary>
+    public string RingThickness { get; set; } = "Normal";
+    /// <summary>"None", "Small" or "Wide" space between segments.</summary>
+    public string SegmentGap { get; set; } = "Small";
+    /// <summary>Glow strength, percent (0 = none, 100 = original, 200 = double).</summary>
+    public int Glow { get; set; } = 100;
+    /// <summary>"Fill" (solid highlighted segment) or "Outline".</summary>
+    public string Highlight { get; set; } = "Fill";
+    /// <summary>"Full" (icon, name, type, ACTIVE), "Simple" (icon + name) or "Icon".</summary>
+    public string CenterInfo { get; set; } = "Full";
+    /// <summary>Opening animation: "Fade", "Pop", "Spin" or "None".</summary>
+    public string Animation { get; set; } = "Fade";
 }
 
 public class QuickWheelConfig

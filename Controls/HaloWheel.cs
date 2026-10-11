@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using AmpUp.Services;
@@ -55,19 +56,57 @@ public sealed class HaloWheel : Grid
     /// <summary>0..1 multiplier on the glass backdrop + center disc alpha (1 = original look).</summary>
     public double BackgroundOpacity { get; set; } = 1.0;
 
-    /// <summary>Apply the OSD page's look settings (color + background opacity; size is the host's job).</summary>
+    private QuickWheelLook _look = new();
+
+    /// <summary>Apply the OSD page's look settings (color, background, ring options; size is the host's job).</summary>
     public void ApplyStyle(OsdConfig osd)
     {
         AccentOverride = OsdOverlay.ParseColor(osd.AccentColor);
         BackgroundOpacity = Math.Clamp(osd.BackgroundOpacity, 0, 100) / 100.0;
+        _look = osd.WheelLook ?? new QuickWheelLook();
+        (_ringInner, _ringOuter, _hlInner, _hlOuter, _iconSize) = _look.RingThickness switch
+        {
+            "Thin" => (162.0, 182.0, 158.0, 190.0, 14.0),
+            "Thick" => (142.0, 190.0, 136.0, 200.0, 21.0),
+            _ => (154.0, 186.0, 148.0, 196.0, 18.0),
+        };
+        _gapDeg = _look.SegmentGap switch { "None" => 0.4, "Wide" => 5.0, _ => 2.2 };
         Render();
     }
 
-    // Geometry (420x420 canvas)
+    /// <summary>Play the opening animation picked in the look settings (Fade is the host window's job).</summary>
+    public void PlayIntro()
+    {
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        switch (_look.Animation)
+        {
+            case "Pop":
+            {
+                var st = new ScaleTransform(0.75, 0.75);
+                RenderTransformOrigin = new Point(0.5, 0.5);
+                RenderTransform = st;
+                var anim = new DoubleAnimation(0.75, 1, TimeSpan.FromMilliseconds(320))
+                    { EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.45 } };
+                st.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
+                st.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
+                break;
+            }
+            case "Spin":
+            {
+                var rt = new RotateTransform(-120, CenterX, CenterY);
+                _ring.RenderTransform = rt;
+                rt.BeginAnimation(RotateTransform.AngleProperty,
+                    new DoubleAnimation(-120, 0, TimeSpan.FromMilliseconds(420)) { EasingFunction = ease });
+                break;
+            }
+        }
+    }
+
+    // Geometry (420x420 canvas); ring sizes follow the Ring thickness option
     private const double CenterX = 210, CenterY = 210;
-    private const double RingInner = 154, RingOuter = 186;
-    private const double HlInner = 148, HlOuter = 196;
-    private const double GapDeg = 2.2;
+    private double _ringInner = 154, _ringOuter = 186, _hlInner = 148, _hlOuter = 196, _iconSize = 18;
+    private double _gapDeg = 2.2;
+    private double GlowScale => Math.Clamp(_look.Glow, 0, 200) / 100.0;
 
     private static readonly Color NameText = Color.FromRgb(0xE8, 0xE8, 0xE8);
     private static readonly Color DimText = Color.FromRgb(0x8A, 0x8A, 0x8A);
@@ -110,6 +149,8 @@ public sealed class HaloWheel : Grid
     {
         var accent = AccentOverride ?? ThemeManager.Accent;
         _glow.Color = accent;
+        _glow.Opacity = Math.Min(1, 0.22 * GlowScale);
+        _backdrop.Effect = GlowScale <= 0.001 ? null : _glow;
         _backdrop.Fill = new SolidColorBrush(Color.FromArgb((byte)Math.Round(0xD6 * BackgroundOpacity), 0x10, 0x10, 0x10));
         _centerDisc.Fill = new SolidColorBrush(Color.FromArgb((byte)Math.Round(0xEB * BackgroundOpacity), 0x0C, 0x0C, 0x0C));
         _centerDisc.Stroke = new SolidColorBrush(Color.FromArgb(0x24, accent.R, accent.G, accent.B));
@@ -128,24 +169,28 @@ public sealed class HaloWheel : Grid
         {
             var it = _items[i];
             bool hl = i == _highlighted;
-            var c = it.Color;
+            var c = SegmentColor(i, n, it.Color);
+            bool outline = hl && _look.Highlight == "Outline";
             double mid = -90.0 + i * step;
 
+            double gap = Math.Min(_gapDeg, step / 4);
             var path = new Path
             {
-                Data = BuildRingSlice(mid - step / 2 + GapDeg, mid + step / 2 - GapDeg,
-                    hl ? HlInner : RingInner, hl ? HlOuter : RingOuter),
-                Fill = new SolidColorBrush(hl ? c : Color.FromArgb(0x33, c.R, c.G, c.B)),
+                Data = BuildRingSlice(mid - step / 2 + gap, mid + step / 2 - gap,
+                    hl ? _hlInner : _ringInner, hl ? _hlOuter : _ringOuter),
+                Fill = new SolidColorBrush(hl && !outline ? c : Color.FromArgb(outline ? (byte)0x40 : (byte)0x33, c.R, c.G, c.B)),
+                Stroke = outline ? new SolidColorBrush(c) : null,
+                StrokeThickness = outline ? 2 : 0,
                 Cursor = Cursors.Hand,
             };
-            if (hl)
-                path.Effect = new DropShadowEffect { Color = c, BlurRadius = 18, Opacity = 0.6, ShadowDepth = 0 };
+            if (hl && GlowScale > 0.001)
+                path.Effect = new DropShadowEffect { Color = c, BlurRadius = 18, Opacity = Math.Min(1, 0.6 * GlowScale), ShadowDepth = 0 };
             int cap = i;
             path.MouseEnter += (_, _) => Highlight(cap);
             path.MouseLeftButtonDown += (_, e) => { e.Handled = true; SegmentClicked?.Invoke(cap); };
             _ring.Children.Add(path);
 
-            double size = hl ? 22 : 18;
+            double size = hl ? _iconSize + 4 : _iconSize;
             FrameworkElement? icon = null;
             if (it.Image != null)
             {
@@ -157,13 +202,13 @@ public sealed class HaloWheel : Grid
                 icon = new MaterialIcon
                 {
                     Kind = kind,
-                    // Dark glyph on the solid highlighted segment, colored glyph on the dim ones
-                    Foreground = new SolidColorBrush(hl ? Color.FromRgb(0x0F, 0x0F, 0x0F) : c),
+                    // Dark glyph on the solid highlighted segment, colored glyph on the dim / outlined ones
+                    Foreground = new SolidColorBrush(hl && !outline ? Color.FromRgb(0x0F, 0x0F, 0x0F) : c),
                 };
             }
             if (icon != null)
             {
-                double r = hl ? 172 : 170;
+                double r = hl ? (_hlInner + _hlOuter) / 2 : (_ringInner + _ringOuter) / 2;
                 double rad = mid * Math.PI / 180.0;
                 icon.Width = size;
                 icon.Height = size;
@@ -198,12 +243,16 @@ public sealed class HaloWheel : Grid
         }
 
         var it = _items[_highlighted];
+        var itColor = SegmentColor(_highlighted, _items.Count, it.Color);
+        bool iconOnly = _look.CenterInfo == "Icon";
+        bool simple = _look.CenterInfo == "Simple";
+        double centerIcon = iconOnly ? 64 : 34;
         if (it.Image != null)
         {
             _center.Children.Add(new Image
             {
                 Source = it.Image,
-                Width = 34, Height = 34,
+                Width = centerIcon, Height = centerIcon,
                 Stretch = Stretch.Uniform,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 0, 0, 10),
@@ -214,12 +263,14 @@ public sealed class HaloWheel : Grid
             _center.Children.Add(new MaterialIcon
             {
                 Kind = kind,
-                Width = 34, Height = 34,
-                Foreground = new SolidColorBrush(it.Color),
+                Width = centerIcon, Height = centerIcon,
+                Foreground = new SolidColorBrush(itColor),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 0, 0, 10),
             });
         }
+
+        if (iconOnly) return;
 
         _center.Children.Add(new TextBlock
         {
@@ -232,6 +283,8 @@ public sealed class HaloWheel : Grid
             TextTrimming = TextTrimming.CharacterEllipsis,
             MaxHeight = 44, // two lines
         });
+
+        if (simple) return;
 
         if (!string.IsNullOrEmpty(_kind))
         {
@@ -265,6 +318,27 @@ public sealed class HaloWheel : Grid
                 },
             });
         }
+    }
+
+    /// <summary>Segment color per the Segment colors option: item's own, one accent, or a rainbow around the ring.</summary>
+    private Color SegmentColor(int index, int count, Color itemColor) => _look.SegmentColors switch
+    {
+        "Accent" => AccentOverride ?? ThemeManager.Accent,
+        "Rainbow" => HueColor(360.0 * index / Math.Max(1, count)),
+        _ => itemColor,
+    };
+
+    private static Color HueColor(double hue)
+    {
+        // HSV with s = 0.75, v = 1 — bright but not neon
+        double s = 0.75, h = (hue % 360) / 60.0;
+        double c = s, x = c * (1 - Math.Abs(h % 2 - 1)), m = 1 - c;
+        var (r, g, b) = (int)h switch
+        {
+            0 => (c, x, 0.0), 1 => (x, c, 0.0), 2 => (0.0, c, x),
+            3 => (0.0, x, c), 4 => (x, 0.0, c), _ => (c, 0.0, x),
+        };
+        return Color.FromRgb((byte)((r + m) * 255), (byte)((g + m) * 255), (byte)((b + m) * 255));
     }
 
     /// <summary>Annular slice between two angles (degrees, 0 = right, clockwise).</summary>
