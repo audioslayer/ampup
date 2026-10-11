@@ -68,6 +68,8 @@ public partial class OsdView : UserControl
         public List<string> OutputDeviceIds = new();
         public List<string> InputDeviceIds = new();
         public List<string> SignalRgbEffects = new();
+        public List<string> MediaActions = new();
+        public List<string> ProfileNames = new();
         public Dictionary<string, WheelItemIcon> ItemIcons = new();
         public readonly List<CustomSlotRowState> Slots = new();
     }
@@ -1176,6 +1178,8 @@ public partial class OsdView : UserControl
             OutputDeviceIds = new List<string>(qw.OutputDeviceIds),
             InputDeviceIds = new List<string>(qw.InputDeviceIds),
             SignalRgbEffects = new List<string>(qw.SignalRgbEffects),
+            MediaActions = new List<string>(qw.MediaActions ?? new()),
+            ProfileNames = new List<string>(qw.ProfileNames ?? new()),
             ItemIcons = new Dictionary<string, WheelItemIcon>(qw.ItemIcons ?? new()),
         };
 
@@ -1345,6 +1349,86 @@ public partial class OsdView : UserControl
         return frame;
     }
 
+    /// <summary>
+    /// Icon tile for one item in a wheel's list: shows the icon the wheel will draw.
+    /// Click = choose an icon or image, right-click = back to the default.
+    /// </summary>
+    private System.Windows.Controls.Border MakeItemIconTile(WheelRowState st, string id)
+    {
+        var tile = new System.Windows.Controls.Border
+        {
+            Width = 26, Height = 26,
+            CornerRadius = new CornerRadius(6),
+            BorderThickness = new Thickness(1),
+            Background = FindBrush("InputBgBrush"),
+            Cursor = Cursors.Hand,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        void Paint()
+        {
+            var (symbol, color, image) = ResolveItemVisual(st, id);
+            bool custom = st.ItemIcons.ContainsKey(id);
+            tile.BorderBrush = new SolidColorBrush(Color.FromArgb(custom ? (byte)0xCC : (byte)0x55, color.R, color.G, color.B));
+            tile.Child = image != null
+                ? new Image { Source = image, Width = 16, Height = 16, Stretch = Stretch.Uniform }
+                : new MaterialIcon
+                {
+                    Kind = Enum.TryParse<MaterialIconKind>(symbol, out var k) ? k : MaterialIconKind.CircleOutline,
+                    Width = 16, Height = 16,
+                    Foreground = new SolidColorBrush(color),
+                };
+            tile.ToolTip = custom
+                ? "Your icon. Click to change, right-click to go back to the default."
+                : "Click to choose your own icon or image";
+        }
+        Paint();
+
+        tile.MouseLeftButtonUp += (_, e) =>
+        {
+            e.Handled = true; // don't toggle the row's checkbox
+            string color = st.ItemIcons.TryGetValue(id, out var cur) ? cur.Color : "";
+            PickWheelIcon(color, (icon, c) =>
+            {
+                st.ItemIcons[id] = new WheelItemIcon { Icon = icon, Color = c };
+                Paint();
+                WheelChanged(st);
+            });
+        };
+        tile.MouseRightButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            if (!st.ItemIcons.Remove(id)) return;
+            Paint();
+            WheelChanged(st);
+        };
+        return tile;
+    }
+
+    /// <summary>What an item looks like on this wheel: its default, with the wheel's override on top.</summary>
+    private (string symbol, Color color, ImageSource? image) ResolveItemVisual(WheelRowState st, string id)
+    {
+        var (symbol, color) = _config != null
+            ? Services.QuickWheelContent.GetDefaultItemVisual(_config, st.Mode, id)
+            : ("CircleOutline", Colors.Gray);
+        if (!st.ItemIcons.TryGetValue(id, out var ov)) return (symbol, color, null);
+        var (oSym, oColor, image) = Services.QuickWheelContent.GetSlotVisuals(new CustomWheelSlot { Icon = ov.Icon, Color = ov.Color });
+        return (string.IsNullOrEmpty(ov.Icon) || image != null ? symbol : oSym,
+            string.IsNullOrEmpty(ov.Color) ? color : oColor, image);
+    }
+
+    /// <summary>Open the icon picker; <paramref name="set"/> gets (icon or image path, color hex).</summary>
+    private void PickWheelIcon(string currentColor, Action<string, string> set)
+    {
+        var dialog = new StreamControllerIconPickerDialog { Owner = Window.GetWindow(this) };
+        if (dialog.ShowDialog() != true) return;
+        if (!string.IsNullOrWhiteSpace(dialog.SelectedDownloadedImagePath))
+            set(dialog.SelectedDownloadedImagePath!, currentColor);
+        else if (!string.IsNullOrWhiteSpace(dialog.SelectedIconKind))
+            set(dialog.SelectedIconKind!, dialog.SelectedAccent is Color a ? $"#{a.R:X2}{a.G:X2}{a.B:X2}" : currentColor);
+    }
+
     /// <summary>Right-click menu on a mini wheel item: choose its icon, or go back to the default.</summary>
     private void ShowItemIconMenu(WheelRowState st, int index, FrameworkElement anchor)
     {
@@ -1374,25 +1458,21 @@ public partial class OsdView : UserControl
                 slot.Color = color;
                 slot.RefreshIcon();
             }
-            else if (string.IsNullOrEmpty(icon) && string.IsNullOrEmpty(color))
-                st.ItemIcons.Remove(id);
             else
-                st.ItemIcons[id] = new WheelItemIcon { Icon = icon, Color = color };
+            {
+                if (string.IsNullOrEmpty(icon) && string.IsNullOrEmpty(color))
+                    st.ItemIcons.Remove(id);
+                else
+                    st.ItemIcons[id] = new WheelItemIcon { Icon = icon, Color = color };
+                RefreshWheelModePanels(st); // redraw the list's icon tiles
+            }
             WheelChanged(st);
         }
 
         var menu = new List<GlassMenuItem>
         {
             new($"Choose icon for \"{items[index].Label}\"…", MaterialIconKind.ImageEditOutline, () =>
-            {
-                var dialog = new StreamControllerIconPickerDialog { Owner = Window.GetWindow(this) };
-                if (dialog.ShowDialog() != true) return;
-                string color = slot?.Color ?? (st.ItemIcons.TryGetValue(id, out var cur) ? cur.Color : "");
-                if (!string.IsNullOrWhiteSpace(dialog.SelectedDownloadedImagePath))
-                    Set(dialog.SelectedDownloadedImagePath!, color);
-                else if (!string.IsNullOrWhiteSpace(dialog.SelectedIconKind))
-                    Set(dialog.SelectedIconKind!, dialog.SelectedAccent is Color a ? $"#{a.R:X2}{a.G:X2}{a.B:X2}" : color);
-            }),
+                PickWheelIcon(slot?.Color ?? (st.ItemIcons.TryGetValue(id, out var cur) ? cur.Color : ""), Set)),
             new("Use default icon", MaterialIconKind.Restore, () => Set("", ""), IsEnabled: hasOverride),
         };
         GlassContextMenuHost.Show(anchor, menu);
@@ -1650,18 +1730,27 @@ public partial class OsdView : UserControl
                     AmpUp.Services.SignalRgbEffectCatalog.LastAppliedEffectName, "effects");
                 break;
             }
+            case QuickWheelMode.MediaControls:
+                BuildWheelItemChecklist(st, st.MediaActions,
+                    Services.QuickWheelContent.MediaControls.Select(m => (m.id, m.label)).ToList(), "", "media controls");
+                break;
+            case QuickWheelMode.Profile:
+                BuildWheelItemChecklist(st, st.ProfileNames,
+                    (_config?.Profiles ?? new List<string>()).Select(p => (p, p)).ToList(),
+                    _config?.ActiveProfile ?? "", "profiles");
+                break;
         }
         st.ItemsPanel.Visibility = st.ItemsPanel.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static string WheelModeHelp(QuickWheelMode mode) => mode switch
     {
-        QuickWheelMode.OutputDevice => $"Tick the output devices to show (up to {WheelMaxItems}). The number is their order on the wheel. Tick none to show the first {WheelMaxItems}.",
-        QuickWheelMode.InputDevice => $"Tick the mics to show (up to {WheelMaxItems}). The number is their order on the wheel. Tick none to show the first {WheelMaxItems}.",
-        QuickWheelMode.SignalRgbEffect => $"Tick the SignalRGB effects to show (up to {WheelMaxItems}). The number is their order on the wheel. Tick none to show the first {WheelMaxItems}.",
-        QuickWheelMode.MediaControls => "Play / pause, previous, next, mute master, mute mic, volume up, volume down and stop.",
+        QuickWheelMode.OutputDevice => $"Tick the output devices to show (up to {WheelMaxItems}). The number is their order on the wheel. Tick none to show the first {WheelMaxItems}.\n\nClick an icon to change it.",
+        QuickWheelMode.InputDevice => $"Tick the mics to show (up to {WheelMaxItems}). The number is their order on the wheel. Tick none to show the first {WheelMaxItems}.\n\nClick an icon to change it.",
+        QuickWheelMode.SignalRgbEffect => $"Tick the SignalRGB effects to show (up to {WheelMaxItems}). The number is their order on the wheel. Tick none to show the first {WheelMaxItems}.\n\nClick an icon to change it.",
+        QuickWheelMode.MediaControls => "Tick the media controls to show. The number is their order on the wheel. Tick none to show all of them.\n\nClick an icon to change it.",
         QuickWheelMode.Custom => $"Each slot is one item on the wheel (up to {WheelMaxItems}). Pick an action, fill in its setting if it has one, and type the name to show on the wheel.",
-        _ => $"Your profiles (up to {WheelMaxItems}). The one you're using now is marked ACTIVE.",
+        _ => $"Tick the profiles to show (up to {WheelMaxItems}). The number is their order on the wheel. Tick none to show every profile. The one you're using now is marked ACTIVE.\n\nClick an icon to change it.",
     };
 
     private static List<(string id, string name)> GetAudioDevices(NAudio.CoreAudioApi.DataFlow flow)
@@ -1776,6 +1865,7 @@ public partial class OsdView : UserControl
             var g = new Grid { Margin = new Thickness(0, 1, 0, 1), Background = Brushes.Transparent };
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(34) });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
@@ -1792,10 +1882,13 @@ public partial class OsdView : UserControl
                 Margin = new Thickness(4, 0, 8, 0),
             };
             label.SetResourceReference(TextBlock.ForegroundProperty, missing ? "TextDimBrush" : "TextPrimaryBrush");
+            var iconTile = MakeItemIconTile(st, id);
             Grid.SetColumn(order, 1);
-            Grid.SetColumn(label, 2);
+            Grid.SetColumn(iconTile, 2);
+            Grid.SetColumn(label, 3);
             g.Children.Add(cb);
             g.Children.Add(order);
+            g.Children.Add(iconTile);
             g.Children.Add(label);
 
             if (!string.IsNullOrEmpty(inUseId) && string.Equals(id, inUseId, StringComparison.OrdinalIgnoreCase))
@@ -1808,7 +1901,7 @@ public partial class OsdView : UserControl
                     VerticalAlignment = VerticalAlignment.Center,
                     Child = new TextBlock { Text = "In use", FontSize = 10, Foreground = new SolidColorBrush(a) },
                 };
-                Grid.SetColumn(chip, 3);
+                Grid.SetColumn(chip, 4);
                 g.Children.Add(chip);
             }
 
@@ -1824,7 +1917,7 @@ public partial class OsdView : UserControl
         host.Children.Add(new ScrollViewer
         {
             Content = list,
-            MaxHeight = 230,
+            MaxHeight = 260,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         });
         Refresh();
@@ -2096,6 +2189,8 @@ public partial class OsdView : UserControl
             OutputDeviceIds = new List<string>(st.OutputDeviceIds),
             InputDeviceIds = new List<string>(st.InputDeviceIds),
             SignalRgbEffects = new List<string>(st.SignalRgbEffects),
+            MediaActions = new List<string>(st.MediaActions),
+            ProfileNames = new List<string>(st.ProfileNames),
         };
 
         foreach (var slot in st.Slots)

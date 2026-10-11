@@ -35,7 +35,7 @@ public sealed class QuickWheelContent
     private static readonly Color InputColor = Color.FromRgb(0xFF, 0xB8, 0x00);
     private static readonly Color EffectColor = Color.FromRgb(0xAB, 0x47, 0xBC);
 
-    private static readonly (string id, string label, string symbol, Color color)[] MediaControls =
+    public static readonly (string id, string label, string symbol, Color color)[] MediaControls =
     {
         ("media_play_pause", "Play / Pause", "PlayPause", Color.FromRgb(0x00, 0xE6, 0x76)),
         ("media_prev", "Previous", "SkipPrevious", Color.FromRgb(0x00, 0xBC, 0xD4)),
@@ -71,7 +71,11 @@ public sealed class QuickWheelContent
                 break;
             case QuickWheelMode.MediaControls:
                 c.Kind = "Media control";
-                foreach (var m in MediaControls)
+                // Picked ones in the user's order; none picked = all of them
+                var media = wheel.MediaActions is { Count: > 0 }
+                    ? wheel.MediaActions.Select(id => MediaControls.FirstOrDefault(m => m.id == id)).Where(m => m.id != null)
+                    : MediaControls;
+                foreach (var m in media.Take(MaxItems))
                 {
                     var id = m.id;
                     c.Items.Add(new QuickWheelItem(id, m.label, m.symbol, m.color, () => runAction(id, null)));
@@ -93,7 +97,7 @@ public sealed class QuickWheelContent
                 }
                 break;
             default:
-                AddProfiles(c, config, switchProfile);
+                AddProfiles(c, config, wheel.ProfileNames, switchProfile);
                 break;
         }
 
@@ -115,23 +119,49 @@ public sealed class QuickWheelContent
         return c;
     }
 
+    /// <summary>
+    /// The icon and color an item shows before any per-wheel override (OSD page item lists use it
+    /// for the icon tiles). <paramref name="id"/> is the item's wheel id.
+    /// </summary>
+    public static (string symbol, Color color) GetDefaultItemVisual(AppConfig config, QuickWheelMode mode, string id)
+    {
+        switch (mode)
+        {
+            case QuickWheelMode.OutputDevice: return ("VolumeHigh", DeviceColor);
+            case QuickWheelMode.InputDevice: return ("Microphone", InputColor);
+            case QuickWheelMode.SignalRgbEffect: return ("Palette", EffectColor);
+            case QuickWheelMode.MediaControls:
+            {
+                var m = MediaControls.FirstOrDefault(x => x.id == id);
+                return m.id != null ? (m.symbol, m.color) : GetActionVisuals(id);
+            }
+            case QuickWheelMode.Profile:
+            {
+                Color color = ThemeManager.Accent;
+                string symbol = "AccountCircleOutline";
+                if (config.ProfileIcons != null && config.ProfileIcons.TryGetValue(id, out var icon))
+                {
+                    try { color = (Color)ColorConverter.ConvertFromString(icon.Color); }
+                    catch { color = ThemeManager.Accent; }
+                    if (!string.IsNullOrEmpty(icon.Symbol)) symbol = icon.Symbol;
+                }
+                return (symbol, color);
+            }
+            default: return GetActionVisuals(id);
+        }
+    }
+
     /// <summary>Custom wheel item ids are this prefix + the slot's index in CustomSlots.</summary>
     public const string CustomSlotIdPrefix = "slot:";
 
-    private static void AddProfiles(QuickWheelContent c, AppConfig config, Action<string> switchProfile)
+    private static void AddProfiles(QuickWheelContent c, AppConfig config, List<string> picked, Action<string> switchProfile)
     {
         c.Kind = "Profile";
-        c.MinItems = 2;
-        foreach (var name in config.Profiles.Take(MaxItems))
+        c.MinItems = picked.Count > 0 ? 1 : 2;
+        var names = picked.Count > 0 ? picked.Where(config.Profiles.Contains) : config.Profiles;
+        foreach (var name in names.Take(MaxItems))
         {
-            Color color = ThemeManager.Accent;
-            string symbol = "AccountCircleOutline";
-            if (config.ProfileIcons != null && config.ProfileIcons.TryGetValue(name, out var icon))
-            {
-                try { color = (Color)ColorConverter.ConvertFromString(icon.Color); }
-                catch { color = ThemeManager.Accent; }
-                if (!string.IsNullOrEmpty(icon.Symbol)) symbol = icon.Symbol;
-            }
+            var (symbol, color) = GetDefaultItemVisual(config, QuickWheelMode.Profile, name);
             var n = name;
             c.Items.Add(new QuickWheelItem(n, n, symbol, color, () => switchProfile(n)));
         }

@@ -686,6 +686,10 @@ public class QuickWheelConfig
     public List<string> OutputDeviceIds { get; set; } = new();
     public List<string> InputDeviceIds { get; set; } = new();
     public List<string> SignalRgbEffects { get; set; } = new();
+    /// <summary>Media wheel: picked media actions in wheel order. Empty = all of them.</summary>
+    public List<string> MediaActions { get; set; } = new();
+    /// <summary>Profile wheel: picked profile names in wheel order. Empty = every profile.</summary>
+    public List<string> ProfileNames { get; set; } = new();
 
     /// <summary>
     /// Resolve (Device, TriggerButton) to the virtual button index the
