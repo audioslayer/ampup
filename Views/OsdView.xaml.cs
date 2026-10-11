@@ -437,9 +437,10 @@ public partial class OsdView : UserControl
         _lblLookBg = NewVal();
         _sldLookGlow = NewSlider(0, 200, "How strongly the wheel and the highlighted item glow");
         _lblLookGlow = NewVal();
-        colA.Children.Add(MakeDurationRow(_sldLookScale, _lblLookScale, "Size"));
-        colA.Children.Add(MakeDurationRow(_sldLookBg, _lblLookBg, "Background"));
-        colA.Children.Add(MakeDurationRow(_sldLookGlow, _lblLookGlow, "Glow"));
+        // Same 96px caption column as the option rows, so every bar starts at the same x
+        colA.Children.Add(MakeDurationRow(_sldLookScale, _lblLookScale, "Size", 96));
+        colA.Children.Add(MakeDurationRow(_sldLookBg, _lblLookBg, "Background", 96));
+        colA.Children.Add(MakeDurationRow(_sldLookGlow, _lblLookGlow, "Glow", 96));
         HookLookSlider(_sldLookScale, _lblLookScale, (o, v) => o.Scale = v);
         HookLookSlider(_sldLookBg, _lblLookBg, (o, v) => o.BackgroundOpacity = v);
         HookLookSlider(_sldLookGlow, _lblLookGlow, (o, v) => o.WheelLook.Glow = v);
@@ -702,15 +703,17 @@ public partial class OsdView : UserControl
         QueueSave();
     }
 
-    private FrameworkElement MakeDurationRow(StyledSlider slider, TextBlock valLabel, string caption = "Duration")
+    private FrameworkElement MakeDurationRow(StyledSlider slider, TextBlock valLabel, string caption = "Duration",
+        double? captionWidth = null)
     {
         var g = new Grid { Margin = new Thickness(0, -4, 0, 14) };
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = captionWidth is double w ? new GridLength(w) : GridLength.Auto });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var cap = new TextBlock { Text = caption, FontSize = 10, VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 10, 0) };
-        cap.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        // Fixed-width captions (Look section) use the option rows' style so the column reads as one
+        var cap = new TextBlock { Text = caption, FontSize = captionWidth.HasValue ? 11 : 10,
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
+        cap.SetResourceReference(TextBlock.ForegroundProperty, captionWidth.HasValue ? "TextSecBrush" : "TextDimBrush");
         g.Children.Add(cap);
         Grid.SetColumn(slider, 1);
         g.Children.Add(slider);
@@ -1109,7 +1112,7 @@ public partial class OsdView : UserControl
     // Custom slot row columns: number | action | setting | label | remove
     private static readonly GridLength[] SlotColumns =
     {
-        new(18), new(42), new(168), new(1, GridUnitType.Star), new(132), new(28),
+        new(18), new(42), new(190), new(1, GridUnitType.Star), new(170), new(28),
     };
 
     private static int WheelModeIndex(QuickWheelMode mode) =>
@@ -1208,7 +1211,7 @@ public partial class OsdView : UserControl
             WheelChanged(state);
         }, $"Add an action slot (max {WheelMaxItems})");
         addSlotBtn.HorizontalAlignment = HorizontalAlignment.Left;
-        addSlotBtn.Margin = new Thickness(-8, 2, 0, 0);
+        addSlotBtn.Margin = new Thickness(-8, 10, 0, 0);
         customPanel.Children.Add(addSlotBtn);
         left.Children.Add(customPanel);
 
@@ -1955,17 +1958,40 @@ public partial class OsdView : UserControl
             FontSize = 12,
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
-            Margin = new Thickness(2, 0, 4, 0),
-            Cursor = Cursors.Hand,
         };
         labelText.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
-        labelText.MouseLeftButtonUp += (_, e) => { e.Handled = true; openLabelEditor?.Invoke(); };
-        var editLabelBtn = UiKit.IconButton(MaterialIconKind.PencilOutline, "Edit the name shown on the wheel",
-            _ => openLabelEditor?.Invoke(), size: 24);
-        var labelCell = new DockPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) };
-        DockPanel.SetDock(editLabelBtn, Dock.Right);
-        labelCell.Children.Add(editLabelBtn);
-        labelCell.Children.Add(labelText);
+        var pencil = new MaterialIcon { Kind = MaterialIconKind.PencilOutline, Width = 13, Height = 13,
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+        pencil.SetResourceReference(MaterialIcon.ForegroundProperty, "TextDimBrush");
+        var labelInner = new DockPanel();
+        DockPanel.SetDock(pencil, Dock.Right);
+        labelInner.Children.Add(pencil);
+        labelInner.Children.Add(labelText);
+        // Same look as the app's text boxes (Theme.xaml TextBox: input bg/border, 7px corners, accent on hover)
+        var labelCell = new System.Windows.Controls.Border
+        {
+            MinHeight = 34,
+            Padding = new Thickness(10, 0, 9, 0),
+            Margin = new Thickness(0, 0, 4, 0),
+            CornerRadius = new CornerRadius(7),
+            BorderThickness = new Thickness(1),
+            Cursor = Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = labelInner,
+        };
+        labelCell.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "InputBgBrush");
+        labelCell.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "InputBorderBrush");
+        labelCell.MouseEnter += (_, _) =>
+        {
+            labelCell.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "AccentBrush");
+            pencil.SetResourceReference(MaterialIcon.ForegroundProperty, "AccentBrush");
+        };
+        labelCell.MouseLeave += (_, _) =>
+        {
+            labelCell.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "InputBorderBrush");
+            pencil.SetResourceReference(MaterialIcon.ForegroundProperty, "TextDimBrush");
+        };
+        labelCell.MouseLeftButtonUp += (_, e) => { e.Handled = true; openLabelEditor?.Invoke(); };
         Grid.SetColumn(labelCell, 4);
         row.Children.Add(labelCell);
 
@@ -1973,7 +1999,7 @@ public partial class OsdView : UserControl
         {
             slotState.Label = v;
             labelText.Text = v;
-            labelText.ToolTip = string.IsNullOrEmpty(v) ? "Click to name this slot" : $"{v}\n\nClick to edit";
+            labelCell.ToolTip = string.IsNullOrEmpty(v) ? "Click to name this slot" : $"{v}\n\nClick to edit the name shown on the wheel";
         }
         void SetLabel(string v)
         {
