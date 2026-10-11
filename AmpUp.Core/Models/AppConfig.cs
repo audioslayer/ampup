@@ -729,6 +729,8 @@ public class CustomWheelSlot
     public string Path { get; set; } = "";
     public string MacroKeys { get; set; } = "";
     public string ProfileName { get; set; } = "";
+    /// <summary>Audio endpoint id for the device actions (select / mute an output or input).</summary>
+    public string DeviceId { get; set; } = "";
     /// <summary>Icon on the wheel: a Material icon name or an image file path. Empty = automatic
     /// (the app's own icon for launch_exe, else the action's default icon).</summary>
     public string Icon { get; set; } = "";
@@ -741,6 +743,7 @@ public class CustomWheelSlot
         Path = Path,
         MacroKeys = MacroKeys,
         ProfileName = ProfileName,
+        DeviceId = DeviceId,
     };
 }
 

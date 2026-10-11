@@ -342,6 +342,15 @@ public sealed class QuickWheelContent
         "power_lock" => ("Lock", Color.FromRgb(0x9E, 0x9E, 0x9E)),
         "power_off" => ("Power", Color.FromRgb(0xFF, 0x44, 0x44)),
         "power_restart" => ("Restart", Color.FromRgb(0xFF, 0xB8, 0x00)),
+        "power_hibernate" => ("PowerSleep", Color.FromRgb(0x9E, 0x9E, 0x9E)),
+        "power_logoff" => ("Logout", Color.FromRgb(0x9E, 0x9E, 0x9E)),
+        "select_output" => ("VolumeHigh", DeviceColor),
+        "select_input" => ("Microphone", InputColor),
+        "cycle_output" => ("SpeakerMultiple", DeviceColor),
+        "cycle_input" => ("MicrophoneVariant", InputColor),
+        "mute_device" => ("VolumeOff", Color.FromRgb(0xFF, 0x44, 0x44)),
+        "mute_input_device" => ("MicrophoneOff", Color.FromRgb(0xFF, 0x44, 0x44)),
+        "screenshot" => ("MonitorScreenshot", Color.FromRgb(0x26, 0xC6, 0xDA)),
         _ => ("CircleOutline", Color.FromRgb(0x9E, 0x9E, 0x9E)),
     };
 }

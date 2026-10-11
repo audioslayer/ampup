@@ -80,7 +80,7 @@ public partial class OsdView : UserControl
         public TextBlock Number = null!;
         public ComboBox Action = null!;
         public TextBox Label = null!;
-        public Func<string> GetPath = () => "", GetKeys = () => "", GetProfile = () => "";
+        public Func<string> GetPath = () => "", GetKeys = () => "", GetProfile = () => "", GetDevice = () => "";
         /// <summary>Picked icon (Material name or image path) and color; empty = automatic.</summary>
         public string Icon = "", Color = "";
         /// <summary>Redraws the row's icon tile (after the icon is changed from the mini wheel).</summary>
@@ -1065,22 +1065,39 @@ public partial class OsdView : UserControl
     // Available actions for custom wheel slots
     private static readonly (string id, string label)[] CustomSlotActions =
     {
+        // Media
         ("media_play_pause", "Play / Pause"),
         ("media_next", "Next Track"),
         ("media_prev", "Previous Track"),
+        ("media_stop", "Stop"),
+        ("volume_up", "Volume Up"),
+        ("volume_down", "Volume Down"),
+        // Mute
         ("mute_master", "Mute Master"),
         ("mute_mic", "Mute Mic"),
         ("mute_active_window", "Mute Active Window"),
-        ("cycle_brightness", "Cycle LED Brightness"),
-        ("power_sleep", "Sleep"),
-        ("power_lock", "Lock"),
-        ("power_off", "Shutdown"),
-        ("power_restart", "Restart"),
+        ("mute_device", "Mute Output Device"),
+        ("mute_input_device", "Mute Input Device"),
+        // Devices
+        ("select_output", "Use Output Device"),
+        ("select_input", "Use Input Device"),
+        ("cycle_output", "Next Output Device"),
+        ("cycle_input", "Next Input Device"),
+        // Apps & system
         ("launch_exe", "Launch App"),
         ("open_url", "Open URL"),
         ("macro", "Macro"),
+        ("screenshot", "Screenshot"),
         ("switch_profile", "Switch Profile"),
+        ("cycle_brightness", "Cycle LED Brightness"),
         ("signalrgb_effect", "SignalRGB Effect"),
+        // Power
+        ("power_sleep", "Sleep"),
+        ("power_hibernate", "Hibernate"),
+        ("power_lock", "Lock"),
+        ("power_logoff", "Sign Out"),
+        ("power_off", "Shutdown"),
+        ("power_restart", "Restart"),
     };
 
     /// <summary>
@@ -2036,10 +2053,11 @@ public partial class OsdView : UserControl
         row.Children.Add(removeSlotBtn);
 
         // Param values survive switching the action back and forth while editing
-        string path = slot.Path, keys = slot.MacroKeys, profile = slot.ProfileName;
+        string path = slot.Path, keys = slot.MacroKeys, profile = slot.ProfileName, device = slot.DeviceId;
         slotState.GetPath = () => path;
         slotState.GetKeys = () => keys;
         slotState.GetProfile = () => profile;
+        slotState.GetDevice = () => device;
         slotState.Icon = slot.Icon;
         slotState.Color = slot.Color;
 
@@ -2135,6 +2153,20 @@ public partial class OsdView : UserControl
                     settingHost.Content = MakeSlotCombo(_config?.Profiles ?? new List<string>(), profile,
                         v => { profile = v; WheelChanged(st); });
                     break;
+                case "select_output" or "mute_device" or "select_input" or "mute_input_device":
+                {
+                    var flow = slotState.ActionId is "select_input" or "mute_input_device"
+                        ? NAudio.CoreAudioApi.DataFlow.Capture : NAudio.CoreAudioApi.DataFlow.Render;
+                    settingHost.Content = MakeSlotDeviceCombo(GetAudioDevices(flow), device, (id, name) =>
+                    {
+                        device = id;
+                        // Name the slot after the device while the label is still an action name
+                        if (string.IsNullOrEmpty(labelBox.Text) || CustomSlotActions.Any(a => a.label == labelBox.Text))
+                            labelBox.Text = name;
+                        WheelChanged(st);
+                    });
+                    break;
+                }
                 case "signalrgb_effect":
                 {
                     var effects = GetSignalRgbEffectNames();
@@ -2166,6 +2198,8 @@ public partial class OsdView : UserControl
         {
             // Path is shared by app / URL / effect — don't carry an exe path into a URL box
             if (slotState.ActionId != prevAction) path = "";
+            static bool IsInputAction(string a) => a is "select_input" or "mute_input_device";
+            if (IsInputAction(slotState.ActionId) != IsInputAction(prevAction)) device = "";
             prevAction = slotState.ActionId;
             // Auto-fill label if it was empty or matched an action name
             if (actionCombo.SelectedItem is ComboBoxItem ci
@@ -2188,6 +2222,34 @@ public partial class OsdView : UserControl
     {
         for (int i = 0; i < st.Slots.Count; i++)
             st.Slots[i].Number.Text = (i + 1).ToString();
+    }
+
+    /// <summary>
+    /// Device dropdown for a slot (outputs or inputs). A saved device that's unplugged right now stays
+    /// listed as "not connected" instead of being dropped. Picks the first device when none is saved.
+    /// </summary>
+    private ComboBox MakeSlotDeviceCombo(List<(string id, string name)> devices, string selectedId, Action<string, string> onPick)
+    {
+        var combo = new ComboBox { ToolTip = "Which device" };
+        var all = new List<(string id, string name)>(devices);
+        if (!string.IsNullOrEmpty(selectedId) && all.All(d => d.id != selectedId))
+            all.Insert(0, (selectedId, "Saved device (not connected)"));
+        if (all.Count == 0)
+        {
+            combo.Items.Add(new ComboBoxItem { Content = "No devices found", IsEnabled = false });
+            combo.SelectedIndex = 0;
+            combo.IsEnabled = false;
+            return combo;
+        }
+        foreach (var (id, name) in all) combo.Items.Add(new ComboBoxItem { Content = name, Tag = id });
+        int at = all.FindIndex(d => d.id == selectedId);
+        combo.SelectedIndex = Math.Max(0, at);
+        if (at < 0) onPick(all[0].id, all[0].name); // save the shown default
+        combo.SelectionChanged += (_, _) =>
+        {
+            if (combo.SelectedItem is ComboBoxItem ci && ci.Tag is string id) onPick(id, ci.Content?.ToString() ?? "");
+        };
+        return combo;
     }
 
     private ComboBox MakeSlotCombo(List<string> options, string selected, Action<string> onPick)
@@ -2264,6 +2326,7 @@ public partial class OsdView : UserControl
                 Path = actionId is "launch_exe" or "open_url" or "signalrgb_effect" ? slot.GetPath() : "",
                 MacroKeys = actionId == "macro" ? slot.GetKeys() : "",
                 ProfileName = actionId == "switch_profile" ? slot.GetProfile() : "",
+                DeviceId = actionId is "select_output" or "select_input" or "mute_device" or "mute_input_device" ? slot.GetDevice() : "",
                 Icon = slot.Icon,
                 Color = slot.Color,
             });
