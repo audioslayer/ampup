@@ -77,8 +77,9 @@ using System;
                 private readonly Dictionary<string, string> _onlineSvgCache = new(StringComparer.OrdinalIgnoreCase);
                 private readonly WrapPanel _resultsGrid = new() { Margin = new Thickness(0, 8, 0, 0) };
                 private readonly TextBox _searchBox;
-                private readonly SegmentedControl _categoryPicker;
-                private readonly SegmentedControl _packPicker;
+                // Sidebar filters (tags match IconPresetEntry.Category / the pack names in RefreshLocalGrid)
+                private string _category = "All";
+                private string _pack = "All";
                 private readonly TextBlock _subtitle;
                 private readonly TextBlock _resultStatus;
                 private readonly DispatcherTimer _searchDebounce;
@@ -116,11 +117,11 @@ using System;
             
                 public StreamControllerIconPickerDialog()
                 {
-                    Title = "Choose Stream Controller Icon";
-                    Width = 860;
-                    Height = 700;
-                    MinWidth = 860;
-                    MinHeight = 700;
+                    Title = "Choose an Icon";
+                    Width = 900;
+                    Height = 640;
+                    MinWidth = 900;
+                    MinHeight = 640;
                     WindowStartupLocation = WindowStartupLocation.CenterOwner;
                     ResizeMode = ResizeMode.NoResize;
                     WindowStyle = WindowStyle.None;
@@ -133,8 +134,8 @@ using System;
                         Foreground = (Brush)Application.Current.FindResource("TextPrimaryBrush"),
                         CaretBrush = new SolidColorBrush(ThemeManager.Accent),
                         SelectionBrush = new SolidColorBrush(Color.FromArgb(0x55, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
-                        FontSize = 13,
-                        Height = 40,
+                        FontSize = 12.5,
+                        Height = 36,
                         VerticalContentAlignment = VerticalAlignment.Center,
                         Padding = new Thickness(0)
                     };
@@ -142,47 +143,20 @@ using System;
                     _searchBox.GotKeyboardFocus += (_, _) => UpdateSearchChrome();
                     _searchBox.LostKeyboardFocus += (_, _) => UpdateSearchChrome();
             
-                    _categoryPicker = new SegmentedControl
-                    {
-                        HorizontalAlignment = HorizontalAlignment.Left,
-                        AccentColor = ThemeManager.Accent,
-                        Margin = new Thickness(0, 0, 0, 10)
-                    };
-                    _categoryPicker.AddSegment("All", "All");
-                    _categoryPicker.AddSegment("Media", "Media");
-                    _categoryPicker.AddSegment("Audio", "Audio");
-                    _categoryPicker.AddSegment("Apps", "Apps");
-                    _categoryPicker.AddSegment("System", "System");
-                    _categoryPicker.AddSegment("Creative", "Creative");
-                    _categoryPicker.AddSegment("Streaming", "Streaming");
-                    _categoryPicker.SelectedIndex = 0;
-                    _categoryPicker.SelectionChanged += (_, _) => RefreshLocalGrid();
-            
-                    _packPicker = new SegmentedControl
-                    {
-                        HorizontalAlignment = HorizontalAlignment.Left,
-                        AccentColor = ThemeManager.Accent,
-                        Margin = new Thickness(10, 0, 0, 10)
-                    };
-                    _packPicker.AddSegment("All Packs", "All");
-                    _packPicker.AddSegment("Neon Pack", "Neon");
-                    _packPicker.AddSegment("3D Material", "Material3D");
-                    _packPicker.AddSegment("8-Bit Retro", "Retro");
-                    _packPicker.AddSegment("Built-in", "BuiltIn");
-                    _packPicker.SelectedIndex = 0;
-                    _packPicker.SelectionChanged += (_, _) => RefreshLocalGrid();
             
                     _subtitle = new TextBlock
                     {
                         Foreground = (Brush)Application.Current.FindResource("TextSecBrush"),
+                        FontSize = 11,
                         TextWrapping = TextWrapping.Wrap,
-                        Margin = new Thickness(0, 0, 0, 12)
+                        Margin = new Thickness(0, 2, 0, 0)
                     };
             
                     _resultStatus = new TextBlock
                     {
                         Foreground = (Brush)Application.Current.FindResource("TextDimBrush"),
-                        Margin = new Thickness(0, 6, 0, 0),
+                        FontSize = 11,
+                        Margin = new Thickness(2, 0, 0, 0),
                         Text = "Showing built-in quick icons. Search to pull in colorful app logos, emoji, and bright icon packs."
                     };
             
@@ -190,15 +164,15 @@ using System;
                     {
                         Background = (Brush)Application.Current.FindResource("InputBgBrush"),
                         BorderBrush = (Brush)Application.Current.FindResource("InputBorderBrush"),
-                        BorderThickness = new Thickness(1.5),
-                        CornerRadius = new CornerRadius(11),
-                        Padding = new Thickness(12, 0, 10, 0),
+                        BorderThickness = new Thickness(1),
+                        CornerRadius = new CornerRadius(8),
+                        Padding = new Thickness(12, 0, 8, 0),
                         Margin = new Thickness(0, 0, 0, 12)
                     };
             
                     _searchPlaceholder = new TextBlock
                     {
-                        Text = "Search colorful icons like play, spotify, camera, game, fire...",
+                        Text = "Search icons: play, spotify, camera, game, fire...",
                         Foreground = (Brush)Application.Current.FindResource("TextDimBrush"),
                         IsHitTestVisible = false,
                         VerticalAlignment = VerticalAlignment.Center,
@@ -248,136 +222,143 @@ using System;
                 {
                     var outer = new Border
                     {
-                        Background = (Brush)Application.Current.FindResource("BgDarkBrush"),
-                        BorderBrush = (Brush)Application.Current.FindResource("InputBorderBrush"),
                         BorderThickness = new Thickness(1),
-                        CornerRadius = new CornerRadius(14)
+                        CornerRadius = new CornerRadius(12),
+                        ClipToBounds = true,
                     };
-            
+                    outer.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+                    outer.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+
                     var main = new DockPanel { LastChildFill = true };
                     outer.Child = main;
-            
-                    var header = new StackPanel { Margin = new Thickness(18, 16, 18, 0) };
-                    DockPanel.SetDock(header, Dock.Top);
-            
-                    var titleRow = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
-                    var title = new TextBlock
+
+                    // ── Header: icon tile + title / subtitle, then Upload + close (same as the app's cards) ──
+                    var header = new Grid { Margin = new Thickness(20, 16, 14, 14), Background = Brushes.Transparent };
+                    header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                    var tile = UiKit.IconTile(ThemeManager.Accent, MaterialIconKind.ImageMultipleOutline, 38);
+                    tile.Margin = new Thickness(0, 0, 12, 0);
+                    header.Children.Add(tile);
+
+                    var titles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                    var title = new TextBlock { Text = "Choose an Icon", FontSize = 15, FontWeight = FontWeights.SemiBold };
+                    title.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+                    titles.Children.Add(title);
+                    titles.Children.Add(_subtitle);
+                    Grid.SetColumn(titles, 1);
+                    header.Children.Add(titles);
+
+                    var uploadButton = BuildUploadButton();
+                    uploadButton.Margin = new Thickness(12, 0, 10, 0);
+                    Grid.SetColumn(uploadButton, 2);
+                    header.Children.Add(uploadButton);
+
+                    var close = UiKit.IconButton(MaterialIconKind.Close, "Close (Esc)", _ => CloseDialog(false), size: 28);
+                    close.VerticalAlignment = VerticalAlignment.Center;
+                    Grid.SetColumn(close, 3);
+                    header.Children.Add(close);
+
+                    header.MouseLeftButtonDown += (_, e) =>
                     {
-                        Text = "STREAM CONTROLLER ICONS",
-                        FontSize = 14,
-                        FontWeight = FontWeights.Bold,
-                        Foreground = new SolidColorBrush(ThemeManager.Accent)
+                        if (e.ChangedButton != MouseButton.Left || e.OriginalSource is not (Grid or TextBlock or StackPanel)) return;
+                        try { DragMove(); } catch (InvalidOperationException) { }
                     };
-                    var close = new TextBlock
+
+                    var headerHost = new Border { BorderThickness = new Thickness(0, 0, 0, 1), Child = header };
+                    headerHost.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+                    DockPanel.SetDock(headerHost, Dock.Top);
+                    main.Children.Add(headerHost);
+
+                    // ── Left: filter sidebar ──
+                    var side = new StackPanel { Margin = new Thickness(14, 16, 14, 16) };
+                    side.Children.Add(UiKit.SectionHeader("CATEGORY"));
+                    var categoryRows = new List<(string Tag, Border Row)>();
+                    foreach (var (text, tag, icon) in new[]
                     {
-                        Text = "X",
-                        FontSize = 16,
-                        Foreground = (Brush)Application.Current.FindResource("TextDimBrush"),
-                        Cursor = Cursors.Hand
-                    };
-                    close.MouseLeftButtonDown += (_, _) => CloseDialog(false);
-                    DockPanel.SetDock(close, Dock.Right);
-                    titleRow.Children.Add(close);
-                    titleRow.Children.Add(title);
-                    titleRow.MouseLeftButtonDown += (_, e) =>
+                        ("All icons", "All", MaterialIconKind.ViewGridOutline),
+                        ("Media", "Media", MaterialIconKind.PlayCircleOutline),
+                        ("Audio", "Audio", MaterialIconKind.VolumeHigh),
+                        ("Apps", "Apps", MaterialIconKind.Apps),
+                        ("System", "System", MaterialIconKind.CogOutline),
+                        ("Creative", "Creative", MaterialIconKind.PaletteOutline),
+                        ("Streaming", "Streaming", MaterialIconKind.Broadcast),
+                    })
+                        side.Children.Add(MakeNavRow(text, tag, icon, categoryRows, () => _category, v => _category = v));
+
+                    var packHeader = UiKit.SectionHeader("ICON PACK");
+                    packHeader.Margin = new Thickness(0, 18, 0, 10);
+                    side.Children.Add(packHeader);
+                    var packRows = new List<(string Tag, Border Row)>();
+                    foreach (var (text, tag, icon) in new[]
                     {
-                        if (e.ChangedButton == MouseButton.Left)
-                            DragMove();
+                        ("All packs", "All", MaterialIconKind.LayersOutline),
+                        ("Neon", "Neon", MaterialIconKind.LightbulbOnOutline),
+                        ("3D Material", "Material3D", MaterialIconKind.CubeOutline),
+                        ("8-Bit Retro", "Retro", MaterialIconKind.GamepadVariantOutline),
+                        ("Built-in", "BuiltIn", MaterialIconKind.ShapeOutline),
+                    })
+                        side.Children.Add(MakeNavRow(text, tag, icon, packRows, () => _pack, v => _pack = v));
+
+                    var sideHost = new Border
+                    {
+                        Width = 200,
+                        BorderThickness = new Thickness(0, 0, 1, 0),
+                        Child = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = side },
                     };
-                    header.Children.Add(titleRow);
-                    header.Children.Add(_subtitle);
-            
+                    sideHost.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+                    sideHost.SetResourceReference(Border.BackgroundProperty, "BgBaseBrush");
+                    DockPanel.SetDock(sideHost, Dock.Left);
+                    main.Children.Add(sideHost);
+
+                    // ── Right: search + results ──
                     var searchGrid = new Grid();
                     searchGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                     searchGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                     searchGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            
                     var searchIcon = new MaterialIcon
                     {
                         Kind = MaterialIconKind.Magnify,
-                        Width = 18,
-                        Height = 18,
+                        Width = 17,
+                        Height = 17,
                         VerticalAlignment = VerticalAlignment.Center,
-                        Foreground = (Brush)Application.Current.FindResource("TextDimBrush"),
                         Margin = new Thickness(0, 0, 10, 0)
                     };
-                    Grid.SetColumn(searchIcon, 0);
+                    searchIcon.SetResourceReference(MaterialIcon.ForegroundProperty, "TextDimBrush");
                     searchGrid.Children.Add(searchIcon);
-            
                     var searchBoxHost = new Grid();
                     searchBoxHost.Children.Add(_searchBox);
                     searchBoxHost.Children.Add(_searchPlaceholder);
                     Grid.SetColumn(searchBoxHost, 1);
                     searchGrid.Children.Add(searchBoxHost);
-            
                     Grid.SetColumn(_clearSearchButton, 2);
                     searchGrid.Children.Add(_clearSearchButton);
-            
                     _searchChrome.Child = searchGrid;
-                    header.Children.Add(_searchChrome);
-            
-                    // Two dedicated rows instead of stuffing both segmented
-                    // controls + upload button on one line. Each picker now
-                    // has full horizontal breathing room.
-                    //
-                    //   Row 1 — CATEGORY label + segmented control (full width)
-                    //   Row 2 — PACK label + segmented control + Upload button
-                    _categoryPicker.Margin = new Thickness(0);
-                    _packPicker.Margin = new Thickness(0);
+                    _searchChrome.Margin = new Thickness(0, 0, 0, 10);
 
-                    TextBlock MakeFilterLabel(string text) => new()
-                    {
-                        Text = text,
-                        FontSize = 10,
-                        FontWeight = FontWeights.SemiBold,
-                        Foreground = (Brush)Application.Current.FindResource("TextDimBrush"),
-                        Margin = new Thickness(2, 0, 0, 4),
-                    };
-
-                    var categoryRow = new StackPanel
-                    {
-                        Orientation = Orientation.Vertical,
-                        Margin = new Thickness(0, 0, 0, 10),
-                    };
-                    categoryRow.Children.Add(MakeFilterLabel("CATEGORY"));
-                    categoryRow.Children.Add(_categoryPicker);
-                    header.Children.Add(categoryRow);
-
-                    var packRow = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
-                    var uploadButton = BuildUploadButton();
-                    DockPanel.SetDock(uploadButton, Dock.Right);
-                    packRow.Children.Add(uploadButton);
-
-                    var packStack = new StackPanel { Orientation = Orientation.Vertical };
-                    packStack.Children.Add(MakeFilterLabel("ICON PACK"));
-                    packStack.Children.Add(_packPicker);
-                    packRow.Children.Add(packStack);
-                    header.Children.Add(packRow);
-            
-                    main.Children.Add(header);
-            
-                    var content = new Grid
-                    {
-                        Margin = new Thickness(18, 0, 18, 18)
-                    };
+                    var content = new Grid { Margin = new Thickness(18, 16, 12, 16) };
+                    content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
                     content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
                     content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-                    Grid.SetRow(_resultStatus, 0);
+                    content.Children.Add(_searchChrome);
+                    Grid.SetRow(_resultStatus, 1);
                     content.Children.Add(_resultStatus);
                     var scroll = new ScrollViewer
                     {
                         VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                         HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                        Margin = new Thickness(0, 6, 0, 0),
+                        Margin = new Thickness(0, 10, 0, 0),
                         Content = _resultsGrid,
                         CanContentScroll = false
                     };
-                    Grid.SetRow(scroll, 1);
+                    Grid.SetRow(scroll, 2);
                     content.Children.Add(scroll);
                     main.Children.Add(content);
-            
+
                     Content = outer;
-            
+
                     KeyDown += (_, e) =>
                     {
                         if (e.Key == Key.Escape)
@@ -385,9 +366,60 @@ using System;
                     };
                     Closed += (_, _) => _searchCts?.Cancel();
                     UpdateSearchChrome();
-                    _subtitle.Text = "Browse built-in icons instantly, then search a curated library of free colorful icon packs, logos, and emoji without leaving the same picker.";
+                    _subtitle.Text = "Built-in icons and packs, or search free online sets and logos";
                 }
-            
+
+                /// <summary>
+                /// One sidebar filter row (icon + label). Selected = accent tint + accent text, like the app's nav.
+                /// <paramref name="group"/> collects the rows of one filter so picking one repaints the rest.
+                /// </summary>
+                private Border MakeNavRow(string text, string tag, MaterialIconKind iconKind,
+                    List<(string Tag, Border Row)> group, Func<string> get, Action<string> set)
+                {
+                    var icon = new MaterialIcon { Kind = iconKind, Width = 15, Height = 15, Margin = new Thickness(0, 0, 10, 0),
+                        VerticalAlignment = VerticalAlignment.Center };
+                    var label = new TextBlock { Text = text, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
+                    var rowContent = new StackPanel { Orientation = Orientation.Horizontal };
+                    rowContent.Children.Add(icon);
+                    rowContent.Children.Add(label);
+                    var row = new Border
+                    {
+                        Padding = new Thickness(10, 7, 10, 7),
+                        Margin = new Thickness(0, 0, 0, 2),
+                        CornerRadius = new CornerRadius(7),
+                        BorderThickness = new Thickness(1),
+                        Cursor = Cursors.Hand,
+                        Child = rowContent,
+                    };
+
+                    void Paint(bool hover)
+                    {
+                        var a = ThemeManager.Accent;
+                        bool on = get() == tag;
+                        row.Background = on ? new SolidColorBrush(Color.FromArgb(0x22, a.R, a.G, a.B))
+                            : hover ? (Brush)Application.Current.FindResource("InputBgBrush") : Brushes.Transparent;
+                        row.BorderBrush = on ? new SolidColorBrush(Color.FromArgb(0x55, a.R, a.G, a.B)) : Brushes.Transparent;
+                        var fg = on ? new SolidColorBrush(a) : (Brush)Application.Current.FindResource(hover ? "TextPrimaryBrush" : "TextSecBrush");
+                        label.Foreground = fg;
+                        icon.Foreground = fg;
+                        label.FontWeight = on ? FontWeights.SemiBold : FontWeights.Normal;
+                    }
+                    row.Tag = (Action<bool>)Paint;
+                    row.MouseEnter += (_, _) => Paint(true);
+                    row.MouseLeave += (_, _) => Paint(false);
+                    row.MouseLeftButtonUp += (_, _) =>
+                    {
+                        if (get() == tag) return;
+                        set(tag);
+                        foreach (var (_, other) in group)
+                            if (other.Tag is Action<bool> p) p(other == row);
+                        RefreshLocalGrid();
+                    };
+                    group.Add((tag, row));
+                    Paint(false);
+                    return row;
+                }
+
                 private void OnSearchTextChanged(object? sender, TextChangedEventArgs e)
                 {
                     UpdateSearchChrome();
@@ -423,8 +455,8 @@ using System;
                 private void RefreshLocalGrid()
                 {
                     _resultsGrid.Children.Clear();
-                    string category = _categoryPicker.SelectedTag as string ?? "All";
-                    string pack = _packPicker.SelectedTag as string ?? "All";
+                    string category = _category;
+                    string pack = _pack;
                     string query = _searchBox.Text.Trim();
             
                     var filtered = _entries.Where(e =>
@@ -521,23 +553,23 @@ using System;
             
                     var card = new Border
                     {
-                        Width = 116,
-                        Height = 132,
-                        Margin = new Thickness(0, 0, 10, 10),
-                        CornerRadius = new CornerRadius(12),
-                        Background = (Brush)Application.Current.FindResource("CardBgBrush"),
+                        Width = 104,
+                        Height = 124,
+                        Margin = new Thickness(0, 0, 8, 8),
+                        CornerRadius = new CornerRadius(10),
+                        Background = (Brush)Application.Current.FindResource("InputBgBrush"),
                         BorderBrush = (Brush)Application.Current.FindResource("CardBorderBrush"),
-                        BorderThickness = new Thickness(1),
+                        BorderThickness = new Thickness(1.5),
                         Cursor = Cursors.Hand,
                         Tag = iconId
                     };
             
                     var iconWrap = new Border
                     {
-                        Width = 68,
-                        Height = 68,
+                        Width = 54,
+                        Height = 54,
                         Margin = new Thickness(0, 10, 0, 8),
-                        CornerRadius = new CornerRadius(18),
+                        CornerRadius = new CornerRadius(14),
                         HorizontalAlignment = HorizontalAlignment.Center,
                         Background = new LinearGradientBrush(
                             Color.FromArgb(0x1A, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B),
@@ -584,7 +616,7 @@ using System;
                     };
                     card.MouseLeave += (_, _) =>
                     {
-                        card.Background = (Brush)Application.Current.FindResource("CardBgBrush");
+                        card.Background = (Brush)Application.Current.FindResource("InputBgBrush");
                         card.BorderBrush = (Brush)Application.Current.FindResource("CardBorderBrush");
                     };
                     card.MouseLeftButtonUp += async (_, _) => await SelectOnlineIconAsync(card);
@@ -783,28 +815,27 @@ using System;
                 {
                     var card = new Border
                     {
-                        Width = 108,
-                        Height = 110,
-                        Margin = new Thickness(0, 0, 10, 10),
-                        CornerRadius = new CornerRadius(12),
-                        Background = (Brush)Application.Current.FindResource("CardBgBrush"),
-                        BorderBrush = new SolidColorBrush(Color.FromArgb(0x33, entry.Accent.R, entry.Accent.G, entry.Accent.B)),
-                        BorderThickness = new Thickness(1),
+                        Width = 104,
+                        Height = 108,
+                        Margin = new Thickness(0, 0, 8, 8),
+                        CornerRadius = new CornerRadius(10),
+                        Background = (Brush)Application.Current.FindResource("InputBgBrush"),
+                        BorderBrush = (Brush)Application.Current.FindResource("CardBorderBrush"),
+                        BorderThickness = new Thickness(1.5),
                         Cursor = Cursors.Hand
                     };
             
                     var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
                     var iconWrap = new Border
                     {
-                        Width = 62,
-                        Height = 62,
+                        Width = 54,
+                        Height = 54,
                         Margin = new Thickness(0, 10, 0, 8),
-                        CornerRadius = new CornerRadius(16),
+                        CornerRadius = new CornerRadius(14),
                         HorizontalAlignment = HorizontalAlignment.Center,
-                        Background = new LinearGradientBrush(
-                            Color.FromArgb(0x2A, entry.Accent.R, entry.Accent.G, entry.Accent.B),
-                            Color.FromArgb(0x08, entry.Accent.R, entry.Accent.G, entry.Accent.B),
-                            90)
+                        Background = new SolidColorBrush(Color.FromArgb(0x22, entry.Accent.R, entry.Accent.G, entry.Accent.B)),
+                        BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, entry.Accent.R, entry.Accent.G, entry.Accent.B)),
+                        BorderThickness = new Thickness(1)
                     };
             
                     if (Enum.TryParse<MaterialIconKind>(entry.Kind, out var kind))
@@ -812,9 +843,9 @@ using System;
                         iconWrap.Child = new MaterialIcon
                         {
                             Kind = kind,
-                            Width = 28,
-                            Height = 28,
-                            Foreground = new SolidColorBrush(Color.FromRgb(0xF4, 0xF4, 0xF4)),
+                            Width = 26,
+                            Height = 26,
+                            Foreground = new SolidColorBrush(entry.Accent),
                             HorizontalAlignment = HorizontalAlignment.Center,
                             VerticalAlignment = VerticalAlignment.Center
                         };
@@ -846,8 +877,8 @@ using System;
                     };
                     card.MouseLeave += (_, _) =>
                     {
-                        card.Background = (Brush)Application.Current.FindResource("CardBgBrush");
-                        card.BorderBrush = new SolidColorBrush(Color.FromArgb(0x33, entry.Accent.R, entry.Accent.G, entry.Accent.B));
+                        card.Background = (Brush)Application.Current.FindResource("InputBgBrush");
+                        card.BorderBrush = (Brush)Application.Current.FindResource("CardBorderBrush");
                     };
                     card.MouseLeftButtonUp += (_, _) =>
                     {
@@ -911,7 +942,7 @@ using System;
                     var dialog = new OpenFileDialog
                     {
                         Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|All files|*.*",
-                        Title = "Choose Stream Controller image"
+                        Title = "Choose an image"
                     };
             
                     if (dialog.ShowDialog() == true)
