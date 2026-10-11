@@ -232,7 +232,6 @@ public partial class OsdView : UserControl
 
         // One column — side-by-side cards read as confusing on this tab.
         RootPanel.Children.Add(popupsCard);
-        RootPanel.Children.Add(BuildLookCard());
         RootPanel.Children.Add(placeCard);
 
         // ══════════════════ QUICK WHEELS ══════════════════
@@ -281,6 +280,7 @@ public partial class OsdView : UserControl
                   "1. Hold the trigger button\n2. Turn any knob to move the highlight\n3. Let go to pick\n\n" +
                   "You can also point and click with the mouse. Taking a button for a wheel replaces its hold action.").Root;
         RootPanel.Children.Add(wheelCard);
+        RootPanel.Children.Add(BuildLookCard());
     }
 
 
