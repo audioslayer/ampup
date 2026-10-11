@@ -201,23 +201,25 @@ public partial class OsdView : UserControl
         popupsBody.Children.Add(MakeSettingRow("Audio device switch", null, devSw,
             "Shows which speaker, headset or mic is now the default when a button cycles or selects a device."));
         popupsBody.Children.Add(_deviceDurRow);
+        // Last of the on/off rows, with the others
         var fsRow = MakeSettingRow("Hide over fullscreen apps", null, fsSw,
             "Stops overlays from covering fullscreen games, videos and presentations. The knobs and buttons still work as normal.");
+        fsRow.Margin = new Thickness(0, 0, 0, 4);
+        popupsBody.Children.Add(fsRow);
 
-        // Where they show up (was the Overlay Position card)
+        // Where they show up: monitor + position as one centered block, dropdown as wide as the grid
         popupsBody.Children.Add(MakeDivider());
-        CmbOsdMonitor = new ListPicker { MinWidth = 220, MaxWidth = 320, HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 0, 0, 14) };
-        popupsBody.Children.Add(MakeLabel("Monitor"));
-        popupsBody.Children.Add(CmbOsdMonitor);
-        popupsBody.Children.Add(MakeLabelWithHelp("Position",
+        var placeGroup = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+        CmbOsdMonitor = new ListPicker { HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 0, 0, 14) };
+        placeGroup.Children.Add(MakeLabel("Monitor"));
+        placeGroup.Children.Add(CmbOsdMonitor);
+        placeGroup.Children.Add(MakeLabelWithHelp("Position",
             "Windows draws its own volume popup near the top-left or bottom-center. Pick a different spot so the two don't overlap.",
             "Position", new Thickness(0, 0, 0, 8)));
         var posPicker = BuildPositionPicker();
-        posPicker.Margin = new Thickness(0, 0, 0, 14);
-        popupsBody.Children.Add(posPicker);
-        fsRow.Margin = new Thickness(0);
-        popupsBody.Children.Add(fsRow);
+        posPicker.HorizontalAlignment = HorizontalAlignment.Center;
+        placeGroup.Children.Add(posPicker);
+        popupsBody.Children.Add(placeGroup);
 
         // Live preview on the right, like the Quick Wheel cards
         var overlaySplit = new Grid();
