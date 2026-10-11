@@ -1,10 +1,17 @@
+using System.IO;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using AmpUp.Controls;
 using NAudio.CoreAudioApi;
 
 namespace AmpUp.Services;
 
-/// <summary>One Quick Wheel segment: what it shows and what picking it does.</summary>
-public sealed record QuickWheelItem(string Id, string Label, string Symbol, Color Color, Action Run);
+/// <summary>
+/// One Quick Wheel segment: what it shows and what picking it does.
+/// <paramref name="Image"/> (an app icon or user image) is drawn instead of <paramref name="Symbol"/> when set.
+/// </summary>
+public sealed record QuickWheelItem(string Id, string Label, string Symbol, Color Color, Action Run,
+    ImageSource? Image = null);
 
 /// <summary>
 /// Builds what a Quick Wheel shows for its mode — shared by the hardware-triggered wheel
@@ -76,11 +83,11 @@ public sealed class QuickWheelContent
                 {
                     if (string.IsNullOrEmpty(slot.ActionId)) continue;
                     if (c.Items.Count >= MaxItems) break;
-                    var (symbol, color) = GetActionVisuals(slot.ActionId);
+                    var (symbol, color, image) = GetSlotVisuals(slot);
                     var s = slot;
                     c.Items.Add(new QuickWheelItem(s.ActionId,
                         string.IsNullOrEmpty(s.Label) ? s.ActionId : s.Label, symbol, color,
-                        () => runAction(s.ActionId, s.ToButtonConfig())));
+                        () => runAction(s.ActionId, s.ToButtonConfig()), image));
                 }
                 break;
             default:
@@ -188,6 +195,77 @@ public sealed class QuickWheelContent
         c.ActiveIndex = c.Items.FindIndex(i =>
             string.Equals(i.Id, SignalRgbEffectCatalog.LastAppliedEffectName, StringComparison.OrdinalIgnoreCase));
         c.CurrentIndex = Math.Max(0, c.ActiveIndex);
+    }
+
+    /// <summary>
+    /// What a custom slot looks like on the wheel: the user's picked icon / color when set,
+    /// otherwise the launched app's own icon (launch_exe) or the action's default icon.
+    /// </summary>
+    public static (string symbol, Color color, ImageSource? image) GetSlotVisuals(CustomWheelSlot slot)
+    {
+        var (symbol, color) = GetActionVisuals(slot.ActionId);
+        if (!string.IsNullOrWhiteSpace(slot.Color))
+        {
+            try { color = (Color)ColorConverter.ConvertFromString(slot.Color); }
+            catch { /* keep the action color */ }
+        }
+
+        ImageSource? image = null;
+        if (!string.IsNullOrWhiteSpace(slot.Icon))
+        {
+            if (Enum.TryParse<Material.Icons.MaterialIconKind>(slot.Icon, out _))
+                symbol = slot.Icon;
+            else
+                image = LoadImage(slot.Icon);
+        }
+        else if (slot.ActionId == "launch_exe" && !string.IsNullOrWhiteSpace(slot.Path))
+        {
+            image = LoadAppIcon(slot.Path);
+        }
+        return (symbol, color, image);
+    }
+
+    // Wheels rebuild on every open — keep decoded icons around (null = failed, don't retry)
+    private static readonly Dictionary<string, ImageSource?> ImageCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private static ImageSource? LoadImage(string path)
+    {
+        path = Environment.ExpandEnvironmentVariables(path);
+        lock (ImageCache)
+        {
+            if (ImageCache.TryGetValue(path, out var cached)) return cached;
+            ImageSource? img = null;
+            try
+            {
+                if (File.Exists(path))
+                {
+                    var bmp = new BitmapImage();
+                    bmp.BeginInit();
+                    bmp.CacheOption = BitmapCacheOption.OnLoad; // don't hold the file open
+                    bmp.DecodePixelWidth = 96;
+                    bmp.UriSource = new Uri(path, UriKind.Absolute);
+                    bmp.EndInit();
+                    bmp.Freeze();
+                    img = bmp;
+                }
+            }
+            catch (Exception ex) { Logger.Log($"Quick Wheel icon load failed ({path}): {ex.Message}"); }
+            ImageCache[path] = img;
+            return img;
+        }
+    }
+
+    private static ImageSource? LoadAppIcon(string command)
+    {
+        var exe = Environment.ExpandEnvironmentVariables(AppPathPicker.ExtractExecutablePath(command));
+        lock (ImageCache)
+        {
+            string key = "exe:" + exe;
+            if (ImageCache.TryGetValue(key, out var cached)) return cached;
+            var img = AppPathPicker.ExtractIcon(exe);
+            ImageCache[key] = img;
+            return img;
+        }
     }
 
     public static (string symbol, Color color) GetActionVisuals(string actionId) => actionId switch

@@ -74,6 +74,8 @@ public partial class OsdView : UserControl
         public ComboBox Action = null!;
         public TextBox Label = null!;
         public Func<string> GetPath = () => "", GetKeys = () => "", GetProfile = () => "";
+        /// <summary>Picked icon (Material name or image path) and color; empty = automatic.</summary>
+        public string Icon = "", Color = "";
         public string ActionId => (Action?.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
     }
 
@@ -731,7 +733,7 @@ public partial class OsdView : UserControl
     // Custom slot row columns: number | action | setting | label | remove
     private static readonly GridLength[] SlotColumns =
     {
-        new(18), new(168), new(1, GridUnitType.Star), new(132), new(28),
+        new(18), new(42), new(168), new(1, GridUnitType.Star), new(132), new(28),
     };
 
     private static int WheelModeIndex(QuickWheelMode mode) =>
@@ -872,7 +874,7 @@ public partial class OsdView : UserControl
     {
         var g = MakeSlotGrid();
         g.Margin = new Thickness(0, 0, 0, 4);
-        string[] heads = { "", "ACTION", "SETTING", "LABEL ON WHEEL" };
+        string[] heads = { "", "ICON", "ACTION", "SETTING", "LABEL ON WHEEL" };
         for (int i = 1; i < heads.Length; i++)
         {
             var tb = MakeHint(heads[i], new Thickness(i == 1 ? 0 : 0, 0, 0, 0));
@@ -1367,12 +1369,12 @@ public partial class OsdView : UserControl
         }
         actionCombo.SelectedIndex = selectedIdx >= 0 ? selectedIdx : 0;
         slotState.Action = actionCombo;
-        Grid.SetColumn(actionCombo, 1);
+        Grid.SetColumn(actionCombo, 2);
         row.Children.Add(actionCombo);
 
         // Setting cell (column 2) is rebuilt when the action changes
         var settingHost = new ContentControl { Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(settingHost, 2);
+        Grid.SetColumn(settingHost, 3);
         row.Children.Add(settingHost);
 
         var labelBox = new TextBox
@@ -1385,7 +1387,7 @@ public partial class OsdView : UserControl
         };
         labelBox.TextChanged += (_, _) => WheelChanged(st);
         slotState.Label = labelBox;
-        Grid.SetColumn(labelBox, 3);
+        Grid.SetColumn(labelBox, 4);
         row.Children.Add(labelBox);
 
         var removeSlotBtn = UiKit.IconButton(MaterialIconKind.Close, "Remove this slot", _ =>
@@ -1395,7 +1397,7 @@ public partial class OsdView : UserControl
             RenumberSlots(st);
             WheelChanged(st);
         }, danger: true, size: 24);
-        Grid.SetColumn(removeSlotBtn, 4);
+        Grid.SetColumn(removeSlotBtn, 5);
         row.Children.Add(removeSlotBtn);
 
         // Param values survive switching the action back and forth while editing
@@ -1403,6 +1405,69 @@ public partial class OsdView : UserControl
         slotState.GetPath = () => path;
         slotState.GetKeys = () => keys;
         slotState.GetProfile = () => profile;
+        slotState.Icon = slot.Icon;
+        slotState.Color = slot.Color;
+
+        // Icon tile (column 1): shows what the wheel will draw. Click = pick, right-click = automatic.
+        var iconTile = new System.Windows.Controls.Border
+        {
+            Width = 34, Height = 34,
+            CornerRadius = new CornerRadius(6),
+            BorderThickness = new Thickness(1),
+            Background = (Brush)FindResource("InputBgBrush"),
+            Cursor = Cursors.Hand,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        void RefreshIcon()
+        {
+            var (symbol, color, image) = Services.QuickWheelContent.GetSlotVisuals(new CustomWheelSlot
+            {
+                ActionId = slotState.ActionId, Path = path, Icon = slotState.Icon, Color = slotState.Color,
+            });
+            iconTile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, color.R, color.G, color.B));
+            iconTile.Child = image != null
+                ? new Image { Source = image, Width = 20, Height = 20, Stretch = Stretch.Uniform }
+                : new MaterialIcon
+                {
+                    Kind = Enum.TryParse<MaterialIconKind>(symbol, out var k) ? k : MaterialIconKind.CircleOutline,
+                    Width = 20, Height = 20,
+                    Foreground = new SolidColorBrush(color),
+                };
+            iconTile.ToolTip = string.IsNullOrEmpty(slotState.Icon) && string.IsNullOrEmpty(slotState.Color)
+                ? "Icon on the wheel (automatic). Click to choose your own."
+                : "Icon on the wheel. Click to change, right-click to go back to automatic.";
+        }
+        iconTile.MouseLeftButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            var dialog = new StreamControllerIconPickerDialog { Owner = Window.GetWindow(this) };
+            if (dialog.ShowDialog() != true) return;
+            if (!string.IsNullOrWhiteSpace(dialog.SelectedDownloadedImagePath))
+            {
+                slotState.Icon = dialog.SelectedDownloadedImagePath!;
+            }
+            else if (!string.IsNullOrWhiteSpace(dialog.SelectedIconKind))
+            {
+                slotState.Icon = dialog.SelectedIconKind!;
+                if (dialog.SelectedAccent is Color a)
+                    slotState.Color = $"#{a.R:X2}{a.G:X2}{a.B:X2}";
+            }
+            else return;
+            RefreshIcon();
+            WheelChanged(st);
+        };
+        iconTile.MouseRightButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            if (string.IsNullOrEmpty(slotState.Icon) && string.IsNullOrEmpty(slotState.Color)) return;
+            slotState.Icon = "";
+            slotState.Color = "";
+            RefreshIcon();
+            WheelChanged(st);
+        };
+        Grid.SetColumn(iconTile, 1);
+        row.Children.Add(iconTile);
 
         void BuildSetting()
         {
@@ -1426,7 +1491,7 @@ public partial class OsdView : UserControl
                 {
                     var picker = new AppPathPicker();
                     picker.SetValue(path);
-                    picker.ValuePicked += v => { path = v; WheelChanged(st); };
+                    picker.ValuePicked += v => { path = v; RefreshIcon(); WheelChanged(st); };
                     settingHost.Content = picker;
                     break;
                 }
@@ -1471,9 +1536,11 @@ public partial class OsdView : UserControl
                 && (string.IsNullOrEmpty(labelBox.Text) || CustomSlotActions.Any(a => a.label == labelBox.Text)))
                 labelBox.Text = ci.Content?.ToString() ?? "";
             BuildSetting();
+            RefreshIcon();
             WheelChanged(st);
         };
         BuildSetting();
+        RefreshIcon();
 
         st.Slots.Add(slotState);
         st.SlotList.Children.Add(row);
@@ -1557,6 +1624,8 @@ public partial class OsdView : UserControl
                 Path = actionId is "launch_exe" or "open_url" or "signalrgb_effect" ? slot.GetPath() : "",
                 MacroKeys = actionId == "macro" ? slot.GetKeys() : "",
                 ProfileName = actionId == "switch_profile" ? slot.GetProfile() : "",
+                Icon = slot.Icon,
+                Color = slot.Color,
             });
         }
         return cfg;

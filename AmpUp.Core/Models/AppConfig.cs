@@ -683,6 +683,11 @@ public class CustomWheelSlot
     public string Path { get; set; } = "";
     public string MacroKeys { get; set; } = "";
     public string ProfileName { get; set; } = "";
+    /// <summary>Icon on the wheel: a Material icon name or an image file path. Empty = automatic
+    /// (the app's own icon for launch_exe, else the action's default icon).</summary>
+    public string Icon { get; set; } = "";
+    /// <summary>Segment color as hex (#RRGGBB). Empty = the action's default color.</summary>
+    public string Color { get; set; } = "";
 
     public ButtonConfig ToButtonConfig() => new()
     {

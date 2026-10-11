@@ -131,19 +131,29 @@ public sealed class HaloWheel : Grid
             path.MouseLeftButtonDown += (_, e) => { e.Handled = true; SegmentClicked?.Invoke(cap); };
             _ring.Children.Add(path);
 
-            if (Enum.TryParse<MaterialIconKind>(it.Symbol, out var kind))
+            double size = hl ? 22 : 18;
+            FrameworkElement? icon = null;
+            if (it.Image != null)
             {
-                double size = hl ? 22 : 18;
-                double r = hl ? 172 : 170;
-                double rad = mid * Math.PI / 180.0;
-                var icon = new MaterialIcon
+                // App icons / user images keep their own colors
+                icon = new Image { Source = it.Image, Stretch = Stretch.Uniform };
+            }
+            else if (Enum.TryParse<MaterialIconKind>(it.Symbol, out var kind))
+            {
+                icon = new MaterialIcon
                 {
                     Kind = kind,
-                    Width = size, Height = size,
-                    IsHitTestVisible = false,
                     // Dark glyph on the solid highlighted segment, colored glyph on the dim ones
                     Foreground = new SolidColorBrush(hl ? Color.FromRgb(0x0F, 0x0F, 0x0F) : c),
                 };
+            }
+            if (icon != null)
+            {
+                double r = hl ? 172 : 170;
+                double rad = mid * Math.PI / 180.0;
+                icon.Width = size;
+                icon.Height = size;
+                icon.IsHitTestVisible = false;
                 Canvas.SetLeft(icon, CenterX + r * Math.Cos(rad) - size / 2);
                 Canvas.SetTop(icon, CenterY + r * Math.Sin(rad) - size / 2);
                 _ring.Children.Add(icon);
@@ -174,7 +184,18 @@ public sealed class HaloWheel : Grid
         }
 
         var it = _items[_highlighted];
-        if (Enum.TryParse<MaterialIconKind>(it.Symbol, out var kind))
+        if (it.Image != null)
+        {
+            _center.Children.Add(new Image
+            {
+                Source = it.Image,
+                Width = 34, Height = 34,
+                Stretch = Stretch.Uniform,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 10),
+            });
+        }
+        else if (Enum.TryParse<MaterialIconKind>(it.Symbol, out var kind))
         {
             _center.Children.Add(new MaterialIcon
             {
