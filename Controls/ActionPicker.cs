@@ -44,6 +44,7 @@ public class ActionPicker : System.Windows.Controls.Border
         ["mute_active_window"]      = (MaterialIconKind.WindowMaximize, "Mute focused app", "Mute whichever app is in front"),
         ["mute_app_group"]          = (MaterialIconKind.SpeakerOff, "Mute app group", "Mute every app on a knob's app group"),
         ["mute_device"]             = (MaterialIconKind.HeadphonesOff, "Mute a device", "Mute a specific speaker or headset"),
+        ["mute_input_device"]       = (MaterialIconKind.MicrophoneOff, "Mute a specific mic", "Mute a specific microphone, not just the default"),
         // App control
         ["launch_exe"]              = (MaterialIconKind.RocketLaunch, "Open app", "Launch a program, file or script"),
         ["close_program"]           = (MaterialIconKind.CloseBox, "Close app", "Force-close a running program"),

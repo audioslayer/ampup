@@ -63,7 +63,7 @@ public partial class ButtonsView
         _v2ScreenshotCard = MakeV2SectionCard("SCREENSHOT", out _, _scScreenshotInfoPanel);
         _v2ActionFieldsPanel.Children.Add(_v2ScreenshotCard);
 
-        // 5. Device picker (select_output / select_input / mute_device).
+        // 5. Device picker (select_output / select_input / mute_device / mute_input_device).
         _v2DeviceCard = MakeV2SectionCard("DEVICE", out _, _scDevicePanel);
         _v2ActionFieldsPanel.Children.Add(_v2DeviceCard);
 
@@ -187,7 +187,7 @@ public partial class ButtonsView
         SetCardVisible(_v2MacroCard, action == "macro");
         SetCardVisible(_v2TextSnippetCard, action == "type_text");
         SetCardVisible(_v2ScreenshotCard, action == "screenshot");
-        SetCardVisible(_v2DeviceCard, action is "select_output" or "select_input" or "mute_device");
+        SetCardVisible(_v2DeviceCard, action is "select_output" or "select_input" or "mute_device" or "mute_input_device");
         SetCardVisible(_v2HaCard, action is "ha_toggle" or "ha_scene" or "ha_color" or "ha_color_temp");
         if (action is "ha_toggle" or "ha_scene" or "ha_color" or "ha_color_temp")
             RefreshHaPickerItems(action);

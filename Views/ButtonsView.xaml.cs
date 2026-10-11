@@ -30,7 +30,7 @@ public partial class ButtonsView : UserControl
         ("Play / Pause", "media_play_pause"), ("Next Track", "media_next"), ("Prev Track", "media_prev"),
         ("Mute Volume", "mute_master"), ("Mute Mic", "mute_mic"), ("Mute App", "mute_program"),
         ("Mute Active Window", "mute_active_window"), ("Mute App Group", "mute_app_group"),
-        ("Mute Device", "mute_device"),
+        ("Mute Device", "mute_device"), ("Mute Input Device", "mute_input_device"),
         ("Launch App", "launch_exe"), ("Close App", "close_program"),
         ("Add Focused App to Group", "add_active_app_to_group"),
         ("Cycle Output", "cycle_output"), ("Cycle Input", "cycle_input"),
@@ -96,7 +96,7 @@ public partial class ButtonsView : UserControl
         { "close_program", "✕" }, { "cycle_output", "🔊" }, { "cycle_input", "🎙" },
         { "select_output", "🔊" }, { "select_input", "🎙" }, { "macro", "⌨" },
         { "switch_profile", "📋" }, { "cycle_profile", "🔄" }, { "cycle_brightness", "💡" }, { "quick_wheel", "🎡" }, { "mute_app_group", "🔇" },
-        { "mute_device", "🔇" },
+        { "mute_device", "🔇" }, { "mute_input_device", "🎙" },
         { "power_sleep", "😴" }, { "power_lock", "🔒" }, { "power_off", "⏻" },
         { "power_restart", "🔄" }, { "power_logoff", "🚪" }, { "power_hibernate", "❄" },
         { "ha_toggle", "⚡" }, { "ha_scene", "🎬" }, { "ha_color", "◉" }, { "ha_color_temp", "●" }, { "ha_service", "⚙" },
@@ -137,6 +137,7 @@ public partial class ButtonsView : UserControl
         { "mute_active_window", Color.FromRgb(0xEF, 0x53, 0x50) },
         { "mute_app_group",     Color.FromRgb(0xEF, 0x53, 0x50) },
         { "mute_device",        Color.FromRgb(0xEF, 0x53, 0x50) },
+        { "mute_input_device",  Color.FromRgb(0xEF, 0x53, 0x50) },
         { "launch_exe",         Color.FromRgb(0x42, 0xA5, 0xF5) },
         { "close_program",      Color.FromRgb(0xFF, 0x7C, 0x43) },
         { "cycle_output",       Color.FromRgb(0xAB, 0x47, 0xBC) },
@@ -1437,6 +1438,7 @@ public partial class ButtonsView : UserControl
         { "mute_app_group",     "Toggle mute for all apps in linked knob group" },
         { "add_active_app_to_group", "Add the focused app to the linked knob's app group" },
         { "mute_device",        "Toggle mute for a specific audio device" },
+        { "mute_input_device",  "Toggle mute for a specific input device (mic)" },
         { "launch_exe",         "Launch an application or script" },
         { "close_program",      "Force-close a running process" },
         { "cycle_output",       "Switch to next output device" },
@@ -1554,6 +1556,7 @@ public partial class ButtonsView : UserControl
                 picker.RegisterSubMenu("select_output", () => GetDeviceSubItems(isOutput: true));
                 picker.RegisterSubMenu("select_input", () => GetDeviceSubItems(isOutput: false));
                 picker.RegisterSubMenu("mute_device", () => GetDeviceSubItems(isOutput: true));
+                picker.RegisterSubMenu("mute_input_device", () => GetDeviceSubItems(isOutput: false));
 
                 // Profile sub-menu
                 picker.RegisterSubMenu("switch_profile", () => GetProfileSubItems());
@@ -1598,7 +1601,7 @@ public partial class ButtonsView : UserControl
     private static readonly (string Category, string[] Values)[] ActionCategories =
     {
         ("Media",           new[] { "media_play_pause", "media_next", "media_prev" }),
-        ("Mute",            new[] { "mute_master", "mute_mic", "mute_program", "mute_active_window", "mute_app_group", "mute_device" }),
+        ("Mute",            new[] { "mute_master", "mute_mic", "mute_program", "mute_active_window", "mute_app_group", "mute_device", "mute_input_device" }),
         ("App Control",     new[] { "launch_exe", "close_program", "add_active_app_to_group", "open_url", "type_text", "screenshot" }),
         ("Device",          new[] { "cycle_output", "cycle_input", "select_output", "select_input" }),
         ("System",          new[] { "none", "macro", "switch_profile", "cycle_profile", "cycle_brightness", "quick_wheel" }),
@@ -2277,7 +2280,7 @@ public partial class ButtonsView : UserControl
     private string GetDeviceIdForAction(string action, ActionPicker combo, ListPicker legacyPicker)
     {
         // For select/mute actions, prefer sub-tag from ActionPicker flyout
-        if (action is "select_output" or "select_input" or "mute_device")
+        if (action is "select_output" or "select_input" or "mute_device" or "mute_input_device")
             return combo.SelectedSubTag ?? GetSelectedDeviceId(legacyPicker);
         return GetSelectedDeviceId(legacyPicker);
     }
@@ -2394,7 +2397,7 @@ public partial class ButtonsView : UserControl
 
     private void SelectDeviceSubTag(ActionPicker picker, string action, string deviceId)
     {
-        if (action is not ("select_output" or "select_input" or "mute_device") || string.IsNullOrEmpty(deviceId))
+        if (action is not ("select_output" or "select_input" or "mute_device" or "mute_input_device") || string.IsNullOrEmpty(deviceId))
             return;
         picker.SelectWithSub(action, deviceId);
     }
@@ -2409,7 +2412,7 @@ public partial class ButtonsView : UserControl
     private string GetActionPath(ActionPicker combo, TextBox pathBox)
     {
         var action = GetComboActionValue(combo);
-        if (action is "ha_toggle" or "ha_scene" or "select_output" or "select_input" or "mute_device" or "group_toggle"
+        if (action is "ha_toggle" or "ha_scene" or "select_output" or "select_input" or "mute_device" or "mute_input_device" or "group_toggle"
             or "govee_toggle" or "govee_white_toggle")
             return combo.SelectedSubTag ?? "";
         if (action is "ha_color")

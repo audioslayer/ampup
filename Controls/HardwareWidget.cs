@@ -473,7 +473,7 @@ namespace AmpUp.Controls
             { "none", "" }, { "media_play_pause", "Play/Pause" }, { "media_next", "Next Track" },
             { "media_prev", "Prev Track" }, { "mute_master", "Mute Volume" }, { "mute_mic", "Mute Mic" },
             { "mute_program", "Mute App" }, { "mute_active_window", "Mute Window" },
-            { "mute_app_group", "Mute Group" }, { "mute_device", "Mute Device" },
+            { "mute_app_group", "Mute Group" }, { "mute_device", "Mute Device" }, { "mute_input_device", "Mute Input" },
             { "launch_exe", "Launch" }, { "close_program", "Close App" },
             { "cycle_output", "Cycle Output" }, { "cycle_input", "Cycle Input" },
             { "select_output", "Set Output" }, { "select_input", "Set Input" },

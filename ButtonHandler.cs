@@ -261,6 +261,7 @@ public class ButtonHandler : IDisposable
                 case "add_active_app_to_group":
                     AddForegroundAppToGroup(btn); break;
                 case "mute_device":
+                case "mute_input_device":
                     MuteDevice(btn?.DeviceId ?? ""); break;
                 case "cycle_output":
                     CycleOutputDevice(btn); break;

@@ -443,6 +443,7 @@ public partial class OsdOverlay : Window
         "mute_active_window" => "Mute Active Window",
         "mute_app_group" => "Mute App Group",
         "mute_device" => "Mute Device",
+        "mute_input_device" => "Mute Input Device",
         "launch_exe" => "Launch App",
         "close_program" => "Close Program",
         "select_output" => "Select Output",

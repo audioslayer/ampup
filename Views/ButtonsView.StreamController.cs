@@ -2822,7 +2822,7 @@ public partial class ButtonsView
             _scTextSnippetPanel.Visibility = action == "type_text" ? Visibility.Visible : Visibility.Collapsed;
         if (_scScreenshotInfoPanel != null)
             _scScreenshotInfoPanel.Visibility = action == "screenshot" ? Visibility.Visible : Visibility.Collapsed;
-        _scDevicePanel.Visibility = action is "select_output" or "select_input" or "mute_device" ? Visibility.Visible : Visibility.Collapsed;
+        _scDevicePanel.Visibility = action is "select_output" or "select_input" or "mute_device" or "mute_input_device" ? Visibility.Visible : Visibility.Collapsed;
         if (_scHaPanel != null)
         {
             bool showHa = action is "ha_toggle" or "ha_scene" or "ha_color" or "ha_color_temp";
@@ -3000,7 +3000,7 @@ public partial class ButtonsView
         // Checks against uiAction (the gesture-selected action) so options
         // that feed sub-pickers save correctly whether the user is on
         // Tap / Double / Hold.
-        if (uiAction is "select_output" or "select_input" or "mute_device")
+        if (uiAction is "select_output" or "select_input" or "mute_device" or "mute_input_device")
         {
             // The V2 editor uses its dedicated device picker. Do not prefer
             // the hidden legacy ActionPicker sub-tag here: that control is
