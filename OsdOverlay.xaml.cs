@@ -17,6 +17,13 @@ public partial class OsdOverlay : Window
     private OsdPosition _position = OsdPosition.BottomRight;
     private int _monitorIndex; // 0 = primary
 
+    // Look (OSD page -> Overlay Look). Override null = follow the theme accent.
+    private Color? _accentOverride;
+    private double _scale = 1.0;
+    private double _bgOpacity = 1.0;
+    private Color Accent => _accentOverride ?? ThemeManager.Accent;
+    private string AccentHex => $"#{Accent.R:X2}{Accent.G:X2}{Accent.B:X2}";
+
     // Configurable durations (seconds)
     public double VolumeDuration { get; set; } = 2.0;
     public double ProfileDuration { get; set; } = 3.5;
@@ -25,6 +32,7 @@ public partial class OsdOverlay : Window
     public OsdOverlay()
     {
         InitializeComponent();
+        MinWidth = 0; // width follows the size setting (SetBaseWidth)
         ApplyAccentColors();
 
         _fadeOut = (Storyboard)FindResource("FadeOut");
@@ -47,9 +55,35 @@ public partial class OsdOverlay : Window
         };
     }
 
+    /// <summary>Apply the user's size / background opacity / color settings.</summary>
+    public void ApplyStyle(OsdConfig osd)
+    {
+        _scale = Math.Clamp(osd.Scale, 50, 200) / 100.0;
+        _bgOpacity = Math.Clamp(osd.BackgroundOpacity, 0, 100) / 100.0;
+        _accentOverride = ParseColor(osd.AccentColor);
+        RootPanel.LayoutTransform = Math.Abs(_scale - 1) < 0.001 ? Transform.Identity : new ScaleTransform(_scale, _scale);
+        ApplyAccentColors();
+    }
+
+    internal static Color? ParseColor(string? hex)
+    {
+        if (string.IsNullOrWhiteSpace(hex)) return null;
+        try { return (Color)ColorConverter.ConvertFromString(hex); }
+        catch { return null; }
+    }
+
+    /// <summary>Set the window width for a layout designed at 100% size (includes the 16px glow margin each side).</summary>
+    private void SetBaseWidth(double width) => Width = (width - 32) * _scale + 32;
+
     private void ApplyAccentColors()
     {
-        var accent = ThemeManager.Accent;
+        var accent = Accent;
+
+        // Glass background: the opacity setting scales its alpha
+        byte bgAlpha = (byte)Math.Round(255 * _bgOpacity);
+        GlassPanel.Background = new LinearGradientBrush(
+            Color.FromArgb(bgAlpha, 0x14, 0x14, 0x14), Color.FromArgb(bgAlpha, 0x0F, 0x0F, 0x0F),
+            new System.Windows.Point(0, 0), new System.Windows.Point(1, 1));
 
         // Border gradient — visible accent glow on all edges
         var borderBrush = new LinearGradientBrush
@@ -78,9 +112,9 @@ public partial class OsdOverlay : Window
         // Bar fill gradient (AccentDim -> Accent -> AccentGlow)
         var fillBrush = new LinearGradientBrush(new GradientStopCollection
         {
-            new GradientStop(ThemeManager.AccentDim, 0),
+            new GradientStop(ThemeManager.Darken(accent, 0.35f), 0),
             new GradientStop(accent, 0.7),
-            new GradientStop(ThemeManager.AccentGlow, 1),
+            new GradientStop(ThemeManager.Lighten(accent, 0.4f), 1),
         }, new System.Windows.Point(0, 0), new System.Windows.Point(1, 0));
         fillBrush.Freeze();
         BarFill.Background = fillBrush;
@@ -137,13 +171,13 @@ public partial class OsdOverlay : Window
         _closing = false;
         _dismissTimer.Stop();
 
-        Width = 372;
+        SetBaseWidth(372);
         ProfileBindingsPanel.Visibility = Visibility.Collapsed;
         OsdTitle.FontSize = 16;
         CategoryLabel.Margin = new Thickness(0, 0, 0, 8);
 
         CategoryLabel.Text = "VOLUME";
-        SetSymbolIcon(symbolName, ThemeManager.AccentHex);
+        SetSymbolIcon(symbolName, AccentHex);
         OsdTitle.Text = label;
         OsdValue.Text = $"{percent}%";
         OsdValue.Visibility = Visibility.Visible;
@@ -198,7 +232,7 @@ public partial class OsdOverlay : Window
 
         if (config != null)
         {
-            Width = 740;
+            SetBaseWidth(740);
             // Compact header — smaller icon and title when showing bindings
             OsdTitle.FontSize = 14;
             CategoryLabel.Margin = new Thickness(0, 0, 0, 4);
@@ -207,7 +241,7 @@ public partial class OsdOverlay : Window
         }
         else
         {
-            Width = 372;
+            SetBaseWidth(372);
             ProfileBindingsPanel.Visibility = Visibility.Collapsed;
         }
 
@@ -220,7 +254,7 @@ public partial class OsdOverlay : Window
     {
         ProfileBindingsPanel.Children.Clear();
 
-        var accent = ThemeManager.Accent;
+        var accent = Accent;
 
         // 5-column horizontal Grid matching physical device layout
         var columnsGrid = new System.Windows.Controls.Grid { Margin = new Thickness(0, 6, 0, 0) };
@@ -536,11 +570,11 @@ public partial class OsdOverlay : Window
         _closing = false;
         _dismissTimer.Stop();
 
-        Width = 372;
+        SetBaseWidth(372);
         ProfileBindingsPanel.Visibility = Visibility.Collapsed;
 
         CategoryLabel.Text = isOutput ? "OUTPUT DEVICE" : "INPUT DEVICE";
-        SetSymbolIcon(isOutput ? "VolumeHigh" : "Microphone", ThemeManager.AccentHex);
+        SetSymbolIcon(isOutput ? "VolumeHigh" : "Microphone", AccentHex);
         OsdTitle.Text = deviceName;
         OsdValue.Visibility = Visibility.Collapsed;
         BarContainer.Visibility = Visibility.Collapsed;
@@ -589,7 +623,7 @@ public partial class OsdOverlay : Window
         const double margin = 20;
         double w = Width;
         // Estimate height: profile bindings are taller than volume/device OSD
-        double estimatedHeight = ProfileBindingsPanel.Visibility == Visibility.Visible ? 200 : 120;
+        double estimatedHeight = (ProfileBindingsPanel.Visibility == Visibility.Visible ? 200 : 120) * _scale;
 
         switch (_position)
         {

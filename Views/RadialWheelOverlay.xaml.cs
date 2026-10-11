@@ -75,6 +75,15 @@ public partial class RadialWheelOverlay : Window
         });
     }
 
+    /// <summary>Apply the OSD page's look settings (size, background opacity, color). Call before SetContent().</summary>
+    public void ApplyStyle(OsdConfig osd)
+    {
+        double scale = Math.Clamp(osd.Scale, 50, 200) / 100.0;
+        Width = Height = 460 * scale;
+        _wheel.LayoutTransform = new System.Windows.Media.ScaleTransform(scale, scale);
+        _wheel.ApplyStyle(osd);
+    }
+
     /// <summary>Set which monitor to display on (matches OSD MonitorIndex).</summary>
     public void SetMonitor(int monitorIndex) => _monitorIndex = monitorIndex;
 

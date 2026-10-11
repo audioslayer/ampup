@@ -40,10 +40,28 @@ public sealed class HaloWheel : Grid
     private readonly Ellipse _centerDisc = new()
     {
         Width = 252, Height = 252,
-        Fill = new SolidColorBrush(Color.FromArgb(0xEB, 0x0C, 0x0C, 0x0C)),
         StrokeThickness = 1,
     };
     private readonly DropShadowEffect _glow = new() { BlurRadius = 36, Opacity = 0.22, ShadowDepth = 0 };
+    private readonly Ellipse _backdrop = new()
+    {
+        Width = 404, Height = 404,
+        Stroke = new SolidColorBrush(Color.FromArgb(0x0D, 0xFF, 0xFF, 0xFF)),
+        StrokeThickness = 1,
+    };
+
+    /// <summary>Accent for glow / ring stroke / ACTIVE pill. Null = theme accent.</summary>
+    public Color? AccentOverride { get; set; }
+    /// <summary>0..1 multiplier on the glass backdrop + center disc alpha (1 = original look).</summary>
+    public double BackgroundOpacity { get; set; } = 1.0;
+
+    /// <summary>Apply the OSD page's look settings (color + background opacity; size is the host's job).</summary>
+    public void ApplyStyle(OsdConfig osd)
+    {
+        AccentOverride = OsdOverlay.ParseColor(osd.AccentColor);
+        BackgroundOpacity = Math.Clamp(osd.BackgroundOpacity, 0, 100) / 100.0;
+        Render();
+    }
 
     // Geometry (420x420 canvas)
     private const double CenterX = 210, CenterY = 210;
@@ -58,14 +76,8 @@ public sealed class HaloWheel : Grid
     {
         Width = 420;
         Height = 420;
-        Children.Add(new Ellipse
-        {
-            Width = 404, Height = 404,
-            Fill = new SolidColorBrush(Color.FromArgb(0xD6, 0x10, 0x10, 0x10)),
-            Stroke = new SolidColorBrush(Color.FromArgb(0x0D, 0xFF, 0xFF, 0xFF)),
-            StrokeThickness = 1,
-            Effect = _glow,
-        });
+        _backdrop.Effect = _glow;
+        Children.Add(_backdrop);
         Children.Add(_ring);
         Children.Add(_centerDisc);
         Children.Add(_center);
@@ -96,8 +108,10 @@ public sealed class HaloWheel : Grid
 
     private void Render()
     {
-        var accent = ThemeManager.Accent;
+        var accent = AccentOverride ?? ThemeManager.Accent;
         _glow.Color = accent;
+        _backdrop.Fill = new SolidColorBrush(Color.FromArgb((byte)Math.Round(0xD6 * BackgroundOpacity), 0x10, 0x10, 0x10));
+        _centerDisc.Fill = new SolidColorBrush(Color.FromArgb((byte)Math.Round(0xEB * BackgroundOpacity), 0x0C, 0x0C, 0x0C));
         _centerDisc.Stroke = new SolidColorBrush(Color.FromArgb(0x24, accent.R, accent.G, accent.B));
         BuildRing();
         BuildCenter(accent);

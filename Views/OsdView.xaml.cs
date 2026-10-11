@@ -29,6 +29,12 @@ public partial class OsdView : UserControl
                          _setDeviceSwitch = _ => { }, _setFullscreenSwitch = _ => { };
     private FrameworkElement _volumeDurRow = null!, _profileDurRow = null!, _deviceDurRow = null!;
     private StyledSlider SldOsdVolumeDur = null!, SldOsdProfileDur = null!, SldOsdDeviceDur = null!, SldOsdWheelDur = null!;
+    // Overlay Look card
+    private StyledSlider _sldLookScale = null!, _sldLookBg = null!;
+    private TextBlock _lblLookScale = null!, _lblLookBg = null!;
+    private WrapPanel _lookSwatches = null!, _lookPresets = null!;
+    private OsdOverlay? _lookPreview;
+    private DispatcherTimer? _lookPreviewTimer;
     private TextBlock LblOsdVolumeDur = null!, LblOsdProfileDur = null!, LblOsdDeviceDur = null!, LblOsdWheelDur = null!;
     private ListPicker CmbOsdMonitor = null!;
     private readonly Dictionary<OsdPosition, System.Windows.Controls.Border> _posCells = new();
@@ -226,6 +232,7 @@ public partial class OsdView : UserControl
 
         // One column — side-by-side cards read as confusing on this tab.
         RootPanel.Children.Add(popupsCard);
+        RootPanel.Children.Add(BuildLookCard());
         RootPanel.Children.Add(placeCard);
 
         // ══════════════════ QUICK WHEELS ══════════════════
@@ -277,13 +284,239 @@ public partial class OsdView : UserControl
     }
 
 
-    private FrameworkElement MakeDurationRow(StyledSlider slider, TextBlock valLabel)
+    // ══════════════════ OVERLAY LOOK ══════════════════
+
+    private static readonly (string Name, int Scale, int Bg)[] LookPresets =
+    {
+        ("Default", 100, 100), ("Glass", 100, 55), ("Compact", 80, 90), ("Large", 130, 100), ("Ghost", 100, 25),
+    };
+
+    private static readonly (string Name, string Hex)[] LookColors =
+    {
+        ("Green", "#00E676"), ("Cyan", "#00E5FF"), ("Blue", "#448AFF"), ("Purple", "#B388FF"), ("Pink", "#FF4081"),
+        ("Red", "#FF5252"), ("Orange", "#FF9100"), ("Yellow", "#FFD740"), ("White", "#F5F5F5"),
+    };
+
+    /// <summary>Size / background opacity / color for the overlays and Quick Wheels, with a live preview.</summary>
+    private FrameworkElement BuildLookCard()
+    {
+        var body = new StackPanel();
+
+        StyledSlider NewSlider(double min, double max, string tip) => new()
+        {
+            Minimum = min, Maximum = max, Value = 100, Step = 5, ShowLabel = false, Height = 24,
+            HorizontalAlignment = HorizontalAlignment.Stretch, ToolTip = tip, AccentColor = ThemeManager.Accent,
+        };
+        TextBlock NewVal() => new()
+        {
+            Text = "100%", FontSize = 11, FontWeight = FontWeights.SemiBold, MinWidth = 34,
+            TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center,
+            Foreground = new SolidColorBrush(ThemeManager.Accent),
+        };
+
+        body.Children.Add(MakeLabel("Style"));
+        _lookPresets = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
+        body.Children.Add(_lookPresets);
+
+        _sldLookScale = NewSlider(60, 160, "How big the overlays and Quick Wheels are");
+        _lblLookScale = NewVal();
+        _sldLookBg = NewSlider(10, 100, "How solid the dark background is. Lower lets more of the screen show through.");
+        _lblLookBg = NewVal();
+        body.Children.Add(MakeDurationRow(_sldLookScale, _lblLookScale, "Size"));
+        body.Children.Add(MakeDurationRow(_sldLookBg, _lblLookBg, "Background"));
+
+        body.Children.Add(MakeLabel("Color"));
+        _lookSwatches = new WrapPanel();
+        body.Children.Add(_lookSwatches);
+
+        _sldLookScale.ValueChanged += (_, _) =>
+        {
+            _lblLookScale.Text = $"{_sldLookScale.Value:F0}%";
+            if (_loading || _config == null) return;
+            _config.Osd.Scale = (int)Math.Round(_sldLookScale.Value);
+            LookChanged();
+        };
+        _sldLookBg.ValueChanged += (_, _) =>
+        {
+            _lblLookBg.Text = $"{_sldLookBg.Value:F0}%";
+            if (_loading || _config == null) return;
+            _config.Osd.BackgroundOpacity = (int)Math.Round(_sldLookBg.Value);
+            LookChanged();
+        };
+        _accentRepaints.Add(() =>
+        {
+            _sldLookScale.AccentColor = _sldLookBg.AccentColor = ThemeManager.Accent;
+            _lblLookScale.Foreground = _lblLookBg.Foreground = new SolidColorBrush(ThemeManager.Accent);
+            if (_config != null) BuildLookChips(_config.Osd);
+        });
+
+        var previewBtn = UiKit.IconButton(MaterialIconKind.PlayCircleOutline,
+            "Show a sample volume overlay with this look", _ => ShowLookPreview());
+
+        return UiKit.Card(Color.FromRgb(0xFF, 0x40, 0x81), MaterialIconKind.Palette,
+            "Overlay Look", "Size, see-through and color for overlays and Quick Wheels", previewBtn, body,
+            help: "Applies to the volume / profile / device overlays and every Quick Wheel. " +
+                  "A sample overlay pops up while you adjust, so you can see the change right away.").Root;
+    }
+
+    private void LoadLook(OsdConfig osd)
+    {
+        _sldLookScale.Value = Math.Clamp(osd.Scale, 60, 160);
+        _lblLookScale.Text = $"{_sldLookScale.Value:F0}%";
+        _sldLookBg.Value = Math.Clamp(osd.BackgroundOpacity, 10, 100);
+        _lblLookBg.Text = $"{_sldLookBg.Value:F0}%";
+        BuildLookChips(osd);
+    }
+
+    /// <summary>Rebuild the Style preset pills and color swatches to show the current selection.</summary>
+    private void BuildLookChips(OsdConfig osd)
+    {
+        var accent = ThemeManager.Accent;
+
+        _lookPresets.Children.Clear();
+        foreach (var (name, scale, bg) in LookPresets)
+        {
+            bool on = osd.Scale == scale && osd.BackgroundOpacity == bg;
+            var pill = new System.Windows.Controls.Border
+            {
+                CornerRadius = new CornerRadius(12),
+                Padding = new Thickness(12, 4, 12, 4),
+                Margin = new Thickness(0, 0, 6, 6),
+                BorderThickness = new Thickness(1),
+                BorderBrush = new SolidColorBrush(on ? accent : Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)),
+                Background = new SolidColorBrush(on ? Color.FromArgb(0x26, accent.R, accent.G, accent.B) : Colors.Transparent),
+                Cursor = Cursors.Hand,
+                Child = new TextBlock
+                {
+                    Text = name, FontSize = 11, FontWeight = FontWeights.SemiBold,
+                    Foreground = on ? new SolidColorBrush(accent) : FindBrush("TextSecBrush"),
+                },
+            };
+            int s = scale, b = bg;
+            pill.MouseLeftButtonUp += (_, e) =>
+            {
+                e.Handled = true;
+                if (_config == null) return;
+                _config.Osd.Scale = s;
+                _config.Osd.BackgroundOpacity = b;
+                _loading = true; // set sliders without each one firing its own save
+                _sldLookScale.Value = s;
+                _sldLookBg.Value = b;
+                _loading = false;
+                LookChanged();
+            };
+            _lookPresets.Children.Add(pill);
+        }
+
+        _lookSwatches.Children.Clear();
+        System.Windows.Controls.Border Swatch(Brush fill, bool selected, string tip, UIElement? child = null)
+        {
+            var sw = new System.Windows.Controls.Border
+            {
+                Width = 26, Height = 26,
+                CornerRadius = new CornerRadius(13),
+                Background = fill,
+                BorderThickness = new Thickness(2),
+                BorderBrush = selected ? Brushes.White : Brushes.Transparent,
+                Margin = new Thickness(0, 0, 6, 6),
+                Cursor = Cursors.Hand,
+                ToolTip = tip,
+                Child = child,
+            };
+            _lookSwatches.Children.Add(sw);
+            return sw;
+        }
+        void Pick(string hex)
+        {
+            if (_config == null) return;
+            _config.Osd.AccentColor = hex;
+            LookChanged();
+        }
+
+        // "Theme" follows the app accent (Settings -> Appearance)
+        var themeSw = Swatch(new SolidColorBrush(accent), string.IsNullOrEmpty(osd.AccentColor),
+            "Match the app's theme color",
+            new MaterialIcon { Kind = MaterialIconKind.Autorenew, Width = 14, Height = 14, Foreground = new SolidColorBrush(Color.FromRgb(0x10, 0x10, 0x10)) });
+        themeSw.MouseLeftButtonUp += (_, e) => { e.Handled = true; Pick(""); };
+
+        foreach (var (name, hex) in LookColors)
+        {
+            var c = (Color)ColorConverter.ConvertFromString(hex);
+            var sw = Swatch(new SolidColorBrush(c), hex.Equals(osd.AccentColor, StringComparison.OrdinalIgnoreCase), name);
+            string h = hex;
+            sw.MouseLeftButtonUp += (_, e) => { e.Handled = true; Pick(h); };
+        }
+
+        bool isCustom = !string.IsNullOrEmpty(osd.AccentColor)
+            && !LookColors.Any(p => p.Hex.Equals(osd.AccentColor, StringComparison.OrdinalIgnoreCase));
+        var rainbow = new LinearGradientBrush(new GradientStopCollection
+        {
+            new(Colors.Red, 0.0), new(Colors.Yellow, 0.17), new(Colors.Lime, 0.33),
+            new(Colors.Cyan, 0.5), new(Colors.Blue, 0.67), new(Colors.Magenta, 0.83), new(Colors.Red, 1.0),
+        }, new Point(0, 0), new Point(1, 1));
+        var customSw = Swatch(rainbow, isCustom, "Custom color",
+            new TextBlock { Text = "+", FontSize = 13, FontWeight = FontWeights.Bold, Foreground = Brushes.White,
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+        customSw.MouseLeftButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            if (_config == null) return;
+            string before = _config.Osd.AccentColor;
+            var initial = OsdOverlay.ParseColor(before) ?? accent;
+            var dialog = new ColorPickerDialog(initial) { Owner = Window.GetWindow(this) };
+            dialog.ColorChanged += c => Pick($"#{c.R:X2}{c.G:X2}{c.B:X2}"); // live preview while dragging
+            if (dialog.ShowDialog() == true)
+            {
+                var c = dialog.SelectedColor;
+                Pick($"#{c.R:X2}{c.G:X2}{c.B:X2}");
+            }
+            else
+            {
+                Pick(before); // cancelled: undo the live preview
+            }
+        };
+    }
+
+    /// <summary>A look setting changed: save, refresh pills / mini wheels, and pop the sample overlay.</summary>
+    private void LookChanged()
+    {
+        if (_config == null) return;
+        BuildLookChips(_config.Osd);
+        foreach (var child in WheelRowsPanel.Children)
+            if (child is FrameworkElement fe && fe.Tag is WheelRowState st)
+                RefreshMiniNow(st);
+        QueueSave();
+
+        // Debounce the sample so dragging a slider doesn't restart its fade-in every tick
+        _lookPreviewTimer ??= CreateLookPreviewTimer();
+        _lookPreviewTimer.Stop();
+        _lookPreviewTimer.Start();
+    }
+
+    private DispatcherTimer CreateLookPreviewTimer()
+    {
+        var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
+        t.Tick += (_, _) => { t.Stop(); ShowLookPreview(); };
+        return t;
+    }
+
+    private void ShowLookPreview()
+    {
+        if (_config == null) return;
+        _lookPreview ??= new OsdOverlay();
+        _lookPreview.SetPosition(_config.Osd.Position, DisplayMonitorResolver.ResolveOsdMonitorIndex(_config.Osd));
+        _lookPreview.VolumeDuration = 2.5;
+        _lookPreview.ApplyStyle(_config.Osd);
+        _lookPreview.ShowVolume("Preview", 75, "VolumeHigh");
+    }
+
+    private FrameworkElement MakeDurationRow(StyledSlider slider, TextBlock valLabel, string caption = "Duration")
     {
         var g = new Grid { Margin = new Thickness(0, -4, 0, 14) };
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var cap = new TextBlock { Text = "Duration", FontSize = 10, VerticalAlignment = VerticalAlignment.Center,
+        var cap = new TextBlock { Text = caption, FontSize = 10, VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 10, 0) };
         cap.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         g.Children.Add(cap);
@@ -563,6 +796,7 @@ public partial class OsdView : UserControl
         SldOsdWheelDur.Value = config.Osd.WheelDuration;
         LblOsdWheelDur.Text = config.Osd.WheelDuration < 0.05 ? "Off" : $"{config.Osd.WheelDuration:F1}s";
         HighlightOsdPosition(config.Osd.Position);
+        LoadLook(config.Osd);
         var resolvedMonitorIndex = DisplayMonitorResolver.ResolveOsdMonitorIndex(config.Osd);
         config.Osd.MonitorIndex = resolvedMonitorIndex;
         PopulateOsdMonitorPicker(resolvedMonitorIndex);
@@ -935,6 +1169,7 @@ public partial class OsdView : UserControl
     private void RefreshMiniNow(WheelRowState st)
     {
         if (_config == null || st.Mini == null) return;
+        st.Mini.ApplyStyle(_config.Osd);
         st.Mini.SetContent(Services.QuickWheelContent.Build(_config, BuildWheelConfig(st)));
     }
 
@@ -1647,6 +1882,7 @@ public partial class OsdView : UserControl
 
         var wheel = new RadialWheelOverlay();
         wheel.SetMonitor(DisplayMonitorResolver.ResolveOsdMonitorIndex(_config.Osd));
+        wheel.ApplyStyle(_config.Osd);
         wheel.SetContent(content);
         wheel.OnSegmentClicked = _ => { }; // preview only: picking an item runs nothing
         wheel.Deactivated += (_, _) => wheel.Dismiss(); // click anywhere else to close
@@ -1796,6 +2032,7 @@ public partial class OsdView : UserControl
         if (_config == null) return;
         var overlay = new OsdOverlay();
         overlay.SetPosition(_config.Osd.Position, DisplayMonitorResolver.ResolveOsdMonitorIndex(_config.Osd));
+        overlay.ApplyStyle(_config.Osd);
         overlay.ShowVolume("Preview", 75, "VolumeHigh");
         }
 }

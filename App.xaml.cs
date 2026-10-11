@@ -4824,6 +4824,7 @@ public partial class App : Application
 
         _osdOverlay ??= new OsdOverlay();
         _osdOverlay.SetPosition(_config.Osd.Position, ResolveOsdMonitorIndex());
+        _osdOverlay.ApplyStyle(_config.Osd);
         _osdOverlay.VolumeDuration = _config.Osd.VolumeDuration;
         _osdOverlay.ProfileDuration = _config.Osd.ProfileDuration;
         _osdOverlay.DeviceDuration = _config.Osd.DeviceDuration;
@@ -5579,6 +5580,7 @@ public partial class App : Application
 
             _radialWheel = new RadialWheelOverlay();
             _radialWheel.SetMonitor(ResolveOsdMonitorIndex());
+            _radialWheel.ApplyStyle(_config.Osd);
             _radialWheel.SetContent(content);
             _radialWheel.OnSegmentClicked = idx => ConfirmWheelSelection(idx);
             _radialWheel.Closed += (_, _) => { _wheelVisible = false; _radialWheel = null; };

@@ -140,7 +140,7 @@ public static class ThemeManager
     /// <summary>Returns accent hex string like "#00E676".</summary>
     public static string AccentHex => $"#{Accent.R:X2}{Accent.G:X2}{Accent.B:X2}";
 
-    private static Color Lighten(Color c, float amount)
+    public static Color Lighten(Color c, float amount)
     {
         byte r = (byte)Math.Min(255, c.R + (255 - c.R) * amount);
         byte g = (byte)Math.Min(255, c.G + (255 - c.G) * amount);
@@ -148,7 +148,7 @@ public static class ThemeManager
         return Color.FromRgb(r, g, b);
     }
 
-    private static Color Darken(Color c, float amount)
+    public static Color Darken(Color c, float amount)
     {
         byte r = (byte)(c.R * (1 - amount));
         byte g = (byte)(c.G * (1 - amount));
