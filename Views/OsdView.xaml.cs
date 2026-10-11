@@ -78,7 +78,8 @@ public partial class OsdView : UserControl
         public Grid Row = null!;
         public TextBlock Number = null!;
         public ComboBox Action = null!;
-        public TextBox Label = null!;
+        /// <summary>Name shown on the wheel (edited in a dialog from the row's pencil button).</summary>
+        public string Label = "";
         public Func<string> GetPath = () => "", GetKeys = () => "", GetProfile = () => "", GetDevice = () => "";
         /// <summary>Picked icon (Material name or image path) and color; empty = automatic.</summary>
         public string Icon = "", Color = "";
@@ -1947,18 +1948,39 @@ public partial class OsdView : UserControl
         Grid.SetColumn(settingHost, 3);
         row.Children.Add(settingHost);
 
-        var labelBox = new TextBox
+        // Label: the name as text + a pencil that opens the editor dialog (the column is too narrow to type in)
+        Action? openLabelEditor = null; // wired up below, once the slot's other values exist
+        var labelText = new TextBlock
         {
-            Text = string.IsNullOrEmpty(slot.Label) && selectedIdx >= 0 ? CustomSlotActions[selectedIdx].label : slot.Label,
-            ToolTip = "Name shown on the wheel",
-            VerticalContentAlignment = VerticalAlignment.Center,
-            MinHeight = 34,
-            Margin = new Thickness(0, 0, 4, 0),
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(2, 0, 4, 0),
+            Cursor = Cursors.Hand,
         };
-        labelBox.TextChanged += (_, _) => WheelChanged(st);
-        slotState.Label = labelBox;
-        Grid.SetColumn(labelBox, 4);
-        row.Children.Add(labelBox);
+        labelText.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        labelText.MouseLeftButtonUp += (_, e) => { e.Handled = true; openLabelEditor?.Invoke(); };
+        var editLabelBtn = UiKit.IconButton(MaterialIconKind.PencilOutline, "Edit the name shown on the wheel",
+            _ => openLabelEditor?.Invoke(), size: 24);
+        var labelCell = new DockPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) };
+        DockPanel.SetDock(editLabelBtn, Dock.Right);
+        labelCell.Children.Add(editLabelBtn);
+        labelCell.Children.Add(labelText);
+        Grid.SetColumn(labelCell, 4);
+        row.Children.Add(labelCell);
+
+        void ShowLabel(string v)
+        {
+            slotState.Label = v;
+            labelText.Text = v;
+            labelText.ToolTip = string.IsNullOrEmpty(v) ? "Click to name this slot" : $"{v}\n\nClick to edit";
+        }
+        void SetLabel(string v)
+        {
+            ShowLabel(v);
+            WheelChanged(st);
+        }
+        ShowLabel(string.IsNullOrEmpty(slot.Label) && selectedIdx >= 0 ? CustomSlotActions[selectedIdx].label : slot.Label);
 
         var removeSlotBtn = UiKit.IconButton(MaterialIconKind.Close, "Remove this slot", _ =>
         {
@@ -2037,6 +2059,22 @@ public partial class OsdView : UserControl
             RefreshIcon();
             WheelChanged(st);
         };
+        openLabelEditor = () =>
+        {
+            var (symbol, color, _) = Services.QuickWheelContent.GetSlotVisuals(new CustomWheelSlot
+            {
+                ActionId = slotState.ActionId, Path = path, Icon = slotState.Icon, Color = slotState.Color,
+            });
+            MaterialIconKind? kind = Enum.TryParse<MaterialIconKind>(symbol, out var k) ? k : null;
+            string actionName = (actionCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "";
+            var result = TextEditDialog.Prompt(Window.GetWindow(this), "Wheel label",
+                "The name shown in the middle of the wheel when this slot is highlighted",
+                slotState.Label, MaterialIconKind.TagOutline,
+                text => TextEditDialog.WheelLabelPreview(string.IsNullOrEmpty(text) ? actionName : text, kind, color));
+            if (result == null) return;                      // cancelled
+            SetLabel(result.Length > 0 ? result : actionName); // empty = back to the action's name
+        };
+
         var iconWithBadge = WithEditBadge(iconTile);
         Grid.SetColumn(iconWithBadge, 1);
         row.Children.Add(iconWithBadge);
@@ -2079,8 +2117,8 @@ public partial class OsdView : UserControl
                     {
                         device = id;
                         // Name the slot after the device while the label is still an action name
-                        if (string.IsNullOrEmpty(labelBox.Text) || CustomSlotActions.Any(a => a.label == labelBox.Text))
-                            labelBox.Text = name;
+                        if (string.IsNullOrEmpty(slotState.Label) || CustomSlotActions.Any(a => a.label == slotState.Label))
+                            SetLabel(name);
                         WheelChanged(st);
                     });
                     break;
@@ -2121,8 +2159,8 @@ public partial class OsdView : UserControl
             prevAction = slotState.ActionId;
             // Auto-fill label if it was empty or matched an action name
             if (actionCombo.SelectedItem is ComboBoxItem ci
-                && (string.IsNullOrEmpty(labelBox.Text) || CustomSlotActions.Any(a => a.label == labelBox.Text)))
-                labelBox.Text = ci.Content?.ToString() ?? "";
+                && (string.IsNullOrEmpty(slotState.Label) || CustomSlotActions.Any(a => a.label == slotState.Label)))
+                ShowLabel(ci.Content?.ToString() ?? "");
             BuildSetting();
             RefreshIcon();
             WheelChanged(st);
@@ -2239,7 +2277,7 @@ public partial class OsdView : UserControl
             cfg.CustomSlots.Add(new CustomWheelSlot
             {
                 ActionId = actionId,
-                Label = slot.Label.Text ?? "",
+                Label = slot.Label ?? "",
                 // Only keep the parameter the chosen action actually uses
                 Path = actionId is "launch_exe" or "open_url" or "signalrgb_effect" ? slot.GetPath() : "",
                 MacroKeys = actionId == "macro" ? slot.GetKeys() : "",
