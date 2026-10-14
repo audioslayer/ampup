@@ -20,6 +20,7 @@
   <a href="#install">Install</a> ·
   <a href="#supported-hardware">Hardware</a> ·
   <a href="#features">Features</a> ·
+  <a href="#quick-wheels-and-on-screen-display">Quick Wheels</a> ·
   <a href="#integrations">Integrations</a> ·
   <a href="#build-from-source">Build</a> ·
   <a href="https://github.com/audioslayer/ampup/issues">Issues</a>
@@ -84,10 +85,22 @@ The experimental macOS port has been discontinued. Current releases support **64
 
 - Assign tap, double-press, and hold actions to each Turn Up button.
 - Use media, mute, app, device, profile, macro, URL, text, screenshot, power, integration, toggle, and multi-action commands.
+- Mute the default mic, or a specific microphone or output device, from any button or key.
 - Build profiles, import/export configurations, back up settings, and switch profiles manually or by foreground application.
 - Automatically duck selected apps when a voice or priority application becomes active.
-- Show volume, profile, and device OSD notifications on a chosen monitor.
-- Hold a button to open a Quick Wheel: switch profiles, output or input devices, SignalRGB effects, media controls, or your own custom actions. Each wheel holds up to 12 items. Choose exactly which ones it shows, rename it, and watch a live preview as you edit on the **OSD** page.
+
+### Quick Wheels and on-screen display
+
+Hold a button, turn a knob, let go to pick. A Quick Wheel puts the things you switch often (profiles, audio devices, media keys, SignalRGB effects, or your own actions) one gesture away.
+
+- **Six wheel types:** profiles, output devices, input devices, media controls, SignalRGB effects, and fully custom wheels. Each wheel holds up to 12 items.
+- **Pick what it shows:** every wheel type has a tick list. Choose the items and their order, or leave it empty to show everything.
+- **Your own icons:** give any item a Material icon, an icon from a built-in or online pack, or your own image. "Open app" slots show the app's real icon automatically.
+- **Custom actions:** switch, cycle, or mute a specific output or input device, launch apps, open URLs, send macros, switch profiles, take screenshots, control media and volume, and more. Slots named after a device or app label themselves.
+- **Restyle the wheel:** start from a preset (Classic, Neon, Minimal, Glass, Compact, Bold), then adjust size, background transparency, color, ring thickness, spacing, glow, highlight style, center details, and the open animation (fade, pop, or spin).
+- **Live previews:** every wheel card shows a mini wheel that updates as you edit; click it to see the wheel full size.
+
+The **OSD** page also controls the volume, profile, and device pop-ups: turn each one on or off, set how long it stays, hide it over fullscreen apps, and pick its monitor. To place it, click a spot on the live mini monitor.
 
 ### Turn Up RGB lighting
 
