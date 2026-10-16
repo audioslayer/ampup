@@ -1777,7 +1777,7 @@ public partial class App : Application
                     && Environment.TickCount64 - _startupTick >= 8000
                     && (DateTime.UtcNow - _connectedAt).TotalMilliseconds >= 2000)
                 {
-                    float vol = e.Value / 1023f;
+                    float vol = VolumePipeline.ComputeVolume(e.Value, knob);
                     _haLastValues[e.Idx] = (knob.Target, vol);
                     if (!_haThrottleActive[e.Idx])
                     {
@@ -1791,7 +1791,7 @@ public partial class App : Application
                 // Skip during startup restore to avoid flickering monitor brightness on app launch
                 if (Environment.TickCount64 - _startupTick >= 8000)
                 {
-                    float vol = e.Value / 1023f;
+                    float vol = VolumePipeline.ComputeVolume(e.Value, knob);
                     if (string.IsNullOrEmpty(knob.DeviceId))
                     {
                         MonitorBrightness.SetThrottled(vol); // all monitors
@@ -1806,7 +1806,7 @@ public partial class App : Application
             }
             else if (knob.Target.Equals("led_brightness", StringComparison.OrdinalIgnoreCase))
             {
-                int pct = (int)Math.Round(e.Value / 1023.0 * 100);
+                int pct = (int)Math.Round(VolumePipeline.ComputeVolume(e.Value, knob) * 100);
                 _config.LedBrightness = pct;
                 _rgb.SetBrightness(pct);
             }
@@ -1816,7 +1816,7 @@ public partial class App : Application
                     && !IsResumeSettling
                     && (DateTime.UtcNow - _connectedAt).TotalMilliseconds >= 2000)
                 {
-                    float norm = e.Value / 1023f;
+                    float norm = VolumePipeline.ComputeVolume(e.Value, knob);
                     int pctRoom = (int)Math.Round(norm * 100);
                     ApplyRoomLightsBrightness(norm, pctRoom);
                 }
@@ -1832,7 +1832,7 @@ public partial class App : Application
                     var group = _config.Groups.FirstOrDefault(g => g.Name == groupName);
                     if (group != null)
                     {
-                        float norm = e.Value / 1023f;
+                        float norm = VolumePipeline.ComputeVolume(e.Value, knob);
                         int pct = (int)Math.Round(norm * 100);
                         ApplyDeviceGroupBrightness(group, norm, pct, e.Idx);
                     }
@@ -1843,7 +1843,7 @@ public partial class App : Application
                 // Skip during startup restore to avoid turning on Govee devices on app launch
                 if (Environment.TickCount64 - _startupTick >= 8000 && !IsResumeSettling)
                 {
-                    float norm = e.Value / 1023f;
+                    float norm = VolumePipeline.ComputeVolume(e.Value, knob);
                     _ambienceSync?.EnsureDevicesPoweredOn();
                     _ambienceSync?.SetBrightness(norm);
                     Dispatcher.BeginInvoke(() => _mainWindow?.UpdateGoveeDeviceBrightness(null, norm, true));
@@ -1855,7 +1855,7 @@ public partial class App : Application
                 if (Environment.TickCount64 - _startupTick >= 8000 && !IsResumeSettling)
                 {
                     var ip = knob.Target.Substring(6);
-                    float norm = e.Value / 1023f;
+                    float norm = VolumePipeline.ComputeVolume(e.Value, knob);
                     _ambienceSync?.EnsureDevicePoweredOn(ip);
                     _ambienceSync?.SetBrightnessForDevice(ip, norm);
                     Dispatcher.BeginInvoke(() => _mainWindow?.UpdateGoveeDeviceBrightness(ip, norm, true));
@@ -1868,7 +1868,7 @@ public partial class App : Application
                 if (_vm != null && _vm.IsAvailable && _config.VoiceMeeter.Enabled
                     && Environment.TickCount64 - _startupTick >= 8000)
                 {
-                    float norm = e.Value / 1023f;
+                    float norm = VolumePipeline.ComputeVolume(e.Value, knob);
                     float db = VoiceMeeterIntegration.NormalizedToGain(norm);
                     var parts = knob.Target.Split(':', 2);
                     if (parts.Length == 2 && int.TryParse(parts[1], out int vmIdx))
@@ -1888,7 +1888,7 @@ public partial class App : Application
                     && _config.Corsair.FanEnabled
                     && Environment.TickCount64 - _startupTick >= 8000)
                 {
-                    int percent = (int)Math.Round(e.Value / 1023.0 * 100);
+                    int percent = (int)Math.Round(VolumePipeline.ComputeVolume(e.Value, knob) * 100);
                     bool isPump = knob.Target.Equals("corsair_pump_fan", StringComparison.OrdinalIgnoreCase);
                     if (isPump)
                         _config.Corsair.PumpFanSpeed = percent;
@@ -1986,7 +1986,7 @@ public partial class App : Application
                 && Environment.TickCount64 - _startupTick >= 8000
                 && (DateTime.UtcNow - _connectedAt).TotalMilliseconds >= 2000)
             {
-                float vol = rawValue / 1023f;
+                float vol = VolumePipeline.ComputeVolume(rawValue, knob);
                 _haLastValues[stateIdx] = (knob.Target, vol);
                 if (!_haThrottleActive[stateIdx])
                 {
@@ -1999,7 +1999,7 @@ public partial class App : Application
         {
             if (Environment.TickCount64 - _startupTick >= 8000)
             {
-                float vol = rawValue / 1023f;
+                float vol = VolumePipeline.ComputeVolume(rawValue, knob);
                 if (string.IsNullOrEmpty(knob.DeviceId))
                 {
                     MonitorBrightness.SetThrottled(vol);
@@ -2013,7 +2013,7 @@ public partial class App : Application
         }
         else if (knob.Target.Equals("led_brightness", StringComparison.OrdinalIgnoreCase))
         {
-            int pct = (int)Math.Round(rawValue / 1023.0 * 100);
+            int pct = (int)Math.Round(VolumePipeline.ComputeVolume(rawValue, knob) * 100);
             _config.LedBrightness = pct;
             _rgb.SetBrightness(pct);
         }
@@ -2023,7 +2023,7 @@ public partial class App : Application
                 && !IsResumeSettling
                 && (DateTime.UtcNow - _connectedAt).TotalMilliseconds >= 2000)
             {
-                float norm = rawValue / 1023f;
+                float norm = VolumePipeline.ComputeVolume(rawValue, knob);
                 int pctRoom = (int)Math.Round(norm * 100);
                 ApplyRoomLightsBrightness(norm, pctRoom);
             }
@@ -2038,7 +2038,7 @@ public partial class App : Application
                 var group = _config.Groups.FirstOrDefault(g => g.Name == groupName);
                 if (group != null)
                 {
-                    float norm = rawValue / 1023f;
+                    float norm = VolumePipeline.ComputeVolume(rawValue, knob);
                     int pct = (int)Math.Round(norm * 100);
                     ApplyDeviceGroupBrightness(group, norm, pct, stateIdx);
                 }
@@ -2048,7 +2048,7 @@ public partial class App : Application
         {
             if (Environment.TickCount64 - _startupTick >= 8000 && !IsResumeSettling)
             {
-                float norm = rawValue / 1023f;
+                float norm = VolumePipeline.ComputeVolume(rawValue, knob);
                 _ambienceSync?.EnsureDevicesPoweredOn();
                 _ambienceSync?.SetBrightness(norm);
                 Dispatcher.BeginInvoke(() => _mainWindow?.UpdateGoveeDeviceBrightness(null, norm, true));
@@ -2059,7 +2059,7 @@ public partial class App : Application
             if (Environment.TickCount64 - _startupTick >= 8000 && !IsResumeSettling)
             {
                 var ip = knob.Target.Substring(6);
-                float norm = rawValue / 1023f;
+                float norm = VolumePipeline.ComputeVolume(rawValue, knob);
                 _ambienceSync?.EnsureDevicePoweredOn(ip);
                 _ambienceSync?.SetBrightnessForDevice(ip, norm);
                 Dispatcher.BeginInvoke(() => _mainWindow?.UpdateGoveeDeviceBrightness(ip, norm, true));
@@ -2071,7 +2071,7 @@ public partial class App : Application
             if (_vm != null && _vm.IsAvailable && _config.VoiceMeeter.Enabled
                 && Environment.TickCount64 - _startupTick >= 8000)
             {
-                float norm = rawValue / 1023f;
+                float norm = VolumePipeline.ComputeVolume(rawValue, knob);
                 float db = VoiceMeeterIntegration.NormalizedToGain(norm);
                 var parts = knob.Target.Split(':', 2);
                 if (parts.Length == 2 && int.TryParse(parts[1], out int vmIdx))
@@ -2090,7 +2090,7 @@ public partial class App : Application
                 && _config.Corsair.FanEnabled
                 && Environment.TickCount64 - _startupTick >= 8000)
             {
-                int percent = (int)Math.Round(rawValue / 1023.0 * 100);
+                int percent = (int)Math.Round(VolumePipeline.ComputeVolume(rawValue, knob) * 100);
                 bool isPump = knob.Target.Equals("corsair_pump_fan", StringComparison.OrdinalIgnoreCase);
                 if (isPump)
                     _config.Corsair.PumpFanSpeed = percent;
