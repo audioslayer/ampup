@@ -615,10 +615,6 @@ public class OsdConfig
     public string MonitorFriendlyName { get; set; } = "";
     public string MonitorDevicePath { get; set; } = "";
     public bool HideInFullscreen { get; set; } = false;
-    /// <summary>Show the volume OSD when master volume changes outside AmpUp (keyboard keys, other devices, the Windows slider).</summary>
-    public bool ShowExternalVolume { get; set; } = false;
-    /// <summary>Catch the keyboard volume keys so AmpUp changes the volume and shows its OSD instead of the Windows flyout.</summary>
-    public bool ReplaceWindowsVolumeOsd { get; set; } = false;
     /// <summary>Quick Wheel size, percent (100 = original).</summary>
     public int Scale { get; set; } = 100;
     /// <summary>Quick Wheel background opacity, percent (100 = original look).</summary>

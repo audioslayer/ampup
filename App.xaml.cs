@@ -520,7 +520,6 @@ public partial class App : Application
         _mutePollingTimer = new System.Threading.Timer(_ => PollMuteStates(), null, 1000, GetMutePollingPeriodMs());
         // Subscribe to instant mute notifications so LEDs react within one frame (~50ms)
         SubscribeMuteNotifications();
-        UpdateVolumeKeyInterceptor();
 
         // Apply startup setting
         ApplyStartupSetting();
@@ -1283,7 +1282,6 @@ public partial class App : Application
     private void ExitApp()
     {
         _isShuttingDown = true;
-        _volumeKeys?.Stop();
 
         // Save last knob positions so they restore on next launch
         ConfigManager.Save(_config);
@@ -1514,7 +1512,6 @@ public partial class App : Application
         RefreshTurnUpRgbOutput();
         UpdateAudioAnalyzer();
         ApplyStartupSetting();
-        UpdateVolumeKeyInterceptor();
         if (_ha != null)
         {
             _ha.UpdateConfig(_config.HomeAssistant);
@@ -4890,17 +4887,6 @@ public partial class App : Application
     private NAudio.CoreAudioApi.MMDeviceEnumerator? _notifyEnumerator;
     private NAudio.CoreAudioApi.MMDevice? _notifyMaster;
     private NAudio.CoreAudioApi.MMDevice? _notifyMic;
-    private string _notifyMasterName = "Volume";
-
-    // External-volume OSD: last shown state (dedupes channel-only notifications)
-    // and a coalescing flag so a dragged Windows slider queues one UI update at a time.
-    private int _extOsdLastPct = -1;
-    private bool _extOsdLastMuted;
-    private float _extOsdPendingVol;
-    private bool _extOsdPendingMuted;
-    private int _extOsdQueued;
-
-    private VolumeKeyInterceptor? _volumeKeys;
 
     private void InvalidateMutePollingEndpoints()
     {
@@ -4942,7 +4928,6 @@ public partial class App : Application
                     }
                     _notifyMaster = _notifyEnumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
                     _notifyMaster.AudioEndpointVolume.OnVolumeNotification += OnMasterVolumeNotification;
-                    try { _notifyMasterName = _notifyMaster.FriendlyName; } catch { _notifyMasterName = "Volume"; }
                     // Seed current state immediately
                     bool initialMasterMuted = _notifyMaster.AudioEndpointVolume.Mute;
                     _rgb.SetMasterMuted(initialMasterMuted);
@@ -4984,111 +4969,8 @@ public partial class App : Application
             _rgb.SetMasterMuted(data.Muted);
             SetDirectTargetMuteState("master", data.Muted);
             UpdateTrayIconVolume(data.MasterVolume, data.Muted);
-
-            // AmpUp's own writes carry SelfEventContext — knobs and the tray already
-            // show their own feedback, so only external changes get the OSD here.
-            bool external = data.EventContext != AudioMixer.SelfEventContext;
-            if (external)
-                CheckVolumeKeyBypass();
-            if (_config.Osd.ShowExternalVolume && external)
-                QueueMasterVolumeOsd(data.MasterVolume, data.Muted);
         }
         catch { }
-    }
-
-    /// <summary>
-    /// Shows the volume OSD for the default output. Safe from any thread; bursts
-    /// (a dragged slider, a held key) collapse into one pending UI update.
-    /// </summary>
-    private void QueueMasterVolumeOsd(float volume, bool muted)
-    {
-        int pct = (int)Math.Round(volume * 100);
-        if (pct == _extOsdLastPct && muted == _extOsdLastMuted) return;
-        _extOsdLastPct = pct;
-        _extOsdLastMuted = muted;
-        _extOsdPendingVol = volume;
-        _extOsdPendingMuted = muted;
-        if (Interlocked.Exchange(ref _extOsdQueued, 1) == 1) return;
-
-        Dispatcher.BeginInvoke(() =>
-        {
-            Interlocked.Exchange(ref _extOsdQueued, 0);
-            if (_isShuttingDown || !EnsureOsd()) return;
-            int shownPct = (int)Math.Round(_extOsdPendingVol * 100);
-            bool shownMuted = _extOsdPendingMuted;
-            string symbol = shownMuted || shownPct == 0 ? "VolumeOff"
-                : shownPct < 34 ? "VolumeLow"
-                : shownPct < 67 ? "VolumeMedium"
-                : "VolumeHigh";
-            string label = shownMuted ? $"{_notifyMasterName} (muted)" : _notifyMasterName;
-            _osdOverlay!.ShowVolume(label, shownPct, symbol);
-        });
-    }
-
-    private long _lastHookReinstallTick;
-
-    /// <summary>
-    /// An external volume change while the key hook is on, with no volume key seen,
-    /// may be a key that got past the hook: Windows skips it while an elevated app
-    /// is focused, and silently drops it after a slow callback. Re-arm the hook and
-    /// log the foreground app. Also fires for the Windows slider, so it's throttled.
-    /// </summary>
-    private void CheckVolumeKeyBypass()
-    {
-        var keys = _volumeKeys;
-        if (keys == null || !keys.IsRunning) return;
-        long now = Environment.TickCount64;
-        if (now - keys.LastKeyTick < 1500 || now - _lastHookReinstallTick < 5000) return;
-        _lastHookReinstallTick = now;
-        keys.Reinstall();
-
-        string foreground = "?";
-        try
-        {
-            NativeMethods.GetWindowThreadProcessId(NativeMethods.GetForegroundWindow(), out uint pid);
-            foreground = System.Diagnostics.Process.GetProcessById((int)pid).ProcessName;
-        }
-        catch { }
-        Logger.Log($"Volume changed outside AmpUp with the key hook on (foreground: {foreground}); re-armed hook");
-    }
-
-    /// <summary>Starts or stops the volume key hook to match the OSD setting.</summary>
-    private void UpdateVolumeKeyInterceptor()
-    {
-        if (_config.Osd.ReplaceWindowsVolumeOsd)
-        {
-            if (_volumeKeys == null)
-            {
-                _volumeKeys = new VolumeKeyInterceptor();
-                _volumeKeys.KeyPressed += OnVolumeKey;
-            }
-            _volumeKeys.Start();
-        }
-        else
-        {
-            _volumeKeys?.Stop();
-        }
-    }
-
-    private readonly object _volumeKeyLock = new();
-
-    private void OnVolumeKey(VolumeKeyInterceptor.VolumeKey key)
-    {
-        if (_isShuttingDown || _sessionLocked) return;
-        int direction = key switch
-        {
-            VolumeKeyInterceptor.VolumeKey.Up => 1,
-            VolumeKeyInterceptor.VolumeKey.Down => -1,
-            _ => 0,
-        };
-        (float Volume, bool Muted)? state;
-        lock (_volumeKeyLock) state = _mixer.ApplyVolumeKey(direction);
-        if (state is { } s)
-        {
-            // Force a redraw even when the level didn't move (e.g. Up at 100%)
-            _extOsdLastPct = -1;
-            QueueMasterVolumeOsd(s.Volume, s.Muted);
-        }
     }
 
     private void OnMicVolumeNotification(NAudio.CoreAudioApi.AudioVolumeNotificationData data)

@@ -394,15 +394,8 @@ public class AudioMixer : IDisposable
     private static float ComputeVolume(int rawValue, KnobConfig knob)
         => VolumePipeline.ComputeVolume(rawValue, knob);
 
-    /// <summary>
-    /// Event context stamped on AmpUp's own endpoint volume/mute writes, so the
-    /// volume notification handler can tell them apart from external changes.
-    /// </summary>
-    public static readonly Guid SelfEventContext = new("6f1c2a8e-3b7d-4e59-9a42-0d5e8b7c1f30");
-
     internal static void SetRenderEndpointVolume(AudioEndpointVolume endpointVolume, float volume)
     {
-        endpointVolume.NotificationGuid = SelfEventContext;
         endpointVolume.MasterVolumeLevelScalar = volume;
 
         // Some Bluetooth endpoints flip endpoint mute when volume reaches 0 and
@@ -595,42 +588,6 @@ public class AudioMixer : IDisposable
                     try { stale.Dispose(); } catch { }
                 }
                 Logger.Log($"SetDeviceVolume error: {ex.Message}");
-            }
-        }
-    }
-
-    /// <summary>
-    /// Applies a keyboard volume key to the default output: direction +1/-1 steps
-    /// 2% (the Windows step, snapped to the 2% grid, unmuting like Windows does),
-    /// 0 toggles mute. Returns the new state, or null if the endpoint is unavailable.
-    /// </summary>
-    public (float Volume, bool Muted)? ApplyVolumeKey(int direction)
-    {
-        lock (_enumLock)
-        {
-            try
-            {
-                _masterControlDevice ??= _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Console);
-                var ep = _masterControlDevice.AudioEndpointVolume;
-                ep.NotificationGuid = SelfEventContext;
-                if (direction == 0)
-                {
-                    ep.Mute = !ep.Mute;
-                }
-                else
-                {
-                    float next = Math.Clamp(MathF.Round(ep.MasterVolumeLevelScalar * 50f + direction) / 50f, 0f, 1f);
-                    SetRenderEndpointVolume(ep, next);
-                    if (ep.Mute) ep.Mute = false;
-                }
-                return (ep.MasterVolumeLevelScalar, ep.Mute);
-            }
-            catch (Exception ex)
-            {
-                try { _masterControlDevice?.Dispose(); } catch { }
-                _masterControlDevice = null;
-                Logger.Log($"ApplyVolumeKey error: {ex.Message}");
-                return null;
             }
         }
     }
