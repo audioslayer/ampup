@@ -24,9 +24,10 @@ public partial class OsdView : UserControl
     public Action? OnRequestRefresh;
 
     // ── Controls built in code (BuildUi) ──────────────────────────────
-    private bool _showVolume, _showProfile, _showDevice, _hideInFullscreen;
+    private bool _showVolume, _showProfile, _showDevice, _hideInFullscreen, _showExternalVolume, _replaceWindowsOsd;
     private Action<bool> _setVolumeSwitch = _ => { }, _setProfileSwitch = _ => { },
-                         _setDeviceSwitch = _ => { }, _setFullscreenSwitch = _ => { };
+                         _setDeviceSwitch = _ => { }, _setFullscreenSwitch = _ => { },
+                         _setExternalVolumeSwitch = _ => { }, _setReplaceWindowsSwitch = _ => { };
     private FrameworkElement _volumeDurRow = null!, _profileDurRow = null!, _deviceDurRow = null!;
     private StyledSlider SldOsdVolumeDur = null!, SldOsdProfileDur = null!, SldOsdDeviceDur = null!, SldOsdWheelDur = null!;
     // Customize Wheels card
@@ -189,6 +190,10 @@ public partial class OsdView : UserControl
             out _setProfileSwitch, "Show overlay when switching profiles");
         var devSw = MakeSwitch(false, on => { _showDevice = on; _deviceDurRow.Visibility = Vis(on); QueueSave(); },
             out _setDeviceSwitch, "Show overlay when cycling audio devices");
+        var extSw = MakeSwitch(false, on => { _showExternalVolume = on; QueueSave(); },
+            out _setExternalVolumeSwitch, "Show overlay when the volume changes outside AmpUp");
+        var replaceSw = MakeSwitch(false, on => { _replaceWindowsOsd = on; QueueSave(); },
+            out _setReplaceWindowsSwitch, "Use AmpUp's overlay for the keyboard volume keys instead of Windows'");
         var fsSw = MakeSwitch(false, on => { _hideInFullscreen = on; QueueSave(); },
             out _setFullscreenSwitch, "When on, OSD won't appear over fullscreen games or apps");
 
@@ -201,6 +206,11 @@ public partial class OsdView : UserControl
         popupsBody.Children.Add(MakeSettingRow("Audio device switch", null, devSw,
             "Shows which speaker, headset or mic is now the default when a button cycles or selects a device."));
         popupsBody.Children.Add(_deviceDurRow);
+        popupsBody.Children.Add(MakeSettingRow("Volume changed elsewhere", null, extSw,
+            "Shows the overlay when the master volume changes outside AmpUp: keyboard keys, headset buttons, the Windows slider or another app."));
+        popupsBody.Children.Add(MakeSettingRow("Replace Windows volume popup", null, replaceSw,
+            "AmpUp catches the Volume Up, Down and Mute keys, changes the volume itself and shows its own overlay, so the Windows popup never appears. " +
+            "The keys go back to Windows if AmpUp closes. Windows still shows its popup while an app running as administrator is focused."));
         // Last of the on/off rows, with the others
         var fsRow = MakeSettingRow("Hide over fullscreen apps", null, fsSw,
             "Stops overlays from covering fullscreen games, videos and presentations. The knobs and buttons still work as normal.");
@@ -908,6 +918,10 @@ public partial class OsdView : UserControl
         _showProfile = config.Osd.ShowProfileSwitch;
         _showDevice = config.Osd.ShowDeviceSwitch;
         _hideInFullscreen = config.Osd.HideInFullscreen;
+        _showExternalVolume = config.Osd.ShowExternalVolume;
+        _replaceWindowsOsd = config.Osd.ReplaceWindowsVolumeOsd;
+        _setExternalVolumeSwitch(_showExternalVolume);
+        _setReplaceWindowsSwitch(_replaceWindowsOsd);
         _setVolumeSwitch(_showVolume);
         _setProfileSwitch(_showProfile);
         _setDeviceSwitch(_showDevice);
@@ -959,6 +973,8 @@ public partial class OsdView : UserControl
         _config.Osd.DeviceDuration = Math.Round(SldOsdDeviceDur.Value, 1);
         _config.Osd.WheelDuration = Math.Round(SldOsdWheelDur.Value, 1);
         _config.Osd.HideInFullscreen = _hideInFullscreen;
+        _config.Osd.ShowExternalVolume = _showExternalVolume;
+        _config.Osd.ReplaceWindowsVolumeOsd = _replaceWindowsOsd;
 
         // Collect quick wheels from dynamic rows — key each trigger by
         // (Device, LocalIdx) so a Turn Up Button 0 and an SC Side Button 0
