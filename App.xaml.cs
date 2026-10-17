@@ -4987,7 +4987,10 @@ public partial class App : Application
 
             // AmpUp's own writes carry SelfEventContext — knobs and the tray already
             // show their own feedback, so only external changes get the OSD here.
-            if (_config.Osd.ShowExternalVolume && data.EventContext != AudioMixer.SelfEventContext)
+            bool external = data.EventContext != AudioMixer.SelfEventContext;
+            if (external)
+                CheckVolumeKeyBypass();
+            if (_config.Osd.ShowExternalVolume && external)
                 QueueMasterVolumeOsd(data.MasterVolume, data.Muted);
         }
         catch { }
@@ -5020,6 +5023,33 @@ public partial class App : Application
             string label = shownMuted ? $"{_notifyMasterName} (muted)" : _notifyMasterName;
             _osdOverlay!.ShowVolume(label, shownPct, symbol);
         });
+    }
+
+    private long _lastHookReinstallTick;
+
+    /// <summary>
+    /// An external volume change while the key hook is on, with no volume key seen,
+    /// may be a key that got past the hook: Windows skips it while an elevated app
+    /// is focused, and silently drops it after a slow callback. Re-arm the hook and
+    /// log the foreground app. Also fires for the Windows slider, so it's throttled.
+    /// </summary>
+    private void CheckVolumeKeyBypass()
+    {
+        var keys = _volumeKeys;
+        if (keys == null || !keys.IsRunning) return;
+        long now = Environment.TickCount64;
+        if (now - keys.LastKeyTick < 1500 || now - _lastHookReinstallTick < 5000) return;
+        _lastHookReinstallTick = now;
+        keys.Reinstall();
+
+        string foreground = "?";
+        try
+        {
+            NativeMethods.GetWindowThreadProcessId(NativeMethods.GetForegroundWindow(), out uint pid);
+            foreground = System.Diagnostics.Process.GetProcessById((int)pid).ProcessName;
+        }
+        catch { }
+        Logger.Log($"Volume changed outside AmpUp with the key hook on (foreground: {foreground}); re-armed hook");
     }
 
     /// <summary>Starts or stops the volume key hook to match the OSD setting.</summary>

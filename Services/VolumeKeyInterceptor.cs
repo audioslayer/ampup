@@ -22,6 +22,7 @@ public sealed class VolumeKeyInterceptor : IDisposable
     private const int WM_KEYDOWN = 0x0100;
     private const int WM_SYSKEYDOWN = 0x0104;
     private const uint WM_QUIT = 0x0012;
+    private const uint WM_REINSTALL = 0x8001; // WM_APP + 1, posted to the hook thread
     private const int VK_VOLUME_MUTE = 0xAD;
     private const int VK_VOLUME_DOWN = 0xAE;
     private const int VK_VOLUME_UP = 0xAF;
@@ -33,7 +34,12 @@ public sealed class VolumeKeyInterceptor : IDisposable
     private IntPtr _hook;
     private HookProc? _proc; // held in a field so the GC can't collect it while hooked
 
+    private long _lastKeyTick;
+
     public bool IsRunning => _thread != null;
+
+    /// <summary>Environment.TickCount64 of the last volume key the hook saw.</summary>
+    public long LastKeyTick => Interlocked.Read(ref _lastKeyTick);
 
     public void Start()
     {
@@ -43,13 +49,17 @@ public sealed class VolumeKeyInterceptor : IDisposable
         {
             _threadId = GetCurrentThreadId();
             _proc = HookCallback;
-            _hook = SetWindowsHookEx(WH_KEYBOARD_LL, _proc, GetModuleHandle(null), 0);
-            if (_hook == IntPtr.Zero)
-                Logger.Log($"Volume key hook failed to install (error {Marshal.GetLastWin32Error()})");
+            InstallHook();
             ready.Set();
 
             while (GetMessage(out var msg, IntPtr.Zero, 0, 0) > 0)
             {
+                if (msg.message == WM_REINSTALL)
+                {
+                    if (_hook != IntPtr.Zero) UnhookWindowsHookEx(_hook);
+                    InstallHook();
+                    continue;
+                }
                 TranslateMessage(ref msg);
                 DispatchMessage(ref msg);
             }
@@ -63,6 +73,9 @@ public sealed class VolumeKeyInterceptor : IDisposable
         {
             IsBackground = true,
             Name = "VolumeKeyHook",
+            // Windows silently removes a low-level hook that answers too slowly, so
+            // keep this thread ahead of AmpUp's render/audio work.
+            Priority = ThreadPriority.Highest,
         };
         _thread.Start();
         ready.Wait(2000);
@@ -77,7 +90,23 @@ public sealed class VolumeKeyInterceptor : IDisposable
         thread.Join(1000);
     }
 
+    /// <summary>
+    /// Re-registers the hook. Windows gives no signal when it drops a timed-out
+    /// hook, so the caller re-arms it when a volume key appears to have slipped past.
+    /// </summary>
+    public void Reinstall()
+    {
+        if (_thread != null) PostThreadMessage(_threadId, WM_REINSTALL, IntPtr.Zero, IntPtr.Zero);
+    }
+
     public void Dispose() => Stop();
+
+    private void InstallHook()
+    {
+        _hook = SetWindowsHookEx(WH_KEYBOARD_LL, _proc!, GetModuleHandle(null), 0);
+        if (_hook == IntPtr.Zero)
+            Logger.Log($"Volume key hook failed to install (error {Marshal.GetLastWin32Error()})");
+    }
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
@@ -93,6 +122,7 @@ public sealed class VolumeKeyInterceptor : IDisposable
             };
             if (key is { } k)
             {
+                Interlocked.Exchange(ref _lastKeyTick, Environment.TickCount64);
                 int msg = (int)wParam;
                 if (msg is WM_KEYDOWN or WM_SYSKEYDOWN)
                 {
