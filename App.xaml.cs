@@ -68,6 +68,7 @@ public partial class App : Application
     private HardwareInputPump? _turnUpInputPump;
     private HardwareInputPump? _n3InputPump;
     public static DiscordRpcIntegration? DiscordRpc => (Current as App)?._discordRpc;
+    public static ObsIntegration? Obs => (Current as App)?._obs;
     private RadialWheelOverlay? _radialWheel;
     private bool _wheelVisible;
     private System.Windows.Threading.DispatcherTimer? _wheelDismissTimer;
@@ -409,6 +410,9 @@ public partial class App : Application
 
         // Start OBS Studio integration
         _obs = new ObsIntegration(_config.Obs);
+        _obs.MuteChanged += (source, muted) => SetDirectTargetMuteState($"obs:{source}", muted);
+        _obs.StateChanged += () => Dispatcher.BeginInvoke(() =>
+            _mainWindow?.SetObsStatus(_config.Obs.Enabled ? _obs.IsAvailable : null, _obs.LastError));
         _buttons.SetObsIntegration(_obs);
         if (_config.Obs.Enabled)
             _ = _obs.ConnectAsync();
@@ -1861,6 +1865,15 @@ public partial class App : Application
                     Dispatcher.BeginInvoke(() => _mainWindow?.UpdateGoveeDeviceBrightness(ip, norm, true));
                 }
             }
+            else if (knob.Target.StartsWith("obs:", StringComparison.OrdinalIgnoreCase))
+            {
+                // OBS Studio audio source volume
+                if (_obs != null && _obs.IsAvailable && _config.Obs.Enabled
+                    && Environment.TickCount64 - _startupTick >= 8000)
+                {
+                    _obs.SetSourceVolume(knob.Target.Substring(4), VolumePipeline.ComputeVolume(e.Value, knob));
+                }
+            }
             else if (knob.Target.StartsWith("vm_strip:", StringComparison.OrdinalIgnoreCase)
                   || knob.Target.StartsWith("vm_bus:", StringComparison.OrdinalIgnoreCase))
             {
@@ -2065,6 +2078,14 @@ public partial class App : Application
                 Dispatcher.BeginInvoke(() => _mainWindow?.UpdateGoveeDeviceBrightness(ip, norm, true));
             }
         }
+        else if (knob.Target.StartsWith("obs:", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_obs != null && _obs.IsAvailable && _config.Obs.Enabled
+                && Environment.TickCount64 - _startupTick >= 8000)
+            {
+                _obs.SetSourceVolume(knob.Target.Substring(4), VolumePipeline.ComputeVolume(rawValue, knob));
+            }
+        }
         else if (knob.Target.StartsWith("vm_strip:", StringComparison.OrdinalIgnoreCase)
               || knob.Target.StartsWith("vm_bus:", StringComparison.OrdinalIgnoreCase))
         {
@@ -2210,6 +2231,7 @@ public partial class App : Application
             _ when knob.Target.StartsWith("group:") => knob.Target.Substring(6),
             _ when knob.Target.StartsWith("vm_strip:") => $"VM Strip {knob.Target.Split(':')[1]}",
             _ when knob.Target.StartsWith("vm_bus:") => $"VM Bus {knob.Target.Split(':')[1]}",
+            _ when knob.Target.StartsWith("obs:") => knob.Target.Substring(4),
             "corsair_pump_fan" => "Pump Fan",
             "corsair_case_fan" => "Case Fans",
             _ => knob.Target
@@ -2228,6 +2250,7 @@ public partial class App : Application
             "discord" => "Headphones",
             _ when knob.Target.StartsWith("ha_") => "Home",
             _ when knob.Target.StartsWith("vm_") => "VolumeHigh",
+            _ when knob.Target.StartsWith("obs:") => "Broadcast",
             _ when knob.Target.StartsWith("corsair_") => "Fan",
             _ => "VolumeHigh"
         };
@@ -2436,7 +2459,8 @@ public partial class App : Application
             && !normalized.StartsWith("group:", StringComparison.Ordinal)
             && !normalized.StartsWith("govee:", StringComparison.Ordinal)
             && !normalized.StartsWith("vm_strip:", StringComparison.Ordinal)
-            && !normalized.StartsWith("vm_bus:", StringComparison.Ordinal);
+            && !normalized.StartsWith("vm_bus:", StringComparison.Ordinal)
+            && !normalized.StartsWith("obs:", StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -5165,6 +5189,15 @@ public partial class App : Application
                     read = _vm.TryGetBusMuted(vmIdx, out vmMuted);
                 }
                 if (read) _rgb.SetTargetMuted(knob.Idx, vmMuted);
+                continue;
+            }
+
+            if (target.StartsWith("obs:", StringComparison.OrdinalIgnoreCase))
+            {
+                bool obsMuted = false;
+                if (_obs != null && _config.Obs.Enabled && _obs.IsAvailable)
+                    _obs.TryGetMuted(target.Substring(4), out obsMuted);
+                _rgb.SetTargetMuted(knob.Idx, obsMuted);
                 continue;
             }
 

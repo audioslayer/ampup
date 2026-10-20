@@ -244,6 +244,7 @@ public partial class ButtonsView
             else
             {
                 ApplyPathLabelAndButtons(_scPathLabel, _scPathBox, _scBrowsePathButton, _scPickPathButton, action, _scAppChip);
+                _scPickPathButton.Visibility = action is "obs_scene" or "obs_mute" ? Visibility.Visible : Visibility.Collapsed;
                 SetPathHeader(HeaderTextForAction(action, _scPathLabel.Text));
             }
         }

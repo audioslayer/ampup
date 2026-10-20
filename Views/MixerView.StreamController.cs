@@ -446,6 +446,12 @@ public partial class MixerView
             knob.Target = !string.IsNullOrEmpty(deviceIp) ? $"govee:{deviceIp}" : "govee";
             knob.DeviceId = "";
         }
+        else if (target == "obs_source")
+        {
+            var source = picker.SelectedSubTag ?? "";
+            knob.Target = !string.IsNullOrEmpty(source) ? $"obs:{source}" : "none";
+            knob.DeviceId = "";
+        }
         else
         {
             knob.Target = target;

@@ -1144,6 +1144,8 @@ public partial class ButtonsView : UserControl
                 SetTextBoxValue(box, "");
         }
 
+        pickBtn.Tag = action; // read by the Stream Controller pick button to pick the right list
+
         // App-targeting actions show the app picker trigger; everything else shows the textbox input.
         bool showChip = action is "launch_exe" or "close_program" or "mute_program" && chip != null;
         UIElement? inputElement = box?.Parent as System.Windows.Controls.Border ?? (UIElement?)box;
@@ -1218,16 +1220,16 @@ public partial class ButtonsView : UserControl
             case "obs_scene":
                 label.Text = "SCENE NAME";
                 SetPlaceholderText("Gaming");
-                if (box != null) box.ToolTip = "OBS scene name to switch to (e.g. Gaming, Webcam)";
+                if (box != null) box.ToolTip = "OBS scene to switch to — pick from the list or type the name";
                 browseBtn.Visibility = Visibility.Collapsed;
-                pickBtn.Visibility = Visibility.Collapsed;
+                pickBtn.Visibility = Visibility.Visible;
                 break;
             case "obs_mute":
                 label.Text = "SOURCE NAME";
                 SetPlaceholderText("Mic/Aux");
-                if (box != null) box.ToolTip = "OBS audio source name to toggle mute (e.g. Mic/Aux, Desktop Audio)";
+                if (box != null) box.ToolTip = "OBS audio source to mute or unmute — pick from the list or type the name";
                 browseBtn.Visibility = Visibility.Collapsed;
-                pickBtn.Visibility = Visibility.Collapsed;
+                pickBtn.Visibility = Visibility.Visible;
                 break;
             case "vm_mute_strip":
                 label.Text = "STRIP INDEX";
@@ -1985,10 +1987,22 @@ public partial class ButtonsView : UserControl
 
     private void ShowProcessPicker(Button anchor, TextBox targetBox, string action)
     {
-        if (_mixer == null) return;
-
         List<string> processes;
-        if (action == "mute_program")
+        string emptyMessage = "No processes found";
+        if (action is "obs_scene" or "obs_mute")
+        {
+            var obs = App.Obs;
+            bool connected = obs?.IsAvailable == true;
+            processes = !connected ? new List<string>()
+                : action == "obs_scene" ? obs!.Scenes.ToList() : obs!.AudioSources.ToList();
+            emptyMessage = !connected ? "OBS isn't connected (Settings → Integrations)"
+                : action == "obs_scene" ? "No scenes in OBS" : "No audio sources in OBS";
+        }
+        else if (_mixer == null)
+        {
+            return;
+        }
+        else if (action == "mute_program")
         {
             // Only show processes with active audio sessions
             processes = _mixer.GetRunningAudioApps();
@@ -2014,7 +2028,7 @@ public partial class ButtonsView : UserControl
 
         if (processes.Count == 0)
         {
-            var tip = new System.Windows.Controls.ToolTip { Content = "No processes found", IsOpen = true };
+            var tip = new System.Windows.Controls.ToolTip { Content = emptyMessage, IsOpen = true };
             anchor.ToolTip = tip;
             Dispatcher.InvokeAsync(async () =>
             {

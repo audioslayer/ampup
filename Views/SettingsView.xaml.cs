@@ -1431,9 +1431,20 @@ public partial class SettingsView : UserControl
         using var obs = new ObsIntegration(testConfig);
         var ok = await obs.TestConnectionAsync();
         ObsStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(ok ? "#00E676" : "#FF4444"));
-        TxtObsStatus.Text = ok ? "Connected" : "Connection failed";
+        TxtObsStatus.Text = ok
+            ? $"Connected · {obs.AudioSources.Count} audio sources"
+            : obs.LastError ?? "Connection failed";
         BtnObsTest.IsEnabled = true;
         UpdateObsHeaderStatus(ok);
+    }
+
+    /// <summary>Live status from the running OBS connection (null = integration disabled).</summary>
+    public void UpdateObsStatus(bool? connected, string? error)
+    {
+        if (connected == null) { RefreshObsHeaderStatus(); return; }
+        UpdateObsHeaderStatus(connected);
+        ObsStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(connected == true ? "#00E676" : "#FF4444"));
+        TxtObsStatus.Text = connected == true ? "Connected" : error ?? "Not connected";
     }
 
     private void RefreshObsHeaderStatus()
@@ -1445,10 +1456,14 @@ public partial class SettingsView : UserControl
             ObsStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#555555"));
             TxtObsStatusHeader.Text = "Disabled";
         }
+        else if (App.Obs?.IsAvailable == true)
+        {
+            UpdateObsHeaderStatus(true);
+        }
         else
         {
             ObsStatusDotHeader.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFB800"));
-            TxtObsStatusHeader.Text = "Enabled";
+            TxtObsStatusHeader.Text = App.Obs?.LastError != null ? "Not connected" : "Enabled";
         }
     }
 

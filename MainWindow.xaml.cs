@@ -1951,6 +1951,11 @@ public partial class MainWindow : FluentWindow
         });
     }
 
+    public void SetObsStatus(bool? connected, string? error)
+    {
+        _settingsView.UpdateObsStatus(connected, error);
+    }
+
     public void SetVoiceMeeterStatus(bool? connected, bool available = true, bool requiresRestart = false)
     {
         Dispatcher.Invoke(() => _settingsView.UpdateVmStatus(connected, available, requiresRestart));

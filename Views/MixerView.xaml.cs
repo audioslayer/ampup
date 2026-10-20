@@ -42,6 +42,7 @@ public partial class MixerView : UserControl
         { "apps", "App group" },
         { "led_brightness", "Turn Up LED brightness" },
         { "govee", "Govee light" },
+        { "obs_source", "OBS audio source" },
         { "room_lights", "Room lights" }
     };
 
@@ -1045,6 +1046,29 @@ public partial class MixerView : UserControl
             .ToList();
     }
 
+    /// <summary>Audio sources reported by OBS, plus any source a knob already points at
+    /// (so a saved target stays visible while OBS is closed or the source was renamed).</summary>
+    private static List<GridPicker.SubItem> GetObsSubItems(AppConfig config, Color color)
+    {
+        var obs = App.Obs;
+        var live = obs?.IsAvailable == true ? obs.AudioSources : Array.Empty<string>();
+        var items = live
+            .Select(n => new GridPicker.SubItem(n, n, null, color,
+                obs!.TryGetMuted(n, out var m) && m ? MaterialIconKind.MicrophoneOff : MaterialIconKind.Broadcast))
+            .ToList();
+
+        var saved = config.Knobs.Concat(config.N3.Knobs)
+            .Select(k => k.Target ?? "")
+            .Where(t => t.StartsWith("obs:", StringComparison.OrdinalIgnoreCase))
+            .Select(t => t.Substring(4))
+            .Distinct(StringComparer.Ordinal)
+            .Where(n => !live.Contains(n));
+        foreach (var n in saved)
+            items.Add(new GridPicker.SubItem(n, n, null, Color.FromRgb(0x88, 0x88, 0x88), MaterialIconKind.Broadcast,
+                obs?.IsAvailable == true ? "Not found in OBS" : "OBS not connected"));
+        return items;
+    }
+
     // --- Picker helpers ---
 
     private void RebuildTargetPickerItems(AppConfig config)
@@ -1082,12 +1106,14 @@ public partial class MixerView : UserControl
         bool goveeEnabled = config.Ambience.GoveeEnabled && config.Ambience.GoveeDevices.Count > 0;
         bool vmEnabled = config.VoiceMeeter.Enabled;
         bool corsairEnabled = config.Corsair.Enabled && config.Corsair.FanEnabled;
-        bool hasIntegrations = haEnabled || goveeEnabled || vmEnabled || corsairEnabled;
+        bool obsEnabled = config.Obs.Enabled;
+        bool hasIntegrations = haEnabled || goveeEnabled || vmEnabled || corsairEnabled || obsEnabled;
 
         var clrGrey = Color.FromRgb(0x88, 0x88, 0x88);
         var clrRoom = Color.FromRgb(0x69, 0xF0, 0xAE);
         var clrVM = Color.FromRgb(0xFF, 0x8F, 0x00);
         var clrCorsair = Color.FromRgb(0xFF, 0xD3, 0x00);
+        var clrObs = Color.FromRgb(0x7C, 0x4D, 0xFF);
 
         // ── Audio ──
         picker.AddCategory("Audio");
@@ -1186,6 +1212,13 @@ public partial class MixerView : UserControl
                     picker.AddItem($"VoiceMeeter bus {b + 1}", $"vm_bus:{b}", MaterialIconKind.SpeakerMultiple, clrVM, "Output bus gain", "voicemeeter");
             }
 
+            if (obsEnabled)
+            {
+                picker.AddItem("OBS audio source", "obs_source", MaterialIconKind.Broadcast, clrObs,
+                    "Volume of a mic, desktop audio or media source in OBS", keywords: "obs studio stream source gain");
+                picker.RegisterSubMenu("obs_source", () => GetObsSubItems(config, clrObs));
+            }
+
             if (corsairEnabled)
             {
                 picker.AddItem("Corsair pump fan", "corsair_pump_fan", MaterialIconKind.WaterPump, clrCorsair, "Pump fan speed");
@@ -1248,6 +1281,16 @@ public partial class MixerView : UserControl
             picker.SelectByTag(baseTarget, deviceId, displayName);
             if (picker.Tag is TextBlock display)
                 display.Text = displayName;
+            return;
+        }
+
+        // OBS source — sub-tag is the source name (may itself contain ':')
+        if (baseTarget == "obs" && target.Length > 4)
+        {
+            var source = target.Substring(4);
+            picker.SelectByTag("obs_source", source, source);
+            if (picker.Tag is TextBlock obsDisplay)
+                obsDisplay.Text = source;
             return;
         }
 
@@ -1615,6 +1658,11 @@ public partial class MixerView : UserControl
             {
                 var deviceIp = _targetPickers[i].SelectedSubTag ?? "";
                 knob.Target = !string.IsNullOrEmpty(deviceIp) ? $"govee:{deviceIp}" : "govee";
+            }
+            else if (selectedTarget == "obs_source")
+            {
+                var source = _targetPickers[i].SelectedSubTag ?? "";
+                knob.Target = !string.IsNullOrEmpty(source) ? $"obs:{source}" : "none";
             }
             else if (selectedTarget == "apps")
             {
@@ -2168,7 +2216,7 @@ public partial class MixerView : UserControl
             "none", "master", "mic", "system", "any", "active_window",
             "output_device", "input_device", "monitor", "led_brightness",
             "room_lights", "govee", "corsair_pump_fan", "corsair_case_fan",
-            "sc_space_cycle", "sc_page_cycle"
+            "sc_space_cycle", "sc_page_cycle", "obs_source"
         };
         if (reserved.Contains(target)) return false;
 

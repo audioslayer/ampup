@@ -210,4 +210,110 @@ using (var manualVm = MakeVm(() => manualDllReady, () => 0, () => 0, () => 0))
     manualVm.SetInstallDirectory("");
     Check(!manualVm.RequiresRestart, "Automatic detection clears the explicit VoiceMeeter folder override");
 }
+
+// ── OBS Studio (obs-websocket v5 against an in-process fake server) ──
+async Task<bool> WaitFor(Func<bool> condition, int timeoutMs = 3000)
+{
+    var sw = System.Diagnostics.Stopwatch.StartNew();
+    while (sw.ElapsedMilliseconds < timeoutMs)
+    {
+        if (condition()) return true;
+        await Task.Delay(20);
+    }
+    return condition();
+}
+
+async Task RunObsChecks()
+{
+    Check(ObsIntegration.NormalizedToDb(1f) == 0f && ObsIntegration.NormalizedToDb(0f) == -100f
+          && Math.Abs(ObsIntegration.NormalizedToDb(0.5f) - -18.74f) < 0.05f,
+        "OBS knob mapping follows OBS's own fader (full = 0 dB, half ≈ -18.7 dB, zero = silent)");
+
+    using (var obsServer = new FakeObsServer { Password = "hunter2" })
+    {
+        obsServer.Inputs["Mic/Aux"] = false;
+        obsServer.Inputs["Desktop Audio"] = true;
+        obsServer.Inputs["Webcam"] = null; // video only
+        obsServer.Scenes.AddRange(new[] { "Gaming", "Just Chatting", "BRB" });
+
+        var obsConfig = new ObsConfig { Enabled = true, Host = "127.0.0.1", Port = obsServer.Port, Password = "hunter2" };
+        using var obs = new ObsIntegration(obsConfig);
+        var mutes = new List<(string, bool)>();
+        obs.MuteChanged += (n, m) => { lock (mutes) mutes.Add((n, m)); };
+
+        Check(await obs.ConnectAsync() && obs.IsAvailable, "OBS connects with password authentication");
+        Check(await WaitFor(() => obs.AudioSources.Count == 2),
+            "OBS lists audio sources: " + string.Join(", ", obs.AudioSources));
+        Check(obs.AudioSources.SequenceEqual(new[] { "Mic/Aux", "Desktop Audio" }), "OBS source list skips video-only inputs");
+        Check(obs.Scenes.SequenceEqual(new[] { "Gaming", "Just Chatting", "BRB" }), "OBS scenes are listed in OBS's top-to-bottom order");
+        Check(obs.TryGetMuted("Desktop Audio", out var desktopMuted) && desktopMuted
+              && obs.TryGetMuted("Mic/Aux", out var micMutedObs) && !micMutedObs,
+            "OBS initial mute state is read for each source");
+
+        await obsServer.EmitEventAsync("InputMuteStateChanged", new Newtonsoft.Json.Linq.JObject { ["inputName"] = "Mic/Aux", ["inputMuted"] = true });
+        Check(await WaitFor(() => obs.TryGetMuted("Mic/Aux", out var m) && m)
+              && await WaitFor(() => { lock (mutes) return mutes.Contains(("Mic/Aux", true)); }),
+            "OBS mute changes made in OBS reach AmpUp (mute LEDs)");
+
+        obsServer.Inputs["Music"] = false;
+        await obsServer.EmitEventAsync("InputCreated", new Newtonsoft.Json.Linq.JObject { ["inputName"] = "Music" });
+        Check(await WaitFor(() => obs.AudioSources.Contains("Music")), "Sources added in OBS show up without reconnecting");
+
+        obsServer.VolumeDelayMs = 30;
+        for (int i = 1; i <= 60; i++)
+        {
+            obs.SetSourceVolume("Mic/Aux", i / 100f);
+            await Task.Delay(2);
+        }
+        float expectedDb = ObsIntegration.NormalizedToDb(0.60f);
+        Check(await WaitFor(() =>
+            {
+                var sets = obsServer.SnapshotVolumeSets();
+                return sets.Count > 0 && sets[^1].Db.HasValue && Math.Abs(sets[^1].Db!.Value - expectedDb) < 0.01;
+            }),
+            "OBS knob volume lands on the final knob position");
+        await Task.Delay(200);
+        int volumeSends = obsServer.SnapshotVolumeSets().Count;
+        Check(volumeSends < 60, $"Fast knob spins are coalesced ({volumeSends} sends for 60 moves)");
+
+        obsServer.VolumeDelayMs = 0;
+        obs.SetSourceVolume("Desktop Audio", 0f);
+        Check(await WaitFor(() => obsServer.SnapshotVolumeSets().Any(v => v.Input == "Desktop Audio" && v.Mul == 0)),
+            "OBS knob at zero fully silences the source");
+
+        // Concurrent senders must not trip ClientWebSocket's one-send-at-a-time rule
+        var burst = Enumerable.Range(0, 20).Select(_ => obs.RefreshStatusAsync()).ToArray();
+        for (int i = 0; i < 20; i++) obs.SetSourceVolume("Music", i / 20f);
+        await Task.WhenAll(burst);
+        Check(obs.IsAvailable, "OBS stays connected under concurrent requests");
+
+        // Changing the address on the live config (dual-PC setup) moves the connection
+        using var secondServer = new FakeObsServer();
+        secondServer.Inputs["Stream PC Mic"] = false;
+        obsConfig.Port = secondServer.Port;
+        obsConfig.Password = "";
+        obs.UpdateConfig(obsConfig);
+        Check(await WaitFor(() => obs.IsAvailable && obs.AudioSources.SequenceEqual(new[] { "Stream PC Mic" }), 6000),
+            "Changing OBS host/port in Settings reconnects to the new address");
+
+        bool lost = false;
+        obs.StateChanged += () => { if (!obs.IsAvailable) lost = true; };
+        secondServer.DropClient();
+        Check(await WaitFor(() => lost && !obs.IsAvailable), "OBS closing is detected and reported");
+    }
+
+    using (var lockedServer = new FakeObsServer { Password = "right" })
+    {
+        using var obs = new ObsIntegration(new ObsConfig { Enabled = true, Host = "127.0.0.1", Port = lockedServer.Port, Password = "wrong" });
+        Check(!await obs.ConnectAsync() && obs.LastError == "OBS rejected the password",
+            "Wrong OBS password is reported as such: " + obs.LastError);
+    }
+    using (var obs = new ObsIntegration(new ObsConfig { Enabled = true, Host = "127.0.0.1", Port = 1, Password = "" }))
+    {
+        Check(!await obs.ConnectAsync() && obs.LastError != null && obs.LastError.Contains("127.0.0.1:1"),
+            "Unreachable OBS names the address it tried: " + obs.LastError);
+    }
+}
+RunObsChecks().GetAwaiter().GetResult();
+
 Console.WriteLine($"{passed} regression checks passed.");

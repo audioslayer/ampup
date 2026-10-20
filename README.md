@@ -150,7 +150,7 @@ The **OSD** page also controls the volume, profile, and device pop-ups: turn eac
 | **Govee** | LAN and Cloud devices, scenes, brightness, color, temperature, groups, RGBIC segments, room effects, and screen/music sync |
 | **Corsair iCUE** | Room lighting, static and reactive effects, device sync, and supported fan/pump controls |
 | **Home Assistant** | Entity actions and controls from hardware buttons, knobs, and N3 keys |
-| **OBS Studio** | Streaming/recording actions and dynamic N3 status displays |
+| **OBS Studio** | Knobs control OBS audio source volume (local or on a second streaming PC), buttons switch scenes, mute sources, and start/stop streaming and recording, mute LEDs follow OBS, and N3 keys show live status |
 | **VoiceMeeter** | Strip and bus gain and mute for Basic, Banana, and Potato; automatic detection or a chosen install folder, with automatic reconnect when VoiceMeeter restarts |
 | **Spotify** | Playback actions, session restore, track state, and N3 now-playing artwork |
 | **Discord RPC** | Mute, deafen, voice-state, leave-channel, and noise-suppression actions. Tester preview until Discord approves public access: join the [WolfDen Discord](https://discord.gg/TDkfWSjqZ) and DM audio in #amp-up to be added |

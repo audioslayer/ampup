@@ -1429,8 +1429,13 @@ public partial class ButtonsView
 
         var buttonRow = new StackPanel { Orientation = Orientation.Horizontal };
         var browse = MakeEditorButton("Browse", (_, _) => BrowsePathForSelectedStreamAction());
-        // Hidden for app actions (the app picker replaces it); kept for the shared row signature.
-        var pick = MakeEditorButton("Pick Running App", (_, _) => { });
+        // Only shown for OBS scene / source actions (ApplyPathLabelAndButtons stamps the action in Tag).
+        Button pick = null!;
+        pick = MakeEditorButton("Pick from OBS", (_, _) =>
+        {
+            if (pick.Tag is string a && a is "obs_scene" or "obs_mute")
+                ShowProcessPicker(pick, box, a);
+        });
         pick.Visibility = Visibility.Collapsed;
         pick.Margin = new Thickness(8, 0, 0, 0);
         buttonRow.Children.Add(browse);
@@ -2902,6 +2907,7 @@ public partial class ButtonsView
             else
             {
                 ApplyPathLabelAndButtons(_scPathLabel, _scPathBox, _scBrowsePathButton, _scPickPathButton, action, _scAppChip);
+                _scPickPathButton.Visibility = action is "obs_scene" or "obs_mute" ? Visibility.Visible : Visibility.Collapsed;
             }
         }
 
